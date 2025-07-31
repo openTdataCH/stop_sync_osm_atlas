@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>OSM & ATLAS Matching Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #333; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        h2 { color: #333366; }
+        .report-header { margin-bottom: 20px; }
+        .report-info { color: #666; font-size: 11px; }
+        .no-matches { color: #cc0000; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="report-header">
+        <h2>{{ report_title }}</h2>
+        <p class="report-info">Report generated at: {{ generated_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+        <p class="report-info">Sort Order: {{ sort_order }}</p>
+        <p class="report-info">Number of entries: {{ report_items|length }}</p>
+    </div>
+    
+    {% if report_items|length == 0 %}
+    <p class="no-matches">No items found for this report criteria.</p>
+    {% else %}
+    <table>
+        <thead>
+            {% if report_type == 'duplicates' %}
+            <tr>
+                <th>UIC Number</th>
+                <th>Designation</th>
+                <th>ATLAS Sloid A</th>
+                <th>Official Designation A</th>
+                <th>ATLAS Sloid B</th>
+                <th>Official Designation B</th>
+            </tr>
+            {% else %}
+            <tr>
+                <th>ATLAS Sloid</th>
+                <th>Official Designation</th>
+                <th>OSM Node ID</th>
+                <th>Distance (m)</th>
+                <th>Matching Method</th>
+            </tr>
+            {% endif %}
+        </thead>
+        <tbody>
+            {% for item in report_items %}
+            <tr>
+                {% if report_type == 'duplicates' %}
+                <td>{{ item.uic_ref if item.uic_ref else 'N/A' }}</td>
+                <td>{{ item.atlas_designation if item.atlas_designation else 'N/A' }}</td>
+                <td>{{ item.sloid_A if item.sloid_A else 'N/A' }}</td>
+                <td>{{ item.designation_official_A if item.designation_official_A else 'N/A' }}</td>
+                <td>{{ item.sloid_B if item.sloid_B else 'N/A' }}</td>
+                <td>{{ item.designation_official_B if item.designation_official_B else 'N/A' }}</td>
+                {% else %}
+                <td>{{ item.sloid }}</td>
+                <td>{{ item.atlas_designation_official if item.atlas_designation_official else 'N/A' }}</td>
+                <td>{{ item.osm_node_id if item.osm_node_id else 'N/A' }}</td>
+                <td>
+                    {% if item.distance_m %}
+                        {{ '%.1f'|format(item.distance_m) }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td>{{ item.match_type if item.match_type else 'N/A' }}</td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</body>
+</html>

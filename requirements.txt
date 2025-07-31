@@ -1,0 +1,12 @@
+Flask
+Flask-SQLAlchemy
+PyMySQL==1.1.0
+pandas
+requests==2.31.0
+pdfkit
+numpy
+tqdm # Used in get_atlas_data.py
+scipy
+matplotlib # Used in osm_analysis.py for plotting
+sqlalchemy # Used in import_data_db.py for database operations
+cryptography

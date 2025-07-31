@@ -1,0 +1,175 @@
+/* Styles specific to the Persistent Data Management page */
+
+.solution-card {
+    margin-bottom: 15px;
+    border-left: 5px solid #28a745;
+    transition: all 0.2s ease;
+}
+
+.solution-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.solution-card.distance {
+    border-left-color: #dc3545;
+}
+
+.solution-card.isolated {
+    border-left-color: #ffc107;
+}
+
+.solution-card.attributes {
+    border-left-color: #17a2b8;
+}
+
+.solution-card.atlas_note {
+    border-left-color: #0dcaf0;
+}
+
+.solution-card.osm_note {
+    border-left-color: #0d6efd;
+}
+
+.solution-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.solution-content {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.tab-content {
+    max-height: calc(100vh - 300px);
+    overflow-y: auto;
+}
+
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+/* Tab navigation improvements */
+.nav-tabs {
+    margin-bottom: 20px;
+}
+
+.nav-tabs .nav-link {
+    color: #495057;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: #e9ecef #e9ecef #dee2e6;
+    color: #007bff;
+}
+
+.nav-tabs .nav-link.active {
+    color: #495057;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+}
+
+/* Data container styling */
+#dataContainer {
+    min-height: 200px;
+}
+
+/* Button group improvements */
+.btn-group .btn {
+    margin-right: 5px;
+}
+
+.btn-group .btn:last-child {
+    margin-right: 0;
+}
+
+/* Alert improvements for persistent data page */
+.alert {
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+}
+
+.alert-dismissible .close {
+    padding: 0.75rem 1.25rem;
+}
+
+/* Loading states */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Badge improvements */
+.badge {
+    display: inline-block;
+    padding: 0.25em 0.6em;
+    font-size: 75%;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.375rem;
+}
+
+.badge-success {
+    color: #fff;
+    background-color: #28a745;
+}
+
+.badge-info {
+    color: #fff;
+    background-color: #17a2b8;
+}
+
+.badge-primary {
+    color: #fff;
+    background-color: #007bff;
+}
+
+.badge-warning {
+    color: #212529;
+    background-color: #ffc107;
+}
+
+.badge-danger {
+    color: #fff;
+    background-color: #dc3545;
+}
+
+.badge-secondary {
+    color: #fff;
+    background-color: #6c757d;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .solution-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .btn-group {
+        width: 100%;
+    }
+    
+    .btn-group .btn {
+        flex: 1;
+        margin-right: 5px;
+    }
+    
+    .tab-content {
+        max-height: calc(100vh - 400px);
+    }
+} 

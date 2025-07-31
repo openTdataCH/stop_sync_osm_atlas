@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Map Snapshot</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; }
+        #map { height: 100%; width: 100%; background-color: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='js/map-renderer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/popup-utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/popup-renderer.js') }}"></script>
+     <script src="{{ url_for('static', filename='js/move_popup.js') }}"></script>
+    
+    <script>
+        $(document).ready(function() {
+            var map = L.map('map').setView([46.8, 8.2], 8); // Default view
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxNativeZoom: 19,
+                maxZoom: 19,
+                attribution: '© OpenStreetMap'
+            }).addTo(map);
+
+            const uicRef = new URLSearchParams(window.location.search).get('uic_ref');
+            const operator = new URLSearchParams(window.location.search).get('operator');
+
+            if (uicRef) {
+                // Fetch data for the specific UIC group
+                $.getJSON(`/api/uic_group_data?uic_ref=${uicRef}&operator=${operator}`, function(stops) {
+                    if (stops && stops.length > 0) {
+                        var markersLayer = L.layerGroup().addTo(map);
+                        var linesLayer = L.layerGroup().addTo(map);
+                        var allPoints = [];
+
+                        stops.forEach(function(stop) {
+                            if (stop.atlas_lat && stop.atlas_lon) {
+                                createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'green', stop.atlas_duplicate_sloid).addTo(markersLayer);
+                                allPoints.push([stop.atlas_lat, stop.atlas_lon]);
+                            }
+                            if (stop.osm_lat && stop.osm_lon) {
+                                createOsmMarker(stop.osm_lat, stop.osm_lon, 'blue', stop.osm_node_type).addTo(markersLayer);
+                                allPoints.push([stop.osm_lat, stop.osm_lon]);
+                            }
+                            if (stop.stop_type === 'matched' && stop.atlas_lat && stop.osm_lat) {
+                                L.polyline([[stop.atlas_lat, stop.atlas_lon], [stop.osm_lat, stop.osm_lon]], { color: 'purple' }).addTo(linesLayer);
+                            }
+                        });
+
+                        if (allPoints.length > 0) {
+                            map.fitBounds(L.latLngBounds(allPoints).pad(0.1));
+                        }
+                         // Add a custom signal to indicate that rendering is complete
+                        document.body.setAttribute('data-map-rendered', 'true');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html> 

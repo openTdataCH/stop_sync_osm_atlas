@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Problem Identification Tool</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <!-- Bootstrap CSS for UI elements -->
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <!-- Popup CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/popup.css') }}">
+  <!-- Custom CSS from index -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- Problems Page Specific CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/problems.css') }}">
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+  <style>
+    /* Inline styles for basic layout - more complex styles are in problems.css */
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* Prevent body scrollbars */
+    }
+    .container-fluid {
+        height: 100vh;
+        padding: 0;
+    }
+    .header-icon {
+        height: 88px;
+        width: auto;
+        vertical-align: middle;
+        position: relative;
+        z-index: 1;
+    }
+    .header-title {
+        position: relative;
+        z-index: 2;
+        background: white;
+        padding: 0 5px;
+    }
+    .header-container {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 -60px;
+        padding: 10px 0;
+    }
+    /* Dropdown styling */
+    .problem-type-options-list {
+        border: 1px solid rgba(0, 0, 0, .15);
+        border-radius: .25rem;
+        margin-top: .125rem;
+        max-height: 520px;
+        overflow-y: auto;
+    }
+
+    .dropdown-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+  </style>
+</head>
+<body>
+<div class="container-fluid d-flex flex-column vh-100">
+  <h1 class="mt-3 mb-3 text-center display-4 flex-shrink-0">
+    <div class="header-container">
+      <img src="{{ url_for('static', filename='header/header.svg') }}" alt="OSM & ATLAS Logo Left" class="header-icon">
+      <span class="header-title">Problems Resolution</span>
+    </div>
+  </h1>
+  
+  <!-- Main Content Area -->
+  <div class="main-content flex-grow-1">
+    <!-- Collapsible Filter Panel -->
+    <div class="filter-panel" id="filterPanel">
+      <button class="filter-toggle-btn" id="filterToggleBtn" type="button">
+        <i class="fas fa-filter"></i>
+        <span class="toggle-text">Filters</span>
+        <i class="fas fa-chevron-left toggle-icon"></i>
+      </button>
+      
+      <div class="filter-content" id="filterContent">
+        <div class="filter-header d-flex justify-content-between align-items-center">
+          <strong><i class="fas fa-sliders-h"></i> Problem Filters</strong>
+          <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Back to Map
+          </a>
+        </div>
+        
+        <div class="filter-body">
+          <div class="compact-group">
+            <label for="problemTypeFilter">Filter by Problem Type:</label>
+            <div>
+              <button class="btn btn-outline-secondary dropdown-toggle btn-block" type="button" id="problemTypeFilter" data-toggle="collapse" data-target="#problemTypeFilterCollapse" aria-expanded="false" aria-controls="problemTypeFilterCollapse">
+                <i class="fas fa-filter"></i> All Problems <span class="caret"></span>
+              </button>
+              <div class="collapse" id="problemTypeFilterCollapse">
+                <div class="problem-type-options-list" id="problemTypeFilterDropdown">
+                  <!-- Options will be dynamically populated by JavaScript -->
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="compact-group">
+            <label for="atlasOperatorFilterProblems">Atlas Operator:</label>
+            <div id="atlasOperatorFilterProblems"></div>
+          </div>
+          
+          <!-- Sorting Controls -->
+          <div class="compact-group" id="sortingControls" style="display: none;">
+            <label for="sortButton">Sort Distance Problems:</label>
+            <div class="dropdown">
+              <button class="btn btn-outline-info dropdown-toggle btn-block" type="button" id="sortButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <i class="fas fa-sort"></i> Default Order
+              </button>
+              <div class="dropdown-menu w-100" aria-labelledby="sortButton">
+                <a class="dropdown-item sort-option" href="#" data-sort-by="default" data-sort-order="asc">
+                  <i class="fas fa-sort"></i> Default Order
+                </a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item sort-option" href="#" data-sort-by="distance" data-sort-order="asc">
+                  <i class="fas fa-sort-numeric-down"></i> Nearest First
+                </a>
+                <a class="dropdown-item sort-option" href="#" data-sort-by="distance" data-sort-order="desc">
+                  <i class="fas fa-sort-numeric-up"></i> Farthest First
+                </a>
+              </div>
+            </div>
+          </div>
+          
+          <div class="compact-group mt-4">
+            <div class="card">
+              <div class="card-header bg-light">
+                <strong><i class="fas fa-thumbtack"></i> Persistence Options</strong>
+              </div>
+              <div class="card-body">
+                <!-- Auto-persist toggle -->
+                <div class="custom-control custom-switch mb-3">
+                  <input type="checkbox" class="custom-control-input" id="autoPersistToggle">
+                  <label class="custom-control-label" for="autoPersistToggle">
+                    Auto-persist new solutions
+                    <small class="d-block text-muted">Automatically make all new solutions persistent</small>
+                  </label>
+                </div>
+                
+                <!-- Auto-persist notes toggle -->
+                <div class="custom-control custom-switch mb-3">
+                  <input type="checkbox" class="custom-control-input" id="autoPersistNotesToggle">
+                  <label class="custom-control-label" for="autoPersistNotesToggle">
+                    Auto-persist new notes
+                    <small class="d-block text-muted">Automatically make all new notes persistent</small>
+                  </label>
+                </div>
+                
+                <!-- Batch persist button -->
+                <button id="batchPersistBtn" class="btn btn-outline-success btn-sm btn-block mb-2">
+                  <i class="fas fa-save"></i> Make All Current Solutions Persistent
+                </button>
+                
+                <!-- Manage persistent solutions link -->
+                <a href="{{ url_for('persistent_data') }}" class="btn btn-info btn-sm btn-block mb-3">
+                  <i class="fas fa-database"></i> Manage Persistent Data
+                </a>
+                
+                <small class="text-muted d-block">
+                  <i class="fas fa-info-circle"></i> Persistent solutions are automatically applied after data imports
+                </small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Map and Problem Content -->
+    <div class="content-area" id="contentArea">
+      <!-- Map Section -->
+      <div class="map-section" id="mapSection">
+        <div id="problemMap"></div>
+      </div>
+      
+      <!-- Resizable Divider -->
+      <div class="resize-divider" id="resizeDivider">
+        <div class="resize-handle">
+          <i class="fas fa-grip-lines-vertical"></i>
+        </div>
+      </div>
+      
+      <!-- Problem Solving Section -->
+      <div class="problem-section" id="problemSection">
+        <!-- Problem Info and Navigation Bar -->
+        <div class="problem-info-bar d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center">
+            <button id="prevProblemBtn" class="btn btn-outline-secondary mr-2">
+              <i class="fas fa-chevron-left"></i> Prev
+            </button>
+            <button id="toggleContextBtn" class="btn btn-outline-secondary mr-2">
+              <i class="fas fa-eye-slash"></i> Context
+            </button>
+          </div>
+          <button id="nextProblemBtn" class="btn btn-outline-secondary">
+              Next <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+        
+        <div class="problem-content-header text-center">
+          <h5 id="problemTypeDisplay" class="mb-0">Loading...</h5>
+        </div>
+
+        <div class="problem-content" id="problemContent">
+          <div id="actionButtonsContent">
+            <!-- Problem-specific content will be dynamically inserted here -->
+          </div>
+          
+          <!-- Notes Section -->
+          <div class="notes-section" id="notesSection" style="display: none;">
+            <h6><i class="fas fa-sticky-note"></i> Notes</h6>
+            
+            <div class="row">
+              <div class="col-md-6" id="atlasNoteContainer">
+                <div class="note-editor">
+                  <label for="atlasNote"><i class="fas fa-map-marker-alt text-info"></i> ATLAS Note:</label>
+                  <textarea id="atlasNote" class="form-control" placeholder="Add a note for this ATLAS entry..."></textarea>
+                  <button id="saveAtlasNote" class="btn btn-sm btn-info mt-2 professional-button">Save ATLAS Note</button>
+                </div>
+              </div>
+              <div class="col-md-6" id="osmNoteContainer">
+                <div class="note-editor">
+                  <label for="osmNote"><i class="fas fa-map text-primary"></i> OSM Note:</label>
+                  <textarea id="osmNote" class="form-control" placeholder="Add a note for this OSM entry..."></textarea>
+                  <button id="saveOsmNote" class="btn btn-sm btn-primary mt-2 professional-button">Save OSM Note</button>
+                  <div class="mt-2" id="osmEditorLinkContainer" style="display: none;">
+                    <a href="#" id="osmEditorLink" class="osm-editor-link" target="_blank" rel="noopener noreferrer">
+                      <i class="fas fa-external-link-alt"></i>
+                      Edit in OSM iD Editor
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Repository Link Footer -->
+  <div class="text-center py-2 flex-shrink-0">
+    <small class="text-muted">
+      <a href="https://gitedu.hesge.ch/guillem.massague/bachelor-project" target="_blank" class="text-decoration-none">
+        <i class="fas fa-code-branch"></i> View Project Repository
+      </a>
+    </small>
+  </div>
+  
+  <!-- Keyboard Shortcuts Hint -->
+  <div class="keyboard-shortcuts-hint" id="keyboardHint">
+    <div><strong>Keyboard Shortcuts:</strong></div>
+    <div>→ / Space: Next Entry</div>
+    <div>← : Previous Entry</div> 
+    <div>↑ / ↓ : Scroll Issues</div>
+  </div>
+</div>
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- Popper.js (required for Bootstrap dropdowns) -->
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+<!-- Bootstrap JS -->
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<!-- Leaflet scripts -->
+<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<!-- Shared popup and rendering utilities -->
+<script src="{{ url_for('static', filename='js/popup-utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/popup-renderer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/move_popup.js') }}"></script>
+<script src="{{ url_for('static', filename='js/map-renderer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/operator-dropdown.js') }}"></script>
+<!-- Custom problems page script -->
+<script src="{{ url_for('static', filename='js/problems.js') }}"></script>
+
+</body>
+</html> 

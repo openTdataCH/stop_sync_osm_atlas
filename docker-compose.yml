@@ -1,0 +1,86 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: bachelor_project_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root #
+      MYSQL_DATABASE: stops_db
+      MYSQL_USER: stops_user
+      MYSQL_PASSWORD: 1234 # Password for stops_user is '1234'
+    ports:
+      - "3306:3306" # Exposes MySQL to your host machine on port 3306
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Mounts database_setup.sql to initialize the DB with specific settings (charset, collation)
+      # This script will be executed by the MySQL container on first run.
+      - ./database_setup.sql:/docker-entrypoint-initdb.d/database_setup.sql
+    healthcheck:
+      # Using CMD-SHELL to ensure proper variable expansion for healthcheck
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+
+  app:
+    build: .
+    container_name: bachelor_project_app
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    volumes:
+      - .:/app # Mounts your project directory into the container for live code changes
+      # Mount data directory for persistence
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy # Waits for db to be healthy before starting app
+    environment:
+      # Pass MySQL credentials to the entrypoint script and Python apps
+      MYSQL_USER: stops_user
+      MYSQL_PASSWORD: 1234 # Ensure this matches db service password
+      # Flask environment variables (some are also in Dockerfile for explicitness)
+      FLASK_APP: backend/app.py
+      FLASK_ENV: development # Or production
+      FLASK_DEBUG: 1 # Enables Flask debugger
+      # Database URI for SQLAlchemy, ensuring password matches
+      DATABASE_URI: mysql+pymysql://stops_user:1234@db/stops_db
+      # Data optimization settings
+      CREATE_ROUTES_WITH_STOPS: "false" # Disable expensive route-stops mapping by default
+    cpu_shares: 2048 # Higher CPU priority during contention
+    mem_limit: 4g # Increase to avoid OOM issues
+    # mem_reservation: 1g # Optional: guarantee 1g
+
+  app-dev: # New service for development, skips data import
+    profiles:
+      - dev
+    build: .
+    container_name: bachelor_project_app_dev
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    volumes:
+      - .:/app # Mounts your project directory into the container for live code changes
+      # Mount data directory for persistence
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy # Waits for db to be healthy before starting app
+    environment:
+      # Pass MySQL credentials to the entrypoint script and Python apps
+      MYSQL_USER: stops_user
+      MYSQL_PASSWORD: 1234 # Ensure this matches db service password
+      # Flask environment variables (some are also in Dockerfile for explicitness)
+      FLASK_APP: backend/app.py
+      FLASK_ENV: development # Or production
+      FLASK_DEBUG: 1 # Enables Flask debugger
+      # Database URI for SQLAlchemy, ensuring password matches
+      DATABASE_URI: mysql+pymysql://stops_user:1234@db/stops_db
+      SKIP_DATA_IMPORT: "true" # Skip data import for this service
+      CREATE_ROUTES_WITH_STOPS: "false" # Disable expensive route-stops mapping
+    cpu_shares: 2048 # Higher CPU priority during contention
+    mem_limit: 4g # Increase to avoid OOM issues
+    # mem_reservation: 1g # Optional: guarantee 1g
+
+volumes:
+  mysql_data: # Persists MySQL data

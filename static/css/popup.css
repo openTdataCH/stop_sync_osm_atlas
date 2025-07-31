@@ -1,0 +1,58 @@
+/* Popup-specific styles */
+.unified-popup{display:flex;flex-direction:column;max-width:100%;margin:0;padding:0}
+.popup-section{padding:8px;margin-bottom:8px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.atlas-section{background-color:rgba(235,248,235,.95);border-left:3px solid #28a745}
+.osm-section{background-color:rgba(235,241,255,.95);border-left:3px solid #007bff}
+.matches-container{display:flex;flex-wrap:wrap;gap:8px;margin-top:5px;padding:8px}
+.popup-table{width:100%;margin-bottom:8px;border-collapse:collapse;font-size:12px}
+.popup-table td{padding:2px 3px;vertical-align:top;border-bottom:1px solid rgba(0,0,0,.05)}
+.popup-table td:first-child{font-weight:bold;width:35%;color:#555}
+.osm-match{padding:6px;margin-bottom:8px;flex:0 1 200px;border-radius:6px;background-color:rgba(235,241,255,.9);border-left:4px solid #007bff;box-shadow:0 1px 2px rgba(0,0,0,.1);transition:transform .1s ease}
+.osm-match:hover{transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,.15)}
+.atlas-match{padding:6px;margin-bottom:8px;flex:0 1 200px;border-radius:6px;background-color:rgba(235,248,235,.9);border-left:4px solid #28a745;box-shadow:0 1px 2px rgba(0,0,0,.1);transition:transform .1s ease}
+.atlas-match:hover{transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,.15)}
+.atlas-match.unmatched{border-left-color:red;background-color:rgba(255,235,235,.9)}
+.osm-match.unmatched{border-left-color:gray;background-color:rgba(230,230,230,.9)}
+.additional-match{padding-top:6px;margin-top:0}
+.route-section{margin-top:6px;margin-bottom:6px;font-size:11px}
+.leaflet-popup-content{margin:0;overflow:auto!important;min-width:0;min-height:0;padding:0;position:relative}
+.leaflet-popup-content::-webkit-resizer{display:none}
+.popup-drag-handle{position:sticky;top:0;left:0;right:0;height:28px;background-color:#f8f9fa;border-bottom:1px solid rgba(0,0,0,.1);border-radius:12px 12px 0 0;cursor:grab;display:flex;align-items:center;justify-content:center;font-size:12px;color:#666;user-select:none;z-index:1000;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:5px}
+.popup-drag-handle svg{margin-right:5px;vertical-align:middle}
+.leaflet-popup-dragging .popup-drag-handle{cursor:grabbing}
+.leaflet-popup-content>div.unified-popup{padding:0 8px 15px 8px}
+.popup-connection-line{stroke:rgba(80,80,80,.6);stroke-width:1.5;stroke-dasharray:4,3;pointer-events:none}
+.leaflet-popup-dragging{opacity:.9;filter:drop-shadow(0 4px 8px rgba(0,0,0,.3))}
+.leaflet-popup-resizing{opacity:.9}
+.leaflet-popup-content h4{margin-top:0;margin-bottom:6px;font-size:14px;color:#333;border-bottom:1px solid rgba(0,0,0,.1);padding-bottom:4px}
+.leaflet-popup-content h5{margin-top:4px;margin-bottom:6px;font-size:13px;color:#444}
+.leaflet-popup-content button{margin-top:4px;margin-right:4px;padding:3px 8px;font-size:11px;border-radius:4px;border:1px solid #ccc;background:#f8f9fa;cursor:pointer;transition:all .2s ease}
+.leaflet-popup-content button:hover{background:#e9ecef;border-color:#adb5bd}
+
+/* Style for popup actions container */
+.popup-actions {
+    padding-left: 8px;
+    padding-bottom: 8px;
+}
+
+/* Style for the 'See Matches' button */
+.popup-actions .btn-secondary {
+    color: #343a40 !important; /* Use dark gray text color */
+    background-color: #e9ecef; /* Lighter gray background to ensure contrast */
+    border-color: #adb5bd;
+}
+
+.popup-actions .btn-secondary:hover {
+    color: #ffffff !important; /* White text on hover */
+    background-color: #6c757d; /* Standard secondary hover background */
+    border-color: #6c757d;
+}
+
+.leaflet-popup-content-wrapper{border-radius:12px;box-shadow:0 3px 14px rgba(0,0,0,.2);padding:0;overflow:hidden}
+.leaflet-popup-content a{color:#0066cc;text-decoration:none;transition:color .2s ease}
+.leaflet-popup-content a:hover{color:#004499;text-decoration:underline}
+.leaflet-popup{margin-bottom:30px}
+.leaflet-popup-tip-container{pointer-events:none;z-index:1}
+.leaflet-popup-tip{width:18px;height:18px}
+.customPopup .leaflet-popup-close-button{position:absolute;top:0;left:0;padding:4px 5px 0 5px;border:none;text-align:center;width:24px;height:24px;font:18px/20px Tahoma,Verdana,sans-serif;color:#666;text-decoration:none;font-weight:bold;border-radius:0 0 12px 0;background-color:rgba(255,255,255,.8);z-index:10001}
+.customPopup .leaflet-popup-close-button:hover{color:#333;background-color:rgba(255,255,255,1)} 
