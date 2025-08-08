@@ -3,10 +3,14 @@ import logging
 from collections import defaultdict
 from tqdm import tqdm
 import sys
-from math import radians, sin, cos, sqrt, atan2
+from math import radians, sin, cos
 from scipy.spatial import KDTree
 import numpy as np
 import traceback
+
+# Import centralized configuration
+from .detection_config import get_isolation_radius
+from .utils import haversine_distance
 
 # Setup logging
 logger = logging.getLogger(__name__)
@@ -28,22 +32,7 @@ def transform_for_distance_matching(all_osm_nodes, filtered=False, used_node_ids
                 if info['node_id'] not in used_node_ids}
     return all_osm_nodes
 
-def haversine_distance(lat1, lon1, lat2, lon2):
-    """
-    Calculate the Haversine distance (in meters) between two points.
-    """
-    try:
-        R = 6371000.0  # Earth radius in meters
-        lat1, lon1, lat2, lon2 = map(float, [lat1, lon1, lat2, lon2])
-        lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
-        c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        return R * c
-    except Exception as e:
-        logger.error(f"Error in haversine_distance: {e}")
-        return None
+## haversine_distance centralized in utils.py
 
 def create_spatial_index(xml_nodes):
     """
@@ -120,7 +109,7 @@ def distance_matching(unmatched_df, xml_nodes, run_stage1=True, run_stage2=True,
     """
     matches = []
     
-    # Create spatial index for efficient nearest neighbor queries
+    # Create spatial index for efficient nearest neighbor queries (Stage 1–3)
     spatial_tree, points, nodes_list = create_spatial_index(xml_nodes)
     
     # Convert max_distance from meters to radians for KDTree query
@@ -593,27 +582,21 @@ def distance_matching(unmatched_df, xml_nodes, run_stage1=True, run_stage2=True,
                     used_osm_node_ids.add(closest['node']['node_id'])
                     matched_sloids.add(csv_row['sloid'])
     
-    # Stage 4: Check for ATLAS entries with no nearby OSM nodes (within 50 meters)
-    extended_distance = 50  # meters
+    # Stage 4: Check for ATLAS entries with no nearby OSM nodes (within isolation radius)
+    extended_distance = get_isolation_radius()  # meters
     extended_distance_rad = 2 * sin((extended_distance / 6371000.0) / 2)
-    
+
     # Get the final unmatched entries
     final_unmatched_atlas = unmatched_df[~unmatched_df['sloid'].isin(matched_sloids)]
-    
-    # Prepare spatial index for Stage 4
-    # Default to the spatial index built from the (potentially filtered) xml_nodes
-    stage4_spatial_tree = spatial_tree
-    stage4_nodes_list = nodes_list
 
+    # Prepare spatial index for Stage 4 up-front
     if all_xml_nodes_for_stage4 is not None:
-        logger.info("Creating spatial index for Stage 4 using all available OSM nodes.")
-        # Create a new spatial index using all_xml_nodes_for_stage4
-        s4_tree, _, s4_nodes_list = create_spatial_index(all_xml_nodes_for_stage4)
-        if s4_tree is not None:
-            stage4_spatial_tree = s4_tree
-            stage4_nodes_list = s4_nodes_list
-        else:
-            logger.warning("Failed to create spatial index from all_xml_nodes_for_stage4 for Stage 4. Falling back to the original filtered index.")
+        stage4_spatial_tree, _, stage4_nodes_list = create_spatial_index(all_xml_nodes_for_stage4)
+        if stage4_spatial_tree is None:
+            logger.warning("Failed to create spatial index from all_xml_nodes_for_stage4 for Stage 4. Falling back to Stage 1–3 index.")
+            stage4_spatial_tree, stage4_nodes_list = spatial_tree, nodes_list
+    else:
+        stage4_spatial_tree, stage4_nodes_list = spatial_tree, nodes_list
     
     for idx, csv_row in tqdm(final_unmatched_atlas.iterrows(), total=len(final_unmatched_atlas), desc="Stage 4 - Identifying entries with no nearby OSM nodes", file=sys.stdout, mininterval=1.0, ascii=True, smoothing=0.1):
         try:
@@ -697,7 +680,7 @@ def distance_matching(unmatched_df, xml_nodes, run_stage1=True, run_stage2=True,
                     'osm_public_transport': '',
                     'csv_designation': designation,
                     'csv_designation_official': designation_official,
-                    'match_type': 'no_osm_within_50m',
+                    'match_type': 'no_nearby_counterpart',
                     'candidate_pool_size': 0,
                     'matching_notes': f"No OSM nodes found within {extended_distance} meters"
                 }

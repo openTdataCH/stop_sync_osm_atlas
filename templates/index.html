@@ -1,18 +1,12 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>OSM &amp; ATLAS Matching Tool</title>
+{% extends "base.html" %}
+
+{% block title %}OSM & ATLAS Matching Tool{% endblock %}
+
+{% block head_css %}
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-  <!-- Bootstrap CSS for UI elements -->
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <!-- Popup CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/popup.css') }}">
-  <!-- Custom CSS -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <!-- Font Awesome for icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
   <style>
     /* Custom inline CSS for a compact filter panel */
     #filterPanel .card { margin-bottom: 1rem; }
@@ -134,8 +128,9 @@
 
     /* Unified Popup Styles moved to popup.html */
   </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
 <div class="container-fluid d-flex flex-column vh-100">
   <h1 class="mt-3 mb-3 text-center display-4 flex-shrink-0">
     <div class="header-container">
@@ -288,7 +283,7 @@
                 <div class="compact-group mt-2" id="unmatchedFiltersContainer">
                   <label>ATLAS unmatched filters</label>
                   <div class="form-check">
-                    <input type="checkbox" class="filter-unmatched-method form-check-input" id="filterNoNearbyOSM" value="no_osm_within_50m">
+                    <input type="checkbox" class="filter-unmatched-method form-check-input" id="filterNoNearbyOSM" value="no_nearby_counterpart">
                     <label class="form-check-label" for="filterNoNearbyOSM">No OSM within 50m</label>
                   </div>
                   <div class="form-check">
@@ -418,122 +413,109 @@
     </div>
   </div>
   
-  <!-- Repository Link Footer -->
-  <div class="text-center py-2 flex-shrink-0">
-    <small class="text-muted">
-      <a href="https://gitedu.hesge.ch/guillem.massague/bachelor-project" target="_blank" class="text-decoration-none">
-        <i class="fas fa-code-branch"></i> View Project Repository
-      </a>
-    </small>
-  </div>
-</div>
-
-<!-- Search Options Modal -->
-<div class="modal fade" id="searchOptionsModal" tabindex="-1" role="dialog" aria-labelledby="searchOptionsModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="searchOptionsModalLabel">Select Search Type</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="list-group">
-          <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="station" data-placeholder="Enter UIC Number">
-            <i class="fas fa-hashtag mr-2"></i>UIC Number
-          </a>
-          <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="atlas" data-placeholder="Enter ATLAS SloidID">
-            <i class="fas fa-map-marker-alt mr-2"></i>ATLAS Sloid
-          </a>
-          <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="osm" data-placeholder="Enter OSM Node ID">
-            <i class="fas fa-map mr-2"></i>OSM Node ID
-          </a>
-          <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="route" data-placeholder="Enter Route ID">
-            <i class="fas fa-route mr-2"></i>Route ID
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Bootstrap Modal for Manual Matches Preview -->
-<div class="modal fade" id="previewModal" tabindex="-1" role="dialog" aria-labelledby="previewModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="previewModalLabel">Manual Matches Preview</h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-          <span aria-hidden="true">&times;</span>
-        </button>
-      </div>
-      <div class="modal-body" id="previewModalBody">
-        <!-- Manual matches details will be injected here -->
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- New Report Configuration Modal -->
-<div class="modal fade" id="reportModal" tabindex="-1" role="dialog" aria-labelledby="reportModalLabel" aria-hidden="true">
-  <div class="modal-dialog" role="document">
-    <form id="reportForm">
+  <!-- Search Options Modal -->
+  <div class="modal fade" id="searchOptionsModal" tabindex="-1" role="dialog" aria-labelledby="searchOptionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="reportModalLabel">Generate Report</h5>
+          <h5 class="modal-title" id="searchOptionsModalLabel">Select Search Type</h5>
           <button type="button" class="close" data-dismiss="modal" aria-label="Close">
             <span aria-hidden="true">&times;</span>
           </button>
         </div>
         <div class="modal-body">
-          <div class="form-group">
-            <label for="reportTypeModal">Report Type</label>
-            <select class="form-control" id="reportTypeModal">
-              <option value="top_matches">Top Matches by Distance</option>
-              <option value="exact_matches">Top Exact Matches by Distance</option>
-              <option value="name_matches">Top Name Matches by Distance</option>
-              <option value="duplicates">Duplicates Report</option>
-            </select>
+          <div class="list-group">
+            <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="station" data-placeholder="Enter UIC Number">
+              <i class="fas fa-hashtag mr-2"></i>UIC Number
+            </a>
+            <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="atlas" data-placeholder="Enter ATLAS SloidID">
+              <i class="fas fa-map-marker-alt mr-2"></i>ATLAS Sloid
+            </a>
+            <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="osm" data-placeholder="Enter OSM Node ID">
+              <i class="fas fa-map mr-2"></i>OSM Node ID
+            </a>
+            <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="route" data-placeholder="Enter Route ID">
+              <i class="fas fa-route mr-2"></i>Route ID
+            </a>
           </div>
-          <div class="form-group">
-            <label for="reportFormatModal">Report Format</label>
-            <select class="form-control" id="reportFormatModal">
-              <option value="pdf">PDF</option>
-              <option value="csv">CSV</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="reportLimitModal">Number of Entries (N):</label>
-            <input type="number" id="reportLimitModal" class="form-control" value="10" min="1" max="500" required>
-          </div>
-          <div class="form-group">
-            <label for="sortOrderModal">Sort Order:</label>
-            <select id="sortOrderModal" class="form-control">
-              <option value="distance_desc">Distance (Descending)</option>
-              <option value="distance_asc">Distance (Ascending)</option>
-              <option value="id_asc">Stop ID (Ascending)</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="submit" class="btn btn-primary">Generate Report</button>
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
         </div>
       </div>
-    </form>
+    </div>
+  </div>
+
+  <!-- Bootstrap Modal for Manual Matches Preview -->
+  <div class="modal fade" id="previewModal" tabindex="-1" role="dialog" aria-labelledby="previewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="previewModalLabel">Manual Matches Preview</h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body" id="previewModalBody">
+          <!-- Manual matches details will be injected here -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- New Report Configuration Modal -->
+  <div class="modal fade" id="reportModal" tabindex="-1" role="dialog" aria-labelledby="reportModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <form id="reportForm">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="reportModalLabel">Generate Report</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label for="reportTypeModal">Report Type</label>
+              <select class="form-control" id="reportTypeModal">
+                <option value="top_matches">Top Matches by Distance</option>
+                <option value="exact_matches">Top Exact Matches by Distance</option>
+                <option value="name_matches">Top Name Matches by Distance</option>
+                <option value="duplicates">Duplicates Report</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="reportFormatModal">Report Format</label>
+              <select class="form-control" id="reportFormatModal">
+                <option value="pdf">PDF</option>
+                <option value="csv">CSV</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="reportLimitModal">Number of Entries (N):</label>
+              <input type="number" id="reportLimitModal" class="form-control" value="10" min="1" max="500" required>
+            </div>
+            <div class="form-group">
+              <label for="sortOrderModal">Sort Order:</label>
+              <select id="sortOrderModal" class="form-control">
+                <option value="distance_desc">Distance (Descending)</option>
+                <option value="distance_asc">Distance (Ascending)</option>
+                <option value="id_asc">Stop ID (Ascending)</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Generate Report</button>
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          </div>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
+{% endblock %}
 
-<!-- jQuery -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<!-- Popper.js (required for Bootstrap dropdowns) -->
-<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-<!-- Bootstrap JS -->
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+{% block scripts %}
 <!-- jQuery UI (for draggable functionality) -->
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
 <!-- Leaflet scripts -->
@@ -548,6 +530,4 @@
 <script src="{{ url_for('static', filename='js/operator-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/filters.js') }}"></script>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-
-</body>
-</html>
+{% endblock %}

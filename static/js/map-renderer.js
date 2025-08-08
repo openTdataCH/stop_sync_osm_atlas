@@ -126,9 +126,18 @@ class MarkerClusterManager {
     _createAtlasMarkerWithCluster(lat, lon, color, duplicateSloid, clusterSize, index, originalLat, originalLon) {
         const radius = 6;
         const size = radius * 2;
-        
-        // Remove cluster indicator - just keep spacing functionality
-        
+        const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 14;
+
+        // Prefer canvas at lower zooms to reduce DOM load
+        if (useCanvasOnly) {
+            return L.circleMarker([lat, lon], { 
+                color: color, 
+                radius: radius,
+                fillOpacity: 0.5,
+                weight: 2
+            });
+        }
+
         if (duplicateSloid && duplicateSloid !== '') {
             return L.marker([lat, lon], {
                 icon: L.divIcon({
@@ -157,9 +166,18 @@ class MarkerClusterManager {
     _createOsmMarkerWithCluster(lat, lon, color, osmNodeType, clusterSize, index, originalLat, originalLon) {
         const radius = 6;
         const size = radius * 2;
-        
-        // Remove cluster indicator - just keep spacing functionality
-        
+        const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 14;
+
+        // Prefer canvas at lower zooms to reduce DOM load
+        if (useCanvasOnly) {
+            return L.circleMarker([lat, lon], { 
+                color: color, 
+                radius: radius,
+                fillOpacity: 0.5,
+                weight: 2
+            });
+        }
+
         if (osmNodeType === 'platform') {
             return L.marker([lat, lon], {
                 icon: L.divIcon({
@@ -221,6 +239,15 @@ class MarkerClusterManager {
 function createAtlasMarker(lat, lon, color, duplicateSloid) {
     const radius = 6;
     const size = radius * 2;
+    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 14;
+    if (useCanvasOnly) {
+        return L.circleMarker([lat, lon], { 
+            color: color, 
+            radius: radius,
+            fillOpacity: 0.5,
+            weight: 2
+        });
+    }
     if (duplicateSloid && duplicateSloid !== '') { // Check if duplicateSloid has a value
         return L.marker([lat, lon], {
             icon: L.divIcon({
@@ -254,6 +281,15 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
 function createOsmMarker(lat, lon, color, osmNodeType = null) {
     const radius = 6;
     const size = radius * 2;
+    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 14;
+    if (useCanvasOnly) {
+        return L.circleMarker([lat, lon], { 
+            color: color, 
+            radius: radius,
+            fillOpacity: 0.5,
+            weight: 2
+        });
+    }
     
     if (osmNodeType === 'platform') {
         return L.marker([lat, lon], {

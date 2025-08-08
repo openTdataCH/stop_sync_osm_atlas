@@ -2,34 +2,23 @@
 import pandas as pd
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-from tqdm import tqdm
-import logging, json
-import numpy as np
-from scipy.spatial import KDTree
+import logging
+from matching_process.utils import is_osm_station
 # Import functions from distance_matching.py
-from matching_process.distance_matching import distance_matching, transform_for_distance_matching, haversine_distance
+from matching_process.distance_matching import distance_matching, transform_for_distance_matching
 # Import route_matching function
 from matching_process.route_matching import route_matching
 # Import standardize_operator from org_standaarization.py
 from matching_process.org_standaarization import standardize_operator
+# Import centralized isolation detection
+from matching_process.problem_detection import detect_osm_isolation
+# Import split-out matching stages
+from matching_process.exact_matching import exact_matching
+from matching_process.name_matching import name_based_matching
 
 # Setup logging for detailed match candidate logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-
-def is_osm_station(osm_node):
-    """Check if an OSM node is a station based on its tags, excluding aerialway stations."""
-    tags = osm_node.get('tags', {})
-    # If it's an aerialway station, it should not be filtered out by this function.
-    if tags.get('aerialway') == 'station':
-        return False
-    # Otherwise, check if it's a railway or public_transport station.
-    if tags.get('railway') == 'station' or tags.get('public_transport') == 'station':
-        return True
-    return False
-
-
 def parse_osm_xml(xml_file):
     """
     Parse the OSM XML file and build a comprehensive data structure that can be used for all matching strategies:
@@ -99,331 +88,12 @@ def parse_osm_xml(xml_file):
 
 
 # 2: Matching Functions & Station-Level Grouping
-
-def exact_matching(atlas_df, uic_ref_dict):
-    """
-    Exact matching:
-      - ATLAS 'number' equals OSM 'uic_ref'
-      - When multiple candidates exist, try to match ATLAS 'designation' with OSM 'local_ref' exactly.
-      - Only allow many-to-one matching if there's only one OSM node for the UIC reference
-      - Only allow one-to-many matching if there's only one ATLAS entry for the UIC reference
-    Returns:
-      - List of match records (dictionaries)
-      - List of unmatched ATLAS rows (as Series)
-      - Set of used OSM node IDs.
-    """
-    matches = []
-    unmatched = []
-    used_osm_ids = set()
-    
-    # Group ATLAS entries by UIC reference (number)
-    grouped_atlas = atlas_df.groupby(atlas_df['number'].astype(str))
-    
-    for uic_ref, group in tqdm(grouped_atlas, total=len(grouped_atlas), desc="Exact Matching"):
-        atlas_entries = group.to_dict(orient="records")
-        osm_candidates = uic_ref_dict.get(str(uic_ref), [])
-        
-        # Skip if no OSM candidates for this UIC reference
-        if not osm_candidates:
-            for entry in atlas_entries:
-                unmatched.append(entry)
-            continue
-        
-        # Filter out already used OSM nodes and OSM stations
-        available_osm = [
-            cand for cand in osm_candidates 
-            if cand['node_id'] not in used_osm_ids and not is_osm_station(cand)
-        ]
-        
-        # Case 1: No available OSM nodes (all used previously or are stations)
-        if not available_osm:
-            for entry in atlas_entries:
-                unmatched.append(entry)
-            continue
-        
-        # Case 2: Only one OSM node for this UIC - match all ATLAS entries to it
-        if len(available_osm) == 1:
-            osm_node = available_osm[0]
-            for atlas_entry in atlas_entries:
-                csv_lat = atlas_entry['wgs84North']
-                csv_lon = atlas_entry['wgs84East']
-                otdp_designation = str(atlas_entry['designation']).strip() if pd.notna(atlas_entry['designation']) else ""
-                designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd.notna(atlas_entry.get('designationOfficial')) else otdp_designation
-                business_org_abbr = str(atlas_entry.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
-                
-                dist = haversine_distance(csv_lat, csv_lon, osm_node['lat'], osm_node['lon'])
-                osm_network = osm_node['tags'].get('network', '')
-                osm_operator = osm_node['tags'].get('operator', '')
-                osm_amenity = osm_node['tags'].get('amenity', '')
-                osm_railway = osm_node['tags'].get('railway', '')
-                osm_aerialway = osm_node['tags'].get('aerialway', '')
-                
-                matches.append({
-                    'sloid': atlas_entry['sloid'],
-                    'number': atlas_entry['number'],
-                    'uic_ref': str(uic_ref),
-                    'csv_designation': otdp_designation,
-                    'csv_designation_official': designation_official,
-                    'csv_lat': csv_lat,
-                    'csv_lon': csv_lon,
-                    'csv_business_org_abbr': business_org_abbr,
-                    'osm_node_id': osm_node['node_id'],
-                    'osm_lat': osm_node['lat'],
-                    'osm_lon': osm_node['lon'],
-                    'osm_local_ref': osm_node.get('local_ref'),
-                    'osm_network': osm_network,
-                    'osm_operator': osm_operator,
-                    'osm_original_operator': osm_node['tags'].get('original_operator'),
-                    'osm_amenity': osm_amenity,
-                    'osm_railway': osm_railway,
-                    'osm_aerialway': osm_aerialway,
-                    'osm_name': osm_node['tags'].get('name', ''),
-                    'osm_uic_name': osm_node['tags'].get('uic_name', ''),
-                    'osm_uic_ref': osm_node['tags'].get('uic_ref', ''),
-                    'osm_public_transport': osm_node['tags'].get('public_transport', ''),
-                    'distance_m': dist,
-                    'match_type': 'exact',
-                    'candidate_pool_size': len(available_osm),
-                    'matching_notes': "Single OSM node for this UIC reference"
-                })
-            used_osm_ids.add(osm_node['node_id'])
-            continue
-        
-        # Case 3: Only one ATLAS entry - match to all available OSM nodes
-        if len(atlas_entries) == 1:
-            atlas_entry = atlas_entries[0]
-            
-            csv_lat = atlas_entry['wgs84North']
-            csv_lon = atlas_entry['wgs84East']
-            otdp_designation = str(atlas_entry['designation']).strip() if pd.notna(atlas_entry['designation']) else ""
-            designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd.notna(atlas_entry.get('designationOfficial')) else otdp_designation
-            business_org_abbr = str(atlas_entry.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
-            
-            # Match to all available OSM nodes
-            for osm_node in available_osm:
-                dist = haversine_distance(csv_lat, csv_lon, osm_node['lat'], osm_node['lon'])
-                osm_network = osm_node['tags'].get('network', '')
-                osm_operator = osm_node['tags'].get('operator', '')
-                osm_amenity = osm_node['tags'].get('amenity', '')
-                osm_railway = osm_node['tags'].get('railway', '')
-                osm_aerialway = osm_node['tags'].get('aerialway', '')
-                
-                matches.append({
-                    'sloid': atlas_entry['sloid'],
-                    'number': atlas_entry['number'],
-                    'uic_ref': str(uic_ref),
-                    'csv_designation': otdp_designation,
-                    'csv_designation_official': designation_official,
-                    'csv_lat': csv_lat,
-                    'csv_lon': csv_lon,
-                    'csv_business_org_abbr': business_org_abbr,
-                    'osm_node_id': osm_node['node_id'],
-                    'osm_lat': osm_node['lat'],
-                    'osm_lon': osm_node['lon'],
-                    'osm_local_ref': osm_node.get('local_ref'),
-                    'osm_network': osm_network,
-                    'osm_operator': osm_operator,
-                    'osm_original_operator': osm_node['tags'].get('original_operator'),
-                    'osm_amenity': osm_amenity,
-                    'osm_railway': osm_railway,
-                    'osm_aerialway': osm_aerialway,
-                    'osm_name': osm_node['tags'].get('name', ''),
-                    'osm_uic_name': osm_node['tags'].get('uic_name', ''),
-                    'osm_uic_ref': osm_node['tags'].get('uic_ref', ''),
-                    'osm_public_transport': osm_node['tags'].get('public_transport', ''),
-                    'distance_m': dist,
-                    'match_type': 'exact',
-                    'candidate_pool_size': len(available_osm),
-                    'matching_notes': "Single ATLAS entry matched to multiple OSM nodes with same UIC reference"
-                })
-                used_osm_ids.add(osm_node['node_id'])
-            continue
-        
-        # Case 4: Multiple ATLAS and multiple OSM nodes - try to match by designation/local_ref
-        matched_atlas_ids = set()
-        matched_osm_ids = set()
-        
-        # First pass: Try to match based on exact local_ref/designation match
-        for atlas_entry in atlas_entries:
-            sloid = atlas_entry['sloid']
-            if sloid in matched_atlas_ids:
-                continue
-                
-            otdp_designation = str(atlas_entry['designation']).strip() if pd.notna(atlas_entry['designation']) else ""
-            
-            for osm_node in available_osm:
-                osm_id = osm_node['node_id']
-                if osm_id in matched_osm_ids or osm_id in used_osm_ids:
-                    continue
-                
-                # Skip if OSM node is a station (already filtered, but double-check)
-                if is_osm_station(osm_node):
-                    continue
-                    
-                osm_local_ref = str(osm_node.get('local_ref') or "").strip()
-                
-                # Check for exact designation/local_ref match
-                if otdp_designation and osm_local_ref and otdp_designation.lower() == osm_local_ref.lower():
-                    csv_lat = atlas_entry['wgs84North']
-                    csv_lon = atlas_entry['wgs84East']
-                    designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd.notna(atlas_entry.get('designationOfficial')) else otdp_designation
-                    business_org_abbr = str(atlas_entry.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
-                    
-                    dist = haversine_distance(csv_lat, csv_lon, osm_node['lat'], osm_node['lon'])
-                    osm_network = osm_node['tags'].get('network', '')
-                    osm_operator = osm_node['tags'].get('operator', '')
-                    osm_amenity = osm_node['tags'].get('amenity', '')
-                    osm_railway = osm_node['tags'].get('railway', '')
-                    osm_aerialway = osm_node['tags'].get('aerialway', '')
-                    
-                    matches.append({
-                        'sloid': sloid,
-                        'number': atlas_entry['number'],
-                        'uic_ref': str(uic_ref),
-                        'csv_designation': otdp_designation,
-                        'csv_designation_official': designation_official,
-                        'csv_lat': csv_lat,
-                        'csv_lon': csv_lon,
-                        'csv_business_org_abbr': business_org_abbr,
-                        'osm_node_id': osm_id,
-                        'osm_lat': osm_node['lat'],
-                        'osm_lon': osm_node['lon'],
-                        'osm_local_ref': osm_local_ref,
-                        'osm_network': osm_network,
-                        'osm_operator': osm_operator,
-                        'osm_original_operator': osm_node['tags'].get('original_operator'),
-                        'osm_amenity': osm_amenity,
-                        'osm_railway': osm_railway,
-                        'osm_aerialway': osm_aerialway,
-                        'osm_name': osm_node['tags'].get('name', ''),
-                        'osm_uic_name': osm_node['tags'].get('uic_name', ''),
-                        'osm_uic_ref': osm_node['tags'].get('uic_ref', ''),
-                        'osm_public_transport': osm_node['tags'].get('public_transport', ''),
-                        'distance_m': dist,
-                        'match_type': 'exact',
-                        'candidate_pool_size': len(available_osm),
-                        'matching_notes': "Exact local_ref/designation match"
-                    })
-                    
-                    matched_atlas_ids.add(sloid)
-                    matched_osm_ids.add(osm_id)
-                    used_osm_ids.add(osm_id)
-                    break
-        
-        # Add all unmatched atlas entries to the unmatched list
-        for atlas_entry in atlas_entries:
-            if atlas_entry['sloid'] not in matched_atlas_ids:
-                unmatched.append(atlas_entry)
-    
-    return matches, unmatched, used_osm_ids
-
-
-def name_based_matching(atlas_df, name_index):
-    """
-    Name-based matching:
-      - Compare ATLAS 'designationOfficial' against OSM 'name', 'uic_name', 'gtfs:name'.
-      - Then (if possible) match ATLAS 'designation' with OSM 'local_ref' exactly.
-    Returns:
-      - List of match records (dictionaries)
-      - List of unmatched ATLAS rows (as Series)
-      - Set of used OSM node IDs.
-    """
-    matches = []
-    unmatched = []
-    used_osm_ids = set()
-    for idx, row in tqdm(atlas_df.iterrows(), total=len(atlas_df), desc="Name-Based Matching"):
-        sloid = row['sloid']
-        otdp_number = str(row['number'])
-        designation_official_raw = row.get('designationOfficial', "")
-        if pd.isna(designation_official_raw):
-            designation_official = ""
-        else:
-            designation_official = str(designation_official_raw).strip()
-        otdp_designation = str(row['designation']).strip() if pd.notna(row['designation']) else ""
-        csv_lat = row['wgs84North']
-        csv_lon = row['wgs84East']
-        # Get business organization abbreviation
-        business_org_abbr = str(row.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
-        
-        note = ""
-        if designation_official == "":
-            note = "Missing designationOfficial."
-            unmatched.append(row)
-            continue
-        candidates = name_index.get(designation_official, [])
-        candidates = [
-            cand for cand in candidates 
-            if cand['node_id'] not in used_osm_ids and not is_osm_station(cand)
-        ]
-        candidate_pool_size = len(candidates)
-        candidate = None
-        if candidate_pool_size == 1:
-            candidate = candidates[0]
-            note = "Single candidate via name index."
-        elif candidate_pool_size > 1:
-            for cand in candidates:
-                osm_local_ref = str(cand.get('local_ref') or "").strip()
-                if otdp_designation and osm_local_ref.lower() == otdp_designation.lower():
-                    candidate = cand
-                    note = "Multiple candidates; exact local_ref match in name index."
-                    break
-        if candidate:
-            used_osm_ids.add(candidate['node_id'])
-            dist = haversine_distance(csv_lat, csv_lon, candidate['lat'], candidate['lon'])
-            # Extract OSM network and operator tags
-            osm_network = candidate['tags'].get('network', '')
-            osm_operator = candidate['tags'].get('operator', '')
-            osm_amenity = candidate['tags'].get('amenity', '')
-            osm_railway = candidate['tags'].get('railway', '')
-            osm_aerialway = candidate['tags'].get('aerialway', '')
-            
-            matches.append({
-                'sloid': sloid,
-                'number': row['number'],  # Added station number
-                'uic_ref': otdp_number,
-                'csv_designation_official': designation_official,
-                'csv_designation': otdp_designation,
-                'csv_lat': csv_lat,
-                'csv_lon': csv_lon,
-                'csv_business_org_abbr': business_org_abbr,  # Added business organization abbreviation
-                'osm_node_id': candidate['node_id'],
-                'osm_lat': candidate['lat'],
-                'osm_lon': candidate['lon'],
-                'osm_local_ref': candidate.get('local_ref'),
-                'osm_network': osm_network,  # Added network tag
-                'osm_operator': osm_operator,  # Added operator tag
-                'osm_original_operator': candidate['tags'].get('original_operator'),
-                'osm_amenity': osm_amenity,
-                'osm_railway': osm_railway,
-                'osm_aerialway': osm_aerialway,
-                'osm_name': candidate['tags'].get('name', ''),
-                'osm_uic_name': candidate['tags'].get('uic_name', ''),
-                'osm_uic_ref': candidate['tags'].get('uic_ref', ''),
-                'osm_public_transport': candidate['tags'].get('public_transport', ''),
-                'distance_m': dist,
-                'match_type': 'name',
-                'candidate_pool_size': candidate_pool_size,
-                'matching_notes': note
-            })
-        else:
-            unmatched.append(row)
-    return matches, unmatched, used_osm_ids
 # 3: Distance Matching
 
 
 # 4: Final Pipeline
 
-# ----------------------------
-# Logger setup (if not already configured)
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-if not logger.hasHandlers():
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-# ----------------------------
+# Use module-level logger defined by basicConfig at import
 
 
 def final_pipeline(route_matching_strategy='hrdf'):
@@ -509,7 +179,7 @@ def final_pipeline(route_matching_strategy='hrdf'):
         )
         # Separate the results
         for match in all_distance_results:
-            if match.get('match_type') == 'no_osm_within_50m':
+            if match.get('match_type') == 'no_nearby_counterpart':
                 no_nearby_osm_entries.append(match)
             else:
                 actual_distance_matches.append(match)
@@ -535,7 +205,7 @@ def final_pipeline(route_matching_strategy='hrdf'):
             matched_sloids.add(m['sloid'])
     
     # Filter unmatched entries after *actual* distance matching
-    # This df still contains the entries that will be marked as 'no_osm_within_50m'
+    # This df still contains the entries that will be marked as 'no_nearby_counterpart'
     unmatched_after_distance_df = unmatched_after_name_df[~unmatched_after_name_df['sloid'].isin(matched_sloids)]
 
     # Filter out already matched nodes for route matching
@@ -571,42 +241,23 @@ def final_pipeline(route_matching_strategy='hrdf'):
     unmatched_osm_nodes = [node for node in all_osm_nodes.values() if node['node_id'] not in used_osm_ids_total]
     logger.info(f"Unmatched OSM nodes: {len(unmatched_osm_nodes)}")
 
-    # --- Add check for isolated OSM nodes (no ATLAS stop within 50m) ---
+    # --- Detect isolated OSM nodes using centralized logic ---
     logger.info("Checking for isolated unmatched OSM nodes...")
+    osm_isolation_status = {}
     if unmatched_osm_nodes:
-        # Create a spatial index for all ATLAS stops for efficient lookup
-        atlas_coords = atlas_df[['wgs84North', 'wgs84East']].to_numpy()
-        atlas_rad = np.radians(atlas_coords)
-        atlas_3d = np.array([
-            np.cos(atlas_rad[:, 0]) * np.cos(atlas_rad[:, 1]),
-            np.cos(atlas_rad[:, 0]) * np.sin(atlas_rad[:, 1]),
-            np.sin(atlas_rad[:, 0])
-        ]).T
-        atlas_kdtree = KDTree(atlas_3d)
+        # Prepare ATLAS stop data for isolation detection
+        atlas_stops_data = []
+        for _, row in atlas_df.iterrows():
+            atlas_stops_data.append({
+                'lat': row['wgs84North'],
+                'lon': row['wgs84East'],
+                'sloid': row['sloid']
+            })
         
-        check_radius_m = 50
-        check_radius_rad = 2 * np.sin((check_radius_m / 6371000.0) / 2)
-        
-        isolated_osm_node_ids = set()
-        for osm_node in unmatched_osm_nodes:
-            osm_lat_rad = np.radians(osm_node['lat'])
-            osm_lon_rad = np.radians(osm_node['lon'])
-            query_point = [
-                np.cos(osm_lat_rad) * np.cos(osm_lon_rad),
-                np.cos(osm_lat_rad) * np.sin(osm_lon_rad),
-                np.sin(osm_lat_rad)
-            ]
-            
-            # Find indices of ATLAS stops within the radius
-            indices = atlas_kdtree.query_ball_point(query_point, check_radius_rad)
-            if not indices: # If the list of indices is empty, no stops were found
-                isolated_osm_node_ids.add(osm_node['node_id'])
-        
-        # Add 'is_isolated' flag to each unmatched OSM node
-        for osm_node in unmatched_osm_nodes:
-            osm_node['is_isolated'] = osm_node['node_id'] in isolated_osm_node_ids
-
-        logger.info(f"Found {len(isolated_osm_node_ids)} isolated unmatched OSM nodes.")
+        # Use centralized isolation detection
+        osm_isolation_status = detect_osm_isolation(unmatched_osm_nodes, atlas_stops_data)
+        isolated_count = sum(osm_isolation_status.values())
+        logger.info(f"Found {isolated_count} isolated unmatched OSM nodes.")
 
     # --- Check how many unmatched nodes have routes and UIC references ---
     unmatched_nodes_with_uic = [node for node in unmatched_osm_nodes if 'uic_ref' in node['tags']]
@@ -636,7 +287,7 @@ def final_pipeline(route_matching_strategy='hrdf'):
     all_matches_df = pd.DataFrame(all_matches)
     
     # --- Calculate Final Unmatched ATLAS Entries ---
-    # The definition of final_unmatched_atlas naturally includes those identified as 'no_osm_within_50m'
+    # The definition of final_unmatched_atlas naturally includes those identified as 'no_nearby_counterpart'
     # because their sloids were not added to matched_sloids from the distance phase.
     final_unmatched_atlas = []
     # We need to start from the original atlas_df to correctly identify all unmatched
@@ -649,14 +300,22 @@ def final_pipeline(route_matching_strategy='hrdf'):
 
     logger.info(f"Final unmatched ATLAS entries: {len(final_unmatched_atlas)}")
     # Count the entries with no nearby OSM nodes (already calculated)
-    # no_nearby_osm_entries = [match for match in all_matches if match.get('match_type') == 'no_osm_within_50m'] # This line is removed as it's calculated earlier
+    # no_nearby_osm_entries = [match for match in all_matches if match.get('match_type') == 'no_nearby_counterpart'] # This line is removed as it's calculated earlier
     print(f"ATLAS entries with no OSM nodes within 50 meters: {len(no_nearby_osm_entries)}") # Use the count from separation
     
     # --- Prepare Data for Database Import ---
+    # Add isolation status to unmatched OSM nodes for database import
+    unmatched_osm_with_isolation = []
+    for node in unmatched_osm_nodes:
+        node_with_status = node.copy()  # Don't mutate the original
+        node_id = node.get('node_id')
+        node_with_status['is_isolated'] = osm_isolation_status.get(node_id, False)
+        unmatched_osm_with_isolation.append(node_with_status)
+    
     base_data = {
         "matched": all_matches_df.to_dict(orient="records"),
         "unmatched_atlas": final_unmatched_atlas, # Use the correctly calculated list
-        "unmatched_osm": unmatched_osm_nodes
+        "unmatched_osm": unmatched_osm_with_isolation
     }
     
     # --- Count Matches by Type for Final Report ---
@@ -701,9 +360,9 @@ def final_pipeline(route_matching_strategy='hrdf'):
         print(f"     ├─ By UIC Direction: {hrdf_uic_matches}")
         print(f"     └─ By Both: {hrdf_both_matches}")
 
-    print(f"Total matched (all methods): {len(all_matches_df)}") # all_matches now excludes 'no_osm_within_50m'
+    print(f"Total matched (all methods): {len(all_matches_df)}") # all_matches now excludes 'no_nearby_counterpart'
     print(f"Unmatched ATLAS entries: {len(final_unmatched_atlas)}")
-    # Report 'no_osm_within_50m' as a subset of unmatched
+    # Report 'no_nearby_counterpart' as a subset of unmatched
     print(f"  └─ Of which have no OSM nodes within 50m: {len(no_nearby_osm_entries)}")
     print(f"Unmatched OSM nodes: {len(unmatched_osm_nodes)}")
     print(f"  ├─ With at least one route: {unmatched_with_routes_count}")

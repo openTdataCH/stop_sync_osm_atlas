@@ -26,48 +26,66 @@ def ensure_schema_updated():
     try:
         # Check if the new columns exist and add them if they don't
         with engine.connect() as conn:
-            # Check problems table for is_persistent column
-            result = conn.execute(text("""
-                SELECT COUNT(*) as count 
-                FROM information_schema.columns 
-                WHERE table_schema = DATABASE() 
-                AND table_name = 'problems' 
-                AND column_name = 'is_persistent'
-            """))
-            
-            if result.fetchone()[0] == 0:
+            # Helper: check if column exists
+            def column_exists(table_name: str, column_name: str) -> bool:
+                res = conn.execute(text(
+                    """
+                    SELECT COUNT(*) as count
+                    FROM information_schema.columns
+                    WHERE table_schema = DATABASE()
+                      AND table_name = :table
+                      AND column_name = :column
+                    """
+                ), {"table": table_name, "column": column_name}).fetchone()
+                return bool(res[0])
+
+            # Helper: check if index exists by name
+            def index_exists(table_name: str, index_name: str) -> bool:
+                res = conn.execute(text(
+                    """
+                    SELECT COUNT(*) as count
+                    FROM information_schema.statistics
+                    WHERE table_schema = DATABASE()
+                      AND table_name = :table
+                      AND index_name = :index
+                    """
+                ), {"table": table_name, "index": index_name}).fetchone()
+                return bool(res[0])
+
+            # Ensure columns
+            if not column_exists('problems', 'is_persistent'):
                 print("Adding is_persistent column to problems table...")
                 conn.execute(text("ALTER TABLE problems ADD COLUMN is_persistent BOOLEAN DEFAULT FALSE"))
                 conn.commit()
-            
-            # Check atlas_stops table for atlas_note_is_persistent column
-            result = conn.execute(text("""
-                SELECT COUNT(*) as count 
-                FROM information_schema.columns 
-                WHERE table_schema = DATABASE() 
-                AND table_name = 'atlas_stops' 
-                AND column_name = 'atlas_note_is_persistent'
-            """))
-            
-            if result.fetchone()[0] == 0:
+
+            if not column_exists('atlas_stops', 'atlas_note_is_persistent'):
                 print("Adding atlas_note_is_persistent column to atlas_stops table...")
                 conn.execute(text("ALTER TABLE atlas_stops ADD COLUMN atlas_note_is_persistent BOOLEAN DEFAULT FALSE"))
                 conn.commit()
-            
-            # Check osm_nodes table for osm_note_is_persistent column
-            result = conn.execute(text("""
-                SELECT COUNT(*) as count 
-                FROM information_schema.columns 
-                WHERE table_schema = DATABASE() 
-                AND table_name = 'osm_nodes' 
-                AND column_name = 'osm_note_is_persistent'
-            """))
-            
-            if result.fetchone()[0] == 0:
+
+            if not column_exists('osm_nodes', 'osm_note_is_persistent'):
                 print("Adding osm_note_is_persistent column to osm_nodes table...")
                 conn.execute(text("ALTER TABLE osm_nodes ADD COLUMN osm_note_is_persistent BOOLEAN DEFAULT FALSE"))
                 conn.commit()
-                
+
+            # Ensure helpful indexes on stops and atlas_stops
+            print("Ensuring performance indexes exist...")
+            if not index_exists('stops', 'idx_atlas_lat_lon'):
+                conn.execute(text("CREATE INDEX idx_atlas_lat_lon ON stops(atlas_lat, atlas_lon)"))
+                conn.commit()
+
+            if not index_exists('stops', 'idx_osm_lat_lon'):
+                conn.execute(text("CREATE INDEX idx_osm_lat_lon ON stops(osm_lat, osm_lon)"))
+                conn.commit()
+
+            if not index_exists('stops', 'idx_stop_type_match_type'):
+                conn.execute(text("CREATE INDEX idx_stop_type_match_type ON stops(stop_type, match_type)"))
+                conn.commit()
+
+            if not index_exists('atlas_stops', 'idx_atlas_operator'):
+                conn.execute(text("CREATE INDEX idx_atlas_operator ON atlas_stops(atlas_business_org_abbr)"))
+                conn.commit()
+
         print("Database schema is up to date.")
         
     except Exception as e:
@@ -532,7 +550,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         if atlas_lat is None: continue
 
         sloid = safe_value(rec.get('sloid'))
-        match_type_for_unmatched = 'no_osm_within_50m' if sloid in no_nearby_osm_sloids else None
+        match_type_for_unmatched = 'no_nearby_counterpart' if sloid in no_nearby_osm_sloids else None
 
         problems = analyze_stop_problems({
             'stop_type': 'unmatched',

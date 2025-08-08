@@ -49,11 +49,11 @@ This stage makes matches based on proximity when a direct identifier match is no
 
 ---
 
-### Stage 4: No Nearby OSM Node (`no_osm_within_50m`)
+### Stage 4: No Nearby OSM Node (`no_nearby_counterpart`)
 
 This final stage does not create matches but instead identifies ATLAS entries for which no corresponding OSM data is likely to exist.
 
-- **Logic**: It flags any remaining unmatched ATLAS entries that have no OSM nodes within a 50-meter radius.
+- **Logic**: It flags any remaining unmatched ATLAS entries that have no OSM nodes within the configured isolation radius (50 meters by default).
 - **Purpose**: This is crucial for data quality analysis, as it highlights areas where the ATLAS dataset has coverage but OpenStreetMap does not.
 
 ---

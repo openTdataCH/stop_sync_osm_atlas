@@ -7,7 +7,9 @@ import os
 import xml.etree.ElementTree as ET
 
 # Assuming the project structure allows this import path
-from matching_process.route_matching import route_matching, parse_osm_xml, haversine_distance, _normalize_direction
+from matching_process.route_matching import route_matching, _normalize_direction
+from matching_process.matching_script import parse_osm_xml
+from matching_process.utils import haversine_distance
 from get_atlas_data import extract_gtfs_directions
 
 # Setup logging

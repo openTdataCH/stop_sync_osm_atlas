@@ -1,20 +1,14 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Problem Identification Tool</title>
+{% extends "base.html" %}
+
+{% block title %}Problem Identification Tool{% endblock %}
+
+{% block head_css %}
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-  <!-- Bootstrap CSS for UI elements -->
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <!-- Popup CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/popup.css') }}">
-  <!-- Custom CSS from index -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <!-- Problems Page Specific CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/problems.css') }}">
-  <!-- Font Awesome for icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
   <style>
     /* Inline styles for basic layout - more complex styles are in problems.css */
     html, body {
@@ -63,8 +57,9 @@
         align-items: center;
     }
   </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
 <div class="container-fluid d-flex flex-column vh-100">
   <h1 class="mt-3 mb-3 text-center display-4 flex-shrink-0">
     <div class="header-container">
@@ -157,11 +152,6 @@
                   </label>
                 </div>
                 
-                <!-- Batch persist button -->
-                <button id="batchPersistBtn" class="btn btn-outline-success btn-sm btn-block mb-2">
-                  <i class="fas fa-save"></i> Make All Current Solutions Persistent
-                </button>
-                
                 <!-- Manage persistent solutions link -->
                 <a href="{{ url_for('persistent_data') }}" class="btn btn-info btn-sm btn-block mb-3">
                   <i class="fas fa-database"></i> Manage Persistent Data
@@ -249,15 +239,6 @@
     </div>
   </div>
   
-  <!-- Repository Link Footer -->
-  <div class="text-center py-2 flex-shrink-0">
-    <small class="text-muted">
-      <a href="https://gitedu.hesge.ch/guillem.massague/bachelor-project" target="_blank" class="text-decoration-none">
-        <i class="fas fa-code-branch"></i> View Project Repository
-      </a>
-    </small>
-  </div>
-  
   <!-- Keyboard Shortcuts Hint -->
   <div class="keyboard-shortcuts-hint" id="keyboardHint">
     <div><strong>Keyboard Shortcuts:</strong></div>
@@ -266,13 +247,9 @@
     <div>↑ / ↓ : Scroll Issues</div>
   </div>
 </div>
+{% endblock %}
 
-<!-- jQuery -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<!-- Popper.js (required for Bootstrap dropdowns) -->
-<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-<!-- Bootstrap JS -->
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+{% block scripts %}
 <!-- Leaflet scripts -->
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 <!-- Shared popup and rendering utilities -->
@@ -281,8 +258,13 @@
 <script src="{{ url_for('static', filename='js/move_popup.js') }}"></script>
 <script src="{{ url_for('static', filename='js/map-renderer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/operator-dropdown.js') }}"></script>
-<!-- Custom problems page script -->
+<!-- Modular problems page scripts (order matters for dependencies) -->
+<script src="{{ url_for('static', filename='js/problems-state.js') }}"></script>
+<script src="{{ url_for('static', filename='js/problems-map.js') }}"></script>
+<script src="{{ url_for('static', filename='js/problems-data.js') }}"></script>
+<script src="{{ url_for('static', filename='js/problems-ui.js') }}"></script>
+<script src="{{ url_for('static', filename='js/problems-solutions.js') }}"></script>
+<script src="{{ url_for('static', filename='js/problems-notes.js') }}"></script>
+<!-- Main problems page coordinator -->
 <script src="{{ url_for('static', filename='js/problems.js') }}"></script>
-
-</body>
-</html> 
+{% endblock %}

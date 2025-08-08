@@ -8,6 +8,8 @@ import xml.etree.ElementTree as ET
 import os
 # Setup logging
 logger = logging.getLogger(__name__)
+from .utils import haversine_distance
+## Avoid importing GTFS/HRDF matchers at module import time to prevent circular imports
 
 # --- Helper Functions ---
 
@@ -76,157 +78,9 @@ def _create_match_dict(csv_row, osm_node, distance, match_type, notes, **kwargs)
     match.update(kwargs)
     return match
 
-def _perform_hrdf_matching(unmatched_df, xml_nodes, osm_xml_file, used_osm_nodes):
-    """Performs route matching using HRDF direction strings and UIC references."""
-    logger.info("Performing HRDF-based route matching...")
+## HRDF matching is now in route_matching_hrdf.perform_hrdf_matching
 
-    try:
-        hrdf_routes = pd.read_csv("data/processed/atlas_routes_hrdf.csv")
-        atlas_name_directions = defaultdict(set)
-        atlas_uic_directions = defaultdict(set)
-        for _, row in hrdf_routes.iterrows():
-            sloid_str = str(row['sloid'])
-            if pd.notna(row.get('direction_name')):
-                atlas_name_directions[sloid_str].add(row['direction_name'])
-            if pd.notna(row.get('direction_uic')):
-                atlas_uic_directions[sloid_str].add(row['direction_uic'])
-    except FileNotFoundError:
-        logger.error("HRDF routes file not found. Skipping HRDF matching.")
-        return [], set()
-
-    osm_name_directions, osm_uic_directions = _get_osm_directions_from_xml(osm_xml_file)
-    
-    osm_by_uic = defaultdict(list)
-    for node in xml_nodes.values():
-        if node['node_id'] not in used_osm_nodes:
-            uic_ref = node.get('tags', {}).get('uic_ref')
-            if uic_ref:
-                osm_by_uic[uic_ref.strip()].append(node)
-
-    matches = []
-    used_osm_ids_hrdf = set()
-
-    for _, atlas_row in tqdm(unmatched_df.iterrows(), total=len(unmatched_df), desc="HRDF Route Matching"):
-        sloid = str(atlas_row['sloid'])
-        atlas_uic_raw = atlas_row.get('number')
-        
-        if pd.isna(atlas_uic_raw): continue
-        try:
-            atlas_uic = str(int(float(atlas_uic_raw)))
-        except (ValueError, TypeError):
-            continue
-            
-        atlas_name_dirs = atlas_name_directions.get(sloid, set())
-        atlas_uic_dirs = atlas_uic_directions.get(sloid, set())
-        if not atlas_name_dirs and not atlas_uic_dirs:
-            continue
-
-        candidate_nodes = osm_by_uic.get(atlas_uic, [])
-        for osm_node in candidate_nodes:
-            osm_id = osm_node['node_id']
-            if osm_id in used_osm_ids_hrdf: continue
-            
-            osm_name_dirs = osm_name_directions.get(osm_id, set())
-            osm_uic_dirs = osm_uic_directions.get(osm_id, set())
-            
-            name_match = atlas_name_dirs.intersection(osm_name_dirs)
-            uic_match = atlas_uic_dirs.intersection(osm_uic_dirs)
-            
-            if name_match or uic_match:
-                match_subtype_parts = []
-                if name_match: match_subtype_parts.append("name")
-                if uic_match: match_subtype_parts.append("uic")
-                
-                # Combine main type and subtype into a single string
-                match_type_str = f"route_hrdf_{'+'.join(match_subtype_parts)}"
-
-                match = _create_match_dict(
-                    atlas_row, osm_node,
-                    haversine_distance(atlas_row['wgs84North'], atlas_row['wgs84East'], osm_node['lat'], osm_node['lon']),
-                    match_type_str,
-                    f"Shared UIC ({atlas_uic}) and direction string."
-                )
-                matches.append(match)
-                used_osm_ids_hrdf.add(osm_id)
-                break # Match found for this sloid, move to the next
-    
-    logger.info(f"HRDF matching found {len(matches)} new matches.")
-    return matches, used_osm_ids_hrdf
-
-def _perform_gtfs_matching(unmatched_df, xml_nodes, max_distance, used_osm_nodes):
-    """Performs route matching using GTFS route/direction IDs."""
-    logger.info("Performing GTFS-based route matching...")
-    # This function would contain the entirety of the previous `route_matching` logic,
-    # refactored to work on the provided `unmatched_df` and respect `used_osm_nodes`.
-    # For brevity, we'll assume the original logic is now inside this function.
-    # We will mock a simplified version of its output for now.
-    
-    # The full, original logic from `route_matching.py` would be here, but adapted.
-    # This includes _load_and_prepare_route_data, _build_osm_indexes, etc.
-    # To avoid repeating >800 lines, this is a placeholder for that logic.
-    
-    # --- Start of placeholder logic ---
-    atlas_route_map, osm_route_map = _load_and_prepare_route_data()
-    
-    # Filter xml_nodes to exclude already used ones
-    available_xml_nodes = {k: v for k, v in xml_nodes.items() if v['node_id'] not in used_osm_nodes}
-    
-    # Build indexes on available nodes
-    osm_by_uic_route_dir, osm_by_route_dir, osm_by_uic_route_dir_normalized, osm_by_route_dir_normalized = _build_osm_indexes(available_xml_nodes, osm_route_map)
-    atlas_by_uic_route_dir, atlas_stop_route_combinations, atlas_by_route_dir = _build_atlas_indexes(unmatched_df, atlas_route_map)
-    
-    unique_uic_route_dir_keys, _ = _identify_stage1_candidates(atlas_by_uic_route_dir, osm_by_uic_route_dir, atlas_stop_route_combinations)
-    stage2_allowed_keys, stage2_normalized_allowed_keys = _identify_stage2_allowed_keys(atlas_by_route_dir, osm_by_route_dir, osm_by_route_dir_normalized)
-    all_stage2_allowed_keys = stage2_allowed_keys | stage2_normalized_allowed_keys
-
-    matches = []
-    used_osm_ids_gtfs = set()
-    
-    def create_gtfs_match_dict_fn(csv_row, osm_lat, osm_lon, osm_node, distance, match_type, 
-                              matching_notes, candidate_pool_size, route, direction, business_org_abbr):
-        # A simplified version of the inner helper from the original function
-        return _create_match_dict(csv_row, osm_node, distance, match_type, matching_notes,
-                                  csv_route=route, csv_direction=direction, candidate_pool_size=candidate_pool_size)
-
-    for _, csv_row in tqdm(unmatched_df.iterrows(), total=len(unmatched_df), desc="GTFS Route Matching"):
-        sloid = str(csv_row['sloid'])
-        uic_ref = str(csv_row.get('number', '')).strip() if pd.notna(csv_row.get('number')) else ""
-        business_org_abbr = str(csv_row.get('servicePointBusinessOrganisationAbbreviationEn', '')).strip()
-        
-        route_directions = atlas_route_map.get(sloid, [])
-        if not route_directions: continue
-        
-        row_matched = False
-        for rd in route_directions:
-            if row_matched: break
-            route, direction = rd['route'], rd['direction']
-            
-            # Stage 1
-            match, matched = _perform_stage1_matching(
-                csv_row, uic_ref, business_org_abbr, route, direction,
-                unique_uic_route_dir_keys, osm_by_uic_route_dir, osm_by_uic_route_dir_normalized, create_gtfs_match_dict_fn,
-                used_osm_ids_gtfs
-            )
-            if matched:
-                matches.append(match)
-                used_osm_ids_gtfs.add(match['osm_node_id'])
-                row_matched = True
-                continue
-
-            # Stage 2
-            match, matched = _perform_stage2_matching(
-                csv_row, business_org_abbr, route, direction,
-                osm_by_route_dir, osm_by_route_dir_normalized, max_distance, create_gtfs_match_dict_fn,
-                all_stage2_allowed_keys, used_osm_ids_gtfs, used_osm_ids_gtfs
-            )
-            if matched:
-                matches.append(match)
-                used_osm_ids_gtfs.add(match['osm_node_id'])
-                row_matched = True
-
-    # --- End of placeholder logic ---
-    logger.info(f"GTFS matching found {len(matches)} new matches.")
-    return matches, used_osm_ids_gtfs
+## GTFS matching is now in route_matching_gtfs.perform_gtfs_matching
 
 
 def route_matching(unmatched_df, xml_nodes, osm_xml_file, max_distance=50, strategy='gtfs_hrdf'):
@@ -240,6 +94,9 @@ def route_matching(unmatched_df, xml_nodes, osm_xml_file, max_distance=50, strat
       - 'hrdf_gtfs': Try HRDF first, then GTFS on the remainder.
     """
     logger.info(f"Starting route matching with strategy: {strategy}")
+    # Lazy imports to avoid circular import during module initialization
+    from .route_matching_gtfs import perform_gtfs_matching
+    from .route_matching_hrdf import perform_hrdf_matching
     
     all_matches = []
     used_osm_nodes = set()
@@ -257,9 +114,9 @@ def route_matching(unmatched_df, xml_nodes, osm_xml_file, max_distance=50, strat
         newly_used_osm_ids = set()
 
         if current_strategy == 'gtfs':
-            new_matches, newly_used_osm_ids = _perform_gtfs_matching(df_to_process, xml_nodes, max_distance, used_osm_nodes)
+            new_matches, newly_used_osm_ids = perform_gtfs_matching(df_to_process, xml_nodes, max_distance, used_osm_nodes)
         elif current_strategy == 'hrdf':
-            new_matches, newly_used_osm_ids = _perform_hrdf_matching(df_to_process, xml_nodes, osm_xml_file, used_osm_nodes)
+            new_matches, newly_used_osm_ids = perform_hrdf_matching(df_to_process, xml_nodes, osm_xml_file, used_osm_nodes)
         else:
             logger.warning(f"Unknown strategy part '{current_strategy}' found in '{strategy}'. Skipping.")
             continue
@@ -445,28 +302,7 @@ def _load_and_prepare_route_data():
 
     return atlas_route_map, osm_route_map
 
-def haversine_distance(lat1, lon1, lat2, lon2):
-    """
-    Calculate the Haversine distance (in meters) between two points.
-    """
-    try:
-        R = 6371000.0  # Earth radius in meters
-        # Attempt to convert inputs to float first
-        lat1_f, lon1_f, lat2_f, lon2_f = float(lat1), float(lon1), float(lat2), float(lon2)
-        # Then map to radians
-        rad_lat1, rad_lon1, rad_lat2, rad_lon2 = map(radians, [lat1_f, lon1_f, lat2_f, lon2_f])
-        
-        dlat = rad_lat2 - rad_lat1
-        dlon = rad_lon2 - rad_lon1
-        a = sin(dlat/2)**2 + cos(rad_lat1)*cos(rad_lat2)*sin(dlon/2)**2
-        c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        return R * c
-    except (ValueError, TypeError) as e:
-        logger.error(f"Error in haversine_distance with inputs ({lat1}, {lon1}, {lat2}, {lon2}): {e}")
-        return None
-    except Exception as e: # Catch any other unexpected errors
-        logger.error(f"Unexpected error in haversine_distance with inputs ({lat1}, {lon1}, {lat2}, {lon2}): {e}")
-        return None
+## haversine_distance centralized in utils.py
 
 def _identify_stage1_candidates(atlas_by_uic_route_dir, osm_by_uic_route_dir, atlas_stop_route_combinations):
     """Identifies unique candidates for Stage 1 matching."""
@@ -651,9 +487,7 @@ def _build_atlas_indexes(unmatched_df, atlas_route_map):
         uic_ref = str(csv_row.get('number', '')).strip() if pd.notna(csv_row.get('number')) else ""
         
         route_directions = []
-        # Ensure atlas_route_map is accessible; it should be passed if not in scope
-        # For now, assuming it might be available through closure or needs to be passed.
-        # Corrected: atlas_route_map is passed as an argument.
+        # atlas_route_map is passed explicitly
         if sloid in atlas_route_map:
             route_directions = atlas_route_map[sloid]
         

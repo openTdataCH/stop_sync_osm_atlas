@@ -7,8 +7,24 @@ import json
 # Create blueprint for data operations
 data_bp = Blueprint('data', __name__)
 
-# Helper function to format stop data for API response
-def format_stop_data(stop, problem_type=None):
+# Helper function to format stop data for API response (optimized)
+def format_stop_data(stop, problem_type=None, include_routes=True, include_notes=True):
+    """
+    Format stop data for API response with optional fields for performance.
+    
+    Args:
+        stop: Stop object
+        problem_type: Optional problem type to include
+        include_routes: Whether to include route information (can be expensive)
+        include_notes: Whether to include note information
+    
+    Returns:
+        Dictionary with formatted stop data
+    """
+    # Cache relationship access to avoid multiple property lookups
+    atlas_details = stop.atlas_stop_details
+    osm_details = stop.osm_node_details
+    
     result = {
         "id": stop.id,
         "sloid": stop.sloid,
@@ -16,37 +32,46 @@ def format_stop_data(stop, problem_type=None):
         "match_type": stop.match_type,
         "atlas_lat": stop.atlas_lat if stop.atlas_lat is not None else stop.osm_lat,
         "atlas_lon": stop.atlas_lon if stop.atlas_lon is not None else stop.osm_lon,
-        "atlas_business_org_abbr": stop.atlas_stop_details.atlas_business_org_abbr if stop.atlas_stop_details else None,
-        "atlas_operator": stop.atlas_stop_details.atlas_business_org_abbr if stop.atlas_stop_details else None,  # Alias for consistency
-        "atlas_name": stop.atlas_stop_details.atlas_designation if stop.atlas_stop_details else None,
+        "atlas_business_org_abbr": atlas_details.atlas_business_org_abbr if atlas_details else None,
+        "atlas_operator": atlas_details.atlas_business_org_abbr if atlas_details else None,  # Alias for consistency
+        "atlas_name": atlas_details.atlas_designation if atlas_details else None,
         "atlas_local_ref": None,  # Not available in current schema
         "atlas_transport_type": stop.osm_node_type,  # Best approximation
         "osm_lat": stop.osm_lat,
         "osm_lon": stop.osm_lon,
-        "osm_network": stop.osm_node_details.osm_network if stop.osm_node_details else None,
-        "osm_operator": stop.osm_node_details.osm_operator if stop.osm_node_details else None,
-        "osm_public_transport": stop.osm_node_details.osm_public_transport if stop.osm_node_details else None,
-        "osm_railway": stop.osm_node_details.osm_railway if stop.osm_node_details else None,
-        "osm_amenity": stop.osm_node_details.osm_amenity if stop.osm_node_details else None,
-        "osm_aerialway": stop.osm_node_details.osm_aerialway if stop.osm_node_details else None,
+        "osm_network": osm_details.osm_network if osm_details else None,
+        "osm_operator": osm_details.osm_operator if osm_details else None,
+        "osm_public_transport": osm_details.osm_public_transport if osm_details else None,
+        "osm_railway": osm_details.osm_railway if osm_details else None,
+        "osm_amenity": osm_details.osm_amenity if osm_details else None,
+        "osm_aerialway": osm_details.osm_aerialway if osm_details else None,
         "distance_m": stop.distance_m,
-        "atlas_designation": stop.atlas_stop_details.atlas_designation if stop.atlas_stop_details else None,
-        "atlas_designation_official": stop.atlas_stop_details.atlas_designation_official if stop.atlas_stop_details else None,
+        "atlas_designation": atlas_details.atlas_designation if atlas_details else None,
+        "atlas_designation_official": atlas_details.atlas_designation_official if atlas_details else None,
         "uic_ref": stop.uic_ref,
         "osm_node_id": stop.osm_node_id,
-        "osm_local_ref": stop.osm_node_details.osm_local_ref if stop.osm_node_details else None,
-        "osm_name": stop.osm_node_details.osm_name if stop.osm_node_details else None,
-        "osm_uic_name": stop.osm_node_details.osm_uic_name if stop.osm_node_details else None,
-        "routes_atlas": stop.atlas_stop_details.routes_atlas if stop.atlas_stop_details else None,
-        "routes_hrdf": stop.atlas_stop_details.routes_hrdf if stop.atlas_stop_details else None,
-        "routes_osm": stop.osm_node_details.routes_osm if stop.osm_node_details else None,
+        "osm_local_ref": osm_details.osm_local_ref if osm_details else None,
+        "osm_name": osm_details.osm_name if osm_details else None,
+        "osm_uic_name": osm_details.osm_uic_name if osm_details else None,
         "atlas_duplicate_sloid": stop.atlas_duplicate_sloid,
         "osm_node_type": stop.osm_node_type,
-        "atlas_note": stop.atlas_stop_details.atlas_note if stop.atlas_stop_details else None,
-        "osm_note": stop.osm_node_details.osm_note if stop.osm_node_details else None,
-        "atlas_note_is_persistent": stop.atlas_stop_details.atlas_note_is_persistent if stop.atlas_stop_details else False,
-        "osm_note_is_persistent": stop.osm_node_details.osm_note_is_persistent if stop.osm_node_details else False
     }
+    
+    # Conditionally include expensive fields
+    if include_routes:
+        result.update({
+            "routes_atlas": atlas_details.routes_atlas if atlas_details else None,
+            "routes_hrdf": atlas_details.routes_hrdf if atlas_details else None,
+            "routes_osm": osm_details.routes_osm if osm_details else None,
+        })
+    
+    if include_notes:
+        result.update({
+            "atlas_note": atlas_details.atlas_note if atlas_details else None,
+            "osm_note": osm_details.osm_note if osm_details else None,
+            "atlas_note_is_persistent": atlas_details.atlas_note_is_persistent if atlas_details else False,
+            "osm_note_is_persistent": osm_details.osm_note_is_persistent if osm_details else False
+        })
     
     # Add problem type if provided
     if problem_type:
@@ -271,22 +296,35 @@ def get_data():
         
         offset = int(request.args.get('offset', 0))
         limit = int(request.args.get('limit', 500))
+        zoom = int(request.args.get('zoom', 14))
 
-        query = Stop.query.options(
-            joinedload(Stop.atlas_stop_details),
-            joinedload(Stop.osm_node_details)
-        )
+        # At lower zooms, avoid eager loading heavy relationships
+        if zoom < 14:
+            query = Stop.query
+        else:
+            query = Stop.query.options(
+                joinedload(Stop.atlas_stop_details),
+                joinedload(Stop.osm_node_details)
+            )
         
         all_category_conditions = []
 
-        # 1. Viewport filter
-        viewport_conditions = [
-            func.coalesce(Stop.atlas_lat, Stop.osm_lat) >= min_lat,
-            func.coalesce(Stop.atlas_lat, Stop.osm_lat) <= max_lat,
-            func.coalesce(Stop.atlas_lon, Stop.osm_lon) >= min_lon,
-            func.coalesce(Stop.atlas_lon, Stop.osm_lon) <= max_lon
-        ]
-        all_category_conditions.extend(viewport_conditions)
+        # 1. Viewport filter (sargable: OR-of-ANDs instead of COALESCE)
+        viewport_sargable = db.or_(
+            db.and_(
+                Stop.atlas_lat.isnot(None), Stop.atlas_lon.isnot(None),
+                Stop.atlas_lat >= min_lat, Stop.atlas_lat <= max_lat,
+                Stop.atlas_lon >= min_lon, Stop.atlas_lon <= max_lon
+            ),
+            db.and_(
+                # Only use OSM coords when Atlas coords are null
+                Stop.atlas_lat.is_(None), Stop.atlas_lon.is_(None),
+                Stop.osm_lat.isnot(None), Stop.osm_lon.isnot(None),
+                Stop.osm_lat >= min_lat, Stop.osm_lat <= max_lat,
+                Stop.osm_lon >= min_lon, Stop.osm_lon <= max_lon
+            )
+        )
+        all_category_conditions.append(viewport_sargable)
 
         # 2. Node Type filter
         if node_type_filter_str and node_type_filter_str.lower() != 'all':
@@ -379,6 +417,7 @@ def get_data():
                 if method in ['exact', 'name', 'manual']:
                     relevant_matched_methods.append(method)
                 elif method.startswith('distance_matching_'):
+                    # Use prefix/pattern matching for distance stages
                     relevant_matched_methods.append(method)
                 elif method.startswith('route_gtfs') or method.startswith('route_hrdf'):
                     # Handle new route matching filters
@@ -393,6 +432,9 @@ def get_data():
                     if method.startswith('route_'):
                         # Use LIKE pattern to match route_gtfs, route_hrdf, etc.
                         route_matching_conditions.append(Stop.match_type.like(f'{method}%'))
+                    elif method.startswith('distance_matching_'):
+                        # Use LIKE for distance stages that may have suffixes
+                        other_method_conditions.append(Stop.match_type.like(f'{method}%'))
                     else:
                         other_method_conditions.append(Stop.match_type == method)
                 
@@ -409,7 +451,7 @@ def get_data():
 
         # Handle 'unmatched' (ATLAS) stops
         if 'unmatched' in current_stop_types:
-            filter_for_no_osm_nearby = 'no_osm_within_50m' in current_match_methods
+            filter_for_no_osm_nearby = 'no_nearby_counterpart' in current_match_methods
             filter_for_osm_nearby    = 'osm_within_50m' in current_match_methods
 
             unmatched_specific_condition = Stop.stop_type == 'unmatched'
@@ -417,12 +459,12 @@ def get_data():
             if filter_for_no_osm_nearby and not filter_for_osm_nearby:
                 unmatched_specific_condition = db.and_(
                     Stop.stop_type == 'unmatched',
-                    Stop.match_type == 'no_osm_within_50m'
+                    Stop.match_type == 'no_nearby_counterpart'
                 )
             elif not filter_for_no_osm_nearby and filter_for_osm_nearby:
                 unmatched_specific_condition = db.and_(
                     Stop.stop_type == 'unmatched',
-                    db.or_(Stop.match_type != 'no_osm_within_50m', Stop.match_type.is_(None))
+                    db.or_(Stop.match_type != 'no_nearby_counterpart', Stop.match_type.is_(None))
                 )
             
             stop_type_match_method_or_conditions.append(db.or_(
@@ -450,7 +492,7 @@ def get_data():
         regular_stops = []
         
         for stop in stops:
-            if stop.stop_type == 'matched' and stop.sloid:
+            if zoom >= 14 and stop.stop_type == 'matched' and stop.sloid:
                 # Group ATLAS stops with multiple OSM matches
                 if stop.sloid not in atlas_to_osm_matches:
                                     atlas_to_osm_matches[stop.sloid] = {
@@ -498,41 +540,61 @@ def get_data():
                 # Handle regular stops
                 lat = stop.atlas_lat if stop.atlas_lat is not None else stop.osm_lat
                 lon = stop.atlas_lon if stop.atlas_lon is not None else stop.osm_lon
-                regular_stops.append({
-                    "id": stop.id,
-                    "sloid": stop.sloid,
-                    "stop_type": stop.stop_type,
-                    "match_type": stop.match_type,
-                    "uic_ref": stop.uic_ref,
-                    "atlas_designation": stop.atlas_stop_details.atlas_designation if stop.atlas_stop_details else None,
-                    "atlas_designation_official": stop.atlas_stop_details.atlas_designation_official if stop.atlas_stop_details else None,
-                    "atlas_business_org_abbr": stop.atlas_stop_details.atlas_business_org_abbr if stop.atlas_stop_details else None,
-                    "osm_node_id": stop.osm_node_id,
-                    "osm_local_ref": stop.osm_node_details.osm_local_ref if stop.osm_node_details else None,
-                    "osm_network": stop.osm_node_details.osm_network if stop.osm_node_details else None,
-                    "osm_operator": stop.osm_node_details.osm_operator if stop.osm_node_details else None,
-                    "osm_public_transport": stop.osm_node_details.osm_public_transport if stop.osm_node_details else None,
-                    "osm_railway": stop.osm_node_details.osm_railway if stop.osm_node_details else None,
-                    "osm_amenity": stop.osm_node_details.osm_amenity if stop.osm_node_details else None,
-                    "osm_aerialway": stop.osm_node_details.osm_aerialway if stop.osm_node_details else None,
-                    "atlas_lat": stop.atlas_lat,
-                    "atlas_lon": stop.atlas_lon,
-                    "osm_name": stop.osm_node_details.osm_name if stop.osm_node_details else None,
-                    "osm_uic_name": stop.osm_node_details.osm_uic_name if stop.osm_node_details else None,
-                    "osm_lat": stop.osm_lat,
-                    "osm_lon": stop.osm_lon,
-                    "distance_m": stop.distance_m,
-                    "lat": lat,
-                    "lon": lon,
-                    "routes_atlas": stop.atlas_stop_details.routes_atlas if stop.atlas_stop_details else None,
-                    "routes_hrdf": stop.atlas_stop_details.routes_hrdf if stop.atlas_stop_details else None,
-                    "routes_osm": stop.osm_node_details.routes_osm if stop.osm_node_details else None,
-                    "atlas_duplicate_sloid": stop.atlas_duplicate_sloid,
-                    "osm_node_type": stop.osm_node_type
-                })
+                if zoom < 14:
+                    # Minimal payload at lower zooms
+                    regular_stops.append({
+                        "id": stop.id,
+                        "sloid": stop.sloid,
+                        "stop_type": stop.stop_type,
+                        "match_type": stop.match_type,
+                        "uic_ref": stop.uic_ref,
+                        "osm_node_id": stop.osm_node_id,
+                        "atlas_lat": stop.atlas_lat,
+                        "atlas_lon": stop.atlas_lon,
+                        "osm_lat": stop.osm_lat,
+                        "osm_lon": stop.osm_lon,
+                        "distance_m": stop.distance_m,
+                        "lat": lat,
+                        "lon": lon,
+                        "atlas_duplicate_sloid": stop.atlas_duplicate_sloid,
+                        "osm_node_type": stop.osm_node_type
+                    })
+                else:
+                    regular_stops.append({
+                        "id": stop.id,
+                        "sloid": stop.sloid,
+                        "stop_type": stop.stop_type,
+                        "match_type": stop.match_type,
+                        "uic_ref": stop.uic_ref,
+                        "atlas_designation": stop.atlas_stop_details.atlas_designation if stop.atlas_stop_details else None,
+                        "atlas_designation_official": stop.atlas_stop_details.atlas_designation_official if stop.atlas_stop_details else None,
+                        "atlas_business_org_abbr": stop.atlas_stop_details.atlas_business_org_abbr if stop.atlas_stop_details else None,
+                        "osm_node_id": stop.osm_node_id,
+                        "osm_local_ref": stop.osm_node_details.osm_local_ref if stop.osm_node_details else None,
+                        "osm_network": stop.osm_node_details.osm_network if stop.osm_node_details else None,
+                        "osm_operator": stop.osm_node_details.osm_operator if stop.osm_node_details else None,
+                        "osm_public_transport": stop.osm_node_details.osm_public_transport if stop.osm_node_details else None,
+                        "osm_railway": stop.osm_node_details.osm_railway if stop.osm_node_details else None,
+                        "osm_amenity": stop.osm_node_details.osm_amenity if stop.osm_node_details else None,
+                        "osm_aerialway": stop.osm_node_details.osm_aerialway if stop.osm_node_details else None,
+                        "atlas_lat": stop.atlas_lat,
+                        "atlas_lon": stop.atlas_lon,
+                        "osm_name": stop.osm_node_details.osm_name if stop.osm_node_details else None,
+                        "osm_uic_name": stop.osm_node_details.osm_uic_name if stop.osm_node_details else None,
+                        "osm_lat": stop.osm_lat,
+                        "osm_lon": stop.osm_lon,
+                        "distance_m": stop.distance_m,
+                        "lat": lat,
+                        "lon": lon,
+                        "routes_atlas": stop.atlas_stop_details.routes_atlas if stop.atlas_stop_details else None,
+                        "routes_hrdf": stop.atlas_stop_details.routes_hrdf if stop.atlas_stop_details else None,
+                        "routes_osm": stop.osm_node_details.routes_osm if stop.osm_node_details else None,
+                        "atlas_duplicate_sloid": stop.atlas_duplicate_sloid,
+                        "osm_node_type": stop.osm_node_type
+                    })
         
         # Combine and return results
-        combined_stops = regular_stops + list(atlas_to_osm_matches.values())
+        combined_stops = regular_stops + (list(atlas_to_osm_matches.values()) if zoom >= 14 else [])
         return jsonify(combined_stops)
     except Exception as e:
         return jsonify({"error": str(e)}), 500

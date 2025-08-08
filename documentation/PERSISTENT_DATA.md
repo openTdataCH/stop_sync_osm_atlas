@@ -1,6 +1,6 @@
-# Persistent Problem Solutions
+# Persistent Data Management System
 
-The Persistent Problem Solutions system is designed to preserve manually validated solutions across data imports. Here we explain the approach, its implementation, benefits, challenges, and how various scenarios are handled.
+The Persistent Data Management system is designed to preserve manually validated solutions and notes across data imports. This unified system handles both problem solutions and contextual notes for ATLAS stops and OSM nodes. Here we explain the approach, its implementation, benefits, challenges, and how various scenarios are handled.
 
 ## Problem Statement
 
@@ -94,11 +94,10 @@ The table has a unique constraint on (`sloid`, `osm_node_id`, `problem_type`, `n
 
 ## Challenges and Limitations
 
-1. Over time, persistent solutions may become less relevant if the underlying data changes significantly
-2. A solution that was valid for a problem in one data import might not be appropriate for a similar problem in a later import if the stops data has changed significatly.
-3. The system requires periodic review of persistent solutions to ensure they remain valid
-4. The dual-table approach adds complexity to the codebase
-5. Notes are always applied to matching stops regardless of coordinate changes, which could lead to notes being applied to stops that have moved significantly
+1. A solution that was valid for a problem in one data import might not be appropriate for a similar problem in a later import if the stops data has changed significatly.
+2. The system requires periodic review of persistent solutions to ensure they remain valid
+3. The dual-table approach adds complexity to the codebase
+4. Notes are always applied the corresponding stops regardless of coordinate or attribute changes, which could lead to notes being applied to stops that have moved/changed significantly.
 
 ## Best Practices
 
@@ -109,20 +108,32 @@ The table has a unique constraint on (`sloid`, `osm_node_id`, `problem_type`, `n
 
 ## Key Components
 
-1. **Database Schema**: Unified table for persistent solutions and notes
+1. **Database Schema**: Unified `persistent_data` table for solutions and notes with proper indexing and constraints
 2. **API Endpoints**:
-   - `/api/save_solution`: Save a temporary solution
-   - `/api/make_solution_persistent`: Make a solution persistent
+   - `/api/save_solution`: Save a temporary solution (not persistent by default)
+   - `/api/make_solution_persistent`: Make an existing solution persistent
    - `/api/check_persistent_solution`: Check if a solution is persistent
-   - `/api/save_note/atlas` and `/api/save_note/osm`: Save notes with optional persistence
+   - `/api/save_note/atlas` and `/api/save_note/osm`: Save notes with optional persistence flag
+   - `/api/make_note_persistent/atlas` and `/api/make_note_persistent/osm`: Make existing notes persistent
    - `/api/check_persistent_note/atlas` and `/api/check_persistent_note/osm`: Check if notes are persistent
-   - `/api/persistent_data`: List and manage persistent solutions and notes
-   - `/api/non_persistent_data`: List non-persistent solutions and notes
-   - `/api/make_all_persistent`: Make all non-persistent data persistent in batch
-3. **Import Process**: Function to apply persistent solutions and notes after data import
-4. **UI Components**: Interface for viewing, creating, and managing persistent solutions and notes
+   - `/api/persistent_data`: List and manage persistent solutions and notes with pagination and filtering
+   - `/api/non_persistent_data`: List non-persistent solutions and notes with optimized SQL queries
+   - `/api/make_all_persistent`: Batch operation to make all non-persistent data persistent
+3. **Import Process**: Automated function to apply persistent solutions and notes after data import
+4. **UI Components**: 
+   - Dual-tab interface for persistent vs. non-persistent data management
+   - Consistent rendering with clear visual indicators
+   - Batch operations for efficiency
+   - Robust error handling and user feedback
 
 
 ## Conclusion
 
-The Persistent Problem Solutions system provides a robust way to preserve human validation and context across data imports. With the recent improvements, it now offers a more user-friendly interface, better organization, and enhanced functionality while maintaining the core benefits of efficiency and consistency across data imports.
+The Persistent Data Management system provides a robust and efficient way to preserve human validation and context across data imports. With the recent improvements, it now offers:
+- Better performance through optimized database queries
+- Consistent and intuitive user interface 
+- Complete API coverage for all operations
+- Enhanced error handling and user feedback
+- Clear separation between persistent and temporary data
+
+The system maintains the core benefits of efficiency and consistency across data imports while providing a significantly improved user experience.

@@ -2,11 +2,22 @@ from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy.orm import joinedload, subqueryload
 from backend.models import db, Stop, AtlasStop, OsmNode, Problem, PersistentData
 from backend.app_data import format_stop_data
+from backend.query_helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint
 from sqlalchemy.sql import func
 from sqlalchemy import and_
 
 # Create a blueprint for problems-related endpoints
 problems_bp = Blueprint('problems', __name__)
+
+def apply_atlas_operator_filter(query, atlas_operator_filter):
+    """Helper function to apply Atlas operator filter to any query."""
+    if atlas_operator_filter:
+        atlas_operators = [op.strip() for op in atlas_operator_filter.split(',') if op.strip()]
+        if atlas_operators:
+            return query.filter(Stop.atlas_stop_details.has(
+                AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
+            ))
+    return query
 
 # ----------------------------
 # API Endpoint: /api/problems
@@ -43,13 +54,7 @@ def get_problems():
             query = query.filter(Problem.solution.is_(None) | (Problem.solution == ''))
         
         # Atlas operator filter
-        if atlas_operator_filter:
-            atlas_operators = [op.strip() for op in atlas_operator_filter.split(',') if op.strip()]
-            if atlas_operators:
-                # Filter for problems where the stop has Atlas details with the specified operator(s)
-                query = query.filter(Stop.atlas_stop_details.has(
-                    AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
-                ))
+        query = apply_atlas_operator_filter(query, atlas_operator_filter)
         
         # For counting, we need to count distinct stop_ids, but we need to do it differently
         # Create a subquery to get distinct stop_ids that match our criteria
@@ -82,12 +87,7 @@ def get_problems():
             elif solution_status_filter == 'unsolved':
                 stop_distance_query = stop_distance_query.filter(Problem.solution.is_(None) | (Problem.solution == ''))
             
-            if atlas_operator_filter:
-                atlas_operators = [op.strip() for op in atlas_operator_filter.split(',') if op.strip()]
-                if atlas_operators:
-                    stop_distance_query = stop_distance_query.filter(Stop.atlas_stop_details.has(
-                        AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
-                    ))
+            stop_distance_query = apply_atlas_operator_filter(stop_distance_query, atlas_operator_filter)
             
             # Order by distance and get distinct stop_ids
             if sort_order == 'desc':
@@ -111,12 +111,7 @@ def get_problems():
                 stop_ids_query = stop_ids_query.filter(Problem.solution.isnot(None) & (Problem.solution != ''))
             elif solution_status_filter == 'unsolved':
                 stop_ids_query = stop_ids_query.filter(Problem.solution.is_(None) | (Problem.solution == ''))
-            if atlas_operator_filter:
-                atlas_operators = [op.strip() for op in atlas_operator_filter.split(',') if op.strip()]
-                if atlas_operators:
-                    stop_ids_query = stop_ids_query.filter(Stop.atlas_stop_details.has(
-                        AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
-                    ))
+            stop_ids_query = apply_atlas_operator_filter(stop_ids_query, atlas_operator_filter)
             
             # Get distinct stop_ids in order
             paged_stop_ids = [item[0] for item in stop_ids_query.distinct().order_by(Problem.stop_id).offset(offset).limit(limit).all()]
@@ -138,12 +133,7 @@ def get_problems():
                 final_query = final_query.filter(Problem.solution.is_(None) | (Problem.solution == ''))
             
             # Apply atlas operator filter to final query as well
-            if atlas_operator_filter:
-                atlas_operators = [op.strip() for op in atlas_operator_filter.split(',') if op.strip()]
-                if atlas_operators:
-                    final_query = final_query.filter(Stop.atlas_stop_details.has(
-                        AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
-                    ))
+            final_query = apply_atlas_operator_filter(final_query, atlas_operator_filter)
             
             # Apply the same sorting to the final query to maintain order
             if sort_by == 'distance' and problem_type_filter == 'distance':
@@ -203,12 +193,7 @@ def get_problem_stats():
             base_query = db.session.query(func.count(Problem.id)).join(Stop).filter(Problem.problem_type == p_type)
             
             # Apply operator filter if provided
-            if atlas_operator_filter:
-                atlas_operators = [op.strip() for op in atlas_operator_filter.split(',') if op.strip()]
-                if atlas_operators:
-                    base_query = base_query.filter(Stop.atlas_stop_details.has(
-                        AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
-                    ))
+            base_query = apply_atlas_operator_filter(base_query, atlas_operator_filter)
             
             # Get total count for this problem type
             total_count = base_query.scalar()
@@ -228,12 +213,7 @@ def get_problem_stats():
         all_problems_query = db.session.query(func.count(func.distinct(Problem.stop_id))).join(Stop)
         
         # Apply operator filter to 'all' stats as well
-        if atlas_operator_filter:
-            atlas_operators = [op.strip() for op in atlas_operator_filter.split(',') if op.strip()]
-            if atlas_operators:
-                all_problems_query = all_problems_query.filter(Stop.atlas_stop_details.has(
-                    AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
-                ))
+        all_problems_query = apply_atlas_operator_filter(all_problems_query, atlas_operator_filter)
         
         stats['all']['all'] = all_problems_query.scalar()
         
@@ -653,23 +633,114 @@ def delete_persistent_data(solution_id):
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
 
+@problems_bp.route('/api/make_non_persistent/<int:solution_id>', methods=['POST'])
+def make_non_persistent(solution_id):
+    """Make a persistent solution non-persistent."""
+    try:
+        solution = PersistentData.query.get(solution_id)
+        if not solution:
+            return jsonify({"success": False, "error": "Solution not found"}), 404
+
+        # Unset the persistent flag on the related problem or note
+        if solution.problem_type:
+            stop = Stop.query.filter(
+                and_(Stop.sloid == solution.sloid, Stop.osm_node_id == solution.osm_node_id)
+            ).first()
+            if stop:
+                problem = Problem.query.filter_by(
+                    stop_id=stop.id,
+                    problem_type=solution.problem_type
+                ).first()
+                if problem:
+                    problem.is_persistent = False
+        
+        elif solution.note_type == 'atlas':
+            atlas_stop = AtlasStop.query.filter_by(sloid=solution.sloid).first()
+            if atlas_stop:
+                atlas_stop.atlas_note_is_persistent = False
+
+        elif solution.note_type == 'osm':
+            osm_node = OsmNode.query.filter_by(osm_node_id=solution.osm_node_id).first()
+            if osm_node:
+                osm_node.osm_note_is_persistent = False
+        
+        db.session.delete(solution)
+        db.session.commit()
+        
+        return jsonify({"success": True, "message": "Solution made non-persistent successfully"})
+    
+    except Exception as e:
+        app.logger.error(f"Error making solution non-persistent: {str(e)}")
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@problems_bp.route('/api/clear_all_persistent', methods=['POST'])
+def clear_all_persistent():
+    """Clear all persistent data."""
+    try:
+        # Unset all persistent flags
+        Problem.query.update({Problem.is_persistent: False})
+        AtlasStop.query.update({AtlasStop.atlas_note_is_persistent: False})
+        OsmNode.query.update({OsmNode.osm_note_is_persistent: False})
+        
+        # Delete all persistent data entries
+        PersistentData.query.delete()
+        
+        db.session.commit()
+        return jsonify({"success": True, "message": "All persistent data cleared."})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@problems_bp.route('/api/clear_all_non-persistent', methods=['POST'])
+def clear_all_non_persistent():
+    """Clear all non-persistent solutions and notes."""
+    try:
+        # Clear non-persistent solutions
+        Problem.query.filter(Problem.is_persistent == False).update({Problem.solution: None})
+        
+        # Clear non-persistent notes
+        AtlasStop.query.filter(AtlasStop.atlas_note_is_persistent == False).update({AtlasStop.atlas_note: None})
+        OsmNode.query.filter(OsmNode.osm_note_is_persistent == False).update({OsmNode.osm_note: None})
+        
+        db.session.commit()
+        return jsonify({"success": True, "message": "All non-persistent data cleared."})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
 # -------------------------------
 # API Endpoint: Get Non-Persistent Data
 # -------------------------------
 @problems_bp.route('/api/non_persistent_data', methods=['GET'])
 def get_non_persistent_data():
-    """Get all non-persistent solutions and notes using the new flags."""
+    """Get all non-persistent solutions and notes with optimized SQL queries."""
     try:
         # Check if this is just a count request
         count_only = request.args.get('count_only', 'false').lower() == 'true'
         
         if count_only:
-            # Count non-persistent problems (both with and without solutions)
-            solution_count = Problem.query.filter_by(is_persistent=False).count()
-            note_count = AtlasStop.query.filter_by(atlas_note_is_persistent=False).filter(AtlasStop.atlas_note.isnot(None), AtlasStop.atlas_note != '').count()
-            note_count += OsmNode.query.filter_by(osm_note_is_persistent=False).filter(OsmNode.osm_note.isnot(None), OsmNode.osm_note != '').count()
+            # Count non-persistent problems and notes efficiently
+            solution_count = Problem.query.filter(
+                Problem.is_persistent == False,
+                Problem.solution.isnot(None),
+                Problem.solution != ''
+            ).count()
+            atlas_note_count = AtlasStop.query.filter(
+                AtlasStop.atlas_note.isnot(None), 
+                AtlasStop.atlas_note != '', 
+                AtlasStop.atlas_note_is_persistent == False
+            ).count()
+            osm_note_count = OsmNode.query.filter(
+                OsmNode.osm_note.isnot(None), 
+                OsmNode.osm_note != '', 
+                OsmNode.osm_note_is_persistent == False
+            ).count()
             
-            return jsonify({'solution_count': solution_count, 'note_count': note_count})
+            return jsonify({
+                'solution_count': solution_count, 
+                'note_count': atlas_note_count + osm_note_count
+            })
 
         # Pagination and filtering
         page = int(request.args.get('page', 1))
@@ -679,55 +750,97 @@ def get_non_persistent_data():
         
         results = []
         
-        # Get non-persistent problems (including those without solutions)
+        # Build optimized queries with proper ordering for consistent pagination
         if filter_type in ['all', 'distance', 'isolated', 'attributes']:
-            query = Problem.query.options(joinedload(Problem.stop)).filter(
-                Problem.is_persistent == False
+            problem_query = db.session.query(
+                Problem.id,
+                Problem.problem_type,
+                Problem.solution,
+                Problem.stop_id,
+                Stop.sloid,
+                Stop.osm_node_id
+            ).join(Stop).filter(
+                Problem.is_persistent == False,
+                Problem.solution.isnot(None),
+                Problem.solution != ''
             )
-            if filter_type != 'all':
-                query = query.filter(Problem.problem_type == filter_type)
             
-            for problem in query.all():
-                results.append({
-                    'id': problem.id, 
-                    'type': 'solution', 
-                    'problem_type': problem.problem_type,
-                    'solution': problem.solution or '', 
-                    'sloid': problem.stop.sloid, 
-                    'osm_node_id': problem.stop.osm_node_id,
-                    'stop_id': problem.stop_id  # Add stop_id for backend operations
-                })
+            if filter_type != 'all':
+                problem_query = problem_query.filter(Problem.problem_type == filter_type)
+            
+            # Use database ordering for consistent pagination
+            problem_query = problem_query.order_by(Problem.id)
+            
+            # Only get the problems for the current page if not filtering by notes only
+            if filter_type in ['all', 'distance', 'isolated', 'attributes']:
+                problems = problem_query.all()
+                for p in problems:
+                    results.append({
+                        'id': p.id,
+                        'type': 'solution',
+                        'problem_type': p.problem_type,
+                        'solution': p.solution or '',
+                        'sloid': p.sloid,
+                        'osm_node_id': p.osm_node_id,
+                        'stop_id': p.stop_id
+                    })
 
         # Get non-persistent ATLAS notes
         if filter_type in ['all', 'atlas_note']:
-            query = AtlasStop.query.filter(
-                AtlasStop.atlas_note.isnot(None), 
-                AtlasStop.atlas_note != '', 
+            atlas_query = db.session.query(
+                AtlasStop.sloid,
+                AtlasStop.atlas_note
+            ).filter(
+                AtlasStop.atlas_note.isnot(None),
+                AtlasStop.atlas_note != '',
                 AtlasStop.atlas_note_is_persistent == False
-            )
-            for stop in query.all():
+            ).order_by(AtlasStop.sloid)
+            
+            atlas_notes = atlas_query.all()
+            for note in atlas_notes:
                 results.append({
-                    'id': f"atlas_{stop.sloid}", 'type': 'note', 'note_type': 'atlas', 'note': stop.atlas_note,
-                    'sloid': stop.sloid, 'osm_node_id': None
+                    'id': f"atlas_{note.sloid}",
+                    'type': 'note',
+                    'note_type': 'atlas',
+                    'note': note.atlas_note,
+                    'sloid': note.sloid,
+                    'osm_node_id': None
                 })
         
         # Get non-persistent OSM notes
         if filter_type in ['all', 'osm_note']:
-            query = OsmNode.query.filter(
-                OsmNode.osm_note.isnot(None), 
-                OsmNode.osm_note != '', 
+            osm_query = db.session.query(
+                OsmNode.osm_node_id,
+                OsmNode.osm_note
+            ).filter(
+                OsmNode.osm_note.isnot(None),
+                OsmNode.osm_note != '',
                 OsmNode.osm_note_is_persistent == False
-            )
-            for node in query.all():
+            ).order_by(OsmNode.osm_node_id)
+            
+            osm_notes = osm_query.all()
+            for note in osm_notes:
                 results.append({
-                    'id': f"osm_{node.osm_node_id}", 'type': 'note', 'note_type': 'osm', 'note': node.osm_note,
-                    'sloid': None, 'osm_node_id': node.osm_node_id
+                    'id': f"osm_{note.osm_node_id}",
+                    'type': 'note',
+                    'note_type': 'osm', 
+                    'note': note.osm_note,
+                    'sloid': None,
+                    'osm_node_id': note.osm_node_id
                 })
+        
+        # Sort results by type and ID for consistent ordering
+        results.sort(key=lambda x: (x['type'], str(x['id'])))
         
         total_count = len(results)
         paged_results = results[offset:offset + limit]
         
-        return jsonify({'data': paged_results, 'total': total_count, 'page': page, 'limit': limit})
+        return jsonify({
+            'data': paged_results, 
+            'total': total_count, 
+            'page': page, 
+            'limit': limit
+        })
         
     except Exception as e:
         app.logger.error(f"Error fetching non-persistent data: {str(e)}")
@@ -801,5 +914,108 @@ def make_all_persistent():
         
     except Exception as e:
         app.logger.error(f"Error making all data persistent: {str(e)}")
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# -------------------------------
+# API Endpoints: Make Notes Persistent
+# -------------------------------
+@problems_bp.route('/api/make_note_persistent/atlas', methods=['POST'])
+def make_atlas_note_persistent():
+    """Make an existing ATLAS note persistent."""
+    try:
+        data = request.get_json()
+        sloid = data.get('sloid')
+        
+        if not sloid:
+            return jsonify({"success": False, "error": "Missing sloid"}), 400
+        
+        # Find the ATLAS stop
+        atlas_stop = AtlasStop.query.filter_by(sloid=sloid).first()
+        if not atlas_stop or not atlas_stop.atlas_note:
+            return jsonify({"success": False, "error": "No note found for this ATLAS stop"}), 404
+        
+        # Save to persistent_data table
+        persistent_note = PersistentData.query.filter_by(
+            sloid=sloid,
+            note_type='atlas'
+        ).first()
+        
+        if persistent_note:
+            # Update existing persistent note
+            persistent_note.note = atlas_stop.atlas_note
+            message = "ATLAS note updated in persistent storage"
+        else:
+            # Create new persistent note
+            new_persistent_note = PersistentData(
+                sloid=sloid,
+                note_type='atlas',
+                note=atlas_stop.atlas_note
+            )
+            db.session.add(new_persistent_note)
+            message = "ATLAS note saved to persistent storage"
+        
+        # Mark the note as persistent
+        atlas_stop.atlas_note_is_persistent = True
+        
+        db.session.commit()
+        
+        return jsonify({
+            "success": True, 
+            "message": message
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Exception in make_atlas_note_persistent: {e}")
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@problems_bp.route('/api/make_note_persistent/osm', methods=['POST'])
+def make_osm_note_persistent():
+    """Make an existing OSM note persistent."""
+    try:
+        data = request.get_json()
+        osm_node_id = data.get('osm_node_id')
+        
+        if not osm_node_id:
+            return jsonify({"success": False, "error": "Missing osm_node_id"}), 400
+        
+        # Find the OSM node
+        osm_node = OsmNode.query.filter_by(osm_node_id=osm_node_id).first()
+        if not osm_node or not osm_node.osm_note:
+            return jsonify({"success": False, "error": "No note found for this OSM node"}), 404
+        
+        # Save to persistent_data table
+        persistent_note = PersistentData.query.filter_by(
+            osm_node_id=osm_node_id,
+            note_type='osm'
+        ).first()
+        
+        if persistent_note:
+            # Update existing persistent note
+            persistent_note.note = osm_node.osm_note
+            message = "OSM note updated in persistent storage"
+        else:
+            # Create new persistent note
+            new_persistent_note = PersistentData(
+                osm_node_id=osm_node_id,
+                note_type='osm',
+                note=osm_node.osm_note
+            )
+            db.session.add(new_persistent_note)
+            message = "OSM note saved to persistent storage"
+        
+        # Mark the note as persistent
+        osm_node.osm_note_is_persistent = True
+        
+        db.session.commit()
+        
+        return jsonify({
+            "success": True, 
+            "message": message
+        })
+        
+    except Exception as e:
+        app.logger.error(f"Exception in make_osm_note_persistent: {e}")
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500

@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify, render_template, current_app as app
 from sqlalchemy.orm import joinedload
 from backend.models import db, Stop, AtlasStop, OsmNode
+from backend.query_helpers import optimize_query_for_endpoint
 from datetime import datetime
 import pdfkit
 import csv
@@ -29,8 +30,8 @@ def generate_report():
             
             # Fetch all stops that are marked as having a duplicate
             # We'll sort later after pairs are formed
-            potential_duplicate_sources = Stop.query.filter(Stop.atlas_duplicate_sloid.isnot(None)).options(
-                joinedload(Stop.atlas_stop_details)
+            potential_duplicate_sources = optimize_query_for_endpoint(Stop.query, 'reports').filter(
+                Stop.atlas_duplicate_sloid.isnot(None)
             ).all()
 
             for stop_a in potential_duplicate_sources:
@@ -46,8 +47,8 @@ def generate_report():
                 if pair_key in processed_pairs:
                     continue
 
-                stop_b = Stop.query.filter(Stop.sloid == sloid_b_value).options(
-                    joinedload(Stop.atlas_stop_details)
+                stop_b = optimize_query_for_endpoint(Stop.query, 'reports').filter(
+                    Stop.sloid == sloid_b_value
                 ).first()
 
                 if stop_b:
@@ -95,9 +96,7 @@ def generate_report():
             else: 
                 query = query.order_by(Stop.distance_m.desc()) # Fallback for matches
             
-            data_for_report = query.options(
-                joinedload(Stop.atlas_stop_details)
-            ).limit(limit).all()
+            data_for_report = optimize_query_for_endpoint(query, 'reports').limit(limit).all()
 
         if data_for_report is None: # Should not happen if initialized
             data_for_report = []

@@ -93,6 +93,11 @@
     margin-right: 0;
 }
 
+/* Style for the 'Clear All' button */
+.clear-all-btn {
+    margin-bottom: 0; /* Adjusted for new layout */
+}
+
 /* Alert improvements for persistent data page */
 .alert {
     border: 1px solid transparent;

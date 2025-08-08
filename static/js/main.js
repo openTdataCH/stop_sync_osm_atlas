@@ -7,6 +7,16 @@ var topNLayer = L.layerGroup(); // For top N distances overlay
 var stopsById = {};   // Global store for stops by id.
 // manual matching variables are now defined in manual-matching.js
 
+// Performance tuning constants
+var ZOOM_MARKER_THRESHOLD = 12; // below this zoom, do not render markers
+var ZOOM_LINE_THRESHOLD = 14;   // below this zoom, do not render polylines between matches
+var VIEW_DEBOUNCE_MS = 200;     // debounce pan/zoom events
+
+// Request management
+var currentDataRequest = null;  // jqXHR of in-flight /api/data
+var currentDataRequestSeq = 0;  // sequence id to ignore stale responses
+var loadViewportTimer = null;   // debounce timer id
+
 // Function to format route data for display
 function formatRouteInfo(routes) {
     // Delegate to the shared utility for consistent behaviour across codebase.
@@ -102,11 +112,17 @@ function initMap() {
         });
     });
     
-    // After pan/zoom ends: reload data only if no popups are open
+    // Add low-zoom banner container
+    ensureZoomBannerExists();
+
+    // After pan/zoom ends: reload data (debounced) only if no popups are open
     map.on('moveend zoomend', function() {
-        if (openPopups.length === 0) {
+        if (openPopups.length !== 0) return;
+        if (loadViewportTimer) clearTimeout(loadViewportTimer);
+        loadViewportTimer = setTimeout(function() {
             loadDataForViewport();
-        }
+            updateHeaderSummary();
+        }, VIEW_DEBOUNCE_MS);
     });
 }
 
@@ -124,6 +140,37 @@ function initMap() {
 
 
 
+// Create and control a low-zoom banner prompting users to zoom in
+function ensureZoomBannerExists() {
+    if (document.getElementById('zoomBanner')) return;
+    var banner = document.createElement('div');
+    banner.id = 'zoomBanner';
+    banner.style.position = 'absolute';
+    banner.style.top = '10px';
+    banner.style.left = '50%';
+    banner.style.transform = 'translateX(-50%)';
+    banner.style.zIndex = '1000';
+    banner.style.background = 'rgba(0,0,0,0.75)';
+    banner.style.color = '#fff';
+    banner.style.padding = '8px 12px';
+    banner.style.borderRadius = '6px';
+    banner.style.fontSize = '14px';
+    banner.style.display = 'none';
+    banner.textContent = 'Zoom in to see stop markers';
+    var mapContainer = document.getElementById('map');
+    if (mapContainer && mapContainer.parentElement) {
+        mapContainer.parentElement.style.position = 'relative';
+        mapContainer.parentElement.appendChild(banner);
+    } else {
+        document.body.appendChild(banner);
+    }
+}
+
+function showZoomBanner(show) {
+    var banner = document.getElementById('zoomBanner');
+    if (!banner) return;
+    banner.style.display = show ? 'block' : 'none';
+}
 
 
 function loadTopNMatches() {
@@ -208,7 +255,7 @@ function loadTopNMatches() {
                             });
                         }
                         
-                        // Only add connecting line if both node types are visible
+                        // Add connecting line when both node types are visible (Top N view is lightweight)
                         if(showAtlasNodes && showOSMNodes) {
                             var line = L.polyline([
                                 [parseFloat(stop.atlas_lat), parseFloat(stop.atlas_lon)],
@@ -235,6 +282,20 @@ function loadDataForViewport() {
         linesLayer.clearLayers();
         return;
     }
+    // Zoom gating: do not load or render markers if zoom is too low
+    var zoom = map.getZoom();
+    if (zoom < ZOOM_MARKER_THRESHOLD) {
+        showZoomBanner(true);
+        markersLayer.clearLayers();
+        linesLayer.clearLayers();
+        // Cancel any in-flight request
+        if (currentDataRequest && currentDataRequest.readyState !== 4) {
+            try { currentDataRequest.abort(); } catch(e) {}
+        }
+        return;
+    } else {
+        showZoomBanner(false);
+    }
     var bounds = map.getBounds();
     var params = {
         min_lat: bounds.getSouth(),
@@ -242,7 +303,9 @@ function loadDataForViewport() {
         min_lon: bounds.getWest(),
         max_lon: bounds.getEast(),
         offset: 0,
-        limit: 500 // Increased limit to fetch more data points potentially
+        // Adaptive limit based on zoom to reduce payloads at mid zoom
+        limit: zoom < (ZOOM_LINE_THRESHOLD) ? 200 : 500,
+        zoom: zoom
     };
     
     // Determine if pure OSM nodes should be included in stop_filter when 'unmatched' is active
@@ -290,7 +353,14 @@ function loadDataForViewport() {
         params.atlas_operator = activeFilters.atlasOperators.join(',');
     }
     
-    $.getJSON("/api/data", params, function(rawData) {
+    // Cancel previous data request if still in flight
+    if (currentDataRequest && currentDataRequest.readyState !== 4) {
+        try { currentDataRequest.abort(); } catch(e) {}
+    }
+    var mySeq = ++currentDataRequestSeq;
+    currentDataRequest = $.getJSON("/api/data", params, function(rawData) {
+         // Ignore stale responses
+         if (mySeq !== currentDataRequestSeq) return;
          // Check first few items for atlas_is_duplicate
          rawData.slice(0, 5).forEach((item, index) => {
          });
@@ -547,19 +617,21 @@ function loadDataForViewport() {
          // 3. Create markers with overlap handling
          createMarkersWithOverlapHandling(allMarkerData, markersLayer);
 
-         // 4. Add connection lines after markers are created
-         allMarkerData.forEach(function(markerData) {
-             if (markerData.atlasMarkerData && markerData.type === 'osm') {
-                 var line = L.polyline([
-                     [markerData.atlasMarkerData.originalLat, markerData.atlasMarkerData.originalLon],
-                     [markerData.originalLat, markerData.originalLon]
-                 ], { color: 'green' });
-                 linesLayer.addLayer(line);
-             }
-         });
+         // 4. Add connection lines after markers are created (only at high zoom)
+         if (map.getZoom() >= ZOOM_LINE_THRESHOLD) {
+             allMarkerData.forEach(function(markerData) {
+                 if (markerData.atlasMarkerData && markerData.type === 'osm') {
+                     var line = L.polyline([
+                         [markerData.atlasMarkerData.originalLat, markerData.atlasMarkerData.originalLon],
+                         [markerData.originalLat, markerData.originalLon]
+                     ], { color: 'green' });
+                     linesLayer.addLayer(line);
+                 }
+             });
+         }
 
          // 5. Handle OSM nodes with multiple ATLAS matches
-         if (showOSMNodes) {
+         if (showOSMNodes && map.getZoom() >= ZOOM_LINE_THRESHOLD) {
              Object.keys(osmNodeToAtlasMatches).forEach(function(osmNodeId) {
                  const multiMatchData = osmNodeToAtlasMatches[osmNodeId];
                  
@@ -611,7 +683,7 @@ function loadDataForViewport() {
                          
                          // Use cluster handling for this marker too
                          createMarkersWithOverlapHandling([additionalOsmMarkerData], markersLayer);
-                         createdOsmMarkers.add(osmNodeIdKey); 
+                          createdOsmMarkers.add(osmNodeIdKey); 
                      }
 
                      if (showAtlasNodes) {
@@ -706,7 +778,7 @@ function focusOnRandomFilteredStop() {
 
     var combinedMatchMethods = [...activeFilters.matchMethods];
     if (activeFilters.stopType.includes('unmatched') && activeFilters.noNearbyOSM) {
-        combinedMatchMethods.push('no_osm_within_50m');
+        combinedMatchMethods.push('no_nearby_counterpart');
     }
     if (combinedMatchMethods.length > 0) {
         params.match_method = combinedMatchMethods.join(',');
@@ -903,6 +975,7 @@ function updateHeaderSummary() {
         transport_types: activeFilters.transportTypes.join(',') || null,
         node_type: activeFilters.nodeType.join(',') || null,
         atlas_operator: activeFilters.atlasOperators.join(',') || null,
+        top_n: activeFilters.topN || null,
         show_duplicates_only: activeFilters.showDuplicatesOnly.toString()
     };
 

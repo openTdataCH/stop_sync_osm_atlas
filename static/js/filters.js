@@ -612,7 +612,7 @@ function updateActiveFilters() {
     // --- Populate stopType for Unmatched ---
     let anyUnmatchedReasonActive = false;
     if (activeFilters.unmatchedOptions.reasons.noNearbyOSM) {
-        activeFilters.matchMethods.push('no_osm_within_50m'); 
+        activeFilters.matchMethods.push('no_nearby_counterpart'); 
         anyUnmatchedReasonActive = true;
     }
     if (activeFilters.unmatchedOptions.reasons.osmNearby) { // Added new filter logic

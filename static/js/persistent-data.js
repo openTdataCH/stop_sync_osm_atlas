@@ -5,31 +5,40 @@ $(document).ready(function() {
     let currentFilter = 'all';
     let currentTab = 'persistent'; // 'persistent' or 'non-persistent'
     
-    // Initialize the persistent data page
+    // Initialize the persistent data page with proper error handling
     function initializePersistentDataPage() {
-        // Load initial data based on current tab
-        if (currentTab === 'persistent') {
+        try {
+            // Setup event handlers first
+            setupEventHandlers();
+            
+            // Load initial data for the default tab (persistent)
             loadPersistentData(currentPage, currentFilter);
-        } else {
-            loadNonPersistentData(currentPage, currentFilter);
+        } catch (error) {
+            console.error('Error initializing persistent data page:', error);
+            showTemporaryMessage('Error initializing page. Please refresh.', 'error');
         }
-        
-        // Setup event handlers
-        setupEventHandlers();
     }
     
     // Setup all event handlers
     function setupEventHandlers() {
-        // Tab switching
+        // Tab switching with proper state management
         $('.nav-link[data-toggle="tab"]').on('shown.bs.tab', function(e) {
             const targetTab = $(e.target).attr('href').substring(1); // Remove #
-            currentTab = targetTab;
-            currentPage = 1; // Reset pagination
             
-            if (currentTab === 'persistent') {
-                loadPersistentData(currentPage, currentFilter);
-            } else {
-                loadNonPersistentData(currentPage, currentFilter);
+            // Only proceed if we're actually switching tabs
+            if (targetTab !== currentTab) {
+                currentTab = targetTab;
+                currentPage = 1; // Reset pagination when switching tabs
+                
+                // Clear pagination to avoid UI confusion
+                $('#dataPagination').empty();
+                
+                // Load the appropriate data for the new tab
+                if (currentTab === 'persistent') {
+                    loadPersistentData(currentPage, currentFilter);
+                } else if (currentTab === 'non-persistent') {
+                    loadNonPersistentData(currentPage, currentFilter);
+                }
             }
         });
         
@@ -104,21 +113,47 @@ $(document).ready(function() {
 
         // Make persistent button handler
         $(document).on('click', '.make-persistent-btn', function() {
-            const id = $(this).data('id');
-            const dataType = $(this).data('data-type'); // 'solution' or 'note'
-            const noteType = $(this).data('note-type'); // 'atlas' or 'osm' for notes
-            makePersistent(id, dataType, noteType);
+            const button = $(this);
+            const id = button.data('id');
+            const dataType = button.data('data-type'); // 'solution' or 'note'
+            
+            if (dataType === 'solution') {
+                const stopId = button.closest('.solution-card').data('stop-id');
+                const problemType = button.data('problem-type');
+                // For solutions, the `id` we pass is the stop_id
+                makePersistent(stopId, dataType, null, problemType);
+            } else {
+                const noteType = button.data('note-type');
+                // For notes, the `id` is the identifier like 'atlas_...' or 'osm_...'
+                makePersistent(id, dataType, noteType, null);
+            }
         });
 
         // Make all persistent button handler
         $('#makeAllPersistentBtn').on('click', function() {
             makeAllPersistent();
         });
+
+        // Handler for making persistent data non-persistent
+        $(document).on('click', '.make-non-persistent-btn', function() {
+            const id = $(this).data('id');
+            const type = $(this).data('type'); // 'solution' or 'note'
+            makeNonPersistent(id, type);
+        });
+
+        // Handler for clearing all data in a tab
+        $(document).on('click', '.clear-all-btn', function() {
+            const tab = $(this).data('tab');
+            if (confirm(`Are you sure you want to clear all ${tab} data? This action cannot be undone.`)) {
+                clearAllData(tab);
+            }
+        });
     }
     
-    // Load persistent data (existing functionality)
+    // Load persistent data with improved error handling and clearer loading states
     function loadPersistentData(page = 1, filter = 'all') {
-        $('#dataContainer').html(`
+        const container = $('#persistent-data-container');
+        container.html(`
             <div class="text-center py-5">
                 <div class="spinner-border" role="status">
                     <span class="sr-only">Loading...</span>
@@ -138,37 +173,45 @@ $(document).ready(function() {
             }
         }
         
-        $.getJSON('/api/persistent_data', params, function(data) {
-            if (data.persistent_data.length === 0) {
-                $('#dataContainer').html(`
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle"></i> No persistent data found.
+        $.getJSON('/api/persistent_data', params)
+            .done(function(data) {
+                if (!data.persistent_data || data.persistent_data.length === 0) {
+                    container.html(`
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle"></i> No persistent data found for the selected filter.
+                        </div>
+                    `);
+                    $('#dataPagination').empty();
+                    return;
+                }
+                
+                let html = '';
+                data.persistent_data.forEach(item => {
+                    html += renderPersistentDataItem(item);
+                });
+                container.html(html);
+                
+                // Generate pagination
+                generatePagination(data.page, Math.ceil(data.total / data.limit));
+
+                // Add Clear All button
+                updateClearAllButton('persistent', data.total);
+            })
+            .fail(function(xhr, status, error) {
+                console.error('Error loading persistent data:', error);
+                container.html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle"></i> Error loading persistent data: ${error}
                     </div>
                 `);
                 $('#dataPagination').empty();
-                return;
-            }
-            
-            let html = '';
-            data.persistent_data.forEach(item => {
-                html += renderPersistentDataItem(item);
             });
-            $('#dataContainer').html(html);
-            
-            // Generate pagination
-            generatePagination(data.page, Math.ceil(data.total / data.limit));
-        }).fail(function() {
-            $('#dataContainer').html(`
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle"></i> Error loading persistent data.
-                </div>
-            `);
-        });
     }
     
-    // Load non-persistent data (new functionality)
+    // Load non-persistent data with improved performance and error handling
     function loadNonPersistentData(page = 1, filter = 'all') {
-        $('#dataContainer').html(`
+        const container = $('#non-persistent-data-container');
+        container.html(`
             <div class="text-center py-5">
                 <div class="spinner-border" role="status">
                     <span class="sr-only">Loading...</span>
@@ -179,38 +222,51 @@ $(document).ready(function() {
         
         const params = { page: page, limit: 10, filter: filter };
         
-        $.getJSON('/api/non_persistent_data', params, function(data) {
-            if (data.data.length === 0) {
-                $('#dataContainer').html(`
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle"></i> <strong>No non-persistent data found.</strong>
-                        <br><small>This is good! Either all your work is already persistent, or you haven't saved any solutions/notes with auto-persist disabled.</small>
-                        <br><small>To see items here: turn off auto-persist toggles in the Problems page, then save solutions or notes.</small>
+        $.getJSON('/api/non_persistent_data', params)
+            .done(function(data) {
+                if (!data.data || data.data.length === 0) {
+                    container.html(`
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> <strong>No non-persistent data found.</strong>
+                            <br><small>This is good! Either all your work is already persistent, or you haven't saved any solutions/notes with auto-persist disabled.</small>
+                            <br><small>To see items here: turn off auto-persist toggles in the Problems page, then save solutions or notes.</small>
+                        </div>
+                    `);
+                    $('#dataPagination').empty();
+                    return;
+                }
+                
+                let html = '';
+                data.data.forEach(item => {
+                    // Ensure we always use the non-persistent rendering function for this tab
+                    html += renderNonPersistentDataItem(item);
+                });
+                container.html(html);
+                
+                // Generate pagination
+                generatePagination(data.page, Math.ceil(data.total / data.limit));
+
+                // Add Clear All button
+                updateClearAllButton('non-persistent', data.total);
+            })
+            .fail(function(xhr, status, error) {
+                console.error('Error loading non-persistent data:', error);
+                container.html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle"></i> Error loading non-persistent data: ${error}
                     </div>
                 `);
                 $('#dataPagination').empty();
-                return;
-            }
-            
-            let html = '';
-            data.data.forEach(item => {
-                html += renderNonPersistentDataItem(item);
             });
-            $('#dataContainer').html(html);
-            
-            // Generate pagination
-            generatePagination(data.page, Math.ceil(data.total / data.limit));
-        }).fail(function() {
-            $('#dataContainer').html(`
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle"></i> Error loading non-persistent data.
-                </div>
-            `);
-        });
     }
     
-    // Render persistent data item
+    // Render persistent data item - should ONLY show delete button
     function renderPersistentDataItem(item) {
+        if (!item || !item.id) {
+            console.error('Invalid item passed to renderPersistentDataItem:', item);
+            return '';
+        }
+        
         // Determine if this is a problem solution or a note
         const isNote = item.note_type === 'atlas' || item.note_type === 'osm';
         
@@ -222,34 +278,49 @@ $(document).ready(function() {
                 cardClass = 'atlas_note';
                 badgeClass = 'info';
                 titleText = 'ATLAS Note';
-            } else {
+            } else if (item.note_type === 'osm') {
                 cardClass = 'osm_note';
                 badgeClass = 'primary';
                 titleText = 'OSM Note';
+            } else {
+                cardClass = 'unknown_note';
+                badgeClass = 'secondary';
+                titleText = 'Unknown Note';
             }
         } else {
             // Handle problem solutions
-            cardClass = item.problem_type;
+            cardClass = item.problem_type || 'unknown';
             badgeClass = item.problem_type === 'distance' ? 'danger' : 
                         item.problem_type === 'isolated' ? 'warning' : 
                         item.problem_type === 'attributes' ? 'info' : 'secondary';
-            titleText = item.problem_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            titleText = (item.problem_type || 'Unknown').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
         
-        const formattedDate = new Date(item.updated_at).toLocaleString();
+        const formattedDate = item.updated_at ? new Date(item.updated_at).toLocaleString() : 'Unknown';
+        const content = isNote ? (item.note || '') : (item.solution || '');
         
         return `
-            <div class="card solution-card ${cardClass}" data-id="${item.id}">
+            <div class="card solution-card ${cardClass}" data-id="${item.id}" data-item-type="persistent">
                 <div class="card-body">
                     <div class="solution-header">
                         <h5 class="card-title">
                             <span class="badge badge-${badgeClass}">
                                 ${titleText}
                             </span>
+                            <small class="text-muted ml-2">Persistent</small>
                         </h5>
-                        <button class="btn btn-sm btn-outline-danger delete-solution-btn" data-id="${item.id}" data-type="persistent">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
+                        <div class="btn-group">
+                             <button class="btn btn-sm btn-warning make-non-persistent-btn" 
+                                    data-id="${item.id}" 
+                                    data-type="${isNote ? 'note' : 'solution'}">
+                                <i class="fas fa-undo"></i> Make Non-Persistent
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger clear-persistent-btn" 
+                                    data-id="${item.id}"
+                                    data-type="${isNote ? 'note' : 'solution'}">
+                                <i class="fas fa-trash"></i> Clear
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="card-text">
@@ -258,7 +329,7 @@ $(document).ready(function() {
                         <div><strong>Last Updated:</strong> ${formattedDate}</div>
                         
                         <div class="solution-content">
-                            <strong>${isNote ? 'Note:' : 'Solution:'}</strong> ${isNote ? item.note : item.solution}
+                            <strong>${isNote ? 'Note:' : 'Solution:'}</strong> ${content || '<em>Empty</em>'}
                         </div>
                     </div>
                 </div>
@@ -266,8 +337,13 @@ $(document).ready(function() {
         `;
     }
     
-    // Render non-persistent data item
+    // Render non-persistent data item - should ONLY show make persistent and clear buttons
     function renderNonPersistentDataItem(item) {
+        if (!item || !item.id) {
+            console.error('Invalid item passed to renderNonPersistentDataItem:', item);
+            return '';
+        }
+        
         const isNote = item.type === 'note';
         
         let cardClass, badgeClass, titleText;
@@ -277,33 +353,41 @@ $(document).ready(function() {
                 cardClass = 'atlas_note';
                 badgeClass = 'info';
                 titleText = 'ATLAS Note';
-            } else {
+            } else if (item.note_type === 'osm') {
                 cardClass = 'osm_note';
                 badgeClass = 'primary';
                 titleText = 'OSM Note';
+            } else {
+                cardClass = 'unknown_note';
+                badgeClass = 'secondary';
+                titleText = 'Unknown Note';
             }
         } else {
-            cardClass = item.problem_type;
+            cardClass = item.problem_type || 'unknown';
             badgeClass = item.problem_type === 'distance' ? 'danger' : 
                         item.problem_type === 'isolated' ? 'warning' : 
                         item.problem_type === 'attributes' ? 'info' : 'secondary';
-            titleText = item.problem_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            titleText = (item.problem_type || 'Unknown').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         }
         
+        const content = isNote ? (item.note || '') : (item.solution || '');
+        
         return `
-            <div class="card solution-card ${cardClass}" data-id="${item.id}" ${!isNote ? `data-stop-id="${item.stop_id}"` : ''}>
+            <div class="card solution-card ${cardClass}" data-id="${item.id}" data-item-type="non-persistent" ${!isNote ? `data-stop-id="${item.stop_id}"` : ''}>
                 <div class="card-body">
                     <div class="solution-header">
                         <h5 class="card-title">
                             <span class="badge badge-${badgeClass}">
                                 ${titleText}
                             </span>
+                            <small class="text-muted ml-2">Temporary</small>
                         </h5>
                         <div class="btn-group">
                             <button class="btn btn-sm btn-outline-success make-persistent-btn" 
                                     data-id="${item.id}" 
                                     data-data-type="${isNote ? 'note' : 'solution'}"
-                                    ${isNote ? `data-note-type="${item.note_type}"` : ''}>
+                                    ${isNote ? `data-note-type="${item.note_type}"` : ''}
+                                    ${!isNote ? `data-problem-type="${item.problem_type}"` : ''}>
                                 <i class="fas fa-thumbtack"></i> Make Persistent
                             </button>
                             <button class="btn btn-sm btn-outline-danger delete-solution-btn" 
@@ -311,7 +395,7 @@ $(document).ready(function() {
                                     data-type="non-persistent"
                                     data-data-type="${isNote ? 'note' : 'solution'}"
                                     ${isNote ? `data-note-type="${item.note_type}"` : ''}>
-                                <i class="fas fa-undo"></i> Clear
+                                <i class="fas fa-trash"></i> Clear
                             </button>
                         </div>
                     </div>
@@ -321,7 +405,7 @@ $(document).ready(function() {
                         <div><strong>OSM Node ID:</strong> ${item.osm_node_id || '<em>None</em>'}</div>
                         
                         <div class="solution-content">
-                            <strong>${isNote ? 'Note:' : 'Solution:'}</strong> ${isNote ? item.note : item.solution}
+                            <strong>${isNote ? 'Note:' : 'Solution:'}</strong> ${content || '<em>Empty</em>'}
                         </div>
                     </div>
                 </div>
@@ -436,21 +520,29 @@ $(document).ready(function() {
     }
     
     // Make data persistent
-    function makePersistent(id, dataType, noteType) {
+    function makePersistent(id, dataType, noteType, problemType) {
         const url = dataType === 'note' ? 
                    `/api/make_note_persistent/${noteType}` : 
                    '/api/make_solution_persistent';
         
+        let payload = {};
+        if (dataType === 'solution') {
+            payload = {
+                problem_id: id, // This is now stop_id
+                problem_type: problemType
+            };
+        } else {
+            payload = {
+                sloid: noteType === 'atlas' ? id.replace('atlas_', '') : undefined,
+                osm_node_id: noteType === 'osm' ? id.replace('osm_', '') : undefined
+            };
+        }
+
         $.ajax({
             url: url,
             method: 'POST',
             contentType: 'application/json',
-            data: JSON.stringify({
-                problem_id: id, // Use problem_id for solutions
-                sloid: noteType === 'atlas' ? id.replace('atlas_', '') : undefined,
-                osm_node_id: noteType === 'osm' ? id.replace('osm_', '') : undefined,
-                problem_type: 'any' // Not strictly needed, but good for context
-            }),
+            data: JSON.stringify(payload),
             success: function(response) {
                 if (response.success) {
                     // Reload current tab
@@ -471,6 +563,50 @@ $(document).ready(function() {
         });
     }
     
+    // Make a persistent item non-persistent
+    function makeNonPersistent(id, type) {
+        $.ajax({
+            url: `/api/make_non_persistent/${id}`,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ type: type }),
+            success: function(response) {
+                if (response.success) {
+                    showTemporaryMessage('Data successfully made non-persistent.', 'success');
+                    loadPersistentData(currentPage, currentFilter);
+                } else {
+                    showTemporaryMessage(`Error: ${response.error}`, 'error');
+                }
+            },
+            error: function() {
+                showTemporaryMessage('An error occurred while making the data non-persistent.', 'error');
+            }
+        });
+    }
+
+    // Clear all data for a specific tab
+    function clearAllData(tab) {
+        $.ajax({
+            url: `/api/clear_all_${tab}`,
+            method: 'POST',
+            success: function(response) {
+                if (response.success) {
+                    showTemporaryMessage(`All ${tab} data has been cleared.`, 'success');
+                    if (tab === 'persistent') {
+                        loadPersistentData(1, 'all');
+                    } else {
+                        loadNonPersistentData(1, 'all');
+                    }
+                } else {
+                    showTemporaryMessage(`Error: ${response.error}`, 'error');
+                }
+            },
+            error: function() {
+                showTemporaryMessage(`An error occurred while clearing ${tab} data.`, 'error');
+            }
+        });
+    }
+
     // Make all current problem solutions and notes persistent
     function makeAllPersistent() {
         // Get count of non-persistent items first
@@ -553,6 +689,20 @@ $(document).ready(function() {
         }, 5000);
     }
     
+    // Helper function to update the 'Clear All' button
+    function updateClearAllButton(tab, totalItems) {
+        const container = $(`#clear-all-${tab}-container`);
+        container.empty();
+        if (totalItems > 0) {
+            const buttonHtml = `
+                <button class="btn btn-outline-danger btn-sm clear-all-btn" data-tab="${tab}">
+                    <i class="fas fa-exclamation-triangle"></i> Clear all ${tab.replace('-', ' ')} data
+                </button>
+            `;
+            container.html(buttonHtml);
+        }
+    }
+
     // Initialize the page
     initializePersistentDataPage();
 }); 

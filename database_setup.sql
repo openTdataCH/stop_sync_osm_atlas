@@ -42,7 +42,10 @@ CREATE TABLE stops (
 
     INDEX (sloid),
     INDEX (osm_node_id),
-    INDEX (uic_ref)
+    INDEX (uic_ref),
+    INDEX idx_atlas_lat_lon (atlas_lat, atlas_lon),
+    INDEX idx_osm_lat_lon (osm_lat, osm_lon),
+    INDEX idx_stop_type_match_type (stop_type, match_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create the problems table
@@ -84,7 +87,8 @@ CREATE TABLE atlas_stops (
     routes_atlas JSON,
     routes_hrdf JSON,
     atlas_note TEXT,
-    atlas_note_is_persistent BOOLEAN DEFAULT FALSE
+    atlas_note_is_persistent BOOLEAN DEFAULT FALSE,
+    INDEX idx_atlas_operator (atlas_business_org_abbr)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create the osm_nodes table (new)

@@ -142,4 +142,3 @@ The system now distinguishes between:
 
 ---
 
-*Document updated 2025-07-11 to reflect H/R direction parsing, year code normalization, and improved matching statistics.* 
