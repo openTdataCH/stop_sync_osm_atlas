@@ -128,9 +128,9 @@ window.ProblemsUI = (function() {
     function getMismatchedAttributes(problem) {
         const attributesToCheck = [
             { atlas: 'atlas_operator', osm: 'osm_operator', label: 'Operator' },
-            { atlas: 'atlas_designation_official', osm: 'osm_name', label: 'Name' },
+            { atlas: 'atlas_designation_official', osm: 'osm_uic_name', label: 'UIC Name' },
             { atlas: 'atlas_designation', osm: 'osm_local_ref', label: 'Local Reference' },
-            { atlas: 'atlas_transport_type', osm: 'osm_public_transport', label: 'Transport Type' }
+            // Transport type comparison removed from attributes problem resolution per requirements
         ];
         
         const mismatches = [];
@@ -223,7 +223,7 @@ window.ProblemsUI = (function() {
             <div class="problem-section-item">
                 <h6><i class="fas fa-exclamation-triangle text-danger"></i> Data Inconsistency</h6>
                 <div class="alert alert-danger">
-                    This entry is flagged with an 'isolated' problem, but its type is <code>${problem.stop_type || 'undefined'}</code>, which is not expected for this problem type. Please report this issue.
+                    This entry is flagged with an 'unmatched' problem, but its type is <code>${problem.stop_type || 'undefined'}</code>, which is not expected for this problem type. Please report this issue.
                 </div>
             </div>
         `;
@@ -305,7 +305,15 @@ window.ProblemsUI = (function() {
         let html = `<div class="issue-container" id="issue-${problem.id}" data-problem-id="${problem.id}" data-stop-id="${problem.stop_id}">`;
 
         // Header for the issue
-        let displayText = `${problemType}`;
+        // Add priority circle if present - match filter design
+        let priorityBadge = '';
+        if (problem.priority && !isNaN(problem.priority)) {
+            const pr = String(problem.priority);
+            const prClass = pr === '1' ? 'pr-1' : pr === '2' ? 'pr-2' : pr === '3' ? 'pr-3' : '';
+            const selectedClass = '';
+            priorityBadge = ` <span class="priority-circle ${prClass} ${selectedClass}"><span class="pc-text">P${pr}</span></span>`;
+        }
+        let displayText = `${problemType}${priorityBadge}`;
         if (totalIssues > 1) {
             displayText += ` (Issue ${issueIndex + 1}/${totalIssues})`;
         }
@@ -372,7 +380,7 @@ window.ProblemsUI = (function() {
             case 'distance':
                 actionButtonsHtml += generateDistanceActionButtons(problem);
                 break;
-            case 'isolated':
+            case 'unmatched':
                 actionButtonsHtml += generateIsolatedActionButtons(problem);
                 break;
             case 'attributes':

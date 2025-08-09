@@ -12,7 +12,6 @@ ISOLATION_CHECK_RADIUS_M = 50  # meters
 # DISTANCE PROBLEM THRESHOLDS  
 # ============================================================================
 
-# Maximum acceptable distance between matched ATLAS and OSM stops
 DISTANCE_PROBLEM_THRESHOLD_M = 25  # meters
 
 # ============================================================================

@@ -28,6 +28,7 @@ window.ProblemsState = (function() {
     // Filter and pagination state
     let selectedProblemType = 'all'; // Current problem type filter
     let selectedAtlasOperators = []; // Current operator filter
+    let selectedPriority = 'all'; // Current priority filter (all | 1 | 2 | 3 | 4 | 5)
     let currentPage = 1;
     let totalProblems = 0;
     let isLoadingMore = false;
@@ -96,6 +97,9 @@ window.ProblemsState = (function() {
 
         getSelectedAtlasOperators: () => selectedAtlasOperators,
         setSelectedAtlasOperators: (operators) => { selectedAtlasOperators = operators; },
+
+        getSelectedPriority: () => selectedPriority,
+        setSelectedPriority: (priority) => { selectedPriority = priority; },
 
         getCurrentPage: () => currentPage,
         setCurrentPage: (page) => { currentPage = page; },

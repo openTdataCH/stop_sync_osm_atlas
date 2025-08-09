@@ -54,9 +54,11 @@ CREATE TABLE problems (
     stop_id INT,
     problem_type VARCHAR(50) NOT NULL,
     solution VARCHAR(500),
+    priority TINYINT,
     is_persistent BOOLEAN DEFAULT FALSE,
     INDEX (stop_id),
     INDEX (problem_type),
+    INDEX idx_problem_priority (priority),
     FOREIGN KEY (stop_id) REFERENCES stops(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

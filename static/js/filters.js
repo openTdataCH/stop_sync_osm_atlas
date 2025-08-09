@@ -364,13 +364,18 @@ function updateFiltersUI() {
     if (transportTypeGroupHtml) finalGroupStrings.push(transportTypeGroupHtml);
 
     // --- 6. Atlas Operator Filters ---
-    let operatorChips = [];
-    activeFilters.atlasOperators.forEach(function(operator) {
-        var badgeHtml = '<span class="badge badge-info mr-1 mb-1">Operator: ' + operator +
-            ' <a href="#" class="text-white remove-filter" data-type="atlasOperator" data-filter="' + operator + '">x</a></span>';
-        operatorChips.push(badgeHtml);
-    });
-    const operatorGroupHtml = buildOrGroup(operatorChips);
+    let operatorGroupHtml = '';
+    if (window.FilterChipUtils) {
+        operatorGroupHtml = window.FilterChipUtils.generateOperatorChipsHtml(activeFilters.atlasOperators, { context: 'index' });
+    } else {
+        let operatorChips = [];
+        activeFilters.atlasOperators.forEach(function(operator) {
+            var badgeHtml = '<span class="badge badge-info mr-1 mb-1">Operator: ' + operator +
+                ' <a href="#" class="text-white remove-filter" data-type="atlasOperator" data-filter="' + operator + '">x</a></span>';
+            operatorChips.push(badgeHtml);
+        });
+        operatorGroupHtml = buildOrGroup(operatorChips);
+    }
     if (operatorGroupHtml) finalGroupStrings.push(operatorGroupHtml);
 
     if(activeFilters.topN) {

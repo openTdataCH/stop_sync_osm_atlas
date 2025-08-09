@@ -9,6 +9,40 @@
 
 $(document).ready(function(){
     console.log("=== PROBLEMS.JS INITIALIZATION ===");
+    // Helper to render/update chips consistently
+    function renderProblemsChips() {
+        if (!window.FilterChipUtils) return;
+        window.FilterChipUtils.renderProblemChips('#problemsActiveFilters', {
+            problemType: ProblemsState.getSelectedProblemType(),
+            solutionFilter: ProblemsState.getCurrentSolutionFilter(),
+            operators: ProblemsState.getSelectedAtlasOperators(),
+            priority: ProblemsState.getSelectedPriority(),
+            onClearProblemType: function() {
+                ProblemsData.updateProblemTypeFilter('all', 'all');
+            },
+            onClearSolution: function() {
+                ProblemsData.updateProblemTypeFilter(ProblemsState.getSelectedProblemType(), 'all');
+            },
+            onClearPriority: function() {
+                ProblemsData.updatePriorityFilter('all');
+                // Reflect in UI pills
+                $('#priorityFilterProblems .priority-pill').removeClass('active');
+                $('#priorityFilterProblems .priority-pill[data-priority="all"]').addClass('active');
+            },
+            onRemoveOperator: function(op) {
+                const current = ProblemsState.getSelectedAtlasOperators().filter(o => o !== op);
+                ProblemsState.setSelectedAtlasOperators(current);
+                if (window.operatorDropdownProblems && window.operatorDropdownProblems.setSelection) {
+                    window.operatorDropdownProblems.setSelection(current);
+                }
+                ProblemsState.resetPaginationState();
+                ProblemsData.initializeProblemTypeFilter();
+                ProblemsData.fetchProblems();
+                renderProblemsChips();
+            }
+        });
+    }
+
     
     // Initialize state management first
     ProblemsState.initializeSettings();
@@ -32,6 +66,7 @@ $(document).ready(function(){
             // Reload data with new operator filter
             ProblemsData.initializeProblemTypeFilter(); // Update stats
             ProblemsData.fetchProblems(); // Fetch filtered problems
+            renderProblemsChips();
         }
     });
     
@@ -42,6 +77,9 @@ $(document).ready(function(){
     // Initialize filters and data
     ProblemsData.initializeProblemTypeFilter(); // Fetch stats and build filter
     ProblemsData.fetchProblems(); // Initial fetch for "All" problems
+
+    // Initial chips render
+    renderProblemsChips();
     
     // Initialize UI components
     ProblemsMap.initializeResize();
@@ -64,6 +102,8 @@ $(document).ready(function(){
             ProblemsUI.updateNavButtons();
         }
     });
+
+    // Priority selection is handled inside the dropdown via ProblemsData.initializeProblemTypeFilter
 
     $('#nextProblemBtn').on('click', function() {
         ProblemsData.navigateToNextProblem();

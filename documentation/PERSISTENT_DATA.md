@@ -4,7 +4,7 @@ The Persistent Data Management system is designed to preserve manually validated
 
 ## Problem Statement
 
-Stop data can be regularly updated through imports from ATLAS and OSM. During these imports, the system detects various problems (distance issues, isolated stops, attribute mismatches) that require human validation. Without a persistent solution system, these validations would be lost on each new import, requiring users to repeatedly solve the same problems.
+Stop data can be regularly updated through imports from ATLAS and OSM. During these imports, the system detects various problems (distance issues, unmatched stops, attribute mismatches, duplicates) that require human validation. Without a persistent solution system, these validations would be lost on each new import, requiring users to repeatedly solve the same problems.
 
 Additionally, notes added to ATLAS stops and OSM nodes provide valuable context that should be preserved across imports.
 
@@ -18,7 +18,7 @@ The system uses a single table to manage both persistent solutions and notes:
 - `id`: Primary key
 - `sloid`: ATLAS stop ID (can be NULL for OSM-only stops)
 - `osm_node_id`: OSM node ID (can be NULL for ATLAS-only stops)
-- `problem_type`: Type of problem ('distance', 'isolated', 'attributes') or NULL for notes
+- `problem_type`: Type of problem ('distance', 'unmatched', 'attributes', 'duplicates') or NULL for notes
 - `solution`: The validated solution text (for problems)
 - `note_type`: Type of note ('atlas', 'osm') or NULL for problem solutions
 - `note`: The note text (for ATLAS or OSM notes)

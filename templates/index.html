@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 
+{% from "_components.html" import header_chip, stats_overlay %}
 {% block title %}OSM & ATLAS Matching Tool{% endblock %}
 
 {% block head_css %}
@@ -131,15 +132,9 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid d-flex flex-column vh-100">
-  <h1 class="mt-3 mb-3 text-center display-4 flex-shrink-0">
-    <div class="header-container">
-      <img src="{{ url_for('static', filename='header/header.svg') }}" alt="OSM & ATLAS Logo Left" class="header-icon">
-      <span class="header-title">OSM &amp; ATLAS Synchronization</span>
-      <div id="headerSummary" class="header-summary">
-        <!-- Summary content will be injected here by JavaScript -->
-      </div>
-    </div>
+<div class="container-fluid d-flex flex-column" style="height: calc(100vh - 36px); overflow: hidden;">
+  <h1 class="mt-3 mb-2 text-center display-4 flex-shrink-0">
+    {{ header_chip('OSM & ATLAS Synchronization') }}
   </h1>
   <div class="row flex-grow-1" style="overflow: hidden;">
     <!-- Consolidated Filter Panel -->
@@ -409,7 +404,9 @@
     </div>
     <!-- Map Container -->
     <div class="col-md-9">
-      <div id="map" style="height: 100%;"></div>
+      <div id="map" style="height: 100%; position: relative;">
+        {{ stats_overlay() }}
+      </div>
     </div>
   </div>
   
@@ -528,6 +525,7 @@
 <script src="{{ url_for('static', filename='js/manual-matching.js') }}"></script>
 <script src="{{ url_for('static', filename='js/report.js') }}"></script>
 <script src="{{ url_for('static', filename='js/operator-dropdown.js') }}"></script>
+<script src="{{ url_for('static', filename='js/filter-chip-utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/filters.js') }}"></script>
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 {% endblock %}

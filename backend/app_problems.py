@@ -39,6 +39,8 @@ def get_problems():
         # Sorting parameters
         sort_by = request.args.get('sort_by', 'default')  # 'default', 'distance'
         sort_order = request.args.get('sort_order', 'asc')  # 'asc', 'desc'
+        # Priority filter (optional)
+        priority_filter = request.args.get('priority', None)
 
         # Base query on the Problem table
         query = Problem.query.join(Stop)
@@ -56,6 +58,14 @@ def get_problems():
         # Atlas operator filter
         query = apply_atlas_operator_filter(query, atlas_operator_filter)
         
+        # Priority filter
+        if priority_filter and priority_filter != 'all':
+            try:
+                priority_value = int(priority_filter)
+                query = query.filter(Problem.priority == priority_value)
+            except ValueError:
+                pass
+        
         # For counting, we need to count distinct stop_ids, but we need to do it differently
         # Create a subquery to get distinct stop_ids that match our criteria
         distinct_stop_ids_subquery = query.with_entities(Problem.stop_id).distinct().subquery()
@@ -65,10 +75,17 @@ def get_problems():
         # Apply sorting based on parameters
         if sort_by == 'distance' and problem_type_filter == 'distance':
             # For distance problems, sort by the distance_m field in the Stop table
+            # Use COALESCE to emulate NULLS LAST in MySQL
             if sort_order == 'desc':
-                query = query.order_by(Stop.distance_m.desc().nulls_last(), Problem.stop_id, Problem.problem_type)
+                query = query.order_by(func.coalesce(Stop.distance_m, -1).desc(), Problem.stop_id, Problem.problem_type)
             else:
-                query = query.order_by(Stop.distance_m.asc().nulls_last(), Problem.stop_id, Problem.problem_type)
+                query = query.order_by(func.coalesce(Stop.distance_m, 1000000000000).asc(), Problem.stop_id, Problem.problem_type)
+        elif sort_by == 'priority':
+            # Sort by priority (1 highest), then by stop_id/problem_type for stability
+            if sort_order == 'desc':
+                query = query.order_by(func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
+            else:
+                query = query.order_by(func.coalesce(Problem.priority, 999).asc(), Problem.stop_id, Problem.problem_type)
         else:
             # Default sorting by stop_id for consistent pagination
             query = query.order_by(Problem.stop_id, Problem.problem_type)
@@ -88,17 +105,48 @@ def get_problems():
                 stop_distance_query = stop_distance_query.filter(Problem.solution.is_(None) | (Problem.solution == ''))
             
             stop_distance_query = apply_atlas_operator_filter(stop_distance_query, atlas_operator_filter)
+            # Apply priority filter
+            if priority_filter and priority_filter != 'all':
+                try:
+                    priority_value = int(priority_filter)
+                    stop_distance_query = stop_distance_query.filter(Problem.priority == priority_value)
+                except ValueError:
+                    pass
             
             # Order by distance and get distinct stop_ids
             if sort_order == 'desc':
-                stop_distance_query = stop_distance_query.distinct().order_by(Stop.distance_m.desc().nulls_last(), Stop.id)
+                stop_distance_query = stop_distance_query.distinct().order_by(func.coalesce(Stop.distance_m, -1).desc(), Stop.id)
             else:
-                stop_distance_query = stop_distance_query.distinct().order_by(Stop.distance_m.asc().nulls_last(), Stop.id)
+                stop_distance_query = stop_distance_query.distinct().order_by(func.coalesce(Stop.distance_m, 1000000000000).asc(), Stop.id)
             
             # Get paginated stop IDs
             paged_stops = stop_distance_query.offset(offset).limit(limit).all()
             paged_stop_ids = [stop[0] for stop in paged_stops]
             
+        elif sort_by == 'priority':
+            stop_ids_query = db.session.query(Problem.stop_id, func.min(Problem.priority)).join(Stop)
+            # Apply same filters
+            if problem_type_filter != 'all':
+                stop_ids_query = stop_ids_query.filter(Problem.problem_type == problem_type_filter)
+            if solution_status_filter == 'solved':
+                stop_ids_query = stop_ids_query.filter(Problem.solution.isnot(None) & (Problem.solution != ''))
+            elif solution_status_filter == 'unsolved':
+                stop_ids_query = stop_ids_query.filter(Problem.solution.is_(None) | (Problem.solution == ''))
+            stop_ids_query = apply_atlas_operator_filter(stop_ids_query, atlas_operator_filter)
+            # Apply priority filter
+            if priority_filter and priority_filter != 'all':
+                try:
+                    priority_value = int(priority_filter)
+                    stop_ids_query = stop_ids_query.filter(Problem.priority == priority_value)
+                except ValueError:
+                    pass
+            stop_ids_query = stop_ids_query.group_by(Problem.stop_id)
+            if sort_order == 'desc':
+                stop_ids_query = stop_ids_query.order_by(func.coalesce(func.min(Problem.priority), 999).desc(), Problem.stop_id)
+            else:
+                stop_ids_query = stop_ids_query.order_by(func.coalesce(func.min(Problem.priority), 999).asc(), Problem.stop_id)
+            paged_stops = stop_ids_query.offset(offset).limit(limit).all()
+            paged_stop_ids = [row[0] for row in paged_stops]
         else:
             # For default sorting, use a simpler approach
             # Get distinct stop_ids with pagination
@@ -106,7 +154,8 @@ def get_problems():
             
             # Apply the same filters as the main query
             if problem_type_filter != 'all':
-                stop_ids_query = stop_ids_query.filter(Problem.problem_type == problem_type_filter)
+                mapped_type = 'unmatched' if problem_type_filter == 'isolated' else problem_type_filter
+                stop_ids_query = stop_ids_query.filter(Problem.problem_type == mapped_type)
             if solution_status_filter == 'solved':
                 stop_ids_query = stop_ids_query.filter(Problem.solution.isnot(None) & (Problem.solution != ''))
             elif solution_status_filter == 'unsolved':
@@ -125,8 +174,9 @@ def get_problems():
                 joinedload(Problem.stop).subqueryload(Stop.osm_node_details)
             ).filter(Problem.stop_id.in_(paged_stop_ids))
 
-            if problem_type_filter != 'all':
-                final_query = final_query.filter(Problem.problem_type == problem_type_filter)
+            # Important: Do NOT filter by problem_type here so we can display
+            # other problems of the same entry as context. We still respect
+            # the solution status filter.
             if solution_status_filter == 'solved':
                 final_query = final_query.filter(Problem.solution.isnot(None) & (Problem.solution != ''))
             elif solution_status_filter == 'unsolved':
@@ -134,13 +184,25 @@ def get_problems():
             
             # Apply atlas operator filter to final query as well
             final_query = apply_atlas_operator_filter(final_query, atlas_operator_filter)
+            # Apply priority filter to final query as well
+            if priority_filter and priority_filter != 'all':
+                try:
+                    priority_value = int(priority_filter)
+                    final_query = final_query.filter(Problem.priority == priority_value)
+                except ValueError:
+                    pass
             
             # Apply the same sorting to the final query to maintain order
             if sort_by == 'distance' and problem_type_filter == 'distance':
                 if sort_order == 'desc':
-                    final_query = final_query.join(Stop).order_by(Stop.distance_m.desc().nulls_last(), Problem.stop_id, Problem.problem_type)
+                    final_query = final_query.join(Stop).order_by(func.coalesce(Stop.distance_m, -1).desc(), Problem.stop_id, Problem.problem_type)
                 else:
-                    final_query = final_query.join(Stop).order_by(Stop.distance_m.asc().nulls_last(), Problem.stop_id, Problem.problem_type)
+                    final_query = final_query.join(Stop).order_by(func.coalesce(Stop.distance_m, 1000000000000).asc(), Problem.stop_id, Problem.problem_type)
+            elif sort_by == 'priority':
+                if sort_order == 'desc':
+                    final_query = final_query.order_by(func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
+                else:
+                    final_query = final_query.order_by(func.coalesce(Problem.priority, 999).asc(), Problem.stop_id, Problem.problem_type)
             else:
                 final_query = final_query.order_by(Problem.stop_id, Problem.problem_type)
             
@@ -149,6 +211,7 @@ def get_problems():
         problems = []
         for problem in final_problems:
             formatted_stop = format_stop_data(problem.stop, problem_type=problem.problem_type)
+            formatted_stop['priority'] = problem.priority
             formatted_stop['solution'] = problem.solution
             formatted_stop['is_persistent'] = problem.is_persistent
             formatted_stop['stop_id'] = problem.stop_id  # Add stop_id for backend operations
@@ -182,46 +245,67 @@ def get_problem_stats():
         stats = {
             'all': {'all': 0, 'solved': 0, 'unsolved': 0},
             'distance': {'all': 0, 'solved': 0, 'unsolved': 0},
-            'isolated': {'all': 0, 'solved': 0, 'unsolved': 0},
-            'attributes': {'all': 0, 'solved': 0, 'unsolved': 0}
+            'unmatched': {'all': 0, 'solved': 0, 'unsolved': 0},
+            'attributes': {'all': 0, 'solved': 0, 'unsolved': 0},
+            'duplicates': {'all': 0, 'solved': 0, 'unsolved': 0}
         }
 
-        problem_types = ['distance', 'isolated', 'attributes']
+        # Optional: accept priority filter to reflect counts for a selected priority
+        selected_priority = request.args.get('priority')
+
+        # Internal DB types
+        problem_types_internal = ['distance', 'unmatched', 'attributes', 'duplicates']
         
-        for p_type in problem_types:
+        for p_type in problem_types_internal:
             # Build base query for this problem type
             base_query = db.session.query(func.count(Problem.id)).join(Stop).filter(Problem.problem_type == p_type)
             
             # Apply operator filter if provided
             base_query = apply_atlas_operator_filter(base_query, atlas_operator_filter)
             
+            # Apply selected priority if provided
+            if selected_priority and selected_priority != 'all':
+                try:
+                    pr = int(selected_priority)
+                    base_query = base_query.filter(Problem.priority == pr)
+                except ValueError:
+                    pass
+            
             # Get total count for this problem type
             total_count = base_query.scalar()
-            stats[p_type]['all'] = total_count
+            key_out = p_type
+            stats[key_out]['all'] = total_count
             
             # Get solved count
             solved_query = base_query.filter(
                 Problem.solution.isnot(None) & (Problem.solution != '')
             )
             solved_count = solved_query.scalar()
-            stats[p_type]['solved'] = solved_count
+            stats[key_out]['solved'] = solved_count
             
             # Calculate unsolved
-            stats[p_type]['unsolved'] = total_count - solved_count
+            stats[key_out]['unsolved'] = total_count - solved_count
 
         # Calculate totals for 'All Problems' based on distinct stops with problems
         all_problems_query = db.session.query(func.count(func.distinct(Problem.stop_id))).join(Stop)
         
         # Apply operator filter to 'all' stats as well
         all_problems_query = apply_atlas_operator_filter(all_problems_query, atlas_operator_filter)
+        # Apply priority if provided
+        if selected_priority and selected_priority != 'all':
+            try:
+                pr = int(selected_priority)
+                all_problems_query = all_problems_query.filter(Problem.priority == pr)
+            except ValueError:
+                pass
         
         stats['all']['all'] = all_problems_query.scalar()
         
         # Calculate solved/unsolved for all. A stop is solved if all its problems are solved.
         # This is complex, so for now we sum up individual problem stats which is what the old code did.
         # The frontend will see total individual problems, which is fine.
-        total_solved = sum(stats[p_type]['solved'] for p_type in problem_types)
-        total_unsolved = sum(stats[p_type]['unsolved'] for p_type in problem_types)
+        total_solved = sum(stats[p_type]['solved'] for p_type in ['distance', 'unmatched', 'attributes', 'duplicates'])
+        total_unsolved = sum(stats[p_type]['unsolved'] for p_type in ['distance', 'unmatched', 'attributes', 'duplicates'])
 
         # The total number of problems is the sum of all types
         stats['all']['all'] = total_solved + total_unsolved
@@ -251,6 +335,9 @@ def save_solution():
         if not problem_id:
             return jsonify({"success": False, "error": "Missing problem_id parameter"}), 400
         
+        # Normalize legacy problem type
+        mapped_problem_type = 'unmatched' if problem_type == 'isolated' else problem_type
+
         # Handle the 'any' problem_type case from persistent data management
         if problem_type == 'any':
             # Try to find any problem for this stop_id
@@ -262,7 +349,7 @@ def save_solution():
                 return jsonify({"success": False, "error": "Missing problem_type parameter"}), 400
             
             # Find the specific problem to update
-            problem = Problem.query.filter_by(stop_id=problem_id, problem_type=problem_type).first()
+            problem = Problem.query.filter_by(stop_id=problem_id, problem_type=mapped_problem_type).first()
             
             if not problem:
                  return jsonify({"success": False, "error": f"Problem of type {problem_type} for stop {problem_id} not found"}), 404
@@ -294,7 +381,8 @@ def make_solution_persistent():
             return jsonify({"success": False, "error": "Missing required parameters"}), 400
         
         # Find the specific problem
-        problem = Problem.query.filter_by(stop_id=problem_id, problem_type=problem_type).first()
+        mapped_problem_type = 'unmatched' if problem_type == 'isolated' else problem_type
+        problem = Problem.query.filter_by(stop_id=problem_id, problem_type=mapped_problem_type).first()
         
         if not problem:
             return jsonify({"success": False, "error": f"Problem of type {problem_type} for stop {problem_id} not found"}), 404
@@ -312,7 +400,7 @@ def make_solution_persistent():
         persistent_solution = PersistentData.query.filter(
             PersistentData.sloid == stop.sloid,
             PersistentData.osm_node_id == stop.osm_node_id,
-            PersistentData.problem_type == problem_type
+            PersistentData.problem_type == mapped_problem_type
         ).first()
         
         if persistent_solution:
@@ -324,7 +412,7 @@ def make_solution_persistent():
             new_persistent_solution = PersistentData(
                 sloid=stop.sloid,
                 osm_node_id=stop.osm_node_id,
-                problem_type=problem_type,
+                problem_type=mapped_problem_type,
                 solution=problem.solution
             )
             db.session.add(new_persistent_solution)
@@ -751,7 +839,7 @@ def get_non_persistent_data():
         results = []
         
         # Build optimized queries with proper ordering for consistent pagination
-        if filter_type in ['all', 'distance', 'isolated', 'attributes']:
+        if filter_type in ['all', 'distance', 'unmatched', 'attributes']:
             problem_query = db.session.query(
                 Problem.id,
                 Problem.problem_type,
@@ -772,7 +860,7 @@ def get_non_persistent_data():
             problem_query = problem_query.order_by(Problem.id)
             
             # Only get the problems for the current page if not filtering by notes only
-            if filter_type in ['all', 'distance', 'isolated', 'attributes']:
+            if filter_type in ['all', 'distance', 'unmatched', 'attributes']:
                 problems = problem_query.all()
                 for p in problems:
                     results.append({

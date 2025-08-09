@@ -8,9 +8,9 @@ var stopsById = {};   // Global store for stops by id.
 // manual matching variables are now defined in manual-matching.js
 
 // Performance tuning constants
-var ZOOM_MARKER_THRESHOLD = 12; // below this zoom, do not render markers
+var ZOOM_MARKER_THRESHOLD = 13; // below this zoom, do not render markers
 var ZOOM_LINE_THRESHOLD = 14;   // below this zoom, do not render polylines between matches
-var VIEW_DEBOUNCE_MS = 200;     // debounce pan/zoom events
+var VIEW_DEBOUNCE_MS = 320;     // debounce pan/zoom events (slightly higher to reduce redundant loads)
 
 // Request management
 var currentDataRequest = null;  // jqXHR of in-flight /api/data
@@ -73,7 +73,9 @@ function getStationIdentifier(stop, stopCategory) {
 // Function to initialize the map with event listeners that preserve popups during movement
 function initMap() {
     map = L.map('map', {
-        closePopupOnClick: false // Prevent map click from closing popups
+        closePopupOnClick: false, // Prevent map click from closing popups
+        // Use SVG renderer so popup connection lines can be drawn in the map's SVG layer
+        preferCanvas: false
     }).setView([47.3769, 8.5417], 13);
     
     osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -223,9 +225,6 @@ function loadTopNMatches() {
                 filteredData.forEach(function(stop) {
                     if(stop.stop_type === 'matched' && stop.atlas_lat && stop.atlas_lon && stop.osm_lat && stop.osm_lon) {
                         
-                        // Create a unified popup for this match, passing the modified stop data
-                        let unifiedPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'atlas')); // Pass the whole stop object
-                        
                         if(showAtlasNodes) {
                             topNMarkerData.push({
                                 lat: parseFloat(stop.atlas_lat),
@@ -233,22 +232,18 @@ function loadTopNMatches() {
                                 type: 'atlas',
                                 color: 'green',
                                 duplicateSloid: stop.atlas_duplicate_sloid,
-                                popup: unifiedPopup,
                                 originalLat: parseFloat(stop.atlas_lat),
                                 originalLon: parseFloat(stop.atlas_lon),
                                 stopData: stop
                             });
                         }
                         if(showOSMNodes) {
-                            // Need to generate OSM-centric popup content as well
-                            let osmPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'osm'));
                             topNMarkerData.push({
                                 lat: parseFloat(stop.osm_lat),
                                 lon: parseFloat(stop.osm_lon),
                                 type: 'osm',
                                 color: 'blue',
                                 osmNodeType: stop.osm_node_type,
-                                popup: osmPopup,
                                 originalLat: parseFloat(stop.osm_lat),
                                 originalLon: parseFloat(stop.osm_lon),
                                 stopData: stop
@@ -303,8 +298,8 @@ function loadDataForViewport() {
         min_lon: bounds.getWest(),
         max_lon: bounds.getEast(),
         offset: 0,
-        // Adaptive limit based on zoom to reduce payloads at mid zoom
-        limit: zoom < (ZOOM_LINE_THRESHOLD) ? 200 : 500,
+        // Increased limit with minimal payload
+        limit: 500,
         zoom: zoom
     };
     
@@ -451,8 +446,6 @@ function loadDataForViewport() {
                     let atlasMarkerData = null;
 
                     if (showAtlasNodes && stop.atlas_lat != null && stop.atlas_lon != null) {
-                        // Pass the whole stop object (which now includes isOperatorMismatch and osm_matches with individual mismatch flags)
-                        const atlasPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'atlas')); 
                         // Use the new helper function to create the ATLAS marker
                         var isStation = stop.osm_matches && stop.osm_matches.length > 0 && stop.osm_matches.some(om => om.osm_public_transport === 'station' && om.osm_aerialway !== 'station');
                         if (!isStation && stop.osm_public_transport === 'station' && stop.osm_aerialway !== 'station') isStation = true;
@@ -463,7 +456,6 @@ function loadDataForViewport() {
                             type: 'atlas',
                             color: 'green',
                             duplicateSloid: stop.atlas_duplicate_sloid,
-                            popup: atlasPopup,
                             originalLat: parseFloat(stop.atlas_lat),
                             originalLon: parseFloat(stop.atlas_lon),
                             stopData: stop
@@ -501,15 +493,12 @@ function loadDataForViewport() {
                                     lon: osm_match.osm_lon,
                                     stop_type: 'matched',
                                 };
-                                const osmPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stopDataForOsmPopup, 'osm'));
-                                
                                 allMarkerData.push({
                                     lat: parseFloat(osm_match.osm_lat),
                                     lon: parseFloat(osm_match.osm_lon),
                                     type: 'osm',
                                     color: 'blue',
                                     osmNodeType: osm_match.osm_node_type,
-                                    popup: osmPopup,
                                     originalLat: parseFloat(osm_match.osm_lat),
                                     originalLon: parseFloat(osm_match.osm_lon),
                                     stopData: stopDataForOsmPopup,
@@ -525,14 +514,12 @@ function loadDataForViewport() {
                      let atlasMarkerData = null;
 
                      if (showAtlasNodes && stop.atlas_lat != null && stop.atlas_lon != null) {
-                         const atlasPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'atlas'));
                          atlasMarkerData = {
                              lat: parseFloat(stop.atlas_lat),
                              lon: parseFloat(stop.atlas_lon),
                              type: 'atlas',
                              color: 'green',
                              duplicateSloid: stop.atlas_duplicate_sloid,
-                             popup: atlasPopup,
                              originalLat: parseFloat(stop.atlas_lat),
                              originalLon: parseFloat(stop.atlas_lon),
                              stopData: stop
@@ -541,14 +528,12 @@ function loadDataForViewport() {
                      }
                      
                      if (showOSMNodes && stop.osm_lat != null && stop.osm_lon != null && !createdOsmMarkers.has(osmNodeIdKey)) {
-                         const osmPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'osm')); 
                          allMarkerData.push({
                              lat: parseFloat(stop.osm_lat),
                              lon: parseFloat(stop.osm_lon),
                              type: 'osm',
                              color: 'blue',
                              osmNodeType: stop.osm_node_type,
-                             popup: osmPopup,
                              originalLat: parseFloat(stop.osm_lat),
                              originalLon: parseFloat(stop.osm_lon),
                              stopData: stop,
@@ -561,15 +546,12 @@ function loadDataForViewport() {
             // --- Handle Station-Matched ATLAS Stops ---
             else if (stop.stop_type === 'station') {
                 if (showAtlasNodes) {
-                    // Construct popup content using the renderer for consistency
-                    const popupHtml = PopupRenderer.generateSingleAtlasBubbleHtml(stop, true); // Treat as unmatched for styling
                     allMarkerData.push({
                         lat: parseFloat(stop.atlas_lat || stop.lat),
                         lon: parseFloat(stop.atlas_lon || stop.lon),
                         type: 'atlas',
                         color: 'orange',
                         duplicateSloid: stop.atlas_duplicate_sloid,
-                        popup: createPopupWithOptions(popupHtml),
                         originalLat: parseFloat(stop.atlas_lat || stop.lat),
                         originalLon: parseFloat(stop.atlas_lon || stop.lon),
                         stopData: stop
@@ -579,14 +561,12 @@ function loadDataForViewport() {
             // --- Handle Unmatched ATLAS Stops ---
             else if (stop.stop_type === 'unmatched') {
                  if (showAtlasNodes) {
-                    const popupHtml = PopupRenderer.generateSingleAtlasBubbleHtml(stop, true);
                     allMarkerData.push({
                         lat: parseFloat(stop.lat),
                         lon: parseFloat(stop.lon),
                         type: 'atlas',
                         color: 'red',
                         duplicateSloid: stop.atlas_duplicate_sloid,
-                        popup: createPopupWithOptions(popupHtml),
                         originalLat: parseFloat(stop.lat),
                         originalLon: parseFloat(stop.lon),
                         stopData: stop
@@ -597,14 +577,12 @@ function loadDataForViewport() {
             else if (stop.stop_type === 'osm') {
                  const osmNodeIdKey = `osm-${stop.osm_node_id}`;
                  if (showOSMNodes && !createdOsmMarkers.has(osmNodeIdKey)) { // Check if not already created as part of a match
-                     const popupHtml = PopupRenderer.generateSingleOsmBubbleHtml(stop, true);
                      allMarkerData.push({
                          lat: parseFloat(stop.osm_lat),
                          lon: parseFloat(stop.osm_lon),
                          type: 'osm',
                          color: 'gray',
                          osmNodeType: stop.osm_node_type,
-                         popup: createPopupWithOptions(popupHtml),
                          originalLat: parseFloat(stop.osm_lat),
                          originalLon: parseFloat(stop.osm_lon),
                          stopData: stop
@@ -614,8 +592,8 @@ function loadDataForViewport() {
             }
          });
 
-         // 3. Create markers with overlap handling
-         createMarkersWithOverlapHandling(allMarkerData, markersLayer);
+         // 3. Create markers with overlap handling (batch add to avoid long main thread blocks)
+         createMarkersWithOverlapHandling(allMarkerData, markersLayer, { batchAdd: true, batchSize: 150 });
 
          // 4. Add connection lines after markers are created (only at high zoom)
          if (map.getZoom() >= ZOOM_LINE_THRESHOLD) {
@@ -667,14 +645,12 @@ function loadDataForViewport() {
                          };
 
                          // Add the multi-match OSM marker data for cluster handling
-                         const osmPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(osmWithMatches, 'osm'));
                          const additionalOsmMarkerData = {
                              lat: parseFloat(osmWithMatches.osm_lat),
                              lon: parseFloat(osmWithMatches.osm_lon),
                              type: 'osm',
                              color: 'blue',
                              osmNodeType: osmWithMatches.osm_node_type,
-                             popup: osmPopup,
                              originalLat: parseFloat(osmWithMatches.osm_lat),
                              originalLon: parseFloat(osmWithMatches.osm_lon),
                              stopData: osmWithMatches,

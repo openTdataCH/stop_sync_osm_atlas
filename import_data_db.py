@@ -3,8 +3,9 @@ from sqlalchemy.orm import sessionmaker
 import json, math
 import pandas as pd
 import numpy as np
+from scipy.spatial import KDTree
 from matching_process.matching_script import final_pipeline
-from matching_process.problem_detection import analyze_stop_problems
+from matching_process.problem_detection import analyze_stop_problems, compute_distance_priority, compute_attributes_priority
 import os
 
 # Import models
@@ -58,6 +59,12 @@ def ensure_schema_updated():
                 conn.execute(text("ALTER TABLE problems ADD COLUMN is_persistent BOOLEAN DEFAULT FALSE"))
                 conn.commit()
 
+            # New priority column for problem prioritization
+            if not column_exists('problems', 'priority'):
+                print("Adding priority column to problems table...")
+                conn.execute(text("ALTER TABLE problems ADD COLUMN priority TINYINT NULL"))
+                conn.commit()
+
             if not column_exists('atlas_stops', 'atlas_note_is_persistent'):
                 print("Adding atlas_note_is_persistent column to atlas_stops table...")
                 conn.execute(text("ALTER TABLE atlas_stops ADD COLUMN atlas_note_is_persistent BOOLEAN DEFAULT FALSE"))
@@ -85,6 +92,25 @@ def ensure_schema_updated():
             if not index_exists('atlas_stops', 'idx_atlas_operator'):
                 conn.execute(text("CREATE INDEX idx_atlas_operator ON atlas_stops(atlas_business_org_abbr)"))
                 conn.commit()
+
+            # New: indexes to speed up distance sorting and problem filtering
+            if not index_exists('stops', 'idx_distance_m'):
+                conn.execute(text("CREATE INDEX idx_distance_m ON stops(distance_m)"))
+                conn.commit()
+
+            if not index_exists('problems', 'idx_problem_type'):
+                conn.execute(text("CREATE INDEX idx_problem_type ON problems(problem_type)"))
+                conn.commit()
+
+            if not index_exists('problems', 'idx_problem_stop_id'):
+                conn.execute(text("CREATE INDEX idx_problem_stop_id ON problems(stop_id)"))
+                conn.commit()
+
+            if not index_exists('problems', 'idx_problem_priority'):
+                conn.execute(text("CREATE INDEX idx_problem_priority ON problems(priority)"))
+                conn.commit()
+
+            # Legacy normalization removed
 
         print("Database schema is up to date.")
         
@@ -482,20 +508,30 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         # Create problems with additional metadata for better sorting
         if problems.get('distance_problem'):
             # For distance problems, store the distance for efficient sorting
+            distance_priority = compute_distance_priority(rec)
             distance_problem = Problem(
                 problem_type='distance',
                 solution=None,  # Will be set by persistent solutions if available
-                is_persistent=False
+                is_persistent=False,
+                priority=distance_priority
             )
             stop_record.problems.append(distance_problem)
             
         if problems.get('attributes_problem'):
+            attributes_priority = compute_attributes_priority(rec)
             attributes_problem = Problem(
                 problem_type='attributes',
                 solution=None,
-                is_persistent=False
+                is_persistent=False,
+                priority=attributes_priority
             )
             stop_record.problems.append(attributes_problem)
+
+        # Duplicates: ATLAS duplicates (priority 2) and OSM duplicates (priority 3)
+        if sloid and str(sloid) in duplicate_sloid_map:
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
+        if osm_node_id and 'duplicate_osm_node_ids' in locals() and str(osm_node_id) in duplicate_osm_node_ids:
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
 
         session.add(stop_record)
         
@@ -541,6 +577,176 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     session.commit()
     print(f"Imported {len(matched_records)} matched records")
 
+    # Precompute structures for unmatched priority classification
+    # Build OSM coordinate set from matched and unmatched data
+    osm_points = []  # list of (x,y,z)
+    osm_coords_source = []  # list of (lat, lon)
+    def _to_xyz(lat, lon):
+        lat_rad = math.radians(float(lat))
+        lon_rad = math.radians(float(lon))
+        return (
+            math.cos(lat_rad) * math.cos(lon_rad),
+            math.cos(lat_rad) * math.sin(lon_rad),
+            math.sin(lat_rad)
+        )
+    # OSM from matched records
+    for rec in base_data.get('matched', []):
+        lat = safe_value(rec.get('osm_lat'))
+        lon = safe_value(rec.get('osm_lon'))
+        if lat is not None and lon is not None:
+            osm_points.append(_to_xyz(lat, lon))
+            osm_coords_source.append((float(lat), float(lon)))
+    # OSM from unmatched_osm
+    for rec in base_data.get('unmatched_osm', []):
+        lat = safe_value(rec.get('lat'))
+        lon = safe_value(rec.get('lon'))
+        if lat is not None and lon is not None:
+            osm_points.append(_to_xyz(lat, lon))
+            osm_coords_source.append((float(lat), float(lon)))
+    osm_kdtree = KDTree(osm_points) if osm_points else None
+
+    # Build ATLAS coordinate set from matched and unmatched
+    atlas_points = []
+    atlas_coords_source = []
+    for rec in base_data.get('matched', []):
+        lat = safe_value(rec.get('csv_lat'))
+        lon = safe_value(rec.get('csv_lon'))
+        if lat is not None and lon is not None:
+            atlas_points.append(_to_xyz(lat, lon))
+            atlas_coords_source.append((float(lat), float(lon)))
+    for rec in base_data.get('unmatched_atlas', []):
+        lat = safe_value(rec.get('wgs84North'))
+        lon = safe_value(rec.get('wgs84East'))
+        if lat is not None and lon is not None:
+            atlas_points.append(_to_xyz(lat, lon))
+            atlas_coords_source.append((float(lat), float(lon)))
+    atlas_kdtree = KDTree(atlas_points) if atlas_points else None
+
+    # Build counts by UIC
+    atlas_count_by_uic = {}
+    for rec in base_data.get('matched', []):
+        uic = safe_value(rec.get('number'))
+        if uic is None: continue
+        key = str(uic)
+        atlas_count_by_uic[key] = atlas_count_by_uic.get(key, 0) + 1
+    for rec in base_data.get('unmatched_atlas', []):
+        uic = safe_value(rec.get('number'))
+        if uic is None: continue
+        key = str(uic)
+        atlas_count_by_uic[key] = atlas_count_by_uic.get(key, 0) + 1
+
+    osm_count_by_uic = {}
+    osm_platform_count_by_uic = {}
+    def _is_platform_like(pt):
+        return pt in ('platform', 'stop_position')
+    # Track OSM duplicates by (uic_ref, local_ref)
+    osm_nodes_by_uic_local_ref = {}
+    def _add_osm_dup_candidate(uic_val, local_ref_val, node_id_val, pt_val):
+        try:
+            if not uic_val or not local_ref_val:
+                return
+            if not _is_platform_like(pt_val):
+                return
+            key = (str(uic_val).strip(), str(local_ref_val).strip().lower())
+            if key not in osm_nodes_by_uic_local_ref:
+                osm_nodes_by_uic_local_ref[key] = set()
+            osm_nodes_by_uic_local_ref[key].add(str(node_id_val))
+        except Exception:
+            pass
+    # From matched
+    for rec in base_data.get('matched', []):
+        uic = safe_value(rec.get('osm_uic_ref'))
+        if uic:
+            key = str(uic)
+            osm_count_by_uic[key] = osm_count_by_uic.get(key, 0) + 1
+            if _is_platform_like(safe_value(rec.get('osm_public_transport'))):
+                osm_platform_count_by_uic[key] = osm_platform_count_by_uic.get(key, 0) + 1
+            _add_osm_dup_candidate(uic, safe_value(rec.get('osm_local_ref')), safe_value(rec.get('osm_node_id')), safe_value(rec.get('osm_public_transport')))
+    # From unmatched_osm
+    for rec in base_data.get('unmatched_osm', []):
+        uic = None
+        tags = rec.get('tags', {}) if isinstance(rec.get('tags', {}), dict) else {}
+        if 'uic_ref' in tags:
+            uic = safe_value(tags.get('uic_ref'))
+        if uic:
+            key = str(uic)
+            osm_count_by_uic[key] = osm_count_by_uic.get(key, 0) + 1
+            pt = tags.get('public_transport')
+            if _is_platform_like(pt):
+                osm_platform_count_by_uic[key] = osm_platform_count_by_uic.get(key, 0) + 1
+            _add_osm_dup_candidate(uic, tags.get('local_ref'), rec.get('node_id'), pt)
+
+    duplicate_osm_node_ids = set()
+    for _key, node_ids in osm_nodes_by_uic_local_ref.items():
+        if len(node_ids) >= 2:
+            duplicate_osm_node_ids.update(node_ids)
+
+    def _nearest_distance_to(points_tree, points_list, target_lat, target_lon):
+        if points_tree is None or not points_list:
+            return None
+        x, y, z = _to_xyz(target_lat, target_lon)
+        # KDTree was built on chord distances in 3D; we need haversine distance
+        # Compute nearest index by querying Euclidean distance in 3D space
+        dist, idx = points_tree.query((x, y, z), k=1)
+        # Convert back to haversine distance using great-circle angle from dot product
+        # Recompute angle between unit vectors to avoid precision loss
+        try:
+            # Clip dot product to [-1,1]
+            ux, uy, uz = x, y, z
+            vx, vy, vz = points_list[idx]
+            # Recover lat/lon from stored xyz is not available here; we stored xyz only in points_tree
+            # Instead compute angle from Euclidean distance of unit vectors: ||u - v|| = sqrt(2 - 2 cos(theta))
+            # => cos(theta) = 1 - (||u - v||^2)/2
+            euclid = dist
+            cos_theta = 1 - (euclid * euclid) / 2.0
+            cos_theta = max(-1.0, min(1.0, cos_theta))
+            theta = math.acos(cos_theta)
+            meters = 6371000.0 * theta
+            return meters
+        except Exception:
+            return None
+
+    def compute_unmatched_priority_for_atlas(rec):
+        # Inputs
+        uic = safe_value(rec.get('number'))
+        nearest = _nearest_distance_to(osm_kdtree, osm_points, safe_value(rec.get('wgs84North')), safe_value(rec.get('wgs84East')))
+        # P1 conditions
+        if uic is not None:
+            if osm_count_by_uic.get(str(uic), 0) == 0:
+                return 1
+        if nearest is None:
+            # Treat no OSM available as worse than 80m
+            return 1
+        if nearest > 80:
+            return 1
+        # P2 conditions
+        if nearest > 50:
+            return 2
+        if uic is not None:
+            key = str(uic)
+            if osm_platform_count_by_uic.get(key, 0) != atlas_count_by_uic.get(key, 0):
+                return 2
+        # P3
+        return 3
+
+    def compute_unmatched_priority_for_osm(rec):
+        tags = rec.get('tags', {}) if isinstance(rec.get('tags', {}), dict) else {}
+        uic = safe_value(tags.get('uic_ref'))
+        nearest = _nearest_distance_to(atlas_kdtree, atlas_points, safe_value(rec.get('lat')), safe_value(rec.get('lon')))
+        # P1: zero opposite UIC
+        if uic is not None:
+            if atlas_count_by_uic.get(str(uic), 0) == 0:
+                return 1
+        # P2: radius or platform mismatch
+        if nearest is None or nearest > 50:
+            return 2
+        if uic is not None:
+            key = str(uic)
+            if osm_platform_count_by_uic.get(key, 0) != atlas_count_by_uic.get(key, 0):
+                return 2
+        # P3
+        return 3
+
     # --- Insert Unmatched ATLAS Records ---
     unmatched_records = base_data.get('unmatched_atlas', [])
     for rec in unmatched_records:
@@ -568,13 +774,15 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             uic_ref=safe_value(rec.get('number'), "")
         )
         
-        if problems.get('isolated_problem'):
-            isolated_problem = Problem(
-                problem_type='isolated',
+        if problems.get('unmatched_problem'):
+            unmatched_priority = compute_unmatched_priority_for_atlas(rec)
+            unmatched_problem = Problem(
+                problem_type='unmatched',
                 solution=None,
-                is_persistent=False
+                is_persistent=False,
+                priority=unmatched_priority
             )
-            stop_record.problems.append(isolated_problem)
+            stop_record.problems.append(unmatched_problem)
 
         session.add(stop_record)
         
@@ -594,6 +802,10 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             )
             session.add(atlas_record)
             processed_sloids.add(sloid)
+
+        # Duplicates: ATLAS duplicates (priority 2)
+        if sloid and str(sloid) in duplicate_sloid_map:
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
 
     session.commit()
 
@@ -622,13 +834,15 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             osm_node_type=get_osm_node_type(rec, is_osm_unmatched=True)
         )
 
-        if problems.get('isolated_problem'):
-            isolated_problem = Problem(
-                problem_type='isolated',
+        if problems.get('unmatched_problem'):
+            unmatched_priority = compute_unmatched_priority_for_osm(rec)
+            unmatched_problem = Problem(
+                problem_type='unmatched',
                 solution=None,
-                is_persistent=False
+                is_persistent=False,
+                priority=unmatched_priority
             )
-            stop_record.problems.append(isolated_problem)
+            stop_record.problems.append(unmatched_problem)
 
         session.add(stop_record)
 
@@ -652,6 +866,10 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             )
             session.add(osm_record)
             processed_osm_node_ids.add(osm_node_id)
+        
+        # Duplicates: OSM duplicates (priority 3)
+        if osm_node_id and 'duplicate_osm_node_ids' in locals() and str(osm_node_id) in duplicate_osm_node_ids:
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
             
     session.commit()
 
@@ -733,7 +951,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     from sqlalchemy import func
     total_stops = session.query(Stop).count()
     distance_problems = session.query(Problem).filter(Problem.problem_type == 'distance').count()
-    isolated_problems = session.query(Problem).filter(Problem.problem_type == 'isolated').count()
+    isolated_problems = session.query(Problem).filter(Problem.problem_type == 'unmatched').count()
     attributes_problems = session.query(Problem).filter(Problem.problem_type == 'attributes').count()
     
     multiple_problems = session.query(Problem.stop_id).group_by(Problem.stop_id).having(func.count(Problem.stop_id) > 1).count()
@@ -744,7 +962,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     print("\n==== PROBLEM DETECTION SUMMARY ====")
     print(f"Total stops imported: {total_stops}")
     print(f"Distance problems: {distance_problems}")
-    print(f"Isolated problems: {isolated_problems}")
+    print(f"Unmatched problems: {isolated_problems}")
     print(f"Attributes problems: {attributes_problems}")
     print(f"Entries with multiple problems: {multiple_problems}")
     print(f"Clean entries (no problems): {clean_entries}")

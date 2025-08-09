@@ -14,7 +14,7 @@
     border-left-color: #dc3545;
 }
 
-.solution-card.isolated {
+.solution-card.unmatched {
     border-left-color: #ffc107;
 }
 
@@ -47,8 +47,8 @@
 }
 
 .tab-content {
-    max-height: calc(100vh - 300px);
-    overflow-y: auto;
+    max-height: none;
+    overflow-y: visible;
 }
 
 .pagination-container {

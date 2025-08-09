@@ -58,6 +58,8 @@ class Problem(db.Model):
     problem_type = db.Column(db.String(50), nullable=False)
     solution = db.Column(db.String(500))
     is_persistent = db.Column(db.Boolean, default=False)
+    # Priority for this problem within its category (1 = highest)
+    priority = db.Column(db.Integer)
     stop = db.relationship('Stop', back_populates='problems')
 
     def to_dict(self):
@@ -95,6 +97,7 @@ class Problem(db.Model):
             'problem': self.problem_type,
             'solution': self.solution,
             'is_persistent': self.is_persistent,
+            'priority': self.priority,
             'sloid': stop_data.get('sloid'),
             'stop_type': stop_data.get('stop_type'),
             'match_type': stop_data.get('match_type'),

@@ -2,6 +2,22 @@
 
 // This file contains shared functions for rendering markers, popups, and lines on a Leaflet map.
 
+// Cache for reusing identical L.divIcon instances
+const DivIconCache = new Map();
+function getCachedDivIcon(key, html, className, size, anchor) {
+    if (DivIconCache.has(key)) {
+        return DivIconCache.get(key);
+    }
+    const icon = L.divIcon({
+        html: html,
+        className: className,
+        iconSize: size,
+        iconAnchor: anchor
+    });
+    DivIconCache.set(key, icon);
+    return icon;
+}
+
 /**
  * MarkerClusterManager handles overlapping markers by grouping them by coordinates
  * and applying professional offset patterns with visual indicators.
@@ -76,7 +92,7 @@ class MarkerClusterManager {
      * @param {L.LayerGroup} layer - Leaflet layer group to add markers to
      * @returns {Array} Array of created markers
      */
-    createMarkersWithOffsets(layer) {
+     createMarkersWithOffsets(layer, options = {}) {
         const allMarkers = [];
         
         this.clusters.forEach((markerDataArray, coordKey) => {
@@ -107,12 +123,52 @@ class MarkerClusterManager {
                     );
                 }
                 
-                // Bind popup and add to layer
+                // Bind popup or lazy loader and add to layer
                 if (markerData.popup) {
                     marker.bindPopup(markerData.popup);
+                } else if (markerData.stopData && markerData.type) {
+                    // Lazy-load popup on first click (no temporary placeholder)
+                    marker.on('click', () => {
+                        if (marker._popupLoaded || marker._popupLoading) {
+                            if (marker._popupLoaded && marker.getPopup()) marker.openPopup();
+                            return;
+                        }
+                        marker._popupLoading = true;
+                        if (typeof $ !== 'undefined' && $.getJSON) {
+                            $.getJSON('/api/stop_popup', { stop_id: markerData.stopData.id, view_type: markerData.type })
+                              .done(function(resp) {
+                                  try {
+                                      const enriched = resp && (resp.stop || resp);
+                                      let content = '';
+                                      if (enriched && enriched.stop_type === 'unmatched') {
+                                          content = markerData.type === 'atlas'
+                                            ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
+                                            : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
+                                      } else {
+                                          content = PopupRenderer.generatePopupHtml(enriched, markerData.type);
+                                      }
+                                      const popup = createPopupWithOptions(content);
+                                      marker.bindPopup(popup);
+                                      marker._popupLoaded = true;
+                                      marker.openPopup();
+                                  } catch (e) {
+                                      console.error('Failed to render popup:', e);
+                                  } finally {
+                                      marker._popupLoading = false;
+                                  }
+                              })
+                              .fail(function() {
+                                  marker._popupLoading = false;
+                              });
+                        } else {
+                            marker._popupLoading = false;
+                        }
+                    });
                 }
                 
-                layer.addLayer(marker);
+                if (!options.deferAdd) {
+                    layer.addLayer(marker);
+                }
                 allMarkers.push(marker);
             });
         });
@@ -126,7 +182,7 @@ class MarkerClusterManager {
     _createAtlasMarkerWithCluster(lat, lon, color, duplicateSloid, clusterSize, index, originalLat, originalLon) {
         const radius = 6;
         const size = radius * 2;
-        const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 14;
+        const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 18;
 
         // Prefer canvas at lower zooms to reduce DOM load
         if (useCanvasOnly) {
@@ -139,17 +195,18 @@ class MarkerClusterManager {
         }
 
         if (duplicateSloid && duplicateSloid !== '') {
-            return L.marker([lat, lon], {
-                icon: L.divIcon({
-                    html: `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                            <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
-                            <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">D</text>
-                        </svg>`,
-                    className: 'custom-div-icon atlas-marker-cluster',
-                    iconSize: [size, size],
-                    iconAnchor: [radius, radius]
-                })
-            });
+            const key = `atlas|${color}|D|${size}`;
+            const icon = getCachedDivIcon(
+                key,
+                `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+                    <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
+                    <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">D</text>
+                </svg>`,
+                'custom-div-icon atlas-marker-cluster',
+                [size, size],
+                [radius, radius]
+            );
+            return L.marker([lat, lon], { icon });
         } else {
             return L.circleMarker([lat, lon], { 
                 color: color, 
@@ -166,7 +223,7 @@ class MarkerClusterManager {
     _createOsmMarkerWithCluster(lat, lon, color, osmNodeType, clusterSize, index, originalLat, originalLon) {
         const radius = 6;
         const size = radius * 2;
-        const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 14;
+        const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 18;
 
         // Prefer canvas at lower zooms to reduce DOM load
         if (useCanvasOnly) {
@@ -179,29 +236,31 @@ class MarkerClusterManager {
         }
 
         if (osmNodeType === 'platform') {
-            return L.marker([lat, lon], {
-                icon: L.divIcon({
-                    html: `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                            <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
-                            <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">P</text>
-                        </svg>`,
-                    className: 'custom-div-icon osm-marker-cluster',
-                    iconSize: [size, size],
-                    iconAnchor: [radius, radius]
-                })
-            });
+            const key = `osm|${color}|P|${size}`;
+            const icon = getCachedDivIcon(
+                key,
+                `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+                    <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
+                    <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">P</text>
+                </svg>`,
+                'custom-div-icon osm-marker-cluster',
+                [size, size],
+                [radius, radius]
+            );
+            return L.marker([lat, lon], { icon });
         } else if (osmNodeType === 'railway_station') {
-            return L.marker([lat, lon], {
-                icon: L.divIcon({
-                    html: `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                            <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
-                            <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">S</text>
-                        </svg>`,
-                    className: 'custom-div-icon osm-marker-cluster',
-                    iconSize: [size, size],
-                    iconAnchor: [radius, radius]
-                })
-            });
+            const key = `osm|${color}|S|${size}`;
+            const icon = getCachedDivIcon(
+                key,
+                `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+                    <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
+                    <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">S</text>
+                </svg>`,
+                'custom-div-icon osm-marker-cluster',
+                [size, size],
+                [radius, radius]
+            );
+            return L.marker([lat, lon], { icon });
         } else {
             return L.circleMarker([lat, lon], { 
                 color: color, 
@@ -239,7 +298,7 @@ class MarkerClusterManager {
 function createAtlasMarker(lat, lon, color, duplicateSloid) {
     const radius = 6;
     const size = radius * 2;
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 14;
+    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 18;
     if (useCanvasOnly) {
         return L.circleMarker([lat, lon], { 
             color: color, 
@@ -281,7 +340,7 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
 function createOsmMarker(lat, lon, color, osmNodeType = null) {
     const radius = 6;
     const size = radius * 2;
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 14;
+    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 18;
     if (useCanvasOnly) {
         return L.circleMarker([lat, lon], { 
             color: color, 
@@ -331,7 +390,22 @@ function createOsmMarker(lat, lon, color, osmNodeType = null) {
  * @param {L.LayerGroup} layer - Leaflet layer group to add markers to
  * @returns {Array} Array of created markers
  */
-function createMarkersWithOverlapHandling(markerDataArray, layer) {
+function addLayersInChunks(layer, markers, batchSize = 200) {
+    let currentIndex = 0;
+    function addNextChunk() {
+        const end = Math.min(currentIndex + batchSize, markers.length);
+        for (let i = currentIndex; i < end; i++) {
+            try { layer.addLayer(markers[i]); } catch (e) {}
+        }
+        currentIndex = end;
+        if (currentIndex < markers.length) {
+            setTimeout(addNextChunk, 0);
+        }
+    }
+    addNextChunk();
+}
+
+function createMarkersWithOverlapHandling(markerDataArray, layer, options = {}) {
     const clusterManager = new MarkerClusterManager();
     
     // Add all markers to the cluster manager
@@ -339,8 +413,13 @@ function createMarkersWithOverlapHandling(markerDataArray, layer) {
         clusterManager.addMarker(markerData.lat, markerData.lon, markerData);
     });
     
-    // Create markers with offset handling
-    return clusterManager.createMarkersWithOffsets(layer);
+    // Create markers with offset handling, deferring actual add if batching
+    const markers = clusterManager.createMarkersWithOffsets(layer, { deferAdd: !!options.batchAdd });
+    if (options.batchAdd) {
+        const batchSize = options.batchSize || 200;
+        addLayersInChunks(layer, markers, batchSize);
+    }
+    return markers;
 }
 
 // Popup-related functions have been moved to popup-renderer.js
@@ -407,8 +486,8 @@ function drawProblemOnMap(map, problemData, layers) {
         map.fitBounds(line.getBounds().pad(0.2));
         atlasMarker.openPopup();
     }
-    // Case: 'isolated' problem
-    else if (stop.problem === 'isolated') {
+    // Case: 'unmatched' problem
+    else if (stop.problem === 'unmatched') {
         if (stop.stop_type === 'unmatched' && stop.atlas_lat) { // Isolated ATLAS
             const marker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'red', stop.atlas_duplicate_sloid);
             popup = createPopupWithOptions(PopupRenderer.generateSingleAtlasBubbleHtml(stop, true));

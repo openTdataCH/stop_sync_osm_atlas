@@ -21,7 +21,8 @@ window.ProblemsMap = (function() {
      */
     function initProblemMap() {
         const problemMap = L.map('problemMap', {
-            closePopupOnClick: false // Same setting as main map
+            closePopupOnClick: false, // Same setting as main map
+            preferCanvas: true        // Prefer Canvas rendering for performance
         }).setView([47.3769, 8.5417], 13);
         
         // Use same tile layer as main page
@@ -186,14 +187,12 @@ window.ProblemsMap = (function() {
                     else if (stop.stop_type === 'unmatched') atlasColor = 'red';
                     else if (stop.stop_type === 'station') atlasColor = 'orange';
                     
-                    const atlasPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'atlas'));
                     contextMarkerData.push({
                         lat: parseFloat(stop.atlas_lat),
                         lon: parseFloat(stop.atlas_lon),
                         type: 'atlas',
                         color: atlasColor,
                         duplicateSloid: stop.atlas_duplicate_sloid,
-                        popup: atlasPopup,
                         originalLat: parseFloat(stop.atlas_lat),
                         originalLon: parseFloat(stop.atlas_lon),
                         stopData: stop,
@@ -233,14 +232,12 @@ window.ProblemsMap = (function() {
                     if (osmData.stop_type === 'matched') osmColor = 'blue';
                     else if (osmData.stop_type === 'osm') osmColor = 'gray';
                     
-                    const osmPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(osmData, 'osm'));
                     contextMarkerData.push({
                         lat: parseFloat(osmData.osm_lat),
                         lon: parseFloat(osmData.osm_lon),
                         type: 'osm',
                         color: osmColor,
                         osmNodeType: osmData.osm_node_type,
-                        popup: osmPopup,
                         originalLat: parseFloat(osmData.osm_lat),
                         originalLon: parseFloat(osmData.osm_lon),
                         stopData: osmData,
@@ -262,8 +259,8 @@ window.ProblemsMap = (function() {
                 });
             });
             
-            // Create markers with overlap handling
-            const contextMarkers = createMarkersWithOverlapHandling(contextMarkerData, contextMarkersLayer);
+            // Create markers with overlap handling (batch add to keep UI responsive)
+            const contextMarkers = createMarkersWithOverlapHandling(contextMarkerData, contextMarkersLayer, { batchAdd: true, batchSize: 150 });
             
             // Apply opacity to markers after creation
             contextMarkers.forEach(marker => {

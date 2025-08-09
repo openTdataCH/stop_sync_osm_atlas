@@ -26,6 +26,41 @@ from .detection_config import (
 # Setup logging
 logger = logging.getLogger(__name__)
 
+def _is_sbb(operator: Optional[str]) -> bool:
+    if not operator:
+        return False
+    return str(operator).strip().upper() == 'SBB'
+
+def compute_distance_priority(match_record: Dict[str, Any]) -> Optional[int]:
+    """
+    Compute priority for distance discrepancies.
+    Rules:
+      - P1: Atlas operator is not SBB AND distance > 80 m
+      - P2: Atlas operator is not SBB AND 25 < distance <= 80 m
+      - P3: Atlas operator is SBB AND distance > 25 m
+           OR 15 < distance <= 25 m (any operator)
+      - None: distance <= 15 m or missing
+    """
+    try:
+        distance = match_record.get('distance_m')
+        if distance is None:
+            return None
+        d = float(distance)
+        atlas_operator = match_record.get('csv_business_org_abbr')
+        is_sbb = _is_sbb(atlas_operator)
+
+        if d > 80 and not is_sbb:
+            return 1
+        if d > 25 and d <= 80 and not is_sbb:
+            return 2
+        if d > 25 and is_sbb:
+            return 3
+        if d > 15 and d <= 25:
+            return 3
+        return None
+    except Exception:
+        return None
+
 def detect_distance_problems(match_record: Dict[str, Any]) -> bool:
     """
     Detect if a matched pair has distance-related problems.
@@ -41,23 +76,17 @@ def detect_distance_problems(match_record: Dict[str, Any]) -> bool:
         bool: True if distance problem detected, False otherwise
     """
     try:
-        distance = match_record.get('distance_m')
-        if distance is None:
-            return False
-            
-        # Convert to float and check threshold
-        distance_float = float(distance)
-        return distance_float > get_distance_problem_threshold()
-        
-    except (ValueError, TypeError) as e:
+        # Use priority computation to decide if it's a problem
+        return compute_distance_priority(match_record) is not None
+    except Exception as e:
         logger.warning(f"Error processing distance for match record: {e}")
         return False
 
-def detect_isolated_problems(stop_type: str, match_type: str = None, is_isolated: bool = False) -> bool:
+def detect_unmatched_problems(stop_type: str, match_type: str = None, is_isolated: bool = False) -> bool:
     """
-    Detect if a stop is isolated (has no counterpart in the other dataset).
+    Detect if a stop is unmatched (has no counterpart in the other dataset).
     
-    Isolated problems are flagged when:
+    Unmatched problems are flagged when:
     - An unmatched ATLAS stop has no OSM counterpart within the isolation radius
     - An unmatched OSM stop has no ATLAS counterpart within the isolation radius
     
@@ -67,16 +96,14 @@ def detect_isolated_problems(stop_type: str, match_type: str = None, is_isolated
         is_isolated: Flag indicating if the stop is isolated (unified for both ATLAS and OSM)
         
     Returns:
-        bool: True if isolation problem detected, False otherwise
+        bool: True if unmatched problem detected, False otherwise
     """
-    # Check for isolation match_type indicator
-    if match_type == 'no_nearby_counterpart':
+    # Any unmatched ATLAS or standalone OSM entry is an unmatched problem.
+    if stop_type in ('unmatched', 'osm'):
         return True
-        
-    # Unified isolation detection based on is_isolated flag
-    if stop_type in ('unmatched', 'osm') and is_isolated:
+    # Also consider explicit flag from matching stage
+    if match_type == 'no_nearby_counterpart' or is_isolated:
         return True
-        
     return False
 
 def detect_attribute_problems(match_record: Dict[str, Any]) -> Tuple[bool, List[str]]:
@@ -144,6 +171,44 @@ def detect_attribute_problems(match_record: Dict[str, Any]) -> Tuple[bool, List[
     except Exception as e:
         logger.warning(f"Error detecting attribute problems: {e}")
         return False, []
+
+def compute_attributes_priority(match_record: Dict[str, Any]) -> Optional[int]:
+    """
+    Compute priority for attribute mismatches.
+    Rules:
+      - P1: Different UIC number OR different name
+      - P2: Different local ref
+      - P3: Different operator
+      - None: No mismatches
+    """
+    try:
+        # UIC mismatch
+        atlas_uic = str(match_record.get('number', '') or '').strip()
+        osm_uic = str(match_record.get('osm_uic_ref', '') or '').strip()
+        if atlas_uic and osm_uic and atlas_uic != osm_uic and ENABLE_UIC_MISMATCH_CHECK:
+            return 1
+
+        # Name mismatch (designation_official vs uic_name)
+        atlas_name = str(match_record.get('csv_designation_official', '') or match_record.get('designationOfficial', '') or '').strip()
+        osm_name = str(match_record.get('osm_uic_name', '') or '').strip()
+        if atlas_name and osm_name and atlas_name.lower() != osm_name.lower() and ENABLE_NAME_MISMATCH_CHECK:
+            return 1
+
+        # Local ref mismatch (designation vs local_ref)
+        atlas_local_ref = str(match_record.get('csv_designation', '') or match_record.get('designation', '') or '').strip()
+        osm_local_ref = str(match_record.get('osm_local_ref', '') or '').strip()
+        if atlas_local_ref and osm_local_ref and atlas_local_ref.lower() != osm_local_ref.lower() and ENABLE_LOCAL_REF_MISMATCH_CHECK:
+            return 2
+
+        # Operator mismatch
+        atlas_operator = str(match_record.get('csv_business_org_abbr', '') or '').strip()
+        osm_operator = str(match_record.get('osm_operator', '') or '').strip()
+        if atlas_operator and osm_operator and atlas_operator.lower() != osm_operator.lower() and ENABLE_OPERATOR_MISMATCH_CHECK:
+            return 3
+
+        return None
+    except Exception:
+        return None
 
 
 # ============================================================================
@@ -361,14 +426,14 @@ def analyze_stop_problems(stop_data: Dict[str, Any]) -> Dict[str, Any]:
         Dict with problem flags and details:
         {
             'distance_problem': bool,
-            'isolated_problem': bool, 
+            'unmatched_problem': bool, 
             'attributes_problem': bool,
             'problem_details': List[str]
         }
     """
     result = {
         'distance_problem': False,
-        'isolated_problem': False,
+        'unmatched_problem': False,
         'attributes_problem': False,
         'problem_details': []
     }
@@ -381,15 +446,15 @@ def analyze_stop_problems(stop_data: Dict[str, Any]) -> Dict[str, Any]:
                 distance = stop_data.get('distance_m', 'unknown')
                 result['problem_details'].append(f"Distance problem: {distance}m exceeds threshold")
         
-        # Check isolation problems
+        # Check unmatched problems
         is_isolated_flag = stop_data.get('is_isolated', False)
-        result['isolated_problem'] = detect_isolated_problems(
+        result['unmatched_problem'] = detect_unmatched_problems(
             stop_data.get('stop_type'),
             stop_data.get('match_type'),
             is_isolated=is_isolated_flag
         )
-        if result['isolated_problem']:
-            result['problem_details'].append(f"Isolation problem: {stop_data.get('stop_type')} stop")
+        if result['unmatched_problem']:
+            result['problem_details'].append(f"Unmatched problem: {stop_data.get('stop_type')} stop")
         
         # Check attribute problems (only for matched entries)
         if stop_data.get('stop_type') == 'matched':
@@ -426,13 +491,13 @@ def get_problem_statistics(all_problems: List[Dict[str, Any]]) -> Dict[str, int]
     for problem in all_problems:
         problem_count = sum([
             problem.get('distance_problem', False),
-            problem.get('isolated_problem', False), 
+            problem.get('unmatched_problem', False), 
             problem.get('attributes_problem', False)
         ])
         
         if problem.get('distance_problem', False):
             stats['distance_problems'] += 1
-        if problem.get('isolated_problem', False):
+        if problem.get('unmatched_problem', False):
             stats['isolated_problems'] += 1
         if problem.get('attributes_problem', False):
             stats['attributes_problems'] += 1

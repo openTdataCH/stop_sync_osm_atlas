@@ -3,7 +3,7 @@
 /* Main Content Layout */
 .main-content {
   display: flex;
-  height: 100%;
+  height: calc(100vh - 200px); /* Fit within viewport to avoid page scroll */
   position: relative;
   overflow: hidden;
 }
@@ -223,6 +223,19 @@
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
+/* Subtle priority tag */
+.priority-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1.5px solid #ced4da;
+  color: #495057;
+  background-color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
 .issue-container.active {
   border-color: #007bff;
   box-shadow: 0 0 15px rgba(0, 123, 255, 0.3);
@@ -404,3 +417,84 @@
   font-size: 1.1em;
   color: #6c757d; /* Bootstrap's secondary text color */
 } 
+
+/* Priority circles inside dropdown */
+.priority-circle {
+  display: inline-block;
+  position: relative; /* enable absolute centering of inner text */
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid #dee2e6; /* use whole pixel to avoid optical drift */
+  background-color: #ffffff;
+  font-weight: 600;
+  font-size: 0.875rem; /* match badge/count size */
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums; /* consistent numeric width */
+  color: #6c757d; /* neutral text by default */
+  vertical-align: middle; /* align with neighbors */
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.priority-circle.pr-1 { color: #dc3545; }
+.priority-circle.pr-2 { color: #fd7e14; }
+.priority-circle.pr-3 { color: #17a2b8; }
+.priority-circle .pc-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  line-height: 1;
+  white-space: nowrap;
+}
+.priority-circle.pr-all { border-color: #dee2e6; color: #6c757d; width: auto; padding: 0 10px; border-radius: 999px; }
+
+/* Hover (when not selected) shows a subtle tint */
+.priority-circle.pr-1:hover { border-color: #dc3545; background-color: rgba(220, 53, 69, 0.08); }
+.priority-circle.pr-2:hover { border-color: #fd7e14; background-color: rgba(253, 126, 20, 0.1); }
+.priority-circle.pr-3:hover { border-color: #17a2b8; background-color: rgba(23, 162, 184, 0.1); }
+.priority-circle.pr-all:hover { border-color: #6c757d; background-color: rgba(108, 117, 125, 0.08); }
+
+/* Selected state: clean highlight, keep original text colors */
+.priority-circle.selected {
+  border-color: #343a40;
+  background-color: rgba(52, 58, 64, 0.06);
+  box-shadow: 0 0 0 3px rgba(52, 58, 64, 0.12);
+}
+
+/* Ensure the priority row (inside the dropdown) aligns items to the left, not spaced out */
+.problem-type-options-list .dropdown-item.d-flex.align-items-center {
+  justify-content: flex-start;
+}
+
+/* Remove blue/active background style for the priority row selections */
+.problem-type-options-list .priority-row a.priority-option:active,
+.problem-type-options-list .priority-row a.priority-option:focus,
+.problem-type-options-list .priority-row a.priority-option:hover {
+  background: transparent !important;
+  color: inherit !important;
+}
+
+/* Keep text colors per priority on hover/focus/active */
+.problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-1,
+.problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-1,
+.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-1 { color: #dc3545 !important; }
+.problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-2,
+.problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-2,
+.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-2 { color: #fd7e14 !important; }
+.problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-3,
+.problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-3,
+.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-3 { color: #17a2b8 !important; }
+.problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-all,
+.problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-all,
+.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-all { color: #6c757d !important; }
+
+.problem-type-options-list .priority-row {
+  background: transparent !important;
+}
+
+/* Anchors wrapping circles */
+.priority-option {
+  display: inline-block;
+  text-decoration: none !important;
+}

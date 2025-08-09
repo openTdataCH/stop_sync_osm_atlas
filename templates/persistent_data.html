@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 
+{% from "_components.html" import header_chip %}
 {% block title %}Persistent Data Management{% endblock %}
 
 {% block head_css %}
@@ -9,11 +10,8 @@
 
 {% block content %}
 <div class="container">
-  <h1 class="mt-3 mb-3 text-center display-4">
-    <div class="header-container">
-      <img src="{{ url_for('static', filename='header/header.svg') }}" alt="OSM & ATLAS Logo Left" class="header-icon">
-      <span class="header-title">Persistent Data Management</span>
-    </div>
+  <h1 class="mt-3 mb-2 text-center display-4">
+    {{ header_chip('Persistent Data Management') }}
   </h1>
   
   <div class="row mb-4">
@@ -34,7 +32,7 @@
           <a class="dropdown-item filter-type-btn" href="#" data-type="all">All Types</a>
           <div class="dropdown-divider"></div>
           <a class="dropdown-item filter-type-btn" href="#" data-type="distance">Distance Problems</a>
-          <a class="dropdown-item filter-type-btn" href="#" data-type="isolated">Isolated Problems</a>
+          <a class="dropdown-item filter-type-btn" href="#" data-type="unmatched">Unmatched Problems</a>
           <a class="dropdown-item filter-type-btn" href="#" data-type="attributes">Attributes Problems</a>
           <div class="dropdown-divider"></div>
           <a class="dropdown-item filter-type-btn" href="#" data-type="atlas_note">ATLAS Notes</a>
