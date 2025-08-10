@@ -1,5 +1,8 @@
 # **Bachelor Project**
 
+!! This version has bugs and issues, fixes will come soon !!
+
+
 Welcome to the **Bachelor Project** repository. This project provides a systematic pipeline to identify, analyze, and resolve discrepancies between public transport stop data from **ATLAS** (Swiss official data) and **OpenStreetMap (OSM)**.
 
 ---
@@ -170,14 +173,3 @@ Feel free to submit issues and pull requests. Thank you for your interest! 🚀
 
 ---
 
-## Troubleshooting
-
-| Symptom | Fix |
-|---------|-----|
-| "TemplateNotFound" errors | Make sure you pulled the latest code: the Flask app is now configured to look for `templates/` at the repo root. Simply rebuilding the container (`docker compose build app-dev && docker compose up app-dev`) resolves this. |
-| "Ports are not available" (`bind: address already in use`) | Another instance of the app is still running. Run `docker compose down` first or free port **5001**. |
-| "Compromised" or inconsistent database | Run `docker compose down -v` to destroy the `mysql_data` volume and rebuild from scratch. |
-
-### Line-ending issues on Windows
-If you work on Windows, ensure that **shell scripts (`*.sh`) use LF line endings**.
-The repo contains a `.gitattributes` file that enforces this, and the Docker build also runs `dos2unix` on every script just in case.
