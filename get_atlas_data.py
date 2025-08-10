@@ -34,9 +34,6 @@ def get_atlas_stops(output_path, download_url):
             df = pd.read_csv(f, sep=";")
             df = df[df['uicCountryCode'] == 85]
             df = df.dropna(subset=['wgs84North', 'wgs84East'])
-
-            # for testing, only keep the first 1000 rows
-            df = df.head(1000)
             
             # Save processed data
             df.to_csv(output_path, sep=";", index=False)

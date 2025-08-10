@@ -4,7 +4,7 @@ This document precisely defines how we detect and prioritize problems. Logic liv
 
 Problem types:
 - Distance
-- Unmatched (formerly called Isolated)
+- Unmatched 
 - Attributes
 - Duplicates
 
@@ -32,7 +32,7 @@ Implementation
 - Compute with `compute_distance_priority(record)` using `csv_business_org_abbr` and `distance_m` already present in match records (from matching stages).
 - Store `Problem(priority=1|2|3)` when `detect_distance_problems(record)` returns True.
 
-### 2. Unmatched (formerly Isolated)
+### 2. Unmatched
 
 Purpose: stops without a counterpart in the opposite dataset.
 
@@ -83,13 +83,10 @@ Priority rules
 - Priority 2: Different local_ref
 - Priority 3: Different operator
 
-Implementation
-- Uses fields already present in match records: `number` (ATLAS UIC), `osm_uic_ref`, `csv_designation_official`, `osm_uic_name`, `csv_designation`, `osm_local_ref`, `csv_business_org_abbr`, `osm_operator`.
-- Store `Problem(priority=1|2|3)` for attributes problems.
 
 ### 4. Duplicates
 
-Purpose: identify duplicated entries either on the ATLAS side (same station appears multiple times) or on the OSM side (multiple platform-like nodes that represent the same platform).
+Purpose: identify duplicated entries either on the ATLAS side or on the OSM side.
 
 Detection
 - ATLAS duplicates: We reuse the `duplicate_sloid_map` produced during the matching pipeline to mark entries that belong to a duplicate ATLAS group.
