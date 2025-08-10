@@ -454,6 +454,137 @@ function createPopupWithOptions(content) {
 }
 
 /**
+ * Attach standard popup line handling (open/close/move/zoom) to a Leaflet map.
+ * Returns a live array reference of currently open popups for optional callers.
+ * This mirrors the behavior used on the main map.
+ * @param {L.Map} mapInstance
+ * @returns {Array<L.Popup>} openPopups
+ */
+function attachPopupLineHandlersToMap(mapInstance) {
+    const openPopups = [];
+    mapInstance.on('popupopen', function(e) {
+        openPopups.push(e.popup);
+        try {
+            // Always work with the actual popup DOM element
+            const contentEl = e.popup.getElement();
+            if (!contentEl) return;
+            const $root = $(contentEl);
+            const $container = $root.find('.popup-content-container').first();
+            const stopId = $container.data('stop-id');
+            const type = $container.data('type'); // 'atlas' or 'osm'
+            if (!(stopId && type)) return;
+
+            const $btn = $root.find('button.manual-match-target');
+
+            // Ensure UI reflects current selection state
+            if (typeof window.updateManualMatchButtonsUI === 'function') {
+                window.updateManualMatchButtonsUI();
+            }
+
+            $btn.off('click.mm').on('click.mm', function(){
+                const current = window.manualMatchContext;
+                if (!current) {
+                    // Start selection from this popup
+                    window.manualMatchContext = { from: type, stopId: stopId };
+                    $('.manual-match-banner').remove();
+                    const msg = type === 'atlas' ? 'Select an OSM entry to complete the match' : 'Select an ATLAS entry to complete the match';
+                    const banner = $(`
+                        <div class="manual-match-banner alert alert-info" role="alert" style="position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:2000;">
+                            ${msg}
+                            <button type="button" class="btn btn-sm btn-outline-secondary ml-2" id="cancelManualMatch">Cancel</button>
+                        </div>
+                    `);
+                    $('body').append(banner);
+                    $('#cancelManualMatch').on('click', function(){
+                        window.manualMatchContext = null;
+                        $('.manual-match-banner').remove();
+                        if (typeof window.updateManualMatchButtonsUI === 'function') {
+                            window.updateManualMatchButtonsUI();
+                        }
+                    });
+                    if (typeof window.updateManualMatchButtonsUI === 'function') {
+                        window.updateManualMatchButtonsUI();
+                    }
+                    return;
+                }
+
+                // Attempt to finalize if clicking on opposite dataset
+                if ((current.from === 'atlas' && type === 'osm') || (current.from === 'osm' && type === 'atlas')) {
+                    const atlasId = current.from === 'atlas' ? current.stopId : stopId;
+                    const osmId   = current.from === 'atlas' ? stopId : current.stopId;
+                    const makePersistent = (typeof ProblemsState !== 'undefined' && ProblemsState.getAutoPersistEnabled && ProblemsState.getAutoPersistEnabled()) || false;
+
+                    $.ajax({
+                        url: '/api/manual_match',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ atlas_stop_id: atlasId, osm_stop_id: osmId, make_persistent: makePersistent }),
+                    }).done(function(resp){
+                        window.manualMatchContext = null;
+                        $('.manual-match-banner').remove();
+                        // Success notification
+                        if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
+                            window.ProblemsUI.showTemporaryMessage('Manual match saved' + (resp && resp.is_persistent ? ' (persistent)' : ''), 'success');
+                        }
+                        // Optional: refresh Problems view if present
+                        if (typeof ProblemsData !== 'undefined' && ProblemsData.fetchProblems && typeof ProblemsState !== 'undefined') {
+                            const idx = ProblemsState.getCurrentProblemIndex ? ProblemsState.getCurrentProblemIndex() : 0;
+                            ProblemsData.fetchProblems(ProblemsState.getCurrentPage ? ProblemsState.getCurrentPage() : 1);
+                            setTimeout(() => {
+                                if (window.ProblemsUI && window.ProblemsUI.displayProblem) {
+                                    window.ProblemsUI.displayProblem(idx);
+                                }
+                            }, 400);
+                        }
+                        if (typeof window.updateManualMatchButtonsUI === 'function') {
+                            window.updateManualMatchButtonsUI();
+                        }
+                    }).fail(function(){
+                        if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
+                            window.ProblemsUI.showTemporaryMessage('Failed to save manual match', 'error');
+                        }
+                    });
+                }
+            });
+        } catch (err) { /* ignore */ }
+    });
+    mapInstance.on('popupclose', function(e) {
+        const idx = openPopups.indexOf(e.popup);
+        if (idx !== -1) openPopups.splice(idx, 1);
+        if (e.popup instanceof L.DraggablePopup && e.popup._line) {
+            try { e.popup._removeLine(); } catch {}
+        }
+    });
+    mapInstance.on('move', function() {
+        if (window.updateAllPopupLines) window.updateAllPopupLines();
+        openPopups.forEach(popup => { if (popup._updatePosition) popup._updatePosition(); });
+    });
+    mapInstance.on('zoom', function() {
+        if (window.updateAllPopupLines) window.updateAllPopupLines();
+        openPopups.forEach(popup => { if (popup._updatePosition) popup._updatePosition(); });
+    });
+    return openPopups;
+}
+
+// Global helper to keep popup buttons in sync with current manual selection
+window.updateManualMatchButtonsUI = function() {
+    const ctx = window.manualMatchContext;
+    // For every visible popup, set appropriate button text
+    $('.leaflet-popup').each(function(){
+        const $root = $(this);
+        const $container = $root.find('.popup-content-container').first();
+        const type = $container.data('type');
+        const $btn = $root.find('button.manual-match-target');
+        if (!$btn.length) return;
+        if (ctx && ctx.from && ((ctx.from === 'atlas' && type === 'osm') || (ctx.from === 'osm' && type === 'atlas'))) {
+            $btn.text('Match to this entry');
+        } else {
+            $btn.text('Match to');
+        }
+    });
+};
+
+/**
  * Draws a problem case on the map, including markers and lines.
  * @param {L.Map} map - The Leaflet map instance.
  * @param {object} problemData - The data for the problem stop.
@@ -500,6 +631,29 @@ function drawProblemOnMap(map, problemData, layers) {
             marker.bindPopup(popup).addTo(layers.markersLayer);
             map.setView([stop.osm_lat, stop.osm_lon], 16);
             marker.openPopup();
+        }
+    }
+    // Case: 'duplicates' group
+    else if (stop.problem === 'duplicates') {
+        const members = Array.isArray(stop.members) ? stop.members : [];
+        const points = [];
+        members.forEach(member => {
+            if (member.atlas_lat != null && member.atlas_lon != null) {
+                const m = createAtlasMarker(member.atlas_lat, member.atlas_lon, 'orange', member.atlas_duplicate_sloid);
+                const p = createPopupWithOptions(PopupRenderer.generatePopupHtml(member, 'atlas'));
+                m.bindPopup(p).addTo(layers.markersLayer);
+                points.push([member.atlas_lat, member.atlas_lon]);
+            }
+            if (member.osm_lat != null && member.osm_lon != null) {
+                const m2 = createOsmMarker(member.osm_lat, member.osm_lon, 'blue', member.osm_node_type);
+                const p2 = createPopupWithOptions(PopupRenderer.generatePopupHtml(member, 'osm'));
+                m2.bindPopup(p2).addTo(layers.markersLayer);
+                points.push([member.osm_lat, member.osm_lon]);
+            }
+        });
+        if (points.length > 0) {
+            const bounds = L.latLngBounds(points);
+            map.fitBounds(bounds.pad(0.2));
         }
     }
 } 

@@ -30,6 +30,7 @@ def format_stop_data(stop, problem_type=None, include_routes=True, include_notes
         "sloid": stop.sloid,
         "stop_type": stop.stop_type,
         "match_type": stop.match_type,
+        "manual_is_persistent": getattr(stop, 'manual_is_persistent', False),
         "atlas_lat": stop.atlas_lat if stop.atlas_lat is not None else stop.osm_lat,
         "atlas_lon": stop.atlas_lon if stop.atlas_lon is not None else stop.osm_lon,
         "atlas_business_org_abbr": atlas_details.atlas_business_org_abbr if atlas_details else None,

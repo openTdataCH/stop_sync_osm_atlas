@@ -35,6 +35,25 @@
         justify-content: space-between;
         align-items: center;
     }
+    /* Map context toggle button positioning */
+    .map-section { position: relative; }
+    .map-context-toggle {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 1000;
+    }
+    /* Light background for the off state (see other markers) */
+    .map-context-toggle .btn-outline-secondary {
+        background-color: rgba(255, 255, 255, 0.9);
+        color: #343a40;
+        border-color: rgba(0, 0, 0, 0.15);
+    }
+    .map-context-toggle .btn-outline-secondary:hover,
+    .map-context-toggle .btn-outline-secondary:focus {
+        background-color: rgba(255, 255, 255, 0.95);
+        color: #212529;
+    }
   </style>
 {% endblock %}
 
@@ -158,6 +177,12 @@
       <!-- Map Section -->
       <div class="map-section" id="mapSection">
         <div id="problemMap"></div>
+        <!-- Context toggle moved to map corner -->
+        <div class="map-context-toggle">
+          <button id="toggleContextBtn" class="btn btn-outline-secondary btn-sm" type="button">
+            <i class="fas fa-eye"></i> See other markers
+          </button>
+        </div>
       </div>
       
       <!-- Resizable Divider -->
@@ -174,9 +199,6 @@
           <div class="d-flex align-items-center">
             <button id="prevProblemBtn" class="btn btn-outline-secondary mr-2">
               <i class="fas fa-chevron-left"></i> Prev
-            </button>
-            <button id="toggleContextBtn" class="btn btn-outline-secondary mr-2">
-              <i class="fas fa-eye-slash"></i> Context
             </button>
           </div>
           <button id="nextProblemBtn" class="btn btn-outline-secondary">

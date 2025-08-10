@@ -27,6 +27,8 @@ class Stop(db.Model):
     sloid = db.Column(db.String(100), index=True)
     stop_type = db.Column(db.String(50))
     match_type = db.Column(db.String(50))
+    # Indicates whether a 'manual' match was saved as persistent data
+    manual_is_persistent = db.Column(db.Boolean, default=False)
     
     # Core location and linking attributes
     atlas_lat = db.Column(db.Float)

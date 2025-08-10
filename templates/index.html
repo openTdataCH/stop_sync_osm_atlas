@@ -379,7 +379,7 @@
               <!-- Badges will be dynamically inserted here -->
           </div>
 
-          <!-- Additional Controls: Save, Preview & Report -->
+          <!-- Additional Controls: Report & Persistence -->
           <div class="card-footer">
             <div class="row">
               <div class="col-6 pr-1">
@@ -389,14 +389,7 @@
                 <button id="generateReportBtn" class="btn btn-sm btn-secondary btn-block mb-2" title="Generate various reports based on current data."><i class="fas fa-file-alt"></i> Reports</button>
               </div>
             </div>
-            <div class="row">
-              <div class="col-6 pr-1">
-                <button id="saveChangesBtn" class="btn btn-sm btn-success btn-block" title="Save manual matches and other changes."><i class="fas fa-save"></i> Save</button>
-              </div>
-              <div class="col-6 pl-1">
-                <button id="previewMatchesBtn" class="btn btn-sm btn-info btn-block" title="Preview currently staged manual matches."><i class="fas fa-eye"></i> Preview M.</button>
-              </div>
-            </div>
+            <a href="{{ url_for('persistent_data') }}" class="btn btn-info btn-sm btn-block" title="Manage persistent solutions and notes."><i class="fas fa-database"></i> Manage Persistent Data</a>
           </div>
         </div> <!-- This closes fixedFilterControls -->
 
@@ -522,7 +515,7 @@
 <script src="{{ url_for('static', filename='js/popup-renderer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/move_popup.js') }}"></script>
 <script src="{{ url_for('static', filename='js/map-renderer.js') }}"></script>
-<script src="{{ url_for('static', filename='js/manual-matching.js') }}"></script>
+<!-- Legacy manual-matching.js removed in favor of problems-page manual matching -->
 <script src="{{ url_for('static', filename='js/report.js') }}"></script>
 <script src="{{ url_for('static', filename='js/operator-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/filter-chip-utils.js') }}"></script>

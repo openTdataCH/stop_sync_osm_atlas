@@ -21,8 +21,9 @@ window.ProblemsMap = (function() {
      */
     function initProblemMap() {
         const problemMap = L.map('problemMap', {
-            closePopupOnClick: false, // Same setting as main map
-            preferCanvas: true        // Prefer Canvas rendering for performance
+            closePopupOnClick: false,
+            // Use SVG renderer so popup connection lines can be drawn (same as main map)
+            preferCanvas: false
         }).setView([47.3769, 8.5417], 13);
         
         // Use same tile layer as main page
@@ -35,6 +36,9 @@ window.ProblemsMap = (function() {
         const problemLinesLayer = L.layerGroup().addTo(problemMap);
         const contextMarkersLayer = L.layerGroup().addTo(problemMap);
         
+        // Attach standard popup-line handlers (shared)
+        attachPopupLineHandlersToMap(problemMap);
+
         // Store in state
         ProblemsState.setProblemMap(problemMap);
         ProblemsState.setOsmLayerProblems(osmLayerProblems);
@@ -45,6 +49,8 @@ window.ProblemsMap = (function() {
         // Expose the map as window.map so shared marker utilities can switch to Canvas at low zoom
         // This is safe on problems.html where the main map is not present
         window.map = problemMap;
+
+        // Manual match popup interactions are handled globally in map-renderer.js via attachPopupLineHandlersToMap
         
         console.log("Problem map initialized with layers:", {
             problemMarkersLayer: problemMarkersLayer,
@@ -246,14 +252,13 @@ window.ProblemsMap = (function() {
                     
                     // Add connection lines for matched pairs (only at high zoom)
                     if (problemMap.getZoom() >= PROBLEM_LINE_ZOOM_THRESHOLD && stop.stop_type === 'matched' && stop.atlas_lat && osmData.osm_lat) {
+                        const isManual = (stop.match_type === 'manual');
+                        const isPersistent = !!stop.manual_is_persistent;
+                        const style = isManual ? { color: 'purple', opacity: 0.6, weight: 2, dashArray: isPersistent ? null : '5,5' } : { color: 'green', opacity: 0.4, weight: 2 };
                         const line = L.polyline([
                             [parseFloat(stop.atlas_lat), parseFloat(stop.atlas_lon)],
                             [parseFloat(osmData.osm_lat), parseFloat(osmData.osm_lon)]
-                        ], { 
-                            color: 'green', 
-                            opacity: 0.4, // Slightly more visible for context
-                            weight: 2 
-                        });
+                        ], style);
                         contextMarkersLayer.addLayer(line);
                     }
                 });
@@ -289,7 +294,7 @@ window.ProblemsMap = (function() {
         
         if (showContext) {
             button.removeClass('btn-outline-secondary').addClass('btn-secondary');
-            button.html('<i class="fas fa-eye"></i> Context On');
+            button.html('<i class="fas fa-eye-slash"></i> Hide other markers');
             const currentProblem = ProblemsState.getCurrentProblem();
             if (currentProblem) {
                 loadContextData(currentProblem);
@@ -298,7 +303,7 @@ window.ProblemsMap = (function() {
             }
         } else {
             button.removeClass('btn-secondary').addClass('btn-outline-secondary');
-            button.html('<i class="fas fa-eye-slash"></i> Context Off');
+            button.html('<i class="fas fa-eye"></i> See other markers');
             const contextMarkersLayer = ProblemsState.getContextMarkersLayer();
             if (contextMarkersLayer) {
                 contextMarkersLayer.clearLayers();

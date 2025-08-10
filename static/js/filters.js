@@ -185,7 +185,7 @@ function updateFiltersUI() {
     let nodeTypeChips = [];
     activeFilters.nodeType.forEach(function(filter) {
         var badgeHtml = '<span class="badge badge-success mr-1 mb-1">Node: ' + filter +
-            ' <a href="#" class="text-white remove-filter" data-type="nodeType" data-filter="' + filter + '">x</a></span>';
+            ' <a href="#" class="text-dark remove-filter" data-type="nodeType" data-filter="' + filter + '">x</a></span>';
         nodeTypeChips.push(badgeHtml);
     });
     const nodeTypeGroupHtml = buildOrGroup(nodeTypeChips);
@@ -196,7 +196,7 @@ function updateFiltersUI() {
     if (activeFilters.matchedOptions && activeFilters.stopType.includes('matched')) {
         if (activeFilters.matchedOptions.allSelected) {
             matchedDisplayString = '<span class="badge badge-primary mr-1 mb-1">Matched: All Methods' +
-                ' <a href="#" class="text-white remove-filter" data-type="masterMatched" data-target="#masterMatchedCheckbox">x</a></span>';
+                ' <a href="#" class="text-dark remove-filter" data-type="masterMatched" data-target="#masterMatchedCheckbox">x</a></span>';
         } else {
             let matchedSubConditionStrings = [];
             
@@ -206,7 +206,7 @@ function updateFiltersUI() {
                     var displayName = method.charAt(0).toUpperCase() + method.slice(1);
                     var targetId = '#filter' + displayName.charAt(0).toUpperCase() + displayName.slice(1);
                     var badgeHtml = '<span class="badge badge-primary mr-1 mb-1">Match: ' + displayName +
-                        ' <a href="#" class="text-white remove-filter" data-type="specificMatch" data-target="' + targetId + '">x</a></span>';
+                        ' <a href="#" class="text-dark remove-filter" data-type="specificMatch" data-target="' + targetId + '">x</a></span>';
                     specificMethodChips.push(badgeHtml);
                 }
             }
@@ -215,7 +215,7 @@ function updateFiltersUI() {
 
             if (activeFilters.matchedOptions.distanceMatching.allSelected && !activeFilters.matchedOptions.allSelected) { 
                  var badgeHtml = '<span class="badge badge-info mr-1 mb-1">Distance Match: All Stages' +
-                    ' <a href="#" class="text-white remove-filter" data-type="masterDistance" data-target="#masterDistanceMatchingCheckbox">x</a></span>';
+                    ' <a href="#" class="text-dark remove-filter" data-type="masterDistance" data-target="#masterDistanceMatchingCheckbox">x</a></span>';
                 matchedSubConditionStrings.push(badgeHtml);
             } else if (!activeFilters.matchedOptions.distanceMatching.allSelected) {
                 let distanceStageChips = [];
@@ -228,7 +228,7 @@ function updateFiltersUI() {
                         if (stage === 'stage3a') displayName = 'Dist: Single Candidate';
                         if (stage === 'stage3b') displayName = 'Dist: Relative Distance';
                         var badgeHtml = '<span class="badge badge-info mr-1 mb-1">' + displayName +
-                            ' <a href="#" class="text-white remove-filter" data-type="specificDistance" data-target="#distanceMethodStage' + stageNum + '">x</a></span>';
+                            ' <a href="#" class="text-dark remove-filter" data-type="specificDistance" data-target="#distanceMethodStage' + stageNum + '">x</a></span>';
                         distanceStageChips.push(badgeHtml);
                     }
                 }
@@ -238,18 +238,18 @@ function updateFiltersUI() {
 
             if (activeFilters.matchedOptions.routeMatching.allSelected && !activeFilters.matchedOptions.allSelected) {
                 var badgeHtml = '<span class="badge badge-secondary mr-1 mb-1">Route Match: All Stages' +
-                    ' <a href="#" class="text-white remove-filter" data-type="masterRoute" data-target="#masterRouteMatchingCheckbox">x</a></span>';
+                    ' <a href="#" class="text-dark remove-filter" data-type="masterRoute" data-target="#masterRouteMatchingCheckbox">x</a></span>';
                 matchedSubConditionStrings.push(badgeHtml);
             } else if (!activeFilters.matchedOptions.routeMatching.allSelected) {
                 let routeStageChips = [];
                 if (activeFilters.matchedOptions.routeMatching.gtfs) {
                     const badgeHtml = '<span class="badge badge-secondary mr-1 mb-1">Route: GTFS' +
-                        ' <a href="#" class="text-white remove-filter" data-type="specificRoute" data-target="#routeMethodGtfs">x</a></span>';
+                        ' <a href="#" class="text-dark remove-filter" data-type="specificRoute" data-target="#routeMethodGtfs">x</a></span>';
                     routeStageChips.push(badgeHtml);
                 }
                 if (activeFilters.matchedOptions.routeMatching.hrdf) {
                     const badgeHtml = '<span class="badge badge-secondary mr-1 mb-1">Route: HRDF' +
-                        ' <a href="#" class="text-white remove-filter" data-type="specificRoute" data-target="#routeMethodHrdf">x</a></span>';
+                        ' <a href="#" class="text-dark remove-filter" data-type="specificRoute" data-target="#routeMethodHrdf">x</a></span>';
                     routeStageChips.push(badgeHtml);
                 }
                 const routeStageGroupHtml = buildOrGroup(routeStageChips);
@@ -269,17 +269,17 @@ function updateFiltersUI() {
     if (activeFilters.unmatchedOptions && activeFilters.stopType.includes('unmatched')) {
         if (activeFilters.unmatchedOptions.allSelected) {
             unmatchedDisplayString = '<span class="badge badge-warning mr-1 mb-1">Unmatched: All Reasons' +
-                ' <a href="#" class="text-white remove-filter" data-type="masterUnmatched" data-target="#masterUnmatchedCheckbox">x</a></span>';
+                ' <a href="#" class="text-dark remove-filter" data-type="masterUnmatched" data-target="#masterUnmatchedCheckbox">x</a></span>';
         } else {
             let unmatchedReasonChips = [];
             if (activeFilters.unmatchedOptions.reasons.noNearbyOSM) {
                 var badgeHtml = '<span class="badge badge-warning mr-1 mb-1">Unmatched: No OSM within 50m' +
-                    ' <a href="#" class="text-white remove-filter" data-type="specificUnmatched" data-target="#filterNoNearbyOSM">x</a></span>';
+                    ' <a href="#" class="text-dark remove-filter" data-type="specificUnmatched" data-target="#filterNoNearbyOSM">x</a></span>';
                 unmatchedReasonChips.push(badgeHtml);
             }
             if (activeFilters.unmatchedOptions.reasons.osmNearby) { 
                 var badgeHtml = '<span class="badge badge-warning mr-1 mb-1">Unmatched: OSM within 50m' +
-                    ' <a href="#" class="text-white remove-filter" data-type="specificUnmatched" data-target="#filterOSMNearby">x</a></span>';
+                    ' <a href="#" class="text-dark remove-filter" data-type="specificUnmatched" data-target="#filterOSMNearby">x</a></span>';
                 unmatchedReasonChips.push(badgeHtml);
             }
             unmatchedDisplayString = buildOrGroup(unmatchedReasonChips);
@@ -343,10 +343,10 @@ function updateFiltersUI() {
             
             badgeHtml = '<span class="badge ' + badgeClass + ' mr-1 mb-1">' + labelText + normalizedRoute + ' ' +
                 directionDropdownHtml +
-                ' <a href="#" class="text-white remove-filter" data-type="station" data-index="' + index + '">×</a></span>';
+                ' <a href="#" class="text-dark remove-filter" data-type="station" data-index="' + index + '">×</a></span>';
         } else {
             badgeHtml = '<span class="badge ' + badgeClass + ' mr-1 mb-1">' + badgeHtmlContent +
-                ' <a href="#" class="text-white remove-filter" data-type="station" data-index="' + index + '">×</a></span>';
+                ' <a href="#" class="text-dark remove-filter" data-type="station" data-index="' + index + '">×</a></span>';
         }
         stationIdChips.push(badgeHtml);
     });
@@ -357,7 +357,7 @@ function updateFiltersUI() {
     activeFilters.transportTypes.forEach(function(filter) {
         var displayName = filter.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
         var badgeHtml = '<span class="badge badge-success mr-1 mb-1">Transport: ' + displayName +
-            ' <a href="#" class="text-white remove-filter" data-type="transportType" data-filter="' + filter + '">x</a></span>';
+            ' <a href="#" class="text-dark remove-filter" data-type="transportType" data-filter="' + filter + '">x</a></span>';
         transportTypeChips.push(badgeHtml);
     });
     const transportTypeGroupHtml = buildOrGroup(transportTypeChips);
@@ -371,7 +371,7 @@ function updateFiltersUI() {
         let operatorChips = [];
         activeFilters.atlasOperators.forEach(function(operator) {
             var badgeHtml = '<span class="badge badge-info mr-1 mb-1">Operator: ' + operator +
-                ' <a href="#" class="text-white remove-filter" data-type="atlasOperator" data-filter="' + operator + '">x</a></span>';
+                ' <a href="#" class="text-dark remove-filter" data-type="atlasOperator" data-filter="' + operator + '">x</a></span>';
             operatorChips.push(badgeHtml);
         });
         operatorGroupHtml = buildOrGroup(operatorChips);
@@ -379,11 +379,11 @@ function updateFiltersUI() {
     if (operatorGroupHtml) finalGroupStrings.push(operatorGroupHtml);
 
     if(activeFilters.topN) {
-        var badgeHtml = '<span class="badge badge-info mr-1 mb-1">Top N Distances (' + activeFilters.topN + ') <a href="#" class="text-white remove-filter" data-type="topN" data-filter="topN">x</a></span>';
+        var badgeHtml = '<span class="badge badge-info mr-1 mb-1">Top N Distances (' + activeFilters.topN + ') <a href="#" class="text-dark remove-filter" data-type="topN" data-filter="topN">x</a></span>';
         finalGroupStrings.push(badgeHtml);
     }
     if(activeFilters.showDuplicatesOnly) {
-        var badgeHtml = '<span class="badge badge-purple mr-1 mb-1" style="background-color: purple;">Duplicate ATLAS Only <a href="#" class="text-white remove-filter" data-type="showDuplicatesOnly">x</a></span>';
+        var badgeHtml = '<span class="badge badge-purple mr-1 mb-1" style="background-color: purple;">Duplicate ATLAS Only <a href="#" class="text-dark remove-filter" data-type="showDuplicatesOnly">x</a></span>';
         finalGroupStrings.push(badgeHtml);
     }
 

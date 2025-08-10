@@ -83,6 +83,8 @@ Priority rules
 - Priority 2: Different local_ref
 - Priority 3: Different operator
 
+See also: Operator standardization details in [OPERATOR_NORMALIZATION.md](OPERATOR_NORMALIZATION.md) explaining how OSM `operator` values are normalized before comparisons.
+
 
 ### 4. Duplicates
 
@@ -90,10 +92,9 @@ Purpose: identify duplicated entries either on the ATLAS side or on the OSM side
 
 Detection
 - ATLAS duplicates: We reuse the `duplicate_sloid_map` produced during the matching pipeline to mark entries that belong to a duplicate ATLAS group.
-- OSM duplicates: We detect multiple OSM nodes that are platform-like and share the same UIC, the same local_ref, and the same public_transport type.
+- OSM duplicates: We detect multiple OSM nodes that are platform-like and share the same UIC and the same local_ref.
   - Platform-like means `public_transport` ∈ {platform, stop_position}.
-  - Duplicates are detected per key (uic_ref, local_ref, public_transport) if there are two or more distinct node_ids for that key.
-  - A `platform` and a `stop_position` with the same UIC and local_ref represent the same stop and are NOT considered duplicates.
+  - Duplicates are detected per key (uic_ref, local_ref). Both `platform` and `stop_position` count towards the same group.
 
 Priority rules
 - Priority 2: ATLAS duplicates
@@ -102,8 +103,11 @@ Priority rules
 Implementation
 - In `import_data_db.import_to_database`:
   - For matched and unmatched ATLAS entries: if `sloid` is in `duplicate_sloid_map`, create `Problem(problem_type='duplicates', priority=2)`.
-  - For matched and unmatched OSM entries: if the node_id is part of a duplicate set for its `(uic_ref, local_ref, public_transport)` among platform-like nodes, create `Problem(problem_type='duplicates', priority=3)`.
-- No Priority 1 is defined for duplicates.
+  - For matched and unmatched OSM entries: if the node_id is part of a duplicate set for its `(uic_ref, local_ref)` among platform-like nodes, create `Problem(problem_type='duplicates', priority=3)`.
+- Backend `/api/problems` returns grouped duplicates:
+  - One row per OSM duplicates group keyed by `(uic_ref, local_ref)` containing an array `members` with all involved OSM entries.
+  - One row per ATLAS duplicates group keyed by `sloid` containing `members` with all involved ATLAS entries.
+- Group solved status: a group is considered solved when all members have a non-empty solution.
 
 ### Data flow summary
 1) Matching pipeline produces `base_data` with rich fields.

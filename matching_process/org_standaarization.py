@@ -19,7 +19,11 @@ def _get_normalization_map():
     csv_path = os.path.join(dir_path, 'operator_normalizations.csv')
     
     try:
-        df = pd.read_csv(csv_path)
+        df = pd.read_csv(csv_path, dtype=str)
+        # Trim whitespace and drop rows with missing values
+        df['alias'] = df['alias'].astype(str).str.strip()
+        df['standard_name'] = df['standard_name'].astype(str).str.strip()
+        df = df.dropna(subset=['alias', 'standard_name'])
         # The map is a dictionary from 'alias' to 'standard_name'
         _normalization_map = pd.Series(df.standard_name.values, index=df.alias).to_dict()
     except FileNotFoundError:
@@ -35,25 +39,21 @@ def standardize_operator(operator):
     
     Returns a tuple: (standardized_name, was_changed_boolean)
     """
-    if not operator:
+    if operator is None:
+        return operator, False
+
+    # Normalize basic formatting (whitespace). This does not count as a mapping change.
+    operator_stripped = str(operator).strip()
+    if operator_stripped == "":
         return operator, False
 
     normalization_map = _get_normalization_map()
     
     # Check if the operator is in our normalization map
-    standard_name = normalization_map.get(operator)
+    standard_name = normalization_map.get(operator_stripped)
     
     if standard_name:
         return standard_name, True # A value was found in the map, so it was changed
-    else:
-        # Special handling for cases that are not simple mappings
-        # These could also be moved to the CSV if more complex rules are not needed
-        lower_op = operator.lower()
-        if lower_op == "tpf":
-            return "TPF Auto", True
-        elif lower_op == "afa":
-            return "AFA", True
-        elif operator == "VBZ/DBZ": # This was missing from my previous logic but in original
-            return "VBZ", True
-            
-    return operator, False # No change was made
+    
+    # No mapping found; return the stripped value without marking as changed
+    return operator_stripped, False # No change was made

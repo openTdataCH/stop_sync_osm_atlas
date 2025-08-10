@@ -119,6 +119,69 @@ window.ProblemsSolutions = (function() {
     }
 
     /**
+     * Save solution for a specific stop_id directly (used for duplicates members)
+     */
+    function saveSolutionForStopId(button, stopId, problemType, solution) {
+        // Visual feedback
+        const originalButtonHtml = $(button).html();
+        $(button).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Saving...');
+
+        const data = {
+            problem_id: stopId,
+            problem_type: problemType,
+            solution: solution
+        };
+        $.ajax({
+            url: '/api/save_solution',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(data),
+            success: function(response) {
+                if (response.success) {
+                    const autoPersistEnabled = ProblemsState.getAutoPersistEnabled && ProblemsState.getAutoPersistEnabled();
+                    const proceedAfterPersist = () => {
+                        if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
+                            window.ProblemsUI.showTemporaryMessage(autoPersistEnabled ? 'Solution saved as persistent data! <i class="fas fa-database"></i>' : 'Solution saved temporarily <i class="fas fa-clock"></i>', 'success');
+                        }
+                        // Refresh current display to reflect new solutions
+                        const currentIndex = ProblemsState.getCurrentProblemIndex();
+                        if (window.ProblemsData && window.ProblemsData.fetchProblems) {
+                            ProblemsData.fetchProblems(ProblemsState.getCurrentPage());
+                            setTimeout(() => {
+                                if (window.ProblemsUI && window.ProblemsUI.displayProblem) {
+                                    window.ProblemsUI.displayProblem(currentIndex);
+                                }
+                            }, 500);
+                        }
+                    };
+
+                    if (autoPersistEnabled) {
+                        $.ajax({
+                            url: '/api/make_solution_persistent',
+                            method: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({ problem_id: stopId, problem_type: problemType })
+                        }).always(proceedAfterPersist);
+                    } else {
+                        proceedAfterPersist();
+                    }
+                } else {
+                    if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
+                        window.ProblemsUI.showTemporaryMessage(`Error: ${response.error}`, 'error');
+                    }
+                    $(button).prop('disabled', false).html(originalButtonHtml);
+                }
+            },
+            error: function(xhr, status, error) {
+                if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
+                    window.ProblemsUI.showTemporaryMessage(`Error saving solution: ${error}`, 'error');
+                }
+                $(button).prop('disabled', false).html(originalButtonHtml);
+            }
+        });
+    }
+
+    /**
      * Make a solution persistent
      */
     function makeSolutionPersistent(problemId, problemType) {
@@ -256,6 +319,7 @@ window.ProblemsSolutions = (function() {
     // Public API
     return {
         saveSolution,
+        saveSolutionForStopId,
         makeSolutionPersistent,
         clearSolution
     };

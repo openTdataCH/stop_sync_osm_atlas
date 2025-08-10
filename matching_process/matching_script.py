@@ -113,6 +113,28 @@ def final_pipeline(route_matching_strategy='hrdf'):
     atlas_df = pd.read_csv(atlas_csv_file, sep=";")
     all_osm_nodes, uic_ref_dict, name_index = parse_osm_xml(osm_xml_file)
 
+    # --- Apply persistent manual matches before any automatic matching ---
+    manual_pairs = set()
+    try:
+        import os
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from backend.models import PersistentData
+        DATABASE_URI = os.getenv('DATABASE_URI', 'mysql+pymysql://stops_user:1234@localhost:3306/stops_db')
+        engine = create_engine(DATABASE_URI)
+        Session = sessionmaker(bind=engine)
+        tmp_session = Session()
+        persistent_manuals = tmp_session.query(PersistentData).filter(
+            PersistentData.problem_type == 'unmatched',
+            PersistentData.solution == 'manual'
+        ).all()
+        for pm in persistent_manuals:
+            if pm.sloid and pm.osm_node_id:
+                manual_pairs.add((str(pm.sloid), str(pm.osm_node_id)))
+        tmp_session.close()
+    except Exception as _e:
+        manual_pairs = set()
+
     # --- Identify Duplicate ATLAS entries ---
     # Keep=False marks all occurrences of duplicates as True
     duplicate_atlas_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
@@ -150,6 +172,8 @@ def final_pipeline(route_matching_strategy='hrdf'):
     
     # --- Collect Used OSM IDs ---
     used_osm_ids_total = set()
+    for sloid_node in list(manual_pairs):
+        used_osm_ids_total.add(sloid_node[1])
     for m in exact_matches + name_matches:
         if 'osm_node_id' in m:
             used_osm_ids_total.add(m['osm_node_id'])
@@ -200,7 +224,7 @@ def final_pipeline(route_matching_strategy='hrdf'):
     logger.info(f"Performing route-based matching with strategy: '{route_matching_strategy}'...")
     # Track matched SLOIDs from previous stages (including actual distance matches)
     matched_sloids = set()
-    for m in exact_matches + name_matches + actual_distance_matches: # Use actual_distance_matches
+    for m in (manual_matches + exact_matches + name_matches + actual_distance_matches): # Include manual
         if 'sloid' in m:
             matched_sloids.add(m['sloid'])
     
@@ -282,8 +306,32 @@ def final_pipeline(route_matching_strategy='hrdf'):
         unmatched_with_routes_count = 0
 
     # --- Combine All Matches ---
+    # Include manual pairs as matches with tag 'manual'
+    manual_matches = []
+    if manual_pairs:
+        atlas_by_sloid = {str(row['sloid']): row for _, row in atlas_df.iterrows()}
+        osm_by_node_id = {str(node.get('node_id')): node for node in all_osm_nodes.values()}
+        for sloid, node_id in manual_pairs:
+            a = atlas_by_sloid.get(sloid)
+            o = osm_by_node_id.get(node_id)
+            if a and o:
+                manual_matches.append({
+                    'sloid': sloid,
+                    'csv_lat': a.get('wgs84North'),
+                    'csv_lon': a.get('wgs84East'),
+                    'number': a.get('number'),
+                    'osm_node_id': node_id,
+                    'osm_lat': o.get('lat'),
+                    'osm_lon': o.get('lon'),
+                    'osm_public_transport': o.get('tags', {}).get('public_transport'),
+                    'osm_railway': o.get('tags', {}).get('railway'),
+                    'osm_amenity': o.get('tags', {}).get('amenity'),
+                    'osm_aerialway': o.get('tags', {}).get('aerialway'),
+                    'match_type': 'manual'
+                })
+
     # Combine only actual matches
-    all_matches = exact_matches + name_matches + actual_distance_matches + route_matches
+    all_matches = manual_matches + exact_matches + name_matches + actual_distance_matches + route_matches
     all_matches_df = pd.DataFrame(all_matches)
     
     # --- Calculate Final Unmatched ATLAS Entries ---

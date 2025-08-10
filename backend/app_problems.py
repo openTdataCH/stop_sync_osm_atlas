@@ -66,6 +66,167 @@ def get_problems():
             except ValueError:
                 pass
         
+        # Special grouping logic for duplicates: return one row per duplicates group
+        if problem_type_filter == 'duplicates':
+            # Apply base filters to duplicates (do not pre-filter by solution; we'll evaluate at group level)
+            dup_query = Problem.query.join(Stop).filter(Problem.problem_type == 'duplicates')
+            # Atlas operator filter
+            dup_query = apply_atlas_operator_filter(dup_query, atlas_operator_filter)
+            # Priority: we keep all members to compute the group; we'll filter groups later
+
+            # Eager load to avoid N+1
+            dup_query = dup_query.options(
+                joinedload(Problem.stop).subqueryload(Stop.atlas_stop_details),
+                joinedload(Problem.stop).subqueryload(Stop.osm_node_details)
+            )
+
+            duplicate_problems = dup_query.all()
+
+            # Group into OSM groups (uic_ref + osm_local_ref) and ATLAS groups (uic_ref + designation)
+            from collections import defaultdict
+            osm_groups = defaultdict(list)
+            atlas_groups = defaultdict(list)
+            for pr in duplicate_problems:
+                st = pr.stop
+                if st is None:
+                    continue
+                osm_details = st.osm_node_details
+                atlas_details = st.atlas_stop_details
+                # OSM duplicates group when we have a uic_ref and local_ref
+                if st.osm_node_id and osm_details and osm_details.osm_local_ref:
+                    key = (str(st.uic_ref or ''), str(osm_details.osm_local_ref or '').lower())
+                    osm_groups[key].append(pr)
+                # ATLAS duplicates group when same UIC + designation
+                if st.sloid and atlas_details and (atlas_details.atlas_designation is not None):
+                    key_atlas = (str(st.uic_ref or ''), str(atlas_details.atlas_designation or '').strip().lower())
+                    atlas_groups[key_atlas].append(pr)
+
+            # Keep only groups with at least 2 distinct members
+            def build_osm_group_payload(key, problems_list):
+                # Distinct by osm_node_id
+                members = {}
+                for pr in problems_list:
+                    st = pr.stop
+                    if st and st.osm_node_id:
+                        members[st.osm_node_id] = pr
+                if len(members) < 2:
+                    return None
+                uic_ref, local_ref = key
+                # Members payloads
+                member_payloads = []
+                centroid_lat = []
+                centroid_lon = []
+                for pr in members.values():
+                    st = pr.stop
+                    formatted = format_stop_data(st, problem_type='duplicates')
+                    formatted.update({
+                        'priority': pr.priority,
+                        'solution': pr.solution or '',
+                        'is_persistent': pr.is_persistent,
+                        'stop_id': st.id
+                    })
+                    member_payloads.append(formatted)
+                    if st.osm_lat is not None and st.osm_lon is not None:
+                        centroid_lat.append(float(st.osm_lat))
+                        centroid_lon.append(float(st.osm_lon))
+                center_lat = sum(centroid_lat)/len(centroid_lat) if centroid_lat else None
+                center_lon = sum(centroid_lon)/len(centroid_lon) if centroid_lon else None
+                group_id = f"dup_osm_{uic_ref}_{local_ref}"
+                return {
+                    'id': group_id,
+                    'problem': 'duplicates',
+                    'group_type': 'osm',
+                    'uic_ref': uic_ref or None,
+                    'osm_local_ref': local_ref or None,
+                    'atlas_lat': center_lat,
+                    'atlas_lon': center_lon,
+                    'osm_lat': center_lat,
+                    'osm_lon': center_lon,
+                    'members': member_payloads,
+                    'priority': 3
+                }
+
+            def build_atlas_group_payload(key, problems_list):
+                # Distinct by stop id (or by osm_node_id)
+                members = {}
+                for pr in problems_list:
+                    st = pr.stop
+                    if st and st.id:
+                        members[st.id] = pr
+                if len(members) < 2:
+                    return None
+                member_payloads = []
+                centroid_lat = []
+                centroid_lon = []
+                for pr in members.values():
+                    st = pr.stop
+                    formatted = format_stop_data(st, problem_type='duplicates')
+                    formatted.update({
+                        'priority': pr.priority,
+                        'solution': pr.solution or '',
+                        'is_persistent': pr.is_persistent,
+                        'stop_id': st.id
+                    })
+                    member_payloads.append(formatted)
+                    if st.atlas_lat is not None and st.atlas_lon is not None:
+                        centroid_lat.append(float(st.atlas_lat))
+                        centroid_lon.append(float(st.atlas_lon))
+                center_lat = sum(centroid_lat)/len(centroid_lat) if centroid_lat else None
+                center_lon = sum(centroid_lon)/len(centroid_lon) if centroid_lon else None
+                uic_ref, designation = key
+                group_id = f"dup_atlas_{uic_ref}_{designation}"
+                return {
+                    'id': group_id,
+                    'problem': 'duplicates',
+                    'group_type': 'atlas',
+                    'uic_ref': uic_ref or None,
+                    'atlas_designation': designation or None,
+                    'atlas_lat': center_lat,
+                    'atlas_lon': center_lon,
+                    'members': member_payloads,
+                    'priority': 2
+                }
+
+            group_items = []
+            for key, pr_list in osm_groups.items():
+                payload = build_osm_group_payload(key, pr_list)
+                if payload:
+                    group_items.append(payload)
+            for key, pr_list in atlas_groups.items():
+                payload = build_atlas_group_payload(key, pr_list)
+                if payload:
+                    group_items.append(payload)
+
+            # Apply solution status filter at group level if requested
+            def group_is_solved(item):
+                member_solutions = [m.get('solution') for m in item.get('members', [])]
+                # solved if all members have a non-empty solution
+                return all(s and str(s).strip() != '' for s in member_solutions)
+
+            if solution_status_filter == 'solved':
+                group_items = [g for g in group_items if group_is_solved(g)]
+            elif solution_status_filter == 'unsolved':
+                group_items = [g for g in group_items if not group_is_solved(g)]
+
+            # Sort groups by type then key for determinism
+            group_items.sort(key=lambda g: (
+                0 if g.get('group_type') == 'osm' else 1,
+                str(g.get('uic_ref') or ''),
+                str(g.get('osm_local_ref') or g.get('atlas_designation') or '')
+            ))
+
+            total_groups = len(group_items)
+            paged_groups = group_items[offset:offset+limit]
+
+            return jsonify({
+                'problems': paged_groups,
+                'total': total_groups,
+                'page': page,
+                'limit': limit,
+                'sort_by': 'default',
+                'sort_order': 'asc'
+            })
+
         # For counting, we need to count distinct stop_ids, but we need to do it differently
         # Create a subquery to get distinct stop_ids that match our criteria
         distinct_stop_ids_subquery = query.with_entities(Problem.stop_id).distinct().subquery()

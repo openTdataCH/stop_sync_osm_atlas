@@ -144,10 +144,10 @@ Access it at [http://localhost:5001/](http://localhost:5001/).
 
 - **Map View**: Browse stops by type (`matched`, `unmatched`, `osm`) and match method.
 - **Filters & Search**: Filter by ATLAS SLOID, OSM Node ID, UIC reference, or route.
-- **Manual Matching**: Select ATLAS & OSM pairs and click **Save** to record adjustments in `changes.json`.
+- **Manual Matching**: On the Problems page, use the Manual match action, select the opposite dataset entry on the map, and the system will save the pair. You can auto‑persist from the side panel.
 - **API Endpoints**:
   - `GET /api/data` – viewport + filter parameters
-  - `POST /api/save` – save manual matches
+  - `POST /api/manual_match` – create a manual match between an ATLAS stop and an OSM node
   - `GET /api/search` – keyword search
   - `GET /api/generate_report` – PDF report
   - `GET /api/route_stops` – stops for a route

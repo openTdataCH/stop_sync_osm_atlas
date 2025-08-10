@@ -195,9 +195,10 @@
         let extraBtns = '';
         if(unmatched){
             if(isAtlas){
-                extraBtns = `<button onclick='manualMatchSelect(${data.id}, "atlas")'>Match To</button>`;
+                extraBtns = `<button class="btn btn-sm btn-outline-secondary manual-match-target" type="button" data-stop-id="${data.id}" data-type="atlas">Match to</button>`;
             } else if(isOsm){
-                extraBtns = `<button onclick='filterByStation(${data.id}, "osm")'>Filter by station</button> <button onclick='manualMatchSelect(${data.id}, "osm")'>Match To</button>`;
+                // Simplified: remove filter-by-station; provide only the match action
+                extraBtns = `<button class="btn btn-sm btn-outline-secondary manual-match-target" type="button" data-stop-id="${data.id}" data-type="osm">Match to</button>`;
             }
         }
 
@@ -216,12 +217,16 @@
 
     // HELPER: Generate HTML for a single ATLAS bubble
     function generateSingleAtlasBubbleHtml(data, isUnmatched = false) {
-        return renderBubble(data, { type: 'atlas', unmatched: isUnmatched });
+        const inner = renderBubble(data, { type: 'atlas', unmatched: isUnmatched });
+        const stopId = data && (data.id || data.stop_id || '');
+        return `<div class="popup-content-container" data-stop-id="${stopId}" data-type="atlas">${inner}</div>`;
     }
 
     // HELPER: Generate HTML for a single OSM bubble
     function generateSingleOsmBubbleHtml(data, isUnmatched = false) {
-        return renderBubble(data, { type: 'osm', unmatched: isUnmatched });
+        const inner = renderBubble(data, { type: 'osm', unmatched: isUnmatched });
+        const stopId = data && (data.id || data.stop_id || '');
+        return `<div class="popup-content-container" data-stop-id="${stopId}" data-type="osm">${inner}</div>`;
     }
 
     // FUNCTION: Generate HTML for the initial single-bubble view
@@ -444,7 +449,7 @@
         // Note: The drag handle is added by move_popup.js inside the wrapper,
         // so this container will sit *inside* the content node managed by Leaflet/DraggablePopup.
         const fullHtml = `
-            <div class="popup-content-container" data-stop-id="${stop.id}">
+            <div class="popup-content-container" data-stop-id="${stop.id}" data-type="${initialViewType}">
                 <div class="popup-initial-view" style="display: block;">
                     ${initialContent}
                 </div>

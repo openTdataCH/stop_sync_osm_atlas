@@ -13,7 +13,11 @@ window.ProblemsData = (function() {
     function groupProblemsByEntry(problems) {
         const grouped = {};
         problems.forEach(problem => {
-            const entryKey = `${problem.stop_id || problem.id}_${problem.atlas_lat || problem.osm_lat}_${problem.atlas_lon || problem.osm_lon}`;
+            // For duplicates group items (id is string group id), use group id as key to keep them grouped
+            const isGroup = problem.problem === 'duplicates' && typeof problem.id === 'string';
+            const entryKey = isGroup
+                ? `group_${problem.id}`
+                : `${problem.stop_id || problem.id}_${problem.atlas_lat || problem.osm_lat}_${problem.atlas_lon || problem.osm_lon}`;
             if (!grouped[entryKey]) {
                 grouped[entryKey] = [];
             }

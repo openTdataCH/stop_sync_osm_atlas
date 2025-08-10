@@ -43,6 +43,49 @@ window.ProblemsUI = (function() {
     function generateAttributeComparisonHtml(problem) {
         let html = '<div class="problem-section-item">';
         html += '<h6><i class="fas fa-exchange-alt"></i> Attribute Comparison</h6>';
+        // Priority-aware concise info banner for attributes, shown above the popups
+        (function(){
+            const pr = Number(problem.priority);
+            let alertClass = 'alert-info';
+            let icon = 'info-circle';
+            let intent = '';
+            // Derive concrete mismatches from available fields
+            const mismatches = getMismatchedAttributes(problem) || [];
+            const labels = mismatches.map(m => m.label);
+
+            if (pr === 1) {
+                alertClass = 'alert-danger';
+                icon = 'exclamation-circle';
+                // Prefer explicit labels for critical category (UIC number or official name)
+                const criticalLabels = labels.filter(l => l === 'UIC Name');
+                if (criticalLabels.length > 0) {
+                    intent = `Critical attribute mismatch, ${criticalLabels.join(', ')}`;
+                } else {
+                    // Fallback if we cannot detect specific label on the frontend
+                    intent = 'Critical attribute mismatch';
+                }
+            } else if (pr === 2) {
+                alertClass = 'alert-warning';
+                icon = 'exclamation-triangle';
+                if (labels.includes('Local Reference')) {
+                    intent = 'Local reference differs between ATLAS and OSM';
+                } else {
+                    intent = 'Attribute mismatch';
+                }
+            } else {
+                alertClass = 'alert-info';
+                icon = 'info-circle';
+                if (labels.includes('Operator')) {
+                    intent = 'Operator differs between ATLAS and OSM';
+                } else {
+                    intent = 'Attribute mismatch';
+                }
+            }
+
+            html += `<div class="alert ${alertClass} problem-info-banner mb-3">
+                        <small><i class="fas fa-${icon}"></i> ${intent}.</small>
+                     </div>`;
+        })();
         html += '<div class="row">';
         
         // ATLAS column
@@ -150,16 +193,21 @@ window.ProblemsUI = (function() {
      * Generate action buttons for distance problems
      */
     function generateDistanceActionButtons(problem) {
-        const distance = problem.distance_m ? Math.round(problem.distance_m) : 'unknown';
-        const distanceInfo = problem.distance_m ? 
-            `The distance between ATLAS and OSM entries is ${distance} meters (threshold: 20m).` :
-            'The distance between ATLAS and OSM entries is greater than 20 meters.';
-        
+        const distanceText = problem.distance_m ? `${Math.round(problem.distance_m)} m` : 'unknown';
+        const pr = Number(problem.priority);
+        const atlasOp = (problem.atlas_business_org_abbr || problem.atlas_operator || '').toString().trim().toUpperCase();
+        const isSbb = atlasOp === 'SBB';
+        let alertClass = 'alert-info';
+        let rationale = '';
+        if (pr === 1) { alertClass = 'alert-danger'; rationale = `Very large distance${isSbb ? '' : ' and non‑SBB operator'}`; }
+        else if (pr === 2) { alertClass = 'alert-warning'; rationale = `Large distance${isSbb ? '' : ' and non‑SBB operator'}`; }
+        else { alertClass = 'alert-info'; rationale = isSbb ? 'Distance above 25 m for SBB' : 'Distance above tolerance'; }
+
         return `
             <div class="problem-section-item">
                 <h6><i class="fas fa-tools"></i> Resolution Actions</h6>
-                <div class="alert alert-info">
-                    <small><i class="fas fa-info-circle"></i> ${distanceInfo} Please determine which location is correct.</small>
+                <div class="alert ${alertClass}">
+                    <small><i class="fas fa-info-circle"></i> Distance between ATLAS and OSM: ${distanceText}. ${rationale}. Choose which location is correct.</small>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                     <button class="btn btn-success professional-button solution-btn" data-solution="Atlas correct">
@@ -183,14 +231,25 @@ window.ProblemsUI = (function() {
      * Generate action buttons for isolated problems
      */
     function generateIsolatedActionButtons(problem) {
-        if (problem.stop_type === 'unmatched') { // Isolated ATLAS
+        const pr = Number(problem.priority);
+        const isAtlas = problem.stop_type === 'unmatched';
+        const subject = isAtlas ? 'ATLAS entry' : 'OSM entry';
+        let alertClass = 'alert-info';
+        let icon = 'info-circle';
+        let intent = '';
+        if (pr === 1) { alertClass = 'alert-danger'; icon = 'exclamation-circle'; intent = 'No counterpart exists for this UIC or none within 80 m'; }
+        else if (pr === 2) { alertClass = 'alert-warning'; icon = 'exclamation-triangle'; intent = 'No counterpart within 50 m or platform count mismatch for this UIC'; }
+        else { alertClass = 'alert-info'; icon = 'info-circle'; intent = 'Unmatched entry requiring review'; }
+
+        if (isAtlas) { // Isolated ATLAS
             return `
                 <div class="problem-section-item">
                     <h6><i class="fas fa-tools"></i> Resolution Actions</h6>
-                    <div class="alert alert-info">
-                        <small><i class="fas fa-info-circle"></i> This ATLAS entry has no corresponding OSM entry within 50 meters.</small>
+                    <div class="alert ${alertClass}">
+                        <small><i class="fas fa-${icon}"></i> ${subject} is unmatched. ${intent}.</small>
                     </div>
                     <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-secondary professional-button" data-action="manual-match-atlas">Match to</button>
                         <button class="btn btn-danger professional-button solution-btn" data-solution="Should be deleted">
                             <i class="fas fa-trash"></i> Should be deleted
                         </button>
@@ -204,10 +263,11 @@ window.ProblemsUI = (function() {
             return `
                 <div class="problem-section-item">
                     <h6><i class="fas fa-tools"></i> Resolution Actions</h6>
-                    <div class="alert alert-info">
-                        <small><i class="fas fa-info-circle"></i> This OSM entry has no corresponding ATLAS entry.</small>
+                    <div class="alert ${alertClass}">
+                        <small><i class="fas fa-${icon}"></i> ${subject} is unmatched. ${intent}.</small>
                     </div>
                     <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-secondary professional-button" data-action="manual-match-osm">Match to</button>
                         <button class="btn btn-danger professional-button solution-btn" data-solution="Should be deleted">
                             <i class="fas fa-trash"></i> Should be deleted
                         </button>
@@ -298,11 +358,140 @@ window.ProblemsUI = (function() {
     }
 
     /**
+     * Generate action buttons for duplicates problems (grouped view)
+     */
+    function generateDuplicatesActionButtons(problem) {
+        // problem is a group with members
+        const isOsmGroup = problem.group_type === 'osm';
+        let title = isOsmGroup
+            ? `<i class="fas fa-clone"></i> OSM duplicates for UIC ${problem.uic_ref || '(none)'} · local_ref ${problem.osm_local_ref || '(none)'}`
+            : `<i class="fas fa-clone"></i> ATLAS duplicates for SLOID ${problem.sloid}`;
+
+        let html = '<div class="problem-section-item">';
+        html += `<h6>${title}</h6>`;
+        html += '<div class="alert alert-info"><small>' +
+                (isOsmGroup ? 'Multiple OSM nodes share the same UIC and local_ref. Review each and decide which should remain.'
+                             : 'Multiple entries share the same ATLAS SLOID. Review and decide which should remain.') +
+                '</small></div>';
+
+        // Table of members
+        html += '<table class="table table-sm"><thead><tr>' +
+                '<th>Source</th><th>Identifier</th><th>Name</th><th>Coords</th><th>Action</th></tr></thead><tbody>';
+
+        (problem.members || []).forEach(member => {
+            const isOsm = !!member.osm_node_id;
+            const coords = isOsm
+                ? (member.osm_lat && member.osm_lon ? `${Math.round(member.osm_lat*1e5)/1e5}, ${Math.round(member.osm_lon*1e5)/1e5}` : '-')
+                : (member.atlas_lat && member.atlas_lon ? `${Math.round(member.atlas_lat*1e5)/1e5}, ${Math.round(member.atlas_lon*1e5)/1e5}` : '-');
+            const name = isOsm ? (member.osm_name || member.osm_uic_name || '-')
+                               : (member.atlas_designation_official || member.atlas_designation || '-');
+            const ident = isOsm ? (member.osm_node_id || '-') : (member.sloid || '-');
+            const sourceBadge = isOsm ? '<span class="badge badge-primary">OSM</span>' : '<span class="badge badge-info">ATLAS</span>';
+            const osmEditorLink = isOsm && member.osm_node_id
+                ? `<a class="btn btn-link btn-sm" href="https://www.openstreetmap.org/edit?node=${member.osm_node_id}" target="_blank" rel="noopener noreferrer">Edit</a>`
+                : '';
+
+            html += `<tr>
+                <td>${sourceBadge}</td>
+                <td><code>${ident}</code></td>
+                <td>${name || '-'}</td>
+                <td>${coords}</td>
+                <td class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-success btn-sm solution-btn" data-solution="Keep" data-problem="duplicates" data-target-stop-id="${member.stop_id}">
+                        <i class="fas fa-check-circle"></i> Keep
+                    </button>
+                    <button class="btn btn-danger btn-sm solution-btn" data-solution="Should be deleted" data-problem="duplicates" data-target-stop-id="${member.stop_id}">
+                        <i class="fas fa-trash"></i> Should be deleted
+                    </button>
+                    ${osmEditorLink}
+                </td>
+            </tr>`;
+        });
+
+        html += '</tbody></table>';
+        html += '</div>';
+        return html;
+    }
+
+    /**
+     * Generate a concise, priority-aware information banner placed BELOW the action buttons
+     */
+    function generateProblemInfoBanner(problem) {
+        const pr = Number(problem.priority);
+        const problemType = problem.problem;
+        let intent = '';
+        let icon = 'info-circle';
+        let alertClass = 'alert-info';
+
+        const atlasOp = (problem.atlas_business_org_abbr || problem.atlas_operator || '').toString().trim().toUpperCase();
+        const isSbb = atlasOp === 'SBB';
+        const distanceText = problem.distance_m ? `${Math.round(problem.distance_m)} m` : null;
+
+        if (pr === 1) { alertClass = 'alert-danger'; icon = 'exclamation-circle'; }
+        else if (pr === 2) { alertClass = 'alert-warning'; icon = 'exclamation-triangle'; }
+
+        switch (problemType) {
+            case 'distance': {
+                // Map priority to short rationale (do not repeat priority or distance)
+                if (pr === 1) intent = `Very large distance${isSbb ? '' : ' and non‑SBB operator'}`;
+                else if (pr === 2) intent = `Large distance${isSbb ? '' : ' and non‑SBB operator'}`;
+                else intent = isSbb ? 'Distance above 25 m for SBB' : 'Distance above tolerance';
+                return `
+                    <div class="problem-section-item">
+                        <div class="alert ${alertClass} problem-info-banner mb-0">
+                            <small><i class="fas fa-${icon}"></i> ${intent}.</small>
+                        </div>
+                    </div>`;
+            }
+            case 'unmatched': {
+                const isAtlas = problem.stop_type === 'unmatched';
+                const subject = isAtlas ? 'ATLAS entry' : 'OSM entry';
+                if (pr === 1) intent = 'No counterpart exists for this UIC or none within 80 m';
+                else if (pr === 2) intent = 'No counterpart within 50 m or platform count mismatch for this UIC';
+                else intent = 'Unmatched entry requiring review';
+                return `
+                    <div class="problem-section-item">
+                        <div class="alert ${alertClass} problem-info-banner mb-0">
+                            <small><i class="fas fa-${icon}"></i> ${subject} is unmatched. ${intent}.</small>
+                        </div>
+                    </div>`;
+            }
+            case 'attributes': {
+                // Banner is rendered within the attribute comparison section; skip here to avoid duplication
+                return '';
+            }
+            case 'duplicates': {
+                const isOsmGroup = problem.group_type === 'osm';
+                const count = (problem.members && problem.members.length) ? problem.members.length : null;
+                const where = isOsmGroup ? 'OSM' : 'ATLAS';
+                if (pr === 2) intent = 'Duplicate ATLAS SLOID group';
+                else intent = 'Duplicate OSM nodes with same UIC and local_ref';
+                const suffix = count ? ` · ${count} entries` : '';
+                return `
+                    <div class="problem-section-item">
+                        <div class="alert ${alertClass} problem-info-banner mb-0">
+                            <small><i class="fas fa-${icon}"></i> ${intent} in ${where}${suffix}.</small>
+                        </div>
+                    </div>`;
+            }
+        }
+
+        // Fallback generic banner
+        return `
+            <div class="problem-section-item">
+                <div class="alert ${alertClass} problem-info-banner mb-0">
+                    <small><i class="fas fa-${icon}"></i> Issue detected.</small>
+                </div>
+            </div>`;
+    }
+
+    /**
      * Render the UI for a single problem. Returns HTML string.
      */
     function renderSingleProblemUI(problem, entryIndex, issueIndex, totalIssues) {
         const problemType = problem.problem ? problem.problem.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : "Unknown";
-        let html = `<div class="issue-container" id="issue-${problem.id}" data-problem-id="${problem.id}" data-stop-id="${problem.stop_id}">`;
+        const safeId = String(problem.id).replace(/[^a-zA-Z0-9_-]/g, '-');
+        let html = `<div class="issue-container" id="issue-${safeId}" data-problem-id="${problem.id}" data-stop-id="${problem.stop_id}">`;
 
         // Header for the issue
         // Add priority circle if present - match filter design
@@ -387,8 +576,15 @@ window.ProblemsUI = (function() {
                 actionButtonsHtml += generateAttributeComparisonHtml(problem);
                 actionButtonsHtml += generateAttributesActionButtons(problem);
                 break;
+            case 'duplicates':
+                 actionButtonsHtml += generateDuplicatesActionButtons(problem);
+                 break;
         }
         html += actionButtonsHtml;
+        // Add concise, priority-aware info banner below the resolution actions (except for distance & unmatched which already show an integrated banner)
+        if (problem.problem !== 'distance' && problem.problem !== 'unmatched') {
+            html += generateProblemInfoBanner(problem);
+        }
         html += '</div>'; // close issue-container
         return html;
     }
@@ -491,7 +687,7 @@ window.ProblemsUI = (function() {
         const firstProblem = currentEntryProblems[0];
         if (firstProblem) {
             // Make first issue active
-            $(`#issue-${firstProblem.id}`).addClass('active');
+            $(`.issue-container[data-problem-id="${firstProblem.id}"]`).addClass('active');
             
             // Draw the problem markers and lines on the map
             const problemMap = ProblemsState.getProblemMap();

@@ -11,6 +11,8 @@ var stopsById = {};   // Global store for stops by id.
 var ZOOM_MARKER_THRESHOLD = 13; // below this zoom, do not render markers
 var ZOOM_LINE_THRESHOLD = 14;   // below this zoom, do not render polylines between matches
 var VIEW_DEBOUNCE_MS = 320;     // debounce pan/zoom events (slightly higher to reduce redundant loads)
+var LOW_ZOOM_SMALLSET_LIMIT = 250; // if <= this many entries match, render even below threshold
+var ADDITIONAL_BANNER_ZOOM_LEVELS = 2; // keep banner for a couple of levels after markers appear
 
 // Request management
 var currentDataRequest = null;  // jqXHR of in-flight /api/data
@@ -87,32 +89,8 @@ function initMap() {
     linesLayer.addTo(map);
     topNLayer.addTo(map);
     
-    // Keep track of open popups
-    var openPopups = [];
-    map.on('popupopen', function(e) {
-        openPopups.push(e.popup);
-    });
-    map.on('popupclose', function(e) {
-        // Remove from the list and clean up lines
-        openPopups = openPopups.filter(p => p !== e.popup);
-        if (e.popup instanceof L.DraggablePopup && e.popup._line) {
-            try { e.popup._removeLine(); } catch {};
-        }
-    });
-    
-    // Update popups and lines continuously during movement
-    map.on('move', function() {
-        if (window.updateAllPopupLines) window.updateAllPopupLines();
-        openPopups.forEach(popup => {
-            if (popup._updatePosition) popup._updatePosition();
-        });
-    });
-    map.on('zoom', function() {
-        if (window.updateAllPopupLines) window.updateAllPopupLines();
-        openPopups.forEach(popup => {
-            if (popup._updatePosition) popup._updatePosition();
-        });
-    });
+    // Attach standard popup-line handlers
+    var openPopups = attachPopupLineHandlersToMap(map);
     
     // Add low-zoom banner container
     ensureZoomBannerExists();
@@ -158,7 +136,7 @@ function ensureZoomBannerExists() {
     banner.style.borderRadius = '6px';
     banner.style.fontSize = '14px';
     banner.style.display = 'none';
-    banner.textContent = 'Zoom in to see stop markers';
+    banner.textContent = 'Zoom in to see all stop markers';
     var mapContainer = document.getElementById('map');
     if (mapContainer && mapContainer.parentElement) {
         mapContainer.parentElement.style.position = 'relative';
@@ -252,10 +230,13 @@ function loadTopNMatches() {
                         
                         // Add connecting line when both node types are visible (Top N view is lightweight)
                         if(showAtlasNodes && showOSMNodes) {
+                            const isManual = stop.match_type === 'manual';
+                            const isPersistent = !!stop.manual_is_persistent;
+                            const style = isManual ? { color: 'purple', dashArray: isPersistent ? null : '5,5' } : { color: 'green' };
                             var line = L.polyline([
                                 [parseFloat(stop.atlas_lat), parseFloat(stop.atlas_lon)],
                                 [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)]
-                            ], { color: "purple", dashArray: "5,5" });
+                            ], style);
                             topNLayer.addLayer(line);
                         }
                     }
@@ -279,17 +260,11 @@ function loadDataForViewport() {
     }
     // Zoom gating: do not load or render markers if zoom is too low
     var zoom = map.getZoom();
-    if (zoom < ZOOM_MARKER_THRESHOLD) {
-        showZoomBanner(true);
-        markersLayer.clearLayers();
-        linesLayer.clearLayers();
-        // Cancel any in-flight request
-        if (currentDataRequest && currentDataRequest.readyState !== 4) {
-            try { currentDataRequest.abort(); } catch(e) {}
-        }
-        return;
-    } else {
-        showZoomBanner(false);
+    var isLowZoom = zoom < ZOOM_MARKER_THRESHOLD;
+    var showPartialBanner = !isLowZoom && zoom < (ZOOM_MARKER_THRESHOLD + ADDITIONAL_BANNER_ZOOM_LEVELS);
+    if (!isLowZoom) {
+        // At early post-threshold zooms, we still hint that not all markers may be visible
+        showZoomBanner(showPartialBanner);
     }
     var bounds = map.getBounds();
     var params = {
@@ -298,8 +273,8 @@ function loadDataForViewport() {
         min_lon: bounds.getWest(),
         max_lon: bounds.getEast(),
         offset: 0,
-        // Increased limit with minimal payload
-        limit: 500,
+        // Increased limit with minimal payload (normal), reduced for low-zoom probe
+        limit: isLowZoom ? LOW_ZOOM_SMALLSET_LIMIT : 500,
         zoom: zoom
     };
     
@@ -359,6 +334,32 @@ function loadDataForViewport() {
          // Check first few items for atlas_is_duplicate
          rawData.slice(0, 5).forEach((item, index) => {
          });
+
+         // If low zoom: only render when the filtered result count <= LOW_ZOOM_SMALLSET_LIMIT
+         if (isLowZoom) {
+             // Apply client-side duplicates filter before counting
+             let probeData = rawData;
+             if (activeFilters.showDuplicatesOnly) {
+                 probeData = probeData.filter(stop => stop.atlas_duplicate_sloid && stop.atlas_duplicate_sloid !== '');
+             }
+             if (probeData.length === 0) {
+                 showZoomBanner(true);
+                 markersLayer.clearLayers();
+                 linesLayer.clearLayers();
+                 return;
+             }
+             if (probeData.length >= LOW_ZOOM_SMALLSET_LIMIT) {
+                 // Too many to render at low zoom – show banner and skip rendering
+                 showZoomBanner(true);
+                 markersLayer.clearLayers();
+                 linesLayer.clearLayers();
+                 return;
+             }
+             // Else: small enough – proceed to render using probeData, hide banner
+             showZoomBanner(false);
+             // Continue with normal pipeline using probeData instead of rawData
+             rawData = probeData;
+         }
 
          markersLayer.clearLayers();
          // Only clear non-manual match lines
@@ -599,10 +600,13 @@ function loadDataForViewport() {
          if (map.getZoom() >= ZOOM_LINE_THRESHOLD) {
              allMarkerData.forEach(function(markerData) {
                  if (markerData.atlasMarkerData && markerData.type === 'osm') {
+                     const isManual = (markerData.stopData && markerData.stopData.match_type === 'manual') || (markerData.atlasMarkerData && markerData.atlasMarkerData.stopData && markerData.atlasMarkerData.stopData.match_type === 'manual');
+                     const isPersistent = (markerData.stopData && markerData.stopData.manual_is_persistent === true) || (markerData.atlasMarkerData && markerData.atlasMarkerData.stopData && markerData.atlasMarkerData.stopData.manual_is_persistent === true);
+                     const style = isManual ? { color: 'purple', dashArray: isPersistent ? null : '5,5', weight: 2 } : { color: 'green' };
                      var line = L.polyline([
                          [markerData.atlasMarkerData.originalLat, markerData.atlasMarkerData.originalLon],
                          [markerData.originalLat, markerData.originalLon]
-                     ], { color: 'green' });
+                     ], style);
                      linesLayer.addLayer(line);
                  }
              });
@@ -677,7 +681,7 @@ function loadDataForViewport() {
              });
          }
 
-         redrawManualMatchLines();
+         // Legacy manual match overlay removed
     });
 }
 
@@ -869,15 +873,7 @@ function initSearchTypeModal() {
     toggleFilterInputs(); // Call to set initial focus correctly
 }
 
-// Remove the old initSearchDropdown function if it exists
-// (Assuming it was defined before the document.ready block)
-// If initSearchDropdown was a global function, this step is not strictly necessary
-// as we just won't call it anymore. But for cleanliness:
-if (typeof initSearchDropdown === 'function') {
-    // To be safe, we might not want to nullify it directly if it's used elsewhere unexpectedly
-    // but we definitely don't want its event listeners active for the old dropdown.
-    // The safest is to ensure it's not called, and new selectors don't match old elements.
-}
+ 
 
 $(document).ready(function(){
     initMap();
@@ -902,7 +898,6 @@ $(document).ready(function(){
     });
 
     initReportGeneration();
-    initManualMatching();
 
     $('#focusRandomVisibleEntryBtn').on('click', focusOnRandomFilteredStop);
 
