@@ -210,16 +210,7 @@ def get_global_stats():
             final_matched_osm = res.matched_osm
             final_unmatched_entities = (res.unmatched_osm or 0)
 
-        return jsonify({
-            "total_atlas_stops": final_total_atlas,
-            "matched_atlas_stops": final_matched_atlas,
-            "total_osm_nodes": final_total_osm,
-            "matched_osm_nodes": final_matched_osm,
-            "matched_pairs_count": int(res.matched_pairs or 0), 
-            "unmatched_entities_count": final_unmatched_entities
-        })
-
-        # Store in cache (after successful computation)
+        # Build response once, store in cache, then return
         response_payload = {
             "total_atlas_stops": final_total_atlas,
             "matched_atlas_stops": final_matched_atlas,

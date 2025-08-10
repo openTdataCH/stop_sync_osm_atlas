@@ -308,17 +308,18 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
         });
     }
     if (duplicateSloid && duplicateSloid !== '') { // Check if duplicateSloid has a value
-        return L.marker([lat, lon], {
-            icon: L.divIcon({
-                html: `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                        <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
-                        <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">D</text>
-                      </svg>`,
-                className: 'custom-div-icon',
-                iconSize: [size, size],
-                iconAnchor: [radius, radius]
-            })
-        });
+        const key = `atlas|${color}|D|${size}`;
+        const icon = getCachedDivIcon(
+            key,
+            `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
+                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">D</text>
+            </svg>`,
+            'custom-div-icon',
+            [size, size],
+            [radius, radius]
+        );
+        return L.marker([lat, lon], { icon });
     } else {
         return L.circleMarker([lat, lon], { 
             color: color, 
@@ -351,29 +352,31 @@ function createOsmMarker(lat, lon, color, osmNodeType = null) {
     }
     
     if (osmNodeType === 'platform') {
-        return L.marker([lat, lon], {
-            icon: L.divIcon({
-                html: `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                        <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
-                        <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">P</text>
-                      </svg>`,
-                className: 'custom-div-icon',
-                iconSize: [size, size],
-                iconAnchor: [radius, radius]
-            })
-        });
+        const key = `osm|${color}|P|${size}`;
+        const icon = getCachedDivIcon(
+            key,
+            `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
+                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">P</text>
+            </svg>`,
+            'custom-div-icon',
+            [size, size],
+            [radius, radius]
+        );
+        return L.marker([lat, lon], { icon });
     } else if (osmNodeType === 'railway_station') {
-        return L.marker([lat, lon], {
-            icon: L.divIcon({
-                html: `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                        <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
-                        <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">S</text>
-                      </svg>`,
-                className: 'custom-div-icon',
-                iconSize: [size, size],
-                iconAnchor: [radius, radius]
-            })
-        });
+        const key = `osm|${color}|S|${size}`;
+        const icon = getCachedDivIcon(
+            key,
+            `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
+                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">S</text>
+            </svg>`,
+            'custom-div-icon',
+            [size, size],
+            [radius, radius]
+        );
+        return L.marker([lat, lon], { icon });
     } else {
         return L.circleMarker([lat, lon], { 
             color: color, 

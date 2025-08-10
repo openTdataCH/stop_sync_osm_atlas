@@ -8,7 +8,7 @@ window.ProblemsMap = (function() {
     'use strict';
 
     // Performance tuning constants for the problems page
-    const PROBLEM_MARKER_ZOOM_THRESHOLD = 12; // currently used only to choose payload size
+    // (Removed unused PROBLEM_MARKER_ZOOM_THRESHOLD)
     const PROBLEM_LINE_ZOOM_THRESHOLD = 14;   // draw context lines only at high zoom
     const CONTEXT_LIMIT_LOW_ZOOM = 150;
     const CONTEXT_LIMIT_HIGH_ZOOM = 200;

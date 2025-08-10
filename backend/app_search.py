@@ -354,7 +354,7 @@ def get_stop_by_id():
                 lat_col_name = 'atlas_lat'
                 lon_col_name = 'atlas_lon'
                 popup_view_type = 'atlas'
-        elif identifier_type == 'osm': # Matching the filterType value used in main.js
+        elif identifier_type in ('osm', 'osm_node_id'):
             # For OSM lookup, we primarily need OSM details
             stop = optimize_query_for_endpoint(Stop.query, 'search').filter(Stop.osm_node_id == identifier).first()
             if stop:

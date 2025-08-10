@@ -19,56 +19,12 @@ var currentDataRequest = null;  // jqXHR of in-flight /api/data
 var currentDataRequestSeq = 0;  // sequence id to ignore stale responses
 var loadViewportTimer = null;   // debounce timer id
 
-// Function to format route data for display
-function formatRouteInfo(routes) {
-    // Delegate to the shared utility for consistent behaviour across codebase.
-    return PopupUtils.formatRouteList(routes);
-}
+// Note: popup HTML generation functions are provided by popup-renderer.js
 
 
 
-// Function to format routes with matched vs. unmatched categorization
-function formatRoutesDisplay(atlasRoutes, osmRoutes, isOsmNode = false) {
-    return PopupUtils.formatRoutesDisplay(atlasRoutes, osmRoutes, isOsmNode);
-}
-
-// Function to create a collapsible section
-function createCollapsible(title, content, isExpanded = false) {
-    return PopupUtils.createCollapsible(title, content, isExpanded);
-}
-
-// Helper function to toggle collapsible sections
-function toggleCollapsible(id) {
-    PopupUtils.toggleCollapsible(id);
-}
-
-// Create clickable link for sloid or node_id filtering
-function createFilterLink(value, type, displayText = null) {
-    return PopupUtils.createFilterLink(value, type, displayText);
-}
-
-
-
-// Note: generateSingleAtlasBubbleHtml and generateSingleOsmBubbleHtml functions are now provided by map-renderer.js
-
-
-
-// Helper function to extract and normalize the station identifier
-function getStationIdentifier(stop, stopCategory) {
-    // Use the unified uic_ref field if available
-    if (stop.uic_ref) {
-      return String(stop.uic_ref).trim().toLowerCase();
-    }
-    // For OSM stops that might not have a uic_ref, fallback to local_ref or node_id
-    if (stopCategory === "osm") {
-      if (stop.osm_local_ref) {
-        return String(stop.osm_local_ref).trim().toLowerCase();
-      } else if (stop.osm_node_id) {
-        return String(stop.osm_node_id).trim().toLowerCase();
-      }
-    }
-    return null;
-}
+// (Removed unused wrappers and helpers: formatRouteInfo, formatRoutesDisplay, createCollapsible,
+//  toggleCollapsible, createFilterLink, and getStationIdentifier)
 
 // Note: createAtlasMarker and createOsmMarker functions are now provided by map-renderer.js
 

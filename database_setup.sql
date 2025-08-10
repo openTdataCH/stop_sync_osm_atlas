@@ -26,6 +26,9 @@ CREATE TABLE stops (
     stop_type VARCHAR(50),
     match_type VARCHAR(50),
 
+    -- Flags
+    manual_is_persistent BOOLEAN DEFAULT FALSE,
+
     -- Core location and linking attributes
     atlas_lat FLOAT,
     atlas_lon FLOAT,

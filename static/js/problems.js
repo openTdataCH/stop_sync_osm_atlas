@@ -283,23 +283,11 @@ $(document).ready(function(){
         }
     });
     
-    // Note saving button handlers - within action content
-    $('#actionButtonsContent').on('click', '#saveAtlasNote', function() {
-        const noteContent = $('#atlasNote').val();
-        ProblemsNotes.saveNote('atlas', noteContent);
-    });
-    
-    $('#actionButtonsContent').on('click', '#saveOsmNote', function() {
-        const noteContent = $('#osmNote').val();
-        ProblemsNotes.saveNote('osm', noteContent);
-    });
-    
-    // Note saving from notes section (outside of actionButtonsContent)
+    // Note saving handler (delegate once)
     $(document).on('click', '#saveAtlasNote', function() {
         const noteContent = $('#atlasNote').val();
         ProblemsNotes.saveNote('atlas', noteContent);
     });
-    
     $(document).on('click', '#saveOsmNote', function() {
         const noteContent = $('#osmNote').val();
         ProblemsNotes.saveNote('osm', noteContent);
