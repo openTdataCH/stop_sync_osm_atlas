@@ -14,14 +14,16 @@ from typing import Dict, List, Tuple, Any, Optional, Union
 from scipy.spatial import KDTree
 
 # Import centralized configuration
-from .detection_config import (
-    get_distance_problem_threshold,
-    get_isolation_radius,
-    ENABLE_OPERATOR_MISMATCH_CHECK,
-    ENABLE_NAME_MISMATCH_CHECK,
-    ENABLE_UIC_MISMATCH_CHECK,
-    ENABLE_LOCAL_REF_MISMATCH_CHECK
-)
+# Inline configuration constants (formerly in detection_config.py)
+# Adjust these if needed; defaults are chosen to match documentation.
+ISOLATION_CHECK_RADIUS_M = 50  # meters
+ENABLE_OPERATOR_MISMATCH_CHECK = True
+ENABLE_NAME_MISMATCH_CHECK = True
+ENABLE_UIC_MISMATCH_CHECK = True
+ENABLE_LOCAL_REF_MISMATCH_CHECK = True
+
+def get_isolation_radius() -> int:
+    return ISOLATION_CHECK_RADIUS_M
 
 # Setup logging
 logger = logging.getLogger(__name__)

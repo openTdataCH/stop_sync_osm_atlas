@@ -55,7 +55,7 @@ The table has a unique constraint on (`sloid`, `osm_node_id`, `problem_type`, `n
 ### For Problem Solutions
 
 #### Scenario 1: Stop Exists with Same Problem
-- **Example**: A distance problem between ATLAS stop A and OSM node B was solved as "OSM correct"
+- **Example**: A distance problem between ATLAS stop A and OSM node B was solved as "OSM correct" and saved as permanent.
 - **Outcome**: The persistent solution "OSM correct" is automatically applied to the new problem
 
 #### Scenario 2: Stop Exists but Problem Resolved
@@ -90,21 +90,19 @@ The table has a unique constraint on (`sloid`, `osm_node_id`, `problem_type`, `n
 2. Preserves knowledge about why certain decisions were made
 3. Solutions can be updated or deleted even if they already are on the permanent table
 4. Uses natural keys to match solutions to problems, even as internal IDs change
-5. Preserves valuable context notes for stops and nodes across data imports
 
 ## Challenges and Limitations
 
 1. A solution that was valid for a problem in one data import might not be appropriate for a similar problem in a later import if the stops data has changed significatly.
 2. The system requires periodic review of persistent solutions to ensure they remain valid
-3. The dual-table approach adds complexity to the codebase
-4. Notes are always applied the corresponding stops regardless of coordinate or attribute changes, which could lead to notes being applied to stops that have moved/changed significantly.
+3. Notes are always applied the corresponding stops regardless of coordinate or attribute changes, which could lead to notes being applied to stops that have moved/changed. 
 
 ## Best Practices
 
 1. Review persistent solutions to ensure they remain valid
 2. When making a solution persistent, consider adding context about why this solution was chosen
-3. Keep an eye on the number of skipped persistent solutions during imports, as this may indicate data drift
-4. Only make notes persistent if they contain valuable information that should be preserved across imports. Periodically review them to ensure they're still relevant to the stops they're attached to
+3. Keep an eye on the number of skipped persistent solutions during imports.
+4. Make notes persistent if they contain valuable information that should be preserved across imports. Periodically review them to ensure they're still relevant to the stops they're attached to
 
 ## Key Components
 
@@ -126,14 +124,3 @@ The table has a unique constraint on (`sloid`, `osm_node_id`, `problem_type`, `n
    - Batch operations for efficiency
    - Robust error handling and user feedback
 
-
-## Conclusion
-
-The Persistent Data Management system provides a robust and efficient way to preserve human validation and context across data imports. With the recent improvements, it now offers:
-- Better performance through optimized database queries
-- Consistent and intuitive user interface 
-- Complete API coverage for all operations
-- Enhanced error handling and user feedback
-- Clear separation between persistent and temporary data
-
-The system maintains the core benefits of efficiency and consistency across data imports while providing a significantly improved user experience.

@@ -639,18 +639,22 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     osm_platform_count_by_uic = {}
     def _is_platform_like(pt):
         return pt in ('platform', 'stop_position')
-    # Track OSM duplicates by (uic_ref, local_ref)
-    osm_nodes_by_uic_local_ref = {}
+    # Track OSM duplicates by (uic_ref, local_ref, public_transport type)
+    osm_nodes_by_uic_local_ref_and_type = {}
     def _add_osm_dup_candidate(uic_val, local_ref_val, node_id_val, pt_val):
         try:
             if not uic_val or not local_ref_val:
                 return
             if not _is_platform_like(pt_val):
                 return
-            key = (str(uic_val).strip(), str(local_ref_val).strip().lower())
-            if key not in osm_nodes_by_uic_local_ref:
-                osm_nodes_by_uic_local_ref[key] = set()
-            osm_nodes_by_uic_local_ref[key].add(str(node_id_val))
+            key = (
+                str(uic_val).strip(),
+                str(local_ref_val).strip().lower(),
+                str(pt_val).strip().lower()
+            )
+            if key not in osm_nodes_by_uic_local_ref_and_type:
+                osm_nodes_by_uic_local_ref_and_type[key] = set()
+            osm_nodes_by_uic_local_ref_and_type[key].add(str(node_id_val))
         except Exception:
             pass
     # From matched
@@ -677,7 +681,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             _add_osm_dup_candidate(uic, tags.get('local_ref'), rec.get('node_id'), pt)
 
     duplicate_osm_node_ids = set()
-    for _key, node_ids in osm_nodes_by_uic_local_ref.items():
+    for _key, node_ids in osm_nodes_by_uic_local_ref_and_type.items():
         if len(node_ids) >= 2:
             duplicate_osm_node_ids.update(node_ids)
 

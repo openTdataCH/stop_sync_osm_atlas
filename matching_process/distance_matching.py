@@ -8,8 +8,9 @@ from scipy.spatial import KDTree
 import numpy as np
 import traceback
 
-# Import centralized configuration
-from .detection_config import get_isolation_radius
+# Local isolation radius (formerly from detection_config)
+def get_isolation_radius() -> int:
+    return 50
 from .utils import haversine_distance
 
 # Setup logging

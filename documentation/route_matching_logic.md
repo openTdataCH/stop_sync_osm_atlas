@@ -1,8 +1,6 @@
 # Route Matching Logic
 
-This document describes the current implementation (updated 2025-07-11) of `route_matching()` in `matching_process/route_matching.py`. The goal is to link every unmatched **ATLAS stop** to the correct **OSM node** by using *route* and *direction* information that both datasets share.
-
-**Recent Major Improvements**: Fixed direction parsing from OSM H/R suffix and added year code normalization for handling version mismatches between OSM and GTFS data.
+This document describes the implementation (updated 2025-07-11) of `route_matching()` in `matching_process/route_matching.py`. The goal is to link every unmatched **ATLAS stop** to the correct **OSM node** by using *route* and *direction* information that both datasets share.
 
 ---
 
@@ -116,29 +114,4 @@ If any of these inputs are poor the fallback (distance-only matching) has to cov
 
 ---
 
-## 5  Performance Improvements (2025-07-11)
-
-### Direction Parsing Fix
-- **Previous Issue**: OSM `ref_trips` values were incorrectly matched to GTFS `trip_id` 
-- **Solution**: Parse H/R suffix directly from `ref_trips` (H=outbound/0, R=return/1)
-- **Impact**: Direction parsing success rate improved from 0.35% to 84.64%
-
-### Year Code Normalization
-- **Previous Issue**: Version mismatches between OSM (j22/j24) and GTFS (j25) route codes
-- **Solution**: Normalize route IDs by replacing year codes with generic placeholder
-- **Impact**: Route+direction matches increased from 26 to 1,720+ (232x improvement)
-
-### Match Type Classification
-The system now distinguishes between:
-- `route_matching_1_exact`: Stage 1 exact route ID matches
-- `route_matching_1_normalized`: Stage 1 normalized route ID matches  
-- `route_matching_2_exact`: Stage 2 exact route ID matches
-- `route_matching_2_normalized`: Stage 2 normalized route ID matches
-
-### Current Success Rates
-- **Direction extraction**: 84.64% success rate
-- **Route+direction matching**: 99.2% using normalized matching
-- **Overall system**: Can handle version mismatches between OSM and GTFS data
-
----
 

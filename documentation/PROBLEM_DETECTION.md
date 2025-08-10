@@ -1,6 +1,6 @@
 ## Problem Detection and Prioritization
 
-This document precisely defines how we detect and prioritize problems. Logic lives in `matching_process/problem_detection.py`; configuration in `matching_process/detection_config.py`. Problems are stored in `problems` with a per-type `priority` (1 = highest).
+This document precisely defines how we detect and prioritize problems. Logic lives in `matching_process/problem_detection.py`. Problems are stored in `problems` with a per-type `priority` (1 = highest).
 
 Problem types:
 - Distance
@@ -90,18 +90,19 @@ Purpose: identify duplicated entries either on the ATLAS side or on the OSM side
 
 Detection
 - ATLAS duplicates: We reuse the `duplicate_sloid_map` produced during the matching pipeline to mark entries that belong to a duplicate ATLAS group.
-- OSM duplicates: We detect multiple OSM nodes that are platform-like and share the same UIC and local_ref combination.
+- OSM duplicates: We detect multiple OSM nodes that are platform-like and share the same UIC, the same local_ref, and the same public_transport type.
   - Platform-like means `public_transport` ∈ {platform, stop_position}.
-  - Duplicates are detected per key (uic_ref, local_ref) if there are two or more distinct node_ids.
+  - Duplicates are detected per key (uic_ref, local_ref, public_transport) if there are two or more distinct node_ids for that key.
+  - A `platform` and a `stop_position` with the same UIC and local_ref represent the same stop and are NOT considered duplicates.
 
 Priority rules
 - Priority 2: ATLAS duplicates
-- Priority 3: OSM duplicates (two or more platform-like nodes with the same UIC and local_ref)
+- Priority 3: OSM duplicates (two or more platform-like nodes with the same UIC, local_ref, and public_transport type)
   
 Implementation
 - In `import_data_db.import_to_database`:
   - For matched and unmatched ATLAS entries: if `sloid` is in `duplicate_sloid_map`, create `Problem(problem_type='duplicates', priority=2)`.
-  - For matched and unmatched OSM entries: if the node_id is part of a duplicate set for its `(uic_ref, local_ref)` among platform-like nodes, create `Problem(problem_type='duplicates', priority=3)`.
+  - For matched and unmatched OSM entries: if the node_id is part of a duplicate set for its `(uic_ref, local_ref, public_transport)` among platform-like nodes, create `Problem(problem_type='duplicates', priority=3)`.
 - No Priority 1 is defined for duplicates.
 
 ### Data flow summary
@@ -109,15 +110,14 @@ Implementation
 2) Import (`import_data_db.import_to_database`) writes `stops`, `atlas_stops`, `osm_nodes`, and creates `problems` as needed with computed priorities.
 3) Persistent solutions are applied post-import.
 
-### Backward compatibility
-- The codebase uses `unmatched` exclusively going forward.
 
 ### Notes usage
-- The `PersistentData.note` field remains available to capture reviewer notes and can be used to annotate special unmatched edge cases or rationale behind manual resolutions.
+- The `PersistentData.note` field is available to capture reviewer notes and can be used to annotate rationale behind manual resolutions.
 
 ### Configuration
-Relevant flags in `detection_config.py` still apply to attributes checks. Distance classification uses the explicit priority rules above (not the legacy `DISTANCE_PROBLEM_THRESHOLD_M`). `ISOLATION_CHECK_RADIUS_M` is still used to label ATLAS entries with `match_type='no_nearby_counterpart'` in the matching pipeline; import-level unmatched priorities use the 80 m and 50 m thresholds defined here.
+Configuration defaults
+- Attribute mismatch checks are enabled by default in `matching_process/problem_detection.py` via inline flags: `ENABLE_OPERATOR_MISMATCH_CHECK`, `ENABLE_NAME_MISMATCH_CHECK`, `ENABLE_UIC_MISMATCH_CHECK`, `ENABLE_LOCAL_REF_MISMATCH_CHECK`.
+- Isolation radius defaults to 50 m via `get_isolation_radius()` inside `matching_process/problem_detection.py`.
+- Distance classification uses the explicit priority rules above; import-level unmatched priorities use the 80 m and 50 m thresholds defined here.
 
-### Open questions
-- UIC platform counting on OSM side currently treats `public_transport` in {platform, stop_position} as platforms. Should we also consider `railway=platform` or other tags?
-- Operator “SBB” detection currently treats `csv_business_org_abbr == 'SBB'` (case-insensitive) as SBB. Confirm if other forms (e.g., "SBB CFF FFS") should be considered SBB equivalently.
+ 
