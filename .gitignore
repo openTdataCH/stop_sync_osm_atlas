@@ -1,6 +1,5 @@
 # Data files - organized in data/ directory
 data/
-memoire/
 
 # Text files (except requirements.txt)
 *.txt
