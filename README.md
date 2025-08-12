@@ -4,6 +4,7 @@
 Welcome! This project provides a systematic pipeline to identify, analyze, and resolve discrepancies between public transport stop data from **ATLAS** (Swiss official data) and **OpenStreetMap (OSM)**.
 
 It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exact/fuzzy/route-based matching, and serves an interactive web app for inspecting matches, problems, and manual fixes.
+
 ![Geneva stops](documentation/images/Geneve.png)
 ---
 
