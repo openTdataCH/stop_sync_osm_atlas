@@ -1,0 +1,76 @@
+/* Navbar and container overrides (identical selectors as legacy) */
+.container-fluid {
+  padding-left: 15px;
+  padding-right: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar > .container-fluid {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.navbar {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.navbar .navbar-brand {
+  display: flex;
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.navbar .navbar-brand img {
+  display: block;
+  height: 80px; /* increased for better prominence */
+}
+
+.navbar .navbar-nav {
+  align-items: center;
+}
+
+.navbar .nav-link,
+.navbar .navbar-text {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  line-height: 1.2;
+}
+
+.navbar .btn {
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  line-height: 1.2;
+}
+
+.navbar .navbar-toggler {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.navbar .navbar-brand span {
+  line-height: 1;
+  font-size: 1.5rem; /* increase brand text size */
+  font-weight: 700;
+}
+
+@media (min-width: 992px) {
+  .navbar {
+    flex-wrap: nowrap;
+  }
+  .navbar > .container-fluid {
+    flex-wrap: nowrap;
+  }
+  .navbar .navbar-collapse {
+    display: flex !important;
+    align-items: center;
+  }
+}
+
+

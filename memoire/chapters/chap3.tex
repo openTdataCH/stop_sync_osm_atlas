@@ -1,0 +1,166 @@
+% !TeX spellcheck = fr_FR
+\chapter{Chapitre 3 : Correspondance avec les données ATLAS-OSM}
+
+Le processus de correspondance entre les données ATLAS et OSM a été conçu pour identifier de manière précise et systématique les arrêts correspondants dans ces deux ensembles de données. Il se déroule en plusieurs étapes, chacune reposant sur des critères spécifiques pour maximiser la fiabilité des correspondances tout en minimisant les erreurs. Les étapes incluent une correspondance exacte basée sur les identifiants, une correspondance par nom et une correspondance par distance avec plusieurs sous-étapes. Voici une description détaillée de chaque étape.
+
+\section{Correspondance Exacte}
+
+La première étape, appelée correspondance exacte, utilise l’identifiant UIC. Dans les données ATLAS, cet identifiant est représenté par la colonne \texttt{'number'}, tandis que dans OSM, il correspond à la balise \texttt{'uic\_ref'}. Une entrée ATLAS est appariée à un nœud OSM si son \texttt{'number'} est identique au \texttt{'uic\_ref'} du nœud OSM.
+
+Des situations complexes peuvent survenir lorsque plusieurs entrées ATLAS partagent le même \texttt{'number'} (par exemple, plusieurs quais d’une même gare) ou lorsque plusieurs nœuds OSM possèdent le même \texttt{'uic\_ref'}. Pour résoudre ces cas, les règles suivantes sont appliquées :
+
+\begin{enumerate}
+    \item \textbf{Cas 1 : Plusieurs entrées ATLAS, un seul nœud OSM}  
+    Si plusieurs entrées ATLAS partagent le même \texttt{'number'} et qu’un seul nœud OSM possède ce \texttt{'uic\_ref'}, toutes ces entrées ATLAS sont appariées à ce nœud OSM unique.
+
+    \item \textbf{Cas 2 : Une entrée ATLAS, plusieurs nœuds OSM}  
+    Si une seule entrée ATLAS a un \texttt{'number'} donné et que plusieurs nœuds OSM partagent ce \texttt{'uic\_ref'}, tous ces nœuds OSM sont appariées à cette entrée ATLAS unique.
+
+    \item \textbf{Cas 3 : Plusieurs entrées ATLAS et plusieurs nœuds OSM}  
+    Lorsque plusieurs entrées ATLAS et nœuds OSM partagent le même \texttt{'number'}/\texttt{'uic\_ref'}, une correspondance plus fine est réalisée en comparant la \texttt{'designation'} de l’entrée ATLAS (par exemple, le code du quai) avec la balise \texttt{'local\_ref'} du nœud OSM. Une correspondance est établie si ces valeurs sont identiques.
+\end{enumerate}
+
+Cette méthode a permis d’identifier 21994 correspondances exactes.
+\begin{figure}[h] 
+    \centering
+    \includegraphics[width=0.7\textwidth]{../figures/correspondances/exact_Cornavin.png}
+    \caption[Correspondances exactes à Genève-Cornavin]{Correspondances exactes à la gare de Genève-Cornavin. Les détails du nœud OSM de la voie 6 sont visibles sur l'image.}
+    \label{fig:sample}
+\end{figure}
+
+\section{Correspondance par Nom}
+
+Pour les entrées ATLAS non appariées lors de l’étape précédente, une correspondance basée sur le nom est appliquée. Cette étape compare le nom officiel des arrêts, indiqué dans la colonne \texttt{'designationOfficial'} des données ATLAS, avec plusieurs balises de nom dans OSM : \texttt{'name'}, \texttt{'uic\_name'} et \texttt{'gtfs:name'}.
+
+La règle principale établit une correspondance si le \texttt{'designationOfficial'} correspond exactement à l’une de ces balises OSM. Cependant, si plusieurs nœuds OSM présentent le même nom correspondant, un critère supplémentaire est utilisé : la balise \texttt{'local\_ref'} du nœud OSM est comparée à la \texttt{'designation'} de l’entrée ATLAS. Une correspondance est confirmée si ces valeurs sont identiques (en ignorant la casse).
+
+Cette approche a permis d’ajouter 339 correspondances supplémentaires.
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}[b]{0.4\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{../figures/correspondances/name_app.png}
+        \caption[Correspondances par nom]{Correspondances par nom.}
+        \label{fig:image1}
+    \end{subfigure}
+    \hspace{-0.2cm}  % Reduce space between images
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{../figures/correspondances/name_osm}
+        \caption[Nœud OSM – exemple]{Capture d'écran d'un nœud OSM..}
+        \label{fig:image2}
+    \end{subfigure}
+    \caption[Exemple de correspondance par nom]{Pour l'arrêt "Thônex, Sous-Moulin, D", on peut voir que, malgré une référence UIC différente, il est possible d'établir des correspondances grâce au nom.}
+    \label{fig:sample}
+\end{figure}
+
+
+\section{Correspondance par Distance}
+
+Pour les entrées ATLAS restantes, une correspondance basée sur la proximité géographique est mise en œuvre. Cette étape se divise en trois sous-étapes distinctes, chacune avec des critères spécifiques pour garantir des appariements fiables.
+
+\subsection{Étape 1 : Correspondance de groupe basée sur la proximité}
+Les entrées ATLAS et OSM sont regroupés selon les paires d’identifiants suivantes :
+\begin{enumerate}
+    \item \texttt{'number'} (ATLAS) et \texttt{'uic\_ref'} (OSM).
+    \item \texttt{'designationOfficial'} (ATLAS) et \texttt{'uic\_name'} (OSM).
+    \item \texttt{'designationOfficial'} (ATLAS) et \texttt{'name'} (OSM).
+\end{enumerate}
+
+Dans chaque groupe où le nombre d’entrées ATLAS est égal au nombre de nœuds OSM, une correspondance est tentée en associant chaque entrée ATLAS au nœud OSM le plus proche, à condition que cette association soit cohérente (c’est-à-dire que chaque nœud OSM soit également le plus proche de l’entrée ATLAS qui lui est attribuée). Cette méthode nous a permis de réaliser 8 902 correspondances supplémentaires.
+
+\begin{figure}[h] 
+    \centering
+    \includegraphics[width=0.7\textwidth]{../figures/correspondances/groupe_proximite.png}
+    \caption[Correspondances – Münchenstein, Hofmatt]{Correspondances pour les arrêts de Münchenstein, Hofmatt. Malgré les divergences de \texttt{uic\_ref} et le manque de références locales, nous avons réussi à établir des correspondances grâce à la correspondance de groupe basée sur les distances.}
+
+    \label{fig:sample}
+\end{figure}
+
+\FloatBarrier
+
+\begin{table}
+\caption[Données ATLAS – Münchenstein, Hofmatt]{Données ATLAS pour les arrêts de Münchenstein, Hofmatt}
+\label{tab:atlas_data}
+\centering
+\begin{tabular}{l l l l l}
+\toprule
+\texttt{sloid} & \texttt{number} & \texttt{designation} & \texttt{designationOfficial} \\
+\midrule
+ch:1:sloid:95:1:6 & 8500095 &  & Münchenstein, Hofmatt \\
+ch:1:sloid:95:1:5 & 8500095 &  & Münchenstein, Hofmatt \\
+ch:1:sloid:95:1:3 & 8500095 &  & Münchenstein, Hofmatt \\
+ch:1:sloid:95:1:2 & 8500095 &  & Münchenstein, Hofmatt \\
+ch:1:sloid:95:1:1 & 8500095 &  & Münchenstein, Hofmatt \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\caption[Données OSM – Münchenstein, Hofmatt]{Données OSM pour les arrêts de Münchenstein, Hofmatt}
+\label{tab:osm_data}
+\centering
+\begin{tabular}{l l l l}
+\toprule
+\texttt{node\_id} & \texttt{uic\_ref} & \texttt{uic\_name} & \texttt{transport\_type} \\
+\midrule
+6457499611 & 8578185 & Münchenstein, Hofmatt & bus \\
+299126238 & 8500095 & Münchenstein, Hofmatt & tram \\
+983964446 & 8578185 & Münchenstein, Hofmatt & bus \\
+1435404358 & 8500095 & Münchenstein, Hofmatt & tram \\
+3858822225 & 8578185 & Münchenstein, Hofmatt & bus \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\FloatBarrier
+
+\subsection{Étape 2 : Correspondance par référence locale dans un rayon de 50 mètres}
+Cette sous-étape recherche, pour chaque entrée ATLAS non appariée, un nœud OSM situé à moins de 50 mètres dont la balise \texttt{local\_ref} correspond exactement à la \texttt{designation} de l’entrée ATLAS (en ignorant la casse).
+
+À Zürich HB, dans ATLAS, la \texttt{UIC\_ref} est égale à 8503000 pour tous les arrêts, tandis que dans OSM, certains arrêts ont une \texttt{UIC\_ref} de 8516144. 
+
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[height=6cm]{../figures/correspondances/distance_2.png}
+        \label{fig:image1}
+    \end{subfigure}
+    \hspace{-0.2cm}  % Réduction de l'espace entre les images
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[height=6cm]{../figures/correspondances/osm_distance_2.png}
+        \label{fig:image2}
+    \end{subfigure}
+    \caption[Correspondances – Zürich HB (étape 2)]{Correspondances à Zürich HB grâce à l'étape 2.}
+    \label{fig:sample}
+\end{figure}
+
+Cette méthode nous a permis de réaliser 127 correspondances supplémentaires.
+
+\subsection{Étape 3 : Correspondance basée sur la proximité avec critères relatifs}  
+Pour les entrées toujours non appariées, tous les nœuds OSM situés à moins de 50 mètres sont examinés :  
+\begin{itemize}  
+    \item a) Si un seul nœud OSM se trouve dans ce rayon, il est apparié à l’entrée ATLAS.  
+    \item Si plusieurs nœuds OSM sont présents, l’appariement est effectué avec le nœud le plus proche uniquement si :  
+    \begin{enumerate}  
+        \item b) Le deuxième nœud le plus proche est à au moins 10 mètres.  
+        \item La distance au deuxième nœud le plus proche est au moins 4 fois supérieure à celle du nœud le plus proche.  
+    \end{enumerate}  
+\end{itemize}  
+Nous avons réussi à établir 2 233 correspondances avec l’option a) et 1 983 correspondances avec l’option b).  
+Cette méthode est utile pour les cas où il y a des nœuds isolés, comme des télésièges.  
+
+\begin{figure}[h] 
+    \centering
+    \includegraphics[width=0.7\textwidth]{../figures/correspondances/distance_3.png}
+    \caption[Correspondance par distance – étape 3]{Correspondance par distance étape 3}
+    \label{fig:sample}
+\end{figure} 
+
+\section{Résultats actuels}
+
+Parmi les 56.128 arrêts ATLAS que nous avons considérés jusqu'à présent, le processus de correspondance a permis d’identifier un total de 33.747 correspondances entre les données ATLAS et OSM. Après ces étapes, 22.380 entrées ATLAS restent non appariées, et 34.522 nœuds OSM restent inutilisés. Parmi ces nœuds OSM inutilisés, 27.759 sont associés à au moins une route, 28.068 possèdent une référence UIC, et 1.908 ont une référence locale (\texttt{local\_ref}).
+
+

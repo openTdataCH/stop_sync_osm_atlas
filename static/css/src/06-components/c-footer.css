@@ -1,0 +1,6 @@
+/* Footer link and spacing (transitional) */
+.text-muted a { color: #6c757d !important; transition: color 0.15s ease-in-out; }
+.text-muted a:hover { color: #495057 !important; text-decoration: none; }
+#repo-footer { padding-top: 0.125rem !important; }
+
+

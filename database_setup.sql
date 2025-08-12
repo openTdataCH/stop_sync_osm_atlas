@@ -4,14 +4,19 @@ DROP DATABASE IF EXISTS stops_db;
 -- Create the new database 'stops_db'
 CREATE DATABASE stops_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- Create separate authentication database (schema)
+CREATE DATABASE IF NOT EXISTS auth_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- Create the user and grant permissions
 -- Note: Using % allows connections from any host, which is needed for Docker networking
 CREATE USER IF NOT EXISTS 'stops_user'@'%' IDENTIFIED BY '1234';
 GRANT ALL PRIVILEGES ON stops_db.* TO 'stops_user'@'%';
+GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'%';
 
 -- Also create with localhost for local connections if needed
 CREATE USER IF NOT EXISTS 'stops_user'@'localhost' IDENTIFIED BY '1234';
 GRANT ALL PRIVILEGES ON stops_db.* TO 'stops_user'@'localhost';
+GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'localhost';
 
 -- Apply the changes
 FLUSH PRIVILEGES;

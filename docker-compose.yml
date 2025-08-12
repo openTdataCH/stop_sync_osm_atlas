@@ -45,8 +45,10 @@ services:
       FLASK_DEBUG: 1 # Enables Flask debugger
       # Database URI for SQLAlchemy, ensuring password matches
       DATABASE_URI: mysql+pymysql://stops_user:1234@db/stops_db
-      # Data optimization settings
-      CREATE_ROUTES_WITH_STOPS: "false" # Disable expensive route-stops mapping by default
+      AUTH_DATABASE_URI: mysql+pymysql://stops_user:1234@db/auth_db
+      SECRET_KEY: ${SECRET_KEY:-dev-insecure}
+      FORCE_HTTPS: "false"
+      SESSION_COOKIE_SECURE: "false"
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 4g # Increase to avoid OOM issues
     # mem_reservation: 1g # Optional: guarantee 1g
@@ -76,8 +78,11 @@ services:
       FLASK_DEBUG: 1 # Enables Flask debugger
       # Database URI for SQLAlchemy, ensuring password matches
       DATABASE_URI: mysql+pymysql://stops_user:1234@db/stops_db
+      AUTH_DATABASE_URI: mysql+pymysql://stops_user:1234@db/auth_db
       SKIP_DATA_IMPORT: "true" # Skip data import for this service
-      CREATE_ROUTES_WITH_STOPS: "false" # Disable expensive route-stops mapping
+      SECRET_KEY: ${SECRET_KEY:-dev-insecure}
+      FORCE_HTTPS: "false"
+      SESSION_COOKIE_SECURE: "false"
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 4g # Increase to avoid OOM issues
     # mem_reservation: 1g # Optional: guarantee 1g

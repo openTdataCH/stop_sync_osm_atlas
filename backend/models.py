@@ -1,24 +1,10 @@
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-import os
+from backend.extensions import db
 
-# Initialize database
-db = SQLAlchemy()
-
-def init_db(app):
-    """Initialize the database with the Flask app"""
-    db.init_app(app)
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'mysql+pymysql://root:@localhost/stops_db')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    return db
-
-# --- IMPORTANT NOTE ON RELATIONSHIPS ---
-# The relationships below are defined using an explicit `primaryjoin` condition.
-# They do NOT use a traditional SQL FOREIGN KEY constraint from the detail tables
-# (`atlas_stops`, `osm_nodes`) back to the `stops` table. This is because the
-# `sloid` and `osm_node_id` columns in the `stops` table are not unique, which
-# prevents a valid foreign key definition on the detail tables.
-# SQLAlchemy is capable of managing these "ad-hoc" relationships effectively.
+"""
+Model definitions for core entities and related tables.
+Relationships to `AtlasStop` and `OsmNode` are defined via explicit join
+conditions rather than database-level foreign keys.
+"""
 
 class Stop(db.Model):
     __tablename__ = 'stops'
@@ -65,8 +51,14 @@ class Problem(db.Model):
     stop = db.relationship('Stop', back_populates='problems')
 
     def to_dict(self):
-        # Get related data from the parent Stop object
-        stop_data = self.stop.to_dict() if self.stop else {}
+        # Build minimal stop data without relying on a non-existent Stop.to_dict()
+        stop_data = {}
+        if self.stop:
+            stop_data = {
+                'sloid': self.stop.sloid,
+                'stop_type': self.stop.stop_type,
+                'match_type': self.stop.match_type,
+            }
 
         # Get OSM and ATLAS specific data from their respective tables
         atlas_data = {}

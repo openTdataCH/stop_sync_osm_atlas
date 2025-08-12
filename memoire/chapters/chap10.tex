@@ -1,0 +1,103 @@
+\chapter{Chapitre 10: Architecture du rendu cartographique et optimisations de performance}
+
+Ce chapitre résume l’architecture de la carte interactive, le flux de données client–serveur et les optimisations qui rendent la navigation réactive avec des volumes de données réalistes. Il expose succinctement les choix de conception et indique où des visuels renforceraient l’explication.
+
+\section{Vue d’ensemble du système}
+La carte (Leaflet) rend quatre classes d’entités : paires appariées (ATLAS–OSM), arrêts ATLAS non appariés, nœuds OSM non appariés et agrégats de stations. Le client ne sollicite que ce qui est nécessaire pour dessiner les marqueurs dans la fenêtre d’affichage courante ; les détails riches des info-bulles sont chargés à la demande lorsque l’utilisateur interagit.
+
+Les données sont persistées à l’aide d’une table cœur normalisée \texttt{stops} (coordonnées, identifiants, types d’arrêt et d’appariement, distance) et de tables de détails \texttt{atlas\_stops} et \texttt{osm\_nodes} (noms, opérateurs, lignes, notes). Cette séparation permet de dessiner la carte à partir de \texttt{stops} uniquement pour la navigation, en reportant les métadonnées lourdes à des chargements à la demande.
+
+\paragraph{Illustration (suggestion).} Un petit diagramme de séquence : l’utilisateur se déplace/zoome \(\rightarrow\) le client appelle \texttt{/api/data} (minimal) \(\rightarrow\) les marqueurs apparaissent ; au clic \(\rightarrow\) le client appelle \texttt{/api/stop\_popup} \(\rightarrow\) les détails de l’info-bulle s’affichent.
+
+\section{Architecture du backend}
+\subsection{Points de terminaison}
+\begin{itemize}
+  \item \texttt{/api/data} : renvoie un ensemble minimal d’enregistrements pour une fenêtre d’affichage et des filtres donnés (identifiants, attributs grossiers, coordonnées). Aucun itinéraire/aucune note n’est inclus(e).
+  \item \texttt{/api/stop\_popup} : renvoie des détails enrichis pour un arrêt unique à la demande (noms, opérateurs, lignes, notes, et contexte de multi-appariement le cas échéant).
+  \item \texttt{/api/top\_matches}, \texttt{/api/global\_stats} : rapports et synthèses d’en-tête.
+  \item La page Problèmes utilise également \texttt{/api/data} pour une petite fenêtre de contexte spatial (\S\ref{sec:problems-context}).
+\end{itemize}
+
+\subsection{Filtrage par fenêtre d’affichage (sargable)}
+Pour sélectionner les entités visibles, le serveur utilise un prédicat \emph{OR-of-ANDs} sargable au lieu de \verb|COALESCE|, ce qui permet d’exploiter les index B-Tree sur les paires de coordonnées ATLAS et OSM :
+
+\begin{verbatim}
+(atlas_lat IS NOT NULL AND atlas_lon IS NOT NULL AND
+ atlas_lat BETWEEN :min_lat AND :max_lat AND
+ atlas_lon BETWEEN :min_lon AND :max_lon)
+OR
+(atlas_lat IS NULL AND atlas_lon IS NULL AND
+ osm_lat IS NOT NULL AND osm_lon IS NOT NULL AND
+ osm_lat BETWEEN :min_lat AND :max_lat AND
+ osm_lon BETWEEN :min_lon AND :max_lon)
+\end{verbatim}
+
+\subsection{Politique de charge utile}
+\textbf{Charge utile de navigation minimale uniquement.} L’endpoint \texttt{/api/data} renvoie toujours une structure JSON compacte suffisante pour rendre les marqueurs (identifiants, types, coordonnées, distance, identifiants sélectionnés). N’y figurent jamais les itinéraires, les notes ou le contenu des tables liées ; les info-bulles s’appuient entièrement sur \texttt{/api/stop\_popup}. Cela réduit la taille des charges utiles et accélère l’analyse à tous les niveaux de zoom.
+
+Le serveur omet intentionnellement les structures coûteuses d’agrégation des multi-appariements dans \texttt{/api/data}. Les éléments visuels à fort zoom (p. ex. lignes de liaison) sont dérivés côté client à partir des coordonnées ligne par ligne lorsque disponibles.
+
+\subsection{Indexation de la base de données}
+Les index qui prennent en charge les schémas d’accès courants incluent : \verb|stops(atlas_lat, atlas_lon)|, \verb|stops(osm_lat, osm_lon)| (fenêtre d’affichage), \verb|stops(stop_type, match_type)| (filtres), et \verb|atlas_stops(atlas_business_org_abbr)| (filtres opérateur).
+
+\section{Architecture du frontend}
+\subsection{Cycle de vie des requêtes et limitation du débit}
+Pour maintenir l’interface réactive lors des déplacements/zooms :
+\begin{itemize}
+  \item \textbf{Anti-rebond} (debounce) de \verb|moveend|/\verb|zoomend| à \(\sim320\,\mathrm{ms}\) avant de récupérer les données de la nouvelle fenêtre d’affichage.
+  \item \textbf{Annulation des requêtes en cours} lorsqu’une nouvelle démarre ; ignorer les réponses obsolètes.
+  \item \textbf{Plafond à zoom intermédiaire} : récupérer jusqu’à \(500\) entités par requête pour garder de petites charges utiles.
+  \item \textbf{Sans plafond à fort zoom} : une fois le seuil atteint plus deux niveaux de zoom, le client omet la limite et le serveur renvoie \emph{tous} les marqueurs dans la fenêtre d’affichage.
+  \item \textbf{Exception « petit ensemble » à faible zoom} : aux faibles zooms (en dessous du seuil d’affichage des marqueurs), le client effectue une requête de sondage avec un plafond plus petit (\(\leq250\)). Si l’ensemble filtré contient \(\leq250\) entités, elles sont rendues même à faible zoom. Sinon, une bannière s’affiche et le rendu est différé jusqu’à ce que l’utilisateur zoome.
+\end{itemize}
+
+\paragraph{Illustration (suggestion).} Un diagramme temporel montrant des déplacements rapides, la fenêtre d’anti-rebond de 320\,ms et l’annulation des requêtes précédentes.
+
+\subsection{Seuils de zoom et politique visuelle}
+Nous alignons le travail visuel sur l’intention :
+\begin{itemize}
+\item \textbf{Masquer les marqueurs} en dessous de \(z<13\) ; afficher une petite bannière invitant l’utilisateur à zoomer. Le texte de la bannière est \emph{« Zoomez pour voir tous les marqueurs d’arrêt »} et reste visible pendant \emph{deux} niveaux de zoom après la première apparition des marqueurs afin d’indiquer que tous les marqueurs ne sont peut-être pas encore affichés.
+  \item \textbf{Masquer les lignes de liaison} en dessous de \(z<14\) ; ne tracer les lignes ATLAS\,\(\rightarrow\)OSM qu’aux niveaux de zoom plus élevés.
+\end{itemize}
+
+\subsection{Rendu des marqueurs : Canvas d’abord, lettres en dernier}
+Les icônes basées sur le DOM (\verb|L.marker| avec \verb|divIcon|) ont un coût élevé lorsqu’elles sont nombreuses. Nous :
+\begin{itemize}
+  \item Préférer les \textbf{cercles Canvas} (\verb|L.circleMarker|) aux faibles et moyens niveaux de zoom et activer l’option de carte \verb|preferCanvas| de Leaflet.
+  \item Rendre les \textbf{icônes lettrées} (\texttt{D}, \texttt{P}, \texttt{S}) uniquement à partir de \(z\geq18\). Aux niveaux de zoom inférieurs, les mêmes nœuds utilisent des cercles légers.
+  \item \textbf{Mettre en cache} les instances identiques de \verb|divIcon| par clé (type+couleur+libellé) pour éviter de recréer du DOM.
+  \item \textbf{Ajouter par lots} les marqueurs aux couches pour éviter de longs blocages du thread principal lors d’inserts massifs.
+  \item Appliquer un léger \textbf{motif de décalage} en cas de superposition exacte des coordonnées afin d’éviter l’occlusion visuelle sans recourir à un 
+  regroupement complet.
+\end{itemize}
+
+\paragraph{Illustration (suggestion).} Une figure en trois panneaux de la même zone à \(z=12\) (pas de marqueurs, bannière), \(z=15\) (cercles Canvas uniquement) et \(z=18\) (marqueurs lettrés pour le sous-ensemble qui en a besoin).
+
+\section{Paires appariées et polylignes}
+À fort zoom, nous traçons des lignes de liaison entre les coordonnées ATLAS et OSM pour les entités appariées lorsque les deux extrémités sont visibles. Les lignes sont omises aux faibles zooms pour réduire l’encombrement et le coût de rendu. Comme \texttt{/api/data} est strictement minimal, cette logique s’applique directement aux coordonnées de chaque ligne ; un contexte relationnel plus riche, si nécessaire, est récupéré via \texttt{/api/stop\_popup}.
+
+\section{Récupération du contexte sur la page Problèmes}
+\label{sec:problems-context}
+La page Problèmes affiche des \emph{marqueurs de contexte} autour du problème courant à l’aide d’une petite boîte englobante (\(\pm 0.02^\circ\), \(\approx 2\,\mathrm{km}\)), de résultats plafonnés (\(150\)–\(200\)) et de la même politique de rendu (Canvas d’abord, lignes uniquement à fort zoom). Les info-bulles sont chargées paresseusement via \texttt{/api/stop\_popup}, et les marqueurs sont ajoutés par lots. La carte active aussi \verb|preferCanvas| pour un dessin vectoriel rapide.
+
+\section{Considérations d’expérience utilisateur}
+\subsection{Échantillonnage et limites}
+Aux zooms intermédiaires, le client plafonne les résultats (\(\leq500\)) et le serveur renvoie un sous-ensemble. À fort zoom (seuil + deux niveaux), le client omet la limite et \emph{tous} les marqueurs qui correspondent dans la fenêtre d’affichage sont renvoyés. L’interface communique le contexte via la bannière de zoom et un rendu incrémental rapide. À faible zoom, le client émet une requête de sondage avec un plafond plus petit ; si le nombre de résultats est faible (\(\leq250\)), ils sont rendus immédiatement. Sinon, la bannière s’affiche et le rendu complet est différé jusqu’à ce que l’utilisateur zoome. Une amélioration facultative consiste en une petite note du type \emph{« Affichage de N sur M. Zoomez pour en voir davantage. »}
+
+\subsection{Statistiques d’en-tête}
+Les statistiques globales se rafraîchissent en parallèle des chargements de données et s’appuient sur des agrégations optimisées afin de ne pas dégrader la navigation interactive.
+
+\section{Impact sur les performances}
+Gains qualitatifs observés sur l’ensemble des jeux de données :
+\begin{itemize}
+  \item \textbf{Serveur} : CPU plus faible grâce aux filtres sargables, à la sérialisation de charges utiles plus petites et aux requêtes anti-rebond/annulées.
+  \item \textbf{Réseau} : JSON systématiquement plus petit (strictement minimal), analyse plus rapide.
+  \item \textbf{Client} : moins de nœuds DOM (lettres uniquement à \(z\geq18\)), rendu Canvas d’abord, icônes mises en cache et insertions par lots réduisent le travail du thread principal.
+\end{itemize}
+
+\paragraph{Illustration (suggestion).} Un histogramme comparant les tailles de charge utile (\texttt{/api/data} minimal vs \texttt{/api/stop\_popup} à la demande) et une courbe du temps par image avant/après « Canvas d’abord » + insertions par lots.
+
+\section{Résumé}
+Le système atteint des performances interactives en associant une charge utile de navigation \textbf{strictement minimale} à des \textbf{détails d’info-bulle différés}, un filtrage de fenêtre d’affichage sargable, des requêtes anti-rebond/annulables et un rendu \textbf{Canvas d’abord}. Les icônes DOM lettrées sont différées à des niveaux de zoom très élevés et réutilisées via la mise en cache ; les marqueurs sont insérés par lots pour maintenir la réactivité du thread principal. Ensemble, ces mesures réduisent le travail côté serveur, le coût réseau et la charge de rendu côté client tout en préservant la clarté lors d’une inspection détaillée.
+
+

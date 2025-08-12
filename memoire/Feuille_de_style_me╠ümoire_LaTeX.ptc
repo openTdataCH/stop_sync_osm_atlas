@@ -1,0 +1,188 @@
+\boolfalse {citerequest}\boolfalse {citetracker}\boolfalse {pagetracker}\boolfalse {backtracker}\relax 
+\babel@toc {french}{}
+\ttl@starttoc {default@1}
+\ttl@starttoc {annexes@1}
+\ttl@stoptoc {annexes@1}
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Résumé}{vii}{chapter*.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Liste des illustrations}{ix}{chapter*.4}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Liste des tableaux}{x}{chapter*.5}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Introduction}{1}{chapter*.6}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {1}Chapitre 1 : Données ATLAS}{5}{chapter.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.1}Arrêts}{5}{section.1.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{Statistiques ATLAS (WGS84).}{6}{lstnumber.-1.13}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.2}GTFS}{7}{section.1.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {a}Description des fichiers}{8}{subsection.1.2.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {b}Analyse et défis de jointure}{9}{subsection.1.2.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {c}Résulats}{11}{subsection.1.2.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {d}Compléments cartographiques}{12}{subsection.1.2.4}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{Distances ATLAS–GTFS: définition et interprétation.}{12}{figure.caption.20}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{Lecture du graphique.}{12}{figure.caption.21}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.3}HRDF}{13}{section.1.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {a}Comment nous le lisons}{14}{subsection.1.3.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {b}Informations exploitées}{15}{subsection.1.3.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {c}Statistiques clés}{16}{subsection.1.3.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.4}Comparaison GTFS et HRDF (couverture SLOID)}{17}{section.1.4}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{Lien avec la suite.}{17}{figure.caption.26}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.5}Chaîne d’acquisition et de prétraitement (vue d’ensemble)}{17}{section.1.5}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {a}Flux détaillé}{19}{subsection.1.5.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{ATLAS.}{19}{subsection.1.5.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{GTFS (streaming en deux passes).}{19}{subsection.1.5.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{HRDF (deux passes ciblées avec gardes rapides).}{19}{subsection.1.5.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.6}Principes d’ingénierie et d’optimisation}{20}{section.1.6}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.7}Optimisations et résultats expérimentaux}{20}{section.1.7}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {a}Ingestion GTFS — streaming en deux passes}{20}{subsection.1.7.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{Pourquoi le streaming gagne.}{21}{table.caption.28}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {b}Parsing HRDF — deux passes ciblées avec gardes}{22}{subsection.1.7.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {1.8}Reproductibilité et exécution}{22}{section.1.8}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {2}Chapitre 2: Transport Public dans OSM}{24}{chapter.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {2.1}Schémas de cartographie du transport public dans OSM}{24}{section.2.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {2.2}Différences dans l'usage de clés spécifiques}{25}{section.2.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {2.3}Requête Overpass Transport Public Suisse}{26}{section.2.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {2.4}Aperçu des ``tags'' des nœuds de transport public dans OSM en Suisse}{28}{section.2.4}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {2.5}Aperçu des itinéraires de transport public dans OSM en Suisse}{30}{section.2.5}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {a}Les 5 nœuds de transport public les plus fréquentés}{31}{subsection.2.5.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {b}Analyse des directions des itinéraires}{32}{subsection.2.5.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {c}Top 5 des itinéraires avec le plus d'arrêts}{32}{subsection.2.5.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {3}Chapitre 3 : Correspondance avec les données ATLAS-OSM}{33}{chapter.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {3.1}Correspondance Exacte}{33}{section.3.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {3.2}Correspondance par Nom}{34}{section.3.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {3.3}Correspondance par Distance}{34}{section.3.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {a}Étape 1 : Correspondance de groupe basée sur la proximité}{35}{subsection.3.3.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {b}Étape 2 : Correspondance par référence locale dans un rayon de 50 mètres}{37}{subsection.3.3.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {c}Étape 3 : Correspondance basée sur la proximité avec critères relatifs}{37}{subsection.3.3.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {3.4}Résultats actuels}{38}{section.3.4}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {4}Chapitre 4 : Correspondance par itinéraire}{39}{chapter.4}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {5}Chapitre 5 : Analyse des résultats}{40}{chapter.5}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {5.1}Distances les Plus Importantes}{40}{section.5.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {5.2}Statistiques de Distance}{41}{section.5.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {6}Chapitre 7 : Problèmes detectés}{42}{chapter.6}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {7}Chapitre 7 : Base de données}{43}{chapter.7}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {8}Chapitre 8 : Backend}{44}{chapter.8}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {9}Chapitre 9 : Frontend}{45}{chapter.9}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {10}Chapitre 10: Architecture du rendu cartographique et optimisations de performance}{46}{chapter.10}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {10.1}Vue d’ensemble du système}{46}{section.10.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{Illustration (suggestion).}{46}{section.10.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {10.2}Architecture du backend}{46}{section.10.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {a}Points de terminaison}{46}{subsection.10.2.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {b}Filtrage par fenêtre d’affichage (sargable)}{47}{subsection.10.2.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {c}Politique de charge utile}{47}{subsection.10.2.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {d}Indexation de la base de données}{47}{subsection.10.2.4}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {10.3}Architecture du frontend}{48}{section.10.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {a}Cycle de vie des requêtes et limitation du débit}{48}{subsection.10.3.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{Illustration (suggestion).}{48}{subsection.10.3.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {b}Seuils de zoom et politique visuelle}{48}{subsection.10.3.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {c}Rendu des marqueurs : Canvas d’abord, lettres en dernier}{49}{subsection.10.3.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{Illustration (suggestion).}{49}{subsection.10.3.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {10.4}Paires appariées et polylignes}{49}{section.10.4}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {10.5}Récupération du contexte sur la page Problèmes}{49}{section.10.5}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {10.6}Considérations d’expérience utilisateur}{50}{section.10.6}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {a}Échantillonnage et limites}{50}{subsection.10.6.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {b}Statistiques d’en-tête}{50}{subsection.10.6.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {10.7}Impact sur les performances}{50}{section.10.7}%
+\defcounter {refsection}{0}\relax 
+\contentsline {paragraph}{Illustration (suggestion).}{50}{section.10.7}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {10.8}Résumé}{50}{section.10.8}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {11}Chapitre 11: Système d'authentification sécurisé}{52}{chapter.11}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {11.1}Objectifs}{52}{section.11.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {11.2}Aperçu de l'architecture}{52}{section.11.2}%
+\defcounter {refsection}{0}\relax 
+\contentsline {subsection}{\numberline {a}Composants}{52}{subsection.11.2.1}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {11.3}Modèle de données (auth\_db)}{53}{section.11.3}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {11.4}Activation et utilisation de la 2FA}{53}{section.11.4}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {11.5}Sécurité opérationnelle}{53}{section.11.5}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {11.6}Interface utilisateur}{53}{section.11.6}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {11.7}Sécurité des données lors des mises à jour}{54}{section.11.7}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {11.8}Pistes de durcissement}{54}{section.11.8}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{\numberline {12}Chapitre 12: Evaluation de la sécurité de l'application}{55}{chapter.12}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Conclusion}{56}{chapter*.39}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Références documentaires}{57}{chapter*.40}%
+\contentsfinish 

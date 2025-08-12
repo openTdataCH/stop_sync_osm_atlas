@@ -1,0 +1,96 @@
+/* Filter panel and badges (extracted, identical selectors) */
+#filterPanelContainer {
+  padding-right: 10px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#filterPanelContainer > .card {
+  border: none;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.card-header {
+  background-color: #e9ecef;
+  border-bottom: 1px solid #dee2e6;
+  font-weight: 600;
+  color: #495057;
+  border-radius: 0.5rem 0.5rem 0 0 !important;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#filterPanelBody {
+  padding: 1rem 1rem 0 1rem;
+  overflow-y: auto;
+  flex-grow: 1;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #adb5bd #e9ecef;
+}
+
+#filterPanelBody::-webkit-scrollbar { width: 8px; }
+#filterPanelBody::-webkit-scrollbar-track { background: #e9ecef; border-radius: 10px; }
+#filterPanelBody::-webkit-scrollbar-thumb { background-color: #adb5bd; border-radius: 10px; border: 2px solid #e9ecef; }
+#filterPanelBody::-webkit-scrollbar-thumb:hover { background-color: #868e96; }
+
+.card-footer {
+  background-color: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+  border-radius: 0 0 0.5rem 0.5rem !important;
+  flex-shrink: 0;
+}
+
+#fixedFilterControls { flex-shrink: 0; padding: 0.5rem 1rem; background-color: #ffffff; border-top: 1px solid #dee2e6; }
+#fixedFilterControls > .card { margin-top: 0.5rem; box-shadow: none; border: 1px solid #dee2e6; }
+#fixedFilterControls > .card > .card-header { padding: 0.5rem 1rem; }
+#fixedFilterControls > .card > .card-body { padding: 0.5rem 1rem; }
+#fixedFilterControls > #activeFilters { padding: 0.5rem 0; border-top: 1px solid #dee2e6; margin-top: 0.5rem; margin-bottom: 0.5rem; }
+#fixedFilterControls > .card-footer { padding: 0.5rem 0 0 0; border-top: none; background-color: transparent; }
+
+.compact-group { margin-bottom: 1rem; }
+.compact-group:last-child { margin-bottom: 0; }
+
+.badge { font-size: 0.875rem; font-weight: 600; border-radius: 999px; padding: 0.35rem 0.6rem; line-height: 1.2; background-color: #ffffff; border: 1.5px solid currentColor; color: #495057; }
+.badge-secondary { color: #6c757d; border-color: #6c757d; background-color: #ffffff; }
+.badge-primary { color: #007bff; border-color: #007bff; background-color: #ffffff; }
+.badge-success { color: #28a745; border-color: #28a745; background-color: #ffffff; }
+.badge-warning { color: #ffc107; border-color: #ffc107; background-color: #ffffff; }
+.badge-info { color: #17a2b8; border-color: #17a2b8; background-color: #ffffff; }
+.badge-danger { color: #dc3545; border-color: #dc3545; background-color: #ffffff; }
+.badge a { text-decoration: none; margin-left: 0.25rem; font-weight: 600; font-size: 0.95rem; }
+.badge a:hover { text-decoration: none; opacity: 0.8; }
+
+#activeFilters .badge { margin: 0.3rem 0.2rem; }
+
+/* Compact groups directly under filterPanelBody */
+#filterPanelBody > .compact-group { margin-bottom: 1.25rem; }
+#filterPanelBody > .compact-group:last-of-type { margin-bottom: 0.5rem; }
+
+/* Remove margin from header form group */
+.card-header .form-group.d-flex.align-items-center.justify-content-center { margin-bottom: 0 !important; }
+
+/* Active Filters container in the scrolling body */
+#activeFilters { padding: 0.75rem; border-top: 1px solid #dee2e6; background-color: #f8f9fa; flex-shrink: 0; }
+
+/* Ensure the select for Search by fits well */
+#filterTypeSelector { width: auto; display: inline-block !important; margin-bottom: 0.5rem; }
+
+/* Remove bottom margin from last compact-group within any card-body */
+.card-body .compact-group:last-child { margin-bottom: 0; }
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  #filterPanelBody { padding: 0.75rem; }
+}
+
+

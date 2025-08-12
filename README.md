@@ -1,9 +1,7 @@
 # **Bachelor Project**
 
-!! This version has bugs and issues, fixes will come soon !!
 
-
-Welcome to the **Bachelor Project** repository. This project provides a systematic pipeline to identify, analyze, and resolve discrepancies between public transport stop data from **ATLAS** (Swiss official data) and **OpenStreetMap (OSM)**.
+Welcome to the **OSM & ATLAS Synchronization** repository. This project provides a systematic pipeline to identify, analyze, and resolve discrepancies between public transport stop data from **ATLAS** (Swiss official data) and **OpenStreetMap (OSM)**.
 
 ---
 
@@ -148,12 +146,9 @@ Access it at [http://localhost:5001/](http://localhost:5001/).
 - **Map View**: Browse stops by type (`matched`, `unmatched`, `osm`) and match method.
 - **Filters & Search**: Filter by ATLAS SLOID, OSM Node ID, UIC reference, or route.
 - **Manual Matching**: On the Problems page, use the Manual match action, select the opposite dataset entry on the map, and the system will save the pair. You can auto‑persist from the side panel.
-- **API Endpoints**:
-  - `GET /api/data` – viewport + filter parameters
-  - `POST /api/manual_match` – create a manual match between an ATLAS stop and an OSM node
-  - `GET /api/search` – keyword search
-  - `GET /api/generate_report` – PDF report
-  - `GET /api/route_stops` – stops for a route
+- **Problems**:
+  
+- **Manage Data**:
 
 ## Generating Reports
 
@@ -161,7 +156,7 @@ The web app can generate CSV and PDF reports (still work in progress).
 
 ## Project Report
 
-A draft of the project report is available [here](https://gitedu.hesge.ch/guillem.massague/bachelor-project/-/blob/main/DRAFT_projet_bachelor.pdf).
+Work in progress.
 
 ## Project Status
 

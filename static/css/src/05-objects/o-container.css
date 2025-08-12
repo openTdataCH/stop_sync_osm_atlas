@@ -1,0 +1,10 @@
+.o-container {
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+  max-width: 1200px;
+}
+
+

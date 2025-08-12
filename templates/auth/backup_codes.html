@@ -1,0 +1,17 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Backup Codes{% endblock %}
+{% block content %}
+<div class="container mt-5" style="max-width: 560px;">
+  <h2>Save your backup codes</h2>
+  <p>These codes can be used to log in if you lose access to your Authenticator device. Each code can be used once. Store them securely.</p>
+  <pre class="p-3 bg-light border">{% for c in backup_codes %}
+{{ c }}
+{% endfor %}</pre>
+  <a href="{{ url_for('index') }}" class="btn btn-primary">Done</a>
+  <form method="post" action="{{ url_for('auth.disable_2fa') }}" class="d-inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn btn-outline-danger ml-2" type="submit">Disable 2FA</button>
+  </form>
+</div>
+{% endblock %}
+

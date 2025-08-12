@@ -187,8 +187,8 @@ def _load_and_prepare_route_data():
     files_loaded_successfully = True
     logger.info("Loading route information from CSV files...")
     try:
-        # Load ATLAS routes data
-        atlas_routes_csv_path = "data/processed/atlas_routes.csv"
+        # Load ATLAS routes data (aligned with generator output)
+        atlas_routes_csv_path = "data/processed/atlas_routes_gtfs.csv"
         atlas_routes = pd.read_csv(atlas_routes_csv_path)
         required_atlas_cols = ['sloid', 'route_id', 'direction_id']
         for col in required_atlas_cols:

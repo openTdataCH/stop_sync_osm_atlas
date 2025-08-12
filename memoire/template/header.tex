@@ -1,0 +1,35 @@
+% !TeX spellcheck = fr_FR
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                             %
+%% HEPIA BACHELOR THESIS FRONTPAGE LATEX TEMPLATE                              %
+%% version 0.10 - 2020/04/25                                                    %
+%%                                                                             %
+%%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% set geometry
+\setlength{\headheight}{15pt}
+\setlength{\headsep}{0.5cm}
+% set text of header
+\newcommand{\Headertext}{\textcolor{black!50}{\scriptsize{\Author - \Shorttitle - Projet de semestre - \Month \Year}}}
+% define page header page style
+\fancypagestyle{withheader}{%
+\lhead[\Headertext]{\Headertext}
+\chead[]{}
+\rhead[]{}
+\renewcommand{\headrulewidth}{0pt} 
+}
+% define page stlye with chapters
+\fancypagestyle{plain}{%
+\lhead[\Headertext]{\Headertext}
+\chead[]{}
+\rhead[]{}
+\renewcommand{\headrulewidth}{0pt} 
+}
+% define page style to be used where no header is needed
+\fancypagestyle{noheader}{%
+\lhead[]{}
+\chead[]{}
+\rhead[]{}
+}
+% set header page style
+\pagestyle{withheader}

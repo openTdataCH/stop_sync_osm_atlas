@@ -1,0 +1,13 @@
+/* Header styles (transitional, identical selectors) */
+.header-icon { height: 88px; width: auto; vertical-align: middle; position: relative; z-index: 1; margin-right: 15px; }
+.header-title { position: relative; z-index: 2; background: transparent; padding: 0 6px; white-space: nowrap; border-radius: 8px; }
+.header-container { position: relative; display: flex; align-items: center; justify-content: center; margin: 0; gap: 12px; }
+.header-chip { display: inline-flex; align-items: center; gap: 10px; background: #ffffff; border-radius: 12px; padding: 6px 12px; }
+.header-chip .header-icon { margin-right: 0; }
+.auth-controls { position: absolute; top: 8px; right: 10px; display: flex; align-items: center; }
+.auth-controls .btn, .auth-controls .badge { margin-left: 6px; }
+.header-summary { position: absolute; top: 10px; right: 10px; z-index: 1000; font-size: 0.8rem; color: #343a40; background: rgba(255, 255, 255, 0.88); padding: 8px 12px; border-radius: 10px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-width: 180px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); border: 1px solid rgba(0,0,0,0.06); white-space: nowrap; pointer-events: none; }
+.header-summary div { margin-bottom: 2px; }
+.header-summary div:last-child { margin-bottom: 0; }
+
+

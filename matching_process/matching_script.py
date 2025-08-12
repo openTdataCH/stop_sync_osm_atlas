@@ -3,13 +3,13 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 import logging
-from matching_process.utils import is_osm_station
+from matching_process.utils import is_osm_station, haversine_distance
 # Import functions from distance_matching.py
 from matching_process.distance_matching import distance_matching, transform_for_distance_matching
 # Import route_matching function
 from matching_process.route_matching import route_matching
-# Import standardize_operator from org_standaarization.py
-from matching_process.org_standaarization import standardize_operator
+# Import standardize_operator from org_standardization.py
+from matching_process.org_standardization import standardize_operator
 # Import centralized isolation detection
 from matching_process.problem_detection import detect_osm_isolation
 # Import split-out matching stages
@@ -96,7 +96,7 @@ def parse_osm_xml(xml_file):
 # Use module-level logger defined by basicConfig at import
 
 
-def final_pipeline(route_matching_strategy='hrdf'):
+def final_pipeline(route_matching_strategy='hrdf_gtfs'):
     """
     Execute the complete matching pipeline:
     1. Load data from CSV and XML files
@@ -134,6 +134,30 @@ def final_pipeline(route_matching_strategy='hrdf'):
         tmp_session.close()
     except Exception as _e:
         manual_pairs = set()
+
+    # --- Build manual_matches early so it can be used downstream ---
+    manual_matches = []
+    if manual_pairs:
+        atlas_by_sloid = {str(row['sloid']): row for _, row in atlas_df.iterrows()}
+        osm_by_node_id = {str(node.get('node_id')): node for node in all_osm_nodes.values()}
+        for sloid, node_id in manual_pairs:
+            a = atlas_by_sloid.get(sloid)
+            o = osm_by_node_id.get(node_id)
+            if a and o:
+                manual_matches.append({
+                    'sloid': sloid,
+                    'csv_lat': a.get('wgs84North'),
+                    'csv_lon': a.get('wgs84East'),
+                    'number': a.get('number'),
+                    'osm_node_id': node_id,
+                    'osm_lat': o.get('lat'),
+                    'osm_lon': o.get('lon'),
+                    'osm_public_transport': o.get('tags', {}).get('public_transport'),
+                    'osm_railway': o.get('tags', {}).get('railway'),
+                    'osm_amenity': o.get('tags', {}).get('amenity'),
+                    'osm_aerialway': o.get('tags', {}).get('aerialway'),
+                    'match_type': 'manual'
+                })
 
     # --- Identify Duplicate ATLAS entries ---
     # Keep=False marks all occurrences of duplicates as True
@@ -261,6 +285,129 @@ def final_pipeline(route_matching_strategy='hrdf'):
         if 'sloid' in m:
             matched_sloids.add(m['sloid']) # Add route matched sloids
 
+    # --- Post-pass: unique-by-UIC consolidation (safe exact matches) ---
+    logger.info("Running post-pass unique-by-UIC consolidation...")
+    postpass_exact_matches = []
+    # Remaining unmatched after all prior stages
+    remaining_unmatched_df = unmatched_after_name_df[~unmatched_after_name_df['sloid'].isin(matched_sloids)]
+    if not remaining_unmatched_df.empty:
+        # Group by UIC number (ATLAS 'number')
+        for uic_ref, grp_df in remaining_unmatched_df.groupby(remaining_unmatched_df['number'].astype(str)):
+            candidates = uic_ref_dict.get(str(uic_ref), [])
+            if not candidates:
+                continue
+            # Filter out already used OSM nodes and station nodes
+            available_osm = [c for c in candidates if c['node_id'] not in used_osm_ids_total and not is_osm_station(c)]
+            if len(available_osm) == 1:
+                osm_node = available_osm[0]
+                tags = osm_node.get('tags', {})
+                for _, row in grp_df.iterrows():
+                    csv_lat = row['wgs84North']
+                    csv_lon = row['wgs84East']
+                    designation = str(row['designation']).strip() if pd.notna(row['designation']) else ""
+                    designation_official = str(row.get('designationOfficial')).strip() if pd.notna(row.get('designationOfficial')) else designation
+                    business_org_abbr = str(row.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
+                    dist = haversine_distance(csv_lat, csv_lon, osm_node['lat'], osm_node['lon'])
+                    postpass_exact_matches.append({
+                        'sloid': row['sloid'],
+                        'number': row['number'],
+                        'uic_ref': str(uic_ref),
+                        'csv_designation': designation,
+                        'csv_designation_official': designation_official,
+                        'csv_lat': csv_lat,
+                        'csv_lon': csv_lon,
+                        'csv_business_org_abbr': business_org_abbr,
+                        'osm_node_id': osm_node['node_id'],
+                        'osm_lat': osm_node['lat'],
+                        'osm_lon': osm_node['lon'],
+                        'osm_local_ref': osm_node.get('local_ref'),
+                        'osm_network': tags.get('network', ''),
+                        'osm_operator': tags.get('operator', ''),
+                        'osm_original_operator': tags.get('original_operator'),
+                        'osm_amenity': tags.get('amenity', ''),
+                        'osm_railway': tags.get('railway', ''),
+                        'osm_aerialway': tags.get('aerialway', ''),
+                        'osm_name': tags.get('name', ''),
+                        'osm_uic_name': tags.get('uic_name', ''),
+                        'osm_uic_ref': tags.get('uic_ref', ''),
+                        'osm_public_transport': tags.get('public_transport', ''),
+                        'distance_m': dist,
+                        'match_type': 'exact_postpass',
+                        'candidate_pool_size': 1,
+                        'matching_notes': 'Post-pass unique-by-UIC consolidation'
+                    })
+                    matched_sloids.add(row['sloid'])
+                # Mark this OSM node as used for subsequent logic
+                used_osm_ids_total.add(osm_node['node_id'])
+
+    # Build preliminary matches list for duplicate propagation
+    prelim_matches = manual_matches + exact_matches + name_matches + actual_distance_matches + route_matches + postpass_exact_matches
+
+    # --- Duplicate propagation across ATLAS duplicates ---
+    logger.info("Propagating matches across ATLAS duplicate groups...")
+    duplicate_propagation_matches = []
+    try:
+        # Map sloid -> atlas row for quick lookup
+        atlas_by_sloid_full = {str(row['sloid']): row for _, row in atlas_df.iterrows()}
+        # Build an index of existing matches by sloid
+        matches_by_sloid = {}
+        for m in prelim_matches:
+            s = str(m.get('sloid'))
+            if not s:
+                continue
+            # Keep the match with the smallest distance for propagation
+            prev = matches_by_sloid.get(s)
+            if prev is None or (m.get('distance_m') or float('inf')) < (prev.get('distance_m') or float('inf')):
+                matches_by_sloid[s] = m
+
+        # Reuse previously computed duplicate rows/groups
+        if not duplicate_rows_df.empty:
+            for (_, _), group_df in duplicate_rows_df.groupby(['number', 'designation'], sort=False):
+                sloids_in_group = set(group_df['sloid'].astype(str).tolist())
+                matched_in_group = [s for s in sloids_in_group if s in matches_by_sloid]
+                if not matched_in_group:
+                    continue
+                # Choose a source match with minimal distance among matched sloids
+                def _dist_or_inf(m):
+                    return m.get('distance_m') if m.get('distance_m') is not None else float('inf')
+                source_sloid = min(matched_in_group, key=lambda s: _dist_or_inf(matches_by_sloid[s]))
+                source_match = matches_by_sloid[source_sloid]
+                osm_lat = source_match.get('osm_lat')
+                osm_lon = source_match.get('osm_lon')
+                # Propagate to unmatched members of the group
+                for target_sloid in sloids_in_group:
+                    if target_sloid in matched_sloids:
+                        continue
+                    atlas_row = atlas_by_sloid_full.get(str(target_sloid))
+                    if atlas_row is None:
+                        continue
+                    csv_lat = atlas_row['wgs84North']
+                    csv_lon = atlas_row['wgs84East']
+                    business_org_abbr = str(atlas_row.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
+                    designation = str(atlas_row['designation']).strip() if pd.notna(atlas_row['designation']) else ''
+                    designation_official = str(atlas_row.get('designationOfficial')).strip() if pd.notna(atlas_row.get('designationOfficial')) else designation
+                    # Recompute distance for the target sloid to the same OSM node
+                    dist = None
+                    if osm_lat is not None and osm_lon is not None:
+                        dist = haversine_distance(csv_lat, csv_lon, osm_lat, osm_lon)
+                    propagated = {
+                        **{k: v for k, v in source_match.items() if k not in ('sloid', 'csv_lat', 'csv_lon', 'csv_designation', 'csv_designation_official', 'csv_business_org_abbr', 'distance_m', 'match_type', 'matching_notes', 'number')},
+                        'sloid': target_sloid,
+                        'number': atlas_row['number'],
+                        'csv_lat': csv_lat,
+                        'csv_lon': csv_lon,
+                        'csv_business_org_abbr': business_org_abbr,
+                        'csv_designation': designation,
+                        'csv_designation_official': designation_official,
+                        'distance_m': dist,
+                        'match_type': 'duplicate_propagation',
+                        'matching_notes': f"Duplicate propagation from sloid {source_sloid}"
+                    }
+                    duplicate_propagation_matches.append(propagated)
+                    matched_sloids.add(target_sloid)
+    except Exception as e:
+        logger.warning(f"Duplicate propagation step failed: {e}")
+
     # --- Find Remaining Unmatched Nodes ---
     unmatched_osm_nodes = [node for node in all_osm_nodes.values() if node['node_id'] not in used_osm_ids_total]
     logger.info(f"Unmatched OSM nodes: {len(unmatched_osm_nodes)}")
@@ -306,32 +453,10 @@ def final_pipeline(route_matching_strategy='hrdf'):
         unmatched_with_routes_count = 0
 
     # --- Combine All Matches ---
-    # Include manual pairs as matches with tag 'manual'
-    manual_matches = []
-    if manual_pairs:
-        atlas_by_sloid = {str(row['sloid']): row for _, row in atlas_df.iterrows()}
-        osm_by_node_id = {str(node.get('node_id')): node for node in all_osm_nodes.values()}
-        for sloid, node_id in manual_pairs:
-            a = atlas_by_sloid.get(sloid)
-            o = osm_by_node_id.get(node_id)
-            if a and o:
-                manual_matches.append({
-                    'sloid': sloid,
-                    'csv_lat': a.get('wgs84North'),
-                    'csv_lon': a.get('wgs84East'),
-                    'number': a.get('number'),
-                    'osm_node_id': node_id,
-                    'osm_lat': o.get('lat'),
-                    'osm_lon': o.get('lon'),
-                    'osm_public_transport': o.get('tags', {}).get('public_transport'),
-                    'osm_railway': o.get('tags', {}).get('railway'),
-                    'osm_amenity': o.get('tags', {}).get('amenity'),
-                    'osm_aerialway': o.get('tags', {}).get('aerialway'),
-                    'match_type': 'manual'
-                })
+    # manual_matches already built above
 
     # Combine only actual matches
-    all_matches = manual_matches + exact_matches + name_matches + actual_distance_matches + route_matches
+    all_matches = manual_matches + exact_matches + name_matches + actual_distance_matches + route_matches + postpass_exact_matches + duplicate_propagation_matches
     all_matches_df = pd.DataFrame(all_matches)
     
     # --- Calculate Final Unmatched ATLAS Entries ---

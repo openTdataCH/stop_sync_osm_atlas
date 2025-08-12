@@ -1,0 +1,21 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Enable 2FA{% endblock %}
+{% block content %}
+<div class="container mt-5" style="max-width: 560px;">
+  <h2>Enable Two-Factor Authentication (TOTP)</h2>
+  <p>Scan this QR code with Google Authenticator (or any TOTP app), then enter the 6-digit code to verify and enable 2FA.</p>
+  <div class="text-center mb-3">
+    <img src="{{ qr_data_url }}" alt="2FA QR" style="max-width:260px;"/>
+  </div>
+  <p class="text-muted">Secret: <code>{{ secret }}</code></p>
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label for="token">Verification code</label>
+      <input type="text" name="token" id="token" class="form-control" placeholder="123456" required>
+    </div>
+    <button class="btn btn-primary">Enable 2FA</button>
+  </form>
+</div>
+{% endblock %}
+

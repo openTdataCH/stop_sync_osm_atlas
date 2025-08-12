@@ -1,0 +1,18 @@
+.c-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.c-dropdown__menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: var(--z-dropdown);
+  display: none;
+}
+
+.c-dropdown.is-open > .c-dropdown__menu {
+  display: block;
+}
+
+

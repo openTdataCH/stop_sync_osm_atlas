@@ -1,0 +1,5 @@
+/* Distance indicator in problem headers */
+.distance-indicator { font-size: 0.9em; color: #6c757d; margin-left: 8px; }
+.distance-indicator.high-distance { color: #dc3545; font-weight: bold; }
+
+

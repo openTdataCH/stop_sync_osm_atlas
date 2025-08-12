@@ -3,8 +3,9 @@ Enhanced QueryBuilder class for handling complex database queries with shared fi
 This module consolidates common filtering patterns to reduce code duplication and improve performance.
 """
 
-from backend.app_data import get_stops_for_route
-from backend.models import db, Stop, AtlasStop, OsmNode
+from backend.services.routes import get_stops_for_route
+from backend.extensions import db
+from backend.models import Stop, AtlasStop, OsmNode
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 

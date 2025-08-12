@@ -1,0 +1,116 @@
+/* Direction Dropdown Styling (transitional, identical selectors) */
+.direction-dropdown {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 0.25rem;
+    padding: 0.2rem 0.4rem;
+    margin: 0 0.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    font-size: 0.8rem;
+    min-width: 60px;
+    justify-content: space-between;
+}
+
+.direction-dropdown:hover {
+    background-color: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.direction-dropdown.open {
+    background-color: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.direction-dropdown .direction-current {
+    font-weight: 500;
+    margin-right: 0.3rem;
+    white-space: nowrap;
+}
+
+.direction-dropdown .direction-arrow {
+    font-size: 0.7rem;
+    transition: transform 0.2s ease-in-out;
+    opacity: 0.8;
+}
+
+.direction-dropdown .direction-arrow.rotated {
+    transform: rotate(180deg);
+}
+
+/* Direction Options Panel */
+.direction-options {
+    position: absolute;
+    top: 100%;
+    left: -1px;
+    right: -1px;
+    background-color: white;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 0.25rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    margin-top: 2px;
+    overflow: hidden;
+}
+
+.direction-option {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+    color: #333;
+    cursor: pointer;
+    transition: background-color 0.15s ease-in-out;
+    white-space: nowrap;
+}
+
+.direction-option:hover {
+    background-color: #f8f9fa;
+}
+
+.direction-option:active {
+    background-color: #e9ecef;
+}
+
+/* Highlight current selection in dropdown */
+.direction-dropdown[data-current=""] .direction-option[data-direction=""],
+.direction-dropdown[data-current="0"] .direction-option[data-direction="0"],
+.direction-dropdown[data-current="1"] .direction-option[data-direction="1"] {
+    background-color: #e3f2fd;
+    font-weight: 500;
+}
+
+/* Special styling for direction dropdown in different badge colors */
+.badge-danger .direction-dropdown {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: white;
+}
+
+.badge-danger .direction-dropdown:hover,
+.badge-danger .direction-dropdown.open {
+    background-color: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+.badge-dark .direction-dropdown {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.25);
+    color: white;
+}
+
+.badge-dark .direction-dropdown:hover,
+.badge-dark .direction-dropdown.open {
+    background-color: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* Smooth slide animation for the dropdown */
+.direction-options {
+    animation-duration: 0.2s;
+    animation-timing-function: ease-out;
+}
+
+

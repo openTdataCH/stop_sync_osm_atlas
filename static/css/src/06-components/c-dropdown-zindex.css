@@ -1,0 +1,4 @@
+/* Ensure the search dropdown menu appears on top of other elements */
+.dropdown-menu.show { z-index: 999999 !important; }
+
+

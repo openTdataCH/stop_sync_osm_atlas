@@ -39,10 +39,11 @@ data/
 
 | File | Description | Used By | Required |
 |------|-------------|---------|----------|
-| `osm_nodes_with_routes.csv` | OSM nodes with route/direction info | Route matching, Database import | ✅ Yes |
-| `atlas_routes.csv` | ATLAS stops with route/direction info | Route matching, Database import | ✅ Yes |
+| `osm_nodes_with_routes.csv` | OSM nodes with route/direction info (node→routes) | Route matching, Database import | ✅ Yes |
+| `atlas_routes_gtfs.csv` | ATLAS stops with GTFS route/direction info | Route matching, Database import | ✅ Yes |
+| `atlas_routes_hrdf.csv` | ATLAS stops with HRDF direction info | Database import | ✅ Yes |
 | `atlas_routes_with_stops.csv` | Routes with lists of stops | Web interface (optional) | ❌ Optional |
-| `osm_routes_with_nodes.csv` | Routes with lists of nodes | Future use | ❌ Optional |
+| `osm_routes_with_nodes.csv` | Routes with lists of nodes (route→nodes) | Future use | ❌ Optional |
 
 ### Debug Files (`data/debug/`)
 

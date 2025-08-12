@@ -1,0 +1,68 @@
+<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom">
+  <div class="container-fluid">
+    <!-- Brand -->
+    <a class="navbar-brand d-flex align-items-center text-nowrap" href="{{ url_for('index') }}" title="OSM &amp; ATLAS Synchronization">
+      <img src="{{ url_for('static', filename='header/header.svg') }}" alt="OSM &amp; ATLAS" class="d-inline-block align-top mr-2">
+      <span class="font-weight-bold">OSM &amp; ATLAS Synchronization</span>
+    </a>
+
+    <!-- Mobile toggle button -->
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Navigation items -->
+    <div class="collapse navbar-collapse" id="navbarMain">
+      <!-- Main navigation links -->
+      <ul class="navbar-nav mr-auto">
+        <li class="nav-item {%- if request.endpoint == 'index' %} active{%- endif %}">
+          <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+        </li>
+        <li class="nav-item {%- if request.endpoint == 'problems' %} active{%- endif %}">
+          <a class="nav-link" href="{{ url_for('problems') }}">Problems</a>
+        </li>
+        <li class="nav-item {%- if request.endpoint == 'persistent_data' %} active{%- endif %}">
+          <a class="nav-link" href="{{ url_for('persistent_data') }}">Persistent Data</a>
+        </li>
+      </ul>
+
+      <!-- Right side items -->
+      <ul class="navbar-nav">
+        <li class="nav-item d-none d-md-block">
+          <a href="https://github.com/openTdataCH/stop_sync_osm_atlas" target="_blank" class="nav-link text-muted">
+            <i class="fas fa-code-branch"></i> Project Repository
+          </a>
+        </li>
+        {% if current_user.is_authenticated %}
+          <li class="nav-item d-none d-md-block">
+            <span class="navbar-text text-muted small">{{ current_user.email }}</span>
+          </li>
+          {% if current_user.is_totp_enabled %}
+            <li class="nav-item d-none d-md-block">
+              <span class="navbar-text"><span class="badge badge-info">2FA</span></span>
+            </li>
+          {% else %}
+            <li class="nav-item">
+              <a href="{{ url_for('auth.enable_2fa') }}" class="btn btn-sm btn-outline-info ml-2">Enable 2FA</a>
+            </li>
+          {% endif %}
+          <li class="nav-item">
+            <form action="{{ url_for('auth.logout') }}" method="post" class="form-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger ml-2">Logout</button>
+            </form>
+          </li>
+        {% else %}
+          <li class="nav-item">
+            <a href="{{ url_for('auth.login') }}" class="btn btn-sm btn-outline-primary ml-2">Log in</a>
+          </li>
+          <li class="nav-item">
+            <a href="{{ url_for('auth.register') }}" class="btn btn-sm btn-primary ml-2">Create account</a>
+          </li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>
+
+

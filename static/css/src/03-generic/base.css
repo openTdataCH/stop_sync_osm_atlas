@@ -1,0 +1,32 @@
+/* minimal, non-breaking base rules */
+html {
+  box-sizing: border-box;
+}
+
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+/* extracted from legacy style.css (kept identical for stability) */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f8f9fa;
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 768px) {
+  .container-fluid {
+    padding: 5px;
+  }
+}
+
+

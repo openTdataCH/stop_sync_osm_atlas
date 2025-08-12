@@ -1,0 +1,13 @@
+.c-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background-color: #fff;
+  border: 1.5px solid currentColor;
+  color: #495057;
+  line-height: 1.2;
+}
+
+

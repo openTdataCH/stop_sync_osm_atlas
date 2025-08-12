@@ -1,0 +1,49 @@
+\chapter{Chapitre 11: Système d'authentification sécurisé}\label{chap:auth}
+
+\section{Objectifs}
+Nous avons conçu et mis en œuvre un système d'authentification moderne qui priorise la confidentialité, l'intégrité et la disponibilité. Il est aligné sur les bonnes pratiques actuelles (2025) et est prêt pour une revue de sécurité.
+
+\section{Aperçu de l'architecture}
+L'application utilise Flask avec un schéma d'authentification dédié lié à une base de données MySQL distincte (\texttt{auth\_db}). Les données analytiques principales demeurent dans \texttt{stops\_db}. Cette séparation réduit le rayon d'impact et garantit que la réimportation des données analytiques ne touche jamais les identifiants des utilisateurs.
+
+\subsection{Composants}
+\begin{itemize}
+  \item \textbf{Stockage des mots de passe} : Argon2id (argon2-cffi), à forte consommation mémoire, salé, avec des paramètres spécifiques à chaque hachage.
+  \item \textbf{Sessions} : Flask-Login avec cookies sécurisés (HttpOnly, SameSite=Lax ; indicateur Secure en production).
+  \item \textbf{CSRF} : Protection CSRF de Flask-WTF pour tous les formulaires POST et les points de terminaison concernés.
+  \item \textbf{Limitation de débit} : Les routes de connexion et d'inscription sont limitées (Flask-Limiter) afin d'atténuer la force brute.
+  \item \textbf{Sécurité du transport} : Flask-Talisman fournit les en-têtes de sécurité ; l'application stricte de HTTPS est configurable via les variables d'environnement.
+  \item \textbf{2FA} : TOTP (compatible Google Authenticator) avec activation par QR code et codes de secours à usage unique.
+  \item \textbf{Verrouillage de compte} : Verrouillage progressif après des échecs répétés, avec temporisation exponentielle.
+\end{itemize}
+
+\section{Modèle de données (auth\_db)}
+La table \texttt{users} stocke les comptes utilisateurs avec : email (unique), \texttt{password\_hash} (Argon2id), indicateur d'activation TOTP, secret TOTP (lorsqu'activé), codes de secours (liste JSON hachée avec Argon2), horodatages, compteurs d'échecs et fenêtre de verrouillage. Les tables analytiques restent inchangées.
+
+\section{Activation et utilisation de la 2FA}
+Lorsqu'un utilisateur active la 2FA, le serveur génère un secret Base32 aléatoire et affiche un QR code contenant une URI \textit{otpauth} standard. L'utilisateur vérifie le premier code à 6 chiffres pour activer la 2FA. Le serveur génère 10 codes de secours à usage unique et n'en stocke que les versions hachées avec Argon2. À la connexion, si la 2FA est active, l'utilisateur doit fournir un TOTP valide ou un code de secours non utilisé.
+
+\section{Sécurité opérationnelle}
+\begin{itemize}
+  \item \textbf{Secrets} : \texttt{SECRET\_KEY}, \texttt{AUTH\_DATABASE\_URI} et l'application de HTTPS sont fournis via des variables d'environnement dans Docker Compose.
+  \item \textbf{Pas de mots de passe en clair} : Seuls des hachages Argon2id sont stockés ; les codes de secours sont également hachés.
+  \item \textbf{Exposition minimale} : \texttt{auth\_db} dispose de privilèges dédiés ; l'application utilise un compte au moindre privilège.
+  \item \textbf{Résilience} : Le verrouillage et la limitation de débit réduisent l'impact des attaques par force brute et bourrage d'identifiants.
+  \item \textbf{CSP et en-têtes} : Gérés par Talisman ; la CSP est initialement souple en raison de l'usage de CDN et peut être durcie.
+\end{itemize}
+
+\section{Interface utilisateur}
+L'en-tête de chaque page inclut des boutons de connexion et d'inscription. Les utilisateurs authentifiés voient leur email et un bouton de déconnexion. L'activation de la 2FA propose l'inscription par QR code et le téléchargement des codes de secours.
+
+\section{Sécurité des données lors des mises à jour}
+La chaîne d'import des données opère exclusivement sur \texttt{stops\_db}. Le schéma \texttt{auth\_db} est indépendant et n'est jamais supprimé ni réimporté, ce qui garantit la persistance des identifiants des utilisateurs lors des rafraîchissements de données.
+
+\section{Pistes de durcissement}
+\begin{itemize}
+  \item Imposer HTTPS dans tous les environnements et définir \texttt{SESSION\_COOKIE\_SECURE=true}.
+  \item Ajouter la vérification d'email et la réinitialisation de mot de passe avec des jetons signés à durée limitée.
+  \item Surveiller les en-têtes de sécurité et ajouter des listes d'autorisation CSP pour les ressources CDN ou auto-héberger les actifs statiques.
+  \item Ajouter des journaux d'audit pour les actions d'administration et les événements d'authentification.
+\end{itemize}
+
+

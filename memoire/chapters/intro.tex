@@ -1,0 +1,93 @@
+% !TeX spellcheck = fr_FR
+
+\chapter*{Introduction}
+\addcontentsline{toc}{chapter}{Introduction}
+
+\section*{Contexte et problématique}
+
+La digitalisation des services de mobilité a rendu la qualité et la fiabilité des données de transport public plus cruciales que jamais. En Suisse, les systèmes d'information aux voyageurs, les outils de planification de réseau et les applications de navigation reposent sur des référentiels géographiques précis des arrêts et points d'arrêt. Le système de référence officiel pour ces données est la base de données ATLAS, qui fait autorité en la matière. Parallèlement, OpenStreetMap (OSM), un projet cartographique mondial et collaboratif, s'est imposé comme une source de données extrêmement riche et fréquemment utilisée pour la représentation cartographique et diverses applications tierces, grâce à sa flexibilité et sa couverture exhaustive.
+
+Le défi majeur, et le cœur de ce travail de Bachelor, réside dans la divergence systémique entre ces deux jeux de données. Bien qu'ils décrivent la même réalité physique — le réseau de transport public —, ils le font avec des coordonnées, des identifiants et des hiérarchies qui ne sont pas nativement synchronisés. Ces écarts, qu'ils soient de quelques mètres ou plus significatifs, engendrent des incohérences problématiques :
+
+\begin{itemize}
+    \item \textbf{Pour les usagers :} informations contradictoires, localisation erronée des arrêts sur les applications, et une expérience de voyage dégradée.
+    
+    \item \textbf{Pour les exploitants et planificateurs :} difficultés dans la planification des lignes, optimisation des correspondances et gestion de l'infrastructure.
+\end{itemize}
+
+Ce projet de Bachelor s'attaque directement à cette problématique. Il vise à concevoir et mettre en œuvre une approche systématique pour identifier, analyser et corriger les discordances entre les données d'arrêts d'ATLAS et d'OSM en Suisse. L'ambition est de transformer deux sources de données parallèles en un écosystème informationnel cohérent et fiable.
+
+\medskip
+\noindent\textit{Sauf indication contraire, toutes les statistiques et cartes de ce mémoire (y compris l'introduction) sont calculées sur le snapshot de données du 11 août 2025.}
+
+\subsection*{Objectifs}
+
+Les objectifs principaux de ce travail sont les suivants :
+
+\begin{itemize}
+    \item Concevoir et valider une méthodologie robuste pour la comparaison et la correspondance automatisée des données d'arrêts entre ATLAS et OSM.
+    
+    \item Identifier et quantifier les différents types d'incohérences (écarts de position, absences de correspondance, etc.).
+    
+    \item Développer un outil d'aide à la décision et à la correction pour traiter les cas ambigus qu'un algorithme ne peut résoudre seul.
+    
+    \item Mettre en œuvre les corrections nécessaires et générer des rapports consolidés pour documenter les interventions.
+    
+    \item Contribuer à l'amélioration durable de la qualité des données de transport public, au bénéfice de l'ensemble des acteurs de la mobilité.
+\end{itemize}
+
+\section*{Approche méthodologique}
+
+Pour atteindre ces objectifs, notre démarche s'articule en deux phases complémentaires, alliant traitement automatisé et validation humaine supervisée.
+
+\subsection*{Phase 1 : Traitement automatisé}
+
+La première phase repose sur l'utilisation de scripts en langage Python pour automatiser les tâches de traitement, de nettoyage et de comparaison des deux jeux de données. Ces scripts mettent en œuvre différents algorithmes de correspondance, allant de la simple proximité géographique à des méthodes plus sophistiquées combinant plusieurs attributs (comme le nom de l'arrêt) pour établir des paires de correspondance potentielles entre les entités ATLAS et OSM.
+
+\subsection*{Phase 2 : Application web interactive}
+
+Cependant, la complexité des données et la présence de cas ambigus ont rapidement mis en évidence les limites d'une approche 100\,\% automatique. Pour surmonter cet obstacle, la seconde phase a consisté à développer une application web interactive. Dotée d'un backend en Python (framework Flask), d'une base de données MySQL pour la persistance des données et d'une interface en JavaScript, cette application remplit un double rôle :
+
+\begin{description}
+    \item[Visualisation :] Elle offre une représentation cartographique claire des correspondances trouvées, des divergences et des entités non appariées.
+    
+    \item[Validation et Correction :] Elle fournit une interface de gestion permettant à un opérateur humain d'examiner les cas problématiques, de valider les suggestions de l'algorithme et d'appliquer manuellement des solutions correctives adaptées à chaque type d'incohérence.
+\end{description}
+
+\subsection*{Code source}
+
+Ce document ne présentera que des extraits de code ciblés pour illustrer des points spécifiques. L'intégralité du code source développé dans le cadre de ce projet est disponible sur le dépôt Git suivant : 
+
+\begin{center}
+\texttt{https://githepia.hesge.ch/guillem.massague/bachelor-project}
+\end{center}
+
+\subsection*{Conventions de couleur}
+
+\textbf{Note sur les figures :} Dans les captures d'écran de l'application web présentées dans ce mémoire, les conventions de couleur sont les suivantes :
+\begin{itemize}
+    \item \textcolor{darkgreen}{\textbf{Points verts}} : arrêts ATLAS avec une correspondance OSM confirmée
+    \item \textcolor{blue}{\textbf{Points bleus}} : nœuds OSM correspondants
+    \item \textcolor{red}{\textbf{Points rouges}} : arrêts ATLAS sans correspondance
+    \item \textcolor{gray}{\textbf{Points gris}} : nœuds OSM sans correspondance
+\end{itemize}
+
+\section*{Structure du mémoire}
+
+Ce mémoire est structuré de manière à suivre la progression logique de notre recherche, depuis l'analyse des données brutes jusqu'à la validation des résultats finaux.
+
+\begin{description}
+    \item[\textbf{Chapitres 1 et 2 : Présentation des jeux de données.}] Nous commencerons par une analyse détaillée des sources de données ATLAS et OSM. Nous décrirons leur structure, leurs attributs, leurs forces et leurs limitations respectives, qui constituent le fondement de notre problématique.
+
+    \item[\textbf{Chapitre 3 : Premières approches de correspondance.}] Ce chapitre explorera les méthodes initiales et les plus directes pour apparier les arrêts, principalement basées sur la proximité géographique. Nous y évaluerons les performances et les lacunes de ces techniques simples.
+
+    \item[\textbf{Chapitre 4 : Développement d'un algorithme de correspondance avancé.}] Forts des enseignements du chapitre précédent, nous décrirons ici la conception d'un algorithme plus robuste, combinant plusieurs critères (distance, similarité textuelle, opérateur, itinéraire, etc.) pour améliorer la précision des correspondances automatiques.
+
+    \item[\textbf{Chapitre 5 : Analyse des écarts et des cas problématiques.}] Une fois les correspondances établies, ce chapitre se consacrera à l'analyse quantitative et qualitative des résultats. Nous y présenterons les statistiques sur les distances d'écart et nous catégoriserons les principaux types de problèmes rencontrés.
+
+    \item[\textbf{Chapitre 6 : Application web d'aide à la validation et à la correction.}] Nous présenterons l'outil web développé sur mesure. Ce chapitre détaillera son architecture technique, ses fonctionnalités de visualisation interactive, ainsi que l'interface de gestion conçue pour permettre une intervention humaine efficace et guidée.
+
+    \item[\textbf{Chapitre 7 : Analyse des résultats et validation.}] Ce chapitre évaluera l'efficacité de notre méthode combinée (algorithme et validation manuelle). Nous y quantifierons le nombre de corrections effectuées, l'amélioration de la qualité des données et la pertinence des solutions apportées.
+
+    \item[\textbf{Conclusion.}] Pour conclure, nous dresserons un bilan complet du projet, en synthétisant les apports et les résultats obtenus. Nous discuterons également des enseignements tirés, des limites de notre approche et des perspectives d'avenir pour l'amélioration continue des données de transport en Suisse.
+\end{description}

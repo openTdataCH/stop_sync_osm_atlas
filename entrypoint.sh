@@ -4,8 +4,6 @@ set -e
 # Add current directory to PYTHONPATH
 export PYTHONPATH=$PYTHONPATH:/app
 
-# Set environment variables for data optimization
-export CREATE_ROUTES_WITH_STOPS=${CREATE_ROUTES_WITH_STOPS:-false}
 
 # Check if data import should be skipped
 if [ "$SKIP_DATA_IMPORT" != "true" ]; then
@@ -15,6 +13,12 @@ if [ "$SKIP_DATA_IMPORT" != "true" ]; then
         sleep 1
     done
     echo "MySQL is up and ready."
+
+    # Ensure the authentication database exists even on existing volumes
+    if [ -n "$MYSQL_ROOT_PASSWORD" ]; then
+        echo "Ensuring auth_db exists..."
+        mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE DATABASE IF NOT EXISTS auth_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
+    fi
 
     # Check if data needs to be imported.
     # A simple flag file can be used to ensure scripts run only once if desired,

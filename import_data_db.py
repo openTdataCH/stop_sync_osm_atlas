@@ -116,8 +116,6 @@ def ensure_schema_updated():
                 conn.execute(text("CREATE INDEX idx_problem_priority ON problems(priority)"))
                 conn.commit()
 
-            # Legacy normalization removed
-
         print("Database schema is up to date.")
         
     except Exception as e:
@@ -238,8 +236,11 @@ def get_from_tags(rec, tag_key, default=None):
     
     return default
 
-def load_route_data():
-    """Load route data from CSV files and create mappings for stops to routes"""
+def load_route_data(osm_routes_df: pd.DataFrame = None):
+    """Load route data from CSV files and create mappings for stops to routes.
+
+    If osm_routes_df is provided, reuse it to avoid duplicated IO.
+    """
     # Load ATLAS routes
     atlas_routes_mapping = {}
     try:
@@ -289,7 +290,8 @@ def load_route_data():
     osm_routes_mapping = {}
     try:
         print("Loading OSM routes...")
-        osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
+        if osm_routes_df is None:
+            osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
         
         # Filter out invalid rows early
         valid_routes = osm_routes_df[
@@ -323,8 +325,11 @@ def _normalize_route_id_for_matching(route_id):
     normalized = re.sub(r'-j\d+', '-jXX', str(route_id))
     return normalized
 
-def build_route_direction_mapping():
-    """Build mappings for routes and directions"""
+def build_route_direction_mapping(osm_routes_df: pd.DataFrame = None):
+    """Build mappings for routes and directions
+
+    If osm_routes_df is provided, reuse it instead of re-reading the CSV to avoid duplicated IO.
+    """
     # Maps for route+direction to nodes
     osm_route_dir_to_nodes = {}
     atlas_route_dir_to_sloids = {}
@@ -354,7 +359,8 @@ def build_route_direction_mapping():
                 print(f"Warning: Failed to build GTFS route name mapping for import: {e}")
 
         # Process OSM routes
-        osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
+        if osm_routes_df is None:
+            osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
         for _, row in osm_routes_df.iterrows():
             direction_id_raw = safe_value(row.get('direction_id'))
             if pd.isna(row.get('gtfs_route_id')) and pd.isna(row.get('route_name')):
@@ -446,16 +452,22 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     print("Existing data deleted. Starting new import.")
     
     # Load route information
-    atlas_routes_mapping, atlas_hrdf_routes_mapping, osm_routes_mapping = load_route_data()
+    # Avoid re-reading the same CSV twice by preloading and passing to both loaders
+    try:
+        _preloaded_osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
+    except Exception:
+        _preloaded_osm_routes_df = None
+    atlas_routes_mapping, atlas_hrdf_routes_mapping, osm_routes_mapping = load_route_data(osm_routes_df=_preloaded_osm_routes_df)
     
     # Build route+direction to nodes/sloids mappings for routes_and_directions table
-    osm_route_dir_to_nodes, atlas_route_dir_to_sloids = build_route_direction_mapping()
+    osm_route_dir_to_nodes, atlas_route_dir_to_sloids = build_route_direction_mapping(osm_routes_df=_preloaded_osm_routes_df)
     
     # Keep track of processed detail records to avoid duplicates
     processed_sloids = set()
     processed_osm_node_ids = set()
     
-    # Pre-check for duplicate sloids in source data
+    # Pre-check for duplicate sloids in source data (use Counter to avoid O(n^2))
+    from collections import Counter
     all_sloids = []
     for rec in base_data.get('matched', []):
         sloid = safe_value(rec.get('sloid'))
@@ -465,11 +477,46 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         sloid = safe_value(rec.get('sloid'))
         if sloid:
             all_sloids.append(sloid)
-    
-    duplicate_sloids = set([x for x in all_sloids if all_sloids.count(x) > 1])
+    counts = Counter(all_sloids)
+    duplicate_sloids = {s for s, c in counts.items() if c > 1}
     if duplicate_sloids:
         print(f"{len(duplicate_sloids)} sloids are matched to more than one OSM node")
         print(f"Examples: {list(duplicate_sloids)[:5]}")
+
+    # --- Precompute OSM duplicate nodes by (uic_ref, local_ref) BEFORE inserting matched ---
+    def _is_platform_like(pt):
+        return pt in ('platform', 'stop_position')
+    osm_nodes_by_uic_local_ref = {}
+    def _add_osm_dup_candidate(uic_val, local_ref_val, node_id_val, pt_val):
+        try:
+            if not uic_val or not local_ref_val:
+                return
+            if not _is_platform_like(pt_val):
+                return
+            key = (
+                str(uic_val).strip(),
+                str(local_ref_val).strip().lower()
+            )
+            if key not in osm_nodes_by_uic_local_ref:
+                osm_nodes_by_uic_local_ref[key] = set()
+            osm_nodes_by_uic_local_ref[key].add(str(node_id_val))
+        except Exception:
+            pass
+    # From matched
+    for rec in base_data.get('matched', []):
+        uic = safe_value(rec.get('osm_uic_ref'))
+        if uic:
+            _add_osm_dup_candidate(uic, safe_value(rec.get('osm_local_ref')), safe_value(rec.get('osm_node_id')), safe_value(rec.get('osm_public_transport')))
+    # From unmatched_osm
+    for rec in base_data.get('unmatched_osm', []):
+        tags = rec.get('tags', {}) if isinstance(rec.get('tags', {}), dict) else {}
+        uic = safe_value(tags.get('uic_ref'))
+        if uic:
+            _add_osm_dup_candidate(uic, tags.get('local_ref'), rec.get('node_id'), tags.get('public_transport'))
+    duplicate_osm_node_ids = set()
+    for _key, node_ids in osm_nodes_by_uic_local_ref.items():
+        if len(node_ids) >= 2:
+            duplicate_osm_node_ids.update(node_ids)
 
     # --- Insert Matched Records ---
     matched_records = base_data.get('matched', [])
@@ -537,11 +584,11 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             )
             stop_record.problems.append(attributes_problem)
 
-        # Duplicates: ATLAS duplicates (priority 2) and OSM duplicates (priority 3)
+        # Duplicates: ATLAS duplicates (priority 2) and OSM duplicates (priority 1)
         if sloid and str(sloid) in duplicate_sloid_map:
             stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
-        if osm_node_id and 'duplicate_osm_node_ids' in locals() and str(osm_node_id) in duplicate_osm_node_ids:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
+        if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=1))
 
         session.add(stop_record)
         
@@ -647,26 +694,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
 
     osm_count_by_uic = {}
     osm_platform_count_by_uic = {}
-    def _is_platform_like(pt):
-        return pt in ('platform', 'stop_position')
-    # Track OSM duplicates by (uic_ref, local_ref)
-    # New rule: group platform and stop_position together
-    osm_nodes_by_uic_local_ref = {}
-    def _add_osm_dup_candidate(uic_val, local_ref_val, node_id_val, pt_val):
-        try:
-            if not uic_val or not local_ref_val:
-                return
-            if not _is_platform_like(pt_val):
-                return
-            key = (
-                str(uic_val).strip(),
-                str(local_ref_val).strip().lower()
-            )
-            if key not in osm_nodes_by_uic_local_ref:
-                osm_nodes_by_uic_local_ref[key] = set()
-            osm_nodes_by_uic_local_ref[key].add(str(node_id_val))
-        except Exception:
-            pass
     # From matched
     for rec in base_data.get('matched', []):
         uic = safe_value(rec.get('osm_uic_ref'))
@@ -675,7 +702,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             osm_count_by_uic[key] = osm_count_by_uic.get(key, 0) + 1
             if _is_platform_like(safe_value(rec.get('osm_public_transport'))):
                 osm_platform_count_by_uic[key] = osm_platform_count_by_uic.get(key, 0) + 1
-            _add_osm_dup_candidate(uic, safe_value(rec.get('osm_local_ref')), safe_value(rec.get('osm_node_id')), safe_value(rec.get('osm_public_transport')))
     # From unmatched_osm
     for rec in base_data.get('unmatched_osm', []):
         uic = None
@@ -688,12 +714,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             pt = tags.get('public_transport')
             if _is_platform_like(pt):
                 osm_platform_count_by_uic[key] = osm_platform_count_by_uic.get(key, 0) + 1
-            _add_osm_dup_candidate(uic, tags.get('local_ref'), rec.get('node_id'), pt)
-
-    duplicate_osm_node_ids = set()
-    for _key, node_ids in osm_nodes_by_uic_local_ref.items():
-        if len(node_ids) >= 2:
-            duplicate_osm_node_ids.update(node_ids)
 
     def _nearest_distance_to(points_tree, points_list, target_lat, target_lon):
         if points_tree is None or not points_list:
@@ -881,9 +901,9 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             session.add(osm_record)
             processed_osm_node_ids.add(osm_node_id)
         
-        # Duplicates: OSM duplicates (priority 3)
-        if osm_node_id and 'duplicate_osm_node_ids' in locals() and str(osm_node_id) in duplicate_osm_node_ids:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
+        # Duplicates: OSM duplicates (priority 1)
+        if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=1))
             
     session.commit()
 
@@ -894,22 +914,30 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     
     for (osm_route_id, direction_id), osm_data in osm_route_dir_to_nodes.items():
         atlas_data = atlas_route_dir_to_sloids.get((osm_route_id, direction_id))
-        
-        if not atlas_data:
+        atlas_matched_route_id = None
+
+        if atlas_data:
+            # Direct match on exact route_id
+            atlas_matched_route_id = osm_route_id
+        else:
+            # Try fuzzy match by normalized ids
             osm_route_normalized = _normalize_route_id_for_matching(osm_route_id)
             if osm_route_normalized:
                 for (atlas_route_id, atlas_direction_id), atlas_info in atlas_route_dir_to_sloids.items():
-                    if (atlas_direction_id == direction_id and 
-                        _normalize_route_id_for_matching(atlas_route_id) == osm_route_normalized):
+                    if (
+                        atlas_direction_id == direction_id
+                        and _normalize_route_id_for_matching(atlas_route_id) == osm_route_normalized
+                    ):
                         atlas_data = atlas_info
+                        atlas_matched_route_id = atlas_route_id
                         break
-        
-        if atlas_data:
+
+        if atlas_data and atlas_matched_route_id:
             route_record = RouteAndDirection(
                 direction_id=direction_id,
                 osm_route_id=osm_route_id,
                 osm_nodes_json=osm_data['nodes'],
-                atlas_route_id=osm_route_id,
+                atlas_route_id=atlas_matched_route_id,
                 atlas_sloids_json=atlas_data['sloids'],
                 route_name=osm_data['route_name'],
                 route_short_name=atlas_data['route_short_name'],

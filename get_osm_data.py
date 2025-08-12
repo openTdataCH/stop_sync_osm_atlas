@@ -49,7 +49,7 @@ def query_overpass():
         print("Error fetching OSM data:", response.status_code)
         return None
 
-def process_osm_data_to_csv(xml_data, gtfs_folder, output_file="data/processed/osm_nodes_with_routes.csv"):
+def process_osm_data_to_csv(xml_data, output_file="data/processed/osm_nodes_with_routes.csv"):
     """
     Process the OSM XML data and output a CSV file with nodes and their routes.
     Each node-route pair gets its own row. Includes direction_id parsed from ref_trips H/R suffix.
@@ -57,7 +57,7 @@ def process_osm_data_to_csv(xml_data, gtfs_folder, output_file="data/processed/o
     """
     print("Processing OSM data to CSV...")
 
-    # Direction will be parsed from ref_trips H/R suffix, no need to load GTFS trips.txt
+    # Direction will be parsed from ref_trips H/R suffix
     print("Will parse direction from ref_trips H/R suffix (H=0, R=1)")
     
     # Parse the XML
@@ -267,9 +267,6 @@ def main():
     """
     Main function to run the script.
     """
-    # Define the path to your GTFS data folder - now aligned with get_atlas_data.py
-    gtfs_folder = "data/raw/gtfs_fp2025_2024-09-30"
-
     #xml_data = query_overpass()
     
     # If you need to read from file instead:
@@ -278,7 +275,7 @@ def main():
     
     if xml_data:
         # Process the data and output as CSV with direction information
-        process_osm_data_to_csv(xml_data, gtfs_folder, "data/processed/osm_nodes_with_routes.csv")
+        process_osm_data_to_csv(xml_data, "data/processed/osm_nodes_with_routes.csv")
 
 if __name__ == "__main__":
     main()

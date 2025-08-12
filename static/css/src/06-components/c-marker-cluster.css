@@ -1,0 +1,30 @@
+/* Marker Cluster Styles (transitional, identical selectors) */
+.marker-cluster-container { position: relative; display: inline-block; }
+.cluster-indicator { position: absolute; top: -8px; right: -8px; background-color: #ff6b6b; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2); z-index: 1000; border: 2px solid white; font-size: 10px; font-weight: bold; color: white; pointer-events: none; transition: all 0.2s ease-in-out; text-shadow: 0 0 2px rgba(0,0,0,0.5); animation: clusterPulse 0.3s ease-out; }
+.cluster-count { line-height: 1; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+.cluster-indicator[title*="2 markers"] { background-color: #4ecdc4; }
+.cluster-indicator[title*="3 markers"] { background-color: #45b7d1; }
+.cluster-indicator[title*="4 markers"] { background-color: #96ceb4; }
+.cluster-indicator[title*="5 markers"] { background-color: #ffeaa7; }
+.cluster-indicator[title*="6 markers"],
+.cluster-indicator[title*="7 markers"],
+.cluster-indicator[title*="8 markers"],
+.cluster-indicator[title*="9 markers"] { background-color: #fd79a8; }
+.cluster-indicator:not([title*="2 markers"]):not([title*="3 markers"]):not([title*="4 markers"]):not([title*="5 markers"]):not([title*="6 markers"]):not([title*="7 markers"]):not([title*="8 markers"]):not([title*="9 markers"]) { background-color: #e17055; }
+.marker-cluster-container:hover .cluster-indicator { transform: scale(1.1); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3); }
+.clustered-marker { position: relative; }
+.clustered-marker::after { content: ''; position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; background-color: #ff6b6b; border-radius: 50%; border: 1px solid white; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); }
+.atlas-marker-cluster { z-index: 1001; }
+.osm-marker-cluster { z-index: 1002; }
+.marker-cluster-container .leaflet-popup-pane { z-index: 1003; }
+@media (max-width: 768px) {
+  .cluster-indicator { width: 16px; height: 16px; font-size: 9px; top: -6px; right: -6px; }
+  .clustered-marker::after { width: 6px; height: 6px; top: -2px; right: -2px; }
+}
+@keyframes clusterPulse {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+

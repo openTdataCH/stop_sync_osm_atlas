@@ -1,0 +1,20 @@
+{% extends "layouts/base.html" %}
+
+{#
+  Auth layout inherits the main site layout. We can customize auth-specific
+  head or scripts blocks later without changing current UI.
+#}
+
+{% block head_css %}
+  {{ super() }}
+{% endblock %}
+
+{% block content %}
+  {{ super() }}
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+{% endblock %}
+
+

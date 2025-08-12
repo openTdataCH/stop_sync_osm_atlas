@@ -1,0 +1,7 @@
+.o-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+

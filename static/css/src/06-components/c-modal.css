@@ -1,0 +1,8 @@
+.c-modal {
+  display: none;
+}
+.c-modal.is-open {
+  display: block;
+}
+
+

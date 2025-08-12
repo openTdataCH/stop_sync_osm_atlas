@@ -1,0 +1,33 @@
+:root {
+  /* color */
+  --color-bg: #ffffff;
+  --color-fg: #111111;
+  --color-primary: #0b57d0;
+  --color-secondary: #0a7;
+  --color-border: #e5e7eb;
+
+  /* spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* type */
+  --font-sans: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+
+  /* radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+
+  /* z-index scale */
+  --z-base: 0;
+  --z-dropdown: 1000;
+  --z-modal: 2000;
+}
+
+

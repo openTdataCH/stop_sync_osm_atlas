@@ -1,0 +1,16 @@
+/* typography element styles (extracted from legacy, identical for stability) */
+h1.display-4 {
+  color: #343a40;
+  font-weight: 600;
+  margin: 0.5rem 0;
+  background-color: transparent;
+}
+
+@media (max-width: 768px) {
+  h1.display-4 {
+    font-size: 1.75rem;
+    margin-bottom: 1rem;
+  }
+}
+
+

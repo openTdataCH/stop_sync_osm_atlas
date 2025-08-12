@@ -1,0 +1,79 @@
+\BOOKMARK [0][-]{chapter*.2}{R\351sum\351}{}% 1
+\BOOKMARK [0][-]{chapter*.4}{Liste des illustrations}{}% 2
+\BOOKMARK [0][-]{chapter*.5}{Liste des tableaux}{}% 3
+\BOOKMARK [0][-]{chapter*.6}{Introduction}{}% 4
+\BOOKMARK [0][-]{chapter.1}{Chapitre 1 : Donn\351es ATLAS}{}% 5
+\BOOKMARK [1][-]{section.1.1}{Arr\352ts}{chapter.1}% 6
+\BOOKMARK [1][-]{section.1.2}{GTFS}{chapter.1}% 7
+\BOOKMARK [2][-]{subsection.1.2.1}{Description des fichiers}{section.1.2}% 8
+\BOOKMARK [2][-]{subsection.1.2.2}{Analyse et d\351fis de jointure}{section.1.2}% 9
+\BOOKMARK [2][-]{subsection.1.2.3}{R\351sulats}{section.1.2}% 10
+\BOOKMARK [2][-]{subsection.1.2.4}{Compl\351ments cartographiques}{section.1.2}% 11
+\BOOKMARK [1][-]{section.1.3}{HRDF}{chapter.1}% 12
+\BOOKMARK [2][-]{subsection.1.3.1}{Comment nous le lisons}{section.1.3}% 13
+\BOOKMARK [2][-]{subsection.1.3.2}{Informations exploit\351es}{section.1.3}% 14
+\BOOKMARK [2][-]{subsection.1.3.3}{Statistiques cl\351s}{section.1.3}% 15
+\BOOKMARK [1][-]{section.1.4}{Comparaison GTFS et HRDF \(couverture SLOID\)}{chapter.1}% 16
+\BOOKMARK [1][-]{section.1.5}{Cha\356ne d\220acquisition et de pr\351traitement \(vue d\220ensemble\)}{chapter.1}% 17
+\BOOKMARK [2][-]{subsection.1.5.1}{Flux d\351taill\351}{section.1.5}% 18
+\BOOKMARK [1][-]{section.1.6}{Principes d\220ing\351nierie et d\220optimisation}{chapter.1}% 19
+\BOOKMARK [1][-]{section.1.7}{Optimisations et r\351sultats exp\351rimentaux}{chapter.1}% 20
+\BOOKMARK [2][-]{subsection.1.7.1}{Ingestion GTFS \204 streaming en deux passes}{section.1.7}% 21
+\BOOKMARK [2][-]{subsection.1.7.2}{Parsing HRDF \204 deux passes cibl\351es avec gardes}{section.1.7}% 22
+\BOOKMARK [1][-]{section.1.8}{Reproductibilit\351 et ex\351cution}{chapter.1}% 23
+\BOOKMARK [0][-]{chapter.2}{Chapitre 2: Transport Public dans OSM}{}% 24
+\BOOKMARK [1][-]{section.2.1}{Sch\351mas de cartographie du transport public dans OSM}{chapter.2}% 25
+\BOOKMARK [1][-]{section.2.2}{Diff\351rences dans l'usage de cl\351s sp\351cifiques}{chapter.2}% 26
+\BOOKMARK [1][-]{section.2.3}{Requ\352te Overpass Transport Public Suisse}{chapter.2}% 27
+\BOOKMARK [1][-]{section.2.4}{Aper\347u des ``tags'' des n\234uds de transport public dans OSM en Suisse}{chapter.2}% 28
+\BOOKMARK [1][-]{section.2.5}{Aper\347u des itin\351raires de transport public dans OSM en Suisse}{chapter.2}% 29
+\BOOKMARK [2][-]{subsection.2.5.1}{Les 5 n\234uds de transport public les plus fr\351quent\351s}{section.2.5}% 30
+\BOOKMARK [2][-]{subsection.2.5.2}{Analyse des directions des itin\351raires}{section.2.5}% 31
+\BOOKMARK [2][-]{subsection.2.5.3}{Top 5 des itin\351raires avec le plus d'arr\352ts}{section.2.5}% 32
+\BOOKMARK [0][-]{chapter.3}{Chapitre 3 : Correspondance avec les donn\351es ATLAS-OSM}{}% 33
+\BOOKMARK [1][-]{section.3.1}{Correspondance Exacte}{chapter.3}% 34
+\BOOKMARK [1][-]{section.3.2}{Correspondance par Nom}{chapter.3}% 35
+\BOOKMARK [1][-]{section.3.3}{Correspondance par Distance}{chapter.3}% 36
+\BOOKMARK [2][-]{subsection.3.3.1}{\311tape 1 : Correspondance de groupe bas\351e sur la proximit\351}{section.3.3}% 37
+\BOOKMARK [2][-]{subsection.3.3.2}{\311tape 2 : Correspondance par r\351f\351rence locale dans un rayon de 50 m\350tres}{section.3.3}% 38
+\BOOKMARK [2][-]{subsection.3.3.3}{\311tape 3 : Correspondance bas\351e sur la proximit\351 avec crit\350res relatifs}{section.3.3}% 39
+\BOOKMARK [1][-]{section.3.4}{R\351sultats actuels}{chapter.3}% 40
+\BOOKMARK [0][-]{chapter.4}{Chapitre 4 : Correspondance par itin\351raire}{}% 41
+\BOOKMARK [0][-]{chapter.5}{Chapitre 5 : Analyse des r\351sultats}{}% 42
+\BOOKMARK [1][-]{section.5.1}{Distances les Plus Importantes}{chapter.5}% 43
+\BOOKMARK [1][-]{section.5.2}{Statistiques de Distance}{chapter.5}% 44
+\BOOKMARK [0][-]{chapter.6}{Chapitre 7 : Probl\350mes detect\351s}{}% 45
+\BOOKMARK [0][-]{chapter.7}{Chapitre 7 : Base de donn\351es}{}% 46
+\BOOKMARK [0][-]{chapter.8}{Chapitre 8 : Backend}{}% 47
+\BOOKMARK [0][-]{chapter.9}{Chapitre 9 : Frontend}{}% 48
+\BOOKMARK [0][-]{chapter.10}{Chapitre 10: Architecture du rendu cartographique et optimisations de performance}{}% 49
+\BOOKMARK [1][-]{section.10.1}{Vue d\220ensemble du syst\350me}{chapter.10}% 50
+\BOOKMARK [1][-]{section.10.2}{Architecture du backend}{chapter.10}% 51
+\BOOKMARK [2][-]{subsection.10.2.1}{Points de terminaison}{section.10.2}% 52
+\BOOKMARK [2][-]{subsection.10.2.2}{Filtrage par fen\352tre d\220affichage \(sargable\)}{section.10.2}% 53
+\BOOKMARK [2][-]{subsection.10.2.3}{Politique de charge utile}{section.10.2}% 54
+\BOOKMARK [2][-]{subsection.10.2.4}{Indexation de la base de donn\351es}{section.10.2}% 55
+\BOOKMARK [1][-]{section.10.3}{Architecture du frontend}{chapter.10}% 56
+\BOOKMARK [2][-]{subsection.10.3.1}{Cycle de vie des requ\352tes et limitation du d\351bit}{section.10.3}% 57
+\BOOKMARK [2][-]{subsection.10.3.2}{Seuils de zoom et politique visuelle}{section.10.3}% 58
+\BOOKMARK [2][-]{subsection.10.3.3}{Rendu des marqueurs : Canvas d\220abord, lettres en dernier}{section.10.3}% 59
+\BOOKMARK [1][-]{section.10.4}{Paires appari\351es et polylignes}{chapter.10}% 60
+\BOOKMARK [1][-]{section.10.5}{R\351cup\351ration du contexte sur la page Probl\350mes}{chapter.10}% 61
+\BOOKMARK [1][-]{section.10.6}{Consid\351rations d\220exp\351rience utilisateur}{chapter.10}% 62
+\BOOKMARK [2][-]{subsection.10.6.1}{\311chantillonnage et limites}{section.10.6}% 63
+\BOOKMARK [2][-]{subsection.10.6.2}{Statistiques d\220en-t\352te}{section.10.6}% 64
+\BOOKMARK [1][-]{section.10.7}{Impact sur les performances}{chapter.10}% 65
+\BOOKMARK [1][-]{section.10.8}{R\351sum\351}{chapter.10}% 66
+\BOOKMARK [0][-]{chapter.11}{Chapitre 11: Syst\350me d'authentification s\351curis\351}{}% 67
+\BOOKMARK [1][-]{section.11.1}{Objectifs}{chapter.11}% 68
+\BOOKMARK [1][-]{section.11.2}{Aper\347u de l'architecture}{chapter.11}% 69
+\BOOKMARK [2][-]{subsection.11.2.1}{Composants}{section.11.2}% 70
+\BOOKMARK [1][-]{section.11.3}{Mod\350le de donn\351es \(auth\137db\)}{chapter.11}% 71
+\BOOKMARK [1][-]{section.11.4}{Activation et utilisation de la 2FA}{chapter.11}% 72
+\BOOKMARK [1][-]{section.11.5}{S\351curit\351 op\351rationnelle}{chapter.11}% 73
+\BOOKMARK [1][-]{section.11.6}{Interface utilisateur}{chapter.11}% 74
+\BOOKMARK [1][-]{section.11.7}{S\351curit\351 des donn\351es lors des mises \340 jour}{chapter.11}% 75
+\BOOKMARK [1][-]{section.11.8}{Pistes de durcissement}{chapter.11}% 76
+\BOOKMARK [0][-]{chapter.12}{Chapitre 12: Evaluation de la s\351curit\351 de l'application}{}% 77
+\BOOKMARK [0][-]{chapter*.39}{Conclusion}{}% 78
+\BOOKMARK [0][-]{chapter*.40}{R\351f\351rences documentaires}{}% 79

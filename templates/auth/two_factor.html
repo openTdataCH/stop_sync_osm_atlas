@@ -1,0 +1,17 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Two-Factor Authentication{% endblock %}
+{% block content %}
+<div class="container mt-5" style="max-width: 480px;">
+  <h2>Enter 2FA code</h2>
+  <form method="POST" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="form-group">
+      {{ form.token.label }}
+      {{ form.token(class_='form-control', placeholder='123 456') }}
+      <small class="form-text text-muted">You can also enter a backup code if you lost device access.</small>
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">Verify</button>
+  </form>
+</div>
+{% endblock %}
+
