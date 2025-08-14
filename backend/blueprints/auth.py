@@ -119,13 +119,14 @@ def register():
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
-        # Immediately send email verification
+        # Immediately send email verification (optional)
         try:
             _send_verification_email(user)
         except Exception:
             # Fail silently to avoid leaking internal errors
             pass
-        return render_template('auth/verify_notice.html', email=email)
+        flash('Account created. You can sign in now. We sent an optional verification email.', 'info')
+        return redirect(url_for('auth.login'))
     return render_template('auth/register.html', form=form)
 
 
@@ -160,14 +161,13 @@ def login():
         user.failed_login_attempts = 0
         user.locked_until = None
         db.session.commit()
-        # Require email verification before allowing login
+        # If email not verified, send reminder but allow login to proceed
         if not user.is_email_verified:
             try:
                 _send_verification_email(user)
             except Exception:
                 pass
-            flash('Please verify your email address. We have sent a new verification email.', 'warning')
-            return redirect(url_for('auth.verification_required', email=email))
+            flash('Your email is not verified yet. You can continue; we sent a verification email.', 'warning')
         # If 2FA enabled, go to 2FA step
         if user.is_totp_enabled:
             # Store pending user id in session

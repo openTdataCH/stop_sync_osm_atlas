@@ -13,7 +13,7 @@
     <ul class="mb-1">
       <li>Convert persistent data back to non‑persistent.</li>
     </ul>
-    <p class="mb-0">To request <strong>admin</strong> privileges, email <a href="mailto:guillem.massague@hes-so.ch">guillem.massague@hes-so.ch</a>. </p> 
+    <p class="mb-0">To request <strong>admin</strong> privileges, email osm_atlas_synch@....ch</a>. </p> 
   </div>
   <form method="POST" novalidate>
     {{ form.hidden_tag() }}
@@ -26,15 +26,12 @@
       {{ form.password(class_='form-control') }}
       <small class="form-text text-muted">Use at least 12 characters with a mix of letters, numbers, and symbols.</small>
     </div>
-    <div class="form-group form-check">
-      {{ form.agree_tos(class_='form-check-input') }}
-      <label class="form-check-label">I agree to the Terms</label>
-    </div>
     {% if TURNSTILE_SITE_KEY %}
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <div class="cf-turnstile my-3" data-sitekey="{{ TURNSTILE_SITE_KEY }}"></div>
     {% endif %}
     <button type="submit" class="btn btn-primary btn-block">Register</button>
+    <p class="form-text text-muted mt-2">We will email you a verification link (optional). You can verify later.</p>
   </form>
 </div>
 {% endblock %}
