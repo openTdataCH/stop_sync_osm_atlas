@@ -17,6 +17,10 @@
       {{ form.remember(class_='form-check-input') }}
       {{ form.remember.label(class_='form-check-label') }}
     </div>
+    {% if TURNSTILE_SITE_KEY %}
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <div class="cf-turnstile my-3" data-sitekey="{{ TURNSTILE_SITE_KEY }}"></div>
+    {% endif %}
     <button type="submit" class="btn btn-primary btn-block">Login</button>
   </form>
 </div>

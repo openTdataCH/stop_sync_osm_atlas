@@ -20,3 +20,6 @@ pyotp==2.9.0
 qrcode==7.4.2
 Flask-Talisman==1.1.0
 Flask-Limiter==3.8.0
+itsdangerous==2.2.0
+boto3
+Flask-Migrate

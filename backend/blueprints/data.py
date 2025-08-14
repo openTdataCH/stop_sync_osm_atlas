@@ -4,6 +4,7 @@ from sqlalchemy.orm import joinedload
 from backend.models import Stop, AtlasStop, OsmNode
 from backend.extensions import db
 from backend.serializers.stops import format_stop_data
+from flask_login import current_user
 from backend.services.routes import get_stops_for_route
 import json
 
@@ -285,6 +286,11 @@ def get_stop_popup():
         if not stop:
             return jsonify({"error": "Stop not found"}), 404
         enriched = format_stop_data(stop, include_routes=True, include_notes=True)
+        # Include attribution for notes if present
+        if stop.atlas_stop_details:
+            enriched['atlas_note_author_email'] = stop.atlas_stop_details.atlas_note_user_email
+        if stop.osm_node_details:
+            enriched['osm_note_author_email'] = stop.osm_node_details.osm_note_user_email
         if stop.stop_type == 'matched' and stop.sloid:
             matched_rows = Stop.query.options(
                 joinedload(Stop.osm_node_details),

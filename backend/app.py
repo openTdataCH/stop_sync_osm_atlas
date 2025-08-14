@@ -5,7 +5,7 @@ import os
 from datetime import timedelta
 
 # Import the modular components
-from backend.extensions import db, login_manager, csrf, limiter, talisman
+from backend.extensions import db, login_manager, csrf, limiter, talisman, migrate
 from backend.blueprints.data import data_bp
 from backend.blueprints.reports import reports_bp
 from backend.blueprints.search import search_bp
@@ -38,6 +38,11 @@ csrf.init_app(app)
 limiter.init_app(app)
 # Keep CSP relaxed for current CDN-heavy frontend; enforce HTTPS conditionally via env
 talisman.init_app(app, content_security_policy=None, force_https=os.getenv('FORCE_HTTPS', 'false').lower() == 'true')
+migrate.init_app(app, db)
+
+@app.context_processor
+def inject_turnstile():
+    return {'TURNSTILE_SITE_KEY': os.getenv('TURNSTILE_SITE_KEY', '')}
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -45,6 +50,15 @@ def load_user(user_id):
         return db.session.get(User, int(user_id))
     except Exception:
         return None
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    from flask import request, redirect, url_for, jsonify
+    # Return JSON for API/AJAX requests to avoid HTML redirects breaking clients
+    wants_json = request.is_json or request.accept_mimetypes['application/json'] >= request.accept_mimetypes['text/html'] or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    if wants_json:
+        return jsonify({'authenticated': False, 'error': 'Login required'}), 401
+    return redirect(url_for('auth.login'))
 
 # Register blueprints
 app.register_blueprint(data_bp)
@@ -54,13 +68,11 @@ app.register_blueprint(stats_bp)
 app.register_blueprint(problems_bp)
 app.register_blueprint(auth_bp)
 
-# Exempt legacy JSON APIs from CSRF for now (forms remain protected). We will later gate APIs behind auth
-# and add proper CSRF handling in JS clients.
+# Exempt legacy JSON APIs from CSRF for now (forms remain protected). Problems endpoints require CSRF.
 csrf.exempt(data_bp)
 csrf.exempt(reports_bp)
 csrf.exempt(search_bp)
 csrf.exempt(stats_bp)
-csrf.exempt(problems_bp)
 
 @app.route('/')
 def index():
@@ -82,12 +94,6 @@ def persistent_data():
     return render_template('pages/persistent_data.html')
 
 if __name__ == '__main__':
-    # Ensure auth tables exist on startup without touching analytical data tables
-    with app.app_context():
-        try:
-            db.create_all()
-        except Exception as e:
-            app.logger.error(f"Failed to create auth tables: {e}")
     @app.errorhandler(404)
     def not_found(e):
         return render_template('errors/404.html'), 404

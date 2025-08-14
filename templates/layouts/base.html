@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <title>{% block title %}My App{% endblock %}</title>
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <!-- Bootstrap CSS for UI elements -->
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <!-- Font Awesome for icons -->
@@ -27,6 +28,13 @@
    <script>
      // Expose auth status to frontend if needed later
      window.__authStatusEndpoint = "{{ url_for('auth.auth_status') }}";
+    // Configure jQuery AJAX to include CSRF token header
+    (function() {
+      var meta = document.querySelector('meta[name="csrf-token"]');
+      if (meta && window.jQuery) {
+        $.ajaxSetup({ headers: { 'X-CSRFToken': meta.getAttribute('content') } });
+      }
+    })();
    </script>
  </body>
 </html>

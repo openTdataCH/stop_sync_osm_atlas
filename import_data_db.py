@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import json, math
 import pandas as pd
@@ -19,108 +19,10 @@ session = Session()
 
 def ensure_schema_updated():
     """
-    Ensure the database schema includes the new persistence flags.
-    This function adds the missing columns if they don't exist.
+    Deprecated: Schema changes are now handled via Alembic migrations.
+    This function is retained as a no-op for backward compatibility.
     """
-    print("Checking and updating database schema...")
-    
-    try:
-        # Check if the new columns exist and add them if they don't
-        with engine.connect() as conn:
-            # Helper: check if column exists
-            def column_exists(table_name: str, column_name: str) -> bool:
-                res = conn.execute(text(
-                    """
-                    SELECT COUNT(*) as count
-                    FROM information_schema.columns
-                    WHERE table_schema = DATABASE()
-                      AND table_name = :table
-                      AND column_name = :column
-                    """
-                ), {"table": table_name, "column": column_name}).fetchone()
-                return bool(res[0])
-
-            # Helper: check if index exists by name
-            def index_exists(table_name: str, index_name: str) -> bool:
-                res = conn.execute(text(
-                    """
-                    SELECT COUNT(*) as count
-                    FROM information_schema.statistics
-                    WHERE table_schema = DATABASE()
-                      AND table_name = :table
-                      AND index_name = :index
-                    """
-                ), {"table": table_name, "index": index_name}).fetchone()
-                return bool(res[0])
-
-            # Ensure columns
-            if not column_exists('problems', 'is_persistent'):
-                print("Adding is_persistent column to problems table...")
-                conn.execute(text("ALTER TABLE problems ADD COLUMN is_persistent BOOLEAN DEFAULT FALSE"))
-                conn.commit()
-
-            # New priority column for problem prioritization
-            if not column_exists('problems', 'priority'):
-                print("Adding priority column to problems table...")
-                conn.execute(text("ALTER TABLE problems ADD COLUMN priority TINYINT NULL"))
-                conn.commit()
-
-            # New: manual_is_persistent flag on stops
-            if not column_exists('stops', 'manual_is_persistent'):
-                print("Adding manual_is_persistent column to stops table...")
-                conn.execute(text("ALTER TABLE stops ADD COLUMN manual_is_persistent BOOLEAN DEFAULT FALSE"))
-                conn.commit()
-
-            if not column_exists('atlas_stops', 'atlas_note_is_persistent'):
-                print("Adding atlas_note_is_persistent column to atlas_stops table...")
-                conn.execute(text("ALTER TABLE atlas_stops ADD COLUMN atlas_note_is_persistent BOOLEAN DEFAULT FALSE"))
-                conn.commit()
-
-            if not column_exists('osm_nodes', 'osm_note_is_persistent'):
-                print("Adding osm_note_is_persistent column to osm_nodes table...")
-                conn.execute(text("ALTER TABLE osm_nodes ADD COLUMN osm_note_is_persistent BOOLEAN DEFAULT FALSE"))
-                conn.commit()
-
-            # Ensure helpful indexes on stops and atlas_stops
-            print("Ensuring performance indexes exist...")
-            if not index_exists('stops', 'idx_atlas_lat_lon'):
-                conn.execute(text("CREATE INDEX idx_atlas_lat_lon ON stops(atlas_lat, atlas_lon)"))
-                conn.commit()
-
-            if not index_exists('stops', 'idx_osm_lat_lon'):
-                conn.execute(text("CREATE INDEX idx_osm_lat_lon ON stops(osm_lat, osm_lon)"))
-                conn.commit()
-
-            if not index_exists('stops', 'idx_stop_type_match_type'):
-                conn.execute(text("CREATE INDEX idx_stop_type_match_type ON stops(stop_type, match_type)"))
-                conn.commit()
-
-            if not index_exists('atlas_stops', 'idx_atlas_operator'):
-                conn.execute(text("CREATE INDEX idx_atlas_operator ON atlas_stops(atlas_business_org_abbr)"))
-                conn.commit()
-
-            # New: indexes to speed up distance sorting and problem filtering
-            if not index_exists('stops', 'idx_distance_m'):
-                conn.execute(text("CREATE INDEX idx_distance_m ON stops(distance_m)"))
-                conn.commit()
-
-            if not index_exists('problems', 'idx_problem_type'):
-                conn.execute(text("CREATE INDEX idx_problem_type ON problems(problem_type)"))
-                conn.commit()
-
-            if not index_exists('problems', 'idx_problem_stop_id'):
-                conn.execute(text("CREATE INDEX idx_problem_stop_id ON problems(stop_id)"))
-                conn.commit()
-
-            if not index_exists('problems', 'idx_problem_priority'):
-                conn.execute(text("CREATE INDEX idx_problem_priority ON problems(priority)"))
-                conn.commit()
-
-        print("Database schema is up to date.")
-        
-    except Exception as e:
-        print(f"Error updating database schema: {e}")
-        raise
+    print("Schema management now handled by migrations. Skipping ensure_schema_updated().")
 
 def sanitize_for_json(obj):
     if isinstance(obj, dict):

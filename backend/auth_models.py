@@ -22,6 +22,14 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(255), unique=True, index=True, nullable=False)
     password_hash = db.Column(db.Text, nullable=False)
 
+    # Roles
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
+
+    # Email verification
+    is_email_verified = db.Column(db.Boolean, default=False, nullable=False)
+    email_verified_at = db.Column(db.DateTime, nullable=True)
+    last_verification_sent_at = db.Column(db.DateTime, nullable=True)
+
     # Two-factor auth
     is_totp_enabled = db.Column(db.Boolean, default=False, nullable=False)
     totp_secret = db.Column(db.String(64), nullable=True)  # base32 secret when enabled

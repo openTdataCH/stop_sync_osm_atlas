@@ -37,6 +37,13 @@
           <li class="nav-item d-none d-md-block">
             <span class="navbar-text text-muted small">{{ current_user.email }}</span>
           </li>
+          {% if not current_user.is_email_verified %}
+            <li class="nav-item d-none d-md-block">
+              <a href="{{ url_for('auth.resend_verification') }}" class="nav-link text-warning" title="Email not verified">
+                <span class="badge badge-warning">Unverified</span>
+              </a>
+            </li>
+          {% endif %}
           {% if current_user.is_totp_enabled %}
             <li class="nav-item d-none d-md-block">
               <span class="navbar-text"><span class="badge badge-info">2FA</span></span>
@@ -44,6 +51,11 @@
           {% else %}
             <li class="nav-item">
               <a href="{{ url_for('auth.enable_2fa') }}" class="btn btn-sm btn-outline-info ml-2">Enable 2FA</a>
+            </li>
+          {% endif %}
+          {% if getattr(current_user, 'is_admin', False) %}
+            <li class="nav-item d-none d-md-block">
+              <span class="navbar-text"><span class="badge badge-dark">Admin</span></span>
             </li>
           {% endif %}
           <li class="nav-item">

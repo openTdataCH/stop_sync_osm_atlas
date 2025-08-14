@@ -1,9 +1,18 @@
 // persistent-data.js - JavaScript for the Persistent Data Management Page
 
 $(document).ready(function() {
+    // Expose CSRF token for AJAX (Flask-WTF sets this cookie header by default when using CSRFProtect with AJAX)
+    const csrfToken = (document.cookie.match(/\bcsrf_token=([^;]+)/) || [])[1];
+    if (csrfToken) {
+        $.ajaxSetup({
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+    }
+
     let currentPage = 1;
     let currentFilter = 'all';
     let currentTab = 'persistent'; // 'persistent' or 'non-persistent'
+    let isAdmin = false;
     
     // Initialize the persistent data page with proper error handling
     function initializePersistentDataPage() {
@@ -11,8 +20,17 @@ $(document).ready(function() {
             // Setup event handlers first
             setupEventHandlers();
             
-            // Load initial data for the default tab (persistent)
-            loadPersistentData(currentPage, currentFilter);
+            // Load initial data for the default tab (persistent), but first detect admin
+            if (window.__authStatusEndpoint) {
+                $.getJSON(window.__authStatusEndpoint, function(status){
+                    isAdmin = !!(status && status.is_admin);
+                    loadPersistentData(currentPage, currentFilter);
+                }).fail(function(){
+                    loadPersistentData(currentPage, currentFilter);
+                });
+            } else {
+                loadPersistentData(currentPage, currentFilter);
+            }
         } catch (error) {
             console.error('Error initializing persistent data page:', error);
             showTemporaryMessage('Error initializing page. Please refresh.', 'error');
@@ -299,16 +317,8 @@ $(document).ready(function() {
         const formattedDate = item.updated_at ? new Date(item.updated_at).toLocaleString() : 'Unknown';
         const content = isNote ? (item.note || '') : (item.solution || '');
         
-        return `
-            <div class="card solution-card ${cardClass}" data-id="${item.id}" data-item-type="persistent">
-                <div class="card-body">
-                    <div class="solution-header">
-                        <h5 class="card-title">
-                            <span class="badge badge-${badgeClass}">
-                                ${titleText}
-                            </span>
-                            <small class="text-muted ml-2">Persistent</small>
-                        </h5>
+        const authorLine = (item.author_email && item.author_email.trim().length > 0) ? `<div><strong>Author:</strong> ${item.author_email}</div>` : `<div><strong>Author:</strong> <em>Not a user</em></div>`;
+        const adminButtons = isAdmin ? `
                         <div class="btn-group">
                              <button class="btn btn-sm btn-warning make-non-persistent-btn" 
                                     data-id="${item.id}" 
@@ -320,12 +330,24 @@ $(document).ready(function() {
                                     data-type="persistent">
                                 <i class="fas fa-trash"></i> Clear
                             </button>
-                        </div>
+                        </div>` : '';
+        return `
+            <div class="card solution-card ${cardClass}" data-id="${item.id}" data-item-type="persistent">
+                <div class="card-body">
+                    <div class="solution-header">
+                        <h5 class="card-title">
+                            <span class="badge badge-${badgeClass}">
+                                ${titleText}
+                            </span>
+                            <small class="text-muted ml-2">Persistent</small>
+                        </h5>
+                        ${adminButtons}
                     </div>
                     
                     <div class="card-text">
                         <div><strong>SLOID:</strong> ${item.sloid || '<em>None</em>'}</div>
                         <div><strong>OSM Node ID:</strong> ${item.osm_node_id || '<em>None</em>'}</div>
+                        ${authorLine}
                         <div><strong>Last Updated:</strong> ${formattedDate}</div>
                         
                         <div class="solution-content">
@@ -451,7 +473,7 @@ $(document).ready(function() {
         $('#dataPagination').html(html);
     }
     
-    // Delete persistent data
+        // Delete persistent data (admin only)
     function deletePersistentData(id) {
         $.ajax({
             url: `/api/persistent_data/${id}`,
@@ -563,7 +585,7 @@ $(document).ready(function() {
         });
     }
     
-    // Make a persistent item non-persistent
+        // Make a persistent item non-persistent (admin only)
     function makeNonPersistent(id, type) {
         $.ajax({
             url: `/api/make_non_persistent/${id}`,
@@ -584,7 +606,7 @@ $(document).ready(function() {
         });
     }
 
-    // Clear all data for a specific tab
+        // Clear all data for a specific tab (admin only)
     function clearAllData(tab) {
         $.ajax({
             url: `/api/clear_all_${tab}`,
@@ -693,7 +715,7 @@ $(document).ready(function() {
     function updateClearAllButton(tab, totalItems) {
         const container = $(`#clear-all-${tab}-container`);
         container.empty();
-        if (totalItems > 0) {
+        if (totalItems > 0 && isAdmin) {
             const buttonHtml = `
                 <button class="btn btn-outline-danger btn-sm clear-all-btn" data-tab="${tab}">
                     <i class="fas fa-exclamation-triangle"></i> Clear all ${tab.replace('-', ' ')} data

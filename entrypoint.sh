@@ -5,20 +5,35 @@ set -e
 export PYTHONPATH=$PYTHONPATH:/app
 
 
+echo "Waiting for MySQL database at db:3306..."
+while ! mysqladmin ping -h"db" -P3306 --silent --user=${MYSQL_USER} --password=${MYSQL_PASSWORD}; do
+    sleep 1
+done
+echo "MySQL is up and ready."
+
+# Ensure the authentication database exists even on existing volumes (dev convenience)
+if [ -n "$MYSQL_ROOT_PASSWORD" ]; then
+    echo "Ensuring auth_db exists..."
+    mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE DATABASE IF NOT EXISTS auth_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
+fi
+
+# Run database migrations
+echo "Running database migrations..."
+if [ "${AUTO_MIGRATE:-false}" = "true" ]; then
+    if [ ! -d "migrations" ]; then
+        flask db init || true
+    fi
+    # Autogenerate migration scripts from models (safe in dev)
+    flask db migrate -m "Auto migration" || true
+fi
+flask db upgrade || true
+
+# Create auth tables (quick fix for multi-database bind issue)
+echo "Creating auth tables..."
+python create_auth_tables.py || true
+
 # Check if data import should be skipped
 if [ "$SKIP_DATA_IMPORT" != "true" ]; then
-    # Wait for the database to be ready
-    echo "Waiting for MySQL database at db:3306..."
-    while ! mysqladmin ping -h"db" -P3306 --silent --user=${MYSQL_USER} --password=${MYSQL_PASSWORD}; do
-        sleep 1
-    done
-    echo "MySQL is up and ready."
-
-    # Ensure the authentication database exists even on existing volumes
-    if [ -n "$MYSQL_ROOT_PASSWORD" ]; then
-        echo "Ensuring auth_db exists..."
-        mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE DATABASE IF NOT EXISTS auth_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
-    fi
 
     # Check if data needs to be imported.
     # A simple flag file can be used to ensure scripts run only once if desired,

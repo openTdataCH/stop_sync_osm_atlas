@@ -116,6 +116,16 @@
             routesSection = `<div class="route-section">${routeHtml(data.routes_osm, isOsm)}</div>`;
         }
 
+        // Add note author if available
+        if (isAtlas && data.atlas_note) {
+            rows.push(['Note', data.atlas_note]);
+            rows.push(['Note Author', data.atlas_note_author_email ? data.atlas_note_author_email : '<em>Not a user</em>']);
+        }
+        if (isOsm && data.osm_note) {
+            rows.push(['Note', data.osm_note]);
+            rows.push(['Note Author', data.osm_note_author_email ? data.osm_note_author_email : '<em>Not a user</em>']);
+        }
+
         const tableRowsHtml = rows.map(([k,v]) => `<tr><td>${k}:</td><td>${v}</td></tr>`).join('');
 
         const bubbleClass = isAtlas ? 'atlas-match' : 'osm-match';

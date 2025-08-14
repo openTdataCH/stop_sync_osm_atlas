@@ -1,0 +1,14 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Verify your email{% endblock %}
+{% block content %}
+<div class="container mt-5" style="max-width: 560px;">
+  <div class="alert alert-info" role="alert">
+    <h4 class="alert-heading">Verify your email</h4>
+    <p>We sent a verification email to <strong>{{ email }}</strong> if an account exists for that address. Please check your inbox and click the link to verify.</p>
+    <hr>
+    <p class="mb-0">Didn't receive it? <a href="{{ url_for('auth.resend_verification') }}">Resend verification email</a>.</p>
+  </div>
+</div>
+{% endblock %}
+
+

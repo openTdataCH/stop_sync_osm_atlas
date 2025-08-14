@@ -8,6 +8,12 @@ conditions rather than database-level foreign keys.
 
 class Stop(db.Model):
     __tablename__ = 'stops'
+    __table_args__ = (
+        db.Index('idx_atlas_lat_lon', 'atlas_lat', 'atlas_lon'),
+        db.Index('idx_osm_lat_lon', 'osm_lat', 'osm_lon'),
+        db.Index('idx_stop_type_match_type', 'stop_type', 'match_type'),
+        db.Index('idx_distance_m', 'distance_m'),
+    )
     
     id = db.Column(db.Integer, primary_key=True)
     sloid = db.Column(db.String(100), index=True)
@@ -41,11 +47,19 @@ class Stop(db.Model):
 
 class Problem(db.Model):
     __tablename__ = 'problems'
+    __table_args__ = (
+        db.Index('idx_problem_type', 'problem_type'),
+        db.Index('idx_problem_stop_id', 'stop_id'),
+        db.Index('idx_problem_priority', 'priority'),
+    )
     id = db.Column(db.Integer, primary_key=True)
     stop_id = db.Column(db.Integer, db.ForeignKey('stops.id', ondelete='CASCADE'))
     problem_type = db.Column(db.String(50), nullable=False)
     solution = db.Column(db.String(500))
     is_persistent = db.Column(db.Boolean, default=False)
+    # Attribution
+    created_by_user_id = db.Column(db.Integer, index=True, nullable=True)
+    created_by_user_email = db.Column(db.String(255), nullable=True)
     # Priority for this problem within its category (1 = highest)
     priority = db.Column(db.Integer)
     stop = db.relationship('Stop', back_populates='problems')
@@ -118,6 +132,9 @@ class PersistentData(db.Model):
     note = db.Column(db.Text)  # For storing persistent notes
     created_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())
     updated_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    # Ownership/attribution
+    created_by_user_id = db.Column(db.Integer, index=True, nullable=True)
+    created_by_user_email = db.Column(db.String(255), nullable=True)
     
     __table_args__ = (
         db.UniqueConstraint('sloid', 'osm_node_id', 'problem_type', 'note_type', name='unique_problem'),
@@ -125,6 +142,9 @@ class PersistentData(db.Model):
 
 class AtlasStop(db.Model):
     __tablename__ = 'atlas_stops'
+    __table_args__ = (
+        db.Index('idx_atlas_operator', 'atlas_business_org_abbr'),
+    )
     
     sloid = db.Column(db.String(100), primary_key=True)
     atlas_designation = db.Column(db.String(255))
@@ -134,6 +154,9 @@ class AtlasStop(db.Model):
     routes_hrdf = db.Column(db.JSON)
     atlas_note = db.Column(db.Text)
     atlas_note_is_persistent = db.Column(db.Boolean, default=False)
+    # Attribution for latest note change
+    atlas_note_user_id = db.Column(db.Integer, index=True, nullable=True)
+    atlas_note_user_email = db.Column(db.String(255), nullable=True)
 
 class OsmNode(db.Model):
     __tablename__ = 'osm_nodes'
@@ -151,6 +174,9 @@ class OsmNode(db.Model):
     routes_osm = db.Column(db.JSON)
     osm_note = db.Column(db.Text)
     osm_note_is_persistent = db.Column(db.Boolean, default=False)
+    # Attribution for latest note change
+    osm_note_user_id = db.Column(db.Integer, index=True, nullable=True)
+    osm_note_user_email = db.Column(db.String(255), nullable=True)
 
 class RouteAndDirection(db.Model):
     __tablename__ = 'routes_and_directions'

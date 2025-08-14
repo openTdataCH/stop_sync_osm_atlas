@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import base64
 import io
 import os
+import requests
 
 import pyotp
 import qrcode
@@ -11,9 +12,12 @@ from flask_login import login_user, logout_user, login_required, current_user
 from wtforms import StringField, PasswordField, BooleanField
 from wtforms.validators import DataRequired, Email, Length
 from flask_wtf import FlaskForm
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
+from typing import Optional
 
 from backend.extensions import db, limiter
 from backend.auth_models import User
+from backend.services.email import send_email
 
 
 auth_bp = Blueprint('auth', __name__)
@@ -39,11 +43,73 @@ def _is_account_locked(user: User) -> bool:
     return bool(user.locked_until and user.locked_until > datetime.utcnow())
 
 
+def _verify_turnstile() -> bool:
+    # Skip verification if not configured (useful in local development)
+    secret = os.getenv('TURNSTILE_SECRET_KEY', '')
+    if not secret:
+        return True
+    token = request.form.get('cf-turnstile-response', '')
+    if not token:
+        return False
+    try:
+        remoteip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        r = requests.post(
+            'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+            data={'secret': secret, 'response': token, 'remoteip': remoteip},
+            timeout=5
+        )
+        data = r.json()
+        return bool(data.get('success'))
+    except Exception:
+        return False
+
+
+def _get_serializer() -> URLSafeTimedSerializer:
+    # Use secret key with a dedicated salt to isolate verification purpose
+    secret = os.getenv('SECRET_KEY', 'change-this-in-production')
+    return URLSafeTimedSerializer(secret_key=secret, salt='email-verification')
+
+
+def _generate_email_verification_token(user_id: int) -> str:
+    s = _get_serializer()
+    return s.dumps({'uid': user_id})
+
+
+def _load_email_verification_token(token: str, max_age_seconds: int = 60 * 60 * 48) -> Optional[int]:
+    s = _get_serializer()
+    try:
+        data = s.loads(token, max_age=max_age_seconds)
+        return int(data.get('uid'))
+    except (BadSignature, SignatureExpired, ValueError, TypeError):
+        return None
+
+
+def _send_verification_email(user: User) -> None:
+    # Respect basic throttle on per-user basis (server-side check)
+    now = datetime.utcnow()
+    if user.last_verification_sent_at and (now - user.last_verification_sent_at) < timedelta(minutes=1):
+        return
+    token = _generate_email_verification_token(user.id)
+    verify_link = url_for('auth.verify_email', token=token, _external=True)
+    app_name = os.getenv('APP_NAME', 'OSM-ATLAS Sync')
+    support_email = os.getenv('SUPPORT_EMAIL', None)
+    subject = f"Verify your email for {app_name}"
+    # Render email bodies from templates
+    html_body = render_template('emails/verify_email.html', user=user, verify_url=verify_link, app_name=app_name, support_email=support_email)
+    text_body = render_template('emails/verify_email.txt', user=user, verify_url=verify_link, app_name=app_name, support_email=support_email)
+    send_email(to_address=user.email, subject=subject, html_body=html_body, text_body=text_body)
+    user.last_verification_sent_at = now
+    db.session.commit()
+
+
 @auth_bp.route('/auth/register', methods=['GET', 'POST'])
 @limiter.limit("5/minute")
 def register():
     form = RegisterForm()
     if form.validate_on_submit():
+        if not _verify_turnstile():
+            flash('Captcha verification failed. Please try again.', 'danger')
+            return redirect(url_for('auth.register'))
         email = form.email.data.lower().strip()
         password = form.password.data
         if User.query.filter_by(email=email).first():
@@ -53,8 +119,13 @@ def register():
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
-        flash('Account created. Please log in.', 'success')
-        return redirect(url_for('auth.login'))
+        # Immediately send email verification
+        try:
+            _send_verification_email(user)
+        except Exception:
+            # Fail silently to avoid leaking internal errors
+            pass
+        return render_template('auth/verify_notice.html', email=email)
     return render_template('auth/register.html', form=form)
 
 
@@ -63,6 +134,9 @@ def register():
 def login():
     form = LoginForm()
     if form.validate_on_submit():
+        if not _verify_turnstile():
+            flash('Captcha verification failed. Please try again.', 'danger')
+            return redirect(url_for('auth.login'))
         email = form.email.data.lower().strip()
         password = form.password.data
         remember = form.remember.data
@@ -86,6 +160,14 @@ def login():
         user.failed_login_attempts = 0
         user.locked_until = None
         db.session.commit()
+        # Require email verification before allowing login
+        if not user.is_email_verified:
+            try:
+                _send_verification_email(user)
+            except Exception:
+                pass
+            flash('Please verify your email address. We have sent a new verification email.', 'warning')
+            return redirect(url_for('auth.verification_required', email=email))
         # If 2FA enabled, go to 2FA step
         if user.is_totp_enabled:
             # Store pending user id in session
@@ -196,7 +278,56 @@ def auth_status():
             'authenticated': True,
             'email': current_user.email,
             'is_totp_enabled': current_user.is_totp_enabled,
+            'is_email_verified': current_user.is_email_verified,
+            'is_admin': getattr(current_user, 'is_admin', False),
         })
     return jsonify({'authenticated': False})
+
+
+# Email verification routes
+
+@auth_bp.route('/auth/verify-email/<token>')
+@limiter.limit("30/hour")
+def verify_email(token: str):
+    user_id = _load_email_verification_token(token)
+    if not user_id:
+        flash('This verification link is invalid or has expired.', 'danger')
+        return redirect(url_for('auth.login'))
+    user = db.session.get(User, user_id)
+    if not user:
+        flash('Account not found.', 'danger')
+        return redirect(url_for('auth.login'))
+    if user.is_email_verified:
+        flash('Your email is already verified. You can sign in.', 'info')
+        return redirect(url_for('auth.login'))
+    user.is_email_verified = True
+    user.email_verified_at = datetime.utcnow()
+    db.session.commit()
+    return render_template('auth/email_verified.html')
+
+
+@auth_bp.route('/auth/resend-verification', methods=['GET', 'POST'])
+@limiter.limit("5/minute")
+def resend_verification():
+    if request.method == 'POST':
+        email = (request.form.get('email') or '').lower().strip()
+        user = User.query.filter_by(email=email).first()
+        # Always respond the same to avoid account enumeration
+        if user and not user.is_email_verified:
+            try:
+                _send_verification_email(user)
+            except Exception:
+                pass
+        return render_template('auth/verify_notice.html', email=email)
+    # If user is logged in and unverified, prefill
+    prefill_email = current_user.email if getattr(current_user, 'is_authenticated', False) and not current_user.is_email_verified else ''
+    return render_template('auth/resend_verification.html', email=prefill_email)
+
+
+@auth_bp.route('/auth/verification-required')
+def verification_required():
+    # Informational page prompting user to check inbox or resend
+    email = request.args.get('email', '')
+    return render_template('auth/verify_notice.html', email=email)
 
 

@@ -53,6 +53,9 @@ def perform_gtfs_matching(unmatched_df: pd.DataFrame, xml_nodes, max_distance: f
     def create_gtfs_match_dict_fn(csv_row, osm_lat, osm_lon, osm_node, distance, match_type,
                                   matching_notes, candidate_pool_size, route, direction, business_org_abbr):
         from .route_matching import _create_match_dict
+        # Normalize match_type prefix so GTFS matches are counted in summaries
+        if isinstance(match_type, str) and match_type.startswith("route_matching_"):
+            match_type = "route_gtfs_" + match_type[len("route_matching_"):]
         return _create_match_dict(
             csv_row, osm_node, distance, match_type, matching_notes,
             csv_route=route, csv_direction=direction, candidate_pool_size=candidate_pool_size

@@ -1,0 +1,17 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Resend verification email{% endblock %}
+{% block content %}
+<div class="container mt-5" style="max-width: 480px;">
+  <h2>Resend verification email</h2>
+  <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" class="form-control" id="email" name="email" value="{{ email }}" required>
+    </div>
+    <button class="btn btn-primary">Send</button>
+  </form>
+</div>
+{% endblock %}
+
+

@@ -6,45 +6,6 @@ Welcome! This project provides a systematic pipeline to identify, analyze, and r
 It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exact/fuzzy/route-based matching, and serves an interactive web app for inspecting matches, problems, and manual fixes.
 
 ![Geneva stops](documentation/images/Geneve.png)
----
-
-## Quick Start
-
-**Just want to run it?** Here's the fastest path:
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/openTdataCH/stop_sync_osm_atlas.git
-   cd bachelor-project
-   ```
-
-2. **Build and start everything**
-   ```bash
-   docker compose up --build
-   ```
-    This will:
-   - Download and set up the MySQL database (persisted in a Docker **volume**)
-    - Download ATLAS, OSM, and GTFS data automatically (cached under `./data`)
-    - Process and match the data
-    - Start the web application at [http://localhost:5001](http://localhost:5001)
-
-    The matching process run typically takes 10–20 minutes.
-
-3. **Development shortcut** (skip heavy data processing):
-   ```bash
-   docker compose up app-dev
-   ```
-    Use this after you've done a full run at least once. It starts the app without re-running the data pipeline.
-
-4. **Stop & clean-up**
-   ```bash
-   # Stop containers
-   docker compose down
-
-   # Optional – ⚠️ wipe the database completely (destroys the Docker volume)
-   docker compose down -v
-   ```
-    If you ever experience database corruption or want a fresh start, use the second command. It removes the `mysql_data` volume so the next run re-initializes the database.
 
 ---
 
@@ -53,10 +14,10 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
 - [Installation & Setup (with Docker)](#installation--setup-with-docker)
-- [Database Setup (Handled by Docker Compose)](#database-setup-handled-by-docker-compose)
-- [Data Acquisition (Handled by Docker Entrypoint)](#data-acquisition-handled-by-docker-entrypoint)
-- [Data Import (Handled by Docker Entrypoint)](#data-import-handled-by-docker-entrypoint)
-- [Running the Web Application (Handled by Docker Compose)](#running-the-web-application-handled-by-docker-compose)
+- [Database Setup (Migrations)](#database-setup-migrations)
+- [Data Acquisition (Entrypoint)](#data-acquisition-entrypoint)
+- [Data Import (Entrypoint)](#data-import-entrypoint)
+- [Running the Web Application](#running-the-web-application)
 - [Usage](#usage)
 - [Generating Reports](#generating-reports)
 - [Project Report](#project-report)
@@ -81,6 +42,8 @@ It identifies exact and fuzzy matches, computes geographic distances, performs r
 - **Optional**: Python 3.9+ and MySQL 8 for local development without Docker
 
 ## Installation & Setup (with Docker)
+
+**Just want to run it?** Here's the fastest path:
 
 1.  **Clone the repository**
     ```bash
@@ -121,16 +84,10 @@ It identifies exact and fuzzy matches, computes geographic distances, performs r
     ```
     To remove all data: `docker compose down -v`
 
-## Database Setup (Handled by Docker Compose)
-The `docker-compose.yml` configuration initializes MySQL on the first run using `database_setup.sql` (mounted into the MySQL init directory). It creates:
+## Database Setup (Migrations)
+The project uses Alembic (via Flask‑Migrate) to manage schema for both MySQL databases (`stops_db` and `auth_db`). On startup, the application waits for MySQL and runs `flask db upgrade` to apply migrations. In development, migrations can be auto‑generated on first run.
 
-- `stops_db` (analytical data)
-- `auth_db` (authentication tables)
-- User `stops_user` with access to both databases
-
-Initialization scripts are executed only when the MySQL data directory is empty. Because the MySQL data lives in the `mysql_data` Docker volume, subsequent runs will reuse the existing databases without re-running the SQL.
-
-## Data Acquisition (Handled by Docker Entrypoint)
+## Data Acquisition (Entrypoint)
 When the `app` container starts (and data import is not skipped), the entrypoint runs:
 
 - `get_atlas_data.py`: downloads ATLAS data and GTFS, builds optimized route/stop artifacts
@@ -138,12 +95,12 @@ When the `app` container starts (and data import is not skipped), the entrypoint
 
 Downloads are cached under `data/raw/` and processed artifacts under `data/processed/` to avoid re-downloading and to speed up subsequent runs. See `documentation/DATA_ORGANIZATION.md` for details.
 
-## Data Import (Handled by Docker Entrypoint)
+## Data Import (Entrypoint)
 After acquisition, `import_data_db.py` populates the MySQL databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
 
 Set `SKIP_DATA_IMPORT=true` (the `app-dev` service already does this) to bypass acquisition/import when you only want to run the web app against an existing database.
 
-## Running the Web Application (Handled by Docker Compose)
+## Running the Web Application
 The Flask server is started automatically by Docker Compose.
 
 - **For full setup (including data processing):**

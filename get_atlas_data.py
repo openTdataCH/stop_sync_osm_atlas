@@ -18,16 +18,16 @@ def get_atlas_stops(output_path, download_url):
     response = requests.get(download_url)
     response.raise_for_status()
     
-    print("Download successful, extracting ZIP file...")
+    print("ATLAS: download successful, extracting ZIP file…")
     with zipfile.ZipFile(io.BytesIO(response.content)) as z:
         csv_files = z.namelist()
-        print("Files in the ZIP:", csv_files)
+        print("ATLAS: files in ZIP:", csv_files)
         
         if not csv_files:
             raise Exception("No CSV file found in the ZIP archive.")
         
         csv_filename = csv_files[0]
-        print("Extracting:", csv_filename)
+        print("ATLAS: extracting:", csv_filename)
 
         with z.open(csv_filename) as f:
             # Load and filter for Switzerland (country code 85) with coordinates
@@ -40,26 +40,26 @@ def get_atlas_stops(output_path, download_url):
             
             # Print statistics
             boarding_platforms = df[df['trafficPointElementType'] == 'BOARDING_PLATFORM']
-            print(f"Found {len(boarding_platforms)} BOARDING_PLATFORM entries in ATLAS data.")
-            print(f"ATLAS data processed: {len(df)} rows with coordinates.")
-            print(f"Processed CSV file saved as: {output_path}")
+            print(f"ATLAS: BOARDING_PLATFORM rows = {len(boarding_platforms):,}")
+            print(f"ATLAS: kept {len(df):,} rows with WGS84 coordinates (uicCountryCode=85)")
+            print(f"ATLAS: processed CSV saved to: {output_path}")
 
 def download_and_extract_gtfs(gtfs_url):
     """Download and extract GTFS data to a clean folder."""
     gtfs_folder = "data/raw/gtfs"
     
-    print(f"Downloading GTFS data from: {gtfs_url}")
+    print(f"GTFS: downloading from {gtfs_url}")
     response = requests.get(gtfs_url, allow_redirects=True)
     response.raise_for_status()
     
     # Create clean directory
     os.makedirs(gtfs_folder, exist_ok=True)
     
-    print("Download successful, extracting GTFS ZIP file...")
+    print("GTFS: download successful, extracting ZIP file…")
     with zipfile.ZipFile(io.BytesIO(response.content)) as z:
         z.extractall(gtfs_folder)
         extracted_files = z.namelist()
-        print(f"Extracted {len(extracted_files)} files to {gtfs_folder}")
+        print(f"GTFS: extracted {len(extracted_files)} files to {gtfs_folder}")
     
     return gtfs_folder
 
@@ -81,7 +81,7 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
         - stop_route_unique: DataFrame[stop_id, route_id, direction_id]
         - route_directions: DataFrame[route_id, direction]
     """
-    print("Loading GTFS data (optimized streaming mode)...")
+    print("GTFS: loading data (optimized streaming, two-pass over stop_times)…")
 
     # Load Swiss stops
     all_stops = pd.read_csv(
@@ -93,7 +93,7 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
     if stop_id_filter is not None:
         swiss_stops = swiss_stops[swiss_stops['stop_id'].isin(stop_id_filter)]
     swiss_stop_ids: Set[str] = set(swiss_stops['stop_id'])
-    print(f"Filtered to {len(swiss_stops)} Swiss stops")
+    print(f"GTFS: filtered to {len(swiss_stops):,} Swiss stops (stop_id starts with '85')")
 
     # First pass over stop_times: gather relevant trips and per-trip termini among Swiss stops
     relevant_trip_ids: Set[str] = set()
@@ -114,14 +114,14 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
         if not mask.any():
             chunks_seen += 1
             if chunks_seen % 20 == 0:
-                print(f"  Stream pass 1 processed {chunks_seen} chunks...")
+                print(f"  GTFS: stream pass 1 processed {chunks_seen} chunks…")
             continue
 
         swiss_chunk = chunk[mask]
         if swiss_chunk.empty:
             chunks_seen += 1
             if chunks_seen % 20 == 0:
-                print(f"  Stream pass 1 processed {chunks_seen} chunks...")
+                print(f"  GTFS: stream pass 1 processed {chunks_seen} chunks…")
             continue
 
         # Update relevant trip ids
@@ -152,7 +152,7 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
 
         chunks_seen += 1
         if chunks_seen % 20 == 0:
-            print(f"  Stream pass 1 processed {chunks_seen} chunks...")
+            print(f"  GTFS: stream pass 1 processed {chunks_seen} chunks…")
 
     # Load trips filtered to relevant_trip_ids
     if relevant_trip_ids:
@@ -164,7 +164,7 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
         trips_df = trips_df[trips_df['trip_id'].isin(relevant_trip_ids)].copy()
     else:
         trips_df = pd.DataFrame(columns=['trip_id', 'route_id', 'direction_id'])
-    print(f"Loaded {len(trips_df)} trips (filtered)")
+    print(f"GTFS: loaded {len(trips_df):,} trips (filtered to relevant trips)")
 
     # Build trip_id -> (route_id, direction_id)
     trip_id_to_info: Dict[str, Tuple[str, Optional[int]]] = {
@@ -193,7 +193,7 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
         )
     else:
         route_directions = pd.DataFrame(columns=['route_id', 'direction'])
-    print(f"Extracted {len(route_directions)} unique route directions (streaming)")
+    print(f"GTFS: extracted {len(route_directions):,} unique route direction strings (first→last)")
 
     # Second pass over stop_times: deduplicate (stop_id, route_id, direction_id)
     stop_route_unique_set: Set[Tuple[str, str, Optional[int]]] = set()
@@ -210,13 +210,13 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
         if not mask.any():
             chunks_seen += 1
             if chunks_seen % 20 == 0:
-                print(f"  Stream pass 2 processed {chunks_seen} chunks...")
+                print(f"  GTFS: stream pass 2 processed {chunks_seen} chunks…")
             continue
         swiss_chunk = chunk[mask][['trip_id', 'stop_id']].copy()
         if swiss_chunk.empty:
             chunks_seen += 1
             if chunks_seen % 20 == 0:
-                print(f"  Stream pass 2 processed {chunks_seen} chunks...")
+                print(f"  GTFS: stream pass 2 processed {chunks_seen} chunks…")
             continue
         # Vectorized join of trip -> route,dir
         trips_small = pd.DataFrame(
@@ -229,7 +229,7 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
                 stop_route_unique_set.add((str(t.stop_id), str(t.route_id), None if pd.isna(t.direction_id) else int(t.direction_id)))
         chunks_seen += 1
         if chunks_seen % 20 == 0:
-            print(f"  Stream pass 2 processed {chunks_seen} chunks...")
+            print(f"  GTFS: stream pass 2 processed {chunks_seen} chunks…")
 
     if stop_route_unique_set:
         stop_route_unique = pd.DataFrame(
@@ -238,7 +238,7 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
         )
     else:
         stop_route_unique = pd.DataFrame(columns=['stop_id', 'route_id', 'direction_id'])
-    print(f"Built {len(stop_route_unique)} unique stop-route-direction triples")
+    print(f"GTFS: built {len(stop_route_unique):,} unique (stop_id, route_id, direction_id) triples")
 
     # Load routes filtered to those we actually reference
     relevant_route_ids: Set[str] = set(trips_df['route_id'].unique())
@@ -251,7 +251,7 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
         swiss_routes = all_routes[all_routes['route_id'].isin(relevant_route_ids)].copy()
     else:
         swiss_routes = pd.DataFrame(columns=['route_id', 'route_short_name', 'route_long_name'])
-    print(f"Loaded {len(swiss_routes)} routes (filtered)")
+    print(f"GTFS: loaded {len(swiss_routes):,} routes (filtered to referenced routes)")
 
     return {
         'stops': swiss_stops,
@@ -294,8 +294,15 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
     return integrated
 
 def match_gtfs_to_atlas(gtfs_data, traffic_points):
-    """Match GTFS stops to ATLAS stops based on UIC number and local reference."""
-    print("Matching GTFS stops to ATLAS stops...")
+    """Map stop_id GTFS → sloid ATLAS using a strict rule with fallbacks.
+
+    Strict: (uic_number, normalized_local_ref) == (number, designation)
+    Fallbacks, applied only for stops not matched strictly:
+      1) If an ATLAS \"number\" has exactly one row, use that sloid
+      2) Else, if any candidate sloid (same number) has its last token equal to
+         normalized_local_ref, use that sloid
+    """
+    print("Mapping stop_id GTFS → sloid ATLAS…")
     
     # GTFS stops are already filtered for Switzerland during loading
     gtfs_stops = gtfs_data['stops'].copy()
@@ -328,33 +335,70 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points):
     atlas_data = traffic_points[['sloid', 'number', 'designation']].copy()
     atlas_data['number'] = atlas_data['number'].astype(str)
     
-    # Match on UIC number and designation
-    matches = pd.merge(
+    # Strict: match on UIC number and designation
+    strict_matches = pd.merge(
         gtfs_stops[['stop_id', 'uic_number', 'normalized_local_ref']],
         atlas_data,
         left_on=['uic_number', 'normalized_local_ref'],
         right_on=['number', 'designation'],
         how='inner'
     )[['stop_id', 'sloid']]
-    
-    print(f"Found {len(matches)} matches between GTFS and ATLAS stops")
-    return matches
+
+    # Fallbacks for remaining stops
+    matched_stop_ids = set(strict_matches['stop_id'])
+    remaining = gtfs_stops[~gtfs_stops['stop_id'].isin(matched_stop_ids)].copy()
+    if remaining.empty:
+        print(f"stop_id→sloid: strict assignments = {len(strict_matches):,}")
+        return strict_matches
+
+    # Group ATLAS by number for quick candidate access
+    atlas_by_number = {num: sub[['sloid', 'designation']].copy() for num, sub in atlas_data.groupby('number', sort=False)}
+
+    def last_token_of_sloid(s: str) -> str:
+        return s.split(':')[-1]
+
+    fallback_rows = []  # (stop_id, sloid)
+    for r in remaining.itertuples(index=False):
+        uic = r.uic_number
+        nref = r.normalized_local_ref
+        stop_id = r.stop_id
+        candidates = atlas_by_number.get(uic)
+        if candidates is None or candidates.empty:
+            continue
+        # Fallback 1: unique entry by number
+        if len(candidates) == 1:
+            fallback_rows.append((stop_id, candidates.iloc[0]['sloid']))
+            continue
+        # Fallback 2: compare last sloid token with normalized_local_ref
+        if pd.notna(nref):
+            token_matches = candidates[candidates['sloid'].apply(last_token_of_sloid) == nref]
+            if not token_matches.empty:
+                fallback_rows.append((stop_id, token_matches.iloc[0]['sloid']))
+
+    if fallback_rows:
+        fb_df = pd.DataFrame(fallback_rows, columns=['stop_id', 'sloid']).drop_duplicates()
+        combined = pd.concat([strict_matches, fb_df], ignore_index=True).drop_duplicates()
+    else:
+        combined = strict_matches
+
+    print(f"stop_id→sloid: strict = {len(strict_matches):,}, fallback = {len(combined) - len(strict_matches):,}, total = {len(combined):,}")
+    return combined
 
 def download_and_extract_hrdf(hrdf_url):
     """Download and extract HRDF data, returning the actual folder path."""
-    print(f"Downloading HRDF data from {hrdf_url}...")
+    print(f"HRDF: downloading from {hrdf_url}…")
     response = requests.get(hrdf_url, stream=True)
     response.raise_for_status()
 
-    print("Download successful. Extracting ZIP file...")
+    print("HRDF: download successful, extracting ZIP file…")
     with zipfile.ZipFile(io.BytesIO(response.content)) as z:
         # Get the list of files to see what folders are created
         all_files = z.namelist()
-        print(f"ZIP contains {len(all_files)} files")
+        print(f"HRDF: ZIP contains {len(all_files)} files")
         
         # Extract everything to data/raw
         z.extractall("data/raw")
-        print(f"Successfully extracted HRDF data to data/raw")
+        print(f"HRDF: extracted to data/raw")
         
         # Find the HRDF folder by looking for folders that contain HRDF files
         hrdf_folders = []
@@ -369,11 +413,11 @@ def download_and_extract_hrdf(hrdf_url):
         if hrdf_folders:
             # Use the first HRDF folder found
             hrdf_folder = os.path.join("data/raw", hrdf_folders[0])
-            print(f"Found HRDF folder: {hrdf_folder}")
+            print(f"HRDF: detected folder {hrdf_folder}")
             return hrdf_folder
         else:
             # Files might be extracted directly to data/raw
-            print("HRDF files extracted directly to data/raw")
+            print("HRDF: files extracted directly to data/raw")
             return "data/raw"
 
 def parse_gleise_lv95_for_sloids(hrdf_path, target_sloids, two_pass: bool = True, use_fast_guard: bool = True):
@@ -394,7 +438,7 @@ def parse_gleise_lv95_for_sloids(hrdf_path, target_sloids, two_pass: bool = True
     sloid_to_uic_ref: Dict[str, Tuple[str, str]] = {}
     uic_ref_to_trips: Dict[Tuple[str, str], list] = defaultdict(list)
 
-    print("Parsing GLEISE_LV95 for HRDF direction data...")
+    print("HRDF: parsing GLEISE_LV95 for sloid→(UIC,#ref) and trips…")
 
     def _is_potential_assignment(line: str) -> bool:
         if not use_fast_guard:
@@ -417,7 +461,7 @@ def parse_gleise_lv95_for_sloids(hrdf_path, target_sloids, two_pass: bool = True
             lines_processed += 1
             if not _is_potential_sloid(raw_line):
                 if lines_processed % 1000000 == 0:
-                    print(f"  ... processed {lines_processed:,} lines, found {found_sloids} target sloids")
+                    print(f"  HRDF: processed {lines_processed:,} lines, found {found_sloids} target sloids…")
                 continue
             parts = raw_line.strip().split()
             if not parts:
@@ -433,7 +477,7 @@ def parse_gleise_lv95_for_sloids(hrdf_path, target_sloids, two_pass: bool = True
                     sloid_to_uic_ref[sloid] = (uic, ref_no)
                     found_sloids += 1
             if lines_processed % 1000000 == 0:
-                print(f"  ... processed {lines_processed:,} lines, found {found_sloids} target sloids")
+                print(f"  HRDF: processed {lines_processed:,} lines, found {found_sloids} target sloids…")
 
     if not two_pass:
         # Single-pass fallback: build all trips for all (uic, ref)
@@ -490,7 +534,7 @@ def parse_gleise_lv95_for_sloids(hrdf_path, target_sloids, two_pass: bool = True
         trips = uic_ref_to_trips.get((uic, ref_no), [])
         sloid_to_trips[sloid].extend(trips)
 
-    print(f"Found {len(sloid_to_trips)} sloids with trips in HRDF data")
+    print(f"HRDF: sloids with trips = {len(sloid_to_trips):,}")
     return sloid_to_trips
 
 def extract_fplan_directions_for_trips(hrdf_path, target_trip_keys):
@@ -510,7 +554,7 @@ def extract_fplan_directions_for_trips(hrdf_path, target_trip_keys):
     lines_processed = 0
     found_trips = 0
     
-    print(f"Parsing FPLAN for {len(target_set)} target trips...")
+    print(f"HRDF: parsing FPLAN for {len(target_set):,} target trips…")
     
     with open(fplan_path, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
@@ -550,10 +594,10 @@ def extract_fplan_directions_for_trips(hrdf_path, target_trip_keys):
                     current_stops.append(parts[0])
             
             if lines_processed % 5000000 == 0:
-                print(f"  ... processed {lines_processed:,} lines, found {found_trips} target trips")
+                print(f"  HRDF: processed {lines_processed:,} lines, found {found_trips} target trips…")
                 
             if found_trips == len(target_set):
-                print(f"  Found all {found_trips} target trips, stopping early")
+                print(f"  HRDF: found all {found_trips} target trips, stopping early")
                 break
     
     # Don't forget the last trip
@@ -565,7 +609,7 @@ def extract_fplan_directions_for_trips(hrdf_path, target_trip_keys):
         }
         found_trips += 1
     
-    print(f"Extracted directions for {len(trip_directions)} trips")
+    print(f"HRDF: extracted directions for {len(trip_directions):,} trips")
     return trip_directions
 
 def load_station_names_hrdf(hrdf_path):
@@ -578,7 +622,7 @@ def load_station_names_hrdf(hrdf_path):
     
     stations = {}
     
-    print("Loading station names from HRDF...")
+    print("HRDF: loading station names from BAHNHOF…")
     with open(bahnhof_path, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
             if line.strip():
@@ -594,10 +638,10 @@ def load_station_names_hrdf(hrdf_path):
 
 def process_hrdf_direction_data(traffic_points, hrdf_folder):
     """Process HRDF data to extract direction information for ATLAS sloids."""
-    print("\n=== Processing HRDF Direction Data ===")
+    print("\n=== HRDF Direction Extraction ===")
     
     all_sloids = set(traffic_points['sloid'].dropna().unique())
-    print(f"Found {len(all_sloids)} unique sloids in ATLAS data")
+    print(f"HRDF: ATLAS sloids to consider = {len(all_sloids):,}")
     
     # Parse GLEISE_LV95 to map sloids to trips
     sloid_to_trips = parse_gleise_lv95_for_sloids(hrdf_folder, all_sloids, two_pass=True, use_fast_guard=True)
@@ -611,7 +655,7 @@ def process_hrdf_direction_data(traffic_points, hrdf_folder):
     for trips in sloid_to_trips.values():
         all_trip_keys.update(trips)
     
-    print(f"Total unique trips to analyze: {len(all_trip_keys)}")
+    print(f"HRDF: total unique trips to analyze = {len(all_trip_keys):,}")
     
     # Extract direction information
     trip_directions = extract_fplan_directions_for_trips(hrdf_folder, all_trip_keys)
@@ -666,7 +710,7 @@ if __name__ == "__main__":
     traffic_points = pd.read_csv(atlas_stops_csv_output_path, sep=';')
 
     # Process GTFS data
-    print("\n=== Processing GTFS Data ===")
+    print("\n=== GTFS Integration (stop_id → sloid) ===")
     gtfs_url = "https://data.opentransportdata.swiss/de/dataset/timetable-2025-gtfs2020/permalink"
 
     # Check if GTFS results already exist
@@ -687,11 +731,11 @@ if __name__ == "__main__":
         matched_stops = integrated_data['sloid'].notna().sum()
         unique_sloids_matched = integrated_data['sloid'].dropna().nunique()
 
-        print("\n=== GTFS Matching Statistics ===")
-        print(f"Total GTFS stops in integrated data: {total_gtfs_stops}")
-        print(f"GTFS stops matched to ATLAS sloids: {matched_stops}")
-        print(f"Unique ATLAS sloids matched to routes: {unique_sloids_matched}")
-        print(f"Saved {len(integrated_data)} rows to {gtfs_results_path}")
+        print("\n=== stop_id GTFS → SLOID ATLAS: Summary ===")
+        print(f"GTFS integrated stops: {total_gtfs_stops:,}")
+        print(f"stop_id→sloid assignments (rows): {matched_stops:,}")
+        print(f"unique sloids with routes: {unique_sloids_matched:,}")
+        print(f"Saved {len(integrated_data):,} rows to {gtfs_results_path}")
         print("===========================")
 
     except Exception as e:
@@ -699,7 +743,7 @@ if __name__ == "__main__":
         print("Continuing with HRDF processing...")
 
     # Process HRDF data
-    print("\n=== Processing HRDF Data ===")
+    print("\n=== HRDF Integration (directions) ===")
     hrdf_url = "https://data.opentransportdata.swiss/dataset/6083374f-6a6a-4d84-a6f7-0816493a0766/resource/95fd7309-cc17-4af7-a2f7-e77f04eb328f/download/oev_sammlung_ch_hrdf_5_40_41_2025_20250711_220742.zip"
     
     # Check if HRDF results already exist
@@ -710,17 +754,17 @@ if __name__ == "__main__":
         if os.path.exists(hrdf_folder):
             # List the contents of the HRDF folder to see what files we have
             hrdf_files = os.listdir(hrdf_folder)
-            print(f"HRDF folder contains: {hrdf_files}")
+            print(f"HRDF: folder contains {len(hrdf_files)} items")
             
             hrdf_results = process_hrdf_direction_data(traffic_points, hrdf_folder)
             
             if hrdf_results is not None:
                 hrdf_results.to_csv(hrdf_results_path, index=False)
                 
-                print("\n=== HRDF Direction Statistics ===")
-                print(f"Total HRDF direction entries: {len(hrdf_results)}")
-                print(f"Unique sloids with HRDF directions: {hrdf_results['sloid'].nunique()}")
-                print(f"Saved {len(hrdf_results)} rows to {hrdf_results_path}")
+                print("\n=== HRDF Direction Summary ===")
+                print(f"Direction entries: {len(hrdf_results):,}")
+                print(f"Unique sloids with directions: {hrdf_results['sloid'].nunique():,}")
+                print(f"Saved {len(hrdf_results):,} rows to {hrdf_results_path}")
                 print("===========================")
             else:
                 print("No HRDF direction data could be processed")

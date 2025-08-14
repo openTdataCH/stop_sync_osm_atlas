@@ -12,9 +12,7 @@ services:
       - "3306:3306" # Exposes MySQL to your host machine on port 3306
     volumes:
       - mysql_data:/var/lib/mysql
-      # Mounts database_setup.sql to initialize the DB with specific settings (charset, collation)
-      # This script will be executed by the MySQL container on first run.
-      - ./database_setup.sql:/docker-entrypoint-initdb.d/database_setup.sql
+      # MySQL data persists in the volume; database and user are created via env vars
     healthcheck:
       # Using CMD-SHELL to ensure proper variable expansion for healthcheck
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
@@ -39,6 +37,7 @@ services:
       # Pass MySQL credentials to the entrypoint script and Python apps
       MYSQL_USER: stops_user
       MYSQL_PASSWORD: 1234 # Ensure this matches db service password
+      MYSQL_ROOT_PASSWORD: root # Needed for entrypoint.sh to create auth_db
       # Flask environment variables (some are also in Dockerfile for explicitness)
       FLASK_APP: backend/app.py
       FLASK_ENV: development # Or production
@@ -49,6 +48,22 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
+      AUTO_MIGRATE: "true"
+      # Email/SES configuration
+      APP_NAME: "OSM-ATLAS Sync"
+      SUPPORT_EMAIL: "support@example.com" # optional, shown in email footer
+      AWS_REGION: "eu-west-1" # set to your SES region
+      SES_FROM_EMAIL: "no-reply@example.com" # must be a verified SES identity
+      # Turnstile (optional; if unset, verification is skipped)
+      TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:-}"
+      TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"
+      # Optional SES configuration set for deliverability tracking
+      # SES_CONFIGURATION_SET: "your-config-set"
+      # AWS credentials are picked up automatically by the AWS SDK (boto3)
+      # You can export AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in your shell
+      # or add them here if you prefer (not recommended to commit secrets):
+      # AWS_ACCESS_KEY_ID: "..."
+      # AWS_SECRET_ACCESS_KEY: "..."
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 4g # Increase to avoid OOM issues
     # mem_reservation: 1g # Optional: guarantee 1g
@@ -72,6 +87,7 @@ services:
       # Pass MySQL credentials to the entrypoint script and Python apps
       MYSQL_USER: stops_user
       MYSQL_PASSWORD: 1234 # Ensure this matches db service password
+      MYSQL_ROOT_PASSWORD: root # Needed for entrypoint.sh to create auth_db
       # Flask environment variables (some are also in Dockerfile for explicitness)
       FLASK_APP: backend/app.py
       FLASK_ENV: development # Or production
@@ -83,6 +99,19 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
+      # Auto-generate and apply migrations in dev
+      AUTO_MIGRATE: "true"
+      # Email/SES configuration (dev)
+      APP_NAME: "OSM-ATLAS Sync"
+      SUPPORT_EMAIL: "support@example.com"
+      AWS_REGION: "eu-west-1"
+      SES_FROM_EMAIL: "no-reply@example.com"
+      # Turnstile (optional; if unset, verification is skipped)
+      TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:-}"
+      TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"
+      # SES_CONFIGURATION_SET: "your-config-set"
+      # AWS_ACCESS_KEY_ID: "..."
+      # AWS_SECRET_ACCESS_KEY: "..."
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 4g # Increase to avoid OOM issues
     # mem_reservation: 1g # Optional: guarantee 1g

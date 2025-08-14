@@ -49,7 +49,9 @@ def format_stop_data(stop: Stop, problem_type: str = None, include_routes: bool 
             "atlas_note": atlas_details.atlas_note if atlas_details else None,
             "osm_note": osm_details.osm_note if osm_details else None,
             "atlas_note_is_persistent": atlas_details.atlas_note_is_persistent if atlas_details else False,
-            "osm_note_is_persistent": osm_details.osm_note_is_persistent if osm_details else False
+            "osm_note_is_persistent": osm_details.osm_note_is_persistent if osm_details else False,
+            "atlas_note_author_email": atlas_details.atlas_note_user_email if atlas_details else None,
+            "osm_note_author_email": osm_details.osm_note_user_email if osm_details else None
         })
 
     if problem_type:
