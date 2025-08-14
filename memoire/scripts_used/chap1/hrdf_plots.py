@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def main():
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
     figdir = os.path.join(root, 'memoire', 'figures', 'plots')
     os.makedirs(figdir, exist_ok=True)
     plt.rcParams['figure.dpi'] = 180
@@ -32,7 +32,7 @@ def main():
 
     if coords:
         lon = np.array([c[0] for c in coords]); lat = np.array([c[1] for c in coords])
-        fig, ax = plt.subplots(figsize=(6, 6))
+        fig, ax = plt.subplots(figsize=(7.2, 6))
         ax.scatter(lon, lat, s=0.2, alpha=0.35, c='tab:orange', rasterized=True)
         ax.set_title('HRDF GLEISE_WGS Quays – Switzerland')
         ax.set_xlabel('Longitude'); ax.set_ylabel('Latitude')
@@ -45,7 +45,7 @@ def main():
         mask = (lon>=G_LON_MIN)&(lon<=G_LON_MAX)&(lat>=G_LAT_MIN)&(lat<=G_LAT_MAX)
         fig, ax = plt.subplots(figsize=(6, 6))
         ax.scatter(lon[mask], lat[mask], s=2, alpha=0.7, c='tab:orange', rasterized=True)
-        ax.set_title('HRDF Quays – Genève (zoom)')
+        ax.set_title(f'HRDF Quays – Genève (zoom) — {int(mask.sum()):,} stops')
         ax.set_xlabel('Longitude'); ax.set_ylabel('Latitude')
         ax.set_xlim(G_LON_MIN, G_LON_MAX); ax.set_ylim(G_LAT_MIN, G_LAT_MAX)
         ax.grid(True, linewidth=0.2, alpha=0.2)

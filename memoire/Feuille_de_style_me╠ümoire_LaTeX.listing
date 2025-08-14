@@ -1,1 +1,2 @@
-python3 get_atlas_data.py
+$ grep -o "ch:1:sloid:[^[:space:]]\\+" data/raw/BHFART | sort -u | wc -l
+62848

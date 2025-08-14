@@ -46,10 +46,40 @@ def generate_geneva_overlay(
     composite.convert("RGB").save(output_png_path, format="PNG", optimize=True)
 
 
+def generate_geneva_triptych(atlas_png: str, gtfs_png: str, hrdf_png: str, output_png: str) -> None:
+    """
+    Concatenate three Geneva PNGs (ATLAS, GTFS, HRDF) horizontally into a single image.
+    If sizes differ, each is resized to the max height, preserving aspect, then padded to the same height.
+    """
+    os.makedirs(os.path.dirname(output_png), exist_ok=True)
+    imgs = [Image.open(p).convert('RGB') for p in (atlas_png, gtfs_png, hrdf_png)]
+    # Increase target height by ~20% for larger panels
+    max_h = int(round(max(im.size[1] for im in imgs) * 1.2))
+    resized = []
+    for im in imgs:
+        w, h = im.size
+        if h != max_h:
+            new_w = int(round(w * (max_h / h)))
+            im = im.resize((new_w, max_h), resample=Image.BILINEAR)
+        resized.append(im)
+    total_w = sum(im.size[0] for im in resized)
+    out = Image.new('RGB', (total_w, max_h), (255, 255, 255))
+    x = 0
+    for im in resized:
+        out.paste(im, (x, 0))
+        x += im.size[0]
+    out.save(output_png, format='PNG', optimize=True)
+
+
 if __name__ == "__main__":
     gtfs = os.path.join("memoire", "figures", "plots", "gtfs_points_geneva.png")
     hrdf = os.path.join("memoire", "figures", "plots", "hrdf_quays_geneva.png")
-    out = os.path.join("memoire", "figures", "plots", "gtfs_hrdf_geneva_overlay.png")
-    generate_geneva_overlay(gtfs, hrdf, out)
+    atlas = os.path.join("memoire", "figures", "plots", "atlas_points_geneva.png")
+    out_overlay = os.path.join("memoire", "figures", "plots", "gtfs_hrdf_geneva_overlay.png")
+    out_triptych = os.path.join("memoire", "figures", "plots", "geneva_triptych_atlas_gtfs_hrdf.png")
+    if os.path.exists(gtfs) and os.path.exists(hrdf):
+        generate_geneva_overlay(gtfs, hrdf, out_overlay)
+    if os.path.exists(atlas) and os.path.exists(gtfs) and os.path.exists(hrdf):
+        generate_geneva_triptych(atlas, gtfs, hrdf, out_triptych)
 
 

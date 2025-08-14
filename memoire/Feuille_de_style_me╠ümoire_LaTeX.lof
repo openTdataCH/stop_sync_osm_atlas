@@ -3,51 +3,43 @@
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.1}{\ignorespaces ATLAS BOARDING\_PLATFORM: distribution nationale}}{7}{figure.caption.7}%
+\contentsline {figure}{\numberline {1.1}{\ignorespaces ATLAS: distribution nationale}}{7}{figure.caption.7}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.2}{\ignorespaces ATLAS BOARDING\_PLATFORM: Genève}}{8}{figure.caption.8}%
+\contentsline {figure}{\numberline {1.2}{\ignorespaces Désignations et opérateurs ATLAS}}{7}{figure.caption.8}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.3}{\ignorespaces Désignations et opérateurs ATLAS}}{9}{figure.caption.9}%
+\contentsline {figure}{\numberline {1.3}{\ignorespaces GTFS: lignes par SLOID}}{12}{figure.caption.17}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.4}{\ignorespaces GTFS: lignes par SLOID}}{11}{figure.caption.18}%
+\contentsline {figure}{\numberline {1.4}{\ignorespaces Arrêts GTFS (Suisse)}}{13}{figure.caption.18}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.5}{\ignorespaces Arrêts GTFS (Suisse)}}{14}{figure.caption.19}%
+\contentsline {figure}{\numberline {1.5}{\ignorespaces Quais HRDF – Suisse}}{15}{figure.caption.19}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.6}{\ignorespaces Arrêts GTFS (Genève)}}{15}{figure.caption.20}%
+\contentsline {figure}{\numberline {1.6}{\ignorespaces ATLAS – Genève}}{16}{figure.caption.20}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.7}{\ignorespaces Distances ATLAS–GTFS par UIC}}{16}{figure.caption.21}%
+\contentsline {figure}{\numberline {1.7}{\ignorespaces Genève: GTFS vs HRDF (points bruts)}}{16}{figure.caption.21}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.8}{\ignorespaces Quais HRDF – Suisse}}{17}{figure.caption.22}%
+\contentsline {figure}{\numberline {1.8}{\ignorespaces Genève: SLOIDs appariés (GTFS vs HRDF)}}{17}{figure.caption.22}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.9}{\ignorespaces Quais HRDF – Genève}}{18}{figure.caption.23}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.10}{\ignorespaces HRDF: distribution du nombre de \textit {directions (noms)} par SLOID.\relax }}{19}{figure.caption.24}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.11}{\ignorespaces Couverture SLOID: GTFS vs HRDF}}{20}{figure.caption.25}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.12}{\ignorespaces GTFS et HRDF à Genève}}{21}{figure.caption.26}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.13}{\ignorespaces Vue d’ensemble du pipeline}}{22}{figure.caption.27}%
+\contentsline {figure}{\numberline {1.9}{\ignorespaces HRDF: distribution du nombre de \textit {directions (noms)} par SLOID.\relax }}{17}{figure.caption.23}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {3.1}{\ignorespaces Correspondances exactes à Genève-Cornavin}}{34}{figure.caption.30}%
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Correspondances exactes à Genève-Cornavin}}{28}{figure.caption.24}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {3.2}{\ignorespaces Exemple de correspondance par nom}}{35}{figure.caption.31}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Exemple de correspondance par nom}}{29}{figure.caption.25}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {3.3}{\ignorespaces Correspondances – Münchenstein, Hofmatt}}{36}{figure.caption.32}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Correspondances – Münchenstein, Hofmatt}}{30}{figure.caption.26}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {3.4}{\ignorespaces Correspondances – Zürich HB (étape 2)}}{37}{figure.caption.35}%
+\contentsline {figure}{\numberline {3.4}{\ignorespaces Correspondances – Zürich HB (étape 2)}}{31}{figure.caption.29}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {3.5}{\ignorespaces Correspondance par distance – étape 3}}{38}{figure.caption.36}%
-\defcounter {refsection}{0}\relax 
-\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.5}{\ignorespaces Correspondance par distance – étape 3}}{32}{figure.caption.30}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Distribution des distances par méthode}}{41}{figure.caption.38}%
+\addvspace {10\p@ }
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Distribution des distances par méthode}}{35}{figure.caption.32}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 

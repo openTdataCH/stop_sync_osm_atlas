@@ -4,7 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 def main():
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
     figdir = os.path.join(root, 'memoire', 'figures', 'plots')
     os.makedirs(figdir, exist_ok=True)
 
@@ -17,7 +17,7 @@ def main():
     plt.rcParams['figure.dpi'] = 180
 
     # National map
-    fig, ax = plt.subplots(figsize=(6, 6))
+    fig, ax = plt.subplots(figsize=(7.2, 6))
     ax.scatter(lon, lat, s=0.2, alpha=0.35, c='tab:blue', rasterized=True)
     ax.set_title('ATLAS Boarding Platforms (WGS84) – Switzerland')
     ax.set_xlabel('Longitude'); ax.set_ylabel('Latitude')
@@ -31,7 +31,7 @@ def main():
     mask = lon.between(G_LON_MIN, G_LON_MAX) & lat.between(G_LAT_MIN, G_LAT_MAX)
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.scatter(lon[mask], lat[mask], s=2, alpha=0.7, c='tab:red', rasterized=True)
-    ax.set_title('ATLAS Boarding Platforms – Genève (zoom)')
+    ax.set_title(f'ATLAS Boarding Platforms – Genève (zoom) — {int(mask.sum()):,} stops')
     ax.set_xlabel('Longitude'); ax.set_ylabel('Latitude')
     ax.set_xlim(G_LON_MIN, G_LON_MAX); ax.set_ylim(G_LAT_MIN, G_LAT_MAX)
     ax.grid(True, linewidth=0.2, alpha=0.2)
@@ -41,10 +41,12 @@ def main():
     # Designation and operator distributions
     fig, ax = plt.subplots(1, 2, figsize=(10, 4))
     if 'designation' in df.columns:
-        top_des = df['designation'].astype(str).value_counts().head(12)
+        des = df['designation'].dropna().astype(str).str.strip()
+        des = des[des != '']
+        top_des = des.value_counts().head(12)
         ax[0].bar(top_des.index, top_des.values, color='tab:purple')
         ax[0].set_title('Top désignations (plateformes)')
-        ax[0].set_xticklabels(top_des.index, rotation=45, ha='right')
+        ax[0].tick_params(axis='x', labelrotation=45)
         ax[0].set_ylabel('Comptes')
     else:
         ax[0].text(0.5, 0.5, 'Pas de colonne designation', ha='center')

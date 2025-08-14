@@ -57,6 +57,7 @@ def main():
             ax.hist(np.array(dists), bins=50, color='tab:cyan', alpha=0.9)
             ax.set_title('Distance ATLAS vs GTFS centroid (par UIC)')
             ax.set_xlabel('Distance [m]'); ax.set_ylabel('Comptes')
+            ax.set_xlim(0, 500)
             fig.tight_layout(); fig.savefig(os.path.join(figdir, 'atlas_vs_gtfs_distance_hist.png'), bbox_inches='tight')
             plt.close(fig)
 
