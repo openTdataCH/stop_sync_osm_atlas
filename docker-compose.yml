@@ -50,7 +50,7 @@ services:
       SESSION_COOKIE_SECURE: "false"
       AUTO_MIGRATE: "true"
       # Data processing control flags
-      # MATCH_ONLY: "true" # Uncomment to skip data downloads and run only matching/import
+      MATCH_ONLY: "${MATCH_ONLY:-false}" # Use host env or default to false; set MATCH_ONLY=true to skip downloads
       # Email/SES configuration
       APP_NAME: "OSM-ATLAS Sync"
       SUPPORT_EMAIL: "support@example.com" # optional, shown in email footer

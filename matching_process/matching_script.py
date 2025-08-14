@@ -128,7 +128,6 @@ def final_pipeline(route_matching_strategy='unified'):
     # --- Apply persistent manual matches before any automatic matching ---
     manual_pairs = set()
     try:
-        import os
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
         from backend.models import PersistentData
