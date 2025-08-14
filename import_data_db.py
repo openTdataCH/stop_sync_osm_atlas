@@ -139,54 +139,73 @@ def get_from_tags(rec, tag_key, default=None):
     return default
 
 def load_route_data(osm_routes_df: pd.DataFrame = None):
-    """Load route data from CSV files and create mappings for stops to routes.
+    """Load route data from unified routes file and create mappings for stops to routes.
 
     If osm_routes_df is provided, reuse it to avoid duplicated IO.
     """
-    # Load ATLAS routes
-    atlas_routes_mapping = {}
-    try:
-        print("Loading ATLAS GTFS routes...")
-        atlas_routes_df = pd.read_csv("data/processed/atlas_routes_gtfs.csv")
-        
-        # Use groupby for more efficient processing
-        for sloid, group in atlas_routes_df.groupby('sloid'):
-            if pd.notna(sloid):
-                atlas_routes_mapping[sloid] = []
+    # Load unified route mapping
+    atlas_routes_mapping_unified = {}
+    unified_path = "data/processed/atlas_routes_unified.csv"
+    if os.path.exists(unified_path):
+        try:
+            unified_df = pd.read_csv(unified_path)
+            for sloid, group in unified_df.groupby('sloid'):
+                if pd.isna(sloid):
+                    continue
+                entries = []
                 for _, row in group.iterrows():
-                    route_info = {
-                        'route_id': row['route_id'],
-                        'direction_id': str(row['direction_id']),
-                        'route_short_name': row['route_short_name'] if pd.notna(row['route_short_name']) else None,
-                        'route_long_name': row['route_long_name'] if pd.notna(row['route_long_name']) else None
-                    }
-                    atlas_routes_mapping[sloid].append(route_info)
-        print(f"Loaded route information for {len(atlas_routes_mapping)} ATLAS stops")
-    except FileNotFoundError:
-        print("INFO: GTFS routes file (atlas_routes_gtfs.csv) not found, skipping ATLAS-GTFS route loading.")
-    except Exception as e:
-        print(f"Error loading ATLAS routes: {e}")
-        
-    # Load HRDF routes for ATLAS
-    atlas_hrdf_routes_mapping = {}
-    try:
-        print("Loading ATLAS HRDF routes...")
-        hrdf_routes_df = pd.read_csv("data/processed/atlas_routes_hrdf.csv")
-        
-        # Use groupby for more efficient processing
-        for sloid, group in hrdf_routes_df.groupby('sloid'):
-            sloid_str = str(sloid)
-            atlas_hrdf_routes_mapping[sloid_str] = []
-            for _, row in group.iterrows():
-                route_info = {
-                    'line_name': row['line_name'] if pd.notna(row['line_name']) else None,
-                    'direction_name': row['direction_name'] if pd.notna(row['direction_name']) else None,
-                    'direction_uic': row['direction_uic'] if pd.notna(row['direction_uic']) else None,
+                    entries.append({
+                        'source': row.get('source'),
+                        'route_id': row.get('route_id') if pd.notna(row.get('route_id')) else None,
+                        'route_id_normalized': row.get('route_id_normalized') if pd.notna(row.get('route_id_normalized')) else None,
+                        'route_name_short': row.get('route_name_short') if pd.notna(row.get('route_name_short')) else None,
+                        'route_name_long': row.get('route_name_long') if pd.notna(row.get('route_name_long')) else None,
+                        'line_name': row.get('line_name') if pd.notna(row.get('line_name')) else None,
+                        'direction_id': str(int(float(row.get('direction_id')))) if pd.notna(row.get('direction_id')) else None,
+                        'direction_name': row.get('direction_name') if pd.notna(row.get('direction_name')) else None,
+                        'direction_uic': row.get('direction_uic') if pd.notna(row.get('direction_uic')) else None,
+                        'evidence': row.get('evidence') if pd.notna(row.get('evidence')) else None,
+                        'as_of': row.get('as_of') if pd.notna(row.get('as_of')) else None,
+                    })
+                atlas_routes_mapping_unified[str(sloid)] = entries
+            print(f"Loaded unified route information for {len(atlas_routes_mapping_unified)} ATLAS stops")
+        except Exception as e:
+            print(f"Error loading unified routes: {e}")
+            atlas_routes_mapping_unified = {}
+    else:
+        print(f"Warning: Unified routes file not found at {unified_path}")
+        atlas_routes_mapping_unified = {}
+
+    # Extract GTFS routes from unified data
+    atlas_routes_mapping = {}
+    for sloid, entries in atlas_routes_mapping_unified.items():
+        gtfs_entries = [e for e in entries if e.get('source') == 'gtfs']
+        if gtfs_entries:
+            atlas_routes_mapping[sloid] = [
+                {
+                    'route_id': e.get('route_id'),
+                    'direction_id': e.get('direction_id'),
+                    'route_short_name': e.get('route_name_short'),
+                    'route_long_name': e.get('route_name_long'),
                 }
-                atlas_hrdf_routes_mapping[sloid_str].append(route_info)
-        print(f"Loaded HRDF route information for {len(atlas_hrdf_routes_mapping)} ATLAS stops")
-    except Exception as e:
-        print(f"Error loading HRDF routes: {e}")
+                for e in gtfs_entries
+            ]
+    print(f"Extracted GTFS route information for {len(atlas_routes_mapping)} ATLAS stops")
+        
+    # Extract HRDF routes from unified data
+    atlas_hrdf_routes_mapping = {}
+    for sloid, entries in atlas_routes_mapping_unified.items():
+        hrdf_entries = [e for e in entries if e.get('source') == 'hrdf']
+        if hrdf_entries:
+            atlas_hrdf_routes_mapping[str(sloid)] = [
+                {
+                    'line_name': e.get('line_name'),
+                    'direction_name': e.get('direction_name'),
+                    'direction_uic': e.get('direction_uic'),
+                }
+                for e in hrdf_entries
+            ]
+    print(f"Extracted HRDF route information for {len(atlas_hrdf_routes_mapping)} ATLAS stops")
         
     # Load OSM routes
     osm_routes_mapping = {}
@@ -218,6 +237,37 @@ def load_route_data(osm_routes_df: pd.DataFrame = None):
         
     return atlas_routes_mapping, atlas_hrdf_routes_mapping, osm_routes_mapping
 
+def load_unified_route_data() -> dict:
+    """Load unified routes as a single mapping sloid -> list[route_entry]."""
+    unified_path = "data/processed/atlas_routes_unified.csv"
+    mapping = {}
+    try:
+        df = pd.read_csv(unified_path)
+        for sloid, group in df.groupby('sloid'):
+            if pd.isna(sloid):
+                continue
+            entries = []
+            for _, row in group.iterrows():
+                entries.append({
+                    'source': row.get('source'),
+                    'route_id': row.get('route_id') if pd.notna(row.get('route_id')) else None,
+                    'route_id_normalized': row.get('route_id_normalized') if pd.notna(row.get('route_id_normalized')) else None,
+                    'route_name_short': row.get('route_name_short') if pd.notna(row.get('route_name_short')) else None,
+                    'route_name_long': row.get('route_name_long') if pd.notna(row.get('route_name_long')) else None,
+                    'line_name': row.get('line_name') if pd.notna(row.get('line_name')) else None,
+                    'direction_id': str(int(float(row.get('direction_id')))) if pd.notna(row.get('direction_id')) else None,
+                    'direction_name': row.get('direction_name') if pd.notna(row.get('direction_name')) else None,
+                    'direction_uic': row.get('direction_uic') if pd.notna(row.get('direction_uic')) else None,
+                    'evidence': row.get('evidence') if pd.notna(row.get('evidence')) else None,
+                    'as_of': row.get('as_of') if pd.notna(row.get('as_of')) else None,
+                })
+            mapping[str(sloid)] = entries
+    except FileNotFoundError:
+        print("INFO: Unified routes file (atlas_routes_unified.csv) not found.")
+    except Exception as e:
+        print(f"Error loading unified routes: {e}")
+    return mapping
+
 def _normalize_route_id_for_matching(route_id):
     """Remove year codes (j24, j25, etc.) from route IDs for fuzzy matching."""
     if not route_id:
@@ -228,13 +278,14 @@ def _normalize_route_id_for_matching(route_id):
     return normalized
 
 def build_route_direction_mapping(osm_routes_df: pd.DataFrame = None):
-    """Build mappings for routes and directions
+    """Build mappings for routes and directions using unified Atlas data.
 
     If osm_routes_df is provided, reuse it instead of re-reading the CSV to avoid duplicated IO.
     """
     # Maps for route+direction to nodes
     osm_route_dir_to_nodes = {}
     atlas_route_dir_to_sloids = {}
+    atlas_line_diruic_to_sloids = {}
     
     try:
         # --- Build fallback mapping from GTFS route names to route_id ---
@@ -301,32 +352,48 @@ def build_route_direction_mapping(osm_routes_df: pd.DataFrame = None):
                     }
                 osm_route_dir_to_nodes[key]['nodes'].append(node_id)
         
-        # Process ATLAS routes
+        # Process ATLAS unified routes
         try:
-            atlas_routes_df = pd.read_csv("data/processed/atlas_routes_gtfs.csv")
-            for _, row in atlas_routes_df.iterrows():
-                if pd.notna(row['route_id']) and pd.notna(row['direction_id']) and pd.notna(row['sloid']):
-                    route_id = row['route_id']
-                    direction_id = str(int(float(row['direction_id']))) # Normalize direction
-                    sloid = row['sloid']
-                    
-                    key = (route_id, direction_id)
-                    if key not in atlas_route_dir_to_sloids:
-                        atlas_route_dir_to_sloids[key] = {
-                            'sloids': [],
-                            'route_short_name': row['route_short_name'] if pd.notna(row['route_short_name']) else None,
-                            'route_long_name': row['route_long_name'] if pd.notna(row['route_long_name']) else None
-                        }
-                    atlas_route_dir_to_sloids[key]['sloids'].append(sloid)
+            unified_df = pd.read_csv("data/processed/atlas_routes_unified.csv")
+            for _, row in unified_df.iterrows():
+                sloid = row.get('sloid')
+                if pd.isna(sloid):
+                    continue
+                source = row.get('source')
+                if source == 'gtfs':
+                    if pd.notna(row.get('route_id')) and pd.notna(row.get('direction_id')):
+                        route_id = str(row.get('route_id'))
+                        direction_id = str(int(float(row.get('direction_id'))))
+                        key = (route_id, direction_id)
+                        if key not in atlas_route_dir_to_sloids:
+                            atlas_route_dir_to_sloids[key] = {
+                                'sloids': [],
+                                'route_short_name': row.get('route_name_short') if pd.notna(row.get('route_name_short')) else None,
+                                'route_long_name': row.get('route_name_long') if pd.notna(row.get('route_name_long')) else None,
+                                'route_id_normalized': row.get('route_id_normalized') if pd.notna(row.get('route_id_normalized')) else None,
+                            }
+                        atlas_route_dir_to_sloids[key]['sloids'].append(str(sloid))
+                elif source == 'hrdf':
+                    if pd.notna(row.get('line_name')) and pd.notna(row.get('direction_uic')):
+                        line_name = str(row.get('line_name'))
+                        direction_uic = str(row.get('direction_uic'))
+                        key = (line_name, direction_uic)
+                        if key not in atlas_line_diruic_to_sloids:
+                            atlas_line_diruic_to_sloids[key] = {
+                                'sloids': [],
+                                'direction_name': row.get('direction_name') if pd.notna(row.get('direction_name')) else None
+                            }
+                        atlas_line_diruic_to_sloids[key]['sloids'].append(str(sloid))
         except FileNotFoundError:
-            print("INFO: GTFS routes file (atlas_routes_gtfs.csv) not found, skipping ATLAS-GTFS route/direction mapping.")
+            print("INFO: Unified routes file (atlas_routes_unified.csv) not found, skipping Atlas unified route/direction mapping.")
         
         print(f"Built route+direction to nodes mapping for {len(osm_route_dir_to_nodes)} OSM routes")
-        print(f"Built route+direction to sloids mapping for {len(atlas_route_dir_to_sloids)} ATLAS routes")
+        print(f"Built GTFS route+direction to sloids mapping for {len(atlas_route_dir_to_sloids)} ATLAS routes")
+        print(f"Built HRDF line+direction_uic to sloids mapping for {len(atlas_line_diruic_to_sloids)} ATLAS routes")
     except Exception as e:
         print(f"Error building route-direction mappings: {e}")
         
-    return osm_route_dir_to_nodes, atlas_route_dir_to_sloids
+    return osm_route_dir_to_nodes, atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids
 
 # --------------------------
 # Data Import Function
@@ -360,9 +427,10 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     except Exception:
         _preloaded_osm_routes_df = None
     atlas_routes_mapping, atlas_hrdf_routes_mapping, osm_routes_mapping = load_route_data(osm_routes_df=_preloaded_osm_routes_df)
+    atlas_routes_mapping_unified = load_unified_route_data()
     
     # Build route+direction to nodes/sloids mappings for routes_and_directions table
-    osm_route_dir_to_nodes, atlas_route_dir_to_sloids = build_route_direction_mapping(osm_routes_df=_preloaded_osm_routes_df)
+    osm_route_dir_to_nodes, atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids = build_route_direction_mapping(osm_routes_df=_preloaded_osm_routes_df)
     
     # Keep track of processed detail records to avoid duplicates
     processed_sloids = set()
@@ -505,6 +573,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 atlas_business_org_abbr=safe_value(rec.get('csv_business_org_abbr', '')),
                 routes_atlas=routes_atlas_data if routes_atlas_data else None,
                 routes_hrdf=routes_hrdf_data if routes_hrdf_data else None,
+                routes_unified=atlas_routes_mapping_unified.get(sloid, None) if atlas_routes_mapping_unified else None,
                 atlas_note=None,
                 atlas_note_is_persistent=False
             )
@@ -733,6 +802,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 atlas_business_org_abbr=safe_value(rec.get('servicePointBusinessOrganisationAbbreviationEn', '')),
                 routes_atlas=routes_atlas_data if routes_atlas_data else None,
                 routes_hrdf=routes_hrdf_data if routes_hrdf_data else None,
+                routes_unified=atlas_routes_mapping_unified.get(sloid, None) if atlas_routes_mapping_unified else None,
                 atlas_note=None,
                 atlas_note_is_persistent=False
             )
@@ -819,10 +889,8 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         atlas_matched_route_id = None
 
         if atlas_data:
-            # Direct match on exact route_id
             atlas_matched_route_id = osm_route_id
         else:
-            # Try fuzzy match by normalized ids
             osm_route_normalized = _normalize_route_id_for_matching(osm_route_id)
             if osm_route_normalized:
                 for (atlas_route_id, atlas_direction_id), atlas_info in atlas_route_dir_to_sloids.items():
@@ -845,7 +913,9 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 route_short_name=atlas_data['route_short_name'],
                 route_long_name=atlas_data['route_long_name'],
                 route_type=None,
-                match_type='matched'
+                match_type='matched',
+                source='gtfs',
+                route_id_normalized=atlas_data.get('route_id_normalized') if isinstance(atlas_data, dict) else None,
             )
             matched_routes += 1
         else:
@@ -859,7 +929,8 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 route_short_name=None,
                 route_long_name=None,
                 route_type=None,
-                match_type='osm_only'
+                match_type='osm_only',
+                source='gtfs'
             )
             osm_only_routes += 1
             
@@ -869,7 +940,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     for (atlas_route_id, direction_id), atlas_data in atlas_route_dir_to_sloids.items():
         if (atlas_route_id, direction_id) in processed_keys:
             continue
-            
         route_record = RouteAndDirection(
             direction_id=direction_id,
             osm_route_id=None,
@@ -880,7 +950,29 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             route_short_name=atlas_data['route_short_name'],
             route_long_name=atlas_data['route_long_name'],
             route_type=None,
-            match_type='atlas_only'
+            match_type='atlas_only',
+            source='gtfs',
+            route_id_normalized=atlas_data.get('route_id_normalized') if isinstance(atlas_data, dict) else None,
+        )
+        atlas_only_routes += 1
+        session.add(route_record)
+
+    # Add HRDF-only consolidated rows
+    for (line_name, direction_uic), atlas_data in atlas_line_diruic_to_sloids.items():
+        route_record = RouteAndDirection(
+            direction_id=None,
+            osm_route_id=None,
+            osm_nodes_json=None,
+            atlas_route_id=None,
+            atlas_sloids_json=atlas_data['sloids'],
+            route_name=None,
+            route_short_name=None,
+            route_long_name=None,
+            route_type=None,
+            match_type='atlas_only',
+            source='hrdf',
+            atlas_line_name=line_name,
+            direction_uic=direction_uic,
         )
         atlas_only_routes += 1
         session.add(route_record)

@@ -68,11 +68,17 @@ It identifies exact and fuzzy matches, computes geographic distances, performs r
 
     This typically takes 10 minutes. Data and database state are cached across runs (`./data` directory and the `mysql_data` volume).
 
-    **Development Mode (Skip Data Processing):**
+    **Match-Only Mode (Skip Data Downloads):**
+    ```bash
+    MATCH_ONLY=true docker compose up --build
+    ```
+    Use this when you want to re-run only the matching and database import using previously downloaded data. This is much faster than the full pipeline.
+
+    **Development Mode (Skip Data Processing Entirely):**
     ```bash
     docker compose up app-dev
     ```
-    Use this when the database is already populated and you want to iterate on the web application without re-running the pipeline.
+    Use this when the database is already populated and you want to iterate on the web application without re-running any data pipeline.
 
 3.  **Access the application**:
     - Web app: [http://localhost:5001](http://localhost:5001)
@@ -94,6 +100,8 @@ When the `app` container starts (and data import is not skipped), the entrypoint
 - `get_osm_data.py`: fetches OSM data via Overpass and processes it
 
 Downloads are cached under `data/raw/` and processed artifacts under `data/processed/` to avoid re-downloading and to speed up subsequent runs. See `documentation/DATA_ORGANIZATION.md` for details.
+
+**Speed up iterations**: Use `MATCH_ONLY=true` to skip downloads and only run the matching/import process using existing data files. This requires that a full pipeline has been run at least once to generate the necessary processed files.
 
 ## Data Import (Entrypoint)
 After acquisition, `import_data_db.py` populates the MySQL databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).

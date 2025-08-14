@@ -6,6 +6,7 @@ import zipfile
 import io
 import pandas as pd
 import os
+import datetime
 from collections import defaultdict
 from typing import Dict, Set, Tuple, Optional
 
@@ -293,6 +294,91 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
     integrated = integrated[cols].sort_values(by='sloid')
     return integrated
 
+def _normalize_route_id_for_matching(route_id: Optional[str]) -> Optional[str]:
+    """Normalize GTFS route_id by removing year codes like -j24, -j25, etc."""
+    if route_id is None or (isinstance(route_id, float) and pd.isna(route_id)):
+        return None
+    import re
+    return re.sub(r'-j\d+', '-jXX', str(route_id))
+
+def write_unified_routes_csv_direct(
+    gtfs_data: Dict[str, pd.DataFrame],
+    hrdf_data: Optional[pd.DataFrame],
+    traffic_points: pd.DataFrame,
+    unified_out_path: str = "data/processed/atlas_routes_unified.csv"
+):
+    """Create unified routes CSV directly from source data without intermediate files."""
+    today = datetime.date.today().isoformat()
+    unified_rows = []
+
+    # Process GTFS data
+    if gtfs_data and 'stop_route_unique' in gtfs_data and 'routes' in gtfs_data and 'route_directions' in gtfs_data:
+        print("Processing GTFS data for unified routes...")
+        
+        # Get GTFS stop to sloid mapping
+        gtfs_matches = match_gtfs_to_atlas(gtfs_data, traffic_points)
+        
+        # Build integrated GTFS data
+        integrated_data = build_integrated_gtfs_data_streaming(gtfs_data, traffic_points)
+        
+        for r in integrated_data.itertuples(index=False):
+            sloid = getattr(r, 'sloid', None)
+            route_id = getattr(r, 'route_id', None)
+            direction = getattr(r, 'direction', None)
+            direction_id = getattr(r, 'direction_id', None)
+            route_short = getattr(r, 'route_short_name', None)
+            route_long = getattr(r, 'route_long_name', None)
+            
+            if pd.notna(sloid):  # Only include rows with valid sloid mapping
+                unified_rows.append({
+                    'sloid': str(sloid),
+                    'source': 'gtfs',
+                    'evidence': 'gtfs_first_last',
+                    'as_of': today,
+                    'route_id': None if pd.isna(route_id) else str(route_id),
+                    'route_id_normalized': _normalize_route_id_for_matching(None if pd.isna(route_id) else str(route_id)),
+                    'route_name_short': None if pd.isna(route_short) else str(route_short),
+                    'route_name_long': None if pd.isna(route_long) else str(route_long),
+                    'line_name': None,
+                    'direction_id': None if pd.isna(direction_id) else str(int(float(direction_id))),
+                    'direction_name': None if pd.isna(direction) else str(direction),
+                    'direction_uic': None,
+                })
+
+    # Process HRDF data
+    if hrdf_data is not None and not hrdf_data.empty:
+        print("Processing HRDF data for unified routes...")
+        for r in hrdf_data.itertuples(index=False):
+            sloid = getattr(r, 'sloid', None)
+            line_name = getattr(r, 'line_name', None)
+            direction_name = getattr(r, 'direction_name', None)
+            direction_uic = getattr(r, 'direction_uic', None)
+            
+            if pd.notna(sloid):  # Only include rows with valid sloid
+                unified_rows.append({
+                    'sloid': str(sloid),
+                    'source': 'hrdf',
+                    'evidence': 'hrdf_fplan',
+                    'as_of': today,
+                    'route_id': None,
+                    'route_id_normalized': None,
+                    'route_name_short': None,
+                    'route_name_long': None,
+                    'line_name': None if pd.isna(line_name) else str(line_name),
+                    'direction_id': None,
+                    'direction_name': None if pd.isna(direction_name) else str(direction_name),
+                    'direction_uic': None if pd.isna(direction_uic) else str(direction_uic),
+                })
+
+    if unified_rows:
+        unified_df = pd.DataFrame(unified_rows, columns=[
+            'sloid','source','evidence','as_of','route_id','route_id_normalized','route_name_short','route_name_long','line_name','direction_id','direction_name','direction_uic'
+        ])
+        unified_df.to_csv(unified_out_path, index=False)
+        print(f"Unified routes: wrote {len(unified_df):,} rows to {unified_out_path}")
+    else:
+        print("No route data to write to unified file")
+
 def match_gtfs_to_atlas(gtfs_data, traffic_points):
     """Map stop_id GTFS → sloid ATLAS using a strict rule with fallbacks.
 
@@ -385,10 +471,13 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points):
     return combined
 
 def download_and_extract_hrdf(hrdf_url):
-    """Download and extract HRDF data, returning the actual folder path."""
+    """Download and extract HRDF data, keeping only the files we need."""
     print(f"HRDF: downloading from {hrdf_url}…")
     response = requests.get(hrdf_url, stream=True)
     response.raise_for_status()
+
+    # Files we actually need for processing
+    needed_files = {'GLEISE_LV95', 'FPLAN', 'BAHNHOF'}
 
     print("HRDF: download successful, extracting ZIP file…")
     with zipfile.ZipFile(io.BytesIO(response.content)) as z:
@@ -396,7 +485,7 @@ def download_and_extract_hrdf(hrdf_url):
         all_files = z.namelist()
         print(f"HRDF: ZIP contains {len(all_files)} files")
         
-        # Extract everything to data/raw
+        # Extract everything to data/raw first
         z.extractall("data/raw")
         print(f"HRDF: extracted to data/raw")
         
@@ -414,11 +503,38 @@ def download_and_extract_hrdf(hrdf_url):
             # Use the first HRDF folder found
             hrdf_folder = os.path.join("data/raw", hrdf_folders[0])
             print(f"HRDF: detected folder {hrdf_folder}")
-            return hrdf_folder
         else:
             # Files might be extracted directly to data/raw
             print("HRDF: files extracted directly to data/raw")
-            return "data/raw"
+            hrdf_folder = "data/raw"
+
+        # Clean up: keep only the files we need
+        if os.path.exists(hrdf_folder):
+            files_in_folder = os.listdir(hrdf_folder)
+            files_deleted = 0
+            for file_name in files_in_folder:
+                file_path = os.path.join(hrdf_folder, file_name)
+                if os.path.isfile(file_path) and file_name not in needed_files:
+                    try:
+                        os.remove(file_path)
+                        files_deleted += 1
+                    except OSError:
+                        pass  # Ignore deletion errors
+            
+            print(f"HRDF: cleaned up {files_deleted} unnecessary files, kept {len(needed_files)} needed files")
+            
+            # Verify we have the files we need
+            missing_files = []
+            for needed_file in needed_files:
+                if not os.path.exists(os.path.join(hrdf_folder, needed_file)):
+                    missing_files.append(needed_file)
+            
+            if missing_files:
+                print(f"HRDF: Warning - missing required files: {missing_files}")
+            else:
+                print(f"HRDF: All required files present: {list(needed_files)}")
+        
+        return hrdf_folder
 
 def parse_gleise_lv95_for_sloids(hrdf_path, target_sloids, two_pass: bool = True, use_fast_guard: bool = True):
     """Parse GLEISE_LV95 to map sloids to trips.
@@ -713,18 +829,14 @@ if __name__ == "__main__":
     print("\n=== GTFS Integration (stop_id → sloid) ===")
     gtfs_url = "https://data.opentransportdata.swiss/de/dataset/timetable-2025-gtfs2020/permalink"
 
-    # Check if GTFS results already exist
-    gtfs_results_path = "data/processed/atlas_routes_gtfs.csv"
+    gtfs_stream = None
     try:
         gtfs_folder = download_and_extract_gtfs(gtfs_url)
         # Use optimized streaming path by default
         gtfs_stream = load_gtfs_data_streaming(gtfs_folder)
         integrated_data = build_integrated_gtfs_data_streaming(gtfs_stream, traffic_points)
 
-        # Save GTFS results
-        result_cols = ['stop_id', 'sloid', 'route_id', 'route_short_name', 'route_long_name', 'direction_id', 'direction']
-        final_data = integrated_data[result_cols].sort_values(by='sloid')
-        final_data.to_csv(gtfs_results_path, index=False)
+
 
         # Print statistics
         total_gtfs_stops = len(integrated_data['stop_id'].unique())
@@ -735,19 +847,19 @@ if __name__ == "__main__":
         print(f"GTFS integrated stops: {total_gtfs_stops:,}")
         print(f"stop_id→sloid assignments (rows): {matched_stops:,}")
         print(f"unique sloids with routes: {unique_sloids_matched:,}")
-        print(f"Saved {len(integrated_data):,} rows to {gtfs_results_path}")
+
         print("===========================")
 
     except Exception as e:
         print(f"Error processing GTFS data: {e}")
         print("Continuing with HRDF processing...")
+        gtfs_stream = None
 
     # Process HRDF data
     print("\n=== HRDF Integration (directions) ===")
     hrdf_url = "https://data.opentransportdata.swiss/dataset/6083374f-6a6a-4d84-a6f7-0816493a0766/resource/95fd7309-cc17-4af7-a2f7-e77f04eb328f/download/oev_sammlung_ch_hrdf_5_40_41_2025_20250711_220742.zip"
     
-    # Check if HRDF results already exist
-    hrdf_results_path = "data/processed/atlas_routes_hrdf.csv"
+    hrdf_results = None
     try:
         hrdf_folder = download_and_extract_hrdf(hrdf_url)
         
@@ -759,12 +871,9 @@ if __name__ == "__main__":
             hrdf_results = process_hrdf_direction_data(traffic_points, hrdf_folder)
             
             if hrdf_results is not None:
-                hrdf_results.to_csv(hrdf_results_path, index=False)
-                
                 print("\n=== HRDF Direction Summary ===")
                 print(f"Direction entries: {len(hrdf_results):,}")
                 print(f"Unique sloids with directions: {hrdf_results['sloid'].nunique():,}")
-                print(f"Saved {len(hrdf_results):,} rows to {hrdf_results_path}")
                 print("===========================")
             else:
                 print("No HRDF direction data could be processed")
@@ -773,6 +882,18 @@ if __name__ == "__main__":
             
     except Exception as e:
         print(f"Error processing HRDF data: {e}")
+        hrdf_results = None
     
+    # Build unified routes file directly from source data
+    try:
+        write_unified_routes_csv_direct(
+            gtfs_data=gtfs_stream,
+            hrdf_data=hrdf_results,
+            traffic_points=traffic_points,
+            unified_out_path="data/processed/atlas_routes_unified.csv"
+        )
+    except Exception as e:
+        print(f"Error writing unified routes CSV: {e}")
+
     print("Done!")
 

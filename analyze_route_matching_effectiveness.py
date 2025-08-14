@@ -1,3 +1,8 @@
+"""
+OUTDATED ANALYSIS SCRIPT - This script was used for research comparing different route matching strategies.
+The main pipeline now uses unified route matching via route_matching_unified.py.
+This script may not work correctly with the current codebase.
+"""
 import pandas as pd
 import logging
 from collections import defaultdict
@@ -7,7 +12,7 @@ import os
 import xml.etree.ElementTree as ET
 
 # Assuming the project structure allows this import path
-from matching_process.route_matching import route_matching, _normalize_direction
+from matching_process.route_matching_unified import perform_unified_route_matching
 from matching_process.matching_script import parse_osm_xml
 from matching_process.utils import haversine_distance
 from get_atlas_data import extract_gtfs_directions
@@ -84,7 +89,7 @@ def hrdf_route_matching(atlas_df, xml_nodes, osm_xml_file):
 
     # 1. Load HRDF directions for ATLAS stops
     try:
-        hrdf_routes = pd.read_csv("data/processed/atlas_routes_hrdf.csv")
+        hrdf_routes = pd.read_csv("data/processed/atlas_routes_unified.csv")
         atlas_name_directions = defaultdict(set)
         atlas_uic_directions = defaultdict(set)
         for _, row in hrdf_routes.iterrows():
@@ -95,7 +100,7 @@ def hrdf_route_matching(atlas_df, xml_nodes, osm_xml_file):
                 atlas_uic_directions[sloid_str].add(row['direction_uic'])
         logger.info(f"Loaded HRDF name/UIC directions for {len(atlas_name_directions)} ATLAS sloids.")
     except FileNotFoundError:
-        logger.error("Could not find 'data/processed/atlas_routes_hrdf.csv'. Please run get_atlas_data.py.")
+        logger.error("Could not find 'data/processed/atlas_routes_unified.csv'. Please run get_atlas_data.py.")
         return []
 
     # 2. Prepare direction strings for OSM nodes directly from raw OSM XML
@@ -187,7 +192,8 @@ def main():
 
     # --- GTFS Route Matching ---
     logger.info("\n===== Running GTFS-based Route Matching =====")
-    gtfs_matches = route_matching(atlas_df, all_osm_nodes, max_distance=50)
+    # NOTE: Old route_matching function is deprecated. Use unified approach instead.
+    gtfs_matches = []  # route_matching(atlas_df, all_osm_nodes, max_distance=50)
     gtfs_matched_sloids = {m['sloid'] for m in gtfs_matches}
     gtfs_matched_osm = {m['osm_node_id'] for m in gtfs_matches}
 

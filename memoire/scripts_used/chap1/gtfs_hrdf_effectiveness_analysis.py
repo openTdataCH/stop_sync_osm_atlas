@@ -1,3 +1,8 @@
+"""
+OUTDATED ANALYSIS SCRIPT - This script was used for thesis research comparing GTFS vs HRDF strategies.
+The main pipeline now uses unified route matching. The old separate strategy approach is no longer supported.
+Some functions in this script may not work correctly with the current codebase.
+"""
 import os
 import json
 import math
@@ -15,7 +20,7 @@ except Exception:  # pragma: no cover
     plt = None
 
 from matching_process.matching_script import parse_osm_xml
-from matching_process.route_matching import route_matching, _get_osm_directions_from_xml
+from matching_process.route_matching_unified import perform_unified_route_matching, _get_osm_directions_from_xml
 from matching_process.utils import haversine_distance
 
 
@@ -86,8 +91,7 @@ def _build_osm_indexes(all_osm_nodes: Dict[Tuple[float, float], dict]) -> Tuple[
 def _load_inputs(
     atlas_csv: str = "data/raw/stops_ATLAS.csv",
     osm_xml: str = "data/raw/osm_data.xml",
-    gtfs_csv: str = "data/processed/atlas_routes_gtfs.csv",
-    hrdf_csv: str = "data/processed/atlas_routes_hrdf.csv",
+    unified_csv: str = "data/processed/atlas_routes_unified.csv",
     osm_routes_csv: str = "data/processed/osm_nodes_with_routes.csv",
 ):
     missing = [p for p in [atlas_csv, osm_xml] if not os.path.exists(p)]
@@ -101,16 +105,20 @@ def _load_inputs(
     osm_nodes, _, _ = parse_osm_xml(osm_xml)
 
     gtfs_df = None
-    if os.path.exists(gtfs_csv):
-        gtfs_df = pd.read_csv(gtfs_csv)
-    else:
-        logger.warning(f"GTFS routes file not found at {gtfs_csv}; some analyses will be skipped.")
-
     hrdf_df = None
-    if os.path.exists(hrdf_csv):
-        hrdf_df = pd.read_csv(hrdf_csv)
+    if os.path.exists(unified_csv):
+        unified_df = pd.read_csv(unified_csv)
+        # Extract GTFS data
+        gtfs_data = unified_df[unified_df['source'] == 'gtfs']
+        if not gtfs_data.empty:
+            gtfs_df = gtfs_data.copy()
+        
+        # Extract HRDF data
+        hrdf_data = unified_df[unified_df['source'] == 'hrdf']
+        if not hrdf_data.empty:
+            hrdf_df = hrdf_data.copy()
     else:
-        logger.warning(f"HRDF directions file not found at {hrdf_csv}; some analyses will be skipped.")
+        logger.warning(f"Unified routes file not found at {unified_csv}; route analyses will be skipped.")
 
     osm_routes_df = None
     if os.path.exists(osm_routes_csv):
@@ -437,9 +445,10 @@ def analyze_actual_matching(
 ) -> Dict:
     """Run the actual route_matching orchestrator for pure GTFS and pure HRDF strategies and summarize results."""
     logger.info("Running GTFS-only matching (actual)...")
-    gtfs_matches = route_matching(atlas_df, osm_nodes, osm_xml_file=osm_xml_path, max_distance=max_distance_m, strategy='gtfs')
+    # NOTE: Old route_matching with strategy parameter is deprecated. Use unified approach instead.
+    gtfs_matches = []  # route_matching(atlas_df, osm_nodes, osm_xml_file=osm_xml_path, max_distance=max_distance_m, strategy='gtfs')
     logger.info("Running HRDF-only matching (actual)...")
-    hrdf_matches = route_matching(atlas_df, osm_nodes, osm_xml_file=osm_xml_path, max_distance=max_distance_m, strategy='hrdf')
+    hrdf_matches = []  # route_matching(atlas_df, osm_nodes, osm_xml_file=osm_xml_path, max_distance=max_distance_m, strategy='hrdf')
 
     def _cardinality(matches: List[dict]) -> Dict[str, int]:
         sloid_to_osm = defaultdict(set)

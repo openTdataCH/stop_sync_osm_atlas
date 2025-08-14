@@ -19,7 +19,7 @@ The script computes four complementary views:
 - `data/raw/stops_ATLAS.csv` (from `get_atlas_data.py`)
 - `data/raw/osm_data.xml` (from your OSM extractor)
 - `data/processed/atlas_routes_gtfs.csv` (GTFS-derived route/direction per sloid, from `get_atlas_data.py`)
-- `data/processed/atlas_routes_hrdf.csv` (HRDF-derived direction-name/UIC per sloid, from `get_atlas_data.py`)
+- `data/processed/atlas_routes_unified.csv` (Unified GTFS/HRDF per sloid, from `get_atlas_data.py`)
 - `data/processed/osm_nodes_with_routes.csv` (OSM nodes with GTFS route annotations)
 
 It also reuses in-repo logic for:
@@ -41,7 +41,7 @@ If some processed artifacts are missing, the script degrades gracefully and skip
 
 1) Coverage
 
-- Counts unique sloids present in `atlas_routes_gtfs.csv` and `atlas_routes_hrdf.csv` and their fractions over all ATLAS sloids.
+- Counts unique sloids present in `atlas_routes_gtfs.csv` and `atlas_routes_unified.csv` (HRDF subset where source='hrdf') and their fractions over all ATLAS sloids.
 - Summarizes per-sloid richness:
   - GTFS: number of routes per sloid.
   - HRDF: number of direction-name entries per sloid.

@@ -393,7 +393,7 @@ function loadDataForViewport() {
                          atlas_lon: rawStop.atlas_lon,
                          distance_m: osmMatch.distance_m,
                          match_type: osmMatch.match_type || rawStop.match_type,
-                         routes_atlas: rawStop.routes_atlas
+                         routes_unified: rawStop.routes_unified
                      });
                  });
              }

@@ -6,8 +6,7 @@ import pandas as pd
 
 
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'processed'))
-GTFS_PATH = os.path.join(DATA_DIR, 'atlas_routes_gtfs.csv')
-HRDF_PATH = os.path.join(DATA_DIR, 'atlas_routes_hrdf.csv')
+UNIFIED_PATH = os.path.join(DATA_DIR, 'atlas_routes_unified.csv')
 
 
 def normalize_route_id(route_id: str) -> str:
@@ -28,15 +27,21 @@ def load_csv_safe(path: str) -> pd.DataFrame:
 
 
 def analyze_gtfs(df: pd.DataFrame) -> None:
-    print("\n=== GTFS Analysis (atlas_routes_gtfs.csv) ===")
+    print("\n=== GTFS Analysis (from unified routes) ===")
+    # Filter for GTFS data
+    gtfs_df = df[df['source'] == 'gtfs'].copy()
+    if gtfs_df.empty:
+        print("No GTFS data found in unified file.")
+        return
+    
     required_cols = {'sloid', 'route_id', 'direction_id'}
-    missing = required_cols - set(df.columns)
+    missing = required_cols - set(gtfs_df.columns)
     if missing:
-        print(f"Missing required cols in GTFS file: {missing}")
+        print(f"Missing required cols in unified GTFS data: {missing}")
         return
 
     # Normalize route_id and direction_id
-    df = df.copy()
+    df = gtfs_df
     df['route_id_norm'] = df['route_id'].apply(normalize_route_id)
     # direction_id may be float/NaN; keep as string where available
     def _norm_dir(x):
@@ -102,14 +107,20 @@ def analyze_gtfs(df: pd.DataFrame) -> None:
 
 
 def analyze_hrdf(df: pd.DataFrame) -> None:
-    print("\n=== HRDF Analysis (atlas_routes_hrdf.csv) ===")
+    print("\n=== HRDF Analysis (from unified routes) ===")
+    # Filter for HRDF data
+    hrdf_df = df[df['source'] == 'hrdf'].copy()
+    if hrdf_df.empty:
+        print("No HRDF data found in unified file.")
+        return
+    
     required_cols = {'sloid', 'line_name', 'direction_name', 'direction_uic'}
-    missing = required_cols - set(df.columns)
+    missing = required_cols - set(hrdf_df.columns)
     if missing:
-        print(f"Missing required cols in HRDF file: {missing}")
+        print(f"Missing required cols in unified HRDF data: {missing}")
         return
 
-    df = df.copy()
+    df = hrdf_df
     # 1) Average number of unique lines per SLOID
     lines_per_sloid = df.groupby('sloid')['line_name'].nunique()
     print(f"SLOIDs with HRDF lines: {len(lines_per_sloid):,}")
@@ -146,23 +157,30 @@ def analyze_hrdf(df: pd.DataFrame) -> None:
 
 
 def main():
-    print(f"Looking for processed files under: {DATA_DIR}")
-    gtfs_df = load_csv_safe(GTFS_PATH)
-    hrdf_df = load_csv_safe(HRDF_PATH)
+    print(f"Looking for unified routes file under: {DATA_DIR}")
+    unified_df = load_csv_safe(UNIFIED_PATH)
 
-    if gtfs_df is None and hrdf_df is None:
-        print("Neither GTFS nor HRDF processed files are available. Run the data generation first.")
+    if unified_df is None:
+        print("Unified routes file not found. Run the data generation first.")
         sys.exit(1)
 
-    if gtfs_df is not None:
-        analyze_gtfs(gtfs_df)
-    else:
-        print("Skipping GTFS analysis.")
+    # Check if we have both GTFS and HRDF data
+    has_gtfs = not unified_df[unified_df['source'] == 'gtfs'].empty
+    has_hrdf = not unified_df[unified_df['source'] == 'hrdf'].empty
 
-    if hrdf_df is not None:
-        analyze_hrdf(hrdf_df)
+    if has_gtfs:
+        analyze_gtfs(unified_df)
     else:
-        print("Skipping HRDF analysis.")
+        print("No GTFS data found in unified file.")
+
+    if has_hrdf:
+        analyze_hrdf(unified_df)
+    else:
+        print("No HRDF data found in unified file.")
+
+    if not has_gtfs and not has_hrdf:
+        print("No route data found in unified file.")
+        sys.exit(1)
 
 
 if __name__ == '__main__':

@@ -150,8 +150,7 @@ class AtlasStop(db.Model):
     atlas_designation = db.Column(db.String(255))
     atlas_designation_official = db.Column(db.String(255))
     atlas_business_org_abbr = db.Column(db.String(100))
-    routes_atlas = db.Column(db.JSON)
-    routes_hrdf = db.Column(db.JSON)
+    routes_unified = db.Column(db.JSON)
     atlas_note = db.Column(db.Text)
     atlas_note_is_persistent = db.Column(db.Boolean, default=False)
     # Attribution for latest note change
@@ -192,8 +191,15 @@ class RouteAndDirection(db.Model):
     route_long_name = db.Column(db.String(255))
     route_type = db.Column(db.String(50))
     match_type = db.Column(db.String(50))
+    # Unified fields
+    source = db.Column(db.String(10))  # 'gtfs' or 'hrdf'
+    atlas_line_name = db.Column(db.String(100))
+    direction_uic = db.Column(db.String(50))
+    route_id_normalized = db.Column(db.String(100))
 
     __table_args__ = (
         db.Index('idx_osm_route_direction', 'osm_route_id', 'direction_id'),
-        db.Index('idx_atlas_route_direction', 'atlas_route_id', 'direction_id')
+        db.Index('idx_atlas_route_direction', 'atlas_route_id', 'direction_id'),
+        db.Index('idx_atlas_line_direction_uic', 'atlas_line_name', 'direction_uic'),
+        db.Index('idx_source', 'source')
     ) 

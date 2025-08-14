@@ -39,8 +39,7 @@ def format_stop_data(stop: Stop, problem_type: str = None, include_routes: bool 
 
     if include_routes:
         result.update({
-            "routes_atlas": atlas_details.routes_atlas if atlas_details else None,
-            "routes_hrdf": atlas_details.routes_hrdf if atlas_details else None,
+            "routes_unified": getattr(atlas_details, 'routes_unified', None) if atlas_details else None,
             "routes_osm": osm_details.routes_osm if osm_details else None,
         })
 

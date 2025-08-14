@@ -267,11 +267,14 @@ def main():
     """
     Main function to run the script.
     """
-    #xml_data = query_overpass()
-    
-    # If you need to read from file instead:
-    with open("data/raw/osm_data.xml", "r", encoding="utf-8") as f:
-       xml_data = f.read()
+    # Try to read existing file first, if not available, fetch new data
+    try:
+        with open("data/raw/osm_data.xml", "r", encoding="utf-8") as f:
+            xml_data = f.read()
+        print("Using existing OSM data file")
+    except FileNotFoundError:
+        print("OSM data file not found, fetching from Overpass API...")
+        xml_data = query_overpass()
     
     if xml_data:
         # Process the data and output as CSV with direction information

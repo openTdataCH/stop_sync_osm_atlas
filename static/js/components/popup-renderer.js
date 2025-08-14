@@ -41,13 +41,10 @@
                 }
                 rows.push(['Match Type', data.match_type || 'N/A']);
             }
-            const gtfsRoutesHtml = PopupUtils.formatRouteList(data.routes_atlas);
-            const hrdfRoutesHtml = PopupUtils.formatHrdfRouteList(data.routes_hrdf);
-
+            const unifiedRoutesHtml = PopupUtils.formatUnifiedRouteList(data.routes_unified);
             routesSection = `
                 <div class="route-section">
-                    ${PopupUtils.createCollapsible('GTFS Routes', gtfsRoutesHtml, COLLAPSIBLE_DEFAULT_EXPANDED)}
-                    ${PopupUtils.createCollapsible('HRDF Routes', hrdfRoutesHtml, COLLAPSIBLE_DEFAULT_EXPANDED)}
+                    ${PopupUtils.createCollapsible('Routes', unifiedRoutesHtml, COLLAPSIBLE_DEFAULT_EXPANDED)}
                 </div>
             `;
         }
@@ -193,7 +190,7 @@
                 atlas_lon: stop.atlas_lon,
                 distance_m: stop.distance_m,
                 match_type: stop.match_type,
-                routes_atlas: stop.routes_atlas,
+                routes_unified: stop.routes_unified,
                 stop_type: stop.stop_type,
                 isOperatorMismatch: stop.isOperatorMismatch
             };
@@ -321,7 +318,7 @@
                 atlas_lon: stop.atlas_lon,
                 distance_m: stop.distance_m, 
                 match_type: stop.match_type,
-                routes_atlas: stop.routes_atlas,
+                routes_unified: stop.routes_unified,
                 isOperatorMismatch: stop.isOperatorMismatch
             };
             unifiedHtml += generateSingleAtlasBubbleHtml(atlasData, false);

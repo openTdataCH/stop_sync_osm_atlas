@@ -43,15 +43,18 @@
         return `<ul class="route-list" style="margin-top: 5px; padding-left: 15px;">${itemsHtml}</ul>`;
     }
 
-    function formatHrdfRouteList(routes) {
+    function formatUnifiedRouteList(routes) {
         routes = normalizeRoutes(routes);
-        if (routes.length === 0) { return '<i>No HRDF route information available</i>'; }
+        if (routes.length === 0) { return '<i>No route information available</i>'; }
         const itemsHtml = routes.map(route => {
-            if (!route || !route.line_name) return '';
-            const lineName = route.line_name;
-            const directionName = route.direction_name || route.direction_uic || 'N/A';
-            const filterLink = `<a href="#" onclick="filterByHrdfRoute('${lineName}'); return false;">${lineName}</a>`;
-            return `<li>Line: ${filterLink} <br> <small>Direction: ${directionName}</small></li>`;
+            if (!route) return '';
+            const source = (route.source || '').toUpperCase();
+            const displayName = route.route_name_short || route.route_name_long || route.line_name || route.route_id || 'Unnamed Route';
+            const direction = route.direction_name || route.direction_uic || route.direction_id || '';
+            const right = [route.route_id || '', route.line_name || ''].filter(Boolean).join(' / ');
+            const sourceChip = source ? `<span class="chip">${source}</span>` : '';
+            const dirStr = direction ? `<small>${direction}</small>` : '';
+            return `<li>${sourceChip} ${displayName} ${dirStr} ${right ? `<small>(${right})</small>` : ''}</li>`;
         }).join('');
         return `<ul class="route-list" style="margin-top: 5px; padding-left: 15px;">${itemsHtml}</ul>`;
     }
@@ -150,7 +153,7 @@
     PopupUtils.normalizeRoutes = normalizeRoutes;
     PopupUtils.groupRoutes     = groupRoutes;
     PopupUtils.formatRouteList = formatRouteList;
-    PopupUtils.formatHrdfRouteList = formatHrdfRouteList;
+    PopupUtils.formatUnifiedRouteList = formatUnifiedRouteList;
     PopupUtils.categorizeRoutes= categorizeRoutes;
     PopupUtils.createFilterLink= createFilterLink;
     PopupUtils.createCollapsible = createCollapsible;

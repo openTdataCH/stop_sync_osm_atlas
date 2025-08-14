@@ -35,34 +35,48 @@ python create_auth_tables.py || true
 # Check if data import should be skipped
 if [ "$SKIP_DATA_IMPORT" != "true" ]; then
 
-    # Check if data needs to be imported.
-    # A simple flag file can be used to ensure scripts run only once if desired,
-    # or run them every time if the data needs to be fresh on each start.
-    # For this setup, we'll run them every time to ensure data is populated.
+    # Check if we should run only matching (skip data downloads)
+    if [ "$MATCH_ONLY" = "true" ]; then
+        echo "MATCH_ONLY mode: Skipping data downloads, running only matching and database import..."
+        
+        # Verify required processed files exist
+        if [ ! -f "data/processed/osm_nodes_with_routes.csv" ] || [ ! -f "data/processed/atlas_routes_unified.csv" ]; then
+            echo "Error: MATCH_ONLY=true but required processed files are missing."
+            echo "Please run the full pipeline first (without MATCH_ONLY) to download and process data."
+            exit 1
+        fi
+        
+        # Run only the matching pipeline and database import
+        echo "Running matching pipeline and database import..."
+        python import_data_db.py
+        echo "Finished import_data_db.py"
+        
+    else
+        # Full pipeline: download, process, and import
+        echo "Running full data preparation and import pipeline..."
+        
+        # Download ATLAS data
+        echo "Downloading ATLAS data..."
+        python get_atlas_data.py
+        echo "Finished get_atlas_data.py"
 
-    echo "Running data preparation and import scripts..."
-    
-    # Download ATLAS data
-    echo "Downloading ATLAS data..."
-    python get_atlas_data.py
-    echo "Finished get_atlas_data.py"
+        # Download OSM data via Overpass API
+        echo "Downloading OSM data via Overpass API..."
+        python -c "from get_osm_data import query_overpass; query_overpass()"
+        echo "Finished OSM Overpass query"
 
-    # Download OSM data via Overpass API
-    echo "Downloading OSM data via Overpass API..."
-    python -c "from get_osm_data import query_overpass; query_overpass()"
-    echo "Finished OSM Overpass query"
+        # Process OSM data
+        echo "Processing OSM data..."
+        python get_osm_data.py
+        echo "Finished get_osm_data.py processing"
 
-    # Process OSM data
-    echo "Processing OSM data..."
-    python get_osm_data.py
-    echo "Finished get_osm_data.py processing"
+        # Run the complete matching pipeline and import to database
+        echo "Running complete matching pipeline and database import..."
+        python import_data_db.py
+        echo "Finished import_data_db.py"
 
-    # Run the complete matching pipeline and import to database
-    echo "Running complete matching pipeline and database import..."
-    python import_data_db.py
-    echo "Finished import_data_db.py"
-
-    echo "All data scripts executed successfully."
+        echo "All data scripts executed successfully."
+    fi
 else
     echo "SKIP_DATA_IMPORT is set to true. Skipping data import."
 fi

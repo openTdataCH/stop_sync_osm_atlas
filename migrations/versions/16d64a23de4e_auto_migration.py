@@ -25,6 +25,7 @@ def upgrade():
     sa.Column('atlas_business_org_abbr', sa.String(length=100), nullable=True),
     sa.Column('routes_atlas', sa.JSON(), nullable=True),
     sa.Column('routes_hrdf', sa.JSON(), nullable=True),
+    sa.Column('routes_unified', sa.JSON(), nullable=True),
     sa.Column('atlas_note', sa.Text(), nullable=True),
     sa.Column('atlas_note_is_persistent', sa.Boolean(), nullable=True),
     sa.Column('atlas_note_user_id', sa.Integer(), nullable=True),
@@ -90,11 +91,17 @@ def upgrade():
     sa.Column('route_long_name', sa.String(length=255), nullable=True),
     sa.Column('route_type', sa.String(length=50), nullable=True),
     sa.Column('match_type', sa.String(length=50), nullable=True),
+    sa.Column('source', sa.String(length=10), nullable=True),
+    sa.Column('atlas_line_name', sa.String(length=100), nullable=True),
+    sa.Column('direction_uic', sa.String(length=50), nullable=True),
+    sa.Column('route_id_normalized', sa.String(length=100), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('routes_and_directions', schema=None) as batch_op:
         batch_op.create_index('idx_atlas_route_direction', ['atlas_route_id', 'direction_id'], unique=False)
         batch_op.create_index('idx_osm_route_direction', ['osm_route_id', 'direction_id'], unique=False)
+        batch_op.create_index('idx_atlas_line_direction_uic', ['atlas_line_name', 'direction_uic'], unique=False)
+        batch_op.create_index('idx_source', ['source'], unique=False)
 
     op.create_table('stops',
     sa.Column('id', sa.Integer(), nullable=False),

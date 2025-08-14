@@ -1,9 +1,12 @@
 % !TeX spellcheck = fr_FR
-\chapter{Chapitre 2: Transport Public dans OSM}
+\chapter{Chapitre 2 : Transport public dans OSM}
 
 La cartographie du transport public dans OpenStreetMap (OSM) a évolué à travers plusieurs schémas. Cette évolution a conduit à la coexistence de diverses combinaisons de balises pour les arrêts de bus, gares ferroviaires, stations de tramway et autres nœuds de transport. De plus, comme OSM est un projet maintenu par une communauté de volontaires, certaines entrées peuvent ne correspondre à aucun schéma précis.
 
-Dans cette section, nous analyserons les différents schémas existants, nous examinerons la requête effectuée (c'est-à-dire quelles données seront utilisées) et, une fois les données obtenues, nous proposerons une vue d'ensemble de l'usage des balises pour les nœuds d'arrêts de transport public dans OSM en Suisse.
+Dans cette section, nous analysons les différents schémas existants, nous présentons la requête utilisée (c’est-à-dire quelles données seront extraites) et, une fois les données obtenues, nous proposons une vue d’ensemble de l’usage des balises pour les nœuds d’arrêts de transport public dans OSM en Suisse.
+
+\medskip
+\noindent\textbf{Reproductibilité.} Les figures et statistiques de ce chapitre sont produites par des scripts sous \texttt{memoire/scripts\_used/chap2/}. Le script principal est \texttt{osm\_plots.py} et lit \texttt{data/raw/osm\_data.xml} ainsi que les fichiers traités générés par \texttt{get\_osm\_data.py}.
 
 \section{Schémas de cartographie du transport public dans OSM}
 \begin{itemize}
@@ -24,7 +27,11 @@ Dans cette section, nous analyserons les différents schémas existants, nous ex
     PTv2 introduit également la notion de relation stop\_area (\texttt{type=public\_transport + public\_transport=stop\_area}) pour regrouper tous les éléments d’une même station ou d’un même arrêt, et une relation route\_master pour regrouper les itinéraires dans les deux sens [\ref{ref:osm_proposal_public_transport}]. Fait notable, la proposition PTv2 n’a pas invalidé ni remplacé les balises existantes, ce qui signifie que les balises PTv1 (telles que \texttt{highway=bus\_stop}, \texttt{railway=station}) coexistent souvent avec les balises PTv2 pour un même arrêt [\ref{ref:osm_public_transport}]. De nombreuses communautés encouragent à ajouter les balises PTv2 tout en conservant les anciennes pour plus de complétude.
 \end{itemize}
 
-\section{Différences dans l'usage de clés spécifiques}
+
+\noindent\textit{Remarque (zones).} Pour ce projet, nous ne considérons ici que les \textbf{nœuds}. Par simplification, les \textit{plateforms} ou \textit{stop\_positions} modélisés comme \textbf{zones} (ways/relations) ne sont pas intégrés au comptage. Il peut exister des \texttt{public\_transport=platform} ou \texttt{public\_transport=stop\_position} cartographiés en zones.
+
+
+\section{Différences dans l’usage de clés spécifiques}
 Certains choix de clés varient parmi les cartographes, ce qui peut engendrer des divergences dans la manière de consigner l'information :
 
 \begin{itemize}
@@ -33,46 +40,36 @@ Certains choix de clés varient parmi les cartographes, ce qui peut engendrer de
     Par exemple, un arrêt de bus qui a l'ID ``3154'' dans la base de la ville se balisera \texttt{ref=3154}. Et si cet arrêt comporte plusieurs quais, nommés ``Bay C'' par exemple, on peut utiliser \texttt{local\_ref=C} sur le quai concerné. En pratique, la distinction n’est pas toujours respectée : certains mettent tous les codes dans \texttt{ref}, d’autres utilisent \texttt{local\_ref} pour les numéros de quai ou les lettres d’arrêt.
 \end{itemize}
 
-\section{Requête Overpass Transport Public Suisse}
+\section{Requête Overpass transport public — Suisse}
 Overpass est un système de requêtage permettant d'extraire des données depuis la base de données OpenStreetMap [\ref{ref:overpass_turbo}]. Il utilise un langage de requête appelé Overpass Query Language, qui permet de rechercher et filtrer des objets OSM (nœuds, chemins, relations) en fonction de critères spécifiques (tags, zones géographiques, types d'objets, etc.).
-Pour obtenir les arrêts de transport public en Suisse sur OpenStreetMaps, nous utilisons la requête Overpass suivante:
+Pour obtenir les arrêts de transport public en Suisse sur OpenStreetMap, nous utilisons la requête Overpass suivante (simplifiée et \textit{dédoublonnée}) :
 
 \begin{tcolorbox}[colback=gray!10, colframe=brown, title=Requête Overpass]
 \begin{verbatim}
 [out:xml][timeout:180];
-    area["ISO3166-1"="CH"]->.searchArea;
-    (
-    node(area.searchArea)
-    node(area.searchArea)["public_transport"="platform"];
-    node(area.searchArea)["public_transport"="stop_position"];
-    node(area.searchArea)["public_transport"="station"];
-    node(area.searchArea)["public_transport"="halt"];
-    node(area.searchArea)["public_transport"="stop"];
-    node(area.searchArea)["railway"="tram_stop"];
-    node(area.searchArea)["amenity"="ferry_terminal"];
-    node(area.searchArea)["amenity"="bus_station"];
-    node(area.searchArea)["highway"="bus_stop"];
-    node(area.searchArea)["railway"="halt"];
-    node(area.searchArea)["railway"="station"];
-    node(area.searchArea)["aerialway"="station"];
-    );
-    out;
-    (
-      relation(bn)[type=route];
-    );
-    out meta;
+area["ISO3166-1"="CH"]->.searchArea;
+(
+  node(area.searchArea)["public_transport"~"platform|stop_position"];
+  node(area.searchArea)["highway"="bus_stop"];
+  node(area.searchArea)["railway"~"station|halt|tram_stop"];
+  node(area.searchArea)["amenity"~"bus_station|ferry_terminal"];
+  node(area.searchArea)["aerialway"="station"];
+);
+out;
+relation(bn)[type=route];
+out meta;
 \end{verbatim}
 \end{tcolorbox}
 
-Cette requête commence par définir la zone d'intérêt, qui correspond à la Suisse, identifiée par le code ISO3166-1 \texttt{CH}. Ensuite, elle sélectionne différents types de nœuds correspondant aux infrastructures de transport public. Cette requete inclut des arrets de bus, tram, les terminaux de ferries, les stations de remontées mécaniques, etc.
+Cette requête commence par définir la zone d’intérêt, qui correspond à la Suisse, identifiée par le code ISO3166-1 \texttt{CH}. Ensuite, elle sélectionne différents types de nœuds correspondant aux infrastructures de transport public. Cette requête inclut des arrêts de bus et de tram, des terminaux de ferries, des stations de remontées mécaniques, etc.
 
 
-Enfin, la requête extrait également les relations de type \texttt{route} associées aux nœuds obtenus. Cette information est pertinente, car elle permet de lier les arrêts à leurs itinéraires respectifs, ce qui facilitera les correspondances avec d'autres sources de données, comme les données Atlas. On vera plus de détails sur les donnés des routes dans la section 1.5.
+Enfin, la requête extrait également les relations de type \texttt{route} associées aux nœuds obtenus. Cette information est pertinente, car elle permet de lier les arrêts à leurs itinéraires respectifs, ce qui facilitera les correspondances avec d’autres sources de données, comme les données ATLAS.
 
-\section{Aperçu des ``tags'' des nœuds de transport public dans OSM en Suisse}
-Une fois qu'on a les nœuds dans la requête ci-dessus, nous avons analysé quels tags est-ce que ceux nœuds ont. 
-D'abord on va montrer quelques exemples de noeds pour le lecteur:
-\begin{tcolorbox}[colback=gray!10, colframe=brown, title=OSM N\oe ud: Grand-Mont]
+\section{Aperçu des balises (\textit{tags}) des nœuds OSM en Suisse}
+Une fois les nœuds obtenus par la requête ci-dessus, nous analysons les balises présentes sur ces nœuds.\
+Nous montrons d’abord quelques exemples :
+\begin{tcolorbox}[colback=gray!10, colframe=brown, title=OSM N\oe ud : Grand-Mont]
 \begin{verbatim}
 <node id="2368323780" lat="46.5627599" lon="6.6343369">
    <tag k="bus" v="yes"/>
@@ -96,7 +93,7 @@ D'abord on va montrer quelques exemples de noeds pour le lecteur:
  </node>
 \end{verbatim}
 \end{tcolorbox}
-\begin{tcolorbox}[colback=gray!10, colframe=brown, title=OSM N\oe ud: Interlaken Ost]
+\begin{tcolorbox}[colback=gray!10, colframe=brown, title=OSM N\oe ud : Interlaken Ost]
 \begin{verbatim}
 </node>
  <node id="2388274179" lat="46.6910098" lon="7.8697428">
@@ -109,7 +106,7 @@ D'abord on va montrer quelques exemples de noeds pour le lecteur:
 \end{verbatim}
 \end{tcolorbox}
 
-Comme vous pouvez le voir dans les exemples ci-dessus, chaque nœud contient des tags différents. Voci quelques statistiques pour avoir une vision génerale. 
+Comme on le voit, chaque nœud contient des balises différentes. Voici quelques statistiques pour une vision générale (sur notre extraction) :
 \begin{itemize}
     \item Nombre total de nœuds : 60 635
     \item Nombre total de nœuds avec \texttt{public\_transport} == \texttt{platform} : 24 548
@@ -147,6 +144,13 @@ Comme vous pouvez le voir dans les exemples ci-dessus, chaque nœud contient des
     \item Nœuds non assignés avec \texttt{aerialway=station} : 817
 \end{itemize}
 
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=.8\linewidth]{figures/plots/osm_tag_presence.png}
+  \caption[Présence des balises clés]{Présence des balises clés par nœud (\texttt{uic\_ref}, \texttt{ref}, \texttt{local\_ref}, \texttt{name}, \texttt{network}, \texttt{operator}, \texttt{uic\_name}).}
+  \label{fig:osm_tag_presence_inline}
+\end{figure}
+
 \section{Aperçu des itinéraires de transport public dans OSM en Suisse}
 
 Comme mentionné dans le chapitre 1, nous nous intéressons également aux itinéraires, car ils peuvent nous aider à identifier des correspondances. Cela est particulièrement utile lorsqu'il existe deux arrêts pour une même station, mais pour des itinéraires empruntant des directions opposées, ou lorsque des arrêts de bus et de tram sont situés à proximité.
@@ -154,56 +158,75 @@ Comme mentionné dans le chapitre 1, nous nous intéressons également aux itin�
 Voici quelques statistiques essentielles :
 
 \begin{itemize}
-    \item Total d'itinéraires uniques : 7 525  
-    \item Total de connexions entre nœuds et itinéraires : 139 084  
-    \item Nombre de nœuds desservant au moins un itinéraire : 51 182  
-    \item Nombre moyen d'itinéraires par nœud : 2,72  
+    \item Total d'itinéraires uniques : 1 904  
+    \item Total de connexions entre nœuds et itinéraires : 138 761  
+    \item Nombre de nœuds desservant au moins un itinéraire : 51 286  
+    \item Nombre moyen d'itinéraires par nœud : 2,71  
 \end{itemize}
 
-\subsection{Les 5 nœuds de transport public les plus fréquentés}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=.8\linewidth]{figures/plots/osm_routes_per_node_hist.png}
+  \caption[Distribution des itinéraires par nœud]{OSM (Suisse) — distribution du nombre d'itinéraires distincts par nœud (censurée au 99e centile).}
+  \label{fig:osm_routes_per_node_hist}
+\end{figure}
 
-\begin{tcolorbox}[colback=gray!10, colframe=brown, title=Top 5 des nœuds avec plus des itinéraires]
-\begin{verbatim}
-1. Node ID: 5962551000
-   Nom : Bus Station Zürich
-   Itinéraires desservis : 65
-   Type de nœud : stop_position
 
-2. Node ID: 3309712200
-   Nom : Sursee Bahnhof
-   Itinéraires desservis : 43
-   Type de nœud : stop_position
-   Référence UIC : 8502998
 
-3. Node ID: 984028248
-   Nom : Stein
-   Itinéraires desservis : 40
-   Type de nœud : stop_position
-   Référence UIC : 8580638
+\subsection{Les 5 nœuds de transport public les plus « connectés »}
 
-4. Node ID: 960890428
-   Nom : Genève - Gare Routière
-   Itinéraires desservis : 37
-   Type de nœud : stop_position
+\noindent\textit{Note méthodologique.} Cette liste est calculée en comptant le nombre de \textbf{connexions nœud–itinéraire} présentes dans le fichier \texttt{data/processed/osm\_nodes\_with\_routes.csv} (une ligne par appartenance d’un nœud à une relation OSM de type \texttt{route}). Il s’agit donc d’un \textbf{compte brut des relations} (directions et variantes incluses), et non d’un décompte de lignes distinctes après déduplication par \texttt{gtfs:route\_id}. Le script minimal reproduisant ce calcul est fourni sous \texttt{memoire/scripts\_used/chap2/compute\_busiest\_nodes.py}.
 
-5. Node ID: 984002736 / 1236383343
-   Nom : Lugano Centrale / Zürich Hauptbahnhof
-   Itinéraires desservis : 37
-   Type de nœud : stop_position / station
-   Référence UIC : 8505550 / 8503000
-\end{verbatim}
+\begin{tcolorbox}[colback=blue!5, colframe=blue!40, title=\textbf{1er} — Zürich Bus Station, fontupper=\normalsize\bfseries]
+\textbf{Itinéraires desservis :} 65 \\
+\textbf{Type de nœud :} \texttt{stop\_position} \\
+\textbf{Node ID :} 5962551000
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=green!5, colframe=green!40, title=\textbf{2e} — Stein, fontupper=\normalsize\bfseries]
+\textbf{Itinéraires desservis :} 40 \\
+\textbf{Type de nœud :} \texttt{stop\_position} \\
+\textbf{Référence UIC :} 8580638 \\
+\textbf{Node ID :} 984028248
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=orange!5, colframe=orange!40, title=\textbf{3e} — Genève - Gare Routière, fontupper=\normalsize\bfseries]
+\textbf{Itinéraires desservis :} 37 \\
+\textbf{Type de nœud :} \texttt{stop\_position} \\
+\textbf{Node ID :} 960890428
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=purple!5, colframe=purple!40, title=\textbf{4e} — Lugano Centrale, fontupper=\normalsize\bfseries]
+\textbf{Itinéraires desservis :} 37 \\
+\textbf{Type de nœud :} \texttt{stop\_position} \\
+\textbf{Référence UIC :} 8505550 \\
+\textbf{Node ID :} 984002736
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=red!5, colframe=red!40, title=\textbf{5e} — Paradiso, fontupper=\normalsize\bfseries]
+\textbf{Itinéraires desservis :} 34 \\
+\textbf{Type de nœud :} \texttt{stop\_position} \\
+\textbf{Référence UIC :} 8505553 \\
+\textbf{Node ID :} 1266983076
 \end{tcolorbox}
 
 \subsection{Analyse des directions des itinéraires}
 
 \begin{itemize}
-    \item Direction 0 (généralement sortante) : 70 531 connexions  
-    \item Direction 1 (généralement entrante) : 38 822 connexions  
-    \item Direction inconnue : 29 731 connexions  
+    \item Direction 0 (généralement sortante) : 60 319 connexions  
+    \item Direction 1 (généralement entrante) : 57 057 connexions  
+    \item Direction inconnue : 21 385 connexions  
 \end{itemize}
 
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=.6\linewidth]{figures/plots/osm_direction_known_ratio.png}
+  \caption[Directions H/R connues]{Connexions nœud–itinéraire pour lesquelles une direction (H/R) est déduite à partir de \texttt{ref\_trips}.}
+  \label{fig:osm_direction_known_ratio_inline}
+\end{figure}
 
-\subsection{Top 5 des itinéraires avec le plus d'arrêts}
+
+\subsection{Top 5 des itinéraires avec le plus d’arrêts}
 
 \begin{itemize}
     \item Bus 120 : Engelburg $\rightarrow$ St. Gallen $\rightarrow$ Eggersriet $\rightarrow$ Heiden : 174 arrêts  
@@ -212,4 +235,5 @@ Voici quelques statistiques essentielles :
     \item Bus 722 : Wil SG $\rightarrow$ Hosenruck $\rightarrow$ Weinfelden : 150 arrêts  
     \item Bus 507 : Lostorf $\rightarrow$ Olten $\rightarrow$ Egerkingen : 138 arrêts  
 \end{itemize}
+
 

@@ -3,11 +3,12 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 import logging
+import os
 from matching_process.utils import is_osm_station, haversine_distance
 # Import functions from distance_matching.py
 from matching_process.distance_matching import distance_matching, transform_for_distance_matching
 # Import route_matching function
-from matching_process.route_matching import route_matching
+from matching_process.route_matching_unified import perform_unified_route_matching
 # Import standardize_operator from org_standardization.py
 from matching_process.org_standardization import standardize_operator
 # Import centralized isolation detection
@@ -96,21 +97,32 @@ def parse_osm_xml(xml_file):
 # Use module-level logger defined by basicConfig at import
 
 
-def final_pipeline(route_matching_strategy='hrdf_gtfs'):
+def final_pipeline(route_matching_strategy='unified'):
     """
     Execute the complete matching pipeline:
-    1. Load data from CSV and XML files
+    1. Load data from existing CSV and XML files (data must be pre-downloaded)
     2. Perform exact matching using UIC references
     3. Perform name-based matching for remaining unmatched entries
     4. Perform distance-based matching for any still unmatched entries
     5. Perform route-based matching for remaining unmatched entries based on the chosen strategy.
+    
+    Note: This function assumes data files already exist. Use get_atlas_data.py and 
+    get_osm_data.py to download the required data files before running this pipeline.
     """
     # --- Load Data ---
     atlas_csv_file = "data/raw/stops_ATLAS.csv"
     osm_xml_file = "data/raw/osm_data.xml"
     
     logger.info("Loading and parsing data files...")
+    
+    # ATLAS CSV must exist - matching script should never download data
+    if not os.path.exists(atlas_csv_file):
+        raise FileNotFoundError(f"Required ATLAS CSV not found at '{atlas_csv_file}'. Please run get_atlas_data.py first to download the data.")
     atlas_df = pd.read_csv(atlas_csv_file, sep=";")
+    if not os.path.exists(osm_xml_file):
+        raise FileNotFoundError(
+            f"Required OSM XML not found at '{osm_xml_file}'. Please provide the file or generate it before running the pipeline."
+        )
     all_osm_nodes, uic_ref_dict, name_index = parse_osm_xml(osm_xml_file)
 
     # --- Apply persistent manual matches before any automatic matching ---
@@ -264,13 +276,14 @@ def final_pipeline(route_matching_strategy='hrdf_gtfs'):
     
     # Route matching is performed on entries not yet matched by exact, name, or actual distance
     if len(unmatched_after_distance_df) > 0:
-        route_matches = route_matching(
-            unmatched_after_distance_df, 
-            filtered_osm_nodes_for_route, 
-            osm_xml_file=osm_xml_file, 
-            max_distance=50,
-            strategy=route_matching_strategy
+        route_matches, newly_used = perform_unified_route_matching(
+            unmatched_after_distance_df,
+            filtered_osm_nodes_for_route,
+            osm_xml_file=osm_xml_file,
+            used_osm_nodes=used_osm_ids_total,
+            max_distance=50
         )
+        used_osm_ids_total.update(newly_used)
     else:
         route_matches = []
     logger.info(f"Route matching: {len(route_matches)} matches.")
@@ -506,12 +519,13 @@ def final_pipeline(route_matching_strategy='hrdf_gtfs'):
     stage3b_distance_matches = len([m for m in actual_distance_matches if m['match_type'] == 'distance_matching_3b']) # Use actual_distance_matches
     
     # Count route matching stages
-    route_gtfs_matches = [m for m in route_matches if m['match_type'].startswith('route_gtfs')]
-    route_hrdf_matches = [m for m in route_matches if m['match_type'].startswith('route_hrdf')]
+    route_gtfs_matches = [m for m in route_matches if m['match_type'].startswith('route_gtfs') or m['match_type'].startswith('route_unified_gtfs')]
+    route_hrdf_matches = [m for m in route_matches if m['match_type'].startswith('route_hrdf') or m['match_type'].startswith('route_unified_hrdf')]
     
     # --- Print Final Summary ---
     print("==== FINAL MATCHING SUMMARY ====")
     print(f"Total ATLAS entries (with coordinates): {len(atlas_df)}")
+    print(f"Manual matches: {len(manual_matches)}")
     print(f"Exact matches: {len(exact_matches)}")
     print(f"Name-based matches: {len(name_matches)}")
     print(f"Distance-based matches (actual): {len(actual_distance_matches)}") # Report actual count
@@ -525,13 +539,8 @@ def final_pipeline(route_matching_strategy='hrdf_gtfs'):
     print(f"Route-based matches: {len(route_matches)}")
     print(f"  ├─ Using GTFS data: {len(route_gtfs_matches)}")
     print(f"  └─ Using HRDF data: {len(route_hrdf_matches)}")
-    if 'hrdf' in route_matching_strategy:
-        hrdf_name_matches = sum(1 for m in route_hrdf_matches if 'name' in m['match_type'])
-        hrdf_uic_matches = sum(1 for m in route_hrdf_matches if 'uic' in m['match_type'])
-        hrdf_both_matches = sum(1 for m in route_hrdf_matches if 'name' in m['match_type'] and 'uic' in m['match_type'])
-        print(f"     ├─ By Name Direction: {hrdf_name_matches}")
-        print(f"     ├─ By UIC Direction: {hrdf_uic_matches}")
-        print(f"     └─ By Both: {hrdf_both_matches}")
+    print(f"Post-pass exact matches (consolidation): {len(postpass_exact_matches)}")
+    print(f"Duplicate propagation matches: {len(duplicate_propagation_matches)}")
 
     print(f"Total matched (all methods): {len(all_matches_df)}") # all_matches now excludes 'no_nearby_counterpart'
     print(f"Unmatched ATLAS entries: {len(final_unmatched_atlas)}")

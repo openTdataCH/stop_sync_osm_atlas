@@ -11,10 +11,9 @@ def main():
     plt.rcParams['figure.dpi'] = 180
 
     atlas_path = os.path.join(root, 'data', 'raw', 'stops_ATLAS.csv')
-    gtfs_path = os.path.join(root, 'data', 'processed', 'atlas_routes_gtfs.csv')
-    hrdf_path = os.path.join(root, 'data', 'processed', 'atlas_routes_hrdf.csv')
+    unified_path = os.path.join(root, 'data', 'processed', 'atlas_routes_unified.csv')
 
-    if not (os.path.exists(atlas_path) and os.path.exists(gtfs_path) and os.path.exists(hrdf_path)):
+    if not (os.path.exists(atlas_path) and os.path.exists(unified_path)):
         raise SystemExit('Required inputs missing')
 
     atlas = pd.read_csv(atlas_path, sep=';').dropna(subset=['sloid', 'wgs84North', 'wgs84East'])
@@ -22,10 +21,9 @@ def main():
     atlas['wgs84North'] = atlas['wgs84North'].astype(float)
     atlas['wgs84East'] = atlas['wgs84East'].astype(float)
 
-    g = pd.read_csv(gtfs_path)
-    h = pd.read_csv(hrdf_path)
-    sloids_gtfs = set(g['sloid'].dropna().astype(str).str.strip())
-    sloids_hrdf = set(h['sloid'].dropna().astype(str).str.strip())
+    unified = pd.read_csv(unified_path)
+    sloids_gtfs = set(unified[unified['source'] == 'gtfs']['sloid'].dropna().astype(str).str.strip())
+    sloids_hrdf = set(unified[unified['source'] == 'hrdf']['sloid'].dropna().astype(str).str.strip())
 
     # Join to get coordinates
     gtfs_pts = atlas[atlas['sloid'].isin(sloids_gtfs)][['wgs84East', 'wgs84North']].rename(columns={'wgs84East': 'lon', 'wgs84North': 'lat'})

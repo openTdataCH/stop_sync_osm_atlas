@@ -93,7 +93,7 @@ class FilterBuilder:
                     conditions.append(db.or_(*route_conditions) if len(route_conditions) > 1 else route_conditions[0])
             elif filter_type == 'hrdf_route':
                 conditions.append(Stop.atlas_stop_details.has(
-                    func.json_search(AtlasStop.routes_hrdf, 'one', value, None, '$[*].line_name') != None
+                    func.json_search(AtlasStop.routes_unified, 'one', value, None, '$[*].line_name') != None
                 ))
             else:  # UIC ref
                 conditions.append(Stop.uic_ref.like(f'%{value}%'))

@@ -21,7 +21,8 @@ def get_stops_for_route(route_id, direction=None):
                 routes_and_directions 
             WHERE 
                 (osm_route_id LIKE :route_id 
-                OR atlas_route_id LIKE :route_id)
+                OR atlas_route_id LIKE :route_id
+                OR atlas_line_name LIKE :route_id)
         """
         params = {"route_id": f'%{route_id}%'}
         if direction:

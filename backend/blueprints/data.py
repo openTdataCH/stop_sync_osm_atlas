@@ -149,7 +149,7 @@ def get_data():
                         station_id_sub_conditions.append(Stop.osm_node_id.like(f'%{value}%'))
                     elif filter_type == 'hrdf_route':
                         station_id_sub_conditions.append(Stop.atlas_stop_details.has(
-                            func.json_search(AtlasStop.routes_hrdf, 'one', value, None, '$[*].line_name') != None
+                            func.json_search(AtlasStop.routes_unified, 'one', value, None, '$[*].line_name') != None
                         ))
                     elif filter_type == 'route':
                         route_stops = get_stops_for_route(value, direction if direction else None)
@@ -371,7 +371,7 @@ def get_stop_popup():
                         "atlas_lon": r.atlas_lon,
                         "distance_m": r.distance_m,
                         "match_type": r.match_type,
-                        "routes_atlas": atlas.routes_atlas if atlas else None
+                        "routes_unified": getattr(atlas, 'routes_unified', None) if atlas else None
                     })
                 return jsonify({"stop": osm_centric})
         return jsonify({"stop": enriched})

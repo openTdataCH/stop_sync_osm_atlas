@@ -1,7 +1,34 @@
 % !TeX spellcheck = fr_FR
 \chapter{Chapitre 3 : Correspondance avec les données ATLAS-OSM}
 
-Le processus de correspondance entre les données ATLAS et OSM a été conçu pour identifier de manière précise et systématique les arrêts correspondants dans ces deux ensembles de données. Il se déroule en plusieurs étapes, chacune reposant sur des critères spécifiques pour maximiser la fiabilité des correspondances tout en minimisant les erreurs. Les étapes incluent une correspondance exacte basée sur les identifiants, une correspondance par nom et une correspondance par distance avec plusieurs sous-étapes. Voici une description détaillée de chaque étape.
+Le processus de correspondance entre les données ATLAS et OSM a été conçu pour identifier de manière précise et systématique les arrêts correspondants dans ces deux ensembles de données. Cette approche méthodologique repose sur un principe de correspondance séquentielle par ordre de fiabilité, garantissant une précision maximale des appariements.
+
+\section{Approche méthodologique générale}
+
+Le processus de correspondance adopte une stratégie "hit-first" (première correspondance trouvée), où chaque entrée ATLAS est appariée selon la première méthode qui réussit, en suivant un ordre décroissant de fiabilité. Cette approche séquentielle garantit que les correspondances les plus fiables (exactes) sont privilégiées par rapport aux correspondances moins certaines (par distance).
+
+Nous avons considéré une approche alternative consistant à exécuter toutes les méthodes sur toutes les entrées, permettant d'analyser pour chaque correspondance le nombre de méthodes qui fonctionnent et d'attribuer une probabilité de correspondance. Cependant, après réflexion approfondie, nous avons conclu que cette approche n'apporterait pas de valeur ajoutée significative. En effet, l'ordre séquentiel reflète déjà la hiérarchie de fiabilité : si une correspondance exacte est trouvée, il est inutile de vérifier si d'autres méthodes moins fiables fonctionnent également.
+
+Le processus complet comprend les étapes suivantes :
+\begin{enumerate}
+    \item \textbf{Correspondance manuelle} : Application des correspondances définies manuellement et stockées de manière persistante
+    \item \textbf{Correspondance exacte} : Appariement basé sur les identifiants UIC 
+    \item \textbf{Correspondance par nom} : Utilisation des noms officiels des arrêts
+    \item \textbf{Correspondance par distance} : Analyse géographique avec critères de proximité
+    \item \textbf{Correspondance par routes} : Méthode complexe basée sur l'analyse des itinéraires (détaillée au chapitre 4)
+    \item \textbf{Consolidation post-traitement} : Récupération des correspondances exactes manquées lors du passage initial
+    \item \textbf{Propagation des duplicatas} : Extension des correspondances aux entrées ATLAS dupliquées
+\end{enumerate}
+
+Ce chapitre détaille les méthodes de correspondance manuelle, exacte, par nom et par distance. La correspondance par routes, en raison de sa complexité particulière, sera traitée séparément au chapitre 4.
+
+\section{Correspondance Manuelle}
+
+Avant toute correspondance automatique, le système applique les correspondances manuelles définies préalablement par les utilisateurs et stockées de manière persistante dans la base de données. 
+
+Les correspondances manuelles sont faites depuis l'application web comme on vera plus tard.
+
+TODO: we should look at this and add them at the end probably, in case they haven't been matched by the other methods.
 
 \section{Correspondance Exacte}
 
@@ -20,12 +47,12 @@ Des situations complexes peuvent survenir lorsque plusieurs entrées ATLAS parta
     Lorsque plusieurs entrées ATLAS et nœuds OSM partagent le même \texttt{'number'}/\texttt{'uic\_ref'}, une correspondance plus fine est réalisée en comparant la \texttt{'designation'} de l’entrée ATLAS (par exemple, le code du quai) avec la balise \texttt{'local\_ref'} du nœud OSM. Une correspondance est établie si ces valeurs sont identiques.
 \end{enumerate}
 
-Cette méthode a permis d’identifier 21994 correspondances exactes.
+Cette méthode a permis d'identifier XX correspondances exactes.
 \begin{figure}[h] 
     \centering
     \includegraphics[width=0.7\textwidth]{../figures/correspondances/exact_Cornavin.png}
     \caption[Correspondances exactes à Genève-Cornavin]{Correspondances exactes à la gare de Genève-Cornavin. Les détails du nœud OSM de la voie 6 sont visibles sur l'image.}
-    \label{fig:sample}
+    \label{fig:exact_cornavin}
 \end{figure}
 
 \section{Correspondance par Nom}
@@ -34,24 +61,24 @@ Pour les entrées ATLAS non appariées lors de l’étape précédente, une corr
 
 La règle principale établit une correspondance si le \texttt{'designationOfficial'} correspond exactement à l’une de ces balises OSM. Cependant, si plusieurs nœuds OSM présentent le même nom correspondant, un critère supplémentaire est utilisé : la balise \texttt{'local\_ref'} du nœud OSM est comparée à la \texttt{'designation'} de l’entrée ATLAS. Une correspondance est confirmée si ces valeurs sont identiques (en ignorant la casse).
 
-Cette approche a permis d’ajouter 339 correspondances supplémentaires.
+Cette approche a permis d'ajouter XX correspondances supplémentaires.
 \begin{figure}[h]
     \centering
     \begin{subfigure}[b]{0.4\textwidth}
         \centering
         \includegraphics[width=\textwidth]{../figures/correspondances/name_app.png}
         \caption[Correspondances par nom]{Correspondances par nom.}
-        \label{fig:image1}
+        \label{fig:name_app}
     \end{subfigure}
     \hspace{-0.2cm}  % Reduce space between images
     \begin{subfigure}[b]{0.45\textwidth}
         \centering
-        \includegraphics[width=\textwidth]{../figures/correspondances/name_osm}
-        \caption[Nœud OSM – exemple]{Capture d'écran d'un nœud OSM..}
-        \label{fig:image2}
+        \includegraphics[width=\textwidth]{../figures/correspondances/name_osm.png}
+        \caption[Nœud OSM – exemple]{Capture d'écran d'un nœud OSM correspondant.}
+        \label{fig:name_osm}
     \end{subfigure}
     \caption[Exemple de correspondance par nom]{Pour l'arrêt "Thônex, Sous-Moulin, D", on peut voir que, malgré une référence UIC différente, il est possible d'établir des correspondances grâce au nom.}
-    \label{fig:sample}
+    \label{fig:name_matching_example}
 \end{figure}
 
 
@@ -67,14 +94,13 @@ Les entrées ATLAS et OSM sont regroupés selon les paires d’identifiants suiv
     \item \texttt{'designationOfficial'} (ATLAS) et \texttt{'name'} (OSM).
 \end{enumerate}
 
-Dans chaque groupe où le nombre d’entrées ATLAS est égal au nombre de nœuds OSM, une correspondance est tentée en associant chaque entrée ATLAS au nœud OSM le plus proche, à condition que cette association soit cohérente (c’est-à-dire que chaque nœud OSM soit également le plus proche de l’entrée ATLAS qui lui est attribuée). Cette méthode nous a permis de réaliser 8 902 correspondances supplémentaires.
+Dans chaque groupe où le nombre d'entrées ATLAS est égal au nombre de nœuds OSM, une correspondance est tentée en associant chaque entrée ATLAS au nœud OSM le plus proche, à condition que cette association soit cohérente (c'est-à-dire que chaque nœud OSM soit également le plus proche de l'entrée ATLAS qui lui est attribuée). Cette méthode nous a permis de réaliser XX correspondances supplémentaires.
 
 \begin{figure}[h] 
     \centering
     \includegraphics[width=0.7\textwidth]{../figures/correspondances/groupe_proximite.png}
     \caption[Correspondances – Münchenstein, Hofmatt]{Correspondances pour les arrêts de Münchenstein, Hofmatt. Malgré les divergences de \texttt{uic\_ref} et le manque de références locales, nous avons réussi à établir des correspondances grâce à la correspondance de groupe basée sur les distances.}
-
-    \label{fig:sample}
+    \label{fig:group_proximity_munchenstein}
 \end{figure}
 
 \FloatBarrier
@@ -125,19 +151,19 @@ Cette sous-étape recherche, pour chaque entrée ATLAS non appariée, un nœud O
     \begin{subfigure}[b]{0.45\textwidth}
         \centering
         \includegraphics[height=6cm]{../figures/correspondances/distance_2.png}
-        \label{fig:image1}
+        \label{fig:zurich_atlas}
     \end{subfigure}
     \hspace{-0.2cm}  % Réduction de l'espace entre les images
     \begin{subfigure}[b]{0.45\textwidth}
         \centering
         \includegraphics[height=6cm]{../figures/correspondances/osm_distance_2.png}
-        \label{fig:image2}
+        \label{fig:zurich_osm}
     \end{subfigure}
     \caption[Correspondances – Zürich HB (étape 2)]{Correspondances à Zürich HB grâce à l'étape 2.}
-    \label{fig:sample}
+    \label{fig:zurich_distance_2}
 \end{figure}
 
-Cette méthode nous a permis de réaliser 127 correspondances supplémentaires.
+Cette méthode nous a permis de réaliser XX correspondances supplémentaires.
 
 \subsection{Étape 3 : Correspondance basée sur la proximité avec critères relatifs}  
 Pour les entrées toujours non appariées, tous les nœuds OSM situés à moins de 50 mètres sont examinés :  
@@ -149,18 +175,61 @@ Pour les entrées toujours non appariées, tous les nœuds OSM situés à moins 
         \item La distance au deuxième nœud le plus proche est au moins 4 fois supérieure à celle du nœud le plus proche.  
     \end{enumerate}  
 \end{itemize}  
-Nous avons réussi à établir 2 233 correspondances avec l’option a) et 1 983 correspondances avec l’option b).  
+Nous avons réussi à établir XX correspondances avec l'option a) et XX correspondances avec l'option b).  
 Cette méthode est utile pour les cas où il y a des nœuds isolés, comme des télésièges.  
 
 \begin{figure}[h] 
     \centering
     \includegraphics[width=0.7\textwidth]{../figures/correspondances/distance_3.png}
-    \caption[Correspondance par distance – étape 3]{Correspondance par distance étape 3}
-    \label{fig:sample}
+    \caption[Correspondance par distance – étape 3]{Correspondance par distance étape 3 : exemple d'un arrêt isolé où un seul candidat OSM est trouvé dans le rayon de 50 mètres.}
+    \label{fig:distance_stage3}
 \end{figure} 
+
+\section{Consolidation Post-traitement}
+
+Après l'exécution des méthodes principales de correspondance (exacte, par nom, par distance et par routes), le système effectue une consolidation post-traitement pour récupérer les correspondances exactes qui auraient pu être manquées lors du passage initial. Cette étape, appelée "unique-by-UIC consolidation", examine les entrées ATLAS restantes non appariées et recherche des nœuds OSM disponibles partageant le même identifiant UIC.
+
+Cette consolidation est particulièrement utile dans les cas où :
+\begin{itemize}
+    \item Des nœuds OSM étaient temporairement indisponibles lors de la correspondance exacte initiale
+    \item Des conflits de priorité ont empêché certaines correspondances exactes évidentes
+    \item Des entrées ont été filtrées lors des étapes précédentes mais redeviennent candidates valides
+\end{itemize}
+
+Le processus fonctionne de manière conservative : il ne crée une correspondance que si exactement un nœud OSM disponible correspond à l'identifiant UIC de l'entrée ATLAS, garantissant ainsi une fiabilité maximale.
+
+Cette étape de consolidation a permis d'identifier XX correspondances exactes supplémentaires.
+
+\section{Propagation des Duplicatas}
+
+Une dernière étape consiste à propager les correspondances trouvées vers les entrées ATLAS dupliquées. Lorsque plusieurs entrées ATLAS partagent les mêmes caractéristiques (numéro et désignation), et qu'une correspondance a été établie pour l'une d'entre elles, cette correspondance est étendue aux autres entrées du groupe dupliqué.
+
+Cette propagation permet d'assurer la cohérence des correspondances et d'améliorer le taux de couverture global, particulièrement dans les grandes gares où plusieurs entrées ATLAS peuvent représenter des aspects différents d'un même arrêt physique.
+
+La propagation des duplicatas a permis d'ajouter XX correspondances supplémentaires.
 
 \section{Résultats actuels}
 
-Parmi les 56.128 arrêts ATLAS que nous avons considérés jusqu'à présent, le processus de correspondance a permis d’identifier un total de 33.747 correspondances entre les données ATLAS et OSM. Après ces étapes, 22.380 entrées ATLAS restent non appariées, et 34.522 nœuds OSM restent inutilisés. Parmi ces nœuds OSM inutilisés, 27.759 sont associés à au moins une route, 28.068 possèdent une référence UIC, et 1.908 ont une référence locale (\texttt{local\_ref}).
+Parmi les XX arrêts ATLAS que nous avons considérés, le processus de correspondance a permis d'identifier un total de XX correspondances entre les données ATLAS et OSM, réparties comme suit :
+
+\begin{itemize}
+    \item Correspondances manuelles : XX
+    \item Correspondances exactes : XX
+    \item Correspondances par nom : XX
+    \item Correspondances par distance : XX
+    \begin{itemize}
+        \item Étape 1 (groupe-proximité) : XX
+        \item Étape 2 (référence locale) : XX
+        \item Étape 3a (candidat unique) : XX
+        \item Étape 3b (ratio de distance) : XX
+    \end{itemize}
+    \item Correspondances par routes : XX (détaillé au chapitre 4)
+    \item Consolidation post-traitement : XX
+    \item Propagation des duplicatas : XX
+\end{itemize}
+
+Après ces étapes, XX entrées ATLAS restent non appariées, et XX nœuds OSM restent inutilisés. Parmi ces nœuds OSM inutilisés, XX sont associés à au moins une route, XX possèdent une référence UIC, et XX ont une référence locale (\texttt{local\_ref}).
+
+Parmi les entrées ATLAS non appariées, XX n'ont aucun nœud OSM dans un rayon de 50 mètres, indiquant des zones où la couverture OSM est insuffisante par rapport aux données ATLAS.
 
 

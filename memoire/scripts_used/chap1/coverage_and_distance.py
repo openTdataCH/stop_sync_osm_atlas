@@ -19,15 +19,12 @@ def main():
     plt.rcParams['figure.dpi'] = 180
 
     # Coverage bar: GTFS vs HRDF
-    p_gtfs = os.path.join(root, 'data', 'processed', 'atlas_routes_gtfs.csv')
-    p_hrdf = os.path.join(root, 'data', 'processed', 'atlas_routes_hrdf.csv')
+    p_unified = os.path.join(root, 'data', 'processed', 'atlas_routes_unified.csv')
     vals = {}
-    if os.path.exists(p_gtfs):
-        g = pd.read_csv(p_gtfs)
-        vals['GTFS_sloids'] = g['sloid'].dropna().nunique()
-    if os.path.exists(p_hrdf):
-        h = pd.read_csv(p_hrdf)
-        vals['HRDF_sloids'] = h['sloid'].dropna().nunique()
+    if os.path.exists(p_unified):
+        unified = pd.read_csv(p_unified)
+        vals['GTFS_sloids'] = unified[unified['source'] == 'gtfs']['sloid'].dropna().nunique()
+        vals['HRDF_sloids'] = unified[unified['source'] == 'hrdf']['sloid'].dropna().nunique()
     if vals:
         labels = list(vals.keys()); values = list(vals.values())
         fig, ax = plt.subplots(figsize=(5, 4))
