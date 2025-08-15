@@ -11,24 +11,17 @@ Nous avons considéré une approche alternative consistant à exécuter toutes l
 
 Le processus complet comprend les étapes suivantes :
 \begin{enumerate}
-    \item \textbf{Correspondance manuelle} : Application des correspondances définies manuellement et stockées de manière persistante
     \item \textbf{Correspondance exacte} : Appariement basé sur les identifiants UIC 
     \item \textbf{Correspondance par nom} : Utilisation des noms officiels des arrêts
     \item \textbf{Correspondance par distance} : Analyse géographique avec critères de proximité
     \item \textbf{Correspondance par routes} : Méthode complexe basée sur l'analyse des itinéraires (détaillée au chapitre 4)
     \item \textbf{Consolidation post-traitement} : Récupération des correspondances exactes manquées lors du passage initial
     \item \textbf{Propagation des duplicatas} : Extension des correspondances aux entrées ATLAS dupliquées
+    \item \textbf{Correspondance manuelle} : Application des correspondances définies manuellement et stockées de manière persistante
 \end{enumerate}
 
 Ce chapitre détaille les méthodes de correspondance manuelle, exacte, par nom et par distance. La correspondance par routes, en raison de sa complexité particulière, sera traitée séparément au chapitre 4.
 
-\section{Correspondance Manuelle}
-
-Avant toute correspondance automatique, le système applique les correspondances manuelles définies préalablement par les utilisateurs et stockées de manière persistante dans la base de données. 
-
-Les correspondances manuelles sont faites depuis l'application web comme on vera plus tard.
-
-TODO: we should look at this and add them at the end probably, in case they haven't been matched by the other methods.
 
 \section{Correspondance Exacte}
 
@@ -208,12 +201,17 @@ Cette propagation permet d'assurer la cohérence des correspondances et d'améli
 
 La propagation des duplicatas a permis d'ajouter XX correspondances supplémentaires.
 
+\section{Correspondance Manuelle}
+
+Enfin, si les entrées n'ont pas été appariées par les méthodes précédentes, le système applique les correspondances manuelles définies préalablement par les utilisateurs et stockées de manière persistante dans la base de données. 
+
+Les correspondances manuelles sont faites depuis l'application web comme on vera plus tard.
+
 \section{Résultats actuels}
 
 Parmi les XX arrêts ATLAS que nous avons considérés, le processus de correspondance a permis d'identifier un total de XX correspondances entre les données ATLAS et OSM, réparties comme suit :
 
 \begin{itemize}
-    \item Correspondances manuelles : XX
     \item Correspondances exactes : XX
     \item Correspondances par nom : XX
     \item Correspondances par distance : XX

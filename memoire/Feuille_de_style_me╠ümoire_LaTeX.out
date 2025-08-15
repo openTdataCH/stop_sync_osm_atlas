@@ -25,52 +25,103 @@
 \BOOKMARK [2][-]{subsection.2.5.3}{Top 5 des itin\351raires avec le plus d\220arr\352ts}{section.2.5}% 25
 \BOOKMARK [0][-]{chapter.3}{Chapitre 3 : Correspondance avec les donn\351es ATLAS-OSM}{}% 26
 \BOOKMARK [1][-]{section.3.1}{Approche m\351thodologique g\351n\351rale}{chapter.3}% 27
-\BOOKMARK [1][-]{section.3.2}{Correspondance Manuelle}{chapter.3}% 28
-\BOOKMARK [1][-]{section.3.3}{Correspondance Exacte}{chapter.3}% 29
-\BOOKMARK [1][-]{section.3.4}{Correspondance par Nom}{chapter.3}% 30
-\BOOKMARK [1][-]{section.3.5}{Correspondance par Distance}{chapter.3}% 31
-\BOOKMARK [2][-]{subsection.3.5.1}{\311tape 1 : Correspondance de groupe bas\351e sur la proximit\351}{section.3.5}% 32
-\BOOKMARK [2][-]{subsection.3.5.2}{\311tape 2 : Correspondance par r\351f\351rence locale dans un rayon de 50 m\350tres}{section.3.5}% 33
-\BOOKMARK [2][-]{subsection.3.5.3}{\311tape 3 : Correspondance bas\351e sur la proximit\351 avec crit\350res relatifs}{section.3.5}% 34
-\BOOKMARK [1][-]{section.3.6}{Consolidation Post-traitement}{chapter.3}% 35
-\BOOKMARK [1][-]{section.3.7}{Propagation des Duplicatas}{chapter.3}% 36
+\BOOKMARK [1][-]{section.3.2}{Correspondance Exacte}{chapter.3}% 28
+\BOOKMARK [1][-]{section.3.3}{Correspondance par Nom}{chapter.3}% 29
+\BOOKMARK [1][-]{section.3.4}{Correspondance par Distance}{chapter.3}% 30
+\BOOKMARK [2][-]{subsection.3.4.1}{\311tape 1 : Correspondance de groupe bas\351e sur la proximit\351}{section.3.4}% 31
+\BOOKMARK [2][-]{subsection.3.4.2}{\311tape 2 : Correspondance par r\351f\351rence locale dans un rayon de 50 m\350tres}{section.3.4}% 32
+\BOOKMARK [2][-]{subsection.3.4.3}{\311tape 3 : Correspondance bas\351e sur la proximit\351 avec crit\350res relatifs}{section.3.4}% 33
+\BOOKMARK [1][-]{section.3.5}{Consolidation Post-traitement}{chapter.3}% 34
+\BOOKMARK [1][-]{section.3.6}{Propagation des Duplicatas}{chapter.3}% 35
+\BOOKMARK [1][-]{section.3.7}{Correspondance Manuelle}{chapter.3}% 36
 \BOOKMARK [1][-]{section.3.8}{R\351sultats actuels}{chapter.3}% 37
-\BOOKMARK [0][-]{chapter.4}{Chapitre 4 : Correspondance par itin\351raire}{}% 38
-\BOOKMARK [0][-]{chapter.5}{Chapitre 5 : Analyse des r\351sultats}{}% 39
-\BOOKMARK [1][-]{section.5.1}{Distances les Plus Importantes}{chapter.5}% 40
-\BOOKMARK [1][-]{section.5.2}{Statistiques de Distance}{chapter.5}% 41
-\BOOKMARK [0][-]{chapter.6}{Chapitre 7 : Probl\350mes detect\351s}{}% 42
-\BOOKMARK [0][-]{chapter.7}{Chapitre 7 : Base de donn\351es}{}% 43
-\BOOKMARK [0][-]{chapter.8}{Chapitre 8 : Backend}{}% 44
-\BOOKMARK [0][-]{chapter.9}{Chapitre 9 : Frontend}{}% 45
-\BOOKMARK [0][-]{chapter.10}{Chapitre 10: Architecture du rendu cartographique et optimisations de performance}{}% 46
-\BOOKMARK [1][-]{section.10.1}{Vue d\220ensemble du syst\350me}{chapter.10}% 47
-\BOOKMARK [1][-]{section.10.2}{Architecture du backend}{chapter.10}% 48
-\BOOKMARK [2][-]{subsection.10.2.1}{Points de terminaison}{section.10.2}% 49
-\BOOKMARK [2][-]{subsection.10.2.2}{Filtrage par fen\352tre d\220affichage \(sargable\)}{section.10.2}% 50
-\BOOKMARK [2][-]{subsection.10.2.3}{Politique de charge utile}{section.10.2}% 51
-\BOOKMARK [2][-]{subsection.10.2.4}{Indexation de la base de donn\351es}{section.10.2}% 52
-\BOOKMARK [1][-]{section.10.3}{Architecture du frontend}{chapter.10}% 53
-\BOOKMARK [2][-]{subsection.10.3.1}{Cycle de vie des requ\352tes et limitation du d\351bit}{section.10.3}% 54
-\BOOKMARK [2][-]{subsection.10.3.2}{Seuils de zoom et politique visuelle}{section.10.3}% 55
-\BOOKMARK [2][-]{subsection.10.3.3}{Rendu des marqueurs : Canvas d\220abord, lettres en dernier}{section.10.3}% 56
-\BOOKMARK [1][-]{section.10.4}{Paires appari\351es et polylignes}{chapter.10}% 57
-\BOOKMARK [1][-]{section.10.5}{R\351cup\351ration du contexte sur la page Probl\350mes}{chapter.10}% 58
-\BOOKMARK [1][-]{section.10.6}{Consid\351rations d\220exp\351rience utilisateur}{chapter.10}% 59
-\BOOKMARK [2][-]{subsection.10.6.1}{\311chantillonnage et limites}{section.10.6}% 60
-\BOOKMARK [2][-]{subsection.10.6.2}{Statistiques d\220en-t\352te}{section.10.6}% 61
-\BOOKMARK [1][-]{section.10.7}{Impact sur les performances}{chapter.10}% 62
-\BOOKMARK [1][-]{section.10.8}{R\351sum\351}{chapter.10}% 63
-\BOOKMARK [0][-]{chapter.11}{Chapitre 11: Syst\350me d'authentification s\351curis\351}{}% 64
-\BOOKMARK [1][-]{section.11.1}{Objectifs}{chapter.11}% 65
-\BOOKMARK [1][-]{section.11.2}{Aper\347u de l'architecture}{chapter.11}% 66
-\BOOKMARK [2][-]{subsection.11.2.1}{Composants}{section.11.2}% 67
-\BOOKMARK [1][-]{section.11.3}{Mod\350le de donn\351es \(auth\137db\)}{chapter.11}% 68
-\BOOKMARK [1][-]{section.11.4}{Activation et utilisation de la 2FA}{chapter.11}% 69
-\BOOKMARK [1][-]{section.11.5}{S\351curit\351 op\351rationnelle}{chapter.11}% 70
-\BOOKMARK [1][-]{section.11.6}{Interface utilisateur}{chapter.11}% 71
-\BOOKMARK [1][-]{section.11.7}{S\351curit\351 des donn\351es lors des mises \340 jour}{chapter.11}% 72
-\BOOKMARK [1][-]{section.11.8}{Pistes de durcissement}{chapter.11}% 73
-\BOOKMARK [0][-]{chapter.12}{Chapitre 12: Evaluation de la s\351curit\351 de l'application}{}% 74
-\BOOKMARK [0][-]{chapter*.36}{Conclusion}{}% 75
-\BOOKMARK [0][-]{chapter*.37}{R\351f\351rences documentaires}{}% 76
+\BOOKMARK [0][-]{chapter.4}{Chapter 4 : Routes and route matching}{}% 38
+\BOOKMARK [1][-]{section.4.1}{From raw feeds to a single routes file}{chapter.4}% 39
+\BOOKMARK [2][-]{subsection.4.1.1}{What atlas\137routes\137unified.csv is}{section.4.1}% 40
+\BOOKMARK [2][-]{subsection.4.1.2}{How we generate it \(high level\)}{section.4.1}% 41
+\BOOKMARK [1][-]{section.4.2}{What the unified data says}{chapter.4}% 42
+\BOOKMARK [1][-]{section.4.3}{A look at Geneva}{chapter.4}% 43
+\BOOKMARK [1][-]{section.4.4}{More views worth having}{chapter.4}% 44
+\BOOKMARK [1][-]{section.4.5}{Route matching: how it works}{chapter.4}% 45
+\BOOKMARK [2][-]{subsection.4.5.1}{Distance candidates}{section.4.5}% 46
+\BOOKMARK [2][-]{subsection.4.5.2}{Configurations}{section.4.5}% 47
+\BOOKMARK [1][-]{section.4.6}{Route matching: what the numbers say}{chapter.4}% 48
+\BOOKMARK [1][-]{section.4.7}{Scripts used for this chapter}{chapter.4}% 49
+\BOOKMARK [1][-]{section.4.8}{Reflection and next steps}{chapter.4}% 50
+\BOOKMARK [0][-]{chapter.5}{Chapitre 5 : Analyse des r\351sultats}{}% 51
+\BOOKMARK [1][-]{section.5.1}{Comment nous avons calcul\351 les statistiques}{chapter.5}% 52
+\BOOKMARK [1][-]{section.5.2}{Distribution des distances par m\351thode}{chapter.5}% 53
+\BOOKMARK [1][-]{section.5.3}{Par op\351rateur: o\371 est-ce le plus pr\351cis ?}{chapter.5}% 54
+\BOOKMARK [1][-]{section.5.4}{Les non-match\351s et leurs \253 alter ego \273 proches}{chapter.5}% 55
+\BOOKMARK [1][-]{section.5.5}{Autres statistiques utiles}{chapter.5}% 56
+\BOOKMARK [1][-]{section.5.6}{Mini recettes reproductibles}{chapter.5}% 57
+\BOOKMARK [1][-]{section.5.7}{R\351flexions et pistes d'am\351lioration}{chapter.5}% 58
+\BOOKMARK [0][-]{chapter.6}{Chapitre 6 : D\351tection des probl\350mes}{}% 59
+\BOOKMARK [1][-]{section.6.1}{Ce que nous d\351tectons \(types de probl\350mes\)}{chapter.6}% 60
+\BOOKMARK [1][-]{section.6.2}{Pourquoi prioriser}{chapter.6}% 61
+\BOOKMARK [1][-]{section.6.3}{Comment les priorit\351s sont attribu\351es}{chapter.6}% 62
+\BOOKMARK [2][-]{subsection.6.3.1}{Priorit\351s pour la distance}{section.6.3}% 63
+\BOOKMARK [2][-]{subsection.6.3.2}{Priorit\351s pour les non-appariements}{section.6.3}% 64
+\BOOKMARK [2][-]{subsection.6.3.3}{Priorit\351s pour les attributs}{section.6.3}% 65
+\BOOKMARK [1][-]{section.6.4}{Ce que cela donne dans l'application web}{chapter.6}% 66
+\BOOKMARK [1][-]{section.6.5}{Chiffres de la derni\350re ex\351cution}{chapter.6}% 67
+\BOOKMARK [1][-]{section.6.6}{Persistance et flux de travail}{chapter.6}% 68
+\BOOKMARK [1][-]{section.6.7}{Le mod\350le mental d'un r\351viseur}{chapter.6}% 69
+\BOOKMARK [1][-]{section.6.8}{R\351flexion et prochaines \351tapes}{chapter.6}% 70
+\BOOKMARK [0][-]{chapter.7}{Chapitre 7 : Base de donn\351es et donn\351es persistantes}{}% 71
+\BOOKMARK [1][-]{section.7.1}{Importer les donn\351es: le r\364le de import\137data\137db.py}{chapter.7}% 72
+\BOOKMARK [1][-]{section.7.2}{Sch\351ma logique: les tables qui comptent}{chapter.7}% 73
+\BOOKMARK [1][-]{section.7.3}{Pros et cons du sch\351ma vis-\340-vis du rendu cartographique}{chapter.7}% 74
+\BOOKMARK [1][-]{section.7.4}{Statistiques et graphiques depuis la base}{chapter.7}% 75
+\BOOKMARK [2][-]{subsection.7.4.1}{Volumes globaux}{section.7.4}% 76
+\BOOKMARK [2][-]{subsection.7.4.2}{Distances des correspondances}{section.7.4}% 77
+\BOOKMARK [2][-]{subsection.7.4.3}{Probl\350mes d\351tect\351s}{section.7.4}% 78
+\BOOKMARK [2][-]{subsection.7.4.4}{Routes et directions}{section.7.4}% 79
+\BOOKMARK [1][-]{section.7.5}{Donn\351es persistantes: comment elles survivent aux r\351-imports}{chapter.7}% 80
+\BOOKMARK [1][-]{section.7.6}{Performance: pourquoi \347a d\351file vite sur la carte}{chapter.7}% 81
+\BOOKMARK [1][-]{section.7.7}{Scripts utilis\351s et reproductibilit\351}{chapter.7}% 82
+\BOOKMARK [1][-]{section.7.8}{R\351flexion et pistes d'am\351lioration}{chapter.7}% 83
+\BOOKMARK [0][-]{chapter.8}{Chapitre 8 : Backend}{}% 84
+\BOOKMARK [1][-]{section.8.1}{Architecture g\351n\351rale}{chapter.8}% 85
+\BOOKMARK [1][-]{section.8.2}{Blueprints et endpoints}{chapter.8}% 86
+\BOOKMARK [2][-]{subsection.8.2.1}{Donn\351es: /api/data}{section.8.2}% 87
+\BOOKMARK [2][-]{subsection.8.2.2}{Recherche et matches manuels}{section.8.2}% 88
+\BOOKMARK [2][-]{subsection.8.2.3}{Statistiques: /api/global\137stats}{section.8.2}% 89
+\BOOKMARK [2][-]{subsection.8.2.4}{Rapports: /api/generate\137report}{section.8.2}% 90
+\BOOKMARK [2][-]{subsection.8.2.5}{Probl\350mes et persistance}{section.8.2}% 91
+\BOOKMARK [1][-]{section.8.3}{Requ\352tage partag\351 et optimisation}{chapter.8}% 92
+\BOOKMARK [1][-]{section.8.4}{Diagrammes de flux}{chapter.8}% 93
+\BOOKMARK [1][-]{section.8.5}{Bonnes pratiques et lisibilit\351}{chapter.8}% 94
+\BOOKMARK [1][-]{section.8.6}{Tests et extensions futures}{chapter.8}% 95
+\BOOKMARK [0][-]{chapter.9}{Chapitre 9 : Frontend}{}% 96
+\BOOKMARK [0][-]{chapter.10}{Chapitre 10: Architecture du rendu cartographique et optimisations de performance}{}% 97
+\BOOKMARK [1][-]{section.10.1}{Vue d\220ensemble du syst\350me}{chapter.10}% 98
+\BOOKMARK [1][-]{section.10.2}{Architecture du backend}{chapter.10}% 99
+\BOOKMARK [2][-]{subsection.10.2.1}{Points de terminaison}{section.10.2}% 100
+\BOOKMARK [2][-]{subsection.10.2.2}{Filtrage par fen\352tre d\220affichage \(sargable\)}{section.10.2}% 101
+\BOOKMARK [2][-]{subsection.10.2.3}{Politique de charge utile}{section.10.2}% 102
+\BOOKMARK [2][-]{subsection.10.2.4}{Indexation de la base de donn\351es}{section.10.2}% 103
+\BOOKMARK [1][-]{section.10.3}{Architecture du frontend}{chapter.10}% 104
+\BOOKMARK [2][-]{subsection.10.3.1}{Cycle de vie des requ\352tes et limitation du d\351bit}{section.10.3}% 105
+\BOOKMARK [2][-]{subsection.10.3.2}{Seuils de zoom et politique visuelle}{section.10.3}% 106
+\BOOKMARK [2][-]{subsection.10.3.3}{Rendu des marqueurs : Canvas d\220abord, lettres en dernier}{section.10.3}% 107
+\BOOKMARK [1][-]{section.10.4}{Paires appari\351es et polylignes}{chapter.10}% 108
+\BOOKMARK [1][-]{section.10.5}{R\351cup\351ration du contexte sur la page Probl\350mes}{chapter.10}% 109
+\BOOKMARK [1][-]{section.10.6}{Consid\351rations d\220exp\351rience utilisateur}{chapter.10}% 110
+\BOOKMARK [2][-]{subsection.10.6.1}{\311chantillonnage et limites}{section.10.6}% 111
+\BOOKMARK [2][-]{subsection.10.6.2}{Statistiques d\220en-t\352te}{section.10.6}% 112
+\BOOKMARK [1][-]{section.10.7}{Impact sur les performances}{chapter.10}% 113
+\BOOKMARK [1][-]{section.10.8}{R\351sum\351}{chapter.10}% 114
+\BOOKMARK [0][-]{chapter.11}{Chapitre 11: Syst\350me d'authentification s\351curis\351}{}% 115
+\BOOKMARK [1][-]{section.11.1}{Objectifs}{chapter.11}% 116
+\BOOKMARK [1][-]{section.11.2}{Aper\347u de l'architecture}{chapter.11}% 117
+\BOOKMARK [2][-]{subsection.11.2.1}{Composants}{section.11.2}% 118
+\BOOKMARK [1][-]{section.11.3}{Mod\350le de donn\351es \(auth\137db\)}{chapter.11}% 119
+\BOOKMARK [1][-]{section.11.4}{Activation et utilisation de la 2FA}{chapter.11}% 120
+\BOOKMARK [1][-]{section.11.5}{S\351curit\351 op\351rationnelle}{chapter.11}% 121
+\BOOKMARK [1][-]{section.11.6}{Interface utilisateur}{chapter.11}% 122
+\BOOKMARK [1][-]{section.11.7}{S\351curit\351 des donn\351es lors des mises \340 jour}{chapter.11}% 123
+\BOOKMARK [1][-]{section.11.8}{Pistes de durcissement}{chapter.11}% 124
+\BOOKMARK [0][-]{chapter.12}{Chapitre 12: Evaluation de la s\351curit\351 de l'application}{}% 125
+\BOOKMARK [0][-]{chapter*.57}{Conclusion}{}% 126
+\BOOKMARK [0][-]{chapter*.58}{R\351f\351rences documentaires}{}% 127

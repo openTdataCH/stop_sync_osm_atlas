@@ -1,1 +1,494 @@
 \chapter{Chapitre 8 : Backend}
+
+\section*{Panorama}
+
+Ce chapitre présente l'architecture backend qui alimente l'application: structure par \textit{blueprints} Flask, sérialisation, requêtage optimisé, endpoints majeurs (données, recherche, statistiques, rapports) et services dédiés (routes). 
+
+Le \textbf{chapitre 11} traitera exclusivement de l'authentification (flux, 2FA, emails), et le \textbf{chapitre 12} proposera un audit sécurité global (CSP, rate-limiting, surfaces d'attaque, secrets, etc.).
+
+\section{Architecture générale}
+\subsection*{Initialisation de l'application}
+
+Le fichier \texttt{backend/app.py} centralise la configuration (bases \texttt{stops\_db} et \texttt{auth\_db}), les extensions (SQLAlchemy, CSRF, Limiter, Talisman, Migrate) et l'enregistrement des blueprints.
+
+\begin{codebox}[language=Python]{Configuration Flask — backend/app.py}
+# Initialisation de l'application Flask
+app = Flask(__name__, 
+           template_folder='../templates', 
+           static_folder='../static')
+
+# Configuration des bases de données
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', ...)
+app.config['SQLALCHEMY_BINDS'] = {
+    'auth': os.getenv('AUTH_DATABASE_URI', ...)
+}
+
+# Initialisation des extensions
+db.init_app(app)
+login_manager.init_app(app)
+csrf.init_app(app)
+limiter.init_app(app)
+talisman.init_app(app, content_security_policy=None)
+migrate.init_app(app, db)
+
+# Enregistrement des blueprints
+app.register_blueprint(data_bp)
+app.register_blueprint(reports_bp)
+app.register_blueprint(search_bp)
+app.register_blueprint(stats_bp)
+app.register_blueprint(problems_bp)
+app.register_blueprint(auth_bp)
+\end{codebox}
+
+\noindent
+\textbf{Extensions} (\texttt{backend/extensions.py}):
+\begin{itemize}
+  \item \texttt{db = SQLAlchemy()} (accès données et migrations via Alembic/Migrate)
+  \item \texttt{login\_manager}, \texttt{csrf}, \texttt{limiter}, \texttt{talisman}
+\end{itemize}
+
+\subsection*{Modèles et sérialisation}
+
+Les tables applicatives sont décrites dans \texttt{backend/models.py} (cf. Chap. 7 pour le schéma). La sérialisation cohérente d'un \texttt{Stop} en JSON est gérée par \texttt{backend/serializers/stops.py}.
+
+\begin{codebox}[language=Python]{Sérialisation JSON — backend/serializers/stops.py}
+def format_stop_data(stop: Stop, 
+                    problem_type: str = None, 
+                    include_routes: bool = True, 
+                    **kwargs):
+    """Formatage standardisé d'un Stop pour l'API JSON"""
+    return {
+        "id": stop.id,
+        "sloid": stop.sloid,
+        "stop_type": stop.stop_type,
+        "match_type": stop.match_type,
+        
+        # Coordonnées (fallback OSM si pas d'ATLAS)
+        "atlas_lat": stop.atlas_lat if stop.atlas_lat is not None else stop.osm_lat,
+        "atlas_lon": stop.atlas_lon if stop.atlas_lon is not None else stop.osm_lon,
+        "osm_lat": stop.osm_lat, 
+        "osm_lon": stop.osm_lon,
+        
+        # Métadonnées
+        "distance_m": stop.distance_m, 
+        "uic_ref": stop.uic_ref,
+        "osm_node_id": stop.osm_node_id, 
+        "osm_node_type": stop.osm_node_type,
+        
+        # ... (routes, notes, auteurs selon contexte)
+    }
+\end{codebox}
+
+\section{Blueprints et endpoints}
+Nous structurons l'API par \textit{domaine} pour garder des fichiers courts, testables et lisibles.
+
+\subsection{Données: \texttt{/api/data}}
+
+\textbf{Fichier}: \texttt{backend/blueprints/data.py}. Endpoint principal pour alimenter la carte; filtre par fenêtre, types, opérateurs, lignes/directions.
+
+\begin{codebox}[language=Python]{Endpoint principal des données cartographiques}
+@data_bp.route('/api/data', methods=['GET'])
+@limiter.limit("30 per minute")
+def get_data():
+    """Endpoint principal pour l'alimentation de la carte interactive"""
+    
+    # 1) Parse viewport (bbox ou min/max lat/lon)
+    viewport = parse_viewport_params(request.args)
+    
+    # 2) Construire les conditions (node_type, transport_types, opérateurs, routes)
+    query_conditions = QueryBuilder.build_filters(request.args)
+    
+    # 3) Filtrer sur la fenêtre: index lat/lon Atlas OU OSM (SARGable)
+    viewport_query = apply_viewport_filter(query_conditions, viewport)
+    
+    # 4) Offset/limit (pagination) et sérialisation légère
+    paginated_stops = apply_pagination(viewport_query, request.args)
+    serialized_stops = [format_stop_data(stop) for stop in paginated_stops]
+    
+    return jsonify({
+        'stops': serialized_stops,
+        'total_count': viewport_query.count(),
+        'viewport': viewport
+    })
+\end{codebox}
+
+\paragraph{Pourquoi c'est rapide ?} Le choix du schéma (Chap. 7) permet de renvoyer des objets \texttt{stops} autonettoyés pour le rendu, sans \texttt{JOIN} coûteux.
+
+\subsection{Recherche et matches manuels}
+
+\textbf{Fichier}: \texttt{backend/blueprints/search.py}. Gestion des recherches textuelles et des correspondances manuelles.
+
+\begin{codebox}[language=Python]{Endpoints de recherche — backend/blueprints/search.py}
+@search_bp.route('/api/search')
+def search_stops():
+    """Recherche textuelle large (ATLAS/OSM)"""
+    # Recherche par nom, opérateur, UIC, etc.
+
+@search_bp.route('/api/top_matches')  
+def get_top_matches():
+    """Meilleurs matches par distance et filtres"""
+    # Tri par distance croissante + filtres actifs
+
+@search_bp.route('/api/manual_match', methods=['POST'])
+def manual_match():
+    """Correspondance manuelle ATLAS <-> OSM, option persistance"""
+    # Logique de match manuel (voir extrait ci-dessous)
+\end{codebox}
+
+\begin{codebox}[language=Python]{Extrait: logique de match manuel persistant}
+# Dans manual_match() — backend/blueprints/search.py
+atlas_stop = get_atlas_stop_by_id(atlas_stop_id)
+osm_stop = get_osm_stop_by_id(osm_stop_id)
+
+# Mise à jour du type de correspondance
+atlas_stop.stop_type = 'matched'
+atlas_stop.match_type = 'manual'
+osm_stop.stop_type = 'matched'
+osm_stop.match_type = 'manual'
+
+# Option de persistance pour survivre aux ré-imports
+if make_persistent:
+    atlas_stop.manual_is_persistent = True
+    osm_stop.manual_is_persistent = True
+
+db.session.commit()
+\end{codebox}
+
+\subsection{Statistiques: \texttt{/api/global\_stats}}
+
+\textbf{Fichier}: \texttt{backend/blueprints/stats.py}. Statistiques agrégées, avec un cache LRU maison pour \textit{args} identiques.
+
+\begin{codebox}[language=Python]{Cache et statistiques globales — backend/blueprints/stats.py}
+_STATS_CACHE = OrderedDict()
+_STATS_CACHE_LOCK = threading.Lock()
+
+def _build_stats_cache_key(args) -> tuple:
+    """Clé canonique basée sur les filtres triés"""
+    return tuple(sorted(args.items()))
+
+@stats_bp.route('/api/global_stats')
+@limiter.limit("20 per minute")
+def get_global_stats():
+    """Statistiques globales avec mise en cache LRU"""
+    
+    # 1) Verification cache -> LRU
+    cache_key = _build_stats_cache_key(request.args)
+    if cache_key in _STATS_CACHE:
+        return jsonify(_STATS_CACHE[cache_key])
+    
+    # 2) Appliquer filtres partagés via QueryBuilder
+    base_query = QueryBuilder.apply_common_filters(
+        db.session.query(Stop), request.args
+    )
+    
+    # 3) Compter distincts par type (ATLAS, OSM, matched pairs)
+    stats = {
+        'total_stops': base_query.count(),
+        'matched_pairs': base_query.filter(Stop.stop_type == 'matched').count(),
+        'atlas_only': base_query.filter(Stop.stop_type == 'unmatched').count(),
+        'osm_only': base_query.filter(Stop.stop_type == 'osm').count(),
+    }
+    
+    # 4) Mise en cache et retour
+    with _STATS_CACHE_LOCK:
+        _STATS_CACHE[cache_key] = stats
+        if len(_STATS_CACHE) > 50:  # LRU éviction
+            _STATS_CACHE.popitem(last=False)
+    
+    return jsonify(stats)
+\end{codebox}
+
+\subsection{Rapports: \texttt{/api/generate\_report}}
+
+\textbf{Fichier}: \texttt{backend/blueprints/reports.py}. Génération PDF/CSV (\texttt{pdfkit}) sur des vues utiles (exacts, noms, doublons ATLAS). La logique réutilise \texttt{optimize\_query\_for\_endpoint} pour limiter les colonnes.
+
+\begin{codebox}[language=Python]{Génération de rapports — backend/blueprints/reports.py}
+@reports_bp.route('/api/generate_report')
+@login_required  # Fonctionnalité authentifiée
+def generate_report():
+    """Génération de rapports PDF/CSV personnalisés"""
+    
+    report_format = request.args.get('format', 'pdf')
+    report_type = request.args.get('type', 'overview')
+    
+    # Optimisation: sélection des colonnes nécessaires uniquement
+    optimized_query = optimize_query_for_endpoint(
+        base_query=get_filtered_stops_query(request.args),
+        columns_needed=['atlas_designation', 'osm_name', 'distance_m', ...]
+    )
+    
+    data_for_report = optimized_query.all()
+    
+    if report_format == 'csv':
+        # Génération CSV avec en-têtes adaptées
+        csv_content = generate_csv_content(data_for_report, report_type)
+        return Response(
+            csv_content,
+            mimetype='text/csv',
+            headers={'Content-Disposition': f'attachment; filename=report_{report_type}.csv'}
+        )
+    else:
+        # Génération PDF via template HTML
+        report_html = render_template(
+            'pages/report.html', 
+            report_items=data_for_report,
+            report_type=report_type,
+            generated_at=datetime.now()
+        )
+        
+        pdf_bytes = pdfkit.from_string(report_html, False, options={
+            'page-size': 'A4',
+            'orientation': 'Landscape',
+            'margin-top': '0.75in'
+        })
+        
+        return Response(
+            pdf_bytes,
+            mimetype='application/pdf',
+            headers={'Content-Disposition': f'attachment; filename=report_{report_type}.pdf'}
+        )
+\end{codebox}
+
+\subsection{Problèmes et persistance}
+
+\textbf{Fichier}: \texttt{backend/blueprints/problems.py}. Consultation, filtrage, tri, et persistance des solutions/notes. (Le \textbf{chapitre 7} détaille la persistance côté import et modèle; ici nous couvrons l'API.)
+
+\begin{codebox}[language=Python]{API de gestion des problèmes — backend/blueprints/problems.py}
+@problems_bp.route('/api/problems')
+def get_problems():
+    """Liste paginée des problèmes (tri par distance/priorité)"""
+    # Tri par priorité décroissante, puis distance croissante
+
+@problems_bp.route('/api/problems/stats')
+def get_problems_stats():
+    """Totaux résolus / non résolus par type"""
+    # Agrégation par problem_type et status
+
+@problems_bp.route('/api/save_solution', methods=['POST'])
+@csrf.exempt  # AJAX endpoint
+def save_solution():
+    """Enregistre une solution (non persistée par défaut)"""
+    # Mise à jour Problem.solution, Problem.solved_by
+
+@problems_bp.route('/api/make_solution_persistent', methods=['POST'])
+@csrf.exempt
+def make_solution_persistent():
+    """Rend une solution persistante entre ré-imports"""
+    # Insertion dans PersistentData
+
+@problems_bp.route('/api/save_note/<note_type>', methods=['POST'])
+@csrf.exempt
+def save_note(note_type):
+    """Sauvegarde note ATLAS ou OSM (note_type: 'atlas'|'osm')"""
+    # Mise à jour atlas_stops.note ou osm_nodes.note
+
+@problems_bp.route('/api/make_note_persistent/<note_type>', methods=['POST'])
+@csrf.exempt
+def make_note_persistent(note_type):
+    """Rend une note persistante entre ré-imports"""
+    # Insertion dans PersistentData avec note_type
+\end{codebox}
+
+\section{Requêtage partagé et optimisation}
+
+\subsection*{QueryBuilder et FilterBuilder}
+
+\textbf{Fichier}: \texttt{backend/query\_builder.py}. Centralise les patrons de filtres (type de transport, type de nœud, opérateurs ATLAS, routes) et applique des options de chargement (\texttt{joinedload}) quand nécessaire.
+
+\begin{codebox}[language=Python]{Filtres partagés — backend/query\_builder.py}
+class QueryBuilder:
+    """Constructeur de requêtes avec filtres standardisés"""
+    
+    transport_mappings = {
+        'station': Stop.osm_node_details.has(
+            and_(OsmNode.osm_public_transport == 'station',
+                 OsmNode.osm_railway.in_(['station', 'halt']))
+        ),
+        'platform': Stop.osm_node_details.has(
+            OsmNode.osm_public_transport == 'platform'
+        ),
+        'stop_position': Stop.osm_node_details.has(
+            OsmNode.osm_public_transport == 'stop_position'
+        ),
+        # ... autres types
+    }
+    
+    @classmethod
+    def apply_common_filters(cls, query, filters_dict):
+        """Application des filtres standardisés"""
+        conditions = []
+        
+        # Filtres par type de transport
+        if 'transport_types' in filters_dict:
+            transport_conditions = [
+                cls.transport_mappings[t] 
+                for t in filters_dict['transport_types']
+                if t in cls.transport_mappings
+            ]
+            if transport_conditions:
+                conditions.append(or_(*transport_conditions))
+        
+        # Filtres par opérateur ATLAS
+        if 'operators' in filters_dict:
+            conditions.append(
+                Stop.atlas_stop_details.has(
+                    AtlasStop.operator.in_(filters_dict['operators'])
+                )
+            )
+        
+        # Application finale
+        if conditions:
+            query = query.filter(and_(*conditions))
+        
+        return query
+\end{codebox}
+
+\subsection*{Services de routes}
+
+\textbf{Fichier}: \texttt{backend/services/routes.py}. Fournit \texttt{get\_stops\_for\_route(route\_id, direction)} en SQL brut pour aller vite dans \texttt{routes\_and\_directions}. Supporte un \textit{fallback} de normalisation d'ID (ex: \texttt{-j24} $\rightarrow$ \texttt{-jXX}).
+
+\begin{codebox}[language=SQL]{Requête optimisée pour les arrêts d'une ligne}
+-- Service get_stops_for_route() — backend/services/routes.py
+SELECT 
+    osm_nodes_json, 
+    atlas_sloids_json,
+    osm_route_id,
+    atlas_route_id,
+    atlas_line_name
+FROM routes_and_directions
+WHERE 
+    osm_route_id LIKE :route_id 
+    OR atlas_route_id LIKE :route_id 
+    OR atlas_line_name LIKE :route_id
+    OR atlas_line_name LIKE :normalized_route_id  -- fallback normalisé
+LIMIT 1;
+\end{codebox}
+
+\begin{codebox}[language=Python]{Logique de normalisation et fallback}
+def get_stops_for_route(route_id: str, direction: str = None) -> dict:
+    """Récupération optimisée des arrêts pour une route donnée"""
+    
+    # Tentative directe
+    result = db.session.execute(text(ROUTE_QUERY), {
+        'route_id': f'%{route_id}%',
+        'normalized_route_id': f'%{normalize_route_id(route_id)}%'
+    }).first()
+    
+    if result:
+        return {
+            'osm_nodes': json.loads(result.osm_nodes_json or '[]'),
+            'atlas_sloids': json.loads(result.atlas_sloids_json or '[]'),
+            'source': 'direct_match'
+        }
+    
+    # Fallback: normalisation plus agressive
+    normalized_id = normalize_route_id(route_id, aggressive=True)
+    if normalized_id != route_id:
+        return get_stops_for_route(normalized_id, direction)
+    
+    return {'osm_nodes': [], 'atlas_sloids': [], 'source': 'no_match'}
+
+def normalize_route_id(route_id: str, aggressive: bool = False) -> str:
+    """Normalisation des IDs de route (ex: -j24 -> -jXX)"""
+    if aggressive:
+        # Remplace les suffixes journaliers: -j24 -> -jXX
+        return re.sub(r'-j\d+$', '-jXX', route_id)
+    else:
+        # Normalisation simple (espaces, casse)
+        return route_id.strip().upper()
+\end{codebox}
+
+\section{Diagrammes de flux}
+
+\subsection*{Flux d'une requête cartographique}
+
+\begin{codebox}{Pipeline de traitement — /api/data}
+Client
+  | GET /api/data?bbox=...&operators=...
+  v
+Parse params (viewport, filtres)
+  | 
+  v
+Build conditions (QueryBuilder)
+  | transport_types, operators, routes
+  v
+Viewport filter (indexes lat/lon)
+  | SARGable query sur atlas_* ET osm_*
+  v
+Pagination (offset/limit)
+  | 
+  v
+Serialisation JSON (format_stop_data)
+  | 
+  v
+Response -> Map rendering
+\end{codebox}
+
+\subsection*{Cycle de persistance des solutions}
+
+\begin{codebox}{Workflow de persistance}
++-------------------+    save_solution     +-------------------+
+| UI (Problems)     | -------------------> | Problem.solution  |
+|                   |                      | (temporaire)      |
++-------------------+                      +-------------------+
+        |                                           |
+        | make_persistent                           |
+        v                                           v
++-------------------+    persist_data      +-------------------+
+| PersistentData    | <------------------- | Problem record    |
+| (survit import)   |                      | + is_persistent   |
++-------------------+                      +-------------------+
+        |                                         
+        | Prochain import                         
+        v                                         
++-------------------+    apply_solutions   
+| Nouvel import     | -------------------> Solution reappliquee
+| (import_data_db)  |                      automatiquement
++-------------------+                      
+\end{codebox}
+
+\section{Bonnes pratiques et lisibilité}
+
+La maintenabilité du backend repose sur plusieurs principes de conception:
+
+\begin{description}
+  \item[Endpoints courts et focalisés] Chaque route a une responsabilité claire et unique. Les blueprints organisent les fonctionnalités par domaine métier.
+  
+  \item[Paramètres homogènes] Noms stables et prédictibles à travers l'API (ex: \texttt{stop\_filter}, \texttt{match\_method}, \texttt{bbox}) pour simplifier l'intégration côté client.
+  
+  \item[Sérialisation centralisée] Utilisation systématique de \texttt{format\_stop\_data()} pour éviter la divergence des formats JSON entre endpoints.
+  
+  \item[Rate limiting défensif] Protection par défaut via \texttt{Limiter} avec réglages fins par route selon la criticité (ex: 30/min pour \texttt{/api/data}, 5/min pour les rapports).
+  
+  \item[Optimisations anti-patterns] Éviter \texttt{ORDER BY RAND()} sur gros volumes: préférer une sélection pseudo-aléatoire par plage d'ID (cf. \texttt{/api/random\_stop}).
+\end{description}
+
+\paragraph{Documentation automatique} Chaque endpoint inclut une docstring explicative pour faciliter la génération automatique de documentation API et l'onboarding des nouveaux développeurs.
+
+\section{Tests et extensions futures}
+
+\subsection*{Stratégie de test}
+\begin{itemize}
+  \item \textbf{Tests d'intégration par blueprint}: validation du filtrage, pagination et codes d'erreur pour chaque endpoint
+  \item \textbf{Tests de charge}: simulation sur \texttt{/api/data} et \texttt{/api/global\_stats} avec des volumes réalistes
+  \item \textbf{Tests de régression}: validation des formats JSON après modifications de \texttt{format\_stop\_data()}
+\end{itemize}
+
+\subsection*{Observabilité et monitoring}
+\begin{itemize}
+  \item \textbf{Métriques de performance}: latence des requêtes, taille des réponses, hit rate du cache LRU
+  \item \textbf{Audit logging}: traçabilité des actions critiques (persistance, matches manuels) avec horodatage et utilisateur
+  \item \textbf{Monitoring des erreurs}: alertes sur les 500/timeout pour détecter rapidement les problèmes de performance
+\end{itemize}
+
+\subsection*{Optimisations futures}
+\begin{itemize}
+  \item \textbf{Cache distribué}: Redis pour les fenêtres cartographiques les plus demandées (centre-ville)
+  \item \textbf{Invalidation sélective}: cache invalidé uniquement pour les zones géographiques impactées par un nouvel import
+  \item \textbf{Compression des réponses}: gzip automatique pour les endpoints renvoyant de gros volumes JSON
+\end{itemize}
+
+\paragraph{Sécurité} L'essentiel des mécanismes de sécurité (authentification, 2FA, envoi d'emails) est détaillé au \textbf{chapitre 11}. Un audit complet des surfaces d'attaque (CSP, en-têtes de sécurité, CSRF, rate limiting) figure au \textbf{chapitre 12}.
+
+\section*{Et ensuite ?}
+Nous approfondirons les mécanismes d'authentification et d'autorisation au \textbf{chapitre 11}, puis l'ensemble du durcissement de la surface d'attaque au \textbf{chapitre 12}. Le présent chapitre sert de carte du backend: où sont les endpoints, comment ils composent avec le schéma (Chap. 7), et quels patterns de performance guident les choix.

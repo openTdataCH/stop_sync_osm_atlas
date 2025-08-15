@@ -1,2 +1,18 @@
-$ grep -o "ch:1:sloid:[^[:space:]]\\+" data/raw/BHFART | sort -u | wc -l
-62848
++-------------------+    save_solution     +-------------------+
+| UI (Problems)     | -------------------> | Problem.solution  |
+|                   |                      | (temporaire)      |
++-------------------+                      +-------------------+
+        |                                           |
+        | make_persistent                           |
+        v                                           v
++-------------------+    persist_data      +-------------------+
+| PersistentData    | <------------------- | Problem record    |
+| (survit import)   |                      | + is_persistent   |
++-------------------+                      +-------------------+
+        |
+        | Prochain import
+        v
++-------------------+    apply_solutions
+| Nouvel import     | -------------------> Solution reappliquee
+| (import_data_db)  |                      automatiquement
++-------------------+
