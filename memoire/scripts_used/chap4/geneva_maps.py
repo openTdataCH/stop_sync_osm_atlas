@@ -68,25 +68,29 @@ def plot_osm_geneva(fig_dir):
         nodes_in_routes = set(df['node_id'].astype(str).unique())
     except Exception:
         pass
-    points = []
+    points_on = []
+    points_off = []
     try:
         tree = ET.parse(xml_path)
         root = tree.getroot()
         for node in root.iter('node'):
             node_id = node.get('id')
-            if node_id not in nodes_in_routes:
-                continue
             try:
                 lat = float(node.get('lat'))
                 lon = float(node.get('lon'))
             except Exception:
                 continue
             if in_bbox(lat, lon):
-                points.append((lat, lon))
+                if node_id in nodes_in_routes:
+                    points_on.append((lat, lon))
+                else:
+                    points_off.append((lat, lon))
     except Exception as e:
         print('Error loading OSM XML:', e)
-    out_path = os.path.join(fig_dir, 'geneva_osm_routes_nodes.png')
-    plot_geneva_points(points, 'OSM: Nodes on routes (Geneva area)', out_path, color='#e15759')
+    out_on = os.path.join(fig_dir, 'geneva_osm_routes_nodes.png')
+    out_off = os.path.join(fig_dir, 'geneva_osm_non_routes_nodes.png')
+    plot_geneva_points(points_on, 'OSM: Nodes on routes (Geneva area)', out_on, color='#e15759')
+    plot_geneva_points(points_off, 'OSM: Nodes not on routes (Geneva area)', out_off, color='#9e9e9e')
 
 
 def plot_gtfs_geneva(fig_dir):

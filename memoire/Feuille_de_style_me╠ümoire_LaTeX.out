@@ -35,19 +35,19 @@
 \BOOKMARK [1][-]{section.3.6}{Propagation des Duplicatas}{chapter.3}% 35
 \BOOKMARK [1][-]{section.3.7}{Correspondance Manuelle}{chapter.3}% 36
 \BOOKMARK [1][-]{section.3.8}{R\351sultats actuels}{chapter.3}% 37
-\BOOKMARK [0][-]{chapter.4}{Chapter 4 : Routes and route matching}{}% 38
-\BOOKMARK [1][-]{section.4.1}{From raw feeds to a single routes file}{chapter.4}% 39
-\BOOKMARK [2][-]{subsection.4.1.1}{What atlas\137routes\137unified.csv is}{section.4.1}% 40
-\BOOKMARK [2][-]{subsection.4.1.2}{How we generate it \(high level\)}{section.4.1}% 41
-\BOOKMARK [1][-]{section.4.2}{What the unified data says}{chapter.4}% 42
-\BOOKMARK [1][-]{section.4.3}{A look at Geneva}{chapter.4}% 43
-\BOOKMARK [1][-]{section.4.4}{More views worth having}{chapter.4}% 44
-\BOOKMARK [1][-]{section.4.5}{Route matching: how it works}{chapter.4}% 45
-\BOOKMARK [2][-]{subsection.4.5.1}{Distance candidates}{section.4.5}% 46
-\BOOKMARK [2][-]{subsection.4.5.2}{Configurations}{section.4.5}% 47
-\BOOKMARK [1][-]{section.4.6}{Route matching: what the numbers say}{chapter.4}% 48
-\BOOKMARK [1][-]{section.4.7}{Scripts used for this chapter}{chapter.4}% 49
-\BOOKMARK [1][-]{section.4.8}{Reflection and next steps}{chapter.4}% 50
+\BOOKMARK [0][-]{chapter.4}{Chapitre 4 : Lignes et appariement par lignes}{}% 38
+\BOOKMARK [1][-]{section.4.1}{Des flux bruts \340 un fichier unique de lignes}{chapter.4}% 39
+\BOOKMARK [2][-]{subsection.4.1.1}{Ce qu'est atlas\137routes\137unified.csv}{section.4.1}% 40
+\BOOKMARK [2][-]{subsection.4.1.2}{Comment on le g\351n\350re \(vue d'ensemble\)}{section.4.1}% 41
+\BOOKMARK [1][-]{section.4.2}{Ce que disent les donn\351es unifi\351es}{chapter.4}% 42
+\BOOKMARK [1][-]{section.4.3}{Gen\350ve : vues cartographiques}{chapter.4}% 43
+\BOOKMARK [1][-]{section.4.4}{D'autres vues utiles}{chapter.4}% 44
+\BOOKMARK [1][-]{section.4.5}{Appariement par lignes : comment \347a marche}{chapter.4}% 45
+\BOOKMARK [2][-]{subsection.4.5.1}{Candidats par distance}{section.4.5}% 46
+\BOOKMARK [2][-]{subsection.4.5.2}{Param\350tres}{section.4.5}% 47
+\BOOKMARK [1][-]{section.4.6}{Appariement par lignes : les chiffres}{chapter.4}% 48
+\BOOKMARK [1][-]{section.4.7}{Scripts utilis\351s dans ce chapitre}{chapter.4}% 49
+\BOOKMARK [1][-]{section.4.8}{Bilan et perspectives}{chapter.4}% 50
 \BOOKMARK [0][-]{chapter.5}{Chapitre 5 : Analyse des r\351sultats}{}% 51
 \BOOKMARK [1][-]{section.5.1}{Comment nous avons calcul\351 les statistiques}{chapter.5}% 52
 \BOOKMARK [1][-]{section.5.2}{Distribution des distances par m\351thode}{chapter.5}% 53

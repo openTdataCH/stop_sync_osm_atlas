@@ -73,10 +73,11 @@ def plot_histograms(df: pd.DataFrame, out_dir: str):
     # Boxplot by method
     methods = list(sorted(df['match_type'].dropna().unique()))
     data = [df[df['match_type'] == m]['distance_m'] for m in methods]
-    plt.figure(figsize=(9, 5))
+    plt.figure(figsize=(11, 5))
     plt.boxplot(data, labels=methods, showfliers=False)
     plt.ylabel('Distance (m)')
     plt.title('Distances par méthode (boîtes, sans valeurs extrêmes)')
+    plt.xticks(rotation=30, ha='right')
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, 'distances_by_method_box.png'), dpi=180)
     plt.close()
@@ -108,7 +109,7 @@ def plot_by_osm_node_type(df: pd.DataFrame, out_dir: str):
 
 
 def main():
-    out_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../figures/chap6'))
+    out_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../figures/chap5'))
     os.makedirs(out_dir, exist_ok=True)
 
     engine = get_engine()

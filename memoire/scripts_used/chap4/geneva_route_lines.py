@@ -154,7 +154,80 @@ def plot_gtfs_trip_lines(fig_dir, max_trips=500):
             lines.append(pts)
 
     out_path = os.path.join(fig_dir, 'geneva_gtfs_trip_lines.png')
-    plot_lines(lines, 'GTFS: trip line approximations (Geneva area)', out_path, color='#1f77b4', lw=0.6, alpha=0.5)
+    out_path_alias = os.path.join(fig_dir, 'geneva_atlas_gtfs_trip_lines.png')
+    title = 'Atlas-GTFS: trip line approximations (Geneva area)'
+    plot_lines(lines, title, out_path, color='#1f77b4', lw=0.6, alpha=0.5)
+    # also save alias for clarity in manuscript
+    try:
+        import shutil
+        shutil.copyfile(out_path, out_path_alias)
+        print(f"Saved alias figure to {out_path_alias}")
+    except Exception as e:
+        print("Could not create alias file:", e)
+
+
+def _find_fplan_file():
+    """Try to find an HRDF FPLAN file in common locations."""
+    candidates = [
+        os.path.join('data', 'raw', 'FPLAN'),
+        os.path.join('data', 'raw', 'FPLAN.TXT'),
+        os.path.join('data', 'raw', 'hrdf', 'FPLAN'),
+        os.path.join('data', 'raw', 'HRDF', 'FPLAN'),
+        os.path.join('data', 'raw', 'hrdf', 'FPLAN.TXT'),
+        os.path.join('data', 'raw', 'HRDF', 'FPLAN.TXT'),
+    ]
+    for c in candidates:
+        if os.path.exists(c) and os.path.isfile(c):
+            return c
+    # last resort: scan directory for files starting with FPLAN
+    for base in [os.path.join('data', 'raw'), os.path.join('data', 'raw', 'hrdf'), os.path.join('data', 'raw', 'HRDF')]:
+        if os.path.exists(base):
+            for name in os.listdir(base):
+                if name.upper().startswith('FPLAN'):
+                    path = os.path.join(base, name)
+                    if os.path.isfile(path):
+                        return path
+    return None
+
+
+def _extract_uic_tokens_from_line(line: str):
+    """Extract plausible UIC codes (7+ digits) from a line."""
+    import re
+    return re.findall(r"\b\d{7,}\b", line)
+
+
+def _split_by_jump(points, max_jump_m=3000):
+    """Split a list of (lat, lon) points into segments when jump exceeds max_jump_m."""
+    from math import radians, cos, sin, asin, sqrt
+    def haversine_distance(lat1, lon1, lat2, lon2):
+        try:
+            lat1, lon1, lat2, lon2 = float(lat1), float(lon1), float(lat2), float(lon2)
+        except Exception:
+            return None
+        # Haversine in meters
+        R = 6371000.0
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat/2.0)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon/2.0)**2
+        c = 2 * asin(sqrt(a))
+        return R * c
+    if not points:
+        return []
+    segments = []
+    current = [points[0]]
+    for i in range(1, len(points)):
+        p_prev = points[i-1]
+        p_cur = points[i]
+        d = haversine_distance(p_prev[0], p_prev[1], p_cur[0], p_cur[1])
+        if d is None or d > max_jump_m:
+            if len(current) >= 2:
+                segments.append(current)
+            current = [p_cur]
+        else:
+            current.append(p_cur)
+    if len(current) >= 2:
+        segments.append(current)
+    return segments
 
 
 def plot_hrdf_trip_lines(fig_dir, max_trips=300):
@@ -173,10 +246,11 @@ def plot_hrdf_trip_lines(fig_dir, max_trips=300):
     uic_to_coord = {str(row['number']): (row['wgs84North'], row['wgs84East']) for _, row in atlas.iterrows()}
 
     # Parse FPLAN: collect stop sequences for trips that touch bbox UICs
-    fplan_path = os.path.join('data', 'raw', 'FPLAN')
-    if not os.path.exists(fplan_path):
-        print('FPLAN file not found for HRDF plotting')
+    fplan_path = _find_fplan_file()
+    if not fplan_path:
+        print('FPLAN file not found for HRDF plotting in common locations')
         return
+    print(f"Using FPLAN at: {fplan_path}")
     lines = []
     current_trip = None
     current_stops = []
@@ -190,28 +264,36 @@ def plot_hrdf_trip_lines(fig_dir, max_trips=300):
                 if current_trip and current_stops:
                     # if any UIC in bbox, build line
                     if any(s in uic_in_bbox for s in current_stops):
-                        # Map to coords where available
-                        seq = [uic_to_coord.get(s) for s in current_stops if s in uic_to_coord]
-                        seq = [p for p in seq if p and in_bbox(p[0], p[1])]
-                        if len(seq) >= 2:
-                            lines.append(seq)
-                            selected += 1
-                            if selected >= max_trips:
-                                break
+                        # Map to coords where available and filter to bbox
+                        seq_pts = [uic_to_coord.get(s) for s in current_stops if s in uic_to_coord]
+                        seq_pts = [p for p in seq_pts if p and in_bbox(p[0], p[1])]
+                        # Split by large jumps to avoid diagonals
+                        segs = _split_by_jump(seq_pts, max_jump_m=3000)
+                        for seg in segs:
+                            if len(seg) >= 3:  # require at least 3 in-bbox points
+                                lines.append(seg)
+                                selected += 1
+                                if selected >= max_trips:
+                                    break
+                        if selected >= max_trips:
+                            break
                 # start new trip
                 current_trip = line.split()[1:3] if len(line.split()) >= 3 else None
                 current_stops = []
             elif not line.startswith('*'):
                 parts = line.split()
-                if parts and parts[0].isdigit():
+                # Strict parsing: first token must be a 7-8 digit UIC code
+                if parts and parts[0].isdigit() and 7 <= len(parts[0]) <= 8:
                     current_stops.append(parts[0])
     # last one
     if selected < max_trips and current_stops:
         if any(s in uic_in_bbox for s in current_stops):
-            seq = [uic_to_coord.get(s) for s in current_stops if s in uic_to_coord]
-            seq = [p for p in seq if p and in_bbox(p[0], p[1])]
-            if len(seq) >= 2:
-                lines.append(seq)
+            seq_pts = [uic_to_coord.get(s) for s in current_stops if s in uic_to_coord]
+            seq_pts = [p for p in seq_pts if p and in_bbox(p[0], p[1])]
+            segs = _split_by_jump(seq_pts, max_jump_m=3000)
+            for seg in segs:
+                if len(seg) >= 3:
+                    lines.append(seg)
 
     out_path = os.path.join(fig_dir, 'geneva_hrdf_trip_lines.png')
     plot_lines(lines, 'HRDF: trip line approximations (Geneva area)', out_path, color='#ff7f0e', lw=0.6, alpha=0.5)

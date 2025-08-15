@@ -188,6 +188,16 @@ def make_plots(fig_dir, stats):
     g = stats.get('gtfs', {})
     if g and isinstance(g.get('routes_per_sloid_series'), pd.Series):
         s = g['routes_per_sloid_series']
+        if not s.empty:
+            desc = {
+                'count': int(s.count()),
+                'mean': round(float(s.mean()), 3),
+                'median': round(float(s.median()), 3),
+                'p10': round(float(s.quantile(0.10)), 3),
+                'p90': round(float(s.quantile(0.90)), 3),
+                'max': int(s.max()),
+            }
+            print("[SUMMARY] GTFS unique routes per SLOID:", desc)
         plt.figure(figsize=(6, 4), dpi=150)
         s.clip(upper=20).hist(bins=20, color='#1f77b4', alpha=0.8)
         plt.title('GTFS: unique routes per SLOID (clipped at 20)')
@@ -198,6 +208,16 @@ def make_plots(fig_dir, stats):
         plt.close()
     if g and isinstance(g.get('route_dir_per_sloid_series'), pd.Series):
         s = g['route_dir_per_sloid_series']
+        if not s.empty:
+            desc = {
+                'count': int(s.count()),
+                'mean': round(float(s.mean()), 3),
+                'median': round(float(s.median()), 3),
+                'p10': round(float(s.quantile(0.10)), 3),
+                'p90': round(float(s.quantile(0.90)), 3),
+                'max': int(s.max()),
+            }
+            print("[SUMMARY] GTFS unique (route, direction) per SLOID:", desc)
         plt.figure(figsize=(6, 4), dpi=150)
         s.clip(upper=30).hist(bins=30, color='#4e79a7', alpha=0.8)
         plt.title('GTFS: unique (route, direction) per SLOID (clipped at 30)')
@@ -211,6 +231,16 @@ def make_plots(fig_dir, stats):
     h = stats.get('hrdf', {})
     if h and isinstance(h.get('lines_per_sloid_series'), pd.Series):
         s = h['lines_per_sloid_series']
+        if not s.empty:
+            desc = {
+                'count': int(s.count()),
+                'mean': round(float(s.mean()), 3),
+                'median': round(float(s.median()), 3),
+                'p10': round(float(s.quantile(0.10)), 3),
+                'p90': round(float(s.quantile(0.90)), 3),
+                'max': int(s.max()),
+            }
+            print("[SUMMARY] HRDF unique lines per SLOID:", desc)
         plt.figure(figsize=(6, 4), dpi=150)
         s.clip(upper=20).hist(bins=20, color='#59a14f', alpha=0.8)
         plt.title('HRDF: unique lines per SLOID (clipped at 20)')

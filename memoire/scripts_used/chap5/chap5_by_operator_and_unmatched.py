@@ -129,7 +129,7 @@ def unmatched_with_nearby_counterparts(engine, radius_meters_list=(50, 100, 200)
 
 
 def main():
-    out_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../figures/chap6'))
+    out_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../figures/chap5'))
     os.makedirs(out_dir, exist_ok=True)
     engine = get_engine()
     df = load_joined(engine)

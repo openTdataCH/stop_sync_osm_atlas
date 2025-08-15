@@ -52,7 +52,7 @@ def plot_coverage_bars(tbl: pd.DataFrame, out_dir: str):
 
 
 def main():
-    out_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../figures/chap6'))
+    out_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../figures/chap5'))
     os.makedirs(out_dir, exist_ok=True)
     engine = get_engine()
     df = load_stops(engine)

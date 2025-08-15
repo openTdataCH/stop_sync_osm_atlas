@@ -1,142 +1,191 @@
-\chapter{Chapter 4 : Routes and route matching}
+% !TeX spellcheck = fr_FR
+\chapter{Chapitre 4 : Lignes et appariement par lignes}
 
-\noindent This chapter is a guided tour of the route layer: how we build a unified view of routes from GTFS and HRDF, how the data looks, what the numbers show, and how we perform route-based matching between ATLAS stops and OSM nodes. Expect short code fragments, intuitive plots, and practical insights.
+\noindent Ce chapitre est une visite guidée de la couche \emph{lignes} : comment nous construisons une vue unifiée des lignes à partir de GTFS et HRDF, à quoi ressemblent les données, ce que disent les chiffres, et comment nous effectuons l'appariement basé sur les lignes entre les arrêts ATLAS et les nœuds OSM. Attendez-vous à des extraits de code concis, des graphiques parlants et des explications pragmatiques.
 
-\section{From raw feeds to a single routes file}
-\noindent This chapter expands on the overview introduced in Chapter~1; for clarity and flow, we repeat key ideas where helpful.
-\subsection{What \texttt{atlas\_routes\_unified.csv} is}
-We consolidate route evidence from two sources into a single tidy file:
+\section{Des flux bruts à un fichier unique de lignes}
+\noindent Cette section approfondit la vue d'ensemble du Chapitre~1 ; nous répétons volontairement certains points clés pour la fluidité.
+\subsection{Ce qu'est \texttt{atlas\_routes\_unified.csv}}
+Nous consolidons des \emph{signaux de ligne} issus de deux sources dans un seul fichier tabulaire :
 \begin{itemize}
-  \item \textbf{GTFS} (public transport feed): route identifiers, short/long names, and direction (0/1). Directions are derived using a \emph{first$\rightarrow$last} stop heuristic per trip, aggregated at route level.
-  \item \textbf{HRDF} (railway schedule): line names and direction strings based on first$\rightarrow$last stations, both by name and by UIC code pairs.
+  \item \textbf{GTFS} (transport public) : identifiants de ligne, noms court/long, et la direction (0/1). Les directions sont dérivées via une heuristique \emph{premier$\rightarrow$dernier} par trajet, agrégée au niveau de la ligne.
+  \item \textbf{HRDF} (horaire ferroviaire) : noms de lignes et chaînes de direction construites comme \emph{première gare$\rightarrow$dernière gare}, à la fois par noms et par paires de codes UIC.
 \end{itemize}
-Each row describes ``a route signal for a stop'':
+Chaque ligne du CSV décrit « un signal de ligne pour un arrêt » :
 \begin{center}
 \small
 \begin{tabular}{l l}
 \toprule
-Column & Meaning \\
+Colonne & Signification \\
 \midrule
-\texttt{sloid} & ATLAS stop identifier\\
-\texttt{source} & \texttt{gtfs} or \texttt{hrdf}\\
-\texttt{evidence} & Inference method (e.g. \texttt{gtfs\_first\_last}, \texttt{hrdf\_fplan})\\
-\texttt{as\_of} & Date stamp for the evidence\\
-\texttt{route\_id}, \texttt{route\_id\_normalized} & Raw and year-normalized GTFS ID\\
-\texttt{route\_name\_short}, \texttt{route\_name\_long} & GTFS route names\\
-\texttt{line\_name} & HRDF line (if any)\\
-\texttt{direction\_id} & GTFS direction 0/1 (string)\\
-\texttt{direction\_name}, \texttt{direction\_uic} & Human and UIC first$\rightarrow$last strings\\
+\texttt{sloid} & Identifiant d'arrêt ATLAS\\
+\texttt{source} & \texttt{gtfs} ou \texttt{hrdf}\\
+\texttt{evidence} & Méthode d'inférence (p. ex. \texttt{gtfs\_first\_last}, \texttt{hrdf\_fplan})\\
+\texttt{as\_of} & Date d'extraction\\
+\texttt{route\_id}, \texttt{route\_id\_normalized} & ID GTFS brut et normalisé par année\\
+\texttt{route\_name\_short}, \texttt{route\_name\_long} & Noms de ligne GTFS\\
+\texttt{line\_name} & Ligne HRDF (si disponible)\\
+\texttt{direction\_id} & Direction GTFS 0/1 (chaîne)\\
+\texttt{direction\_name}, \texttt{direction\_uic} & Chaînes premier$\rightarrow$dernier humaines et UIC\\
 \bottomrule
 \end{tabular}
 \end{center}
-This schema is produced directly by the unified writer. Year-normalization removes seasonal suffixes like \texttt{-j24} so similar routes align across years:
-\begin{verbatim}
-# get_atlas_data.py (simplified)
-re.sub(r'-j\d+', '-jXX', route_id)
-\end{verbatim}
+Cette structure est produite directement par l'écriture unifiée. La \textbf{normalisation par année} supprime les suffixes saisonniers (p. ex. \texttt{-j24}) pour stabiliser la comparaison inter-années :
 
-\subsection{How we generate it (high level)}
-At a high level (see \texttt{get\_atlas\_data.py}):
+\begin{codebox}[language=Python]{Normalisation des identifiants de ligne}
+import re
+def normalize_route_id(route_id: str) -> str:
+    return re.sub(r"-j\\d+", "-jXX", route_id)
+\end{codebox}
+
+\subsection{Comment on le génère (vue d'ensemble)}
+À haut niveau (voir \texttt{get\_atlas\_data.py}) :
 \begin{enumerate}
-  \item Load GTFS in a streaming fashion; keep only Swiss stops (IDs starting with \texttt{85}).
-  \item First pass over \texttt{stop\_times}: collect for every \texttt{trip\_id} the first and last Swiss stops; join with \texttt{trips} and \texttt{routes} to obtain route IDs and names.
-  \item Build per-route direction strings as ``first stop name $\rightarrow$ last stop name'' (deduplicated).
-  \item Second pass over \texttt{stop\_times}: deduplicate \((\texttt{stop\_id},\ \texttt{route\_id},\ \texttt{direction\_id})\).
-  \item Map GTFS \texttt{stop\_id} to ATLAS \texttt{sloid} (strict rule first, then safe fallbacks).
-  \item Parse HRDF (\texttt{GLEISE\_LV95}, \texttt{FPLAN}, \texttt{BAHNHOF}) to get lines and first$\rightarrow$last directions per \texttt{sloid}.
-  \item Write one tidy CSV combining both sources.
+  \item Charger GTFS en flux et ne garder que les arrêts suisses (IDs commençant par \texttt{85}).
+  \item Premier passage sur \texttt{stop\_times} : pour chaque \texttt{trip\_id}, collecter le premier et le dernier arrêt suisses ; joindre à \texttt{trips} et \texttt{routes} pour obtenir l'ID et les noms de ligne.
+  \item Construire, par ligne, les chaînes de direction « nom du premier arrêt $\rightarrow$ nom du dernier arrêt » (dédupliquées).
+  \item Second passage sur \texttt{stop\_times} : dédupliquer \((\texttt{stop\_id},\ \texttt{route\_id},\ \texttt{direction\_id})\).
+  \item Mapper \texttt{stop\_id} GTFS vers \texttt{sloid} ATLAS (règle stricte puis repli sûr).
+  \item Parser HRDF (\texttt{GLEISE\_LV95}, \texttt{FPLAN}, \texttt{BAHNHOF}) pour obtenir lignes et directions premier$\rightarrow$dernier par \texttt{sloid}.
+  \item Écrire un unique CSV propre combinant les deux sources.
 \end{enumerate}
 
-\section{What the unified data says}
-We computed the following from the existing unified file using scripts under \texttt{memoire/scripts\_used/chap4}. Outputs are archived in \texttt{memoire/data/processed/chap4/}.
+\section{Ce que disent les données unifiées}
+Les chiffres ci-dessous sont calculés avec les scripts sous \texttt{memoire/scripts\_used/chap4}. Les sorties sont archivées dans \texttt{memoire/data/processed/chap4/}.
 
-\subsection*{GTFS view}
-From \texttt{unified\_stats.json}:
+\subsection*{Vue GTFS}
 \begin{itemize}
-  \item \textbf{SLOIDs with GTFS routes}: \textbf{34,781}
-  \item \textbf{Avg unique routes per \texttt{sloid}}: \textbf{2.73} (median \textbf{2.00})
-  \item \textbf{Avg unique (route, direction) per \texttt{sloid}}: \textbf{4.39} (median \textbf{3.00})
-  \item \textbf{Duplicate groups for (\texttt{sloid}, route\_norm, direction)}: \textbf{96.96\%}
-  \item \textbf{Same route+dir, multiple direction strings}: \textbf{96.95\%} of such groups show more than one first$\rightarrow$last string (reflecting heterogeneous trip patterns)
+  \item \textbf{SLOIDs avec lignes GTFS} : \textbf{34\,781}
+  \item \textbf{Nombre moyen de lignes uniques par \texttt{sloid}} : \textbf{2,73} (médiane \textbf{2,00})
+  \item \textbf{Nombre moyen de couples (ligne, direction) par \texttt{sloid}} : \textbf{4,39} (médiane \textbf{3,00})
+  \item \textbf{Groupes dupliqués pour (\texttt{sloid}, route\_norm, direction)} : \textbf{96,96\%}
+  \item \textbf{Même ligne+direction, plusieurs chaînes de direction} : \textbf{96,95\%} des groupes présentent plus d'une chaîne premier$\rightarrow$dernier (patrons d'exploitation hétérogènes)
 \end{itemize}
 
-\subsection*{HRDF view}
-Also from \texttt{unified\_stats.json}:
+\subsection*{Vue HRDF}
 \begin{itemize}
-  \item \textbf{SLOIDs with HRDF lines}: \textbf{28,757}
-  \item \textbf{Avg unique lines per \texttt{sloid}}: \textbf{2.32} (median \textbf{2.00})
-  \item \textbf{Avg distinct directions per (\texttt{sloid}, line\_name)}: \textbf{2.67} by UIC and \textbf{2.67} by name (medians \textbf{2.00})
-  \item \textbf{Long tails}: several (\texttt{sloid}, line) pairs show \textbf{30–40} distinct first$\rightarrow$last UIC pairs (heavy interlining/short-turns)
+  \item \textbf{SLOIDs avec lignes HRDF} : \textbf{28\,757}
+  \item \textbf{Nombre moyen de lignes uniques par \texttt{sloid}} : \textbf{2,32} (médiane \textbf{2,00})
+  \item \textbf{Directions distinctes par (\texttt{sloid}, line\_name)} : \textbf{2,67} par UIC et \textbf{2,67} par nom (médianes \textbf{2,00})
+  \item \textbf{Queues longues} : plusieurs couples (\texttt{sloid}, ligne) affichent \textbf{30–40} paires UIC premier$\rightarrow$dernier distinctes (branches, demi-tours)
 \end{itemize}
 
-\section{A look at Geneva}
-We plotted Geneva using only local files (no downloads): \texttt{data/raw/osm\_data.xml}, \texttt{data/processed/atlas\_routes\_unified.csv}, and \texttt{data/raw/stops\_ATLAS.csv}.
+\paragraph{En deux mots.} \emph{GTFS} couvre un grand nombre d'arrêts avec plusieurs directions par ligne ; \emph{HRDF} confirme une forte variété de directions terminales pour certaines lignes (queues longues). Cela implique qu'une comparaison robuste doit gérer la multiplicité des directions, pas seulement des identifiants de ligne.
+
+\section{Genève : vues cartographiques}
+Nous traçons Genève en utilisant uniquement les fichiers locaux (aucun téléchargement) : \texttt{data/raw/osm\_data.xml}, \texttt{data/processed/atlas\_routes\_unified.csv}, et \texttt{data/raw/stops\_ATLAS.csv}.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.8\textwidth]{../figures/chap4/geneva_osm_routes_nodes.png}
-  \caption{OSM nodes that belong to at least one route relation (Geneva area).}
+  \begin{minipage}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{../figures/chap4/geneva_osm_non_routes_nodes.png}
+    \caption*{OSM : nœuds ne faisant partie d\'\emph{aucune} relation de ligne (Genève).}
+  \end{minipage}\hfill
+  \begin{minipage}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{../figures/chap4/geneva_osm_routes_nodes.png}
+    \caption*{OSM : nœuds participant à \emph{au moins une} relation de ligne (Genève).}
+  \end{minipage}
+  \caption{Nœuds OSM hors lignes vs. sur des lignes (région de Genève).}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.8\textwidth]{../figures/chap4/geneva_osm_route_lines.png}
-  \caption{OSM route layer: linework from route relations (Geneva). Well-structured geometry.}
+  \caption{OSM : tracé des lignes à partir des relations de type \texttt{route} (Genève). Géométrie bien structurée.}
 \end{figure}
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.8\textwidth]{../figures/chap4/geneva_gtfs_trip_lines.png}
-  \caption{GTFS: trip-line approximations (Geneva). Lines reconstructed from stop order — more fragmented.}
+  \includegraphics[width=0.8\textwidth]{../figures/chap4/geneva_atlas_gtfs_trip_lines.png}
+  \caption{Atlas-GTFS : approximation des trajets (Genève). Lignes reconstruites depuis l'ordre des arrêts — plus fragmenté.}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.8\textwidth]{../figures/chap4/geneva_hrdf_trip_lines.png}
-  \caption{HRDF: trip-line approximations (Geneva). Derived from \texttt{FPLAN} sequences via UIC.}
+  \caption{HRDF : approximation des trajets (Genève). Déduite des séquences \texttt{FPLAN} via les codes UIC.}
 \end{figure}
 
-\section{More views worth having}
+\subsection*{Comment traçons-nous ces couches ?}
+\textbf{OSM (routes)} : nous parcourons les relations \texttt{type=route}, récupérons la séquence de membres de type \texttt{node} (ou \texttt{way} si disponible) et relions leurs coordonnées lorsque le nœud se trouve dans la boîte Genève. Cela produit un \emph{linework} fidèle à la modélisation OSM.
+
+\textbf{Atlas-GTFS (trajets)} : nous reconstruisons des polylignes en ordonnant les arrêts d'un trajet par \texttt{stop\_sequence} et en traçant les segments entre arrêts successifs, restreints à la boîte Genève. Pour éviter le fouillis, nous priorisons les séquences répétées (plus représentatives). Extrait en pseudo-code :
+
+\begin{codebox}[language=Python]{Tracer les lignes \emph{Atlas-GTFS} (simplifié)}
+stops = read_csv('stops.txt')[['stop_id','stop_lat','stop_lon']]
+stop_times = read_csv('stop_times.txt')[['trip_id','stop_id','stop_sequence']]
+
+# 1) Restreindre aux arrêts dans la boîte Genève
+stops_ge = stops[in_bbox(stop_lat, stop_lon)]
+stop_times_ge = stop_times[stop_id \in stops_ge.stop_id]
+
+# 2) Reconstituer les séquences ordonnées par trajet
+seq_map = {tid: tuple(g.sort_values('stop_sequence').stop_id)
+           for tid, g in stop_times_ge.groupby('trip_id') if len(g) >= 2}
+
+# 3) Compter les séquences répétées et en échantillonner
+seq_counts = Counter(seq_map.values())
+chosen = choose_top_sequences(seq_counts, max_trips=500)
+
+# 4) Projeter en coordonnées et tracer
+for seq in chosen:
+    pts = [stops_ge.loc[id][('stop_lat','stop_lon')] for id in seq]
+    draw_polyline(filter_in_bbox(pts))
+\end{codebox}
+
+\textbf{Atlas-HRDF (trajets)} : nous lisons \texttt{FPLAN}, détectons les séquences de gares (UIC), puis projetons celles dont au moins une gare est dans la boîte Genève via le couple \texttt{(UIC $\rightarrow$ coordonnée)} issu d'ATLAS. Nous avons renforcé la robustesse : détection du fichier \texttt{FPLAN} dans plusieurs emplacements et extraction des codes UIC via expression régulière. Le tracé fonctionne désormais comme attendu.
+
+\section{D'autres vues utiles}
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.75\textwidth]{../figures/chap4/hist_gtfs_routes_per_sloid.png}
-  \caption{Distribution of unique GTFS routes per \texttt{sloid} (clipped at 20).}
+  \caption{Distribution du nombre de lignes GTFS uniques par \texttt{sloid} (coupée à 20).}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.75\textwidth]{../figures/chap4/hist_gtfs_route_dir_per_sloid.png}
-  \caption{Distribution of unique (route, direction) per \texttt{sloid} (clipped at 30).}
+  \caption{Distribution du nombre de couples (ligne, direction) par \texttt{sloid} (coupée à 30).}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.75\textwidth]{../figures/chap4/hist_hrdf_lines_per_sloid.png}
-  \caption{Distribution of unique HRDF lines per \texttt{sloid} (clipped at 20).}
+  \caption{Distribution du nombre de lignes HRDF uniques par \texttt{sloid} (coupée à 20).}
 \end{figure}
 
-\subsection*{How we derive HRDF UIC direction tokens}
-In Chapter~1 we outlined the HRDF parsing. Here we restate the essentials because these tokens are central to route matching:
+\paragraph{Ce que montrent les distributions.} Lors de la génération des graphiques, le script imprime un résumé statistique sur le terminal :
 \begin{itemize}
-  \item From \texttt{GLEISE\_LV95}, we map each \texttt{sloid} to its station \texttt{UIC} and platform reference (\texttt{\#ref}).
-  \item From \texttt{FPLAN}, for trips that touch those \((UIC,\ \#ref)\) pairs, we extract the first and last stops (UIC codes) and the line name (\texttt{*L}).
-  \item Using \texttt{BAHNHOF}, we attach names to UICs and build both name-based and UIC-based direction strings: e.g., \texttt{"Genève $\rightarrow$ Lausanne"} and \texttt{"8501008 $\rightarrow$ 8501120"}.
+  \item \textbf{GTFS — lignes par \texttt{sloid}} : moyenne \textbf{2,733}, médiane \textbf{2,0}, p10 \textbf{1}, p90 \textbf{5}, max \textbf{58}. \emph{Lecture} : la plupart des arrêts ont 2–5 lignes, quelques hubs dépassent largement.
+  \item \textbf{GTFS — (ligne, direction) par \texttt{sloid}} : moyenne \textbf{4,392}, médiane \textbf{3,0}, p10 \textbf{1}, p90 \textbf{8}, max \textbf{95}. \emph{Lecture} : les directions doublent naturellement la diversité par rapport aux seules lignes.
+  \item \textbf{HRDF — lignes par \texttt{sloid}} : moyenne \textbf{2,318}, médiane \textbf{2,0}, p10 \textbf{1}, p90 \textbf{4}, max \textbf{33}. \emph{Lecture} : structure comparable à GTFS, avec des extrêmes moins fréquents.
 \end{itemize}
-These ``direction UIC'' tokens \((\texttt{line\_name},\ \texttt{direction\_uic})\) are then compared with OSM-derived first$\rightarrow$last UIC strings to support HRDF-level matching when GTFS identifiers are absent on OSM.
+Ces éléments nous permettent de commenter les queues longues et la variabilité directionnelle dans le corps du texte, sans surcharge graphique.
 
-\section{Route matching: how it works}
-The matching uses nearby OSM nodes and compares their route ``tokens'' against what we know for each ATLAS \texttt{sloid}. Tokens are either GTFS \((\texttt{route\_id},\ \texttt{direction\_id})\) (with optional year normalization) or HRDF \((\texttt{line\_name},\ \texttt{direction\_uic})\).
+\subsection*{Comment obtenons-nous les \emph{tokens} HRDF UIC ?}
+Rappel synthétique (voir Chapitre~1) :
+\begin{itemize}
+  \item Depuis \texttt{GLEISE\_LV95} : \texttt{sloid} $\mapsto$ \texttt{UIC} et référence de quai (\texttt{\#ref}).
+  \item Depuis \texttt{FPLAN} : pour les trajets traversant ces paires \((UIC,\ \#ref))\, on extrait la première et la dernière gare (codes UIC) et le nom de ligne (\texttt{*L}).
+  \item Depuis \texttt{BAHNHOF} : on associe des noms aux UIC et on construit des chaînes premier$\rightarrow$dernier par \emph{noms} et par \emph{UIC} (p. ex. \texttt{"Genève $\rightarrow$ Lausanne"} et \texttt{"8501008 $\rightarrow$ 8501120"}).
+\end{itemize}
+Ces tokens \((\texttt{line\_name},\ \texttt{direction\_uic})\) sont comparés aux chaînes UIC premier$\rightarrow$dernier dérivées d'OSM pour appuyer l'appariement au niveau HRDF lorsque les identifiants GTFS manquent dans OSM.
 
-\subsection{Distance candidates}
-We first collect nearby OSM nodes via a KD-tree within a configurable radius (default \texttt{50m}). Among these candidates we try matching in four tiers:
+\section{Appariement par lignes : comment ça marche}
+L'appariement compare les tokens de ligne connus pour un \texttt{sloid} ATLAS aux tokens dérivés des nœuds OSM à proximité (KD-tree, rayon configurable : \texttt{50 m} par défaut). Les tokens sont soit \textbf{GTFS} \((\texttt{route\_id},\ \texttt{direction\_id})\, avec normalisation éventuelle), soit \textbf{HRDF} \((\texttt{line\_name},\ \texttt{direction\_uic})\).
+
+\subsection{Candidats par distance}
+Nous tentons l'appariement en quatre paliers :
 \begin{enumerate}
-  \item \textbf{P1/P2 (GTFS tokens)}: any intersection between the \texttt{sloid}'s GTFS tokens and a candidate node's tokens.
-  \item \textbf{P3 (HRDF by UIC)}: if an HRDF UIC first$\rightarrow$last string appears for that candidate's relation membership.
-  \item \textbf{P4 (Names fallback)}: if a candidate has an OSM-derived first$\rightarrow$last \emph{name} string that matches any unified direction name for the \texttt{sloid}.
+  \item \textbf{P1/P2 (tokens GTFS)} : intersection non vide entre les tokens GTFS du \texttt{sloid} et ceux d'un nœud candidat.
+  \item \textbf{P3 (HRDF par UIC)} : présence d'une chaîne UIC premier$\rightarrow$dernier du côté du nœud (membre d'une relation OSM) correspondant à une chaîne HRDF du \texttt{sloid}.
+  \item \textbf{P4 (repli par noms)} : concordance entre une chaîne \emph{nominale} OSM premier$\rightarrow$dernier et une chaîne unifiée (côté ATLAS).
 \end{enumerate}
-Tiny excerpt of the token logic (simplified):
-\begin{verbatim}
-# For a candidate node, derive tokens from its routes
+Extrait minimaliste de la logique des tokens :
+
+\begin{codebox}[language=Python]{Intersection de tokens GTFS}
 node_tokens = set()
 for route in node_routes:
     rid = route.gtfs_route_id
@@ -147,63 +196,67 @@ for route in node_routes:
         if rid_norm:
             node_tokens.add((rid_norm, did))
 
-# Check intersection with SLOID GTFS tokens
 if gtfs_tokens & node_tokens:
     match = ('gtfs', 'gtfs_tokens')
-\end{verbatim}
+\end{codebox}
 
-The route-id normalization used across the system is:
-\begin{verbatim}
+La normalisation des identifiants de ligne utilisée dans tout le système est :
+
+\begin{codebox}[language=Python]{Normalisation \texttt{route\_id}}
+import re
+
 def normalize_route_id(route_id: str) -> str:
-    return re.sub(r'-j\d+', '-jXX', route_id)
-\end{verbatim}
+    return re.sub(r"-j\\d+", "-jXX", route_id)
+\end{codebox}
 
-\subsection{Configurations}
+\subsection{Paramètres}
 \begin{itemize}
-  \item \textbf{Radius}: default \texttt{50m}. Smaller radii reduce false positives but may miss stops displaced in OSM.
-  \item \textbf{Token types}: enable/disable GTFS-only tiers or include HRDF tiers.
-  \item \textbf{Normalization}: route IDs can be normalized (\texttt{-jXX}) before comparison.
+  \item \textbf{Rayon} : \texttt{50 m} par défaut. Plus petit $\Rightarrow$ moins de faux positifs, mais risque de manquer des arrêts légèrement décalés dans OSM.
+  \item \textbf{Types de tokens} : activer uniquement GTFS ou inclure les paliers HRDF.
+  \item \textbf{Normalisation} : comparer avec ou sans \texttt{-jXX}.
 \end{itemize}
 
-\section{Route matching: what the numbers say}
-Using the optimized script (\texttt{route\_matching\_stats.py}, run on existing files), we obtain:
+\section{Appariement par lignes : les chiffres}
+Avec le script optimisé (\texttt{route\_matching\_stats.py}, exécuté sur les fichiers déjà présents), nous obtenons :
 \begin{itemize}
-  \item \textbf{GTFS tokens}: \texttt{7,252}; \textbf{OSM tokens}: \texttt{7,121}; \textbf{overlap}: \texttt{3,200}; \textbf{Jaccard}: \textbf{0.2864}
-  \item \textbf{Per-\texttt{sloid} GTFS token coverage}: mean \textbf{2.64}, median \textbf{2}, p90 \textbf{6}; any coverage on \textbf{73.4\%} of \texttt{sloid}s
-  \item \textbf{Route-level}: unique GTFS routes \textbf{3,839}; with an OSM match \textbf{1,664} $\rightarrow$ \textbf{43.3\%} route match rate
-  \item \textbf{HRDF first$\rightarrow$last UIC strings}: HRDF \textbf{8,818}, OSM \textbf{5,633}, overlap \textbf{2,935}
+  \item \textbf{Tokens GTFS} : \texttt{7\,252} ; \textbf{tokens OSM} : \texttt{7\,121} ; \textbf{chevauchement} : \texttt{3\,200} ; \textbf{Jaccard} : \textbf{0,2864}.
+  \item \textbf{Couverture par \texttt{sloid} (GTFS)} : moyenne \textbf{2,64}, médiane \textbf{2}, p90 \textbf{6} ; au moins un token couvert pour \textbf{73,4\%} des \texttt{sloid}s.
+  \item \textbf{Au niveau des lignes} : lignes GTFS uniques \textbf{3\,839} ; avec correspondance OSM \textbf{1\,664} $\Rightarrow$ \textbf{43,3\%} de lignes appariées.
+  \item \textbf{Chaînes UIC premier$\rightarrow$dernier} : HRDF \textbf{8\,818}, OSM \textbf{5\,633}, chevauchement \textbf{2\,935}.
 \end{itemize}
-Coverage as a histogram:
-\begin{figure}[h]
+\noindent \emph{Lecture rapide} : la similarité \textbf{Jaccard $\approx 0{,}29$} indique un recouvrement substantiel mais non total des tokens GTFS dans OSM ; le taux d'appariement \textbf{43\%} au niveau des lignes confirme une couverture utile pour un appariement de haute précision.
+
+\begin{figure}[H]
   \centering
   \includegraphics[width=0.75\textwidth]{../figures/chap4/hist_route_token_coverage_per_sloid.png}
-  \caption{How many GTFS \((route, direction)\) tokens per \texttt{sloid} are found in OSM (clipped at 30).}
+  \caption{Nombre de tokens GTFS \((ligne, direction)\) par \texttt{sloid} retrouvés dans OSM (coupée à 30).}
 \end{figure}
 
-\section{Scripts used for this chapter}
-All scripts live under \texttt{memoire/scripts\_used/chap4} and operate only on files in \texttt{data/raw} and \texttt{data/processed}:
+\section{Scripts utilisés dans ce chapitre}
+Tous les scripts résident sous \texttt{memoire/scripts\_used/chap4} et n'opèrent que sur \texttt{data/raw} et \texttt{data/processed} :
 \begin{itemize}
-  \item \texttt{compute\_unified\_stats.py}: reads \texttt{atlas\_routes\_unified.csv}, writes stats JSON/MD and histograms.
-  \item \texttt{geneva\_maps.py}: produces the Geneva OSM/GTFS/HRDF plots.
-  \item \texttt{route\_matching\_stats.py}: computes token overlaps and coverage summaries; optimized with progress logs and a fast mode.
+  \item \texttt{compute\_unified\_stats.py} : lit \texttt{atlas\_routes\_unified.csv}, produit des statistiques (avec impressions de distribution sur le terminal) et des histogrammes.
+  \item \texttt{geneva\_maps.py} : génère les vues OSM et ATLAS (incluant désormais les nœuds OSM hors et sur relations de ligne).
+  \item \texttt{geneva\_route\_lines.py} : trace les lignes OSM, \textbf{Atlas-GTFS} et HRDF (détection robuste de \texttt{FPLAN}).
+  \item \texttt{route\_matching\_stats.py} : calcule chevauchements et couvertures, avec logs de progression et un mode rapide.
 \end{itemize}
 
-\section{Reflection and next steps}
-\textbf{Strengths}. The unified approach provides a compact, analyzable view of routes per stop across feeds. The matching pipeline favors precision (token intersections) backed by conservative distance thresholds. Year-normalization improves stability across timetable versions.
+\section{Bilan et perspectives}
+\textbf{Atouts}. L'écriture unifiée offre une vue compacte et exploitable des lignes par arrêt, toutes sources confondues. Le pipeline d'appariement privilégie la précision (intersections de tokens) avec des seuils de distance conservateurs. La normalisation par année stabilise les comparaisons inter-versions.
 
-\textbf{Observed complexities}.
+\textbf{Complexités observées}.
 \begin{itemize}
-  \item \emph{Multiplicity of directions}: Even for the same route+direction, many distinct first$\rightarrow$last strings exist, reflecting real operations (short turns, branches).
-  \item \emph{Partial OSM tagging}: Many relations carry \texttt{gtfs:route\_id} but fewer expose robust direction cues; coverage is good but not complete.
-  \item \emph{Spatial drift}: Small geocoding mismatches (or node placement) can push true candidates outside strict radii in dense hubs.
+  \item \emph{Multiplicité des directions} : pour une même ligne+direction, des chaînes premier$\rightarrow$dernier multiples coexistent (branches, retournements).
+  \item \emph{Taggage OSM partiel} : \texttt{gtfs:route\_id} est souvent présent, mais les indices de direction sont moins systématiques.
+  \item \emph{Dérive spatiale} : de petits écarts géocodage/placement peuvent sortir un bon candidat d'un rayon trop strict en zones denses.
 \end{itemize}
 
-\textbf{Improvements}.
+\textbf{Pistes d'amélioration}.
 \begin{itemize}
-  \item Incorporate sequence-level consistency: compare short path segments near the stop against GTFS stop order to disambiguate dense clusters.
-  \item Learnable scoring: stack features (distance, tokens, name similarity, HRDF cues) into a trained ranker with human-labeled pairs.
-  \item Direction robustness: distill many first$\rightarrow$last strings into a small set of canonical termini per route branch.
-  \item Incremental refresh: cache token sets per feed version and re-match only impacted \texttt{sloid}s.
+  \item Cohérence par séquences : comparer de courts segments proches de l'arrêt à l'ordre GTFS pour désambigüiser les grappes denses.
+  \item Score apprenable : combiner distance, tokens, similarité de noms, indices HRDF dans un \emph{ranker} entraîné sur des paires annotées.
+  \item Robustesse directionnelle : distiller de nombreuses chaînes premier$\rightarrow$dernier en un petit ensemble de terminus canoniques par branche.
+  \item Rafraîchissement incrémental : \emph{cacher} les sets de tokens par version et ne rematcher que les \texttt{sloid}s impactés.
 \end{itemize}
 
-\noindent Bottom line: route-based matching adds a strong, independent signal that complements exact/name/distance methods. With a few targeted enhancements, coverage and confidence can both increase while keeping the pipeline fast and interpretable.
+\noindent \textbf{En bref} : l'appariement par lignes ajoute un signal fort et indépendant qui complète les méthodes exactes/nominales/distance. Avec quelques ajustements ciblés, on peut encore augmenter la couverture \emph{et} la confiance tout en gardant un pipeline rapide et interprétable.

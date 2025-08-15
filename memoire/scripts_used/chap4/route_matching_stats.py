@@ -204,10 +204,11 @@ def parse_osm_direction_uic_strings(xml_path: str):
         
         route_count += 1
         member_nodes = [m.get('ref') for m in relation.findall("./member[@type='node']")]
-        if len(member_nodes) >= 2:
+        # Skip if sequence looks noisy (too few or no UICs at ends)
+        if len(member_nodes) >= 3:
             first_uic = node_id_to_uic.get(member_nodes[0])
             last_uic = node_id_to_uic.get(member_nodes[-1])
-            if first_uic and last_uic:
+            if first_uic and last_uic and first_uic != last_uic:
                 strings.add(f"{first_uic} → {last_uic}")
     
     rel_elapsed = time.time() - rel_start
@@ -239,6 +240,16 @@ def build_hrdf_dir_uic_set(unified: pd.DataFrame):
 
 def make_plots(fig_dir, atlas_by_sloid_cover):
     s = pd.Series(atlas_by_sloid_cover)
+    if not s.empty:
+        desc = {
+            'count': int(s.count()),
+            'mean': round(float(s.mean()), 3),
+            'median': round(float(s.median()), 3),
+            'p10': round(float(s.quantile(0.10)), 3),
+            'p90': round(float(s.quantile(0.90)), 3),
+            'max': int(s.max()),
+        }
+        print("[SUMMARY] GTFS token coverage per SLOID:", desc)
     plt.figure(figsize=(6, 4), dpi=150)
     s.clip(upper=30).hist(bins=30, color='#f28e2b', alpha=0.85)
     plt.title('Route token coverage in OSM per SLOID (GTFS) (clipped at 30)')
