@@ -1,7 +1,7 @@
 % !TeX spellcheck = fr_FR
 \chapter{Chapitre 11: Évaluation de la sécurité de l'application}\label{chap:security}
 
-\noindent Ce chapitre complète le \textbf{Chap.~\ref{chap:auth}} en évaluant les défenses mises en place, en illustrant les scénarios d'attaque plausibles et en discutant des améliorations futures. L'objectif est comprendre comment et pourquoi les contrôles bloquent les attaques, et où on pourrait renforcer la posture.
+\noindent Ce chapitre complète le \textbf{Chap.~\ref{chap:auth}} en évaluant les défenses mises en place, en illustrant les scénarios d'attaque plausibles et en discutant des améliorations futures. L'objectif est comprendre comment et pourquoi les contrôles bloquent les attaques.
 
 \section{Périmètre et surface d'attaque}
 \noindent Pour rendre la lecture concrète, on part d'une \emph{carte des routes} – celles que l'utilisateur peut toucher. Nous indiquons les garde-fous (authentification, limites de débit) directement à côté de chaque groupe.
@@ -55,6 +55,8 @@
   \item \texttt{/api/make\_non\_persistent/<id>}, \texttt{/api/clear\_all\_persistent}, \texttt{/api/clear\_all\_non-persistent}, \texttt{/api/make\_all\_persistent} \textit{POST} — \textbf{10/h}, \textbf{auth requis} (admin si destructif)
 \end{itemize}
 
+\noindent \textbf{Important}. Les opérations \emph{destructives} sur les données persistantes (comme \texttt{DELETE /api/persistent\_data/<id>}) sont réservées aux \textbf{administrateurs}. Un utilisateur non admin ne peut ni supprimer ni vider ces jeux de données.
+
 \noindent Types d'attaques considérés: \textbf{bourrage d'identifiants}, \textbf{force brute}, \textbf{contournement 2FA}, \textbf{énumération d'email}, \textbf{CSRF}, \textbf{abus de liens signés} et \textbf{déni de service (DoS)}.
 
 \section{Contrôles en place (aperçu technique)}
@@ -75,11 +77,17 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE','false').lower()=='true'
 \end{codebox}
 
-\subsection*{CSRF et pages de formulaire}
-\noindent Les formulaires d'authentification utilisent Flask-WTF/CSRF. Certaines API JSON historiques sont explicitement exemptées (lecture seule), pas les routes d'authentification.
+\subsection*{CSRF — explication claire}
+\noindent \textbf{Qu'est-ce que le CSRF ?} Une page malveillante pourrait faire envoyer à votre navigateur une requête \texttt{POST} à notre site en utilisant votre cookie de session, sans votre intention.
+
+\noindent \textbf{Comment on s'en protège}. Les formulaires sensibles (inscription, connexion, 2FA, etc.) incluent un \textbf{jeton CSRF} caché généré par Flask-WTF. À chaque soumission, le serveur vérifie que le jeton du formulaire correspond à celui stocké côté session. Sans ce jeton, la requête est refusée.
+
+\noindent \textbf{Qu'est exempté}. Les endpoints \textbf{lecture seule} JSON (\texttt{GET}) restent exemptés. Tout endpoint qui \textbf{modifie} de l'état via cookies de session doit exiger un jeton CSRF (ou un autre mécanisme équivalent) pour être sûr.
+
+\noindent \textbf{À retenir}. \texttt{SameSite=Lax} aide mais ne suffit pas: le jeton CSRF est la garantie principale contre l'exécution non intentionnelle de requêtes authentifiées.
 
 \subsection*{CAPTCHA Turnstile}
-\noindent Un CAPTCHA Cloudflare Turnstile protège inscription et connexion; désactivé automatiquement en développement si clés absentes.
+\noindent Un CAPTCHA Cloudflare Turnstile protège inscription et connexion.
 \begin{codebox}[language=Python]{Vérifier le CAPTCHA (simplifié)}
 secret = os.getenv('TURNSTILE_SECRET_KEY','')
 if not secret: return True  # dev
@@ -88,7 +96,15 @@ ok = bool(resp.json().get('success'))
 \end{codebox}
 
 \subsection*{Limitation de débit et verrouillage}
-\noindent Double barrière: limites par route \emph{et} verrouillage progressif par compte après échecs répétés.
+\noindent \textbf{Idée générale}. Nous combinons deux couches:
+\begin{itemize}
+  \item \textbf{Limites par route} (Flask-Limiter) — plafonds \og X par minute/heure/jour \fg{} appliqués par défaut \textbf{par IP}.
+  \item \textbf{Verrouillage par compte} — après plusieurs mots de passe erronés, le compte est temporairement bloqué (délai croissant) pour ralentir les attaques.
+\end{itemize}
+
+\noindent \textbf{Comment les limites fonctionnent}. Chaque route a un \emph{quota} (ex.: \texttt{10/min}). À dépassement, le serveur répond \texttt{429 Too Many Requests}. Pour la connexion, la clé de limite combine \textbf{IP + email tenté} afin d'empêcher un attaquant de détourner la limite IP seule.
+
+\noindent \textbf{Caveat proxys}. Si l'application est derrière un proxy (NGINX/Cloudflare), il faut \textbf{configurer les proxys de confiance} pour lire correctement \texttt{X-Forwarded-For}. Sans cela, la limitation \og par IP \fg{} peut devenir inefficace ou injuste car toutes les requêtes semblent provenir d'une même IP.
 \begin{codebox}[language=Python]{Limites de débit par route}
 @limiter.limit("5/minute")   # /auth/register
 @limiter.limit("10/minute")  # /auth/login
@@ -111,9 +127,10 @@ if not user.verify_password(password):
 \end{codebox}
 
 \subsection*{2FA TOTP et codes de secours}
-\noindent TOTP standard (30~s) via \texttt{pyotp}. Les codes de secours sont \textbf{hachés} avec Argon2 et \textbf{consommés} à l'usage.
+\noindent TOTP standard (30~s) via \texttt{pyotp}. \textbf{Le secret TOTP est chiffré au repos} (Fernet) et déchiffré à la volée à l'usage; les codes de secours sont \textbf{hachés} (Argon2) et \textbf{consommés} à l'usage.
 \begin{codebox}[language=Python]{Vérifier TOTP ou code de secours}
-totp_ok = pyotp.TOTP(user.totp_secret).verify(token, valid_window=1)
+secret = user.get_totp_secret()  # déchiffre si nécessaire
+totp_ok = pyotp.TOTP(secret).verify(token, valid_window=1)
 backup_ok = user.verify_and_consume_backup_code(token)
 \end{codebox}
 
@@ -154,6 +171,12 @@ docker compose logs -f app | grep 'auth_event' | cat
   \caption{Verrouillage progressif: coût croissant pour l'attaquant.}
 \end{figure}
 
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\textwidth}{\centering Placeholder capture d'écran: message UI \og Mot de passe incorrect \fg{} suivi d'un \og Compte temporairement verrouillé \fg{}.}}
+  \caption{Échec de mot de passe et blocage temporaire affiché dans l'interface.}
+\end{figure}
+
 \subsection*{A2 — Contournement 2FA}
 \textbf{Attaque}. L'attaquant dérobe un mot de passe (hameçonnage) et tente de se connecter sans 2FA.
 
@@ -167,7 +190,13 @@ docker compose logs -f app | grep 'auth_event' | cat
   \caption{Garde 2FA: étape obligatoire après mot de passe.}
 \end{figure}
 
-\paragraph{Note}. Le secret TOTP est stocké en clair dans \texttt{auth\_db} (voir \S~\ref{sec:improve}). Cela protège contre les vols de base non, mais facilite la rotation et l'interopérabilité. Un chiffrement applicatif à la volée est recommandé en production.
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\textwidth}{\centering Placeholder capture d'écran: saisie d'un code 2FA \textbf{incorrect} avec message d'erreur.}}
+  \caption{Tentative avec code 2FA erroné.}
+\end{figure}
+
+\paragraph{Note}. Le secret TOTP est \textbf{chiffré au repos} dans \texttt{auth\_db} (Fernet), puis déchiffré à la volée pour la vérification. Les codes de secours restent hachés (Argon2) et sont consommés à l'usage.
 
 \subsection*{A3 — Énumération d'email}
 \textbf{Attaque}. Tester si un email existe via les messages d'erreur.
@@ -176,12 +205,29 @@ docker compose logs -f app | grep 'auth_event' | cat
 
 \textbf{Résultat}. L'énumération est évitée sur login/resend, mais possible sur register. Voir \S~\ref{sec:improve} pour uniformiser les messages.
 
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\textwidth}{\centering Placeholder capture d'écran: tentative d'inscription avec un email existant et message révélant l'existence du compte.}}
+  \caption{Exemple d'énumération d'email via message d'erreur d'inscription.}
+\end{figure}
+
 \subsection*{A4 — Abus de liens signés (vérification d'email)}
-\textbf{Attaque}. Réutiliser un lien, tenter un bruteforce de jetons ou une inondation d'emails.
+\textbf{Attaques visées}.
+\begin{itemize}
+  \item \textbf{Rejeu} d'un vieux lien après vérification ou expiration.
+  \item \textbf{Bruteforce} du jeton signé.
+  \item \textbf{Inondation} d'envois de mails de vérification.
+\end{itemize}
 
-\textbf{Côté serveur}. Jetons \texttt{itsdangerous} avec \textbf{sel dédiée} et péremption 48~h; limitation 30/h sur \texttt{/auth/verify-email/...}. Rythme d'envoi côté serveur limité (1 email/min par compte) et limite 5/min sur \texttt{/auth/resend-verification}.
+\textbf{Mesures côté serveur}.
+\begin{itemize}
+  \item Jetons \texttt{itsdangerous} avec \textbf{sel dédiée} et \textbf{expiration 48~h} ; taille et entropie suffisantes pour rendre le bruteforce irréaliste.
+  \item Vérification idempotente: si l'email est déjà vérifié, le jeton est ignoré proprement.
+  \item Plafonds: \texttt{/auth/verify-email/...} à \textbf{30/h} et \texttt{/auth/resend-verification} à \textbf{5/min}; côté application, \textbf{1 email/min par compte}.
+  \item Journalisation d'audit des vérifications et des renvois pour repérer des abus.
+\end{itemize}
 
-\textbf{Résultat}. Les relectures expirent, les tentatives massives sont ralenties.
+\textbf{Effet}. Les relectures expirent rapidement ; les tentatives massives et le spam sont freinés par les limites.
 
 \begin{figure}[h]
   \centering
@@ -190,16 +236,18 @@ docker compose logs -f app | grep 'auth_event' | cat
 \end{figure}
 
 \subsection*{A5 — CSRF sur routes sensibles}
-\textbf{Attaque}. Forcer une action authentifiée via une page tierce.
+\textbf{Attaque}. Une page externe soumet en cachette un \texttt{POST} authentifié (ex.: désactiver 2FA, créer un objet) en s'appuyant sur le cookie de session de la victime.
 
-\textbf{Côté serveur}. Les formulaires d'authentification (POST) sont protégés par CSRF. Les API JSON en lecture restent exemptées.
+\textbf{Côté serveur}. Les formulaires sensibles exigent un \textbf{jeton CSRF} valide (Flask-WTF). Les routes JSON \textbf{mutatrices} doivent elles aussi vérifier un jeton ou un en-tête spécifique côté client. Les routes de \textbf{lecture} (GET) restent exemptées.
 
-\textbf{Résultat}. Les tentatives de soumission cachée échouent faute de jeton.
+\textbf{Résultat}. Sans jeton légitime, la requête est refusée même si le cookie de session est présent. \texttt{SameSite=Lax} réduit le risque mais ne remplace pas le jeton.
 
 \subsection*{A6 — DoS sur endpoints lourds}
 \textbf{Attaque}. Bombarder \texttt{/api/data}, \texttt{/api/stop\_popup} ou \texttt{/api/generate\_report} pour saturer la base/le CPU.
 
-\textbf{Côté serveur}. Nous avons ajouté ou resserré des limites: \texttt{/api/data} \textbf{30/min}, \texttt{/api/stop\_popup} \textbf{120/min}, \texttt{/api/search/top\_matches} \textbf{60/min}, \texttt{/api/global\_stats} \textbf{30/min} (avec \textbf{cache LRU}), \texttt{/api/generate\_report} désormais \textbf{authentifiée} et plafonnée à \textbf{20/jour}. Les requêtes sont \emph{SARGable} (filtres par fenêtre) et paginées pour bornes fortes.
+\textbf{Côté serveur}. Nous avons ajouté ou resserré des limites: \texttt{/api/data} \textbf{30/min}, \texttt{/api/stop\_popup} \textbf{120/min}, \texttt{/api/search/top\_matches} \textbf{60/min}, \texttt{/api/global\_stats} \textbf{30/min} (avec \textbf{cache LRU}), \texttt{/api/generate\_report} désormais \textbf{authentifiée} et plafonnée à \textbf{20/jour}.
+
+\noindent \textbf{Requêtes SARGable et pagination}. \og SARGable \fg{} signifie que les filtres portent directement sur des \textbf{colonnes indexées} (par exemple \texttt{WHERE lon BETWEEN ... AND ... AND lat BETWEEN ... AND ...}) plutôt que sur des expressions non indexables. La base peut ainsi utiliser ses index et éviter des scans complets. La \textbf{pagination} (\texttt{LIMIT}/\texttt{OFFSET} ou \emph{keyset pagination}) impose un \textbf{maximum} d'éléments traités par requête, ce qui crée des \textbf{bornes fortes} sur le temps CPU et les lectures disque.
 
 \textbf{Résultat}. Un attaquant doit multiplier les IPs et comptes authentifiés pour maintenir une charge significative; l'impact reste contenu. Les métriques d'audit aident à repérer des rafales anormales.
 
@@ -216,10 +264,10 @@ docker compose logs -f app | grep 'auth_event' | cat
 \begin{itemize}
   \item \textbf{Forcer HTTPS et cookies Secure} partout (\texttt{FORCE\_HTTPS=true}, \texttt{SESSION\_COOKIE\_SECURE=true}).
   \item \textbf{Politiques CSP strictes} (actuellement désactivées) avec listes blanches minimales, ou auto-hébergement des actifs.
-  \item \textbf{Unifier les messages d'inscription} pour éviter l'énumération d'emails (réponse neutre: \og si un compte existe déjà, vous recevrez un email \fg{}).
+  \item \textbf{Unifier les messages d'inscription} pour éviter l'énumération d'emails (réponse neutre: \og si un compte existe déjà, vous recevrez un email \fg{}). \textit{Implémenté}. La page d'inscription et les écrans associés utilisent un message neutre.
   \item \textbf{Clés de limite composites} : ajouter des limites \emph{par compte} (IP+email) et des \emph{burst tokens} pour lisser.
   \item \textbf{Écriture manuelle}: exiger l'authentification forte pour tout endpoint mutateur (p.\,ex. \texttt{/api/manual\_match}) et journaliser finement.
-  \item \textbf{Chiffrement au repos du secret TOTP} (p.~ex. libsodium/\texttt{Fernet} avec rotation de clés) et \textbf{réauthentification} exigée pour \texttt{/auth/disable\_2fa}.
+  \item \textbf{Chiffrement au repos du secret TOTP} (Fernet, clé via variable d'environnement) et \textbf{réauthentification} exigée pour \texttt{/auth/disable\_2fa}. \textit{Implémenté}. Désactivation 2FA requiert le mot de passe.
   \item \textbf{Rotation de session à la connexion} et vidage explicite de session pour réduire les risques de fixation.
   \item \textbf{Réinitialisation de mot de passe} avec jetons signés mono-usage à durée courte (non implémenté, \S~\ref{chap:auth}).
   \item \textbf{Détection d'anomalies basée sur les journaux d'audit} (IP, ASN, pays), alertes et tableaux de bord; politiques de rétention/archivage.

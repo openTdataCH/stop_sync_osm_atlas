@@ -81,57 +81,69 @@
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {9.1}{\ignorespaces Vue générale — filtres, carte Leaflet, résumé d'en-tête\relax }}{85}{figure.caption.48}%
+\contentsline {figure}{\numberline {9.1}{\ignorespaces Vue générale de la page d'accueil\relax }}{85}{figure.caption.48}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {9.2}{\ignorespaces Politique de rendu selon le niveau de zoom\relax }}{86}{figure.caption.49}%
+\contentsline {figure}{\numberline {9.2}{\ignorespaces Filtre ATLAS activé — ville de Zurich\relax }}{86}{figure.caption.49}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {9.3}{\ignorespaces Marqueurs et polylignes de correspondance\relax }}{87}{figure.caption.50}%
+\contentsline {figure}{\numberline {9.3}{\ignorespaces Bannière politique de rendu selon le niveau de zoom\relax }}{87}{figure.caption.50}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {9.4}{\ignorespaces Info-bulles: vue initiale et vue unifiée\relax }}{88}{figure.caption.51}%
+\contentsline {figure}{\numberline {9.4}{\ignorespaces Info-bulles\relax }}{88}{figure.caption.51}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {9.5}{\ignorespaces Filtres, opérateur, Top~N, et résumé d'en-tête\relax }}{88}{figure.caption.52}%
+\contentsline {figure}{\numberline {9.5}{\ignorespaces Panneau de filtres avec \FB@og chips \FB@fg \relax {} actifs\relax }}{89}{figure.caption.52}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {9.6}{\ignorespaces Page Problèmes — revue et résolution guidée\relax }}{89}{figure.caption.53}%
+\contentsline {figure}{\numberline {9.6}{\ignorespaces Résumé d'en-tête avec statistiques globales. 3 filtres actifs\relax }}{89}{figure.caption.53}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {9.7}{\ignorespaces Gestion des solutions et notes persistées\relax }}{90}{figure.caption.54}%
+\contentsline {figure}{\numberline {9.7}{\ignorespaces Page Problèmes — vue d'ensemble : filtres, carte de contexte et panneau de résolution\relax }}{90}{figure.caption.54}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {9.8}{\ignorespaces Page Rapports — génération (PDF/CSV) avec limite quotidienne\relax }}{90}{figure.caption.55}%
+\contentsline {figure}{\numberline {9.8}{\ignorespaces Contrôles de filtrage et options de persistance — Page Problèmes\relax }}{91}{figure.caption.55}%
 \defcounter {refsection}{0}\relax 
-\addvspace {10\p@ }
+\contentsline {figure}{\numberline {9.9}{\ignorespaces Panneau de résolution — actions contextuelles selon le type d'anomalie\relax }}{92}{figure.caption.56}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.1}{\ignorespaces Bouton \FB@og Créer un compte \FB@fg \relax {} visible dans l'interface.\relax }}{94}{figure.caption.56}%
+\contentsline {figure}{\numberline {9.10}{\ignorespaces Données persistantes — pour utilisateurs non administrateurs\relax }}{92}{figure.caption.57}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.2}{\ignorespaces Formulaire d'inscription (email, mot de passe).\relax }}{95}{figure.caption.57}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.3}{\ignorespaces \texttt {auth\_db.users}: \texttt {email} et \texttt {password\_hash} après inscription.\relax }}{95}{figure.caption.58}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.4}{\ignorespaces Processus de vérification d'email (espace réservé).\relax }}{95}{figure.caption.59}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.5}{\ignorespaces \texttt {auth\_db.users}: \texttt {is\_admin}, \texttt {is\_email\_verified}, \texttt {last\_verification\_sent\_at}, \texttt {is\_totp\_enabled}.\relax }}{96}{figure.caption.60}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.6}{\ignorespaces Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref {chap:security}).\relax }}{96}{figure.caption.61}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.12}{\ignorespaces \texttt {auth\_db.users}: \texttt {totp\_secret}, \texttt {backup\_codes\_json}, \texttt {created\_at}, \texttt {updated\_at}.\relax }}{96}{figure.caption.67}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.7}{\ignorespaces Connexion réussie: alertes UI sur l'email non vérifié et la 2FA non activée.\relax }}{97}{figure.caption.62}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.8}{\ignorespaces \texttt {auth\_db.users}: \texttt {last\_login\_at}, \texttt {failed\_login\_attempts}, \texttt {locked\_until}.\relax }}{97}{figure.caption.63}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.9}{\ignorespaces Activation 2FA avec QR \textit {otpauth://} et secret Base32. QR et secret encodent la même information.\relax }}{98}{figure.caption.64}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.10}{\ignorespaces Codes de secours: affichés une seule fois à l'activation. Stockage côté serveur: hachés Argon2 dans un JSON.\relax }}{98}{figure.caption.65}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.11}{\ignorespaces Étape de connexion avec saisie du code 2FA (ou d'un code de secours).\relax }}{99}{figure.caption.66}%
+\contentsline {figure}{\numberline {9.11}{\ignorespaces Page Rapports — génération (PDF/CSV) et limite quotidienne\relax }}{93}{figure.caption.58}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {11.1}{\ignorespaces Verrouillage progressif: coût croissant pour l'attaquant.\relax }}{105}{figure.caption.68}%
+\contentsline {figure}{\numberline {10.1}{\ignorespaces Bouton \FB@og Créer un compte \FB@fg \relax {} visible dans l'interface.\relax }}{96}{figure.caption.59}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {11.2}{\ignorespaces Garde 2FA: étape obligatoire après mot de passe.\relax }}{105}{figure.caption.69}%
+\contentsline {figure}{\numberline {10.2}{\ignorespaces Formulaire d'inscription (email, mot de passe).\relax }}{97}{figure.caption.60}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {11.3}{\ignorespaces Cycle de vie d'un jeton de vérification.\relax }}{106}{figure.caption.70}%
+\contentsline {figure}{\numberline {10.3}{\ignorespaces \texttt {auth\_db.users}: \texttt {email} et \texttt {password\_hash} après inscription.\relax }}{97}{figure.caption.61}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {10.4}{\ignorespaces Processus de vérification d'email (espace réservé).\relax }}{97}{figure.caption.62}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {10.5}{\ignorespaces \texttt {auth\_db.users}: \texttt {is\_admin}, \texttt {is\_email\_verified}, \texttt {last\_verification\_sent\_at}, \texttt {is\_totp\_enabled}.\relax }}{98}{figure.caption.63}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {10.6}{\ignorespaces Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref {chap:security}).\relax }}{99}{figure.caption.64}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {10.7}{\ignorespaces Connexion réussie: alertes UI sur l'email non vérifié et la 2FA non activée.\relax }}{99}{figure.caption.65}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {10.8}{\ignorespaces \texttt {auth\_db.users}: \texttt {last\_login\_at}, \texttt {failed\_login\_attempts}, \texttt {locked\_until}.\relax }}{99}{figure.caption.66}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {10.9}{\ignorespaces Activation 2FA avec QR \textit {otpauth://} et secret Base32. QR et secret encodent la même information.\relax }}{100}{figure.caption.67}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {10.10}{\ignorespaces Codes de secours: affichés une seule fois à l'activation. Stockage côté serveur: hachés Argon2 dans un JSON.\relax }}{100}{figure.caption.68}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {10.11}{\ignorespaces Étape de connexion avec saisie du code 2FA (ou d'un code de secours).\relax }}{101}{figure.caption.69}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {10.12}{\ignorespaces \texttt {auth\_db.users}: \texttt {totp\_secret} (chiffré), \texttt {backup\_codes\_json} (haché), \texttt {created\_at}, \texttt {updated\_at}.\relax }}{101}{figure.caption.70}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {12.1}{\ignorespaces Deux conteneurs reliés sur le réseau compose; volumes pour le code (monté) et les données MySQL (persistées).\relax }}{110}{figure.caption.71}%
+\contentsline {figure}{\numberline {11.1}{\ignorespaces Verrouillage progressif: coût croissant pour l'attaquant.\relax }}{107}{figure.caption.71}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {11.2}{\ignorespaces Échec de mot de passe et blocage temporaire affiché dans l'interface.\relax }}{108}{figure.caption.72}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {11.3}{\ignorespaces Garde 2FA: étape obligatoire après mot de passe.\relax }}{108}{figure.caption.73}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {11.4}{\ignorespaces Tentative avec code 2FA erroné.\relax }}{108}{figure.caption.74}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {11.5}{\ignorespaces Exemple d'énumération d'email via message d'erreur d'inscription.\relax }}{109}{figure.caption.75}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {11.6}{\ignorespaces Cycle de vie d'un jeton de vérification.\relax }}{109}{figure.caption.76}%
+\defcounter {refsection}{0}\relax 
+\addvspace {10\p@ }
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {12.1}{\ignorespaces Deux conteneurs reliés sur le réseau compose; volumes pour le code (monté) et les données MySQL (persistées).\relax }}{113}{figure.caption.77}%
 \contentsfinish 

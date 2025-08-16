@@ -7,16 +7,18 @@ Ce chapitre présente l'architecture du \textbf{frontend} et l'ergonomie de l'ap
 
 \medskip
 \noindent
-\textit{Capture d'écran à insérer plus tard} : vue générale de la page carte (filtres à gauche, carte à droite).
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../figures/chap9/main_page.png}
+  \caption{Vue générale de la page d'accueil}
+  \label{fig:frontend-index-main}
+\end{figure}
 
 \begin{figure}[h]
   \centering
-  \fbox{\begin{minipage}[c][6cm][c]{0.92\textwidth}
-    \centering
-    Placeholder — Vue générale de la carte (page d'accueil)
-  \end{minipage}}
-  \caption{Vue générale — filtres, carte Leaflet, résumé d'en-tête}
-  \label{fig:frontend-index}
+  \includegraphics[width=0.95\textwidth]{../figures/chap9/atlas filter activ main page.png}
+  \caption{Filtre ATLAS activé — ville de Zurich}
+  \label{fig:frontend-index-filters}
 \end{figure}
 
 \section{Pages et navigation}
@@ -48,10 +50,8 @@ La carte (Leaflet) initialise une vue par défaut et \textbf{anti-rebondit} les 
 
 \begin{figure}[h]
   \centering
-  \fbox{\begin{minipage}[c][4.5cm][c]{0.92\textwidth}\centering
-    Placeholder — Bannière de zoom et premiers marqueurs
-  \end{minipage}}
-  \caption{Politique de rendu selon le niveau de zoom}
+  \includegraphics[width=0.9\textwidth]{../figures/chap9/zoom_in_to_see_all_stop_markers.png}
+  \caption{Bannière politique de rendu selon le niveau de zoom}
   \label{fig:frontend-zoom-banner}
 \end{figure}
 
@@ -62,14 +62,7 @@ Lorsque des marqueurs se superposent exactement, un \textbf{décalage circulaire
 
 Les paires appariées (ATLAS–OSM) peuvent afficher une \textbf{ligne de liaison} (verte par défaut; violette pour un match manuel, en pointillés si non persistant) lorsque les deux extrémités sont visibles et que le zoom le permet.
 
-\begin{figure}[h]
-  \centering
-  \fbox{\begin{minipage}[c][5cm][c]{0.92\textwidth}\centering
-    Placeholder — Marqueurs ATLAS (vert), OSM (bleu) et lignes de liaison
-  \end{minipage}}
-  \caption{Marqueurs et polylignes de correspondance}
-  \label{fig:frontend-markers-lines}
-\end{figure}
+% (figure déplacée vers la section Filtres)
 
 \subsection{Info-bulles et chargement paresseux}
 Le contenu des popups est rendu par un \textbf{moteur de gabarits côté client} (\texttt{PopupRenderer}). Un premier clic déclenche un appel à \texttt{/api/stop\_popup} qui renvoie des détails enrichis (noms, opérateurs, routes, notes). Les vues \textit{unifiées} permettent d'inspecter \textbf{toutes les correspondances} d'un nœud (ATLAS \emph{vs} OSM) sans recharger la page. Les popups sont déplaçables et conservent une \textit{ligne d'ancrage} lors des déplacements/zooms.
@@ -78,10 +71,8 @@ Pour les entrées non appariées, un bouton \texttt{Match to} apparaît dans l'i
 
 \begin{figure}[h]
   \centering
-  \fbox{\begin{minipage}[c][5cm][c]{0.92\textwidth}\centering
-    Placeholder — Info-bulle appariée et vue unifiée des matches
-  \end{minipage}}
-  \caption{Info-bulles: vue initiale et vue unifiée}
+  \includegraphics[width=0.85\textwidth]{../figures/chap9/popups.png}
+  \caption{Info-bulles}
   \label{fig:frontend-popups}
 \end{figure}
 
@@ -100,10 +91,15 @@ La zone \textit{Active Filters} affiche des \textbf{"chips"} cliquables (ET/OU) 
 
 \begin{figure}[h]
   \centering
-  \fbox{\begin{minipage}[c][5.5cm][c]{0.92\textwidth}\centering
-    Placeholder — Panneau de filtres, "chips" actifs et sélecteur de recherche
-  \end{minipage}}
-  \caption{Filtres, opérateur, Top~N, et résumé d'en-tête}
+  \includegraphics[width=\textwidth]{../figures/chap9/filter_chips_index.png}
+  \caption{Panneau de filtres avec \og chips \fg{} actifs}
+  \label{fig:frontend-filters-chips}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\textwidth]{../figures/chap9/stats box.png}
+  \caption{Résumé d'en-tête avec statistiques globales. 3 filtres actifs}
   \label{fig:frontend-filters}
 \end{figure}
 
@@ -115,11 +111,39 @@ Les boutons d'action proposent des solutions pré-remplies (selon le type d'anom
 
 \begin{figure}[h]
   \centering
-  \fbox{\begin{minipage}[c][6cm][c]{0.92\textwidth}\centering
-    Placeholder — Page Problèmes: filtres, carte de contexte, panneau de résolution
-  \end{minipage}}
-  \caption{Page Problèmes — revue et résolution guidée}
+  \includegraphics[width=0.9\textwidth]{../figures/chap9/problems page.png}
+  \caption{Page Problèmes — vue d'ensemble : filtres, carte de contexte et panneau de résolution}
   \label{fig:frontend-problems}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \begin{minipage}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{../figures/chap9/problems priority filter.png}
+    \caption*{Filtre de priorité et tri.}
+  \end{minipage}\hfill
+  \begin{minipage}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{../figures/chap9/problems fiterchips and persistence options toggles.png}
+    \caption*{Chips actifs et options de persistance.}
+  \end{minipage}
+  \caption{Contrôles de filtrage et options de persistance — Page Problèmes}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \begin{minipage}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{../figures/chap9/distance problem resolution actions.png}
+    \caption*{Actions proposées : problèmes de distance.}
+  \end{minipage}\hfill
+  \begin{minipage}[b]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{../figures/chap9/problem resolution actions attributes problem.png}
+    \caption*{Actions proposées : problèmes d'attributs.}
+  \end{minipage}
+  \caption{Panneau de résolution — actions contextuelles selon le type d'anomalie}
 \end{figure}
 
 \section{Données persistantes}
@@ -128,10 +152,8 @@ La page \textbf{Données persistantes} distingue les \textit{persistantes} (appl
 
 \begin{figure}[h]
   \centering
-  \fbox{\begin{minipage}[c][5cm][c]{0.92\textwidth}\centering
-    Placeholder — Page Données persistantes (onglets, actions)
-  \end{minipage}}
-  \caption{Gestion des solutions et notes persistées}
+  \includegraphics[width=0.9\textwidth]{../figures/chap9/non admin persisten data page.png}
+  \caption{Données persistantes — pour utilisateurs non administrateurs}
   \label{fig:frontend-persistent}
 \end{figure}
 
@@ -142,10 +164,8 @@ Une \textbf{page dédiée} (\texttt{/reports}) propose un formulaire de configur
 
 \begin{figure}[h]
   \centering
-  \fbox{\begin{minipage}[c][4.5cm][c]{0.92\textwidth}\centering
-    Placeholder — Page Rapports (type, format, N) et mention de la limite quotidienne
-  \end{minipage}}
-  \caption{Page Rapports — génération (PDF/CSV) avec limite quotidienne}
+  \includegraphics[width=0.9\textwidth]{../figures/chap9/download reports page.png}
+  \caption{Page Rapports — génération (PDF/CSV) et limite quotidienne}
   \label{fig:frontend-report}
 \end{figure}
 

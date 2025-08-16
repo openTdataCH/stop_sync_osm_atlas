@@ -438,9 +438,9 @@ INPUT /usr/local/texlive/2020/texmf-dist/tex/latex/psnfss/t1phv.fd
 INPUT /usr/local/texlive/2020/texmf-dist/tex/latex/psnfss/t1phv.fd
 INPUT /usr/local/texlive/2020/texmf-dist/fonts/tfm/adobe/helvetic/phvr8t.tfm
 INPUT /usr/local/texlive/2020/texmf-dist/fonts/tfm/adobe/helvetic/phvb8t.tfm
-INPUT template/images/title/title.png
-INPUT ./template/images/title/title.png
-INPUT ./template/images/title/title.png
+INPUT figures/cover_image.png
+INPUT ./figures/cover_image.png
+INPUT ./figures/cover_image.png
 INPUT /usr/local/texlive/2020/texmf-dist/fonts/tfm/adobe/helvetic/phvr8t.tfm
 INPUT /usr/local/texlive/2020/texmf-dist/fonts/tfm/adobe/helvetic/phvb8t.tfm
 INPUT /usr/local/texlive/2020/texmf-dist/tex/latex/psnfss/ot1ztmcm.fd
@@ -899,11 +899,50 @@ INPUT report.listing
 INPUT report.listing
 INPUT chapters/chap9.tex
 INPUT chapters/chap9.tex
+INPUT figures/../figures/chap9/main_page.png
+INPUT ./figures/../figures/chap9/main_page.png
+INPUT ./figures/../figures/chap9/main_page.png
+INPUT figures/../figures/chap9/atlas filter activ main page.png
+INPUT ./figures/../figures/chap9/atlas filter activ main page.png
+INPUT ./figures/../figures/chap9/atlas filter activ main page.png
+INPUT figures/../figures/chap9/zoom_in_to_see_all_stop_markers.png
+INPUT ./figures/../figures/chap9/zoom_in_to_see_all_stop_markers.png
+INPUT ./figures/../figures/chap9/zoom_in_to_see_all_stop_markers.png
+INPUT figures/../figures/chap9/popups.png
+INPUT ./figures/../figures/chap9/popups.png
+INPUT ./figures/../figures/chap9/popups.png
+INPUT figures/../figures/chap9/filter_chips_index.png
+INPUT ./figures/../figures/chap9/filter_chips_index.png
+INPUT ./figures/../figures/chap9/filter_chips_index.png
+INPUT figures/../figures/chap9/stats box.png
+INPUT ./figures/../figures/chap9/stats box.png
+INPUT ./figures/../figures/chap9/stats box.png
 INPUT /usr/local/texlive/2020/texmf-dist/fonts/vf/adobe/times/zptmcm7y.vf
 INPUT /usr/local/texlive/2020/texmf-dist/fonts/tfm/public/cm/cmsy10.tfm
 INPUT /usr/local/texlive/2020/texmf-dist/fonts/tfm/adobe/symbol/psyr.tfm
 INPUT /usr/local/texlive/2020/texmf-dist/fonts/tfm/adobe/times/ptmr8r.tfm
 INPUT /usr/local/texlive/2020/texmf-dist/fonts/tfm/public/rsfs/rsfs10.tfm
+INPUT figures/../figures/chap9/problems page.png
+INPUT ./figures/../figures/chap9/problems page.png
+INPUT ./figures/../figures/chap9/problems page.png
+INPUT figures/../figures/chap9/problems priority filter.png
+INPUT ./figures/../figures/chap9/problems priority filter.png
+INPUT ./figures/../figures/chap9/problems priority filter.png
+INPUT figures/../figures/chap9/problems fiterchips and persistence options toggles.png
+INPUT ./figures/../figures/chap9/problems fiterchips and persistence options toggles.png
+INPUT ./figures/../figures/chap9/problems fiterchips and persistence options toggles.png
+INPUT figures/../figures/chap9/distance problem resolution actions.png
+INPUT ./figures/../figures/chap9/distance problem resolution actions.png
+INPUT ./figures/../figures/chap9/distance problem resolution actions.png
+INPUT figures/../figures/chap9/problem resolution actions attributes problem.png
+INPUT ./figures/../figures/chap9/problem resolution actions attributes problem.png
+INPUT ./figures/../figures/chap9/problem resolution actions attributes problem.png
+INPUT figures/../figures/chap9/non admin persisten data page.png
+INPUT ./figures/../figures/chap9/non admin persisten data page.png
+INPUT ./figures/../figures/chap9/non admin persisten data page.png
+INPUT figures/../figures/chap9/download reports page.png
+INPUT ./figures/../figures/chap9/download reports page.png
+INPUT ./figures/../figures/chap9/download reports page.png
 INPUT chapters/chap10.tex
 INPUT chapters/chap10.tex
 OUTPUT report.listing
