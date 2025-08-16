@@ -14,6 +14,10 @@ from typing import Dict, Set, Tuple, Optional
 os.makedirs("data/raw", exist_ok=True)
 os.makedirs("data/processed", exist_ok=True)
 
+# Approximate Switzerland WGS84 bounding box (latitude, longitude)
+SWISS_LAT_MIN, SWISS_LAT_MAX = 45.4, 47.9
+SWISS_LON_MIN, SWISS_LON_MAX = 5.7, 10.7
+
 def get_atlas_stops(output_path, download_url):
     """Download and process ATLAS stops data."""
     response = requests.get(download_url)
@@ -35,6 +39,14 @@ def get_atlas_stops(output_path, download_url):
             df = pd.read_csv(f, sep=";")
             df = df[df['uicCountryCode'] == 85]
             df = df.dropna(subset=['wgs84North', 'wgs84East'])
+            # Ensure numeric and filter by Switzerland bounding box
+            df['wgs84North'] = pd.to_numeric(df['wgs84North'], errors='coerce')
+            df['wgs84East'] = pd.to_numeric(df['wgs84East'], errors='coerce')
+            before_bbox = len(df)
+            df = df[
+                df['wgs84North'].between(SWISS_LAT_MIN, SWISS_LAT_MAX)
+                & df['wgs84East'].between(SWISS_LON_MIN, SWISS_LON_MAX)
+            ]
             
             # Save processed data
             df.to_csv(output_path, sep=";", index=False)
@@ -42,7 +54,7 @@ def get_atlas_stops(output_path, download_url):
             # Print statistics
             boarding_platforms = df[df['trafficPointElementType'] == 'BOARDING_PLATFORM']
             print(f"ATLAS: BOARDING_PLATFORM rows = {len(boarding_platforms):,}")
-            print(f"ATLAS: kept {len(df):,} rows with WGS84 coordinates (uicCountryCode=85)")
+            print(f"ATLAS: kept {len(df):,} rows with WGS84 coords inside CH bbox (from {before_bbox:,})")
             print(f"ATLAS: processed CSV saved to: {output_path}")
 
 def download_and_extract_gtfs(gtfs_url):
@@ -87,14 +99,21 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
     # Load Swiss stops
     all_stops = pd.read_csv(
         f"{gtfs_folder}/stops.txt",
-        usecols=['stop_id', 'stop_name'],
-        dtype={'stop_id': str, 'stop_name': str}
+        usecols=['stop_id', 'stop_name', 'stop_lat', 'stop_lon'],
+        dtype={'stop_id': str, 'stop_name': str, 'stop_lat': float, 'stop_lon': float}
     )
     swiss_stops = all_stops[all_stops['stop_id'].str.startswith('85')].copy()
+    # Filter by Switzerland bounding box
+    swiss_stops = swiss_stops.dropna(subset=['stop_lat', 'stop_lon'])
+    before_bbox = len(swiss_stops)
+    swiss_stops = swiss_stops[
+        swiss_stops['stop_lat'].between(SWISS_LAT_MIN, SWISS_LAT_MAX)
+        & swiss_stops['stop_lon'].between(SWISS_LON_MIN, SWISS_LON_MAX)
+    ]
     if stop_id_filter is not None:
         swiss_stops = swiss_stops[swiss_stops['stop_id'].isin(stop_id_filter)]
     swiss_stop_ids: Set[str] = set(swiss_stops['stop_id'])
-    print(f"GTFS: filtered to {len(swiss_stops):,} Swiss stops (stop_id starts with '85')")
+    print(f"GTFS: filtered to {len(swiss_stops):,} Swiss stops inside CH bbox (from {before_bbox:,} prefixed '85')")
 
     # First pass over stop_times: gather relevant trips and per-trip termini among Swiss stops
     relevant_trip_ids: Set[str] = set()

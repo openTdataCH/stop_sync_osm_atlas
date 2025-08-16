@@ -114,48 +114,15 @@
     height: 1rem;
 }
 
-/* Badge improvements */
-.badge {
-    display: inline-block;
-    padding: 0.25em 0.6em;
-    font-size: 75%;
-    font-weight: 700;
-    line-height: 1;
-    text-align: center;
-    white-space: nowrap;
-    vertical-align: baseline;
-    border-radius: 0.375rem;
-}
-
-.badge-success {
-    color: #fff;
-    background-color: #28a745;
-}
-
-.badge-info {
-    color: #fff;
-    background-color: #17a2b8;
-}
-
-.badge-primary {
-    color: #fff;
-    background-color: #007bff;
-}
-
-.badge-warning {
-    color: #212529;
-    background-color: #ffc107;
-}
-
-.badge-danger {
-    color: #fff;
-    background-color: #dc3545;
-}
-
-.badge-secondary {
-    color: #fff;
-    background-color: #6c757d;
-}
+/* Remove page-level badge overrides to keep navbar badges consistent */
+.persistent-data-page .badge { all: unset; }
+.persistent-data-page .badge { display: inline-block; padding: 0.25em 0.6em; font-size: 75%; font-weight: 700; line-height: 1; text-align: center; white-space: nowrap; vertical-align: baseline; border-radius: 0.375rem; }
+.persistent-data-page .badge-success { color: #fff; background-color: #28a745; }
+.persistent-data-page .badge-info { color: #fff; background-color: #17a2b8; }
+.persistent-data-page .badge-primary { color: #fff; background-color: #007bff; }
+.persistent-data-page .badge-warning { color: #212529; background-color: #ffc107; }
+.persistent-data-page .badge-danger { color: #fff; background-color: #dc3545; }
+.persistent-data-page .badge-secondary { color: #fff; background-color: #6c757d; }
 
 /* Responsive improvements */
 @media (max-width: 768px) {

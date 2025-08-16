@@ -13,7 +13,7 @@ def hav(lat1, lon1, lat2, lon2):
     return 2 * R * atan2(sqrt(a), sqrt(1 - a))
 
 def main():
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
     figdir = os.path.join(root, 'memoire', 'figures', 'plots')
     os.makedirs(figdir, exist_ok=True)
     plt.rcParams['figure.dpi'] = 180

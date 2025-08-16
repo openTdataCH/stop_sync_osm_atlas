@@ -29,6 +29,10 @@
             if(data.uic_ref){
                 rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
             }
+            if(!unmatched && data.osm_uic_ref){
+                const diffLabel = (data.uic_ref && data.uic_ref !== data.osm_uic_ref) ? ' <span class="uic-mismatch">(differs)</span>' : '';
+                rows.push(['OSM UIC Ref', `${data.osm_uic_ref}${diffLabel}`]);
+            }
             rows.push(['Name', data.atlas_designation_official || 'N/A']);
             rows.push(['Local Ref', data.atlas_designation || 'N/A']);
             rows.push(['Business Org', (data.atlas_business_org_abbr || 'N/A') + (isAtlas && !unmatched ? mismatchText : '')]); 
@@ -51,7 +55,11 @@
         if(isOsm){
             rows.push(['Node ID', unmatched ? data.osm_node_id : link(data.osm_node_id, 'osm')]);
             if(!unmatched){
-                if(data.uic_ref) rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
+                if(data.uic_ref) rows.push(['UIC Ref (ATLAS)', link(data.uic_ref, 'station')]);
+                if(data.osm_uic_ref){
+                    const diffLabel = (data.uic_ref && data.uic_ref !== data.osm_uic_ref) ? ' <span class="uic-mismatch">(differs)</span>' : '';
+                    rows.push(['OSM UIC Ref', `${data.osm_uic_ref}${diffLabel}`]);
+                }
                 rows.push(['Name', data.osm_name || 'N/A']);
                 if(data.osm_uic_name) rows.push(['UIC Name', data.osm_uic_name]);
                 if(data.osm_local_ref) rows.push(['Local Ref', data.osm_local_ref]);
@@ -83,6 +91,7 @@
                 rows.push(['Match Type', data.match_type || 'N/A']);
             } else {
                 if(data.uic_ref) rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
+                if(data.osm_uic_ref) rows.push(['OSM UIC Ref', data.osm_uic_ref]);
                 rows.push(['Name', data.osm_name || 'N/A']);
                 rows.push(['UIC Name', data.osm_uic_name || 'N/A']);
                 rows.push(['Network', data.osm_network || 'N/A']);
@@ -183,6 +192,7 @@
                 id: stop.id,
                 sloid: stop.sloid,
                 uic_ref: stop.uic_ref,
+                osm_uic_ref: stop.osm_uic_ref,
                 atlas_designation: stop.atlas_designation,
                 atlas_designation_official: stop.atlas_designation_official,
                 atlas_business_org_abbr: stop.atlas_business_org_abbr,
@@ -204,6 +214,7 @@
                      uic_ref: stop.uic_ref,
                      osm_name: stop.osm_name,
                      osm_uic_name: stop.osm_uic_name,
+                     osm_uic_ref: stop.osm_uic_ref,
                      osm_local_ref: stop.osm_local_ref,
                      osm_network: stop.osm_network,
                      osm_operator: stop.osm_operator,
@@ -227,6 +238,7 @@
                      uic_ref: stop.uic_ref,
                      osm_name: representativeOsm.osm_name || stop.osm_name,
                      osm_uic_name: representativeOsm.osm_uic_name || stop.osm_uic_name,
+                     osm_uic_ref: representativeOsm.osm_uic_ref || stop.osm_uic_ref,
                      osm_local_ref: representativeOsm.osm_local_ref || stop.osm_local_ref,
                      osm_network: representativeOsm.osm_network || stop.osm_network,
                      osm_operator: representativeOsm.osm_operator || stop.osm_operator,
@@ -249,6 +261,7 @@
                      uic_ref: stop.uic_ref,
                      osm_name: stop.osm_name,
                      osm_uic_name: stop.osm_uic_name,
+                     osm_uic_ref: stop.osm_uic_ref,
                      osm_local_ref: stop.osm_local_ref,
                      osm_network: stop.osm_network,
                      osm_operator: stop.osm_operator,
@@ -311,6 +324,7 @@
                 id: stop.id,
                 sloid: stop.sloid,
                 uic_ref: stop.uic_ref,
+                osm_uic_ref: stop.osm_uic_ref,
                 atlas_designation: stop.atlas_designation,
                 atlas_designation_official: stop.atlas_designation_official,
                 atlas_business_org_abbr: stop.atlas_business_org_abbr,
@@ -329,6 +343,7 @@
                 uic_ref: stop.uic_ref,
                 osm_name: stop.osm_name,
                 osm_uic_name: stop.osm_uic_name,
+                osm_uic_ref: stop.osm_uic_ref,
                 osm_local_ref: stop.osm_local_ref,
                 osm_network: stop.osm_network,
                 osm_operator: stop.osm_operator,

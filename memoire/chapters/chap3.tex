@@ -11,16 +11,16 @@ Nous avons considéré une approche alternative consistant à exécuter toutes l
 
 Le processus complet comprend les étapes suivantes :
 \begin{enumerate}
-    \item \textbf{Correspondance exacte} : Appariement basé sur les identifiants UIC 
+    \item \textbf{Correspondance exacte} : Appariement basé sur les identifiants UIC et référence locale
     \item \textbf{Correspondance par nom} : Utilisation des noms officiels des arrêts
     \item \textbf{Correspondance par distance} : Analyse géographique avec critères de proximité
     \item \textbf{Correspondance par routes} : Méthode complexe basée sur l'analyse des itinéraires (détaillée au chapitre 4)
     \item \textbf{Consolidation post-traitement} : Récupération des correspondances exactes manquées lors du passage initial
-    \item \textbf{Propagation des duplicatas} : Extension des correspondances aux entrées ATLAS dupliquées
+    \item \textbf{Propagation des duplicatas} : Un autre passage basé sur les identifiants UIC et référence locales avec les entrées restantes
     \item \textbf{Correspondance manuelle} : Application des correspondances définies manuellement et stockées de manière persistante
 \end{enumerate}
 
-Ce chapitre détaille les méthodes de correspondance manuelle, exacte, par nom et par distance. La correspondance par routes, en raison de sa complexité particulière, sera traitée séparément au chapitre 4.
+Ce chapitre détaille les méthodes de correspondance exacte, par nom et par distance. La correspondance par routes, en raison de sa complexité particulière, sera traitée séparément au chapitre 4.
 
 
 \section{Correspondance Exacte}
@@ -44,7 +44,7 @@ Cette méthode a permis d'identifier XX correspondances exactes.
 \begin{figure}[h] 
     \centering
     \includegraphics[width=0.7\textwidth]{../figures/correspondances/exact_Cornavin.png}
-    \caption[Correspondances exactes à Genève-Cornavin]{Correspondances exactes à la gare de Genève-Cornavin. Les détails du nœud OSM de la voie 6 sont visibles sur l'image.}
+    \caption[Correspondances exactes à Genève-Cornavin]{Correspondances exactes à la gare de Genève-Cornavin. Les détails de l'arrêt de la voie 6 sont visibles sur l'image.}
     \label{fig:exact_cornavin}
 \end{figure}
 
@@ -54,7 +54,7 @@ Pour les entrées ATLAS non appariées lors de l’étape précédente, une corr
 
 La règle principale établit une correspondance si le \texttt{'designationOfficial'} correspond exactement à l’une de ces balises OSM. Cependant, si plusieurs nœuds OSM présentent le même nom correspondant, un critère supplémentaire est utilisé : la balise \texttt{'local\_ref'} du nœud OSM est comparée à la \texttt{'designation'} de l’entrée ATLAS. Une correspondance est confirmée si ces valeurs sont identiques (en ignorant la casse).
 
-Cette approche a permis d'ajouter XX correspondances supplémentaires.
+Cette approche a permis d'ajouter 538 correspondances supplémentaires.
 \begin{figure}[h]
     \centering
     \begin{subfigure}[b]{0.4\textwidth}
@@ -87,7 +87,7 @@ Les entrées ATLAS et OSM sont regroupés selon les paires d’identifiants suiv
     \item \texttt{'designationOfficial'} (ATLAS) et \texttt{'name'} (OSM).
 \end{enumerate}
 
-Dans chaque groupe où le nombre d'entrées ATLAS est égal au nombre de nœuds OSM, une correspondance est tentée en associant chaque entrée ATLAS au nœud OSM le plus proche, à condition que cette association soit cohérente (c'est-à-dire que chaque nœud OSM soit également le plus proche de l'entrée ATLAS qui lui est attribuée). Cette méthode nous a permis de réaliser XX correspondances supplémentaires.
+Dans chaque groupe où le nombre d'entrées ATLAS est égal au nombre de nœuds OSM, une correspondance est tentée en associant chaque entrée ATLAS au nœud OSM le plus proche, à condition que cette association soit cohérente (c'est-à-dire que chaque nœud OSM soit également le plus proche de l'entrée ATLAS qui lui est attribuée). Cette méthode nous a permis de réaliser 15182 correspondances supplémentaires.
 
 \begin{figure}[h] 
     \centering
@@ -156,7 +156,7 @@ Cette sous-étape recherche, pour chaque entrée ATLAS non appariée, un nœud O
     \label{fig:zurich_distance_2}
 \end{figure}
 
-Cette méthode nous a permis de réaliser XX correspondances supplémentaires.
+Cette méthode nous a permis de réaliser 129 correspondances supplémentaires.
 
 \subsection{Étape 3 : Correspondance basée sur la proximité avec critères relatifs}  
 Pour les entrées toujours non appariées, tous les nœuds OSM situés à moins de 50 mètres sont examinés :  
@@ -168,7 +168,7 @@ Pour les entrées toujours non appariées, tous les nœuds OSM situés à moins 
         \item La distance au deuxième nœud le plus proche est au moins 4 fois supérieure à celle du nœud le plus proche.  
     \end{enumerate}  
 \end{itemize}  
-Nous avons réussi à établir XX correspondances avec l'option a) et XX correspondances avec l'option b).  
+Nous avons réussi à établir 2119 correspondances avec l'option a) et 1191 correspondances avec l'option b).  
 Cette méthode est utile pour les cas où il y a des nœuds isolés, comme des télésièges.  
 
 \begin{figure}[h] 
@@ -191,7 +191,7 @@ Cette consolidation est particulièrement utile dans les cas où :
 
 Le processus fonctionne de manière conservative : il ne crée une correspondance que si exactement un nœud OSM disponible correspond à l'identifiant UIC de l'entrée ATLAS, garantissant ainsi une fiabilité maximale.
 
-Cette étape de consolidation a permis d'identifier XX correspondances exactes supplémentaires.
+Cette étape de consolidation a permis d'identifier 933 correspondances exactes supplémentaires.
 
 \section{Propagation des Duplicatas}
 
@@ -199,7 +199,7 @@ Une dernière étape consiste à propager les correspondances trouvées vers les
 
 Cette propagation permet d'assurer la cohérence des correspondances et d'améliorer le taux de couverture global, particulièrement dans les grandes gares où plusieurs entrées ATLAS peuvent représenter des aspects différents d'un même arrêt physique.
 
-La propagation des duplicatas a permis d'ajouter XX correspondances supplémentaires.
+La propagation des duplicatas a permis d'ajouter 69 correspondances supplémentaires.
 
 \section{Correspondance Manuelle}
 
@@ -209,25 +209,25 @@ Les correspondances manuelles sont faites depuis l'application web comme on vera
 
 \section{Résultats actuels}
 
-Parmi les XX arrêts ATLAS que nous avons considérés, le processus de correspondance a permis d'identifier un total de XX correspondances entre les données ATLAS et OSM, réparties comme suit :
+Parmi les 58065 arrêts ATLAS que nous avons considérés, le processus de correspondance a permis d'identifier un total de 48528 correspondances entre les données ATLAS et OSM, réparties comme suit :
 
 \begin{itemize}
-    \item Correspondances exactes : XX
-    \item Correspondances par nom : XX
-    \item Correspondances par distance : XX
+    \item Correspondances exactes : 21250
+    \item Correspondances par nom : 538
+    \item Correspondances par distance : 18621
     \begin{itemize}
-        \item Étape 1 (groupe-proximité) : XX
-        \item Étape 2 (référence locale) : XX
-        \item Étape 3a (candidat unique) : XX
-        \item Étape 3b (ratio de distance) : XX
+        \item Étape 1 (groupe-proximité) : 15182
+        \item Étape 2 (référence locale) : 129
+        \item Étape 3a (candidat unique) : 2119
+        \item Étape 3b (ratio de distance) : 1191
     \end{itemize}
-    \item Correspondances par routes : XX (détaillé au chapitre 4)
-    \item Consolidation post-traitement : XX
-    \item Propagation des duplicatas : XX
+    \item Correspondances par routes : 7117 (détaillé au chapitre 4)
+    \item Consolidation post-traitement : 933
+    \item Propagation des duplicatas : 69
 \end{itemize}
 
-Après ces étapes, XX entrées ATLAS restent non appariées, et XX nœuds OSM restent inutilisés. Parmi ces nœuds OSM inutilisés, XX sont associés à au moins une route, XX possèdent une référence UIC, et XX ont une référence locale (\texttt{local\_ref}).
+Après ces étapes, 9537 entrées ATLAS restent non appariées, et 19009 nœuds OSM restent inutilisés. Parmi ces nœuds OSM inutilisés, 13918 sont associés à au moins une route, 14839 possèdent une référence UIC, et 884 ont une référence locale (\texttt{local\_ref}).
 
-Parmi les entrées ATLAS non appariées, XX n'ont aucun nœud OSM dans un rayon de 50 mètres, indiquant des zones où la couverture OSM est insuffisante par rapport aux données ATLAS.
+Parmi les entrées ATLAS non appariées, 4825 n'ont aucun nœud OSM dans un rayon de 50 mètres, indiquant des zones où la couverture OSM est insuffisante par rapport aux données ATLAS.
 
 

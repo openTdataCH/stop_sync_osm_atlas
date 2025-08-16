@@ -55,45 +55,45 @@
 \defcounter {refsection}{0}\relax 
 \contentsline {figure}{\numberline {4.6}{\ignorespaces Distribution du nombre de couples (ligne, direction) par \texttt {sloid} (coupée à 30).\relax }}{42}{figure.caption.39}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {4.7}{\ignorespaces Distribution du nombre de lignes HRDF uniques par \texttt {sloid} (coupée à 20).\relax }}{43}{figure.caption.40}%
+\contentsline {figure}{\numberline {4.7}{\ignorespaces Distribution du nombre de lignes HRDF uniques par \texttt {sloid} (coupee a 20).\relax }}{43}{figure.caption.40}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {4.8}{\ignorespaces Nombre de tokens GTFS \((ligne, direction)\) par \texttt {sloid} retrouvés dans OSM (coupée à 30).\relax }}{46}{figure.caption.41}%
-\defcounter {refsection}{0}\relax 
-\addvspace {10\p@ }
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Distances par méthode ($\leq $ 200 m)}}{49}{figure.caption.42}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.2}{\ignorespaces Boîtes par méthode}}{49}{figure.caption.43}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.3}{\ignorespaces Distribution globale (log)}}{50}{figure.caption.44}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.4}{\ignorespaces Distances par opérateur}}{51}{figure.caption.45}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.5}{\ignorespaces Tranches de distance}}{52}{figure.caption.46}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.6}{\ignorespaces Par type de nœud OSM}}{53}{figure.caption.47}%
+\contentsline {figure}{\numberline {4.8}{\ignorespaces Nombre de tokens GTFS \((ligne, direction)\) par \texttt {sloid} retrouvés dans OSM (coupée à 30).\relax }}{47}{figure.caption.41}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {6.1}{\ignorespaces Filtres de l'application web : par type de problème et priorité.\relax }}{62}{figure.caption.48}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Distances par méthode ($\leq $ 200 m)}}{50}{figure.caption.42}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {6.2}{\ignorespaces Vue de rapport centrée sur les problèmes (esquisse).\relax }}{63}{figure.caption.49}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces Boîtes par méthode}}{50}{figure.caption.43}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {6.3}{\ignorespaces Vue d'ensemble de la distribution des distances pour les paires appariées (illustratif).\relax }}{63}{figure.caption.50}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces Distribution globale (log)}}{51}{figure.caption.44}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {6.4}{\ignorespaces Exemple d'histogramme des distances (à aligner avec les seuils de problème).\relax }}{64}{figure.caption.51}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces Distances par opérateur}}{52}{figure.caption.45}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {5.5}{\ignorespaces Tranches de distance}}{53}{figure.caption.46}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {5.6}{\ignorespaces Par type de nœud OSM}}{54}{figure.caption.47}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {7.1}{\ignorespaces Répartition des entrées par type (lecture directe de \texttt {stops}).\relax }}{70}{figure.caption.52}%
+\contentsline {figure}{\numberline {6.1}{\ignorespaces Filtres de l'application web : par type de problème et priorité.\relax }}{63}{figure.caption.48}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {7.2}{\ignorespaces Histogramme des distances ATLAS–OSM entre 0 et 200 m (mise à jour).\relax }}{70}{figure.caption.53}%
+\contentsline {figure}{\numberline {6.2}{\ignorespaces Vue de rapport centrée sur les problèmes (esquisse).\relax }}{64}{figure.caption.49}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {7.3}{\ignorespaces Histogramme des distances ATLAS–OSM (toutes distances, mise à jour).\relax }}{71}{figure.caption.54}%
+\contentsline {figure}{\numberline {6.3}{\ignorespaces Vue d'ensemble de la distribution des distances pour les paires appariées (illustratif).\relax }}{64}{figure.caption.50}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {7.4}{\ignorespaces Problèmes: résolus vs non résolus, par type (état actualisé).\relax }}{71}{figure.caption.55}%
+\contentsline {figure}{\numberline {6.4}{\ignorespaces Exemple d'histogramme des distances (à aligner avec les seuils de problème).\relax }}{65}{figure.caption.51}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {7.5}{\ignorespaces Routes/directions par type de correspondance (GTFS et HRDF, mise à jour).\relax }}{72}{figure.caption.56}%
+\addvspace {10\p@ }
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {7.1}{\ignorespaces Répartition des entrées par type (lecture directe de \texttt {stops}).\relax }}{71}{figure.caption.52}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {7.2}{\ignorespaces Histogramme des distances ATLAS–OSM entre 0 et 200 m (mise à jour).\relax }}{71}{figure.caption.53}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {7.3}{\ignorespaces Histogramme des distances ATLAS–OSM (toutes distances, mise à jour).\relax }}{72}{figure.caption.54}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {7.4}{\ignorespaces Problèmes: résolus vs non résolus, par type (état actualisé).\relax }}{72}{figure.caption.55}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {7.5}{\ignorespaces Routes/directions par type de correspondance (GTFS et HRDF, mise à jour).\relax }}{73}{figure.caption.56}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 

@@ -119,7 +119,8 @@ def search():
                 "uic_ref": stop.uic_ref,
                 "osm_node_id": stop.osm_node_id,
                 "osm_local_ref": stop.osm_node_details.osm_local_ref if stop.osm_node_details else None,
-                "osm_uic_name": stop.osm_node_details.osm_uic_name if stop.osm_node_details else None
+                "osm_uic_name": stop.osm_node_details.osm_uic_name if stop.osm_node_details else None,
+                "osm_uic_ref": stop.osm_node_details.osm_uic_ref if stop.osm_node_details else None
             })
         unmatched_query = optimize_query_for_endpoint(Stop.query, 'search').outerjoin(
             AtlasStop, Stop.sloid == AtlasStop.sloid

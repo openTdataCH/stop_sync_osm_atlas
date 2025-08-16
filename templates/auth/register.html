@@ -11,7 +11,7 @@
     </ul>
     <p class="mb-1"><strong>What are admin accounts for?</strong></p>
     <ul class="mb-1">
-      <li>Convert persistent data back to non‑persistent.</li>
+      <li>Delete persistent data.</li>
     </ul>
     <p class="mb-0">To request <strong>admin</strong> privileges, email osm_atlas_synch@....ch</a>. </p> 
   </div>
@@ -19,12 +19,25 @@
     {{ form.hidden_tag() }}
     <div class="form-group">
       {{ form.email.label }}
-      {{ form.email(class_='form-control') }}
+      {{ form.email(class_='form-control' + (' is-invalid' if form.email.errors else '')) }}
+      {% for error in form.email.errors %}
+      <div class="invalid-feedback">{{ error }}</div>
+      {% endfor %}
     </div>
     <div class="form-group">
       {{ form.password.label }}
-      {{ form.password(class_='form-control') }}
+      {{ form.password(class_='form-control' + (' is-invalid' if form.password.errors else '')) }}
+      {% for error in form.password.errors %}
+      <div class="invalid-feedback">{{ error }}</div>
+      {% endfor %}
       <small class="form-text text-muted">Use at least 12 characters with a mix of letters, numbers, and symbols.</small>
+    </div>
+    <div class="form-group form-check">
+      {{ form.agree_tos(class_='form-check-input' + (' is-invalid' if form.agree_tos.errors else '')) }}
+      <label class="form-check-label" for="agree_tos">I agree to the Terms of Service</label>
+      {% for error in form.agree_tos.errors %}
+      <div class="invalid-feedback" style="display:block;">{{ error }}</div>
+      {% endfor %}
     </div>
     {% if TURNSTILE_SITE_KEY %}
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>

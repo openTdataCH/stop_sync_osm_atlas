@@ -1,5 +1,5 @@
 % !TeX spellcheck = fr_FR
-\chapter{Chapitre 13 : Dockerisation}
+\chapter{Chapitre 13 : Dockerisation and repo files}
 
 Ce chapitre raconte la « vie en conteneurs » de notre projet. Objectif: en une commande, tout démarre, la base de données se prépare, les scripts s'enchaînent, et l'application web apparaît sur \texttt{http://localhost:5001}. Nous allons décortiquer la configuration, illustrer les choix, montrer des extraits utiles, et donner des recettes reproductibles.
 
@@ -82,8 +82,13 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URI: mysql+pymysql://stops_user:1234@db/stops_db
-      AUTH_DATABASE_URI: mysql+pymysql://stops_user:1234@db/auth_db
+      # Variables lues depuis .env si présentes (avec valeurs par défaut)
+      MYSQL_USER: ${MYSQL_USER:-stops_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-1234}
+      AUTH_DB_USER: ${AUTH_DB_USER:-}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-}
+      DATABASE_URI: ${DATABASE_URI:-mysql+pymysql://stops_user:1234@db/stops_db}
+      AUTH_DATABASE_URI: ${AUTH_DATABASE_URI:-mysql+pymysql://stops_user:1234@db/auth_db}
       AUTO_MIGRATE: "true"
       MATCH_ONLY: "${MATCH_ONLY:-false}"
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
@@ -112,7 +117,7 @@ FROM python:3.9-slim-bookworm
 ENV FLASK_APP=backend/app.py \\
     FLASK_RUN_HOST=0.0.0.0 \\
     FLASK_RUN_PORT=5001
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \\
     wkhtmltopdf default-mysql-client dos2unix && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY requirements.txt /app/
@@ -126,19 +131,25 @@ ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
 
 \section{Le chef d'orchestre: \texttt{entrypoint.sh}}
 
-Le script d'entrée synchronise le démarrage: attend MySQL, crée la base \texttt{auth\_db} si besoin, applique les migrations, exécute les scripts de données (selon les drapeaux), puis lance Flask.
+Le script d'entrée synchronise le démarrage: attend MySQL, crée la base \texttt{auth\_db} si besoin, applique les migrations, exécute les scripts de données (selon les drapeaux), puis lance Flask. Il peut également créer un utilisateur dédié pour \texttt{auth\_db} si des variables d'environnement sont fournies.
 
-\begin{codebox}[language=bash]{Attente active et migrations}
+\begin{codebox}[language=bash]{Attente active, création de comptes, migrations}
 echo "Waiting for MySQL database at db:3306..."
-while ! mysqladmin ping -h"db" -P3306 --silent \
+while ! mysqladmin ping -h"db" -P3306 --silent \\
         --user=${MYSQL_USER} --password=${MYSQL_PASSWORD}; do
     sleep 1
 done
 echo "MySQL is up and ready."
 
 if [ -n "$MYSQL_ROOT_PASSWORD" ]; then
-  mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" \
-    -e "CREATE DATABASE IF NOT EXISTS auth_db ...; GRANT ALL ...;"
+  # Assure l'existence de auth_db et droits de base
+  mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" \\
+    -e "CREATE DATABASE IF NOT EXISTS auth_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
+  # Crée un utilisateur dédié auth si variables fournies et révoque stops_user sur auth_db
+  if [ -n "$AUTH_DB_USER" ] && [ -n "$AUTH_DB_PASSWORD" ]; then
+    mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" \\
+      -e "CREATE USER IF NOT EXISTS '${AUTH_DB_USER}'@'%' IDENTIFIED BY '${AUTH_DB_PASSWORD}'; GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX ON auth_db.* TO '${AUTH_DB_USER}'@'%'; REVOKE ALL PRIVILEGES ON auth_db.* FROM 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
+  fi
 fi
 
 if [ "${AUTO_MIGRATE:-false}" = "true" ]; then
@@ -146,25 +157,6 @@ if [ "${AUTO_MIGRATE:-false}" = "true" ]; then
   flask db migrate -m "Auto migration" || true
 fi
 flask db upgrade || true
-\end{codebox}
-
-\noindent La partie \og pipeline de données \fg{} est pilotée par deux variables:\ \texttt{SKIP\_DATA\_IMPORT} et \texttt{MATCH\_ONLY}.
-
-\begin{codebox}[language=bash]{Pilotage du pipeline}
-if [ "$SKIP_DATA_IMPORT" != "true" ]; then
-  if [ "$MATCH_ONLY" = "true" ]; then
-    # Vérifie les fichiers déjà préparés, puis lance import + matching
-    python import_data_db.py
-  else
-    python get_atlas_data.py
-    python -c "from get_osm_data import query_overpass; query_overpass()"
-    python get_osm_data.py
-    python import_data_db.py
-  fi
-else
-  echo "SKIP_DATA_IMPORT is set to true. Skipping data import."
-fi
-exec python backend/app.py
 \end{codebox}
 
 \section{Démarrer en 30 secondes}
@@ -196,6 +188,7 @@ Les principales variables s'ajustent dans \texttt{docker-compose.yml} (ou via \t
 \midrule
 \texttt{DATABASE\_URI} & Connexion MySQL (stops) & \texttt{mysql+pymysql://stops\_user:1234@db/stops\_db}\\
 \texttt{AUTH\_DATABASE\_URI} & Base d'authentification & \texttt{mysql+pymysql://.../auth\_db}\\
+\texttt{AUTH\_DB\_USER}, \texttt{AUTH\_DB\_PASSWORD} & Compte dédié auth (optionnel) & \texttt{\textit{vide par défaut}}\\
 \texttt{AUTO\_MIGRATE} & Init/migrate auto Alembic & \texttt{true} (dev)\\
 \texttt{SKIP\_DATA\_IMPORT} & Sauter pipeline de données & \texttt{false} (app), \texttt{true} (app-dev)\\
 \texttt{MATCH\_ONLY} & N'exécuter que matching + import & \texttt{false}\\
@@ -247,7 +240,6 @@ docker compose build app && docker compose up -d
 \end{itemize}
 
 \section{Réflexion et améliorations possibles}
-
 \textbf{Ce qui marche bien.} La séparation claire des rôles (\texttt{db} vs \texttt{app}), l'attente active sur MySQL et le \textit{profil dev} évitent l'essentiel des écueils. Les drapeaux \texttt{SKIP\_DATA\_IMPORT} et \texttt{MATCH\_ONLY} permettent de raccourcir radicalement les cycles de développement.
 
 \medskip

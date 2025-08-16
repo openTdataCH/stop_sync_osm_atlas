@@ -8,7 +8,7 @@ import threading
 
 stats_bp = Blueprint('stats', __name__)
 
-_STATS_CACHE_MAX_SIZE = 10
+_STATS_CACHE_MAX_SIZE = 5
 _STATS_CACHE = OrderedDict()
 _STATS_CACHE_LOCK = threading.Lock()
 
@@ -29,6 +29,7 @@ def _build_stats_cache_key(args) -> tuple:
     route_directions_str = _canonicalize_list_param(args.get('route_directions'))
     transport_types_filter_str = _canonicalize_list_param(args.get('transport_types'))
     node_type_filter_str = _canonicalize_list_param(args.get('node_type'))
+    atlas_operator_str = _canonicalize_list_param(args.get('atlas_operator'))
     show_duplicates_only = 'true' if (args.get('show_duplicates_only', 'false').lower() == 'true') else 'false'
     top_n = args.get('top_n') or ''
     return (
@@ -39,6 +40,7 @@ def _build_stats_cache_key(args) -> tuple:
         route_directions_str,
         transport_types_filter_str,
         node_type_filter_str,
+        atlas_operator_str,
         top_n,
         show_duplicates_only,
     )

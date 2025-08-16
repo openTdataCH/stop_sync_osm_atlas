@@ -13,22 +13,23 @@ def main():
     coords = []
     sloids = []
     current_sloid = None
-    with open(wgs, 'r', encoding='utf-8', errors='ignore') as f:
-        for line in f:
-            if ' g A ch:1:sloid:' in line or line.strip().startswith('g A ch:1:sloid:'):
-                parts = line.split()
-                for p in parts:
-                    if p.startswith('ch:1:sloid:'):
-                        current_sloid = p
-                        break
-            elif ' k ' in line and current_sloid:
-                parts = line.split()
-                try:
-                    k_idx = parts.index('k')
-                    lon = float(parts[k_idx+1]); lat = float(parts[k_idx+2])
-                    sloids.append(current_sloid); coords.append((lon, lat))
-                except Exception:
-                    pass
+    if os.path.exists(wgs):
+        with open(wgs, 'r', encoding='utf-8', errors='ignore') as f:
+            for line in f:
+                if ' g A ch:1:sloid:' in line or line.strip().startswith('g A ch:1:sloid:'):
+                    parts = line.split()
+                    for p in parts:
+                        if p.startswith('ch:1:sloid:'):
+                            current_sloid = p
+                            break
+                elif ' k ' in line and current_sloid:
+                    parts = line.split()
+                    try:
+                        k_idx = parts.index('k')
+                        lon = float(parts[k_idx+1]); lat = float(parts[k_idx+2])
+                        sloids.append(current_sloid); coords.append((lon, lat))
+                    except Exception:
+                        pass
 
     if coords:
         lon = np.array([c[0] for c in coords]); lat = np.array([c[1] for c in coords])
@@ -54,17 +55,26 @@ def main():
 
     # Directions per SLOID (names)
     import pandas as pd
-    hpath = os.path.join(root, 'data', 'processed', 'atlas_routes_hrdf.csv')
-    if os.path.exists(hpath):
-        h = pd.read_csv(hpath)
-        gr = h.dropna(subset=['sloid', 'direction_name']).groupby('sloid')['direction_name'].nunique()
-        if len(gr) > 0:
-            fig, ax = plt.subplots(figsize=(6, 4))
-            ax.hist(gr.values, bins=np.arange(1, gr.max() + 2) - 0.5, color='tab:orange', alpha=0.85)
-            ax.set_title('HRDF: #directions par SLOID (noms)')
-            ax.set_xlabel('#directions uniques'); ax.set_ylabel('SLOIDs')
-            fig.tight_layout(); fig.savefig(os.path.join(figdir, 'hrdf_directions_per_sloid.png'), bbox_inches='tight')
-            plt.close(fig)
+    # Directions per SLOID (names)
+    hpath_unified = os.path.join(root, 'data', 'processed', 'atlas_routes_unified.csv')
+    hpath_legacy = os.path.join(root, 'data', 'processed', 'atlas_routes_hrdf.csv')
+    gr = None
+    if os.path.exists(hpath_unified):
+        h = pd.read_csv(hpath_unified)
+        h = h[h['source'] == 'hrdf']
+        if not h.empty and 'direction_name' in h.columns:
+            gr = h.dropna(subset=['sloid', 'direction_name']).groupby('sloid')['direction_name'].nunique()
+    elif os.path.exists(hpath_legacy):
+        h = pd.read_csv(hpath_legacy)
+        if 'direction_name' in h.columns:
+            gr = h.dropna(subset=['sloid', 'direction_name']).groupby('sloid')['direction_name'].nunique()
+    if gr is not None and len(gr) > 0:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.hist(gr.values, bins=np.arange(1, gr.max() + 2) - 0.5, color='tab:orange', alpha=0.85)
+        ax.set_title('HRDF: #directions par SLOID (noms)')
+        ax.set_xlabel('#directions uniques'); ax.set_ylabel('SLOIDs')
+        fig.tight_layout(); fig.savefig(os.path.join(figdir, 'hrdf_directions_per_sloid.png'), bbox_inches='tight')
+        plt.close(fig)
 
 if __name__ == '__main__':
     main()

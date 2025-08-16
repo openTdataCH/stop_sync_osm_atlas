@@ -60,7 +60,6 @@ function initMap() {
         if (loadViewportTimer) clearTimeout(loadViewportTimer);
         loadViewportTimer = setTimeout(function() {
             loadDataForViewport();
-            updateHeaderSummary();
         }, VIEW_DEBOUNCE_MS);
     });
 }
@@ -364,6 +363,7 @@ function loadDataForViewport() {
                                  osm_node_id: osmMatch.osm_node_id,
                                  osm_name: osmMatch.osm_name,
                                  osm_uic_name: osmMatch.osm_uic_name,
+                                 osm_uic_ref: osmMatch.osm_uic_ref,
                                  osm_local_ref: osmMatch.osm_local_ref,
                                  osm_network: osmMatch.osm_network,
                                  osm_operator: osmMatch.osm_operator,
@@ -441,6 +441,7 @@ function loadDataForViewport() {
                                     osm_node_id: osm_match.osm_node_id,
                                     osm_name: osm_match.osm_name,
                                     osm_uic_name: osm_match.osm_uic_name,
+                                    osm_uic_ref: osm_match.osm_uic_ref,
                                     osm_local_ref: osm_match.osm_local_ref,
                                     osm_network: osm_match.osm_network,
                                     osm_operator: osm_match.osm_operator,
@@ -595,6 +596,7 @@ function loadDataForViewport() {
                              osm_node_id: osmNodeId,
                              osm_name: osmBaseData.osm_name,
                              osm_uic_name: osmBaseData.osm_uic_name,
+                             osm_uic_ref: osmBaseData.osm_uic_ref,
                              osm_local_ref: osmBaseData.osm_local_ref,
                              osm_network: osmBaseData.osm_network,
                              osm_operator: osmBaseData.osm_operator,
@@ -703,7 +705,6 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
 
         // Reload markers for the new viewport so other entries in view appear alongside the focused stop
         loadDataForViewport();
-        updateHeaderSummary();
 
     } else {
         alert("Stop data is incomplete or coordinates are missing for centering.");

@@ -15,6 +15,14 @@ echo "MySQL is up and ready."
 if [ -n "$MYSQL_ROOT_PASSWORD" ]; then
     echo "Ensuring auth_db exists..."
     mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE DATABASE IF NOT EXISTS auth_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
+
+    # Optionally create a dedicated auth user with least-privilege grants if env vars are provided
+    if [ -n "$AUTH_DB_USER" ] && [ -n "$AUTH_DB_PASSWORD" ]; then
+        echo "Ensuring dedicated user '$AUTH_DB_USER' has privileges on auth_db..."
+        mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE USER IF NOT EXISTS '${AUTH_DB_USER}'@'%' IDENTIFIED BY '${AUTH_DB_PASSWORD}'; GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX ON auth_db.* TO '${AUTH_DB_USER}'@'%'; FLUSH PRIVILEGES;" || true
+        echo "Revoking 'stops_user' privileges on auth_db (keeping its stops_db access)..."
+        mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "REVOKE ALL PRIVILEGES ON auth_db.* FROM 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
+    fi
 fi
 
 # Run database migrations

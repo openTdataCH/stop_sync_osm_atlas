@@ -51,7 +51,10 @@ It identifies exact and fuzzy matches, computes geographic distances, performs r
     cd bachelor-project
     ```
 
-2.  **Build and Run with Docker Compose**:
+2.  **Configure environment** (optional but recommended):
+    - Copy `env.example` to `.env` and adjust values (DB users/passwords, URIs, flags)
+
+3.  **Build and Run with Docker Compose**:
     ```bash
     docker compose up --build
     ```
@@ -80,17 +83,55 @@ It identifies exact and fuzzy matches, computes geographic distances, performs r
     ```
     Use this when the database is already populated and you want to iterate on the web application without re-running any data pipeline.
 
-3.  **Access the application**:
+4.  **Access the application**:
     - Web app: [http://localhost:5001](http://localhost:5001)
     - MySQL database: `localhost:3306` (user: `stops_user`, password: `1234`)
 
-4.  **To stop the services**:
+    For better security, you can enable a dedicated auth DB user by creating a `.env` from `.env.example` and setting:
+    - `AUTH_DB_USER`
+    - `AUTH_DB_PASSWORD`
+    Optionally override `AUTH_DATABASE_URI` to use this user.
+
+5.  **To stop the services**:
     ```bash
     docker compose down
     ```
     To remove all data: `docker compose down -v`
 
 ## Database Setup (Migrations)
+## Environment & Secrets
+
+- Never commit real secrets. Use a local `.env` (ignored by git) or environment variables in your runtime.
+- This repo provides `env.example` (copy to `.env`). Key variables:
+  - `MYSQL_USER`, `MYSQL_PASSWORD`: base MySQL user for `stops_db` (dev default: `stops_user`/`1234`).
+  - `AUTH_DB_USER`, `AUTH_DB_PASSWORD`: optional dedicated user for `auth_db` (least privilege). If set, the entrypoint will create/grant it and revoke `stops_user` on `auth_db`.
+  - `DATABASE_URI`, `AUTH_DATABASE_URI`: SQLAlchemy URIs. Override to use your chosen users.
+  - `SECRET_KEY`: Flask secret key (set a strong value in production).
+  - `AUTO_MIGRATE`, `MATCH_ONLY`, `SKIP_DATA_IMPORT`: control data pipeline and migrations.
+
+Example `.env` snippet:
+```env
+MYSQL_USER=stops_user
+MYSQL_PASSWORD=1234
+AUTH_DB_USER=auth_user
+AUTH_DB_PASSWORD=change-me-strong
+DATABASE_URI=mysql+pymysql://stops_user:1234@db/stops_db
+AUTH_DATABASE_URI=mysql+pymysql://auth_user:change-me-strong@db/auth_db
+SECRET_KEY=dev-insecure
+AUTO_MIGRATE=true
+```
+
+## Admin Management CLI
+
+Use `manage.py` to list users, create users, and grant/revoke admin:
+```bash
+# Inside the container
+docker compose exec app python manage.py list-users
+docker compose exec app python manage.py create-user --email you@example.com --password 'StrongPass' --admin
+docker compose exec app python manage.py set-admin --email you@example.com --on
+docker compose exec app python manage.py set-admin --email you@example.com --off
+```
+
 The project uses Alembic (via Flask‑Migrate) to manage schema for both MySQL databases (`stops_db` and `auth_db`). On startup, the application waits for MySQL and runs `flask db upgrade` to apply migrations. In development, migrations can be auto‑generated on first run.
 
 ## Data Acquisition (Entrypoint)

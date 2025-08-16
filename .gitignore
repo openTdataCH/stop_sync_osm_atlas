@@ -57,6 +57,7 @@ Thumbs.db
 
 # Docker
 .dockerignore
+.env
 
 # Logs
 *.log

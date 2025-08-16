@@ -37,10 +37,20 @@ def main():
     plt.close(fig)
 
     # Routes per SLOID histogram
-    gtfs_routes = os.path.join(root, 'data', 'processed', 'atlas_routes_gtfs.csv')
-    g = pd.read_csv(gtfs_routes)
-    gr = g.dropna(subset=['sloid', 'route_id']).groupby('sloid')['route_id'].nunique()
-    if len(gr) > 0:
+    # Prefer unified file; fallback to legacy CSV if present
+    unified_path = os.path.join(root, 'data', 'processed', 'atlas_routes_unified.csv')
+    legacy_gtfs_path = os.path.join(root, 'data', 'processed', 'atlas_routes_gtfs.csv')
+    gr = None
+    if os.path.exists(unified_path):
+        u = pd.read_csv(unified_path)
+        g = u[u['source'] == 'gtfs']
+        if not g.empty and 'route_id' in g.columns:
+            gr = g.dropna(subset=['sloid', 'route_id']).groupby('sloid')['route_id'].nunique()
+    elif os.path.exists(legacy_gtfs_path):
+        g = pd.read_csv(legacy_gtfs_path)
+        if 'route_id' in g.columns:
+            gr = g.dropna(subset=['sloid', 'route_id']).groupby('sloid')['route_id'].nunique()
+    if gr is not None and len(gr) > 0:
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.hist(gr.values, bins=np.arange(1, gr.max() + 2) - 0.5, color='tab:blue', alpha=0.85)
         ax.set_title('GTFS: distribution du nombre de lignes par SLOID')

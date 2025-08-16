@@ -53,7 +53,7 @@
               <a href="{{ url_for('auth.enable_2fa') }}" class="btn btn-sm btn-outline-info ml-2">Enable 2FA</a>
             </li>
           {% endif %}
-          {% if getattr(current_user, 'is_admin', False) %}
+          {% if current_user.is_admin|default(false) %}
             <li class="nav-item d-none d-md-block">
               <span class="navbar-text"><span class="badge badge-dark">Admin</span></span>
             </li>

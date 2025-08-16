@@ -4,6 +4,7 @@ import logging
 import os
 import xml.etree.ElementTree as ET
 from .utils import haversine_distance
+from matching_process.spatial_index import to_xyz, meters_to_unit_chord_radius, build_kdtree_from_nodes
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +149,11 @@ def perform_unified_route_matching(unmatched_df, xml_nodes, osm_xml_file, used_o
     matches = []
     newly_used = set()
 
+    # Build KDTree over xml_nodes
+    kd_tree, points, node_pairs = build_kdtree_from_nodes(xml_nodes)
+    # node_pairs is a list of ((lat, lon), node)
+    kd_radius = meters_to_unit_chord_radius(max_distance)
+
     # Build name/UIC direction availability per node
     def node_has_uic_dir(node_id, dir_uic_str):
         return dir_uic_str in osm_uic_dirs.get(node_id, set())
@@ -155,7 +161,8 @@ def perform_unified_route_matching(unmatched_df, xml_nodes, osm_xml_file, used_o
     def node_has_name_dir(node_id, dir_name_str):
         return dir_name_str in osm_name_dirs.get(node_id, set())
 
-    for _, row in unmatched_df.iterrows():
+    total = len(unmatched_df)
+    for idx, (_, row) in enumerate(unmatched_df.iterrows(), start=1):
         sloid = str(row['sloid'])
         csv_lat = float(row['wgs84North'])
         csv_lon = float(row['wgs84East'])
@@ -164,14 +171,29 @@ def perform_unified_route_matching(unmatched_df, xml_nodes, osm_xml_file, used_o
 
         # Candidate OSM nodes nearby (limit by distance roughly using all xml_nodes)
         candidates = []
-        for (lat, lon), node in xml_nodes.items():
-            node_id = str(node['node_id'])
-            if node_id in used_osm_nodes or node_id in newly_used:
-                continue
-            dist = haversine_distance(csv_lat, csv_lon, lat, lon)
-            if dist is not None and dist <= max_distance:
-                # enrich with route tokens present for node
-                candidates.append((node, lat, lon, dist, osm_routes.get(node_id, [])))
+        if kd_tree is not None:
+            try:
+                q_xyz = to_xyz(csv_lat, csv_lon)
+                neighbor_idxs = kd_tree.query_ball_point(q_xyz, r=kd_radius)
+            except Exception:
+                neighbor_idxs = []
+            for ni in neighbor_idxs:
+                (lat, lon), node = node_pairs[ni]
+                node_id = str(node['node_id'])
+                if node_id in used_osm_nodes or node_id in newly_used:
+                    continue
+                dist = haversine_distance(csv_lat, csv_lon, lat, lon)
+                if dist is not None and dist <= max_distance:
+                    candidates.append((node, lat, lon, dist, osm_routes.get(node_id, [])))
+        else:
+            # Fallback: scan all (should rarely happen)
+            for (lat, lon), node in xml_nodes.items():
+                node_id = str(node['node_id'])
+                if node_id in used_osm_nodes or node_id in newly_used:
+                    continue
+                dist = haversine_distance(csv_lat, csv_lon, lat, lon)
+                if dist is not None and dist <= max_distance:
+                    candidates.append((node, lat, lon, dist, osm_routes.get(node_id, [])))
 
         # Priority P1/P2 GTFS, P3 HRDF, P4 name-based HRDF/GTFS
         matched = None
@@ -284,6 +306,10 @@ def perform_unified_route_matching(unmatched_df, xml_nodes, osm_xml_file, used_o
                 'osm_local_ref': matched.get('local_ref')
             }
             matches.append(result)
+
+        # Progress hint every 500 items
+        if idx % 500 == 0 or idx == total:
+            logger.info(f"Route matching progress: {idx}/{total} processed; matches so far: {len(matches)}")
 
     return matches, newly_used
 

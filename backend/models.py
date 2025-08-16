@@ -164,6 +164,7 @@ class OsmNode(db.Model):
     osm_local_ref = db.Column(db.String(100))
     osm_name = db.Column(db.String(255))
     osm_uic_name = db.Column(db.String(255))
+    osm_uic_ref = db.Column(db.String(255))
     osm_network = db.Column(db.String(255))
     osm_public_transport = db.Column(db.String(255))
     osm_railway = db.Column(db.String(255))

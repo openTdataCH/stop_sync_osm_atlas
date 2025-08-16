@@ -230,7 +230,7 @@ def _split_by_jump(points, max_jump_m=3000):
     return segments
 
 
-def plot_hrdf_trip_lines(fig_dir, max_trips=300):
+def plot_hrdf_trip_lines(fig_dir, max_trips=500):
     # Build mapping UIC -> (lat, lon) from ATLAS
     atlas_path = os.path.join('data', 'raw', 'stops_ATLAS.csv')
     if not os.path.exists(atlas_path):
@@ -244,6 +244,7 @@ def plot_hrdf_trip_lines(fig_dir, max_trips=300):
     atlas_ge = atlas[atlas.apply(lambda r: in_bbox(r['wgs84North'], r['wgs84East']), axis=1)].copy()
     uic_in_bbox = set(atlas_ge['number'].astype(str).unique())
     uic_to_coord = {str(row['number']): (row['wgs84North'], row['wgs84East']) for _, row in atlas.iterrows()}
+    print(f"Found {len(uic_in_bbox)} UICs in Geneva bbox, {len(uic_to_coord)} total UICs")
 
     # Parse FPLAN: collect stop sequences for trips that touch bbox UICs
     fplan_path = _find_fplan_file()
@@ -255,13 +256,19 @@ def plot_hrdf_trip_lines(fig_dir, max_trips=300):
     current_trip = None
     current_stops = []
     selected = 0
+    trips_processed = 0
+    trips_with_bbox_uics = 0
     with open(fplan_path, 'r', encoding='utf-8', errors='ignore') as f:
         for line in f:
             if not line.strip():
                 continue
             if line.startswith('*Z'):
+                trips_processed += 1
+                if trips_processed % 50000 == 0:
+                    print(f"Processed {trips_processed:,} trips, selected {selected} line segments so far")
                 # flush previous
                 if current_trip and current_stops:
+                    trips_with_bbox_uics += 1
                     # if any UIC in bbox, build line
                     if any(s in uic_in_bbox for s in current_stops):
                         # Map to coords where available and filter to bbox
@@ -270,7 +277,7 @@ def plot_hrdf_trip_lines(fig_dir, max_trips=300):
                         # Split by large jumps to avoid diagonals
                         segs = _split_by_jump(seq_pts, max_jump_m=3000)
                         for seg in segs:
-                            if len(seg) >= 3:  # require at least 3 in-bbox points
+                            if len(seg) >= 2:  # require at least 2 in-bbox points (relaxed)
                                 lines.append(seg)
                                 selected += 1
                                 if selected >= max_trips:
@@ -278,23 +285,26 @@ def plot_hrdf_trip_lines(fig_dir, max_trips=300):
                         if selected >= max_trips:
                             break
                 # start new trip
-                current_trip = line.split()[1:3] if len(line.split()) >= 3 else None
+                parts = line.split()
+                current_trip = (parts[1], parts[2]) if len(parts) >= 3 else None
                 current_stops = []
             elif not line.startswith('*'):
                 parts = line.split()
-                # Strict parsing: first token must be a 7-8 digit UIC code
-                if parts and parts[0].isdigit() and 7 <= len(parts[0]) <= 8:
+                # Parse UIC from stop entries: first token should be UIC
+                if parts and parts[0].isdigit() and len(parts[0]) >= 7:
                     current_stops.append(parts[0])
-    # last one
-    if selected < max_trips and current_stops:
+    # Process final trip
+    if selected < max_trips and current_trip and current_stops:
+        trips_with_bbox_uics += 1
         if any(s in uic_in_bbox for s in current_stops):
             seq_pts = [uic_to_coord.get(s) for s in current_stops if s in uic_to_coord]
             seq_pts = [p for p in seq_pts if p and in_bbox(p[0], p[1])]
             segs = _split_by_jump(seq_pts, max_jump_m=3000)
             for seg in segs:
-                if len(seg) >= 3:
+                if len(seg) >= 2:
                     lines.append(seg)
 
+    print(f"HRDF parsing complete: {trips_processed:,} trips total, {trips_with_bbox_uics} touched Geneva bbox, {len(lines)} line segments created")
     out_path = os.path.join(fig_dir, 'geneva_hrdf_trip_lines.png')
     plot_lines(lines, 'HRDF: trip line approximations (Geneva area)', out_path, color='#ff7f0e', lw=0.6, alpha=0.5)
 

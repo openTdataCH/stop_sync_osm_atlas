@@ -148,7 +148,7 @@ def load_route_data(osm_routes_df: pd.DataFrame = None):
     unified_path = "data/processed/atlas_routes_unified.csv"
     if os.path.exists(unified_path):
         try:
-            unified_df = pd.read_csv(unified_path)
+            unified_df = pd.read_csv(unified_path, low_memory=False)
             for sloid, group in unified_df.groupby('sloid'):
                 if pd.isna(sloid):
                     continue
@@ -242,7 +242,7 @@ def load_unified_route_data() -> dict:
     unified_path = "data/processed/atlas_routes_unified.csv"
     mapping = {}
     try:
-        df = pd.read_csv(unified_path)
+        df = pd.read_csv(unified_path, low_memory=False)
         for sloid, group in df.groupby('sloid'):
             if pd.isna(sloid):
                 continue
@@ -354,7 +354,7 @@ def build_route_direction_mapping(osm_routes_df: pd.DataFrame = None):
         
         # Process ATLAS unified routes
         try:
-            unified_df = pd.read_csv("data/processed/atlas_routes_unified.csv")
+            unified_df = pd.read_csv("data/processed/atlas_routes_unified.csv", low_memory=False)
             for _, row in unified_df.iterrows():
                 sloid = row.get('sloid')
                 if pd.isna(sloid):
@@ -571,8 +571,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 atlas_designation=safe_value(rec.get('csv_designation'), ""),
                 atlas_designation_official=designation_official,
                 atlas_business_org_abbr=safe_value(rec.get('csv_business_org_abbr', '')),
-                routes_atlas=routes_atlas_data if routes_atlas_data else None,
-                routes_hrdf=routes_hrdf_data if routes_hrdf_data else None,
                 routes_unified=atlas_routes_mapping_unified.get(sloid, None) if atlas_routes_mapping_unified else None,
                 atlas_note=None,
                 atlas_note_is_persistent=False
@@ -587,6 +585,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 osm_local_ref=safe_value(rec.get('osm_local_ref')),
                 osm_name=safe_value(rec.get('osm_name')) or get_from_tags(rec, 'name'),
                 osm_uic_name=safe_value(rec.get('osm_uic_name')) or get_from_tags(rec, 'uic_name'),
+                osm_uic_ref=safe_value(rec.get('osm_uic_ref')) or get_from_tags(rec, 'uic_ref'),
                 osm_network=safe_value(rec.get('osm_network', '')),
                 osm_operator=safe_value(rec.get('osm_operator', '')),
 
@@ -800,8 +799,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 atlas_designation=safe_value(rec.get('designation'), ""),
                 atlas_designation_official=designation_official,
                 atlas_business_org_abbr=safe_value(rec.get('servicePointBusinessOrganisationAbbreviationEn', '')),
-                routes_atlas=routes_atlas_data if routes_atlas_data else None,
-                routes_hrdf=routes_hrdf_data if routes_hrdf_data else None,
                 routes_unified=atlas_routes_mapping_unified.get(sloid, None) if atlas_routes_mapping_unified else None,
                 atlas_note=None,
                 atlas_note_is_persistent=False
@@ -859,6 +856,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 osm_local_ref=get_from_tags(rec, 'local_ref') or safe_value(rec.get('local_ref')),
                 osm_name=safe_value(rec.get('name')) or get_from_tags(rec, 'name'),
                 osm_uic_name=get_from_tags(rec, 'uic_name'),
+                osm_uic_ref=get_from_tags(rec, 'uic_ref'),
                 osm_network=get_from_tags(rec, 'network', ''),
                 osm_operator=get_from_tags(rec, 'operator', ''),
 

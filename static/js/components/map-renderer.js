@@ -366,7 +366,7 @@ function createPopupWithOptions(content) {
             autoClose: false,
             closeOnClick: false,
             autoPan: false,
-            maxWidth: 300,
+            maxWidth: 2000,
             closeButton: true,
             className: 'customPopup permanent-popup'
         }).setContent(content);
@@ -376,7 +376,7 @@ function createPopupWithOptions(content) {
         autoClose: false,
         closeOnClick: false,
         autoPan: false,
-        maxWidth: 300,
+        maxWidth: 2000,
         closeButton: true,
         className: 'customPopup permanent-popup'
     }).setContent(content);

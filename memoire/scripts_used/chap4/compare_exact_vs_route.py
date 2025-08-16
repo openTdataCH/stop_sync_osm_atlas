@@ -1,6 +1,14 @@
 import os
+import sys
 import json
+from pathlib import Path
 import pandas as pd
+
+# Ensure project root is on sys.path to import matching_process
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from matching_process.matching_script import parse_osm_xml
 from matching_process.exact_matching import exact_matching
 from matching_process.route_matching_unified import perform_unified_route_matching

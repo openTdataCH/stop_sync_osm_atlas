@@ -33,6 +33,7 @@ def format_stop_data(stop: Stop, problem_type: str = None, include_routes: bool 
         "osm_local_ref": osm_details.osm_local_ref if osm_details else None,
         "osm_name": osm_details.osm_name if osm_details else None,
         "osm_uic_name": osm_details.osm_uic_name if osm_details else None,
+        "osm_uic_ref": osm_details.osm_uic_ref if osm_details else None,
         "atlas_duplicate_sloid": stop.atlas_duplicate_sloid,
         "osm_node_type": stop.osm_node_type,
     }

@@ -43,6 +43,26 @@
   line-height: 1.2;
 }
 
+/* Consistent chip-style badges in the navbar (match previous style) */
+.navbar .badge {
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.35rem 0.6rem;
+  line-height: 1.2;
+  background-color: #ffffff;
+  border: 1.5px solid currentColor;
+  color: #495057;
+}
+
+.navbar .badge-warning { color: #ffc107; border-color: #ffc107; background-color: #ffffff; }
+.navbar .badge-info { color: #17a2b8; border-color: #17a2b8; background-color: #ffffff; }
+.navbar .badge-dark { color: #343a40; border-color: #343a40; background-color: #ffffff; }
+.navbar .badge-success { color: #28a745; border-color: #28a745; background-color: #ffffff; }
+.navbar .badge-primary { color: #007bff; border-color: #007bff; background-color: #ffffff; }
+.navbar .badge-danger { color: #dc3545; border-color: #dc3545; background-color: #ffffff; }
+.navbar .badge-secondary { color: #6c757d; border-color: #6c757d; background-color: #ffffff; }
+
 .navbar .btn {
   padding-top: 0.25rem;
   padding-bottom: 0.25rem;

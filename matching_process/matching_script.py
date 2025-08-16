@@ -125,50 +125,7 @@ def final_pipeline(route_matching_strategy='unified'):
         )
     all_osm_nodes, uic_ref_dict, name_index = parse_osm_xml(osm_xml_file)
 
-    # --- Apply persistent manual matches before any automatic matching ---
-    manual_pairs = set()
-    try:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import sessionmaker
-        from backend.models import PersistentData
-        DATABASE_URI = os.getenv('DATABASE_URI', 'mysql+pymysql://stops_user:1234@localhost:3306/stops_db')
-        engine = create_engine(DATABASE_URI)
-        Session = sessionmaker(bind=engine)
-        tmp_session = Session()
-        persistent_manuals = tmp_session.query(PersistentData).filter(
-            PersistentData.problem_type == 'unmatched',
-            PersistentData.solution == 'manual'
-        ).all()
-        for pm in persistent_manuals:
-            if pm.sloid and pm.osm_node_id:
-                manual_pairs.add((str(pm.sloid), str(pm.osm_node_id)))
-        tmp_session.close()
-    except Exception as _e:
-        manual_pairs = set()
-
-    # --- Build manual_matches early so it can be used downstream ---
-    manual_matches = []
-    if manual_pairs:
-        atlas_by_sloid = {str(row['sloid']): row for _, row in atlas_df.iterrows()}
-        osm_by_node_id = {str(node.get('node_id')): node for node in all_osm_nodes.values()}
-        for sloid, node_id in manual_pairs:
-            a = atlas_by_sloid.get(sloid)
-            o = osm_by_node_id.get(node_id)
-            if a and o:
-                manual_matches.append({
-                    'sloid': sloid,
-                    'csv_lat': a.get('wgs84North'),
-                    'csv_lon': a.get('wgs84East'),
-                    'number': a.get('number'),
-                    'osm_node_id': node_id,
-                    'osm_lat': o.get('lat'),
-                    'osm_lon': o.get('lon'),
-                    'osm_public_transport': o.get('tags', {}).get('public_transport'),
-                    'osm_railway': o.get('tags', {}).get('railway'),
-                    'osm_amenity': o.get('tags', {}).get('amenity'),
-                    'osm_aerialway': o.get('tags', {}).get('aerialway'),
-                    'match_type': 'manual'
-                })
+    # (Manual matches moved to the end; see dedicated section below)
 
     # --- Identify Duplicate ATLAS entries ---
     # Keep=False marks all occurrences of duplicates as True
@@ -207,8 +164,6 @@ def final_pipeline(route_matching_strategy='unified'):
     
     # --- Collect Used OSM IDs ---
     used_osm_ids_total = set()
-    for sloid_node in list(manual_pairs):
-        used_osm_ids_total.add(sloid_node[1])
     for m in exact_matches + name_matches:
         if 'osm_node_id' in m:
             used_osm_ids_total.add(m['osm_node_id'])
@@ -259,7 +214,7 @@ def final_pipeline(route_matching_strategy='unified'):
     logger.info(f"Performing route-based matching with strategy: '{route_matching_strategy}'...")
     # Track matched SLOIDs from previous stages (including actual distance matches)
     matched_sloids = set()
-    for m in (manual_matches + exact_matches + name_matches + actual_distance_matches): # Include manual
+    for m in (exact_matches + name_matches + actual_distance_matches):
         if 'sloid' in m:
             matched_sloids.add(m['sloid'])
     
@@ -352,8 +307,8 @@ def final_pipeline(route_matching_strategy='unified'):
                 # Mark this OSM node as used for subsequent logic
                 used_osm_ids_total.add(osm_node['node_id'])
 
-    # Build preliminary matches list for duplicate propagation
-    prelim_matches = manual_matches + exact_matches + name_matches + actual_distance_matches + route_matches + postpass_exact_matches
+    # Build preliminary matches list for duplicate propagation (without manual; applied later)
+    prelim_matches = exact_matches + name_matches + actual_distance_matches + route_matches + postpass_exact_matches
 
     # --- Duplicate propagation across ATLAS duplicates ---
     logger.info("Propagating matches across ATLAS duplicate groups...")
@@ -420,7 +375,57 @@ def final_pipeline(route_matching_strategy='unified'):
     except Exception as e:
         logger.warning(f"Duplicate propagation step failed: {e}")
 
-    # --- Find Remaining Unmatched Nodes ---
+    # --- Final step: Apply persistent manual matches for remaining unmatched ---
+    manual_matches = []
+    manual_pairs = set()
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from backend.models import PersistentData
+        DATABASE_URI = os.getenv('DATABASE_URI', 'mysql+pymysql://stops_user:1234@localhost:3306/stops_db')
+        engine = create_engine(DATABASE_URI)
+        Session = sessionmaker(bind=engine)
+        tmp_session = Session()
+        persistent_manuals = tmp_session.query(PersistentData).filter(
+            PersistentData.problem_type == 'unmatched',
+            PersistentData.solution == 'manual'
+        ).all()
+        for pm in persistent_manuals:
+            if pm.sloid and pm.osm_node_id:
+                manual_pairs.add((str(pm.sloid), str(pm.osm_node_id)))
+        tmp_session.close()
+    except Exception:
+        manual_pairs = set()
+
+    if manual_pairs:
+        atlas_by_sloid = {str(row['sloid']): row for _, row in atlas_df.iterrows()}
+        osm_by_node_id = {str(node.get('node_id')): node for node in all_osm_nodes.values()}
+        for sloid, node_id in manual_pairs:
+            if sloid in matched_sloids:
+                continue
+            if node_id in used_osm_ids_total:
+                continue
+            a = atlas_by_sloid.get(sloid)
+            o = osm_by_node_id.get(node_id)
+            if a and o:
+                manual_matches.append({
+                    'sloid': sloid,
+                    'csv_lat': a.get('wgs84North'),
+                    'csv_lon': a.get('wgs84East'),
+                    'number': a.get('number'),
+                    'osm_node_id': node_id,
+                    'osm_lat': o.get('lat'),
+                    'osm_lon': o.get('lon'),
+                    'osm_public_transport': o.get('tags', {}).get('public_transport'),
+                    'osm_railway': o.get('tags', {}).get('railway'),
+                    'osm_amenity': o.get('tags', {}).get('amenity'),
+                    'osm_aerialway': o.get('tags', {}).get('aerialway'),
+                    'match_type': 'manual'
+                })
+                matched_sloids.add(sloid)
+                used_osm_ids_total.add(node_id)
+
+    # --- Find Remaining Unmatched Nodes (after applying manual) ---
     unmatched_osm_nodes = [node for node in all_osm_nodes.values() if node['node_id'] not in used_osm_ids_total]
     logger.info(f"Unmatched OSM nodes: {len(unmatched_osm_nodes)}")
 
@@ -465,21 +470,15 @@ def final_pipeline(route_matching_strategy='unified'):
         unmatched_with_routes_count = 0
 
     # --- Combine All Matches ---
-    # manual_matches already built above
-
     # Combine only actual matches
     all_matches = manual_matches + exact_matches + name_matches + actual_distance_matches + route_matches + postpass_exact_matches + duplicate_propagation_matches
     all_matches_df = pd.DataFrame(all_matches)
     
-    # --- Calculate Final Unmatched ATLAS Entries ---
+    # --- Calculate Final Unmatched ATLAS Entries (after manual) ---
     # The definition of final_unmatched_atlas naturally includes those identified as 'no_nearby_counterpart'
-    # because their sloids were not added to matched_sloids from the distance phase.
     final_unmatched_atlas = []
-    # We need to start from the original atlas_df to correctly identify all unmatched
     all_atlas_sloids = set(atlas_df['sloid'])
     final_unmatched_sloids = all_atlas_sloids - matched_sloids
-    
-    # Create the final unmatched dataframe from the original atlas_df
     final_unmatched_atlas_df = atlas_df[atlas_df['sloid'].isin(final_unmatched_sloids)]
     final_unmatched_atlas = final_unmatched_atlas_df.to_dict(orient="records")
 

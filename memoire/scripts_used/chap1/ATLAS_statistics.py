@@ -36,8 +36,8 @@ from collections import Counter
 def main():
     """Compute comprehensive ATLAS statistics."""
     
-    # File paths
-    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+    # File paths (project root)
+    root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
     atlas_path = os.path.join(root, 'data', 'raw', 'stops_ATLAS.csv')
     
     if not os.path.exists(atlas_path):

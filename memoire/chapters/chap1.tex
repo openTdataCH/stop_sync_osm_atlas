@@ -2,14 +2,14 @@
 \chapter{Chapitre 1 : Données ATLAS}
 
 Les données ATLAS, au cœur de cette étude, proviennent de la plateforme Open Transport Data Swiss [\ref{ref:open_transport_data_swiss}]. Cette ressource centralise les données des transports publics en Suisse, offrant une base précieuse pour l’analyse et le développement d’applications.\\
-\textit{Sauf indication contraire, toutes les statistiques et cartes de ce chapitre sont calculées sur le snapshot de données du 11 août 2025.}
+\textit{Sauf indication contraire, toutes les statistiques et cartes de ce chapitre sont calculées sur le snapshot de données du 11 août 2025. À partir de cette version, un filtre géographique (boîte WGS84 approximant la Suisse) est appliqué en plus du code pays UIC=85, afin d'exclure les points situés hors de Suisse malgré un préfixe UIC suisse.}
 
 \medskip
 \noindent\textbf{Reproductibilité.} Les figures et statistiques de ce chapitre ont été produites par des scripts reproductibles disponibles sous \texttt{memoire/scripts\_used/} dans le dépôt Git du projet.
 
 \section{Arrêts}
 
-L'analyse des arrêts s'appuie sur le jeu de données \texttt{traffic-points-actual-date} [\ref{ref:traffic_points_actual_date}], qui recense les arrêts de transport public en Suisse avec des informations détaillées sur leur localisation et leurs caractéristiques. Ces points peuvent être visualisés sur une carte interactive via l’application web https://atlas.app.sbb.ch/ [\ref{ref:atlas_app_sbb}].
+L'analyse des arrêts s'appuie sur le jeu de données \texttt{traffic-points-actual-date} [\ref{ref:traffic_points_actual_date}], qui recense les arrêts de transport public en Suisse avec des informations sur leur localisation et leurs caractéristiques. Ces points peuvent être visualisés sur une carte interactive via l’application web https://atlas.app.sbb.ch/ [\ref{ref:atlas_app_sbb}].
 
 Nous nous concentrons ici sur deux colonnes principales : le \texttt{number} et la \texttt{designation} de chaque arrêt.
 
@@ -32,6 +32,10 @@ def get_atlas_stops(output_path, download_url):
             # Suisse (UIC pays = 85) et coordonnees valides (WGS84)
             df = df[df['uicCountryCode'] == 85]
             df = df.dropna(subset=['wgs84North', 'wgs84East'])
+            # Filtre géographique: boîte WGS84 Suisse (lat \in [45.4, 47.9], lon \in [5.7, 10.7])
+            df['wgs84North'] = pd.to_numeric(df['wgs84North'], errors='coerce')
+            df['wgs84East'] = pd.to_numeric(df['wgs84East'], errors='coerce')
+            df = df[df['wgs84North'].between(45.4, 47.9) & df['wgs84East'].between(5.7, 10.7)]
             # Comptage des quais
             boarding_platforms = df[df['trafficPointElementType'] == 'BOARDING_PLATFORM']
             df.to_csv(output_path, sep=';', index=False)
@@ -39,15 +43,15 @@ def get_atlas_stops(output_path, download_url):
 
 
 
-\paragraph{Statistiques ATLAS.} Sur l'instantané analysé :
+\paragraph{Statistiques ATLAS.} Sur l'instantané analysé (après filtre UIC=85 et boîte CH) :
 \begin{itemize}
-  \item \textbf{Lignes avec coordonnées}: \textit{56\,514}.
-  \item \textbf{\texttt{BOARDING\_PLATFORM}}: \textit{55\,822}.
+  \item \textbf{Lignes avec coordonnées}: \textit{56\,515}.
+  \item \textbf{\texttt{BOARDING\_PLATFORM}}: \textit{55\,823}.
   \item \textbf{UIC distincts (\texttt{number})}: \textit{27\,228}.
   \item \textbf{\texttt{designation} non vides}: \textit{12\,144} (\textit{541} valeurs distinctes).
-  \item \textbf{\texttt{designation} manquantes}: \textit{44\,370}, dont \textit{4\,431} cas où l'unique entrée du \texttt{number} est sans désignation.
+  \item \textbf{\texttt{designation} manquantes}: \textit{44\,371}, dont \textit{4\,430} cas où l'unique entrée du \texttt{number} est sans désignation.
   \item \textbf{Entrées identifiables par (\texttt{number}, \texttt{designation}) seul}: \textit{10\,607}.
-  \item \textbf{Total identifiables par \texttt{number} + (\texttt{designation} ou unicité du \texttt{number})}: \textit{16\,015}.
+  \item \textbf{Total identifiables par \texttt{number} + (\texttt{designation} ou unicité du \texttt{number})}: \textit{16\,014}.
 \end{itemize}
 
 \begin{figure}[H]
@@ -169,7 +173,7 @@ Les fichiers GTFS suivants sont cruciaux pour notre analyse :
 
 \subsection{Clés d’identification, normalisation et jointure}
 
-Dans le script \texttt{get\_atlas\_data.py}, nous produisons \texttt{atlas\_routes\_gtfs.csv}, qui associe chaque arrêt aux couples \texttt{(route\_id, direction\_id)} desservis. La jointure exploite \texttt{stop\_times.txt} pour relier les arrêts aux trajets via \texttt{trip\_id}, puis \texttt{trips.txt} et \texttt{routes.txt} pour relier ces trajets aux lignes via \texttt{route\_id}. Nous dédupliquons ensuite les paires route–direction par arrêt et ajoutons le nom de ligne.
+Dans le script \texttt{get\_atlas\_data.py}, nous construisons un jeu intégré qui associe chaque arrêt aux couples \texttt{(route\_id, direction\_id)} desservis et aux noms de lignes, puis relions ces arrêts aux SLOIDs ATLAS. La jointure exploite \texttt{stop\_times.txt} pour relier les arrêts aux trajets via \texttt{trip\_id}, puis \texttt{trips.txt} et \texttt{routes.txt} pour relier ces trajets aux lignes via \texttt{route\_id}. Nous dédupliquons ensuite les paires route–direction par arrêt et ajoutons le nom de ligne.
 
 \medskip
 \noindent\textbf{Clé de correspondance stop\_id GTFS \(\to\) SLOID ATLAS.} Nous associons \texttt{stop\_id} (GTFS) aux SLOIDs ATLAS via \texttt{number} (UIC) et \texttt{designation} (référence locale de quai), avec normalisation minimale. Les règles \emph{implémentées dans le code} sont:
@@ -263,9 +267,9 @@ Et dans \texttt{traffic-points-actual-data} :
 Dans ce cas, les désignations dans GTFS incluent "A", "B", "C", "D", ainsi que des références numériques comme "10000" et "10001", mais dans ATLAS,  "A" n’a pas d’équivalent direct, et les références numériques ne sont pas assignées (lignes avec \texttt{designation} vide). Les coordonnées géographiques diffèrent également.
 
 \subsection{Résultats}
-Nous générons un fichier intégré \texttt{atlas\_routes\_gtfs.csv} listant, par \texttt{sloid}, les couples \texttt{(route\_id, direction\_id)}. Sur notre jeu:
+Nous obtenons un jeu intégré listant, par \texttt{sloid}, les couples \texttt{(route\_id, direction\_id)}. Sur notre jeu:
 \begin{itemize}
-  \item \textbf{SLOIDs couverts par GTFS}: \textit{32\,248--32\,249}.
+  \item \textbf{SLOIDs couverts par GTFS}: \textit{32\,248}.
   \item \textbf{Médiane des lignes par SLOID (GTFS)}: \textit{2}.
 \end{itemize}
 
@@ -279,7 +283,7 @@ Nous générons un fichier intégré \texttt{atlas\_routes\_gtfs.csv} listant, p
 \begin{figure}[h]
   \centering
   \includegraphics[width=.76\linewidth]{figures/plots/gtfs_points_switzerland.png}
-  \caption[Arrêts GTFS (Suisse)]{Arrêts GTFS (Suisse): \(47\,829\) arrêts suisses détectés.}
+  \caption[Arrêts GTFS (Suisse)]{Arrêts GTFS (Suisse): \(47\,846\) arrêts suisses détectés.}
   \label{fig:gtfs_ch_points}
 \end{figure}
 
@@ -295,20 +299,10 @@ Le \textit{HAFAS Raw Data Format} structure des horaires exhaustifs. Deux fichie
 Notre extraction s’effectue en deux passes efficaces et ciblées:
 \begin{enumerate}
   \item \textbf{GLEISE\_LV95 \(\to\) paires (UIC, \#ref) par \texttt{sloid}.} Nous parcourons \texttt{GLEISE\_LV95} pour associer chaque \texttt{sloid} de quai au \texttt{UIC} de gare et au numéro de référence (\#ref) qui identifie le quai.
-  \item \textbf{FPLAN \(\to\) directions.} Pour ces \((\text{UIC}, \#\text{ref})\) cibles seulement, nous analysons \texttt{FPLAN} afin d’extraire, par voyage, le premier et le dernier arrêt. En reliant ces arrêts à leurs noms (via \texttt{BAHNHOF}), nous formons des chaînes directionnelles \textit{noms} (\enquote{Genève \(\to\) Lausanne}) et \textit{UIC} (\enquote{8501008 \(\to\) 8501120}).
+  \item \textbf{FPLAN \(\to\) directions.} Pour ces \((\text{UIC}, \#\text{ref})\) cibles seulement, nous analysons \texttt{FPLAN} afin d’extraire, par voyage, le premier et le dernier arrêt. En reliant ces arrêts à leurs noms (via \texttt{BAHNHOF}), nous formons des chaînes directionnelles \textit{UIC} (\enquote{8501008 \(\to\) 8501120}).
 \end{enumerate}
 
-\noindent Ces chaînes seront utilisées au Chapitre~4 pour améliorer le \textit{route matching} en absence d’identifiants de direction GTFS directement disponibles sur OSM.
 
-\begin{codebox}[language=Python]{Extraits — parsing ciblé HRDF}
-def parse_gleise_lv95_for_sloids(hrdf_path, target_sloids):
-    # Associer chaque sloid cible a (UIC, #ref), en un premier passage rapide
-    ...
-
-def extract_fplan_directions_for_trips(hrdf_path, target_trip_keys):
-    # Pour les trajets cibls, recuperer premier/dernier arret et le nom de ligne
-    ...
-\end{codebox}
 
 \subsection{Informations exploitées}
 \begin{itemize}
@@ -336,14 +330,9 @@ $ grep -o "G A ch:1:sloid:[^[:space:]]\\+" data/raw/BHFART | sed 's/^G A //' | s
 31913
 \end{cmdbox}
 
-\noindent\textit{Compte toutes les occurrences uniques de SLOID (gares + quais) dans \texttt{BHFART}.}
-\begin{cmdbox}
-$ grep -o "ch:1:sloid:[^[:space:]]\\+" data/raw/BHFART | sort -u | wc -l
-62848
-\end{cmdbox}
 
 \noindent
-Après extraction (\texttt{atlas\_routes\_hrdf.csv}) : \textbf{\(28\,757\)} SLOIDs couverts ; médiane des directions (noms) par SLOID : \textbf{4}. Ces chaînes \enquote{nom} et \enquote{UIC} enrichissent les correspondances quand un identifiant de direction explicite n’est pas disponible côté OSM.
+Après extraction des informations de direction : \textbf{\(28\,757\)} SLOIDs couverts ; médiane des directions (noms) par SLOID : \textbf{4}. Ces chaînes \enquote{nom} et \enquote{UIC} enrichissent les correspondances quand un identifiant de direction explicite n’est pas disponible côté OSM.
 
 \begin{figure}[H]
   \centering
@@ -393,12 +382,3 @@ Après extraction (\texttt{atlas\_routes\_hrdf.csv}) : \textbf{\(28\,757\)} SLOI
   \item GTFS: \textit{\(34\,766\)} SLOIDs\,; HRDF: \textit{\(28\,757\)} SLOIDs.
   \item Intersection: \textit{\(14\,238\)}\,; GTFS seulement: \textit{\(20\,528\)}\,; HRDF seulement: \textit{\(14\,519\)}.
 \end{itemize}
-
-
-\section{Chaîne d’acquisition et de prétraitement}
-To be done.
-\begin{figure}[H]
-  \centering
-  \includegraphics[width=.7\linewidth]{figures/plots/hrdf_directions_per_sloid.png}
-  \caption{HRDF: distribution du nombre de \textit{directions (noms)} par SLOID.}
-\end{figure}

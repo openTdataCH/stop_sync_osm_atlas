@@ -41,7 +41,7 @@ def compute_distance_priority(record):
     return None  # aucun probleme de distance
 \end{codebox}
 
-\noindent Ceci reflète le code dans \texttt{matching\_process/problem\_detection.py} et s'applique quand une paire est étiquetée \texttt{matched}.
+\noindent Ceci reflète le code dans \texttt{matching\_process/problem\_detection.py} et s'applique quand une paire est étiquetée \texttt{matched}. Les résolutions de problèmes peuvent être rendues \textbf{persistantes} afin d'être réappliquées lors des prochains imports (voir \S~\ref{sec:persist-workflow}).
 
 \subsection{Priorités pour les non-appariements}
 Intuition : être isolé sans pendant proche est plus sévère ; la distance absolue et la disponibilité UIC/plateformes aident à classer l'urgence.
@@ -165,6 +165,7 @@ Entrées avec au moins un problème (dérivé) & \textbf{51\,235} \\
 \end{figure}
 
 \section{Persistance et flux de travail}
+\label{sec:persist-workflow}
 Deux mécanismes rendent la revue efficace dans le temps :
 \begin{itemize}
   \item \textbf{Solutions persistantes} — une fois un problème résolu manuellement (p. ex. marqué \texttt{manual} pour un non-appariement), la décision est conservée et réappliquée lors des imports suivants.
@@ -188,7 +189,7 @@ En pratique, nous suggérons ce tri :
   \item Filtrer \textbf{distance / P1} et trier par distance décroissante. Corriger d'abord les erreurs flagrantes de géocodage.
   \item Puis \textbf{unmatched / P1}, en ciblant les cas sans pendant par UIC ou avec des écarts très importants.
   \item Traiter \textbf{attributes / P1}, notamment les divergences UIC/nom qui peuvent indiquer une mauvaise identité.
-  \item Épurer les seaux P2/P3 restants par passes rapides ; ajouter des notes ou marquer comme cas limites acceptés si pertinent.
+  \item Épurer les seaux P2/P3 restants par passes rapides ; ajouter des notes ou marquer comme cas limites acceptés si pertinent. Lorsque pertinent, \emph{rendre persistantes} les solutions pour éviter de les ressaisir lors de futurs imports.
 \end{enumerate}
 
 \section{Réflexion et prochaines étapes}

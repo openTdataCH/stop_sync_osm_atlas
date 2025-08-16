@@ -35,16 +35,19 @@ services:
         condition: service_healthy # Waits for db to be healthy before starting app
     environment:
       # Pass MySQL credentials to the entrypoint script and Python apps
-      MYSQL_USER: stops_user
-      MYSQL_PASSWORD: 1234 # Ensure this matches db service password
+      MYSQL_USER: ${MYSQL_USER:-stops_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-1234} # Ensure this matches db service password
       MYSQL_ROOT_PASSWORD: root # Needed for entrypoint.sh to create auth_db
+      # Optional dedicated auth DB user (best practice for least privilege)
+      AUTH_DB_USER: ${AUTH_DB_USER:-}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-}
       # Flask environment variables (some are also in Dockerfile for explicitness)
       FLASK_APP: backend/app.py
       FLASK_ENV: development # Or production
       FLASK_DEBUG: 1 # Enables Flask debugger
-      # Database URI for SQLAlchemy, ensuring password matches
-      DATABASE_URI: mysql+pymysql://stops_user:1234@db/stops_db
-      AUTH_DATABASE_URI: mysql+pymysql://stops_user:1234@db/auth_db
+      # Database URI for SQLAlchemy, now configurable via .env
+      DATABASE_URI: ${DATABASE_URI:-mysql+pymysql://stops_user:1234@db/stops_db}
+      AUTH_DATABASE_URI: ${AUTH_DATABASE_URI:-mysql+pymysql://stops_user:1234@db/auth_db}
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
@@ -87,16 +90,19 @@ services:
         condition: service_healthy # Waits for db to be healthy before starting app
     environment:
       # Pass MySQL credentials to the entrypoint script and Python apps
-      MYSQL_USER: stops_user
-      MYSQL_PASSWORD: 1234 # Ensure this matches db service password
+      MYSQL_USER: ${MYSQL_USER:-stops_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-1234} # Ensure this matches db service password
       MYSQL_ROOT_PASSWORD: root # Needed for entrypoint.sh to create auth_db
+      # Optional dedicated auth DB user (best practice for least privilege)
+      AUTH_DB_USER: ${AUTH_DB_USER:-}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-}
       # Flask environment variables (some are also in Dockerfile for explicitness)
       FLASK_APP: backend/app.py
       FLASK_ENV: development # Or production
       FLASK_DEBUG: 1 # Enables Flask debugger
-      # Database URI for SQLAlchemy, ensuring password matches
-      DATABASE_URI: mysql+pymysql://stops_user:1234@db/stops_db
-      AUTH_DATABASE_URI: mysql+pymysql://stops_user:1234@db/auth_db
+      # Database URI for SQLAlchemy, now configurable via .env
+      DATABASE_URI: ${DATABASE_URI:-mysql+pymysql://stops_user:1234@db/stops_db}
+      AUTH_DATABASE_URI: ${AUTH_DATABASE_URI:-mysql+pymysql://stops_user:1234@db/auth_db}
       SKIP_DATA_IMPORT: "true" # Skip data import for this service
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"

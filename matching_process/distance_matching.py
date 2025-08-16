@@ -4,8 +4,8 @@ from collections import defaultdict
 from tqdm import tqdm
 import sys
 from math import radians, sin, cos
-from scipy.spatial import KDTree
 import numpy as np
+from matching_process.spatial_index import to_xyz, meters_to_unit_chord_radius, build_kdtree_from_nodes
 import traceback
 
 # Local isolation radius (formerly from detection_config)
@@ -37,36 +37,14 @@ def transform_for_distance_matching(all_osm_nodes, filtered=False, used_node_ids
 
 def create_spatial_index(xml_nodes):
     """
-    Create a KDTree spatial index from the coordinates in xml_nodes.
-    
-    Parameters:
-        xml_nodes (dict): Dictionary where keys are (lat, lon) tuples and values are XML node dictionaries.
-        
-    Returns:
-        tuple: (KDTree, list of points, list of corresponding xml_nodes)
+    Compatibility wrapper that builds a KDTree spatial index from xml_nodes.
+
+    Delegates to `build_kdtree_from_nodes` in `matching_process.spatial_index`.
+    Returns the same tuple: (tree_or_None, points_list, nodes_list).
     """
-    # Extract coordinates and convert to radians
-    points = []
-    nodes_list = []
-    
-    for (lat, lon), node in xml_nodes.items():
-        # Convert to radians for better accuracy in spherical calculations
-        lat_rad = radians(float(lat))
-        lon_rad = radians(float(lon))
-        # Store as a 3D point on a unit sphere 
-        # (x, y, z) = (cos(lat)*cos(lon), cos(lat)*sin(lon), sin(lat))
-        x = cos(lat_rad) * cos(lon_rad)
-        y = cos(lat_rad) * sin(lon_rad)
-        z = sin(lat_rad)
-        
-        points.append((x, y, z))
-        nodes_list.append(((lat, lon), node))
-    
-    # Create KDTree
-    if points:
-        tree = KDTree(points)
-        return tree, points, nodes_list
-    else:
+    try:
+        return build_kdtree_from_nodes(xml_nodes)
+    except Exception:
         return None, [], []
 
 def distance_matching(unmatched_df, xml_nodes, run_stage1=True, run_stage2=True, max_distance=50, all_xml_nodes_for_stage4=None):
@@ -111,15 +89,11 @@ def distance_matching(unmatched_df, xml_nodes, run_stage1=True, run_stage2=True,
     matches = []
     
     # Create spatial index for efficient nearest neighbor queries (Stage 1–3)
-    spatial_tree, points, nodes_list = create_spatial_index(xml_nodes)
+    # Use shared spatial index builder
+    spatial_tree, points, nodes_list = build_kdtree_from_nodes(xml_nodes)
     
-    # Convert max_distance from meters to radians for KDTree query
-    # Approximate conversion (small distances): 1 meter ≈ 1/6371000 radians
-    # Convert max_distance from meters to radians for KDTree query
-    # We're using 3D points on a unit sphere, so need to convert from meters to chord length
-    # For small distances, we can approximate: chord_length ≈ 2 * sin(angle/2)
-    # where angle = distance/R
-    max_distance_rad = 2 * sin((max_distance / 6371000.0) / 2)
+    # Convert max_distance to unit-sphere chord radius used by KDTree
+    max_distance_rad = meters_to_unit_chord_radius(max_distance)
     
     operator_mismatches = []
     # Track unique organization mismatches
