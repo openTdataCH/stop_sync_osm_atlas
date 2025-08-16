@@ -97,3 +97,25 @@ class User(UserMixin, db.Model):
         return codes
 
 
+class AuthEvent(db.Model):
+    __bind_key__ = 'auth'
+    __tablename__ = 'auth_events'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    # Optional linkage to a known user
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    # For failed login attempts where user is unknown or to capture the attempted identity
+    email_attempted = db.Column(db.String(255), nullable=True, index=True)
+    
+    # Event classification (e.g. login_success, login_failure, login_locked, logout, 2fa_success, 2fa_failure, email_verified, 2fa_enabled, 2fa_disabled)
+    event_type = db.Column(db.String(50), nullable=False, index=True)
+    
+    # Request context
+    ip_address = db.Column(db.String(45), nullable=True)  # IPv4/IPv6 max textual length
+    user_agent = db.Column(db.Text, nullable=True)
+    
+    # Free-form JSON metadata as text
+    metadata_json = db.Column(db.Text, nullable=True)
+    
+    # Timestamp
+    occurred_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)

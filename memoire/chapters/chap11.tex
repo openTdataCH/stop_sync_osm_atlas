@@ -1,50 +1,177 @@
 % !TeX spellcheck = fr_FR
-\chapter{Chapitre 11: Système d'authentification sécurisé}\label{chap:auth}
+\chapter{Chapitre 11: Évaluation de la sécurité de l'application}\label{chap:security}
 
-\section{Objectifs}
-Nous avons conçu et mis en œuvre un système d'authentification moderne qui priorise la confidentialité, l'intégrité et la disponibilité. Il est aligné sur les bonnes pratiques actuelles (2025) et est prêt pour une revue de sécurité.
+\noindent Ce chapitre complète le \textbf{Chap.~\ref{chap:auth}} en évaluant les défenses mises en place, en illustrant les scénarios d'attaque plausibles et en discutant des améliorations futures. L'objectif est \emph{divulgatif}: comprendre comment et pourquoi les contrôles bloquent les attaques, et où renforcer la posture.
 
-\section{Aperçu de l'architecture}
-L'application utilise Flask avec un schéma d'authentification dédié lié à une base de données MySQL distincte (\texttt{auth\_db}). Les données analytiques principales demeurent dans \texttt{stops\_db}. Cette séparation réduit le rayon d'impact et garantit que la réimportation des données analytiques ne touche jamais les identifiants des utilisateurs.
-
-\subsection{Composants}
+\section{Périmètre et surface d'attaque}
+\noindent Les routes exposées côté authentification (toutes soumises à limite de débit) sont:
 \begin{itemize}
-  \item \textbf{Stockage des mots de passe} : Argon2id (argon2-cffi), à forte consommation mémoire, salé, avec des paramètres spécifiques à chaque hachage.
-  \item \textbf{Sessions} : Flask-Login avec cookies sécurisés (HttpOnly, SameSite=Lax ; indicateur Secure en production).
-  \item \textbf{CSRF} : Protection CSRF de Flask-WTF pour tous les formulaires POST et les points de terminaison concernés.
-  \item \textbf{Limitation de débit} : Les routes de connexion et d'inscription sont limitées (Flask-Limiter) afin d'atténuer la force brute.
-  \item \textbf{Sécurité du transport} : Flask-Talisman fournit les en-têtes de sécurité ; l'application stricte de HTTPS est configurable via les variables d'environnement.
-  \item \textbf{2FA} : TOTP (compatible Google Authenticator) avec activation par QR code et codes de secours à usage unique.
-  \item \textbf{Verrouillage de compte} : Verrouillage progressif après des échecs répétés, avec temporisation exponentielle.
+  \item \texttt{/auth/register}, \texttt{/auth/login}, \texttt{/auth/logout}
+  \item \texttt{/auth/enable\_2fa}, \texttt{/auth/2fa}, \texttt{/auth/disable\_2fa}
+  \item \texttt{/auth/verify-email/<token>}, \texttt{/auth/resend-verification}
+  \item \texttt{/auth/status}
+\end{itemize}
+\noindent Types d'attaques considérés: \textbf{bourrage d'identifiants}, \textbf{force brute}, \textbf{contournement 2FA}, \textbf{énumération d'email}, \textbf{CSRF} et \textbf{abus de liens signés}.
+
+\section{Contrôles en place (aperçu technique)}
+
+\subsection*{Mots de passe et stockage}
+\noindent Les mots de passe sont hachés avec Argon2id via \texttt{argon2-cffi}, avec paramètres adaptés à la mémoire. Vérification sûre:
+\begin{codebox}[language=Python]{Vérifier un mot de passe}
+from argon2 import PasswordHasher
+ph = PasswordHasher()
+ph.verify(user.password_hash, candidate)
+\end{codebox}
+
+\subsection*{Sessions et cookies}
+\noindent Cookies \texttt{HttpOnly}, \texttt{SameSite=Lax} et \texttt{Secure} activable par variable d'environnement (produit: à forcer). Durée \og remember \fg{} de 14~jours.
+\begin{codebox}[language=Python]{Paramètres de session (extrait)}
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE','false').lower()=='true'
+\end{codebox}
+
+\subsection*{CSRF et pages de formulaire}
+\noindent Les formulaires d'authentification utilisent Flask-WTF/CSRF. Certaines API JSON historiques sont explicitement exemptées (lecture seule), pas les routes d'authentification.
+
+\subsection*{CAPTCHA Turnstile}
+\noindent Un CAPTCHA Cloudflare Turnstile protège inscription et connexion; désactivé automatiquement en développement si clés absentes.
+\begin{codebox}[language=Python]{Vérifier le CAPTCHA (simplifié)}
+secret = os.getenv('TURNSTILE_SECRET_KEY','')
+if not secret: return True  # dev
+resp = requests.post('https://.../siteverify', data={...})
+ok = bool(resp.json().get('success'))
+\end{codebox}
+
+\subsection*{Limitation de débit et verrouillage}
+\noindent Double barrière: limites par route \emph{et} verrouillage progressif par compte après échecs répétés.
+\begin{codebox}[language=Python]{Limites de débit par route}
+@limiter.limit("5/minute")  # /auth/register
+@limiter.limit("10/minute") # /auth/login
+@limiter.limit("15/minute") # /auth/2fa
+@limiter.limit("30/hour")   # /auth/verify-email/<token>
+\end{codebox}
+
+\begin{codebox}[language=Python]{Verrouillage exponentiel (extrait)}
+if not user.verify_password(password):
+    user.failed_login_attempts += 1
+    if user.failed_login_attempts >= 5:
+        lock_minutes = min(60, 2 * user.failed_login_attempts + 5)
+        user.locked_until = utcnow() + timedelta(minutes=lock_minutes)
+\end{codebox}
+
+\subsection*{2FA TOTP et codes de secours}
+\noindent TOTP standard (30~s) via \texttt{pyotp}. Les codes de secours sont \textbf{hachés} avec Argon2 et \textbf{consommés} à l'usage.
+\begin{codebox}[language=Python]{Vérifier TOTP ou code de secours}
+totp_ok = pyotp.TOTP(user.totp_secret).verify(token, valid_window=1)
+backup_ok = user.verify_and_consume_backup_code(token)
+\end{codebox}
+
+\subsection*{Journalisation d'audit}
+\noindent Chaque tentative ou succès d'action sensible est consignée dans \texttt{auth\_db.auth\_events} et émise en JSON dans les logs:\
+\begin{itemize}
+  \item \textbf{Événements} : inscription, connexion (succès/échec), verrouillage, 2FA (succès/échec), activation/désactivation 2FA, email vérifié, logout.
+  \item \textbf{Contexte} : IP (\texttt{X-Forwarded-For} prioritaire), \texttt{User-Agent}, email tenté (si échec), métadonnées.
+  \item \textbf{Exploitation} : requêtes SQL côté \texttt{auth\_db} ou filtrage des logs \texttt{docker compose logs}.
 \end{itemize}
 
-\section{Modèle de données (auth\_db)}
-La table \texttt{users} stocke les comptes utilisateurs avec : email (unique), \texttt{password\_hash} (Argon2id), indicateur d'activation TOTP, secret TOTP (lorsqu'activé), codes de secours (liste JSON hachée avec Argon2), horodatages, compteurs d'échecs et fenêtre de verrouillage. Les tables analytiques restent inchangées.
+\begin{codebox}[language=SQL]{Exemples de requêtes}
+-- Connexions échouées pour un email sur 24 h
+SELECT occurred_at, ip_address, metadata_json
+FROM auth_events
+WHERE event_type = 'login_failure'
+  AND email_attempted = 'user@example.com'
+  AND occurred_at > NOW() - INTERVAL 1 DAY
+ORDER BY occurred_at DESC;
+\end{codebox}
 
-\section{Activation et utilisation de la 2FA}
-Lorsqu'un utilisateur active la 2FA, le serveur génère un secret Base32 aléatoire et affiche un QR code contenant une URI \textit{otpauth} standard. L'utilisateur vérifie le premier code à 6 chiffres pour activer la 2FA. Le serveur génère 10 codes de secours à usage unique et n'en stocke que les versions hachées avec Argon2. À la connexion, si la 2FA est active, l'utilisateur doit fournir un TOTP valide ou un code de secours non utilisé.
+\begin{codebox}[language=bash]{Filtrer les événements dans les logs du conteneur}
+docker compose logs -f app | grep 'auth_event' | cat
+\end{codebox}
 
-\section{Sécurité opérationnelle}
+\section{Scénarios d'attaque et déroulé}
+
+\subsection*{A1 — Bourrage d'identifiants / force brute}
+\textbf{Attaque}. Un robot tente des listes \og email+mot de passe \fg{}.
+
+\textbf{Côté serveur}. La route \texttt{/auth/login} est plafonnée à 10/min par IP; les échecs incrémentent un compteur par compte. Après 5 échecs: verrouillage progressif (5, 7, 9, ... minutes jusqu'à 60 min max). Cookies non délivrés tant que la session n'est pas authentifiée.
+
+\textbf{Résultat}. Les rafales sont ralenties par IP (limiteur) et par compte (verrouillage), ce qui rend l'attaque coûteuse et lente. Des détails supplémentaires de calibrage sont discutés ci-dessous.
+
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\textwidth}{\centering Placeholder: \emph{Courbe du temps d'attente cumulé} vs nombre d'essais échoués.}}
+  \caption{Verrouillage progressif: coût croissant pour l'attaquant.}
+\end{figure}
+
+\subsection*{A2 — Contournement 2FA}
+\textbf{Attaque}. L'attaquant dérobe un mot de passe (hameçonnage) et tente de se connecter sans 2FA.
+
+\textbf{Côté serveur}. Si \texttt{is\_totp\_enabled=true}, une étape 2FA obligatoire s'intercale. Un TOTP valide (\textpm 30~s) ou un code de secours non consommé est requis.
+
+\textbf{Résultat}. Sans le second facteur (ou un code de secours), l'intrusion échoue. Les codes de secours étant \textbf{hachés} et \textbf{consommés}, leur ré-utilisation est impossible.
+
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\textwidth}{\centering Placeholder: \emph{Diagramme de séquence} \og login + 2FA \fg{} avec embranchements TOTP/backup.}}
+  \caption{Garde 2FA: étape obligatoire après mot de passe.}
+\end{figure}
+
+\paragraph{Note}. Le secret TOTP est stocké en clair dans \texttt{auth\_db} (voir \S~\ref{sec:improve}). Cela protège contre les vols de base non, mais facilite la rotation et l'interopérabilité. Un chiffrement applicatif à la volée est recommandé en production.
+
+\subsection*{A3 — Énumération d'email}
+\textbf{Attaque}. Tester si un email existe via les messages d'erreur.
+
+\textbf{Côté serveur}. \texttt{/auth/login} répond \og Invalid credentials \fg{} dans tous les cas; \texttt{/auth/resend-verification} répond identiquement qu'un compte existe ou non. \textbf{Exception}: \texttt{/auth/register} indique si l'email existe déjà.
+
+\textbf{Résultat}. L'énumération est évitée sur login/resend, mais possible sur register. Voir \S~\ref{sec:improve} pour uniformiser les messages.
+
+\subsection*{A4 — Abus de liens signés (vérification d'email)}
+\textbf{Attaque}. Réutiliser un lien, tenter un bruteforce de jetons ou une inondation d'emails.
+
+\textbf{Côté serveur}. Jetons \texttt{itsdangerous} avec \textbf{sel dédiée} et péremption 48~h; limitation 30/h sur \texttt{/auth/verify-email/...}. Rythme d'envoi côté serveur limité (1 email/min par compte) et limite 5/min sur \texttt{/auth/resend-verification}.
+
+\textbf{Résultat}. Les relectures expirent, les tentatives massives sont ralenties.
+
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.9\textwidth}{\centering Placeholder: \emph{Timeline} d'un jeton: émission, délai de 48~h, invalidation.}}
+  \caption{Cycle de vie d'un jeton de vérification.}
+\end{figure}
+
+\subsection*{A5 — CSRF sur routes sensibles}
+\textbf{Attaque}. Forcer une action authentifiée via une page tierce.
+
+\textbf{Côté serveur}. Les formulaires d'authentification (POST) sont protégés par CSRF. Les API JSON en lecture restent exemptées.
+
+\textbf{Résultat}. Les tentatives de soumission cachée échouent faute de jeton.
+
+\section{Calibrage et limites actuelles}
+\noindent Les limites en place forment un socle solide mais peuvent être durcies:
 \begin{itemize}
-  \item \textbf{Secrets} : \texttt{SECRET\_KEY}, \texttt{AUTH\_DATABASE\_URI} et l'application de HTTPS sont fournis via des variables d'environnement dans Docker Compose.
-  \item \textbf{Pas de mots de passe en clair} : Seuls des hachages Argon2id sont stockés ; les codes de secours sont également hachés.
-  \item \textbf{Exposition minimale} : \texttt{auth\_db} dispose de privilèges dédiés ; l'application utilise un compte au moindre privilège.
-  \item \textbf{Résilience} : Le verrouillage et la limitation de débit réduisent l'impact des attaques par force brute et bourrage d'identifiants.
-  \item \textbf{CSP et en-têtes} : Gérés par Talisman ; la CSP est initialement souple en raison de l'usage de CDN et peut être durcie.
+  \item \textbf{Limiteur par IP} : efficace mais contournable via réseaux distribués; ajouter une clé composite (IP + email cible) et des \og seaux \fg{} par utilisateur.
+  \item \textbf{Verrouillage par compte} : robuste, mais attention au déni de service ciblé (un adversaire peut \og verrouiller \fg{} le compte d'une victime). Des \emph{captcha} et \emph{cooldowns} nuancés aident à mitiger.
+  \item \textbf{Remember cookie de 14~jours} : confortable; réduire la durée ou exiger 2FA périodiquement renforce la sécurité.
 \end{itemize}
 
-\section{Interface utilisateur}
-L'en-tête de chaque page inclut des boutons de connexion et d'inscription. Les utilisateurs authentifiés voient leur email et un bouton de déconnexion. L'activation de la 2FA propose l'inscription par QR code et le téléchargement des codes de secours.
-
-\section{Sécurité des données lors des mises à jour}
-La chaîne d'import des données opère exclusivement sur \texttt{stops\_db}. Le schéma \texttt{auth\_db} est indépendant et n'est jamais supprimé ni réimporté, ce qui garantit la persistance des identifiants des utilisateurs lors des rafraîchissements de données.
-
-\section{Pistes de durcissement}
+\section{Améliorations et vecteurs non encore couverts}\label{sec:improve}
+\noindent Mesures recommandées, de l'immédiat au stratégique:
 \begin{itemize}
-  \item Imposer HTTPS dans tous les environnements et définir \texttt{SESSION\_COOKIE\_SECURE=true}.
-  \item Ajouter la vérification d'email et la réinitialisation de mot de passe avec des jetons signés à durée limitée.
-  \item Surveiller les en-têtes de sécurité et ajouter des listes d'autorisation CSP pour les ressources CDN ou auto-héberger les actifs statiques.
-  \item Ajouter des journaux d'audit pour les actions d'administration et les événements d'authentification.
+  \item \textbf{Forcer HTTPS et cookies Secure} partout (\texttt{FORCE\_HTTPS=true}, \texttt{SESSION\_COOKIE\_SECURE=true}).
+  \item \textbf{Politiques CSP strictes} (actuellement désactivées) avec listes blanches minimales, ou auto-hébergement des actifs.
+  \item \textbf{Unifier les messages d'inscription} pour éviter l'énumération d'emails (réponse neutre: \og si un compte existe déjà, vous recevrez un email \fg{}).
+  \item \textbf{Clés de limite composites} : ajouter des limites \emph{par compte} (IP+email) et des \emph{burst tokens} pour lisser.
+  \item \textbf{Chiffrement au repos du secret TOTP} (p.~ex. libsodium/\texttt{Fernet} avec rotation de clés) et \textbf{réauthentification} exigée pour \texttt{/auth/disable\_2fa}.
+  \item \textbf{Rotation de session à la connexion} et vidage explicite de session pour réduire les risques de fixation.
+  \item \textbf{Réinitialisation de mot de passe} avec jetons signés mono-usage à durée courte (non implémenté, \S~\ref{chap:auth}).
+  \item \textbf{Détection d'anomalies basée sur les journaux d'audit} (IP, ASN, pays), alertes et tableaux de bord; politiques de rétention/archivage.
+  \item \textbf{Facteur résistant au phishing} (\emph{WebAuthn / Passkeys}) en option, en complément du TOTP.
+  \item \textbf{Durcissement du pipeline email} : DKIM/DMARC stricts, liens à usage unique invalidés à la première visite.
 \end{itemize}
 
+\vspace{0.5em}
+\noindent \textbf{Priorité court terme}. HTTPS forcé, CSP durcie, réauthentification pour désactiver la 2FA, chiffrement du secret TOTP, messages d'inscription non \og révélants \fg{}.
+
+\section{Conclusion}
+\noindent L'architecture d'authentification posée au \textbf{Chap.~\ref{chap:auth}} est saine: hachage robuste, 2FA réelle, captcha, limites et verrouillage. Ce chapitre a montré \emph{comment} ces mécanismes résistent aux attaques usuelles et a mis en lumière des durcissements concrets pour atteindre un niveau \og production \fg{}.
 

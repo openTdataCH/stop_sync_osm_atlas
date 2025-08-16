@@ -1,104 +1,174 @@
 % !TeX spellcheck = fr_FR
-\chapter{Chapitre 10: Architecture du rendu cartographique et optimisations de performance}
+\chapter{Chapitre 10: Système d'authentification sécurisé}\label{chap:auth}
 
-Ce chapitre résume l’architecture de la carte interactive, le flux de données client–serveur et les optimisations qui rendent la navigation réactive avec des volumes de données réalistes. Il expose succinctement les choix de conception et indique où des visuels renforceraient l’explication.
+\section{Objectifs}
+Nous avons conçu et mis en œuvre un système d'authentification complet. Il est aligné sur les bonnes pratiques actuelles.
 
-\section{Vue d’ensemble du système}
-La carte (Leaflet) rend quatre classes d’entités : paires appariées (ATLAS–OSM), arrêts ATLAS non appariés, nœuds OSM non appariés et agrégats de stations. Le client ne sollicite que ce qui est nécessaire pour dessiner les marqueurs dans la fenêtre d’affichage courante ; les détails riches des info-bulles sont chargés à la demande lorsque l’utilisateur interagit.
+\section{Aperçu de l'architecture}
+L'application utilise un schéma d'authentification dédié lié à une base de données MySQL distincte (\texttt{auth\_db}). Les données analytiques principales demeurent dans \texttt{stops\_db}. Cette séparation réduit le rayon d'impact et garantit entre d'autres choses que la réimportation des données analytiques ne touche jamais les identifiants des utilisateurs.
 
-Les données sont persistées à l’aide d’une table cœur normalisée \texttt{stops} (coordonnées, identifiants, types d’arrêt et d’appariement, distance) et de tables de détails \texttt{atlas\_stops} et \texttt{osm\_nodes} (noms, opérateurs, lignes, notes). Cette séparation permet de dessiner la carte à partir de \texttt{stops} uniquement pour la navigation, en reportant les métadonnées lourdes à des chargements à la demande.
-
-\paragraph{Illustration (suggestion).} Un petit diagramme de séquence : l’utilisateur se déplace/zoome \(\rightarrow\) le client appelle \texttt{/api/data} (minimal) \(\rightarrow\) les marqueurs apparaissent ; au clic \(\rightarrow\) le client appelle \texttt{/api/stop\_popup} \(\rightarrow\) les détails de l’info-bulle s’affichent.
-
-\section{Architecture du backend}
-\subsection{Points de terminaison}
+\subsection{Composants}
 \begin{itemize}
-  \item \texttt{/api/data} : renvoie un ensemble minimal d’enregistrements pour une fenêtre d’affichage et des filtres donnés (identifiants, attributs grossiers, coordonnées). Aucun itinéraire/aucune note n’est inclus(e).
-  \item \texttt{/api/stop\_popup} : renvoie des détails enrichis pour un arrêt unique à la demande (noms, opérateurs, lignes, notes, et contexte de multi-appariement le cas échéant).
-  \item \texttt{/api/top\_matches}, \texttt{/api/global\_stats} : rapports et synthèses d’en-tête.
-  \item La page Problèmes utilise également \texttt{/api/data} pour une petite fenêtre de contexte spatial (\S\ref{sec:problems-context}).
+  \item \textbf{Stockage des mots de passe} : Argon2id (argon2-cffi), à forte consommation mémoire, salé, avec des paramètres spécifiques à chaque hachage.
+  \item \textbf{Sessions} : Flask-Login avec cookies sécurisés (HttpOnly, SameSite=Lax ; indicateur Secure en production).
+  \item \textbf{CSRF} : Protection CSRF de Flask-WTF pour tous les formulaires POST et les points de terminaison concernés.
+  \item \textbf{Limitation de débit} : Les routes de connexion et d'inscription sont limitées (Flask-Limiter) afin d'atténuer la force brute.
+  \item \textbf{Sécurité du transport} : Flask-Talisman fournit les en-têtes de sécurité ; l'application stricte de HTTPS est configurable via les variables d'environnement.
+  \item \textbf{2FA} : TOTP (compatible Google Authenticator) avec activation par QR code et codes de secours à usage unique.
+  \item \textbf{Verrouillage de compte} : Verrouillage progressif après des échecs répétés, avec temporisation exponentielle.
+  \item \textbf{Vérification d'email} : Liens signés (validité 48 h) envoyés à l'inscription et lors d'une connexion non vérifiée. La vérification est \emph{optionnelle par défaut}. Elle peut être rendue obligatoire en production.
+  \item \textbf{CAPTCHA} : Cloudflare Turnstile sur \texttt{/auth/register} et \texttt{/auth/login} (contourné automatiquement en dev si clés absentes).
+  \item \textbf{Journalisation d'audit} : enregistrement des événements d'authentification dans \texttt{auth\_db.auth\_events} et émission simultanée de logs JSON sur \texttt{stdout} (exploitation via \texttt{docker compose logs}).
 \end{itemize}
 
-\subsection{Filtrage par fenêtre d’affichage (sargable)}
-Pour sélectionner les entités visibles, le serveur utilise un prédicat \emph{OR-of-ANDs} sargable au lieu de \verb|COALESCE|, ce qui permet d’exploiter les index B-Tree sur les paires de coordonnées ATLAS et OSM :
+\section{Modèle de données (auth\_db)}
+La table \texttt{users} stocke les comptes utilisateurs avec : email (unique), \texttt{password\_hash} (Argon2id), rôles (\texttt{is\_admin}), \textbf{vérification d'email} (\texttt{is\_email\_verified}, \texttt{email\_verified\_at}, \texttt{last\_verification\_sent\_at}), 2FA (\texttt{is\_totp\_enabled}, \texttt{totp\_secret}), codes de secours (JSON de hachés Argon2), hygiène de compte (\texttt{created\_at}, \texttt{updated\_at}, \texttt{last\_login\_at}), verrouillage (\texttt{failed\_login\_attempts}, \texttt{locked\_until}). Les tables analytiques restent inchangées.
 
-\begin{verbatim}
-(atlas_lat IS NOT NULL AND atlas_lon IS NOT NULL AND
- atlas_lat BETWEEN :min_lat AND :max_lat AND
- atlas_lon BETWEEN :min_lon AND :max_lon)
-OR
-(atlas_lat IS NULL AND atlas_lon IS NULL AND
- osm_lat IS NOT NULL AND osm_lon IS NOT NULL AND
- osm_lat BETWEEN :min_lat AND :max_lat AND
- osm_lon BETWEEN :min_lon AND :max_lon)
-\end{verbatim}
+\subsection*{Journalisation d'audit (\texttt{auth\_events})}
+\noindent Une table \texttt{auth\_events} (même schéma \texttt{auth\_db}) consigne les événements de sécurité:\
+\texttt{event\_type} (\textit{registration}, \textit{login\_success}, \textit{login\_failure}, \textit{account\_locked}, \textit{2fa\_success}, \textit{2fa\_failure}, \textit{2fa\_enabled}, \textit{2fa\_disabled}, \textit{email\_verified}),\
+\texttt{user\_id} (nullable), \texttt{email\_attempted} (pour les échecs), \texttt{ip\_address}, \texttt{user\_agent}, \texttt{metadata\_json}, \texttt{occurred\_at} (UTC).
 
-\subsection{Politique de charge utile}
-\textbf{Charge utile de navigation minimale uniquement.} L’endpoint \texttt{/api/data} renvoie toujours une structure JSON compacte suffisante pour rendre les marqueurs (identifiants, types, coordonnées, distance, identifiants sélectionnés). N’y figurent jamais les itinéraires, les notes ou le contenu des tables liées ; les info-bulles s’appuient entièrement sur \texttt{/api/stop\_popup}. Cela réduit la taille des charges utiles et accélère l’analyse à tous les niveaux de zoom.
+\begin{codebox}[language=Python]{Modèle minimal (extrait)}
+class AuthEvent(db.Model):
+    __bind_key__ = 'auth'
+    __tablename__ = 'auth_events'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+    email_attempted = db.Column(db.String(255), index=True)
+    event_type = db.Column(db.String(50), nullable=False, index=True)
+    ip_address = db.Column(db.String(45))
+    user_agent = db.Column(db.Text)
+    metadata_json = db.Column(db.Text)
+    occurred_at = db.Column(db.DateTime, default=utcnow, index=True)
+\end{codebox}
 
-Le serveur omet intentionnellement les structures coûteuses d’agrégation des multi-appariements dans \texttt{/api/data}. Les éléments visuels à fort zoom (p. ex. lignes de liaison) sont dérivés côté client à partir des coordonnées ligne par ligne lorsque disponibles.
+\noindent Les mêmes événements sont émis au format JSON sur la sortie standard du service pour une collecte centralisée.
 
-\subsection{Indexation de la base de données}
-Les index qui prennent en charge les schémas d’accès courants incluent : \verb|stops(atlas_lat, atlas_lon)|, \verb|stops(osm_lat, osm_lon)| (fenêtre d’affichage), \verb|stops(stop_type, match_type)| (filtres), et \verb|atlas_stops(atlas_business_org_abbr)| (filtres opérateur).
+\vspace{0.5em}
+\noindent Exemple minimal de hachage côté serveur au moment de l'inscription:
+\begin{codebox}[language=Python]{Hachage du mot de passe (inscription)}
+from argon2 import PasswordHasher
+ph = PasswordHasher()
+password_hash = ph.hash(plain_password)
+\end{codebox}
 
-\section{Architecture du frontend}
-\subsection{Cycle de vie des requêtes et limitation du débit}
-Pour maintenir l’interface réactive lors des déplacements/zooms :
+\noindent Extraits visuels de la table \texttt{users} (voir aussi les sections UI pour le contexte temporel):
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db1.png}
+  \caption{\texttt{auth\_db.users}: \texttt{email} et \texttt{password\_hash} après inscription.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db2.png}
+  \caption{\texttt{auth\_db.users}: \texttt{is\_admin}, \texttt{is\_email\_verified}, \texttt{last\_verification\_sent\_at}, \texttt{is\_totp\_enabled}.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db3.png}
+  \caption{\texttt{auth\_db.users}: \texttt{totp\_secret}, \texttt{backup\_codes\_json}, \texttt{created\_at}, \texttt{updated\_at}.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db4.png}
+  \caption{\texttt{auth\_db.users}: \texttt{last\_login\_at}, \texttt{failed\_login\_attempts}, \texttt{locked\_until}.}
+\end{figure}
+
+\section{Vérification d'email}
+À l'inscription, un lien de vérification signé (valide 48 h) est envoyé. Lorsqu'un utilisateur non vérifié se connecte avec succès, l'application \textbf{autorise la connexion} et renvoie un nouvel email de vérification accompagné d'un avertissement UI. Des routes dédiées existent pour \textit{vérifier} (\texttt{/auth/verify-email/<token>}) et \textit{renvoyer} (\texttt{/auth/resend-verification}) le lien. Cette vérification peut être rendue obligatoire côté produit si nécessaire.
+
+\begin{figure}[h]
+  \centering
+  \fbox{\parbox{0.8\textwidth}{\centering Placeholder visuel pour la capture de la vérification d'email.\\ Lien signé, expiration 48~h, renouvelable.}}
+  \caption{Processus de vérification d'email (espace réservé).}
+\end{figure}
+
+\begin{codebox}[language=Python]{Jeton de vérification d'email (aligné avec l'implémentation)}
+from itsdangerous import URLSafeTimedSerializer
+s = URLSafeTimedSerializer(SECRET_KEY, salt="email-verification")
+token = s.dumps({"uid": user_id})
+# Plus tard:  uid = int(s.loads(token, max_age=60*60*48)["uid"])  # 48 h
+\end{codebox}
+
+\section{Activation et utilisation de la 2FA}
+Lorsqu'un utilisateur active la 2FA, le serveur génère un secret Base32 aléatoire et affiche un QR code contenant une URI \textit{otpauth} standard. L'utilisateur vérifie le premier code à 6 chiffres pour activer la 2FA. Le serveur génère 10 codes de secours à usage unique et n'en stocke que les versions hachées avec Argon2. À la connexion, si la 2FA est active, l'utilisateur doit fournir un TOTP valide ou un code de secours non utilisé.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/enable_up2fa.png}
+  \caption{Activation 2FA avec QR \textit{otpauth://} et secret Base32. QR et secret encodent la même information.}
+\end{figure}
+
+\begin{codebox}[language=Python]{Validation TOTP (connexion avec 2FA)}
+import pyotp
+is_valid = pyotp.TOTP(totp_secret).verify(code, valid_window=1)
+\end{codebox}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/backupcodes.png}
+  \caption{Codes de secours: affichés une seule fois à l'activation. Stockage côté serveur: hachés Argon2 dans un JSON.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/enter2FA.png}
+  \caption{Étape de connexion avec saisie du code 2FA (ou d'un code de secours).}
+\end{figure}
+
+\section{Sécurité opérationnelle}
 \begin{itemize}
-  \item \textbf{Anti-rebond} (debounce) de \verb|moveend|/\verb|zoomend| à \(\sim320\,\mathrm{ms}\) avant de récupérer les données de la nouvelle fenêtre d’affichage.
-  \item \textbf{Annulation des requêtes en cours} lorsqu’une nouvelle démarre ; ignorer les réponses obsolètes.
-  \item \textbf{Plafond à zoom intermédiaire} : récupérer jusqu’à \(500\) entités par requête pour garder de petites charges utiles.
-  \item \textbf{Sans plafond à fort zoom} : une fois le seuil atteint plus deux niveaux de zoom, le client omet la limite et le serveur renvoie \emph{tous} les marqueurs dans la fenêtre d’affichage.
-  \item \textbf{Exception « petit ensemble » à faible zoom} : aux faibles zooms (en dessous du seuil d’affichage des marqueurs), le client effectue une requête de sondage avec un plafond plus petit (\(\leq250\)). Si l’ensemble filtré contient \(\leq250\) entités, elles sont rendues même à faible zoom. Sinon, une bannière s’affiche et le rendu est différé jusqu’à ce que l’utilisateur zoome.
+  \item \textbf{Secrets} : \texttt{SECRET\_KEY}, \texttt{AUTH\_DATABASE\_URI} et l'application de HTTPS sont fournis via des variables d'environnement dans Docker Compose.
+  \item \textbf{Pas de mots de passe en clair} : Seuls des hachages Argon2id sont stockés ; les codes de secours sont également hachés.
+  \item \textbf{Exposition minimale} : \texttt{auth\_db} dispose de privilèges dédiés ; l'application utilise un compte au moindre privilège.
+  \item \textbf{Résilience} : Le verrouillage et la limitation de débit réduisent l'impact des attaques par force brute et bourrage d'identifiants.
+  \item \textbf{CSP et en-têtes} : Gérés par Talisman ; la CSP est initialement souple en raison de l'usage de CDN et peut être durcie.
 \end{itemize}
 
-\paragraph{Illustration (suggestion).} Un diagramme temporel montrant des déplacements rapides, la fenêtre d’anti-rebond de 320\,ms et l’annulation des requêtes précédentes.
+\section{Interface utilisateur}
+L'en-tête de chaque page inclut des boutons de connexion et d'inscription. Les utilisateurs authentifiés voient leur email et un bouton de déconnexion. L'activation de la 2FA propose l'inscription par QR code et le téléchargement des codes de secours.
 
-\subsection{Seuils de zoom et politique visuelle}
-Nous alignons le travail visuel sur l’intention :
+\paragraph{Accès aux écrans d'authentification}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth1.png}
+  \caption{Bouton \og Créer un compte \fg{} visible dans l'interface.}
+\end{figure}
+
+\paragraph{Inscription}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/create_account.png}
+  \caption{Formulaire d'inscription (email, mot de passe).}
+\end{figure}
+
+\paragraph{Connexion}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/login_page.png}
+  \caption{Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref{chap:security}).}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/login_succesful.png}
+  \caption{Connexion réussie: alertes UI sur l'email non vérifié et la 2FA non activée.}
+\end{figure}
+
+\section{Sécurité des données lors des mises à jour}
+La chaîne d'import des données opère exclusivement sur \texttt{stops\_db}. Le schéma \texttt{auth\_db} est indépendant et n'est jamais supprimé ni réimporté, ce qui garantit la persistance des identifiants des utilisateurs lors des rafraîchissements de données.
+
+\section{Pistes de durcissement}
 \begin{itemize}
-\item \textbf{Masquer les marqueurs} en dessous de \(z<13\) ; afficher une petite bannière invitant l’utilisateur à zoomer. Le texte de la bannière est \emph{« Zoomez pour voir tous les marqueurs d’arrêt »} et reste visible pendant \emph{deux} niveaux de zoom après la première apparition des marqueurs afin d’indiquer que tous les marqueurs ne sont peut-être pas encore affichés.
-  \item \textbf{Masquer les lignes de liaison} en dessous de \(z<14\) ; ne tracer les lignes ATLAS\,\(\rightarrow\)OSM qu’aux niveaux de zoom plus élevés.
+  \item HTTPS et cookies sécurisés activés en \textbf{production} (\texttt{FORCE\_HTTPS=true}, \texttt{SESSION\_COOKIE\_SECURE=true}); en développement local, HTTPS reste optionnel pour préserver l'ergonomie.
+  \item \textbf{Réinitialisation de mot de passe} : à ajouter via jetons signés, mono-usage et à durée limitée.
+  \item Vérifier et durcir la CSP (Talisman) pour les ressources CDN ou auto-héberger les actifs statiques.
+  \item Surveiller les en-têtes de sécurité et ajouter des listes d'autorisation CSP pour les ressources CDN ou auto-héberger les actifs statiques.
+  \item Exploiter les \textbf{journaux d'audit existants} pour la \textbf{détection d'anomalies} (IP/ASN/pays inhabituels, heuristiques de fraude) et définir une politique de \textbf{rétention/archivage}.
 \end{itemize}
-
-\subsection{Rendu des marqueurs : Canvas d’abord, lettres en dernier}
-Les icônes basées sur le DOM (\verb|L.marker| avec \verb|divIcon|) ont un coût élevé lorsqu’elles sont nombreuses. Nous :
-\begin{itemize}
-  \item Préférer les \textbf{cercles Canvas} (\verb|L.circleMarker|) aux faibles et moyens niveaux de zoom et activer l’option de carte \verb|preferCanvas| de Leaflet.
-  \item Rendre les \textbf{icônes lettrées} (\texttt{D}, \texttt{P}, \texttt{S}) uniquement à partir de \(z\geq18\). Aux niveaux de zoom inférieurs, les mêmes nœuds utilisent des cercles légers.
-  \item \textbf{Mettre en cache} les instances identiques de \verb|divIcon| par clé (type+couleur+libellé) pour éviter de recréer du DOM.
-  \item \textbf{Ajouter par lots} les marqueurs aux couches pour éviter de longs blocages du thread principal lors d’inserts massifs.
-  \item Appliquer un léger \textbf{motif de décalage} en cas de superposition exacte des coordonnées afin d’éviter l’occlusion visuelle sans recourir à un 
-  regroupement complet.
-\end{itemize}
-
-\paragraph{Illustration (suggestion).} Une figure en trois panneaux de la même zone à \(z=12\) (pas de marqueurs, bannière), \(z=15\) (cercles Canvas uniquement) et \(z=18\) (marqueurs lettrés pour le sous-ensemble qui en a besoin).
-
-\section{Paires appariées et polylignes}
-À fort zoom, nous traçons des lignes de liaison entre les coordonnées ATLAS et OSM pour les entités appariées lorsque les deux extrémités sont visibles. Les lignes sont omises aux faibles zooms pour réduire l’encombrement et le coût de rendu. Comme \texttt{/api/data} est strictement minimal, cette logique s’applique directement aux coordonnées de chaque ligne ; un contexte relationnel plus riche, si nécessaire, est récupéré via \texttt{/api/stop\_popup}.
-
-\section{Récupération du contexte sur la page Problèmes}
-\label{sec:problems-context}
-La page Problèmes affiche des \emph{marqueurs de contexte} autour du problème courant à l’aide d’une petite boîte englobante (\(\pm 0.02^\circ\), \(\approx 2\,\mathrm{km}\)), de résultats plafonnés (\(150\)–\(200\)) et de la même politique de rendu (Canvas d’abord, lignes uniquement à fort zoom). Les info-bulles sont chargées paresseusement via \texttt{/api/stop\_popup}, et les marqueurs sont ajoutés par lots. La carte active aussi \verb|preferCanvas| pour un dessin vectoriel rapide.
-
-\section{Considérations d’expérience utilisateur}
-\subsection{Échantillonnage et limites}
-Aux zooms intermédiaires, le client plafonne les résultats (\(\leq500\)) et le serveur renvoie un sous-ensemble. À fort zoom (seuil + deux niveaux), le client omet la limite et \emph{tous} les marqueurs qui correspondent dans la fenêtre d’affichage sont renvoyés. L’interface communique le contexte via la bannière de zoom et un rendu incrémental rapide. À faible zoom, le client émet une requête de sondage avec un plafond plus petit ; si le nombre de résultats est faible (\(\leq250\)), ils sont rendus immédiatement. Sinon, la bannière s’affiche et le rendu complet est différé jusqu’à ce que l’utilisateur zoome. Une amélioration facultative consiste en une petite note du type \emph{« Affichage de N sur M. Zoomez pour en voir davantage. »}
-
-\subsection{Statistiques d’en-tête}
-Les statistiques globales se rafraîchissent en parallèle des chargements de données et s’appuient sur des agrégations optimisées afin de ne pas dégrader la navigation interactive.
-
-\section{Impact sur les performances}
-Gains qualitatifs observés sur l’ensemble des jeux de données :
-\begin{itemize}
-  \item \textbf{Serveur} : CPU plus faible grâce aux filtres sargables, à la sérialisation de charges utiles plus petites et aux requêtes anti-rebond/annulées.
-  \item \textbf{Réseau} : JSON systématiquement plus petit (strictement minimal), analyse plus rapide.
-  \item \textbf{Client} : moins de nœuds DOM (lettres uniquement à \(z\geq18\)), rendu Canvas d’abord, icônes mises en cache et insertions par lots réduisent le travail du thread principal.
-\end{itemize}
-
-\paragraph{Illustration (suggestion).} Un histogramme comparant les tailles de charge utile (\texttt{/api/data} minimal vs \texttt{/api/stop\_popup} à la demande) et une courbe du temps par image avant/après « Canvas d’abord » + insertions par lots.
-
-\section{Résumé}
-Le système atteint des performances interactives en associant une charge utile de navigation \textbf{strictement minimale} à des \textbf{détails d’info-bulle différés}, un filtrage de fenêtre d’affichage sargable, des requêtes anti-rebond/annulables et un rendu \textbf{Canvas d’abord}. Les icônes DOM lettrées sont différées à des niveaux de zoom très élevés et réutilisées via la mise en cache ; les marqueurs sont insérés par lots pour maintenir la réactivité du thread principal. Ensemble, ces mesures réduisent le travail côté serveur, le coût réseau et la charge de rendu côté client tout en préservant la clarté lors d’une inspection détaillée.
 
 

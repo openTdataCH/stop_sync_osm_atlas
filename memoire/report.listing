@@ -1,0 +1,8 @@
+## Ouvrir un shell dans le conteneur app
+docker compose exec app bash
+
+# Tester la connexion MySQL depuis l'hôte
+mysql -h 127.0.0.1 -P 3306 -u stops_user -p1234 -e "SHOW DATABASES;"
+
+# Rebuilder l'image quand requirements.txt change
+docker compose build app && docker compose up -d

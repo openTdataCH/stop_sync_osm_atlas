@@ -1,18 +1,8 @@
-+-------------------+    save_solution     +-------------------+
-| UI (Problems)     | -------------------> | Problem.solution  |
-|                   |                      | (temporaire)      |
-+-------------------+                      +-------------------+
-        |                                           |
-        | make_persistent                           |
-        v                                           v
-+-------------------+    persist_data      +-------------------+
-| PersistentData    | <------------------- | Problem record    |
-| (survit import)   |                      | + is_persistent   |
-+-------------------+                      +-------------------+
-        |
-        | Prochain import
-        v
-+-------------------+    apply_solutions
-| Nouvel import     | -------------------> Solution reappliquee
-| (import_data_db)  |                      automatiquement
-+-------------------+
+## Ouvrir un shell dans le conteneur app
+docker compose exec app bash
+
+# Tester la connexion MySQL depuis l'hôte
+mysql -h 127.0.0.1 -P 3306 -u stops_user -p1234 -e "SHOW DATABASES;"
+
+# Rebuilder l'image quand requirements.txt change
+docker compose build app && docker compose up -d

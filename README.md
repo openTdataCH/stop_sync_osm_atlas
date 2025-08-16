@@ -108,6 +108,10 @@ It identifies exact and fuzzy matches, computes geographic distances, performs r
   - `DATABASE_URI`, `AUTH_DATABASE_URI`: SQLAlchemy URIs. Override to use your chosen users.
   - `SECRET_KEY`: Flask secret key (set a strong value in production).
   - `AUTO_MIGRATE`, `MATCH_ONLY`, `SKIP_DATA_IMPORT`: control data pipeline and migrations.
+  - `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`: Cloudflare Turnstile CAPTCHA (optional locally; required to enable CAPTCHA on auth forms).
+  - `AWS_REGION`, `SES_FROM_EMAIL`: Amazon SES region and a verified sender identity (required to send emails).
+  - `SES_CONFIGURATION_SET` (optional): existing SES configuration set name.
+  - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (optional): AWS credentials if not using instance/task roles.
 
 Example `.env` snippet:
 ```env
@@ -119,6 +123,16 @@ DATABASE_URI=mysql+pymysql://stops_user:1234@db/stops_db
 AUTH_DATABASE_URI=mysql+pymysql://auth_user:change-me-strong@db/auth_db
 SECRET_KEY=dev-insecure
 AUTO_MIGRATE=true
+# CAPTCHA (Cloudflare Turnstile)
+TURNSTILE_SITE_KEY=your-turnstile-site-key
+TURNSTILE_SECRET_KEY=your-turnstile-secret-key
+# Email (Amazon SES)
+AWS_REGION=eu-west-1
+SES_FROM_EMAIL=no-reply@example.com
+# SES_CONFIGURATION_SET=your-config-set
+# If not using roles, provide AWS credentials via env
+# AWS_ACCESS_KEY_ID=...
+# AWS_SECRET_ACCESS_KEY=...
 ```
 
 ## Admin Management CLI
@@ -133,6 +147,21 @@ docker compose exec app python manage.py set-admin --email you@example.com --off
 ```
 
 The project uses Alembic (via Flask‑Migrate) to manage schema for both MySQL databases (`stops_db` and `auth_db`). On startup, the application waits for MySQL and runs `flask db upgrade` to apply migrations. In development, migrations can be auto‑generated on first run.
+
+## Authentication & Audit
+
+- Authentication features: email/password (Argon2id), optional email verification, TOTP 2FA with backup codes, rate limiting and progressive lockout.
+- Audit logging is enabled: all auth events are stored in `auth_db.auth_events` and also emitted as structured JSON to stdout.
+
+Quick ways to inspect events:
+
+```bash
+# From your host, open a MySQL shell and query recent failed logins
+docker compose exec db mysql -u stops_user -p1234 -e "USE auth_db; SELECT occurred_at, email_attempted, ip_address FROM auth_events WHERE event_type='login_failure' ORDER BY occurred_at DESC LIMIT 20;"
+
+# Tail only auth events from app logs
+docker compose logs -f app | grep auth_event | cat
+```
 
 ## Data Acquisition (Entrypoint)
 When the `app` container starts (and data import is not skipped), the entrypoint runs:

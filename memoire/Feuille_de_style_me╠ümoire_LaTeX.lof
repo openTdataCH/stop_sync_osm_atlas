@@ -19,89 +19,105 @@
 \defcounter {refsection}{0}\relax 
 \contentsline {figure}{\numberline {1.8}{\ignorespaces Genève: SLOIDs appariés (GTFS vs HRDF)}}{17}{figure.caption.22}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {1.9}{\ignorespaces HRDF: distribution du nombre de \textit {directions (noms)} par SLOID.\relax }}{17}{figure.caption.23}%
+\addvspace {10\p@ }
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {2.1}{\ignorespaces Présence des balises clés}}{23}{figure.caption.23}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {2.2}{\ignorespaces Distribution des itinéraires par nœud}}{24}{figure.caption.24}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {2.3}{\ignorespaces Directions H/R connues}}{26}{figure.caption.25}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {2.1}{\ignorespaces Présence des balises clés}}{23}{figure.caption.24}%
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Correspondances exactes à Genève-Cornavin}}{29}{figure.caption.26}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {2.2}{\ignorespaces Distribution des itinéraires par nœud}}{24}{figure.caption.25}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Exemple de correspondance par nom}}{30}{figure.caption.27}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {2.3}{\ignorespaces Directions H/R connues}}{26}{figure.caption.26}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Correspondances – Münchenstein, Hofmatt}}{31}{figure.caption.28}%
 \defcounter {refsection}{0}\relax 
-\addvspace {10\p@ }
+\contentsline {figure}{\numberline {3.4}{\ignorespaces Correspondances – Zürich HB (étape 2)}}{32}{figure.caption.31}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {3.1}{\ignorespaces Correspondances exactes à Genève-Cornavin}}{29}{figure.caption.27}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {3.2}{\ignorespaces Exemple de correspondance par nom}}{30}{figure.caption.28}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {3.3}{\ignorespaces Correspondances – Münchenstein, Hofmatt}}{31}{figure.caption.29}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {3.4}{\ignorespaces Correspondances – Zürich HB (étape 2)}}{32}{figure.caption.32}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {3.5}{\ignorespaces Correspondance par distance – étape 3}}{33}{figure.caption.33}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces Correspondance par distance – étape 3}}{33}{figure.caption.32}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {4.1}{\ignorespaces Nœuds OSM hors lignes vs. sur des lignes (région de Genève).\relax }}{38}{figure.caption.34}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Nœuds OSM hors lignes vs. sur des lignes (région de Genève).\relax }}{38}{figure.caption.33}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {4.2}{\ignorespaces OSM : tracé des lignes à partir des relations de type \texttt {route} (Genève). Géométrie bien structurée.\relax }}{39}{figure.caption.35}%
+\contentsline {figure}{\numberline {4.2}{\ignorespaces OSM : tracé des lignes à partir des relations de type \texttt {route} (Genève). Géométrie bien structurée.\relax }}{39}{figure.caption.34}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {4.3}{\ignorespaces Atlas-GTFS : approximation des trajets (Genève). Lignes reconstruites depuis l'ordre des arrêts — plus fragmenté.\relax }}{39}{figure.caption.36}%
+\contentsline {figure}{\numberline {4.3}{\ignorespaces Atlas-GTFS : approximation des trajets (Genève). Lignes reconstruites depuis l'ordre des arrêts — plus fragmenté.\relax }}{39}{figure.caption.35}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {4.4}{\ignorespaces HRDF : approximation des trajets (Genève). Déduite des séquences \texttt {FPLAN} via les codes UIC.\relax }}{40}{figure.caption.37}%
+\contentsline {figure}{\numberline {4.4}{\ignorespaces HRDF : approximation des trajets (Genève). Déduite des séquences \texttt {FPLAN} via les codes UIC.\relax }}{40}{figure.caption.36}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {4.5}{\ignorespaces Distribution du nombre de lignes GTFS uniques par \texttt {sloid} (coupée à 20).\relax }}{42}{figure.caption.38}%
+\contentsline {figure}{\numberline {4.5}{\ignorespaces Distribution du nombre de lignes GTFS uniques par \texttt {sloid} (coupée à 20).\relax }}{42}{figure.caption.37}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {4.6}{\ignorespaces Distribution du nombre de couples (ligne, direction) par \texttt {sloid} (coupée à 30).\relax }}{42}{figure.caption.39}%
+\contentsline {figure}{\numberline {4.6}{\ignorespaces Distribution du nombre de couples (ligne, direction) par \texttt {sloid} (coupée à 30).\relax }}{42}{figure.caption.38}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {4.7}{\ignorespaces Distribution du nombre de lignes HRDF uniques par \texttt {sloid} (coupee a 20).\relax }}{43}{figure.caption.40}%
+\contentsline {figure}{\numberline {4.7}{\ignorespaces Distribution du nombre de lignes HRDF uniques par \texttt {sloid} (coupee a 20).\relax }}{43}{figure.caption.39}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {4.8}{\ignorespaces Nombre de tokens GTFS \((ligne, direction)\) par \texttt {sloid} retrouvés dans OSM (coupée à 30).\relax }}{47}{figure.caption.41}%
-\defcounter {refsection}{0}\relax 
-\addvspace {10\p@ }
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Distances par méthode ($\leq $ 200 m)}}{50}{figure.caption.42}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.2}{\ignorespaces Boîtes par méthode}}{50}{figure.caption.43}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.3}{\ignorespaces Distribution globale (log)}}{51}{figure.caption.44}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.4}{\ignorespaces Distances par opérateur}}{52}{figure.caption.45}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.5}{\ignorespaces Tranches de distance}}{53}{figure.caption.46}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {5.6}{\ignorespaces Par type de nœud OSM}}{54}{figure.caption.47}%
+\contentsline {figure}{\numberline {4.8}{\ignorespaces Nombre de tokens GTFS \((ligne, direction)\) par \texttt {sloid} retrouvés dans OSM (coupée à 30).\relax }}{47}{figure.caption.40}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {6.1}{\ignorespaces Filtres de l'application web : par type de problème et priorité.\relax }}{63}{figure.caption.48}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Distances par méthode ($\leq $ 200 m)}}{50}{figure.caption.41}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {6.2}{\ignorespaces Vue de rapport centrée sur les problèmes (esquisse).\relax }}{64}{figure.caption.49}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces Boîtes par méthode}}{50}{figure.caption.42}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {6.3}{\ignorespaces Vue d'ensemble de la distribution des distances pour les paires appariées (illustratif).\relax }}{64}{figure.caption.50}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces Distribution globale (log)}}{51}{figure.caption.43}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {6.4}{\ignorespaces Exemple d'histogramme des distances (à aligner avec les seuils de problème).\relax }}{65}{figure.caption.51}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces Distances par opérateur}}{52}{figure.caption.44}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {5.5}{\ignorespaces Tranches de distance}}{53}{figure.caption.45}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {5.6}{\ignorespaces Par type de nœud OSM}}{54}{figure.caption.46}%
+\defcounter {refsection}{0}\relax 
+\addvspace {10\p@ }
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {6.1}{\ignorespaces Filtres de l'application web : par type de problème et priorité.\relax }}{63}{figure.caption.47}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {6.2}{\ignorespaces Vue de rapport centrée sur les problèmes (esquisse).\relax }}{64}{figure.caption.48}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {6.3}{\ignorespaces Vue d'ensemble de la distribution des distances pour les paires appariées (illustratif).\relax }}{64}{figure.caption.49}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {6.4}{\ignorespaces Exemple d'histogramme des distances (à aligner avec les seuils de problème).\relax }}{65}{figure.caption.50}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {7.1}{\ignorespaces Répartition des entrées par type (lecture directe de \texttt {stops}).\relax }}{71}{figure.caption.52}%
+\contentsline {figure}{\numberline {7.1}{\ignorespaces Répartition des entrées par type (lecture directe de \texttt {stops}).\relax }}{71}{figure.caption.51}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {7.2}{\ignorespaces Histogramme des distances ATLAS–OSM entre 0 et 200 m (mise à jour).\relax }}{71}{figure.caption.53}%
+\contentsline {figure}{\numberline {7.2}{\ignorespaces Histogramme des distances ATLAS–OSM entre 0 et 200 m (mise à jour).\relax }}{71}{figure.caption.52}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {7.3}{\ignorespaces Histogramme des distances ATLAS–OSM (toutes distances, mise à jour).\relax }}{72}{figure.caption.54}%
+\contentsline {figure}{\numberline {7.3}{\ignorespaces Histogramme des distances ATLAS–OSM (toutes distances, mise à jour).\relax }}{72}{figure.caption.53}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {7.4}{\ignorespaces Problèmes: résolus vs non résolus, par type (état actualisé).\relax }}{72}{figure.caption.55}%
+\contentsline {figure}{\numberline {7.4}{\ignorespaces Problèmes: résolus vs non résolus, par type (état actualisé).\relax }}{72}{figure.caption.54}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {7.5}{\ignorespaces Routes/directions par type de correspondance (GTFS et HRDF, mise à jour).\relax }}{73}{figure.caption.56}%
-\defcounter {refsection}{0}\relax 
-\addvspace {10\p@ }
+\contentsline {figure}{\numberline {7.5}{\ignorespaces Routes/directions par type de correspondance (GTFS et HRDF, mise à jour).\relax }}{73}{figure.caption.55}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {9.1}{\ignorespaces Vue générale — filtres, carte Leaflet, résumé d'en-tête\relax }}{91}{figure.caption.56}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {9.2}{\ignorespaces Politique de rendu selon le niveau de zoom\relax }}{92}{figure.caption.57}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {9.3}{\ignorespaces Marqueurs et polylignes de correspondance\relax }}{93}{figure.caption.58}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {9.4}{\ignorespaces Info-bulles: vue initiale et vue unifiée\relax }}{94}{figure.caption.59}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {9.5}{\ignorespaces Filtres, opérateur, Top~N, et résumé d'en-tête\relax }}{94}{figure.caption.60}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {9.6}{\ignorespaces Page Problèmes — revue et résolution guidée\relax }}{95}{figure.caption.61}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {9.7}{\ignorespaces Gestion des solutions et notes persistées\relax }}{96}{figure.caption.62}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {9.8}{\ignorespaces Génération de rapports (PDF/CSV)\relax }}{96}{figure.caption.63}%
+\defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
+\defcounter {refsection}{0}\relax 
+\addvspace {10\p@ }
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {12.1}{\ignorespaces Deux conteneurs reliés sur le réseau compose; volumes pour le code (monté) et les données MySQL (persistées).\relax }}{103}{figure.caption.64}%
 \contentsfinish 

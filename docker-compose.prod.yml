@@ -1,0 +1,7 @@
+services:
+  app:
+    environment:
+      FORCE_HTTPS: "true"
+      SESSION_COOKIE_SECURE: "true"
+
+

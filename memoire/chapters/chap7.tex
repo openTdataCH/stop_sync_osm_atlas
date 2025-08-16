@@ -8,7 +8,7 @@ Cette application est construite autour d'un \textit{graphe spatial} de points d
 Ce chapitre rend cette mécanique visible, avec des extraits de code, des schémas, et des graphiques générés directement depuis la base existante.
 
 \vspace{0.5em}
-\textbf{Spoiler} — le chapitre \texttt{chap8.tex} plongera ensuite dans le backend (API, endpoints, sécurité, pagination, etc.), en s'appuyant sur les éléments que nous posons ici.
+Le chapitre \texttt{chap8.tex} plongera ensuite dans le backend (API, endpoints, sécurité, pagination, etc.), en s'appuyant sur les éléments que nous posons ici.
 
 \section{Importer les données: le rôle de \texttt{import\_data\_db.py}}
 L'import est orchestré par le script \texttt{import\_data\_db.py}. Il ne se contente pas d'insérer des lignes: il nettoie, croise des sources, calcule des priorités de problèmes, et construit des artefacts prêts pour l'interface.
@@ -143,51 +143,6 @@ viewport_sargable = or_(
 query = query.filter(viewport_sargable)
 \end{codebox}
 
-\section{Statistiques et graphiques depuis la base}
-Tous les chiffres et graphiques ci-dessous proviennent d'une interrogation \textit{en lecture seule} de la base existante (aucun ré-import ou recalcul global). Comme mentionné au \textbf{chapitre 5}, l'analyse de contenu et l'interprétation détaillée ont déjà été présentées; nous évitons ici de nous répéter et nous référons à ce chapitre pour la discussion approfondie. Nous nous concentrons ici sur la \textit{fraîcheur des chiffres} et leur \textit{usage pour l'architecture}.
-
-\subsection{Volumes globaux}
-Comme mentionné au \textbf{chapitre 5}, nous avions présenté ces ordres de grandeur. Ici, nous donnons les \textit{totaux actualisés} issus de la base au moment de la génération (\S\ref{subsec:scripts-ch7}):\\
-\texttt{77\,074} entrées dans \texttt{stops}, dont \texttt{48\,528} \texttt{matched}, \texttt{9\,537} \texttt{unmatched} (ATLAS isolés) et \texttt{19\,009} \texttt{osm} (OSM isolés).
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.68\linewidth]{figures/chap7/stops_by_type.png}
-  \caption{Répartition des entrées par type (lecture directe de \texttt{stops}).}
-\end{figure}
-
-\subsection{Distances des correspondances}
-Comme mentionné au \textbf{chapitre 5}, la distribution des distances ATLAS–OSM présente un cœur près de 0–20 m et une queue longue. Nous mettons simplement à jour la \textit{photographie} ci-dessous provenant de la base actuelle.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.68\linewidth]{figures/chap7/distances_hist_0_200.png}
-  \caption{Histogramme des distances ATLAS–OSM entre 0 et 200 m (mise à jour).}
-\end{figure}
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.68\linewidth]{figures/chap7/distances_hist_all.png}
-  \caption{Histogramme des distances ATLAS–OSM (toutes distances, mise à jour).}
-\end{figure}
-
-\subsection{Problèmes détectés}
-Comme mentionné au \textbf{chapitre 5}, les familles dominantes sont \texttt{distance}, \texttt{unmatched} et \texttt{attributes}. Ci-dessous, un \textit{état actualisé} utile pour la priorisation dans l'interface (nous renvoyons à l'analyse du chapitre 5 pour les conclusions).
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.75\linewidth]{figures/chap7/problems_breakdown.png}
-  \caption{Problèmes: résolus vs non résolus, par type (état actualisé).}
-\end{figure}
-
-\subsection{Routes et directions}
-Comme mentionné au \textbf{chapitre 5}, nous avons déjà décrit les familles \texttt{matched} / \texttt{osm\_only} / \texttt{atlas\_only}. Ci-dessous, la vue consolidée (GTFS/HRDF) \textit{mise à jour} qui alimente les filtres côté UI.
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.80\linewidth]{figures/chap7/routes_match_breakdown.png}
-  \caption{Routes/directions par type de correspondance (GTFS et HRDF, mise à jour).}
-\end{figure}
 
 \section{Données persistantes: comment elles survivent aux ré-imports}
 Le mécanisme de persistance se trouve à deux endroits:\ (i) l'API de gestion (\texttt{/api/make\_solution\_persistent}, \texttt{/api/save\_note/...}),\ (ii) l'étape \texttt{apply\_persistent\_solutions()} de l'import.
@@ -243,35 +198,6 @@ L'expérience utilisateur fluide de la carte interactive repose sur deux ingréd
 \paragraph{Chargement différé des détails} Les informations riches (opérateur, routes, notes) sont chargées \textit{au clic} pour construire les popups — ce qui évite de surcharger la phase de \textit{fetch} initial. Cette stratégie de \textit{lazy loading} maintient des temps de réponse constants même avec des milliers de points.
 
 \paragraph{Optimisations côté client} Les marqueurs qui se superposent géographiquement sont \og décalés \fg{} de quelques pixels afin de rester individuellement cliquables, sans impact sur les performances de rendu.
-
-\section{Scripts utilisés et reproductibilité}
-\label{subsec:scripts-ch7}
-Tous les chiffres et figures ont été produits par le script ci-dessous, que vous trouverez dans \texttt{memoire/scripts\_used/chap7/db\_overview.py}. Il interroge la base en lecture seule et enregistre les images sous \texttt{memoire/figures/chap7/}.
-
-\begin{codebox}[language=bash]{Génération des statistiques et graphiques}
-python3 memoire/scripts_used/chap7/db_overview.py
-\end{codebox}
-
-\noindent
-Les figures insérées dans ce chapitre sont: 
-\texttt{stops\_by\_type.png}, \texttt{distances\_hist\_0\_200.png}, \texttt{distances\_hist\_all.png}, \texttt{problems\_breakdown.png}, \texttt{routes\_match\_breakdown.png}.
-
-\section{Réflexion et pistes d'amélioration}
-\textbf{Qualité des données}. Une partie de la queue longue des distances provient d'objets OSM de type \texttt{stop\_position} éloignés. Une heuristique fine par opérateur (tram/bus/rail) pourrait réduire ces écarts.
-
-\textbf{Intégrité et évolutivité}. Introduire des contraintes souples (\textit{deferred constraints} ou validateurs applicatifs) pour détecter les \og orphelins \fg{} si un détail ATLAS/OSM est manquant.
-
-\textbf{Routes unifiées}. Poursuivre la normalisation des \texttt{route\_id} (ex. neutralisation des suffixes \texttt{-j24}) pour renforcer la jointure \texttt{gtfs $\leftrightarrow$ atlas} déjà amorcée par la fonction de normalisation.
-
-\textbf{Indexation spatiale}. Tester une indexation géospatiale (MySQL SRID 4326 ou PostGIS si migration) pour accélérer encore les fenêtres sur de très grands jeux.
-
-\textbf{Cache côté API}. Mettre en cache les réponses de petites fenêtres urbaines très fréquentées (ex: centre-ville) avec invalidation lors d'un nouvel import.
-
-\textbf{Traçabilité des matches manuels}. Ajouter un historique horodaté des matches/notes avec l'auteur pour faciliter les audits.
-
-\section*{Et ensuite ?}
-Le \textbf{Chapitre 8} sera consacré au backend: architecture des blueprints, endpoints clés (\texttt{/api/data}, \texttt{/api/problems}, \texttt{/api/operators}, etc.), sécurité (authentification, 2FA), pagination, et \og règles de politesse \fg{} vis-à-vis du SGBD. Nous y disséquerons les stratégies de requêtage et d'optimisation mises en place.
-
 
 
 

@@ -2,9 +2,9 @@
 
 // Function to initialize report generation features
 function initReportGeneration() {
-    // Update the generate report button to show the modal instead
+    // On index page, navigate to the dedicated Reports page
     $('#generateReportBtn').on('click', function(){
-        $('#reportModal').modal('show');
+        window.location.href = '/reports';
     });
     
     // Handle the report form submission

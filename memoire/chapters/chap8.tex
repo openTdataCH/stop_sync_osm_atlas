@@ -5,7 +5,7 @@
 
 Ce chapitre présente l'architecture backend qui alimente l'application: structure par \textit{blueprints} Flask, sérialisation, requêtage optimisé, endpoints majeurs (données, recherche, statistiques, rapports) et services dédiés (routes). 
 
-Le \textbf{chapitre 11} traitera exclusivement de l'authentification (flux, 2FA, emails), et le \textbf{chapitre 12} proposera un audit sécurité global (CSP, rate-limiting, surfaces d'attaque, secrets, etc.).
+Le \textbf{chapitre 10} traitera exclusivement de l'authentification (flux, 2FA, emails), et le \textbf{chapitre 11} proposera un audit sécurité global (CSP, rate-limiting, surfaces d'attaque, secrets, etc.).
 
 \section{Architecture générale}
 \subsection*{Initialisation de l'application}
@@ -464,32 +464,7 @@ La maintenabilité du backend repose sur plusieurs principes de conception:
   \item[Optimisations anti-patterns] Éviter \texttt{ORDER BY RAND()} sur gros volumes: préférer une sélection pseudo-aléatoire par plage d'ID (cf. \texttt{/api/random\_stop}).
 \end{description}
 
-\paragraph{Documentation automatique} Chaque endpoint inclut une docstring explicative pour faciliter la génération automatique de documentation API et l'onboarding des nouveaux développeurs.
-
-\section{Tests et extensions futures}
-
-\subsection*{Stratégie de test}
-\begin{itemize}
-  \item \textbf{Tests d'intégration par blueprint}: validation du filtrage, pagination et codes d'erreur pour chaque endpoint
-  \item \textbf{Tests de charge}: simulation sur \texttt{/api/data} et \texttt{/api/global\_stats} avec des volumes réalistes
-  \item \textbf{Tests de régression}: validation des formats JSON après modifications de \texttt{format\_stop\_data()}
-\end{itemize}
-
-\subsection*{Observabilité et monitoring}
-\begin{itemize}
-  \item \textbf{Métriques de performance}: latence des requêtes, taille des réponses, hit rate du cache LRU
-  \item \textbf{Audit logging}: traçabilité des actions critiques (persistance, matches manuels) avec horodatage et utilisateur
-  \item \textbf{Monitoring des erreurs}: alertes sur les 500/timeout pour détecter rapidement les problèmes de performance
-\end{itemize}
-
-\subsection*{Optimisations futures}
-\begin{itemize}
-  \item \textbf{Cache distribué}: Redis pour les fenêtres cartographiques les plus demandées (centre-ville)
-  \item \textbf{Invalidation sélective}: cache invalidé uniquement pour les zones géographiques impactées par un nouvel import
-  \item \textbf{Compression des réponses}: gzip automatique pour les endpoints renvoyant de gros volumes JSON
-\end{itemize}
-
-\paragraph{Sécurité} L'essentiel des mécanismes de sécurité (authentification, 2FA, envoi d'emails) est détaillé au \textbf{chapitre 11}. Un audit complet des surfaces d'attaque (CSP, en-têtes de sécurité, CSRF, rate limiting) figure au \textbf{chapitre 12}.
+\paragraph{Documentation} Chaque endpoint inclut une docstring explicative pour faciliter la génération automatique de documentation API.
 
 \section*{Et ensuite ?}
-Nous approfondirons les mécanismes d'authentification et d'autorisation au \textbf{chapitre 11}, puis l'ensemble du durcissement de la surface d'attaque au \textbf{chapitre 12}. Le présent chapitre sert de carte du backend: où sont les endpoints, comment ils composent avec le schéma (Chap. 7), et quels patterns de performance guident les choix.
+Nous approfondirons les mécanismes d'authentification et d'autorisation au \textbf{chapitre 10}, puis l'ensemble du durcissement de la surface d'attaque au \textbf{chapitre 11}. 

@@ -12,6 +12,7 @@ from backend.blueprints.search import search_bp
 from backend.blueprints.stats import stats_bp
 from backend.blueprints.problems import problems_bp
 from backend.blueprints.auth import auth_bp
+from backend.services.audit import record_auth_event
 from backend.auth_models import User
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
@@ -92,6 +93,31 @@ def problems():
 def persistent_data():
     # Render from new structured pages path
     return render_template('pages/persistent_data.html')
+
+@app.route('/reports')
+def reports_page():
+    return render_template('pages/reports.html')
+
+# Flask-Login signal hooks as a safety net to capture login/logout events
+try:
+    from flask_login import user_logged_in, user_logged_out
+
+    @user_logged_in.connect_via(app)
+    def _on_user_logged_in(sender, user):
+        try:
+            record_auth_event(event_type='login_success', user=user)
+        except Exception:
+            pass
+
+    @user_logged_out.connect_via(app)
+    def _on_user_logged_out(sender, user):
+        try:
+            record_auth_event(event_type='logout', user=user)
+        except Exception:
+            pass
+except Exception:
+    # If signals are not available for any reason, ignore
+    pass
 
 if __name__ == '__main__':
     @app.errorhandler(404)

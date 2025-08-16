@@ -24,6 +24,9 @@
         <li class="nav-item {%- if request.endpoint == 'persistent_data' %} active{%- endif %}">
           <a class="nav-link" href="{{ url_for('persistent_data') }}">Persistent Data</a>
         </li>
+        <li class="nav-item {%- if request.endpoint == 'reports_page' %} active{%- endif %}">
+          <a class="nav-link" href="{{ url_for('reports_page') }}">Reports</a>
+        </li>
       </ul>
 
       <!-- Right side items -->

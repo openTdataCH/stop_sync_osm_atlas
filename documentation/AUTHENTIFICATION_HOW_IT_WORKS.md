@@ -6,7 +6,7 @@ This document is a comprehensive walkthrough of the authentication stack impleme
 
 We document the current, authentication and authorization design, including:
 
-- Mandatory email verification with signed, time‑limited links
+- Email verification with signed, time‑limited links (optional for login by default; can be enforced in production)
 - Two‑factor authentication (TOTP) and one‑time backup codes
 - Robust CSRF protection for both forms and JSON APIs (double‑submit header pattern)
 - Role‑based access control (RBAC) with server‑enforced admin privileges
@@ -300,6 +300,9 @@ class RegisterForm(FlaskForm):
 def register():
     form = RegisterForm()
     if form.validate_on_submit():
+        if not _verify_turnstile():
+            flash('Captcha verification failed. Please try again.', 'danger')
+            return redirect(url_for('auth.register'))
         email = form.email.data.lower().strip()
         password = form.password.data
         if User.query.filter_by(email=email).first():
@@ -309,12 +312,16 @@ def register():
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
-        flash('Account created. Please log in.', 'success')
+        try:
+            _send_verification_email(user)  # optional; verification not required to login
+        except Exception:
+            pass
+        flash('Account created. You can sign in now. We sent an optional verification email.', 'info')
         return redirect(url_for('auth.login'))
     return render_template('auth/register.html', form=form)
 ```
 
-In plain terms: this route shows a registration form and, on submit, validates inputs, normalizes the email, rejects duplicates, hashes the password with Argon2 via `user.set_password`, saves the user, sends a verification email, and renders a notice prompting the user to verify their email before signing in. If validation fails, it re-renders `templates/auth/register.html` with errors; requests are rate-limited to 5/minute and protected by CSRF.
+In plain terms: this route shows a registration form and, on submit, validates inputs, normalizes the email, rejects duplicates, hashes the password with Argon2 via `user.set_password`, saves the user, and sends an email verification link. Email verification is optional for login by default. If validation fails, it re-renders `templates/auth/register.html` with errors; requests are rate-limited to 5/minute and protected by CSRF.
 
 Security controls:
 
@@ -381,6 +388,13 @@ def login():  # [5]
         user.failed_login_attempts = 0  # [18]
         user.locked_until = None  # [18]
         db.session.commit()  # [19]
+        # If email not verified, send reminder but allow login to proceed
+        if not user.is_email_verified:
+            try:
+                _send_verification_email(user)
+            except Exception:
+                pass
+            flash('Your email is not verified yet. You can continue; we sent a verification email.', 'warning')
         # If 2FA enabled, go to 2FA step
         if user.is_totp_enabled:  # [20]
             from flask import session as flask_session
@@ -419,7 +433,7 @@ Security controls (with references):
 - **Counter reset on success**: failed attempts cleared [18]-[19].
 - **No user enumeration**: generic error for missing user and wrong password [11], [17].
 - **2FA gating**: session created only after TOTP step if enabled [20]-[22].
-- **Email verification**: enforced elsewhere in the auth flow; not shown in this snippet.
+- **Email verification**: optional for login by default; a signed 48h link is sent on registration and when an unverified user logs in.
 
 ---
 
@@ -954,7 +968,7 @@ Unit tests and functional tests should cover:
 - Backup code consumption: valid once, removed afterward.
 - CSRF: posting without CSRF token should fail on form routes.
 - Rate limiting: simulate exceeding limits and ensure proper responses.
-- Email verification: registration triggers email; unverified login is blocked and prompts resend; verification link marks the account verified; invalid/expired tokens are rejected.
+- Email verification: registration triggers email; unverified login is allowed and triggers resend; verification link marks the account verified; invalid/expired tokens are rejected.
 
 Example TOTP test snippet:
 

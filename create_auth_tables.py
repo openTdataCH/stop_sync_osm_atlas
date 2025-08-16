@@ -6,7 +6,7 @@ multiple database binds with __bind_key__.
 """
 
 import os
-from sqlalchemy import create_engine, text, MetaData, Table, Column, Integer, String, Text, Boolean, DateTime
+from sqlalchemy import create_engine, text, MetaData, Table, Column, Integer, String, Text, Boolean, DateTime, ForeignKey
 
 def create_auth_tables():
     """Create the auth tables directly in the auth database."""
@@ -52,25 +52,45 @@ def create_auth_tables():
             Column('failed_login_attempts', Integer, default=0, nullable=False),
             Column('locked_until', DateTime, nullable=True),
         )
+
+        # Define the auth_events table
+        auth_events_table = Table('auth_events', metadata,
+            Column('id', Integer, primary_key=True),
+            Column('user_id', Integer, ForeignKey('users.id'), nullable=True, index=True),
+            Column('email_attempted', String(255), nullable=True, index=True),
+            Column('event_type', String(50), nullable=False, index=True),
+            Column('ip_address', String(45), nullable=True),
+            Column('user_agent', Text, nullable=True),
+            Column('metadata_json', Text, nullable=True),
+            Column('occurred_at', DateTime, nullable=False),
+        )
         
-        # Check if table already exists
+        # Check if tables already exist
         with auth_engine.connect() as conn:
             result = conn.execute(text("SHOW TABLES LIKE 'users'"))
             if result.fetchone():
                 print("✓ 'users' table already exists in auth_db")
-                return
-        
-        # Create the table
-        metadata.create_all(auth_engine)
-        print("✓ Successfully created auth tables")
-        
-        # Verify table exists
+            else:
+                metadata.create_all(auth_engine, tables=[users_table])
+                print("✓ Created 'users' table in auth_db")
+            result = conn.execute(text("SHOW TABLES LIKE 'auth_events'"))
+            if result.fetchone():
+                print("✓ 'auth_events' table already exists in auth_db")
+            else:
+                metadata.create_all(auth_engine, tables=[auth_events_table])
+                print("✓ Created 'auth_events' table in auth_db")
+        # Verify tables exist
         with auth_engine.connect() as conn:
             result = conn.execute(text("SHOW TABLES LIKE 'users'"))
             if result.fetchone():
                 print("✓ Verified 'users' table exists in auth_db")
             else:
                 print("✗ Failed to verify 'users' table creation")
+            result = conn.execute(text("SHOW TABLES LIKE 'auth_events'"))
+            if result.fetchone():
+                print("✓ Verified 'auth_events' table exists in auth_db")
+            else:
+                print("✗ Failed to verify 'auth_events' table creation")
         
     except Exception as e:
         print(f"✗ Error creating auth tables: {e}")

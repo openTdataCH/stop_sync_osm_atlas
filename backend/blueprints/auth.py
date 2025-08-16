@@ -18,6 +18,7 @@ from typing import Optional
 from backend.extensions import db, limiter
 from backend.auth_models import User
 from backend.services.email import send_email
+from backend.services.audit import record_auth_event
 
 
 auth_bp = Blueprint('auth', __name__)
@@ -119,6 +120,10 @@ def register():
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
+        try:
+            record_auth_event(event_type='registration', user=user)
+        except Exception:
+            pass
         # Immediately send email verification (optional)
         try:
             _send_verification_email(user)
@@ -144,9 +149,19 @@ def login():
         user = User.query.filter_by(email=email).first()
         if not user:
             flash('Invalid credentials.', 'danger')
+            try:
+                record_auth_event(event_type='login_failure', email_attempted=email)
+            except Exception:
+                pass
             return redirect(url_for('auth.login'))
         if _is_account_locked(user):
             flash('Account temporarily locked due to failed attempts. Try again later.', 'danger')
+            try:
+                record_auth_event(event_type='account_locked', user=user, metadata={
+                    'failed_login_attempts': user.failed_login_attempts
+                })
+            except Exception:
+                pass
             return redirect(url_for('auth.login'))
         if not user.verify_password(password):
             user.failed_login_attempts += 1
@@ -156,6 +171,13 @@ def login():
                 user.locked_until = datetime.utcnow() + timedelta(minutes=lock_minutes)
             db.session.commit()
             flash('Invalid credentials.', 'danger')
+            try:
+                record_auth_event(event_type='login_failure', user=user, email_attempted=email, metadata={
+                    'failed_login_attempts': user.failed_login_attempts,
+                    'locked_until': user.locked_until.isoformat() if user.locked_until else None
+                })
+            except Exception:
+                pass
             return redirect(url_for('auth.login'))
         # Password ok; reset counters
         user.failed_login_attempts = 0
@@ -176,6 +198,10 @@ def login():
             from flask import session as flask_session
             flask_session['pending_2fa_user_id'] = user.id
             flask_session['remember_me'] = bool(remember)
+            try:
+                record_auth_event(event_type='login_password_ok_2fa_required', user=user)
+            except Exception:
+                pass
             return redirect(url_for('auth.two_factor'))
         # No 2FA, log in directly
         login_user(user, remember=remember, duration=timedelta(days=14))
@@ -206,10 +232,18 @@ def two_factor():
             login_user(user, remember=remember, duration=timedelta(days=14))
             user.last_login_at = datetime.utcnow()
             db.session.commit()
+            try:
+                record_auth_event(event_type='2fa_success', user=user)
+            except Exception:
+                pass
             flash('2FA successful. Logged in.', 'success')
             return redirect(url_for('index'))
         else:
             flash('Invalid 2FA token or backup code.', 'danger')
+            try:
+                record_auth_event(event_type='2fa_failure', user=user)
+            except Exception:
+                pass
     return render_template('auth/two_factor.html', form=form)
 
 
@@ -238,6 +272,10 @@ def enable_2fa():
             backup_codes = User.generate_backup_codes()
             user.set_backup_codes(backup_codes)
             db.session.commit()
+            try:
+                record_auth_event(event_type='2fa_enabled', user=user)
+            except Exception:
+                pass
             return render_template('auth/backup_codes.html', backup_codes=backup_codes)
         else:
             flash('Invalid verification code.', 'danger')
@@ -267,6 +305,10 @@ def disable_2fa():
     user.totp_secret = None
     user.backup_codes_json = None
     db.session.commit()
+    try:
+        record_auth_event(event_type='2fa_disabled', user=user)
+    except Exception:
+        pass
     flash('2FA disabled.', 'success')
     return redirect(url_for('index'))
 
@@ -303,6 +345,10 @@ def verify_email(token: str):
     user.is_email_verified = True
     user.email_verified_at = datetime.utcnow()
     db.session.commit()
+    try:
+        record_auth_event(event_type='email_verified', user=user)
+    except Exception:
+        pass
     return render_template('auth/email_verified.html')
 
 
