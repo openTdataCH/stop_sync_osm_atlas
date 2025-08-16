@@ -1,10 +1,10 @@
 % !TeX spellcheck = fr_FR
 \chapter{Chapitre 12 : Dockerisation and repo files}
 
-Ce chapitre raconte la « vie en conteneurs » de notre projet. Objectif: en une commande, tout démarre, la base de données se prépare, les scripts s'enchaînent, et l'application web apparaît sur \texttt{http://localhost:5001}. Nous allons décortiquer la configuration, illustrer les choix, montrer des extraits utiles, et donner des recettes reproductibles.
+Ce chapitre raconte la « vie en conteneurs » de notre projet. Objectif: en une commande, tout démarre, la base de données se prépare, les scripts s'enchaînent, et l'application web apparaît sur \texttt{http://localhost:5001}. Nous allons décortiquer la configuration, illustrer les choix et montrer des extraits utiles.
 
 \medskip
-\noindent\textbf{Ce que vous allez apprendre.} Comment fonctionnent \texttt{dockerfile}, \texttt{docker-compose.yml}, \texttt{entrypoint.sh} et \texttt{.dockerignore} ensemble; comment lancer le pipeline complet ou un mode \textit{dev} léger; et comment diagnostiquer, personnaliser et améliorer l'ensemble.
+\noindent\textbf{On verra} comment fonctionnent \texttt{dockerfile}, \texttt{docker-compose.yml}, \texttt{entrypoint.sh} et \texttt{.dockerignore} ensemble; comment lancer le pipeline complet ou un mode \textit{dev} léger; et comment diagnostiquer, personnaliser et améliorer l'ensemble.
 
 \section{Pourquoi dockeriser ?}
 
@@ -24,7 +24,7 @@ Trois raisons concrètes :
   \item[\texttt{.dockerignore}] Réduit le contexte de build (ignore les dossiers volumineux et la documentation), accélère et assainit l'image.
 \end{description}
 
-\section{Aperçu de l'architecture}
+\section{Aperçu}
 
 \begin{figure}[H]
   \centering
@@ -33,9 +33,9 @@ Trois raisons concrètes :
     \tikzstyle{vol}=[draw, dashed, rounded corners, minimum width=3.5cm, minimum height=0.9cm, align=center]
 
     \node[svc] (app) {\textbf{Service app}\\ Python 3.9 + Flask\\ \small \texttt{ENTRYPOINT /app/entrypoint.sh}};
-    \node[svc, right=4.5cm of app] (db) {\textbf{Service db}\\ MySQL 8.0\\ \small \texttt{healthcheck}};
-    \node[vol, below=0.9cm of db] (mysqlvol) {\texttt{volume: mysql\_data}};
-    \node[vol, below=0.9cm of app] (codevol) {\texttt{.:/app} \quad \texttt{./data:/app/data}};
+    \node[svc, right of=app, node distance=4.5cm] (db) {\textbf{Service db}\\ MySQL 8.0\\ \small \texttt{healthcheck}};
+    \node[vol, below of=db, node distance=0.9cm] (mysqlvol) {\texttt{volume: mysql\_data}};
+    \node[vol, below of=app, node distance=0.9cm] (codevol) {\texttt{.:/app} \quad \texttt{./data:/app/data}};
 
     \draw[->] (app) -- node[above]{\small TCP 3306} (db);
     \draw[-] (db) -- (mysqlvol);
@@ -48,7 +48,7 @@ Trois raisons concrètes :
 
 Le fichier compose définit \texttt{db}, \texttt{app} et un service \texttt{app-dev} activé via profil. Extraits commentés:
 
-\begin{codebox}[language=yaml]{\texttt{db} : MySQL 8.0 avec healthcheck}
+\begin{codebox}{\texttt{db} : MySQL 8.0 avec healthcheck}
 services:
   db:
     image: mysql:8.0
@@ -70,7 +70,7 @@ services:
 
 \noindent L'application dépend explicitement du statut \textit{healthy} de MySQL et monte deux volumes (code + données):
 
-\begin{codebox}[language=yaml]{\texttt{app} : service principal}
+\begin{codebox}{\texttt{app} : service principal}
   app:
     build: .
     ports:
@@ -96,7 +96,7 @@ services:
 
 \noindent En développement, nous activons un service plus léger qui évite les téléchargements et prétraitements longs:
 
-\begin{codebox}[language=yaml]{\texttt{app-dev} : profil \texttt{dev}}
+\begin{codebox}{\texttt{app-dev} : profil \texttt{dev}}
   app-dev:
     profiles: [dev]
     build: .
@@ -189,7 +189,7 @@ docker compose logs -f app | grep auth_event | cat
 Les principales variables s'ajustent dans \texttt{docker-compose.yml} (ou via \texttt{.env}).
 
 \begin{center}
-\begin{tabular}{l l l}
+\begin{tabularx}{0.98\textwidth}{l l X}
 \toprule
 \textbf{Variable} & \textbf{Rôle} & \textbf{Valeur par défaut}\\
 \midrule
@@ -201,7 +201,7 @@ Les principales variables s'ajustent dans \texttt{docker-compose.yml} (ou via \t
 \texttt{MATCH\_ONLY} & N'exécuter que matching + import & \texttt{false}\\
 \texttt{FLASK\_ENV}, \texttt{FLASK\_DEBUG} & Mode Flask & \texttt{development}, \texttt{1}\\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{center}
 
 \section{Persistance et poids d'image}
@@ -263,4 +263,4 @@ docker compose build app && docker compose up -d
 \end{enumerate}
 
 \medskip
-\noindent\textbf{Conclusion.} Cette dockerisation est volontairement pragmatique: peu de magie, des scripts explicites, et des profils qui servent les usages quotidiens. En peaufinant la chaîne (build multi-étapes, non-root, healthchecks, secrets), on obtient une base de déploiement robuste, sûre, et agréable à vivre pour un projet de données ambitieux.
+\noindent\textbf{Conclusion.} Cette dockerisation est volontairement pragmatique: peu de magie, des scripts explicites, et des profils qui servent les usages quotidiens. En peaufinant la chaîne (build multi-étapes, non-root, healthchecks, secrets), on obtient une base de déploiement robuste.

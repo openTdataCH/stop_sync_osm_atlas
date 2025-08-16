@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func
 from sqlalchemy.orm import joinedload
 from backend.models import Stop, AtlasStop, OsmNode
-from backend.extensions import db
+from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
 from flask_login import current_user
 from backend.services.routes import get_stops_for_route
@@ -15,6 +15,7 @@ data_bp = Blueprint('data', __name__)
 # API Endpoint: /api/operators
 # ----------------------------
 @data_bp.route('/api/operators', methods=['GET'])
+@limiter.limit("60/minute")
 def get_operators():
     try:
         operators = db.session.query(AtlasStop.atlas_business_org_abbr) \
@@ -31,6 +32,7 @@ def get_operators():
 
 
 @data_bp.route('/api/data', methods=['GET'])
+@limiter.limit("30/minute")
 def get_data():
     try:
         bbox = request.args.get('bbox')
@@ -263,6 +265,7 @@ def get_data():
 
 
 @data_bp.route('/api/route_stops', methods=['GET'])
+@limiter.limit("60/minute")
 def get_route_stops():
     route_id = request.args.get('route_id')
     direction = request.args.get('direction')
@@ -273,6 +276,7 @@ def get_route_stops():
 
 
 @data_bp.route('/api/stop_popup', methods=['GET'])
+@limiter.limit("120/minute")
 def get_stop_popup():
     try:
         stop_id = request.args.get('stop_id', type=int)

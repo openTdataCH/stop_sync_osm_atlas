@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, render_template, current_app as app
+from flask_login import login_required
 from backend.models import Stop
 from backend.extensions import db, limiter
 from backend.query_helpers import optimize_query_for_endpoint
@@ -11,7 +12,8 @@ reports_bp = Blueprint('reports', __name__)
 
 
 @reports_bp.route('/api/generate_report', methods=['GET'])
-@limiter.limit("20 per day")
+@login_required
+@limiter.limit("20/day")
 def generate_report():
     try:
         limit = int(request.args.get('limit', 10))

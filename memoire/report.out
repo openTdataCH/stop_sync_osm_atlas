@@ -101,31 +101,29 @@
 \BOOKMARK [1][-]{section.10.2}{Aper\347u de l'architecture}{chapter.10}% 101
 \BOOKMARK [2][-]{subsection.10.2.1}{Composants}{section.10.2}% 102
 \BOOKMARK [1][-]{section.10.3}{Mod\350le de donn\351es \(auth\137db\)}{chapter.10}% 103
-\BOOKMARK [1][-]{section.10.4}{V\351rification d'email}{chapter.10}% 104
-\BOOKMARK [1][-]{section.10.5}{Activation et utilisation de la 2FA}{chapter.10}% 105
-\BOOKMARK [1][-]{section.10.6}{S\351curit\351 op\351rationnelle}{chapter.10}% 106
-\BOOKMARK [1][-]{section.10.7}{Interface utilisateur}{chapter.10}% 107
-\BOOKMARK [1][-]{section.10.8}{S\351curit\351 des donn\351es lors des mises \340 jour}{chapter.10}% 108
-\BOOKMARK [1][-]{section.10.9}{Pistes de durcissement}{chapter.10}% 109
-\BOOKMARK [0][-]{chapter.11}{Chapitre 11: \311valuation de la s\351curit\351 de l'application}{}% 110
-\BOOKMARK [1][-]{section.11.1}{P\351rim\350tre et surface d'attaque}{chapter.11}% 111
-\BOOKMARK [1][-]{section.11.2}{Contr\364les en place \(aper\347u technique\)}{chapter.11}% 112
-\BOOKMARK [1][-]{section.11.3}{Sc\351narios d'attaque et d\351roul\351}{chapter.11}% 113
-\BOOKMARK [1][-]{section.11.4}{Calibrage et limites actuelles}{chapter.11}% 114
-\BOOKMARK [1][-]{section.11.5}{Am\351liorations et vecteurs non encore couverts}{chapter.11}% 115
-\BOOKMARK [1][-]{section.11.6}{Conclusion}{chapter.11}% 116
-\BOOKMARK [0][-]{chapter.12}{Chapitre 12 : Dockerisation and repo files}{}% 117
-\BOOKMARK [1][-]{section.12.1}{Pourquoi dockeriser ?}{chapter.12}% 118
-\BOOKMARK [1][-]{section.12.2}{Les quatre pi\350ces du puzzle}{chapter.12}% 119
-\BOOKMARK [1][-]{section.12.3}{Aper\347u de l'architecture}{chapter.12}% 120
-\BOOKMARK [1][-]{section.12.4}{L'orchestration: docker-compose.yml}{chapter.12}% 121
-\BOOKMARK [1][-]{section.12.5}{L'image: dockerfile}{chapter.12}% 122
-\BOOKMARK [1][-]{section.12.6}{Le chef d'orchestre: entrypoint.sh}{chapter.12}% 123
-\BOOKMARK [1][-]{section.12.7}{D\351marrer en 30 secondes}{chapter.12}% 124
-\BOOKMARK [1][-]{section.12.8}{Personnaliser par variables d'environnement}{chapter.12}% 125
-\BOOKMARK [1][-]{section.12.9}{Persistance et poids d'image}{chapter.12}% 126
-\BOOKMARK [1][-]{section.12.10}{Recettes de diagnostic}{chapter.12}% 127
-\BOOKMARK [1][-]{section.12.11}{Bonnes pratiques et s\351curit\351}{chapter.12}% 128
-\BOOKMARK [1][-]{section.12.12}{R\351flexion et am\351liorations possibles}{chapter.12}% 129
-\BOOKMARK [0][-]{chapter*.72}{Conclusion}{}% 130
-\BOOKMARK [0][-]{chapter*.73}{R\351f\351rences documentaires}{}% 131
+\BOOKMARK [2][-]{subsection.10.3.1}{Parcours utilisateur et impact sur les donn\351es}{section.10.3}% 104
+\BOOKMARK [1][-]{section.10.4}{S\351curit\351 op\351rationnelle}{chapter.10}% 105
+\BOOKMARK [1][-]{section.10.5}{S\351curit\351 des donn\351es lors des mises \340 jour}{chapter.10}% 106
+\BOOKMARK [1][-]{section.10.6}{Pistes de durcissement}{chapter.10}% 107
+\BOOKMARK [0][-]{chapter.11}{Chapitre 11: \311valuation de la s\351curit\351 de l'application}{}% 108
+\BOOKMARK [1][-]{section.11.1}{P\351rim\350tre et surface d'attaque}{chapter.11}% 109
+\BOOKMARK [1][-]{section.11.2}{Contr\364les en place \(aper\347u technique\)}{chapter.11}% 110
+\BOOKMARK [1][-]{section.11.3}{Sc\351narios d'attaque et d\351roul\351}{chapter.11}% 111
+\BOOKMARK [1][-]{section.11.4}{Calibrage et limites actuelles}{chapter.11}% 112
+\BOOKMARK [1][-]{section.11.5}{Am\351liorations et vecteurs non encore couverts}{chapter.11}% 113
+\BOOKMARK [1][-]{section.11.6}{Conclusion}{chapter.11}% 114
+\BOOKMARK [0][-]{chapter.12}{Chapitre 12 : Dockerisation and repo files}{}% 115
+\BOOKMARK [1][-]{section.12.1}{Pourquoi dockeriser ?}{chapter.12}% 116
+\BOOKMARK [1][-]{section.12.2}{Les quatre pi\350ces du puzzle}{chapter.12}% 117
+\BOOKMARK [1][-]{section.12.3}{Aper\347u}{chapter.12}% 118
+\BOOKMARK [1][-]{section.12.4}{L'orchestration: docker-compose.yml}{chapter.12}% 119
+\BOOKMARK [1][-]{section.12.5}{L'image: dockerfile}{chapter.12}% 120
+\BOOKMARK [1][-]{section.12.6}{Le chef d'orchestre: entrypoint.sh}{chapter.12}% 121
+\BOOKMARK [1][-]{section.12.7}{D\351marrer en 30 secondes}{chapter.12}% 122
+\BOOKMARK [1][-]{section.12.8}{Personnaliser par variables d'environnement}{chapter.12}% 123
+\BOOKMARK [1][-]{section.12.9}{Persistance et poids d'image}{chapter.12}% 124
+\BOOKMARK [1][-]{section.12.10}{Recettes de diagnostic}{chapter.12}% 125
+\BOOKMARK [1][-]{section.12.11}{Bonnes pratiques et s\351curit\351}{chapter.12}% 126
+\BOOKMARK [1][-]{section.12.12}{R\351flexion et am\351liorations possibles}{chapter.12}% 127
+\BOOKMARK [0][-]{chapter*.72}{Conclusion}{}% 128
+\BOOKMARK [0][-]{chapter*.73}{R\351f\351rences documentaires}{}% 129

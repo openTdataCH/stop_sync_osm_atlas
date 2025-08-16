@@ -2,10 +2,10 @@
 \chapter{Chapitre 10: Système d'authentification sécurisé}\label{chap:auth}
 
 \section{Objectifs}
-Nous avons conçu et mis en œuvre un système d'authentification complet. Il est aligné sur les bonnes pratiques actuelles.
+Nous avons conçu et mis en œuvre un système d'authentification complet, aligné sur les bonnes pratiques actuelles.
 
 \section{Aperçu de l'architecture}
-L'application utilise un schéma d'authentification dédié lié à une base de données MySQL distincte (\texttt{auth\_db}). Les données analytiques principales demeurent dans \texttt{stops\_db}. Cette séparation réduit le rayon d'impact et garantit entre d'autres choses que la réimportation des données analytiques ne touche jamais les identifiants des utilisateurs.
+L'application utilise un schéma d'authentification dédié lié à une base de données MySQL distincte (\texttt{auth\_db}). Comme on a vu, les donnée principales de l'application demeurent dans \texttt{stops\_db}. Cette séparation réduit le rayon d'impact et garantit entre d'autres choses que la réimportation des données de transport public ne touche jamais les identifiants des utilisateurs.
 
 \subsection{Composants}
 \begin{itemize}
@@ -13,21 +13,38 @@ L'application utilise un schéma d'authentification dédié lié à une base de 
   \item \textbf{Sessions} : Flask-Login avec cookies sécurisés (HttpOnly, SameSite=Lax ; indicateur Secure en production).
   \item \textbf{CSRF} : Protection CSRF de Flask-WTF pour tous les formulaires POST et les points de terminaison concernés.
   \item \textbf{Limitation de débit} : Les routes de connexion et d'inscription sont limitées (Flask-Limiter) afin d'atténuer la force brute.
-  \item \textbf{Sécurité du transport} : Flask-Talisman fournit les en-têtes de sécurité ; l'application stricte de HTTPS est configurable via les variables d'environnement.
+  \item \textbf{Sécurité du transport} : Flask-Talisman fournit les en-têtes de sécurité ; application stricte de HTTPS.
   \item \textbf{2FA} : TOTP (compatible Google Authenticator) avec activation par QR code et codes de secours à usage unique.
   \item \textbf{Verrouillage de compte} : Verrouillage progressif après des échecs répétés, avec temporisation exponentielle.
-  \item \textbf{Vérification d'email} : Liens signés (validité 48 h) envoyés à l'inscription et lors d'une connexion non vérifiée. La vérification est \emph{optionnelle par défaut}. Elle peut être rendue obligatoire en production.
-  \item \textbf{CAPTCHA} : Cloudflare Turnstile sur \texttt{/auth/register} et \texttt{/auth/login} (contourné automatiquement en dev si clés absentes).
-  \item \textbf{Journalisation d'audit} : enregistrement des événements d'authentification dans \texttt{auth\_db.auth\_events} et émission simultanée de logs JSON sur \texttt{stdout} (exploitation via \texttt{docker compose logs}).
-\end{itemize}
+  \item \textbf{Vérification d'email} : Liens signés (validité 48 h) envoyés à l'inscription et lors d'une connexion non vérifiée. La vérification est \emph{optionnelle par défaut}.
+  \item \textbf{CAPTCHA} : Cloudflare Turnstile sur \texttt{/auth/register} et \texttt{/auth/login}.
+  \item \textbf{Journalisation d'audit} : enregistrement des événements d'authentification dans \texttt{auth\_db.auth\_events} et émission simultanée de logs JSON sur \texttt{stdout}
 
 \section{Modèle de données (auth\_db)}
-La table \texttt{users} stocke les comptes utilisateurs avec : email (unique), \texttt{password\_hash} (Argon2id), rôles (\texttt{is\_admin}), \textbf{vérification d'email} (\texttt{is\_email\_verified}, \texttt{email\_verified\_at}, \texttt{last\_verification\_sent\_at}), 2FA (\texttt{is\_totp\_enabled}, \texttt{totp\_secret}), codes de secours (JSON de hachés Argon2), hygiène de compte (\texttt{created\_at}, \texttt{updated\_at}, \texttt{last\_login\_at}), verrouillage (\texttt{failed\_login\_attempts}, \texttt{locked\_until}). Les tables analytiques restent inchangées.
+La table \texttt{users} stocke les comptes utilisateurs avec les champs suivants :
+
+\noindent\begin{tabular}{@{}p{0.40\linewidth}p{0.60\linewidth}@{}}
+\textbf{Identité} & \texttt{email} (unique) \\
+\textbf{Authentification} & \texttt{password\_hash} (Argon2id) \\
+\textbf{Rôles} & \texttt{is\_admin} \\
+\textbf{Vérification d'email} & \texttt{is\_email\_verified}, \texttt{email\_verified\_at}, \texttt{last\_verification\_sent\_at} \\
+\textbf{2FA} & \texttt{is\_totp\_enabled}, \texttt{totp\_secret} \\
+\textbf{Codes de secours} & JSON de hachés Argon2 \\
+\textbf{Hygiène de compte} & \texttt{created\_at}, \texttt{updated\_at}, \texttt{last\_login\_at} \\
+\textbf{Verrouillage} & \texttt{failed\_login\_attempts}, \texttt{locked\_until} \\
+\end{tabular}
+
 
 \subsection*{Journalisation d'audit (\texttt{auth\_events})}
-\noindent Une table \texttt{auth\_events} (même schéma \texttt{auth\_db}) consigne les événements de sécurité:\
-\texttt{event\_type} (\textit{registration}, \textit{login\_success}, \textit{login\_failure}, \textit{account\_locked}, \textit{2fa\_success}, \textit{2fa\_failure}, \textit{2fa\_enabled}, \textit{2fa\_disabled}, \textit{email\_verified}),\
-\texttt{user\_id} (nullable), \texttt{email\_attempted} (pour les échecs), \texttt{ip\_address}, \texttt{user\_agent}, \texttt{metadata\_json}, \texttt{occurred\_at} (UTC).
+\noindent Une table \texttt{auth\_events} (même schéma \texttt{auth\_db}) consigne les événements de sécurité :
+
+\noindent\begin{tabular}{@{}p{0.40\linewidth}p{0.60\linewidth}@{}}
+\textbf{Type d'événement} & \texttt{event\_type} (\textit{registration}, \textit{login\_success}, \textit{login\_failure}, \textit{account\_locked}, \textit{2fa\_success}, \textit{2fa\_failure}, \textit{2fa\_enabled}, \textit{2fa\_disabled}, \textit{email\_verified}) \\
+\textbf{Utilisateur} & \texttt{user\_id} (nullable), \texttt{email\_attempted} (pour les échecs) \\
+\textbf{Contexte} & \texttt{ip\_address}, \texttt{user\_agent} \\
+\textbf{Détails} & \texttt{metadata\_json} \\
+\textbf{Horodatage} & \texttt{occurred\_at} (UTC) \\
+\end{tabular}
 
 \begin{codebox}[language=Python]{Modèle minimal (extrait)}
 class AuthEvent(db.Model):
@@ -44,41 +61,38 @@ class AuthEvent(db.Model):
 \end{codebox}
 
 \noindent Les mêmes événements sont émis au format JSON sur la sortie standard du service pour une collecte centralisée.
+\subsection{Parcours utilisateur et impact sur les données}
+Cette sous-section illustre, étape par étape, comment les actions de l'utilisateur se traduisent dans le schéma \texttt{auth\_db}.
 
-\vspace{0.5em}
-\noindent Exemple minimal de hachage côté serveur au moment de l'inscription:
+\paragraph{Accès aux écrans d'authentification}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth1.png}
+  \caption{Bouton \og Créer un compte \fg{} visible dans l'interface.}
+\end{figure}
+
+\paragraph{Inscription}
+Un utilisateur fournit un email et un mot de passe ; le serveur hache le mot de passe avec Argon2id et crée la ligne dans \texttt{users}.
+
 \begin{codebox}[language=Python]{Hachage du mot de passe (inscription)}
 from argon2 import PasswordHasher
 ph = PasswordHasher()
 password_hash = ph.hash(plain_password)
 \end{codebox}
 
-\noindent Extraits visuels de la table \texttt{users} (voir aussi les sections UI pour le contexte temporel):
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/create_account.png}
+  \caption{Formulaire d'inscription (email, mot de passe).}
+\end{figure}
+
 \begin{figure}[h]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db1.png}
   \caption{\texttt{auth\_db.users}: \texttt{email} et \texttt{password\_hash} après inscription.}
 \end{figure}
 
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db2.png}
-  \caption{\texttt{auth\_db.users}: \texttt{is\_admin}, \texttt{is\_email\_verified}, \texttt{last\_verification\_sent\_at}, \texttt{is\_totp\_enabled}.}
-\end{figure}
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db3.png}
-  \caption{\texttt{auth\_db.users}: \texttt{totp\_secret}, \texttt{backup\_codes\_json}, \texttt{created\_at}, \texttt{updated\_at}.}
-\end{figure}
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db4.png}
-  \caption{\texttt{auth\_db.users}: \texttt{last\_login\_at}, \texttt{failed\_login\_attempts}, \texttt{locked\_until}.}
-\end{figure}
-
-\section{Vérification d'email}
+\paragraph{Vérification d'email}
 À l'inscription, un lien de vérification signé (valide 48 h) est envoyé. Lorsqu'un utilisateur non vérifié se connecte avec succès, l'application \textbf{autorise la connexion} et renvoie un nouvel email de vérification accompagné d'un avertissement UI. Des routes dédiées existent pour \textit{vérifier} (\texttt{/auth/verify-email/<token>}) et \textit{renvoyer} (\texttt{/auth/resend-verification}) le lien. Cette vérification peut être rendue obligatoire côté produit si nécessaire.
 
 \begin{figure}[h]
@@ -94,7 +108,34 @@ token = s.dumps({"uid": user_id})
 # Plus tard:  uid = int(s.loads(token, max_age=60*60*48)["uid"])  # 48 h
 \end{codebox}
 
-\section{Activation et utilisation de la 2FA}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db2.png}
+  \caption{\texttt{auth\_db.users}: \texttt{is\_admin}, \texttt{is\_email\_verified}, \texttt{last\_verification\_sent\_at}, \texttt{is\_totp\_enabled}.}
+\end{figure}
+
+\paragraph{Connexion}
+L'utilisateur s'authentifie sur la page de connexion ; en cas de succès, l'application met à jour l'historique de connexion et applique le verrouillage en cas d'échecs répétés.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/login_page.png}
+  \caption{Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref{chap:security}).}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/login_succesful.png}
+  \caption{Connexion réussie: alertes UI sur l'email non vérifié et la 2FA non activée.}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db4.png}
+  \caption{\texttt{auth\_db.users}: \texttt{last\_login\_at}, \texttt{failed\_login\_attempts}, \texttt{locked\_until}.}
+\end{figure}
+
+\paragraph{2FA}
 Lorsqu'un utilisateur active la 2FA, le serveur génère un secret Base32 aléatoire et affiche un QR code contenant une URI \textit{otpauth} standard. L'utilisateur vérifie le premier code à 6 chiffres pour activer la 2FA. Le serveur génère 10 codes de secours à usage unique et n'en stocke que les versions hachées avec Argon2. À la connexion, si la 2FA est active, l'utilisateur doit fournir un TOTP valide ou un code de secours non utilisé.
 
 \begin{figure}[h]
@@ -120,6 +161,12 @@ is_valid = pyotp.TOTP(totp_secret).verify(code, valid_window=1)
   \caption{Étape de connexion avec saisie du code 2FA (ou d'un code de secours).}
 \end{figure}
 
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db3.png}
+  \caption{\texttt{auth\_db.users}: \texttt{totp\_secret}, \texttt{backup\_codes\_json}, \texttt{created\_at}, \texttt{updated\_at}.}
+\end{figure}
+
 \section{Sécurité opérationnelle}
 \begin{itemize}
   \item \textbf{Secrets} : \texttt{SECRET\_KEY}, \texttt{AUTH\_DATABASE\_URI} et l'application de HTTPS sont fournis via des variables d'environnement dans Docker Compose.
@@ -128,36 +175,6 @@ is_valid = pyotp.TOTP(totp_secret).verify(code, valid_window=1)
   \item \textbf{Résilience} : Le verrouillage et la limitation de débit réduisent l'impact des attaques par force brute et bourrage d'identifiants.
   \item \textbf{CSP et en-têtes} : Gérés par Talisman ; la CSP est initialement souple en raison de l'usage de CDN et peut être durcie.
 \end{itemize}
-
-\section{Interface utilisateur}
-L'en-tête de chaque page inclut des boutons de connexion et d'inscription. Les utilisateurs authentifiés voient leur email et un bouton de déconnexion. L'activation de la 2FA propose l'inscription par QR code et le téléchargement des codes de secours.
-
-\paragraph{Accès aux écrans d'authentification}
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.85\textwidth]{../figures/chap10/auth1.png}
-  \caption{Bouton \og Créer un compte \fg{} visible dans l'interface.}
-\end{figure}
-
-\paragraph{Inscription}
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.85\textwidth]{../figures/chap10/create_account.png}
-  \caption{Formulaire d'inscription (email, mot de passe).}
-\end{figure}
-
-\paragraph{Connexion}
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.85\textwidth]{../figures/chap10/login_page.png}
-  \caption{Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref{chap:security}).}
-\end{figure}
-
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=0.85\textwidth]{../figures/chap10/login_succesful.png}
-  \caption{Connexion réussie: alertes UI sur l'email non vérifié et la 2FA non activée.}
-\end{figure}
 
 \section{Sécurité des données lors des mises à jour}
 La chaîne d'import des données opère exclusivement sur \texttt{stops\_db}. Le schéma \texttt{auth\_db} est indépendant et n'est jamais supprimé ni réimporté, ce qui garantit la persistance des identifiants des utilisateurs lors des rafraîchissements de données.

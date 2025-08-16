@@ -1,17 +1,61 @@
 % !TeX spellcheck = fr_FR
 \chapter{Chapitre 11: Évaluation de la sécurité de l'application}\label{chap:security}
 
-\noindent Ce chapitre complète le \textbf{Chap.~\ref{chap:auth}} en évaluant les défenses mises en place, en illustrant les scénarios d'attaque plausibles et en discutant des améliorations futures. L'objectif est \emph{divulgatif}: comprendre comment et pourquoi les contrôles bloquent les attaques, et où renforcer la posture.
+\noindent Ce chapitre complète le \textbf{Chap.~\ref{chap:auth}} en évaluant les défenses mises en place, en illustrant les scénarios d'attaque plausibles et en discutant des améliorations futures. L'objectif est comprendre comment et pourquoi les contrôles bloquent les attaques, et où on pourrait renforcer la posture.
 
 \section{Périmètre et surface d'attaque}
-\noindent Les routes exposées côté authentification (toutes soumises à limite de débit) sont:
+\noindent Pour rendre la lecture concrète, on part d'une \emph{carte des routes} – celles que l'utilisateur peut toucher. Nous indiquons les garde-fous (authentification, limites de débit) directement à côté de chaque groupe.
+
+\paragraph{Pages (UI)} \texttt{/}, \texttt{/map\_snapshot}, \texttt{/problems}, \texttt{/persistent\_data}, \texttt{/reports} — vues HTML publiques qui appellent l'API ci-dessous.
+
+\paragraph{Authentification} (limitées par IP)
 \begin{itemize}
-  \item \texttt{/auth/register}, \texttt{/auth/login}, \texttt{/auth/logout}
-  \item \texttt{/auth/enable\_2fa}, \texttt{/auth/2fa}, \texttt{/auth/disable\_2fa}
-  \item \texttt{/auth/verify-email/<token>}, \texttt{/auth/resend-verification}
-  \item \texttt{/auth/status}
+  \item \texttt{/auth/register} \textit{GET,POST} — \textbf{5/min}; CAPTCHA Turnstile
+  \item \texttt{/auth/login} \textit{GET,POST} — \textbf{10/min}; CAPTCHA + verrouillage progressif par compte
+  \item \texttt{/auth/2fa} \textit{GET,POST} — \textbf{15/min}
+  \item \texttt{/auth/logout} \textit{POST} — \textbf{auth requis}
+  \item \texttt{/auth/enable\_2fa} \textit{GET,POST} — \textbf{auth requis}
+  \item \texttt{/auth/disable\_2fa} \textit{POST} — \textbf{auth requis}
+  \item \texttt{/auth/verify-email/<token>} \textit{GET} — \textbf{30/h}
+  \item \texttt{/auth/resend-verification} \textit{GET,POST} — \textbf{5/min} (réponse neutre)
+  \item \texttt{/auth/status} \textit{GET}
 \end{itemize}
-\noindent Types d'attaques considérés: \textbf{bourrage d'identifiants}, \textbf{force brute}, \textbf{contournement 2FA}, \textbf{énumération d'email}, \textbf{CSRF} et \textbf{abus de liens signés}.
+
+\paragraph{Données} (lecture cartographique)
+\begin{itemize}
+  \item \texttt{/api/data} \textit{GET} — \textbf{30/min}; filtrage \emph{SARGable} sur la fenêtre \texttt{bbox}, pagination
+  \item \texttt{/api/stop\_popup} \textit{GET} — \textbf{120/min}; jointures ciblées, sérialisation compacte
+  \item \texttt{/api/route\_stops} \textit{GET} — \textbf{60/min}; requête optimisée + fallback de normalisation
+  \item \texttt{/api/operators} \textit{GET} — \textbf{60/min}; \texttt{SELECT DISTINCT} indexé
+\end{itemize}
+
+\paragraph{Recherche}
+\begin{itemize}
+  \item \texttt{/api/search} \textit{GET} — \textbf{60/min}; colonnes réduites via \texttt{optimize\_query\_for\_endpoint}
+  \item \texttt{/api/top\_matches} \textit{GET} — \textbf{60/min}; tri sur colonne indexée \texttt{distance\_m}
+  \item \texttt{/api/random\_stop} \textit{GET} — \textbf{30/min}; \emph{sampling} par plages d'ID (pas de \texttt{ORDER BY RAND()})
+  \item \texttt{/api/stop\_by\_id} \textit{GET} — \textbf{60/min}
+  \item \texttt{/api/manual\_match} \textit{POST} — \textbf{30/min}; enregistre un appariement manuel
+\end{itemize}
+
+\paragraph{Statistiques et rapports}
+\begin{itemize}
+  \item \texttt{/api/global\_stats} \textit{GET} — \textbf{30/min}; cache LRU en mémoire
+  \item \texttt{/api/generate\_report} \textit{GET} — \textbf{auth requis}, \textbf{20/jour}; génération PDF/CSV côté serveur
+\end{itemize}
+
+\paragraph{Problèmes et persistance}
+\begin{itemize}
+  \item \texttt{/api/problems}, \texttt{/api/problems/stats} \textit{GET} — \textbf{120/min}
+  \item \texttt{/api/save\_solution}, \texttt{/api/make\_solution\_persistent} \textit{POST} — \textbf{30/min}, \textbf{auth requis}
+  \item \texttt{/api/save\_note/atlas}, \texttt{/api/save\_note/osm}, \texttt{/api/make\_note\_persistent/<type>} \textit{POST} — \textbf{60/min}, \textbf{auth requis}
+  \item \texttt{/api/check\_persistent\_solution}, \texttt{/api/check\_persistent\_note/...} \textit{GET} — \textbf{120/min}
+  \item \texttt{/api/persistent\_data}, \texttt{/api/non\_persistent\_data} \textit{GET} — \textbf{60/min}, \textbf{auth requis}
+  \item \texttt{/api/persistent\_data/<id>} \textit{DELETE} — \textbf{30/min}, \textbf{auth+admin}
+  \item \texttt{/api/make\_non\_persistent/<id>}, \texttt{/api/clear\_all\_persistent}, \texttt{/api/clear\_all\_non-persistent}, \texttt{/api/make\_all\_persistent} \textit{POST} — \textbf{10/h}, \textbf{auth requis} (admin si destructif)
+\end{itemize}
+
+\noindent Types d'attaques considérés: \textbf{bourrage d'identifiants}, \textbf{force brute}, \textbf{contournement 2FA}, \textbf{énumération d'email}, \textbf{CSRF}, \textbf{abus de liens signés} et \textbf{déni de service (DoS)}.
 
 \section{Contrôles en place (aperçu technique)}
 
@@ -46,10 +90,16 @@ ok = bool(resp.json().get('success'))
 \subsection*{Limitation de débit et verrouillage}
 \noindent Double barrière: limites par route \emph{et} verrouillage progressif par compte après échecs répétés.
 \begin{codebox}[language=Python]{Limites de débit par route}
-@limiter.limit("5/minute")  # /auth/register
-@limiter.limit("10/minute") # /auth/login
-@limiter.limit("15/minute") # /auth/2fa
-@limiter.limit("30/hour")   # /auth/verify-email/<token>
+@limiter.limit("5/minute")   # /auth/register
+@limiter.limit("10/minute")  # /auth/login
+@limiter.limit("15/minute")  # /auth/2fa
+@limiter.limit("30/hour")    # /auth/verify-email/<token>
+@limiter.limit("30/minute")  # /api/data
+@limiter.limit("120/minute") # /api/stop_popup
+@limiter.limit("60/minute")  # /api/search, /api/top_matches, /api/route_stops, /api/operators
+@limiter.limit("30/minute")  # /api/random_stop, /api/manual_match
+@limiter.limit("30/minute")  # /api/global_stats (avec cache LRU)
+@login_required; @limiter.limit("20/day")  # /api/generate_report
 \end{codebox}
 
 \begin{codebox}[language=Python]{Verrouillage exponentiel (extrait)}
@@ -146,6 +196,13 @@ docker compose logs -f app | grep 'auth_event' | cat
 
 \textbf{Résultat}. Les tentatives de soumission cachée échouent faute de jeton.
 
+\subsection*{A6 — DoS sur endpoints lourds}
+\textbf{Attaque}. Bombarder \texttt{/api/data}, \texttt{/api/stop\_popup} ou \texttt{/api/generate\_report} pour saturer la base/le CPU.
+
+\textbf{Côté serveur}. Nous avons ajouté ou resserré des limites: \texttt{/api/data} \textbf{30/min}, \texttt{/api/stop\_popup} \textbf{120/min}, \texttt{/api/search/top\_matches} \textbf{60/min}, \texttt{/api/global\_stats} \textbf{30/min} (avec \textbf{cache LRU}), \texttt{/api/generate\_report} désormais \textbf{authentifiée} et plafonnée à \textbf{20/jour}. Les requêtes sont \emph{SARGable} (filtres par fenêtre) et paginées pour bornes fortes.
+
+\textbf{Résultat}. Un attaquant doit multiplier les IPs et comptes authentifiés pour maintenir une charge significative; l'impact reste contenu. Les métriques d'audit aident à repérer des rafales anormales.
+
 \section{Calibrage et limites actuelles}
 \noindent Les limites en place forment un socle solide mais peuvent être durcies:
 \begin{itemize}
@@ -161,6 +218,7 @@ docker compose logs -f app | grep 'auth_event' | cat
   \item \textbf{Politiques CSP strictes} (actuellement désactivées) avec listes blanches minimales, ou auto-hébergement des actifs.
   \item \textbf{Unifier les messages d'inscription} pour éviter l'énumération d'emails (réponse neutre: \og si un compte existe déjà, vous recevrez un email \fg{}).
   \item \textbf{Clés de limite composites} : ajouter des limites \emph{par compte} (IP+email) et des \emph{burst tokens} pour lisser.
+  \item \textbf{Écriture manuelle}: exiger l'authentification forte pour tout endpoint mutateur (p.\,ex. \texttt{/api/manual\_match}) et journaliser finement.
   \item \textbf{Chiffrement au repos du secret TOTP} (p.~ex. libsodium/\texttt{Fernet} avec rotation de clés) et \textbf{réauthentification} exigée pour \texttt{/auth/disable\_2fa}.
   \item \textbf{Rotation de session à la connexion} et vidage explicite de session pour réduire les risques de fixation.
   \item \textbf{Réinitialisation de mot de passe} avec jetons signés mono-usage à durée courte (non implémenté, \S~\ref{chap:auth}).

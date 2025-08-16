@@ -266,69 +266,75 @@
 \@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {10.2}Aperçu de l'architecture}{92}{section.10.2}\protected@file@percent }
 \@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {a}Composants}{92}{subsection.10.2.1}\protected@file@percent }
 \@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {10.3}Modèle de données (auth\_db)}{93}{section.10.3}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.1}{\ignorespaces \texttt  {auth\_db.users}: \texttt  {email} et \texttt  {password\_hash} après inscription.\relax }}{93}{figure.caption.56}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.2}{\ignorespaces \texttt  {auth\_db.users}: \texttt  {is\_admin}, \texttt  {is\_email\_verified}, \texttt  {last\_verification\_sent\_at}, \texttt  {is\_totp\_enabled}.\relax }}{93}{figure.caption.57}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {10.4}Vérification d'email}{93}{section.10.4}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.3}{\ignorespaces \texttt  {auth\_db.users}: \texttt  {totp\_secret}, \texttt  {backup\_codes\_json}, \texttt  {created\_at}, \texttt  {updated\_at}.\relax }}{94}{figure.caption.58}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.4}{\ignorespaces \texttt  {auth\_db.users}: \texttt  {last\_login\_at}, \texttt  {failed\_login\_attempts}, \texttt  {locked\_until}.\relax }}{94}{figure.caption.59}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.5}{\ignorespaces Processus de vérification d'email (espace réservé).\relax }}{94}{figure.caption.60}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {10.5}Activation et utilisation de la 2FA}{94}{section.10.5}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.6}{\ignorespaces Activation 2FA avec QR \textit  {otpauth://} et secret Base32. QR et secret encodent la même information.\relax }}{95}{figure.caption.61}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.7}{\ignorespaces Codes de secours: affichés une seule fois à l'activation. Stockage côté serveur: hachés Argon2 dans un JSON.\relax }}{95}{figure.caption.62}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {10.6}Sécurité opérationnelle}{95}{section.10.6}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.8}{\ignorespaces Étape de connexion avec saisie du code 2FA (ou d'un code de secours).\relax }}{96}{figure.caption.63}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {10.7}Interface utilisateur}{96}{section.10.7}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Accès aux écrans d'authentification}{96}{section.10.7}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.9}{\ignorespaces Bouton \FB@og  Créer un compte \FB@fg  \relax {} visible dans l'interface.\relax }}{96}{figure.caption.64}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Inscription}{96}{figure.caption.64}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Connexion}{96}{figure.caption.65}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.10}{\ignorespaces Formulaire d'inscription (email, mot de passe).\relax }}{97}{figure.caption.65}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.11}{\ignorespaces Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref  {chap:security}).\relax }}{97}{figure.caption.66}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {10.8}Sécurité des données lors des mises à jour}{97}{section.10.8}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {10.9}Pistes de durcissement}{97}{section.10.9}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.12}{\ignorespaces Connexion réussie: alertes UI sur l'email non vérifié et la 2FA non activée.\relax }}{98}{figure.caption.67}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {chapter}{\numberline {11}Chapitre 11: Évaluation de la sécurité de l'application}{99}{chapter.11}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {subsection}{\numberline {a}Parcours utilisateur et impact sur les données}{94}{subsection.10.3.1}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Accès aux écrans d'authentification}{94}{subsection.10.3.1}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.1}{\ignorespaces Bouton \FB@og  Créer un compte \FB@fg  \relax {} visible dans l'interface.\relax }}{94}{figure.caption.56}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Inscription}{94}{figure.caption.56}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Vérification d'email}{94}{figure.caption.58}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.2}{\ignorespaces Formulaire d'inscription (email, mot de passe).\relax }}{95}{figure.caption.57}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.3}{\ignorespaces \texttt  {auth\_db.users}: \texttt  {email} et \texttt  {password\_hash} après inscription.\relax }}{95}{figure.caption.58}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.4}{\ignorespaces Processus de vérification d'email (espace réservé).\relax }}{95}{figure.caption.59}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Connexion}{95}{figure.caption.60}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.5}{\ignorespaces \texttt  {auth\_db.users}: \texttt  {is\_admin}, \texttt  {is\_email\_verified}, \texttt  {last\_verification\_sent\_at}, \texttt  {is\_totp\_enabled}.\relax }}{96}{figure.caption.60}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.6}{\ignorespaces Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref  {chap:security}).\relax }}{96}{figure.caption.61}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{2FA}{96}{figure.caption.63}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.12}{\ignorespaces \texttt  {auth\_db.users}: \texttt  {totp\_secret}, \texttt  {backup\_codes\_json}, \texttt  {created\_at}, \texttt  {updated\_at}.\relax }}{96}{figure.caption.67}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {10.4}Sécurité opérationnelle}{96}{section.10.4}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.7}{\ignorespaces Connexion réussie: alertes UI sur l'email non vérifié et la 2FA non activée.\relax }}{97}{figure.caption.62}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.8}{\ignorespaces \texttt  {auth\_db.users}: \texttt  {last\_login\_at}, \texttt  {failed\_login\_attempts}, \texttt  {locked\_until}.\relax }}{97}{figure.caption.63}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {10.5}Sécurité des données lors des mises à jour}{97}{section.10.5}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {10.6}Pistes de durcissement}{97}{section.10.6}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.9}{\ignorespaces Activation 2FA avec QR \textit  {otpauth://} et secret Base32. QR et secret encodent la même information.\relax }}{98}{figure.caption.64}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.10}{\ignorespaces Codes de secours: affichés une seule fois à l'activation. Stockage côté serveur: hachés Argon2 dans un JSON.\relax }}{98}{figure.caption.65}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {10.11}{\ignorespaces Étape de connexion avec saisie du code 2FA (ou d'un code de secours).\relax }}{99}{figure.caption.66}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {chapter}{\numberline {11}Chapitre 11: Évaluation de la sécurité de l'application}{100}{chapter.11}\protected@file@percent }
 \@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\defcounter {refsection}{0}\relax }\@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:security}{{11}{99}{Chapitre 11: Évaluation de la sécurité de l'application}{chapter.11}{}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.1}Périmètre et surface d'attaque}{99}{section.11.1}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.2}Contrôles en place (aperçu technique)}{99}{section.11.2}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.3}Scénarios d'attaque et déroulé}{101}{section.11.3}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {11.1}{\ignorespaces Verrouillage progressif: coût croissant pour l'attaquant.\relax }}{101}{figure.caption.68}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {11.2}{\ignorespaces Garde 2FA: étape obligatoire après mot de passe.\relax }}{102}{figure.caption.69}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Note}{102}{figure.caption.69}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {11.3}{\ignorespaces Cycle de vie d'un jeton de vérification.\relax }}{102}{figure.caption.70}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.4}Calibrage et limites actuelles}{103}{section.11.4}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.5}Améliorations et vecteurs non encore couverts}{103}{section.11.5}\protected@file@percent }
-\newlabel{sec:improve}{{11.5}{103}{Améliorations et vecteurs non encore couverts}{section.11.5}{}}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.6}Conclusion}{104}{section.11.6}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {chapter}{\numberline {12}Chapitre 12 : Dockerisation and repo files}{105}{chapter.12}\protected@file@percent }
+\newlabel{chap:security}{{11}{100}{Chapitre 11: Évaluation de la sécurité de l'application}{chapter.11}{}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.1}Périmètre et surface d'attaque}{100}{section.11.1}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Pages (UI)}{100}{section.11.1}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Authentification}{100}{section.11.1}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Données}{100}{section.11.1}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Recherche}{101}{section.11.1}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Statistiques et rapports}{101}{section.11.1}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Problèmes et persistance}{101}{section.11.1}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.2}Contrôles en place (aperçu technique)}{102}{section.11.2}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.3}Scénarios d'attaque et déroulé}{105}{section.11.3}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {11.1}{\ignorespaces Verrouillage progressif: coût croissant pour l'attaquant.\relax }}{105}{figure.caption.68}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {11.2}{\ignorespaces Garde 2FA: étape obligatoire après mot de passe.\relax }}{105}{figure.caption.69}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {paragraph}{Note}{105}{figure.caption.69}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {11.3}{\ignorespaces Cycle de vie d'un jeton de vérification.\relax }}{106}{figure.caption.70}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.4}Calibrage et limites actuelles}{107}{section.11.4}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.5}Améliorations et vecteurs non encore couverts}{107}{section.11.5}\protected@file@percent }
+\newlabel{sec:improve}{{11.5}{107}{Améliorations et vecteurs non encore couverts}{section.11.5}{}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {11.6}Conclusion}{108}{section.11.6}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {chapter}{\numberline {12}Chapitre 12 : Dockerisation and repo files}{109}{chapter.12}\protected@file@percent }
 \@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\defcounter {refsection}{0}\relax }\@writefile{lot}{\addvspace {10\p@ }}
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.1}Pourquoi dockeriser ?}{105}{section.12.1}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.2}Les quatre pièces du puzzle}{105}{section.12.2}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.3}Aperçu de l'architecture}{106}{section.12.3}\protected@file@percent }
-\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {12.1}{\ignorespaces Deux conteneurs reliés sur le réseau compose; volumes pour le code (monté) et les données MySQL (persistées).\relax }}{106}{figure.caption.71}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.4}L'orchestration: \texttt  {docker-compose.yml}}{106}{section.12.4}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.5}L'image: \texttt  {dockerfile}}{108}{section.12.5}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.6}Le chef d'orchestre: \texttt  {entrypoint.sh}}{108}{section.12.6}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.7}Démarrer en 30 secondes}{109}{section.12.7}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.8}Personnaliser par variables d'environnement}{110}{section.12.8}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.9}Persistance et poids d'image}{110}{section.12.9}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.10}Recettes de diagnostic}{111}{section.12.10}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.11}Bonnes pratiques et sécurité}{111}{section.12.11}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.12}Réflexion et améliorations possibles}{112}{section.12.12}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {chapter}{Conclusion}{113}{chapter*.72}\protected@file@percent }
-\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {chapter}{Références documentaires}{114}{chapter*.73}\protected@file@percent }
-\newlabel{ref:open_transport_data_swiss}{{1}{114}{Références documentaires}{Item.40}{}}
-\newlabel{ref:traffic_points_actual_date}{{2}{114}{Références documentaires}{Item.41}{}}
-\newlabel{ref:atlas_app_sbb}{{3}{114}{Références documentaires}{Item.42}{}}
-\newlabel{ref:wikipedia_uic_codes}{{4}{114}{Références documentaires}{Item.43}{}}
-\newlabel{ref:osm_bus_stop}{{5}{114}{Références documentaires}{Item.44}{}}
-\newlabel{ref:osm_public_transport}{{6}{114}{Références documentaires}{Item.45}{}}
-\newlabel{ref:osm_key_public_transport}{{7}{114}{Références documentaires}{Item.46}{}}
-\newlabel{ref:osm_proposal_public_transport}{{8}{114}{Références documentaires}{Item.47}{}}
-\newlabel{ref:osm_transport_map}{{9}{114}{Références documentaires}{Item.48}{}}
-\newlabel{ref:osm_local_ref}{{10}{114}{Références documentaires}{Item.49}{}}
-\newlabel{ref:overpass_turbo}{{11}{114}{Références documentaires}{Item.50}{}}
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.1}Pourquoi dockeriser ?}{109}{section.12.1}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.2}Les quatre pièces du puzzle}{109}{section.12.2}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.3}Aperçu}{110}{section.12.3}\protected@file@percent }
+\@writefile{lof}{\defcounter {refsection}{0}\relax }\@writefile{lof}{\contentsline {figure}{\numberline {12.1}{\ignorespaces Deux conteneurs reliés sur le réseau compose; volumes pour le code (monté) et les données MySQL (persistées).\relax }}{110}{figure.caption.71}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.4}L'orchestration: \texttt  {docker-compose.yml}}{110}{section.12.4}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.5}L'image: \texttt  {dockerfile}}{112}{section.12.5}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.6}Le chef d'orchestre: \texttt  {entrypoint.sh}}{112}{section.12.6}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.7}Démarrer en 30 secondes}{114}{section.12.7}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.8}Personnaliser par variables d'environnement}{114}{section.12.8}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.9}Persistance et poids d'image}{115}{section.12.9}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.10}Recettes de diagnostic}{116}{section.12.10}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.11}Bonnes pratiques et sécurité}{116}{section.12.11}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {section}{\numberline {12.12}Réflexion et améliorations possibles}{116}{section.12.12}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {chapter}{Conclusion}{118}{chapter*.72}\protected@file@percent }
+\@writefile{toc}{\defcounter {refsection}{0}\relax }\@writefile{toc}{\contentsline {chapter}{Références documentaires}{120}{chapter*.73}\protected@file@percent }
+\newlabel{ref:open_transport_data_swiss}{{1}{120}{Références documentaires}{Item.40}{}}
+\newlabel{ref:traffic_points_actual_date}{{2}{120}{Références documentaires}{Item.41}{}}
+\newlabel{ref:atlas_app_sbb}{{3}{120}{Références documentaires}{Item.42}{}}
+\newlabel{ref:wikipedia_uic_codes}{{4}{120}{Références documentaires}{Item.43}{}}
+\newlabel{ref:osm_bus_stop}{{5}{120}{Références documentaires}{Item.44}{}}
+\newlabel{ref:osm_public_transport}{{6}{120}{Références documentaires}{Item.45}{}}
+\newlabel{ref:osm_key_public_transport}{{7}{120}{Références documentaires}{Item.46}{}}
+\newlabel{ref:osm_proposal_public_transport}{{8}{120}{Références documentaires}{Item.47}{}}
+\newlabel{ref:osm_transport_map}{{9}{120}{Références documentaires}{Item.48}{}}
+\newlabel{ref:osm_local_ref}{{10}{120}{Références documentaires}{Item.49}{}}
+\newlabel{ref:overpass_turbo}{{11}{120}{Références documentaires}{Item.50}{}}
 \ttl@finishall

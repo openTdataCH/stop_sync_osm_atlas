@@ -99,39 +99,39 @@
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.1}{\ignorespaces \texttt {auth\_db.users}: \texttt {email} et \texttt {password\_hash} après inscription.\relax }}{93}{figure.caption.56}%
+\contentsline {figure}{\numberline {10.1}{\ignorespaces Bouton \FB@og Créer un compte \FB@fg \relax {} visible dans l'interface.\relax }}{94}{figure.caption.56}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.2}{\ignorespaces \texttt {auth\_db.users}: \texttt {is\_admin}, \texttt {is\_email\_verified}, \texttt {last\_verification\_sent\_at}, \texttt {is\_totp\_enabled}.\relax }}{93}{figure.caption.57}%
+\contentsline {figure}{\numberline {10.2}{\ignorespaces Formulaire d'inscription (email, mot de passe).\relax }}{95}{figure.caption.57}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.3}{\ignorespaces \texttt {auth\_db.users}: \texttt {totp\_secret}, \texttt {backup\_codes\_json}, \texttt {created\_at}, \texttt {updated\_at}.\relax }}{94}{figure.caption.58}%
+\contentsline {figure}{\numberline {10.3}{\ignorespaces \texttt {auth\_db.users}: \texttt {email} et \texttt {password\_hash} après inscription.\relax }}{95}{figure.caption.58}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.4}{\ignorespaces \texttt {auth\_db.users}: \texttt {last\_login\_at}, \texttt {failed\_login\_attempts}, \texttt {locked\_until}.\relax }}{94}{figure.caption.59}%
+\contentsline {figure}{\numberline {10.4}{\ignorespaces Processus de vérification d'email (espace réservé).\relax }}{95}{figure.caption.59}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.5}{\ignorespaces Processus de vérification d'email (espace réservé).\relax }}{94}{figure.caption.60}%
+\contentsline {figure}{\numberline {10.5}{\ignorespaces \texttt {auth\_db.users}: \texttt {is\_admin}, \texttt {is\_email\_verified}, \texttt {last\_verification\_sent\_at}, \texttt {is\_totp\_enabled}.\relax }}{96}{figure.caption.60}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.6}{\ignorespaces Activation 2FA avec QR \textit {otpauth://} et secret Base32. QR et secret encodent la même information.\relax }}{95}{figure.caption.61}%
+\contentsline {figure}{\numberline {10.6}{\ignorespaces Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref {chap:security}).\relax }}{96}{figure.caption.61}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.7}{\ignorespaces Codes de secours: affichés une seule fois à l'activation. Stockage côté serveur: hachés Argon2 dans un JSON.\relax }}{95}{figure.caption.62}%
+\contentsline {figure}{\numberline {10.12}{\ignorespaces \texttt {auth\_db.users}: \texttt {totp\_secret}, \texttt {backup\_codes\_json}, \texttt {created\_at}, \texttt {updated\_at}.\relax }}{96}{figure.caption.67}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.8}{\ignorespaces Étape de connexion avec saisie du code 2FA (ou d'un code de secours).\relax }}{96}{figure.caption.63}%
+\contentsline {figure}{\numberline {10.7}{\ignorespaces Connexion réussie: alertes UI sur l'email non vérifié et la 2FA non activée.\relax }}{97}{figure.caption.62}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.9}{\ignorespaces Bouton \FB@og Créer un compte \FB@fg \relax {} visible dans l'interface.\relax }}{96}{figure.caption.64}%
+\contentsline {figure}{\numberline {10.8}{\ignorespaces \texttt {auth\_db.users}: \texttt {last\_login\_at}, \texttt {failed\_login\_attempts}, \texttt {locked\_until}.\relax }}{97}{figure.caption.63}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.10}{\ignorespaces Formulaire d'inscription (email, mot de passe).\relax }}{97}{figure.caption.65}%
+\contentsline {figure}{\numberline {10.9}{\ignorespaces Activation 2FA avec QR \textit {otpauth://} et secret Base32. QR et secret encodent la même information.\relax }}{98}{figure.caption.64}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.11}{\ignorespaces Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref {chap:security}).\relax }}{97}{figure.caption.66}%
+\contentsline {figure}{\numberline {10.10}{\ignorespaces Codes de secours: affichés une seule fois à l'activation. Stockage côté serveur: hachés Argon2 dans un JSON.\relax }}{98}{figure.caption.65}%
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {10.12}{\ignorespaces Connexion réussie: alertes UI sur l'email non vérifié et la 2FA non activée.\relax }}{98}{figure.caption.67}%
-\defcounter {refsection}{0}\relax 
-\addvspace {10\p@ }
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {11.1}{\ignorespaces Verrouillage progressif: coût croissant pour l'attaquant.\relax }}{101}{figure.caption.68}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {11.2}{\ignorespaces Garde 2FA: étape obligatoire après mot de passe.\relax }}{102}{figure.caption.69}%
-\defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {11.3}{\ignorespaces Cycle de vie d'un jeton de vérification.\relax }}{102}{figure.caption.70}%
+\contentsline {figure}{\numberline {10.11}{\ignorespaces Étape de connexion avec saisie du code 2FA (ou d'un code de secours).\relax }}{99}{figure.caption.66}%
 \defcounter {refsection}{0}\relax 
 \addvspace {10\p@ }
 \defcounter {refsection}{0}\relax 
-\contentsline {figure}{\numberline {12.1}{\ignorespaces Deux conteneurs reliés sur le réseau compose; volumes pour le code (monté) et les données MySQL (persistées).\relax }}{106}{figure.caption.71}%
+\contentsline {figure}{\numberline {11.1}{\ignorespaces Verrouillage progressif: coût croissant pour l'attaquant.\relax }}{105}{figure.caption.68}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {11.2}{\ignorespaces Garde 2FA: étape obligatoire après mot de passe.\relax }}{105}{figure.caption.69}%
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {11.3}{\ignorespaces Cycle de vie d'un jeton de vérification.\relax }}{106}{figure.caption.70}%
+\defcounter {refsection}{0}\relax 
+\addvspace {10\p@ }
+\defcounter {refsection}{0}\relax 
+\contentsline {figure}{\numberline {12.1}{\ignorespaces Deux conteneurs reliés sur le réseau compose; volumes pour le code (monté) et les données MySQL (persistées).\relax }}{110}{figure.caption.71}%
 \contentsfinish 

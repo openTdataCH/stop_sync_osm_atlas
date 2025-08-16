@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func, case
 from backend.models import Stop
-from backend.extensions import db
+from backend.extensions import db, limiter
 from backend.query_helpers import get_query_builder, parse_filter_params
 from collections import OrderedDict
 import threading
@@ -47,6 +47,7 @@ def _build_stats_cache_key(args) -> tuple:
 
 
 @stats_bp.route('/api/global_stats', methods=['GET'])
+@limiter.limit("30/minute")
 def get_global_stats():
     try:
         cache_key = _build_stats_cache_key(request.args)

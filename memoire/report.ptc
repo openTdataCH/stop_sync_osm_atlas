@@ -234,67 +234,79 @@
 \defcounter {refsection}{0}\relax 
 \contentsline {section}{\numberline {10.3}Modèle de données (auth\_db)}{93}{section.10.3}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {10.4}Vérification d'email}{93}{section.10.4}%
+\contentsline {subsection}{\numberline {a}Parcours utilisateur et impact sur les données}{94}{subsection.10.3.1}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {10.5}Activation et utilisation de la 2FA}{94}{section.10.5}%
+\contentsline {paragraph}{Accès aux écrans d'authentification}{94}{subsection.10.3.1}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {10.6}Sécurité opérationnelle}{95}{section.10.6}%
+\contentsline {paragraph}{Inscription}{94}{figure.caption.56}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {10.7}Interface utilisateur}{96}{section.10.7}%
+\contentsline {paragraph}{Vérification d'email}{94}{figure.caption.58}%
 \defcounter {refsection}{0}\relax 
-\contentsline {paragraph}{Accès aux écrans d'authentification}{96}{section.10.7}%
+\contentsline {paragraph}{Connexion}{95}{figure.caption.60}%
 \defcounter {refsection}{0}\relax 
-\contentsline {paragraph}{Inscription}{96}{figure.caption.64}%
+\contentsline {paragraph}{2FA}{96}{figure.caption.63}%
 \defcounter {refsection}{0}\relax 
-\contentsline {paragraph}{Connexion}{96}{figure.caption.65}%
+\contentsline {section}{\numberline {10.4}Sécurité opérationnelle}{96}{section.10.4}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {10.8}Sécurité des données lors des mises à jour}{97}{section.10.8}%
+\contentsline {section}{\numberline {10.5}Sécurité des données lors des mises à jour}{97}{section.10.5}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {10.9}Pistes de durcissement}{97}{section.10.9}%
+\contentsline {section}{\numberline {10.6}Pistes de durcissement}{97}{section.10.6}%
 \defcounter {refsection}{0}\relax 
-\contentsline {chapter}{\numberline {11}Chapitre 11: Évaluation de la sécurité de l'application}{99}{chapter.11}%
+\contentsline {chapter}{\numberline {11}Chapitre 11: Évaluation de la sécurité de l'application}{100}{chapter.11}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {11.1}Périmètre et surface d'attaque}{99}{section.11.1}%
+\contentsline {section}{\numberline {11.1}Périmètre et surface d'attaque}{100}{section.11.1}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {11.2}Contrôles en place (aperçu technique)}{99}{section.11.2}%
+\contentsline {paragraph}{Pages (UI)}{100}{section.11.1}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {11.3}Scénarios d'attaque et déroulé}{101}{section.11.3}%
+\contentsline {paragraph}{Authentification}{100}{section.11.1}%
 \defcounter {refsection}{0}\relax 
-\contentsline {paragraph}{Note}{102}{figure.caption.69}%
+\contentsline {paragraph}{Données}{100}{section.11.1}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {11.4}Calibrage et limites actuelles}{103}{section.11.4}%
+\contentsline {paragraph}{Recherche}{101}{section.11.1}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {11.5}Améliorations et vecteurs non encore couverts}{103}{section.11.5}%
+\contentsline {paragraph}{Statistiques et rapports}{101}{section.11.1}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {11.6}Conclusion}{104}{section.11.6}%
+\contentsline {paragraph}{Problèmes et persistance}{101}{section.11.1}%
 \defcounter {refsection}{0}\relax 
-\contentsline {chapter}{\numberline {12}Chapitre 12 : Dockerisation and repo files}{105}{chapter.12}%
+\contentsline {section}{\numberline {11.2}Contrôles en place (aperçu technique)}{102}{section.11.2}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.1}Pourquoi dockeriser ?}{105}{section.12.1}%
+\contentsline {section}{\numberline {11.3}Scénarios d'attaque et déroulé}{105}{section.11.3}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.2}Les quatre pièces du puzzle}{105}{section.12.2}%
+\contentsline {paragraph}{Note}{105}{figure.caption.69}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.3}Aperçu de l'architecture}{106}{section.12.3}%
+\contentsline {section}{\numberline {11.4}Calibrage et limites actuelles}{107}{section.11.4}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.4}L'orchestration: \texttt {docker-compose.yml}}{106}{section.12.4}%
+\contentsline {section}{\numberline {11.5}Améliorations et vecteurs non encore couverts}{107}{section.11.5}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.5}L'image: \texttt {dockerfile}}{108}{section.12.5}%
+\contentsline {section}{\numberline {11.6}Conclusion}{108}{section.11.6}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.6}Le chef d'orchestre: \texttt {entrypoint.sh}}{108}{section.12.6}%
+\contentsline {chapter}{\numberline {12}Chapitre 12 : Dockerisation and repo files}{109}{chapter.12}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.7}Démarrer en 30 secondes}{109}{section.12.7}%
+\contentsline {section}{\numberline {12.1}Pourquoi dockeriser ?}{109}{section.12.1}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.8}Personnaliser par variables d'environnement}{110}{section.12.8}%
+\contentsline {section}{\numberline {12.2}Les quatre pièces du puzzle}{109}{section.12.2}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.9}Persistance et poids d'image}{110}{section.12.9}%
+\contentsline {section}{\numberline {12.3}Aperçu}{110}{section.12.3}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.10}Recettes de diagnostic}{111}{section.12.10}%
+\contentsline {section}{\numberline {12.4}L'orchestration: \texttt {docker-compose.yml}}{110}{section.12.4}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.11}Bonnes pratiques et sécurité}{111}{section.12.11}%
+\contentsline {section}{\numberline {12.5}L'image: \texttt {dockerfile}}{112}{section.12.5}%
 \defcounter {refsection}{0}\relax 
-\contentsline {section}{\numberline {12.12}Réflexion et améliorations possibles}{112}{section.12.12}%
+\contentsline {section}{\numberline {12.6}Le chef d'orchestre: \texttt {entrypoint.sh}}{112}{section.12.6}%
 \defcounter {refsection}{0}\relax 
-\contentsline {chapter}{Conclusion}{113}{chapter*.72}%
+\contentsline {section}{\numberline {12.7}Démarrer en 30 secondes}{114}{section.12.7}%
 \defcounter {refsection}{0}\relax 
-\contentsline {chapter}{Références documentaires}{114}{chapter*.73}%
+\contentsline {section}{\numberline {12.8}Personnaliser par variables d'environnement}{114}{section.12.8}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {12.9}Persistance et poids d'image}{115}{section.12.9}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {12.10}Recettes de diagnostic}{116}{section.12.10}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {12.11}Bonnes pratiques et sécurité}{116}{section.12.11}%
+\defcounter {refsection}{0}\relax 
+\contentsline {section}{\numberline {12.12}Réflexion et améliorations possibles}{116}{section.12.12}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Conclusion}{118}{chapter*.72}%
+\defcounter {refsection}{0}\relax 
+\contentsline {chapter}{Références documentaires}{120}{chapter*.73}%
 \contentsfinish 

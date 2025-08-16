@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 import logging
 import os
+import time
 from matching_process.utils import is_osm_station, haversine_distance
 # Import functions from distance_matching.py
 from matching_process.distance_matching import distance_matching, transform_for_distance_matching
@@ -97,6 +98,31 @@ def parse_osm_xml(xml_file):
 # Use module-level logger defined by basicConfig at import
 
 
+def _resolve_existing_path(preferred_path: str, alternates: list[str]) -> str:
+    """
+    Return the first existing path among preferred_path and alternates.
+    """
+    candidates = [preferred_path] + [p for p in alternates if p]
+    for p in candidates:
+        if p and os.path.exists(p):
+            return p
+    return ""
+
+
+def _wait_for_file(paths_to_try: list[str], timeout_seconds: int = 60, poll_seconds: float = 1.0) -> str:
+    """
+    Wait for any of the given paths to exist, returning the first that appears.
+    """
+    deadline = time.time() + max(0, timeout_seconds)
+    while True:
+        for p in paths_to_try:
+            if p and os.path.exists(p):
+                return p
+        if time.time() >= deadline:
+            return ""
+        time.sleep(poll_seconds)
+
+
 def final_pipeline(route_matching_strategy='unified'):
     """
     Execute the complete matching pipeline:
@@ -110,18 +136,48 @@ def final_pipeline(route_matching_strategy='unified'):
     get_osm_data.py to download the required data files before running this pipeline.
     """
     # --- Load Data ---
-    atlas_csv_file = "data/raw/stops_ATLAS.csv"
-    osm_xml_file = "data/raw/osm_data.xml"
+    # Prefer environment overrides, else use defaults
+    atlas_csv_pref = os.getenv('ATLAS_STOPS_CSV', "data/raw/stops_ATLAS.csv")
+    osm_xml_pref = os.getenv('OSM_XML_FILE', "data/raw/osm_data.xml")
+
+    # Common alternates to handle different working directories (e.g., Docker /app)
+    alternates_atlas = [
+        os.path.join('/app', atlas_csv_pref) if not os.path.isabs(atlas_csv_pref) else None,
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), atlas_csv_pref) if not os.path.isabs(atlas_csv_pref) else None,
+    ]
+    alternates_osm = [
+        os.path.join('/app', osm_xml_pref) if not os.path.isabs(osm_xml_pref) else None,
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), osm_xml_pref) if not os.path.isabs(osm_xml_pref) else None,
+    ]
+
+    # Resolve quickly if already present
+    atlas_csv_file = _resolve_existing_path(atlas_csv_pref, alternates_atlas)
+    osm_xml_file = _resolve_existing_path(osm_xml_pref, alternates_osm)
     
     logger.info("Loading and parsing data files...")
     
     # ATLAS CSV must exist - matching script should never download data
-    if not os.path.exists(atlas_csv_file):
-        raise FileNotFoundError(f"Required ATLAS CSV not found at '{atlas_csv_file}'. Please run get_atlas_data.py first to download the data.")
-    atlas_df = pd.read_csv(atlas_csv_file, sep=";")
-    if not os.path.exists(osm_xml_file):
+    if not atlas_csv_file:
+        # Short grace period to accommodate orchestrations that generate the file right before this step
+        wait_list = [atlas_csv_pref] + [p for p in alternates_atlas if p]
+        logger.info("ATLAS CSV not found immediately. Waiting briefly for file to appear...")
+        atlas_csv_file = _wait_for_file(wait_list, timeout_seconds=int(os.getenv('WAIT_FOR_ATLAS_SECONDS', '60')))
+    if not atlas_csv_file:
+        attempted = [atlas_csv_pref] + [p for p in alternates_atlas if p]
         raise FileNotFoundError(
-            f"Required OSM XML not found at '{osm_xml_file}'. Please provide the file or generate it before running the pipeline."
+            f"Required ATLAS CSV not found. Tried: {attempted}. "
+            f"Set ATLAS_STOPS_CSV to an absolute path or run get_atlas_data.py first."
+        )
+    atlas_df = pd.read_csv(atlas_csv_file, sep=";")
+    if not osm_xml_file:
+        wait_list = [osm_xml_pref] + [p for p in alternates_osm if p]
+        logger.info("OSM XML not found immediately. Waiting briefly for file to appear...")
+        osm_xml_file = _wait_for_file(wait_list, timeout_seconds=int(os.getenv('WAIT_FOR_OSM_SECONDS', '60')))
+    if not osm_xml_file:
+        attempted = [osm_xml_pref] + [p for p in alternates_osm if p]
+        raise FileNotFoundError(
+            f"Required OSM XML not found. Tried: {attempted}. "
+            f"Set OSM_XML_FILE to an absolute path or run get_osm_data.py first."
         )
     all_osm_nodes, uic_ref_dict, name_index = parse_osm_xml(osm_xml_file)
 

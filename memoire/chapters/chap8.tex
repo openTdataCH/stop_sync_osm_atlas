@@ -89,7 +89,7 @@ Nous structurons l'API par \textit{domaine} pour garder des fichiers courts, tes
 
 \begin{codebox}[language=Python]{Endpoint principal des données cartographiques}
 @data_bp.route('/api/data', methods=['GET'])
-@limiter.limit("30 per minute")
+@limiter.limit("30/minute")
 def get_data():
     """Endpoint principal pour l'alimentation de la carte interactive"""
     
@@ -168,7 +168,7 @@ def _build_stats_cache_key(args) -> tuple:
     return tuple(sorted(args.items()))
 
 @stats_bp.route('/api/global_stats')
-@limiter.limit("20 per minute")
+@limiter.limit("30/minute")
 def get_global_stats():
     """Statistiques globales avec mise en cache LRU"""
     
@@ -205,7 +205,8 @@ def get_global_stats():
 
 \begin{codebox}[language=Python]{Génération de rapports — backend/blueprints/reports.py}
 @reports_bp.route('/api/generate_report')
-@login_required  # Fonctionnalité authentifiée
+@login_required  # Auth requis désormais pour limiter l'abus
+@limiter.limit("20/day")
 def generate_report():
     """Génération de rapports PDF/CSV personnalisés"""
     

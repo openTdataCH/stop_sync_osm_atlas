@@ -72,62 +72,59 @@
 \BOOKMARK [1][-]{section.7.1}{Importer les donn\351es: le r\364le de import\137data\137db.py}{chapter.7}% 72
 \BOOKMARK [1][-]{section.7.2}{Sch\351ma logique: les tables qui comptent}{chapter.7}% 73
 \BOOKMARK [1][-]{section.7.3}{Pros et cons du sch\351ma vis-\340-vis du rendu cartographique}{chapter.7}% 74
-\BOOKMARK [1][-]{section.7.4}{Statistiques et graphiques depuis la base}{chapter.7}% 75
-\BOOKMARK [2][-]{subsection.7.4.1}{Volumes globaux}{section.7.4}% 76
-\BOOKMARK [2][-]{subsection.7.4.2}{Distances des correspondances}{section.7.4}% 77
-\BOOKMARK [2][-]{subsection.7.4.3}{Probl\350mes d\351tect\351s}{section.7.4}% 78
-\BOOKMARK [2][-]{subsection.7.4.4}{Routes et directions}{section.7.4}% 79
-\BOOKMARK [1][-]{section.7.5}{Donn\351es persistantes: comment elles survivent aux r\351-imports}{chapter.7}% 80
-\BOOKMARK [1][-]{section.7.6}{Performance: pourquoi \347a d\351file vite sur la carte}{chapter.7}% 81
-\BOOKMARK [1][-]{section.7.7}{Scripts utilis\351s et reproductibilit\351}{chapter.7}% 82
-\BOOKMARK [1][-]{section.7.8}{R\351flexion et pistes d'am\351lioration}{chapter.7}% 83
-\BOOKMARK [0][-]{chapter.8}{Chapitre 8 : Backend}{}% 84
-\BOOKMARK [1][-]{section.8.1}{Architecture g\351n\351rale}{chapter.8}% 85
-\BOOKMARK [1][-]{section.8.2}{Blueprints et endpoints}{chapter.8}% 86
-\BOOKMARK [2][-]{subsection.8.2.1}{Donn\351es: /api/data}{section.8.2}% 87
-\BOOKMARK [2][-]{subsection.8.2.2}{Recherche et matches manuels}{section.8.2}% 88
-\BOOKMARK [2][-]{subsection.8.2.3}{Statistiques: /api/global\137stats}{section.8.2}% 89
-\BOOKMARK [2][-]{subsection.8.2.4}{Rapports: /api/generate\137report}{section.8.2}% 90
-\BOOKMARK [2][-]{subsection.8.2.5}{Probl\350mes et persistance}{section.8.2}% 91
-\BOOKMARK [1][-]{section.8.3}{Requ\352tage partag\351 et optimisation}{chapter.8}% 92
-\BOOKMARK [1][-]{section.8.4}{Diagrammes de flux}{chapter.8}% 93
-\BOOKMARK [1][-]{section.8.5}{Bonnes pratiques et lisibilit\351}{chapter.8}% 94
-\BOOKMARK [1][-]{section.8.6}{Tests et extensions futures}{chapter.8}% 95
-\BOOKMARK [0][-]{chapter.9}{Chapitre 9 : Frontend}{}% 96
-\BOOKMARK [1][-]{section.9.1}{Pages et navigation}{chapter.9}% 97
-\BOOKMARK [1][-]{section.9.2}{Carte interactive \(Index\)}{chapter.9}% 98
-\BOOKMARK [2][-]{subsection.9.2.1}{Cycle de vie des requ\352tes}{section.9.2}% 99
-\BOOKMARK [2][-]{subsection.9.2.2}{Rendu des marqueurs et des lignes}{section.9.2}% 100
-\BOOKMARK [2][-]{subsection.9.2.3}{Info-bulles et chargement paresseux}{section.9.2}% 101
-\BOOKMARK [2][-]{subsection.9.2.4}{Panneau de filtres et recherche}{section.9.2}% 102
-\BOOKMARK [1][-]{section.9.3}{Outil Probl\350mes}{chapter.9}% 103
-\BOOKMARK [1][-]{section.9.4}{Donn\351es persistantes}{chapter.9}% 104
-\BOOKMARK [1][-]{section.9.5}{Rapports et instantan\351s}{chapter.9}% 105
-\BOOKMARK [1][-]{section.9.6}{Liaison avec le backend \(rappel Chap. 8\)}{chapter.9}% 106
-\BOOKMARK [0][-]{chapter.10}{Chapitre 10: Syst\350me d'authentification s\351curis\351}{}% 107
-\BOOKMARK [1][-]{section.10.1}{Objectifs}{chapter.10}% 108
-\BOOKMARK [1][-]{section.10.2}{Aper\347u de l'architecture}{chapter.10}% 109
-\BOOKMARK [2][-]{subsection.10.2.1}{Composants}{section.10.2}% 110
-\BOOKMARK [1][-]{section.10.3}{Mod\350le de donn\351es \(auth\137db\)}{chapter.10}% 111
-\BOOKMARK [1][-]{section.10.4}{V\351rification d'email}{chapter.10}% 112
-\BOOKMARK [1][-]{section.10.5}{Activation et utilisation de la 2FA}{chapter.10}% 113
-\BOOKMARK [1][-]{section.10.6}{S\351curit\351 op\351rationnelle}{chapter.10}% 114
-\BOOKMARK [1][-]{section.10.7}{Interface utilisateur}{chapter.10}% 115
-\BOOKMARK [1][-]{section.10.8}{S\351curit\351 des donn\351es lors des mises \340 jour}{chapter.10}% 116
-\BOOKMARK [1][-]{section.10.9}{Pistes de durcissement}{chapter.10}% 117
-\BOOKMARK [0][-]{chapter.11}{Chapitre 11: Evaluation de la s\351curit\351 de l'application}{}% 118
-\BOOKMARK [0][-]{chapter.12}{Chapitre 12 : Dockerisation and repo files}{}% 119
-\BOOKMARK [1][-]{section.12.1}{Pourquoi dockeriser ?}{chapter.12}% 120
-\BOOKMARK [1][-]{section.12.2}{Les quatre pi\350ces du puzzle}{chapter.12}% 121
-\BOOKMARK [1][-]{section.12.3}{Aper\347u de l'architecture}{chapter.12}% 122
-\BOOKMARK [1][-]{section.12.4}{L'orchestration: docker-compose.yml}{chapter.12}% 123
-\BOOKMARK [1][-]{section.12.5}{L'image: dockerfile}{chapter.12}% 124
-\BOOKMARK [1][-]{section.12.6}{Le chef d'orchestre: entrypoint.sh}{chapter.12}% 125
-\BOOKMARK [1][-]{section.12.7}{D\351marrer en 30 secondes}{chapter.12}% 126
-\BOOKMARK [1][-]{section.12.8}{Personnaliser par variables d'environnement}{chapter.12}% 127
-\BOOKMARK [1][-]{section.12.9}{Persistance et poids d'image}{chapter.12}% 128
-\BOOKMARK [1][-]{section.12.10}{Recettes de diagnostic}{chapter.12}% 129
-\BOOKMARK [1][-]{section.12.11}{Bonnes pratiques et s\351curit\351}{chapter.12}% 130
-\BOOKMARK [1][-]{section.12.12}{R\351flexion et am\351liorations possibles}{chapter.12}% 131
-\BOOKMARK [0][-]{chapter*.65}{Conclusion}{}% 132
-\BOOKMARK [0][-]{chapter*.66}{R\351f\351rences documentaires}{}% 133
+\BOOKMARK [1][-]{section.7.4}{Donn\351es persistantes: comment elles survivent aux r\351-imports}{chapter.7}% 75
+\BOOKMARK [1][-]{section.7.5}{Performance: pourquoi \347a d\351file vite sur la carte}{chapter.7}% 76
+\BOOKMARK [0][-]{chapter.8}{Chapitre 8 : Backend}{}% 77
+\BOOKMARK [1][-]{section.8.1}{Architecture g\351n\351rale}{chapter.8}% 78
+\BOOKMARK [1][-]{section.8.2}{Blueprints et endpoints}{chapter.8}% 79
+\BOOKMARK [2][-]{subsection.8.2.1}{Donn\351es: /api/data}{section.8.2}% 80
+\BOOKMARK [2][-]{subsection.8.2.2}{Recherche et matches manuels}{section.8.2}% 81
+\BOOKMARK [2][-]{subsection.8.2.3}{Statistiques: /api/global\137stats}{section.8.2}% 82
+\BOOKMARK [2][-]{subsection.8.2.4}{Rapports: /api/generate\137report}{section.8.2}% 83
+\BOOKMARK [2][-]{subsection.8.2.5}{Probl\350mes et persistance}{section.8.2}% 84
+\BOOKMARK [1][-]{section.8.3}{Requ\352tage partag\351 et optimisation}{chapter.8}% 85
+\BOOKMARK [1][-]{section.8.4}{Diagrammes de flux}{chapter.8}% 86
+\BOOKMARK [1][-]{section.8.5}{Bonnes pratiques et lisibilit\351}{chapter.8}% 87
+\BOOKMARK [0][-]{chapter.9}{Chapitre 9 : Frontend}{}% 88
+\BOOKMARK [1][-]{section.9.1}{Pages et navigation}{chapter.9}% 89
+\BOOKMARK [1][-]{section.9.2}{Carte interactive \(Index\)}{chapter.9}% 90
+\BOOKMARK [2][-]{subsection.9.2.1}{Cycle de vie des requ\352tes}{section.9.2}% 91
+\BOOKMARK [2][-]{subsection.9.2.2}{Rendu des marqueurs et des lignes}{section.9.2}% 92
+\BOOKMARK [2][-]{subsection.9.2.3}{Info-bulles et chargement paresseux}{section.9.2}% 93
+\BOOKMARK [2][-]{subsection.9.2.4}{Panneau de filtres et recherche}{section.9.2}% 94
+\BOOKMARK [1][-]{section.9.3}{Outil Probl\350mes}{chapter.9}% 95
+\BOOKMARK [1][-]{section.9.4}{Donn\351es persistantes}{chapter.9}% 96
+\BOOKMARK [1][-]{section.9.5}{Rapports et instantan\351s}{chapter.9}% 97
+\BOOKMARK [1][-]{section.9.6}{Liaison avec le backend \(rappel Chap. 8\)}{chapter.9}% 98
+\BOOKMARK [0][-]{chapter.10}{Chapitre 10: Syst\350me d'authentification s\351curis\351}{}% 99
+\BOOKMARK [1][-]{section.10.1}{Objectifs}{chapter.10}% 100
+\BOOKMARK [1][-]{section.10.2}{Aper\347u de l'architecture}{chapter.10}% 101
+\BOOKMARK [2][-]{subsection.10.2.1}{Composants}{section.10.2}% 102
+\BOOKMARK [1][-]{section.10.3}{Mod\350le de donn\351es \(auth\137db\)}{chapter.10}% 103
+\BOOKMARK [2][-]{subsection.10.3.1}{Parcours utilisateur et impact sur les donn\351es}{section.10.3}% 104
+\BOOKMARK [1][-]{section.10.4}{S\351curit\351 op\351rationnelle}{chapter.10}% 105
+\BOOKMARK [1][-]{section.10.5}{Interface utilisateur}{chapter.10}% 106
+\BOOKMARK [1][-]{section.10.6}{S\351curit\351 des donn\351es lors des mises \340 jour}{chapter.10}% 107
+\BOOKMARK [1][-]{section.10.7}{Pistes de durcissement}{chapter.10}% 108
+\BOOKMARK [0][-]{chapter.11}{Chapitre 11: \311valuation de la s\351curit\351 de l'application}{}% 109
+\BOOKMARK [1][-]{section.11.1}{P\351rim\350tre et surface d'attaque}{chapter.11}% 110
+\BOOKMARK [1][-]{section.11.2}{Contr\364les en place \(aper\347u technique\)}{chapter.11}% 111
+\BOOKMARK [1][-]{section.11.3}{Sc\351narios d'attaque et d\351roul\351}{chapter.11}% 112
+\BOOKMARK [1][-]{section.11.4}{Calibrage et limites actuelles}{chapter.11}% 113
+\BOOKMARK [1][-]{section.11.5}{Am\351liorations et vecteurs non encore couverts}{chapter.11}% 114
+\BOOKMARK [1][-]{section.11.6}{Conclusion}{chapter.11}% 115
+\BOOKMARK [0][-]{chapter.12}{Chapitre 12 : Dockerisation and repo files}{}% 116
+\BOOKMARK [1][-]{section.12.1}{Pourquoi dockeriser ?}{chapter.12}% 117
+\BOOKMARK [1][-]{section.12.2}{Les quatre pi\350ces du puzzle}{chapter.12}% 118
+\BOOKMARK [1][-]{section.12.3}{Aper\347u}{chapter.12}% 119
+\BOOKMARK [1][-]{section.12.4}{L'orchestration: docker-compose.yml}{chapter.12}% 120
+\BOOKMARK [1][-]{section.12.5}{L'image: dockerfile}{chapter.12}% 121
+\BOOKMARK [1][-]{section.12.6}{Le chef d'orchestre: entrypoint.sh}{chapter.12}% 122
+\BOOKMARK [1][-]{section.12.7}{D\351marrer en 30 secondes}{chapter.12}% 123
+\BOOKMARK [1][-]{section.12.8}{Personnaliser par variables d'environnement}{chapter.12}% 124
+\BOOKMARK [1][-]{section.12.9}{Persistance et poids d'image}{chapter.12}% 125
+\BOOKMARK [1][-]{section.12.10}{Recettes de diagnostic}{chapter.12}% 126
+\BOOKMARK [1][-]{section.12.11}{Bonnes pratiques et s\351curit\351}{chapter.12}% 127
+\BOOKMARK [1][-]{section.12.12}{R\351flexion et am\351liorations possibles}{chapter.12}% 128
+\BOOKMARK [0][-]{chapter*.76}{Conclusion}{}% 129
+\BOOKMARK [0][-]{chapter*.77}{R\351f\351rences documentaires}{}% 130

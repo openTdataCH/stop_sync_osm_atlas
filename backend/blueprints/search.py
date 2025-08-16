@@ -2,7 +2,8 @@ from flask import Blueprint, request, jsonify, current_app as app
 import random
 from sqlalchemy import func
 from backend.models import Stop, AtlasStop, OsmNode, PersistentData, Problem
-from backend.extensions import db
+from backend.extensions import db, limiter
+from flask_login import login_required
 from backend.serializers.stops import format_stop_data
 from backend.query_helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint
 
@@ -10,6 +11,8 @@ search_bp = Blueprint('search', __name__)
 
 
 @search_bp.route('/api/manual_match', methods=['POST'])
+@limiter.limit("30/minute")
+@login_required
 def manual_match():
     try:
         payload = request.get_json() or {}
@@ -72,6 +75,7 @@ def manual_match():
 
 
 @search_bp.route('/api/search', methods=['GET'])
+@limiter.limit("60/minute")
 def search():
     query_str = request.args.get('q', '').lower()
     results = {"osm": [], "atlas": []}
@@ -152,6 +156,7 @@ def search():
 
 
 @search_bp.route('/api/top_matches', methods=['GET'])
+@limiter.limit("60/minute")
 def get_top_matches():
     try:
         limit = int(request.args.get('limit', 10))
@@ -181,6 +186,7 @@ def get_top_matches():
 
 
 @search_bp.route('/api/random_stop', methods=['GET'])
+@limiter.limit("30/minute")
 def get_random_stop():
     try:
         # Fast random pick using id range sampling (avoids ORDER BY RAND() and large OFFSET scans)
@@ -224,6 +230,7 @@ def get_random_stop():
 
 
 @search_bp.route('/api/stop_by_id', methods=['GET'])
+@limiter.limit("60/minute")
 def get_stop_by_id():
     try:
         identifier = request.args.get('identifier')
