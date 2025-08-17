@@ -1,0 +1,125 @@
+% !TeX spellcheck = fr_FR
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                             %
+%% HEPIA BACHELOR THESIS LATEX TEMPLATE                                        %
+%% version 0.10 - 2020/04/22                                                    %
+%%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Ensure no option clash for url package; hyperref will manage links
+\RequirePackage{url}
+\documentclass[12pt
+%% UNCOMMENT THE LINE BELOW TO HAVE CHAPTER STARTING ON THE RIGHT PAGE
+%			,twoside, openright
+			]{report} %% should use memoir documentclass
+\input{config/thesis}
+
+%% To fill up by the student
+\newcommand{\Author}{Guillem MASSAGUÉ Querol}
+\newcommand{\TitleImage}{figures/cover_image.png}
+\newcommand{\Title}{Synchronisation des Arrêts / Points d’Arrêt entre OSM et ATLAS}
+\newcommand{\Shorttitle}{Synchronisation des Arrêts entre OSM et ATLAS}
+\newcommand{\Orientation}{< Nom complet de votre orientation >}
+\newcommand{\Professor}{< Prénom NOM >}
+\newcommand{\Client}{< Prénom NOM >}
+\newcommand{\Year}{2025}
+\newcommand{\Month}{JUIN}
+%% THE LINES BELLOW ARE FOR PDF REFERENCING PURPOSES.
+\newcommand{\Keywords}{< Some keywords about your thesis >}
+\newcommand{\Subject}{< Some words about your thesis field >}
+\newcommand{\Convention}{< oui/non >}
+\newcommand{\Confidentiel}{< oui/non >}
+
+%% DO NOT MODIFY \hypersetup BELOW. THIS IS FOR PDF REFERENCING PURPOSES.
+\hypersetup{
+	pdftitle={\Title},
+	pdfauthor={\Author},
+	pdfkeywords={\Keywords},
+	pdfsubject={\Subject}
+}
+%\usepackage{showframe}	% Prints document frame
+
+\input{template/header}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DOCUMENT STARTS BELOW %%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+\pagenumbering{roman}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TITLE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{template/title}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% IMAGE TITLE REF %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newgeometry{top=2.1cm,bottom=3.5cm,right=2.5cm,left=2.5cm}
+\begin{spacing}{1.5}
+\input{chapters/titleref}
+\end{spacing}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DEDICATION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TABLE OF CONTENT %%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{spacing}{1}
+\input{chapters/globaltoc}
+\end{spacing}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DEDICATION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{spacing}{1.5}
+\input{chapters/dedication}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% ACKNOWLEDGEMENTS %%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \input{chapters/acknowledgements}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% ABSTRACT %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{chapters/abstract}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LIST OF ACRONYMS  %%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{chapters/acronyms}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LIST OF FIGURES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{chapters/figureslist}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LIST OF TABLES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{chapters/tableslist}
+\end{spacing}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LIST OF ANNEXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% COMMENT THIS PART IF YOU DO NOT USE DEDICATED TOC FOR ANNEXES AND COMMENT 
+%%% HEADER AND FOOTER PART IN {chapters/annexes} FILE
+\begin{spacing}{1}
+\end{spacing}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% INTRODUCTION  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{spacing}{1.5}
+\pagenumbering{arabic}
+\input{chapters/intro}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% CHAPTERS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Add your chapters here %%%%%%%%%%%%%%%%%%%%%%%%%
+%\input{chapters/chapXXX}
+\input{chapters/chap1}
+\input{chapters/chap2}
+\input{chapters/chap3}
+\input{chapters/chap4}
+\input{chapters/chap5}
+\input{chapters/chap6}
+\input{chapters/chap7}
+\input{chapters/chap8}
+\input{chapters/chap9}
+\input{chapters/chap10}
+\input{chapters/chap11}
+\input{chapters/chap12}
+\input{chapters/conclusion}
+\input{chapters/references}
+
+\end{spacing}
+\end{document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DOCUMENT ENDS HERE %%%%%%%%%%%%%%%%%%%%%%%%%%
