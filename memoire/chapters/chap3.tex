@@ -5,9 +5,9 @@ Le processus de correspondance entre les données ATLAS et OSM a été conçu po
 
 \section{Approche méthodologique générale}
 
-Le processus de correspondance adopte une stratégie "hit-first" (première correspondance trouvée), où chaque entrée ATLAS est appariée selon la première méthode qui réussit, en suivant un ordre décroissant de fiabilité. Cette approche séquentielle garantit que les correspondances les plus fiables (exactes) sont privilégiées par rapport aux correspondances moins certaines (par distance).
+Le processus de correspondance adopte une stratégie «\ hit-first\ » (première correspondance trouvée), où chaque entrée ATLAS est appariée selon la première méthode qui réussit, en suivant un ordre décroissant de fiabilité. Cette approche séquentielle garantit que les correspondances les plus fiables (exactes) sont privilégiées par rapport aux correspondances moins certaines (par distance).
 
-Nous avons envisagé une approche alternative consistant à exécuter toutes les méthodes sur toutes les entrées, afin d'analyser pour chaque correspondance le nombre de méthodes qui fonctionnent et d'attribuer une probabilité de correspondance. Cependant, après réflexion approfondie, nous avons conclu que cette approche n'apporterait pas de valeur ajoutée significative. En effet, l'ordre séquentiel reflète déjà la hiérarchie de fiabilité : si une correspondance exacte est trouvée, il est inutile de vérifier si d'autres méthodes moins fiables fonctionnent également.
+Nous avons envisagé une approche alternative consistant à exécuter toutes les méthodes sur toutes les entrées, afin d'analyser pour chaque correspondance le nombre de méthodes qui fonctionnent et d'attribuer une probabilité de correspondance. Cependant, après réflexion approfondie, nous avons conclu que cette approche n'apporterait pas de valeur ajoutée significative. En effet, l'ordre séquentiel reflète déjà la hiérarchie de fiabilité : si une correspondance exacte est trouvée, il est inutile de vérifier si d'autres méthodes moins fiables fonctionnent également.
 
 Le processus complet comprend les étapes suivantes :
 \begin{enumerate}
@@ -75,7 +75,7 @@ Les entrées ATLAS et OSM sont regroupés selon les paires d’identifiants suiv
     \item \texttt{'designationOfficial'} (ATLAS) et \texttt{'name'} (OSM).
 \end{enumerate}
 
-Dans chaque groupe où le nombre d'entrées ATLAS est égal au nombre de nœuds OSM, une correspondance est tentée en associant chaque entrée ATLAS au nœud OSM le plus proche, à condition que cette association soit cohérente (c'est-à-dire que chaque nœud OSM soit également le plus proche de l'entrée ATLAS qui lui est attribuée). Cette méthode nous a permis de réaliser 15174 correspondances supplémentaires.
+Dans chaque groupe où le nombre d'entrées ATLAS est égal au nombre de nœuds OSM, une correspondance est tentée en associant chaque entrée ATLAS au nœud OSM le plus proche, à condition que cette association soit cohérente (c'est-à-dire que chaque nœud OSM soit également le plus proche de l'entrée ATLAS qui lui est attribuée). Cette méthode nous a permis de réaliser 15\,174 correspondances supplémentaires.
 
 \begin{figure}[h] 
     \centering
@@ -146,7 +146,7 @@ Pour les entrées toujours non appariées, tous les nœuds OSM situés à moins 
         \item La distance au deuxième nœud le plus proche est au moins 4 fois supérieure à celle du nœud le plus proche.  
     \end{enumerate}  
 \end{itemize}  
-Nous avons réussi à établir 2123 correspondances avec l'option a) et 1192 correspondances avec l'option b).
+Nous avons réussi à établir 2\,123 correspondances avec l'option a) et 1\,192 correspondances avec l'option b).
 Cette méthode est utile pour les cas où il y a des nœuds isolés, comme des télésièges.  
 
 \begin{figure}[h] 
@@ -162,7 +162,7 @@ Cette méthode est utile pour les cas où il y a des nœuds isolés, comme des t
     \label{fig:distance_stage3b}
 \end{figure} 
 
-\begin{tcolorbox}[colback=blue!5, colframe=blue!50, arc=3mm, boxrule=1pt]
+\begin{tcolorbox}[colback=white, colframe=black!80, arc=3mm, boxrule=1pt]
 \textbf{Note :} La méthode de correspondance par routes, qui est la prochaine étape logique dans notre processus séquentiel, est détaillée dans le chapitre suivant en raison de sa complexité.
 \end{tcolorbox}
 
@@ -197,12 +197,12 @@ Les correspondances manuelles sont faites depuis l'application web comme on le v
 
 \section{Résultats actuels}
 
-Parmi les \textbf{55\,571} arrêts ATLAS que nous avons considérés, le processus de correspondance a permis d'identifier un total de \textbf{48\,419} correspondances (\emph{paires ATLAS--OSM}). Ce total compte chaque paire \textit{sloid ATLAS}--\textit{nœud OSM}, et donc un même arrêt ATLAS peut apparaître plusieurs fois s'il est apparié à plusieurs nœuds OSM. Dans notre base actuelle, \textbf{1\,456} arrêts ATLAS ont plus d'un appariement OSM, ce qui représente \textbf{1\,555} paires supplémentaires par rapport au nombre d'arrêts ATLAS distincts appariés.
+Sur les \textbf{55\,571} arrêts ATLAS considérés, nous obtenons \textbf{48\,419} correspondances, comptées \emph{en paires ATLAS--OSM} (chaque couple \textit{sloid ATLAS}--\textit{nœud OSM}). Un même arrêt pouvant être associé à plusieurs nœuds OSM, \textbf{1\,456} arrêts présentent des appariements multiples, soit \textbf{1\,555} paires en sus du nombre d'arrêts distincts appariés.
 
-Sous cette convention ``par paires'', la couverture est de \textbf{87,1\%} (\(48\,419/55\,571\)). Si l'on déduplique par \textit{sloid} ATLAS, on obtient \textbf{46\,864} arrêts ATLAS appariés, soit \textbf{84,3\%} (\(46\,864/55\,571\)).
+Dans cette convention «\ par paires\ », la couverture atteint \textbf{87,1\%} (\(48\,419/55\,571\)). Après déduplication par \textit{sloid} ATLAS, on compte \textbf{46\,864} arrêts appariés, soit \textbf{84,3\%} (\(46\,864/55\,571\)).
 
-\begin{tcolorbox}[colback=gray!10, colframe=brown, arc=5mm, boxrule=2pt, title={\textbf{Répartition des correspondances par méthode}}, fonttitle=\bfseries]
-\vspace{0.3em}
+\newline
+
 \begin{tabular}{@{}l r@{\hspace{2em}}r@{}}
 \toprule
 \textbf{Méthode} & \textbf{Nombre} & \textbf{\%} \\
@@ -218,17 +218,17 @@ Sous cette convention ``par paires'', la couverture est de \textbf{87,1\%} (\(48
 \textcolor{darkgray}{\textbf{Consolidation post-traitement}} & \textbf{937} & \textbf{1,9\%} \\
 \textcolor{darkgray}{\textbf{Propagation des duplicatas}} & \textbf{69} & \textbf{0,1\%} \\
 \midrule
-\textbf{Total des correspondances} & \textbf{48\,419} & \textbf{87,1\%} \\
+\textbf{Total des correspondances (paires)} & \textbf{48\,419} &  \\
+\quad Ajustement de déduplication (appariements multiples) & -1\,555 &  \\
+\textbf{Total des correspondances (arrêts ATLAS distincts)} & \textbf{46\,864} &  \\
 \bottomrule
 \end{tabular}
-\end{tcolorbox}
 
-\begin{flushleft}\footnotesize
-\textemdash\ Les pourcentages par \emph{méthode} dans le tableau expriment la part des \textbf{48\,419} correspondances (paires) attribuée à chaque méthode et s'additionnent à \(100\%\). La ligne ``Total des correspondances'' (\(87,1\%\)) exprime la couverture par \emph{paires} rapportée aux \textbf{55\,571} arrêts ATLAS. Pour comparaison, la couverture par \emph{arrêts ATLAS distincts} est de \textbf{84,3\%} (\(46\,864/55\,571\)), valeur affichée dans l'application web.
-\end{flushleft}
 
-Après ces étapes, 8707 entrées ATLAS restent non appariées, et 19115 nœuds OSM restent inutilisés. Parmi ces nœuds OSM inutilisés, 14012 sont associés à au moins une route, 14917 possèdent une référence UIC, et 879 ont une référence locale (\texttt{local\_ref}).
+Les pourcentages par \emph{méthode} indiquent la part des \textbf{48\,419} correspondances (paires) attribuée à chaque étape et totalisent \(100\%\). La ligne «\ Total des correspondances (paires)\ » renvoie la couverture calculée \emph{par paires} sur \textbf{55\,571} arrêts ATLAS. La ligne «\ Ajustement de déduplication\ » retranche les \textbf{1\,555} \emph{appariements multiples}. Le «\ Total des correspondances (arrêts ATLAS distincts)\ » correspond alors à \textbf{84,3\%} (\(46\,864/55\,571\)), valeur affichée dans l'application web.
 
-Parmi les entrées ATLAS non appariées, 3911 n'ont aucun nœud OSM dans un rayon de 50 mètres, indiquant des zones où la couverture OSM est insuffisante par rapport aux données ATLAS.
+Après ces étapes, 8\,707 entrées ATLAS restent non appariées, et 19\,115 nœuds OSM restent inutilisés. Parmi ces nœuds OSM inutilisés, 14\,012 sont associés à au moins une route, 14\,917 possèdent une référence UIC, et 879 ont une référence locale (\texttt{local\_ref}).
+
+Parmi les entrées ATLAS non appariées, 3\,911 n'ont aucun nœud OSM dans un rayon de 50 mètres.
 
 

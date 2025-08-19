@@ -5,7 +5,7 @@
 Nous avons conçu et mis en œuvre un système d'authentification complet, aligné sur les bonnes pratiques actuelles.
 
 \section{Aperçu de l'architecture}
-L'application utilise un schéma d'authentification dédié lié à une base de données MySQL distincte (\texttt{auth\_db}). Comme on a vu, les donnée principales de l'application demeurent dans \texttt{stops\_db}. Cette séparation réduit le rayon d'impact et garantit entre d'autres choses que la réimportation des données de transport public ne touche jamais les identifiants des utilisateurs.
+L'application utilise un schéma d'authentification dédié lié à une base de données MySQL distincte (\texttt{auth\_db}). Comme on l'a vu, les données principales de l'application demeurent dans \texttt{stops\_db}. Cette séparation réduit le rayon d'impact et garantit, entre autres, que la réimportation des données de transport public ne touche jamais aux identifiants des utilisateurs.
 
 \subsection{Composants}
 \begin{itemize}
@@ -30,12 +30,19 @@ La table \texttt{users} stocke les comptes utilisateurs avec les champs suivants
 \label{tab:chap10_users_fields}
 \noindent\begin{tabular}{@{}p{0.40\linewidth}p{0.60\linewidth}@{}}
 \textbf{Identité} & \texttt{email} (unique) \\
+\hline
 \textbf{Authentification} & \texttt{password\_hash} (Argon2id) \\
+\hline
 \textbf{Rôles} & \texttt{is\_admin} \\
+\hline
 \textbf{Vérification d'email} & \texttt{is\_email\_verified}, \texttt{email\_verified\_at}, \texttt{last\_verification\_sent\_at} \\
+\hline
 \textbf{2FA} & \texttt{is\_totp\_enabled}, \texttt{totp\_secret} \\
+\hline
 \textbf{Codes de secours} & JSON de hachés Argon2 \\
+\hline
 \textbf{Hygiène de compte} & \texttt{created\_at}, \texttt{updated\_at}, \texttt{last\_login\_at} \\
+\hline
 \textbf{Verrouillage} & \texttt{failed\_login\_attempts}, \texttt{locked\_until} \\
 \end{tabular}
 \end{table}
@@ -50,9 +57,13 @@ La table \texttt{users} stocke les comptes utilisateurs avec les champs suivants
 \label{tab:chap10_auth_events_fields}
 \noindent\begin{tabular}{@{}p{0.40\linewidth}p{0.60\linewidth}@{}}
 \textbf{Type d'événement} & \texttt{event\_type} (\textit{registration}, \textit{login\_success}, \textit{login\_failure}, \textit{account\_locked}, \textit{2fa\_success}, \textit{2fa\_failure}, \textit{2fa\_enabled}, \textit{2fa\_disabled}, \textit{email\_verified}) \\
+\hline
 \textbf{Utilisateur} & \texttt{user\_id} (nullable), \texttt{email\_attempted} (pour les échecs) \\
+\hline
 \textbf{Contexte} & \texttt{ip\_address}, \texttt{user\_agent} \\
+\hline
 \textbf{Détails} & \texttt{metadata\_json} \\
+\hline
 \textbf{Horodatage} & \texttt{occurred\_at} (UTC) \\
 \end{tabular}
 \end{table}
@@ -109,7 +120,7 @@ password_hash = ph.hash(plain_password)
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/message after clicking email verification.png}
-  \caption{Message après demander une verification d'email.}
+  \caption{Message après avoir demandé une vérification d'email.}
 \end{figure}
 
 \begin{codebox}[language=Python]{Jeton de vérification d'email (extrait)}
@@ -145,7 +156,7 @@ L'utilisateur s'authentifie sur la page de connexion ; en cas de succès, l'appl
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/login_succesful.png}
-  \caption{Connexion réussie: alertes UI sur l'email non vérifié et la 2FA non activée.}
+  \caption{Connexion réussie : alertes UI sur l'email non vérifié et la 2FA non activée.}
 \end{figure}
 
 \begin{figure}[H]

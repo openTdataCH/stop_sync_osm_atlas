@@ -1,10 +1,10 @@
 % !TeX spellcheck = fr_FR
 \chapter{Chapitre 11: Évaluation de la sécurité de l'application}\label{chap:security}
 
-\noindent Ce chapitre complète le \textbf{Chap.~\ref{chap:auth}} en évaluant les défenses mises en place, en illustrant les scénarios d'attaque plausibles et en discutant des améliorations futures. L'objectif est comprendre comment et pourquoi les contrôles bloquent les attaques.
+\noindent Ce chapitre complète le \textbf{Chap.~\ref{chap:auth}} en évaluant les défenses mises en place, en illustrant les scénarios d'attaque plausibles et en discutant des améliorations futures. L'objectif est de comprendre comment et pourquoi les contrôles bloquent les attaques.
 
 \section{Périmètre et surface d'attaque}
-\noindent Pour rendre la lecture concrète, on part d'une \emph{carte des routes} – celles que l'utilisateur peut toucher. Nous indiquons les garde-fous (authentification, limites de débit) directement à côté de chaque groupe.
+\noindent Pour rendre la lecture concrète, nous partons d'une \emph{carte des routes} — celles que l'utilisateur peut réellement atteindre. Nous indiquons les garde-fous (authentification, limites de débit) directement à côté de chaque groupe.
 
 \paragraph{Pages (UI)} \texttt{/}, \texttt{/map\_snapshot}, \texttt{/problems}, \texttt{/persistent\_data}, \texttt{/reports} — vues HTML publiques qui appellent l'API ci-dessous.
 
@@ -57,9 +57,7 @@
 
 \noindent \textbf{Important}. Les opérations \emph{destructives} sur les données persistantes (comme \texttt{DELETE /api/persistent\_data/<id>}) sont réservées aux \textbf{administrateurs}. Un utilisateur non admin ne peut ni supprimer ni vider ces jeux de données.
 
-\noindent Types d'attaques considérés: \textbf{bourrage d'identifiants}, \textbf{force brute}, \textbf{contournement 2FA}, \textbf{énumération d'email}, \textbf{CSRF}, \textbf{abus de liens signés} et \textbf{déni de service (DoS)}.
-
-\section{Contrôles en place (aperçu technique)}
+\section{Contrôles en place}
 
 \subsection*{Mots de passe et stockage}
 \noindent Les mots de passe sont hachés avec Argon2id\citeref{ref:argon2_docs} via \texttt{argon2-cffi}, avec paramètres adaptés à la mémoire. Vérification sûre:
@@ -70,24 +68,24 @@ ph.verify(user.password_hash, candidate)
 \end{codebox}
 
 \subsection*{Sessions et cookies}
-\noindent Cookies \texttt{HttpOnly}, \texttt{SameSite=Lax} et \texttt{Secure} activable par variable d'environnement (produit: à forcer). Durée \og remember \fg{} de 14~jours.
+\noindent Cookies \texttt{HttpOnly}, \texttt{SameSite=Lax} et \texttt{Secure} activable par variable d'environnement (en production : à forcer). Durée \og remember \fg{} de 14~jours.
 \begin{codebox}[language=Python]{Paramètres de session (extrait)}
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE','false').lower()=='true'
 \end{codebox}
 
-\subsection*{CSRF — explication claire}
+\subsection*{CSRF}
 \noindent \textbf{Qu'est-ce que le CSRF ?} Une page malveillante pourrait faire envoyer à votre navigateur une requête \texttt{POST} à notre site en utilisant votre cookie de session, sans votre intention.
 
 \noindent \textbf{Comment on s'en protège}. Les formulaires sensibles (inscription, connexion, 2FA, etc.) incluent un \textbf{jeton CSRF} caché généré par Flask-WTF. À chaque soumission, le serveur vérifie que le jeton du formulaire correspond à celui stocké côté session. Sans ce jeton, la requête est refusée.
 
-\noindent \textbf{Qu'est exempté}. Les endpoints \textbf{lecture seule} JSON (\texttt{GET}) restent exemptés. Tout endpoint qui \textbf{modifie} de l'état via cookies de session doit exiger un jeton CSRF (ou un autre mécanisme équivalent) pour être sûr.
+\noindent \textbf{Qu'est exempté}. Les endpoints \textbf{lecture seule} JSON (\texttt{GET}) restent exemptés. Tout endpoint qui \textbf{modifie} de l'état via cookies de session doit exiger un jeton CSRF.
 
-\noindent \textbf{À retenir}. \texttt{SameSite=Lax} aide mais ne suffit pas: le jeton CSRF est la garantie principale contre l'exécution non intentionnelle de requêtes authentifiées.
+\noindent \texttt{SameSite=Lax} aide mais ne suffit pas: le jeton CSRF est la garantie principale contre l'exécution non intentionnelle de requêtes authentifiées.
 
 \subsection*{CAPTCHA Turnstile}
-\noindent Un CAPTCHA Cloudflare Turnstile\citeref{ref:cloudflare_turnstile} protège inscription et connexion.
+\noindent Un CAPTCHA Cloudflare Turnstile\citeref{ref:cloudflare_turnstile} protège l'inscription et la connexion.
 \begin{codebox}[language=Python]{Vérifier le CAPTCHA (simplifié)}
 secret = os.getenv('TURNSTILE_SECRET_KEY','')
 if not secret: return True  # dev
@@ -107,9 +105,9 @@ ok = bool(resp.json().get('success'))
   \item \textbf{Verrouillage par compte} — après plusieurs mots de passe erronés, le compte est temporairement bloqué (délai croissant) pour ralentir les attaques.
 \end{itemize}
 
-\noindent \textbf{Comment les limites fonctionnent}. Chaque route a un \emph{quota} (ex.: \texttt{10/min}). À dépassement, le serveur répond \texttt{429 Too Many Requests}. Pour la connexion, la clé de limite combine \textbf{IP + email tenté} afin d'empêcher un attaquant de détourner la limite IP seule.
+\noindent \textbf{Comment les limites fonctionnent}. Chaque route a un \emph{quota} (ex.: \texttt{10/min}). À dépassement, le serveur répond \texttt{429 Too Many Requests}. Le plafonnement est appliqué \textbf{par IP}. En complément, un \textbf{verrouillage par compte} après plusieurs échecs empêche de contourner la seule limite IP.
 
-\noindent \textbf{Caveat proxys}. Si l'application est derrière un proxy (NGINX/Cloudflare), il faut \textbf{configurer les proxys de confiance} pour lire correctement \texttt{X-Forwarded-For}. Sans cela, la limitation \og par IP \fg{} peut devenir inefficace ou injuste car toutes les requêtes semblent provenir d'une même IP.
+\noindent \textbf{Caveat proxies}. Si l'application est derrière un proxy (NGINX/Cloudflare), il faut \textbf{configurer les proxys de confiance} pour lire correctement \texttt{X-Forwarded-For}. Sans cela, la limitation \og par IP \fg{} peut devenir inefficace ou injuste, car toutes les requêtes semblent provenir d'une même IP.
 \begin{codebox}[language=Python]{Limites de débit par route}
 @limiter.limit("5/minute")   # /auth/register
 @limiter.limit("10/minute")  # /auth/login
@@ -170,17 +168,9 @@ docker compose logs -f app | grep 'auth_event' | cat
 
 \textbf{Résultat}. Les rafales sont ralenties par IP (limiteur) et par compte (verrouillage), ce qui rend l'attaque coûteuse et lente. Des détails supplémentaires de calibrage sont discutés ci-dessous.
 
-\begin{figure}[h]
-  \centering
-  \fbox{\parbox{0.9\textwidth}{\centering Placeholder: \emph{Courbe du temps d'attente cumulé} vs nombre d'essais échoués.}}
-  \caption{Verrouillage progressif: coût croissant pour l'attaquant.}
-\end{figure}
+ 
 
-\begin{figure}[h]
-  \centering
-  \fbox{\parbox{0.9\textwidth}{\centering Placeholder capture d'écran: message UI \og Mot de passe incorrect \fg{} suivi d'un \og Compte temporairement verrouillé \fg{}.}}
-  \caption{Échec de mot de passe et blocage temporaire affiché dans l'interface.}
-\end{figure}
+ 
 
 \subsection*{A2 — Contournement 2FA}
 \textbf{Attaque}. L'attaquant dérobe un mot de passe (hameçonnage) et tente de se connecter sans 2FA.
@@ -189,32 +179,20 @@ docker compose logs -f app | grep 'auth_event' | cat
 
 \textbf{Résultat}. Sans le second facteur (ou un code de secours), l'intrusion échoue. Les codes de secours étant \textbf{hachés} et \textbf{consommés}, leur ré-utilisation est impossible.
 
-\begin{figure}[h]
-  \centering
-  \fbox{\parbox{0.9\textwidth}{\centering Placeholder: \emph{Diagramme de séquence} \og login + 2FA \fg{} avec embranchements TOTP/backup.}}
-  \caption{Garde 2FA: étape obligatoire après mot de passe.}
-\end{figure}
+ 
 
-\begin{figure}[h]
-  \centering
-  \fbox{\parbox{0.9\textwidth}{\centering Placeholder capture d'écran: saisie d'un code 2FA \textbf{incorrect} avec message d'erreur.}}
-  \caption{Tentative avec code 2FA erroné.}
-\end{figure}
+ 
 
 \paragraph{Note}. Le secret TOTP est \textbf{chiffré au repos} dans \texttt{auth\_db} (Fernet), puis déchiffré à la volée pour la vérification. Les codes de secours restent hachés (Argon2) et sont consommés à l'usage.
 
 \subsection*{A3 — Énumération d'email}
 \textbf{Attaque}. Tester si un email existe via les messages d'erreur.
 
-\textbf{Côté serveur}. \texttt{/auth/login} répond \og Invalid credentials \fg{} dans tous les cas; \texttt{/auth/resend-verification} répond identiquement qu'un compte existe ou non. \textbf{Exception}: \texttt{/auth/register} indique si l'email existe déjà.
+\textbf{Côté serveur}. \texttt{/auth/login} répond \og Invalid credentials \fg{} dans tous les cas; \texttt{/auth/resend-verification} répond identiquement qu'un compte existe ou non. \texttt{/auth/register} adopte désormais une \textbf{réponse neutre} : que l'email existe ou non, l'utilisateur est redirigé vers l'avis de vérification; si un compte non vérifié existe, un email de vérification est renvoyé en arrière-plan. Aucune information n'est divulguée sur l'existence du compte.
 
 \textbf{Résultat}. L'énumération est évitée sur login/resend, mais possible sur register. Voir \S~\ref{sec:improve} pour uniformiser les messages.
 
-\begin{figure}[h]
-  \centering
-  \fbox{\parbox{0.9\textwidth}{\centering Placeholder capture d'écran: tentative d'inscription avec un email existant et message révélant l'existence du compte.}}
-  \caption{Exemple d'énumération d'email via message d'erreur d'inscription.}
-\end{figure}
+ 
 
 \subsection*{A4 — Abus de liens signés (vérification d'email)}
 \textbf{Attaques visées}.
@@ -234,11 +212,7 @@ docker compose logs -f app | grep 'auth_event' | cat
 
 \textbf{Effet}. Les relectures expirent rapidement ; les tentatives massives et le spam sont freinés par les limites.
 
-\begin{figure}[h]
-  \centering
-  \fbox{\parbox{0.9\textwidth}{\centering Placeholder: \emph{Timeline} d'un jeton: émission, délai de 48~h, invalidation.}}
-  \caption{Cycle de vie d'un jeton de vérification.}
-\end{figure}
+ 
 
 \subsection*{A5 — CSRF sur routes sensibles}
 \textbf{Attaque}. Une page externe soumet en cachette un \texttt{POST} authentifié (ex.: désactiver 2FA, créer un objet) en s'appuyant sur le cookie de session de la victime.
@@ -254,34 +228,15 @@ docker compose logs -f app | grep 'auth_event' | cat
 
 \noindent \textbf{Requêtes SARGable et pagination}. \og SARGable \fg{} signifie que les filtres portent directement sur des \textbf{colonnes indexées} (par exemple \texttt{WHERE lon BETWEEN ... AND ... AND lat BETWEEN ... AND ...}) plutôt que sur des expressions non indexables. La base peut ainsi utiliser ses index et éviter des scans complets. La \textbf{pagination} (\texttt{LIMIT}/\texttt{OFFSET} ou \emph{keyset pagination}) impose un \textbf{maximum} d'éléments traités par requête, ce qui crée des \textbf{bornes fortes} sur le temps CPU et les lectures disque.
 
-\textbf{Résultat}. Un attaquant doit multiplier les IPs et comptes authentifiés pour maintenir une charge significative; l'impact reste contenu. Les métriques d'audit aident à repérer des rafales anormales.
+\textbf{Résultat}. Un attaquant doit multiplier les IPs et comptes authentifiés pour maintenir une charge significative; l'impact reste contenu. Les logs aident à repérer des rafales anormales.
 
 \section{Calibrage et limites actuelles}
 \noindent Les limites en place forment un socle solide mais peuvent être durcies:
 \begin{itemize}
-  \item \textbf{Limiteur par IP} : efficace mais contournable via réseaux distribués; ajouter une clé composite (IP + email cible) et des \og seaux \fg{} par utilisateur.
-  \item \textbf{Verrouillage par compte} : robuste, mais attention au déni de service ciblé (un adversaire peut \og verrouiller \fg{} le compte d'une victime). Des \emph{captcha} et \emph{cooldowns} nuancés aident à mitiger.
-  \item \textbf{Remember cookie de 14~jours} : confortable; réduire la durée ou exiger 2FA périodiquement renforce la sécurité.
+  \item \textbf{Limiteur par IP} : efficace mais contournable via réseaux distribués; on pourrait ajouter une clé composite (IP + email cible) et des \og seaux \fg{} par utilisateur.
+  \item \textbf{Verrouillage par compte} : robuste, mais il faut faire attention au déni de service ciblé (un adversaire peut \og verrouiller \fg{} le compte d'une victime). Des \emph{captcha} et \emph{cooldowns} aident à mitiger.
 \end{itemize}
 
-\section{Améliorations et vecteurs non encore couverts}\label{sec:improve}
-\noindent Mesures recommandées, de l'immédiat au stratégique:
-\begin{itemize}
-  \item \textbf{Forcer HTTPS et cookies Secure} partout (\texttt{FORCE\_HTTPS=true}, \texttt{SESSION\_COOKIE\_SECURE=true}).
-  \item \textbf{Politiques CSP strictes} (actuellement désactivées) avec listes blanches minimales, ou auto-hébergement des actifs.
-  \item \textbf{Unifier les messages d'inscription} pour éviter l'énumération d'emails (réponse neutre: \og si un compte existe déjà, vous recevrez un email \fg{}). \textit{Implémenté}. La page d'inscription et les écrans associés utilisent un message neutre.
-  \item \textbf{Clés de limite composites} : ajouter des limites \emph{par compte} (IP+email) et des \emph{burst tokens} pour lisser.
-  \item \textbf{Écriture manuelle}: exiger l'authentification forte pour tout endpoint mutateur (p.\,ex. \texttt{/api/manual\_match}) et journaliser finement.
-  \item \textbf{Chiffrement au repos du secret TOTP} (Fernet, clé via variable d'environnement) et \textbf{réauthentification} exigée pour \texttt{/auth/disable\_2fa}. \textit{Implémenté}. Désactivation 2FA requiert le mot de passe.
-  \item \textbf{Rotation de session à la connexion} et vidage explicite de session pour réduire les risques de fixation.
-  \item \textbf{Réinitialisation de mot de passe} avec jetons signés mono-usage à durée courte (non implémenté, \S~\ref{chap:auth}).
-  \item \textbf{Détection d'anomalies basée sur les journaux d'audit} (IP, ASN, pays), alertes et tableaux de bord; politiques de rétention/archivage.
-  \item \textbf{Facteur résistant au phishing} (\emph{WebAuthn / Passkeys}) en option, en complément du TOTP.
-  \item \textbf{Durcissement du pipeline email} : DKIM/DMARC stricts, liens à usage unique invalidés à la première visite.
-\end{itemize}
-
-\vspace{0.5em}
-\noindent \textbf{Priorité court terme}. HTTPS forcé, CSP durcie, réauthentification pour désactiver la 2FA, chiffrement du secret TOTP, messages d'inscription non \og révélants \fg{}.
 
 \section{Conclusion}
 \noindent L'architecture d'authentification posée au \textbf{Chap.~\ref{chap:auth}} est saine: hachage robuste, 2FA réelle, captcha, limites et verrouillage. Ce chapitre a montré \emph{comment} ces mécanismes résistent aux attaques usuelles et a mis en lumière des durcissements concrets pour atteindre un niveau \og production \fg{}.

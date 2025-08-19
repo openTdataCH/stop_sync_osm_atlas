@@ -12,11 +12,11 @@ Le chapitre \texttt{chap8.tex} plongera ensuite dans le backend (API, endpoints,
 
 \subsection*{Essentiels à retenir}
 \begin{itemize}
-  \item \textbf{Ligne auto-suffisante pour la carte}: une ligne \texttt{stops} suffit pour dessiner un marqueur (ATLAS ou OSM) \Rightarrow pas de \texttt{JOIN} au scroll.
-  \item \textbf{Fenêtre cartographique SARGable}: indexes \texttt{atlas\_lat/lon} \& \texttt{osm\_lat/lon} \Rightarrow filtrage par bbox très sélectif.
-  \item \textbf{Détails séparés}: \texttt{atlas\_stops} et \texttt{osm\_nodes} servent les popups à la demande (\textit{lazy}).
-  \item \textbf{Persistance durable}: \texttt{persistent\_data} stocke solutions/notes qui \og survivent \fg{} aux ré-imports et sont réappliquées.
-  \item \textbf{Séparation Auth}: schéma \texttt{auth\_db} isolé via \texttt{SQLAlchemy binds} (sécurité, gouvernance des droits; détail au Chap.~\ref{chap:auth}).
+  \item \textbf{Ligne auto-suffisante pour la carte} : une ligne \texttt{stops} suffit pour dessiner un marqueur (ATLAS ou OSM) \Rightarrow pas de \texttt{JOIN} au scroll.
+  \item \textbf{Fenêtre cartographique SARGable} : index \texttt{atlas\_lat/lon} \& \texttt{osm\_lat/lon} \Rightarrow filtrage par bbox très sélectif.
+  \item \textbf{Détails séparés} : \texttt{atlas\_stops} et \texttt{osm\_nodes} servent les popups à la demande (\textit{lazy}).
+  \item \textbf{Persistance durable} : \texttt{persistent\_data} stocke solutions/notes qui \og survivent \fg{} aux ré-imports et sont réappliquées.
+  \item \textbf{Séparation Auth} : schéma \texttt{auth\_db} isolé via \texttt{SQLAlchemy binds} (sécurité, gouvernance des droits ; détail au Chap.~\ref{chap:auth}).
 \end{itemize}
 
 \section{Importer les données: le rôle de \texttt{import\_data\_db.py}}

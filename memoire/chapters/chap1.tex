@@ -9,7 +9,7 @@ Les données ATLAS, au cœur de cette étude, proviennent de la plateforme suiss
 
 \section{Arrêts}
 
-L'analyse des arrêts s'appuie sur le jeu de données \texttt{traffic-points-actual-date}\citeref{ref:traffic_points_actual_date}, qui recense les arrêts de transport public en Suisse en fournissant des informations détaillées sur leur localisation et leurs caractéristiques. Ces points peuvent être visualisés sur une carte interactive via l’application web https://atlas.app.sbb.ch/\citeref{ref:atlas_app_sbb}.
+L'analyse des arrêts s'appuie sur le jeu de données \texttt{traffic-points-actual-data}\citeref{ref:traffic_points_actual_date}, qui recense les arrêts de transport public en Suisse en fournissant des informations détaillées sur leur localisation et leurs caractéristiques. Ces points peuvent être visualisés sur une carte interactive via l'application web ATLAS\citeref{ref:atlas_app_sbb}.
 
 Nous nous concentrons ici sur deux colonnes principales : le \texttt{number} et la \texttt{designation} de chaque arrêt.
 
@@ -176,9 +176,9 @@ Dans le script \texttt{get\_atlas\_data.py}, nous construisons un jeu de donnée
 \begin{itemize}
   \item \textbf{Structure de \texttt{stop\_id}}: \texttt{uic\_number:0:local\_ref}. Exemple: \texttt{8516155:0:1}.
   \item \textbf{Strict}: associer si \(\texttt{uic\_number} = \texttt{number}\) et \(\texttt{normalized\_local\_ref} = \texttt{designation}\).
-  \item \textbf{Fallback 1} (si non associé strictement): si le \texttt{number} côté ATLAS n’a qu’une seule ligne, utiliser son \texttt{sloid}.
-  \item \textbf{Fallback 2} (sinon): si la dernière composante du \texttt{sloid} (après les \texttt{:}) est égale à \texttt{normalized\_local\_ref}, utiliser ce \texttt{sloid}.
-  \item \textbf{Normalisation}: les références locales \enquote{10000/10001} sont ramenées à \enquote{1/2} lorsqu’elles codent des côtés/plates-formes.
+  \item \textbf{Fallback 1} (si non associé strictement) : si le \texttt{number} côté ATLAS n’a qu’une seule ligne, utiliser son \texttt{sloid}.
+  \item \textbf{Fallback 2} (sinon) : si la dernière composante du \texttt{sloid} (après les \texttt{:}) est égale à \texttt{normalized\_local\_ref}, utiliser ce \texttt{sloid}.
+  \item \textbf{Normalisation} : les références locales \enquote{10000/10001} sont ramenées à \enquote{1/2} lorsqu’elles codent des côtés/plateformes.
 \end{itemize}
 
 La mise en correspondance entre la colonne \texttt{stop\_id} du fichier \texttt{stops.txt} (GTFS) et l’identifiant \texttt{sloid} d’ATLAS présente des défis importants. Premièrement, il n’existe pas de lien direct entre ces deux identifiants. Deuxièmement, les coordonnées géographiques des arrêts diffèrent entre les deux ensembles de données.
@@ -291,7 +291,7 @@ Nous obtenons un jeu intégré listant, par \texttt{sloid}, les couples \texttt{
 \section{HRDF}
 Le format \textit{HAFAS Raw Data Format} (HRDF) structure des jeux de données d'horaires exhaustifs. Deux fichiers sont clés: \texttt{BHFART} (SLOIDs gare/quai) et \texttt{GLEISE\_WGS/LV95} (infrastructure et coordonnées de quai).
 
-\noindent\textit{Référence.} Une description synthétique et à jour du format HRDF est disponible dans le Cookbook de la plateforme Open Transport Data Switzerland\footnote{\url{https://opentransportdata.swiss/en/cookbook/timetable-cookbook/hafas-rohdaten-format-hrdf/}}.
+\noindent\textit{Référence.} Une description synthétique et à jour du format HRDF est disponible dans le Cookbook de la plateforme Open Transport Data Switzerland\citeref{ref:hrdf_cookbook}.
 
 \subsection{Comment nous le lisons}
 L'extraction des informations de direction à partir des données HRDF est un processus en plusieurs étapes, orchestré par le script \texttt{get\_atlas\_data.py}. Notre approche est conçue pour être efficace, en ne traitant que les données pertinentes pour les arrêts ATLAS (SLOIDs) que nous cherchons à enrichir.

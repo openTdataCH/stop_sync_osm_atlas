@@ -1,7 +1,7 @@
 % !TeX spellcheck = fr_FR
 \chapter{Chapitre 5 : Analyse des résultats}
 
-Ce chapitre synthétise la qualité des correspondances ATLAS $\leftrightarrow$ OSM. Nous mettons l'accent sur: lecture par méthode, variations par opérateur, couverture par tranches de distance, et cas extrêmes.
+Ce chapitre synthétise la qualité des correspondances ATLAS $\leftrightarrow$ OSM. Nous mettons l'accent sur : lecture par méthode, variations par opérateur, couverture par tranches de distance, et cas extrêmes.
 
 \section{Lecture globale par méthode}
 
@@ -14,10 +14,13 @@ Ce chapitre synthétise la qualité des correspondances ATLAS $\leftrightarrow$ 
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{../figures/chap5/distance_distributions_methods_0_50.png}
-    \caption[Histogrammes par méthode (0–50 m)]{Histogrammes des distances coupées à 50 m par méthode: Exact, Name, Distance (stages 1–3), Route GTFS, Route HRDF. Note: sauf Exact et Name, les méthodes de distance et de routes sont par construction limitées à 50 m.}
+    \caption[Histogrammes par méthode (0–50 m)]{Histogrammes des distances coupées à 50 m par méthode : Exact, Name, Distance (stages 1–3), Route GTFS, Route HRDF. Note : sauf Exact et Name, les méthodes de distance et de routes sont par construction limitées à 50 m.}
 \end{figure}
 
-\section{Par opérateur: où est-ce le plus précis ?}
+On observe que les distributions des distances sont très proches entre les méthodes, avec des médianes et des dispersions similaires. C’est un bon signe : les approches Exact, Name, Distance (stages 1–3) et Routes (GTFS/HRDF) convergent vers un niveau de précision comparable, sans biais systématique marqué.
+
+
+\section{Par opérateur : où est-ce le plus précis ?}
 
 Nous relions chaque arrêt à son opérateur ATLAS et observons les distances des arrêts \textit{appariés}. Ci-dessous, la dispersion pour les opérateurs les plus représentés.
 
@@ -35,7 +38,7 @@ Nous relions chaque arrêt à son opérateur ATLAS et observons les distances de
     \caption[Tranches de distance]{Part des correspondances sous 5 m, 10 m, 20 m, etc.}
 \end{figure}
 
-\section{Cas extrêmes: top 10 plus grandes distances}
+\section{Cas extrêmes : top 10 plus grandes distances}
 
 Table des 10 plus grandes distances parmi les correspondances, avec désignations officielles ATLAS/OSM, méthode d'appariement, et UIC (ATLAS/OSM).
 

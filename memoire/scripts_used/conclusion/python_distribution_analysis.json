@@ -1,0 +1,46 @@
+{
+  "summary": {
+    "Analysis Scripts": {
+      "files": 1,
+      "total_lines": 277,
+      "code_lines": 112,
+      "description": "Analysis and evaluation scripts"
+    },
+    "Other": {
+      "files": 2,
+      "total_lines": 438,
+      "code_lines": 43,
+      "description": "Uncategorized Python files"
+    }
+  },
+  "detailed": {
+    "Analysis Scripts": {
+      "description": "Analysis and evaluation scripts",
+      "files": [
+        {
+          "path": "count_lines_of_code.py",
+          "total_lines": 277,
+          "code_lines": 112,
+          "comment_lines": 100
+        }
+      ]
+    },
+    "Other": {
+      "description": "Uncategorized Python files",
+      "files": [
+        {
+          "path": "create_text_visualization.py",
+          "total_lines": 71,
+          "code_lines": 2,
+          "comment_lines": 59
+        },
+        {
+          "path": "analyze_python_distribution.py",
+          "total_lines": 367,
+          "code_lines": 41,
+          "comment_lines": 248
+        }
+      ]
+    }
+  }
+}

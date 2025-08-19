@@ -9,15 +9,15 @@ Nous détaillerons le rôle des fichiers \texttt{dockerfile}, \texttt{docker-com
 \section{Introduction à Docker}
 Docker est une plateforme open-source qui automatise le déploiement, la mise à l'échelle et la gestion des applications en utilisant la conteneurisation\citeref{ref:docker_docs}. Un conteneur est une unité logicielle légère et autonome qui inclut tout ce dont une application a besoin pour fonctionner : le code, les dépendances, les bibliothèques et les outils système. 
 
-Contrairement aux machines virtuelles qui virtualisent un système d'exploitation complet, les conteneurs partagent le noyau de l'hôte tout en maintenant l'isolation des processus. Cette approche offre plusieurs avantages: démarrage rapide (quelques secondes), empreinte mémoire réduite, et portabilité accrue. Les conteneurs isolent les applications les unes des autres et de leur environnement, garantissant ainsi qu'elles fonctionnent de manière cohérente sur n'importe quelle infrastructure supportant Docker.
+Contrairement aux machines virtuelles qui virtualisent un système d'exploitation complet, les conteneurs partagent le noyau de l'hôte tout en maintenant l'isolation des processus. Cette approche offre plusieurs avantages : démarrage rapide (quelques secondes), empreinte mémoire réduite et portabilité accrue. Les conteneurs isolent les applications les unes des autres et de leur environnement, garantissant ainsi qu'elles fonctionnent de manière cohérente sur n'importe quelle infrastructure supportant Docker.
 
-\subsectionsection{Pourquoi dockeriser ?}
+\subsectionsection{Pourquoi dockeriser ?}
 
 Trois raisons concrètes :
 \begin{itemize}
-  \item \textbf{Reproductibilité}: même version de Python, mêmes dépendances système (\texttt{wkhtmltopdf}\citeref{ref:wkhtmltopdf}, client MySQL), même environnement d'exécution.
-  \item \textbf{Parité dev/prod}: une pile unique (app + base) réduisant les \og ça marche sur ma machine\fg{}.
-  \item \textbf{Bootstrap instantané}: une commande pour installer, migrer, télécharger/traiter les données et lancer le serveur.
+  \item \textbf{Reproductibilité} : même version de Python, mêmes dépendances système (\texttt{wkhtmltopdf}\citeref{ref:wkhtmltopdf}, client MySQL), même environnement d'exécution.
+  \item \textbf{Parité dev/prod} : une pile unique (app + base) réduisant les \og ça marche sur ma machine\fg{}.
+  \item \textbf{Bootstrap instantané} : une commande pour installer, migrer, télécharger/traiter les données et lancer le serveur.
 \end{itemize}
 
 \section{Les quatre pièces du puzzle}
@@ -48,7 +48,7 @@ Trois raisons concrètes :
   \caption{Deux conteneurs reliés sur le réseau compose; volumes pour le code (monté) et les données MySQL (persistées).}
 \end{figure}
 
-\section{L'orchestration: \texttt{docker-compose.yml}}
+\section{L'orchestration : \texttt{docker-compose.yml}}
 
 Le fichier compose\citeref{ref:docker_compose} définit \texttt{db}, \texttt{app} et un service \texttt{app-dev} activé via profil. Extraits commentés:
 
@@ -72,7 +72,7 @@ services:
       retries: 2
 \end{codebox}
 
-\noindent L'application dépend explicitement du statut \textit{healthy} de MySQL\citeref{ref:mysql_docs} et monte deux volumes (code + données):
+\noindent L'application dépend explicitement du statut \textit{healthy} de MySQL\citeref{ref:mysql_docs} et monte deux volumes (code + données) :
 
 \begin{codebox}{\texttt{app} : service principal}
   app:
@@ -112,9 +112,9 @@ services:
       AUTO_MIGRATE: "true"
 \end{codebox}
 
-\section{L'image: \texttt{dockerfile}}
+\section{L'image : \texttt{dockerfile}}
 
-L'image part d'un Python 3.9 minimal \texttt{slim-bookworm} (compatibilité \texttt{wkhtmltopdf}). Nous installons plusieurs dépendances système critiques: \texttt{wkhtmltopdf} pour la génération PDF, \texttt{default-mysql-client} pour les commandes d'administration MySQL, \texttt{dos2unix} pour normaliser les fins de lignes, et les bibliothèques GDAL/GEOS nécessaires à GeoPandas pour le traitement géospatial. Puis \texttt{pip install -r requirements.txt} et utilisation d'un \texttt{ENTRYPOINT} shell.
+L'image part d'un Python 3.9 minimal \texttt{slim-bookworm} (compatibilité \texttt{wkhtmltopdf}). Nous installons plusieurs dépendances système critiques : \texttt{wkhtmltopdf} pour la génération PDF, \texttt{default-mysql-client} pour les commandes d'administration MySQL, \texttt{dos2unix} pour normaliser les fins de lignes, et les bibliothèques GDAL/GEOS nécessaires à GeoPandas pour le traitement géospatial. Puis \texttt{pip install -r requirements.txt} et utilisation d'un \texttt{ENTRYPOINT} shell.
 
 \begin{codebox}[language=bash]{Extraits — \texttt{dockerfile} (utilisateur non-root)}
 FROM python:3.9-slim-bookworm
@@ -152,9 +152,9 @@ EXPOSE 5001
 ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
 \end{codebox}
 
-\section{Le chef d'orchestre: \texttt{entrypoint.sh}}
+\section{Le chef d'orchestre : \texttt{entrypoint.sh}}
 
-Le script d'entrée synchronise le démarrage: attend MySQL, crée la base \texttt{auth\_db} si besoin, applique les migrations, exécute les scripts de données (selon les drapeaux), puis lance Flask\citeref{ref:flask_docs}. Il peut également créer un utilisateur dédié pour \texttt{auth\_db} si des variables d'environnement sont fournies.
+Le script d'entrée synchronise le démarrage : attend MySQL, crée la base \texttt{auth\_db} si besoin, applique les migrations, exécute les scripts de données (selon les drapeaux), puis lance Flask\citeref{ref:flask_docs}. Il peut également créer un utilisateur dédié pour \texttt{auth\_db} si des variables d'environnement sont fournies.
 
 \begin{codebox}[language=bash]{Attente active, création de comptes, migrations}
 echo "Waiting for MySQL database at db:3306..."
@@ -199,19 +199,19 @@ flask db upgrade || true
 docker compose up -d
 \end{cmdbox}
 
-\noindent Attendez quelques secondes; l'app est disponible sur \texttt{http://localhost:5001}. Pour le mode développement (sans préparation de données):
+\noindent Attendez quelques secondes ; l'app est disponible sur \texttt{http://localhost:5001}. Pour le mode développement (sans préparation de données) :
 
 \begin{cmdbox}
 docker compose --profile dev up -d
 \end{cmdbox}
 
-\noindent Pour consulter les logs et vérifier que tout s'enchaîne bien:
+\noindent Pour consulter les logs et vérifier que tout s'enchaîne bien :
 
 \begin{cmdbox}
 docker compose logs -f app | cat
 \end{cmdbox}
 
-\noindent Pour ne suivre que les \emph{événements d'authentification} structurés (JSON), filtrez:
+\noindent Pour ne suivre que les \emph{événements d'authentification} structurés (JSON), filtrez :
 \begin{cmdbox}
 docker compose logs -f app | grep auth_event | cat
 \end{cmdbox}
@@ -254,7 +254,7 @@ Les principales variables s'ajustent dans \texttt{docker-compose.yml} (ou via \t
 
 \section{Persistance et poids d'image}
 
-\textbf{Persistance MySQL.} Le volume \texttt{mysql\_data} conserve la base entre redémarrages. Vous pouvez purger pour repartir de zéro:
+\textbf{Persistance MySQL.} Le volume \texttt{mysql\_data} conserve la base entre redémarrages. Vous pouvez purger pour repartir de zéro :
 
 \begin{cmdbox}
 docker compose down -v  # ATTENTION: supprime le volume mysql_data
@@ -299,4 +299,4 @@ La conteneurisation apporte plusieurs avantages sécuritaires, mais nécessite d
 
 
 
-\noindent\textbf{Conclusion.} Cette dockerisation est volontairement pragmatique: peu de magie, des scripts explicites, et des profils qui servent les usages quotidiens. L'approche privilégie la lisibilité et la maintenabilité, tout en respectant les bonnes pratiques de sécurité (utilisateur non-root, isolation réseau, surface d'attaque minimale). Cette base solide facilite tant le développement local que le déploiement automatisé, et peut évoluer vers des architectures plus complexes selon les besoins.
+\noindent\textbf{Conclusion.} Cette dockerisation est volontairement pragmatique : peu de magie, des scripts explicites, et des profils qui servent les usages quotidiens. L'approche privilégie la lisibilité et la maintenabilité, tout en respectant les bonnes pratiques de sécurité (utilisateur non-root, isolation réseau, surface d'attaque minimale). Cette base solide facilite tant le développement local que le déploiement automatisé, et peut évoluer vers des architectures plus complexes selon les besoins.

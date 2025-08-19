@@ -29,8 +29,10 @@
 				
 				%% IMAGE IF ANY
 				{\color{white}
-					\includegraphics[height=8cm,width=9
-                    cm]{\TitleImage}\\[35pt]
+					\begin{tikzpicture}
+						\clip[rounded corners=8pt] (0,0) rectangle (9cm,8cm);
+						\node[anchor=south west,inner sep=0pt] at (0,0) {\includegraphics[height=8cm,width=9cm]{\TitleImage}};
+					\end{tikzpicture}\\[35pt]
 				}
 			
 				%% PROJET DE SEMESTRE
