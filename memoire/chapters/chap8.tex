@@ -159,7 +159,7 @@ Nous structurons l'API par \textit{domaine} pour garder des fichiers courts, tes
     \node[vol, below of=serialize, node distance=1.9cm] (resp) {Response \(\rightarrow\) rendu carte};
     \draw[-] (serialize) -- (resp);
   \end{tikzpicture}
-  \caption{Pipeline de traitement de \texttt{/api/data}: paramètres \(\rightarrow\) filtres \(\rightarrow\) fenêtre indexée \(\rightarrow\) pagination \(\rightarrow\) JSON.}
+  \caption[Flux /api/data]{Pipeline de traitement de \texttt{/api/data}: paramètres \(\rightarrow\) filtres \(\rightarrow\) fenêtre indexée \(\rightarrow\) pagination \(\rightarrow\) JSON.}
 \end{figure}
 
 \subsection*{Cycle de persistance des solutions}
@@ -180,7 +180,7 @@ Nous structurons l'API par \textit{domaine} pour garder des fichiers courts, tes
     \draw[->] (persist) -- node[below]{\small prochain import} (import);
     \draw[->] (import) -- node[right]{\small ré-application} (problem);
   \end{tikzpicture}
-  \caption{Persistance des solutions/notes: écriture côté API, stockage durable, ré-application au prochain import.}
+  \caption[Cycle de persistance]{Persistance des solutions/notes: écriture côté API, stockage durable, ré-application au prochain import.}
 \end{figure}
 
 \section{Bonnes pratiques et lisibilité}

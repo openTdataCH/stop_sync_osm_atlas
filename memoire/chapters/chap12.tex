@@ -45,7 +45,7 @@ Trois raisons concrètes :
     \draw[-] (db) -- (mysqlvol);
     \draw[-] (app) -- (codevol);
   \end{tikzpicture}
-  \caption{Deux conteneurs reliés sur le réseau compose; volumes pour le code (monté) et les données MySQL (persistées).}
+  \caption[Architecture Docker (app+db)]{Deux conteneurs reliés sur le réseau compose; volumes pour le code (monté) et les données MySQL (persistées).}
 \end{figure}
 
 \section{L'orchestration : \texttt{docker-compose.yml}}
@@ -219,13 +219,13 @@ docker compose logs -f app | grep auth_event | cat
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{\detokenize{chap12/screenshot terminal docker compose up.png}}
-  \caption{Commande et sortie de \texttt{docker compose up} dans le terminal.}
+  \caption[Commande compose up]{Commande et sortie de \texttt{docker compose up} dans le terminal.}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=\textwidth]{\detokenize{chap12/screenshot doker desktop.wecanseethe3containers.png}}
-  \caption{Docker Desktop montrant les conteneurs en cours d'exécution.}
+  \caption[Vue Docker Desktop]{Docker Desktop montrant les conteneurs en cours d'exécution.}
 \end{figure}
 
 

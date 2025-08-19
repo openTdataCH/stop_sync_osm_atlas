@@ -90,7 +90,7 @@ Cette sous-section illustre, étape par étape, comment les actions de l'utilisa
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/auth1.png}
-  \caption{Bouton \og Créer un compte \fg{} visible dans l'interface.}
+  \caption[Bouton Créer un compte]{Bouton \og Créer un compte \fg{} visible dans l'interface.}
 \end{figure}
 
 \paragraph{Inscription}
@@ -105,13 +105,13 @@ password_hash = ph.hash(plain_password)
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/create_account.png}
-  \caption{Formulaire d'inscription (email, mot de passe).}
+  \caption[Inscription]{Formulaire d'inscription (email, mot de passe).}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db1.png}
-  \caption{\texttt{auth\_db.users}: \texttt{email} et \texttt{password\_hash} après inscription.}
+  \caption[users après inscription]{\texttt{auth\_db.users}: \texttt{email} et \texttt{password\_hash} après inscription.}
 \end{figure}
 
 \paragraph{Vérification d'email}
@@ -120,7 +120,7 @@ password_hash = ph.hash(plain_password)
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/message after clicking email verification.png}
-  \caption{Message après avoir demandé une vérification d'email.}
+  \caption[Message vérification email]{Message après avoir demandé une vérification d'email.}
 \end{figure}
 
 \begin{codebox}[language=Python]{Jeton de vérification d'email (extrait)}
@@ -141,7 +141,7 @@ Le flux d'envoi est déclenché depuis \texttt{backend/blueprints/auth.py} : l'a
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db2.png}
-  \caption{\texttt{auth\_db.users}: \texttt{is\_admin}, \texttt{is\_email\_verified}, \texttt{last\_verification\_sent\_at}, \texttt{is\_totp\_enabled}.}
+  \caption[users — champs statut]{\texttt{auth\_db.users}: \texttt{is\_admin}, \texttt{is\_email\_verified}, \texttt{last\_verification\_sent\_at}, \texttt{is\_totp\_enabled}.}
 \end{figure}
 
 \paragraph{Connexion}
@@ -150,19 +150,19 @@ L'utilisateur s'authentifie sur la page de connexion ; en cas de succès, l'appl
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/login_page.png}
-  \caption{Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref{chap:auth}).}
+  \caption[Page de connexion]{Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref{chap:auth}).}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/login_succesful.png}
-  \caption{Connexion réussie : alertes UI sur l'email non vérifié et la 2FA non activée.}
+  \caption[Connexion réussie]{Connexion réussie : alertes UI sur l'email non vérifié et la 2FA non activée.}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db4.png}
-  \caption{\texttt{auth\_db.users}: \texttt{last\_login\_at}, \texttt{failed\_login\_attempts}, \texttt{locked\_until}.}
+  \caption[users — verrous]{\texttt{auth\_db.users}: \texttt{last\_login\_at}, \texttt{failed\_login\_attempts}, \texttt{locked\_until}.}
 \end{figure}
 
 \paragraph{2FA}
@@ -171,7 +171,7 @@ Lorsqu'un utilisateur active la 2FA, le serveur génère un secret Base32 aléat
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/enable_up2fa.png}
-  \caption{Activation 2FA avec QR \textit{otpauth://} et secret Base32. QR et secret encodent la même information.}
+  \caption[Activation 2FA]{Activation 2FA avec QR \textit{otpauth://} et secret Base32. QR et secret encodent la même information.}
 \end{figure}
 
 \begin{codebox}[language=Python]{Validation TOTP (connexion avec 2FA)}
@@ -183,19 +183,19 @@ is_valid = pyotp.TOTP(secret).verify(code, valid_window=1)
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/backupcodes.png}
-  \caption{Codes de secours: affichés une seule fois à l'activation. Stockage côté serveur: hachés Argon2 dans un JSON.}
+  \caption[Codes de secours]{Codes de secours: affichés une seule fois à l'activation. Stockage côté serveur: hachés Argon2 dans un JSON.}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/enter2FA.png}
-  \caption{Étape de connexion avec saisie du code 2FA (ou d'un code de secours).}
+  \caption[Saisie 2FA]{Étape de connexion avec saisie du code 2FA (ou d'un code de secours).}
 \end{figure}
 
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/auth_db3.png}
-  \caption{\texttt{auth\_db.users}: \texttt{totp\_secret} (chiffré), \texttt{backup\_codes\_json} (haché), \texttt{created\_at}, \texttt{updated\_at}.}
+  \caption[users — champs 2FA]{\texttt{auth\_db.users}: \texttt{totp\_secret} (chiffré), \texttt{backup\_codes\_json} (haché), \texttt{created\_at}, \texttt{updated\_at}.}
 \end{figure}
 
 \section{Sécurité opérationnelle (en pratique)}

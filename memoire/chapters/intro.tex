@@ -5,53 +5,53 @@
 
 \section*{Contexte et problématique}
 
-La digitalisation des services de mobilité rend la qualité des données de transport public plus cruciale que jamais. En Suisse, les systèmes d'information voyageurs, les planificateurs d'itinéraires et les outils d'analyse reposent sur des référentiels géographiques précis des arrêts. ATLAS constitue la base officielle, tandis qu'OpenStreetMap (OSM), projet cartographique collaboratif mondial, offre une richesse et une couverture exceptionnelles.
+La numérisation des services de mobilité rend la qualité des données de transport public plus cruciale que jamais. En Suisse, les systèmes d'information voyageurs, les planificateurs d'itinéraires et les outils d'analyse reposent sur des référentiels géographiques précis des arrêts. ATLAS constitue la base officielle, tandis qu'OpenStreetMap (OSM), projet cartographique collaboratif mondial, offre une richesse et une couverture exceptionnelles.
 
-Au cœur de ce travail se trouve leur \textbf{désalignement}. Deux sources décrivent la même réalité — le réseau et ses arrêts — mais avec des identifiants, des hiérarchies et des coordonnées non synchronisés. Ces écarts, parfois de quelques mètres, parfois substantiels, créent des incohérences qui affectent :
+Au cœur de ce travail se trouvent leurs \textbf{divergences}. Deux sources décrivent la même réalité — le réseau et ses arrêts — mais avec des identifiants, des hiérarchies et des coordonnées non synchronisés. Ces décalages, parfois de quelques mètres, parfois substantiels, créent des incohérences qui affectent :
 
 \begin{itemize}
-   \item \textbf{Les usagers} : informations contradictoires, localisation imprécise, expérience dégradée.
-   \item \textbf{Les exploitants et planificateurs} : difficultés à optimiser les lignes, les correspondances et l'infrastructure.
+   \item \textbf{Les usagers} : informations contradictoires, localisation imprécise, expérience utilisateur dégradée
+   \item \textbf{Les exploitants et planificateurs} : difficultés à optimiser les lignes, les correspondances et l'infrastructure
 \end{itemize}
 
-Nous proposons une approche systématique pour \textbf{identifier, apparier et corriger} les divergences entre ATLAS et OSM, puis \textbf{outiller} la décision humaine lorsque l'automatisation ne suffit pas.
+Nous proposons une approche systématique visant à \textbf{identifier, apparier et corriger} les divergences entre ATLAS et OSM, puis à \textbf{faciliter la décision humaine} lorsque l'automatisation atteint ses limites.
 
 \subsection*{Objectifs}
 
 \begin{itemize}
-   \item Concevoir une méthodologie robuste d'appariement ATLAS~\(\leftrightarrow\)~OSM (exact, nom, distance, lignes).
-   \item Quantifier les incohérences (positions, attributs, non-appariements).
-   \item Développer une application web de visualisation, de triage et de correction avec \textit{persistance} des décisions.
-   \item Générer des rapports et prioriser les problèmes.
-   \item Mettre en place un système d'authentification sécurisé et évaluer la robustesse de l'application.
-   \item Fournir un déploiement reproductible (conteneurs) et un code ouvert.
+   \item Concevoir une méthodologie robuste d'appariement ATLAS~\(\leftrightarrow\)~OSM (identifiant, nom, distance, lignes)
+   \item Quantifier les incohérences (positions, attributs, non-appariements)
+   \item Développer une application web de visualisation, de triage et de correction avec \textit{persistance} des décisions
+   \item Générer des rapports et prioriser les problèmes
+   \item Mettre en place un système d'authentification sécurisé et évaluer la robustesse de l'application
+   \item Fournir un déploiement reproductible (conteneurs) et un code ouvert
 \end{itemize}
 
 \section*{Approche méthodologique}
 
-Notre démarche s'articule en trois phases principales, allant du traitement brut des données à la validation humaine outillée et sécurisée.
+Notre démarche s'articule en trois phases principales, allant du traitement brut des données à la validation humaine appuyée par un outil sécurisé.
 
 \subsection*{Phase 1 : Pipeline de traitement automatisé}
 Le cœur de notre approche est un pipeline de scripts Python qui exécute les tâches suivantes :
 \begin{itemize}
-    \item \textbf{Collecte et Prétraitement} : Importation des données brutes depuis ATLAS (CSV) et OpenStreetMap (API Overpass), suivi d'un nettoyage et d'une normalisation.
-    \item \textbf{Appariement Algorithmique} : Application d'une cascade de méthodes : appariement par identifiants, par noms, par proximité géographique (via un index spatial R-tree) et enfin par analyse des lignes de transport.
-    \item \textbf{Détection des Problèmes} : Identification automatique des arrêts non-appariés, des doublons potentiels et des incohérences, qui sont ensuite classés et priorisés pour l'étape suivante.
+    \item \textbf{Collecte et Prétraitement} : Importation des données brutes depuis ATLAS (CSV) et OpenStreetMap (API Overpass), suivie d'un nettoyage et d'une normalisation
+    \item \textbf{Appariement Algorithmique} : Application d'une cascade de méthodes : appariement par identifiants, par noms, par proximité géographique (via un index spatial R-tree) et enfin par analyse des lignes de transport
+    \item \textbf{Détection des Problèmes} : Identification automatique des arrêts non appariés, des doublons potentiels et des incohérences, ensuite classés et priorisés pour l'étape suivante
 \end{itemize}
 
-\subsection*{Phase 2 : Application web pour la validation humaine}
-Les cas problématiques sont présentés via une application web interactive conçue pour accélérer la prise de décision :
+\subsection*{Phase 2 : Application web pour la visualisation et la validation humaine}
+Les cas problématiques sont présentés dans une application web interactive, conçue pour faciliter et accélérer la prise de décision ainsi que la correction des données :
 \begin{itemize}
-    \item \textbf{Architecture Technique} : Une application full-stack avec un backend Python (Flask) exposant une API, une base de données MySQL pour la persistance des données et des solutions, et un frontend en JavaScript natif avec une interface cartographique (Leaflet).
-    \item \textbf{Interface de Correction} : Une interface homme-machine (IHM) efficace pour visualiser les appariements et les problèmes, trier par priorité, et appliquer des solutions manuelles.
-    \item \textbf{Persistance des Solutions} : Chaque correction est stockée de manière persistante. Ce "savoir" est réinjecté au pipeline lors des futures mises à jour des données, créant une boucle d'amélioration.
+    \item \textbf{Architecture Technique} : Une application full-stack avec un backend Python (Flask) exposant une API, une base de données MySQL, et un frontend en JavaScript natif avec une interface cartographique (Leaflet)
+    \item \textbf{Interface Utilisateur} : Une interface efficace pour visualiser les appariements et les problèmes, trier par priorité et appliquer des solutions manuelles
+    \item \textbf{Persistance des Corrections} : Chaque correction est conservée de façon durable, puis réinjectée au pipeline lors des futures mises à jour des données, créant une boucle d'amélioration continue
 \end{itemize}
 
 \subsection*{Phase 3 : Sécurisation et Déploiement}
 La finalité du projet est de fournir un outil robuste et utilisable en conditions réelles :
 \begin{itemize}
-    \item \textbf{Sécurité} : Mise en place d'un système d'authentification complet (mots de passe hachés, authentification à deux facteurs) et évaluation des vulnérabilités pour protéger les données et les actions des utilisateurs.
-    \item \textbf{Déploiement} : L'ensemble de l'application et de ses dépendances (base de données, backend, frontend) est conteneurisé avec Docker, permettant une installation et une mise en service simplifiées et reproductibles.
+    \item \textbf{Sécurité} : Mise en place d'un système d'authentification complet (mots de passe hachés, authentification à deux facteurs) et évaluation des vulnérabilités pour protéger les données et les actions des utilisateurs
+    \item \textbf{Déploiement} : L'ensemble de l'application et de ses dépendances (base de données, backend, frontend) est conteneurisé avec Docker, permettant une installation et une mise en service simplifiées et reproductibles
 \end{itemize}
 
 L'intégralité du code est disponible sur :
@@ -61,13 +61,13 @@ L'intégralité du code est disponible sur :
 \textbf{GitHEPIA: \href{https://githepia.hesge.ch/guillem.massague/bachelor-project}{https://githepia.hesge.ch/guillem.massague/bachelor-project}}
 \end{center}
 
-Ce document n'affiche que des extraits ciblés. 
+Ce document ne présente que des extraits ciblés. 
 
 \subsection*{Conventions de couleur}
 
 Dans les captures d'écran de l'application web :
 \begin{itemize}
-   \item \textcolor{darkgreen}{\textbf{Points verts}} : arrêts ATLAS avec correspondance OSM confirmée
+   \item \textcolor{darkgreen}{\textbf{Points verts}} : arrêts ATLAS avec correspondance OSM
    \item \textcolor{blue}{\textbf{Points bleus}} : nœuds OSM correspondants
    \item \textcolor{red}{\textbf{Points rouges}} : arrêts ATLAS sans correspondance
    \item \textcolor{gray}{\textbf{Points gris}} : nœuds OSM sans correspondance
@@ -75,17 +75,17 @@ Dans les captures d'écran de l'application web :
 
 \section*{Structure du mémoire}
 
-Le mémoire est structuré comme un parcours logique, partant des données brutes pour aboutir à une solution logicielle complète et déployable. 
+Le mémoire suit un cheminement logique, partant des données brutes pour aboutir à une solution logicielle complète et déployable. 
 
 Nous commençons par poser les fondations en présentant les deux univers de données au cœur de ce projet : les données officielles suisses avec \textbf{ATLAS (Chapitre 1)}, puis leur contrepartie collaborative mondiale, \textbf{OpenStreetMap (Chapitre 2)}.
 
 Une fois ces deux mondes définis, nous nous attelons à les réconcilier. Le \textbf{Chapitre 3} détaille les \textbf{méthodes d'appariement} par identifiant, nom et proximité géographique. Le \textbf{Chapitre 4} introduit une approche plus fine, exploitant les \textbf{lignes de transport} pour affiner les correspondances.
 
-L'\textbf{analyse des résultats (Chapitre 5)} quantifie ensuite le succès de notre approche automatisée, en examinant la qualité des appariements. Ce qui nous mène naturellement à la \textbf{détection systématique des problèmes (Chapitre 6)}, où nous classons et priorisons les cas restants qui nécessitent une intervention humaine.
+L'\textbf{analyse des résultats (Chapitre 5)} quantifie ensuite le succès de notre approche automatisée, en examinant la qualité des appariements. Ce qui nous conduit naturellement à la \textbf{détection systématique des problèmes (Chapitre 6)}, où nous classons et priorisons les cas restants qui nécessitent une intervention humaine.
 
 Pour faciliter cette intervention, nous développons une application web. Sa conception est détaillée en trois temps : d'abord l'architecture de la \textbf{base de données (Chapitre 7)} ; ensuite, la logique métier du \textbf{backend (Chapitre 8)} ; et enfin, l'interface utilisateur interactive du \textbf{frontend (Chapitre 9)}, illustrée par de nombreuses captures.
 
 Puisque la robustesse d’un tel outil repose sur sa sécurité, nous consacrons deux chapitres à cet aspect crucial. Le \textbf{Chapitre 10} décrit la mise en place d'un \textbf{système d'authentification} moderne et complet, tandis que le \textbf{Chapitre 11} \textbf{évalue la sécurité} globale de l’application.
-Enfin, le \textbf{Chapitre 12} assure la reproductibilité et la simplicité du \textbf{déploiement} grâce à la conteneurisation, pour mettre en service l'ensemble de la solution en une seule commande.
+Enfin, le \textbf{Chapitre 12} assure la reproductibilité et la simplicité du \textbf{déploiement} grâce à la conteneurisation, permettant de mettre en service l'ensemble de la solution en une seule commande.
 
 Une \textbf{conclusion} synthétise les apports de ce travail, ses limites et les pistes pour de futures améliorations.
