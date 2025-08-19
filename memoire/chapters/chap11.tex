@@ -52,7 +52,7 @@
   \item \texttt{/api/check\_persistent\_solution}, \texttt{/api/check\_persistent\_note/...} \textit{GET} — \textbf{120/min}
   \item \texttt{/api/persistent\_data}, \texttt{/api/non\_persistent\_data} \textit{GET} — \textbf{60/min}, \textbf{auth requis}
   \item \texttt{/api/persistent\_data/<id>} \textit{DELETE} — \textbf{30/min}, \textbf{auth+admin}
-  \item \texttt{/api/make\_non\_persistent/<id>}, \texttt{/api/clear\_all\_persistent}, \texttt{/api/clear\_all\_non-persistent}, \texttt{/api/make\_all\_persistent} \textit{POST} — \textbf{10/h}, \textbf{auth requis} (admin si destructif)
+  \item \texttt{/api/make\_non\_persistent/<id>}, \texttt{/api/clear\_all\_persistent}, \texttt{/api/clear\_all\_non\_persistent}, \texttt{/api/make\_all\_persistent} \textit{POST} — \textbf{10/h}, \textbf{auth requis} (admin si destructif)
 \end{itemize}
 
 \noindent \textbf{Important}. Les opérations \emph{destructives} sur les données persistantes (comme \texttt{DELETE /api/persistent\_data/<id>}) sont réservées aux \textbf{administrateurs}. Un utilisateur non admin ne peut ni supprimer ni vider ces jeux de données.
@@ -62,7 +62,7 @@
 \section{Contrôles en place (aperçu technique)}
 
 \subsection*{Mots de passe et stockage}
-\noindent Les mots de passe sont hachés avec Argon2id via \texttt{argon2-cffi}, avec paramètres adaptés à la mémoire. Vérification sûre:
+\noindent Les mots de passe sont hachés avec Argon2id\citeref{ref:argon2_docs} via \texttt{argon2-cffi}, avec paramètres adaptés à la mémoire. Vérification sûre:
 \begin{codebox}[language=Python]{Vérifier un mot de passe}
 from argon2 import PasswordHasher
 ph = PasswordHasher()
@@ -87,13 +87,18 @@ app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE','false')
 \noindent \textbf{À retenir}. \texttt{SameSite=Lax} aide mais ne suffit pas: le jeton CSRF est la garantie principale contre l'exécution non intentionnelle de requêtes authentifiées.
 
 \subsection*{CAPTCHA Turnstile}
-\noindent Un CAPTCHA Cloudflare Turnstile protège inscription et connexion.
+\noindent Un CAPTCHA Cloudflare Turnstile\citeref{ref:cloudflare_turnstile} protège inscription et connexion.
 \begin{codebox}[language=Python]{Vérifier le CAPTCHA (simplifié)}
 secret = os.getenv('TURNSTILE_SECRET_KEY','')
 if not secret: return True  # dev
 resp = requests.post('https://.../siteverify', data={...})
 ok = bool(resp.json().get('success'))
 \end{codebox}
+
+\subsection*{Durcissement du conteneur}
+\noindent \textbf{Principe du moindre privilège}. Le service \texttt{app} s'exécute désormais en \textbf{utilisateur non-root} (\texttt{USER app}) avec des \textbf{permissions minimales} dans \texttt{/app}. Seuls \texttt{/app/data} et \texttt{/app/.cache} sont inscriptibles; le reste du code est en lecture seule. En cas d'exécution de code arbitraire (RCE), l'impact est réduit par l'absence de droits \texttt{root}.
+
+\noindent \textbf{Volumes et UID/GID}. Pour éviter des problèmes d'écriture sur le volume monté \texttt{.:/app}, l'UID/GID du compte \texttt{app} peut être aligné sur l'hôte via des \textit{build args} \texttt{APP\_UID}/\texttt{APP\_GID} (voir Chap.~\ref{chap:deploiement}).
 
 \subsection*{Limitation de débit et verrouillage}
 \noindent \textbf{Idée générale}. Nous combinons deux couches:
@@ -127,7 +132,7 @@ if not user.verify_password(password):
 \end{codebox}
 
 \subsection*{2FA TOTP et codes de secours}
-\noindent TOTP standard (30~s) via \texttt{pyotp}. \textbf{Le secret TOTP est chiffré au repos} (Fernet) et déchiffré à la volée à l'usage; les codes de secours sont \textbf{hachés} (Argon2) et \textbf{consommés} à l'usage.
+\noindent TOTP standard (30~s)\citeref{ref:totp_rfc} via \texttt{pyotp}. \textbf{Le secret TOTP est chiffré au repos} (Fernet)\citeref{ref:fernet_docs} et déchiffré à la volée à l'usage; les codes de secours sont \textbf{hachés} (Argon2) et \textbf{consommés} à l'usage.
 \begin{codebox}[language=Python]{Vérifier TOTP ou code de secours}
 secret = user.get_totp_secret()  # déchiffre si nécessaire
 totp_ok = pyotp.TOTP(secret).verify(token, valid_window=1)
@@ -280,4 +285,5 @@ docker compose logs -f app | grep 'auth_event' | cat
 
 \section{Conclusion}
 \noindent L'architecture d'authentification posée au \textbf{Chap.~\ref{chap:auth}} est saine: hachage robuste, 2FA réelle, captcha, limites et verrouillage. Ce chapitre a montré \emph{comment} ces mécanismes résistent aux attaques usuelles et a mis en lumière des durcissements concrets pour atteindre un niveau \og production \fg{}.
+
 

@@ -1,16 +1,21 @@
 % !TeX spellcheck = fr_FR
-\chapter{Chapitre 12 : Dockerisation and repo files}
+\chapter{Chapitre 12: Déploiement et Conteneurisation}
+\label{chap:deploiement}
 
-Ce chapitre raconte la « vie en conteneurs » de notre projet. Objectif: en une commande, tout démarre, la base de données se prépare, les scripts s'enchaînent, et l'application web apparaît sur \texttt{http://localhost:5001}. Nous allons décortiquer la configuration, illustrer les choix et montrer des extraits utiles.
+Ce chapitre présente la conteneurisation du projet, conçue pour un déploiement automatisé. Une seule commande initialise la base de données, exécute les scripts d'importation et lance l'application web sur \texttt{http://localhost:5001}.
 
-\medskip
-\noindent\textbf{On verra} comment fonctionnent \texttt{dockerfile}, \texttt{docker-compose.yml}, \texttt{entrypoint.sh} et \texttt{.dockerignore} ensemble; comment lancer le pipeline complet ou un mode \textit{dev} léger; et comment diagnostiquer, personnaliser et améliorer l'ensemble.
+Nous détaillerons le rôle des fichiers \texttt{dockerfile}, \texttt{docker-compose.yml}, \texttt{entrypoint.sh} et \texttt{.dockerignore}.
 
-\section{Pourquoi dockeriser ?}
+\section{Introduction à Docker}
+Docker est une plateforme open-source qui automatise le déploiement, la mise à l'échelle et la gestion des applications en utilisant la conteneurisation\citeref{ref:docker_docs}. Un conteneur est une unité logicielle légère et autonome qui inclut tout ce dont une application a besoin pour fonctionner : le code, les dépendances, les bibliothèques et les outils système. 
+
+Contrairement aux machines virtuelles qui virtualisent un système d'exploitation complet, les conteneurs partagent le noyau de l'hôte tout en maintenant l'isolation des processus. Cette approche offre plusieurs avantages: démarrage rapide (quelques secondes), empreinte mémoire réduite, et portabilité accrue. Les conteneurs isolent les applications les unes des autres et de leur environnement, garantissant ainsi qu'elles fonctionnent de manière cohérente sur n'importe quelle infrastructure supportant Docker.
+
+\subsectionsection{Pourquoi dockeriser ?}
 
 Trois raisons concrètes :
 \begin{itemize}
-  \item \textbf{Reproductibilité}: même version de Python, mêmes dépendances système (\texttt{wkhtmltopdf}, client MySQL), même environnement d'exécution.
+  \item \textbf{Reproductibilité}: même version de Python, mêmes dépendances système (\texttt{wkhtmltopdf}\citeref{ref:wkhtmltopdf}, client MySQL), même environnement d'exécution.
   \item \textbf{Parité dev/prod}: une pile unique (app + base) réduisant les \og ça marche sur ma machine\fg{}.
   \item \textbf{Bootstrap instantané}: une commande pour installer, migrer, télécharger/traiter les données et lancer le serveur.
 \end{itemize}
@@ -19,23 +24,22 @@ Trois raisons concrètes :
 
 \begin{description}
   \item[\texttt{dockerfile}] Image de l'application: base Python 3.9 \texttt{slim-bookworm}, dépendances \textit{apt}, \texttt{pip}, copie du code et \texttt{ENTRYPOINT}.
-  \item[\texttt{docker-compose.yml}] Orchestration multi-services: \texttt{db} (MySQL) + \texttt{app} et \texttt{app-dev} (profils), volumes, variables d'environnement, \texttt{depends\_on} avec healthcheck.
+  \item[\texttt{docker-compose.yml}] Orchestration multi-services: \texttt{db} (MySQL) + \texttt{app} et \texttt{app-dev} (profils), volumes, variables d'environnement\citeref{ref:docker_compose_env_vars}, \texttt{depends\_on} avec healthcheck.
   \item[\texttt{entrypoint.sh}] Orchestrateur de démarrage côté \texttt{app}: attend MySQL, applique migrations, exécute scripts de données (selon flags), lance Flask.
   \item[\texttt{.dockerignore}] Réduit le contexte de build (ignore les dossiers volumineux et la documentation), accélère et assainit l'image.
 \end{description}
 
-\section{Aperçu}
 
 \begin{figure}[H]
   \centering
-  \begin{tikzpicture}[node distance=1.8cm, >=stealth]
-    \tikzstyle{svc}=[draw, rounded corners, minimum width=4.2cm, minimum height=1.2cm, align=center, fill=gray!5]
-    \tikzstyle{vol}=[draw, dashed, rounded corners, minimum width=3.5cm, minimum height=0.9cm, align=center]
+  \begin{tikzpicture}[node distance=2.5cm, >=stealth]
+    \tikzstyle{svc}=[draw, rounded corners, minimum width=4.5cm, minimum height=1.4cm, align=center, fill=gray!5]
+    \tikzstyle{vol}=[draw, dashed, rounded corners, minimum width=4cm, minimum height=1.1cm, align=center, font=\small]
 
     \node[svc] (app) {\textbf{Service app}\\ Python 3.9 + Flask\\ \small \texttt{ENTRYPOINT /app/entrypoint.sh}};
-    \node[svc, right of=app, node distance=4.5cm] (db) {\textbf{Service db}\\ MySQL 8.0\\ \small \texttt{healthcheck}};
-    \node[vol, below of=db, node distance=0.9cm] (mysqlvol) {\texttt{volume: mysql\_data}};
-    \node[vol, below of=app, node distance=0.9cm] (codevol) {\texttt{.:/app} \quad \texttt{./data:/app/data}};
+    \node[svc, right of=app, node distance=8cm] (db) {\textbf{Service db}\\ MySQL 8.0\\ \small \texttt{healthcheck}};
+    \node[vol, below of=db, node distance=2.2cm] (mysqlvol) {\texttt{volume: mysql\_data}};
+    \node[vol, below of=app, node distance=2.2cm] (codevol) {\texttt{.:/app}\\ \texttt{./data:/app/data}};
 
     \draw[->] (app) -- node[above]{\small TCP 3306} (db);
     \draw[-] (db) -- (mysqlvol);
@@ -46,7 +50,7 @@ Trois raisons concrètes :
 
 \section{L'orchestration: \texttt{docker-compose.yml}}
 
-Le fichier compose définit \texttt{db}, \texttt{app} et un service \texttt{app-dev} activé via profil. Extraits commentés:
+Le fichier compose\citeref{ref:docker_compose} définit \texttt{db}, \texttt{app} et un service \texttt{app-dev} activé via profil. Extraits commentés:
 
 \begin{codebox}{\texttt{db} : MySQL 8.0 avec healthcheck}
 services:
@@ -68,7 +72,7 @@ services:
       retries: 2
 \end{codebox}
 
-\noindent L'application dépend explicitement du statut \textit{healthy} de MySQL et monte deux volumes (code + données):
+\noindent L'application dépend explicitement du statut \textit{healthy} de MySQL\citeref{ref:mysql_docs} et monte deux volumes (code + données):
 
 \begin{codebox}{\texttt{app} : service principal}
   app:
@@ -94,7 +98,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
 \end{codebox}
 
-\noindent En développement, nous activons un service plus léger qui évite les téléchargements et prétraitements longs:
+\noindent Pour developer l'application web, nous activons un service plus léger qui évite les téléchargements et prétraitements longs:
 
 \begin{codebox}{\texttt{app-dev} : profil \texttt{dev}}
   app-dev:
@@ -110,28 +114,47 @@ services:
 
 \section{L'image: \texttt{dockerfile}}
 
-L'image part d'un Python 3.9 minimal \texttt{slim-bookworm} (compatibilité \texttt{wkhtmltopdf}). Nous installons trois dépendances \textit{apt}: \texttt{wkhtmltopdf}, \texttt{default-mysql-client} (pour \texttt{mysqladmin}) et \texttt{dos2unix}. Puis \texttt{pip install -r requirements.txt} et utilisation d'un \texttt{ENTRYPOINT} shell.
+L'image part d'un Python 3.9 minimal \texttt{slim-bookworm} (compatibilité \texttt{wkhtmltopdf}). Nous installons plusieurs dépendances système critiques: \texttt{wkhtmltopdf} pour la génération PDF, \texttt{default-mysql-client} pour les commandes d'administration MySQL, \texttt{dos2unix} pour normaliser les fins de lignes, et les bibliothèques GDAL/GEOS nécessaires à GeoPandas pour le traitement géospatial. Puis \texttt{pip install -r requirements.txt} et utilisation d'un \texttt{ENTRYPOINT} shell.
 
-\begin{codebox}[language=bash]{Extraits — \texttt{dockerfile}}
+\begin{codebox}[language=bash]{Extraits — \texttt{dockerfile} (utilisateur non-root)}
 FROM python:3.9-slim-bookworm
 ENV FLASK_APP=backend/app.py \\
     FLASK_RUN_HOST=0.0.0.0 \\
     FLASK_RUN_PORT=5001
 RUN apt-get update && apt-get install -y --no-install-recommends \\
     wkhtmltopdf default-mysql-client dos2unix && rm -rf /var/lib/apt/lists/*
+
+# Crée un utilisateur non-root configurable
+ARG APP_UID=1000
+ARG APP_GID=1000
+RUN groupadd -g ${APP_GID} app && \\
+    useradd -m -u ${APP_UID} -g ${APP_GID} -s /bin/bash app
+
 WORKDIR /app
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
 COPY entrypoint.sh /app/entrypoint.sh
 RUN dos2unix /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 COPY . /app/
+
+# Permissions minimales et répertoires d'écriture
+RUN find /app -type d -exec chmod 755 {} \; && \\
+    find /app -type f -exec chmod 644 {} \; && \\
+    chmod 755 /app/entrypoint.sh && \\
+    mkdir -p /app/data /app/.cache && \\
+    chown -R app:app /app && \\
+    chmod 775 /app/data /app/.cache
+
+# Exécute en tant qu'utilisateur non-root
+USER app
+
 EXPOSE 5001
 ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
 \end{codebox}
 
 \section{Le chef d'orchestre: \texttt{entrypoint.sh}}
 
-Le script d'entrée synchronise le démarrage: attend MySQL, crée la base \texttt{auth\_db} si besoin, applique les migrations, exécute les scripts de données (selon les drapeaux), puis lance Flask. Il peut également créer un utilisateur dédié pour \texttt{auth\_db} si des variables d'environnement sont fournies.
+Le script d'entrée synchronise le démarrage: attend MySQL, crée la base \texttt{auth\_db} si besoin, applique les migrations, exécute les scripts de données (selon les drapeaux), puis lance Flask\citeref{ref:flask_docs}. Il peut également créer un utilisateur dédié pour \texttt{auth\_db} si des variables d'environnement sont fournies.
 
 \begin{codebox}[language=bash]{Attente active, création de comptes, migrations}
 echo "Waiting for MySQL database at db:3306..."
@@ -143,12 +166,21 @@ echo "MySQL is up and ready."
 
 if [ -n "$MYSQL_ROOT_PASSWORD" ]; then
   # Assure l'existence de auth_db et droits de base
-  mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" \\
-    -e "CREATE DATABASE IF NOT EXISTS auth_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
-  # Crée un utilisateur dédié auth si variables fournies et révoque stops_user sur auth_db
+  mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "
+    CREATE DATABASE IF NOT EXISTS auth_db 
+      CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'%';
+    FLUSH PRIVILEGES;" || true
+  
+  # Crée un utilisateur dédié auth si variables fournies
   if [ -n "$AUTH_DB_USER" ] && [ -n "$AUTH_DB_PASSWORD" ]; then
-    mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" \\
-      -e "CREATE USER IF NOT EXISTS '${AUTH_DB_USER}'@'%' IDENTIFIED BY '${AUTH_DB_PASSWORD}'; GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX ON auth_db.* TO '${AUTH_DB_USER}'@'%'; REVOKE ALL PRIVILEGES ON auth_db.* FROM 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
+    mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "
+      CREATE USER IF NOT EXISTS '${AUTH_DB_USER}'@'%' 
+        IDENTIFIED BY '${AUTH_DB_PASSWORD}';
+      GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX 
+        ON auth_db.* TO '${AUTH_DB_USER}'@'%';
+      REVOKE ALL PRIVILEGES ON auth_db.* FROM 'stops_user'@'%';
+      FLUSH PRIVILEGES;" || true
   fi
 fi
 
@@ -184,25 +216,41 @@ docker compose logs -f app | cat
 docker compose logs -f app | grep auth_event | cat
 \end{cmdbox}
 
-\section{Personnaliser par variables d'environnement}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{\detokenize{chap12/screenshot terminal docker compose up.png}}
+  \caption{Commande et sortie de \texttt{docker compose up} dans le terminal.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=\textwidth]{\detokenize{chap12/screenshot doker desktop.wecanseethe3containers.png}}
+  \caption{Docker Desktop montrant les conteneurs en cours d'exécution.}
+\end{figure}
+
+
+\section{Variables d'environnement}
 
 Les principales variables s'ajustent dans \texttt{docker-compose.yml} (ou via \texttt{.env}).
 
-\begin{center}
-\begin{tabularx}{0.98\textwidth}{l l X}
+\begin{table}[H]
+\centering
+\caption{Variables d'environnement pour la personnalisation}
+\label{tab:chap12_env_vars}
+\begin{tabularx}{0.98\textwidth}{>{\raggedright\arraybackslash}p{0.25\textwidth} >{\raggedright\arraybackslash}p{0.25\textwidth} X}
 \toprule
 \textbf{Variable} & \textbf{Rôle} & \textbf{Valeur par défaut}\\
 \midrule
 \texttt{DATABASE\_URI} & Connexion MySQL (stops) & \texttt{mysql+pymysql://stops\_user:1234@db/stops\_db}\\
 \texttt{AUTH\_DATABASE\_URI} & Base d'authentification & \texttt{mysql+pymysql://.../auth\_db}\\
 \texttt{AUTH\_DB\_USER}, \texttt{AUTH\_DB\_PASSWORD} & Compte dédié auth (optionnel) & \texttt{\textit{vide par défaut}}\\
-\texttt{AUTO\_MIGRATE} & Init/migrate auto Alembic & \texttt{true} (dev)\\
+\texttt{AUTO\_MIGRATE} & Init/migrate auto Alembic\citeref{ref:alembic_docs} & \texttt{true} (dev)\\
 \texttt{SKIP\_DATA\_IMPORT} & Sauter pipeline de données & \texttt{false} (app), \texttt{true} (app-dev)\\
 \texttt{MATCH\_ONLY} & N'exécuter que matching + import & \texttt{false}\\
 \texttt{FLASK\_ENV}, \texttt{FLASK\_DEBUG} & Mode Flask & \texttt{development}, \texttt{1}\\
 \bottomrule
 \end{tabularx}
-\end{center}
+\end{table}
 
 \section{Persistance et poids d'image}
 
@@ -212,55 +260,43 @@ Les principales variables s'ajustent dans \texttt{docker-compose.yml} (ou via \t
 docker compose down -v  # ATTENTION: supprime le volume mysql_data
 \end{cmdbox}
 
-\textbf{Contexte de build réduit.} Le \texttt{.dockerignore} exclut documentation et gros dossiers de données (tout en gardant quelques fichiers essentiels pour \texttt{MATCH\_ONLY}). Cela accélère \texttt{docker build} et évite des images obèses.
+\textbf{Contexte de build réduit.} Le \texttt{.dockerignore} exclut la documentation, les gros dossiers de données, les caches Python et métadonnées VCS (tout en gardant quelques fichiers essentiels pour \texttt{MATCH\_ONLY}). Cela accélère \texttt{docker build} et évite des images obèses.
 
 \begin{codebox}[language=bash]{Extraits — \texttt{.dockerignore}}
+# Métadonnées VCS et IDE
+.git
+.vscode/
+.idea/
+
+# Caches Python et artefacts de build
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Gros dossiers de données (exclus par défaut)
 data/raw/
-data/processed/
-memoire/
-documentation/
-*.pdf
+data/processed/*
 !data/processed/osm_nodes_with_routes.csv
 !data/processed/atlas_routes_unified.csv
+
+# Documentation et rapport
+memoire/
+documentation/
 \end{codebox}
 
-\section{Recettes de diagnostic}
+\section{Considérations de sécurité}
 
-\begin{cmdbox}
-# Ouvrir un shell dans le conteneur app
-docker compose exec app bash
+La conteneurisation apporte plusieurs avantages sécuritaires, mais nécessite des précautions spécifiques:
 
-# Tester la connexion MySQL depuis l'hôte
-mysql -h 127.0.0.1 -P 3306 -u stops_user -p1234 -e "SHOW DATABASES;"
+\textbf{Utilisateur non-root.} Le conteneur s'exécute sous l'utilisateur \texttt{app} (UID/GID configurables), réduisant les risques d'escalade de privilèges. Les permissions des fichiers sont minimisées (\texttt{644} pour les fichiers, \texttt{755} pour les répertoires).
 
-# Rebuilder l'image quand requirements.txt change
-docker compose build app && docker compose up -d
-\end{cmdbox}
+\textbf{Gestion des secrets.} Les mots de passe MySQL sont passés via variables d'environnement. En production, il serait préférable d'utiliser Docker secrets\citeref{ref:docker_secrets} ou un gestionnaire externe (HashiCorp Vault, AWS Secrets Manager).
 
-\section{Bonnes pratiques et sécurité}
+\textbf{Isolation réseau.} Les conteneurs communiquent via un réseau Docker privé. Seuls les ports explicitement exposés (\texttt{3306}, \texttt{5001}) sont accessibles depuis l'hôte.
 
-\begin{itemize}
-  \item \textbf{Secrets}: ne committez jamais des mots de passe réels. Utilisez un fichier \texttt{.env} local (non versionné) ou des variables d'environnement sur le CI/CD.
-  \item \textbf{Utilisateur non-root}: pour la production, privilégier un utilisateur non privilégié dans l'image.
-  \item \textbf{Gunicorn + reverse proxy}: en prod, exécuter Flask via \texttt{gunicorn} derrière \texttt{nginx} ou un load balancer.
-  \item \textbf{Healthcheck applicatif}: ajoutez un \texttt{healthcheck} sur \texttt{/health} côté app pour un redémarrage automatique si nécessaire.
-\end{itemize}
+\textbf{Surface d'attaque réduite.} L'image \texttt{slim-bookworm} contient moins de packages que l'image complète \texttt{python:3.9}. Le \texttt{.dockerignore} évite d'inclure des fichiers sensibles dans le contexte de build.
 
-\section{Réflexion et améliorations possibles}
-\textbf{Ce qui marche bien.} La séparation claire des rôles (\texttt{db} vs \texttt{app}), l'attente active sur MySQL et le \textit{profil dev} évitent l'essentiel des écueils. Les drapeaux \texttt{SKIP\_DATA\_IMPORT} et \texttt{MATCH\_ONLY} permettent de raccourcir radicalement les cycles de développement.
 
-\medskip
-\noindent\textbf{Pistes d'amélioration (priorisées)}
-\begin{enumerate}
-  \item \textbf{Build multi-étapes}: séparer build (\textit{pip install}) et runtime; copier uniquement les artefacts nécessaires. Gain: image plus petite et plus sûre.
-  \item \textbf{Utilisateur non-root} et permissions minimales dans \texttt{/app}.
-  \item \textbf{Healthcheck app}: ajouter un endpoint \texttt{/health} et un \texttt{HEALTHCHECK} dans l'image pour détecter les boucles anormales.
-  \item \textbf{Secrets} via \texttt{.env} (non versionné) ou \texttt{docker secret} (Swarm) / gestionnaire de secrets du CI.
-  \item \textbf{Prod vs dev}: scinder en deux fichiers compose (\texttt{docker-compose.dev.yml} et \texttt{docker-compose.prod.yml}) ou utiliser davantage les \texttt{profiles}.
-  \item \textbf{Alembic en prod}: éviter \texttt{flask db migrate} automatique; ne déployer que des migrations validées.
-  \item \textbf{Cache de données} en \textit{dev}: fournir un sous-ensemble minimal des fichiers \texttt{data/processed} pour accélérer \texttt{MATCH\_ONLY} lors des tests.
-  \item \textbf{CI d'image}: construire et publier l'image sur un registre; \textit{pull} côté serveur pour déploiement.
-\end{enumerate}
 
-\medskip
-\noindent\textbf{Conclusion.} Cette dockerisation est volontairement pragmatique: peu de magie, des scripts explicites, et des profils qui servent les usages quotidiens. En peaufinant la chaîne (build multi-étapes, non-root, healthchecks, secrets), on obtient une base de déploiement robuste.
+
+\noindent\textbf{Conclusion.} Cette dockerisation est volontairement pragmatique: peu de magie, des scripts explicites, et des profils qui servent les usages quotidiens. L'approche privilégie la lisibilité et la maintenabilité, tout en respectant les bonnes pratiques de sécurité (utilisateur non-root, isolation réseau, surface d'attaque minimale). Cette base solide facilite tant le développement local que le déploiement automatisé, et peut évoluer vers des architectures plus complexes selon les besoins.

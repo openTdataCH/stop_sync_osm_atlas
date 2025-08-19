@@ -5,89 +5,86 @@
 
 \section*{Contexte et problématique}
 
-La digitalisation des services de mobilité a rendu la qualité et la fiabilité des données de transport public plus cruciales que jamais. En Suisse, les systèmes d'information aux voyageurs, les outils de planification de réseau et les applications de navigation reposent sur des référentiels géographiques précis des arrêts et points d'arrêt. Le système de référence officiel pour ces données est la base de données ATLAS, qui fait autorité en la matière. Parallèlement, OpenStreetMap (OSM), un projet cartographique mondial et collaboratif, s'est imposé comme une source de données extrêmement riche et fréquemment utilisée pour la représentation cartographique et diverses applications tierces, grâce à sa flexibilité et sa couverture exhaustive.
+La digitalisation des services de mobilité rend la qualité des données de transport public plus cruciale que jamais. En Suisse, les systèmes d'information voyageurs, les planificateurs d'itinéraires et les outils d'analyse reposent sur des référentiels géographiques précis des arrêts. ATLAS constitue la base officielle, tandis qu'OpenStreetMap (OSM), projet cartographique collaboratif mondial, offre une richesse et une couverture exceptionnelles.
 
-Le défi majeur, et le cœur de ce travail de Bachelor, réside dans la divergence systémique entre ces deux jeux de données. Bien qu'ils décrivent la même réalité physique — le réseau de transport public —, ils le font avec des coordonnées, des identifiants et des hiérarchies qui ne sont pas nativement synchronisés. Ces écarts, qu'ils soient de quelques mètres ou plus significatifs, engendrent des incohérences problématiques :
+Au cœur de ce travail se trouve leur \textbf{désalignement}. Deux sources décrivent la même réalité — le réseau et ses arrêts — mais avec des identifiants, des hiérarchies et des coordonnées non synchronisés. Ces écarts, parfois de quelques mètres, parfois substantiels, créent des incohérences qui affectent :
 
 \begin{itemize}
-    \item \textbf{Pour les usagers :} informations contradictoires, localisation erronée des arrêts sur les applications, et une expérience de voyage dégradée.
-    
-    \item \textbf{Pour les exploitants et planificateurs :} difficultés dans la planification des lignes, optimisation des correspondances et gestion de l'infrastructure.
+   \item \textbf{Les usagers} : informations contradictoires, localisation imprécise, expérience dégradée.
+   \item \textbf{Les exploitants et planificateurs} : difficultés à optimiser les lignes, les correspondances et l'infrastructure.
 \end{itemize}
 
-Ce projet de Bachelor s'attaque directement à cette problématique. Il vise à concevoir et mettre en œuvre une approche systématique pour identifier, analyser et corriger les discordances entre les données d'arrêts d'ATLAS et d'OSM en Suisse. L'ambition est de transformer deux sources de données parallèles en un écosystème informationnel cohérent et fiable.
-
-\medskip
-\noindent\textit{Sauf indication contraire, toutes les statistiques et cartes de ce mémoire (y compris l'introduction) sont calculées sur le snapshot de données du 11 août 2025.}
+Nous proposons une approche systématique pour \textbf{identifier, apparier et corriger} les divergences entre ATLAS et OSM, puis \textbf{outiller} la décision humaine lorsque l'automatisation ne suffit pas.
 
 \subsection*{Objectifs}
 
-Les objectifs principaux de ce travail sont les suivants :
-
 \begin{itemize}
-    \item Concevoir et valider une méthodologie robuste pour la comparaison et la correspondance automatisée des données d'arrêts entre ATLAS et OSM.
-    
-    \item Identifier et quantifier les différents types d'incohérences (écarts de position, absences de correspondance, etc.).
-    
-    \item Développer un outil d'aide à la décision et à la correction pour traiter les cas ambigus qu'un algorithme ne peut résoudre seul.
-    
-    \item Mettre en œuvre les corrections nécessaires et générer des rapports consolidés pour documenter les interventions.
-    
-    \item Contribuer à l'amélioration durable de la qualité des données de transport public, au bénéfice de l'ensemble des acteurs de la mobilité.
+   \item Concevoir une méthodologie robuste d'appariement ATLAS~\(\leftrightarrow\)~OSM (exact, nom, distance, lignes).
+   \item Quantifier les incohérences (positions, attributs, non-appariements).
+   \item Développer une application web de visualisation, de triage et de correction avec \textit{persistance} des décisions.
+   \item Générer des rapports et prioriser les problèmes.
+   \item Mettre en place un système d'authentification sécurisé et évaluer la robustesse de l'application.
+   \item Fournir un déploiement reproductible (conteneurs) et un code ouvert.
 \end{itemize}
 
 \section*{Approche méthodologique}
 
-Pour atteindre ces objectifs, notre démarche s'articule en deux phases complémentaires, alliant traitement automatisé et validation humaine supervisée.
+Notre démarche s'articule en trois phases principales, allant du traitement brut des données à la validation humaine outillée et sécurisée.
 
-\subsection*{Phase 1 : Traitement automatisé}
+\subsection*{Phase 1 : Pipeline de traitement automatisé}
+Le cœur de notre approche est un pipeline de scripts Python qui exécute les tâches suivantes :
+\begin{itemize}
+    \item \textbf{Collecte et Prétraitement} : Importation des données brutes depuis ATLAS (CSV) et OpenStreetMap (API Overpass), suivi d'un nettoyage et d'une normalisation.
+    \item \textbf{Appariement Algorithmique} : Application d'une cascade de méthodes : appariement par identifiants, par noms, par proximité géographique (via un index spatial R-tree) et enfin par analyse des lignes de transport.
+    \item \textbf{Détection des Problèmes} : Identification automatique des arrêts non-appariés, des doublons potentiels et des incohérences, qui sont ensuite classés et priorisés pour l'étape suivante.
+\end{itemize}
 
-La première phase repose sur l'utilisation de scripts en langage Python pour automatiser les tâches de traitement, de nettoyage et de comparaison des deux jeux de données. Ces scripts mettent en œuvre différents algorithmes de correspondance, allant de la simple proximité géographique à des méthodes plus sophistiquées combinant plusieurs attributs (comme le nom de l'arrêt) pour établir des paires de correspondance potentielles entre les entités ATLAS et OSM.
+\subsection*{Phase 2 : Application web pour la validation humaine}
+Les cas problématiques sont présentés via une application web interactive conçue pour accélérer la prise de décision :
+\begin{itemize}
+    \item \textbf{Architecture Technique} : Une application full-stack avec un backend Python (Flask) exposant une API, une base de données MySQL pour la persistance des données et des solutions, et un frontend en JavaScript natif avec une interface cartographique (Leaflet).
+    \item \textbf{Interface de Correction} : Une interface homme-machine (IHM) efficace pour visualiser les appariements et les problèmes, trier par priorité, et appliquer des solutions manuelles.
+    \item \textbf{Persistance des Solutions} : Chaque correction est stockée de manière persistante. Ce "savoir" est réinjecté au pipeline lors des futures mises à jour des données, créant une boucle d'amélioration.
+\end{itemize}
 
-\subsection*{Phase 2 : Application web interactive}
+\subsection*{Phase 3 : Sécurisation et Déploiement}
+La finalité du projet est de fournir un outil robuste et utilisable en conditions réelles :
+\begin{itemize}
+    \item \textbf{Sécurité} : Mise en place d'un système d'authentification complet (mots de passe hachés, authentification à deux facteurs) et évaluation des vulnérabilités pour protéger les données et les actions des utilisateurs.
+    \item \textbf{Déploiement} : L'ensemble de l'application et de ses dépendances (base de données, backend, frontend) est conteneurisé avec Docker, permettant une installation et une mise en service simplifiées et reproductibles.
+\end{itemize}
 
-Cependant, la complexité des données et la présence de cas ambigus ont rapidement mis en évidence les limites d'une approche 100\,\% automatique. Pour surmonter cet obstacle, la seconde phase a consisté à développer une application web interactive. Dotée d'un backend en Python (framework Flask), d'une base de données MySQL pour la persistance des données et d'une interface en JavaScript, cette application remplit un double rôle :
-
-\begin{description}
-    \item[Visualisation :] Elle offre une représentation cartographique claire des correspondances trouvées, des divergences et des entités non appariées.
-    
-    \item[Validation et Correction :] Elle fournit une interface de gestion permettant à un opérateur humain d'examiner les cas problématiques, de valider les suggestions de l'algorithme et d'appliquer manuellement des solutions correctives adaptées à chaque type d'incohérence.
-\end{description}
-
-\subsection*{Code source}
-
-Ce document ne présentera que des extraits de code ciblés pour illustrer des points spécifiques. L'intégralité du code source développé dans le cadre de ce projet est disponible sur le dépôt Git suivant : 
-
+L'intégralité du code est disponible sur :
 \begin{center}
+\texttt{https://github.com/openTdataCH/stop\_sync\_osm\_atlas}\\
 \texttt{https://githepia.hesge.ch/guillem.massague/bachelor-project}
 \end{center}
 
+Ce document n'affiche que des extraits ciblés. 
+
 \subsection*{Conventions de couleur}
 
-\textbf{Note sur les figures :} Dans les captures d'écran de l'application web présentées dans ce mémoire, les conventions de couleur sont les suivantes :
+Dans les captures d'écran de l'application web :
 \begin{itemize}
-    \item \textcolor{darkgreen}{\textbf{Points verts}} : arrêts ATLAS avec une correspondance OSM confirmée
-    \item \textcolor{blue}{\textbf{Points bleus}} : nœuds OSM correspondants
-    \item \textcolor{red}{\textbf{Points rouges}} : arrêts ATLAS sans correspondance
-    \item \textcolor{gray}{\textbf{Points gris}} : nœuds OSM sans correspondance
+   \item \textcolor{darkgreen}{\textbf{Points verts}} : arrêts ATLAS avec correspondance OSM confirmée
+   \item \textcolor{blue}{\textbf{Points bleus}} : nœuds OSM correspondants
+   \item \textcolor{red}{\textbf{Points rouges}} : arrêts ATLAS sans correspondance
+   \item \textcolor{gray}{\textbf{Points gris}} : nœuds OSM sans correspondance
 \end{itemize}
 
 \section*{Structure du mémoire}
 
-Ce mémoire est structuré de manière à suivre la progression logique de notre recherche, depuis l'analyse des données brutes jusqu'à la validation des résultats finaux.
+Le mémoire est structuré comme un parcours logique, partant des données brutes pour aboutir à une solution logicielle complète et déployable. 
 
-\begin{description}
-    \item[\textbf{Chapitres 1 et 2 : Présentation des jeux de données.}] Nous commencerons par une analyse détaillée des sources de données ATLAS et OSM. Nous décrirons leur structure, leurs attributs, leurs forces et leurs limitations respectives, qui constituent le fondement de notre problématique.
+Nous commençons par poser les fondations en présentant les deux univers de données au cœur de ce projet : les données officielles suisses avec \textbf{ATLAS (Chapitre 1)}, puis leur contrepartie collaborative mondiale, \textbf{OpenStreetMap (Chapitre 2)}.
 
-    \item[\textbf{Chapitre 3 : Premières approches de correspondance.}] Ce chapitre explorera les méthodes initiales et les plus directes pour apparier les arrêts, principalement basées sur la proximité géographique. Nous y évaluerons les performances et les lacunes de ces techniques simples.
+Une fois ces deux mondes définis, nous nous attelons à les réconcilier. Le \textbf{Chapitre 3} détaille les \textbf{méthodes d'appariement} par identifiant, nom et proximité géographique. Le \textbf{Chapitre 4} introduit une approche plus fine, exploitant les \textbf{lignes de transport} pour affiner les correspondances.
 
-    \item[\textbf{Chapitre 4 : Développement d'un algorithme de correspondance avancé.}] Forts des enseignements du chapitre précédent, nous décrirons ici la conception d'un algorithme plus robuste, combinant plusieurs critères (distance, similarité textuelle, opérateur, itinéraire, etc.) pour améliorer la précision des correspondances automatiques.
+L'\textbf{analyse des résultats (Chapitre 5)} quantifie ensuite le succès de notre approche automatisée, en examinant la qualité des appariements. Ce qui nous mène naturellement à la \textbf{détection systématique des problèmes (Chapitre 6)}, où nous classons et priorisons les cas restants qui nécessitent une intervention humaine.
 
-    \item[\textbf{Chapitre 5 : Analyse des écarts et des cas problématiques.}] Une fois les correspondances établies, ce chapitre se consacrera à l'analyse quantitative et qualitative des résultats. Nous y présenterons les statistiques sur les distances d'écart et nous catégoriserons les principaux types de problèmes rencontrés.
+Pour faciliter cette intervention, nous développons une application web. Sa conception est détaillée en trois temps : d'abord l'architecture de la \textbf{base de données (Chapitre 7)} ; ensuite, la logique métier du \textbf{backend (Chapitre 8)} ; et enfin, l'interface utilisateur interactive du \textbf{frontend (Chapitre 9)}, illustrée par de nombreuses captures.
 
-    \item[\textbf{Chapitre 6 : Application web d'aide à la validation et à la correction.}] Nous présenterons l'outil web développé sur mesure. Ce chapitre détaillera son architecture technique, ses fonctionnalités de visualisation interactive, ainsi que l'interface de gestion conçue pour permettre une intervention humaine efficace et guidée.
+Puisque la robustesse d’un tel outil repose sur sa sécurité, nous consacrons deux chapitres à cet aspect crucial. Le \textbf{Chapitre 10} décrit la mise en place d'un \textbf{système d'authentification} moderne et complet, tandis que le \textbf{Chapitre 11} \textbf{évalue la sécurité} globale des l’application.
+Enfin, le \textbf{Chapitre 12} assure la reproductibilité et la simplicité du \textbf{déploiement} grâce à la conteneurisation, pour mettre en service l'ensemble de la solution en une seule commande.
 
-    \item[\textbf{Chapitre 7 : Analyse des résultats et validation.}] Ce chapitre évaluera l'efficacité de notre méthode combinée (algorithme et validation manuelle). Nous y quantifierons le nombre de corrections effectuées, l'amélioration de la qualité des données et la pertinence des solutions apportées.
-
-    \item[\textbf{Conclusion.}] Pour conclure, nous dresserons un bilan complet du projet, en synthétisant les apports et les résultats obtenus. Nous discuterons également des enseignements tirés, des limites de notre approche et des perspectives d'avenir pour l'amélioration continue des données de transport en Suisse.
-\end{description}
+Une \textbf{conclusion} synthétise les apports de ce travail, ses limites et les pistes pour de futures améliorations.

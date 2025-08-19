@@ -1,453 +1,187 @@
 % !TeX spellcheck = fr_FR
 \chapter{Chapitre 8 : Backend}
 
-\section*{Panorama}
-
-Ce chapitre présente l'architecture backend qui alimente l'application: structure par \textit{blueprints} Flask, sérialisation, requêtage optimisé, endpoints majeurs (données, recherche, statistiques, rapports) et services dédiés (routes). 
+Ce chapitre présente l'architecture backend qui alimente l'application: structure par \textit{blueprints} Flask\citeref{ref:flask_docs}, sérialisation, requêtage optimisé, endpoints majeurs (données, recherche, statistiques, rapports) et services dédiés (routes).
 
 Le \textbf{chapitre 10} traitera exclusivement de l'authentification (flux, 2FA, emails), et le \textbf{chapitre 11} proposera un audit sécurité global (CSP, rate-limiting, surfaces d'attaque, secrets, etc.).
 
 \section{Architecture générale}
 \subsection*{Initialisation de l'application}
 
-Le fichier \texttt{backend/app.py} centralise la configuration (bases \texttt{stops\_db} et \texttt{auth\_db}), les extensions (SQLAlchemy, CSRF, Limiter, Talisman, Migrate) et l'enregistrement des blueprints.
+Le fichier \texttt{backend/app.py} centralise la configuration (deux \textit{binds} SQLAlchemy: \texttt{stops\_db} et \texttt{auth\_db}), les extensions (SQLAlchemy, CSRF, Limiter, Talisman, Migrate) et l'enregistrement des blueprints.
 
-\begin{codebox}[language=Python]{Configuration Flask — backend/app.py}
-# Initialisation de l'application Flask
-app = Flask(__name__, 
-           template_folder='../templates', 
-           static_folder='../static')
-
-# Configuration des bases de données
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', ...)
-app.config['SQLALCHEMY_BINDS'] = {
-    'auth': os.getenv('AUTH_DATABASE_URI', ...)
-}
-
-# Initialisation des extensions
-db.init_app(app)
-login_manager.init_app(app)
-csrf.init_app(app)
-limiter.init_app(app)
-talisman.init_app(app, content_security_policy=None)
-migrate.init_app(app, db)
-
-# Enregistrement des blueprints
-app.register_blueprint(data_bp)
-app.register_blueprint(reports_bp)
-app.register_blueprint(search_bp)
-app.register_blueprint(stats_bp)
-app.register_blueprint(problems_bp)
-app.register_blueprint(auth_bp)
-\end{codebox}
-
-\noindent
-\textbf{Extensions} (\texttt{backend/extensions.py}):
+\paragraph{Décisions structurantes}
 \begin{itemize}
-  \item \texttt{db = SQLAlchemy()} (accès données et migrations via Alembic/Migrate)
-  \item \texttt{login\_manager}, \texttt{csrf}, \texttt{limiter}, \texttt{talisman}
+  \item \textbf{Séparation des données} \texttt{stops\_db} vs \texttt{auth\_db}: isolement sécurité et privilèges distincts (Chap.~10), tout en simplifiant les migrations.
+  \item \textbf{Extensions par défaut} activées dès l'init: \texttt{CSRF} (protection formulaire/AJAX), \texttt{Limiter} (défense anti-abus), \texttt{Talisman} (en-têtes de sécurité), \texttt{Migrate} (évolution du schéma sans downtime).
+  \item \textbf{Organisation par domaines} via blueprints: \texttt{data}, \texttt{search}, \texttt{stats}, \texttt{reports}, \texttt{problems}, \texttt{auth}. Chaque route reste courte et testable.
+  \item \textbf{Configuration 12-factor} par variables d'environnement (avec valeurs raisonnables en dev; cf. Chap.~12 pour Compose).
 \end{itemize}
 
 \subsection*{Modèles et sérialisation}
 
-Les tables applicatives sont décrites dans \texttt{backend/models.py} (cf. Chap. 7 pour le schéma). La sérialisation cohérente d'un \texttt{Stop} en JSON est gérée par \texttt{backend/serializers/stops.py}.
+Les tables applicatives sont décrites dans \texttt{backend/models.py} (cf. Chap.~7 pour le schéma). La sérialisation cohérente d'un \texttt{Stop} en JSON est gérée par \texttt{backend/serializers/stops.py}.
 
-\begin{codebox}[language=Python]{Sérialisation JSON — backend/serializers/stops.py}
-def format_stop_data(stop: Stop, 
-                    problem_type: str = None, 
-                    include_routes: bool = True, 
-                    **kwargs):
-    """Formatage standardisé d'un Stop pour l'API JSON"""
-    return {
-        "id": stop.id,
-        "sloid": stop.sloid,
-        "stop_type": stop.stop_type,
-        "match_type": stop.match_type,
-        
-        # Coordonnées (fallback OSM si pas d'ATLAS)
-        "atlas_lat": stop.atlas_lat if stop.atlas_lat is not None else stop.osm_lat,
-        "atlas_lon": stop.atlas_lon if stop.atlas_lon is not None else stop.osm_lon,
-        "osm_lat": stop.osm_lat, 
-        "osm_lon": stop.osm_lon,
-        
-        # Métadonnées
-        "distance_m": stop.distance_m, 
-        "uic_ref": stop.uic_ref,
-        "osm_node_id": stop.osm_node_id, 
-        "osm_node_type": stop.osm_node_type,
-        
-        # ... (routes, notes, auteurs selon contexte)
-    }
-\end{codebox}
+\paragraph{Contrat JSON minimal d'un \texttt{Stop}}
+\begin{itemize}
+  \item \textbf{Identité}: \texttt{id}, \texttt{sloid}, \texttt{osm\_node\_id}
+  \item \textbf{Typage}: \texttt{stop\_type} (\texttt{matched|unmatched|osm}), \texttt{match\_type} (\texttt{auto|manual})
+  \item \textbf{Position}: \texttt{atlas\_lat/lon} avec \textit{fallback} OSM si manquant; \texttt{osm\_lat/lon}
+  \item \textbf{Métadonnées}: \texttt{distance\_m}, \texttt{uic\_ref}, \texttt{osm\_node\_type}
+  \item \textbf{Invariants}: toujours renvoyer des coordonnées exploitables pour le rendu; éviter les \texttt{JOIN} au point de clic (détails chargés à la demande)
+\end{itemize}
 
 \section{Blueprints et endpoints}
 Nous structurons l'API par \textit{domaine} pour garder des fichiers courts, testables et lisibles.
 
 \subsection{Données: \texttt{/api/data}}
 
-\textbf{Fichier}: \texttt{backend/blueprints/data.py}. Endpoint principal pour alimenter la carte; filtre par fenêtre, types, opérateurs, lignes/directions.
+\textbf{Fichier}: \texttt{backend/blueprints/data.py}. Endpoint principal pour alimenter la carte.
 
-\begin{codebox}[language=Python]{Endpoint principal des données cartographiques}
-@data_bp.route('/api/data', methods=['GET'])
-@limiter.limit("30/minute")
-def get_data():
-    """Endpoint principal pour l'alimentation de la carte interactive"""
-    
-    # 1) Parse viewport (bbox ou min/max lat/lon)
-    viewport = parse_viewport_params(request.args)
-    
-    # 2) Construire les conditions (node_type, transport_types, opérateurs, routes)
-    query_conditions = QueryBuilder.build_filters(request.args)
-    
-    # 3) Filtrer sur la fenêtre: index lat/lon Atlas OU OSM (SARGable)
-    viewport_query = apply_viewport_filter(query_conditions, viewport)
-    
-    # 4) Offset/limit (pagination) et sérialisation légère
-    paginated_stops = apply_pagination(viewport_query, request.args)
-    serialized_stops = [format_stop_data(stop) for stop in paginated_stops]
-    
-    return jsonify({
-        'stops': serialized_stops,
-        'total_count': viewport_query.count(),
-        'viewport': viewport
-    })
-\end{codebox}
+\textbf{Rôle}
+\begin{itemize}
+  \item Filtrer par \textbf{fenêtre cartographique} (bbox), \textbf{types de transport}, \textbf{opérateurs}, \textbf{lignes/directions}
+  \item Paginer et renvoyer un \textbf{JSON compact} prêt à dessiner
+  \item \textbf{Rate limiting}: \texttt{30/min}
+\end{itemize}
 
-\paragraph{Pourquoi c'est rapide ?} Le choix du schéma (Chap. 7) permet de renvoyer des objets \texttt{stops} autonettoyés pour le rendu, sans \texttt{JOIN} coûteux.
+\textbf{Pourquoi c'est rapide}
+\begin{itemize}
+  \item Schéma de Chap.~7: une ligne \texttt{stops} suffit pour un marqueur (pas de \texttt{JOIN})
+  \item Filtrage \textit{SARGable} sur indexes lat/lon ATLAS et OSM
+  \item Sérialisation minimale et pagination systématique
+\end{itemize}
 
 \subsection{Recherche et matches manuels}
 
-\textbf{Fichier}: \texttt{backend/blueprints/search.py}. Gestion des recherches textuelles et des correspondances manuelles.
+\textbf{Fichier}: \texttt{backend/blueprints/search.py}. Recherches textuelles et \textit{matches} manuels.
 
-\begin{codebox}[language=Python]{Endpoints de recherche — backend/blueprints/search.py}
-@search_bp.route('/api/search')
-def search_stops():
-    """Recherche textuelle large (ATLAS/OSM)"""
-    # Recherche par nom, opérateur, UIC, etc.
+\textbf{Endpoints clés}
+\begin{itemize}
+  \item \texttt{/api/search}: recherche par nom, opérateur, UIC
+  \item \texttt{/api/top\_matches}: tri par distance croissante selon filtres actifs
+  \item \texttt{/api/manual\_match} (POST): crée un \textit{match} ATLAS \(\leftrightarrow\) OSM, avec option de persistance
+\end{itemize}
 
-@search_bp.route('/api/top_matches')  
-def get_top_matches():
-    """Meilleurs matches par distance et filtres"""
-    # Tri par distance croissante + filtres actifs
-
-@search_bp.route('/api/manual_match', methods=['POST'])
-def manual_match():
-    """Correspondance manuelle ATLAS <-> OSM, option persistance"""
-    # Logique de match manuel (voir extrait ci-dessous)
-\end{codebox}
-
-\begin{codebox}[language=Python]{Extrait: logique de match manuel persistant}
-# Dans manual_match() — backend/blueprints/search.py
-atlas_stop = get_atlas_stop_by_id(atlas_stop_id)
-osm_stop = get_osm_stop_by_id(osm_stop_id)
-
-# Mise à jour du type de correspondance
-atlas_stop.stop_type = 'matched'
-atlas_stop.match_type = 'manual'
-osm_stop.stop_type = 'matched'
-osm_stop.match_type = 'manual'
-
-# Option de persistance pour survivre aux ré-imports
-if make_persistent:
-    atlas_stop.manual_is_persistent = True
-    osm_stop.manual_is_persistent = True
-
-db.session.commit()
-\end{codebox}
+\textbf{Persistance des \textit{matches}}
+\begin{itemize}
+  \item Marque les deux entrées comme \texttt{matched} avec \texttt{match\_type = manual}
+  \item Si demandé, enregistre des marqueurs persistants pour survivre aux ré-imports (cf. Chap.~7)
+\end{itemize}
 
 \subsection{Statistiques: \texttt{/api/global\_stats}}
 
-\textbf{Fichier}: \texttt{backend/blueprints/stats.py}. Statistiques agrégées, avec un cache LRU maison pour \textit{args} identiques.
+\textbf{Fichier}: \texttt{backend/blueprints/stats.py}. Statistiques agrégées avec \textbf{cache LRU}.
 
-\begin{codebox}[language=Python]{Cache et statistiques globales — backend/blueprints/stats.py}
-_STATS_CACHE = OrderedDict()
-_STATS_CACHE_LOCK = threading.Lock()
-
-def _build_stats_cache_key(args) -> tuple:
-    """Clé canonique basée sur les filtres triés"""
-    return tuple(sorted(args.items()))
-
-@stats_bp.route('/api/global_stats')
-@limiter.limit("30/minute")
-def get_global_stats():
-    """Statistiques globales avec mise en cache LRU"""
-    
-    # 1) Verification cache -> LRU
-    cache_key = _build_stats_cache_key(request.args)
-    if cache_key in _STATS_CACHE:
-        return jsonify(_STATS_CACHE[cache_key])
-    
-    # 2) Appliquer filtres partagés via QueryBuilder
-    base_query = QueryBuilder.apply_common_filters(
-        db.session.query(Stop), request.args
-    )
-    
-    # 3) Compter distincts par type (ATLAS, OSM, matched pairs)
-    stats = {
-        'total_stops': base_query.count(),
-        'matched_pairs': base_query.filter(Stop.stop_type == 'matched').count(),
-        'atlas_only': base_query.filter(Stop.stop_type == 'unmatched').count(),
-        'osm_only': base_query.filter(Stop.stop_type == 'osm').count(),
-    }
-    
-    # 4) Mise en cache et retour
-    with _STATS_CACHE_LOCK:
-        _STATS_CACHE[cache_key] = stats
-        if len(_STATS_CACHE) > 50:  # LRU éviction
-            _STATS_CACHE.popitem(last=False)
-    
-    return jsonify(stats)
-\end{codebox}
+\textbf{Choix de conception}
+\begin{itemize}
+  \item Clé de cache \textit{canonique} construite à partir des filtres triés
+  \item Capacité bornée (50) avec éviction LRU et verrou léger pour la concurrence
+  \item \textbf{Rate limiting} \texttt{30/min} pour éviter le sur-calcul
+\end{itemize}
 
 \subsection{Rapports: \texttt{/api/generate\_report}}
 
-\textbf{Fichier}: \texttt{backend/blueprints/reports.py}. Génération PDF/CSV (\texttt{pdfkit}) sur des vues utiles (exacts, noms, doublons ATLAS). La logique réutilise \texttt{optimize\_query\_for\_endpoint} pour limiter les colonnes.
+\textbf{Fichier}: \texttt{backend/blueprints/reports.py}. Génération PDF/CSV (\texttt{pdfkit}).
 
-\begin{codebox}[language=Python]{Génération de rapports — backend/blueprints/reports.py}
-@reports_bp.route('/api/generate_report')
-@login_required  # Auth requis désormais pour limiter l'abus
-@limiter.limit("20/day")
-def generate_report():
-    """Génération de rapports PDF/CSV personnalisés"""
-    
-    report_format = request.args.get('format', 'pdf')
-    report_type = request.args.get('type', 'overview')
-    
-    # Optimisation: sélection des colonnes nécessaires uniquement
-    optimized_query = optimize_query_for_endpoint(
-        base_query=get_filtered_stops_query(request.args),
-        columns_needed=['atlas_designation', 'osm_name', 'distance_m', ...]
-    )
-    
-    data_for_report = optimized_query.all()
-    
-    if report_format == 'csv':
-        # Génération CSV avec en-têtes adaptées
-        csv_content = generate_csv_content(data_for_report, report_type)
-        return Response(
-            csv_content,
-            mimetype='text/csv',
-            headers={'Content-Disposition': f'attachment; filename=report_{report_type}.csv'}
-        )
-    else:
-        # Génération PDF via template HTML
-        report_html = render_template(
-            'pages/report.html', 
-            report_items=data_for_report,
-            report_type=report_type,
-            generated_at=datetime.now()
-        )
-        
-        pdf_bytes = pdfkit.from_string(report_html, False, options={
-            'page-size': 'A4',
-            'orientation': 'Landscape',
-            'margin-top': '0.75in'
-        })
-        
-        return Response(
-            pdf_bytes,
-            mimetype='application/pdf',
-            headers={'Content-Disposition': f'attachment; filename=report_{report_type}.pdf'}
-        )
-\end{codebox}
+\textbf{Principes}
+\begin{itemize}
+  \item \textbf{Auth requise} et \textbf{quotas} (\texttt{20/jour}) pour limiter l'abus
+  \item Requêtes \textbf{optimisées par colonne}: seules les colonnes nécessaires sont sélectionnées
+  \item Deux chemins: rendu template HTML \(\rightarrow\) PDF ou export CSV avec en-têtes adaptés
+\end{itemize}
 
 \subsection{Problèmes et persistance}
 
-\textbf{Fichier}: \texttt{backend/blueprints/problems.py}. Consultation, filtrage, tri, et persistance des solutions/notes. (Le \textbf{chapitre 7} détaille la persistance côté import et modèle; ici nous couvrons l'API.)
+\textbf{Fichier}: \texttt{backend/blueprints/problems.py}. Consultation, filtrage, tri, et persistance des solutions/notes. (Chap.~7 détaille la persistance côté import et modèle; ici nous couvrons l'API.)
 
-\begin{codebox}[language=Python]{API de gestion des problèmes — backend/blueprints/problems.py}
-@problems_bp.route('/api/problems')
-def get_problems():
-    """Liste paginée des problèmes (tri par distance/priorité)"""
-    # Tri par priorité décroissante, puis distance croissante
-
-@problems_bp.route('/api/problems/stats')
-def get_problems_stats():
-    """Totaux résolus / non résolus par type"""
-    # Agrégation par problem_type et status
-
-@problems_bp.route('/api/save_solution', methods=['POST'])
-@csrf.exempt  # AJAX endpoint
-def save_solution():
-    """Enregistre une solution (non persistée par défaut)"""
-    # Mise à jour Problem.solution, Problem.solved_by
-
-@problems_bp.route('/api/make_solution_persistent', methods=['POST'])
-@csrf.exempt
-def make_solution_persistent():
-    """Rend une solution persistante entre ré-imports"""
-    # Insertion dans PersistentData
-
-@problems_bp.route('/api/save_note/<note_type>', methods=['POST'])
-@csrf.exempt
-def save_note(note_type):
-    """Sauvegarde note ATLAS ou OSM (note_type: 'atlas'|'osm')"""
-    # Mise à jour atlas_stops.note ou osm_nodes.note
-
-@problems_bp.route('/api/make_note_persistent/<note_type>', methods=['POST'])
-@csrf.exempt
-def make_note_persistent(note_type):
-    """Rend une note persistante entre ré-imports"""
-    # Insertion dans PersistentData avec note_type
-\end{codebox}
+\textbf{Capacités}
+\begin{itemize}
+  \item \texttt{/api/problems}: liste paginée (tri par priorité puis distance)
+  \item \texttt{/api/problems/stats}: totaux \texttt{résolus/non résolus} par type
+  \item \texttt{/api/save\_solution} et \texttt{/api/save\_note/<note\_type>}: écriture simple
+  \item \texttt{/api/make\_solution\_persistent} et \texttt{/api/make\_note\_persistent/<note\_type>}: persistance entre ré-imports
+\end{itemize}
 
 \section{Requêtage partagé et optimisation}
 
 \subsection*{QueryBuilder et FilterBuilder}
 
-\textbf{Fichier}: \texttt{backend/query\_builder.py}. Centralise les patrons de filtres (type de transport, type de nœud, opérateurs ATLAS, routes) et applique des options de chargement (\texttt{joinedload}) quand nécessaire.
+\textbf{Fichier}: \texttt{backend/query\_builder.py}. Centralise les patrons de filtres (type de transport, type de nœud, opérateurs ATLAS, routes) et applique des options de chargement si nécessaire.
 
-\begin{codebox}[language=Python]{Filtres partagés — backend/query\_builder.py}
-class QueryBuilder:
-    """Constructeur de requêtes avec filtres standardisés"""
-    
-    transport_mappings = {
-        'station': Stop.osm_node_details.has(
-            and_(OsmNode.osm_public_transport == 'station',
-                 OsmNode.osm_railway.in_(['station', 'halt']))
-        ),
-        'platform': Stop.osm_node_details.has(
-            OsmNode.osm_public_transport == 'platform'
-        ),
-        'stop_position': Stop.osm_node_details.has(
-            OsmNode.osm_public_transport == 'stop_position'
-        ),
-        # ... autres types
-    }
-    
-    @classmethod
-    def apply_common_filters(cls, query, filters_dict):
-        """Application des filtres standardisés"""
-        conditions = []
-        
-        # Filtres par type de transport
-        if 'transport_types' in filters_dict:
-            transport_conditions = [
-                cls.transport_mappings[t] 
-                for t in filters_dict['transport_types']
-                if t in cls.transport_mappings
-            ]
-            if transport_conditions:
-                conditions.append(or_(*transport_conditions))
-        
-        # Filtres par opérateur ATLAS
-        if 'operators' in filters_dict:
-            conditions.append(
-                Stop.atlas_stop_details.has(
-                    AtlasStop.operator.in_(filters_dict['operators'])
-                )
-            )
-        
-        # Application finale
-        if conditions:
-            query = query.filter(and_(*conditions))
-        
-        return query
-\end{codebox}
+\textbf{Filtres pris en charge}
+\begin{itemize}
+  \item \textbf{Transport}: \texttt{station}, \texttt{platform}, \texttt{stop\_position}, etc. (via sous-requêtes sur \texttt{osm\_nodes})
+  \item \textbf{Opérateurs ATLAS}: filtre sur \texttt{atlas\_stops.operator}
+  \item \textbf{Routes/directions}: via \texttt{routes\_and\_directions} pour alimenter la UI
+\end{itemize}
+
+\textbf{Invariants de composition}
+\begin{itemize}
+  \item Les conditions de transport sont agrégées par \texttt{OR}, puis combinées avec le reste par \texttt{AND}
+  \item Paramètres homogènes et stables côté API: \texttt{transport\_types}, \texttt{operators}, \texttt{bbox}, etc.
+\end{itemize}
 
 \subsection*{Services de routes}
 
-\textbf{Fichier}: \texttt{backend/services/routes.py}. Fournit \texttt{get\_stops\_for\_route(route\_id, direction)} en SQL brut pour aller vite dans \texttt{routes\_and\_directions}. Supporte un \textit{fallback} de normalisation d'ID (ex: \texttt{-j24} $\rightarrow$ \texttt{-jXX}).
+\textbf{Fichier}: \texttt{backend/services/routes.py}. Service \texttt{get\_stops\_for\_route(route\_id, direction)} en SQL brut sur \texttt{routes\_and\_directions}.
 
-\begin{codebox}[language=SQL]{Requête optimisée pour les arrêts d'une ligne}
--- Service get_stops_for_route() — backend/services/routes.py
-SELECT 
-    osm_nodes_json, 
-    atlas_sloids_json,
-    osm_route_id,
-    atlas_route_id,
-    atlas_line_name
-FROM routes_and_directions
-WHERE 
-    osm_route_id LIKE :route_id 
-    OR atlas_route_id LIKE :route_id 
-    OR atlas_line_name LIKE :route_id
-    OR atlas_line_name LIKE :normalized_route_id  -- fallback normalisé
-LIMIT 1;
-\end{codebox}
-
-\begin{codebox}[language=Python]{Logique de normalisation et fallback}
-def get_stops_for_route(route_id: str, direction: str = None) -> dict:
-    """Récupération optimisée des arrêts pour une route donnée"""
-    
-    # Tentative directe
-    result = db.session.execute(text(ROUTE_QUERY), {
-        'route_id': f'%{route_id}%',
-        'normalized_route_id': f'%{normalize_route_id(route_id)}%'
-    }).first()
-    
-    if result:
-        return {
-            'osm_nodes': json.loads(result.osm_nodes_json or '[]'),
-            'atlas_sloids': json.loads(result.atlas_sloids_json or '[]'),
-            'source': 'direct_match'
-        }
-    
-    # Fallback: normalisation plus agressive
-    normalized_id = normalize_route_id(route_id, aggressive=True)
-    if normalized_id != route_id:
-        return get_stops_for_route(normalized_id, direction)
-    
-    return {'osm_nodes': [], 'atlas_sloids': [], 'source': 'no_match'}
-
-def normalize_route_id(route_id: str, aggressive: bool = False) -> str:
-    """Normalisation des IDs de route (ex: -j24 -> -jXX)"""
-    if aggressive:
-        # Remplace les suffixes journaliers: -j24 -> -jXX
-        return re.sub(r'-j\d+$', '-jXX', route_id)
-    else:
-        # Normalisation simple (espaces, casse)
-        return route_id.strip().upper()
-\end{codebox}
+\textbf{Points clés}
+\begin{itemize}
+  \item \textbf{Recherche tolérante}: correspondance par \texttt{LIKE} sur \texttt{osm\_route\_id}, \texttt{atlas\_route\_id} ou \texttt{atlas\_line\_name}
+  \item \textbf{Fallback} de normalisation (ex.: \texttt{-j24} \(\rightarrow\) \texttt{-jXX}); récursif tant que l'ID se simplifie
+  \item \textbf{Charge minimale}: sélection d'une ligne \texttt{LIMIT 1} indexée, et désérialisation JSON côté Python
+\end{itemize}
 
 \section{Diagrammes de flux}
 
 \subsection*{Flux d'une requête cartographique}
 
-\begin{codebox}{Pipeline de traitement — /api/data}
-Client
-  | GET /api/data?bbox=...&operators=...
-  v
-Parse params (viewport, filtres)
-  | 
-  v
-Build conditions (QueryBuilder)
-  | transport_types, operators, routes
-  v
-Viewport filter (indexes lat/lon)
-  | SARGable query sur atlas_* ET osm_*
-  v
-Pagination (offset/limit)
-  | 
-  v
-Serialisation JSON (format_stop_data)
-  | 
-  v
-Response -> Map rendering
-\end{codebox}
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[node distance=2.6cm, >=stealth, scale=0.85, every node/.style={transform shape}]
+    \tikzstyle{svc}=[draw, rounded corners, minimum width=4.8cm, minimum height=1.3cm, align=center, fill=gray!5]
+    \tikzstyle{vol}=[draw, dashed, rounded corners, minimum width=4.4cm, minimum height=1.1cm, align=center, font=\small]
+
+    \node[svc] (client) {Client\\ \small GET /api/data?bbox=...};
+    \node[svc, right of=client, node distance=6.8cm] (parse) {Parsing paramètres\\ viewport, filtres};
+    \node[svc, right of=parse, node distance=6.8cm] (filters) {Filtres SQL\\ types, opérateurs, routes};
+    \node[svc, below of=filters, node distance=2.4cm] (viewport) {Filtre fenêtre\\ indexes ATLAS/OSM};
+    \node[svc, left of=viewport, node distance=6.8cm] (paginate) {Pagination\\ offset/limit};
+    \node[svc, left of=paginate, node distance=6.8cm] (serialize) {Sérialisation JSON\\ compacte};
+
+    \draw[->] (client) -- (parse);
+    \draw[->] (parse) -- (filters);
+    \draw[->] (filters) -- (viewport);
+    \draw[->] (viewport) -- (paginate);
+    \draw[->] (paginate) -- (serialize);
+
+    \node[vol, below of=serialize, node distance=1.9cm] (resp) {Response \(\rightarrow\) rendu carte};
+    \draw[-] (serialize) -- (resp);
+  \end{tikzpicture}
+  \caption{Pipeline de traitement de \texttt{/api/data}: paramètres \(\rightarrow\) filtres \(\rightarrow\) fenêtre indexée \(\rightarrow\) pagination \(\rightarrow\) JSON.}
+\end{figure}
 
 \subsection*{Cycle de persistance des solutions}
 
-\begin{codebox}{Workflow de persistance}
-+-------------------+    save_solution     +-------------------+
-| UI (Problems)     | -------------------> | Problem.solution  |
-|                   |                      | (temporaire)      |
-+-------------------+                      +-------------------+
-        |                                           |
-        | make_persistent                           |
-        v                                           v
-+-------------------+    persist_data      +-------------------+
-| PersistentData    | <------------------- | Problem record    |
-| (survit import)   |                      | + is_persistent   |
-+-------------------+                      +-------------------+
-        |                                         
-        | Prochain import                         
-        v                                         
-+-------------------+    apply_solutions   
-| Nouvel import     | -------------------> Solution reappliquee
-| (import_data_db)  |                      automatiquement
-+-------------------+                      
-\end{codebox}
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[node distance=2.5cm, >=stealth]
+    \tikzstyle{svc}=[draw, rounded corners, minimum width=5.0cm, minimum height=1.3cm, align=center, fill=gray!5]
+    \tikzstyle{vol}=[draw, dashed, rounded corners, minimum width=4.6cm, minimum height=1.1cm, align=center, font=\small]
+
+    \node[svc] (ui) {UI Problems\\ save\_solution / make\_persistent};
+    \node[svc, right of=ui, node distance=7.4cm] (problem) {\texttt{problems}\\ solution temporaire};
+    \node[vol, below of=ui, node distance=2.2cm] (persist) {\texttt{persistent\_data}\\ survit aux ré-imports};
+    \node[svc, right of=persist, node distance=7.4cm] (import) {\texttt{import\_data\_db}\\ apply\_persistent\_solutions};
+
+    \draw[->] (ui) -- node[above]{\small POST} (problem);
+    \draw[->] (ui) -- node[left]{\small make\_persistent} (persist);
+    \draw[->] (persist) -- node[below]{\small prochain import} (import);
+    \draw[->] (import) -- node[right]{\small ré-application} (problem);
+  \end{tikzpicture}
+  \caption{Persistance des solutions/notes: écriture côté API, stockage durable, ré-application au prochain import.}
+\end{figure}
 
 \section{Bonnes pratiques et lisibilité}
 

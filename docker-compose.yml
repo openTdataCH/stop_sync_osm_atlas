@@ -21,7 +21,11 @@ services:
       retries: 2
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
     container_name: bachelor_project_app
     restart: unless-stopped
     ports:
@@ -76,7 +80,11 @@ services:
   app-dev: # New service for development, skips data import
     profiles:
       - dev
-    build: .
+    build:
+      context: .
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
     container_name: bachelor_project_app_dev
     restart: unless-stopped
     ports:

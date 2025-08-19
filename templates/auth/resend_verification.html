@@ -3,7 +3,7 @@
 {% block content %}
 <div class="container mt-5" style="max-width: 480px;">
   <h2>Resend verification email</h2>
-  <p class="text-muted">Email verification is optional. You can continue using your account without verifying.</p>
+  <p class="text-muted">If an account exists for this email, we will send a verification link. Verification is optional; you can verify later.</p>
   <form method="POST">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">

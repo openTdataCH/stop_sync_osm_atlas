@@ -1,0 +1,2744 @@
+{
+  "generated_at": "2025-08-18T21:08:49.266572Z",
+  "total_stops": 76241,
+  "problems_by_type": {
+    "attributes": 16145,
+    "distance": 11251,
+    "duplicates": 3084,
+    "unmatched": 27822
+  },
+  "stops_with_any_problem": 52372,
+  "stops_with_multiple_problems": 5524,
+  "stops_with_no_problems": 23869,
+  "priority_by_type": {
+    "attributes": {
+      "1": 7469,
+      "2": 252,
+      "3": 8424
+    },
+    "distance": {
+      "1": 1288,
+      "2": 4677,
+      "3": 5286
+    },
+    "duplicates": {
+      "1": 2522,
+      "2": 562
+    },
+    "unmatched": {
+      "1": 4941,
+      "2": 17632,
+      "3": 5249
+    }
+  },
+  "distance_median": 30.2446,
+  "distance_p90": 95.1121,
+  "unmatched_by_side": {
+    "unmatched": 8707,
+    "osm": 19115
+  },
+  "distance_by_operator_top": [
+    {
+      "operator": "PAG",
+      "count": 3954
+    },
+    {
+      "operator": "SBB",
+      "count": 1225
+    },
+    {
+      "operator": "VBZ",
+      "count": 569
+    },
+    {
+      "operator": "TPG",
+      "count": 517
+    },
+    {
+      "operator": "TPF Auto",
+      "count": 366
+    },
+    {
+      "operator": "TL",
+      "count": 223
+    },
+    {
+      "operator": "BLAG",
+      "count": 196
+    },
+    {
+      "operator": "VBL",
+      "count": 193
+    },
+    {
+      "operator": "STI",
+      "count": 192
+    },
+    {
+      "operator": "TPC Auto",
+      "count": 174
+    },
+    {
+      "operator": "VBG",
+      "count": 166
+    },
+    {
+      "operator": "VZO",
+      "count": 163
+    },
+    {
+      "operator": "SVB Auto",
+      "count": 139
+    },
+    {
+      "operator": "BVB",
+      "count": 114
+    },
+    {
+      "operator": "TRN-tn",
+      "count": 78
+    },
+    {
+      "operator": "BLT",
+      "count": 73
+    },
+    {
+      "operator": "SZU Auto",
+      "count": 72
+    },
+    {
+      "operator": "ABl",
+      "count": 71
+    },
+    {
+      "operator": "TMR Auto",
+      "count": 71
+    },
+    {
+      "operator": "SBW",
+      "count": 67
+    }
+  ],
+  "operators_p1_pct": [
+    {
+      "operator": "UNKNOWN",
+      "total": 19378,
+      "p1": 1617,
+      "pct": 0.08344514397770668
+    },
+    {
+      "operator": "RMA",
+      "total": 8,
+      "p1": 2,
+      "pct": 0.25
+    },
+    {
+      "operator": "SBB",
+      "total": 1976,
+      "p1": 112,
+      "pct": 0.05668016194331984
+    },
+    {
+      "operator": "VMCV",
+      "total": 443,
+      "p1": 107,
+      "pct": 0.24153498871331827
+    },
+    {
+      "operator": "PAG",
+      "total": 20103,
+      "p1": 4832,
+      "pct": 0.24036213500472567
+    },
+    {
+      "operator": "VBZ",
+      "total": 2266,
+      "p1": 1673,
+      "pct": 0.7383053839364518
+    },
+    {
+      "operator": "AAGS",
+      "total": 540,
+      "p1": 125,
+      "pct": 0.23148148148148148
+    },
+    {
+      "operator": "VBL",
+      "total": 857,
+      "p1": 176,
+      "pct": 0.20536756126021002
+    },
+    {
+      "operator": "SBB-EV",
+      "total": 125,
+      "p1": 120,
+      "pct": 0.96
+    },
+    {
+      "operator": "VBSH-rv",
+      "total": 303,
+      "p1": 72,
+      "pct": 0.2376237623762376
+    },
+    {
+      "operator": "ZVB",
+      "total": 788,
+      "p1": 99,
+      "pct": 0.12563451776649745
+    },
+    {
+      "operator": "AS",
+      "total": 112,
+      "p1": 36,
+      "pct": 0.32142857142857145
+    },
+    {
+      "operator": "BLT",
+      "total": 777,
+      "p1": 205,
+      "pct": 0.26383526383526384
+    },
+    {
+      "operator": "BOS",
+      "total": 1253,
+      "p1": 128,
+      "pct": 0.10215482841181166
+    },
+    {
+      "operator": "TPC Auto",
+      "total": 836,
+      "p1": 396,
+      "pct": 0.47368421052631576
+    },
+    {
+      "operator": "RVBW",
+      "total": 317,
+      "p1": 68,
+      "pct": 0.21451104100946372
+    },
+    {
+      "operator": "TPF Auto",
+      "total": 1631,
+      "p1": 421,
+      "pct": 0.25812385039852853
+    },
+    {
+      "operator": "AVA-ltb",
+      "total": 16,
+      "p1": 5,
+      "pct": 0.3125
+    },
+    {
+      "operator": "AB Auto",
+      "total": 74,
+      "p1": 57,
+      "pct": 0.7702702702702703
+    },
+    {
+      "operator": "BLAG",
+      "total": 881,
+      "p1": 141,
+      "pct": 0.16004540295119182
+    },
+    {
+      "operator": "SVB Auto",
+      "total": 844,
+      "p1": 203,
+      "pct": 0.24052132701421802
+    },
+    {
+      "operator": "TPG",
+      "total": 1851,
+      "p1": 454,
+      "pct": 0.24527282549972987
+    },
+    {
+      "operator": "TPL",
+      "total": 335,
+      "p1": 42,
+      "pct": 0.1253731343283582
+    },
+    {
+      "operator": "FART",
+      "total": 25,
+      "p1": 2,
+      "pct": 0.08
+    },
+    {
+      "operator": "BuS/cb",
+      "total": 260,
+      "p1": 39,
+      "pct": 0.15
+    },
+    {
+      "operator": "AAGL",
+      "total": 281,
+      "p1": 54,
+      "pct": 0.19217081850533807
+    },
+    {
+      "operator": "BGU",
+      "total": 273,
+      "p1": 65,
+      "pct": 0.23809523809523808
+    },
+    {
+      "operator": "TMR Auto",
+      "total": 267,
+      "p1": 90,
+      "pct": 0.33707865168539325
+    },
+    {
+      "operator": "BOGG",
+      "total": 356,
+      "p1": 116,
+      "pct": 0.3258426966292135
+    },
+    {
+      "operator": "FART Auto",
+      "total": 383,
+      "p1": 56,
+      "pct": 0.1462140992167102
+    },
+    {
+      "operator": "BBA",
+      "total": 271,
+      "p1": 36,
+      "pct": 0.13284132841328414
+    },
+    {
+      "operator": "VBG",
+      "total": 1039,
+      "p1": 437,
+      "pct": 0.42059672762271416
+    },
+    {
+      "operator": "THURBO",
+      "total": 19,
+      "p1": 11,
+      "pct": 0.5789473684210527
+    },
+    {
+      "operator": "TRAVYSAuto",
+      "total": 288,
+      "p1": 37,
+      "pct": 0.1284722222222222
+    },
+    {
+      "operator": "CJ Auto",
+      "total": 106,
+      "p1": 22,
+      "pct": 0.20754716981132076
+    },
+    {
+      "operator": "TMR-mo",
+      "total": 32,
+      "p1": 4,
+      "pct": 0.125
+    },
+    {
+      "operator": "AFA",
+      "total": 283,
+      "p1": 40,
+      "pct": 0.1413427561837456
+    },
+    {
+      "operator": "BUM",
+      "total": 24,
+      "p1": 7,
+      "pct": 0.2916666666666667
+    },
+    {
+      "operator": "TL",
+      "total": 1118,
+      "p1": 301,
+      "pct": 0.2692307692307692
+    },
+    {
+      "operator": "MBC Auto",
+      "total": 412,
+      "p1": 94,
+      "pct": 0.22815533980582525
+    },
+    {
+      "operator": "ZSG",
+      "total": 45,
+      "p1": 1,
+      "pct": 0.022222222222222223
+    },
+    {
+      "operator": "RBL",
+      "total": 231,
+      "p1": 18,
+      "pct": 0.07792207792207792
+    },
+    {
+      "operator": "SMC",
+      "total": 167,
+      "p1": 74,
+      "pct": 0.4431137724550898
+    },
+    {
+      "operator": "RhB",
+      "total": 205,
+      "p1": 7,
+      "pct": 0.03414634146341464
+    },
+    {
+      "operator": "TRN-tn",
+      "total": 355,
+      "p1": 130,
+      "pct": 0.36619718309859156
+    },
+    {
+      "operator": "Bamert",
+      "total": 42,
+      "p1": 3,
+      "pct": 0.07142857142857142
+    },
+    {
+      "operator": "BOB",
+      "total": 32,
+      "p1": 7,
+      "pct": 0.21875
+    },
+    {
+      "operator": "BBWAG",
+      "total": 7,
+      "p1": 1,
+      "pct": 0.14285714285714285
+    },
+    {
+      "operator": "AMSA",
+      "total": 152,
+      "p1": 36,
+      "pct": 0.23684210526315788
+    },
+    {
+      "operator": "AVA/rbz",
+      "total": 328,
+      "p1": 51,
+      "pct": 0.15548780487804878
+    },
+    {
+      "operator": "NStCM",
+      "total": 26,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "MBC",
+      "total": 36,
+      "p1": 7,
+      "pct": 0.19444444444444445
+    },
+    {
+      "operator": "ARAG",
+      "total": 158,
+      "p1": 76,
+      "pct": 0.4810126582278481
+    },
+    {
+      "operator": "AAGR",
+      "total": 207,
+      "p1": 14,
+      "pct": 0.06763285024154589
+    },
+    {
+      "operator": "TSD-asdt",
+      "total": 97,
+      "p1": 65,
+      "pct": 0.6701030927835051
+    },
+    {
+      "operator": "VBSH",
+      "total": 200,
+      "p1": 36,
+      "pct": 0.18
+    },
+    {
+      "operator": "STI",
+      "total": 1545,
+      "p1": 221,
+      "pct": 0.143042071197411
+    },
+    {
+      "operator": "BLS-EV",
+      "total": 84,
+      "p1": 73,
+      "pct": 0.8690476190476191
+    },
+    {
+      "operator": "FLP",
+      "total": 20,
+      "p1": 7,
+      "pct": 0.35
+    },
+    {
+      "operator": "FMB",
+      "total": 14,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "NStCM-EV",
+      "total": 29,
+      "p1": 29,
+      "pct": 1.0
+    },
+    {
+      "operator": "ARL",
+      "total": 56,
+      "p1": 10,
+      "pct": 0.17857142857142858
+    },
+    {
+      "operator": "CGN",
+      "total": 38,
+      "p1": 4,
+      "pct": 0.10526315789473684
+    },
+    {
+      "operator": "ABF",
+      "total": 32,
+      "p1": 2,
+      "pct": 0.0625
+    },
+    {
+      "operator": "BVB",
+      "total": 860,
+      "p1": 163,
+      "pct": 0.18953488372093022
+    },
+    {
+      "operator": "FCA",
+      "total": 20,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "RBS Auto",
+      "total": 409,
+      "p1": 80,
+      "pct": 0.19559902200489
+    },
+    {
+      "operator": "VB",
+      "total": 383,
+      "p1": 117,
+      "pct": 0.30548302872062666
+    },
+    {
+      "operator": "AAGU",
+      "total": 389,
+      "p1": 33,
+      "pct": 0.08483290488431877
+    },
+    {
+      "operator": "SZU Auto",
+      "total": 484,
+      "p1": 158,
+      "pct": 0.32644628099173556
+    },
+    {
+      "operator": "GCS",
+      "total": 20,
+      "p1": 20,
+      "pct": 1.0
+    },
+    {
+      "operator": "BuS/eb",
+      "total": 147,
+      "p1": 16,
+      "pct": 0.10884353741496598
+    },
+    {
+      "operator": "SOB-sob",
+      "total": 47,
+      "p1": 8,
+      "pct": 0.1702127659574468
+    },
+    {
+      "operator": "ASM-bti",
+      "total": 38,
+      "p1": 1,
+      "pct": 0.02631578947368421
+    },
+    {
+      "operator": "BSU",
+      "total": 331,
+      "p1": 92,
+      "pct": 0.27794561933534745
+    },
+    {
+      "operator": "AVA-wsb",
+      "total": 52,
+      "p1": 2,
+      "pct": 0.038461538461538464
+    },
+    {
+      "operator": "MOB",
+      "total": 66,
+      "p1": 4,
+      "pct": 0.06060606060606061
+    },
+    {
+      "operator": "SBW",
+      "total": 473,
+      "p1": 92,
+      "pct": 0.1945031712473573
+    },
+    {
+      "operator": "TPN",
+      "total": 155,
+      "p1": 3,
+      "pct": 0.01935483870967742
+    },
+    {
+      "operator": "SZU",
+      "total": 48,
+      "p1": 10,
+      "pct": 0.20833333333333334
+    },
+    {
+      "operator": "VBD",
+      "total": 72,
+      "p1": 3,
+      "pct": 0.041666666666666664
+    },
+    {
+      "operator": "AVA-bd",
+      "total": 54,
+      "p1": 24,
+      "pct": 0.4444444444444444
+    },
+    {
+      "operator": "",
+      "total": 33,
+      "p1": 8,
+      "pct": 0.24242424242424243
+    },
+    {
+      "operator": "AUT",
+      "total": 35,
+      "p1": 8,
+      "pct": 0.22857142857142856
+    },
+    {
+      "operator": "AVJ",
+      "total": 56,
+      "p1": 32,
+      "pct": 0.5714285714285714
+    },
+    {
+      "operator": "TRAVYS",
+      "total": 37,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "VSK-bkk",
+      "total": 88,
+      "p1": 24,
+      "pct": 0.2727272727272727
+    },
+    {
+      "operator": "LEB",
+      "total": 31,
+      "p1": 1,
+      "pct": 0.03225806451612903
+    },
+    {
+      "operator": "VBSG",
+      "total": 389,
+      "p1": 76,
+      "pct": 0.1953727506426735
+    },
+    {
+      "operator": "SUTU",
+      "total": 22,
+      "p1": 20,
+      "pct": 0.9090909090909091
+    },
+    {
+      "operator": "VBA",
+      "total": 2,
+      "p1": 2,
+      "pct": 1.0
+    },
+    {
+      "operator": "VZO",
+      "total": 1089,
+      "p1": 319,
+      "pct": 0.29292929292929293
+    },
+    {
+      "operator": "MGB/Autofo",
+      "total": 26,
+      "p1": 4,
+      "pct": 0.15384615384615385
+    },
+    {
+      "operator": "ZB-EV",
+      "total": 6,
+      "p1": 5,
+      "pct": 0.8333333333333334
+    },
+    {
+      "operator": "TPC",
+      "total": 144,
+      "p1": 5,
+      "pct": 0.034722222222222224
+    },
+    {
+      "operator": "TRN/tc",
+      "total": 285,
+      "p1": 78,
+      "pct": 0.2736842105263158
+    },
+    {
+      "operator": "TMR-mc",
+      "total": 36,
+      "p1": 4,
+      "pct": 0.1111111111111111
+    },
+    {
+      "operator": "EAB",
+      "total": 61,
+      "p1": 29,
+      "pct": 0.47540983606557374
+    },
+    {
+      "operator": "RA/bus",
+      "total": 69,
+      "p1": 11,
+      "pct": 0.15942028985507245
+    },
+    {
+      "operator": "TV",
+      "total": 49,
+      "p1": 6,
+      "pct": 0.12244897959183673
+    },
+    {
+      "operator": "LSG",
+      "total": 7,
+      "p1": 2,
+      "pct": 0.2857142857142857
+    },
+    {
+      "operator": "ASM-ltb",
+      "total": 11,
+      "p1": 3,
+      "pct": 0.2727272727272727
+    },
+    {
+      "operator": "MVR-mtgn",
+      "total": 38,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "MVR-vcp",
+      "total": 6,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "MVR-cev",
+      "total": 32,
+      "p1": 3,
+      "pct": 0.09375
+    },
+    {
+      "operator": "STBAG",
+      "total": 26,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LLAT",
+      "total": 8,
+      "p1": 3,
+      "pct": 0.375
+    },
+    {
+      "operator": "LLB",
+      "total": 108,
+      "p1": 16,
+      "pct": 0.14814814814814814
+    },
+    {
+      "operator": "MVR-las",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "G3AG",
+      "total": 12,
+      "p1": 1,
+      "pct": 0.08333333333333333
+    },
+    {
+      "operator": "BDGAG",
+      "total": 40,
+      "p1": 3,
+      "pct": 0.075
+    },
+    {
+      "operator": "TCLB",
+      "total": 4,
+      "p1": 4,
+      "pct": 1.0
+    },
+    {
+      "operator": "CBV",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ABAG",
+      "total": 40,
+      "p1": 6,
+      "pct": 0.15
+    },
+    {
+      "operator": "TUG",
+      "total": 8,
+      "p1": 1,
+      "pct": 0.125
+    },
+    {
+      "operator": "TCP",
+      "total": 27,
+      "p1": 2,
+      "pct": 0.07407407407407407
+    },
+    {
+      "operator": "TLML",
+      "total": 19,
+      "p1": 3,
+      "pct": 0.15789473684210525
+    },
+    {
+      "operator": "MGB-fo",
+      "total": 59,
+      "p1": 1,
+      "pct": 0.01694915254237288
+    },
+    {
+      "operator": "VALP",
+      "total": 7,
+      "p1": 2,
+      "pct": 0.2857142857142857
+    },
+    {
+      "operator": "TMSA",
+      "total": 5,
+      "p1": 2,
+      "pct": 0.4
+    },
+    {
+      "operator": "TRI",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BLS-mlb",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "nan",
+      "total": 121,
+      "p1": 14,
+      "pct": 0.11570247933884298
+    },
+    {
+      "operator": "BLS-bn",
+      "total": 26,
+      "p1": 4,
+      "pct": 0.15384615384615385
+    },
+    {
+      "operator": "CJ",
+      "total": 43,
+      "p1": 1,
+      "pct": 0.023255813953488372
+    },
+    {
+      "operator": "DFB",
+      "total": 12,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ZB",
+      "total": 73,
+      "p1": 3,
+      "pct": 0.0410958904109589
+    },
+    {
+      "operator": "BLS-vhb",
+      "total": 23,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "MGB-bvz",
+      "total": 21,
+      "p1": 3,
+      "pct": 0.14285714285714285
+    },
+    {
+      "operator": "LLG",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LRU",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "DICH",
+      "total": 13,
+      "p1": 12,
+      "pct": 0.9230769230769231
+    },
+    {
+      "operator": "GGB",
+      "total": 13,
+      "p1": 5,
+      "pct": 0.38461538461538464
+    },
+    {
+      "operator": "AB-ab",
+      "total": 113,
+      "p1": 4,
+      "pct": 0.035398230088495575
+    },
+    {
+      "operator": "DB/SH",
+      "total": 17,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ETB",
+      "total": 12,
+      "p1": 8,
+      "pct": 0.6666666666666666
+    },
+    {
+      "operator": "ASM-snb",
+      "total": 24,
+      "p1": 4,
+      "pct": 0.16666666666666666
+    },
+    {
+      "operator": "LBB",
+      "total": 11,
+      "p1": 1,
+      "pct": 0.09090909090909091
+    },
+    {
+      "operator": "AFO",
+      "total": 1,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SGZ",
+      "total": 9,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "AVA/Autwm",
+      "total": 36,
+      "p1": 7,
+      "pct": 0.19444444444444445
+    },
+    {
+      "operator": "ZBB",
+      "total": 2,
+      "p1": 2,
+      "pct": 1.0
+    },
+    {
+      "operator": "REGO",
+      "total": 152,
+      "p1": 66,
+      "pct": 0.4342105263157895
+    },
+    {
+      "operator": "WAB-sgho",
+      "total": 11,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SWAG",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BLS-smb",
+      "total": 15,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BMH",
+      "total": 22,
+      "p1": 1,
+      "pct": 0.045454545454545456
+    },
+    {
+      "operator": "LSMS-sbm",
+      "total": 25,
+      "p1": 1,
+      "pct": 0.04
+    },
+    {
+      "operator": "TBBU",
+      "total": 13,
+      "p1": 1,
+      "pct": 0.07692307692307693
+    },
+    {
+      "operator": "DKB-bbbj",
+      "total": 6,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "DKB-dpb",
+      "total": 33,
+      "p1": 3,
+      "pct": 0.09090909090909091
+    },
+    {
+      "operator": "OeBB",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ESMM-smbb",
+      "total": 29,
+      "p1": 2,
+      "pct": 0.06896551724137931
+    },
+    {
+      "operator": "EB",
+      "total": 5,
+      "p1": 1,
+      "pct": 0.2
+    },
+    {
+      "operator": "TVGD",
+      "total": 15,
+      "p1": 3,
+      "pct": 0.2
+    },
+    {
+      "operator": "MBC-cg",
+      "total": 2,
+      "p1": 2,
+      "pct": 1.0
+    },
+    {
+      "operator": "TBR",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TRN-cmn",
+      "total": 28,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TPF-nstp",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "KBS",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TCSA",
+      "total": 4,
+      "p1": 1,
+      "pct": 0.25
+    },
+    {
+      "operator": "TTM",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TVGD-tcbc",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TVGD-tlrc",
+      "total": 2,
+      "p1": 1,
+      "pct": 0.5
+    },
+    {
+      "operator": "TVGD-tlnc",
+      "total": 3,
+      "p1": 1,
+      "pct": 0.3333333333333333
+    },
+    {
+      "operator": "TVGD-tlncp",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TTG",
+      "total": 5,
+      "p1": 4,
+      "pct": 0.8
+    },
+    {
+      "operator": "TDCA",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TLFC",
+      "total": 6,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TVL-tcbb",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "NVRM",
+      "total": 20,
+      "p1": 4,
+      "pct": 0.2
+    },
+    {
+      "operator": "TTY-tce",
+      "total": 6,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TSD-tcld",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TLLM",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TMN",
+      "total": 6,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TVCM",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "RMGZ",
+      "total": 17,
+      "p1": 5,
+      "pct": 0.29411764705882354
+    },
+    {
+      "operator": "FLC",
+      "total": 8,
+      "p1": 2,
+      "pct": 0.25
+    },
+    {
+      "operator": "TOJ",
+      "total": 7,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "CMA",
+      "total": 26,
+      "p1": 9,
+      "pct": 0.34615384615384615
+    },
+    {
+      "operator": "LTUO",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LGJ",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SJN",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LRE",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SEA",
+      "total": 2,
+      "p1": 1,
+      "pct": 0.5
+    },
+    {
+      "operator": "SBU",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SVG",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LKE",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SGES",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ZBAG",
+      "total": 48,
+      "p1": 6,
+      "pct": 0.125
+    },
+    {
+      "operator": "BHAG",
+      "total": 5,
+      "p1": 1,
+      "pct": 0.2
+    },
+    {
+      "operator": "LRR",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LFüB",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SBR",
+      "total": 4,
+      "p1": 1,
+      "pct": 0.25
+    },
+    {
+      "operator": "DMB",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "RBS",
+      "total": 137,
+      "p1": 13,
+      "pct": 0.0948905109489051
+    },
+    {
+      "operator": "LB",
+      "total": 18,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SKRa",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LSKA",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LEE",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BA-SB",
+      "total": 19,
+      "p1": 1,
+      "pct": 0.05263157894736842
+    },
+    {
+      "operator": "BEAG",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LGP",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "GGM-shet",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "WAB-sbks",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "WAB-sksl",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "GLIS",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "GbB",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "KWO-sb",
+      "total": 4,
+      "p1": 1,
+      "pct": 0.25
+    },
+    {
+      "operator": "LMR",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LMM",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BSAG",
+      "total": 10,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "KSB",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SMF-ldb",
+      "total": 9,
+      "p1": 1,
+      "pct": 0.1111111111111111
+    },
+    {
+      "operator": "LEF",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BET",
+      "total": 27,
+      "p1": 6,
+      "pct": 0.2222222222222222
+    },
+    {
+      "operator": "LFCh",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LFB",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SAH",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BBE",
+      "total": 12,
+      "p1": 3,
+      "pct": 0.25
+    },
+    {
+      "operator": "LNE",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LKüS",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "RB",
+      "total": 28,
+      "p1": 2,
+      "pct": 0.07142857142857142
+    },
+    {
+      "operator": "StoB-sb",
+      "total": 6,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "StoB-lms",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SRI",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "HLAG",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BHY-sost",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BHY-lws",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BHY-ssks",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BHY-sssp",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SHAG",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LABAG",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LFE",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BKAG",
+      "total": 6,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LSH",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SBGG",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ASS",
+      "total": 27,
+      "p1": 1,
+      "pct": 0.037037037037037035
+    },
+    {
+      "operator": "LGIA",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "VBSA",
+      "total": 6,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "GR-fab",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "GR-fsl",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "CIT",
+      "total": 5,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "Cent-klic",
+      "total": 6,
+      "p1": 1,
+      "pct": 0.16666666666666666
+    },
+    {
+      "operator": "FSCR",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ITRT",
+      "total": 4,
+      "p1": 2,
+      "pct": 0.5
+    },
+    {
+      "operator": "FML",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "FBS",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SSA",
+      "total": 2,
+      "p1": 1,
+      "pct": 0.5
+    },
+    {
+      "operator": "SKR",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SWG",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SBA",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LUFAG",
+      "total": 6,
+      "p1": 2,
+      "pct": 0.3333333333333333
+    },
+    {
+      "operator": "BBF-mbf",
+      "total": 11,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BBF-pbf",
+      "total": 5,
+      "p1": 1,
+      "pct": 0.2
+    },
+    {
+      "operator": "PIZAG",
+      "total": 13,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LHA",
+      "total": 2,
+      "p1": 2,
+      "pct": 1.0
+    },
+    {
+      "operator": "SK",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "GLNM",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LKM",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LMW",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SBE",
+      "total": 6,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SPBR",
+      "total": 10,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "AMG",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BGD",
+      "total": 6,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SFE",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "KMB-bkm",
+      "total": 6,
+      "p1": 1,
+      "pct": 0.16666666666666666
+    },
+    {
+      "operator": "DKB-lswj",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SBP",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BPM-svh",
+      "total": 6,
+      "p1": 2,
+      "pct": 0.3333333333333333
+    },
+    {
+      "operator": "BCD",
+      "total": 6,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BFL",
+      "total": 39,
+      "p1": 7,
+      "pct": 0.1794871794871795
+    },
+    {
+      "operator": "BO",
+      "total": 10,
+      "p1": 2,
+      "pct": 0.2
+    },
+    {
+      "operator": "BPM-svcs",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SVGa",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BBD",
+      "total": 11,
+      "p1": 1,
+      "pct": 0.09090909090909091
+    },
+    {
+      "operator": "PAGT",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LHB",
+      "total": 26,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LHB-ssps",
+      "total": 4,
+      "p1": 1,
+      "pct": 0.25
+    },
+    {
+      "operator": "SFM",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SB",
+      "total": 7,
+      "p1": 1,
+      "pct": 0.14285714285714285
+    },
+    {
+      "operator": "SBAD",
+      "total": 4,
+      "p1": 1,
+      "pct": 0.25
+    },
+    {
+      "operator": "EWZ-pa",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LSC",
+      "total": 19,
+      "p1": 1,
+      "pct": 0.05263157894736842
+    },
+    {
+      "operator": "FB",
+      "total": 47,
+      "p1": 16,
+      "pct": 0.3404255319148936
+    },
+    {
+      "operator": "ESMM",
+      "total": 5,
+      "p1": 2,
+      "pct": 0.4
+    },
+    {
+      "operator": "SPL",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "PSSA",
+      "total": 14,
+      "p1": 2,
+      "pct": 0.14285714285714285
+    },
+    {
+      "operator": "LS",
+      "total": 19,
+      "p1": 6,
+      "pct": 0.3157894736842105
+    },
+    {
+      "operator": "SGH",
+      "total": 8,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "AeS",
+      "total": 7,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "FHM",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SGG",
+      "total": 2,
+      "p1": 1,
+      "pct": 0.5
+    },
+    {
+      "operator": "SW",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "FLMS",
+      "total": 12,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LDN",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LKRS",
+      "total": 2,
+      "p1": 1,
+      "pct": 0.5
+    },
+    {
+      "operator": "BGR",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LAA",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "MGsa",
+      "total": 5,
+      "p1": 2,
+      "pct": 0.4
+    },
+    {
+      "operator": "SNL",
+      "total": 22,
+      "p1": 3,
+      "pct": 0.13636363636363635
+    },
+    {
+      "operator": "KWS",
+      "total": 2,
+      "p1": 1,
+      "pct": 0.5
+    },
+    {
+      "operator": "LGGI",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "CTR",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "EBS",
+      "total": 2,
+      "p1": 1,
+      "pct": 0.5
+    },
+    {
+      "operator": "LNM",
+      "total": 34,
+      "p1": 2,
+      "pct": 0.058823529411764705
+    },
+    {
+      "operator": "LORB",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "Cent-klvr",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BGST",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SZU-laf",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LIV",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "DBZ",
+      "total": 11,
+      "p1": 2,
+      "pct": 0.18181818181818182
+    },
+    {
+      "operator": "BWA",
+      "total": 8,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LBER",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BGF",
+      "total": 12,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SDS",
+      "total": 4,
+      "p1": 1,
+      "pct": 0.25
+    },
+    {
+      "operator": "ABB",
+      "total": 19,
+      "p1": 1,
+      "pct": 0.05263157894736842
+    },
+    {
+      "operator": "TBA",
+      "total": 4,
+      "p1": 1,
+      "pct": 0.25
+    },
+    {
+      "operator": "DIALA-lbd",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SAW",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "GGM",
+      "total": 9,
+      "p1": 1,
+      "pct": 0.1111111111111111
+    },
+    {
+      "operator": "SMGI",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "GTBE",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "STT",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SCT",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ST",
+      "total": 3,
+      "p1": 3,
+      "pct": 1.0
+    },
+    {
+      "operator": "WG-wg",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SFT",
+      "total": 3,
+      "p1": 1,
+      "pct": 0.3333333333333333
+    },
+    {
+      "operator": "BST",
+      "total": 8,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "HSS",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SRN",
+      "total": 2,
+      "p1": 2,
+      "pct": 1.0
+    },
+    {
+      "operator": "SCP",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SSZ",
+      "total": 8,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "GBD",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ITLN",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TSDA",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SJAG-sjag",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "GFR",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "NCIT",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "RAA",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "FZAG-zrh",
+      "total": 8,
+      "p1": 4,
+      "pct": 0.5
+    },
+    {
+      "operator": "BRSB",
+      "total": 2,
+      "p1": 2,
+      "pct": 1.0
+    },
+    {
+      "operator": "BRER",
+      "total": 112,
+      "p1": 42,
+      "pct": 0.375
+    },
+    {
+      "operator": "TMLB",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ITSB",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SBG",
+      "total": 14,
+      "p1": 6,
+      "pct": 0.42857142857142855
+    },
+    {
+      "operator": "PBZ",
+      "total": 2,
+      "p1": 2,
+      "pct": 1.0
+    },
+    {
+      "operator": "UAG",
+      "total": 1,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "FMCM",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "TPF",
+      "total": 52,
+      "p1": 14,
+      "pct": 0.2692307692307692
+    },
+    {
+      "operator": "TRN/Autovr",
+      "total": 94,
+      "p1": 39,
+      "pct": 0.4148936170212766
+    },
+    {
+      "operator": "TRN-rvt",
+      "total": 10,
+      "p1": 2,
+      "pct": 0.2
+    },
+    {
+      "operator": "TRN/Autrvt",
+      "total": 54,
+      "p1": 23,
+      "pct": 0.42592592592592593
+    },
+    {
+      "operator": "VB-be",
+      "total": 5,
+      "p1": 1,
+      "pct": 0.2
+    },
+    {
+      "operator": "VB-bm",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SMtS",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ASM Auto",
+      "total": 337,
+      "p1": 114,
+      "pct": 0.33827893175074186
+    },
+    {
+      "operator": "StSS",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ABl",
+      "total": 158,
+      "p1": 39,
+      "pct": 0.2468354430379747
+    },
+    {
+      "operator": "FPR",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "MG",
+      "total": 6,
+      "p1": 1,
+      "pct": 0.16666666666666666
+    },
+    {
+      "operator": "MS",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "OGS",
+      "total": 10,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "URh",
+      "total": 15,
+      "p1": 1,
+      "pct": 0.06666666666666667
+    },
+    {
+      "operator": "SOB-bt",
+      "total": 37,
+      "p1": 3,
+      "pct": 0.08108108108108109
+    },
+    {
+      "operator": "LWE",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "HKDS",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LJK",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LSS",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SBF",
+      "total": 129,
+      "p1": 41,
+      "pct": 0.3178294573643411
+    },
+    {
+      "operator": "BLS-gbs",
+      "total": 45,
+      "p1": 7,
+      "pct": 0.15555555555555556
+    },
+    {
+      "operator": "ASP",
+      "total": 8,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BS",
+      "total": 63,
+      "p1": 11,
+      "pct": 0.1746031746031746
+    },
+    {
+      "operator": "GB",
+      "total": 5,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BLS-bls",
+      "total": 42,
+      "p1": 10,
+      "pct": 0.23809523809523808
+    },
+    {
+      "operator": "BLS-ths",
+      "total": 18,
+      "p1": 1,
+      "pct": 0.05555555555555555
+    },
+    {
+      "operator": "NHB-bbb",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "NHB-nhb",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LESt",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LKS",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BLS-sez",
+      "total": 28,
+      "p1": 2,
+      "pct": 0.07142857142857142
+    },
+    {
+      "operator": "BNP",
+      "total": 74,
+      "p1": 4,
+      "pct": 0.05405405405405406
+    },
+    {
+      "operator": "DIH",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LWM",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "JB",
+      "total": 15,
+      "p1": 1,
+      "pct": 0.06666666666666667
+    },
+    {
+      "operator": "HB",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "WAB",
+      "total": 13,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BLM",
+      "total": 8,
+      "p1": 1,
+      "pct": 0.125
+    },
+    {
+      "operator": "BOB-spb",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "NB",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "VBH",
+      "total": 81,
+      "p1": 23,
+      "pct": 0.2839506172839506
+    },
+    {
+      "operator": "VLM",
+      "total": 12,
+      "p1": 3,
+      "pct": 0.25
+    },
+    {
+      "operator": "LSMS-lsms",
+      "total": 1,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LABB",
+      "total": 8,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BGB",
+      "total": 2,
+      "p1": 1,
+      "pct": 0.5
+    },
+    {
+      "operator": "GKO",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SthB",
+      "total": 5,
+      "p1": 1,
+      "pct": 0.2
+    },
+    {
+      "operator": "AWA",
+      "total": 43,
+      "p1": 8,
+      "pct": 0.18604651162790697
+    },
+    {
+      "operator": "BLWE",
+      "total": 37,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SNL Auto",
+      "total": 7,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BLS-ebt",
+      "total": 48,
+      "p1": 1,
+      "pct": 0.020833333333333332
+    },
+    {
+      "operator": "DVZO",
+      "total": 1,
+      "p1": 1,
+      "pct": 1.0
+    },
+    {
+      "operator": "ASM-rvo",
+      "total": 32,
+      "p1": 4,
+      "pct": 0.125
+    },
+    {
+      "operator": "BPB",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BRB",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SMF-lsm",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LTBAG",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BLS-brs",
+      "total": 8,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "PB",
+      "total": 11,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "SGV",
+      "total": 42,
+      "p1": 3,
+      "pct": 0.07142857142857142
+    },
+    {
+      "operator": "BB",
+      "total": 1,
+      "p1": 1,
+      "pct": 1.0
+    },
+    {
+      "operator": "TSB",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LDW",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LRW",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "OBSM",
+      "total": 13,
+      "p1": 2,
+      "pct": 0.15384615384615385
+    },
+    {
+      "operator": "DKB-lkp",
+      "total": 4,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "GSUR",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "ESMM-mmb",
+      "total": 2,
+      "p1": 1,
+      "pct": 0.5
+    },
+    {
+      "operator": "DIALA-lcl",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "EBZ",
+      "total": 20,
+      "p1": 2,
+      "pct": 0.1
+    },
+    {
+      "operator": "SVB",
+      "total": 3,
+      "p1": 1,
+      "pct": 0.3333333333333333
+    },
+    {
+      "operator": "VNB",
+      "total": 3,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "BALA",
+      "total": 1,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "RMAG",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "LPF",
+      "total": 7,
+      "p1": 0,
+      "pct": 0.0
+    },
+    {
+      "operator": "THP",
+      "total": 3,
+      "p1": 3,
+      "pct": 1.0
+    },
+    {
+      "operator": "RSZ",
+      "total": 9,
+      "p1": 9,
+      "pct": 1.0
+    },
+    {
+      "operator": "LRF",
+      "total": 2,
+      "p1": 0,
+      "pct": 0.0
+    }
+  ],
+  "top_stops_by_problems": [
+    {
+      "sloid": "ch:1:sloid:11079:0:704377",
+      "name": "Zell LU, Luzernstrasse",
+      "count": 3
+    },
+    {
+      "sloid": "ch:1:sloid:211::161535",
+      "name": "Niederbipp",
+      "count": 3
+    },
+    {
+      "sloid": "ch:1:sloid:105:0:1312",
+      "name": "Moutier",
+      "count": 3
+    },
+    {
+      "sloid": "ch:1:sloid:2075::1",
+      "name": "",
+      "count": 3
+    },
+    {
+      "sloid": "ch:1:sloid:1008:3:6",
+      "name": "Genève",
+      "count": 3
+    },
+    {
+      "sloid": "ch:1:sloid:1008:0:621200",
+      "name": "Genève",
+      "count": 3
+    },
+    {
+      "sloid": "ch:1:sloid:10011::50",
+      "name": "",
+      "count": 3
+    },
+    {
+      "sloid": "ch:1:sloid:193:1:6",
+      "name": "Basel, Markthalle",
+      "count": 3
+    },
+    {
+      "sloid": "ch:1:sloid:11079:0:229386",
+      "name": "Zell LU, Luzernstrasse",
+      "count": 3
+    },
+    {
+      "sloid": "ch:1:sloid:1112:1:1",
+      "name": "Chavornay",
+      "count": 3
+    }
+  ]
+}

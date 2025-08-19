@@ -10,13 +10,106 @@ import datetime
 from collections import defaultdict
 from typing import Dict, Set, Tuple, Optional
 
+try:
+    import geopandas as gpd  # type: ignore
+    from shapely.geometry import Polygon, MultiPolygon  # type: ignore
+    _HAS_GPD = True
+except Exception:
+    gpd = None  # type: ignore
+    Polygon = None  # type: ignore
+    MultiPolygon = None  # type: ignore
+    _HAS_GPD = False
+
 # Create data directories
 os.makedirs("data/raw", exist_ok=True)
 os.makedirs("data/processed", exist_ok=True)
 
-# Approximate Switzerland WGS84 bounding box (latitude, longitude)
-SWISS_LAT_MIN, SWISS_LAT_MAX = 45.4, 47.9
-SWISS_LON_MIN, SWISS_LON_MAX = 5.7, 10.7
+_SWISS_POLYGON = None  # cached shapely geometry (MultiPolygon)
+
+def _ensure_swiss_geojson_cache(geojson_path: str) -> None:
+    """Ensure the Switzerland GeoJSON cache exists at geojson_path.
+
+    Downloads from SWISS_GEOJSON_URL if missing.
+    """
+    if os.path.exists(geojson_path):
+        return
+    url_default = "https://raw.githubusercontent.com/ZHB/switzerland-geojson/master/country/switzerland.geojson"
+    url = os.getenv("SWISS_GEOJSON_URL", url_default)
+    os.makedirs(os.path.dirname(geojson_path), exist_ok=True)
+    try:
+        print(f"Downloading Switzerland boundary GeoJSON from {url} …")
+        resp = requests.get(url, timeout=60)
+        resp.raise_for_status()
+        with open(geojson_path, "wb") as f:
+            f.write(resp.content)
+        print(f"Saved Switzerland boundary to {geojson_path}")
+    except Exception as exc:
+        raise RuntimeError(f"Failed to download Switzerland GeoJSON from {url}: {exc}")
+
+def _load_swiss_polygon():
+    """Load precise Switzerland polygon from cached GeoJSON (EPSG:4326).
+
+    Returns shapely (Multi)Polygon. Raises if cache is missing or invalid.
+    """
+    global _SWISS_POLYGON
+    if _SWISS_POLYGON is not None:
+        return _SWISS_POLYGON
+    if not _HAS_GPD:
+        raise RuntimeError("GeoPandas is required for Swiss border filtering. Please install geopandas and shapely.")
+
+    osm_cache_file = os.getenv('SWISS_GEOJSON_PATH', "data/raw/switzerland.geojson")
+    if not os.path.exists(osm_cache_file):
+        # Attempt to fetch automatically if missing
+        _ensure_swiss_geojson_cache(osm_cache_file)
+
+    try:
+        print("Loading Switzerland boundary from cache…")
+        swiss_gdf = gpd.read_file(osm_cache_file)
+        if len(swiss_gdf) == 0:
+            raise RuntimeError("Empty Switzerland boundary data")
+
+        try:
+            geom_union = swiss_gdf.geometry.union_all()
+        except Exception:
+            geom_union = swiss_gdf.unary_union
+
+        if isinstance(geom_union, (Polygon, MultiPolygon)):
+            _SWISS_POLYGON = geom_union
+        else:
+            raise RuntimeError(f"Unexpected geometry type for Switzerland boundary: {type(geom_union)}")
+
+        print("Successfully loaded Switzerland boundary from cache")
+        return _SWISS_POLYGON
+    except Exception as exc:
+        raise RuntimeError(f"Failed to load Switzerland boundary from cache: {exc}")
+
+def filter_points_in_switzerland(df: pd.DataFrame, lat_col: str, lon_col: str) -> pd.DataFrame:
+    """Filter rows whose WGS84 coordinates lie inside Switzerland using the precise OSM polygon (no bbox prefilter)."""
+    # Basic cleanup
+    df = df.dropna(subset=[lat_col, lon_col]).copy()
+    df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
+    df[lon_col] = pd.to_numeric(df[lon_col], errors='coerce')
+    df = df.dropna(subset=[lat_col, lon_col])
+
+    before = len(df)
+    if before == 0:
+        return pd.DataFrame(columns=df.columns)
+
+    swiss_poly = _load_swiss_polygon()
+    # Accurate point-in-polygon on full dataset
+    try:
+        gdf = gpd.GeoDataFrame(
+            df,
+            geometry=gpd.points_from_xy(df[lon_col], df[lat_col], crs='EPSG:4326'),
+        )
+        # Keep points inside Switzerland or exactly on the border
+        inside_or_border = gdf.intersects(swiss_poly)
+        filtered = gdf[inside_or_border].drop(columns='geometry')
+        
+        print(f"Swiss filter: precise filter kept {len(filtered):,} (from {before:,} total)")
+        return pd.DataFrame(filtered)
+    except Exception as exc:
+        raise RuntimeError(f"Swiss polygon containment failed: {exc}")
 
 def get_atlas_stops(output_path, download_url):
     """Download and process ATLAS stops data."""
@@ -38,15 +131,7 @@ def get_atlas_stops(output_path, download_url):
             # Load and filter for Switzerland (country code 85) with coordinates
             df = pd.read_csv(f, sep=";")
             df = df[df['uicCountryCode'] == 85]
-            df = df.dropna(subset=['wgs84North', 'wgs84East'])
-            # Ensure numeric and filter by Switzerland bounding box
-            df['wgs84North'] = pd.to_numeric(df['wgs84North'], errors='coerce')
-            df['wgs84East'] = pd.to_numeric(df['wgs84East'], errors='coerce')
-            before_bbox = len(df)
-            df = df[
-                df['wgs84North'].between(SWISS_LAT_MIN, SWISS_LAT_MAX)
-                & df['wgs84East'].between(SWISS_LON_MIN, SWISS_LON_MAX)
-            ]
+            df = filter_points_in_switzerland(df, lat_col='wgs84North', lon_col='wgs84East')
             
             # Save processed data
             df.to_csv(output_path, sep=";", index=False)
@@ -54,7 +139,7 @@ def get_atlas_stops(output_path, download_url):
             # Print statistics
             boarding_platforms = df[df['trafficPointElementType'] == 'BOARDING_PLATFORM']
             print(f"ATLAS: BOARDING_PLATFORM rows = {len(boarding_platforms):,}")
-            print(f"ATLAS: kept {len(df):,} rows with WGS84 coords inside CH bbox (from {before_bbox:,})")
+            print(f"ATLAS: kept {len(df):,} rows inside Swiss border")
             print(f"ATLAS: processed CSV saved to: {output_path}")
 
 def download_and_extract_gtfs(gtfs_url):
@@ -76,7 +161,6 @@ def download_and_extract_gtfs(gtfs_url):
     
     return gtfs_folder
 
-# Note: baseline GTFS loader removed to keep this module focused on optimized path.
 
 def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]] = None):
     """Load GTFS data in a memory-lean streaming fashion.
@@ -103,17 +187,12 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
         dtype={'stop_id': str, 'stop_name': str, 'stop_lat': float, 'stop_lon': float}
     )
     swiss_stops = all_stops[all_stops['stop_id'].str.startswith('85')].copy()
-    # Filter by Switzerland bounding box
-    swiss_stops = swiss_stops.dropna(subset=['stop_lat', 'stop_lon'])
-    before_bbox = len(swiss_stops)
-    swiss_stops = swiss_stops[
-        swiss_stops['stop_lat'].between(SWISS_LAT_MIN, SWISS_LAT_MAX)
-        & swiss_stops['stop_lon'].between(SWISS_LON_MIN, SWISS_LON_MAX)
-    ]
+    # Filter by precise Swiss border (polygon)
+    swiss_stops = filter_points_in_switzerland(swiss_stops, lat_col='stop_lat', lon_col='stop_lon')
     if stop_id_filter is not None:
         swiss_stops = swiss_stops[swiss_stops['stop_id'].isin(stop_id_filter)]
     swiss_stop_ids: Set[str] = set(swiss_stops['stop_id'])
-    print(f"GTFS: filtered to {len(swiss_stops):,} Swiss stops inside CH bbox (from {before_bbox:,} prefixed '85')")
+    print(f"GTFS: filtered to {len(swiss_stops):,} Swiss stops inside CH border (from {len(all_stops[all_stops['stop_id'].str.startswith('85')]):,} prefixed '85')")
 
     # First pass over stop_times: gather relevant trips and per-trip termini among Swiss stops
     relevant_trip_ids: Set[str] = set()
@@ -281,9 +360,6 @@ def load_gtfs_data_streaming(gtfs_folder: str, stop_id_filter: Optional[Set[str]
         'route_directions': route_directions,
     }
 
-# Note: baseline per-stop extraction removed; streaming code builds these directly.
-
-# Note: baseline route directions extractor removed; streaming path computes them.
 
 def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataFrame], traffic_points: pd.DataFrame) -> pd.DataFrame:
     """Build the final integrated GTFS DataFrame using streaming outputs.
@@ -298,8 +374,17 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
         gtfs_data_streaming['routes'][['route_id', 'route_short_name', 'route_long_name']],
         on='route_id', how='left'
     )
-    # direction strings by route
+    # direction strings by route (reduce to a single representative direction per route)
     route_directions = gtfs_data_streaming['route_directions']
+    if not route_directions.empty:
+        route_directions_unique = (
+            route_directions
+            .dropna(subset=['route_id'])
+            .groupby('route_id', as_index=False)['direction']
+            .first()
+        )
+    else:
+        route_directions_unique = route_directions
 
     # match GTFS stops to ATLAS sloids
     matches = match_gtfs_to_atlas({'stops': gtfs_data_streaming['stops']}, traffic_points)
@@ -307,7 +392,10 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
     # integrate
     linked_stops = gtfs_data_streaming['stops'].merge(matches, on='stop_id', how='left')
     integrated = linked_stops.merge(route_enriched, on='stop_id', how='inner')
-    integrated = integrated.merge(route_directions, on='route_id', how='left')
+    integrated = integrated.merge(route_directions_unique, on='route_id', how='left')
+
+    # Remove any multiplicative duplicates that could have slipped through
+    integrated = integrated.drop_duplicates(subset=['stop_id', 'sloid', 'route_id', 'direction_id'])
 
     cols = ['stop_id', 'sloid', 'route_id', 'route_short_name', 'route_long_name', 'direction_id', 'direction']
     integrated = integrated[cols].sort_values(by='sloid')
@@ -334,10 +422,7 @@ def write_unified_routes_csv_direct(
     if gtfs_data and 'stop_route_unique' in gtfs_data and 'routes' in gtfs_data and 'route_directions' in gtfs_data:
         print("Processing GTFS data for unified routes...")
         
-        # Get GTFS stop to sloid mapping
-        gtfs_matches = match_gtfs_to_atlas(gtfs_data, traffic_points)
-        
-        # Build integrated GTFS data
+        # Build integrated GTFS data (per-stop, per-route with a representative direction)
         integrated_data = build_integrated_gtfs_data_streaming(gtfs_data, traffic_points)
         
         for r in integrated_data.itertuples(index=False):
@@ -504,9 +589,23 @@ def download_and_extract_hrdf(hrdf_url):
         all_files = z.namelist()
         print(f"HRDF: ZIP contains {len(all_files)} files")
         
-        # Extract everything to data/raw first
-        z.extractall("data/raw")
-        print(f"HRDF: extracted to data/raw")
+        # Extract everything to a dedicated HRDF folder to avoid deleting non-HRDF assets
+        hrdf_root = os.path.join("data", "raw", "hrdf")
+        os.makedirs(hrdf_root, exist_ok=True)
+        # Clear previous extracted content to avoid mixing versions
+        try:
+            for existing_name in os.listdir(hrdf_root):
+                existing_path = os.path.join(hrdf_root, existing_name)
+                if os.path.isfile(existing_path):
+                    os.remove(existing_path)
+                else:
+                    import shutil
+                    shutil.rmtree(existing_path, ignore_errors=True)
+        except Exception:
+            pass
+
+        z.extractall(hrdf_root)
+        print(f"HRDF: extracted to {hrdf_root}")
         
         # Find the HRDF folder by looking for folders that contain HRDF files
         hrdf_folders = []
@@ -520,17 +619,17 @@ def download_and_extract_hrdf(hrdf_url):
         
         if hrdf_folders:
             # Use the first HRDF folder found
-            hrdf_folder = os.path.join("data/raw", hrdf_folders[0])
+            hrdf_folder = os.path.join(hrdf_root, hrdf_folders[0])
             print(f"HRDF: detected folder {hrdf_folder}")
         else:
-            # Files might be extracted directly to data/raw
-            print("HRDF: files extracted directly to data/raw")
-            hrdf_folder = "data/raw"
+            # Files might be extracted directly to hrdf_root
+            print(f"HRDF: files extracted directly to {hrdf_root}")
+            hrdf_folder = hrdf_root
 
-        # Clean up: keep only the files we need
+        # Clean up: keep only the files we need (inside the dedicated HRDF folder)
+        files_deleted = 0
         if os.path.exists(hrdf_folder):
             files_in_folder = os.listdir(hrdf_folder)
-            files_deleted = 0
             for file_name in files_in_folder:
                 file_path = os.path.join(hrdf_folder, file_name)
                 if os.path.isfile(file_path) and file_name not in needed_files:

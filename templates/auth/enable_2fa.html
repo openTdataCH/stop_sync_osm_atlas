@@ -8,6 +8,9 @@
     <img src="{{ qr_data_url }}" alt="2FA QR" style="max-width:260px;"/>
   </div>
   <p class="text-muted">Secret: <code>{{ secret }}</code></p>
+  {% if not encryption_enabled %}
+  <p class="text-warning">Warning: at-rest encryption for the TOTP secret is not configured on this instance.</p>
+  {% endif %}
   <form method="POST">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">

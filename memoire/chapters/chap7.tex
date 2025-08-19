@@ -3,15 +3,24 @@
 
 \section*{Pourquoi un chapitre sur la base de données ?}
 
-Cette application est construite autour d'un \textit{graphe spatial} de points d'arrêt provenant de plusieurs mondes: ATLAS (référentiel officiel), OpenStreetMap (OSM), GTFS et HRDF pour les lignes. Le rendu cartographique en temps réel, l'analyse des problèmes et la consolidation des correspondances s'appuient sur un schéma de base de données optimisé pour la lecture, avec une logique d'\textit{ingestion} explicite. 
+Cette application est construite autour d'un \textit{graphe spatial} de points d'arrêt. Le rendu cartographique en temps réel, l'analyse des problèmes et la consolidation des correspondances s'appuient sur un schéma de base de données optimisé pour la lecture, avec une logique d'\textit{ingestion} explicite. 
 
-Ce chapitre rend cette mécanique visible, avec des extraits de code, des schémas, et des graphiques générés directement depuis la base existante.
+Ce chapitre rend cette mécanique visible, avec des extraits de code et schémas.
 
 \vspace{0.5em}
 Le chapitre \texttt{chap8.tex} plongera ensuite dans le backend (API, endpoints, sécurité, pagination, etc.), en s'appuyant sur les éléments que nous posons ici.
 
+\subsection*{Essentiels à retenir}
+\begin{itemize}
+  \item \textbf{Ligne auto-suffisante pour la carte}: une ligne \texttt{stops} suffit pour dessiner un marqueur (ATLAS ou OSM) \Rightarrow pas de \texttt{JOIN} au scroll.
+  \item \textbf{Fenêtre cartographique SARGable}: indexes \texttt{atlas\_lat/lon} \& \texttt{osm\_lat/lon} \Rightarrow filtrage par bbox très sélectif.
+  \item \textbf{Détails séparés}: \texttt{atlas\_stops} et \texttt{osm\_nodes} servent les popups à la demande (\textit{lazy}).
+  \item \textbf{Persistance durable}: \texttt{persistent\_data} stocke solutions/notes qui \og survivent \fg{} aux ré-imports et sont réappliquées.
+  \item \textbf{Séparation Auth}: schéma \texttt{auth\_db} isolé via \texttt{SQLAlchemy binds} (sécurité, gouvernance des droits; détail au Chap.~\ref{chap:auth}).
+\end{itemize}
+
 \section{Importer les données: le rôle de \texttt{import\_data\_db.py}}
-L'import est orchestré par le script \texttt{import\_data\_db.py}. Il ne se contente pas d'insérer des lignes: il nettoie, croise des sources, calcule des priorités de problèmes, et construit des artefacts prêts pour l'interface.
+L'import est orchestré par le script \texttt{import\_data\_db.py}. Il nettoie, croise des sources, calcule des priorités de problèmes, et construit des artefacts prêts pour l'interface.
 
 \subsection*{Vue d'ensemble}
 \begin{codebox}[language=Python]{Pipeline d'import des données}
@@ -22,9 +31,8 @@ import_to_database(...)          # insère stops, détails ATLAS/OSM, routes, pr
 apply_persistent_solutions()     # réapplique les solutions/notes persistantes
 \end{codebox}
 
-L'import crée des \textit{stops} de trois types:\ \texttt{matched} (paires ATLAS–OSM), \texttt{unmatched} (ATLAS isolé), \texttt{osm} (OSM isolé). Les détails riches (ex: opérateur ATLAS, tags OSM, routes) sont stockés dans des tables dédiées afin que le rendu des \emph{popups} reste instantané et autonome.
+L'import crée des \textit{stops} de trois types:\ \texttt{matched} (paires ATLAS–OSM), \texttt{unmatched} (ATLAS isolé), \texttt{osm} (OSM isolé). Ces valeurs de \texttt{stop\_type} sont appliquées par logique métier lors de l'import et peuvent être modifiées via match manuel. Les détails riches (ex: opérateur ATLAS, tags OSM, routes) sont stockés dans des tables dédiées.
 
-\subsection*{Un extrait révélateur}
 Pour la ré-application des données persistantes, le script balaye la table \texttt{persistent\_data} et met à jour les nouveaux enregistrements:
 
 \begin{codebox}[language=Python]{Ré-application des solutions persistantes}
@@ -48,11 +56,9 @@ for ps in persistent_solutions:
             problem.is_persistent = True
 \end{codebox}
 
-\paragraph{Important} Nous n'exécutons pas l'import dans ce chapitre (la base est déjà peuplée). Les statistiques et graphiques ci-dessous proviennent d'un script d'analyse dédié (\S\ref{subsec:scripts-ch7}).
-
 \section{Schéma logique: les tables qui comptent}
 
-Le schéma applicatif est défini dans \texttt{backend/models.py}. Voici les entités principales:
+Le schéma applicatif est défini dans \texttt{backend/models.py} et utilise l'ORM SQLAlchemy\citeref{ref:sqlalchemy_docs} pour interagir avec la base de données. Voici les entités principales:
 
 \begin{description}
   \item[\texttt{stops}] Table centrale pour le rendu cartographique. Colonnes clefs: \texttt{sloid}, \texttt{stop\_type}, \texttt{match\_type}, coordonnées (\texttt{atlas\_lat/lon} et \texttt{osm\_lat/lon}), \texttt{distance\_m}, \texttt{osm\_node\_type}, \texttt{atlas\_duplicate\_sloid}.
@@ -65,48 +71,64 @@ Le schéma applicatif est défini dans \texttt{backend/models.py}. Voici les ent
   
   \item[\texttt{persistent\_data}] Stockage des solutions et notes destinées à survivre aux ré-imports.
   
-  \item[\texttt{routes\_and\_directions}] Consolidation GTFS/HRDF/OSM par (\texttt{route\_id}, \texttt{direction\_id}) ou (\texttt{line\_name}, \texttt{direction\_uic}).
+  \item[\texttt{routes\_and\_directions}] Consolidation GTFS/HRDF/OSM avec clés multiples: (\texttt{route\_id}, \texttt{direction\_id}) pour GTFS/OSM et (\texttt{line\_name}, \texttt{direction\_uic}) pour HRDF, plus \texttt{route\_id\_normalized} pour unification.
 \end{description}
+
+\paragraph{Note sur l'authentification} Un schéma séparé (\texttt{auth\_db}) stocke les utilisateurs (\texttt{users}) et les événements (\texttt{auth\_events}) via un bind SQLAlchemy distinct (\texttt{\_\_bind\_key\_='auth'}). Il est volontairement isolé du schéma métier; nous le détaillons au Chap.~\ref{chap:auth}.
 
 \subsection*{Diagramme conceptuel}
 
-\begin{codebox}{Schéma relationnel des tables principales}
-+-------------------+             +---------------------+
-|   atlas_stops     |<----------->|      stops          |
-|  (sloid PK)       |    sloid    | (id PK)             |
-+-------------------+             | sloid, osm_node_id  |
-                                  | atlas_*  osm_*      |
-+-------------------+    osm_id   | distance_m          |
-|    osm_nodes      |<----------->| stop_type, ...      |
-|(osm_node_id PK)   |             +---------------------+
-+-------------------+                        |
-                                             | stop_id
-+-------------------+              +---------v-----------+
-|    problems       |<-------------|      stops          |
-| (stop_id FK)      |              | (id PK)             |
-+-------------------+              +---------------------+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[>=stealth, scale=0.82, transform shape]
+    \tikzstyle{tbl}=[draw, rounded corners, minimum width=5cm, minimum height=1.5cm, align=center, fill=gray!5, font=\small]
+    \tikzstyle{ghost}=[draw, dashed, rounded corners, minimum width=5cm, minimum height=1.3cm, align=center, font=\small]
 
-+--------------------------+
-|    persistent_data       |     <- Solutions/notes persistantes
-| (sloid, osm_node_id,     |        entre re-imports
-|  problem_type, note_*)   |
-+--------------------------+
+    % Utilisation de coordonnées absolues pour un meilleur contrôle
+    % Ligne supérieure: atlas_stops - stops - osm_nodes
+    \node[tbl] (atlas) at (0,3) {\textbf{atlas\_stops}\\ (sloid PK)};
+    \node[tbl] (stops) at (6,3) {\textbf{stops}\\ (id PK; sloid, osm\_node\_id;\\ distance\_m; osm\_node\_type)};
+    \node[tbl] (osm) at (12,3) {\textbf{osm\_nodes}\\ (osm\_node\_id PK)};
+    
+    % Ligne médiane: persistent_data - problems
+    \node[ghost] (persist) at (0,0) {\textbf{persistent\_data}\\ (sloid, osm\_node\_id,\\ problem\_type, note\_*)};
+    \node[tbl] (problems) at (6,0) {\textbf{problems}\\ (stop\_id FK; problem\_type;\\ priority; solution)};
+    
+    % Ligne inférieure: routes_and_directions (centré)
+    \node[tbl] (routes) at (6,-3) {\textbf{routes\_and\_directions}\\ (route\_id, direction\_id |\\ line\_name, direction\_uic)};
 
-+--------------------------+
-| routes_and_directions    |     <- Consolidation GTFS/HRDF/OSM
-|  (route_id, direction)   |        pour filtres UI
-+--------------------------+
-\end{codebox}
+    % Relations avec numéros
+    \draw[<->] (atlas) -- node[fill=white, circle, inner sep=2pt]{\small 1} (stops);
+    \draw[<->] (stops) -- node[fill=white, circle, inner sep=2pt]{\small 2} (osm);
+    \draw[->] (problems) -- node[fill=white, circle, inner sep=2pt]{\small 3} (stops);
+    \draw[dashed,->] (persist) -- node[fill=white, circle, inner sep=2pt]{\small 4} (stops);
+    \draw[dashed,->] (routes) -- node[fill=white, circle, inner sep=2pt]{\small 5} (atlas);
+    \draw[dashed,->] (routes) -- node[fill=white, circle, inner sep=2pt]{\small 6} (osm);
+
+    % Légende des relations
+    \node[below of=routes, node distance=2.5cm, align=left, font=\footnotesize] (legend) {
+      \textbf{Relations:}\\
+      \textbf{1.} atlas\_stops $\leftrightarrow$ stops : jointure via \texttt{sloid}\\
+      \textbf{2.} stops $\leftrightarrow$ osm\_nodes : jointure via \texttt{osm\_node\_id}\\
+      \textbf{3.} problems $\rightarrow$ stops : clé étrangère \texttt{stop\_id}\\
+      \textbf{4.} persistent\_data $\rightarrow$ stops : jointure \texttt{sloid}/\texttt{osm\_node\_id}\\
+      \textbf{5.} routes\_and\_directions $\rightarrow$ atlas\_stops : via \texttt{atlas\_sloids\_json}\\
+      \textbf{6.} routes\_and\_directions $\rightarrow$ osm\_nodes : via \texttt{osm\_nodes\_json}\\[0.2em]
+      \textit{Consolidation GTFS/HRDF/OSM pour filtres UI et analyses}
+    };
+  \end{tikzpicture}
+  \caption{Schéma relationnel des tables principales (liens via champs de jointure; FK explicite seulement pour \texttt{problems.stop\_id}).}
+\end{figure}
 
 \noindent
-Remarque: les liens \og stops → détails \fg{} sont réalisés par \textit{jointures explicites} (\texttt{sloid}, \texttt{osm\_node\_id}) plutôt que des clés étrangères rigides. Ce choix facilite l'ingestion et limite les verrouillages lors des rafraîchissements, tout en gardant des \textit{indexes} ciblés pour les requêtes critiques.
+Remarque: les liens \og stops $\rightarrow$ détails \fg{} sont réalisés par \textit{jointures explicites} (\texttt{sloid}, \texttt{osm\_node\_id}) plutôt que des clés étrangères rigides. Ce choix facilite l'ingestion et limite les verrouillages lors des rafraîchissements, tout en gardant des \textit{indexes} ciblés pour les requêtes critiques. L'ORM SQLAlchemy définit des relations \texttt{lazy='joined'} sur ces champs pour optimiser les accès.
 
 \subsection*{Index utiles pour la carte}
 \begin{itemize}
   \item \texttt{idx\_atlas\_lat\_lon} et \texttt{idx\_osm\_lat\_lon} pour filtrer vite par fenêtre cartographique.
   \item \texttt{idx\_stop\_type\_match\_type} pour les filtres dynamiques.
   \item \texttt{idx\_distance\_m} pour les tris par distance.
-  \item Sur \texttt{routes\_and\_directions}: \texttt{idx\_osm\_route\_direction}, \texttt{idx\_atlas\_route\_direction}, \texttt{idx\_atlas\_line\_direction\_uic}.
+  \item Sur \texttt{routes\_and\_directions}: \texttt{idx\_osm\_route\_direction}, \texttt{idx\_atlas\_route\_direction}, \texttt{idx\_atlas\_line\_direction\_uic}, et \texttt{idx\_source} (colonne \texttt{source} pour différencier GTFS/HRDF). Le champ \texttt{route\_id\_normalized} sert à l'unification cross-sources.
 \end{itemize}
 
 \section{Pros et cons du schéma vis-à-vis du rendu cartographique}

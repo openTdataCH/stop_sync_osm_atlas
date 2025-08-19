@@ -9,20 +9,25 @@ L'application utilise un schéma d'authentification dédié lié à une base de 
 
 \subsection{Composants}
 \begin{itemize}
-  \item \textbf{Stockage des mots de passe} : Argon2id (argon2-cffi), à forte consommation mémoire, salé, avec des paramètres spécifiques à chaque hachage.
+  \item \textbf{Stockage des mots de passe} : Argon2id (argon2-cffi)\citeref{ref:argon2_docs}, à forte consommation mémoire, salé, avec des paramètres spécifiques à chaque hachage.
   \item \textbf{Sessions} : Flask-Login avec cookies sécurisés (HttpOnly, SameSite=Lax ; indicateur Secure en production).
   \item \textbf{CSRF} : Protection CSRF de Flask-WTF pour tous les formulaires POST et les points de terminaison concernés.
   \item \textbf{Limitation de débit} : Les routes de connexion et d'inscription sont limitées (Flask-Limiter) afin d'atténuer la force brute.
   \item \textbf{Sécurité du transport} : Flask-Talisman fournit les en-têtes de sécurité ; application stricte de HTTPS.
-  \item \textbf{2FA} : TOTP (compatible Google Authenticator) avec activation par QR code et codes de secours à usage unique. \textbf{Le secret TOTP est chiffré au repos} (Fernet) ; les codes de secours sont hachés (Argon2).
+  \item \textbf{2FA} : TOTP (compatible Google Authenticator)\citeref{ref:totp_rfc} avec activation par QR code et codes de secours à usage unique. \textbf{Le secret TOTP est chiffré au repos} (Fernet)\citeref{ref:fernet_docs} ; les codes de secours sont hachés (Argon2).
   \item \textbf{Verrouillage de compte} : Verrouillage progressif après des échecs répétés, avec temporisation exponentielle.
   \item \textbf{Vérification d'email} : Liens signés (validité 48 h) envoyés à l'inscription et lors d'une connexion non vérifiée. La vérification est \emph{optionnelle par défaut}.
-  \item \textbf{CAPTCHA} : Cloudflare Turnstile sur \texttt{/auth/register} et \texttt{/auth/login}.
+  \item \textbf{CAPTCHA} : Cloudflare Turnstile\citeref{ref:cloudflare_turnstile} sur \texttt{/auth/register} et \texttt{/auth/login}.
   \item \textbf{Journalisation d'audit} : enregistrement des événements d'authentification dans \texttt{auth\_db.auth\_events} et émission simultanée de logs JSON sur \texttt{stdout}
+\end{itemize}
 
 \section{Modèle de données (auth\_db)}
 La table \texttt{users} stocke les comptes utilisateurs avec les champs suivants :
 
+\begin{table}[H]
+\centering
+\caption{Champs de la table \texttt{users}}
+\label{tab:chap10_users_fields}
 \noindent\begin{tabular}{@{}p{0.40\linewidth}p{0.60\linewidth}@{}}
 \textbf{Identité} & \texttt{email} (unique) \\
 \textbf{Authentification} & \texttt{password\_hash} (Argon2id) \\
@@ -33,11 +38,16 @@ La table \texttt{users} stocke les comptes utilisateurs avec les champs suivants
 \textbf{Hygiène de compte} & \texttt{created\_at}, \texttt{updated\_at}, \texttt{last\_login\_at} \\
 \textbf{Verrouillage} & \texttt{failed\_login\_attempts}, \texttt{locked\_until} \\
 \end{tabular}
+\end{table}
 
 
 \subsection*{Journalisation d'audit (\texttt{auth\_events})}
 \noindent Une table \texttt{auth\_events} (même schéma \texttt{auth\_db}) consigne les événements de sécurité :
 
+\begin{table}[H]
+\centering
+\caption{Champs de la table \texttt{auth\_events}}
+\label{tab:chap10_auth_events_fields}
 \noindent\begin{tabular}{@{}p{0.40\linewidth}p{0.60\linewidth}@{}}
 \textbf{Type d'événement} & \texttt{event\_type} (\textit{registration}, \textit{login\_success}, \textit{login\_failure}, \textit{account\_locked}, \textit{2fa\_success}, \textit{2fa\_failure}, \textit{2fa\_enabled}, \textit{2fa\_disabled}, \textit{email\_verified}) \\
 \textbf{Utilisateur} & \texttt{user\_id} (nullable), \texttt{email\_attempted} (pour les échecs) \\
@@ -45,6 +55,7 @@ La table \texttt{users} stocke les comptes utilisateurs avec les champs suivants
 \textbf{Détails} & \texttt{metadata\_json} \\
 \textbf{Horodatage} & \texttt{occurred\_at} (UTC) \\
 \end{tabular}
+\end{table}
 
 \begin{codebox}[language=Python]{Modèle minimal (extrait)}
 class AuthEvent(db.Model):
@@ -97,8 +108,8 @@ password_hash = ph.hash(plain_password)
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.8\textwidth}{\centering Placeholder visuel pour la capture de la vérification d'email.\\ Lien signé, expiration 48~h, renouvelable.}}
-  \caption{Processus de vérification d'email (espace réservé).}
+  \includegraphics[width=0.85\textwidth]{../figures/chap10/message after clicking email verification.png}
+  \caption{Message après demander une verification d'email.}
 \end{figure}
 
 \begin{codebox}[language=Python]{Jeton de vérification d'email (extrait)}
@@ -108,7 +119,7 @@ token = s.dumps({"uid": user_id})
 # Plus tard:  uid = int(s.loads(token, max_age=60*60*48)["uid"])  # 48 h
 \end{codebox}
 
-\noindent\textbf{Délivrance des emails (Amazon SES).} Les emails de vérification sont rendus côté serveur puis envoyés via Amazon Simple Email Service (SES) grâce au SDK \texttt{boto3}. La fonction \texttt{send\_email(...)} centralise l'envoi dans \texttt{backend/services/email.py} et lit sa configuration via variables d'environnement :
+\noindent\textbf{Délivrance des emails (Amazon SES)\citeref{ref:aws_ses}.} Les emails de vérification sont rendus côté serveur puis envoyés via Amazon Simple Email Service (SES) grâce au SDK \texttt{boto3}. La fonction \texttt{send\_email(...)} centralise l'envoi dans \texttt{backend/services/email.py} et lit sa configuration via variables d'environnement :
 \begin{itemize}
   \item \texttt{AWS\_REGION} (p.~ex. \texttt{eu-west-1})
   \item \texttt{SES\_FROM\_EMAIL} (identité SES vérifiée)
@@ -128,7 +139,7 @@ L'utilisateur s'authentifie sur la page de connexion ; en cas de succès, l'appl
 \begin{figure}[H]
   \centering
   \includegraphics[width=0.85\textwidth]{../figures/chap10/login_page.png}
-  \caption{Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref{chap:security}).}
+  \caption{Page de connexion. Les limites de débit et le CAPTCHA (Turnstile) freinent les robots (voir Chap.~\ref{chap:auth}).}
 \end{figure}
 
 \begin{figure}[H]
@@ -187,6 +198,7 @@ is_valid = pyotp.TOTP(secret).verify(code, valid_window=1)
   \item \textbf{En-têtes et CSP} : Talisman applique les en-têtes de sécurité et une politique CSP. Cette CSP peut être durcie en réduisant l'usage de CDN.
   \item \textbf{Traçabilité} : Les événements d'authentification sont consignés dans \texttt{auth\_events} et envoyés en logs JSON pour la supervision.
 \end{itemize}
+
 
 
 

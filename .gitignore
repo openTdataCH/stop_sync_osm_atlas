@@ -56,7 +56,6 @@ ENV/
 Thumbs.db
 
 # Docker
-.dockerignore
 .env
 
 # Logs
@@ -64,3 +63,23 @@ Thumbs.db
 
 # Ignore raw HRDF data
 /oev_sammlung_ch_hrdf_*
+
+# LaTeX compilation files (but keep .tex source files)
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.listing
+*.lof
+*.lot
+*.out
+*.ptc
+*.xdv
+*.toc
+*.synctex.gz
+*.nav
+*.snm
+*.vrb
+*.log

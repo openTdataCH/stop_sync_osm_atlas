@@ -163,22 +163,47 @@ def final_pipeline(route_matching_strategy='unified'):
         logger.info("ATLAS CSV not found immediately. Waiting briefly for file to appear...")
         atlas_csv_file = _wait_for_file(wait_list, timeout_seconds=int(os.getenv('WAIT_FOR_ATLAS_SECONDS', '60')))
     if not atlas_csv_file:
-        attempted = [atlas_csv_pref] + [p for p in alternates_atlas if p]
-        raise FileNotFoundError(
-            f"Required ATLAS CSV not found. Tried: {attempted}. "
-            f"Set ATLAS_STOPS_CSV to an absolute path or run get_atlas_data.py first."
-        )
+        # Optional auto-download fallback if the data preparation ran elsewhere
+        if os.getenv('DOWNLOAD_IF_MISSING', '1').lower() in ('1', 'true', 'yes'):
+            try:
+                from get_atlas_data import get_atlas_stops
+                os.makedirs(os.path.dirname(atlas_csv_pref) or '.', exist_ok=True)
+                atlas_url = os.getenv('ATLAS_DOWNLOAD_URL', "https://data.opentransportdata.swiss/en/dataset/traffic-points-actual-date/permalink")
+                logger.info("ATLAS CSV missing. Attempting automatic download...")
+                get_atlas_stops(atlas_csv_pref, atlas_url)
+                atlas_csv_file = _resolve_existing_path(atlas_csv_pref, alternates_atlas)
+            except Exception as e:
+                logger.warning(f"Automatic ATLAS download failed: {e}")
+        if not atlas_csv_file:
+            attempted = [atlas_csv_pref] + [p for p in alternates_atlas if p]
+            raise FileNotFoundError(
+                f"Required ATLAS CSV not found. Tried: {attempted}. "
+                f"Set ATLAS_STOPS_CSV to an absolute path or run get_atlas_data.py first."
+            )
     atlas_df = pd.read_csv(atlas_csv_file, sep=";")
     if not osm_xml_file:
         wait_list = [osm_xml_pref] + [p for p in alternates_osm if p]
         logger.info("OSM XML not found immediately. Waiting briefly for file to appear...")
         osm_xml_file = _wait_for_file(wait_list, timeout_seconds=int(os.getenv('WAIT_FOR_OSM_SECONDS', '60')))
     if not osm_xml_file:
-        attempted = [osm_xml_pref] + [p for p in alternates_osm if p]
-        raise FileNotFoundError(
-            f"Required OSM XML not found. Tried: {attempted}. "
-            f"Set OSM_XML_FILE to an absolute path or run get_osm_data.py first."
-        )
+        if os.getenv('DOWNLOAD_IF_MISSING', '1').lower() in ('1', 'true', 'yes'):
+            try:
+                from get_osm_data import query_overpass
+                logger.info("OSM XML missing. Querying Overpass API automatically...")
+                xml_text = query_overpass()
+                if xml_text:
+                    os.makedirs(os.path.dirname(osm_xml_pref) or '.', exist_ok=True)
+                    with open(osm_xml_pref, 'w', encoding='utf-8') as f:
+                        f.write(xml_text)
+                    osm_xml_file = _resolve_existing_path(osm_xml_pref, alternates_osm)
+            except Exception as e:
+                logger.warning(f"Automatic OSM download failed: {e}")
+        if not osm_xml_file:
+            attempted = [osm_xml_pref] + [p for p in alternates_osm if p]
+            raise FileNotFoundError(
+                f"Required OSM XML not found. Tried: {attempted}. "
+                f"Set OSM_XML_FILE to an absolute path or run get_osm_data.py first."
+            )
     all_osm_nodes, uic_ref_dict, name_index = parse_osm_xml(osm_xml_file)
 
     # (Manual matches moved to the end; see dedicated section below)

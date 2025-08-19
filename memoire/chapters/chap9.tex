@@ -31,12 +31,12 @@ L'application comporte quatre vues principales :
   \item \textbf{Rapports} — page dédiée de configuration et rendu PDF/CSV via backend (\texttt{templates/pages/reports.html}, cf. \S\ref{subsec:rapports}).
 \end{itemize}
 
-Chaque page est construite en HTML Jinja, stylisée par les feuilles CSS du dossier \texttt{static/css}, et animée par du JavaScript modulaire dans \texttt{static/js}.
+Chaque page est construite en HTML Jinja\citeref{ref:jinja_docs}, stylisée par les feuilles CSS du dossier \texttt{static/css}, et animée par du JavaScript modulaire dans \texttt{static/js}.
 
 \section{Carte interactive (Index)}
 
 \subsection{Cycle de vie des requêtes}
-La carte (Leaflet) initialise une vue par défaut et \textbf{anti-rebondit} les événements \texttt{moveend}/\texttt{zoomend} (\(\sim\)320~ms) avant de charger la nouvelle fenêtre d'affichage. Les requêtes en vol sont \textbf{annulées} lorsque l'utilisateur se déplace à nouveau, ce qui évite les rendus obsolètes. Les paramètres envoyés à l'API incluent la \textit{bbox} et les filtres actifs. Références côté serveur: \texttt{/api/data} and \texttt{/api/stop\_popup} (voir Chap.~8 pour la logique et la sérialisation).
+La carte (Leaflet\citeref{ref:leaflet_docs}) initialise une vue par défaut et \textbf{anti-rebondit} les événements \texttt{moveend}/\texttt{zoomend} (\(\sim\)320~ms) avant de charger la nouvelle fenêtre d'affichage. Les requêtes en vol sont \textbf{annulées} lorsque l'utilisateur se déplace à nouveau, ce qui évite les rendus obsolètes. Les paramètres envoyés à l'API incluent la \textit{bbox} et les filtres actifs. Références côté serveur: \texttt{/api/data} and \texttt{/api/stop\_popup} (voir Chap.~8 pour la logique et la sérialisation).
 
 \begin{itemize}
   \item \textbf{Seuils de zoom} — pas de marqueurs en dessous de \(z<13\); les \textit{polylignes} de liaison ne s'affichent qu'à partir de \(z\ge 14\).

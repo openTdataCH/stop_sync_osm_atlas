@@ -40,7 +40,8 @@ def create_auth_tables():
             
             # Two-factor auth
             Column('is_totp_enabled', Boolean, default=False, nullable=False),
-            Column('totp_secret', String(64), nullable=True),
+            # store encrypted token or prefixed plaintext; use Text to avoid truncation
+            Column('totp_secret', Text, nullable=True),
             Column('backup_codes_json', Text, nullable=True),
             
             # Account hygiene  
@@ -79,6 +80,13 @@ def create_auth_tables():
             else:
                 metadata.create_all(auth_engine, tables=[auth_events_table])
                 print("✓ Created 'auth_events' table in auth_db")
+        # Ensure column types are compatible (attempt widen if previously String)
+        with auth_engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE users MODIFY COLUMN totp_secret TEXT NULL"))
+            except Exception:
+                pass
+            
         # Verify tables exist
         with auth_engine.connect() as conn:
             result = conn.execute(text("SHOW TABLES LIKE 'users'"))

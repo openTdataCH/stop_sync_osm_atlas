@@ -4,12 +4,18 @@ PyMySQL==1.1.0
 pandas
 requests==2.31.0
 pdfkit
+Pillow
 numpy
-tqdm # Used in get_atlas_data.py
-scipy
-matplotlib # Used in osm_analysis.py for plotting
-sqlalchemy # Used in import_data_db.py for database operations
+tqdm==4.66.4
+scipy==1.13.0
+matplotlib
+sqlalchemy
 cryptography
+geopandas
+shapely==2.0.4
+fiona
+pyproj
+rtree
 
 # Auth and security
 Flask-Login==0.6.3
@@ -23,3 +29,11 @@ Flask-Limiter==3.8.0
 itsdangerous==2.2.0
 boto3
 Flask-Migrate
+
+scikit-image==0.23.2
+scikit-learn==1.4.2
+seaborn==0.13.2
+Werkzeug==3.0.3
+matplotlib-venn==0.11.10
+tzdata==2024.1
+urllib3==2.2.1

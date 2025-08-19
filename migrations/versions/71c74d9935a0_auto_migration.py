@@ -1,3 +1,30 @@
+"""widen users.totp_secret to Text
+
+Revision ID: 71c74d9935a0
+Revises: 46c936099717
+Create Date: 2025-08-16 00:05:00.000000
+
+"""
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision = '71c74d9935a0'
+down_revision = '46c936099717'
+branch_labels = None
+depends_on = None
+
+
+def upgrade():
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.alter_column('totp_secret', type_=sa.Text(), existing_nullable=True)
+
+
+def downgrade():
+    with op.batch_alter_table('users', schema=None) as batch_op:
+        batch_op.alter_column('totp_secret', type_=sa.String(length=64), existing_nullable=True)
+
 """Auto migration
 
 Revision ID: 71c74d9935a0

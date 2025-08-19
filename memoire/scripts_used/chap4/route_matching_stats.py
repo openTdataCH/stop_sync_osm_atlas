@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 import time
 from datetime import datetime
 
@@ -251,12 +252,74 @@ def make_plots(fig_dir, atlas_by_sloid_cover):
         }
         print("[SUMMARY] GTFS token coverage per SLOID:", desc)
     plt.figure(figsize=(6, 4), dpi=150)
-    s.clip(upper=30).hist(bins=30, color='#f28e2b', alpha=0.85)
-    plt.title('Route token coverage in OSM per SLOID (GTFS) (clipped at 30)')
-    plt.xlabel('Number of GTFS tokens present in OSM')
-    plt.ylabel('Number of SLOIDs')
+    if s.empty:
+        # Render a clear placeholder rather than an empty/blank plot
+        plt.axis('off')
+        plt.text(0.5, 0.5, 'No per-SLOID coverage data available', ha='center', va='center', fontsize=11)
+    else:
+        s.clip(upper=30).hist(bins=30, color='#f28e2b', alpha=0.85)
+        plt.title('Route token coverage in OSM per SLOID (GTFS) (clipped at 30)')
+        plt.xlabel('Number of GTFS tokens present in OSM')
+        plt.ylabel('Number of SLOIDs')
     plt.tight_layout()
     plt.savefig(os.path.join(fig_dir, 'hist_route_token_coverage_per_sloid.png'))
+    plt.close()
+
+
+def make_jaccard_plots(fig_dir: str, total_gtfs_tokens: int, total_osm_tokens: int, overlap_tokens: int, jaccard: float):
+    """Generate simple explanatory plots for Jaccard similarity.
+
+    Produces:
+      - jaccard_sets_bars.png: bar chart of |GTFS|, |OSM|, |overlap|, |union|
+      - jaccard_sets_circles.png: two translucent circles illustrating overlap
+    """
+    union = total_gtfs_tokens + total_osm_tokens - overlap_tokens
+
+    # Bars
+    plt.figure(figsize=(6, 4), dpi=150)
+    labels = ['|GTFS|', '|OSM|', '|Overlap|', '|Union|']
+    values = [total_gtfs_tokens, total_osm_tokens, overlap_tokens, union]
+    colors = ['#4e79a7', '#f28e2b', '#59a14f', '#e15759']
+    plt.bar(labels, values, color=colors, alpha=0.9)
+    for i, v in enumerate(values):
+        plt.text(i, v, f"{v:,}", ha='center', va='bottom', fontsize=9)
+    plt.title(f'GTFS vs OSM route tokens — Jaccard = {jaccard:.3f}')
+    plt.ylabel('Count')
+    plt.tight_layout()
+    plt.savefig(os.path.join(fig_dir, 'jaccard_sets_bars.png'))
+    plt.close()
+
+    # Circles (schematic, not to scale but proportional radii)
+    plt.figure(figsize=(6, 4), dpi=150)
+    ax = plt.gca()
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    # Compute radii proportional to sqrt(size) for area proportionality
+    # Normalize so that larger circle radius ~1.0
+    gtfs_size = max(total_gtfs_tokens, 1)
+    osm_size = max(total_osm_tokens, 1)
+    max_size = max(gtfs_size, osm_size)
+    r_gtfs = np.sqrt(gtfs_size / max_size)
+    r_osm = np.sqrt(osm_size / max_size)
+
+    # Place circles with partial overlap proportionally to Jaccard (heuristic)
+    # Desired overlap area fraction approx = overlap/union.
+    # Use simple spacing heuristic: more overlap -> centers closer.
+    center_distance = max(0.2, (1.8 * (1 - jaccard)))
+
+    c1 = Circle((0.5 - center_distance/2, 0.5), r_gtfs, color='#4e79a7', alpha=0.35, ec='#4e79a7')
+    c2 = Circle((0.5 + center_distance/2, 0.5), r_osm, color='#f28e2b', alpha=0.35, ec='#f28e2b')
+    ax.add_patch(c1)
+    ax.add_patch(c2)
+
+    # Annotations
+    ax.text(0.5 - center_distance/2 - r_gtfs, 0.5 + r_gtfs + 0.05, f"GTFS\n{total_gtfs_tokens:,}", ha='center', va='bottom', fontsize=9, color='#1f3b59')
+    ax.text(0.5 + center_distance/2 + r_osm, 0.5 + r_osm + 0.05, f"OSM\n{total_osm_tokens:,}", ha='center', va='bottom', fontsize=9, color='#7a3c06')
+    ax.text(0.5, 0.1, f"Overlap: {overlap_tokens:,}    Union: {union:,}\nJaccard = Overlap / Union = {jaccard:.3f}", ha='center', va='center', fontsize=10)
+
+    plt.tight_layout()
+    plt.savefig(os.path.join(fig_dir, 'jaccard_sets_circles.png'))
     plt.close()
 
 
@@ -297,33 +360,55 @@ def main(skip_slow_per_sloid=False):
 
     # Per SLOID coverage: how many of its GTFS tokens appear anywhere in OSM
     if skip_slow_per_sloid:
-        print("⏩ SKIPPING per-SLOID coverage computation (slow)")
-        coverage_per_sloid = {}
-        coverage_stats = {'total_sloids_with_coverage': 0, 'total_sloids': 0, 'coverage_rate': 0, 'avg_tokens_covered_per_sloid': 0, 'max_tokens_covered': 0}
-        
-        # Still compute fast route-level statistics
-        print("⚡ Computing fast route-level statistics only...")
-        fast_start = time.time()
+        print("⏩ SKIPPING slow per-SLOID loop; computing optimized vectorized coverage instead")
+        coverage_start = time.time()
         g = unified[unified['source'] == 'gtfs'].copy()
-        if not g.empty:
+        if g.empty:
+            coverage_per_sloid = {}
+            coverage_stats = {'total_sloids_with_coverage': 0, 'total_sloids': 0, 'coverage_rate': 0, 'avg_tokens_covered_per_sloid': 0, 'max_tokens_covered': 0}
+            route_coverage_stats = {'unique_gtfs_routes': 0, 'gtfs_routes_with_osm_match': 0, 'route_match_rate': 0}
+        else:
             g['route_norm'] = g['route_id_normalized'].where(g['route_id_normalized'].notna() & (g['route_id_normalized'] != ''), g['route_id'])
             g['direction_id'] = g['direction_id'].where(g['direction_id'].notna() & (g['direction_id'] != ''), np.nan)
+
             g_valid = g[g['route_norm'].notna() & g['direction_id'].notna()].copy()
-            
-            if not g_valid.empty:
+            if g_valid.empty:
+                coverage_per_sloid = {}
+                coverage_stats = {'total_sloids_with_coverage': 0, 'total_sloids': 0, 'coverage_rate': 0, 'avg_tokens_covered_per_sloid': 0, 'max_tokens_covered': 0}
+                route_coverage_stats = {'unique_gtfs_routes': 0, 'gtfs_routes_with_osm_match': 0, 'route_match_rate': 0}
+            else:
+                g_valid['token'] = list(zip(g_valid['route_norm'], g_valid['direction_id']))
+                g_valid['in_osm'] = g_valid['token'].apply(lambda x: x in osm_tokens)
+
+                coverage_per_sloid = (
+                    g_valid[g_valid['in_osm']]
+                    .groupby('sloid')['token']
+                    .nunique()
+                    .to_dict()
+                )
+                # Include zeros for SLOIDs with no coverage
+                for sloid in gtfs_tokens_per_sloid.keys():
+                    if sloid not in coverage_per_sloid:
+                        coverage_per_sloid[sloid] = 0
+
+                coverage_values = list(coverage_per_sloid.values())
+                coverage_stats = {
+                    'total_sloids_with_coverage': sum(1 for x in coverage_values if x > 0),
+                    'total_sloids': len(coverage_values),
+                    'coverage_rate': sum(1 for x in coverage_values if x > 0) / len(coverage_values) if coverage_values else 0,
+                    'avg_tokens_covered_per_sloid': sum(coverage_values) / len(coverage_values) if coverage_values else 0,
+                    'max_tokens_covered': max(coverage_values) if coverage_values else 0,
+                }
+
                 g_tokens = set(zip(g_valid['route_norm'], g_valid['direction_id']))
                 route_coverage_stats = {
                     'unique_gtfs_routes': len(set(g_valid['route_norm'])),
                     'gtfs_routes_with_osm_match': len(set(r for r, d in g_tokens if (r, d) in osm_tokens)),
                 }
                 route_coverage_stats['route_match_rate'] = route_coverage_stats['gtfs_routes_with_osm_match'] / route_coverage_stats['unique_gtfs_routes'] if route_coverage_stats['unique_gtfs_routes'] > 0 else 0
-            else:
-                route_coverage_stats = {'unique_gtfs_routes': 0, 'gtfs_routes_with_osm_match': 0, 'route_match_rate': 0}
-        else:
-            route_coverage_stats = {'unique_gtfs_routes': 0, 'gtfs_routes_with_osm_match': 0, 'route_match_rate': 0}
-        
-        fast_elapsed = time.time() - fast_start
-        print(f"  Fast route statistics completed in {fast_elapsed:.1f} seconds\n")
+
+        coverage_elapsed = time.time() - coverage_start
+        print(f"  ⚡ OPTIMIZED: Coverage calculation completed in {coverage_elapsed:.1f} seconds\n")
         
     else:
         print("📊 Computing per-SLOID coverage...")
@@ -443,6 +528,7 @@ def main(skip_slow_per_sloid=False):
 
     print("📈 Generating plots...")
     make_plots(fig_dir, coverage_per_sloid)
+    make_jaccard_plots(fig_dir, total_gtfs_tokens, total_osm_tokens, overlap_tokens, jaccard)
     
     save_elapsed = time.time() - save_start
     total_elapsed = time.time() - script_start

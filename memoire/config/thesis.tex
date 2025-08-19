@@ -13,7 +13,7 @@
 \usepackage[a4paper,includeheadfoot,margin=2.5cm]{geometry}
 %\usepackage[a4paper,includehead,includefoot,top=2.1cm,bottom=2.5cm,right=2.5cm,left=2.5cm]{geometry}
 \usepackage{lmodern}	% latin Modern font (FALLBACK FONT)
-\usepackage{biblatex}
+% biblatex removed - using custom reference system
 \usepackage{caption}
 \usepackage{csquotes}
 \captionsetup{labelfont=sc}
@@ -43,6 +43,25 @@
 \usepackage[bigcaptions]
 			{listing}	% listing related package
 \usepackage{listings}	% listing related package
+% Allow UTF-8 in listings and map common accented characters
+\usepackage{listingsutf8}
+\lstset{inputencoding=utf8,
+  literate=
+    {é}{{\'e}}1 {è}{{\`e}}1 {ê}{{\^e}}1 {ë}{{\"e}}1
+    {à}{{\`a}}1 {â}{{\^a}}1 {ä}{{\"a}}1
+    {î}{{\^\i}}1 {ï}{{\"\i}}1
+    {ô}{{\^o}}1 {ö}{{\"o}}1
+    {ù}{{\`u}}1 {û}{{\^u}}1 {ü}{{\"u}}1
+    {ç}{{\c c}}1
+    {É}{{\'E}}1 {È}{{\`E}}1 {Ê}{{\^E}}1 {Ë}{{\"E}}1
+    {À}{{\`A}}1 {Â}{{\^A}}1 {Ä}{{\"A}}1
+    {Î}{{\^I}}1 {Ï}{{\"I}}1
+    {Ô}{{\^O}}1 {Ö}{{\"O}}1
+    {Ù}{{\`U}}1 {Û}{{\^U}}1 {Ü}{{\"U}}1
+    {Œ}{{\OE}}1 {œ}{{\oe}}1
+    {≤}{{$\leq$}}1 {≥}{{$\geq$}}1
+    {—}{{---}}1 {–}{{--}}1 {…}{{\ldots}}1
+}
 \usepackage{titletoc}
 %\usepackage{tocbibind}	% TOC related package
 \usepackage[titles]
@@ -89,6 +108,12 @@
 			{hyperref}	% URL and hyperlinks configuration, with hard break if too long lines
 			
 \usepackage{url}
+% Footnotes and URL-to-footnote helpers (academic style)
+\usepackage[bottom,hang,flushmargin]{footmisc}
+\setlength{\footnotesep}{0.8\baselineskip}
+% Put URLs in footnotes while keeping clickable anchor text in the body
+\newcommand{\hrefnote}[2]{\href{#1}{#2}\footnote{\url{#1}}}
+\newcommand{\urlnote}[1]{\footnote{\url{#1}}}
 \sloppy % helps with url hyphenation if we no not use xurl.
 %% IF YOUR URLS LOOK UGLY AND WAY TO LONG, UNCOMMENT THE LINE BELOW AND __DO NOT__ USE OVERLEAF, WHICH DOESN'T SUPPORT EXTENDED LATEX PACKAGES
 %\usepackage{xurl}
@@ -96,6 +121,44 @@
 %\usepackage{amsmath}	% math related package
 
 \counterwithout{footnote}{chapter}
+
+% ==================== Custom Reference System ====================
+% Packages needed for custom reference system
+\usepackage{xparse}
+\usepackage{etoolbox}
+\usepackage{refcount}
+
+% Counters and commands for custom reference system
+\newcounter{customrefcounter}
+\newcommand{\customreflist}{}
+\newcommand{\pagefootnotes}{}
+
+% Command to define a reference with its number
+\NewDocumentCommand{\defref}{m m}{%
+  \stepcounter{customrefcounter}%
+  \expandafter\xdef\csname refnum@#1\endcsname{\thecustomrefcounter}%
+  \csgdef{refcite@#1}{#2}%
+}
+
+% Command to cite a reference
+\NewDocumentCommand{\citeref}{m}{%
+  \ifcsdef{refnum@#1}{%
+    % Reference exists, get its number
+    \edef\refnumber{\csuse{refnum@#1}}%
+    % Check if we've footnoted this on current page
+    \ifcsdef{footnoted@#1@\thepage}{%
+      % Already footnoted on this page, just show number
+      \textsuperscript{\refnumber}%
+    }{%
+      % First time on this page, create footnote with custom number
+      \textsuperscript{\refnumber}\footnotetext[\refnumber]{\csuse{refcite@#1}}%
+      \csgdef{footnoted@#1@\thepage}{true}%
+    }%
+  }{%
+    \textbf{??} % Reference not defined
+  }%
+}
+% ================================================================
 
 \usepackage{setspace}	% linespacing related package
 
@@ -115,6 +178,7 @@
   colframe=darkgray,
   title={#2},
   listing options={
+    inputencoding=utf8,
     basicstyle=\ttfamily\footnotesize,
     numbers=left,
     numberstyle=\tiny\color{darkgray},
@@ -139,6 +203,7 @@
   title={Commande},
   listing options={
     language=bash,
+    inputencoding=utf8,
     basicstyle=\ttfamily\footnotesize,
     numbers=left,
     numberstyle=\tiny\color{darkgray},

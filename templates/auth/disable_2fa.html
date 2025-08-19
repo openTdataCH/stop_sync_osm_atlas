@@ -1,0 +1,21 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Disable 2FA{% endblock %}
+{% block content %}
+<div class="container mt-5" style="max-width: 480px;">
+  <h2>Disable Two-Factor Authentication</h2>
+  <p class="text-muted">For your security, please re-enter your password to disable 2FA.</p>
+  <form method="POST" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="form-group">
+      {{ form.password.label }}
+      {{ form.password(class_='form-control' + (' is-invalid' if form.password.errors else '')) }}
+      {% for error in form.password.errors %}
+      <div class="invalid-feedback">{{ error }}</div>
+      {% endfor %}
+    </div>
+    <button class="btn btn-danger">Disable 2FA</button>
+  </form>
+</div>
+{% endblock %}
+
+

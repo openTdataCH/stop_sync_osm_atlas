@@ -19,6 +19,7 @@ from backend.extensions import db, limiter
 from backend.auth_models import User
 from backend.services.email import send_email
 from backend.services.audit import record_auth_event
+from backend.services.crypto import encryption_available, encrypt_for_db
 
 
 auth_bp = Blueprint('auth', __name__)
@@ -38,6 +39,10 @@ class LoginForm(FlaskForm):
 
 class TwoFactorForm(FlaskForm):
     token = StringField('Token', validators=[DataRequired(), Length(min=6, max=10)])
+
+
+class Disable2FAForm(FlaskForm):
+    password = PasswordField('Password', validators=[DataRequired()])
 
 
 def _is_account_locked(user: User) -> bool:
@@ -113,9 +118,16 @@ def register():
             return redirect(url_for('auth.register'))
         email = form.email.data.lower().strip()
         password = form.password.data
-        if User.query.filter_by(email=email).first():
-            flash('An account with this email already exists.', 'danger')
-            return redirect(url_for('auth.register'))
+        existing = User.query.filter_by(email=email).first()
+        if existing:
+            # Neutral response to avoid email enumeration
+            try:
+                if not existing.is_email_verified:
+                    _send_verification_email(existing)
+            except Exception:
+                pass
+            return redirect(url_for('auth.verification_required', email=email))
+        # Create account
         user = User(email=email)
         user.set_password(password)
         db.session.add(user)
@@ -124,14 +136,13 @@ def register():
             record_auth_event(event_type='registration', user=user)
         except Exception:
             pass
-        # Immediately send email verification (optional)
+        # Send verification (optional)
         try:
             _send_verification_email(user)
         except Exception:
-            # Fail silently to avoid leaking internal errors
             pass
-        flash('Account created. You can sign in now. We sent an optional verification email.', 'info')
-        return redirect(url_for('auth.login'))
+        # Neutral message
+        return redirect(url_for('auth.verification_required', email=email))
     return render_template('auth/register.html', form=form)
 
 
@@ -220,12 +231,21 @@ def two_factor():
     if not pending_user_id:
         return redirect(url_for('auth.login'))
     user = db.session.get(User, pending_user_id)
-    if not user or not user.is_totp_enabled or not user.totp_secret:
+    if not user or not user.is_totp_enabled or not user.get_totp_secret():
         return redirect(url_for('auth.login'))
+    # Opportunistic migration: ensure encrypted-at-rest if key configured
+    try:
+        if encryption_available():
+            secret_plain = user.get_totp_secret()
+            if secret_plain and not (user.totp_secret or '').startswith('enc:'):
+                user.totp_secret = encrypt_for_db(secret_plain)
+                db.session.commit()
+    except Exception:
+        pass
     form = TwoFactorForm()
     if form.validate_on_submit():
         token = form.token.data.strip().replace(' ', '')
-        totp = pyotp.TOTP(user.totp_secret)
+        totp = pyotp.TOTP(user.get_totp_secret())
         if totp.verify(token, valid_window=1) or user.verify_and_consume_backup_code(token):
             remember = bool(flask_session.pop('remember_me', False))
             flask_session.pop('pending_2fa_user_id', None)
@@ -262,10 +282,10 @@ def enable_2fa():
     if request.method == 'POST':
         # Confirm code submitted by user to finalize enabling 2FA
         token = request.form.get('token', '').strip().replace(' ', '')
-        if not user.totp_secret:
+        if not user.get_totp_secret():
             flash('No 2FA setup in progress.', 'danger')
             return redirect(url_for('auth.enable_2fa'))
-        totp = pyotp.TOTP(user.totp_secret)
+        totp = pyotp.TOTP(user.get_totp_secret())
         if totp.verify(token, valid_window=1):
             user.is_totp_enabled = True
             # Generate backup codes and show once
@@ -281,11 +301,19 @@ def enable_2fa():
             flash('Invalid verification code.', 'danger')
             return redirect(url_for('auth.enable_2fa'))
     # Start setup: generate secret and QR
-    if not user.totp_secret:
-        user.totp_secret = pyotp.random_base32()
+    if not user.get_totp_secret():
+        user.set_totp_secret(pyotp.random_base32())
         db.session.commit()
+    else:
+        # Opportunistic migration: encrypt legacy secrets if key is now available
+        try:
+            if encryption_available() and not (user.totp_secret or '').startswith('enc:'):
+                user.totp_secret = encrypt_for_db(user.get_totp_secret())
+                db.session.commit()
+        except Exception:
+            pass
     issuer = os.getenv('AUTH_ISSUER', 'OSM-ATLAS Sync')
-    totp_uri = pyotp.totp.TOTP(user.totp_secret).provisioning_uri(name=user.email, issuer_name=issuer)
+    totp_uri = pyotp.totp.TOTP(user.get_totp_secret()).provisioning_uri(name=user.email, issuer_name=issuer)
     # Generate QR as data URL
     qr = qrcode.QRCode(box_size=8, border=1)
     qr.add_data(totp_uri)
@@ -294,23 +322,30 @@ def enable_2fa():
     buf = io.BytesIO()
     img.save(buf)
     data_url = f"data:image/svg+xml;base64,{base64.b64encode(buf.getvalue()).decode()}"
-    return render_template('auth/enable_2fa.html', qr_data_url=data_url, secret=user.totp_secret)
+    return render_template('auth/enable_2fa.html', qr_data_url=data_url, secret=user.get_totp_secret(), encryption_enabled=encryption_available())
 
 
-@auth_bp.route('/auth/disable_2fa', methods=['POST'])
+@auth_bp.route('/auth/disable_2fa', methods=['GET', 'POST'])
 @login_required
 def disable_2fa():
     user = current_user
-    user.is_totp_enabled = False
-    user.totp_secret = None
-    user.backup_codes_json = None
-    db.session.commit()
-    try:
-        record_auth_event(event_type='2fa_disabled', user=user)
-    except Exception:
-        pass
-    flash('2FA disabled.', 'success')
-    return redirect(url_for('index'))
+    form = Disable2FAForm()
+    if request.method == 'POST':
+        if form.validate_on_submit():
+            if not user.verify_password(form.password.data):
+                flash('Re-authentication failed. Please check your password.', 'danger')
+                return render_template('auth/disable_2fa.html', form=form)
+            user.is_totp_enabled = False
+            user.totp_secret = None
+            user.backup_codes_json = None
+            db.session.commit()
+            try:
+                record_auth_event(event_type='2fa_disabled', user=user)
+            except Exception:
+                pass
+            flash('2FA disabled.', 'success')
+            return redirect(url_for('index'))
+    return render_template('auth/disable_2fa.html', form=form)
 
 
 @auth_bp.route('/auth/status', methods=['GET'])

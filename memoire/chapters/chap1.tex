@@ -1,23 +1,23 @@
 % !TeX spellcheck = fr_FR
 \chapter{Chapitre 1 : Données ATLAS}
 
-Les données ATLAS, au cœur de cette étude, proviennent de la plateforme Open Transport Data Swiss [\ref{ref:open_transport_data_swiss}]. Cette ressource centralise les données des transports publics en Suisse, offrant une base précieuse pour l’analyse et le développement d’applications.\\
-\textit{Sauf indication contraire, toutes les statistiques et cartes de ce chapitre sont calculées sur le snapshot de données du 11 août 2025. À partir de cette version, un filtre géographique (boîte WGS84 approximant la Suisse) est appliqué en plus du code pays UIC=85, afin d'exclure les points situés hors de Suisse malgré un préfixe UIC suisse.}
+Les données ATLAS, au cœur de cette étude, proviennent de la plateforme suisse Open Transport Data\citeref{ref:open_transport_data_swiss}. Cette ressource centralise les données des transports publics en Suisse, offrant une base précieuse pour l'analyse et le développement d'applications.\\
 
 \medskip
-\noindent\textbf{Reproductibilité.} Les figures et statistiques de ce chapitre ont été produites par des scripts reproductibles disponibles sous \texttt{memoire/scripts\_used/} dans le dépôt Git du projet.
+\noindent\textbf{Reproductibilité.} Les figures et statistiques de ce chapitre ont été produites par des scripts reproductibles disponibles dans le répertoire \texttt{memoire/scripts\_used/} du dépôt Git du projet.
+
 
 \section{Arrêts}
 
-L'analyse des arrêts s'appuie sur le jeu de données \texttt{traffic-points-actual-date} [\ref{ref:traffic_points_actual_date}], qui recense les arrêts de transport public en Suisse avec des informations sur leur localisation et leurs caractéristiques. Ces points peuvent être visualisés sur une carte interactive via l’application web https://atlas.app.sbb.ch/ [\ref{ref:atlas_app_sbb}].
+L'analyse des arrêts s'appuie sur le jeu de données \texttt{traffic-points-actual-date}\citeref{ref:traffic_points_actual_date}, qui recense les arrêts de transport public en Suisse en fournissant des informations détaillées sur leur localisation et leurs caractéristiques. Ces points peuvent être visualisés sur une carte interactive via l’application web https://atlas.app.sbb.ch/\citeref{ref:atlas_app_sbb}.
 
 Nous nous concentrons ici sur deux colonnes principales : le \texttt{number} et la \texttt{designation} de chaque arrêt.
 
-Le numéro d’un arrêt correspond à la référence UIC (Union Internationale des Chemins de fer), un standard international permettant d’identifier les lieux de transport public. Les deux premiers chiffres représentent le code du pays ; la Suisse, par exemple, utilise le code 85[\ref{ref:wikipedia_uic_codes}]. Ainsi, un numéro UIC comme \texttt{ 8502034} désigne un arrêt spécifique du réseau suisse.
+Le numéro d’un arrêt correspond à la référence UIC (Union Internationale des Chemins de fer), un standard international pour l'identification des lieux de transport public. Les deux premiers chiffres représentent le code du pays ; la Suisse, par exemple, utilise le code 85\citeref{ref:wikipedia_uic_codes}. Ainsi, un numéro UIC comme \texttt{ 8502034} désigne un arrêt spécifique du réseau suisse.
 
 La colonne \texttt{designation} fait référence à une identification locale : une valeur de \texttt{3} peut, par exemple, indiquer que l’arrêt correspond à la plateforme 3 d’une gare.
 
-Enfin, les données incluent également des informations sur l’opérateur responsable de chaque arrêt, un élément potentiellement utile pour établir des correspondances avec d’autres jeux de données.
+Enfin, les données incluent également des informations sur l’opérateur responsable de chaque arrêt, un élément utile pour établir des correspondances avec d’autres jeux de données.
 
 Le jeu de données distingue deux types de \texttt{trafficPointElementType} : \texttt{BOARDING\_AREA} et \texttt{BOARDING\_PLATFORM}. Notre analyse se limite aux \texttt{BOARDING\_PLATFORM}, car les \texttt{BOARDING\_AREA} ne disposent pas de coordonnées géographiques. Pour extraire ces informations, nous avons développé un script Python, \texttt{get\_atlas\_data.py}. Extrait simplifié du chargement/filtrage:
 
@@ -29,29 +29,25 @@ def get_atlas_stops(output_path, download_url):
         csv_filename = z.namelist()[0]
         with z.open(csv_filename) as f:
             df = pd.read_csv(f, sep=';')
-            # Suisse (UIC pays = 85) et coordonnees valides (WGS84)
+            # Suisse (UIC pays = 85)
             df = df[df['uicCountryCode'] == 85]
-            df = df.dropna(subset=['wgs84North', 'wgs84East'])
-            # Filtre géographique: boîte WGS84 Suisse (lat \in [45.4, 47.9], lon \in [5.7, 10.7])
-            df['wgs84North'] = pd.to_numeric(df['wgs84North'], errors='coerce')
-            df['wgs84East'] = pd.to_numeric(df['wgs84East'], errors='coerce')
-            df = df[df['wgs84North'].between(45.4, 47.9) & df['wgs84East'].between(5.7, 10.7)]
+            # Filtre frontière CH: inclusion dans le polygone suisse (WGS84)
+            df = filter_points_in_switzerland(df, lat_col='wgs84North', lon_col='wgs84East')
             # Comptage des quais
             boarding_platforms = df[df['trafficPointElementType'] == 'BOARDING_PLATFORM']
             df.to_csv(output_path, sep=';', index=False)
 \end{codebox}
 
 
-
-\paragraph{Statistiques ATLAS.} Sur l'instantané analysé (après filtre UIC=85 et boîte CH) :
+\paragraph{Statistiques ATLAS.} Sur l'instantané analysé (après filtre UIC=85 et frontière CH par polygone) :
 \begin{itemize}
-  \item \textbf{Lignes avec coordonnées}: \textit{56\,515}.
-  \item \textbf{\texttt{BOARDING\_PLATFORM}}: \textit{55\,823}.
-  \item \textbf{UIC distincts (\texttt{number})}: \textit{27\,228}.
-  \item \textbf{\texttt{designation} non vides}: \textit{12\,144} (\textit{541} valeurs distinctes).
-  \item \textbf{\texttt{designation} manquantes}: \textit{44\,371}, dont \textit{4\,430} cas où l'unique entrée du \texttt{number} est sans désignation.
-  \item \textbf{Entrées identifiables par (\texttt{number}, \texttt{designation}) seul}: \textit{10\,607}.
-  \item \textbf{Total identifiables par \texttt{number} + (\texttt{designation} ou unicité du \texttt{number})}: \textit{16\,014}.
+  \item \textbf{Lignes avec coordonnées (dans la frontière CH)}: \textit{55\,571}.
+  \item \textbf{\texttt{BOARDING\_PLATFORM}}: \textit{54\,882}.
+  \item \textbf{UIC distincts (\texttt{number})}: \textit{26\,750}.
+  \item \textbf{\texttt{designation} non vides}: \textit{12\,051} (\textit{538} valeurs distinctes).
+  \item \textbf{\texttt{designation} manquantes}: \textit{43\,520}, dont \textit{4\,365} cas où l'unique entrée du \texttt{number} est sans désignation.
+  \item \textbf{Entrées identifiables par (\texttt{number}, \texttt{designation}) seul}: \textit{10\,514}.
+  \item \textbf{Total identifiables par \texttt{number} + (\texttt{designation} ou unicité du \texttt{number})}: \textit{15\,854}.
 \end{itemize}
 
 \begin{figure}[H]
@@ -68,15 +64,15 @@ def get_atlas_stops(output_path, download_url):
   \label{fig:atlas_distribs}
 \end{figure}
 
-\noindent\textit{Remarque.} Les valeurs manquantes de \texttt{designation} (très nombreuses) sont exclues du classement pour éviter un effet disproportionné. Comme indiqué plus haut, \(44\,370\) entrées n'ont pas de \texttt{designation}.
+\noindent\textit{Remarque.} Les très nombreuses valeurs manquantes pour \texttt{designation} sont exclues du classement afin d'éviter un effet disproportionné. Comme indiqué plus haut, \(43\,520\) entrées n'ont pas de \texttt{designation}.
 
-Concernant les coordonnées, le fichier fournit deux systèmes : le système de référence suisse LV95 et le système de référence global WGS84. Étant donné que les données d'OpenStreetMap (OSM) utilisent les coordonnées WGS84, nous nous concentrerons uniquement sur cet ensemble de coordonnées pour le moment.
+Concernant les coordonnées, le fichier fournit deux systèmes : le système de référence suisse LV95 et le système de référence global WGS84. Étant donné que les données d'OpenStreetMap (OSM) utilisent les coordonnées WGS84, nous nous concentrerons sur cet ensemble de coordonnées.
 
 \section{GTFS}
 
-Le General Transit Feed Specification (GTFS) est un format d’échange numérique initié par Google pour standardiser les horaires des transports publics et leurs informations géographiques, telles que la localisation des arrêts. En Suisse, ces données sont publiées sur la plateforme OpenTransportDataSuisse. Elles servent à développer des applications pratiques, comme les outils de consultation d’horaires ou de planification de trajets.
+Le General Transit Feed Specification (GTFS) est un format d'échange numérique initié par Google pour standardiser les horaires des transports publics et leurs informations géographiques, telles que la localisation des arrêts. En Suisse, ces données sont publiées sur la plateforme OpenTransportDataSuisse\citeref{ref:gtfs_cookbook}. Elles servent à développer des applications pratiques, comme les outils de consultation d'horaires ou de planification de trajets.
 
-Bien que notre projet se focalise actuellement sur la synchronisation des arrêts, les données GTFS relatives aux trajets suscitent également notre intérêt. Elles pourraient faciliter la correspondance entre les arrêts ATLAS et ceux d’OpenStreetMap, en exploitant les informations sur les itinéraires présentes dans les deux ensembles de données. Parmi les  fichiers GTFS, quatre retiennent notre attention : \texttt{stops.txt}, \texttt{stop\_times.txt}, \texttt{routes.txt} et \texttt{trips.txt}.
+Bien que notre projet se focalise actuellement sur la synchronisation des arrêts, les données GTFS relatives aux trajets retiennent également notre attention. Elles pourraient faciliter la correspondance entre les arrêts ATLAS et ceux d’OpenStreetMap, en exploitant les informations sur les itinéraires présentes dans les deux ensembles de données. Parmi les  fichiers GTFS, quatre retiennent notre attention : \texttt{stops.txt}, \texttt{stop\_times.txt}, \texttt{routes.txt} et \texttt{trips.txt}.
 
 \subsection{Description des fichiers}
 
@@ -173,10 +169,10 @@ Les fichiers GTFS suivants sont cruciaux pour notre analyse :
 
 \subsection{Clés d’identification, normalisation et jointure}
 
-Dans le script \texttt{get\_atlas\_data.py}, nous construisons un jeu intégré qui associe chaque arrêt aux couples \texttt{(route\_id, direction\_id)} desservis et aux noms de lignes, puis relions ces arrêts aux SLOIDs ATLAS. La jointure exploite \texttt{stop\_times.txt} pour relier les arrêts aux trajets via \texttt{trip\_id}, puis \texttt{trips.txt} et \texttt{routes.txt} pour relier ces trajets aux lignes via \texttt{route\_id}. Nous dédupliquons ensuite les paires route–direction par arrêt et ajoutons le nom de ligne.
+Dans le script \texttt{get\_atlas\_data.py}, nous construisons un jeu de données intégré qui associe chaque arrêt aux couples \texttt{(route\_id, direction\_id)} desservis et aux noms de lignes, puis relions ces arrêts aux SLOIDs ATLAS. La jointure exploite \texttt{stop\_times.txt} pour relier les arrêts aux trajets via \texttt{trip\_id}, puis \texttt{trips.txt} et \texttt{routes.txt} pour relier ces trajets aux lignes via \texttt{route\_id}. Nous dédupliquons ensuite les paires route–direction par arrêt et ajoutons le nom de ligne.
 
 \medskip
-\noindent\textbf{Clé de correspondance stop\_id GTFS \(\to\) SLOID ATLAS.} Nous associons \texttt{stop\_id} (GTFS) aux SLOIDs ATLAS via \texttt{number} (UIC) et \texttt{designation} (référence locale de quai), avec normalisation minimale. Les règles \emph{implémentées dans le code} sont:
+\noindent\textbf{Clé de correspondance stop\_id GTFS \(\to\) SLOID ATLAS.} Nous associons \texttt{stop\_id} (GTFS) aux SLOIDs ATLAS via \texttt{number} (UIC) et \texttt{designation} (référence locale de quai), avec normalisation minimale. Les règles, \emph{telles qu'implémentées dans le code}, sont les suivantes:
 \begin{itemize}
   \item \textbf{Structure de \texttt{stop\_id}}: \texttt{uic\_number:0:local\_ref}. Exemple: \texttt{8516155:0:1}.
   \item \textbf{Strict}: associer si \(\texttt{uic\_number} = \texttt{number}\) et \(\texttt{normalized\_local\_ref} = \texttt{designation}\).
@@ -185,7 +181,7 @@ Dans le script \texttt{get\_atlas\_data.py}, nous construisons un jeu intégré 
   \item \textbf{Normalisation}: les références locales \enquote{10000/10001} sont ramenées à \enquote{1/2} lorsqu’elles codent des côtés/plates-formes.
 \end{itemize}
 
-La mise en correspondance entre la colonne \texttt{stop\_id} du fichier \texttt{stops.txt} (GTFS) et l’identifiant \texttt{sloid} d’ATLAS présente des défis significatifs. Premièrement, il n’existe pas de lien direct entre ces deux identifiants. Deuxièmement, les coordonnées géographiques des arrêts diffèrent entre les deux ensembles de données.
+La mise en correspondance entre la colonne \texttt{stop\_id} du fichier \texttt{stops.txt} (GTFS) et l’identifiant \texttt{sloid} d’ATLAS présente des défis importants. Premièrement, il n’existe pas de lien direct entre ces deux identifiants. Deuxièmement, les coordonnées géographiques des arrêts diffèrent entre les deux ensembles de données.
 
 \textbf{Exemple 1 : "Lancy-Pont-Rouge":}
 \newline
@@ -269,7 +265,7 @@ Dans ce cas, les désignations dans GTFS incluent "A", "B", "C", "D", ainsi que 
 \subsection{Résultats}
 Nous obtenons un jeu intégré listant, par \texttt{sloid}, les couples \texttt{(route\_id, direction\_id)}. Sur notre jeu:
 \begin{itemize}
-  \item \textbf{SLOIDs couverts par GTFS}: \textit{32\,248}.
+  \item \textbf{SLOIDs couverts par GTFS}: \textit{34\,415}.
   \item \textbf{Médiane des lignes par SLOID (GTFS)}: \textit{2}.
 \end{itemize}
 
@@ -283,7 +279,7 @@ Nous obtenons un jeu intégré listant, par \texttt{sloid}, les couples \texttt{
 \begin{figure}[h]
   \centering
   \includegraphics[width=.76\linewidth]{figures/plots/gtfs_points_switzerland.png}
-  \caption[Arrêts GTFS (Suisse)]{Arrêts GTFS (Suisse): \(47\,846\) arrêts suisses détectés.}
+  \caption[Arrêts GTFS (Suisse)]{Arrêts GTFS (Suisse, à l'intérieur de la frontière): \(47\,567\) arrêts détectés.}
   \label{fig:gtfs_ch_points}
 \end{figure}
 
@@ -293,13 +289,35 @@ Nous obtenons un jeu intégré listant, par \texttt{sloid}, les couples \texttt{
 \vspace{.2em}
 
 \section{HRDF}
-Le \textit{HAFAS Raw Data Format} structure des horaires exhaustifs. Deux fichiers sont clés: \texttt{BHFART} (SLOIDs gare/quai) et \texttt{GLEISE\_WGS/LV95} (infrastructure et coordonnées de quai).
+Le format \textit{HAFAS Raw Data Format} (HRDF) structure des jeux de données d'horaires exhaustifs. Deux fichiers sont clés: \texttt{BHFART} (SLOIDs gare/quai) et \texttt{GLEISE\_WGS/LV95} (infrastructure et coordonnées de quai).
+
+\noindent\textit{Référence.} Une description synthétique et à jour du format HRDF est disponible dans le Cookbook de la plateforme Open Transport Data Switzerland\footnote{\url{https://opentransportdata.swiss/en/cookbook/timetable-cookbook/hafas-rohdaten-format-hrdf/}}.
 
 \subsection{Comment nous le lisons}
-Notre extraction s’effectue en deux passes efficaces et ciblées:
+L'extraction des informations de direction à partir des données HRDF est un processus en plusieurs étapes, orchestré par le script \texttt{get\_atlas\_data.py}. Notre approche est conçue pour être efficace, en ne traitant que les données pertinentes pour les arrêts ATLAS (SLOIDs) que nous cherchons à enrichir.
+
 \begin{enumerate}
-  \item \textbf{GLEISE\_LV95 \(\to\) paires (UIC, \#ref) par \texttt{sloid}.} Nous parcourons \texttt{GLEISE\_LV95} pour associer chaque \texttt{sloid} de quai au \texttt{UIC} de gare et au numéro de référence (\#ref) qui identifie le quai.
-  \item \textbf{FPLAN \(\to\) directions.} Pour ces \((\text{UIC}, \#\text{ref})\) cibles seulement, nous analysons \texttt{FPLAN} afin d’extraire, par voyage, le premier et le dernier arrêt. En reliant ces arrêts à leurs noms (via \texttt{BAHNHOF}), nous formons des chaînes directionnelles \textit{UIC} (\enquote{8501008 \(\to\) 8501120}).
+    \item \textbf{Identification des voyages par quai (\texttt{GLEISE\_LV95}).}
+    La première étape consiste à identifier les voyages (trajets) qui desservent chaque quai d'intérêt. Pour ce faire, nous parcourons le fichier \texttt{GLEISE\_LV95} en deux passes :
+    \begin{itemize}
+        \item D'abord, nous établissons une correspondance entre chaque \texttt{sloid} de quai et son couple identifiant \texttt{(UIC de gare, référence de quai)}. La référence de quai est un identifiant local, souvent préfixé par un \texttt{\#}.
+        \item Ensuite, nous relisons le même fichier pour trouver toutes les occurrences de ces paires \texttt{(UIC, \#ref)}, ce qui nous permet de collecter l'ensemble des voyages (identifiés par un numéro de voyage et un numéro d'opérateur) qui s'arrêtent à ces quais.
+    \end{itemize}
+    Cette approche ciblée évite de charger en mémoire la totalité des voyages, qui est extrêmement volumineuse.
+
+    \item \textbf{Extraction des directions de voyage (\texttt{FPLAN}).}
+    Une fois que nous avons la liste des voyages pour chaque quai, nous analysons le fichier \texttt{FPLAN}. Ce fichier décrit la séquence des arrêts pour chaque voyage. Pour chaque voyage d'intérêt, nous extrayons :
+    \begin{itemize}
+        \item Le nom de la ligne (information préfixée par \texttt{*L}).
+        \item Le premier et le dernier arrêt du trajet (codes UIC).
+    \end{itemize}
+    La séquence premier/dernier arrêt nous donne la direction du voyage.
+
+    \item \textbf{Association des noms de gares (\texttt{BAHNHOF}).}
+    Les codes UIC extraits de \texttt{FPLAN} sont des identifiants numériques. Pour les rendre lisibles, nous utilisons le fichier \texttt{BAHNHOF} qui sert de dictionnaire pour faire correspondre chaque code UIC à un nom de gare en toutes lettres.
+
+    \item \textbf{Construction des chaînes de direction.}
+    Enfin, nous assemblons toutes ces informations. Pour chaque \texttt{sloid}, nous créons des chaînes de direction uniques en combinant les noms de ligne et les directions. Par exemple, un voyage peut être résumé par une direction textuelle comme \texttt{"Genève $\rightarrow$ Lausanne"} et une direction UIC comme \texttt{"8501008 $\rightarrow$ 8501120"}. Ces informations enrichissent nos données d'arrêts ATLAS avec des contextes d'itinéraire précieux.
 \end{enumerate}
 
 
@@ -307,7 +325,7 @@ Notre extraction s’effectue en deux passes efficaces et ciblées:
 \subsection{Informations exploitées}
 \begin{itemize}
   \item \textbf{SLOID de quai} et position (WGS84);
-  \item \textbf{Chaînes directionnelles} \textit{nom} (\textit{Genève} \(\to\) \textit{Lausanne}) et \textit{UIC} (\(8501008 \to 8501120\)).
+  \item \textbf{Chaînes directionnelles} \textit{nom} (\textit{Genève} \(\rightarrow\) \textit{Lausanne}) et \textit{UIC} (\(8501008 \rightarrow 8501120\)).
 \end{itemize}
 
 \subsection{Statistiques clés}
@@ -332,7 +350,7 @@ $ grep -o "G A ch:1:sloid:[^[:space:]]\\+" data/raw/BHFART | sed 's/^G A //' | s
 
 
 \noindent
-Après extraction des informations de direction : \textbf{\(28\,757\)} SLOIDs couverts ; médiane des directions (noms) par SLOID : \textbf{4}. Ces chaînes \enquote{nom} et \enquote{UIC} enrichissent les correspondances quand un identifiant de direction explicite n’est pas disponible côté OSM.
+Après extraction des informations de direction : \textbf{\(28\,723\)} SLOIDs couverts ; médiane des directions (noms) par SLOID : \textbf{4}. Ces chaînes « nom » et « UIC » enrichissent les correspondances lorsqu'un identifiant de direction explicite n'est pas disponible côté OSM.
 
 \begin{figure}[H]
   \centering
@@ -378,7 +396,9 @@ Après extraction des informations de direction : \textbf{\(28\,757\)} SLOIDs co
   \label{fig:geneva_matched_sloids}
 \end{figure}
 
+Concernant la couverture globale des SLOIDs ATLAS par les deux jeux de données intégrés, nous observons les statistiques suivantes :
+
 \begin{itemize}
-  \item GTFS: \textit{\(34\,766\)} SLOIDs\,; HRDF: \textit{\(28\,757\)} SLOIDs.
-  \item Intersection: \textit{\(14\,238\)}\,; GTFS seulement: \textit{\(20\,528\)}\,; HRDF seulement: \textit{\(14\,519\)}.
+  \item GTFS: \textit{\(34\,415\)} SLOIDs\,; HRDF: \textit{\(28\,723\)} SLOIDs.
+  \item Intersection: \textit{\(14\,224\)}\,; GTFS seulement: \textit{\(20\,191\)}\,; HRDF seulement: \textit{\(14\,499\)}.
 \end{itemize}

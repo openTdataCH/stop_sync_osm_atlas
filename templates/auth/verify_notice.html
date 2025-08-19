@@ -1,10 +1,10 @@
 {% extends "layouts/auth.html" %}
-{% block title %}Email verification sent{% endblock %}
+{% block title %}Check your inbox{% endblock %}
 {% block content %}
 <div class="container mt-5" style="max-width: 560px;">
   <div class="alert alert-info" role="alert">
-    <h4 class="alert-heading">Email verification sent</h4>
-    <p>We sent a verification email to <strong>{{ email }}</strong> if an account exists for that address. Verification is optional — you can continue using your account without verifying. Verifying helps with account recovery and security notifications.</p>
+    <h4 class="alert-heading">Check your inbox</h4>
+    <p>If an account exists for <strong>{{ email }}</strong>, we sent a verification email. Verification is optional — you can continue using your account without verifying. Verifying helps with account recovery and security notifications.</p>
     <hr>
     <p class="mb-0">Didn't receive it? <a href="{{ url_for('auth.resend_verification') }}">Resend verification email</a>.</p>
   </div>

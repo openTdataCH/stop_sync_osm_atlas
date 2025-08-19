@@ -148,6 +148,18 @@ docker compose exec app python manage.py set-admin --email you@example.com --off
 
 The project uses Alembic (via Flask‑Migrate) to manage schema for both MySQL databases (`stops_db` and `auth_db`). On startup, the application waits for MySQL and runs `flask db upgrade` to apply migrations. In development, migrations can be auto‑generated on first run.
 
+## Security & Permissions
+
+- The application container now runs as a non‑root user (`app`) with minimal permissions in `/app`.
+- Writable directories are restricted to what is needed at runtime (e.g., `/app/data`, `/app/.cache`).
+- You can align the container user with your host UID/GID to avoid permission issues on bind mounts:
+
+```bash
+docker compose build --build-arg APP_UID=$(id -u) --build-arg APP_GID=$(id -g) app
+```
+
+If you see permission errors when the container tries to write into the bind‑mounted project directory, rebuild with the UID/GID args above.
+
 ## Authentication & Audit
 
 - Authentication features: email/password (Argon2id), optional email verification, TOTP 2FA with backup codes, rate limiting and progressive lockout.

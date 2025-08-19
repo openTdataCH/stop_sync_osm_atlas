@@ -2,13 +2,14 @@ from datetime import datetime, timedelta
 import json
 import os
 import secrets
-from typing import List
+from typing import List, Optional
 
 from flask_login import UserMixin
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError, VerificationError
 
 from backend.extensions import db
+from backend.services.crypto import encrypt_for_db, decrypt_from_db
 
 
 _ARGON2_HASHER = PasswordHasher()
@@ -32,7 +33,8 @@ class User(UserMixin, db.Model):
 
     # Two-factor auth
     is_totp_enabled = db.Column(db.Boolean, default=False, nullable=False)
-    totp_secret = db.Column(db.String(64), nullable=True)  # base32 secret when enabled
+    # Stored as encrypted string with prefix, or marked as plaintext with prefix for backward-compat
+    totp_secret = db.Column(db.Text, nullable=True)
     backup_codes_json = db.Column(db.Text, nullable=True)  # JSON array of hashed codes
 
     # Account hygiene
@@ -85,6 +87,13 @@ class User(UserMixin, db.Model):
         if matched:
             self.backup_codes_json = json.dumps(remaining)
         return matched
+
+    # TOTP secret management (encrypted-at-rest)
+    def set_totp_secret(self, secret_plain: str) -> None:
+        self.totp_secret = encrypt_for_db(secret_plain)
+
+    def get_totp_secret(self) -> Optional[str]:
+        return decrypt_from_db(self.totp_secret)
 
     @staticmethod
     def generate_backup_codes(num_codes: int = 10) -> List[str]:
