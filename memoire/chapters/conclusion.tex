@@ -6,34 +6,34 @@
 
 La digitalisation croissante des services de mobilité a rendu la qualité et la cohérence des données de transport public plus cruciales que jamais. Ce projet est né du constat d'un \textbf{désalignement} persistant entre la base de données officielle des arrêts en Suisse, ATLAS, et la référence cartographique collaborative mondiale, OpenStreetMap (OSM). Ces divergences, qu'elles soient de nature géographique, nominative ou structurelle, engendrent des incohérences qui dégradent l'expérience des usagers et complexifient les opérations pour les planificateurs.
 
-Après filtrage, \textbf{55\,571} arrêts ATLAS ont été retenus. 
+Après filtrage, \textbf{54\,880} arrêts ATLAS (\texttt{BOARDING\_PLATFORM}) ont été retenus. 
 Pour répondre à cette problématique, nous avons conçu et mis en œuvre une solution complète en trois phases. La première phase a consisté à développer un \textbf{pipeline de traitement automatisé} en Python, appliquant une cascade de méthodes d'appariement : correspondance exacte par identifiants, par nom, par proximité géographique, et enfin par analyse des lignes de transport (GTFS et HRDF). 
 
-Les résultats quantitatifs sont significatifs : nous avons réussi à établir \textbf{48\,419} correspondances, ce qui représente une couverture de \textbf{84,3\%} des arrêts ATLAS distincts. Ce processus a également permis de cataloguer et de prioriser des milliers d'anomalies, incluant plus de 10\,000 problèmes de distance et près de 15\,000 conflits d'attributs. Les tableaux suivants détaillent (i) la répartition des correspondances par méthode et (ii) les problèmes de \textbf{priorité maximale (P1)}.
+Les résultats quantitatifs sont significatifs : nous avons réussi à établir \textbf{48\,213} correspondances, ce qui représente une couverture de \textbf{85,0\%} des arrêts ATLAS distincts (\(46\,611/54\,880\)). Ce processus a également permis de cataloguer et de prioriser des milliers d'anomalies, incluant \textbf{11\,126} problèmes de distance, \textbf{27\,376} non-appariements et \textbf{15\,963} conflits d'attributs (voir Chapitre~6). Les tableaux suivants détaillent (i) la répartition des correspondances par méthode et (ii) les problèmes de \textbf{priorité maximale (P1)}.
 
 \vspace{0.5em}
 \section*{Correspondances par méthode}
 \begin{table}[h]
 \centering
-\caption{Correspondances par méthode (sur \textbf{48\,419} correspondances)}
+\caption{Correspondances par méthode (sur \textbf{48\,213} correspondances)}
 \label{tab:matches_by_method_conclusion}
 \begin{tabular}{|l|r|r|}
 \hline
 \textbf{Méthode} & \textbf{Nombre} & \textbf{Part (\%)} \\
 \hline
-Correspondances exactes & 21\,237 & 43,9 \\
-Correspondances par nom & 537 & 1,1 \\
-Correspondances par distance & 18\,618 & 38,5 \\
-Correspondances par routes & 7\,021 & 14,5 \\
-Consolidation post-traitement & 937 & 1,9 \\
-Propagation des duplicatas & 69 & 0,1 \\
+Correspondances exactes & 21\,124 & 43,8 \\
+Correspondances par nom & 535 & 1,1 \\
+Correspondances par distance & 18\,661 & 38,7 \\
+Correspondances par routes & 6\,944 & 14,4 \\
+Consolidation post-traitement & 883 & 1,8 \\
+Propagation des duplicatas & 66 & 0,1 \\
 \hline
-\textbf{Total} & \textbf{48\,419} & \textbf{100,0} \\
+\textbf{Total} & \textbf{48\,213} & \textbf{100,0} \\
 \hline
 \end{tabular}
 \end{table}
 
-\noindent\small Détail des correspondances par distance: Étape\,1 (groupe–proximité)\,=\,15\,174; Étape\,2 (référence locale)\,=\,129; Étape\,3a (candidat unique)\,=\,2\,123; Étape\,3b (ratio de distance)\,=\,1\,192.
+\noindent\small Détail des correspondances par distance: Étape\,1 (groupe–proximité)\,=\,15\,384; Étape\,2 (référence locale)\,=\,129; Étape\,3a (candidat unique)\,=\,2\,012; Étape\,3b (ratio de distance)\,=\,1\,136.
 
 \vspace{0.5em}
 \section*{Problèmes de priorité maximale (P1)}
@@ -45,11 +45,11 @@ Propagation des duplicatas & 69 & 0,1 \\
 \hline
 \textbf{Type de problème} & \textbf{P1 (nombre)} \\
 \hline
-Distance & 1\,171 \\
-Non-appariements & 8\,192 \\
-Attributs & 7\,045 \\
+Distance & 1\,277 \\
+Non-appariements & 4\,903 \\
+Attributs & 7\,387 \\
 \hline
-\textbf{Total P1} & \textbf{16\,408} \\
+\textbf{Total P1} & \textbf{13\,567} \\
 \hline
 \end{tabular}
 \end{table}

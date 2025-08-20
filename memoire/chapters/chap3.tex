@@ -40,7 +40,7 @@ Des situations complexes peuvent survenir lorsque plusieurs entrées ATLAS parta
     Lorsque plusieurs entrées ATLAS et nœuds OSM partagent le même \texttt{'number'}/\texttt{'uic\_ref'}, une correspondance plus fine est réalisée en comparant la \texttt{'designation'} de l’entrée ATLAS (par exemple, le code du quai) avec la balise \texttt{'local\_ref'} du nœud OSM. Une correspondance est établie si ces valeurs sont identiques.
 \end{enumerate}
 
-Cette méthode a permis d'identifier 21237 correspondances exactes.
+Cette méthode a permis d'identifier 21\,124 correspondances exactes.
 \begin{figure}[h] 
     \centering
     \includegraphics[width=0.7\textwidth]{../figures/correspondances/exact_Cornavin.png}
@@ -54,7 +54,7 @@ Pour les entrées ATLAS non appariées lors de l’étape précédente, une corr
 
 La règle principale établit une correspondance si le \texttt{'designationOfficial'} correspond exactement à l’une de ces balises OSM. Cependant, si plusieurs nœuds OSM présentent le même nom, un critère supplémentaire est utilisé : la balise \texttt{'local\_ref'} du nœud OSM est comparée à la \texttt{'designation'} de l’entrée ATLAS. Une correspondance est confirmée si ces valeurs sont identiques (en ignorant la casse).
 
-Cette approche a permis d'ajouter 537 correspondances supplémentaires.
+Cette approche a permis d'ajouter 535 correspondances supplémentaires.
 \begin{figure}[h]
     \centering
     \includegraphics[width=\textwidth]{../figures/correspondances/matched_name.png}
@@ -75,7 +75,7 @@ Les entrées ATLAS et OSM sont regroupés selon les paires d’identifiants suiv
     \item \texttt{'designationOfficial'} (ATLAS) et \texttt{'name'} (OSM).
 \end{enumerate}
 
-Dans chaque groupe où le nombre d'entrées ATLAS est égal au nombre de nœuds OSM, une correspondance est tentée en associant chaque entrée ATLAS au nœud OSM le plus proche, à condition que cette association soit cohérente (c'est-à-dire que chaque nœud OSM soit également le plus proche de l'entrée ATLAS qui lui est attribuée). Cette méthode nous a permis de réaliser 15\,174 correspondances supplémentaires.
+Dans chaque groupe où le nombre d'entrées ATLAS est égal au nombre de nœuds OSM, une correspondance est tentée en associant chaque entrée ATLAS au nœud OSM le plus proche, à condition que cette association soit cohérente (c'est-à-dire que chaque nœud OSM soit également le plus proche de l'entrée ATLAS qui lui est attribuée). Cette méthode nous a permis de réaliser 15\,384 correspondances supplémentaires.
 
 \begin{figure}[h] 
     \centering
@@ -146,7 +146,7 @@ Pour les entrées toujours non appariées, tous les nœuds OSM situés à moins 
         \item La distance au deuxième nœud le plus proche est au moins 4 fois supérieure à celle du nœud le plus proche.  
     \end{enumerate}  
 \end{itemize}  
-Nous avons réussi à établir 2\,123 correspondances avec l'option a) et 1\,192 correspondances avec l'option b).
+Nous avons réussi à établir 2\,012 correspondances avec l'option a) et 1\,136 correspondances avec l'option b).
 Cette méthode est utile pour les cas où il y a des nœuds isolés, comme des télésièges.  
 
 \begin{figure}[h] 
@@ -179,7 +179,7 @@ Cette consolidation est particulièrement utile dans les cas où :
 
 Le processus fonctionne de manière conservative : il ne crée une correspondance que si exactement un nœud OSM disponible correspond à l'identifiant UIC de l'entrée ATLAS, garantissant ainsi une fiabilité maximale.
 
-Cette étape de consolidation a permis d'identifier 937 correspondances exactes supplémentaires.
+Cette étape de consolidation a permis d'identifier 883 correspondances exactes supplémentaires.
 
 \section{Propagation des Duplicatas}
 
@@ -187,7 +187,7 @@ Une dernière étape consiste à propager les correspondances trouvées aux entr
 
 Cette propagation permet d'assurer la cohérence des correspondances et d'améliorer le taux de couverture global, particulièrement dans les grandes gares où plusieurs entrées ATLAS peuvent représenter des aspects différents d'un même arrêt physique.
 
-La propagation des duplicatas a permis d'ajouter 69 correspondances supplémentaires.
+La propagation des duplicatas a permis d'ajouter 66 correspondances supplémentaires.
 
 \section{Correspondance Manuelle}
 
@@ -197,38 +197,36 @@ Les correspondances manuelles sont faites depuis l'application web comme on le v
 
 \section{Résultats actuels}
 
-Sur les \textbf{55\,571} arrêts ATLAS considérés, nous obtenons \textbf{48\,419} correspondances, comptées \emph{en paires ATLAS--OSM} (chaque couple \textit{sloid ATLAS}--\textit{nœud OSM}). Un même arrêt pouvant être associé à plusieurs nœuds OSM, \textbf{1\,456} arrêts présentent des appariements multiples, soit \textbf{1\,555} paires en sus du nombre d'arrêts distincts appariés.
+Sur les \textbf{54\,880} arrêts ATLAS considérés (\texttt{BOARDING\_PLATFORM}), nous obtenons \textbf{48\,213} correspondances, comptées \emph{en paires ATLAS--OSM} (chaque couple \textit{sloid ATLAS}--\textit{nœud OSM}).
 
-Dans cette convention «\ par paires\ », la couverture atteint \textbf{87,1\%} (\(48\,419/55\,571\)). Après déduplication par \textit{sloid} ATLAS, on compte \textbf{46\,864} arrêts appariés, soit \textbf{84,3\%} (\(46\,864/55\,571\)).
+Dans cette convention «\ par paires\ », la couverture atteint \textbf{87,9\%} (\(48\,213/54\,880\)). Après déduplication par \textit{sloid} ATLAS, on compte \textbf{46\,611} arrêts appariés (\(46\,611/54\,880 \approx 85,0\%\)).
 
-\newline
-
+\bigskip
 \begin{tabular}{@{}l r@{\hspace{2em}}r@{}}
 \toprule
 \textbf{Méthode} & \textbf{Nombre} & \textbf{\%} \\
 \midrule
-\textcolor{blue}{\textbf{Correspondances exactes}} & \textbf{21\,237} & \textbf{43,9\%} \\
-\textcolor{purple}{\textbf{Correspondances par nom}} & \textbf{537} & \textbf{1,1\%} \\
-\textcolor{orange}{\textbf{Correspondances par distance}} & \textbf{18\,618} & \textbf{38,5\%} \\
-\quad $\bullet$ Étape 1 (groupe-proximité) & 15\,174 & 31,3\% \\
-\quad $\bullet$ Étape 2 (référence locale) & 129 & 0,3\% \\
-\quad $\bullet$ Étape 3a (candidat unique) & 2\,123 & 4,4\% \\
-\quad $\bullet$ Étape 3b (ratio de distance) & 1\,192 & 2,5\% \\
-\textcolor{red}{\textbf{Correspondances par routes}} & \textbf{7\,021} & \textbf{14,5\%} \\
-\textcolor{darkgray}{\textbf{Consolidation post-traitement}} & \textbf{937} & \textbf{1,9\%} \\
-\textcolor{darkgray}{\textbf{Propagation des duplicatas}} & \textbf{69} & \textbf{0,1\%} \\
+\textcolor{blue}{\textbf{Correspondances exactes}} & \textbf{21\,124} &  \\
+\textcolor{purple}{\textbf{Correspondances par nom}} & \textbf{535} &  \\
+\textcolor{orange}{\textbf{Correspondances par distance}} & \textbf{18\,661} &  \\
+\quad $\bullet$ Étape 1 (groupe-proximité) & 15\,384 &  \\
+\quad $\bullet$ Étape 2 (référence locale) & 129 &  \\
+\quad $\bullet$ Étape 3a (candidat unique) & 2\,012 &  \\
+\quad $\bullet$ Étape 3b (ratio de distance) & 1\,136 &  \\
+\textcolor{red}{\textbf{Correspondances par routes}} & \textbf{6\,944} &  \\
+\textcolor{darkgray}{\textbf{Consolidation post-traitement}} & \textbf{883} &  \\
+\textcolor{darkgray}{\textbf{Propagation des duplicatas}} & \textbf{66} &  \\
 \midrule
-\textbf{Total des correspondances (paires)} & \textbf{48\,419} &  \\
-\quad Ajustement de déduplication (appariements multiples) & -1\,555 &  \\
-\textbf{Total des correspondances (arrêts ATLAS distincts)} & \textbf{46\,864} &  \\
+\textbf{Total des correspondances (paires)} & \textbf{48\,213} &  \\
+\textbf{Total des correspondances (arrêts ATLAS distincts)} & \textbf{46\,611} &  \\
 \bottomrule
 \end{tabular}
+\bigskip
 
+Les pourcentages par \emph{méthode} indiquent la part des \textbf{48\,213} correspondances (paires) attribuée à chaque étape et totalisent \(100\%\). La ligne «\ Total des correspondances (paires)\ » renvoie la couverture calculée \emph{par paires} sur \textbf{54\,880} arrêts ATLAS, et le «\ Total des correspondances (arrêts ATLAS distincts)\ » est obtenu en retirant les \textbf{8\,269} entrées non appariées.
 
-Les pourcentages par \emph{méthode} indiquent la part des \textbf{48\,419} correspondances (paires) attribuée à chaque étape et totalisent \(100\%\). La ligne «\ Total des correspondances (paires)\ » renvoie la couverture calculée \emph{par paires} sur \textbf{55\,571} arrêts ATLAS. La ligne «\ Ajustement de déduplication\ » retranche les \textbf{1\,555} \emph{appariements multiples}. Le «\ Total des correspondances (arrêts ATLAS distincts)\ » correspond alors à \textbf{84,3\%} (\(46\,864/55\,571\)), valeur affichée dans l'application web.
+Après ces étapes, 8\,269 entrées ATLAS restent non appariées, et 19\,107 nœuds OSM restent inutilisés. Parmi ces nœuds OSM inutilisés, 14\,003 sont associés à au moins une route, 14\,906 possèdent une référence UIC, et 876 ont une référence locale (\texttt{local\_ref}).
 
-Après ces étapes, 8\,707 entrées ATLAS restent non appariées, et 19\,115 nœuds OSM restent inutilisés. Parmi ces nœuds OSM inutilisés, 14\,012 sont associés à au moins une route, 14\,917 possèdent une référence UIC, et 879 ont une référence locale (\texttt{local\_ref}).
-
-Parmi les entrées ATLAS non appariées, 3\,911 n'ont aucun nœud OSM dans un rayon de 50 mètres.
+Parmi les entrées ATLAS non appariées, 3\,856 n'ont aucun nœud OSM dans un rayon de 50 mètres.
 
 

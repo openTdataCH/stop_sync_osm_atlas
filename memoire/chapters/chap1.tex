@@ -39,15 +39,15 @@ def get_atlas_stops(output_path, download_url):
 \end{codebox}
 
 
-\paragraph{Statistiques ATLAS.} Sur l'instantané analysé (après filtre UIC=85 et frontière CH par polygone) :
+\paragraph{Statistiques ATLAS.} Sur l'instantané analysé (après filtre UIC=85 et frontière CH par polygone), et pour la \textbf{pipeline d'appariement} qui ne considère que les entrées \texttt{BOARDING\_PLATFORM} :
 \begin{itemize}
-  \item \textbf{Lignes avec coordonnées (dans la frontière CH)}: \textit{55\,571}.
-  \item \textbf{\texttt{BOARDING\_PLATFORM}}: \textit{54\,882}.
+  \item \textbf{Lignes avec coordonnées (dans la frontière CH)}: \textit{55\,569} (total conservé après filtre frontière).
+  \item \textbf{\texttt{BOARDING\_PLATFORM} utilisées par la pipeline}: \textit{54\,880} (\emph{dénominateur} des pourcentages de couverture).
   \item \textbf{UIC distincts (\texttt{number})}: \textit{26\,750}.
-  \item \textbf{\texttt{designation} non vides}: \textit{12\,051} (\textit{538} valeurs distinctes).
-  \item \textbf{\texttt{designation} manquantes}: \textit{43\,520}, dont \textit{4\,365} cas où l'unique entrée du \texttt{number} est sans désignation.
-  \item \textbf{Entrées identifiables par (\texttt{number}, \texttt{designation}) seul}: \textit{10\,514}.
-  \item \textbf{Total identifiables par \texttt{number} + (\texttt{designation} ou unicité du \texttt{number})}: \textit{15\,854}.
+  \item \textbf{\texttt{designation} non vides}: \textit{12\,053} (\textit{538} valeurs distinctes).
+  \item \textbf{\texttt{designation} manquantes}: \textit{43\,516}, dont \textit{4\,365} cas où l'unique entrée du \texttt{number} est sans désignation.
+  \item \textbf{Entrées identifiables par (\texttt{number}, \texttt{designation}) seul}: \textit{10\,516}.
+  \item \textbf{Total identifiables par \texttt{number} + (\texttt{designation} ou unicité du \texttt{number})}: \textit{15\,856}.
 \end{itemize}
 
 \begin{figure}[H]
@@ -64,7 +64,7 @@ def get_atlas_stops(output_path, download_url):
   \label{fig:atlas_distribs}
 \end{figure}
 
-\noindent\textit{Remarque.} Les très nombreuses valeurs manquantes pour \texttt{designation} sont exclues du classement afin d'éviter un effet disproportionné. Comme indiqué plus haut, \(43\,520\) entrées n'ont pas de \texttt{designation}.
+\noindent\textit{Remarque.} Les très nombreuses valeurs manquantes pour \texttt{designation} sont exclues du classement afin d'éviter un effet disproportionné. Comme indiqué plus haut, \(43\,516\) entrées n'ont pas de \texttt{designation}.
 
 Concernant les coordonnées, le fichier fournit deux systèmes : le système de référence suisse LV95 et le système de référence global WGS84. Étant donné que les données d'OpenStreetMap (OSM) utilisent les coordonnées WGS84, nous nous concentrerons sur cet ensemble de coordonnées.
 

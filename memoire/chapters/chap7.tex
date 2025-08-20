@@ -3,33 +3,24 @@
 
 \section*{Pourquoi un chapitre sur la base de données ?}
 
-Cette application est construite autour d'un \textit{graphe spatial} de points d'arrêt. Le rendu cartographique en temps réel, l'analyse des problèmes et la consolidation des correspondances s'appuient sur un schéma de base de données optimisé pour la lecture, avec une logique d'\textit{ingestion} explicite. 
-
-Ce chapitre rend cette mécanique visible, avec des extraits de code et schémas.
+Cette application est construite autour d'un \textit{graphe spatial} de points d'arrêt. Le rendu cartographique en temps réel, l'analyse des problèmes et la consolidation des correspondances s'appuient sur un schéma de base de données optimisé pour la lecture, avec une logique d'\textit{ingestion} explicite. Ce chapitre rend cette mécanique visible.
 
 \vspace{0.5em}
 Le chapitre \texttt{chap8.tex} plongera ensuite dans le backend (API, endpoints, sécurité, pagination, etc.), en s'appuyant sur les éléments que nous posons ici.
 
-\subsection*{Essentiels à retenir}
-\begin{itemize}
-  \item \textbf{Ligne auto-suffisante pour la carte} : une ligne \texttt{stops} suffit pour dessiner un marqueur (ATLAS ou OSM) \Rightarrow pas de \texttt{JOIN} au scroll.
-  \item \textbf{Fenêtre cartographique SARGable} : index \texttt{atlas\_lat/lon} \& \texttt{osm\_lat/lon} \Rightarrow filtrage par bbox très sélectif.
-  \item \textbf{Détails séparés} : \texttt{atlas\_stops} et \texttt{osm\_nodes} servent les popups à la demande (\textit{lazy}).
-  \item \textbf{Persistance durable} : \texttt{persistent\_data} stocke solutions/notes qui \og survivent \fg{} aux ré-imports et sont réappliquées.
-  \item \textbf{Séparation Auth} : schéma \texttt{auth\_db} isolé via \texttt{SQLAlchemy binds} (sécurité, gouvernance des droits ; détail au Chap.~\ref{chap:auth}).
-\end{itemize}
 
 \section{Importer les données: le rôle de \texttt{import\_data\_db.py}}
 L'import est orchestré par le script \texttt{import\_data\_db.py}. Il nettoie, croise des sources, calcule des priorités de problèmes, et construit des artefacts prêts pour l'interface.
 
 \subsection*{Vue d'ensemble}
-\begin{codebox}[language=Python]{Pipeline d'import des données}
-build_route_direction_mapping()  # cartographie GTFS/OSM/HRDF -> (route, direction) <-> (noeuds, SLOIDs)
-load_route_data()                # routes par SLOID (ATLAS) et par node_id (OSM)
-load_unified_route_data()        # vue unifiée (gtfs/hrdf) par SLOID
-import_to_database(...)          # insère stops, détails ATLAS/OSM, routes, problèmes
-apply_persistent_solutions()     # réapplique les solutions/notes persistantes
-\end{codebox}
+L'import s'exécute en phases clairement découpées (implémentées dans \texttt{import\_to\_database(...)}):
+\begin{itemize}
+  \item \textbf{Préparer les données de lignes} (\texttt{load\_route\_data}, \texttt{load\_unified\_route\_data}) : charge les informations de lignes GTFS/HRDF par \texttt{sloid} et les routes OSM par \texttt{node\_id}.
+  \item \textbf{Construire les correspondances route/direction} (\texttt{build\_route\_direction\_mapping}) : crée les mappings \((\texttt{route\_id}, \texttt{direction\_id}) \leftrightarrow \texttt{osm\_nodes}\) et \((\texttt{route\_id}, \texttt{direction\_id}) \leftrightarrow \texttt{sloids}\), ainsi que \((\texttt{line\_name}, \texttt{direction\_uic}) \leftrightarrow \texttt{sloids}\) pour HRDF.
+  \item \textbf{Ingestion des arrêts} : insère les entrées \texttt{matched}, \texttt{unmatched} (ATLAS) et \texttt{osm} (OSM) dans \texttt{stops}, peuple \texttt{atlas\_stops} et \texttt{osm\_nodes}, et détecte les problèmes (\texttt{distance}, \texttt{unmatched}, \texttt{attributes}, \texttt{duplicates}).
+  \item \textbf{Consolidation des lignes} : insère les enregistrements \texttt{routes\_and\_directions} pour alimenter filtres et analyses (cas \og matched \fg{}, \og osm\_only \fg{}, \og atlas\_only \fg{}).
+  \item \textbf{Ré-application des données persistantes} (\texttt{apply\_persistent\_solutions}) : ré-applique solutions et notes persistantes à la nouvelle importation.
+\end{itemize}
 
 L'import crée des \textit{stops} de trois types:\ \texttt{matched} (paires ATLAS–OSM), \texttt{unmatched} (ATLAS isolé), \texttt{osm} (OSM isolé). Ces valeurs de \texttt{stop\_type} sont appliquées par logique métier lors de l'import et peuvent être modifiées via match manuel. Les détails riches (ex: opérateur ATLAS, tags OSM, routes) sont stockés dans des tables dédiées.
 
@@ -131,6 +122,7 @@ Remarque: les liens \og stops $\rightarrow$ détails \fg{} sont réalisés par \
   \item Sur \texttt{routes\_and\_directions}: \texttt{idx\_osm\_route\_direction}, \texttt{idx\_atlas\_route\_direction}, \texttt{idx\_atlas\_line\_direction\_uic}, et \texttt{idx\_source} (colonne \texttt{source} pour différencier GTFS/HRDF). Le champ \texttt{route\_id\_normalized} sert à l'unification cross-sources.
 \end{itemize}
 
+
 \section{Pros et cons du schéma vis-à-vis du rendu cartographique}
 \subsection*{Points forts}
 \begin{itemize}
@@ -144,7 +136,6 @@ Remarque: les liens \og stops $\rightarrow$ détails \fg{} sont réalisés par \
 \begin{itemize}
   \item \textbf{Intégrité logique}: l'absence de FK strictes suppose une discipline d'import (gérée par \texttt{import\_data\_db.py}).
   \item \textbf{Duplication contrôlée}: certaines valeurs (ex: \texttt{distance\_m}) sont redondantes par design pour éviter des calculs à la volée.
-  \item \textbf{Évolution des tags OSM}: les champs \texttt{osm\_*} sont \textit{snapshottés}; toute évolution nécessite un nouvel import.
 \end{itemize}
 
 \subsection*{La requête de fenêtre}
@@ -169,7 +160,6 @@ query = query.filter(viewport_sargable)
 \section{Données persistantes: comment elles survivent aux ré-imports}
 Le mécanisme de persistance se trouve à deux endroits:\ (i) l'API de gestion (\texttt{/api/make\_solution\_persistent}, \texttt{/api/save\_note/...}),\ (ii) l'étape \texttt{apply\_persistent\_solutions()} de l'import.
 
-\subsection*{Côté base}
 La table \texttt{persistent\_data} stocke:
 \begin{itemize}
   \item des \textbf{solutions} par triplet \texttt{(sloid, osm\_node\_id, problem\_type)};
@@ -183,43 +173,19 @@ Dans l'interface \og Problèmes \fg{}, l'utilisateur peut:
   \item saisir une note côté ATLAS ou OSM et la marquer persistante ;
   \item effectuer un \textit{match manuel} entre deux entrées (ATLAS $\leftrightarrow$ OSM) et l'enregistrer de manière durable.
 \end{itemize}
-Nous ajouterons des captures d'écran de l'interface dans une version ultérieure du manuscrit.
-
-\subsection*{Un mini-exemple côté navigateur}
-
-\begin{codebox}{Match manuel persistant — interface web}
-// Extrait simplifié de la logique JS de match manuel
-$.ajax({
-    url: '/api/manual_match',
-    method: 'POST',
-    contentType: 'application/json',
-    data: JSON.stringify({
-        atlas_stop_id: atlasId,
-        osm_stop_id: osmId,
-        make_persistent: true
-    }),
-    success: function(response) {
-        console.log('Match persistant créé:', response);
-    }
-});
-\end{codebox}
-
-\noindent
-Lors du prochain import, la solution manuelle réapparaîtra \textit{sans effort} grâce à \texttt{apply\_persistent\_solutions()}.
-
-\section{Performance: pourquoi ça défile vite sur la carte}
-
-L'expérience utilisateur fluide de la carte interactive repose sur deux ingrédients architecturaux clés:
-
-\begin{description}
-  \item[Ligne auto-suffisante pour le rendu] La table \texttt{stops} contient toutes les informations nécessaires au rendu d'un marqueur. Un \textit{viewport query} n'a pas besoin de joindre des tables lourdes: la position et la nature du marqueur (\texttt{osm\_node\_type}) sont \og en main \fg{}.
-  
-  \item[Index spatiaux ciblés] Les clauses \texttt{BETWEEN} sur les coordonnées (\texttt{atlas\_lat/lon}, \texttt{osm\_lat/lon}) exploitent des index dédiés, permettant une sélection très rapide par fenêtre géographique.
-\end{description}
-
-\paragraph{Chargement différé des détails} Les informations riches (opérateur, routes, notes) sont chargées \textit{au clic} pour construire les popups — ce qui évite de surcharger la phase de \textit{fetch} initial. Cette stratégie de \textit{lazy loading} maintient des temps de réponse constants même avec des milliers de points.
-
-\paragraph{Optimisations côté client} Les marqueurs qui se superposent géographiquement sont \og décalés \fg{} de quelques pixels afin de rester individuellement cliquables, sans impact sur les performances de rendu.
+On vera la UI en détail et avec captures d'écran dans le chapitre 9.
 
 
+\section{Essentiels à retenir}
 
+L'expérience utilisateur fluide de la carte interactive repose sur deux principes architecturaux complémentaires: une ligne \texttt{stops} \emph{auto-suffisante} pour dessiner chaque marqueur, et des index spatiaux ciblés exploités par des clauses \texttt{BETWEEN} sur \texttt{atlas\_lat/lon} et \texttt{osm\_lat/lon}, qui rendent la requête de fenêtre (\textit{viewport}) très sélective.
+
+Les informations riches (opérateur, routes, notes) sont chargées \textit{au clic} pour construire les popups, ce qui évite de surcharger la phase de récupération initiale. Ce \textit{chargement différé} maintient de bons temps de réponse même avec des centaines de points.
+
+\begin{itemize}
+  \item \textbf{Ligne auto-suffisante pour la carte} : une ligne \texttt{stops} suffit pour dessiner un marqueur (ATLAS ou OSM) $\Rightarrow$ pas de jointure lourde (\texttt{JOIN}) au défilement.
+  \item \textbf{Requête de fenêtre sélective (SARGable)} : index \texttt{atlas\_lat/lon} \& \texttt{osm\_lat/lon} $\Rightarrow$ filtrage rapide par boîte englobante (bbox).
+  \item \textbf{Détails séparés} : \texttt{atlas\_stops} et \texttt{osm\_nodes} servent les popups à la demande (chargement différé).
+  \item \textbf{Persistance durable} : \texttt{persistent\_data} stocke solutions et notes qui \og survivent \fg{} aux ré-imports et sont réappliquées.
+  \item \textbf{Séparation de l’authentification} : schéma \texttt{auth\_db} isolé via des \textit{binds} SQLAlchemy (sécurité, gouvernance des droits ; détail au Chap.~\ref{chap:auth}).
+\end{itemize}

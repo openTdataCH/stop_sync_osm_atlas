@@ -67,16 +67,16 @@ Les chiffres ci-dessous sont calculés avec les scripts sous \texttt{memoire/scr
 
 \subsection*{Vue GTFS}
 \begin{itemize}
-  \item \textbf{SLOIDs avec lignes GTFS} : \textbf{34\,781}
-  \item \textbf{Nombre moyen de lignes uniques par \texttt{sloid}} : \textbf{2,73} (médiane \textbf{2,00})
-  \item \textbf{Nombre moyen de couples (ligne, direction) par \texttt{sloid}} : \textbf{4,39} (médiane \textbf{3,00})
-  \item \textbf{Taux de duplication pour (\texttt{sloid}, route\_norm, direction)} : \textbf{96,96\%}
-  \item \textbf{Même ligne+direction, plusieurs chaînes de direction} : \textbf{96,95\%} des groupes présentent plus d'une chaîne premier$\rightarrow$dernier (ce qui indique des schémas d'exploitation hétérogènes).
+  \item \textbf{SLOIDs avec lignes GTFS} : \textbf{34\,415}
+  \item \textbf{Nombre moyen de lignes uniques par \texttt{sloid}} : \textbf{2,72} (médiane \textbf{2,00})
+  \item \textbf{Nombre moyen de couples (ligne, direction) par \texttt{sloid}} : \textbf{4,36} (médiane \textbf{3,00})
+  \item \textbf{Taux de duplication pour (\texttt{sloid}, route\_norm, direction)} : \textbf{0,98\%}
+  \item \textbf{Même ligne+direction, plusieurs chaînes de direction} : \textbf{0,00\%} des groupes présentent plus d'une chaîne premier$\rightarrow$dernier (signal faible/absent dans cet instantané).
 \end{itemize}
 
 \subsection*{Vue HRDF}
 \begin{itemize}
-  \item \textbf{SLOIDs avec lignes HRDF} : \textbf{28\,757}
+  \item \textbf{SLOIDs avec lignes HRDF} : \textbf{28\,723}
   \item \textbf{Nombre moyen de lignes uniques par \texttt{sloid}} : \textbf{2,32} (médiane \textbf{2,00})
   \item \textbf{Directions distinctes par (\texttt{sloid}, line\_name)} : \textbf{2,67} par UIC et \textbf{2,67} par nom (médianes \textbf{2,00})
   \item \textbf{Longue traîne} : plusieurs couples (\texttt{sloid}, ligne) affichent \textbf{30--40} paires UIC premier$\rightarrow$dernier distinctes (branches, demi-tours)
@@ -213,10 +213,10 @@ def normalize_route_id(route_id: str) -> str:
 
 \section{Résultats de l'appariement par lignes}
 \begin{itemize}
-  \item \textbf{Tokens GTFS} : \texttt{7\,252} ; \textbf{tokens OSM} : \texttt{7\,121} ; \textbf{chevauchement} : \texttt{3\,200} ; \textbf{Jaccard} : \textbf{0,2864}.
-  \item \textbf{Couverture par \texttt{sloid} (GTFS)} : moyenne \textbf{2,64}, médiane \textbf{2}, p90 \textbf{6} ; au moins un token couvert pour \textbf{73,4\%} des \texttt{sloid}s.
-  \item \textbf{Au niveau des lignes} : lignes GTFS uniques \textbf{3\,839} ; avec correspondance OSM \textbf{1\,664} $\rightarrow$ \textbf{43,3\%} de lignes appariées.
-  \item \textbf{Chaînes UIC premier$\rightarrow$dernier} : HRDF \textbf{8\,818}, OSM \textbf{5\,633}, chevauchement \textbf{2\,935}.
+  \item \textbf{Tokens GTFS} : \texttt{7\,215} ; \textbf{tokens OSM} : \texttt{7\,121} ; \textbf{chevauchement} : \texttt{3\,188} ; \textbf{Jaccard} : \textbf{0,2860}.
+  \item \textbf{Couverture par \texttt{sloid} (GTFS)} : moyenne \textbf{2,65}, médiane \textbf{2}, p90 \textbf{6} ; au moins un token couvert pour \textbf{73,4\%} des \texttt{sloid}s.
+  \item \textbf{Au niveau des lignes} : lignes GTFS uniques \textbf{3\,822} ; avec correspondance OSM \textbf{1\,658} $\rightarrow$ \textbf{43,4\%} de lignes appariées.
+  \item \textbf{Chaînes UIC premier$\rightarrow$dernier} : HRDF \textbf{8\,815}, OSM \textbf{5\,328}, chevauchement \textbf{2\,838}.
 \end{itemize}
 \noindent \emph{Interprétation} : la similarité \textbf{Jaccard $\approx 0{,}29$} indique un recouvrement substantiel mais non total des tokens GTFS dans OSM ; le taux d'appariement \textbf{43\%} au niveau des lignes confirme une couverture utile pour un appariement de haute précision.
 
@@ -231,7 +231,7 @@ def normalize_route_id(route_id: str) -> str:
 \subsection{Efficacité de l'appariement par lignes : une analyse complète}
 Pour quantifier l'efficacité réelle de l'appariement par lignes, nous avons mené une \textbf{analyse comparative} entre l'appariement exact seul et l'appariement par lignes seul sur l'ensemble complet des arrêts ATLAS. Cette évaluation révèle des enseignements cruciaux sur la valeur ajoutée et la complémentarité des deux méthodes.
 
-\paragraph{Méthodologie.} L'étude compare deux pipelines isolés : (1) appariement exact basé uniquement sur les références UIC, et (2) appariement par lignes utilisant exclusivement les tokens de lignes GTFS et HRDF. Chaque méthode opère sur l'ensemble des 56\,515 arrêts ATLAS avec un rayon de 50 mètres.
+\paragraph{Méthodologie.} L'étude compare deux pipelines isolés : (1) appariement exact basé uniquement sur les références UIC, et (2) appariement par lignes utilisant exclusivement les tokens de lignes GTFS et HRDF. Chaque méthode opère sur un ensemble élargi d'arrêts ATLAS (\textbf{56\,515}, toutes catégories), différent du périmètre principal de la pipeline (\textbf{54\,880} \texttt{BOARDING\_PLATFORM}). Les résultats de cette sous-section ne sont donc pas directement comparables aux totaux de couverture de la pipeline principale. Le rayon est de 50 mètres.
 
 \paragraph{Résultats quantitatifs.}
 \begin{itemize}
@@ -247,7 +247,7 @@ Pour quantifier l'efficacité réelle de l'appariement par lignes, nous avons me
 
 L'analyse révèle une \textbf{complémentarité remarquable} : l'appariement par lignes trouve \textbf{22\,611} nouvelles paires que l'appariement exact ne détecte pas, soit un \textbf{facteur de complémentarité de 1,58}. Cela signifie que pour chaque correspondance manquée par l'appariement exact, l'appariement par lignes en propose environ 1,6 nouvelles.
 
-Cette performance s'explique par la richesse des données de lignes (\textbf{34\,781} arrêts ATLAS avec données GTFS, \textbf{28\,757} avec HRDF) et la couverture étendue d'OSM (\textbf{51\,286} nœuds avec informations de lignes). L'appariement par lignes exploite ainsi des signaux de transport public que l'appariement exact, limité aux références UIC explicites, ne peut capturer.
+Cette performance s'explique par la richesse des données de lignes (\textbf{34\,415} arrêts ATLAS avec données GTFS, \textbf{28\,723} avec HRDF) et la couverture étendue d'OSM (\textbf{51\,286} nœuds avec informations de lignes). L'appariement par lignes exploite ainsi des signaux de transport public que l'appariement exact, limité aux références UIC explicites, ne peut capturer.
 
 \begin{figure}[H]
   \centering

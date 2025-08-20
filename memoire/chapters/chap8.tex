@@ -15,7 +15,6 @@ Le fichier \texttt{backend/app.py} centralise la configuration (deux \textit{bin
   \item \textbf{Séparation des données} \texttt{stops\_db} vs \texttt{auth\_db}: isolement sécurité et privilèges distincts (Chap.~10), tout en simplifiant les migrations.
   \item \textbf{Extensions par défaut} activées dès l'init: \texttt{CSRF} (protection formulaire/AJAX), \texttt{Limiter} (défense anti-abus), \texttt{Talisman} (en-têtes de sécurité), \texttt{Migrate} (évolution du schéma sans downtime).
   \item \textbf{Organisation par domaines} via blueprints: \texttt{data}, \texttt{search}, \texttt{stats}, \texttt{reports}, \texttt{problems}, \texttt{auth}. Chaque route reste courte et testable.
-  \item \textbf{Configuration 12-factor} par variables d'environnement (avec valeurs raisonnables en dev; cf. Chap.~12 pour Compose).
 \end{itemize}
 
 \subsection*{Modèles et sérialisation}
