@@ -133,7 +133,8 @@ def get_atlas_stops(output_path, download_url):
             df = df[df['uicCountryCode'] == 85]
             df = filter_points_in_switzerland(df, lat_col='wgs84North', lon_col='wgs84East')
             
-            # Save processed data
+            # Save processed data (all Swiss rows with coordinates)
+            # Matching pipeline will restrict to BOARDING_PLATFORM at load time
             df.to_csv(output_path, sep=";", index=False)
             
             # Print statistics

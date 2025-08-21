@@ -181,6 +181,16 @@ def final_pipeline(route_matching_strategy='unified'):
                 f"Set ATLAS_STOPS_CSV to an absolute path or run get_atlas_data.py first."
             )
     atlas_df = pd.read_csv(atlas_csv_file, sep=";")
+    # Restrict ATLAS dataset to BOARDING_PLATFORM entries for matching/problem detection
+    try:
+        pre_count = len(atlas_df)
+        if 'trafficPointElementType' in atlas_df.columns:
+            atlas_df = atlas_df[atlas_df['trafficPointElementType'] == 'BOARDING_PLATFORM'].copy()
+            logger.info(f"Filtered ATLAS to BOARDING_PLATFORM entries: {len(atlas_df)} (from {pre_count})")
+        else:
+            logger.warning("ATLAS CSV missing 'trafficPointElementType' column; skipping BOARDING_PLATFORM filter")
+    except Exception as e:
+        logger.warning(f"Failed to filter ATLAS to BOARDING_PLATFORM: {e}")
     if not osm_xml_file:
         wait_list = [osm_xml_pref] + [p for p in alternates_osm if p]
         logger.info("OSM XML not found immediately. Waiting briefly for file to appear...")
