@@ -11,8 +11,6 @@ This document describes the single-source route pipeline that produces a provena
 1) Run get_atlas_data.py
    - Downloads ATLAS, GTFS, HRDF
    - Produces:
-     - data/processed/atlas_routes_gtfs.csv
-     - data/processed/atlas_routes_hrdf.csv
      - data/processed/atlas_routes_unified.csv (union with provenance and normalized identifiers)
 
 ### Matching

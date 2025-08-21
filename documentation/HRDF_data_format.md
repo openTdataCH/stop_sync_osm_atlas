@@ -1,3 +1,6 @@
+THIS DOCUMENT COMES FROM: https://opentransportdata.swiss/en/cookbook/timetable-cookbook/hafas-rohdaten-format-hrdf/
+
+
 1. [Home](https://opentransportdata.swiss/)
 2. [Cookbook](https://opentransportdata.swiss/en/cookbook/)
 3. [Timetable data – overview](https://opentransportdata.swiss/en/cookbook/timetable-cookbook/)
@@ -42,9 +45,9 @@ You can find more information on the assessment of HRDF as a standard in the [re
 
 #### Access the Data
 
-* <https://data.opentransportdata.swiss/dataset/timetable-54-2025-hrdf> – Changes each year
-* <https://data.opentransportdata.swiss/dataset/timetable-54-2025-hrdf-autoverlad> – Changes each year (only for car loading)
-* <https://data.opentransportdata.swiss/dataset/timetable-54-draft-hrdf> – Changes each year (timetable draft)
+* <https://data.opentransportdata.swiss/dataset/timetable-54-2025-hrdf>
+* <https://data.opentransportdata.swiss/dataset/timetable-54-2025-hrdf-autoverlad> 
+* <https://data.opentransportdata.swiss/dataset/timetable-54-draft-hrdf> 
 
 ## Functional Description
 
