@@ -238,8 +238,8 @@ def generate_report_async():
 
 def background_report_generation(params, task_id):
     """Background function to generate report"""
-    try:
-        with app.app_context():
+    with app.app_context():
+        try:
             report_progress[task_id]['status'] = 'processing'
             
             # Generate report data
@@ -339,10 +339,10 @@ def background_report_generation(params, task_id):
             
             report_progress[task_id]['status'] = 'completed'
             
-    except Exception as e:
-        report_progress[task_id]['status'] = 'error' 
-        report_progress[task_id]['error'] = str(e)
-        app.logger.error(f"Background report generation error: {str(e)}")
+        except Exception as e:
+            report_progress[task_id]['status'] = 'error' 
+            report_progress[task_id]['error'] = str(e)
+            app.logger.error(f"Background report generation error: {str(e)}")
 
 
 @reports_bp.route('/api/report_progress/<task_id>', methods=['GET'])

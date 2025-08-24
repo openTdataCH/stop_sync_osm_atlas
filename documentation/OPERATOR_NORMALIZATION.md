@@ -40,6 +40,7 @@ Make OSM `operator` values comparable to ATLAS by converting known aliases to a 
 
 - Edit `matching_process/operator_normalizations.csv` (no code changes required).
 - Keep `alias` unique and exactly as it appears in OSM (including case and punctuation).
+- You can use `data/debug/org_mismatches_review.txt` (generated during distance matching) to discover operator pairs to add as new aliases.
 
 ### Example (illustrative)
 

@@ -8,17 +8,7 @@ memoire/
 *.txt
 !requirements.txt
 
-# Specific files to ignore
-atlas_analysis.py
-swisslocationid_fr_1_2.pdf
-matching_analysis.py
-osm_analysis.py
-RENDERING_PROCESS.md
 
-# Legacy data files (if any remain in root)
-*.csv
-*.xml
-gtfs_*/
 
 # Python
 __pycache__/
