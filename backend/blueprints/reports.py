@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify, render_template, current_app as app
 from flask_login import login_required
-from backend.models import Stop
+from backend.models import Stop, Problem, AtlasStop
 from backend.extensions import db, limiter
+from sqlalchemy.orm import joinedload
 from backend.query_helpers import optimize_query_for_endpoint
 from datetime import datetime
 import pdfkit
@@ -17,52 +18,134 @@ reports_bp = Blueprint('reports', __name__)
 def generate_report():
     try:
         limit = int(request.args.get('limit', 10))
-        sort_param = request.args.get('sort', 'uic_asc')
-        report_type = request.args.get('report_type', 'top_matches')
-        report_format = request.args.get('format', 'pdf').lower()
+        sort_param = request.args.get('sort', 'distance_desc')
+        # New categories: 'distance' | 'unmatched' | 'problems'
+        report_type = (request.args.get('report_type', 'distance') or 'distance').lower()
+        # Backward compatibility
+        if report_type in ('top_matches', 'exact_matches', 'name_matches'):
+            report_type = 'distance'
+        report_format = (request.args.get('format', 'pdf') or 'pdf').lower()
+
+        # Common filters
+        atlas_operator_str = request.args.get('atlas_operator', '')
+        atlas_operators = [op.strip() for op in atlas_operator_str.split(',') if op and op.strip()]
+
         data_for_report = []
-        report_title = "OSM & ATLAS Matching Report"
-        if report_type == 'duplicates':
-            report_title = "ATLAS Duplicate Stops Report"
-            processed_pairs = set()
-            potential_duplicate_sources = optimize_query_for_endpoint(Stop.query, 'reports').filter(
-                Stop.atlas_duplicate_sloid.isnot(None)
-            ).all()
-            for stop_a in potential_duplicate_sources:
-                sloid_a = stop_a.sloid
-                sloid_b_value = stop_a.atlas_duplicate_sloid
-                if not sloid_b_value:
-                    continue
-                pair_key = tuple(sorted((sloid_a, sloid_b_value)))
-                if pair_key in processed_pairs:
-                    continue
-                stop_b = optimize_query_for_endpoint(Stop.query, 'reports').filter(
-                    Stop.sloid == sloid_b_value
-                ).first()
-                if stop_b:
-                    data_for_report.append({
-                        "uic_ref": stop_a.uic_ref,
-                        "atlas_designation": stop_a.atlas_stop_details.atlas_designation if stop_a.atlas_stop_details else None,
-                        "sloid_A": sloid_a,
-                        "designation_official_A": stop_a.atlas_stop_details.atlas_designation_official if stop_a.atlas_stop_details else None,
-                        "sloid_B": stop_b.sloid,
-                        "designation_official_B": stop_b.atlas_stop_details.atlas_designation_official if stop_b.atlas_stop_details else None,
-                    })
-                    processed_pairs.add(pair_key)
-            if sort_param == 'uic_asc':
-                data_for_report.sort(key=lambda x: (x['uic_ref'] or '', x['sloid_A'] or ''))
-            if limit and len(data_for_report) > limit:
-                data_for_report = data_for_report[:limit]
+        report_title = "OSM & ATLAS Report"
+
+        def _apply_atlas_operator_filter(query):
+            if not atlas_operators:
+                return query
+            return query.filter(Stop.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
+
+        if report_type == 'unmatched':
+            # sources: 'atlas', 'osm' (both by default)
+            sources_str = request.args.get('sources', 'atlas,osm')
+            sources = set([s.strip().lower() for s in sources_str.split(',') if s.strip()])
+            valid_sources = {'atlas', 'osm'}
+            sources = sources.intersection(valid_sources) or {'atlas', 'osm'}
+
+            query = Stop.query
+            if sources == {'atlas', 'osm'}:
+                query = query.filter(Stop.stop_type.in_(['unmatched', 'osm']))
+            elif 'atlas' in sources:
+                query = query.filter(Stop.stop_type == 'unmatched')
+            else:
+                query = query.filter(Stop.stop_type == 'osm')
+
+            # Operator filter applies only where ATLAS data exists; .has() will naturally drop OSM-only
+            query = _apply_atlas_operator_filter(query)
+
+            # For unmatched we may need both atlas and osm details in template; use 'data' for full eager load
+            query = optimize_query_for_endpoint(query, 'data')
+
+            if sort_param == 'id_asc':
+                query = query.order_by(Stop.id.asc())
+            elif sort_param == 'id_desc':
+                query = query.order_by(Stop.id.desc())
+            else:
+                # Default to ID ascending for unmatched
+                query = query.order_by(Stop.id.asc())
+
+            data_for_report = query.limit(limit).all()
+            report_title = "Unmatched Entries Report"
+
+        elif report_type == 'problems':
+            # Filters: problem_types, priorities, solution_status
+            problem_types_str = request.args.get('problem_types', '')
+            selected_types = [t.strip() for t in problem_types_str.split(',') if t.strip()]
+            valid_problem_types = {'distance', 'unmatched', 'attributes', 'duplicates'}
+            if selected_types:
+                selected_types = [t for t in selected_types if t in valid_problem_types]
+            else:
+                selected_types = list(valid_problem_types)
+
+            priorities_str = request.args.get('priorities', '')
+            selected_priorities = []
+            if priorities_str:
+                for p in priorities_str.split(','):
+                    p = p.strip()
+                    if not p:
+                        continue
+                    try:
+                        pi = int(p)
+                        if pi in (1, 2, 3):
+                            selected_priorities.append(pi)
+                    except Exception:
+                        continue
+
+            solution_status_str = request.args.get('solution_status', '')
+            solution_status = set([s.strip().lower() for s in solution_status_str.split(',') if s.strip()])
+            # valid: 'solved', 'unsolved'; if none provided => include both
+
+            query = db.session.query(Problem).join(Stop)
+            if selected_types:
+                query = query.filter(Problem.problem_type.in_(selected_types))
+
+            if selected_priorities:
+                query = query.filter(Problem.priority.in_(selected_priorities))
+
+            # Solution status filter
+            if solution_status == {'solved'}:
+                query = query.filter(Problem.solution.isnot(None), Problem.solution != '')
+            elif solution_status == {'unsolved'}:
+                query = query.filter((Problem.solution.is_(None)) | (Problem.solution == ''))
+            else:
+                # both or none selected => no filter
+                pass
+
+            # Operator filter (applies to Stop -> AtlasStop)
+            if atlas_operators:
+                query = query.filter(Stop.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
+
+            # Sorting for problems
+            if sort_param == 'priority_asc':
+                query = query.order_by(db.func.coalesce(Problem.priority, 999).asc(), Problem.stop_id, Problem.problem_type)
+            elif sort_param == 'priority_desc':
+                query = query.order_by(db.func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
+            elif sort_param == 'id_asc':
+                query = query.order_by(Problem.stop_id.asc(), Problem.problem_type)
+            else:
+                # default priority desc
+                query = query.order_by(db.func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
+
+            # Eager load stop + atlas/osm details when rendering template
+            query = query.options(
+                joinedload(Problem.stop).joinedload(Stop.atlas_stop_details),
+                joinedload(Problem.stop).joinedload(Stop.osm_node_details)
+            )
+
+            data_for_report = query.limit(limit).all()
+            report_title = "Problems Report"
+
         else:
+            # distance: Top distance matched pairs
             query = Stop.query.filter(Stop.stop_type == 'matched')
-            if report_type == 'exact_matches':
-                query = query.filter(Stop.match_type == 'exact')
-                report_title = "Top Exact Matches by Distance"
-            elif report_type == 'name_matches':
-                query = query.filter(Stop.match_type == 'name')
-                report_title = "Top Name Matches by Distance"
-            elif report_type == 'top_matches':
-                report_title = "Top Matches by Distance"
+
+            # Operator filter
+            query = _apply_atlas_operator_filter(query)
+
+            # Sorting
             if sort_param == 'id_asc':
                 query = query.order_by(Stop.id.asc())
             elif sort_param == 'distance_asc':
@@ -71,24 +154,62 @@ def generate_report():
                 query = query.filter(Stop.distance_m != None).order_by(Stop.distance_m.desc())
             else:
                 query = query.order_by(Stop.distance_m.desc())
+
             data_for_report = optimize_query_for_endpoint(query, 'reports').limit(limit).all()
+            report_title = "Top Distance Matched Pairs"
+
         if data_for_report is None:
             data_for_report = []
+
+        # CSV export
         if report_format == 'csv':
             si = StringIO()
             cw = csv.writer(si)
-            if report_type == 'duplicates':
-                cw.writerow(['UIC Number', 'Designation', 'ATLAS Sloid A', 'Official Designation A', 'ATLAS Sloid B', 'Official Designation B'])
-                for item in data_for_report:
+
+            if report_type == 'unmatched':
+                # Unified columns for both sources, with blanks for N/A
+                cw.writerow([
+                    'Source', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator',
+                    'OSM Node ID', 'OSM Local Ref', 'OSM Name', 'UIC Ref'
+                ])
+                for stop in data_for_report:
+                    source = 'ATLAS' if stop.stop_type == 'unmatched' else 'OSM'
+                    atlas_details = getattr(stop, 'atlas_stop_details', None)
+                    osm_details = getattr(stop, 'osm_node_details', None)
                     cw.writerow([
-                        item.get('uic_ref', 'N/A'),
-                        item.get('atlas_designation', 'N/A'),
-                        item.get('sloid_A', 'N/A'),
-                        item.get('designation_official_A', 'N/A'),
-                        item.get('sloid_B', 'N/A'),
-                        item.get('designation_official_B', 'N/A'),
+                        source,
+                        stop.sloid or 'N/A',
+                        (atlas_details.atlas_designation_official if atlas_details and atlas_details.atlas_designation_official else 'N/A'),
+                        (atlas_details.atlas_business_org_abbr if atlas_details and atlas_details.atlas_business_org_abbr else 'N/A'),
+                        stop.osm_node_id or 'N/A',
+                        (osm_details.osm_local_ref if osm_details and osm_details.osm_local_ref else 'N/A'),
+                        (osm_details.osm_name if osm_details and osm_details.osm_name else 'N/A'),
+                        (stop.uic_ref or 'N/A')
                     ])
+
+            elif report_type == 'problems':
+                cw.writerow([
+                    'Problem Type', 'Priority', 'Solved', 'ATLAS Sloid', 'Official Designation',
+                    'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method', 'Solution'
+                ])
+                for pr in data_for_report:
+                    st = pr.stop
+                    atlas_details = getattr(st, 'atlas_stop_details', None)
+                    cw.writerow([
+                        pr.problem_type,
+                        pr.priority if pr.priority is not None else 'N/A',
+                        'Yes' if pr.solution and str(pr.solution).strip() != '' else 'No',
+                        st.sloid if st and st.sloid else 'N/A',
+                        (atlas_details.atlas_designation_official if atlas_details and atlas_details.atlas_designation_official else 'N/A'),
+                        (atlas_details.atlas_business_org_abbr if atlas_details and atlas_details.atlas_business_org_abbr else 'N/A'),
+                        st.osm_node_id if st and st.osm_node_id else 'N/A',
+                        ('{:.1f}'.format(st.distance_m) if st and st.distance_m is not None else 'N/A'),
+                        st.match_type if st and st.match_type else 'N/A',
+                        (pr.solution or '').strip()
+                    ])
+
             else:
+                # distance
                 cw.writerow(['ATLAS Sloid', 'Official Designation', 'OSM Node ID', 'Distance (m)', 'Matching Method'])
                 for stop in data_for_report:
                     cw.writerow([
@@ -98,18 +219,23 @@ def generate_report():
                         '{:.1f}'.format(stop.distance_m) if stop.distance_m is not None else 'N/A',
                         stop.match_type if stop.match_type else 'N/A'
                     ])
+
             output = si.getvalue()
-            response_filename_stem = f"{report_type}_{sort_param if report_type != 'duplicates' else 'uic_asc'}"
+            response_filename_stem = f"{report_type}_{sort_param}"
             response = app.response_class(output, mimetype='text/csv')
             response.headers["Content-Disposition"] = f"attachment; filename={response_filename_stem}.csv"
             return response
-        pdf_filename_stem = f"{report_type}_{sort_param if report_type != 'duplicates' else 'uic_asc'}"
-        report_html = render_template('reports/report.html', 
-                                     report_items=data_for_report,
-                                     generated_at=datetime.now(), 
-                                     sort_order=sort_param,
-                                     report_title=report_title,
-                                     report_type=report_type)
+
+        # PDF export using template
+        pdf_filename_stem = f"{report_type}_{sort_param}"
+        report_html = render_template(
+            'reports/report.html',
+            report_items=data_for_report,
+            generated_at=datetime.now(),
+            sort_order=sort_param,
+            report_title=report_title,
+            report_type=report_type
+        )
         pdf = pdfkit.from_string(report_html, False)
         response = app.response_class(pdf, mimetype='application/pdf')
         response.headers["Content-Disposition"] = f"attachment; filename={pdf_filename_stem}.pdf"

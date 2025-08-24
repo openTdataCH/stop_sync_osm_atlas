@@ -182,14 +182,19 @@ def get_data():
                     relevant_matched_methods.append(method)
                 elif method.startswith('distance_matching_'):
                     relevant_matched_methods.append(method)
-                elif method.startswith('route_gtfs') or method.startswith('route_hrdf'):
+                # Accept any route-based method token (e.g., route_gtfs, route_hrdf, route_unified_gtfs, ...)
+                elif method.startswith('route_'):
                     relevant_matched_methods.append(method)
             if relevant_matched_methods:
                 route_matching_conditions = []
                 other_method_conditions = []
                 for method in relevant_matched_methods:
                     if method.startswith('route_'):
+                        # Match both legacy (route_gtfs/hrdf) and unified (route_unified_gtfs/hrdf) stored types
                         route_matching_conditions.append(Stop.match_type.like(f'{method}%'))
+                        if not method.startswith('route_unified_'):
+                            suffix = method[len('route_'):]
+                            route_matching_conditions.append(Stop.match_type.like(f'route_unified_{suffix}%'))
                     elif method.startswith('distance_matching_'):
                         other_method_conditions.append(Stop.match_type.like(f'{method}%'))
                     else:

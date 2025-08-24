@@ -71,7 +71,7 @@ For the detailed stage-by-stage logic and recent run numbers, see [MATCHING_PROC
   - Applies persistent solutions/notes post-import via `apply_persistent_solutions()`
 
 See also:
-- Problem logic and priorities: [PROBLEM_DETECTION.md](./PROBLEM_DETECTION.md)
+- Problem logic and priorities: [PROBLEMS_DEFINITIONS.md](./PROBLEMS_DEFINITIONS.md)
 - Persistent solutions and notes: [PERSISTENT_DATA.md](./PERSISTENT_DATA.md)
 - Unified route pipeline: [UNIFIED_ROUTE_PIPELINE.md](./UNIFIED_ROUTE_PIPELINE.md)
 

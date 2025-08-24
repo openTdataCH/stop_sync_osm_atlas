@@ -84,8 +84,14 @@ def get_global_stats():
             if relevant_matched_methods:
                 method_conditions = []
                 for m in relevant_matched_methods:
-                    if m.startswith('distance_matching_') or m.startswith('route_'):
+                    if m.startswith('distance_matching_'):
                         method_conditions.append(Stop.match_type.like(f"{m}%"))
+                    elif m.startswith('route_'):
+                        # Match both legacy and unified route match types
+                        method_conditions.append(Stop.match_type.like(f"{m}%"))
+                        if not m.startswith('route_unified_'):
+                            suffix = m[len('route_'):]
+                            method_conditions.append(Stop.match_type.like(f"route_unified_{suffix}%"))
                     else:
                         method_conditions.append(Stop.match_type == m)
                 stop_type_match_method_or_conditions_gs.append(

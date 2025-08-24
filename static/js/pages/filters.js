@@ -236,25 +236,20 @@ function updateFiltersUI() {
                 if (distanceStageGroupHtml) matchedSubConditionStrings.push(distanceStageGroupHtml);
             }
 
-            if (activeFilters.matchedOptions.routeMatching.allSelected && !activeFilters.matchedOptions.allSelected) {
-                var badgeHtml = '<span class="badge badge-secondary mr-1 mb-1">Route Match: All Stages' +
-                    ' <a href="#" class="text-dark remove-filter" data-type="masterRoute" data-target="#masterRouteMatchingCheckbox">x</a></span>';
-                matchedSubConditionStrings.push(badgeHtml);
-            } else if (!activeFilters.matchedOptions.routeMatching.allSelected) {
-                let routeStageChips = [];
-                if (activeFilters.matchedOptions.routeMatching.gtfs) {
-                    const badgeHtml = '<span class="badge badge-secondary mr-1 mb-1">Route: GTFS' +
-                        ' <a href="#" class="text-dark remove-filter" data-type="specificRoute" data-target="#routeMethodGtfs">x</a></span>';
-                    routeStageChips.push(badgeHtml);
-                }
-                if (activeFilters.matchedOptions.routeMatching.hrdf) {
-                    const badgeHtml = '<span class="badge badge-secondary mr-1 mb-1">Route: HRDF' +
-                        ' <a href="#" class="text-dark remove-filter" data-type="specificRoute" data-target="#routeMethodHrdf">x</a></span>';
-                    routeStageChips.push(badgeHtml);
-                }
-                const routeStageGroupHtml = buildOrGroup(routeStageChips);
-                if (routeStageGroupHtml) matchedSubConditionStrings.push(routeStageGroupHtml);
+            // Always show specific route chips (GTFS/HRDF) based on selections, even if the master is checked
+            let routeStageChips = [];
+            if (activeFilters.matchedOptions.routeMatching.gtfs) {
+                const badgeHtml = '<span class="badge badge-secondary mr-1 mb-1">Route: GTFS' +
+                    ' <a href="#" class="text-dark remove-filter" data-type="specificRoute" data-target="#routeMethodGtfs">x</a></span>';
+                routeStageChips.push(badgeHtml);
             }
+            if (activeFilters.matchedOptions.routeMatching.hrdf) {
+                const badgeHtml = '<span class="badge badge-secondary mr-1 mb-1">Route: HRDF' +
+                    ' <a href="#" class="text-dark remove-filter" data-type="specificRoute" data-target="#routeMethodHrdf">x</a></span>';
+                routeStageChips.push(badgeHtml);
+            }
+            const routeStageGroupHtml = buildOrGroup(routeStageChips);
+            if (routeStageGroupHtml) matchedSubConditionStrings.push(routeStageGroupHtml);
             
             if (matchedSubConditionStrings.length > 0) {
                 matchedDisplayString = matchedSubConditionStrings.join(' <span class="filter-chip-operator">AND</span> ');

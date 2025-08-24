@@ -23,6 +23,6 @@ Ensure OSM `operator` values are comparable to ATLAS abbreviations by mapping al
 
 ### Why
 
-- Stabilizes comparisons and reduces false positives in attribute mismatch checks (see [PROBLEM_DETECTION.md](./PROBLEM_DETECTION.md))
+- Stabilizes comparisons and reduces false positives in attribute mismatch checks (see [PROBLEMS_DEFINITIONS.md](./PROBLEMS_DEFINITIONS.md))
 
 

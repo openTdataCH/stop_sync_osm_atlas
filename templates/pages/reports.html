@@ -17,14 +17,95 @@
           </div>
           <form id="reportForm">
             <div class="form-group">
-              <label for="reportTypeModal">Report Type</label>
-              <select class="form-control" id="reportTypeModal">
-                <option value="top_matches">Top Matches by Distance</option>
-                <option value="exact_matches">Top Exact Matches by Distance</option>
-                <option value="name_matches">Top Name Matches by Distance</option>
-                <option value="duplicates">Duplicates Report</option>
-              </select>
+              <label>Report Category</label>
+              <div class="custom-control custom-radio">
+                <input type="radio" id="categoryDistance" name="reportCategory" class="custom-control-input" value="distance" checked>
+                <label class="custom-control-label" for="categoryDistance">Top distance matched pairs</label>
+              </div>
+              <div class="custom-control custom-radio">
+                <input type="radio" id="categoryUnmatched" name="reportCategory" class="custom-control-input" value="unmatched">
+                <label class="custom-control-label" for="categoryUnmatched">Unmatched entries</label>
+              </div>
+              <div class="custom-control custom-radio">
+                <input type="radio" id="categoryProblems" name="reportCategory" class="custom-control-input" value="problems">
+                <label class="custom-control-label" for="categoryProblems">Problems</label>
+              </div>
             </div>
+
+            <!-- Unmatched specific options -->
+            <div class="form-group" id="unmatchedOptions" style="display: none;">
+              <label>Include sources</label>
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="sourceAtlas" checked>
+                <label class="custom-control-label" for="sourceAtlas">ATLAS</label>
+              </div>
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="sourceOsm" checked>
+                <label class="custom-control-label" for="sourceOsm">OSM</label>
+              </div>
+            </div>
+
+            <!-- Problems specific options -->
+            <div class="form-group" id="problemsOptions" style="display: none;">
+              <div class="mb-2"><strong>Problem types</strong></div>
+              <div class="row">
+                <div class="col-6">
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="ptypeDistance" value="distance" checked>
+                    <label class="custom-control-label" for="ptypeDistance">Distance</label>
+                  </div>
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="ptypeUnmatched" value="unmatched" checked>
+                    <label class="custom-control-label" for="ptypeUnmatched">Unmatched</label>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="ptypeAttributes" value="attributes" checked>
+                    <label class="custom-control-label" for="ptypeAttributes">Attributes</label>
+                  </div>
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="ptypeDuplicates" value="duplicates" checked>
+                    <label class="custom-control-label" for="ptypeDuplicates">Duplicates</label>
+                  </div>
+                </div>
+              </div>
+              <hr>
+              <div class="mb-2"><strong>Priorities</strong></div>
+              <div class="d-flex">
+                <div class="custom-control custom-checkbox mr-3">
+                  <input type="checkbox" class="custom-control-input" id="priority1" value="1" checked>
+                  <label class="custom-control-label" for="priority1">P1</label>
+                </div>
+                <div class="custom-control custom-checkbox mr-3">
+                  <input type="checkbox" class="custom-control-input" id="priority2" value="2" checked>
+                  <label class="custom-control-label" for="priority2">P2</label>
+                </div>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="custom-control-input" id="priority3" value="3" checked>
+                  <label class="custom-control-label" for="priority3">P3</label>
+                </div>
+              </div>
+              <hr>
+              <div class="mb-2"><strong>Status</strong></div>
+              <div class="d-flex">
+                <div class="custom-control custom-checkbox mr-3">
+                  <input type="checkbox" class="custom-control-input" id="statusSolved" value="solved" checked>
+                  <label class="custom-control-label" for="statusSolved">Solved</label>
+                </div>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="custom-control-input" id="statusUnsolved" value="unsolved" checked>
+                  <label class="custom-control-label" for="statusUnsolved">Unsolved</label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Operator filter -->
+            <div class="form-group">
+              <label>ATLAS operator</label>
+              <div id="atlasOperatorFilterReports"></div>
+            </div>
+
             <div class="form-group">
               <label for="reportFormatModal">Report Format</label>
               <select class="form-control" id="reportFormatModal">
@@ -41,7 +122,10 @@
               <select id="sortOrderModal" class="form-control">
                 <option value="distance_desc">Distance (Descending)</option>
                 <option value="distance_asc">Distance (Ascending)</option>
+                <option value="priority_desc">Priority (Descending)</option>
+                <option value="priority_asc">Priority (Ascending)</option>
                 <option value="id_asc">Stop ID (Ascending)</option>
+                <option value="id_desc">Stop ID (Descending)</option>
               </select>
             </div>
             <div class="d-flex justify-content-end">
@@ -56,6 +140,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/report.js') }}"></script>
 <script>
   if (window.initReportGeneration) { window.initReportGeneration(); }
@@ -64,7 +149,12 @@
     var params = new URLSearchParams(window.location.search);
     if (params.has('auto')) {
       // Pre-fill if provided
-      if (params.get('report_type')) document.getElementById('reportTypeModal').value = params.get('report_type');
+      if (params.get('report_type')) {
+        var rt = params.get('report_type');
+        if (rt === 'distance') document.getElementById('categoryDistance').checked = true;
+        if (rt === 'unmatched') document.getElementById('categoryUnmatched').checked = true;
+        if (rt === 'problems') document.getElementById('categoryProblems').checked = true;
+      }
       if (params.get('format')) document.getElementById('reportFormatModal').value = params.get('format');
       if (params.get('limit')) document.getElementById('reportLimitModal').value = params.get('limit');
       if (params.get('sort')) document.getElementById('sortOrderModal').value = params.get('sort');

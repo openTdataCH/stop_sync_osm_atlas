@@ -27,14 +27,29 @@
     {% else %}
     <table>
         <thead>
-            {% if report_type == 'duplicates' %}
+            {% if report_type == 'unmatched' %}
             <tr>
-                <th>UIC Number</th>
-                <th>Designation</th>
-                <th>ATLAS Sloid A</th>
-                <th>Official Designation A</th>
-                <th>ATLAS Sloid B</th>
-                <th>Official Designation B</th>
+                <th>Source</th>
+                <th>ATLAS Sloid</th>
+                <th>Official Designation</th>
+                <th>ATLAS Operator</th>
+                <th>OSM Node ID</th>
+                <th>OSM Local Ref</th>
+                <th>OSM Name</th>
+                <th>UIC Ref</th>
+            </tr>
+            {% elif report_type == 'problems' %}
+            <tr>
+                <th>Problem Type</th>
+                <th>Priority</th>
+                <th>Solved</th>
+                <th>ATLAS Sloid</th>
+                <th>Official Designation</th>
+                <th>ATLAS Operator</th>
+                <th>OSM Node ID</th>
+                <th>Distance (m)</th>
+                <th>Matching Method</th>
+                <th>Solution</th>
             </tr>
             {% else %}
             <tr>
@@ -49,16 +64,38 @@
         <tbody>
             {% for item in report_items %}
             <tr>
-                {% if report_type == 'duplicates' %}
-                <td>{{ item.uic_ref if item.uic_ref else 'N/A' }}</td>
-                <td>{{ item.atlas_designation if item.atlas_designation else 'N/A' }}</td>
-                <td>{{ item.sloid_A if item.sloid_A else 'N/A' }}</td>
-                <td>{{ item.designation_official_A if item.designation_official_A else 'N/A' }}</td>
-                <td>{{ item.sloid_B if item.sloid_B else 'N/A' }}</td>
-                <td>{{ item.designation_official_B if item.designation_official_B else 'N/A' }}</td>
+                {% if report_type == 'unmatched' %}
+                {# item is Stop #}
+                <td>{{ 'ATLAS' if item.stop_type == 'unmatched' else 'OSM' }}</td>
+                <td>{{ item.sloid or 'N/A' }}</td>
+                <td>{{ item.atlas_stop_details.atlas_designation_official if item.atlas_stop_details and item.atlas_stop_details.atlas_designation_official else 'N/A' }}</td>
+                <td>{{ item.atlas_stop_details.atlas_business_org_abbr if item.atlas_stop_details and item.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>
+                <td>{{ item.osm_node_id or 'N/A' }}</td>
+                <td>{{ item.osm_node_details.osm_local_ref if item.osm_node_details and item.osm_node_details.osm_local_ref else 'N/A' }}</td>
+                <td>{{ item.osm_node_details.osm_name if item.osm_node_details and item.osm_node_details.osm_name else 'N/A' }}</td>
+                <td>{{ item.uic_ref or 'N/A' }}</td>
+                {% elif report_type == 'problems' %}
+                {# item is Problem #}
+                <td>{{ item.problem_type }}</td>
+                <td>{{ item.priority if item.priority is not none else 'N/A' }}</td>
+                <td>{{ 'Yes' if item.solution and item.solution|trim != '' else 'No' }}</td>
+                <td>{{ item.stop.sloid if item.stop and item.stop.sloid else 'N/A' }}</td>
+                <td>{{ item.stop.atlas_stop_details.atlas_designation_official if item.stop and item.stop.atlas_stop_details and item.stop.atlas_stop_details.atlas_designation_official else 'N/A' }}</td>
+                <td>{{ item.stop.atlas_stop_details.atlas_business_org_abbr if item.stop and item.stop.atlas_stop_details and item.stop.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>
+                <td>{{ item.stop.osm_node_id if item.stop and item.stop.osm_node_id else 'N/A' }}</td>
+                <td>
+                    {% if item.stop and item.stop.distance_m is not none %}
+                        {{ '%.1f'|format(item.stop.distance_m) }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td>{{ item.stop.match_type if item.stop and item.stop.match_type else 'N/A' }}</td>
+                <td>{{ item.solution if item.solution else '' }}</td>
                 {% else %}
+                {# distance: item is Stop #}
                 <td>{{ item.sloid }}</td>
-                <td>{{ item.atlas_designation_official if item.atlas_designation_official else 'N/A' }}</td>
+                <td>{{ item.atlas_stop_details.atlas_designation_official if item.atlas_stop_details and item.atlas_stop_details.atlas_designation_official else 'N/A' }}</td>
                 <td>{{ item.osm_node_id if item.osm_node_id else 'N/A' }}</td>
                 <td>
                     {% if item.distance_m %}

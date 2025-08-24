@@ -89,6 +89,7 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
     To remove all data: `docker compose down -v`
 
 ## Pipline (Entrypoint)
+![Schema pipeline](documentation/images/PipelineSchema.png)
 When the `app` container starts (and data import is not skipped), the entrypoint runs:
 
 - `get_atlas_data.py`: downloads ATLAS data and GTFS, builds optimized route/stop artifacts
@@ -112,10 +113,9 @@ Access it at [http://localhost:5001/](http://localhost:5001/).
 
 - **Map View**: Browse stops by type (`matched`, `unmatched`, `osm`) and match method.
 - **Filters & Search**: Filter by ATLAS SLOID, OSM Node ID, UIC reference, or route.
-- **Manual Matching**: On the Problems page, use the Manual match action, select the opposite dataset entry on the map, and the system will save the pair. You can auto‑persist from the side panel.
-- **Problems**:
-- **Manage Data**:
-- **Generating Reports:**The web app can generate CSV and PDF reports (still work in progress).
+- **Problems**: On the problems page you can solve the problems. See [PROBLEMS_DEFINITIONS.md](documentation/PROBLEMS_DEFINITIONS.md).
+- **Manage Data**: See [PERSISTENT_DATA.md](documentation/PERSISTENT_DATA.md).
+- **Generating Reports:**The web app can generate CSV and PDF reports. See [GENERATE_REPORTS.md](documentation/GENERATE_REPORTS.md)
 
 ## Environment & Secrets
 
