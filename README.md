@@ -1,7 +1,5 @@
 # **OSM & ATLAS Synchronization**
 
-> **Note**: This repository is a copy of https://github.com/openTdataCH/stop_sync_osm_atlas.git. We will no longer update this one. Refer to the openTdataCH GitHub repo for new updates. This version contains the memoire folder including the scripts and documentation used for the bachelor project report.
-
 Welcome! This project provides a systematic pipeline to identify, analyze, and resolve discrepancies between public transport stop data from **ATLAS** (Swiss official data) and **OpenStreetMap (OSM)**.
 
 It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exact/distance-based/route-based matching, and serves an interactive web app for inspecting matches, problems, and manual fixes.
