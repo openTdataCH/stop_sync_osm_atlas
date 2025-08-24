@@ -1,4 +1,4 @@
-## Operator Normalization
+## OSM Operator Normalization
 
 Make OSM `operator` values comparable to ATLAS by converting known aliases to a single, canonical name.
 
