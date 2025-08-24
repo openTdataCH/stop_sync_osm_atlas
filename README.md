@@ -115,7 +115,7 @@ Access it at [http://localhost:5001/](http://localhost:5001/).
 - **Filters & Search**: Filter by ATLAS SLOID, OSM Node ID, UIC reference, or route.
 - **Problems**: On the problems page you can solve the problems. See [PROBLEMS_DEFINITIONS.md](documentation/PROBLEMS_DEFINITIONS.md).
 - **Manage Data**: See [PERSISTENT_DATA.md](documentation/PERSISTENT_DATA.md).
-- **Generating Reports:**The web app can generate CSV and PDF reports. See [GENERATE_REPORTS.md](documentation/GENERATE_REPORTS.md)
+- **Generating Reports:** The web app can generate CSV and PDF reports. See [GENERATE_REPORTS.md](documentation/GENERATE_REPORTS.md)
 
 ## Environment & Secrets
 
