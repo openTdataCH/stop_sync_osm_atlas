@@ -17,8 +17,11 @@ reports_bp = Blueprint('reports', __name__)
 @limiter.limit("20/day")
 def generate_report():
     try:
-        limit = int(request.args.get('limit', 10))
-        sort_param = request.args.get('sort', 'distance_desc')
+        # Limit: support 'all' or numeric
+        limit_raw = (request.args.get('limit', '10') or '10').strip().lower()
+        limit = None if limit_raw == 'all' else int(limit_raw)
+        # Sort: default operator ascending
+        sort_param = request.args.get('sort', 'operator_asc')
         # New categories: 'distance' | 'unmatched' | 'problems'
         report_type = (request.args.get('report_type', 'distance') or 'distance').lower()
         # Backward compatibility
@@ -59,15 +62,15 @@ def generate_report():
             # For unmatched we may need both atlas and osm details in template; use 'data' for full eager load
             query = optimize_query_for_endpoint(query, 'data')
 
-            if sort_param == 'id_asc':
-                query = query.order_by(Stop.id.asc())
-            elif sort_param == 'id_desc':
-                query = query.order_by(Stop.id.desc())
+            # Join AtlasStop for operator sorting
+            query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
+            if sort_param == 'operator_desc':
+                query = query.order_by(AtlasStop.atlas_business_org_abbr.desc().nulls_last())
             else:
-                # Default to ID ascending for unmatched
-                query = query.order_by(Stop.id.asc())
+                # default operator asc
+                query = query.order_by(AtlasStop.atlas_business_org_abbr.asc().nulls_first())
 
-            data_for_report = query.limit(limit).all()
+            data_for_report = (query.limit(limit).all() if isinstance(limit, int) else query.all())
             report_title = "Unmatched Entries Report"
 
         elif report_type == 'problems':
@@ -119,15 +122,18 @@ def generate_report():
                 query = query.filter(Stop.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
 
             # Sorting for problems
+            # Join AtlasStop for operator sorts
+            query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
+
             if sort_param == 'priority_asc':
                 query = query.order_by(db.func.coalesce(Problem.priority, 999).asc(), Problem.stop_id, Problem.problem_type)
             elif sort_param == 'priority_desc':
                 query = query.order_by(db.func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
-            elif sort_param == 'id_asc':
-                query = query.order_by(Problem.stop_id.asc(), Problem.problem_type)
+            elif sort_param == 'operator_desc':
+                query = query.order_by(AtlasStop.atlas_business_org_abbr.desc().nulls_last(), Problem.stop_id, Problem.problem_type)
             else:
-                # default priority desc
-                query = query.order_by(db.func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
+                # default operator asc
+                query = query.order_by(AtlasStop.atlas_business_org_abbr.asc().nulls_first(), Problem.stop_id, Problem.problem_type)
 
             # Eager load stop + atlas/osm details when rendering template
             query = query.options(
@@ -135,7 +141,7 @@ def generate_report():
                 joinedload(Problem.stop).joinedload(Stop.osm_node_details)
             )
 
-            data_for_report = query.limit(limit).all()
+            data_for_report = (query.limit(limit).all() if isinstance(limit, int) else query.all())
             report_title = "Problems Report"
 
         else:
@@ -145,17 +151,22 @@ def generate_report():
             # Operator filter
             query = _apply_atlas_operator_filter(query)
 
+            # Join AtlasStop for operator sorts
+            query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
+
             # Sorting
-            if sort_param == 'id_asc':
-                query = query.order_by(Stop.id.asc())
-            elif sort_param == 'distance_asc':
+            if sort_param == 'distance_asc':
                 query = query.filter(Stop.distance_m != None).order_by(Stop.distance_m.asc())
             elif sort_param == 'distance_desc':
                 query = query.filter(Stop.distance_m != None).order_by(Stop.distance_m.desc())
+            elif sort_param == 'operator_desc':
+                query = query.order_by(AtlasStop.atlas_business_org_abbr.desc().nulls_last())
             else:
-                query = query.order_by(Stop.distance_m.desc())
+                # default operator asc
+                query = query.order_by(AtlasStop.atlas_business_org_abbr.asc().nulls_first())
 
-            data_for_report = optimize_query_for_endpoint(query, 'reports').limit(limit).all()
+            query = optimize_query_for_endpoint(query, 'reports')
+            data_for_report = (query.limit(limit).all() if isinstance(limit, int) else query.all())
             report_title = "Top Distance Matched Pairs"
 
         if data_for_report is None:

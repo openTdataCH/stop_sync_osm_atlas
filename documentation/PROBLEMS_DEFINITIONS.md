@@ -54,7 +54,7 @@ Priorities
 
 Operator normalization: see [OPERATOR_NORMALIZATION.md](./OPERATOR_NORMALIZATION.md) (OSM operators normalized before comparisons).
 
-### 4) Duplicates (work in peogress)
+### 4) Duplicates (work in progress)
 
 - Purpose: duplicated entries on ATLAS or OSM sides
 
