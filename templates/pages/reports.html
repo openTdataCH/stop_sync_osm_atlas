@@ -2,7 +2,44 @@
 
 {% block title %}Reports{% endblock %}
 
+{% block head_css %}
+<style>
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .loading-content {
+    background: white;
+    padding: 40px;
+    border-radius: 10px;
+    text-align: center;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 400px;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
+<!-- Loading overlay for report generation -->
+<div id="reportLoadingOverlay" class="loading-overlay" style="display: none;">
+  <div class="loading-content">
+    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+      <span class="sr-only">Loading...</span>
+    </div>
+    <h4 class="mt-3">Generating Report...</h4>
+    <p class="text-muted">This may take a few moments for large reports.</p>
+    <button type="button" class="btn btn-outline-secondary mt-2" onclick="cancelReportGeneration()">Cancel</button>
+  </div>
+</div>
+
 <div class="container py-3">
   <div class="row">
     <div class="col-md-8 col-lg-6 mx-auto">
@@ -114,18 +151,26 @@
               </select>
             </div>
             <div class="form-group">
-              <label for="reportLimitModal">Number of Entries (N):</label>
-              <input type="number" id="reportLimitModal" class="form-control" value="10" min="1" max="500" required>
+              <label>Number of Entries</label>
+              <div class="custom-control custom-radio">
+                <input type="radio" id="limitAll" name="limitMode" class="custom-control-input" value="all" checked>
+                <label class="custom-control-label" for="limitAll">All</label>
+              </div>
+              <div class="custom-control custom-radio d-flex align-items-center mt-1">
+                <input type="radio" id="limitUpTo" name="limitMode" class="custom-control-input" value="upto">
+                <label class="custom-control-label mr-2" for="limitUpTo">Up to</label>
+                <input type="number" id="reportLimitModal" class="form-control" value="50" min="1" max="10000" style="width: 120px;" disabled>
+              </div>
             </div>
             <div class="form-group">
               <label for="sortOrderModal">Sort Order:</label>
               <select id="sortOrderModal" class="form-control">
+                <option value="operator_asc" selected>Operator (A → Z)</option>
+                <option value="operator_desc">Operator (Z → A)</option>
                 <option value="distance_desc">Distance (Descending)</option>
                 <option value="distance_asc">Distance (Ascending)</option>
                 <option value="priority_desc">Priority (Descending)</option>
                 <option value="priority_asc">Priority (Ascending)</option>
-                <option value="id_asc">Stop ID (Ascending)</option>
-                <option value="id_desc">Stop ID (Descending)</option>
               </select>
             </div>
             <div class="d-flex justify-content-end">

@@ -1,5 +1,4 @@
 from flask import Blueprint, request, jsonify, render_template, current_app as app
-from flask_login import login_required
 from backend.models import Stop, Problem, AtlasStop
 from backend.extensions import db, limiter
 from sqlalchemy.orm import joinedload
@@ -13,7 +12,6 @@ reports_bp = Blueprint('reports', __name__)
 
 
 @reports_bp.route('/api/generate_report', methods=['GET'])
-@login_required
 @limiter.limit("20/day")
 def generate_report():
     try:
@@ -65,10 +63,11 @@ def generate_report():
             # Join AtlasStop for operator sorting
             query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
             if sort_param == 'operator_desc':
-                query = query.order_by(AtlasStop.atlas_business_org_abbr.desc().nulls_last())
+                # DESC NULLS LAST: MySQL compatible
+                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.desc())
             else:
-                # default operator asc
-                query = query.order_by(AtlasStop.atlas_business_org_abbr.asc().nulls_first())
+                # ASC NULLS FIRST: MySQL compatible
+                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.asc())
 
             data_for_report = (query.limit(limit).all() if isinstance(limit, int) else query.all())
             report_title = "Unmatched Entries Report"
@@ -130,10 +129,11 @@ def generate_report():
             elif sort_param == 'priority_desc':
                 query = query.order_by(db.func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
             elif sort_param == 'operator_desc':
-                query = query.order_by(AtlasStop.atlas_business_org_abbr.desc().nulls_last(), Problem.stop_id, Problem.problem_type)
+                # DESC NULLS LAST: MySQL compatible
+                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.desc(), Problem.stop_id, Problem.problem_type)
             else:
-                # default operator asc
-                query = query.order_by(AtlasStop.atlas_business_org_abbr.asc().nulls_first(), Problem.stop_id, Problem.problem_type)
+                # ASC NULLS FIRST: MySQL compatible
+                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.asc(), Problem.stop_id, Problem.problem_type)
 
             # Eager load stop + atlas/osm details when rendering template
             query = query.options(
@@ -160,10 +160,11 @@ def generate_report():
             elif sort_param == 'distance_desc':
                 query = query.filter(Stop.distance_m != None).order_by(Stop.distance_m.desc())
             elif sort_param == 'operator_desc':
-                query = query.order_by(AtlasStop.atlas_business_org_abbr.desc().nulls_last())
+                # DESC NULLS LAST: MySQL compatible
+                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.desc())
             else:
-                # default operator asc
-                query = query.order_by(AtlasStop.atlas_business_org_abbr.asc().nulls_first())
+                # ASC NULLS FIRST: MySQL compatible
+                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.asc())
 
             query = optimize_query_for_endpoint(query, 'reports')
             data_for_report = (query.limit(limit).all() if isinstance(limit, int) else query.all())
@@ -221,11 +222,12 @@ def generate_report():
 
             else:
                 # distance
-                cw.writerow(['ATLAS Sloid', 'Official Designation', 'OSM Node ID', 'Distance (m)', 'Matching Method'])
+                cw.writerow(['ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method'])
                 for stop in data_for_report:
                     cw.writerow([
                         stop.sloid if stop.sloid else 'N/A',
                         stop.atlas_stop_details.atlas_designation_official if stop.atlas_stop_details and stop.atlas_stop_details.atlas_designation_official else 'N/A',
+                        stop.atlas_stop_details.atlas_business_org_abbr if stop.atlas_stop_details and stop.atlas_stop_details.atlas_business_org_abbr else 'N/A',
                         stop.osm_node_id if stop.osm_node_id else 'N/A',
                         '{:.1f}'.format(stop.distance_m) if stop.distance_m is not None else 'N/A',
                         stop.match_type if stop.match_type else 'N/A'

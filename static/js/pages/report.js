@@ -31,10 +31,13 @@ function initReportGeneration() {
     $('#reportForm').on('submit', function(e){
         e.preventDefault();
         
+        // Show loading overlay
+        $('#reportLoadingOverlay').show();
+        
         // Build params from form
         var category = $('input[name="reportCategory"]:checked').val();
         var params = {
-            limit: $('#reportLimitModal').val(),
+            limit: ($('input[name="limitMode"]:checked').val() === 'all') ? 'all' : ($('#reportLimitModal').val() || 'all'),
             sort: $('#sortOrderModal').val(),
             report_type: category,
             format: $('#reportFormatModal').val()
@@ -79,12 +82,32 @@ function initReportGeneration() {
 
         // Generate the report URL with parameters
         var url = "/api/generate_report?" + $.param(params);
+        
+        // Start download and hide overlay after a short delay
         window.location.href = url;
+        
+        // Hide overlay after 2 seconds (giving time for download to start)
+        setTimeout(function() {
+            $('#reportLoadingOverlay').hide();
+        }, 2000);
         
         // Hide the modal
         try { $('#reportModal').modal('hide'); } catch (e) {}
     });
+
+    // Enable/disable limit input based on mode
+    $(document).on('change', 'input[name="limitMode"]', function() {
+        var mode = $('input[name="limitMode"]:checked').val();
+        if (mode === 'upto') { $('#reportLimitModal').prop('disabled', false); }
+        else { $('#reportLimitModal').prop('disabled', true); }
+    });
+}
+
+// Function to cancel report generation
+function cancelReportGeneration() {
+    $('#reportLoadingOverlay').hide();
 }
 
 // Export functions for use in main.js
-window.initReportGeneration = initReportGeneration; 
+window.initReportGeneration = initReportGeneration;
+window.cancelReportGeneration = cancelReportGeneration; 

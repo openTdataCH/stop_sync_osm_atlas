@@ -6,12 +6,23 @@
     <style>
         body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #333; padding: 8px; text-align: left; }
+        th, td { border: 1px solid #333; padding: 6px; text-align: left; }
         th { background-color: #f2f2f2; }
         h2 { color: #333366; }
         .report-header { margin-bottom: 20px; }
         .report-info { color: #666; font-size: 11px; }
         .no-matches { color: #cc0000; font-style: italic; }
+        
+        /* Column sizing */
+        .col-distance { width: 80px; }
+        .col-method { width: 100px; }
+        .col-operator { width: 120px; }
+        .col-sloid { width: 140px; }
+        .col-osm-id { width: 120px; }
+        .col-source { width: 80px; }
+        .col-priority { width: 60px; }
+        .col-solved { width: 60px; }
+        .col-problem-type { width: 100px; }
     </style>
 </head>
 <body>
@@ -29,35 +40,36 @@
         <thead>
             {% if report_type == 'unmatched' %}
             <tr>
-                <th>Source</th>
-                <th>ATLAS Sloid</th>
+                <th class="col-source">Source</th>
+                <th class="col-sloid">ATLAS Sloid</th>
                 <th>Official Designation</th>
-                <th>ATLAS Operator</th>
-                <th>OSM Node ID</th>
+                <th class="col-operator">ATLAS Operator</th>
+                <th class="col-osm-id">OSM Node ID</th>
                 <th>OSM Local Ref</th>
                 <th>OSM Name</th>
                 <th>UIC Ref</th>
             </tr>
             {% elif report_type == 'problems' %}
             <tr>
-                <th>Problem Type</th>
-                <th>Priority</th>
-                <th>Solved</th>
-                <th>ATLAS Sloid</th>
+                <th class="col-problem-type">Problem Type</th>
+                <th class="col-priority">Priority</th>
+                <th class="col-solved">Solved</th>
+                <th class="col-sloid">ATLAS Sloid</th>
                 <th>Official Designation</th>
-                <th>ATLAS Operator</th>
-                <th>OSM Node ID</th>
-                <th>Distance (m)</th>
-                <th>Matching Method</th>
+                <th class="col-operator">ATLAS Operator</th>
+                <th class="col-osm-id">OSM Node ID</th>
+                <th class="col-distance">Distance (m)</th>
+                <th class="col-method">Matching Method</th>
                 <th>Solution</th>
             </tr>
             {% else %}
             <tr>
-                <th>ATLAS Sloid</th>
+                <th class="col-sloid">ATLAS Sloid</th>
                 <th>Official Designation</th>
-                <th>OSM Node ID</th>
-                <th>Distance (m)</th>
-                <th>Matching Method</th>
+                <th class="col-operator">ATLAS Operator</th>
+                <th class="col-osm-id">OSM Node ID</th>
+                <th class="col-distance">Distance (m)</th>
+                <th class="col-method">Matching Method</th>
             </tr>
             {% endif %}
         </thead>
@@ -66,45 +78,46 @@
             <tr>
                 {% if report_type == 'unmatched' %}
                 {# item is Stop #}
-                <td>{{ 'ATLAS' if item.stop_type == 'unmatched' else 'OSM' }}</td>
-                <td>{{ item.sloid or 'N/A' }}</td>
+                <td class="col-source">{{ 'ATLAS' if item.stop_type == 'unmatched' else 'OSM' }}</td>
+                <td class="col-sloid">{{ item.sloid or 'N/A' }}</td>
                 <td>{{ item.atlas_stop_details.atlas_designation_official if item.atlas_stop_details and item.atlas_stop_details.atlas_designation_official else 'N/A' }}</td>
-                <td>{{ item.atlas_stop_details.atlas_business_org_abbr if item.atlas_stop_details and item.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>
-                <td>{{ item.osm_node_id or 'N/A' }}</td>
+                <td class="col-operator">{{ item.atlas_stop_details.atlas_business_org_abbr if item.atlas_stop_details and item.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>
+                <td class="col-osm-id">{{ item.osm_node_id or 'N/A' }}</td>
                 <td>{{ item.osm_node_details.osm_local_ref if item.osm_node_details and item.osm_node_details.osm_local_ref else 'N/A' }}</td>
                 <td>{{ item.osm_node_details.osm_name if item.osm_node_details and item.osm_node_details.osm_name else 'N/A' }}</td>
                 <td>{{ item.uic_ref or 'N/A' }}</td>
                 {% elif report_type == 'problems' %}
                 {# item is Problem #}
-                <td>{{ item.problem_type }}</td>
-                <td>{{ item.priority if item.priority is not none else 'N/A' }}</td>
-                <td>{{ 'Yes' if item.solution and item.solution|trim != '' else 'No' }}</td>
-                <td>{{ item.stop.sloid if item.stop and item.stop.sloid else 'N/A' }}</td>
+                <td class="col-problem-type">{{ item.problem_type }}</td>
+                <td class="col-priority">{{ item.priority if item.priority is not none else 'N/A' }}</td>
+                <td class="col-solved">{{ 'Yes' if item.solution and item.solution|trim != '' else 'No' }}</td>
+                <td class="col-sloid">{{ item.stop.sloid if item.stop and item.stop.sloid else 'N/A' }}</td>
                 <td>{{ item.stop.atlas_stop_details.atlas_designation_official if item.stop and item.stop.atlas_stop_details and item.stop.atlas_stop_details.atlas_designation_official else 'N/A' }}</td>
-                <td>{{ item.stop.atlas_stop_details.atlas_business_org_abbr if item.stop and item.stop.atlas_stop_details and item.stop.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>
-                <td>{{ item.stop.osm_node_id if item.stop and item.stop.osm_node_id else 'N/A' }}</td>
-                <td>
+                <td class="col-operator">{{ item.stop.atlas_stop_details.atlas_business_org_abbr if item.stop and item.stop.atlas_stop_details and item.stop.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>
+                <td class="col-osm-id">{{ item.stop.osm_node_id if item.stop and item.stop.osm_node_id else 'N/A' }}</td>
+                <td class="col-distance">
                     {% if item.stop and item.stop.distance_m is not none %}
                         {{ '%.1f'|format(item.stop.distance_m) }}
                     {% else %}
                         N/A
                     {% endif %}
                 </td>
-                <td>{{ item.stop.match_type if item.stop and item.stop.match_type else 'N/A' }}</td>
+                <td class="col-method">{{ item.stop.match_type if item.stop and item.stop.match_type else 'N/A' }}</td>
                 <td>{{ item.solution if item.solution else '' }}</td>
                 {% else %}
                 {# distance: item is Stop #}
-                <td>{{ item.sloid }}</td>
+                <td class="col-sloid">{{ item.sloid }}</td>
                 <td>{{ item.atlas_stop_details.atlas_designation_official if item.atlas_stop_details and item.atlas_stop_details.atlas_designation_official else 'N/A' }}</td>
-                <td>{{ item.osm_node_id if item.osm_node_id else 'N/A' }}</td>
-                <td>
+                <td class="col-operator">{{ item.atlas_stop_details.atlas_business_org_abbr if item.atlas_stop_details and item.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>
+                <td class="col-osm-id">{{ item.osm_node_id if item.osm_node_id else 'N/A' }}</td>
+                <td class="col-distance">
                     {% if item.distance_m %}
                         {{ '%.1f'|format(item.distance_m) }}
                     {% else %}
                         N/A
                     {% endif %}
                 </td>
-                <td>{{ item.match_type if item.match_type else 'N/A' }}</td>
+                <td class="col-method">{{ item.match_type if item.match_type else 'N/A' }}</td>
                 {% endif %}
             </tr>
             {% endfor %}
