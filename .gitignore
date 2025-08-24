@@ -56,7 +56,7 @@ Thumbs.db
 
 
 
-# LaTeX compilation files (but keep .tex source files)
+# LaTeX compilation files
 *.aux
 *.bbl
 *.bcf
