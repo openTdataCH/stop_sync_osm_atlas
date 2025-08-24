@@ -405,6 +405,10 @@
         const popupInstance = popupElement && popupElement._leaflet_popup_instance;
 
         if (popupInstance) {
+            // Trigger content update to recalculate width for multiple bubbles
+            if (typeof popupInstance._onContentUpdate === 'function') {
+                popupInstance._onContentUpdate();
+            }
             if (typeof popupInstance._updateLayout === 'function') {
                 popupInstance._updateLayout();
             }
@@ -436,6 +440,10 @@
         const popupInstance = popupElement && popupElement._leaflet_popup_instance;
 
         if (popupInstance) {
+            // Trigger content update to recalculate width for single bubble view
+            if (typeof popupInstance._onContentUpdate === 'function') {
+                popupInstance._onContentUpdate();
+            }
             if (typeof popupInstance._updatePosition === 'function') {
                 setTimeout(() => {
                     if (typeof popupInstance._updateLayout === 'function') {

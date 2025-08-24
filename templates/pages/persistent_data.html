@@ -93,6 +93,14 @@
           </div>
           <div id="clear-all-non-persistent-container" class="text-right ml-3"></div>
         </div>
+        {% if not current_user.is_authenticated %}
+        <div class="alert alert-info" role="alert">
+          <i class="fas fa-info-circle"></i>
+          In order to make data persistent you must log in. 
+          <a href="{{ url_for('auth.login') }}" class="alert-link">Log in</a> or 
+          <a href="{{ url_for('auth.register') }}" class="alert-link">create an account</a>.
+        </div>
+        {% endif %}
         
         <div id="non-persistent-data-container">
           <!-- Data will be loaded here dynamically -->

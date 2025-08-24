@@ -1,127 +1,84 @@
 ## Problem Detection and Prioritization
 
-This document precisely defines how we detect and prioritize problems. Logic lives in `matching_process/problem_detection.py`. Problems are stored in `problems` with a per-type `priority` (1 = highest).
+This defines how problems are detected and prioritized. Core logic lives in [matching_process/problem_detection.py](../matching_process/problem_detection.py). Problems are stored in `problems` with `priority` (1 = highest). Each problem has at most one `solution` and an `is_persistent` flag.
 
-Problem types:
-- Distance
-- Unmatched 
-- Attributes
-- Duplicates
+Problem types: distance, unmatched, attributes, duplicates
 
-We store a single `solution` per problem and a nullable `priority` (1, 2, 3). Non-problematic cases have `priority = NULL`.
+Schema note: `problems.priority` (TINYINT), indexed.
 
-Schema notes:
-- Column `problems.priority` (TINYINT) and index `idx_problem_priority`
- 
+Key functions (links to file):
+- `analyze_stop_problems()` → aggregator
+- `compute_distance_priority()` / `detect_distance_problems()`
+- `compute_attributes_priority()` / `detect_attribute_problems()`
+- `detect_atlas_isolation()` / `detect_osm_isolation()`
 
-### 1. Distance
+### 1) Distance
 
-Purpose: matched ATLAS–OSM pairs too far apart.
+- Purpose: matched ATLAS–OSM pairs too far apart
+- Detection: `detect_distance_problems()` uses `compute_distance_priority()`; problem exists if priority != NULL
+- Applied: during DB import in [import_data_db.py](../import_data_db.py)
 
-Detection
-- Function: `detect_distance_problems()` uses `compute_distance_priority()`; a problem exists if priority is not NULL.
-- Applied: during database import in `import_data_db.py` when inserting `Stop` and `Problem` rows.
+Priorities
+- P1: ATLAS operator != SBB and distance > 80 m
+- P2: ATLAS operator != SBB and 25 < distance ≤ 80 m
+- P3: ATLAS operator == SBB and distance > 25 m, or any operator with 15 < distance ≤ 25 m
+- None: distance ≤ 15 m or missing
 
-Priority rules
-- Priority 1: ATLAS operator is not SBB AND distance > 80 m
-- Priority 2: ATLAS operator is not SBB AND 25 m < distance ≤ 80 m
-- Priority 3: ATLAS operator is SBB AND distance > 25 m; OR any operator with 15 m < distance ≤ 25 m
-- Not a problem: distance ≤ 15 m or missing
+### 2) Unmatched
 
-Implementation
-- Compute with `compute_distance_priority(record)` using `csv_business_org_abbr` and `distance_m` already present in match records (from matching stages).
-- Store `Problem(priority=1|2|3)` when `detect_distance_problems(record)` returns True.
+- Purpose: stops without a counterpart
+- Detection:
+  - Batch isolation: `detect_atlas_isolation()` / `detect_osm_isolation()` (KDTree)
+  - Single-entry flag: `detect_unmatched_problems(stop_type, match_type, is_isolated)`
+  - Applied during matching (Stage 4) and finalized at import
 
-### 2. Unmatched
+Efficient priorities (computed in [import_data_db.py](../import_data_db.py))
+- Build KDTree(s) once per run; compute nearest distances in meters
+- Precompute counts by UIC: `atlas_count_by_uic`, `osm_count_by_uic`, `osm_platform_count_by_uic` (platform-like = `platform` or `stop_position`)
 
-Purpose: stops without a counterpart in the opposite dataset.
+Priorities
+- P1: zero opposite UIC; or ATLAS has no OSM within 80 m
+- P2: no opposite within 50 m; or platform counts mismatch for the UIC
+- P3: remaining unmatched
 
-Detection
-- Spatial checks centralized in:
-  - `detect_atlas_isolation()` and `detect_osm_isolation()` for batch KDTree checks.
-  - `detect_unmatched_problems()` for single-entry checks (accepts `stop_type`, `match_type`, `is_isolated`).
-- Applied: during distance matching Stage 4 and final pipeline, and finalized at import.
+### 3) Attributes
 
-Efficient priority computation
-- During import we build KDTree(s) once per run:
-  - OSM KDTree from all OSM coordinates (both matched and unmatched) for ATLAS queries
-  - ATLAS KDTree from all ATLAS coordinates for OSM queries
-- We also precompute counts by UIC:
-  - `atlas_count_by_uic` from matched + unmatched ATLAS
-  - `osm_count_by_uic` and `osm_platform_count_by_uic` from matched OSM and `unmatched_osm.tags.public_transport in {platform, stop_position}`
-- Distance queries convert 3D unit-vector distance back to great-circle meters.
+- Purpose: inconsistent descriptive data for matched pairs
+- Detection: `detect_attribute_problems()`; priority via `compute_attributes_priority()`
 
-Priority rules
-- Priority 1:
-  - 0 UIC-number stops in the opposite dataset (e.g., ATLAS UIC exists, OSM has none; or vice versa)
-  - ATLAS with no OSM within 80 m
-- Priority 2:
-  - No opposite dataset entry within 50 m
-  - Unequal number of platforms between OSM and ATLAS for the same UIC
-    (Count OSM `public_transport` in {platform, stop_position} vs. count of ATLAS entries sharing that UIC)
-- Priority 3: Remaining unmatched entries
+Priorities
+- P1: different UIC or different official name
+- P2: different local_ref
+- P3: different operator
 
-Example (platform mismatch)
-- ATLAS UIC 8500012 has 6 entries; OSM nodes with `uic_ref=8500012` have 5 nodes where `public_transport` ∈ {platform, stop_position} ⇒ unmatched priority 2.
-- If OSM has 1 platform + 3 stop_positions (4 in total) and ATLAS has 6 entries ⇒ still a mismatch (priority 2).
+Operator normalization: see [OPERATOR_NORMALIZATION.md](./OPERATOR_NORMALIZATION.md) (OSM operators normalized before comparisons).
 
-Implementation
-- ATLAS entries: `compute_unmatched_priority_for_atlas(rec)` combines nearest OSM search and UIC/platform counts.
-- OSM entries: `compute_unmatched_priority_for_osm(rec)` combines nearest ATLAS search and UIC/platform counts.
-- Problems are stored with `problem_type='unmatched'` and `priority` accordingly.
- 
+### 4) Duplicates
 
-### 3. Attributes
+- Purpose: duplicated entries on ATLAS or OSM sides
+- Detection:
+  - ATLAS duplicates: use `duplicate_sloid_map` from the matching pipeline
+  - OSM duplicates: multiple platform-like nodes (same `uic_ref`, same `local_ref`)
 
-Purpose: inconsistent descriptive data for matched pairs.
+Priorities
+- P2: ATLAS duplicates
+- P3: OSM duplicates
 
-Detection
-- Function: `detect_attribute_problems()` still generates details; `compute_attributes_priority()` assigns priority.
+Implementation (in [import_data_db.py](../import_data_db.py))
+- ATLAS: if `sloid` is in `duplicate_sloid_map` → create `duplicates` problem (P2)
+- OSM: if node in duplicate set for `(uic_ref, local_ref)` among platform-like nodes → `duplicates` (P3)
+- API groups duplicates in `/api/problems` for UI review (see [backend/blueprints/problems.py](../backend/blueprints/problems.py))
 
-Priority rules
-- Priority 1: Different UIC number OR different official name
-- Priority 2: Different local_ref
-- Priority 3: Different operator
+### Data flow
+1) Matching pipeline produces `base_data`
+2) Import writes `stops`, `atlas_stops`, `osm_nodes`, and creates `problems` with priorities
+3) Persistent solutions are applied post-import
 
-See also: Operator standardization details in [OPERATOR_NORMALIZATION.md](OPERATOR_NORMALIZATION.md) explaining how OSM `operator` values are normalized before comparisons.
-
-
-### 4. Duplicates
-
-Purpose: identify duplicated entries either on the ATLAS side or on the OSM side.
-
-Detection
-- ATLAS duplicates: We reuse the `duplicate_sloid_map` produced during the matching pipeline to mark entries that belong to a duplicate ATLAS group.
-- OSM duplicates: We detect multiple OSM nodes that are platform-like and share the same UIC and the same local_ref.
-  - Platform-like means `public_transport` ∈ {platform, stop_position}.
-  - Duplicates are detected per key (uic_ref, local_ref). Both `platform` and `stop_position` count towards the same group.
-
-Priority rules
-- Priority 2: ATLAS duplicates
-- Priority 3: OSM duplicates (two or more platform-like nodes with the same UIC, local_ref, and public_transport type)
-  
-Implementation
-- In `import_data_db.import_to_database`:
-  - For matched and unmatched ATLAS entries: if `sloid` is in `duplicate_sloid_map`, create `Problem(problem_type='duplicates', priority=2)`.
-  - For matched and unmatched OSM entries: if the node_id is part of a duplicate set for its `(uic_ref, local_ref)` among platform-like nodes, create `Problem(problem_type='duplicates', priority=3)`.
-- Backend `/api/problems` returns grouped duplicates:
-  - One row per OSM duplicates group keyed by `(uic_ref, local_ref)` containing an array `members` with all involved OSM entries.
-  - One row per ATLAS duplicates group keyed by `sloid` containing `members` with all involved ATLAS entries.
-- Group solved status: a group is considered solved when all members have a non-empty solution.
-
-### Data flow summary
-1) Matching pipeline produces `base_data` with rich fields.
-2) Import (`import_data_db.import_to_database`) writes `stops`, `atlas_stops`, `osm_nodes`, and creates `problems` as needed with computed priorities.
-3) Persistent solutions are applied post-import.
-
-
-### Notes usage
-- The `PersistentData.note` field is available to capture reviewer notes and can be used to annotate rationale behind manual resolutions.
+### Notes
+- `PersistentData.note` captures reviewer context; applied on import (see [PERSISTENT_DATA.md](./PERSISTENT_DATA.md))
 
 ### Configuration
-Configuration defaults
-- Attribute mismatch checks are enabled by default in `matching_process/problem_detection.py` via inline flags: `ENABLE_OPERATOR_MISMATCH_CHECK`, `ENABLE_NAME_MISMATCH_CHECK`, `ENABLE_UIC_MISMATCH_CHECK`, `ENABLE_LOCAL_REF_MISMATCH_CHECK`.
-- Isolation radius defaults to 50 m via `get_isolation_radius()` inside `matching_process/problem_detection.py`.
-- Distance classification uses the explicit priority rules above; import-level unmatched priorities use the 80 m and 50 m thresholds defined here.
+- Flags in [matching_process/problem_detection.py](../matching_process/problem_detection.py): `ENABLE_OPERATOR_MISMATCH_CHECK`, `ENABLE_NAME_MISMATCH_CHECK`, `ENABLE_UIC_MISMATCH_CHECK`, `ENABLE_LOCAL_REF_MISMATCH_CHECK`
+- Isolation radius: 50 m via `get_isolation_radius()`
 
  

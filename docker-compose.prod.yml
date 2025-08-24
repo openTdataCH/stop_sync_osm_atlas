@@ -3,5 +3,13 @@ services:
     environment:
       FORCE_HTTPS: "true"
       SESSION_COOKIE_SECURE: "true"
+    read_only: true
+    volumes: []
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
 

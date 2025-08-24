@@ -1,15 +1,15 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-import json, math
+import math
 import pandas as pd
-import numpy as np
 from scipy.spatial import KDTree
 from matching_process.matching_script import final_pipeline
 from matching_process.problem_detection import analyze_stop_problems, compute_distance_priority, compute_attributes_priority
 import os
 
 # Import models
-from backend.models import Stop, AtlasStop, OsmNode, RouteAndDirection, Problem, PersistentData
+from backend.models import Stop, AtlasStop, OsmNode, RouteAndDirection, Problem
+from backend.services.import_persistence import apply_persistent_solutions as apply_persistent_solutions_service
 
 # Database Setup
 DATABASE_URI = os.getenv('DATABASE_URI', 'mysql+pymysql://stops_user:1234@localhost:3306/stops_db')
@@ -17,22 +17,6 @@ engine = create_engine(DATABASE_URI)
 Session = sessionmaker(bind=engine)
 session = Session()
 
-def ensure_schema_updated():
-    """
-    Deprecated: Schema changes are now handled via Alembic migrations.
-    This function is retained as a no-op for backward compatibility.
-    """
-    print("Schema management now handled by migrations. Skipping ensure_schema_updated().")
-
-def sanitize_for_json(obj):
-    if isinstance(obj, dict):
-        return {k: sanitize_for_json(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [sanitize_for_json(item) for item in obj]
-    elif isinstance(obj, float):
-        return None if math.isnan(obj) else obj
-    else:
-        return obj
 
 def safe_value(val, default=None):
     """Safely handle NaN, None, and other problematic values for MySQL"""
@@ -562,8 +546,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
 
         session.add(stop_record)
         
-        routes_atlas_data = atlas_routes_mapping.get(sloid, []) if sloid else []
-        routes_hrdf_data = atlas_hrdf_routes_mapping.get(sloid, []) if sloid else []
         if sloid and sloid not in processed_sloids:
             designation_official = safe_value(rec.get('csv_designation_official')) or safe_value(rec.get('designationOfficial')) or safe_value(rec.get('csv_designation')) or ""
             atlas_record = AtlasStop(
@@ -607,7 +589,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     # Precompute structures for unmatched priority classification
     # Build OSM coordinate set from matched and unmatched data
     osm_points = []  # list of (x,y,z)
-    osm_coords_source = []  # list of (lat, lon)
     def _to_xyz(lat, lon):
         lat_rad = math.radians(float(lat))
         lon_rad = math.radians(float(lon))
@@ -622,31 +603,26 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         lon = safe_value(rec.get('osm_lon'))
         if lat is not None and lon is not None:
             osm_points.append(_to_xyz(lat, lon))
-            osm_coords_source.append((float(lat), float(lon)))
     # OSM from unmatched_osm
     for rec in base_data.get('unmatched_osm', []):
         lat = safe_value(rec.get('lat'))
         lon = safe_value(rec.get('lon'))
         if lat is not None and lon is not None:
             osm_points.append(_to_xyz(lat, lon))
-            osm_coords_source.append((float(lat), float(lon)))
     osm_kdtree = KDTree(osm_points) if osm_points else None
 
     # Build ATLAS coordinate set from matched and unmatched
     atlas_points = []
-    atlas_coords_source = []
     for rec in base_data.get('matched', []):
         lat = safe_value(rec.get('csv_lat'))
         lon = safe_value(rec.get('csv_lon'))
         if lat is not None and lon is not None:
             atlas_points.append(_to_xyz(lat, lon))
-            atlas_coords_source.append((float(lat), float(lon)))
     for rec in base_data.get('unmatched_atlas', []):
         lat = safe_value(rec.get('wgs84North'))
         lon = safe_value(rec.get('wgs84East'))
         if lat is not None and lon is not None:
             atlas_points.append(_to_xyz(lat, lon))
-            atlas_coords_source.append((float(lat), float(lon)))
     atlas_kdtree = KDTree(atlas_points) if atlas_points else None
 
     # Build counts by UIC
@@ -791,8 +767,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         session.add(stop_record)
         
         if sloid and sloid not in processed_sloids:
-            routes_atlas_data = atlas_routes_mapping.get(sloid, [])
-            routes_hrdf_data = atlas_hrdf_routes_mapping.get(sloid, [])
             designation_official = safe_value(rec.get('designationOfficial')) or safe_value(rec.get('designation')) or ""
             atlas_record = AtlasStop(
                 sloid=sloid,
@@ -979,7 +953,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     print(f"Route statistics: {matched_routes} matched, {osm_only_routes} OSM-only, {atlas_only_routes} ATLAS-only")
     
     # Apply persistent solutions to newly created problems
-    apply_persistent_solutions()
+    apply_persistent_solutions_service(session)
     
     # Count problems in the database
     from sqlalchemy import func
@@ -1003,113 +977,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     
     session.close()
     print("Data import complete!")
-
-def apply_persistent_solutions():
-    """
-    Apply previously saved persistent solutions to newly created problems.
-    This function is called after all data is imported and problems are detected.
-    
-    The function works by:
-    1. Getting all persistent solutions and notes
-    2. For each solution, finding stops that match by sloid or osm_node_id
-    3. For each matching stop, finding problems of the same type
-    4. Applying the persistent solution to those problems and setting is_persistent=True
-    
-    It also applies persistent notes to ATLAS and OSM stops and sets their persistence flags.
-    """
-    print("Applying persistent solutions from previous imports...")
-    
-    # Get all persistent solutions for problems
-    persistent_solutions = session.query(PersistentData).filter(
-        PersistentData.note_type.is_(None)
-    ).all()
-    applied_count = 0
-    skipped_count = 0
-    
-    for ps in persistent_solutions:
-        # Find matching stops in the new data
-        matching_stops = session.query(Stop).filter(
-            (Stop.sloid == ps.sloid) | (Stop.osm_node_id == ps.osm_node_id)
-        ).all()
-        
-        if not matching_stops:
-            # The stop no longer exists in the data
-            print(f"  - No matching stop found for persistent solution: sloid={ps.sloid}, osm_node_id={ps.osm_node_id}")
-            skipped_count += 1
-            continue
-            
-        for stop in matching_stops:
-            # Find problems of the same type for this stop
-            problem = session.query(Problem).filter(
-                Problem.stop_id == stop.id,
-                Problem.problem_type == ps.problem_type
-            ).first()
-            
-            if problem:
-                # If the problem still exists, apply the solution and mark as persistent
-                problem.solution = ps.solution
-                problem.is_persistent = True
-                applied_count += 1
-            else:
-                # The stop exists but doesn't have this type of problem anymore
-                print(f"  - Stop exists but problem type '{ps.problem_type}' no longer detected for: sloid={stop.sloid}, osm_node_id={stop.osm_node_id}")
-                skipped_count += 1
-    
-    # Apply persistent ATLAS notes
-    print("Applying persistent ATLAS notes...")
-    atlas_notes = session.query(PersistentData).filter(
-        PersistentData.note_type == 'atlas',
-        PersistentData.sloid.isnot(None)
-    ).all()
-    
-    atlas_notes_applied = 0
-    atlas_notes_skipped = 0
-    
-    for note_record in atlas_notes:
-        # Find the ATLAS stop in the new data
-        atlas_stop = session.query(AtlasStop).filter(
-            AtlasStop.sloid == note_record.sloid
-        ).first()
-        
-        if atlas_stop:
-            # Apply the note and mark as persistent
-            atlas_stop.atlas_note = note_record.note
-            atlas_stop.atlas_note_is_persistent = True
-            atlas_notes_applied += 1
-        else:
-            print(f"  - ATLAS stop not found for sloid={note_record.sloid}, skipping note application")
-            atlas_notes_skipped += 1
-    
-    # Apply persistent OSM notes
-    print("Applying persistent OSM notes...")
-    osm_notes = session.query(PersistentData).filter(
-        PersistentData.note_type == 'osm',
-        PersistentData.osm_node_id.isnot(None)
-    ).all()
-    
-    osm_notes_applied = 0
-    osm_notes_skipped = 0
-    
-    for note_record in osm_notes:
-        # Find the OSM node in the new data
-        osm_node = session.query(OsmNode).filter(
-            OsmNode.osm_node_id == note_record.osm_node_id
-        ).first()
-        
-        if osm_node:
-            # Apply the note and mark as persistent
-            osm_node.osm_note = note_record.note
-            osm_node.osm_note_is_persistent = True
-            osm_notes_applied += 1
-        else:
-            print(f"  - OSM node not found for osm_node_id={note_record.osm_node_id}, skipping note application")
-            osm_notes_skipped += 1
-    
-    session.commit()
-    print(f"Applied {applied_count} persistent solutions from previous imports")
-    print(f"Skipped {skipped_count} persistent solutions (stops or problems no longer exist)")
-    print(f"Applied {atlas_notes_applied} persistent ATLAS notes, skipped {atlas_notes_skipped}")
-    print(f"Applied {osm_notes_applied} persistent OSM notes, skipped {osm_notes_skipped}")
 
 if __name__ == "__main__":
     # Run the final pipeline to obtain base_data in-memory

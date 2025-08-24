@@ -128,4 +128,4 @@ if __name__ == '__main__':
     def server_error(e):
         return render_template('errors/500.html'), 500
 
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=os.getenv('FLASK_DEBUG', '0') == '1')

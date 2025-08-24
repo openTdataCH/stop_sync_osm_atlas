@@ -371,7 +371,6 @@ def get_problem_stats():
 
 @problems_bp.route('/api/save_solution', methods=['POST'])
 @limiter.limit("30/minute")
-@login_required
 def save_solution():
     try:
         data = request.get_json()
@@ -430,12 +429,13 @@ def make_solution_persistent():
             PersistentData.problem_type == mapped_problem_type
         ).first()
         if persistent_solution:
+            # Authorization: only owner or admin may update existing persistent solution
+            is_admin = bool(getattr(current_user, 'is_admin', False))
+            is_owner = (persistent_solution.created_by_user_id is not None) and (persistent_solution.created_by_user_id == getattr(current_user, 'id', None))
+            if not (is_admin or is_owner):
+                return jsonify({"success": False, "error": "Not authorized to update this persistent solution"}), 403
+            # Update content but preserve original author attribution
             persistent_solution.solution = problem.solution
-            # Preserve original author if available, else use current user
-            author_user_id = getattr(problem, 'created_by_user_id', None) or (getattr(current_user, 'id', None) if current_user.is_authenticated else None)
-            author_email = getattr(problem, 'created_by_user_email', None) or (getattr(current_user, 'email', None) if current_user.is_authenticated else None)
-            persistent_solution.created_by_user_id = author_user_id
-            persistent_solution.created_by_user_email = author_email
             message = "Solution updated in persistent storage"
         else:
             author_user_id = getattr(problem, 'created_by_user_id', None) or (getattr(current_user, 'id', None) if current_user.is_authenticated else None)
@@ -480,13 +480,13 @@ def check_persistent_solution():
 
 @problems_bp.route('/api/save_note/atlas', methods=['POST'])
 @limiter.limit("60/minute")
-@login_required
 def save_atlas_note():
     try:
         data = request.get_json()
         sloid = data.get('sloid')
         note = data.get('note', '')
         make_persistent = data.get('make_persistent', False)
+        login_required_for_persistence = False
         if not sloid:
             return jsonify({"success": False, "error": "Missing sloid"}), 400
         atlas_stop = AtlasStop.query.filter_by(sloid=sloid).first()
@@ -497,8 +497,12 @@ def save_atlas_note():
         if current_user.is_authenticated:
             atlas_stop.atlas_note_user_id = getattr(current_user, 'id', None)
             atlas_stop.atlas_note_user_email = getattr(current_user, 'email', None)
-        atlas_stop.atlas_note_is_persistent = make_persistent
-        if make_persistent:
+        # Anonymous users can save notes but cannot persist
+        effective_persist = bool(make_persistent and current_user.is_authenticated)
+        if make_persistent and not current_user.is_authenticated:
+            login_required_for_persistence = True
+        atlas_stop.atlas_note_is_persistent = effective_persist
+        if effective_persist:
             persistent_note = PersistentData.query.filter_by(
                 sloid=sloid,
                 note_type='atlas'
@@ -518,7 +522,12 @@ def save_atlas_note():
                 )
                 db.session.add(new_persistent_note)
         db.session.commit()
-        return jsonify({"success": True, "message": "ATLAS note saved successfully", "is_persistent": make_persistent})
+        return jsonify({
+            "success": True,
+            "message": "ATLAS note saved successfully",
+            "is_persistent": effective_persist,
+            "login_required_for_persistence": login_required_for_persistence
+        })
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
@@ -526,13 +535,13 @@ def save_atlas_note():
 
 @problems_bp.route('/api/save_note/osm', methods=['POST'])
 @limiter.limit("60/minute")
-@login_required
 def save_osm_note():
     try:
         data = request.get_json()
         osm_node_id = data.get('osm_node_id')
         note = data.get('note', '')
         make_persistent = data.get('make_persistent', False)
+        login_required_for_persistence = False
         if not osm_node_id:
             return jsonify({"success": False, "error": "Missing osm_node_id"}), 400
         osm_node = OsmNode.query.filter_by(osm_node_id=osm_node_id).first()
@@ -543,8 +552,12 @@ def save_osm_note():
         if current_user.is_authenticated:
             osm_node.osm_note_user_id = getattr(current_user, 'id', None)
             osm_node.osm_note_user_email = getattr(current_user, 'email', None)
-        osm_node.osm_note_is_persistent = make_persistent
-        if make_persistent:
+        # Anonymous users can save notes but cannot persist
+        effective_persist = bool(make_persistent and current_user.is_authenticated)
+        if make_persistent and not current_user.is_authenticated:
+            login_required_for_persistence = True
+        osm_node.osm_note_is_persistent = effective_persist
+        if effective_persist:
             persistent_note = PersistentData.query.filter_by(
                 osm_node_id=osm_node_id,
                 note_type='osm'
@@ -564,7 +577,12 @@ def save_osm_note():
                 )
                 db.session.add(new_persistent_note)
         db.session.commit()
-        return jsonify({"success": True, "message": "OSM note saved successfully", "is_persistent": make_persistent})
+        return jsonify({
+            "success": True,
+            "message": "OSM note saved successfully",
+            "is_persistent": effective_persist,
+            "login_required_for_persistence": login_required_for_persistence
+        })
     except Exception as e:
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
@@ -585,10 +603,13 @@ def make_note_persistent(note_type: str):
                 return jsonify({"success": False, "error": "No existing note to persist"}), 400
             persistent_note = PersistentData.query.filter_by(sloid=sloid, note_type='atlas').first()
             if persistent_note:
+                # Authorization: only owner or admin may update existing persistent note
+                is_admin = bool(getattr(current_user, 'is_admin', False))
+                is_owner = (persistent_note.created_by_user_id is not None) and (persistent_note.created_by_user_id == getattr(current_user, 'id', None))
+                if not (is_admin or is_owner):
+                    return jsonify({"success": False, "error": "Not authorized to update this persistent note"}), 403
+                # Update content but preserve original author attribution
                 persistent_note.note = atlas_stop.atlas_note
-                # Use the note author's identity if available
-                persistent_note.created_by_user_id = getattr(atlas_stop, 'atlas_note_user_id', None)
-                persistent_note.created_by_user_email = getattr(atlas_stop, 'atlas_note_user_email', None)
             else:
                 new_persistent_note = PersistentData(
                     sloid=sloid,
@@ -613,9 +634,13 @@ def make_note_persistent(note_type: str):
                 return jsonify({"success": False, "error": "No existing note to persist"}), 400
             persistent_note = PersistentData.query.filter_by(osm_node_id=osm_node_id, note_type='osm').first()
             if persistent_note:
+                # Authorization: only owner or admin may update existing persistent note
+                is_admin = bool(getattr(current_user, 'is_admin', False))
+                is_owner = (persistent_note.created_by_user_id is not None) and (persistent_note.created_by_user_id == getattr(current_user, 'id', None))
+                if not (is_admin or is_owner):
+                    return jsonify({"success": False, "error": "Not authorized to update this persistent note"}), 403
+                # Update content but preserve original author attribution
                 persistent_note.note = osm_node.osm_note
-                persistent_note.created_by_user_id = getattr(osm_node, 'osm_note_user_id', None)
-                persistent_note.created_by_user_email = getattr(osm_node, 'osm_note_user_email', None)
             else:
                 new_persistent_note = PersistentData(
                     osm_node_id=osm_node_id,
@@ -678,7 +703,6 @@ def check_persistent_osm_note():
 
 @problems_bp.route('/api/persistent_data', methods=['GET'])
 @limiter.limit("60/minute")
-@login_required
 def get_persistent_data():
     try:
         page = int(request.args.get('page', 1))
@@ -723,12 +747,16 @@ def get_persistent_data():
 @problems_bp.route('/api/persistent_data/<int:solution_id>', methods=['DELETE'])
 @limiter.limit("30/minute")
 @login_required
-@admin_required
 def delete_persistent_data(solution_id):
     try:
         solution = db.session.get(PersistentData, solution_id)
         if not solution:
             return jsonify({"success": False, "error": "Solution not found"}), 404
+        # Authorization: admin or owner of the persistent record
+        is_admin = bool(getattr(current_user, 'is_admin', False))
+        is_owner = (solution.created_by_user_id is not None) and (solution.created_by_user_id == getattr(current_user, 'id', None))
+        if not (is_admin or is_owner):
+            return jsonify({"success": False, "error": "Not authorized to delete this persistent record"}), 403
         if solution.problem_type:
             stop = Stop.query.filter(
                 and_(Stop.sloid == solution.sloid, Stop.osm_node_id == solution.osm_node_id)
@@ -760,12 +788,16 @@ def delete_persistent_data(solution_id):
 @problems_bp.route('/api/make_non_persistent/<int:solution_id>', methods=['POST'])
 @limiter.limit("30/minute")
 @login_required
-@admin_required
 def make_non_persistent(solution_id):
     try:
         solution = db.session.get(PersistentData, solution_id)
         if not solution:
             return jsonify({"success": False, "error": "Solution not found"}), 404
+        # Authorization: admin or owner of the persistent record
+        is_admin = bool(getattr(current_user, 'is_admin', False))
+        is_owner = (solution.created_by_user_id is not None) and (solution.created_by_user_id == getattr(current_user, 'id', None))
+        if not (is_admin or is_owner):
+            return jsonify({"success": False, "error": "Not authorized to modify this persistent record"}), 403
         if solution.problem_type:
             stop = Stop.query.filter(
                 and_(Stop.sloid == solution.sloid, Stop.osm_node_id == solution.osm_node_id)
@@ -829,7 +861,6 @@ def clear_all_non_persistent():
 
 @problems_bp.route('/api/non_persistent_data', methods=['GET'])
 @limiter.limit("60/minute")
-@login_required
 def get_non_persistent_data():
     try:
         count_only = request.args.get('count_only', 'false').lower() == 'true'
@@ -931,6 +962,7 @@ def get_non_persistent_data():
 @problems_bp.route('/api/make_all_persistent', methods=['POST'])
 @limiter.limit("10/hour")
 @login_required
+@admin_required
 def make_all_persistent():
     try:
         solutions_made_persistent = 0

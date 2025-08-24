@@ -984,22 +984,5 @@ def test_totp_verification(client, db_session, user_with_totp):
 
 ---
 
-### Hardening checklist
-
-- [ ] Use strong, random `SECRET_KEY` in all environments
-- [ ] Enforce HTTPS end-to-end (reverse proxy + app)
-- [ ] Set `FORCE_HTTPS=true` and `SESSION_COOKIE_SECURE=true`
-- [ ] Re-enable and tune CSP via Flask-Talisman
-- [ ] Tune Argon2 parameters 
-- [ ] Add password reset flow
-- [ ] Consider WebAuthn for stronger MFA
-- [ ] Ensure NTP time sync on servers
-- [ ] Monitor auth metrics and alert on anomalies
-- [ ] Add Alembic migrations for `auth_db` schema evolution
-- [ ] Review database privileges; consider separate accounts per schema
-
----
-
-
 
 

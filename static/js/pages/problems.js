@@ -9,6 +9,10 @@
 
 $(document).ready(function(){
     console.log("=== PROBLEMS.JS INITIALIZATION ===");
+    // Enable Bootstrap tooltips (for persistence info icon)
+    if (typeof $ !== 'undefined' && typeof $.fn.tooltip === 'function') {
+        $('[data-toggle="tooltip"]').tooltip({ container: 'body', trigger: 'hover focus' });
+    }
     // Ensure left panel and map fit viewport; adjust scrollable heights accordingly
     function setMainLayoutHeights() {
         const root = $('.problems-page-root');
@@ -117,6 +121,34 @@ $(document).ready(function(){
     // Load auto-persist settings and update UI
     $('#autoPersistToggle').prop('checked', ProblemsState.getAutoPersistEnabled());
     $('#autoPersistNotesToggle').prop('checked', ProblemsState.getAutoPersistNotesEnabled());
+    // If inputs are disabled (anonymous), force them visually off
+    if ($('#autoPersistToggle').is(':disabled')) {
+        $('#autoPersistToggle').prop('checked', false);
+    }
+    if ($('#autoPersistNotesToggle').is(':disabled')) {
+        $('#autoPersistNotesToggle').prop('checked', false);
+    }
+
+    // If toggles are disabled in the DOM (anonymous user), show a login hint on click
+    function attachDisabledToggleHint(selector, itemLabel) {
+        const el = $(selector);
+        if (el.is(':disabled')) {
+            const label = $('label[for="' + el.attr('id') + '"]');
+            const handler = function(e) {
+                e.preventDefault();
+                if (window.ProblemsUI && typeof window.ProblemsUI.showTemporaryMessage === 'function') {
+                    window.ProblemsUI.showTemporaryMessage('To make ' + itemLabel + ' persistent, please log in.', 'info');
+                } else {
+                    alert('To make ' + itemLabel + ' persistent, please log in.');
+                }
+            };
+            // Bind both the input and its label to catch clicks
+            el.on('click', handler);
+            label.on('click', handler);
+        }
+    }
+    attachDisabledToggleHint('#autoPersistToggle', 'solutions');
+    attachDisabledToggleHint('#autoPersistNotesToggle', 'notes');
     
     // Initialize filters and data
     ProblemsData.initializeProblemTypeFilter(); // Fetch stats and build filter

@@ -12,11 +12,12 @@
             closeOnClick: false,
             autoClose: false,
             className: 'customPopup permanent-popup',
-            // Single-row bubble fitting controls
+            // Professional width control settings
             fitBubblesSingleRow: true,
-            maxPopupWidthFactor: 3.0, // allow up to 300% of map width if possible
-            extraWidthForSingleRow: 200, // extra pixels to ensure all bubbles fit
-            forceNoWrapOnFailure: true // last-resort CSS override if still wrapping
+            singleBubbleMaxWidthFactor: 1.5, // single bubble max width = 1.5x initial
+            multiBubbleOptimalWidth: 250, // optimal width per bubble for multi-bubble layouts
+            bubbleExpansionBuffer: 20, // extra pixels to allow for slight bubble expansion
+            strictWidthControl: true // enable strict width limits
         },
         initialize: function(options) {
             L.Util.setOptions(this, options);
@@ -37,6 +38,9 @@
             this._optimalSingleRowWidth = null;
             this._singleRowWidthLocked = false;
             this._interactionsInitialized = false;
+            this._initialCalculatedWidth = null;
+            this._bubbleCount = 0;
+            this._isSingleBubbleMode = true;
             this.on('contentupdate', this._onContentUpdate, this);
         },
         onAdd: function(map) {
@@ -73,15 +77,18 @@
             }
         },
         _onContentUpdate: function() {
-            // Reset single-row width lock when content changes
+            // Reset width control state when content changes
             this._optimalSingleRowWidth = null;
             this._singleRowWidthLocked = false;
+            this._bubbleCount = 0;
+            this._isSingleBubbleMode = true;
             
             setTimeout(() => {
                 if (this._container) {
                     this._initInteractions();
                     this._ensureDragHandleAtTop();
-                    this._applyDynamicWidthToFitBubbles();
+                    this._analyzeBubbleLayout();
+                    this._applyOptimalWidth();
                 }
             }, 10);
         },
@@ -111,233 +118,189 @@
             }
             contentNode.style.overflow = 'auto';
         },
-        _applyDynamicWidthToFitBubbles: function() {
-            if (!this._map || !this._contentNode) return;
-            if (this.options && this.options.fitBubblesSingleRow === false) return;
+        _analyzeBubbleLayout: function() {
+            if (!this._contentNode) return;
+            
             const contentNode = this._contentNode;
-
-            // Determine visible bubble container
             const unifiedView = contentNode.querySelector('.popup-unified-view');
             const initialView = contentNode.querySelector('.popup-initial-view');
             const isUnifiedVisible = unifiedView && getComputedStyle(unifiedView).display !== 'none';
             
-            let matchesContainer = null;
-            let containerForCount = null;
+            // Count bubbles accurately
+            let bubbleElements = [];
             
             if (isUnifiedVisible) {
-                matchesContainer = unifiedView.querySelector('.matches-container');
-                containerForCount = matchesContainer;
+                const matchesContainer = unifiedView.querySelector('.matches-container');
+                if (matchesContainer) {
+                    // Count actual ATLAS and OSM bubbles in matches container
+                    bubbleElements = Array.from(matchesContainer.children).map(wrapper => 
+                        wrapper.querySelector('.atlas-match, .osm-match')
+                    ).filter(Boolean);
+                }
             } else if (initialView && getComputedStyle(initialView).display !== 'none') {
-                containerForCount = initialView;
-            } else {
-                containerForCount = contentNode;
-            }
-
-            // Count bubbles
-            let numBubbles = 0;
-            if (matchesContainer) {
-                numBubbles = matchesContainer.children.length;
-            } else {
-                // Single bubble case in initial view
-                const bubbleEl = containerForCount?.querySelector('.atlas-match, .osm-match');
-                numBubbles = bubbleEl ? 1 : 0;
-            }
-
-            // Helper to set the single-row fit flag and apply CSS overrides if needed
-            const setFitFlag = (isFit) => {
-                this._allBubblesSingleRow = !!isFit;
-                this.allBubblesSingleRow = !!isFit;
-                
-                // Lock in optimal width once we achieve single row fit
-                if (isFit && !this._singleRowWidthLocked) {
-                    this._optimalSingleRowWidth = this._currentWidth;
-                    this._singleRowWidthLocked = true;
+                // Single bubble in initial view
+                const singleBubble = initialView.querySelector('.atlas-match, .osm-match');
+                if (singleBubble) {
+                    bubbleElements = [singleBubble];
                 }
-                
-                if (matchesContainer) { 
-                    matchesContainer.setAttribute('data-single-row', String(!!isFit));
-                    
-                    // If we can't fit naturally, force it with CSS overrides
-                    if (!isFit && this._currentWidth >= maxWidth * 0.95) {
-                        // We've reached near-maximum width but still can't fit - force single row
-                        matchesContainer.style.flexWrap = 'nowrap';
-                        matchesContainer.style.overflow = 'hidden';
-                        
-                        // Allow bubbles to shrink more aggressively
-                        for (let i = 0; i < matchesContainer.children.length; i++) {
-                            const wrapper = matchesContainer.children[i];
-                            const bubbleEl = wrapper.querySelector('.atlas-match, .osm-match');
-                            if (bubbleEl) {
-                                bubbleEl.style.flex = '1 1 0'; // Allow equal shrinking
-                                bubbleEl.style.minWidth = '150px'; // Smaller minimum
-                            }
-                        }
-                        
-                        // Recheck after forcing single row
-                        forceReflow();
-                        const finalCheck = areAllOnOneRow();
-                        this._allBubblesSingleRow = finalCheck;
-                        this.allBubblesSingleRow = finalCheck;
-                        matchesContainer.setAttribute('data-single-row', String(finalCheck));
-                    }
-                }
-                if (contentNode) { contentNode.setAttribute('data-all-bubbles-single-row', String(!!isFit)); }
-            };
-
-            // For 0 or 1 bubbles, always fits in single row
-            if (numBubbles <= 1) {
-                setFitFlag(true);
+            }
+            
+            this._bubbleCount = bubbleElements.length;
+            this._isSingleBubbleMode = this._bubbleCount <= 1;
+            
+            // Store reference to current bubble container for width calculations
+            this._currentBubbleElements = bubbleElements;
+            this._currentMatchesContainer = isUnifiedVisible ? 
+                unifiedView.querySelector('.matches-container') : null;
+        },
+        _applyOptimalWidth: function() {
+            if (!this._map || !this._contentNode || !this.options.strictWidthControl) return;
+            
+            this._analyzeBubbleLayout();
+            
+            if (this._isSingleBubbleMode) {
+                this._applySingleBubbleWidth();
+            } else {
+                this._applyMultiBubbleWidth();
+            }
+        },
+        _applySingleBubbleWidth: function() {
+            if (!this._currentBubbleElements || this._currentBubbleElements.length === 0) return;
+            
+            const bubble = this._currentBubbleElements[0];
+            
+            // Calculate natural width of the bubble content
+            const originalStyle = bubble.style.width;
+            bubble.style.width = 'auto';
+            bubble.offsetHeight; // Force reflow
+            const naturalWidth = bubble.offsetWidth;
+            bubble.style.width = originalStyle;
+            
+            // Add padding and margins from container
+            const containerPadding = 20; // popup padding
+            const bufferSpace = 30; // small buffer for comfortable viewing
+            
+            const optimalWidth = naturalWidth + containerPadding + bufferSpace;
+            
+            // Store initial width for max calculation
+            if (!this._initialCalculatedWidth) {
+                this._initialCalculatedWidth = optimalWidth;
+            }
+            
+            // Apply single bubble max width limit
+            const maxWidth = this._initialCalculatedWidth * this.options.singleBubbleMaxWidthFactor;
+            const finalWidth = Math.min(optimalWidth, maxWidth);
+            
+            this._currentWidth = Math.max(this.options.minWidth, finalWidth);
+            this._applyDimensions();
+            this._updatePosition();
+        },
+        _applyMultiBubbleWidth: function() {
+            if (!this._currentMatchesContainer || !this._currentBubbleElements || this._currentBubbleElements.length === 0) {
                 return;
             }
-
-            // Only proceed with multi-bubble logic if we have a matches container
-            if (!matchesContainer) {
-                setFitFlag(true);
-                return;
-            }
-
-            const mapWidth = this._map.getSize().x;
-            const widthFactor = (this.options && typeof this.options.maxPopupWidthFactor === 'number') ? this.options.maxPopupWidthFactor : 1.0;
-            const hardPixelCap = 9000; // larger absolute safety cap
-            const maxWidth = Math.min(hardPixelCap, Math.max(this.options.minWidth || 150, Math.floor(mapWidth * Math.max(0.9, Math.min(4.0, widthFactor)))));
-
-            // Force layout calculation helper
-            const forceReflow = () => {
-                matchesContainer.offsetHeight; // Force reflow
-            };
-
-            // Robust single-row detection
-            const areAllOnOneRow = () => {
-                forceReflow();
-                const bubbleElements = [];
-                for (let i = 0; i < matchesContainer.children.length; i++) {
-                    const wrapper = matchesContainer.children[i];
-                    const bubbleEl = wrapper.querySelector('.atlas-match, .osm-match');
-                    if (bubbleEl) bubbleElements.push(bubbleEl);
-                }
-                
-                if (bubbleElements.length <= 1) return true;
-                
-                // Get y-positions of all bubbles
-                const positions = bubbleElements.map(el => {
-                    const rect = el.getBoundingClientRect();
-                    return Math.round(rect.top);
-                });
-                
-                const minY = Math.min(...positions);
-                const maxY = Math.max(...positions);
-                return (maxY - minY) <= 2; // 2px tolerance for sub-pixel rendering
-            };
-
-            // Calculate minimum required width based on content
-            const calculateMinRequiredWidth = () => {
-                forceReflow();
-                
-                // Store original styles to restore later
-                const originalContainerStyle = matchesContainer.style.flexWrap;
-                const originalBubbleStyles = [];
-                
-                // Force single row layout temporarily
-                matchesContainer.style.flexWrap = 'nowrap';
-                
-                // Get all bubble natural widths
-                const bubbleWidths = [];
-                for (let i = 0; i < matchesContainer.children.length; i++) {
-                    const wrapper = matchesContainer.children[i];
-                    const bubbleEl = wrapper.querySelector('.atlas-match, .osm-match');
-                    if (bubbleEl) {
-                        // Store original style
-                        originalBubbleStyles.push({
-                            element: bubbleEl,
-                            flex: bubbleEl.style.flex,
-                            minWidth: bubbleEl.style.minWidth
-                        });
-                        
-                        // Temporarily remove flex constraints to get natural content width
-                        bubbleEl.style.flex = '0 0 auto';
-                        bubbleEl.style.minWidth = 'fit-content';
-                        forceReflow();
-                        
-                        const naturalWidth = bubbleEl.offsetWidth;
-                        bubbleWidths.push(Math.max(200, naturalWidth)); // respect CSS minimum of 200px
-                    }
-                }
-
-                // Restore original styles
-                matchesContainer.style.flexWrap = originalContainerStyle;
-                originalBubbleStyles.forEach(({element, flex, minWidth}) => {
-                    element.style.flex = flex;
-                    element.style.minWidth = minWidth;
-                });
-                forceReflow();
-
-                if (bubbleWidths.length === 0) return this.options.minWidth || 150;
-
-                // Account for container styling
-                const containerStyles = getComputedStyle(matchesContainer);
-                const containerPadding = parseFloat(containerStyles.paddingLeft || 0) + parseFloat(containerStyles.paddingRight || 0);
-                const gap = parseFloat(containerStyles.gap || 8);
-                
-                // Account for outer container padding (from popup.css: padding: 0 10px 12px 10px)
-                const outerPadding = 20; // 10px left + 10px right
-                
-                // Calculate total required width with extra buffer for safety
-                const totalBubbleWidth = bubbleWidths.reduce((sum, w) => sum + w, 0);
-                const totalGaps = gap * Math.max(0, bubbleWidths.length - 1);
-                const bufferSpace = 50; // increased buffer for edge cases
-                
-                return totalBubbleWidth + totalGaps + containerPadding + outerPadding + bufferSpace;
-            };
-
-            // Start with current width or calculate initial
-            let currentWidth = this._currentWidth;
-            if (!currentWidth) {
-                const extra = (this.options && typeof this.options.extraWidthForSingleRow === 'number') ? this.options.extraWidthForSingleRow : 0;
-                currentWidth = Math.min(calculateMinRequiredWidth() + extra, maxWidth);
-                this._currentWidth = currentWidth;
+            
+            const matchesContainer = this._currentMatchesContainer;
+            const bubbleElements = this._currentBubbleElements;
+            
+            // Calculate optimal width for single-row layout
+            const optimalWidth = this._calculateOptimalMultiBubbleWidth();
+            
+            // Test if bubbles fit in single row at this width
+            this._currentWidth = optimalWidth;
+            this._applyDimensions();
+            this._updatePosition();
+            
+            // Force reflow and check layout
+            matchesContainer.offsetHeight;
+            const allOnSingleRow = this._areAllBubblesOnSingleRow(bubbleElements);
+            
+            if (allOnSingleRow) {
+                // Perfect! Lock this width and allow slight expansion for bubble filling
+                this._optimalSingleRowWidth = optimalWidth;
+                this._singleRowWidthLocked = true;
+                this._adjustBubblesToFillWidth();
+            } else {
+                // If they don't fit, try a slightly larger width, but don't go overboard
+                const maxAttemptWidth = optimalWidth * 1.2; // 20% larger at most
+                this._currentWidth = maxAttemptWidth;
                 this._applyDimensions();
                 this._updatePosition();
-            }
-
-            // Check if already fits
-            let singleRowFit = areAllOnOneRow();
-            
-            // If not fitting, progressively expand width
-            if (!singleRowFit && currentWidth < maxWidth) {
-                // If initial calculation didn't work, recalculate with current layout
-                const extra = (this.options && typeof this.options.extraWidthForSingleRow === 'number') ? this.options.extraWidthForSingleRow : 0;
-                const minRequired = calculateMinRequiredWidth() + extra;
-                if (minRequired > currentWidth && minRequired <= maxWidth) {
-                    currentWidth = minRequired;
-                    this._currentWidth = currentWidth;
+                
+                matchesContainer.offsetHeight;
+                const fitsAtMaxWidth = this._areAllBubblesOnSingleRow(bubbleElements);
+                
+                if (fitsAtMaxWidth) {
+                    this._optimalSingleRowWidth = maxAttemptWidth;
+                    this._singleRowWidthLocked = true;
+                    this._adjustBubblesToFillWidth();
+                } else {
+                    // Give up on single row, use optimal width and let them stack
+                    this._currentWidth = optimalWidth;
                     this._applyDimensions();
                     this._updatePosition();
-                    singleRowFit = areAllOnOneRow();
-                }
-                
-                // If still not fitting, use iterative expansion with better steps
-                if (!singleRowFit && currentWidth < maxWidth) {
-                    const maxIterations = 20;
-                    let iterations = 0;
-                    
-                    while (!singleRowFit && currentWidth < maxWidth && iterations < maxIterations) {
-                        const remaining = maxWidth - currentWidth;
-                        // Use progressive step sizes: start larger, get smaller
-                        const stepPercent = Math.max(0.05, 0.3 - (iterations * 0.015));
-                        const step = Math.max(30, Math.min(150, Math.ceil(remaining * stepPercent)));
-                        currentWidth = Math.min(maxWidth, currentWidth + step);
-                        
-                        this._currentWidth = currentWidth;
-                        this._applyDimensions();
-                        this._updatePosition();
-                        
-                        singleRowFit = areAllOnOneRow();
-                        iterations++;
-                    }
                 }
             }
-
-            setFitFlag(singleRowFit);
+        },
+        _calculateOptimalMultiBubbleWidth: function() {
+            if (!this._currentBubbleElements) return this.options.minWidth;
+            
+            const bubbleElements = this._currentBubbleElements;
+            const numBubbles = bubbleElements.length;
+            
+            // Calculate natural widths
+            let totalNaturalWidth = 0;
+            bubbleElements.forEach(bubble => {
+                const originalStyle = bubble.style.width;
+                bubble.style.width = 'auto';
+                bubble.offsetHeight; // Force reflow
+                const naturalWidth = Math.max(200, bubble.offsetWidth); // CSS min-width of 200px
+                totalNaturalWidth += naturalWidth;
+                bubble.style.width = originalStyle;
+            });
+            
+            // Add container styling
+            const gap = 8; // from CSS .matches-container gap
+            const containerPadding = 16; // .matches-container padding
+            const outerPadding = 20; // popup content padding
+            
+            const totalGaps = gap * Math.max(0, numBubbles - 1);
+            const optimalWidth = totalNaturalWidth + totalGaps + containerPadding + outerPadding + this.options.bubbleExpansionBuffer;
+            
+            return Math.max(this.options.minWidth, optimalWidth);
+        },
+        _areAllBubblesOnSingleRow: function(bubbleElements) {
+            if (bubbleElements.length <= 1) return true;
+            
+            const positions = bubbleElements.map(el => {
+                const rect = el.getBoundingClientRect();
+                return Math.round(rect.top);
+            });
+            
+            const minY = Math.min(...positions);
+            const maxY = Math.max(...positions);
+            return (maxY - minY) <= 2; // 2px tolerance for sub-pixel rendering
+        },
+        _adjustBubblesToFillWidth: function() {
+            if (!this._currentMatchesContainer || !this._currentBubbleElements) return;
+            
+            const container = this._currentMatchesContainer;
+            const bubbles = this._currentBubbleElements;
+            
+            // Calculate available space
+            const containerWidth = container.offsetWidth;
+            const gap = 8;
+            const availableWidth = containerWidth - (gap * Math.max(0, bubbles.length - 1));
+            const targetBubbleWidth = Math.floor(availableWidth / bubbles.length);
+            
+            // Only expand bubbles if they're smaller than target
+            bubbles.forEach(bubble => {
+                const currentWidth = bubble.offsetWidth;
+                if (currentWidth < targetBubbleWidth) {
+                    bubble.style.flex = `1 1 ${targetBubbleWidth}px`;
+                    bubble.style.maxWidth = `${targetBubbleWidth}px`;
+                }
+            });
         },
         _ensureDragHandleAtTop: function() {
             if (!this._container || !this._contentNode) return;
@@ -420,50 +383,31 @@
             this._startSize = { width: contentNode.offsetWidth, height: contentNode.offsetHeight };
             this._popupStartPos = { left: this._container.offsetLeft, top: this._container.offsetTop };
 
-            // Allow resizing up to either a generous map-based cap or the bubble-estimated width
-            const mapWidthForCap = this._map ? this._map.getSize().x : (window.innerWidth || 1200);
-            const widthFactorCap = (this.options && typeof this.options.maxPopupWidthFactor === 'number') ? this.options.maxPopupWidthFactor : 1.0;
-            const hardPixelCap = 9000; // absolute safeguard consistent with dynamic logic
-            const baseCap = Math.floor(mapWidthForCap * Math.max(1.0, Math.min(4.0, widthFactorCap)));
-            const extraCap = (this.options && typeof this.options.extraWidthForSingleRow === 'number') ? this.options.extraWidthForSingleRow : 0;
-
-                        // Compute bubble-based estimate
-            let bubbleEstimate = null;
-            {
-                const bubbleBasis = 200; 
-                const gap = 8; 
-                const paddingLeft = 8;
-                const paddingRight = 8;
-                const singleBubbleBuffer = 25;
-                const multiBubbleBuffer = 80; 
-                const matchesContainer = contentNode.querySelector('.matches-container');
-                const singleBubble = contentNode.querySelector('.atlas-match, .osm-match');
-                if (matchesContainer) {
-                    const bubbles = matchesContainer.children;
-                    const numBubbles = bubbles.length;
-                    if (numBubbles > 0) {
-                        bubbleEstimate = (bubbleBasis * numBubbles) + (gap * Math.max(0, numBubbles - 1)) + paddingLeft + paddingRight + multiBubbleBuffer;
-                    }
-                } else if (singleBubble) {
-                    bubbleEstimate = bubbleBasis + paddingLeft + paddingRight + singleBubbleBuffer;
+            // Calculate professional width limits based on content
+            this._analyzeBubbleLayout();
+            
+            if (this._isSingleBubbleMode) {
+                // Single bubble: limit to 2x initial width
+                const initialWidth = this._initialCalculatedWidth || this._currentWidth || this.options.minWidth;
+                this._maxContentWidth = initialWidth * this.options.singleBubbleMaxWidthFactor;
+            } else {
+                // Multiple bubbles: allow width until all bubbles fit in single row + small buffer
+                if (this._optimalSingleRowWidth && this._singleRowWidthLocked) {
+                    this._maxContentWidth = this._optimalSingleRowWidth + this.options.bubbleExpansionBuffer;
+                } else {
+                    // Calculate on-the-fly
+                    const optimalWidth = this._calculateOptimalMultiBubbleWidth();
+                    this._maxContentWidth = optimalWidth * 1.1; // 10% buffer
                 }
             }
             
-            // If we have a locked optimal width, use that as the cap instead of allowing infinite expansion
-            const generousCap = Math.min(hardPixelCap, baseCap + Math.max(0, extraCap));
-            if (this._optimalSingleRowWidth && this._singleRowWidthLocked) {
-                // Add small buffer to locked width to allow slight adjustment
-                this._maxContentWidth = this._optimalSingleRowWidth + 50;
+            if (this._maxContentWidth >= this.options.minWidth) {
+                L.DomUtil.addClass(this._container, 'leaflet-popup-resizing');
+                L.DomEvent.on(document, 'mousemove', this._onMouseMove);
+                L.DomEvent.on(document, 'mouseup', this._onMouseUp);
             } else {
-                this._maxContentWidth = Math.max(generousCap, bubbleEstimate || 0);
+                this._isResizing = false; 
             }
-            if (this._maxContentWidth === null || this._maxContentWidth >= this.options.minWidth) {
-                 L.DomUtil.addClass(this._container, 'leaflet-popup-resizing');
-                 L.DomEvent.on(document, 'mousemove', this._onMouseMove);
-                 L.DomEvent.on(document, 'mouseup', this._onMouseUp);
-             } else {
-                 this._isResizing = false; 
-             }
         },
         _onMouseMove: function(e) {
              if (this._isDragging) {
@@ -487,24 +431,39 @@
             let newHeight = this._startSize.height;
             let newLeft = this._popupStartPos.left;
             let newTop = this._popupStartPos.top;
+            
             if (this._resizeMode.includes('e')) { newWidth = this._startSize.width + dx; }
             if (this._resizeMode.includes('w')) { newWidth = this._startSize.width - dx; }
-            if (this._maxContentWidth !== null && newWidth > this._maxContentWidth) { newWidth = this._maxContentWidth; }
+            
+            // Apply professional width limits
+            if (this._maxContentWidth !== null && newWidth > this._maxContentWidth) { 
+                newWidth = this._maxContentWidth; 
+            }
             const minW = this.options.minWidth;
             if (newWidth < minW) { newWidth = minW; }
+            
             if (this._resizeMode.includes('w')) { newLeft = this._popupStartPos.left + (this._startSize.width - newWidth); }
             if (this._resizeMode.includes('s')) { newHeight = this._startSize.height + dy; }
             if (this._resizeMode.includes('n')) { newHeight = this._startSize.height - dy; }
+            
             const minH = this.options.minHeight;
             if (newHeight < minH) { newHeight = minH; }
             if (this._resizeMode.includes('n')) { newTop = this._popupStartPos.top + (this._startSize.height - newHeight); }
+            
             contentNode.style.width = `${newWidth}px`;
             contentNode.style.height = `${newHeight}px`;
             contentNode.style.overflow = 'auto';
+            
             if (this._resizeMode.includes('n') || this._resizeMode.includes('w')) {
                 this._container.style.left = `${newLeft}px`;
                 this._container.style.top = `${newTop}px`;
             }
+            
+            // If in multi-bubble mode and width changed, check if we should adjust bubble layout
+            if (!this._isSingleBubbleMode && this._resizeMode.includes('e') || this._resizeMode.includes('w')) {
+                setTimeout(() => this._adjustBubblesToFillWidth(), 0);
+            }
+            
             this._updatePosition();
             this._updateLine();
         },
@@ -624,7 +583,7 @@
             this._repositionCloseButton();
         },
         _updateLayout: function () {
-            this._applyDynamicWidthToFitBubbles();
+            this._applyOptimalWidth();
             this._applyDimensions(); 
             L.Popup.prototype._updateLayout.call(this);
         }
@@ -637,5 +596,3 @@
         });
     };
 })();
-
-

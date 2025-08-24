@@ -138,25 +138,23 @@
             <div class="card persistence-card">
               <div class="card-header bg-light d-flex align-items-center">
                 <strong><i class="fas fa-thumbtack mr-1"></i> Persistence Options</strong>
-                <i class="fas fa-info-circle text-muted ml-2 info-icon" title="Persistent solutions are automatically applied after data imports"></i>
+                <i class="fas fa-info-circle text-muted ml-2 info-icon" data-toggle="tooltip" data-placement="right" title="Persistent solutions and notes are re-applied automatically after data imports." tabindex="0"></i>
               </div>
               <div class="card-body">
                 <div class="row align-items-center">
                   <div class="col-6">
                     <div class="custom-control custom-switch m-0">
-                      <input type="checkbox" class="custom-control-input" id="autoPersistToggle">
+                      <input type="checkbox" class="custom-control-input" id="autoPersistToggle" {% if not current_user.is_authenticated %}disabled{% endif %}>
                       <label class="custom-control-label" for="autoPersistToggle">
                         <span class="toggle-label"><span>Auto-Persist</span><br><span>new solutions</span></span>
-                        <i class="fas fa-info-circle text-muted ml-1 info-icon" title="Automatically make all new solutions persistent"></i>
                       </label>
                     </div>
                   </div>
                   <div class="col-6">
                     <div class="custom-control custom-switch m-0">
-                      <input type="checkbox" class="custom-control-input" id="autoPersistNotesToggle">
+                      <input type="checkbox" class="custom-control-input" id="autoPersistNotesToggle" {% if not current_user.is_authenticated %}disabled{% endif %}>
                       <label class="custom-control-label" for="autoPersistNotesToggle">
                         <span class="toggle-label"><span>Auto-Persist</span><br><span>new notes</span></span>
-                        <i class="fas fa-info-circle text-muted ml-1 info-icon" title="Automatically make all new notes persistent"></i>
                       </label>
                     </div>
                   </div>

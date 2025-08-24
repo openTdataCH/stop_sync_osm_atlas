@@ -9,10 +9,34 @@ $(document).ready(function() {
         });
     }
 
+    // Build a clear error message based on HTTP status and response body
+    function buildErrorMessage(xhr, fallbackMessage, context) {
+        try {
+            const status = xhr && xhr.status;
+            const body = (xhr && xhr.responseJSON) ? xhr.responseJSON : null;
+            const serverMsg = body && (body.error || body.message);
+            if (status === 401) {
+                if (context === 'persist') return 'Please log in to make data persistent.';
+                if (context === 'bulk') return 'Please log in to perform this action.';
+                return 'Please log in to continue.';
+            }
+            if (status === 403) {
+                if (context === 'owner') return 'Not authorized: only the author or an admin can modify or delete this item.';
+                if (context === 'bulk') return 'Not authorized: only admins can perform this action.';
+                if (context === 'persist') return 'Not authorized: only the author or an admin can update existing persistent items.';
+                return 'Not authorized to perform this action.';
+            }
+            return serverMsg || fallbackMessage;
+        } catch (e) {
+            return fallbackMessage;
+        }
+    }
+
     let currentPage = 1;
     let currentFilter = 'all';
     let currentTab = 'persistent'; // 'persistent' or 'non-persistent'
     let isAdmin = false;
+    let currentUserEmail = null;
     
     // Initialize the persistent data page with proper error handling
     function initializePersistentDataPage() {
@@ -24,8 +48,11 @@ $(document).ready(function() {
             if (window.__authStatusEndpoint) {
                 $.getJSON(window.__authStatusEndpoint, function(status){
                     isAdmin = !!(status && status.is_admin);
+                    currentUserEmail = (status && status.email) ? status.email : null;
+                    if (!isAdmin) { $('#makeAllPersistentBtn').hide(); } else { $('#makeAllPersistentBtn').show(); }
                     loadPersistentData(currentPage, currentFilter);
                 }).fail(function(){
+                    $('#makeAllPersistentBtn').hide();
                     loadPersistentData(currentPage, currentFilter);
                 });
             } else {
@@ -318,7 +345,8 @@ $(document).ready(function() {
         const content = isNote ? (item.note || '') : (item.solution || '');
         
         const authorLine = (item.author_email && item.author_email.trim().length > 0) ? `<div><strong>Author:</strong> ${item.author_email}</div>` : `<div><strong>Author:</strong> <em>Not a user</em></div>`;
-        const adminButtons = isAdmin ? `
+        const canManage = isAdmin || (!!currentUserEmail && !!item.author_email && item.author_email === currentUserEmail);
+        const actionButtons = canManage ? `
                         <div class="btn-group">
                              <button class="btn btn-sm btn-warning make-non-persistent-btn" 
                                     data-id="${item.id}" 
@@ -341,7 +369,7 @@ $(document).ready(function() {
                             </span>
                             <small class="text-muted ml-2">Persistent</small>
                         </h5>
-                        ${adminButtons}
+                        ${actionButtons}
                     </div>
                     
                     <div class="card-text">
@@ -489,8 +517,9 @@ $(document).ready(function() {
                     showTemporaryMessage(`Error: ${response.error}`, 'error');
                 }
             },
-            error: function() {
-                showTemporaryMessage('Error deleting data.', 'error');
+            error: function(xhr) {
+                const msg = buildErrorMessage(xhr, 'Error deleting data.', 'owner');
+                showTemporaryMessage(msg, 'error');
             }
         });
     }
@@ -535,8 +564,9 @@ $(document).ready(function() {
                     showTemporaryMessage(`Error: ${response.error}`, 'error');
                 }
             },
-            error: function() {
-                showTemporaryMessage('Error clearing data.', 'error');
+            error: function(xhr) {
+                const msg = buildErrorMessage(xhr, 'Error clearing data.', null);
+                showTemporaryMessage(msg, 'error');
             }
         });
     }
@@ -579,8 +609,9 @@ $(document).ready(function() {
                     showTemporaryMessage(`Error: ${response.error}`, 'error');
                 }
             },
-            error: function() {
-                showTemporaryMessage('Error making data persistent.', 'error');
+            error: function(xhr) {
+                const msg = buildErrorMessage(xhr, 'Error making data persistent.', 'persist');
+                showTemporaryMessage(msg, 'error');
             }
         });
     }
@@ -600,8 +631,9 @@ $(document).ready(function() {
                     showTemporaryMessage(`Error: ${response.error}`, 'error');
                 }
             },
-            error: function() {
-                showTemporaryMessage('An error occurred while making the data non-persistent.', 'error');
+            error: function(xhr) {
+                const msg = buildErrorMessage(xhr, 'An error occurred while making the data non-persistent.', 'owner');
+                showTemporaryMessage(msg, 'error');
             }
         });
     }
@@ -623,8 +655,9 @@ $(document).ready(function() {
                     showTemporaryMessage(`Error: ${response.error}`, 'error');
                 }
             },
-            error: function() {
-                showTemporaryMessage(`An error occurred while clearing ${tab} data.`, 'error');
+            error: function(xhr) {
+                const msg = buildErrorMessage(xhr, `An error occurred while clearing ${tab} data.`, 'bulk');
+                showTemporaryMessage(msg, 'error');
             }
         });
     }
@@ -674,8 +707,9 @@ $(document).ready(function() {
                     
                     button.prop('disabled', false).html(originalButtonHtml);
                 },
-                error: function() {
-                    showTemporaryMessage('Error making data persistent.', 'error');
+                error: function(xhr) {
+                    const msg = buildErrorMessage(xhr, 'Error making data persistent.', 'bulk');
+                    showTemporaryMessage(msg, 'error');
                     button.prop('disabled', false).html(originalButtonHtml);
                 }
             });

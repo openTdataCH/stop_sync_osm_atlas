@@ -104,7 +104,7 @@ def generate_report():
             response.headers["Content-Disposition"] = f"attachment; filename={response_filename_stem}.csv"
             return response
         pdf_filename_stem = f"{report_type}_{sort_param if report_type != 'duplicates' else 'uic_asc'}"
-        report_html = render_template('pages/report.html', 
+        report_html = render_template('reports/report.html', 
                                      report_items=data_for_report,
                                      generated_at=datetime.now(), 
                                      sort_order=sort_param,
