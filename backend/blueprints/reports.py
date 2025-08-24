@@ -221,8 +221,11 @@ def generate_report_async():
             'error': None
         }
         
+        # Get the actual app instance for the background thread
+        flask_app = app._get_current_object()
+        
         # Start background thread
-        thread = threading.Thread(target=background_report_generation, args=(data, task_id))
+        thread = threading.Thread(target=background_report_generation, args=(data, task_id, flask_app))
         thread.daemon = True
         thread.start()
         
@@ -236,9 +239,9 @@ def generate_report_async():
         return jsonify({"error": str(e)}), 500
 
 
-def background_report_generation(params, task_id):
+def background_report_generation(params, task_id, flask_app):
     """Background function to generate report"""
-    with app.app_context():
+    with flask_app.app_context():
         try:
             report_progress[task_id]['status'] = 'processing'
             
@@ -342,7 +345,7 @@ def background_report_generation(params, task_id):
         except Exception as e:
             report_progress[task_id]['status'] = 'error' 
             report_progress[task_id]['error'] = str(e)
-            app.logger.error(f"Background report generation error: {str(e)}")
+            flask_app.logger.error(f"Background report generation error: {str(e)}")
 
 
 @reports_bp.route('/api/report_progress/<task_id>', methods=['GET'])

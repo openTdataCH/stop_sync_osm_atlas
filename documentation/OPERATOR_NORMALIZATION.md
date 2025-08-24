@@ -19,7 +19,7 @@ Make OSM `operator` values comparable to ATLAS by converting known aliases to a 
 
 ### How it works (at a glance)
 
-1. Read mapping from `matching_process/operator_normalizations.csv` with columns `alias,standard_name`.
+1. Read mapping from [matching_process/operator_normalizations.csv](../matching_process/operator_normalizations.csv) with columns `alias,standard_name`.
 2. When an OSM tag `operator` is seen:
    - Trim whitespace from the value.
    - Do an **exact, case-sensitive** lookup on `alias`.
