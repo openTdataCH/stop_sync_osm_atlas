@@ -27,11 +27,16 @@ function initReportGeneration() {
     $(document).on('change', 'input[name="reportCategory"]', updateCategoryVisibility);
     updateCategoryVisibility();
 
+    // Global variables for progress tracking
+    window.currentTaskId = null;
+    window.progressInterval = null;
+
     // Handle the report form submission
     $('#reportForm').on('submit', function(e){
         e.preventDefault();
         
-        // Show loading overlay
+        // Show loading overlay and reset state
+        resetProgressOverlay();
         $('#reportLoadingOverlay').show();
         
         // Build params from form
@@ -80,16 +85,8 @@ function initReportGeneration() {
             if (statuses.length > 0) params.solution_status = statuses.join(',');
         }
 
-        // Generate the report URL with parameters
-        var url = "/api/generate_report?" + $.param(params);
-        
-        // Start download and hide overlay after a short delay
-        window.location.href = url;
-        
-        // Hide overlay after 2 seconds (giving time for download to start)
-        setTimeout(function() {
-            $('#reportLoadingOverlay').hide();
-        }, 2000);
+        // Start async report generation
+        startAsyncReportGeneration(params);
         
         // Hide the modal
         try { $('#reportModal').modal('hide'); } catch (e) {}
@@ -101,10 +98,152 @@ function initReportGeneration() {
         if (mode === 'upto') { $('#reportLimitModal').prop('disabled', false); }
         else { $('#reportLimitModal').prop('disabled', true); }
     });
+    function resetProgressOverlay() {
+        $('#reportProgressBar').css('width', '0%').attr('aria-valuenow', 0);
+        $('#progressText').text('Starting...');
+        $('#entriesProcessed').text('0');
+        $('#totalEntries').text('0');
+        $('#etaText').hide();
+        $('#downloadSection').hide();
+        $('#errorSection').hide();
+        $('#progressControls').show();
+    }
+
+    function startAsyncReportGeneration(params) {
+        $.ajax({
+            url: '/api/generate_report_async',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(params),
+            success: function(response) {
+                if (response.task_id) {
+                    window.currentTaskId = response.task_id;
+                    startProgressPolling();
+                } else {
+                    showError('Failed to start report generation');
+                }
+            },
+            error: function(xhr) {
+                var error = 'Unknown error';
+                try {
+                    var response = JSON.parse(xhr.responseText);
+                    error = response.error || error;
+                } catch (e) {}
+                showError('Error starting report: ' + error);
+            }
+        });
+    }
+
+    function startProgressPolling() {
+        if (window.progressInterval) {
+            clearInterval(window.progressInterval);
+        }
+        
+        window.progressInterval = setInterval(function() {
+            if (!window.currentTaskId) return;
+            
+            $.ajax({
+                url: '/api/report_progress/' + window.currentTaskId,
+                method: 'GET',
+                success: function(progress) {
+                    updateProgress(progress);
+                },
+                error: function() {
+                    // Continue polling unless specifically cancelled
+                    if (window.currentTaskId) {
+                        console.log('Progress polling error, continuing...');
+                    }
+                }
+            });
+        }, 500);
+    }
+
+    function updateProgress(progress) {
+        if (!progress) return;
+        
+        var processed = progress.processed || 0;
+        var total = progress.total || 0;
+        var status = progress.status;
+        
+        // Update counters
+        $('#entriesProcessed').text(processed.toLocaleString());
+        $('#totalEntries').text(total.toLocaleString());
+        
+        // Update progress bar
+        var percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
+        $('#reportProgressBar').css('width', percentage + '%').attr('aria-valuenow', percentage);
+        
+        if (status === 'starting') {
+            $('#progressText').text('Starting...');
+        } else if (status === 'processing') {
+            $('#progressText').text(percentage + '%');
+            
+            // Show ETA if available
+            if (progress.eta && progress.eta > 0) {
+                var eta = Math.round(progress.eta);
+                var etaText = eta < 60 ? eta + 's' : Math.round(eta/60) + 'm ' + (eta%60) + 's';
+                $('#etaValue').text(etaText);
+                $('#etaText').show();
+            }
+        } else if (status === 'completed') {
+            $('#progressText').text('100%');
+            $('#reportProgressBar').css('width', '100%').attr('aria-valuenow', 100);
+            stopProgressPolling();
+            showDownloadButton();
+        } else if (status === 'error') {
+            stopProgressPolling();
+            showError(progress.error || 'Unknown error occurred');
+        }
+    }
+
+    function showDownloadButton() {
+        $('#progressControls').hide();
+        $('#downloadSection').show();
+        
+        $('#downloadReportBtn').off('click').on('click', function() {
+            if (window.currentTaskId) {
+                window.location.href = '/api/download_report/' + window.currentTaskId;
+                // Hide overlay after download starts
+                setTimeout(function() {
+                    cancelReportGeneration();
+                }, 1000);
+            }
+        });
+    }
+
+    function showError(message) {
+        $('#progressControls').hide();
+        $('#errorMessage').text(message);
+        $('#errorSection').show();
+    }
+
+    function stopProgressPolling() {
+        if (window.progressInterval) {
+            clearInterval(window.progressInterval);
+            window.progressInterval = null;
+        }
+    }
 }
 
 // Function to cancel report generation
 function cancelReportGeneration() {
+    // Cancel on backend if task is running
+    if (window.currentTaskId) {
+        $.ajax({
+            url: '/api/cancel_report/' + window.currentTaskId,
+            method: 'POST',
+            complete: function() {
+                window.currentTaskId = null;
+            }
+        });
+    }
+    
+    // Stop polling and hide overlay
+    if (window.progressInterval) {
+        clearInterval(window.progressInterval);
+        window.progressInterval = null;
+    }
+    
     $('#reportLoadingOverlay').hide();
 }
 

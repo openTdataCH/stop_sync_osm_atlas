@@ -31,12 +31,45 @@
 <!-- Loading overlay for report generation -->
 <div id="reportLoadingOverlay" class="loading-overlay" style="display: none;">
   <div class="loading-content">
-    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
-      <span class="sr-only">Loading...</span>
+    <h4 class="mb-3">Generating Report...</h4>
+    
+    <!-- Progress bar -->
+    <div class="progress mb-3" style="height: 25px;">
+      <div id="reportProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+           role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+        <span id="progressText">Starting...</span>
+      </div>
     </div>
-    <h4 class="mt-3">Generating Report...</h4>
-    <p class="text-muted">This may take a few moments for large reports.</p>
-    <button type="button" class="btn btn-outline-secondary mt-2" onclick="cancelReportGeneration()">Cancel</button>
+    
+    <!-- Status text -->
+    <div id="progressStatus" class="mb-3">
+      <div><span id="entriesProcessed">0</span> of <span id="totalEntries">0</span> entries processed</div>
+      <div id="etaText" class="text-muted small" style="display: none;">
+        Estimated time remaining: <span id="etaValue">-</span>
+      </div>
+    </div>
+    
+    <!-- Download button (hidden initially) -->
+    <div id="downloadSection" style="display: none;">
+      <div class="alert alert-success">Report generated successfully!</div>
+      <button type="button" class="btn btn-success" id="downloadReportBtn">
+        <i class="fas fa-download"></i> Download Report
+      </button>
+    </div>
+    
+    <!-- Error section (hidden initially) -->
+    <div id="errorSection" style="display: none;">
+      <div class="alert alert-danger">
+        <strong>Error:</strong> <span id="errorMessage"></span>
+      </div>
+    </div>
+    
+    <!-- Controls -->
+    <div id="progressControls">
+      <button type="button" class="btn btn-outline-secondary" onclick="cancelReportGeneration()">
+        <i class="fas fa-times"></i> Cancel
+      </button>
+    </div>
   </div>
 </div>
 
