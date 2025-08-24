@@ -1,0 +1,245 @@
+% !TeX spellcheck = fr_FR
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                             %
+%% HEPIA BACHELOR THESIS LATEX TEMPLATE                                        %
+%% version 0.10 - 2020/04/22                                                    %
+%%                                                                             %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Ensure no option clash for url package; hyperref will manage links
+\RequirePackage{url}
+\documentclass[12pt
+%% UNCOMMENT THE LINE BELOW TO HAVE CHAPTER STARTING ON THE RIGHT PAGE
+%			,twoside, openright
+			]{report} %% should use memoir documentclass
+\input{config/thesis}
+
+%% To fill up by the student
+\newcommand{\Author}{Guillem MASSAGUÉ Querol}
+\newcommand{\TitleImage}{figures/cover_image.png}
+\newcommand{\Title}{Synchronisation des Arrêts / Points d’Arrêt entre OSM et ATLAS}
+\newcommand{\Shorttitle}{Synchronisation des Arrêts entre OSM et ATLAS}
+\newcommand{\Orientation}{< Nom complet de votre orientation >}
+\newcommand{\Professor}{< Prénom NOM >}
+\newcommand{\Client}{< Prénom NOM >}
+\newcommand{\Year}{2025}
+\newcommand{\Month}{Août}
+%% THE LINES BELLOW ARE FOR PDF REFERENCING PURPOSES.
+\newcommand{\Keywords}{< Some keywords about your thesis >}
+\newcommand{\Subject}{< Some words about your thesis field >}
+\newcommand{\Convention}{< oui/non >}
+\newcommand{\Confidentiel}{< oui/non >}
+
+%% DO NOT MODIFY \hypersetup BELOW. THIS IS FOR PDF REFERENCING PURPOSES.
+\hypersetup{
+	pdftitle={\Title},
+	pdfauthor={\Author},
+	pdfkeywords={\Keywords},
+	pdfsubject={\Subject}
+}
+%\usepackage{showframe}	% Prints document frame
+
+\input{template/header}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DOCUMENT STARTS BELOW %%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+% ==================== Reference Definitions ====================
+\defref{ref:open_transport_data_swiss}{Open Data Platform Mobility Switzerland [en ligne]. Disponible sur : \url{https://opentransportdata.swiss/en/} (consulté le 2025-02-21).}
+
+\defref{ref:traffic_points_actual_date}{Traffic-points-actual-date [en ligne]. Disponible sur : \url{https://data.opentransportdata.swiss/en/dataset/traffic-points-actual-date} (consulté le 2025-02-01).}
+
+\defref{ref:atlas_app_sbb}{ATLAS App SBB [en ligne]. Disponible sur : \url{https://atlas.app.sbb.ch} (consulté le 2025-02-12).}
+
+\defref{ref:wikipedia_uic_codes}{Wikipédia. Liste des codes pays UIC [en ligne]. Disponible sur : \url{https://fr.wikipedia.org/wiki/Liste_des_codes_pays_UIC} (consulté le 2025-02-12).}
+
+\defref{ref:osm_bus_stop}{OpenStreetMap Wiki. DE:Tag:highway=bus\_stop [en ligne]. Disponible sur : \url{https://wiki.openstreetmap.org/wiki/DE:Tag:highway=bus_stop} (consulté le 2025-02-13).}
+
+\defref{ref:osm_public_transport}{OpenStreetMap Wiki. Public transport [en ligne]. Disponible sur : \url{https://wiki.openstreetmap.org/wiki/Public_transport} (consulté le 2025-02-14).}
+
+\defref{ref:osm_key_public_transport}{OpenStreetMap Wiki. FR:Key:public\_transport [en ligne]. Disponible sur : \url{https://wiki.openstreetmap.org/wiki/FR:Key:public_transport} (consulté le 2025-02-12).}
+
+\defref{ref:osm_proposal_public_transport}{OpenStreetMap Wiki. Proposal:Public transport schema [en ligne]. Disponible sur : \url{https://wiki.openstreetmap.org/wiki/Proposal:Public_transport_schema} (consulté le 2025-02-12).}
+
+\defref{ref:osm_transport_map}{OpenStreetMap Wiki. Transport Map [en ligne]. Disponible sur : \url{https://wiki.openstreetmap.org/wiki/Transport_Map} (consulté le 2025-02-12).}
+
+\defref{ref:osm_local_ref}{OpenStreetMap Wiki. Key:local\_ref [en ligne]. Disponible sur : \url{https://wiki.openstreetmap.org/wiki/Key:local_ref} (consulté le 2025-02-12).}
+
+\defref{ref:overpass_turbo}{Overpass Turbo [en ligne]. Disponible sur : \url{https://overpass-turbo.eu/} (consulté le 2025-02-14).}
+
+\defref{ref:sqlalchemy_docs}{SQLAlchemy. SQLAlchemy Documentation [en ligne]. Disponible sur : \url{https://www.sqlalchemy.org/} (consulté le 2025-02-24).}
+
+\defref{ref:flask_docs}{Flask. Documentation [en ligne]. Disponible sur : \url{https://flask.palletsprojects.com/} (consulté le 2025-02-24).}
+
+\defref{ref:jinja_docs}{Jinja. Jinja Documentation [en ligne]. Disponible sur : \url{https://jinja.palletsprojects.com/} (consulté le 2025-04-06).}
+
+\defref{ref:leaflet_docs}{Leaflet. Leaflet Documentation [en ligne]. Disponible sur : \url{https://leafletjs.com/} (consulté le 2025-02-24).}
+
+\defref{ref:totp_rfc}{IETF. RFC 6238: TOTP: Time-Based One-Time Password Algorithm [en ligne]. Disponible sur : \url{https://www.rfc-editor.org/rfc/rfc6238} (consulté le 2025-08-07).}
+
+\defref{ref:cloudflare_turnstile}{Cloudflare. Cloudflare Turnstile [en ligne]. Disponible sur : \url{https://www.cloudflare.com/products/turnstile/} (consulté le 2025-08-07).}
+
+\defref{ref:argon2_docs}{Argon2. Argon2 documentation [en ligne]. Disponible sur : \url{https://argon2-cffi.readthedocs.io/en/stable/} (consulté le 2025-08-07).}
+
+\defref{ref:fernet_docs}{Cryptography. Fernet (symmetric encryption) [en ligne]. Disponible sur : \url{https://cryptography.io/en/latest/fernet/} (consulté le 2025-08-07).}
+
+\defref{ref:aws_ses}{Amazon Web Services. Amazon Simple Email Service (SES) [en ligne]. Disponible sur : \url{https://aws.amazon.com/ses/} (consulté le 2025-08-11).}
+
+\defref{ref:docker_docs}{Docker. Documentation [en ligne]. Disponible sur : \url{https://docs.docker.com/} (consulté le 2025-08-12).}
+
+\defref{ref:wkhtmltopdf}{wkhtmltopdf. wkhtmltopdf [en ligne]. Disponible sur : \url{https://wkhtmltopdf.org/} (consulté le 2025-08-13).}
+
+\defref{ref:docker_compose_env_vars}{Docker. Environment variables with Compose [en ligne]. Disponible sur : \url{https://docs.docker.com/compose/environment-variables/envvars/} (consulté le 2025-08-14).}
+
+\defref{ref:docker_compose}{Docker. Docker Compose [en ligne]. Disponible sur : \url{https://docs.docker.com/compose/} (consulté le 2025-04-15).}
+
+\defref{ref:mysql_docs}{MySQL. MySQL 8.0 Documentation [en ligne]. Disponible sur : \url{https://dev.mysql.com/doc/} (consulté le 2025-04-16).}
+
+\defref{ref:alembic_docs}{Alembic. Alembic Documentation [en ligne]. Disponible sur : \url{https://alembic.sqlalchemy.org/} (consulté le 2025-06-09).}
+
+\defref{ref:gunicorn_docs}{Gunicorn. Gunicorn Documentation [en ligne]. Disponible sur : \url{https://gunicorn.org/} (consulté le 2025-08-10).}
+
+\defref{ref:nginx_docs}{Nginx. Nginx Documentation [en ligne]. Disponible sur : \url{https://nginx.org/en/} (consulté le 2025-08-11).}
+
+\defref{ref:docker_healthcheck}{Docker. Dockerfile HEALTHCHECK [en ligne]. Disponible sur : \url{https://docs.docker.com/engine/reference/builder/\#healthcheck} (consulté le 2025-04-12).}
+
+\defref{ref:gtfs_cookbook}{Open Transport Data Swiss. GTFS Cookbook [en ligne]. Disponible sur : \url{https://opentransportdata.swiss/de/cookbook/timetable-cookbook/gtfs/} (consulté le 2025-02-12).}
+
+\defref{ref:docker_secrets}{Docker. Docker secrets [en ligne]. Disponible sur : \url{https://docs.docker.com/engine/swarm/secrets/} (consulté le 2025-04-17).}
+
+\defref{ref:hrdf_cookbook}{Open Transport Data Swiss. HRDF Cookbook [en ligne]. Disponible sur : \url{https://opentransportdata.swiss/en/cookbook/timetable-cookbook/hafas-rohdaten-format-hrdf/} (consulté le 2025-02-12).}
+
+\defref{ref:github_repo}{GitHub. stop\_sync\_osm\_atlas [en ligne]. Disponible sur : \url{https://github.com/openTdataCH/stop\_sync\_osm\_atlas} (consulté le 2025-08-17).}
+
+\defref{ref:githepia_repo}{GitHEPIA. bachelor-project [en ligne]. Disponible sur : \url{https://githepia.hesge.ch/guillem.massague/bachelor-project} (consulté le 2025-08-17).}
+% ================================================================
+
+\pagenumbering{roman}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TITLE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{template/title}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% IMAGE TITLE REF %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newgeometry{top=2.1cm,bottom=3.5cm,right=2.5cm,left=2.5cm}
+\begin{spacing}{1.5}
+\input{chapters/titleref}
+\end{spacing}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DEDICATION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TABLE OF CONTENT %%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{spacing}{1}
+\input{chapters/globaltoc}
+\end{spacing}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DEDICATION %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{spacing}{1.5}
+\input{chapters/dedication}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% ACKNOWLEDGEMENTS %%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \input{chapters/acknowledgements}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% ABSTRACT %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{chapters/abstract}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LIST OF ACRONYMS  %%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{chapters/acronyms}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LIST OF FIGURES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{chapters/figureslist}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LIST OF TABLES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{chapters/tableslist}
+\end{spacing}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LIST OF ANNEXES %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% COMMENT THIS PART IF YOU DO NOT USE DEDICATED TOC FOR ANNEXES AND COMMENT 
+%%% HEADER AND FOOTER PART IN {chapters/annexes} FILE
+\begin{spacing}{1}
+\end{spacing}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% INTRODUCTION  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\onehalfspacing
+\pagenumbering{arabic}
+\input{chapters/intro}
+%\clearpage
+\cleardoublepage
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% CHAPTERS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Add your chapters here %%%%%%%%%%%%%%%%%%%%%%%%%
+%\input{chapters/chapXXX}
+\input{chapters/chap1}
+\input{chapters/chap2}
+\input{chapters/chap3}
+\input{chapters/chap4}
+\input{chapters/chap5}
+\input{chapters/chap6}
+\input{chapters/chap7}
+\input{chapters/chap8}
+\input{chapters/chap9}
+\input{chapters/chap10}
+\input{chapters/chap11}
+\input{chapters/chap12}
+\input{chapters/conclusion}
+% Print custom bibliography at the end
+\chapter*{Références documentaires}
+\addcontentsline{toc}{chapter}{Références documentaires}
+
+\begin{enumerate}
+    \item \csuse{refcite@ref:open_transport_data_swiss} \label{ref:open_transport_data_swiss}
+    \item \csuse{refcite@ref:traffic_points_actual_date} \label{ref:traffic_points_actual_date}
+    \item \csuse{refcite@ref:atlas_app_sbb} \label{ref:atlas_app_sbb}
+    \item \csuse{refcite@ref:wikipedia_uic_codes} \label{ref:wikipedia_uic_codes}
+    \item \csuse{refcite@ref:osm_bus_stop} \label{ref:osm_bus_stop}
+    \item \csuse{refcite@ref:osm_public_transport} \label{ref:osm_public_transport}
+    \item \csuse{refcite@ref:osm_key_public_transport} \label{ref:osm_key_public_transport}
+    \item \csuse{refcite@ref:osm_proposal_public_transport} \label{ref:osm_proposal_public_transport}
+    \item \csuse{refcite@ref:osm_transport_map} \label{ref:osm_transport_map}
+    \item \csuse{refcite@ref:osm_local_ref} \label{ref:osm_local_ref}
+    \item \csuse{refcite@ref:overpass_turbo} \label{ref:overpass_turbo}
+    \item \csuse{refcite@ref:sqlalchemy_docs} \label{ref:sqlalchemy_docs}
+    \item \csuse{refcite@ref:flask_docs} \label{ref:flask_docs}
+    \item \csuse{refcite@ref:jinja_docs} \label{ref:jinja_docs}
+    \item \csuse{refcite@ref:leaflet_docs} \label{ref:leaflet_docs}
+    \item \csuse{refcite@ref:totp_rfc} \label{ref:totp_rfc}
+    \item \csuse{refcite@ref:cloudflare_turnstile} \label{ref:cloudflare_turnstile}
+    \item \csuse{refcite@ref:argon2_docs} \label{ref:argon2_docs}
+    \item \csuse{refcite@ref:fernet_docs} \label{ref:fernet_docs}
+    \item \csuse{refcite@ref:aws_ses} \label{ref:aws_ses}
+    \item \csuse{refcite@ref:docker_docs} \label{ref:docker_docs}
+    \item \csuse{refcite@ref:wkhtmltopdf} \label{ref:wkhtmltopdf}
+    \item \csuse{refcite@ref:docker_compose_env_vars} \label{ref:docker_compose_env_vars}
+    \item \csuse{refcite@ref:docker_compose} \label{ref:docker_compose}
+    \item \csuse{refcite@ref:mysql_docs} \label{ref:mysql_docs}
+    \item \csuse{refcite@ref:alembic_docs} \label{ref:alembic_docs}
+    \item \csuse{refcite@ref:gunicorn_docs} \label{ref:gunicorn_docs}
+    \item \csuse{refcite@ref:nginx_docs} \label{ref:nginx_docs}
+    \item \csuse{refcite@ref:docker_healthcheck} \label{ref:docker_healthcheck}
+    \item \csuse{refcite@ref:gtfs_cookbook} \label{ref:gtfs_cookbook}
+    \item \csuse{refcite@ref:docker_secrets} \label{ref:docker_secrets}
+    \item \csuse{refcite@ref:hrdf_cookbook} \label{ref:hrdf_cookbook}
+    \item \csuse{refcite@ref:github_repo} \label{ref:github_repo}
+    \item \csuse{refcite@ref:githepia_repo} \label{ref:githepia_repo}
+\end{enumerate}
+
+\cleardoublepage
+\thispagestyle{empty}
+\vfill
+\begin{center}
+    Fin
+\end{center}
+
+\clearpage
+\thispagestyle{empty}
+\null
+\clearpage
+\end{document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% DOCUMENT ENDS HERE %%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -1,0 +1,11 @@
+# Problems Statistics (generated 2025-08-19T23:12:44.053552Z)
+- Total stops: 75589
+- attributes: 15963
+- distance: 11126
+- duplicates: 3064
+- unmatched: 27376
+- Stops with any problem: 51700
+- Stops with multiple problems: 5444
+- Stops with no problems: 23889
+- Distance median (for distance problems): 30.11 m
+- Distance p90 (for distance problems): 95.47 m
