@@ -1,8 +1,31 @@
-PyMySQL==1.1.0
-pandas
-Pillow
-numpy
-matplotlib
-sqlalchemy
+# Core web framework
+Flask==3.0.0
 
-seaborn==0.13.2
+# Database
+PyMySQL==1.1.0
+SQLAlchemy==2.0.23
+cryptography==41.0.7
+
+# Flask extensions
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-Limiter==3.5.0
+Flask-Talisman==1.1.0
+Flask-Migrate==4.0.5
+
+# HTTP requests
+requests==2.31.0
+
+# Image processing (for QR codes in 2FA)
+Pillow==10.1.0
+
+# Data processing (for data pipeline scripts only)
+# These are needed for: get_atlas_data.py, import_data_db.py, matching_process/
+pandas==2.1.4
+numpy==1.25.2
+
+# Additional data processing dependencies (for optional geographic filtering)
+# Uncomment if you need geographic data processing in get_atlas_data.py
+# geopandas==0.14.1
+# shapely==2.0.2
