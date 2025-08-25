@@ -41,6 +41,5 @@ numpy==1.25.2
 scipy==1.11.4
 
 # Additional data processing dependencies (for optional geographic filtering)
-# Uncomment if you need geographic data processing in get_atlas_data.py
-# geopandas==0.14.1
-# shapely==2.0.2
+geopandas==0.14.1
+shapely==2.0.2
