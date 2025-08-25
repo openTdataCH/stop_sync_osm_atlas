@@ -43,3 +43,6 @@ scipy==1.11.4
 # Additional data processing dependencies (for optional geographic filtering)
 geopandas==0.14.1
 shapely==2.0.2
+
+# Progress bars (for data pipeline scripts)
+tqdm==4.66.1
