@@ -57,6 +57,21 @@ def get_osm_node_type(rec, is_osm_unmatched=False):
         return 'stop_position'
     return None
 
+def ensure_schema_updated():
+    """Run Alembic migrations to ensure the DB schema is up to date."""
+    try:
+        # Import here to avoid hard dependency during pure data-processing runs
+        from flask_migrate import upgrade
+        from backend.app import app
+
+        with app.app_context():
+            # Runs migrations in the default "migrations" directory to HEAD
+            upgrade()
+        print("Database schema migrated to latest revision.")
+    except Exception as e:
+        print(f"Error running migrations: {e}")
+        raise
+
 def validate_coordinates(rec, lat_key, lon_key, id_key, id_value, record_type):
     """
     Validate and extract coordinates from a record.
