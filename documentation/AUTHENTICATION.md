@@ -1,8 +1,6 @@
 ## Authentication: How It Works (Concise)
 
-This is a high‑signal overview of how authentication is implemented in this project, with links to the exact files. For full details and code excerpts, see the deep dive document.
-
-- Deep dive: [documentation/AUTHENTIFICATION_DEEP_DIVE.md](./AUTHENTIFICATION_DEEP_DIVE.md)
+This is a high‑signal overview of how authentication is implemented in this project.
 
 ### What you get
 
@@ -13,7 +11,8 @@ This is a high‑signal overview of how authentication is implemented in this pr
 - Strong CSRF protection for forms and standard header for AJAX
 - Per‑route rate limits and progressive account lockout
 - Security headers via Talisman and HTTPS enforcement toggle
-
+![Create account](documentation/images/create_account.png)
+![Enable 2FA](documentation/images/enable_up2fa.png)
 ## Key pieces (where things live)
 
 - App setup, security config, CSRF exemptions, Talisman, blueprints: [backend/app.py](../backend/app.py)
@@ -99,12 +98,9 @@ See: [docker-compose.yml](../docker-compose.yml) and [entrypoint.sh](../entrypoi
 
 - Admin is a DB flag (`users.is_admin`). Admin‑only actions can use a decorator (see `admin_required` in [backend/blueprints/problems.py](../backend/blueprints/problems.py)).
 
-## Notes and tips
+## Notes
 
 - Email verification is optional by default; you can enforce verified‑only login by changing the login flow in [auth.py](../backend/blueprints/auth.py).
 - If running behind a reverse proxy, forward client IPs and consider enabling proxy trust (e.g., Werkzeug `ProxyFix`) so rate limits key correctly.
-- Keep server time in sync (NTP) for TOTP to work reliably.
-
-For extended rationale, threat model, and implementation details, see the deep dive: [documentation/AUTHENTIFICATION_DEEP_DIVE.md](./AUTHENTIFICATION_DEEP_DIVE.md).
 
 
