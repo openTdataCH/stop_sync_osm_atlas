@@ -7,17 +7,21 @@ import io
 import pandas as pd
 import os
 import datetime
+import json
 from collections import defaultdict
 from typing import Dict, Set, Tuple, Optional
 
 try:
     import geopandas as gpd  # type: ignore
-    from shapely.geometry import Polygon, MultiPolygon  # type: ignore
+    from shapely.geometry import Polygon, MultiPolygon, shape  # type: ignore
+    from shapely.ops import unary_union  # type: ignore
     _HAS_GPD = True
 except Exception:
     gpd = None  # type: ignore
     Polygon = None  # type: ignore
     MultiPolygon = None  # type: ignore
+    shape = None  # type: ignore
+    unary_union = None  # type: ignore
     _HAS_GPD = False
 
 # Create data directories
@@ -64,24 +68,58 @@ def _load_swiss_polygon():
 
     try:
         print("Loading Switzerland boundary from cache…")
-        swiss_gdf = gpd.read_file(osm_cache_file)
-        if len(swiss_gdf) == 0:
-            raise RuntimeError("Empty Switzerland boundary data")
+        with open(osm_cache_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
 
-        try:
-            geom_union = swiss_gdf.geometry.union_all()
-        except Exception:
-            geom_union = swiss_gdf.unary_union
-
-        if isinstance(geom_union, (Polygon, MultiPolygon)):
-            _SWISS_POLYGON = geom_union
+        geom_union = None
+        if isinstance(data, dict):
+            t = data.get("type")
+            if t == "FeatureCollection":
+                geoms = []
+                for feature in data.get("features", []):
+                    geom_obj = feature.get("geometry") if isinstance(feature, dict) else None
+                    if geom_obj:
+                        geoms.append(shape(geom_obj))
+                if not geoms:
+                    raise RuntimeError("No geometries found in FeatureCollection")
+                geom_union = geoms[0] if len(geoms) == 1 else unary_union(geoms)
+            elif t == "Feature":
+                geom_obj = data.get("geometry")
+                if not geom_obj:
+                    raise RuntimeError("Feature has no geometry")
+                geom_union = shape(geom_obj)
+            elif t in ("Polygon", "MultiPolygon", "GeometryCollection"):
+                geom_union = shape(data)
+            else:
+                raise RuntimeError(f"Unsupported GeoJSON type: {t}")
         else:
+            raise RuntimeError("Invalid GeoJSON content")
+
+        if not isinstance(geom_union, (Polygon, MultiPolygon)):
             raise RuntimeError(f"Unexpected geometry type for Switzerland boundary: {type(geom_union)}")
 
+        _SWISS_POLYGON = geom_union
         print("Successfully loaded Switzerland boundary from cache")
         return _SWISS_POLYGON
     except Exception as exc:
-        raise RuntimeError(f"Failed to load Switzerland boundary from cache: {exc}")
+        try:
+            if gpd is None:
+                raise RuntimeError(str(exc))
+            print("GeoJSON parse failed, attempting GeoPandas read as fallback…")
+            swiss_gdf = gpd.read_file(osm_cache_file)
+            if len(swiss_gdf) == 0:
+                raise RuntimeError("Empty Switzerland boundary data")
+            try:
+                geom_union = swiss_gdf.geometry.union_all()
+            except Exception:
+                geom_union = swiss_gdf.unary_union
+            if isinstance(geom_union, (Polygon, MultiPolygon)):
+                _SWISS_POLYGON = geom_union
+                print("Successfully loaded Switzerland boundary via GeoPandas fallback")
+                return _SWISS_POLYGON
+            raise RuntimeError(f"Unexpected geometry type for Switzerland boundary: {type(geom_union)}")
+        except Exception as exc2:
+            raise RuntimeError(f"Failed to load Switzerland boundary from cache: {exc2}")
 
 def filter_points_in_switzerland(df: pd.DataFrame, lat_col: str, lon_col: str) -> pd.DataFrame:
     """Filter rows whose WGS84 coordinates lie inside Switzerland using the precise OSM polygon (no bbox prefilter)."""
