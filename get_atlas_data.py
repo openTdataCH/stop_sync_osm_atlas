@@ -51,7 +51,7 @@ def _ensure_swiss_geojson_cache(geojson_path: str) -> None:
         raise RuntimeError(f"Failed to download Switzerland GeoJSON from {url}: {exc}")
 
 def _load_swiss_polygon():
-    """Load precise Switzerland polygon from cached GeoJSON (EPSG:4326).
+    """Load precise Switzerland polygon from cached GeoJSON.
 
     Returns shapely (Multi)Polygon. Raises if cache is missing or invalid.
     """
