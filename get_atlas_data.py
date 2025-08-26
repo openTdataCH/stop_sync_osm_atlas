@@ -122,7 +122,7 @@ def _load_swiss_polygon():
             raise RuntimeError(f"Failed to load Switzerland boundary from cache: {exc2}")
 
 def filter_points_in_switzerland(df: pd.DataFrame, lat_col: str, lon_col: str) -> pd.DataFrame:
-    """Filter rows whose WGS84 coordinates lie inside Switzerland using the precise OSM polygon (no bbox prefilter)."""
+    """Filter rows whose WGS84 coordinates lie inside Switzerland using the precise OSM polygon."""
     # Basic cleanup
     df = df.dropna(subset=[lat_col, lon_col]).copy()
     df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
@@ -144,7 +144,7 @@ def filter_points_in_switzerland(df: pd.DataFrame, lat_col: str, lon_col: str) -
         inside_or_border = gdf.intersects(swiss_poly)
         filtered = gdf[inside_or_border].drop(columns='geometry')
         
-        print(f"Swiss filter: precise filter kept {len(filtered):,} (from {before:,} total)")
+        print(f"Swiss filter: filter kept {len(filtered):,} (from {before:,} total)")
         return pd.DataFrame(filtered)
     except Exception as exc:
         raise RuntimeError(f"Swiss polygon containment failed: {exc}")
@@ -994,7 +994,6 @@ if __name__ == "__main__":
         integrated_data = build_integrated_gtfs_data_streaming(gtfs_stream, traffic_points)
 
 
-
         # Print statistics
         total_gtfs_stops = len(integrated_data['stop_id'].unique())
         matched_stops = integrated_data['sloid'].notna().sum()
@@ -1009,7 +1008,6 @@ if __name__ == "__main__":
 
     except Exception as e:
         print(f"Error processing GTFS data: {e}")
-        print("Continuing with HRDF processing...")
         gtfs_stream = None
 
     # Process HRDF data
