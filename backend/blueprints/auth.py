@@ -200,7 +200,7 @@ def login():
                 _send_verification_email(user)
             except Exception:
                 pass
-            flash('Your email is not verified yet. You can continue; we sent a verification email.', 'warning')
+            flash('Your email is not verified yet. You can continue using the app.', 'warning')
         # If 2FA enabled, go to 2FA step
         if user.is_totp_enabled:
             # Store pending user id in session

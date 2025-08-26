@@ -9,9 +9,9 @@ The matcher is sequential and “hit-first”: once an ATLAS row matches, it is 
 Stages (in order):
 1. `exact_matching()` — UIC (`number` ↔ `uic_ref`), disambiguate with `designation` ↔ `local_ref`
 2. `name_based_matching()` — `designationOfficial` ↔ `name`/`uic_name`/`gtfs:name`, `local_ref` tie-breaker
-3. `distance_matching()` — group proximity, exact `local_ref` ≤ 50 m, proximity 3a/3b, plus isolation tagging
-4. `perform_unified_route_matching()` — unified GTFS/HRDF tokens within 50 m
-5. Post-pass unique-by-UIC consolidation (safe exact)
+3. `distance_matching()` 
+4. `perform_unified_route_matching()` —  GTFS/HRDF 
+5. Post-pass unique-by-UIC consolidation 
 6. Duplicate propagation across ATLAS duplicates (`number` + `designation`)
 7. Apply persistent manual matches from DB
 
@@ -54,8 +54,8 @@ If no single candidate can be identified, the ATLAS entry remains unmatched and 
 
 ### Notes
 
-- Exact matching permits many-to-one and one-to-many when safe, while later stages enforce one-to-one with distance constraints
-- `designation` vs. `designationOfficial` play distinct roles (tie-breaker vs. lookup)
+- Exact matching permits many-to-one and one-to-many when safe, while later stages enforce one-to-one
+- `designation` vs. `designationOfficial` are different things. designation is the platform level name (for example 'A', '1', 'D'), designationOfficial is the stop  (for example 'Zürich HB').
 - Station-level OSM nodes are excluded to keep platform-level granularity
 
 ## Distance Matching (`distance_matching` in [matching_process/distance_matching.py](../matching_process/distance_matching.py))
@@ -144,10 +144,3 @@ This final stage does not create matches but instead identifies ATLAS entries fo
 - Distance: `distance_matching()` and `transform_for_distance_matching()` in [matching_process/distance_matching.py](../matching_process/distance_matching.py)
 - Routes: `perform_unified_route_matching()` in [matching_process/route_matching_unified.py](../matching_process/route_matching_unified.py)
 - Utilities: `is_osm_station`, `haversine_distance` in [matching_process/utils.py](../matching_process/utils.py); KDTree helpers in [matching_process/spatial_index.py](../matching_process/spatial_index.py)
-
-## Running the pipeline (summary)
-
-- Ensure inputs exist or auto-download:
-  - `ATLAS_STOPS_CSV` (default `data/raw/stops_ATLAS.csv`)
-  - `OSM_XML_FILE` (default `data/raw/osm_data.xml`)
-- Call `final_pipeline()` in [matching_process/matching_script.py](../matching_process/matching_script.py); it prints a summary and returns match datasets for DB import
