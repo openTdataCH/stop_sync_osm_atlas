@@ -13,7 +13,7 @@ Flask-WTF==1.2.1
 Flask-Limiter==3.5.0
 Flask-Talisman==1.1.0
 Flask-Migrate==4.0.5
-
+Werkzeug==3.0.3
 # HTTP requests
 requests==2.31.0
 
@@ -21,6 +21,7 @@ requests==2.31.0
 argon2-cffi==23.1.0
 pyotp==2.9.0
 itsdangerous==2.1.2
+email-validator==2.1.1
 
 # QR code generation (for 2FA)
 qrcode==7.4.2
