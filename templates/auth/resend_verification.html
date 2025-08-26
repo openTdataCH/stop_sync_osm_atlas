@@ -2,6 +2,9 @@
 {% block title %}Resend verification email{% endblock %}
 {% block content %}
 <div class="container mt-5" style="max-width: 480px;">
+  <div class="alert alert-warning" role="alert">
+    <strong>Running locally?</strong> If you're running this without <code>.env</code> configuration, email verification will not work. You can continue using the app as a registered user without verifying. <a href="{{ url_for('index') }}" class="alert-link">Go to home</a>.
+  </div>
   <h2>Resend verification email</h2>
   <p class="text-muted">If an account exists for this email, we will send a verification link. Verification is optional; you can verify later.</p>
   <form method="POST">

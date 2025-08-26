@@ -2,6 +2,9 @@
 {% block title %}Check your inbox{% endblock %}
 {% block content %}
 <div class="container mt-5" style="max-width: 560px;">
+  <div class="alert alert-warning" role="alert">
+    <strong>Running locally?</strong> If you're running this without <code>.env</code> configuration, email verification will not work. You can continue using the app as a registered user without verifying. <a href="{{ url_for('index') }}" class="alert-link">Go to home</a>.
+  </div>
   <div class="alert alert-info" role="alert">
     <h4 class="alert-heading">Check your inbox</h4>
     <p>If an account exists for <strong>{{ email }}</strong>, we sent a verification email. Verification is optional — you can continue using your account without verifying. Verifying helps with account recovery and security notifications.</p>
