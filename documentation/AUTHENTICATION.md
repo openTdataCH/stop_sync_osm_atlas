@@ -1,6 +1,6 @@
-## Authentication: How It Works (Concise)
+## Authentication:
 
-This is a high‑signal overview of how authentication is implemented in this project.
+This is an overview of how authentication is implemented in this project.
 
 ### What you get
 
@@ -101,6 +101,6 @@ See: [docker-compose.yml](../docker-compose.yml) and [entrypoint.sh](../entrypoi
 ## Notes
 
 - Email verification is optional by default; you can enforce verified‑only login by changing the login flow in [auth.py](../backend/blueprints/auth.py).
-- If running behind a reverse proxy, forward client IPs and consider enabling proxy trust (e.g., Werkzeug `ProxyFix`) so rate limits key correctly.
+
 
 
