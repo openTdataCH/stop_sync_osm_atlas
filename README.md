@@ -28,7 +28,7 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 
 - **Docker Desktop** with Compose v2 (required)
 - Internet connection to download datasets (ATLAS, OSM, GTFS, HRDF)
-- **Optional**: Python 3.9+ and MySQL 8 for local development without Docker
+
 
 ## Installation & Setup (with Docker)
 
@@ -40,7 +40,7 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
     cd stop_sync_osm_atlas
     ```
 
-2.  **Configure environment** (optional but recommended):
+2.  **Configure environment** (optional):
     - Copy `env.example` to `.env` and adjust values (DB users/passwords, URIs, flags)
 
 3.  **Build and Run with Docker Compose** (no .env required for local):
@@ -169,16 +169,6 @@ docker compose exec app-dev python manage.py list-users
 
 The project uses Alembic (via Flask‑Migrate) to manage schema for both MySQL databases (`stops_db` and `auth_db`). On startup, the application waits for MySQL and runs `flask db upgrade` to apply migrations. In development, migrations can be auto‑generated on first run.
 
-## Production deployment (read‑only runtime)
-
-- The web app does not write to the filesystem at runtime. For production, run with a read‑only root filesystem and no bind mounts using the prod override:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-```
-
-- This enables `read_only: true`, removes volumes, and mounts a tmpfs at `/tmp`. HTTPS‑related flags are also enforced (`FORCE_HTTPS=true`, `SESSION_COOKIE_SECURE=true`).
-- Use the standard compose file (without the prod override) only when running data acquisition/matching scripts that need to write under `./data/`.
 
 ## Authentication
 
@@ -189,19 +179,25 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 - Email verification is optional locally; if SES is not configured, verification emails are skipped harmlessly.
 - CAPTCHA (Turnstile) checks are skipped if keys are not set.
 
-### Roles: what admins vs users can do
+### Roles and permissions
+- Anonymous (not logged in):
+  - Access the web UI pages
+  - Save non‑persistent solutions and notes
+  - View lists of persistent and non‑persistent data
+  - Cannot make anything persistent or modify persistent data
 - Users (authenticated):
-  - Manual match stops (`/api/manual_match`)
-  - Save solutions and notes; make them persistent for specific stops
-  - Generate reports
-  - Bulk persist all current solutions and notes (`/api/make_all_persistent`)
-- Admins (authenticated + `is_admin=true`):
-  - Delete persistent entries (`DELETE /api/persistent_data/<id>`)
-  - Make a specific persistent solution non‑persistent (`/api/make_non_persistent/<id>`)
-  - Clear all persistent data (`/api/clear_all_persistent`)
-  - Clear all non‑persistent data (`/api/clear_all_non-persistent`)
+  - Everything anonymous users can do
+  - Make a solution or note persistent individually
+  - Delete or make non‑persistent their own persistent records
+- Admins:
+  - Everything users can do
+  - Delete any persistent record
+  - Make a specific solution non‑persistent
+  - Clear all persistent data
+  - Clear all non‑persistent data
+  - Make solutions/notes persistent in bulk
 
-
+See the full policy: [Permissions and Roles](documentation/PERMISSIONS.md).
 
 
 ## Bachelor Project Report
