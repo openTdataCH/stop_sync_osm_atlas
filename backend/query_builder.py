@@ -188,7 +188,8 @@ class QueryBuilder:
             operator_condition = self.filter_builder.build_atlas_operator_conditions(
                 filters['atlas_operators']
             )
-            if operator_condition:
+            # Avoid evaluating SQLAlchemy clauses in boolean context
+            if operator_condition is not None:
                 conditions.append(operator_condition)
         
         # Station/Route filter
