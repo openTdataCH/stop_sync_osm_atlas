@@ -48,6 +48,14 @@
                 <th>OSM Local Ref</th>
                 <th>OSM Name</th>
                 <th>UIC Ref</th>
+                {% if include_fields and 'atlas_coords' in include_fields %}
+                <th>Atlas Lat</th>
+                <th>Atlas Lon</th>
+                {% endif %}
+                {% if include_fields and 'osm_coords' in include_fields %}
+                <th>OSM Lat</th>
+                <th>OSM Lon</th>
+                {% endif %}
             </tr>
             {% elif report_type == 'problems' %}
             <tr>
@@ -61,6 +69,14 @@
                 <th class="col-distance">Distance (m)</th>
                 <th class="col-method">Matching Method</th>
                 <th>Solution</th>
+                {% if include_fields and 'atlas_coords' in include_fields %}
+                <th>Atlas Lat</th>
+                <th>Atlas Lon</th>
+                {% endif %}
+                {% if include_fields and 'osm_coords' in include_fields %}
+                <th>OSM Lat</th>
+                <th>OSM Lon</th>
+                {% endif %}
             </tr>
             {% else %}
             <tr>
@@ -70,6 +86,14 @@
                 <th class="col-osm-id">OSM Node ID</th>
                 <th class="col-distance">Distance (m)</th>
                 <th class="col-method">Matching Method</th>
+                {% if include_fields and 'atlas_coords' in include_fields %}
+                <th>Atlas Lat</th>
+                <th>Atlas Lon</th>
+                {% endif %}
+                {% if include_fields and 'osm_coords' in include_fields %}
+                <th>OSM Lat</th>
+                <th>OSM Lon</th>
+                {% endif %}
             </tr>
             {% endif %}
         </thead>
@@ -86,6 +110,14 @@
                 <td>{{ item.osm_node_details.osm_local_ref if item.osm_node_details and item.osm_node_details.osm_local_ref else 'N/A' }}</td>
                 <td>{{ item.osm_node_details.osm_name if item.osm_node_details and item.osm_node_details.osm_name else 'N/A' }}</td>
                 <td>{{ item.uic_ref or 'N/A' }}</td>
+                {% if include_fields and 'atlas_coords' in include_fields %}
+                <td>{{ ('%.6f'|format(item.atlas_lat)) if item.atlas_lat is not none else 'N/A' }}</td>
+                <td>{{ ('%.6f'|format(item.atlas_lon)) if item.atlas_lon is not none else 'N/A' }}</td>
+                {% endif %}
+                {% if include_fields and 'osm_coords' in include_fields %}
+                <td>{{ ('%.6f'|format(item.osm_lat)) if item.osm_lat is not none else 'N/A' }}</td>
+                <td>{{ ('%.6f'|format(item.osm_lon)) if item.osm_lon is not none else 'N/A' }}</td>
+                {% endif %}
                 {% elif report_type == 'problems' %}
                 {# item is Problem #}
                 <td class="col-problem-type">{{ item.problem_type }}</td>
@@ -104,6 +136,14 @@
                 </td>
                 <td class="col-method">{{ item.stop.match_type if item.stop and item.stop.match_type else 'N/A' }}</td>
                 <td>{{ item.solution if item.solution else '' }}</td>
+                {% if include_fields and 'atlas_coords' in include_fields %}
+                <td>{{ ('%.6f'|format(item.stop.atlas_lat)) if item.stop and item.stop.atlas_lat is not none else 'N/A' }}</td>
+                <td>{{ ('%.6f'|format(item.stop.atlas_lon)) if item.stop and item.stop.atlas_lon is not none else 'N/A' }}</td>
+                {% endif %}
+                {% if include_fields and 'osm_coords' in include_fields %}
+                <td>{{ ('%.6f'|format(item.stop.osm_lat)) if item.stop and item.stop.osm_lat is not none else 'N/A' }}</td>
+                <td>{{ ('%.6f'|format(item.stop.osm_lon)) if item.stop and item.stop.osm_lon is not none else 'N/A' }}</td>
+                {% endif %}
                 {% else %}
                 {# distance: item is Stop #}
                 <td class="col-sloid">{{ item.sloid }}</td>
@@ -118,6 +158,14 @@
                     {% endif %}
                 </td>
                 <td class="col-method">{{ item.match_type if item.match_type else 'N/A' }}</td>
+                {% if include_fields and 'atlas_coords' in include_fields %}
+                <td>{{ ('%.6f'|format(item.atlas_lat)) if item.atlas_lat is not none else 'N/A' }}</td>
+                <td>{{ ('%.6f'|format(item.atlas_lon)) if item.atlas_lon is not none else 'N/A' }}</td>
+                {% endif %}
+                {% if include_fields and 'osm_coords' in include_fields %}
+                <td>{{ ('%.6f'|format(item.osm_lat)) if item.osm_lat is not none else 'N/A' }}</td>
+                <td>{{ ('%.6f'|format(item.osm_lon)) if item.osm_lon is not none else 'N/A' }}</td>
+                {% endif %}
                 {% endif %}
             </tr>
             {% endfor %}

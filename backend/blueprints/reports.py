@@ -12,6 +12,7 @@ import time
 import uuid
 import os
 import tempfile
+from sqlalchemy import case
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -57,10 +58,34 @@ def generate_report_data(params, task_id):
         atlas_operator_str = params.get('atlas_operator', '')
         atlas_operators = [op.strip() for op in atlas_operator_str.split(',') if op and op.strip()]
 
+        # Normalize sort per report type
+        def _normalize_sort(rt, s):
+            allowed = {
+                'distance': {'operator_asc','operator_desc','distance_asc','distance_desc'},
+                'unmatched': {'operator_asc','operator_desc'},
+                'problems': {'operator_asc','operator_desc','priority_asc','priority_desc'}
+            }
+            s = (s or '').strip().lower()
+            if s not in allowed.get(rt, set()):
+                # Choose sensible default per category
+                return 'distance_desc' if rt == 'distance' else ('priority_desc' if rt == 'problems' else 'operator_asc')
+            return s
+
+        sort_param = _normalize_sort(report_type, sort_param)
+
         def _apply_atlas_operator_filter(query):
             if not atlas_operators:
                 return query
             return query.filter(Stop.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
+
+        def _operator_order_columns(ascending=True):
+            # Cross-DB NULL handling: order NULLs first to mimic previous behavior for ASC
+            nulls_first_col = case((AtlasStop.atlas_business_org_abbr == None, 0), else_=1)
+            # For ASC: (NULL first) then value ASC; for DESC: (NULL first) then value DESC
+            if ascending:
+                return (nulls_first_col.asc(), AtlasStop.atlas_business_org_abbr.asc())
+            else:
+                return (nulls_first_col.asc(), AtlasStop.atlas_business_org_abbr.desc())
 
         # Build base query and get total count first
         if report_type == 'unmatched':
@@ -121,17 +146,22 @@ def generate_report_data(params, task_id):
             query = Stop.query.filter(Stop.stop_type == 'matched')
             query = _apply_atlas_operator_filter(query)
 
+        # Apply any sort-specific filters prior to counting (e.g., exclude NULL distances)
+        pre_count_query = query
+        if report_type == 'distance' and sort_param in ('distance_asc','distance_desc'):
+            pre_count_query = pre_count_query.filter(Stop.distance_m != None)
+
         # Get total count
-        total_count = query.count()
+        total_count = pre_count_query.count()
         update_progress(task_id, 0, total_count, start_time)
         
         # Apply sorting and eager loading
         if report_type == 'unmatched':
             query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
             if sort_param == 'operator_desc':
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.desc())
+                query = query.order_by(*_operator_order_columns(ascending=False))
             else:
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.asc())
+                query = query.order_by(*_operator_order_columns(ascending=True))
             query = optimize_query_for_endpoint(query, 'data')
             
         elif report_type == 'problems':
@@ -141,9 +171,9 @@ def generate_report_data(params, task_id):
             elif sort_param == 'priority_desc':
                 query = query.order_by(db.func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
             elif sort_param == 'operator_desc':
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.desc(), Problem.stop_id, Problem.problem_type)
+                query = query.order_by(*_operator_order_columns(ascending=False), Problem.stop_id, Problem.problem_type)
             else:
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.asc(), Problem.stop_id, Problem.problem_type)
+                query = query.order_by(*_operator_order_columns(ascending=True), Problem.stop_id, Problem.problem_type)
             query = query.options(
                 joinedload(Problem.stop).joinedload(Stop.atlas_stop_details),
                 joinedload(Problem.stop).joinedload(Stop.osm_node_details)
@@ -156,9 +186,9 @@ def generate_report_data(params, task_id):
             elif sort_param == 'distance_desc':
                 query = query.filter(Stop.distance_m != None).order_by(Stop.distance_m.desc())
             elif sort_param == 'operator_desc':
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.desc())
+                query = query.order_by(*_operator_order_columns(ascending=False))
             else:
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.asc())
+                query = query.order_by(*_operator_order_columns(ascending=True))
             query = optimize_query_for_endpoint(query, 'reports')
 
         # Process in chunks to show progress
@@ -252,6 +282,8 @@ def background_report_generation(params, task_id, flask_app):
                 
             data_for_report, report_type = result
             report_format = params.get('format', 'pdf').lower()
+            include_fields_str = params.get('include_fields', '') or ''
+            include_fields = [f.strip() for f in include_fields_str.split(',') if f.strip()]
             
             # Generate file
             temp_dir = tempfile.gettempdir()
@@ -266,12 +298,17 @@ def background_report_generation(params, task_id, flask_app):
                     
                     # Write headers and data based on report type
                     if report_type == 'unmatched':
-                        writer.writerow(['Source', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'OSM Local Ref', 'OSM Name', 'UIC Ref'])
+                        headers = ['Source', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'OSM Local Ref', 'OSM Name', 'UIC Ref']
+                        if 'atlas_coords' in include_fields:
+                            headers.extend(['Atlas Lat', 'Atlas Lon'])
+                        if 'osm_coords' in include_fields:
+                            headers.extend(['OSM Lat', 'OSM Lon'])
+                        writer.writerow(headers)
                         for stop in data_for_report:
                             source = 'ATLAS' if stop.stop_type == 'unmatched' else 'OSM'
                             atlas_details = getattr(stop, 'atlas_stop_details', None)
                             osm_details = getattr(stop, 'osm_node_details', None)
-                            writer.writerow([
+                            row = [
                                 source,
                                 stop.sloid or 'N/A',
                                 (atlas_details.atlas_designation_official if atlas_details and atlas_details.atlas_designation_official else 'N/A'),
@@ -280,13 +317,29 @@ def background_report_generation(params, task_id, flask_app):
                                 (osm_details.osm_local_ref if osm_details and osm_details.osm_local_ref else 'N/A'),
                                 (osm_details.osm_name if osm_details and osm_details.osm_name else 'N/A'),
                                 (stop.uic_ref or 'N/A')
-                            ])
+                            ]
+                            if 'atlas_coords' in include_fields:
+                                row.extend([
+                                    '{:.6f}'.format(stop.atlas_lat) if stop.atlas_lat is not None else 'N/A',
+                                    '{:.6f}'.format(stop.atlas_lon) if stop.atlas_lon is not None else 'N/A'
+                                ])
+                            if 'osm_coords' in include_fields:
+                                row.extend([
+                                    '{:.6f}'.format(stop.osm_lat) if stop.osm_lat is not None else 'N/A',
+                                    '{:.6f}'.format(stop.osm_lon) if stop.osm_lon is not None else 'N/A'
+                                ])
+                            writer.writerow(row)
                     elif report_type == 'problems':
-                        writer.writerow(['Problem Type', 'Priority', 'Solved', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method', 'Solution'])
+                        headers = ['Problem Type', 'Priority', 'Solved', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method', 'Solution']
+                        if 'atlas_coords' in include_fields:
+                            headers.extend(['Atlas Lat', 'Atlas Lon'])
+                        if 'osm_coords' in include_fields:
+                            headers.extend(['OSM Lat', 'OSM Lon'])
+                        writer.writerow(headers)
                         for pr in data_for_report:
                             st = pr.stop
                             atlas_details = getattr(st, 'atlas_stop_details', None)
-                            writer.writerow([
+                            row = [
                                 pr.problem_type,
                                 pr.priority if pr.priority is not None else 'N/A',
                                 'Yes' if pr.solution and str(pr.solution).strip() != '' else 'No',
@@ -297,18 +350,45 @@ def background_report_generation(params, task_id, flask_app):
                                 ('{:.1f}'.format(st.distance_m) if st and st.distance_m is not None else 'N/A'),
                                 st.match_type if st and st.match_type else 'N/A',
                                 (pr.solution or '').strip()
-                            ])
+                            ]
+                            if 'atlas_coords' in include_fields:
+                                row.extend([
+                                    '{:.6f}'.format(st.atlas_lat) if st and st.atlas_lat is not None else 'N/A',
+                                    '{:.6f}'.format(st.atlas_lon) if st and st.atlas_lon is not None else 'N/A'
+                                ])
+                            if 'osm_coords' in include_fields:
+                                row.extend([
+                                    '{:.6f}'.format(st.osm_lat) if st and st.osm_lat is not None else 'N/A',
+                                    '{:.6f}'.format(st.osm_lon) if st and st.osm_lon is not None else 'N/A'
+                                ])
+                            writer.writerow(row)
                     else:  # distance
-                        writer.writerow(['ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method'])
+                        headers = ['ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method']
+                        if 'atlas_coords' in include_fields:
+                            headers.extend(['Atlas Lat', 'Atlas Lon'])
+                        if 'osm_coords' in include_fields:
+                            headers.extend(['OSM Lat', 'OSM Lon'])
+                        writer.writerow(headers)
                         for stop in data_for_report:
-                            writer.writerow([
+                            row = [
                                 stop.sloid if stop.sloid else 'N/A',
                                 stop.atlas_stop_details.atlas_designation_official if stop.atlas_stop_details and stop.atlas_stop_details.atlas_designation_official else 'N/A',
                                 stop.atlas_stop_details.atlas_business_org_abbr if stop.atlas_stop_details and stop.atlas_stop_details.atlas_business_org_abbr else 'N/A',
                                 stop.osm_node_id if stop.osm_node_id else 'N/A',
                                 '{:.1f}'.format(stop.distance_m) if stop.distance_m is not None else 'N/A',
                                 stop.match_type if stop.match_type else 'N/A'
-                            ])
+                            ]
+                            if 'atlas_coords' in include_fields:
+                                row.extend([
+                                    '{:.6f}'.format(stop.atlas_lat) if stop.atlas_lat is not None else 'N/A',
+                                    '{:.6f}'.format(stop.atlas_lon) if stop.atlas_lon is not None else 'N/A'
+                                ])
+                            if 'osm_coords' in include_fields:
+                                row.extend([
+                                    '{:.6f}'.format(stop.osm_lat) if stop.osm_lat is not None else 'N/A',
+                                    '{:.6f}'.format(stop.osm_lon) if stop.osm_lon is not None else 'N/A'
+                                ])
+                            writer.writerow(row)
             else:  # PDF
                 filename = f"{filename_stem}.pdf"
                 filepath = os.path.join(temp_dir, filename)
@@ -326,7 +406,8 @@ def background_report_generation(params, task_id, flask_app):
                     generated_at=datetime.now(),
                     sort_order=params.get('sort', 'operator_asc'),
                     report_title=report_title,
-                    report_type=report_type
+                    report_type=report_type,
+                    include_fields=include_fields
                 )
                 pdf = pdfkit.from_string(report_html, False)
                 
@@ -438,6 +519,8 @@ def generate_report():
         if report_type in ('top_matches', 'exact_matches', 'name_matches'):
             report_type = 'distance'
         report_format = (request.args.get('format', 'pdf') or 'pdf').lower()
+        include_fields_str = request.args.get('include_fields', '') or ''
+        include_fields = [f.strip() for f in include_fields_str.split(',') if f.strip()]
 
         # Common filters
         atlas_operator_str = request.args.get('atlas_operator', '')
@@ -450,6 +533,24 @@ def generate_report():
             if not atlas_operators:
                 return query
             return query.filter(Stop.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
+
+        # Normalize sort per report type
+        def _normalize_sort(rt, s):
+            allowed = {
+                'distance': {'operator_asc','operator_desc','distance_asc','distance_desc'},
+                'unmatched': {'operator_asc','operator_desc'},
+                'problems': {'operator_asc','operator_desc','priority_asc','priority_desc'}
+            }
+            s = (s or '').strip().lower()
+            if s not in allowed.get(rt, set()):
+                return 'distance_desc' if rt == 'distance' else ('priority_desc' if rt == 'problems' else 'operator_asc')
+            return s
+
+        sort_param = _normalize_sort(report_type, sort_param)
+
+        def _operator_order_columns(ascending=True):
+            nulls_first_col = case((AtlasStop.atlas_business_org_abbr == None, 0), else_=1)
+            return ((nulls_first_col.asc(), AtlasStop.atlas_business_org_abbr.asc()) if ascending else (nulls_first_col.asc(), AtlasStop.atlas_business_org_abbr.desc()))
 
         if report_type == 'unmatched':
             # sources: 'atlas', 'osm' (both by default)
@@ -475,11 +576,9 @@ def generate_report():
             # Join AtlasStop for operator sorting
             query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
             if sort_param == 'operator_desc':
-                # DESC NULLS LAST: MySQL compatible
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.desc())
+                query = query.order_by(*_operator_order_columns(ascending=False))
             else:
-                # ASC NULLS FIRST: MySQL compatible
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.asc())
+                query = query.order_by(*_operator_order_columns(ascending=True))
 
             data_for_report = (query.limit(limit).all() if isinstance(limit, int) else query.all())
             report_title = "Unmatched Entries Report"
@@ -541,11 +640,9 @@ def generate_report():
             elif sort_param == 'priority_desc':
                 query = query.order_by(db.func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
             elif sort_param == 'operator_desc':
-                # DESC NULLS LAST: MySQL compatible
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.desc(), Problem.stop_id, Problem.problem_type)
+                query = query.order_by(*_operator_order_columns(ascending=False), Problem.stop_id, Problem.problem_type)
             else:
-                # ASC NULLS FIRST: MySQL compatible
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.asc(), Problem.stop_id, Problem.problem_type)
+                query = query.order_by(*_operator_order_columns(ascending=True), Problem.stop_id, Problem.problem_type)
 
             # Eager load stop + atlas/osm details when rendering template
             query = query.options(
@@ -572,11 +669,9 @@ def generate_report():
             elif sort_param == 'distance_desc':
                 query = query.filter(Stop.distance_m != None).order_by(Stop.distance_m.desc())
             elif sort_param == 'operator_desc':
-                # DESC NULLS LAST: MySQL compatible
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.desc())
+                query = query.order_by(*_operator_order_columns(ascending=False))
             else:
-                # ASC NULLS FIRST: MySQL compatible
-                query = query.order_by(db.func.isnull(AtlasStop.atlas_business_org_abbr), AtlasStop.atlas_business_org_abbr.asc())
+                query = query.order_by(*_operator_order_columns(ascending=True))
 
             query = optimize_query_for_endpoint(query, 'reports')
             data_for_report = (query.limit(limit).all() if isinstance(limit, int) else query.all())
@@ -592,15 +687,20 @@ def generate_report():
 
             if report_type == 'unmatched':
                 # Unified columns for both sources, with blanks for N/A
-                cw.writerow([
+                headers = [
                     'Source', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator',
                     'OSM Node ID', 'OSM Local Ref', 'OSM Name', 'UIC Ref'
-                ])
+                ]
+                if 'atlas_coords' in include_fields:
+                    headers.extend(['Atlas Lat', 'Atlas Lon'])
+                if 'osm_coords' in include_fields:
+                    headers.extend(['OSM Lat', 'OSM Lon'])
+                cw.writerow(headers)
                 for stop in data_for_report:
                     source = 'ATLAS' if stop.stop_type == 'unmatched' else 'OSM'
                     atlas_details = getattr(stop, 'atlas_stop_details', None)
                     osm_details = getattr(stop, 'osm_node_details', None)
-                    cw.writerow([
+                    row = [
                         source,
                         stop.sloid or 'N/A',
                         (atlas_details.atlas_designation_official if atlas_details and atlas_details.atlas_designation_official else 'N/A'),
@@ -609,17 +709,33 @@ def generate_report():
                         (osm_details.osm_local_ref if osm_details and osm_details.osm_local_ref else 'N/A'),
                         (osm_details.osm_name if osm_details and osm_details.osm_name else 'N/A'),
                         (stop.uic_ref or 'N/A')
-                    ])
+                    ]
+                    if 'atlas_coords' in include_fields:
+                        row.extend([
+                            '{:.6f}'.format(stop.atlas_lat) if stop.atlas_lat is not None else 'N/A',
+                            '{:.6f}'.format(stop.atlas_lon) if stop.atlas_lon is not None else 'N/A'
+                        ])
+                    if 'osm_coords' in include_fields:
+                        row.extend([
+                            '{:.6f}'.format(stop.osm_lat) if stop.osm_lat is not None else 'N/A',
+                            '{:.6f}'.format(stop.osm_lon) if stop.osm_lon is not None else 'N/A'
+                        ])
+                    cw.writerow(row)
 
             elif report_type == 'problems':
-                cw.writerow([
+                headers = [
                     'Problem Type', 'Priority', 'Solved', 'ATLAS Sloid', 'Official Designation',
                     'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method', 'Solution'
-                ])
+                ]
+                if 'atlas_coords' in include_fields:
+                    headers.extend(['Atlas Lat', 'Atlas Lon'])
+                if 'osm_coords' in include_fields:
+                    headers.extend(['OSM Lat', 'OSM Lon'])
+                cw.writerow(headers)
                 for pr in data_for_report:
                     st = pr.stop
                     atlas_details = getattr(st, 'atlas_stop_details', None)
-                    cw.writerow([
+                    row = [
                         pr.problem_type,
                         pr.priority if pr.priority is not None else 'N/A',
                         'Yes' if pr.solution and str(pr.solution).strip() != '' else 'No',
@@ -630,20 +746,47 @@ def generate_report():
                         ('{:.1f}'.format(st.distance_m) if st and st.distance_m is not None else 'N/A'),
                         st.match_type if st and st.match_type else 'N/A',
                         (pr.solution or '').strip()
-                    ])
+                    ]
+                    if 'atlas_coords' in include_fields:
+                        row.extend([
+                            '{:.6f}'.format(st.atlas_lat) if st and st.atlas_lat is not None else 'N/A',
+                            '{:.6f}'.format(st.atlas_lon) if st and st.atlas_lon is not None else 'N/A'
+                        ])
+                    if 'osm_coords' in include_fields:
+                        row.extend([
+                            '{:.6f}'.format(st.osm_lat) if st and st.osm_lat is not None else 'N/A',
+                            '{:.6f}'.format(st.osm_lon) if st and st.osm_lon is not None else 'N/A'
+                        ])
+                    cw.writerow(row)
 
             else:
                 # distance
-                cw.writerow(['ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method'])
+                headers = ['ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method']
+                if 'atlas_coords' in include_fields:
+                    headers.extend(['Atlas Lat', 'Atlas Lon'])
+                if 'osm_coords' in include_fields:
+                    headers.extend(['OSM Lat', 'OSM Lon'])
+                cw.writerow(headers)
                 for stop in data_for_report:
-                    cw.writerow([
+                    row = [
                         stop.sloid if stop.sloid else 'N/A',
                         stop.atlas_stop_details.atlas_designation_official if stop.atlas_stop_details and stop.atlas_stop_details.atlas_designation_official else 'N/A',
                         stop.atlas_stop_details.atlas_business_org_abbr if stop.atlas_stop_details and stop.atlas_stop_details.atlas_business_org_abbr else 'N/A',
                         stop.osm_node_id if stop.osm_node_id else 'N/A',
                         '{:.1f}'.format(stop.distance_m) if stop.distance_m is not None else 'N/A',
                         stop.match_type if stop.match_type else 'N/A'
-                    ])
+                    ]
+                    if 'atlas_coords' in include_fields:
+                        row.extend([
+                            '{:.6f}'.format(stop.atlas_lat) if stop.atlas_lat is not None else 'N/A',
+                            '{:.6f}'.format(stop.atlas_lon) if stop.atlas_lon is not None else 'N/A'
+                        ])
+                    if 'osm_coords' in include_fields:
+                        row.extend([
+                            '{:.6f}'.format(stop.osm_lat) if stop.osm_lat is not None else 'N/A',
+                            '{:.6f}'.format(stop.osm_lon) if stop.osm_lon is not None else 'N/A'
+                        ])
+                    cw.writerow(row)
 
             output = si.getvalue()
             response_filename_stem = f"{report_type}_{sort_param}"
@@ -659,7 +802,8 @@ def generate_report():
             generated_at=datetime.now(),
             sort_order=sort_param,
             report_title=report_title,
-            report_type=report_type
+            report_type=report_type,
+            include_fields=include_fields
         )
         pdf = pdfkit.from_string(report_html, False)
         response = app.response_class(pdf, mimetype='application/pdf')

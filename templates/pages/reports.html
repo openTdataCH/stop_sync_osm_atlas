@@ -90,7 +90,7 @@
               <label>Report Category</label>
               <div class="custom-control custom-radio">
                 <input type="radio" id="categoryDistance" name="reportCategory" class="custom-control-input" value="distance" checked>
-                <label class="custom-control-label" for="categoryDistance">Top distance matched pairs</label>
+                <label class="custom-control-label" for="categoryDistance">Matched pairs</label>
               </div>
               <div class="custom-control custom-radio">
                 <input type="radio" id="categoryUnmatched" name="reportCategory" class="custom-control-input" value="unmatched">
@@ -176,6 +176,19 @@
               <div id="atlasOperatorFilterReports"></div>
             </div>
 
+            <!-- Additional columns -->
+            <div class="form-group">
+              <label>Additional columns</label>
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="includeAtlasCoords">
+                <label class="custom-control-label" for="includeAtlasCoords">Include ATLAS lat/lon</label>
+              </div>
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="includeOsmCoords">
+                <label class="custom-control-label" for="includeOsmCoords">Include OSM lat/lon</label>
+              </div>
+            </div>
+
             <div class="form-group">
               <label for="reportFormatModal">Report Format</label>
               <select class="form-control" id="reportFormatModal">
@@ -191,7 +204,7 @@
               </div>
               <div class="custom-control custom-radio d-flex align-items-center mt-1">
                 <input type="radio" id="limitUpTo" name="limitMode" class="custom-control-input" value="upto">
-                <label class="custom-control-label mr-2" for="limitUpTo">Up to</label>
+                <label class="custom-control-label mr-2" for="limitUpTo"><span id="limitModeLabelUpto">First</span> N</label>
                 <input type="number" id="reportLimitModal" class="form-control" value="50" min="1" max="10000" style="width: 120px;" disabled>
               </div>
             </div>
@@ -205,6 +218,10 @@
                 <option value="priority_desc">Priority (Descending)</option>
                 <option value="priority_asc">Priority (Ascending)</option>
               </select>
+              <small id="sortHelp" class="form-text text-muted mt-1"></small>
+            </div>
+            <div class="form-group">
+              <small id="selectionSummary" class="text-muted"></small>
             </div>
             <div class="d-flex justify-content-end">
               <button type="submit" class="btn btn-primary">Generate</button>

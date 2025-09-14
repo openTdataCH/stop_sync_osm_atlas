@@ -23,6 +23,31 @@ function initReportGeneration() {
         var cat = $('input[name="reportCategory"]:checked').val();
         $('#unmatchedOptions').toggle(cat === 'unmatched');
         $('#problemsOptions').toggle(cat === 'problems');
+        // Constrain sort options by category
+        var $sort = $('#sortOrderModal');
+        $sort.find('option').prop('disabled', false).show();
+        if (cat === 'distance') {
+            // allow operator and distance, hide priority
+            $sort.find('option[value^="priority_"]').prop('disabled', true).hide();
+        } else if (cat === 'unmatched') {
+            // allow operator only
+            $sort.find('option[value^="distance_"]').prop('disabled', true).hide();
+            $sort.find('option[value^="priority_"]').prop('disabled', true).hide();
+        } else if (cat === 'problems') {
+            // allow operator and priority, hide distance
+            $sort.find('option[value^="distance_"]').prop('disabled', true).hide();
+        }
+        // If current value is disabled, reset to a valid default
+        if ($sort.find('option:selected').is(':disabled')) {
+            if (cat === 'distance') {
+                $sort.val('distance_desc');
+            } else if (cat === 'problems') {
+                $sort.val('priority_desc');
+            } else {
+                $sort.val('operator_asc');
+            }
+        }
+        updateSortHelpAndSummary();
     }
     $(document).on('change', 'input[name="reportCategory"]', updateCategoryVisibility);
     updateCategoryVisibility();
@@ -53,6 +78,12 @@ function initReportGeneration() {
             var ops = window.operatorDropdownReports.getSelection();
             if (ops && ops.length > 0) { params.atlas_operator = ops.join(','); }
         }
+
+        // Include fields
+        var includeFields = [];
+        if ($('#includeAtlasCoords').is(':checked')) includeFields.push('atlas_coords');
+        if ($('#includeOsmCoords').is(':checked')) includeFields.push('osm_coords');
+        if (includeFields.length > 0) params.include_fields = includeFields.join(',');
 
         if (category === 'unmatched') {
             var includeAtlas = $('#sourceAtlas').is(':checked');
@@ -97,7 +128,54 @@ function initReportGeneration() {
         var mode = $('input[name="limitMode"]:checked').val();
         if (mode === 'upto') { $('#reportLimitModal').prop('disabled', false); }
         else { $('#reportLimitModal').prop('disabled', true); }
+        updateSortHelpAndSummary();
     });
+
+    // Update helper text and summary reflecting the current selection
+    function updateSortHelpAndSummary() {
+        var cat = $('input[name="reportCategory"]:checked').val();
+        var sort = $('#sortOrderModal').val();
+        var mode = $('input[name="limitMode"]:checked').val();
+        var limit = $('#reportLimitModal').val();
+        var $limitLabel = $('#limitModeLabelUpto');
+        var $sortHelp = $('#sortHelp');
+        var $summary = $('#selectionSummary');
+
+        // Label: "Top" when sorting by distance/priority desc, else "First"
+        var isTop = (sort === 'distance_desc') || (sort === 'priority_desc');
+        if ($limitLabel.length) { $limitLabel.text(isTop ? 'Top' : 'First'); }
+
+        // Help text
+        var help = '';
+        if (cat === 'distance') {
+            if (sort.indexOf('distance_') === 0) help = 'Entries are sorted by distance. "Top N" selects the closest/farthest entries depending on direction.';
+            else help = 'Entries are sorted by operator. "First N" selects the first alphabetical groups (N/A, A, ...).';
+        } else if (cat === 'unmatched') {
+            help = 'Entries are sorted by operator. "First N" selects the first alphabetical groups (N/A, A, ...).';
+        } else if (cat === 'problems') {
+            if (sort.indexOf('priority_') === 0) help = 'Entries are sorted by priority. "Top N" selects highest priority first.';
+            else help = 'Entries are sorted by operator. "First N" selects the first alphabetical groups (N/A, A, ...).';
+        }
+        if ($sortHelp.length) { $sortHelp.text(help); }
+
+        // Summary line
+        var parts = [];
+        if (cat === 'distance') parts.push('Matched pairs');
+        if (cat === 'unmatched') parts.push('Unmatched entries');
+        if (cat === 'problems') parts.push('Problems');
+        parts.push('sorted by');
+        if (sort.indexOf('operator_') === 0) parts.push('operator');
+        if (sort.indexOf('distance_') === 0) parts.push('distance');
+        if (sort.indexOf('priority_') === 0) parts.push('priority');
+        parts.push(sort.endsWith('_asc') ? '(ascending)' : '(descending)');
+        if (mode === 'upto') parts.push(', ' + (isTop ? 'top' : 'first') + ' ' + (limit || 'N'));
+        if ($summary.length) { $summary.text(parts.join(' ')); }
+    }
+
+    // React on sort, limit, category changes
+    $(document).on('change', '#sortOrderModal, #reportLimitModal, input[name="reportCategory"]', updateSortHelpAndSummary);
+    // Initial render
+    updateSortHelpAndSummary();
     function resetProgressOverlay() {
         $('#reportProgressBar').css('width', '0%').attr('aria-valuenow', 0);
         $('#progressText').text('Starting...');
