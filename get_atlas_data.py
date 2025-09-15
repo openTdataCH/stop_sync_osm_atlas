@@ -171,14 +171,26 @@ def get_atlas_stops(output_path, download_url):
             df = df[df['uicCountryCode'] == 85]
             df = filter_points_in_switzerland(df, lat_col='wgs84North', lon_col='wgs84East')
             
-            # Save processed data (all Swiss rows with coordinates)
-            # Matching pipeline will restrict to BOARDING_PLATFORM at load time
+            # Filter for future validTo dates
+            today = datetime.date.today()
+            df['validTo'] = pd.to_datetime(df['validTo'], errors='coerce').dt.date
+            before_date_filter = len(df)
+            df = df[df['validTo'] > today]
+            print(f"ATLAS: filtered {before_date_filter - len(df):,} rows with past validTo dates, kept {len(df):,} rows")
+            
+            # Filter for BOARDING_PLATFORM entries, which are the focus of matching
+            before_platform_filter = len(df)
+            if 'trafficPointElementType' in df.columns:
+                df = df[df['trafficPointElementType'] == 'BOARDING_PLATFORM'].copy()
+                print(f"ATLAS: filtered to BOARDING_PLATFORM, kept {len(df):,} (from {before_platform_filter:,})")
+            else:
+                print("ATLAS: 'trafficPointElementType' column not found, cannot filter for BOARDING_PLATFORM.")
+            
+            # Save processed data (Swiss BOARDING_PLATFORM rows with coordinates and future validTo)
             df.to_csv(output_path, sep=";", index=False)
             
             # Print statistics
-            boarding_platforms = df[df['trafficPointElementType'] == 'BOARDING_PLATFORM']
-            print(f"ATLAS: BOARDING_PLATFORM rows = {len(boarding_platforms):,}")
-            print(f"ATLAS: kept {len(df):,} rows inside Swiss border")
+            print(f"ATLAS: total BOARDING_PLATFORM rows kept = {len(df):,}")
             print(f"ATLAS: processed CSV saved to: {output_path}")
 
 def download_and_extract_gtfs(gtfs_url):
