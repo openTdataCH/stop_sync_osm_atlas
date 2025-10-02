@@ -7,11 +7,8 @@
 window.ProblemsSolutions = (function() {
     'use strict';
 
-    // Attach CSRF token header if available
-    const csrfToken = (document.cookie.match(/\bcsrf_token=([^;]+)/) || [])[1];
-    if (csrfToken && typeof $ !== 'undefined' && $.ajaxSetup) {
-        $.ajaxSetup({ headers: { 'X-CSRFToken': csrfToken } });
-    }
+    // Setup CSRF token for AJAX requests
+    SharedUtils.setupCSRFToken();
 
     /**
      * Save solution to database
@@ -262,6 +259,30 @@ window.ProblemsSolutions = (function() {
     }
 
     /**
+     * Make a solution persistent for a specific stop_id (used for duplicates members)
+     */
+    function makeSolutionPersistentForStopId(stopId, problemType) {
+        $.ajax({
+            url: '/api/make_solution_persistent',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ problem_id: stopId, problem_type: problemType }),
+            complete: function() {
+                // Refresh current display to reflect persistence state
+                const currentIndex = ProblemsState.getCurrentProblemIndex && ProblemsState.getCurrentProblemIndex();
+                if (window.ProblemsData && window.ProblemsData.fetchProblems) {
+                    ProblemsData.fetchProblems(ProblemsState.getCurrentPage ? ProblemsState.getCurrentPage() : 1);
+                    setTimeout(() => {
+                        if (window.ProblemsUI && window.ProblemsUI.displayProblem && typeof currentIndex === 'number') {
+                            window.ProblemsUI.displayProblem(currentIndex);
+                        }
+                    }, 500);
+                }
+            }
+        });
+    }
+
+    /**
      * Clear solution functionality
      */
     function clearSolution(problem) {
@@ -327,6 +348,7 @@ window.ProblemsSolutions = (function() {
         saveSolution,
         saveSolutionForStopId,
         makeSolutionPersistent,
+        makeSolutionPersistentForStopId,
         clearSolution
     };
 })();

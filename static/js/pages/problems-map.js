@@ -8,9 +8,9 @@ window.ProblemsMap = (function() {
     'use strict';
 
     // Performance tuning constants for the problems page
-    const PROBLEM_LINE_ZOOM_THRESHOLD = 14;   // draw context lines only at high zoom
-    const CONTEXT_LIMIT_LOW_ZOOM = 150;
-    const CONTEXT_LIMIT_HIGH_ZOOM = 200;
+    const PROBLEM_LINE_ZOOM_THRESHOLD = AppConstants.MAP.ZOOM_LINE_THRESHOLD;   // draw context lines only at high zoom
+    const CONTEXT_LIMIT_LOW_ZOOM = AppConstants.CONTEXT_MARKERS.LOW_ZOOM_LIMIT;
+    const CONTEXT_LIMIT_HIGH_ZOOM = AppConstants.CONTEXT_MARKERS.HIGH_ZOOM_LIMIT;
 
     // Request management for context loading
     let currentContextRequest = null; // jqXHR of in-flight /api/data

@@ -521,6 +521,9 @@
 <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
 <!-- Leaflet scripts -->
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<!-- Shared constants and utilities (must load first) -->
+<script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
 <!-- Custom scripts -->
 <script src="{{ url_for('static', filename='js/components/popup-utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/popup-renderer.js') }}"></script>

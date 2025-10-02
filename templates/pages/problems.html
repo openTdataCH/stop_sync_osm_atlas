@@ -216,29 +216,37 @@
           
           <!-- Notes Section -->
           <div class="notes-section" id="notesSection" style="display: none;">
-            <h6><i class="fas fa-sticky-note"></i> Notes</h6>
-            
-            <div class="row">
-              <div class="col-md-6" id="atlasNoteContainer">
-                <div class="note-editor">
-                  <label for="atlasNote"><i class="fas fa-map-marker-alt text-info"></i> ATLAS Note:</label>
-                  <textarea id="atlasNote" class="form-control" placeholder="Add a note for this ATLAS entry..."></textarea>
-                  <button id="saveAtlasNote" class="btn btn-sm btn-info mt-2 professional-button">Save ATLAS Note</button>
+            <!-- Standard notes for distance, unmatched, attributes problems -->
+            <div id="standardNotesContainer" class="problem-section-item">
+              <h6><i class="fas fa-sticky-note"></i> Notes</h6>
+              
+              <div class="row">
+                <div class="col-md-6" id="atlasNoteContainer">
+                  <div class="note-editor">
+                    <label for="atlasNote"><i class="fas fa-map-marker-alt text-info"></i> ATLAS Note:</label>
+                    <textarea id="atlasNote" class="form-control" placeholder="Add a note for this ATLAS entry..."></textarea>
+                    <button id="saveAtlasNote" class="btn btn-sm btn-info mt-2 professional-button">Save ATLAS Note</button>
+                  </div>
                 </div>
-              </div>
-              <div class="col-md-6" id="osmNoteContainer">
-                <div class="note-editor">
-                  <label for="osmNote"><i class="fas fa-map text-primary"></i> OSM Note:</label>
-                  <textarea id="osmNote" class="form-control" placeholder="Add a note for this OSM entry..."></textarea>
-                  <button id="saveOsmNote" class="btn btn-sm btn-primary mt-2 professional-button">Save OSM Note</button>
-                  <div class="mt-2" id="osmEditorLinkContainer" style="display: none;">
-                    <a href="#" id="osmEditorLink" class="osm-editor-link" target="_blank" rel="noopener noreferrer">
-                      <i class="fas fa-external-link-alt"></i>
-                      Edit in OSM iD Editor
-                    </a>
+                <div class="col-md-6" id="osmNoteContainer">
+                  <div class="note-editor">
+                    <label for="osmNote"><i class="fas fa-map text-primary"></i> OSM Note:</label>
+                    <textarea id="osmNote" class="form-control" placeholder="Add a note for this OSM entry..."></textarea>
+                    <button id="saveOsmNote" class="btn btn-sm btn-primary mt-2 professional-button">Save OSM Note</button>
+                    <div class="mt-2" id="osmEditorLinkContainer" style="display: none;">
+                      <a href="#" id="osmEditorLink" class="osm-editor-link" target="_blank" rel="noopener noreferrer">
+                        <i class="fas fa-external-link-alt"></i>
+                        Edit in OSM iD Editor
+                      </a>
+                    </div>
                   </div>
                 </div>
               </div>
+            </div>
+            
+            <!-- Duplicates-specific notes container -->
+            <div id="duplicatesNotesContainer">
+              <!-- Content will be dynamically generated for duplicates -->
             </div>
           </div>
         </div>
@@ -259,6 +267,9 @@
 {% block scripts %}
 <!-- Leaflet scripts -->
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<!-- Shared constants and utilities (must load first) -->
+<script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
 <!-- Shared filter chip utilities -->
 <script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>
 <!-- Shared popup and rendering utilities -->

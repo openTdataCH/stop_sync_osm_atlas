@@ -3,20 +3,20 @@
     if (typeof L === 'undefined') { return; }
     L.DraggablePopup = L.Popup.extend({
         options: {
-            minWidth: 150,
-            minHeight: 100,
-            initialWidth: 'auto',
-            initialHeight: 'auto',
-            resizeMargin: 10,
+            minWidth: AppConstants.POPUP.MIN_WIDTH,
+            minHeight: AppConstants.POPUP.MIN_HEIGHT,
+            initialWidth: AppConstants.POPUP.INITIAL_WIDTH,
+            initialHeight: AppConstants.POPUP.INITIAL_HEIGHT,
+            resizeMargin: AppConstants.POPUP.RESIZE_MARGIN,
             autoPan: false,
             closeOnClick: false,
             autoClose: false,
             className: 'customPopup permanent-popup',
             // Professional width control settings
             fitBubblesSingleRow: true,
-            singleBubbleMaxWidthFactor: 1.5, // single bubble max width = 1.5x initial
-            multiBubbleOptimalWidth: 250, // optimal width per bubble for multi-bubble layouts
-            bubbleExpansionBuffer: 20, // extra pixels to allow for slight bubble expansion
+            singleBubbleMaxWidthFactor: AppConstants.POPUP.SINGLE_BUBBLE_MAX_WIDTH_FACTOR,
+            multiBubbleOptimalWidth: AppConstants.POPUP.MULTI_BUBBLE_OPTIMAL_WIDTH,
+            bubbleExpansionBuffer: AppConstants.POPUP.BUBBLE_EXPANSION_BUFFER,
             strictWidthControl: true // enable strict width limits
         },
         initialize: function(options) {

@@ -25,8 +25,8 @@ function getCachedDivIcon(key, html, className, size, anchor) {
 class MarkerClusterManager {
     constructor() {
         this.clusters = new Map(); // Key: "lat,lon", Value: array of marker data
-        this.offsetRadius = 0.6; // Pixels to offset markers (12/20 for much closer positioning)
-        this.coordinateTolerance = 0.00001; // Consider coordinates "same" if within this tolerance
+        this.offsetRadius = AppConstants.MARKERS.CLUSTER_OFFSET_RADIUS; // Pixels to offset markers
+        this.coordinateTolerance = AppConstants.MARKERS.COORDINATE_TOLERANCE; // Consider coordinates "same" if within this tolerance
     }
 
     /**
@@ -222,15 +222,17 @@ class MarkerClusterManager {
  * @returns {L.Marker} A Leaflet marker.
  */
 function createAtlasMarker(lat, lon, color, duplicateSloid) {
-    const radius = 6;
+    const radius = AppConstants.MARKERS.DEFAULT_RADIUS;
+    const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
+    const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
     const size = radius * 2;
     const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 18;
     if (useCanvasOnly) {
         return L.circleMarker([lat, lon], { 
             color: color, 
             radius: radius,
-            fillOpacity: 0.5,
-            weight: 2
+            fillOpacity: fillOpacity,
+            weight: weight
         });
     }
     if (duplicateSloid && duplicateSloid !== '') { // Check if duplicateSloid has a value
@@ -238,7 +240,7 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
         const icon = getCachedDivIcon(
             key,
             `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
+                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>
                 <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">D</text>
             </svg>`,
             'custom-div-icon',
@@ -250,8 +252,8 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
         return L.circleMarker([lat, lon], { 
             color: color, 
             radius: radius,
-            fillOpacity: 0.5,
-            weight: 2
+            fillOpacity: fillOpacity,
+            weight: weight
         });
     }
 }
@@ -265,15 +267,17 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
  * @returns {L.Marker} A Leaflet marker.
  */
 function createOsmMarker(lat, lon, color, osmNodeType = null) {
-    const radius = 6;
+    const radius = AppConstants.MARKERS.DEFAULT_RADIUS;
+    const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
+    const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
     const size = radius * 2;
     const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 18;
     if (useCanvasOnly) {
         return L.circleMarker([lat, lon], { 
             color: color, 
             radius: radius,
-            fillOpacity: 0.5,
-            weight: 2
+            fillOpacity: fillOpacity,
+            weight: weight
         });
     }
     
@@ -282,7 +286,7 @@ function createOsmMarker(lat, lon, color, osmNodeType = null) {
         const icon = getCachedDivIcon(
             key,
             `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
+                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>
                 <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">P</text>
             </svg>`,
             'custom-div-icon',
@@ -295,7 +299,7 @@ function createOsmMarker(lat, lon, color, osmNodeType = null) {
         const icon = getCachedDivIcon(
             key,
             `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="0.5" stroke="${color}" stroke-width="2"/>
+                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>
                 <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">S</text>
             </svg>`,
             'custom-div-icon',
@@ -307,8 +311,8 @@ function createOsmMarker(lat, lon, color, osmNodeType = null) {
         return L.circleMarker([lat, lon], { 
             color: color, 
             radius: radius,
-            fillOpacity: 0.5,
-            weight: 2
+            fillOpacity: fillOpacity,
+            weight: weight
         });
     }
 }
@@ -566,23 +570,35 @@ function drawProblemOnMap(map, problemData, layers) {
     else if (stop.problem === 'duplicates') {
         const members = Array.isArray(stop.members) ? stop.members : [];
         const points = [];
-        members.forEach(member => {
+        const markers = []; // Store markers to auto-open popups
+        
+        members.forEach((member, index) => {
             if (member.atlas_lat != null && member.atlas_lon != null) {
                 const m = createAtlasMarker(member.atlas_lat, member.atlas_lon, 'orange', member.atlas_duplicate_sloid);
                 const p = createPopupWithOptions(PopupRenderer.generatePopupHtml(member, 'atlas'));
                 m.bindPopup(p).addTo(layers.markersLayer);
                 points.push([member.atlas_lat, member.atlas_lon]);
+                markers.push({ marker: m, type: 'atlas', index });
             }
             if (member.osm_lat != null && member.osm_lon != null) {
                 const m2 = createOsmMarker(member.osm_lat, member.osm_lon, 'blue', member.osm_node_type);
                 const p2 = createPopupWithOptions(PopupRenderer.generatePopupHtml(member, 'osm'));
                 m2.bindPopup(p2).addTo(layers.markersLayer);
                 points.push([member.osm_lat, member.osm_lon]);
+                markers.push({ marker: m2, type: 'osm', index });
             }
         });
+        
         if (points.length > 0) {
             const bounds = L.latLngBounds(points);
             map.fitBounds(bounds.pad(0.2));
+            
+            // Auto-open all popups after a short delay to show which entries are duplicates
+            setTimeout(() => {
+                markers.forEach(({ marker }) => {
+                    marker.openPopup();
+                });
+            }, 300);
         }
     }
 }

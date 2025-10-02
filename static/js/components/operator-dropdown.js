@@ -114,7 +114,7 @@ class OperatorDropdown {
     notifyChange() { if (this.options.onSelectionChange && typeof this.options.onSelectionChange === 'function') { this.options.onSelectionChange(this.getSelection()); } }
     getDropdownId() { return `operator-dropdown-${Math.random().toString(36).substr(2, 9)}`; }
     getMenuId() { return `operator-menu-${Math.random().toString(36).substr(2, 9)}`; }
-    escapeHtml(text) { const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+    escapeHtml(text) { return SharedUtils.escapeHtml(text); }
     destroy() { $(document).off('click'); this.container.empty(); }
     refresh() { this.loadOperators(); }
     disable() { this.button.prop('disabled', true).addClass('disabled'); }

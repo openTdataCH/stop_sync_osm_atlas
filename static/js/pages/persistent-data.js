@@ -1,36 +1,11 @@
 // persistent-data.js - JavaScript for the Persistent Data Management Page
 
 $(document).ready(function() {
-    // Expose CSRF token for AJAX (Flask-WTF sets this cookie header by default when using CSRFProtect with AJAX)
-    const csrfToken = (document.cookie.match(/\bcsrf_token=([^;]+)/) || [])[1];
-    if (csrfToken) {
-        $.ajaxSetup({
-            headers: { 'X-CSRFToken': csrfToken }
-        });
-    }
+    // Setup CSRF token for AJAX requests
+    SharedUtils.setupCSRFToken();
 
-    // Build a clear error message based on HTTP status and response body
-    function buildErrorMessage(xhr, fallbackMessage, context) {
-        try {
-            const status = xhr && xhr.status;
-            const body = (xhr && xhr.responseJSON) ? xhr.responseJSON : null;
-            const serverMsg = body && (body.error || body.message);
-            if (status === 401) {
-                if (context === 'persist') return 'Please log in to make data persistent.';
-                if (context === 'bulk') return 'Please log in to perform this action.';
-                return 'Please log in to continue.';
-            }
-            if (status === 403) {
-                if (context === 'owner') return 'Not authorized: only the author or an admin can modify or delete this item.';
-                if (context === 'bulk') return 'Not authorized: only admins can perform this action.';
-                if (context === 'persist') return 'Not authorized: only the author or an admin can update existing persistent items.';
-                return 'Not authorized to perform this action.';
-            }
-            return serverMsg || fallbackMessage;
-        } catch (e) {
-            return fallbackMessage;
-        }
-    }
+    // Use shared error message builder
+    const buildErrorMessage = SharedUtils.buildErrorMessage;
 
     let currentPage = 1;
     let currentFilter = 'all';
@@ -718,31 +693,9 @@ $(document).ready(function() {
         });
     }
     
-    // Show temporary message helper
-    function showTemporaryMessage(message, type = 'info') {
-        const alertClass = type === 'success' ? 'alert-success' : 
-                          type === 'error' ? 'alert-danger' : 
-                          type === 'warning' ? 'alert-warning' : 'alert-info';
-        
-        const icon = type === 'success' ? 'fas fa-check-circle' : 
-                    type === 'error' ? 'fas fa-exclamation-circle' : 
-                    type === 'warning' ? 'fas fa-exclamation-triangle' : 'fas fa-info-circle';
-        
-        const alertHtml = `
-            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-                <i class="${icon}"></i> ${message}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-        `;
-        
-        $('.container').prepend(alertHtml);
-        
-        // Auto-dismiss after 5 seconds
-        setTimeout(() => {
-            $('.alert').fadeOut();
-        }, 5000);
+    // Use shared temporary message utility
+    function showTemporaryMessage(message, type) {
+        SharedUtils.showTemporaryMessage(message, type, 5000);
     }
     
     // Helper function to update the 'Clear All' button

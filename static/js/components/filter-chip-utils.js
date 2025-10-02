@@ -1,11 +1,8 @@
 (function(global) {
   'use strict';
 
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text == null ? '' : String(text);
-    return div.innerHTML;
-  }
+  // Use shared escapeHtml utility
+  const escapeHtml = SharedUtils.escapeHtml;
 
   function buildOrGroupHtml(chipsArray) {
     if (!chipsArray || chipsArray.length === 0) return '';

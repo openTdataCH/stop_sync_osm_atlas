@@ -7,11 +7,8 @@
 window.ProblemsNotes = (function() {
     'use strict';
 
-    // Attach CSRF token header if available
-    const csrfToken = (document.cookie.match(/\bcsrf_token=([^;]+)/) || [])[1];
-    if (csrfToken && typeof $ !== 'undefined' && $.ajaxSetup) {
-        $.ajaxSetup({ headers: { 'X-CSRFToken': csrfToken } });
-    }
+    // Setup CSRF token for AJAX requests
+    SharedUtils.setupCSRFToken();
 
     /**
      * Load and display notes for current problem

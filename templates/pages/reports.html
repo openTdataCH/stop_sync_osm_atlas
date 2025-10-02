@@ -235,6 +235,9 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Shared constants and utilities (must load first) -->
+<script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/report.js') }}"></script>
 <script>

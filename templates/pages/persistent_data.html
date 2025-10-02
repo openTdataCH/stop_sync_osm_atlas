@@ -162,6 +162,9 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Shared constants and utilities (must load first) -->
+<script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
 <!-- Persistent Data Management JavaScript -->
   <script src="{{ url_for('static', filename='js/pages/persistent-data.js') }}"></script>
 {% endblock %}

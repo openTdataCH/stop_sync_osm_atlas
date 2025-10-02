@@ -7,12 +7,12 @@ var topNLayer = L.layerGroup(); // For top N distances overlay
 var stopsById = {};   // Global store for stops by id.
 // manual matching variables are now defined in manual-matching.js
 
-// Performance tuning constants
-var ZOOM_MARKER_THRESHOLD = 13; // below this zoom, do not render markers
-var ZOOM_LINE_THRESHOLD = 14;   // below this zoom, do not render polylines between matches
-var VIEW_DEBOUNCE_MS = 320;     // debounce pan/zoom events (slightly higher to reduce redundant loads)
-var LOW_ZOOM_SMALLSET_LIMIT = 250; // if <= this many entries match, render even below threshold
-var ADDITIONAL_BANNER_ZOOM_LEVELS = 2; // keep banner for a couple of levels after markers appear
+// Performance tuning constants (from AppConstants)
+var ZOOM_MARKER_THRESHOLD = AppConstants.MAP.ZOOM_MARKER_THRESHOLD;
+var ZOOM_LINE_THRESHOLD = AppConstants.MAP.ZOOM_LINE_THRESHOLD;
+var VIEW_DEBOUNCE_MS = AppConstants.DATA_LOADING.VIEW_DEBOUNCE_MS;
+var LOW_ZOOM_SMALLSET_LIMIT = AppConstants.DATA_LOADING.LOW_ZOOM_SMALLSET_LIMIT;
+var ADDITIONAL_BANNER_ZOOM_LEVELS = AppConstants.MAP.ADDITIONAL_BANNER_ZOOM_LEVELS;
 
 // Request management
 var currentDataRequest = null;  // jqXHR of in-flight /api/data
@@ -21,11 +21,6 @@ var loadViewportTimer = null;   // debounce timer id
 var suppressViewportReloadCount = 0; // skip this many reloads after programmatic center
 
 // Note: popup HTML generation functions are provided by popup-renderer.js
-
-
-
-// Popup HTML generation helpers are in popup-renderer.js
-
 // Note: createAtlasMarker and createOsmMarker functions are now provided by map-renderer.js
 
 // Function to initialize the map with event listeners that preserve popups during movement
@@ -34,10 +29,10 @@ function initMap() {
         closePopupOnClick: false, // Prevent map click from closing popups
         // Use SVG renderer so popup connection lines can be drawn in the map's SVG layer
         preferCanvas: false
-    }).setView([47.3769, 8.5417], 13);
+    }).setView(AppConstants.MAP.DEFAULT_CENTER, AppConstants.MAP.DEFAULT_ZOOM);
     
     osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-         maxZoom: 19,
+         maxZoom: AppConstants.MAP.MAX_ZOOM,
          attribution: '© OpenStreetMap'
     });
     osmLayer.addTo(map);
@@ -75,24 +70,21 @@ function initMap() {
 
 
 
-
-
-
 // Create and control a low-zoom banner prompting users to zoom in
 function ensureZoomBannerExists() {
     if (document.getElementById('zoomBanner')) return;
     var banner = document.createElement('div');
     banner.id = 'zoomBanner';
     banner.style.position = 'absolute';
-    banner.style.top = '10px';
+    banner.style.top = AppConstants.ZOOM_BANNER.TOP_POSITION;
     banner.style.left = '50%';
     banner.style.transform = 'translateX(-50%)';
-    banner.style.zIndex = '1000';
-    banner.style.background = 'rgba(0,0,0,0.75)';
-    banner.style.color = '#fff';
-    banner.style.padding = '8px 12px';
-    banner.style.borderRadius = '6px';
-    banner.style.fontSize = '14px';
+    banner.style.zIndex = AppConstants.ZOOM_BANNER.Z_INDEX;
+    banner.style.background = AppConstants.ZOOM_BANNER.BACKGROUND;
+    banner.style.color = AppConstants.ZOOM_BANNER.COLOR;
+    banner.style.padding = AppConstants.ZOOM_BANNER.PADDING;
+    banner.style.borderRadius = AppConstants.ZOOM_BANNER.BORDER_RADIUS;
+    banner.style.fontSize = AppConstants.ZOOM_BANNER.FONT_SIZE;
     banner.style.display = 'none';
     banner.textContent = 'Zoom in to see all stop markers';
     var mapContainer = document.getElementById('map');
@@ -239,7 +231,7 @@ function loadDataForViewport() {
     if (isLowZoom) {
         params.limit = LOW_ZOOM_SMALLSET_LIMIT; // keep probe small at low zoom
     } else if (!fullUncappedZoom) {
-        params.limit = 500; // mid-zoom cap
+        params.limit = AppConstants.DATA_LOADING.MID_ZOOM_LIMIT; // mid-zoom cap
     } // else: omit limit at high zoom to fetch all markers
     
     // Determine if pure OSM nodes should be included in stop_filter when 'unmatched' is active
