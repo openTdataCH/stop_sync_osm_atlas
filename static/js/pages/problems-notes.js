@@ -19,8 +19,11 @@ window.ProblemsNotes = (function() {
         // Show notes section
         $('#notesSection').show();
         
-        // Load ATLAS note
+        // Load ATLAS note with duplicates-style label (badge + ID + name)
         if (problem.sloid) {
+            const atlasName = problem.atlas_designation_official || problem.atlas_designation || '-';
+            const atlasLabel = `<span class="badge badge-secondary">ATLAS</span> ${problem.sloid} - ${atlasName}`;
+            $('#atlasNoteContainer .form-label').html(atlasLabel);
             $('#atlasNote').val(problem.atlas_note || '');
             $('#atlasNoteContainer').show();
             
@@ -30,29 +33,26 @@ window.ProblemsNotes = (function() {
 
             if (atlasCheckbox.length === 0) {
                 const persistentHtml = `
-                    <div class="form-check mt-2">
+                    <div class="form-check mt-1">
                         <input class="form-check-input" type="checkbox" id="atlasNotePersistentCheckbox" ${isAtlasNotePersistent ? 'checked' : ''}>
                         <label class="form-check-label" for="atlasNotePersistentCheckbox">
                             Make note persistent across imports
-                            ${isAtlasNotePersistent ? '<span class="badge badge-success ml-2">Persistent</span>' : ''}
                         </label>
                     </div>
                 `;
-                $('#atlasNoteContainer .input-group').after(persistentHtml);
+                $('#atlasNoteContainer .note-editor').append(persistentHtml);
             } else {
                 atlasCheckbox.prop('checked', isAtlasNotePersistent);
-                const label = atlasCheckbox.siblings('label');
-                label.find('.badge').remove();
-                if (isAtlasNotePersistent) {
-                    label.append('<span class="badge badge-success ml-2">Persistent</span>');
-                }
             }
         } else {
             $('#atlasNoteContainer').hide();
         }
         
-        // Load OSM note and editor link
+        // Load OSM note with duplicates-style label (badge + ID + name)
         if (problem.osm_node_id) {
+            const osmName = problem.osm_name || problem.osm_uic_name || '-';
+            const osmLabel = `<span class="badge badge-secondary">OSM</span> ${problem.osm_node_id} - ${osmName}`;
+            $('#osmNoteContainer .form-label').html(osmLabel);
             $('#osmNote').val(problem.osm_note || '');
             $('#osmNoteContainer').show();
             
@@ -62,31 +62,19 @@ window.ProblemsNotes = (function() {
             
             if (osmCheckbox.length === 0) {
                 const persistentHtml = `
-                    <div class="form-check mt-2">
+                    <div class="form-check mt-1">
                         <input class="form-check-input" type="checkbox" id="osmNotePersistentCheckbox" ${isOsmNotePersistent ? 'checked' : ''}>
                         <label class="form-check-label" for="osmNotePersistentCheckbox">
                             Make note persistent across imports
-                            ${isOsmNotePersistent ? '<span class="badge badge-success ml-2">Persistent</span>' : ''}
                         </label>
                     </div>
                 `;
-                $('#osmNoteContainer .input-group').after(persistentHtml);
+                $('#osmNoteContainer .note-editor').append(persistentHtml);
             } else {
                 osmCheckbox.prop('checked', isOsmNotePersistent);
-                const label = osmCheckbox.siblings('label');
-                label.find('.badge').remove();
-                if (isOsmNotePersistent) {
-                    label.append('<span class="badge badge-success ml-2">Persistent</span>');
-                }
             }
-            
-            // Set up OSM iD editor link
-            const osmEditorUrl = `https://www.openstreetmap.org/edit?node=${problem.osm_node_id}`;
-            $('#osmEditorLink').attr('href', osmEditorUrl);
-            $('#osmEditorLinkContainer').show();
         } else {
             $('#osmNoteContainer').hide();
-            $('#osmEditorLinkContainer').hide();
         }
     }
 

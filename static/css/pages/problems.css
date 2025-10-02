@@ -251,12 +251,18 @@
   border: 1px solid #e9ecef;
 }
 
+/* Normalize spacing between consecutive sections */
+.problem-section-item + .problem-section-item {
+  margin-top: 16px;
+}
+
 .problem-section-item h6 {
   color: #495057;
   font-weight: 600;
   margin-bottom: 12px;
   display: flex;
   align-items: center;
+  font-size: 1rem;
   gap: 8px;
 }
 

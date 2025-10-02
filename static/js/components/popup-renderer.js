@@ -161,12 +161,19 @@
             }
         }
 
+        // Add OSM iD editor link for OSM popups
+        let osmEditorLinkHtml = '';
+        if (isOsm && data.osm_node_id) {
+            osmEditorLinkHtml = `<div class="osm-editor-link-container mt-2"><a href="https://www.openstreetmap.org/edit?node=${data.osm_node_id}" class="osm-editor-link" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Edit in OSM iD Editor</a></div>`;
+        }
+
         return `
             <div class="${bubbleClass}${unmatchedClass}">
                 ${bubbleHeader}
                 <table class="popup-table">${tableRowsHtml}</table>
                 ${routesSection}
                 ${extraBtns}
+                ${osmEditorLinkHtml}
             </div>`;
     }
 

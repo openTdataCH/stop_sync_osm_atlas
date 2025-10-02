@@ -7,6 +7,17 @@
 window.ProblemsUI = (function() {
     'use strict';
 
+    // Small UI helpers
+    function isSolutionSelected(problem, expected) {
+        if (!problem || !problem.solution) return false;
+        return String(problem.solution).trim().toLowerCase() === String(expected).trim().toLowerCase();
+    }
+
+    function buildSolutionBtnClass(style, active) {
+        // Match duplicates style: outline by default, filled when active, always small
+        return `btn btn-sm ${active ? 'btn-' + style : 'btn-outline-' + style} professional-button solution-btn`;
+    }
+
     /**
      * Generate common solution status section HTML
      */
@@ -199,17 +210,6 @@ window.ProblemsUI = (function() {
         } else {
             html += '<div class="alert alert-warning">OSM info not available</div>';
         }
-
-        // Add OSM iD Editor link below the popup
-        if (problem.osm_node_id) {
-            const osmEditorUrl = `https://www.openstreetmap.org/edit?node=${problem.osm_node_id}`;
-            html += `<div class="mt-2">
-                <a href="${osmEditorUrl}" class="osm-editor-link" target="_blank" rel="noopener noreferrer">
-                    <i class="fas fa-external-link-alt"></i>
-                    Edit in OSM iD Editor
-                </a>
-            </div>`;
-        }
         html += '</div>';
         
         html += '</div>'; // End row
@@ -244,50 +244,358 @@ window.ProblemsUI = (function() {
 
     /**
      * Generate action buttons for distance problems
-     * Now using centralized ProblemsUIActions module
      */
     function generateDistanceActionButtons(problem) {
-        return ProblemsUIActions.generateDistanceActions(problem);
+        const distanceText = problem.distance_m ? `${Math.round(problem.distance_m)} m` : 'unknown';
+        const pr = Number(problem.priority);
+        const atlasOp = (problem.atlas_business_org_abbr || problem.atlas_operator || '').toString().trim().toUpperCase();
+        const isSbb = atlasOp === 'SBB';
+        let alertClass = 'alert-info';
+        let rationale = '';
+        if (pr === 1) { alertClass = 'alert-danger'; rationale = `Very large distance${isSbb ? '' : ' and non‑SBB operator'}`; }
+        else if (pr === 2) { alertClass = 'alert-warning'; rationale = `Large distance${isSbb ? '' : ' and non‑SBB operator'}`; }
+        else { alertClass = 'alert-info'; rationale = isSbb ? 'Distance above 25 m for SBB' : 'Distance above tolerance'; }
+
+        // Determine active states for outline-to-filled style
+        const atlasActive = isSolutionSelected(problem, 'Atlas correct');
+        const osmActive = isSolutionSelected(problem, 'OSM correct');
+        const bothActive = isSolutionSelected(problem, 'Both correct');
+        const notMatchActive = isSolutionSelected(problem, 'Not a match');
+
+        return `
+            <div class="problem-section-item">
+                <h6><i class="fas fa-tools"></i> Resolution Actions</h6>
+                <div class="alert ${alertClass}">
+                    <small><i class="fas fa-info-circle"></i> Distance between ATLAS and OSM: ${distanceText}. ${rationale}. Choose which location is correct.</small>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="${buildSolutionBtnClass('success', atlasActive)}" data-solution="Atlas correct">
+                        <i class="fas fa-check-circle"></i> Atlas correct
+                    </button>
+                    <button class="${buildSolutionBtnClass('primary', osmActive)}" data-solution="OSM correct">
+                        <i class="fas fa-check-circle"></i> OSM correct
+                    </button>
+                    <button class="${buildSolutionBtnClass('warning', bothActive)}" data-solution="Both correct">
+                        <i class="fas fa-pause-circle"></i> Both correct
+                    </button>
+                    <button class="${buildSolutionBtnClass('danger', notMatchActive)}" data-solution="Not a match">
+                        <i class="fas fa-times-circle"></i> Not a match
+                    </button>
+                </div>
+            </div>
+        `;
     }
 
     /**
      * Generate action buttons for isolated problems
-     * Now using centralized ProblemsUIActions module
      */
     function generateIsolatedActionButtons(problem) {
-        return ProblemsUIActions.generateIsolatedActions(problem);
+        const pr = Number(problem.priority);
+        const isAtlas = problem.stop_type === 'unmatched';
+        const subject = isAtlas ? 'ATLAS entry' : 'OSM entry';
+        let alertClass = 'alert-info';
+        let icon = 'info-circle';
+        let intent = '';
+        if (pr === 1) { alertClass = 'alert-danger'; icon = 'exclamation-circle'; intent = 'No counterpart exists for this UIC or none within 80 m'; }
+        else if (pr === 2) { alertClass = 'alert-warning'; icon = 'exclamation-triangle'; intent = 'No counterpart within 50 m or platform count mismatch for this UIC'; }
+        else { alertClass = 'alert-info'; icon = 'info-circle'; intent = 'Unmatched entry requiring review'; }
+
+        // Determine active states for outline-to-filled style
+        const shouldDeleteActive = isSolutionSelected(problem, 'Should be deleted');
+        const missingOtherActive = isAtlas ? isSolutionSelected(problem, 'Missing OSM') : isSolutionSelected(problem, 'Missing ATLAS');
+
+        if (isAtlas) { // Isolated ATLAS
+            return `
+                <div class="problem-section-item">
+                    <h6><i class="fas fa-tools"></i> Resolution Actions</h6>
+                    <div class="alert ${alertClass}">
+                        <small><i class="fas fa-${icon}"></i> ${subject} is unmatched. ${intent}.</small>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-secondary professional-button" data-action="manual-match-atlas">Match to</button>
+                        <button class="${buildSolutionBtnClass('danger', shouldDeleteActive)}" data-solution="Should be deleted">
+                            <i class="fas fa-trash"></i> Should be deleted
+                        </button>
+                        <button class="${buildSolutionBtnClass('info', missingOtherActive)}" data-solution="Missing OSM">
+                            <i class="fas fa-plus-circle"></i> Missing OSM
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else if (problem.stop_type === 'osm') { // Isolated OSM
+            return `
+                <div class="problem-section-item">
+                    <h6><i class="fas fa-tools"></i> Resolution Actions</h6>
+                    <div class="alert ${alertClass}">
+                        <small><i class="fas fa-${icon}"></i> ${subject} is unmatched. ${intent}.</small>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-secondary professional-button" data-action="manual-match-osm">Match to</button>
+                        <button class="${buildSolutionBtnClass('danger', shouldDeleteActive)}" data-solution="Should be deleted">
+                            <i class="fas fa-trash"></i> Should be deleted
+                        </button>
+                        <button class="${buildSolutionBtnClass('info', missingOtherActive)}" data-solution="Missing ATLAS">
+                            <i class="fas fa-plus-circle"></i> Missing ATLAS
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        // Fallback for unexpected cases
+        return `
+            <div class="problem-section-item">
+                <h6><i class="fas fa-exclamation-triangle text-danger"></i> Data Inconsistency</h6>
+                <div class="alert alert-danger">
+                    This entry is flagged with an 'unmatched' problem, but its type is <code>${problem.stop_type || 'undefined'}</code>, which is not expected for this problem type. Please report this issue.
+                </div>
+            </div>
+        `;
     }
 
     /**
      * Generate action buttons for attributes problems
-     * Now using centralized ProblemsUIActions module
      */
     function generateAttributesActionButtons(problem) {
-        return ProblemsUIActions.generateAttributesActions(problem);
+        let html = '<div class="problem-section-item">';
+        html += '<h6><i class="fas fa-tools"></i> Resolution Actions</h6>';
+        
+        const mismatches = getMismatchedAttributes(problem);
+        let solution = {};
+        if (problem.solution && problem.solution.trim() !== '' && problem.solution.trim().startsWith('{')) {
+            try {
+                solution = JSON.parse(problem.solution);
+            } catch (e) {
+                console.error("Error parsing solution JSON:", e);
+                solution = {};
+            }
+        } else if (problem.solution) {
+            // Handle legacy string solutions
+            html += `<div class="alert alert-warning"><strong>Legacy Solution:</strong> ${problem.solution}</div>`;
+        }
+
+        if (mismatches.length > 0) {
+            html += '<p><small><i class="fas fa-info-circle"></i> For each mismatched attribute, choose the correct source.</small></p>';
+            html += '<table class="table table-sm attribute-resolution-table"><tbody>';
+
+            mismatches.forEach(attr => {
+                const atlasValue = problem[attr.atlas] || '<em>(empty)</em>';
+                const osmValue = problem[attr.osm] || '<em>(empty)</em>';
+                const resolvedValue = solution[attr.label];
+
+                html += `<tr>
+                    <td><strong>${attr.label}</strong></td>
+                    <td class="attribute-value">${atlasValue}</td>
+                    <td class="attribute-value">${osmValue}</td>
+                    <td class="attribute-action">`;
+
+                if (resolvedValue !== undefined) {
+                    html += `<div class="text-success"><i class="fas fa-check-circle"></i> <strong>${resolvedValue || '<em>(empty)</em>'}</strong></div>`;
+                } else {
+                    html += `<div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-info professional-button solution-btn" data-solution-type="attribute" data-attribute="${attr.label}" data-value="${problem[attr.atlas] || ''}">Use ATLAS</button>
+                        <button class="btn btn-outline-primary professional-button solution-btn" data-solution-type="attribute" data-attribute="${attr.label}" data-value="${problem[attr.osm] || ''}">Use OSM</button>
+                    </div>`;
+                }
+
+                html += '</td></tr>';
+            });
+
+            html += '</tbody></table>';
+        } else {
+            html += '<div class="alert alert-success"><i class="fas fa-check-circle"></i> No attribute mismatches detected.</div>';
+        }
+
+        // Add global actions
+        html += '<h6 class="mt-4"><i class="fas fa-globe"></i> Overall Status</h6>';
+        html += '<div class="d-flex flex-wrap gap-2">';
+        html += `<button class="btn btn-danger professional-button solution-btn" data-solution-type="global" data-solution="Not a valid match">
+                    <i class="fas fa-times-circle"></i> Not a valid match
+                </button>`;
+        html += `<button class="btn btn-secondary professional-button solution-btn" data-solution-type="global" data-solution="Skip / I do not know">
+                    <i class="fas fa-forward"></i> Skip
+                </button>`;
+        html += '</div>';
+
+        html += '</div>';
+        return html;
     }
 
     /**
      * Generate action buttons for duplicates problems (grouped view)
-     * Now using centralized ProblemsUIDuplicates module
      */
     function generateDuplicatesActionButtons(problem) {
-        return ProblemsUIDuplicates.generateDuplicatesActions(problem);
+        // problem is a group with members
+        const isOsmGroup = problem.group_type === 'osm';
+        let title = isOsmGroup
+            ? `<i class="fas fa-clone"></i> OSM duplicates for UIC ${problem.uic_ref || '(none)'} · local_ref ${problem.osm_local_ref || '(none)'}`
+            : `<i class="fas fa-clone"></i> ATLAS duplicates for SLOID ${problem.sloid}`;
+
+        let html = '<div class="problem-section-item">';
+        html += `<h6>${title}</h6>`;
+        html += '<div class="alert alert-info"><small><i class="fas fa-info-circle"></i> ' +
+                (isOsmGroup ? 'Multiple OSM nodes share the same UIC and local_ref. Review each and decide which should remain.'
+                             : 'Multiple entries share the same ATLAS SLOID. Review and decide which should remain.') +
+                '</small></div>';
+
+        // Table of members
+        html += '<table class="table table-sm"><thead><tr>' +
+                '<th>Source</th><th>Identifier</th><th>Name</th><th>Coords</th><th>Action</th></tr></thead><tbody>';
+
+        (problem.members || []).forEach(member => {
+            const isOsm = !!member.osm_node_id;
+            const coords = isOsm
+                ? (member.osm_lat && member.osm_lon ? `${Math.round(member.osm_lat*1e5)/1e5}, ${Math.round(member.osm_lon*1e5)/1e5}` : '-')
+                : (member.atlas_lat && member.atlas_lon ? `${Math.round(member.atlas_lat*1e5)/1e5}, ${Math.round(member.atlas_lon*1e5)/1e5}` : '-');
+            const name = isOsm ? (member.osm_name || member.osm_uic_name || '-')
+                               : (member.atlas_designation_official || member.atlas_designation || '-');
+            const ident = isOsm ? (member.osm_node_id || '-') : (member.sloid || '-');
+            const sourceBadge = isOsm ? '<span class="badge badge-secondary">OSM</span>' : '<span class="badge badge-secondary">ATLAS</span>';
+
+            const hasSolution = typeof member.solution === 'string' && member.solution.trim() !== '';
+            const isKeep = hasSolution && member.solution.trim().toLowerCase() === 'keep';
+            const isDelete = hasSolution && member.solution.trim().toLowerCase().indexOf('delete') !== -1;
+            const keepBtnClass = isKeep ? 'btn-success' : 'btn-outline-success';
+            const deleteBtnClass = isDelete ? 'btn-danger' : 'btn-outline-danger';
+
+            html += `<tr>
+                <td>${sourceBadge}</td>
+                <td>${ident}</td>
+                <td>${name || '-'}</td>
+                <td>${coords}</td>
+                <td>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn ${keepBtnClass} btn-sm professional-button solution-btn" data-solution="Keep" data-problem="duplicates" data-target-stop-id="${member.stop_id}">
+                            <i class="fas fa-check-circle"></i> Keep
+                        </button>
+                        <button class="btn ${deleteBtnClass} btn-sm professional-button solution-btn" data-solution="Should be deleted" data-problem="duplicates" data-target-stop-id="${member.stop_id}">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </td>
+            </tr>`;
+        });
+
+        html += '</tbody></table>';
+
+        // Global actions for duplicates
+        html += '<h6 class="mt-4"><i class="fas fa-globe"></i> Overall Status</h6>';
+        html += '<div class="d-flex flex-wrap gap-2">';
+        html += `<button class="btn btn-secondary professional-button solution-btn" data-solution-type="global" data-solution="Skip / I do not know">
+                    <i class="fas fa-forward"></i> Skip
+                </button>`;
+        html += '</div>';
+
+        html += '</div>';
+        return html;
     }
 
     /**
      * Generate solution status section for duplicates problems
-     * Now using centralized ProblemsUIDuplicates module
      */
     function generateDuplicatesSolutionStatusSection(problem) {
-        return ProblemsUIDuplicates.generateDuplicatesSolutionStatus(problem);
+        const solvedMembers = (problem.members || []).filter(m => typeof m.solution === 'string' && m.solution.trim() !== '');
+        if (solvedMembers.length === 0) {
+            return '';
+        }
+
+        const hasPersistentSolutions = solvedMembers.some(m => m.is_persistent);
+        let persistenceHtml = '';
+        
+        if (hasPersistentSolutions) {
+            persistenceHtml = `
+                <div class="mt-2">
+                    <span class="badge badge-success"><i class="fas fa-database"></i> Some solutions are persistent</span>
+                    <small class="text-muted ml-2">Persistent solutions will be automatically applied after data imports</small>
+                </div>
+            `;
+        } else {
+            persistenceHtml = `
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-outline-success make-persistent-duplicates-btn" 
+                            data-problem-id="${problem.id}" 
+                            data-problem-type="${problem.problem}">
+                        <i class="fas fa-thumbtack"></i> Make All Persistent
+                    </button>
+                    <small class="text-muted ml-2">Save all current solutions for future data imports</small>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="problem-section-item solution-status-section">
+                <h6><i class="fas fa-check-circle text-success"></i> Current Solution</h6>
+                <div class="alert alert-success solution-display">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Proposed Solution:</strong>
+                            <ul class="mb-0 mt-2">
+                                ${solvedMembers.map(m => {
+                                    const isOsm = !!m.osm_node_id;
+                                    const sourceBadge = isOsm ? '<span class="badge badge-secondary">OSM</span>' : '<span class="badge badge-secondary">ATLAS</span>';
+                                    const ident = isOsm ? (m.osm_node_id || '-') : (m.sloid || '-');
+                                    const sol = (m.solution || '').trim();
+                                    const persistentIcon = m.is_persistent ? ' <i class="fas fa-database"></i>' : '';
+                                    return `<li>${sourceBadge} ${ident} → <strong>${sol}</strong>${persistentIcon}</li>`;
+                                }).join('')}
+                            </ul>
+                            <small class="text-muted">You can modify any member's decision using the buttons below.</small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary clear-duplicates-solutions-btn" 
+                                data-problem-id="${problem.id}" 
+                                data-problem-type="${problem.problem}">
+                            <i class="fas fa-undo"></i> Clear All
+                        </button>
+                    </div>
+                    ${persistenceHtml}
+                </div>
+            </div>
+        `;
     }
 
     /**
      * Generate notes section for duplicates problems
-     * Now using centralized ProblemsUIDuplicates module
      */
     function generateDuplicatesNotesSection(problem) {
-        return ProblemsUIDuplicates.generateDuplicatesNotes(problem);
+        let html = '<div class="problem-section-item">';
+        html += '<h6><i class="fas fa-sticky-note"></i> Notes</h6>';
+        html += '<p><small class="text-muted">Add notes for individual duplicate entries below.</small></p>';
+
+        (problem.members || []).forEach(member => {
+            const isOsm = !!member.osm_node_id;
+            const ident = isOsm ? (member.osm_node_id || '-') : (member.sloid || '-');
+            const sourceBadge = isOsm ? '<span class="badge badge-secondary">OSM</span>' : '<span class="badge badge-secondary">ATLAS</span>';
+            const name = isOsm ? (member.osm_name || member.osm_uic_name || '-')
+                               : (member.atlas_designation_official || member.atlas_designation || '-');
+
+            html += `
+                <div class="mb-3">
+                    <label class="form-label">${sourceBadge} ${ident} - ${name}</label>
+                    <div class="note-editor">
+                        <textarea class="form-control member-note-text" 
+                                placeholder="Add a note for this ${isOsm ? 'OSM' : 'ATLAS'} entry..."
+                                data-stop-id="${member.stop_id}"
+                                data-note-type="${isOsm ? 'osm' : 'atlas'}"
+                                data-sloid="${isOsm ? '' : (member.sloid || '')}"
+                                data-osm-node-id="${isOsm ? (member.osm_node_id || '') : ''}">${isOsm ? (member.osm_note || '') : (member.atlas_note || '')}</textarea>
+                        <div class="form-check mt-1">
+                            <input class="form-check-input member-note-persist" type="checkbox" 
+                                   data-stop-id="${member.stop_id}"
+                                   ${isOsm ? (member.osm_note_is_persistent ? 'checked' : '') : (member.atlas_note_is_persistent ? 'checked' : '')}>
+                            <label class="form-check-label">Make note persistent across imports</label>
+                        </div>
+                        <button class="btn btn-info btn-sm professional-button save-member-note mt-2" 
+                                data-note-type="${isOsm ? 'osm' : 'atlas'}" 
+                                data-sloid="${isOsm ? '' : (member.sloid || '')}" 
+                                data-osm-node-id="${isOsm ? (member.osm_node_id || '') : ''}" 
+                                data-stop-id="${member.stop_id}">
+                            Save Note
+                        </button>
+                    </div>
+                </div>`;
+        });
+
+        html += '</div>';
+        return html;
     }
 
     /**

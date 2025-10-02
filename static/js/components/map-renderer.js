@@ -18,6 +18,13 @@ function getCachedDivIcon(key, html, className, size, anchor) {
     return icon;
 }
 
+// Helper to build and cache a labeled circle SVG icon
+function getCachedLabeledCircleIcon(keyPrefix, color, letter, size, radius, weight, fillOpacity) {
+    const key = `${keyPrefix}|${color}|${letter}|${size}`;
+    const html = `\n            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">\n                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>\n                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">${letter}</text>\n            </svg>`;
+    return getCachedDivIcon(key, html, 'custom-div-icon', [size, size], [radius, radius]);
+}
+
 /**
  * MarkerClusterManager handles overlapping markers by grouping them by coordinates
  * and applying professional offset patterns with visual indicators.
@@ -236,18 +243,8 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
         });
     }
     if (duplicateSloid && duplicateSloid !== '') { // Check if duplicateSloid has a value
-        const key = `atlas|${color}|D|${size}`;
-        const icon = getCachedDivIcon(
-            key,
-            `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>
-                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">D</text>
-            </svg>`,
-            'custom-div-icon',
-            [size, size],
-            [radius, radius]
-        );
-        return L.marker([lat, lon], { icon });
+        const icon = getCachedLabeledCircleIcon('atlas', color, 'D', size, radius, weight, fillOpacity);
+        return L.marker([lat, lon], { icon: icon });
     } else {
         return L.circleMarker([lat, lon], { 
             color: color, 
@@ -282,31 +279,11 @@ function createOsmMarker(lat, lon, color, osmNodeType = null) {
     }
     
     if (osmNodeType === 'platform') {
-        const key = `osm|${color}|P|${size}`;
-        const icon = getCachedDivIcon(
-            key,
-            `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>
-                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">P</text>
-            </svg>`,
-            'custom-div-icon',
-            [size, size],
-            [radius, radius]
-        );
-        return L.marker([lat, lon], { icon });
+        const icon = getCachedLabeledCircleIcon('osm', color, 'P', size, radius, weight, fillOpacity);
+        return L.marker([lat, lon], { icon: icon });
     } else if (osmNodeType === 'railway_station') {
-        const key = `osm|${color}|S|${size}`;
-        const icon = getCachedDivIcon(
-            key,
-            `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>
-                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">S</text>
-            </svg>`,
-            'custom-div-icon',
-            [size, size],
-            [radius, radius]
-        );
-        return L.marker([lat, lon], { icon });
+        const icon = getCachedLabeledCircleIcon('osm', color, 'S', size, radius, weight, fillOpacity);
+        return L.marker([lat, lon], { icon: icon });
     } else {
         return L.circleMarker([lat, lon], { 
             color: color, 
@@ -570,36 +547,51 @@ function drawProblemOnMap(map, problemData, layers) {
     else if (stop.problem === 'duplicates') {
         const members = Array.isArray(stop.members) ? stop.members : [];
         const points = [];
-        const markers = []; // Store markers to auto-open popups
-        
-        members.forEach((member, index) => {
+        const markerDataArray = [];
+        members.forEach(member => {
             if (member.atlas_lat != null && member.atlas_lon != null) {
-                const m = createAtlasMarker(member.atlas_lat, member.atlas_lon, 'orange', member.atlas_duplicate_sloid);
-                const p = createPopupWithOptions(PopupRenderer.generatePopupHtml(member, 'atlas'));
-                m.bindPopup(p).addTo(layers.markersLayer);
+                // Use same color semantics as main map: green matched, red unmatched, orange stations
+                let atlasColor = 'green';
+                if (member.stop_type === 'unmatched') {
+                    atlasColor = 'red';
+                } else if (member.stop_type === 'station') {
+                    atlasColor = 'orange';
+                }
+                markerDataArray.push({
+                    lat: parseFloat(member.atlas_lat),
+                    lon: parseFloat(member.atlas_lon),
+                    type: 'atlas',
+                    color: atlasColor,
+                    duplicateSloid: member.atlas_duplicate_sloid,
+                    originalLat: parseFloat(member.atlas_lat),
+                    originalLon: parseFloat(member.atlas_lon),
+                    stopData: member,
+                    popup: createPopupWithOptions(PopupRenderer.generatePopupHtml(member, 'atlas'))
+                });
                 points.push([member.atlas_lat, member.atlas_lon]);
-                markers.push({ marker: m, type: 'atlas', index });
             }
             if (member.osm_lat != null && member.osm_lon != null) {
-                const m2 = createOsmMarker(member.osm_lat, member.osm_lon, 'blue', member.osm_node_type);
-                const p2 = createPopupWithOptions(PopupRenderer.generatePopupHtml(member, 'osm'));
-                m2.bindPopup(p2).addTo(layers.markersLayer);
+                markerDataArray.push({
+                    lat: parseFloat(member.osm_lat),
+                    lon: parseFloat(member.osm_lon),
+                    type: 'osm',
+                    color: 'blue',
+                    osmNodeType: member.osm_node_type,
+                    originalLat: parseFloat(member.osm_lat),
+                    originalLon: parseFloat(member.osm_lon),
+                    stopData: member,
+                    popup: createPopupWithOptions(PopupRenderer.generatePopupHtml(member, 'osm'))
+                });
                 points.push([member.osm_lat, member.osm_lon]);
-                markers.push({ marker: m2, type: 'osm', index });
             }
         });
-        
+        const createdMarkers = createMarkersWithOverlapHandling(markerDataArray, layers.markersLayer);
         if (points.length > 0) {
             const bounds = L.latLngBounds(points);
             map.fitBounds(bounds.pad(0.2));
-            
-            // Auto-open all popups after a short delay to show which entries are duplicates
-            setTimeout(() => {
-                markers.forEach(({ marker }) => {
-                    marker.openPopup();
-                });
-            }, 300);
         }
+        // Open a limited number of popups to avoid clutter
+        createdMarkers.slice(0, 6).forEach(m => { try { m.openPopup(); } catch(e) {} });
     }
 }
 

@@ -518,7 +518,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             match_type=safe_value(rec.get('match_type')),
             atlas_lat=atlas_lat,
             atlas_lon=atlas_lon,
-            atlas_duplicate_sloid=duplicate_sloid_map.get(sloid),
+            atlas_duplicate_sloid=False,
             uic_ref=safe_value(rec.get('number'), ""),
             osm_node_id=osm_node_id,
             osm_lat=osm_lat,
@@ -553,11 +553,11 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             )
             stop_record.problems.append(attributes_problem)
 
-        # Duplicates: ATLAS duplicates (priority 2) and OSM duplicates (priority 1)
-        if sloid and str(sloid) in duplicate_sloid_map:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
+        # Duplicates: based on OSM duplicate key only (priority 2)
         if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=1))
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
+            # Flag ATLAS marker for map rendering overlay
+            stop_record.atlas_duplicate_sloid = True
 
         session.add(stop_record)
         
@@ -765,7 +765,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             match_type=match_type_for_unmatched,
             atlas_lat=atlas_lat,
             atlas_lon=atlas_lon,
-            atlas_duplicate_sloid=duplicate_sloid_map.get(sloid),
+            atlas_duplicate_sloid=False,
             uic_ref=safe_value(rec.get('number'), "")
         )
         
@@ -795,9 +795,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             session.add(atlas_record)
             processed_sloids.add(sloid)
 
-        # Duplicates: ATLAS duplicates (priority 2)
-        if sloid and str(sloid) in duplicate_sloid_map:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
+        # No ATLAS-only duplicates; duplicates are derived from OSM duplicate keys only.
 
     session.commit()
 
@@ -860,9 +858,9 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             session.add(osm_record)
             processed_osm_node_ids.add(osm_node_id)
         
-        # Duplicates: OSM duplicates (priority 1)
+        # Duplicates: based on OSM duplicate key only (priority 2)
         if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=1))
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
             
     session.commit()
 
@@ -976,6 +974,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     distance_problems = session.query(Problem).filter(Problem.problem_type == 'distance').count()
     isolated_problems = session.query(Problem).filter(Problem.problem_type == 'unmatched').count()
     attributes_problems = session.query(Problem).filter(Problem.problem_type == 'attributes').count()
+    duplicates_problems = session.query(Problem).filter(Problem.problem_type == 'duplicates').count()
     
     multiple_problems = session.query(Problem.stop_id).group_by(Problem.stop_id).having(func.count(Problem.stop_id) > 1).count()
     
@@ -987,6 +986,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     print(f"Distance problems: {distance_problems}")
     print(f"Unmatched problems: {isolated_problems}")
     print(f"Attributes problems: {attributes_problems}")
+    print(f"Duplicates problems: {duplicates_problems}")
     print(f"Entries with multiple problems: {multiple_problems}")
     print(f"Clean entries (no problems): {clean_entries}")
     

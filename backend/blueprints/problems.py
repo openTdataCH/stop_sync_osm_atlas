@@ -45,7 +45,8 @@ def get_problems():
         priority_filter = request.args.get('priority', None)
         query = Problem.query.join(Stop)
         if problem_type_filter != 'all':
-            query = query.filter(Problem.problem_type == problem_type_filter)
+            mapped_type = 'unmatched' if problem_type_filter == 'isolated' else problem_type_filter
+            query = query.filter(Problem.problem_type == mapped_type)
         if solution_status_filter == 'solved':
             query = query.filter(Problem.solution.isnot(None) & (Problem.solution != ''))
         elif solution_status_filter == 'unsolved':
@@ -61,6 +62,13 @@ def get_problems():
         if problem_type_filter == 'duplicates':
             dup_query = Problem.query.join(Stop).filter(Problem.problem_type == 'duplicates')
             dup_query = apply_atlas_operator_filter(dup_query, atlas_operator_filter)
+            # Apply priority filter for duplicates as well
+            if priority_filter and priority_filter != 'all':
+                try:
+                    priority_value = int(priority_filter)
+                    dup_query = dup_query.filter(Problem.priority == priority_value)
+                except ValueError:
+                    pass
             dup_query = dup_query.options(
                 joinedload(Problem.stop).subqueryload(Stop.atlas_stop_details),
                 joinedload(Problem.stop).subqueryload(Stop.osm_node_details)
@@ -68,19 +76,14 @@ def get_problems():
             duplicate_problems = dup_query.all()
             from collections import defaultdict
             osm_groups = defaultdict(list)
-            atlas_groups = defaultdict(list)
             for pr in duplicate_problems:
                 st = pr.stop
                 if st is None:
                     continue
                 osm_details = st.osm_node_details
-                atlas_details = st.atlas_stop_details
                 if st.osm_node_id and osm_details and osm_details.osm_local_ref:
                     key = (str(st.uic_ref or ''), str(osm_details.osm_local_ref or '').lower())
                     osm_groups[key].append(pr)
-                if st.sloid and atlas_details and (atlas_details.atlas_designation is not None):
-                    key_atlas = (str(st.uic_ref or ''), str(atlas_details.atlas_designation or '').strip().lower())
-                    atlas_groups[key_atlas].append(pr)
             def build_osm_group_payload(key, problems_list):
                 members = {}
                 for pr in problems_list:
@@ -120,45 +123,6 @@ def get_problems():
                     'osm_lat': center_lat,
                     'osm_lon': center_lon,
                     'members': member_payloads,
-                    'priority': 3
-                }
-            def build_atlas_group_payload(key, problems_list):
-                members = {}
-                for pr in problems_list:
-                    st = pr.stop
-                    if st and st.id:
-                        members[st.id] = pr
-                if len(members) < 2:
-                    return None
-                member_payloads = []
-                centroid_lat = []
-                centroid_lon = []
-                for pr in members.values():
-                    st = pr.stop
-                    formatted = format_stop_data(st, problem_type='duplicates')
-                    formatted.update({
-                        'priority': pr.priority,
-                        'solution': pr.solution or '',
-                        'is_persistent': pr.is_persistent,
-                        'stop_id': st.id
-                    })
-                    member_payloads.append(formatted)
-                    if st.atlas_lat is not None and st.atlas_lon is not None:
-                        centroid_lat.append(float(st.atlas_lat))
-                        centroid_lon.append(float(st.atlas_lon))
-                center_lat = sum(centroid_lat)/len(centroid_lat) if centroid_lat else None
-                center_lon = sum(centroid_lon)/len(centroid_lon) if centroid_lon else None
-                uic_ref, designation = key
-                group_id = f"dup_atlas_{uic_ref}_{designation}"
-                return {
-                    'id': group_id,
-                    'problem': 'duplicates',
-                    'group_type': 'atlas',
-                    'uic_ref': uic_ref or None,
-                    'atlas_designation': designation or None,
-                    'atlas_lat': center_lat,
-                    'atlas_lon': center_lon,
-                    'members': member_payloads,
                     'priority': 2
                 }
             group_items = []
@@ -166,13 +130,15 @@ def get_problems():
                 payload = build_osm_group_payload(key, pr_list)
                 if payload:
                     group_items.append(payload)
-            for key, pr_list in atlas_groups.items():
-                payload = build_atlas_group_payload(key, pr_list)
-                if payload:
-                    group_items.append(payload)
+            def _is_standard_duplicate_solution(text):
+                if text is None:
+                    return False
+                val = str(text).strip().lower()
+                return val == 'keep' or val == 'should be deleted'
+
             def group_is_solved(item):
                 member_solutions = [m.get('solution') for m in item.get('members', [])]
-                return all(s and str(s).strip() != '' for s in member_solutions)
+                return all(_is_standard_duplicate_solution(s) for s in member_solutions)
             solution_status_filter = request.args.get('solution_status', 'all')
             if solution_status_filter == 'solved':
                 group_items = [g for g in group_items if group_is_solved(g)]
@@ -180,8 +146,8 @@ def get_problems():
                 group_items = [g for g in group_items if not group_is_solved(g)]
             group_items.sort(key=lambda g: (
                 0 if g.get('group_type') == 'osm' else 1,
-                str(g.get('uic_ref') or ''),
-                str(g.get('osm_local_ref') or g.get('atlas_designation') or '')
+                str(g.get('uic_ref') or g.get('sloid') or ''),
+                str(g.get('osm_local_ref') or '')
             ))
             total_groups = len(group_items)
             paged_groups = group_items[offset:offset+limit]
@@ -232,7 +198,8 @@ def get_problems():
         elif sort_by == 'priority':
             stop_ids_query = db.session.query(Problem.stop_id, func.min(Problem.priority)).join(Stop)
             if problem_type_filter != 'all':
-                stop_ids_query = stop_ids_query.filter(Problem.problem_type == problem_type_filter)
+                mapped_type = 'unmatched' if problem_type_filter == 'isolated' else problem_type_filter
+                stop_ids_query = stop_ids_query.filter(Problem.problem_type == mapped_type)
             solution_status_filter = request.args.get('solution_status', 'all')
             if solution_status_filter == 'solved':
                 stop_ids_query = stop_ids_query.filter(Problem.solution.isnot(None) & (Problem.solution != ''))
@@ -263,6 +230,13 @@ def get_problems():
             elif solution_status_filter == 'unsolved':
                 stop_ids_query = stop_ids_query.filter(Problem.solution.is_(None) | (Problem.solution == ''))
             stop_ids_query = apply_atlas_operator_filter(stop_ids_query, atlas_operator_filter)
+            # Apply priority filter in the default path as well for consistency
+            if priority_filter and priority_filter != 'all':
+                try:
+                    priority_value = int(priority_filter)
+                    stop_ids_query = stop_ids_query.filter(Problem.priority == priority_value)
+                except ValueError:
+                    pass
             paged_stop_ids = [item[0] for item in stop_ids_query.distinct().order_by(Problem.stop_id).offset(offset).limit(limit).all()]
         if not paged_stop_ids:
             final_problems = []
@@ -271,6 +245,10 @@ def get_problems():
                 joinedload(Problem.stop).subqueryload(Stop.atlas_stop_details),
                 joinedload(Problem.stop).subqueryload(Stop.osm_node_details)
             ).filter(Problem.stop_id.in_(paged_stop_ids))
+            # Ensure we filter by the selected problem type at the final fetch as well
+            if problem_type_filter != 'all':
+                mapped_type = 'unmatched' if problem_type_filter == 'isolated' else problem_type_filter
+                final_query = final_query.filter(Problem.problem_type == mapped_type)
             solution_status_filter = request.args.get('solution_status', 'all')
             if solution_status_filter == 'solved':
                 final_query = final_query.filter(Problem.solution.isnot(None) & (Problem.solution != ''))

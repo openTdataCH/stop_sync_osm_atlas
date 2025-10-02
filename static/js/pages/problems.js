@@ -360,6 +360,53 @@ $(document).ready(function(){
         const problemType = $(this).data('problem-type');
         ProblemsSolutions.makeSolutionPersistent(problemId, problemType);
     });
+
+    // Make persistent duplicates button handler
+    $('#actionButtonsContent').on('click', '.make-persistent-duplicates-btn', function() {
+        console.log("=== MAKE PERSISTENT DUPLICATES BUTTON CLICKED ===");
+        const problemId = $(this).data('problem-id');
+        const problemType = $(this).data('problem-type');
+        const currentEntryProblems = ProblemsState.getCurrentEntryProblems();
+        const problem = currentEntryProblems.find(p => String(p.id) === String(problemId));
+        
+        if (!problem || !problem.members) {
+            ProblemsUI.showTemporaryMessage('Could not find duplicate problem data.', 'error');
+            return;
+        }
+        
+        // Make all member solutions persistent
+        const solvedMembers = problem.members.filter(m => typeof m.solution === 'string' && m.solution.trim() !== '');
+        if (solvedMembers.length === 0) {
+            ProblemsUI.showTemporaryMessage('No solutions to make persistent.', 'warning');
+            return;
+        }
+        
+        const originalButtonHtml = $(this).html();
+        $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Saving...');
+        
+        let processedCount = 0;
+        const totalCount = solvedMembers.length;
+        
+        solvedMembers.forEach(member => {
+            ProblemsSolutions.makeSolutionPersistentForStopId(member.stop_id, problemType);
+            processedCount++;
+            
+            if (processedCount === totalCount) {
+                setTimeout(() => {
+                    $(this).prop('disabled', false).html(originalButtonHtml);
+                    ProblemsUI.showTemporaryMessage(`Made ${totalCount} solutions persistent! <i class="fas fa-database"></i>`, 'success');
+                    // Refresh the current problem display
+                    const currentIndex = ProblemsState.getCurrentProblemIndex();
+                    if (window.ProblemsData && window.ProblemsData.fetchProblems) {
+                        ProblemsData.fetchProblems(ProblemsState.getCurrentPage());
+                        setTimeout(() => {
+                            ProblemsUI.displayProblem(currentIndex);
+                        }, 500);
+                    }
+                }, 1000);
+            }
+        });
+    });
     
     // Clear solution button handler
     $('#actionButtonsContent').on('click', '.clear-solution-btn', function() {
@@ -374,6 +421,76 @@ $(document).ready(function(){
             console.error("Could not find problem with id:", problemId);
         }
     });
+
+    // Clear duplicates solutions button handler
+    $('#actionButtonsContent').on('click', '.clear-duplicates-solutions-btn', function() {
+        console.log("=== CLEAR DUPLICATES SOLUTIONS BUTTON CLICKED ===");
+        const problemId = $(this).data('problem-id');
+        const problemType = $(this).data('problem-type');
+        const currentEntryProblems = ProblemsState.getCurrentEntryProblems();
+        const problem = currentEntryProblems.find(p => String(p.id) === String(problemId));
+        
+        if (!problem || !problem.members) {
+            ProblemsUI.showTemporaryMessage('Could not find duplicate problem data.', 'error');
+            return;
+        }
+        
+        // Clear all member solutions
+        const solvedMembers = problem.members.filter(m => typeof m.solution === 'string' && m.solution.trim() !== '');
+        if (solvedMembers.length === 0) {
+            ProblemsUI.showTemporaryMessage('No solutions to clear.', 'warning');
+            return;
+        }
+        
+        const originalButtonHtml = $(this).html();
+        $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Clearing...');
+        
+        let processedCount = 0;
+        const totalCount = solvedMembers.length;
+        
+        solvedMembers.forEach(member => {
+            // Create a problem-like object for each member to use clearSolution
+            const memberProblem = {
+                stop_id: member.stop_id,
+                problem: problemType,
+                solution: member.solution,
+                is_persistent: member.is_persistent
+            };
+            
+            $.ajax({
+                url: '/api/save_solution',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    problem_id: member.stop_id,
+                    problem_type: problemType,
+                    solution: ''
+                }),
+                success: function(response) {
+                    processedCount++;
+                    if (processedCount === totalCount) {
+                        $(this).prop('disabled', false).html(originalButtonHtml);
+                        ProblemsUI.showTemporaryMessage(`Cleared ${totalCount} solutions!`, 'info');
+                        // Refresh the current problem display
+                        const currentIndex = ProblemsState.getCurrentProblemIndex();
+                        if (window.ProblemsData && window.ProblemsData.fetchProblems) {
+                            ProblemsData.fetchProblems(ProblemsState.getCurrentPage());
+                            setTimeout(() => {
+                                ProblemsUI.displayProblem(currentIndex);
+                            }, 500);
+                        }
+                    }
+                }.bind(this),
+                error: function() {
+                    processedCount++;
+                    if (processedCount === totalCount) {
+                        $(this).prop('disabled', false).html(originalButtonHtml);
+                        ProblemsUI.showTemporaryMessage('Error clearing some solutions', 'error');
+                    }
+                }.bind(this)
+            });
+        });
+    });
     
     // Note saving handler (delegate once)
     $(document).on('click', '#saveAtlasNote', function() {
@@ -383,6 +500,62 @@ $(document).ready(function(){
     $(document).on('click', '#saveOsmNote', function() {
         const noteContent = $('#osmNote').val();
         ProblemsNotes.saveNote('osm', noteContent);
+    });
+
+    // Duplicates per-member notes: toggle editor
+    $(document).on('click', '.toggle-member-notes', function() {
+        const container = $(this).closest('td').find('.member-notes-editor');
+        container.toggle();
+    });
+
+    // Duplicates per-member notes: save
+    $(document).on('click', '.save-member-note', function() {
+        const btn = $(this);
+        const td = btn.closest('td');
+        const noteType = btn.data('note-type'); // 'atlas' or 'osm'
+        const sloid = btn.data('sloid') || null;
+        const osmNodeId = btn.data('osm-node-id') || null;
+        const noteContent = td.find('.member-note-text').val();
+        const makePersistent = td.find('.member-note-persist').is(':checked');
+
+        // Build payload & call existing API endpoints directly
+        const payload = { note: noteContent, make_persistent: makePersistent };
+        let url = null;
+        if (noteType === 'atlas' && sloid) {
+            payload.sloid = sloid;
+            url = '/api/save_note/atlas';
+        } else if (noteType === 'osm' && osmNodeId) {
+            payload.osm_node_id = osmNodeId;
+            url = '/api/save_note/osm';
+        } else {
+            if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
+                window.ProblemsUI.showTemporaryMessage('Missing identifiers to save note', 'error');
+            }
+            return;
+        }
+
+        const originalHtml = btn.html();
+        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Saving...');
+        $.ajax({
+            url: url,
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(payload),
+            success: function(resp) {
+                if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
+                    const icon = resp && resp.is_persistent ? 'database' : 'clock';
+                    window.ProblemsUI.showTemporaryMessage('Note saved <i class="fas fa-' + icon + '"></i>', 'success');
+                }
+            },
+            error: function(xhr, status, error) {
+                if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
+                    window.ProblemsUI.showTemporaryMessage('Error saving note: ' + error, 'error');
+                }
+            },
+            complete: function() {
+                btn.prop('disabled', false).html(originalHtml);
+            }
+        });
     });
     
     // Keyboard shortcuts for faster problem solving

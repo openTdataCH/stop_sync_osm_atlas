@@ -48,6 +48,23 @@
     border-color: #6c757d;
 }
 
+/* OSM editor link container spacing */
+.osm-editor-link-container {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.osm-editor-link {
+    font-size: 12px;
+    color: #007bff;
+    text-decoration: none;
+}
+
+.osm-editor-link:hover {
+    text-decoration: underline;
+}
+
 .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:0 3px 14px rgba(0,0,0,.2);padding:6px;overflow:hidden;background:#fff}
 .leaflet-popup-content a{color:#0066cc;text-decoration:none;transition:color .2s ease}
 .leaflet-popup-content a:hover{color:#004499;text-decoration:underline}

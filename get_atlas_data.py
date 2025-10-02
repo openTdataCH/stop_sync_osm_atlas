@@ -172,10 +172,12 @@ def get_atlas_stops(output_path, download_url):
             df = filter_points_in_switzerland(df, lat_col='wgs84North', lon_col='wgs84East')
             
             # Filter for future validTo dates
-            today = datetime.date.today()
-            df['validTo'] = pd.to_datetime(df['validTo'], errors='coerce').dt.date
+            # Note: pandas datetime64[ns] cannot represent years > 2262, turning '9999-12-31' into NaT.
+            # To avoid dropping such "infinite" dates, compare ISO date strings directly.
+            today_iso = datetime.date.today().isoformat()
+            valid_to_iso = df['validTo'].astype(str).str.slice(0, 10)
             before_date_filter = len(df)
-            df = df[df['validTo'] > today]
+            df = df[valid_to_iso >= today_iso].copy()
             print(f"ATLAS: filtered {before_date_filter - len(df):,} rows with past validTo dates, kept {len(df):,} rows")
             
             # Filter for BOARDING_PLATFORM entries, which are the focus of matching

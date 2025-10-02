@@ -220,26 +220,18 @@
             <div id="standardNotesContainer" class="problem-section-item">
               <h6><i class="fas fa-sticky-note"></i> Notes</h6>
               
-              <div class="row">
-                <div class="col-md-6" id="atlasNoteContainer">
-                  <div class="note-editor">
-                    <label for="atlasNote"><i class="fas fa-map-marker-alt text-info"></i> ATLAS Note:</label>
-                    <textarea id="atlasNote" class="form-control" placeholder="Add a note for this ATLAS entry..."></textarea>
-                    <button id="saveAtlasNote" class="btn btn-sm btn-info mt-2 professional-button">Save ATLAS Note</button>
-                  </div>
+              <div id="atlasNoteContainer" class="mb-3">
+                <div class="note-editor">
+                  <label for="atlasNote" class="form-label"></label>
+                  <textarea id="atlasNote" class="form-control" placeholder="Add a note for this ATLAS entry..."></textarea>
+                  <button id="saveAtlasNote" class="btn btn-sm btn-info mt-2 professional-button">Save Note</button>
                 </div>
-                <div class="col-md-6" id="osmNoteContainer">
-                  <div class="note-editor">
-                    <label for="osmNote"><i class="fas fa-map text-primary"></i> OSM Note:</label>
-                    <textarea id="osmNote" class="form-control" placeholder="Add a note for this OSM entry..."></textarea>
-                    <button id="saveOsmNote" class="btn btn-sm btn-primary mt-2 professional-button">Save OSM Note</button>
-                    <div class="mt-2" id="osmEditorLinkContainer" style="display: none;">
-                      <a href="#" id="osmEditorLink" class="osm-editor-link" target="_blank" rel="noopener noreferrer">
-                        <i class="fas fa-external-link-alt"></i>
-                        Edit in OSM iD Editor
-                      </a>
-                    </div>
-                  </div>
+              </div>
+              <div id="osmNoteContainer">
+                <div class="note-editor">
+                  <label for="osmNote" class="form-label"></label>
+                  <textarea id="osmNote" class="form-control" placeholder="Add a note for this OSM entry..."></textarea>
+                  <button id="saveOsmNote" class="btn btn-sm btn-primary mt-2 professional-button">Save Note</button>
                 </div>
               </div>
             </div>
