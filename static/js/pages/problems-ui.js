@@ -18,6 +18,36 @@ window.ProblemsUI = (function() {
         return `btn btn-sm ${active ? 'btn-' + style : 'btn-outline-' + style} professional-button solution-btn`;
     }
 
+    // Map priority to alert styling
+    function getPriorityAlertStyle(priority) {
+        const pr = Number(priority);
+        if (pr === 1) return { alertClass: 'alert-danger', icon: 'exclamation-circle' };
+        if (pr === 2) return { alertClass: 'alert-warning', icon: 'exclamation-triangle' };
+        return { alertClass: 'alert-info', icon: 'info-circle' };
+    }
+
+    // Serialize data attributes for HTML
+    function serializeDataAttrs(attrs) {
+        return Object.entries(attrs).map(([k, v]) => `${k}="${v}"`).join(' ');
+    }
+
+    // Wrap content in a problem section item
+    function wrapInSection(title, content) {
+        return `<div class="problem-section-item"><h6>${title}</h6>${content}</div>`;
+    }
+
+    // Extract member display info (badge, identifier, name)
+    function getMemberDisplayInfo(member) {
+        const isOsm = !!member.osm_node_id;
+        return {
+            badge: `<span class="badge badge-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`,
+            ident: isOsm ? (member.osm_node_id || '-') : (member.sloid || '-'),
+            name: isOsm ? (member.osm_name || member.osm_uic_name || '-') 
+                        : (member.atlas_designation_official || member.atlas_designation || '-'),
+            isOsm
+        };
+    }
+
     /**
      * Generate common solution status section HTML
      */
@@ -35,9 +65,7 @@ window.ProblemsUI = (function() {
                 </div>
             `;
         } else {
-            const makePeristentAttrs = Object.entries(clearButtonDataAttrs)
-                .map(([key, value]) => `${key}="${value}"`)
-                .join(' ');
+            const makePeristentAttrs = serializeDataAttrs(clearButtonDataAttrs);
             persistenceHtml = `
                 <div class="mt-2">
                     <button class="btn btn-sm btn-outline-success make-persistent-btn" ${makePeristentAttrs}>
@@ -48,9 +76,7 @@ window.ProblemsUI = (function() {
             `;
         }
 
-        const clearButtonAttrs = Object.entries(clearButtonDataAttrs)
-            .map(([key, value]) => `${key}="${value}"`)
-            .join(' ');
+        const clearButtonAttrs = serializeDataAttrs(clearButtonDataAttrs);
 
         return `
             <div class="problem-section-item solution-status-section">
@@ -293,63 +319,44 @@ window.ProblemsUI = (function() {
         const pr = Number(problem.priority);
         const isAtlas = problem.stop_type === 'unmatched';
         const subject = isAtlas ? 'ATLAS entry' : 'OSM entry';
-        let alertClass = 'alert-info';
-        let icon = 'info-circle';
+        const { alertClass, icon } = getPriorityAlertStyle(pr);
+        
         let intent = '';
-        if (pr === 1) { alertClass = 'alert-danger'; icon = 'exclamation-circle'; intent = 'No counterpart exists for this UIC or none within 80 m'; }
-        else if (pr === 2) { alertClass = 'alert-warning'; icon = 'exclamation-triangle'; intent = 'No counterpart within 50 m or platform count mismatch for this UIC'; }
-        else { alertClass = 'alert-info'; icon = 'info-circle'; intent = 'Unmatched entry requiring review'; }
+        if (pr === 1) intent = 'No counterpart exists for this UIC or none within 80 m';
+        else if (pr === 2) intent = 'No counterpart within 50 m or platform count mismatch for this UIC';
+        else intent = 'Unmatched entry requiring review';
 
-        // Determine active states for outline-to-filled style
+        // Determine active states
         const shouldDeleteActive = isSolutionSelected(problem, 'Should be deleted');
         const missingOtherActive = isAtlas ? isSolutionSelected(problem, 'Missing OSM') : isSolutionSelected(problem, 'Missing ATLAS');
 
-        if (isAtlas) { // Isolated ATLAS
-            return `
-                <div class="problem-section-item">
-                    <h6><i class="fas fa-tools"></i> Resolution Actions</h6>
-                    <div class="alert ${alertClass}">
-                        <small><i class="fas fa-${icon}"></i> ${subject} is unmatched. ${intent}.</small>
-                    </div>
-                    <div class="d-flex flex-wrap gap-2">
-                        <button class="btn btn-secondary professional-button" data-action="manual-match-atlas">Match to</button>
-                        <button class="${buildSolutionBtnClass('danger', shouldDeleteActive)}" data-solution="Should be deleted">
-                            <i class="fas fa-trash"></i> Should be deleted
-                        </button>
-                        <button class="${buildSolutionBtnClass('info', missingOtherActive)}" data-solution="Missing OSM">
-                            <i class="fas fa-plus-circle"></i> Missing OSM
-                        </button>
-                    </div>
+        // Build button list based on type
+        const matchAction = isAtlas ? 'manual-match-atlas' : 'manual-match-osm';
+        const missingLabel = isAtlas ? 'Missing OSM' : 'Missing ATLAS';
+
+        if (isAtlas || problem.stop_type === 'osm') {
+            const buttonsHtml = `
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-secondary professional-button" data-action="${matchAction}">Match to</button>
+                    <button class="${buildSolutionBtnClass('danger', shouldDeleteActive)}" data-solution="Should be deleted">
+                        <i class="fas fa-trash"></i> Should be deleted
+                    </button>
+                    <button class="${buildSolutionBtnClass('info', missingOtherActive)}" data-solution="${missingLabel}">
+                        <i class="fas fa-plus-circle"></i> ${missingLabel}
+                    </button>
                 </div>
             `;
-        } else if (problem.stop_type === 'osm') { // Isolated OSM
-            return `
-                <div class="problem-section-item">
-                    <h6><i class="fas fa-tools"></i> Resolution Actions</h6>
-                    <div class="alert ${alertClass}">
-                        <small><i class="fas fa-${icon}"></i> ${subject} is unmatched. ${intent}.</small>
-                    </div>
-                    <div class="d-flex flex-wrap gap-2">
-                        <button class="btn btn-secondary professional-button" data-action="manual-match-osm">Match to</button>
-                        <button class="${buildSolutionBtnClass('danger', shouldDeleteActive)}" data-solution="Should be deleted">
-                            <i class="fas fa-trash"></i> Should be deleted
-                        </button>
-                        <button class="${buildSolutionBtnClass('info', missingOtherActive)}" data-solution="Missing ATLAS">
-                            <i class="fas fa-plus-circle"></i> Missing ATLAS
-                        </button>
-                    </div>
-                </div>
-            `;
+            return wrapInSection(
+                '<i class="fas fa-tools"></i> Resolution Actions',
+                `<div class="alert ${alertClass}"><small><i class="fas fa-${icon}"></i> ${subject} is unmatched. ${intent}.</small></div>${buttonsHtml}`
+            );
         }
+        
         // Fallback for unexpected cases
-        return `
-            <div class="problem-section-item">
-                <h6><i class="fas fa-exclamation-triangle text-danger"></i> Data Inconsistency</h6>
-                <div class="alert alert-danger">
-                    This entry is flagged with an 'unmatched' problem, but its type is <code>${problem.stop_type || 'undefined'}</code>, which is not expected for this problem type. Please report this issue.
-                </div>
-            </div>
-        `;
+        return wrapInSection(
+            '<i class="fas fa-exclamation-triangle text-danger"></i> Data Inconsistency',
+            `<div class="alert alert-danger">This entry is flagged with an 'unmatched' problem, but its type is <code>${problem.stop_type || 'undefined'}</code>, which is not expected for this problem type. Please report this issue.</div>`
+        );
     }
 
     /**
@@ -442,14 +449,10 @@ window.ProblemsUI = (function() {
                 '<th>Source</th><th>Identifier</th><th>Name</th><th>Coords</th><th>Action</th></tr></thead><tbody>';
 
         (problem.members || []).forEach(member => {
-            const isOsm = !!member.osm_node_id;
+            const { badge, ident, name, isOsm } = getMemberDisplayInfo(member);
             const coords = isOsm
                 ? (member.osm_lat && member.osm_lon ? `${Math.round(member.osm_lat*1e5)/1e5}, ${Math.round(member.osm_lon*1e5)/1e5}` : '-')
                 : (member.atlas_lat && member.atlas_lon ? `${Math.round(member.atlas_lat*1e5)/1e5}, ${Math.round(member.atlas_lon*1e5)/1e5}` : '-');
-            const name = isOsm ? (member.osm_name || member.osm_uic_name || '-')
-                               : (member.atlas_designation_official || member.atlas_designation || '-');
-            const ident = isOsm ? (member.osm_node_id || '-') : (member.sloid || '-');
-            const sourceBadge = isOsm ? '<span class="badge badge-secondary">OSM</span>' : '<span class="badge badge-secondary">ATLAS</span>';
 
             const hasSolution = typeof member.solution === 'string' && member.solution.trim() !== '';
             const isKeep = hasSolution && member.solution.trim().toLowerCase() === 'keep';
@@ -458,7 +461,7 @@ window.ProblemsUI = (function() {
             const deleteBtnClass = isDelete ? 'btn-danger' : 'btn-outline-danger';
 
             html += `<tr>
-                <td>${sourceBadge}</td>
+                <td>${badge}</td>
                 <td>${ident}</td>
                 <td>${name || '-'}</td>
                 <td>${coords}</td>
@@ -561,15 +564,11 @@ window.ProblemsUI = (function() {
         html += '<p><small class="text-muted">Add notes for individual duplicate entries below.</small></p>';
 
         (problem.members || []).forEach(member => {
-            const isOsm = !!member.osm_node_id;
-            const ident = isOsm ? (member.osm_node_id || '-') : (member.sloid || '-');
-            const sourceBadge = isOsm ? '<span class="badge badge-secondary">OSM</span>' : '<span class="badge badge-secondary">ATLAS</span>';
-            const name = isOsm ? (member.osm_name || member.osm_uic_name || '-')
-                               : (member.atlas_designation_official || member.atlas_designation || '-');
+            const { badge, ident, name, isOsm } = getMemberDisplayInfo(member);
 
             html += `
                 <div class="mb-3">
-                    <label class="form-label">${sourceBadge} ${ident} - ${name}</label>
+                    <label class="form-label">${badge} ${ident} - ${name}</label>
                     <div class="note-editor">
                         <textarea class="form-control member-note-text" 
                                 placeholder="Add a note for this ${isOsm ? 'OSM' : 'ATLAS'} entry..."
