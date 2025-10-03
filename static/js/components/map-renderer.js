@@ -548,8 +548,12 @@ function drawProblemOnMap(map, problemData, layers) {
         const members = Array.isArray(stop.members) ? stop.members : [];
         const points = [];
         const markerDataArray = [];
+        // Only render popups for the duplicated side when group_type is provided
+        const isOsmGroup = stop.group_type === 'osm';
+        const isAtlasGroup = stop.group_type === 'atlas';
         members.forEach(member => {
-            if (member.atlas_lat != null && member.atlas_lon != null) {
+            // Show ATLAS side only if not an OSM-duplicates group
+            if (!isOsmGroup && member.atlas_lat != null && member.atlas_lon != null) {
                 // Use same color semantics as main map: green matched, red unmatched, orange stations
                 let atlasColor = 'green';
                 if (member.stop_type === 'unmatched') {
@@ -570,7 +574,8 @@ function drawProblemOnMap(map, problemData, layers) {
                 });
                 points.push([member.atlas_lat, member.atlas_lon]);
             }
-            if (member.osm_lat != null && member.osm_lon != null) {
+            // Show OSM side only if not an ATLAS-duplicates group
+            if (!isAtlasGroup && member.osm_lat != null && member.osm_lon != null) {
                 markerDataArray.push({
                     lat: parseFloat(member.osm_lat),
                     lon: parseFloat(member.osm_lon),

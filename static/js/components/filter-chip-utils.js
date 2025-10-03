@@ -10,6 +10,41 @@
     return '(' + chipsArray.join(' <span class="filter-chip-operator">OR</span> ') + ')';
   }
 
+  function joinWithAndHtml(items) {
+    if (!items || items.length === 0) return '';
+    if (items.length === 1) return items[0];
+    return items.join(' <span class="filter-chip-operator">AND</span> ');
+  }
+
+  /**
+   * Build a removable filter chip with a consistent style
+   * @param {object} options
+   *  - label: string visible text inside the chip
+   *  - badgeClass: additional badge classes (e.g., 'badge-primary')
+   *  - removeClass: anchor class to hook removal handler (default: 'remove-filter')
+   *  - data: object of data-* attributes for the anchor (e.g., { type: 'nodeType', filter: 'atlas' })
+   *  - closeChar: character for the close button (default: 'x')
+   */
+  function buildRemovableChip(options) {
+    options = options || {};
+    const label = escapeHtml(options.label || '');
+    const extraBadgeClass = options.badgeClass || '';
+    const removeClass = options.removeClass || 'remove-filter';
+    const data = options.data || {};
+    const closeChar = (options.closeChar == null ? 'x' : String(options.closeChar));
+
+    let dataAttrs = '';
+    Object.keys(data).forEach(function(key) {
+      const attrName = 'data-' + key.replace(/([A-Z])/g, function(m){ return '-' + m.toLowerCase(); });
+      const val = data[key];
+      // Allow raw strings (like '#selector') to pass; still escape to be safe
+      dataAttrs += ' ' + attrName + '="' + escapeHtml(val) + '"';
+    });
+
+    return '<span class="badge ' + extraBadgeClass + ' mr-1 mb-1">' + label +
+           ' <a href="#" class="text-dark ' + removeClass + '"' + dataAttrs + '>' + escapeHtml(closeChar) + '</a></span>';
+  }
+
   function generateOperatorChipsHtml(operators, options = {}) {
     const context = options.context || 'index';
     const chips = [];
@@ -87,7 +122,7 @@
     container.on('click.filterchips', 'a.remove-operator-chip', function(e) { e.preventDefault(); const op = $(this).data('operator'); if (typeof options.onRemoveOperator === 'function') { options.onRemoveOperator(op); } });
   }
 
-  global.FilterChipUtils = { generateOperatorChipsHtml, generateProblemChips, renderProblemChips };
+  global.FilterChipUtils = { generateOperatorChipsHtml, generateProblemChips, renderProblemChips, buildOrGroupHtml, joinWithAndHtml, buildRemovableChip };
 })(window);
 
 

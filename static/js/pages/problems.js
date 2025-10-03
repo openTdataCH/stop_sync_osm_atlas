@@ -59,7 +59,6 @@ $(document).ready(function(){
     }
     // Helper to render/update chips consistently
     function renderProblemsChips() {
-        if (!window.FilterChipUtils) return;
         window.FilterChipUtils.renderProblemChips('#problemsActiveFilters', {
             problemType: ProblemsState.getSelectedProblemType(),
             solutionFilter: ProblemsState.getCurrentSolutionFilter(),

@@ -60,17 +60,26 @@
 .compact-group { margin-bottom: 1rem; }
 .compact-group:last-child { margin-bottom: 0; }
 
-#activeFilters .badge { font-size: 0.875rem; font-weight: 600; border-radius: 999px; padding: 0.35rem 0.6rem; line-height: 1.2; background-color: #ffffff; border: 1.5px solid currentColor; color: #495057; }
-#activeFilters .badge-secondary { color: #6c757d; border-color: #6c757d; background-color: #ffffff; }
-#activeFilters .badge-primary { color: #007bff; border-color: #007bff; background-color: #ffffff; }
-#activeFilters .badge-success { color: #28a745; border-color: #28a745; background-color: #ffffff; }
-#activeFilters .badge-warning { color: #ffc107; border-color: #ffc107; background-color: #ffffff; }
-#activeFilters .badge-info { color: #17a2b8; border-color: #17a2b8; background-color: #ffffff; }
-#activeFilters .badge-danger { color: #dc3545; border-color: #dc3545; background-color: #ffffff; }
-#activeFilters .badge a { text-decoration: none; margin-left: 0.25rem; font-weight: 600; font-size: 0.95rem; }
-#activeFilters .badge a:hover { text-decoration: none; opacity: 0.8; }
+#activeFilters, #problemsActiveFilters { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+#activeFilters .badge, #problemsActiveFilters .badge { font-size: 0.875rem; font-weight: 600; border-radius: 999px; padding: 0.35rem 0.6rem; line-height: 1.2; background-color: #ffffff; border: 1.5px solid currentColor; color: #495057; }
+#activeFilters .badge-secondary, #problemsActiveFilters .badge-secondary { color: #6c757d; border-color: #6c757d; background-color: #ffffff; }
+#activeFilters .badge-primary, #problemsActiveFilters .badge-primary { color: #007bff; border-color: #007bff; background-color: #ffffff; }
+#activeFilters .badge-success, #problemsActiveFilters .badge-success { color: #28a745; border-color: #28a745; background-color: #ffffff; }
+#activeFilters .badge-warning, #problemsActiveFilters .badge-warning { color: #ffc107; border-color: #ffc107; background-color: #ffffff; }
+#activeFilters .badge-info, #problemsActiveFilters .badge-info { color: #17a2b8; border-color: #17a2b8; background-color: #ffffff; }
+#activeFilters .badge-danger, #problemsActiveFilters .badge-danger { color: #dc3545; border-color: #dc3545; background-color: #ffffff; }
+#activeFilters .badge a, #problemsActiveFilters .badge a { text-decoration: none; margin-left: 0.25rem; font-weight: 600; font-size: 0.95rem; }
+#activeFilters .badge a:hover, #problemsActiveFilters .badge a:hover { text-decoration: none; opacity: 0.8; }
 
-#activeFilters .badge { margin: 0.3rem 0.2rem; }
+#activeFilters .badge, #problemsActiveFilters .badge { margin: 0.3rem 0.2rem; }
+
+/* Ensure AND/OR operator is vertically centered relative to chips */
+#activeFilters .filter-chip-operator, #problemsActiveFilters .filter-chip-operator {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.2;
+  vertical-align: middle;
+}
 
 /* Compact groups directly under filterPanelBody */
 #filterPanelBody > .compact-group { margin-bottom: 1.25rem; }

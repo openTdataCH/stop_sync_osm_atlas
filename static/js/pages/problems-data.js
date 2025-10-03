@@ -113,8 +113,7 @@ window.ProblemsData = (function() {
         fetchProblems();
 
         // Update chips
-        if (window.FilterChipUtils) {
-            window.FilterChipUtils.renderProblemChips('#problemsActiveFilters', {
+        window.FilterChipUtils.renderProblemChips('#problemsActiveFilters', {
                 problemType: ProblemsState.getSelectedProblemType(),
                 solutionFilter: ProblemsState.getCurrentSolutionFilter(),
                 operators: ProblemsState.getSelectedAtlasOperators(),
@@ -142,7 +141,6 @@ window.ProblemsData = (function() {
                     ProblemsData.updatePriorityFilter('all');
                 }
             });
-        }
     }
 
     /**
