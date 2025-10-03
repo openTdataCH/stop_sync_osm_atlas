@@ -103,6 +103,7 @@ def get_problems():
                 member_payloads = []
                 centroid_lat = []
                 centroid_lon = []
+                priorities = []
                 for pr in members.values():
                     st = pr.stop
                     formatted = format_stop_data(st, problem_type='duplicates')
@@ -116,9 +117,17 @@ def get_problems():
                     if st.osm_lat is not None and st.osm_lon is not None:
                         centroid_lat.append(float(st.osm_lat))
                         centroid_lon.append(float(st.osm_lon))
+                    # Track valid member priorities
+                    try:
+                        if pr.priority is not None:
+                            priorities.append(int(pr.priority))
+                    except Exception:
+                        pass
                 center_lat = sum(centroid_lat)/len(centroid_lat) if centroid_lat else None
                 center_lon = sum(centroid_lon)/len(centroid_lon) if centroid_lon else None
                 group_id = f"dup_osm_{uic_ref}_{local_ref}"
+                # Derive a group-level priority from members (lower means higher priority)
+                group_priority = min(priorities) if priorities else 3
                 return {
                     'id': group_id,
                     'problem': 'duplicates',
@@ -130,7 +139,7 @@ def get_problems():
                     'osm_lat': center_lat,
                     'osm_lon': center_lon,
                     'members': member_payloads,
-                    'priority': 3
+                    'priority': group_priority
                 }
             group_items = []
             for key, pr_list in osm_groups.items():
@@ -149,6 +158,7 @@ def get_problems():
                 member_payloads = []
                 centroid_lat = []
                 centroid_lon = []
+                priorities = []
                 for pr in members.values():
                     st = pr.stop
                     formatted = format_stop_data(st, problem_type='duplicates')
@@ -162,11 +172,19 @@ def get_problems():
                     if st.atlas_lat is not None and st.atlas_lon is not None:
                         centroid_lat.append(float(st.atlas_lat))
                         centroid_lon.append(float(st.atlas_lon))
+                    # Track valid member priorities
+                    try:
+                        if pr.priority is not None:
+                            priorities.append(int(pr.priority))
+                    except Exception:
+                        pass
                 center_lat = sum(centroid_lat)/len(centroid_lat) if centroid_lat else None
                 center_lon = sum(centroid_lon)/len(centroid_lon) if centroid_lon else None
                 # Choose a representative sloid for display/sorting
                 rep_sloid = sorted(members.keys())[0] if members else None
                 group_id = f"dup_atlas_{uic_ref}_{designation_norm}"
+                # Derive a group-level priority from members (lower means higher priority)
+                group_priority = min(priorities) if priorities else 2
                 return {
                     'id': group_id,
                     'problem': 'duplicates',
@@ -179,7 +197,7 @@ def get_problems():
                     'osm_lat': center_lat,
                     'osm_lon': center_lon,
                     'members': member_payloads,
-                    'priority': 2
+                    'priority': group_priority
                 }
             for key, pr_list in atlas_groups.items():
                 payload = build_atlas_group_payload(key, pr_list)

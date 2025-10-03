@@ -701,10 +701,21 @@ window.ProblemsUI = (function() {
         
         // Handle duplicates differently due to their multi-member structure
         if (problem.problem === 'duplicates') {
-            // Current Solution for duplicates
-            actionButtonsHtml += generateDuplicatesSolutionStatusSection(problem);
-            // Resolution Actions for duplicates
-            actionButtonsHtml += generateDuplicatesActionButtons(problem);
+            if (Array.isArray(problem.members) && problem.members.length > 0) {
+                // Current Solution for duplicates
+                actionButtonsHtml += generateDuplicatesSolutionStatusSection(problem);
+                // Resolution Actions for duplicates
+                actionButtonsHtml += generateDuplicatesActionButtons(problem);
+            } else {
+                // Fallback for non-group duplicates (no members available)
+                actionButtonsHtml += wrapInSection(
+                    '<i class="fas fa-clone"></i> Duplicates',
+                    '<div class="alert alert-info"><small>This entry is part of a duplicates group. Open the Duplicates view to resolve this issue.</small></div>' +
+                    '<button class="btn btn-sm btn-outline-primary professional-button" onclick="ProblemsData.updateProblemTypeFilter(\'duplicates\', \'all\')">' +
+                        '<i class="fas fa-external-link-alt"></i> Open Duplicates'
+                    + '</button>'
+                );
+            }
         } else {
             // Current Solution for other problem types
             const clearButtonDataAttrs = {
@@ -778,12 +789,14 @@ window.ProblemsUI = (function() {
                         $(entry.target).addClass('active');
 
                         // Update notes based on problem type
-                        if (problem.problem === 'duplicates') {
+                        if (problem.problem === 'duplicates' && Array.isArray(problem.members) && problem.members.length > 0) {
                             // Show duplicates notes container and populate it
+                            $('#notesSection').show();
                             $('#standardNotesContainer').hide();
                             $('#duplicatesNotesContainer').show().html(generateDuplicatesNotesSection(problem));
-                        } else {
+        } else {
                             // Show standard notes container for other problem types
+                            $('#notesSection').show();
                             $('#standardNotesContainer').show();
                             $('#duplicatesNotesContainer').hide();
                             if (window.ProblemsNotes && window.ProblemsNotes.loadNotesForProblem) {
@@ -871,12 +884,14 @@ window.ProblemsUI = (function() {
             }
 
             // Load notes for the first problem and setup notes container visibility
-            if (firstProblem.problem === 'duplicates') {
+            if (firstProblem.problem === 'duplicates' && Array.isArray(firstProblem.members) && firstProblem.members.length > 0) {
                 // Show duplicates notes container and populate it
+                $('#notesSection').show();
                 $('#standardNotesContainer').hide();
                 $('#duplicatesNotesContainer').show().html(generateDuplicatesNotesSection(firstProblem));
             } else {
                 // Show standard notes container for other problem types
+                $('#notesSection').show();
                 $('#standardNotesContainer').show();
                 $('#duplicatesNotesContainer').hide();
                 if (window.ProblemsNotes && window.ProblemsNotes.loadNotesForProblem) {
