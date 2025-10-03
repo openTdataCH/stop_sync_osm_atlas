@@ -76,14 +76,21 @@ def get_problems():
             duplicate_problems = dup_query.all()
             from collections import defaultdict
             osm_groups = defaultdict(list)
+            atlas_groups = defaultdict(list)
             for pr in duplicate_problems:
                 st = pr.stop
                 if st is None:
                     continue
+                # OSM-side grouping: (uic_ref, local_ref)
                 osm_details = st.osm_node_details
                 if st.osm_node_id and osm_details and osm_details.osm_local_ref:
                     key = (str(st.uic_ref or ''), str(osm_details.osm_local_ref or '').lower())
                     osm_groups[key].append(pr)
+                # ATLAS-side grouping: (uic_ref, designation)
+                atlas_details = st.atlas_stop_details
+                if getattr(st, 'sloid', None) and atlas_details and getattr(atlas_details, 'atlas_designation', None):
+                    atlas_key = (str(st.uic_ref or ''), str(atlas_details.atlas_designation or '').strip().lower())
+                    atlas_groups[atlas_key].append(pr)
             def build_osm_group_payload(key, problems_list):
                 members = {}
                 for pr in problems_list:
@@ -123,11 +130,59 @@ def get_problems():
                     'osm_lat': center_lat,
                     'osm_lon': center_lon,
                     'members': member_payloads,
-                    'priority': 2
+                    'priority': 3
                 }
             group_items = []
             for key, pr_list in osm_groups.items():
                 payload = build_osm_group_payload(key, pr_list)
+                if payload:
+                    group_items.append(payload)
+            def build_atlas_group_payload(key, problems_list):
+                members = {}
+                for pr in problems_list:
+                    st = pr.stop
+                    if st and getattr(st, 'sloid', None):
+                        members[str(st.sloid)] = pr
+                if len(members) < 2:
+                    return None
+                uic_ref, designation_norm = key
+                member_payloads = []
+                centroid_lat = []
+                centroid_lon = []
+                for pr in members.values():
+                    st = pr.stop
+                    formatted = format_stop_data(st, problem_type='duplicates')
+                    formatted.update({
+                        'priority': pr.priority,
+                        'solution': pr.solution or '',
+                        'is_persistent': pr.is_persistent,
+                        'stop_id': st.id
+                    })
+                    member_payloads.append(formatted)
+                    if st.atlas_lat is not None and st.atlas_lon is not None:
+                        centroid_lat.append(float(st.atlas_lat))
+                        centroid_lon.append(float(st.atlas_lon))
+                center_lat = sum(centroid_lat)/len(centroid_lat) if centroid_lat else None
+                center_lon = sum(centroid_lon)/len(centroid_lon) if centroid_lon else None
+                # Choose a representative sloid for display/sorting
+                rep_sloid = sorted(members.keys())[0] if members else None
+                group_id = f"dup_atlas_{uic_ref}_{designation_norm}"
+                return {
+                    'id': group_id,
+                    'problem': 'duplicates',
+                    'group_type': 'atlas',
+                    'sloid': rep_sloid,
+                    'uic_ref': uic_ref or None,
+                    'atlas_designation': designation_norm or None,
+                    'atlas_lat': center_lat,
+                    'atlas_lon': center_lon,
+                    'osm_lat': center_lat,
+                    'osm_lon': center_lon,
+                    'members': member_payloads,
+                    'priority': 2
+                }
+            for key, pr_list in atlas_groups.items():
+                payload = build_atlas_group_payload(key, pr_list)
                 if payload:
                     group_items.append(payload)
             def _is_standard_duplicate_solution(text):

@@ -435,13 +435,13 @@ window.ProblemsUI = (function() {
         const isOsmGroup = problem.group_type === 'osm';
         let title = isOsmGroup
             ? `<i class="fas fa-clone"></i> OSM duplicates for UIC ${problem.uic_ref || '(none)'} · local_ref ${problem.osm_local_ref || '(none)'}`
-            : `<i class="fas fa-clone"></i> ATLAS duplicates for SLOID ${problem.sloid}`;
+            : `<i class="fas fa-clone"></i> ATLAS duplicates for UIC ${problem.uic_ref || '(none)'} · designation ${problem.atlas_designation || '(none)'}`;
 
         let html = '<div class="problem-section-item">';
         html += `<h6>${title}</h6>`;
         html += '<div class="alert alert-info"><small><i class="fas fa-info-circle"></i> ' +
                 (isOsmGroup ? 'Multiple OSM nodes share the same UIC and local_ref. Review each and decide which should remain.'
-                             : 'Multiple entries share the same ATLAS SLOID. Review and decide which should remain.') +
+                             : 'Multiple ATLAS entries share the UIC number and designation. Review and decide which should remain.') +
                 '</small></div>';
 
         // Table of members

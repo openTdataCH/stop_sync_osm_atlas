@@ -553,11 +553,18 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             )
             stop_record.problems.append(attributes_problem)
 
-        # Duplicates: based on OSM duplicate key only (priority 2)
+        # Duplicates: prefer OSM-side duplicates (priority 3), else ATLAS-side duplicates (priority 2)
         if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
             # Flag ATLAS marker for map rendering overlay
             stop_record.atlas_duplicate_sloid = True
+        elif sloid and str(sloid) in duplicate_sloid_map:
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
+            # Store a pointer sloid from the duplicate group for map/UI highlighting
+            try:
+                stop_record.atlas_duplicate_sloid = str(duplicate_sloid_map.get(str(sloid)))
+            except Exception:
+                stop_record.atlas_duplicate_sloid = 'dup'
 
         session.add(stop_record)
         
@@ -795,7 +802,13 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             session.add(atlas_record)
             processed_sloids.add(sloid)
 
-        # No ATLAS-only duplicates; duplicates are derived from OSM duplicate keys only.
+        # Mark ATLAS duplicates (priority 2) using duplicate_sloid_map
+        if sloid and str(sloid) in duplicate_sloid_map:
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
+            try:
+                stop_record.atlas_duplicate_sloid = str(duplicate_sloid_map.get(str(sloid)))
+            except Exception:
+                stop_record.atlas_duplicate_sloid = 'dup'
 
     session.commit()
 
@@ -858,9 +871,9 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             session.add(osm_record)
             processed_osm_node_ids.add(osm_node_id)
         
-        # Duplicates: based on OSM duplicate key only (priority 2)
+        # Duplicates: OSM-side duplicates (priority 3)
         if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
+            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
             
     session.commit()
 
