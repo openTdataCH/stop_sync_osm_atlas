@@ -393,20 +393,69 @@ window.ProblemsData = (function() {
                                 type === 'unmatched' ? 'fas fa-map-marker-alt' : 
                                 type === 'attributes' ? 'fas fa-tags' : 
                                 type === 'duplicates' ? 'fas fa-clone' : 'fas fa-exclamation-triangle';
-                    
-                    dropdown.append(`
-                        <a class="dropdown-item problem-type-option" href="#" data-type="${type}" data-solution-filter="all">
-                            <i class="${icon}"></i> ${displayName} <span class="badge badge-secondary ml-2">${typeStats.all}</span>
-                        </a>
-                        <a class="dropdown-item problem-type-option problem-sub-filter" href="#" data-type="${type}" data-solution-filter="solved">
-                            <i class="fas fa-check-circle text-success"></i> Solved <span class="badge badge-success ml-2">${typeStats.solved}</span>
-                        </a>
-                        <a class="dropdown-item problem-type-option problem-sub-filter" href="#" data-type="${type}" data-solution-filter="unsolved">
-                            <i class="fas fa-exclamation-circle text-warning"></i> Unsolved <span class="badge badge-warning ml-2">${typeStats.unsolved}</span>
-                        </a>
-                    `);
+
+                    if (type === 'duplicates') {
+                        dropdown.append(`
+                            <a class="dropdown-item problem-type-option" href="#" data-type="${type}" data-solution-filter="all">
+                                <i class="${icon}"></i> ${displayName} <span class="badge badge-secondary ml-2">${typeStats.all}</span>
+                                <span class="badge badge-info ml-1 d-none" data-dup-groups-badge></span>
+                            </a>
+                            <a class="dropdown-item problem-type-option problem-sub-filter" href="#" data-type="${type}" data-solution-filter="solved">
+                                <i class="fas fa-check-circle text-success"></i> Solved <span class="badge badge-success ml-2">${typeStats.solved}</span>
+                            </a>
+                            <a class="dropdown-item problem-type-option problem-sub-filter" href="#" data-type="${type}" data-solution-filter="unsolved">
+                                <i class="fas fa-exclamation-circle text-warning"></i> Unsolved <span class="badge badge-warning ml-2">${typeStats.unsolved}</span>
+                            </a>
+                        `);
+                    } else {
+                        dropdown.append(`
+                            <a class="dropdown-item problem-type-option" href="#" data-type="${type}" data-solution-filter="all">
+                                <i class="${icon}"></i> ${displayName} <span class="badge badge-secondary ml-2">${typeStats.all}</span>
+                            </a>
+                            <a class="dropdown-item problem-type-option problem-sub-filter" href="#" data-type="${type}" data-solution-filter="solved">
+                                <i class="fas fa-check-circle text-success"></i> Solved <span class="badge badge-success ml-2">${typeStats.solved}</span>
+                            </a>
+                            <a class="dropdown-item problem-type-option problem-sub-filter" href="#" data-type="${type}" data-solution-filter="unsolved">
+                                <i class="fas fa-exclamation-circle text-warning"></i> Unsolved <span class="badge badge-warning ml-2">${typeStats.unsolved}</span>
+                            </a>
+                        `);
+                    }
                 }
             });
+
+            // If duplicates are present, fetch group count (with current filters) and update badge
+            (function fetchDuplicateGroupCount() {
+                const hasDuplicates = problemTypes.indexOf('duplicates') !== -1 && stats.duplicates && stats.duplicates.all > 0;
+                if (!hasDuplicates) return;
+
+                const groupParams = {
+                    page: 1,
+                    limit: 1,
+                    problem_type: 'duplicates',
+                    solution_status: 'all',
+                    sort_by: 'default',
+                    sort_order: 'asc'
+                };
+                // Include operator and priority filters to align with current context
+                const selectedOperatorsInner = ProblemsState.getSelectedAtlasOperators ? ProblemsState.getSelectedAtlasOperators() : [];
+                if (selectedOperatorsInner && selectedOperatorsInner.length > 0) {
+                    groupParams.atlas_operator = selectedOperatorsInner.join(',');
+                }
+                const selectedPriorityInner = ProblemsState.getSelectedPriority ? ProblemsState.getSelectedPriority() : 'all';
+                if (selectedPriorityInner && selectedPriorityInner !== 'all') {
+                    groupParams.priority = selectedPriorityInner;
+                }
+
+                $.getJSON('/api/problems', groupParams, function(resp) {
+                    if (resp && typeof resp.total === 'number') {
+                        const dupItem = $('#problemTypeFilterDropdown').find('a.dropdown-item.problem-type-option[data-type="duplicates"][data-solution-filter="all"]');
+                        const badge = dupItem.find('[data-dup-groups-badge]');
+                        if (badge && badge.length > 0) {
+                            badge.text(resp.total + ' groups').removeClass('d-none');
+                        }
+                    }
+                });
+            })();
 
             // Bind priority option clicks (delegated handler within dropdown)
             dropdown.off('click.priority').on('click.priority', '.priority-option', function(e) {

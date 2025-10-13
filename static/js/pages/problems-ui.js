@@ -831,7 +831,13 @@ window.ProblemsUI = (function() {
         // Update main header
         const problemCount = currentEntryProblems.length;
         const problemText = problemCount > 1 ? 'Problems' : 'Problem';
-        $('#problemTypeDisplay').text(`Entry ${index + 1} of ${totalProblems} (${problemCount} ${problemText})`);
+        const firstProblemForHeader = currentEntryProblems[0];
+        const isDuplicatesGroupHeader = firstProblemForHeader && firstProblemForHeader.problem === 'duplicates';
+        if (isDuplicatesGroupHeader) {
+            $('#problemTypeDisplay').text(`Group ${index + 1} of ${totalProblems}`);
+        } else {
+            $('#problemTypeDisplay').text(`Entry ${index + 1} of ${totalProblems} (${problemCount} ${problemText})`);
+        }
 
         // Clear previous content
         const container = $('#actionButtonsContent');
