@@ -36,9 +36,9 @@ window.ProblemsUI = (function() {
         return `<div class="problem-section-item"><h6>${title}</h6>${content}</div>`;
     }
 
-    // Extract member display info (badge, identifier, name)
-    function getMemberDisplayInfo(member) {
-        const isOsm = !!member.osm_node_id;
+    // Extract member display info (badge, identifier, name) with group context awareness
+    function getMemberDisplayInfo(member, groupType) {
+        const isOsm = groupType === 'osm' ? true : (groupType === 'atlas' ? false : !!member.osm_node_id);
         return {
             badge: `<span class="badge badge-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`,
             ident: isOsm ? (member.osm_node_id || '-') : (member.sloid || '-'),
@@ -449,7 +449,7 @@ window.ProblemsUI = (function() {
                 '<th>Source</th><th>Identifier</th><th>Name</th><th>Coords</th><th>Action</th></tr></thead><tbody>';
 
         (problem.members || []).forEach(member => {
-            const { badge, ident, name, isOsm } = getMemberDisplayInfo(member);
+            const { badge, ident, name, isOsm } = getMemberDisplayInfo(member, problem.group_type);
             const coords = isOsm
                 ? (member.osm_lat && member.osm_lon ? `${Math.round(member.osm_lat*1e5)/1e5}, ${Math.round(member.osm_lon*1e5)/1e5}` : '-')
                 : (member.atlas_lat && member.atlas_lon ? `${Math.round(member.atlas_lat*1e5)/1e5}, ${Math.round(member.atlas_lon*1e5)/1e5}` : '-');
@@ -533,7 +533,7 @@ window.ProblemsUI = (function() {
                             <strong>Proposed Solution:</strong>
                             <ul class="mb-0 mt-2">
                                 ${solvedMembers.map(m => {
-                                    const isOsm = !!m.osm_node_id;
+                                    const isOsm = problem.group_type === 'osm' ? true : (problem.group_type === 'atlas' ? false : !!m.osm_node_id);
                                     const sourceBadge = isOsm ? '<span class="badge badge-secondary">OSM</span>' : '<span class="badge badge-secondary">ATLAS</span>';
                                     const ident = isOsm ? (m.osm_node_id || '-') : (m.sloid || '-');
                                     const sol = (m.solution || '').trim();
