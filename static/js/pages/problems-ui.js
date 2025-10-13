@@ -564,7 +564,7 @@ window.ProblemsUI = (function() {
         html += '<p><small class="text-muted">Add notes for individual duplicate entries below.</small></p>';
 
         (problem.members || []).forEach(member => {
-            const { badge, ident, name, isOsm } = getMemberDisplayInfo(member);
+            const { badge, ident, name, isOsm } = getMemberDisplayInfo(member, problem.group_type);
 
             html += `
                 <div class="mb-3">
