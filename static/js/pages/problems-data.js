@@ -253,10 +253,27 @@ window.ProblemsData = (function() {
             const allProblems = ProblemsState.getAllProblems();
             if (allProblems.length === 0) {
                 const selectedProblemType = ProblemsState.getSelectedProblemType();
+                const solutionFilter = ProblemsState.getCurrentSolutionFilter ? ProblemsState.getCurrentSolutionFilter() : 'all';
                 const problemTypeDisplayText = selectedProblemType === 'all' ? 'problems' : 
                                              `${selectedProblemType.replace(/_/g, ' ')} problems`;
-                $('#problemTypeDisplay').text(`No more ${problemTypeDisplayText}, good job!`);
+                let solutionSuffix = '';
+                if (solutionFilter === 'solved') solutionSuffix = ' (solved)';
+                else if (solutionFilter === 'unsolved') solutionSuffix = ' (unsolved)';
+                const baseMessage = `No more ${problemTypeDisplayText}${solutionSuffix}`;
+                const finalMessage = (solutionFilter === 'solved') ? baseMessage + '.' : baseMessage + ', good job!';
+                $('#problemTypeDisplay').text(finalMessage);
+                
+                // Clear problem content and UI remnants
                 $('#actionButtonsContent').empty();
+                // Hide and clear notes
+                $('#notesSection').hide();
+                $('#standardNotesContainer #atlasNote').val('');
+                $('#standardNotesContainer #osmNote').val('');
+                $('#duplicatesNotesContainer').empty();
+                // Remove any scroll indicator
+                $('#problemContent').find('.scroll-indicator').remove();
+
+                // Clear map/context layers
                 const markersLayer = ProblemsState.getProblemMarkersLayer();
                 const linesLayer = ProblemsState.getProblemLinesLayer();
                 const contextLayer = ProblemsState.getContextMarkersLayer();
