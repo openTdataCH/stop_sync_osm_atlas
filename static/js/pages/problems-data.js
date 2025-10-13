@@ -415,7 +415,6 @@ window.ProblemsData = (function() {
                         dropdown.append(`
                             <a class="dropdown-item problem-type-option" href="#" data-type="${type}" data-solution-filter="all">
                                 <i class="${icon}"></i> ${displayName} <span class="badge badge-secondary ml-2">${typeStats.all}</span>
-                                <span class="badge badge-info ml-1 d-none" data-dup-groups-badge></span>
                             </a>
                             <a class="dropdown-item problem-type-option problem-sub-filter" href="#" data-type="${type}" data-solution-filter="solved">
                                 <i class="fas fa-check-circle text-success"></i> Solved <span class="badge badge-success ml-2">${typeStats.solved}</span>
@@ -466,9 +465,10 @@ window.ProblemsData = (function() {
                 $.getJSON('/api/problems', groupParams, function(resp) {
                     if (resp && typeof resp.total === 'number') {
                         const dupItem = $('#problemTypeFilterDropdown').find('a.dropdown-item.problem-type-option[data-type="duplicates"][data-solution-filter="all"]');
-                        const badge = dupItem.find('[data-dup-groups-badge]');
-                        if (badge && badge.length > 0) {
-                            badge.text(resp.total + ' groups').removeClass('d-none');
+                        const mainBadge = dupItem.find('span.badge.badge-secondary.ml-2');
+                        if (mainBadge && mainBadge.length > 0) {
+                            const totalEntries = (stats && stats.duplicates && typeof stats.duplicates.all === 'number') ? stats.duplicates.all : mainBadge.text();
+                            mainBadge.text(totalEntries + ' (' + resp.total + ' groups)');
                         }
                     }
                 });
