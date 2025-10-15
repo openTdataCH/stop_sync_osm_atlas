@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "layouts/base.html" %}
 
 {% from "components/_components.html" import stats_overlay with context %}
 {% block title %}OSM & ATLAS Matching Tool{% endblock %}
@@ -354,18 +354,21 @@
 
         <!-- Fixed controls at the bottom -->
         <div id="fixedFilterControls">
-          <!-- Search & Identification -->
+          <!-- Search -->
           <div class="card mt-3">
             <div class="card-header">
-              <h5 class="mb-0">Search &amp; Identification</h5>
+              <h5 class="mb-0">Search</h5>
             </div>
             <div class="card-body">
               <div class="compact-group">
                 <div class="input-group input-group-sm mb-2">
                   <div class="input-group-prepend">
-                    <button class="btn btn-outline-secondary btn-sm" type="button" id="searchTypeModalButton" data-toggle="modal" data-target="#searchOptionsModal">
-                      <i class="fas fa-hashtag mr-2"></i>UIC Number
-                    </button>
+                    <select id="searchTypeSelect" class="custom-select custom-select-sm">
+                      <option value="station">UIC Number</option>
+                      <option value="atlas">ATLAS Sloid</option>
+                      <option value="osm">OSM Node ID</option>
+                      <option value="route">Route ID</option>
+                    </select>
                   </div>
                   <input type="hidden" id="filterTypeActual" value="station">
                   <input type="text" id="stationFilter" class="form-control form-control-sm" placeholder="Enter UIC Number" style="display: none;">
@@ -414,35 +417,7 @@
     </div>
   </div>
   
-  <!-- Search Options Modal -->
-  <div class="modal fade" id="searchOptionsModal" tabindex="-1" role="dialog" aria-labelledby="searchOptionsModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="searchOptionsModalLabel">Select Search Type</h5>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-        </div>
-        <div class="modal-body">
-          <div class="list-group">
-            <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="station" data-placeholder="Enter UIC Number">
-              <i class="fas fa-hashtag mr-2"></i>UIC Number
-            </a>
-            <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="atlas" data-placeholder="Enter ATLAS SloidID">
-              <i class="fas fa-map-marker-alt mr-2"></i>ATLAS Sloid
-            </a>
-            <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="osm" data-placeholder="Enter OSM Node ID">
-              <i class="fas fa-map mr-2"></i>OSM Node ID
-            </a>
-            <a href="#" class="list-group-item list-group-item-action search-type-option-modal" data-value="route" data-placeholder="Enter Route ID">
-              <i class="fas fa-route mr-2"></i>Route ID
-            </a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  
 
   <!-- Bootstrap Modal for Manual Matches Preview -->
   <div class="modal fade" id="previewModal" tabindex="-1" role="dialog" aria-labelledby="previewModalLabel" aria-hidden="true">

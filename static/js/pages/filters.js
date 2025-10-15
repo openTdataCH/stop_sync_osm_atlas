@@ -103,6 +103,7 @@ function filterByRoute(routeId, directions) {
     
     updateFiltersUI();
     loadDataForViewport();
+    updateHeaderSummary();
 }
 
 // Function to add an HRDF route filter programmatically
@@ -133,6 +134,7 @@ function filterByHrdfRoute(lineName) {
     
     updateFiltersUI();
     loadDataForViewport();
+    updateHeaderSummary();
 }
 
 // Add a custom filter programmatically
@@ -161,6 +163,7 @@ function addCustomFilter(value, filterType) {
     
     updateFiltersUI();
     loadDataForViewport();
+    updateHeaderSummary();
 }
 
 // Update active filters UI (badges)
@@ -446,6 +449,7 @@ function addTextFilter() {
         $('#stationFilter').val(''); // Clear input field after adding
         updateFiltersUI();
         loadDataForViewport(); // Load data based on all active filters
+        updateHeaderSummary();
 
         // If the filter is for ATLAS Sloid or OSM Node, also center on it
         if (filterType === 'atlas' || filterType === 'osm') {
@@ -483,6 +487,7 @@ function addRouteFilter() {
             
             updateFiltersUI();
             loadDataForViewport();
+            updateHeaderSummary();
         } else {
             alert('This route and direction combination is already filtered.');
         }
@@ -534,6 +539,7 @@ function filterByStation(stopId, stopCategory) {
     
     updateFiltersUI();
     loadDataForViewport();
+    updateHeaderSummary();
 }
 
 // Update the activeFilters object from the UI inputs
@@ -722,6 +728,7 @@ function setRouteDirection(index, direction) {
         
         updateFiltersUI();
         loadDataForViewport(); // Reload data with new direction filter
+        updateHeaderSummary();
     }
 }
 
@@ -824,6 +831,7 @@ function initFilterEventHandlers() {
 
         if (needsManualUpdateCall) {
             updateActiveFilters(); // This calls updateFiltersUI and loadDataForViewport/loadTopNMatches
+            updateHeaderSummary();
         }
         // If .trigger('change') was called on a checkbox, updateActiveFilters is invoked by that checkbox's change handler.
     });

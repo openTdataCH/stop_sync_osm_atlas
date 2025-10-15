@@ -749,44 +749,39 @@ function fetchAndCenterSpecificStop(identifier, identifierType) {
 }
 
 
-// Function to initialize the new modal-based search type selector
-function initSearchTypeModal() {
-    const modalButton = $('#searchTypeModalButton');
+// Function to initialize the new dropdown-based search type selector
+function initSearchTypeSelector() {
+    const selectEl = $('#searchTypeSelect');
     const filterTypeInput = $('#filterTypeActual');
     const searchInput = $('#stationFilter'); // Standard search input
-    const searchOptionsModal = $('#searchOptionsModal');
 
-    $('.search-type-option-modal').on('click', function(e) {
-        e.preventDefault();
-        const selectedValue = $(this).data('value');
-        const selectedPlaceholder = $(this).data('placeholder');
-        const selectedHtmlContent = $(this).html(); // Get the HTML content (icon + text)
+    const placeholders = {
+        station: 'Enter UIC Number',
+        atlas: 'Enter ATLAS SloidID',
+        osm: 'Enter OSM Node ID',
+        route: 'Enter Route ID'
+    };
 
-        // Update hidden input
+    // Initialize select to current hidden value
+    const initialType = filterTypeInput.val() || 'station';
+    if (selectEl.length) {
+        selectEl.val(initialType);
+    }
+    if (searchInput.length) {
+        searchInput.attr('placeholder', placeholders[initialType] || 'Enter value');
+    }
+    toggleFilterInputs();
+
+    // Handle selection changes
+    selectEl.on('change', function() {
+        const selectedValue = $(this).val();
         filterTypeInput.val(selectedValue);
-
-        // Update button text/content
-        modalButton.html(selectedHtmlContent);
-
-        // Update main search input placeholder
-        searchInput.attr('placeholder', selectedPlaceholder);
-        searchInput.val(''); // Clear the input field
-        
-        // Hide the modal
-        searchOptionsModal.modal('hide');
-
-        // Toggle inputs and set focus (toggleFilterInputs now handles focus)
+        if (searchInput.length) {
+            searchInput.val('');
+            searchInput.attr('placeholder', placeholders[selectedValue] || 'Enter value');
+        }
         toggleFilterInputs();
     });
-
-    // Set initial button text based on default filterTypeActual value
-    const initialFilterType = filterTypeInput.val();
-    const initialOption = $(`.search-type-option-modal[data-value="${initialFilterType}"]`);
-    if (initialOption.length) {
-        modalButton.html(initialOption.html());
-        searchInput.attr('placeholder', initialOption.data('placeholder'));
-    }
-    toggleFilterInputs(); // Call to set initial focus correctly
 }
 
  
@@ -794,7 +789,7 @@ function initSearchTypeModal() {
 $(document).ready(function(){
     initMap();
     // loadDataForViewport(); // updateActiveFilters will call this after initial filter setup
-    initSearchTypeModal();
+    initSearchTypeSelector();
 
     // logFilterPanelLayout("Document Ready"); // Function removed in refactor
 
