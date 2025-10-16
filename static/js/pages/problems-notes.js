@@ -24,26 +24,20 @@ window.ProblemsNotes = (function() {
             const atlasName = problem.atlas_designation_official || problem.atlas_designation || '-';
             const atlasLabel = `<span class="badge badge-secondary">ATLAS</span> ${problem.sloid} - ${atlasName}`;
             $('#atlasNoteContainer .form-label').html(atlasLabel);
-            $('#atlasNote').val(problem.atlas_note || '');
+            // Fetch your and others' notes for ATLAS
+            $.getJSON('/api/notes', { sloid: problem.sloid }, function(resp){
+                const your = resp && resp.your ? resp.your : null;
+                const others = resp && Array.isArray(resp.others) ? resp.others : [];
+                $('#atlasNote').val(your && your.note ? your.note : '');
+                renderOthersNotes('atlas', others);
+                const isPersistent = !!(your && your.is_persistent);
+                ensurePersistentCheckbox('atlas', isPersistent);
+            }).fail(function(){
+                $('#atlasNote').val('');
+                renderOthersNotes('atlas', []);
+                ensurePersistentCheckbox('atlas', false);
+            });
             $('#atlasNoteContainer').show();
-            
-            // Check if ATLAS note is persistent (using the new flag)
-            const isAtlasNotePersistent = problem.atlas_note_is_persistent || false;
-            const atlasCheckbox = $('#atlasNotePersistentCheckbox');
-
-            if (atlasCheckbox.length === 0) {
-                const persistentHtml = `
-                    <div class="form-check mt-1">
-                        <input class="form-check-input" type="checkbox" id="atlasNotePersistentCheckbox" ${isAtlasNotePersistent ? 'checked' : ''}>
-                        <label class="form-check-label" for="atlasNotePersistentCheckbox">
-                            Make note persistent across imports
-                        </label>
-                    </div>
-                `;
-                $('#atlasNoteContainer .note-editor').append(persistentHtml);
-            } else {
-                atlasCheckbox.prop('checked', isAtlasNotePersistent);
-            }
         } else {
             $('#atlasNoteContainer').hide();
         }
@@ -53,29 +47,67 @@ window.ProblemsNotes = (function() {
             const osmName = problem.osm_name || problem.osm_uic_name || '-';
             const osmLabel = `<span class="badge badge-secondary">OSM</span> ${problem.osm_node_id} - ${osmName}`;
             $('#osmNoteContainer .form-label').html(osmLabel);
-            $('#osmNote').val(problem.osm_note || '');
+            // Fetch your and others' notes for OSM
+            $.getJSON('/api/notes', { osm_node_id: problem.osm_node_id }, function(resp){
+                const your = resp && resp.your ? resp.your : null;
+                const others = resp && Array.isArray(resp.others) ? resp.others : [];
+                $('#osmNote').val(your && your.note ? your.note : '');
+                renderOthersNotes('osm', others);
+                const isPersistent = !!(your && your.is_persistent);
+                ensurePersistentCheckbox('osm', isPersistent);
+            }).fail(function(){
+                $('#osmNote').val('');
+                renderOthersNotes('osm', []);
+                ensurePersistentCheckbox('osm', false);
+            });
             $('#osmNoteContainer').show();
-            
-            // Check if OSM note is persistent (using the new flag)
-            const isOsmNotePersistent = problem.osm_note_is_persistent || false;
-            const osmCheckbox = $('#osmNotePersistentCheckbox');
-            
-            if (osmCheckbox.length === 0) {
-                const persistentHtml = `
-                    <div class="form-check mt-1">
-                        <input class="form-check-input" type="checkbox" id="osmNotePersistentCheckbox" ${isOsmNotePersistent ? 'checked' : ''}>
-                        <label class="form-check-label" for="osmNotePersistentCheckbox">
-                            Make note persistent across imports
-                        </label>
-                    </div>
-                `;
-                $('#osmNoteContainer .note-editor').append(persistentHtml);
-            } else {
-                osmCheckbox.prop('checked', isOsmNotePersistent);
-            }
         } else {
             $('#osmNoteContainer').hide();
         }
+    }
+
+    function ensurePersistentCheckbox(type, checked) {
+        const id = type === 'atlas' ? 'atlasNotePersistentCheckbox' : 'osmNotePersistentCheckbox';
+        const container = type === 'atlas' ? '#atlasNoteContainer .note-editor' : '#osmNoteContainer .note-editor';
+        const checkbox = $('#' + id);
+        if (checkbox.length === 0) {
+            const html = `
+                <label class="form-check form-check-inline align-middle ml-2 mb-0 small">
+                    <input class="form-check-input" type="checkbox" id="${id}" ${checked ? 'checked' : ''}>
+                    <span class="form-check-label"> Make persistent</span>
+                </label>
+            `;
+            // Place next to the Save button
+            const saveBtn = $(container).find('button[id^="save"]').first();
+            if (saveBtn.length) {
+                saveBtn.after(html);
+            } else {
+                $(container).append(html);
+            }
+        } else {
+            checkbox.prop('checked', !!checked);
+        }
+    }
+
+    function renderOthersNotes(type, others) {
+        const containerId = type === 'atlas' ? '#atlasNoteContainer' : '#osmNoteContainer';
+        let list = $(containerId + ' .others-notes');
+        if (list.length === 0) {
+            list = $('<div class="others-notes mt-2"></div>');
+            $(containerId + ' .note-editor').after(list);
+        }
+        if (!others || others.length === 0) {
+            list.html('<div class="small text-muted">Other user notes</div><div class="text-muted small"><em>No other persistent notes.</em></div>');
+            return;
+        }
+        const html = `<div class="small text-muted">Other user notes</div>` + others.map(o => {
+            const ts = o.updated_at ? new Date(o.updated_at).toLocaleString() : '';
+            return `<div class="card card-body py-2 px-3 mb-2">
+                        <div class="small"><strong>${o.author_email || 'Unknown user'}</strong> · <span class="text-muted">${ts}</span></div>
+                        <div>${SharedUtils.escapeHtml(o.note || '')}</div>
+                    </div>`;
+        }).join('');
+        list.html(html);
     }
 
     /**
@@ -104,7 +136,6 @@ window.ProblemsNotes = (function() {
         
         const data = {
             note: noteContent,
-            problem_id: currentProblem.stop_id, // Use stop_id for backend context
             make_persistent: isPersistent
         };
         
@@ -131,30 +162,7 @@ window.ProblemsNotes = (function() {
             data: JSON.stringify(data),
             success: function(response) {
                 if (response.success) {
-                    // Update the checkbox and badge if needed
-                    const persistentCheckbox = $(`#${noteType}NotePersistentCheckbox`);
-                    const badge = persistentCheckbox.siblings('label').find('.badge');
-                    
-                    if (response.is_persistent) {
-                        if (badge.length === 0) {
-                            persistentCheckbox.siblings('label').append('<span class="badge badge-success ml-2">Persistent</span>');
-                        }
-                        persistentCheckbox.prop('checked', true);
-                    } else {
-                        badge.remove();
-                        persistentCheckbox.prop('checked', false);
-                    }
-                    
-                    // Update the current problem object with the new note and its persistent status
-                    if (noteType === 'atlas') {
-                        currentProblem.atlas_note = noteContent;
-                        currentProblem.atlas_note_is_persistent = response.is_persistent;
-                    } else {
-                        currentProblem.osm_note = noteContent;
-                        currentProblem.osm_note_is_persistent = response.is_persistent;
-                    }
-                    
-                    // Provide clear feedback about persistence status
+                    ensurePersistentCheckbox(noteType, !!response.is_persistent);
                     const persistenceStatus = response.is_persistent ? 'as persistent data' : 'temporarily (non-persistent)';
                     const statusIcon = response.is_persistent ? 'database' : 'clock';
                     if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {

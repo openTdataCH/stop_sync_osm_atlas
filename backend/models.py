@@ -178,6 +178,26 @@ class OsmNode(db.Model):
     osm_note_user_id = db.Column(db.Integer, index=True, nullable=True)
     osm_note_user_email = db.Column(db.String(255), nullable=True)
 
+class UserNote(db.Model):
+    __tablename__ = 'user_notes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    # Either sloid or osm_node_id will be set, depending on note_type
+    sloid = db.Column(db.String(100), index=True, nullable=True)
+    osm_node_id = db.Column(db.String(100), index=True, nullable=True)
+    # 'atlas' or 'osm'
+    note_type = db.Column(db.String(20), index=True, nullable=False)
+    user_id = db.Column(db.Integer, index=True, nullable=False)
+    user_email = db.Column(db.String(255), nullable=True)
+    note = db.Column(db.Text)
+    is_persistent = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())
+    updated_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+
+    __table_args__ = (
+        db.UniqueConstraint('sloid', 'osm_node_id', 'note_type', 'user_id', name='unique_user_note'),
+    )
+
 class RouteAndDirection(db.Model):
     __tablename__ = 'routes_and_directions'
     

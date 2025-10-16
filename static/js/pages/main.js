@@ -137,7 +137,7 @@ function loadTopNMatches() {
             // --- Client-side filtering for Show Duplicates Only --- 
             if (activeFilters.showDuplicatesOnly) {
                 // Note: This filters *after* the operator mismatch filter if active
-                filteredData = filteredData.filter(stop => stop.atlas_duplicate_sloid && stop.atlas_duplicate_sloid !== '');
+                filteredData = filteredData.filter(stop => typeof isDuplicateFlagSet === 'function' ? isDuplicateFlagSet(stop.atlas_duplicate_sloid) : (stop.atlas_duplicate_sloid && stop.atlas_duplicate_sloid !== ''));
             }
 
             if(filteredData.length === 0) {
@@ -303,7 +303,7 @@ function loadDataForViewport() {
                  showZoomBanner(true);
                  return;
              }
-             if (probeData.length >= LOW_ZOOM_SMALLSET_LIMIT) {
+            if (probeData.length > LOW_ZOOM_SMALLSET_LIMIT) {
                  // Too many to render at low zoom – show banner and skip rendering, but keep existing markers
                  showZoomBanner(true);
                  return;
@@ -325,10 +325,10 @@ function loadDataForViewport() {
 
          // --- Client-side Filtering for Show Duplicates Only --- 
          let data = rawData;
-         if (activeFilters.showDuplicatesOnly) {
-             // Apply this filter after the operator mismatch filter
-             data = data.filter(stop => stop.atlas_duplicate_sloid && stop.atlas_duplicate_sloid !== '');
-         }
+            if (activeFilters.showDuplicatesOnly) {
+                // Apply this filter after the operator mismatch filter
+                data = data.filter(stop => typeof isDuplicateFlagSet === 'function' ? isDuplicateFlagSet(stop.atlas_duplicate_sloid) : (stop.atlas_duplicate_sloid && stop.atlas_duplicate_sloid !== ''));
+            }
          
          // Node type visibility flags
          var showAtlasNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("atlas") !== -1;

@@ -36,6 +36,7 @@
 @import url('src/06-components/c-toggle.css');
 @import url('src/06-components/c-distance-indicator.css');
 @import url('src/06-components/c-accordion.css');
+@import url('src/06-components/c-toast.css');
 
 /* 07-utilities */
 @import url('src/07-utilities/u-spacing.css');

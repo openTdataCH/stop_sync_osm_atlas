@@ -5,9 +5,7 @@ This project has three effective roles: anonymous (not logged in), authenticated
 ### Anonymous (not logged in)
 - Can access the web UI pages.
 - Can save non‑persistent problem solutions via `/api/save_solution`.
-- Can save non‑persistent notes:
-  - `/api/save_note/atlas`, `/api/save_note/osm`
-- Cannot make solutions or notes persistent in any way (UI should notify to log in).
+- Cannot create or edit notes (login required).
 - Can view lists:
   - `/api/persistent_data`
   - `/api/non_persistent_data`
@@ -15,19 +13,26 @@ This project has three effective roles: anonymous (not logged in), authenticated
 
 ### Authenticated users
 - Everything anonymous users can do, plus:
-- Can make persistent individually (not in bulk):
-  - `/api/make_solution_persistent`
+- Can create/update their own notes (one per user per entity):
+  - `/api/save_note/atlas` (requires `sloid`)
+  - `/api/save_note/osm` (requires `osm_node_id`)
+  - Read combined notes for an entity: `GET /api/notes?sloid=...` or `?osm_node_id=...` (returns your note + others' persistent notes)
+- Can make their own note persistent:
   - `/api/make_note_persistent/<atlas|osm>`
-- Can delete or make non‑persistent their own persistent records (they must be the author):
-  - `DELETE /api/persistent_data/<id>`
-  - `/api/make_non_persistent/<solution_id>`
+- Can delete or make non‑persistent their own persistent records:
+  - `DELETE /api/persistent_data/<id>` (problem solutions)
+  - `POST /api/make_non_persistent/<solution_id>` (problem solutions)
+  - `DELETE /api/user_notes/<note_id>` (their note)
+  - `POST /api/user_notes/<note_id>/make_non_persistent` (their note)
 
 ### Admins
 - Everything users can do, plus:
 - Can delete a specific persistent record:
-  - `DELETE /api/persistent_data/<id>`
-- Can mark a specific solution as non‑persistent:
-  - `/api/make_non_persistent/<solution_id>`
+  - `DELETE /api/persistent_data/<id>` (problem solutions)
+  - `DELETE /api/user_notes/<note_id>` (any note)
+- Can mark a specific solution or note as non‑persistent:
+  - `/api/make_non_persistent/<solution_id>` (problem solutions)
+  - `/api/user_notes/<note_id>/make_non_persistent` (user notes)
 - Can clear all persistent data:
   - `/api/clear_all_persistent`
 - Can clear all non‑persistent data:

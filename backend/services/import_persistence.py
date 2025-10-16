@@ -1,4 +1,4 @@
-from backend.models import PersistentData, Problem, Stop, AtlasStop, OsmNode
+from backend.models import PersistentData, Problem, Stop
 
 
 def apply_persistent_solutions(session):
@@ -6,8 +6,7 @@ def apply_persistent_solutions(session):
     Apply previously saved persistent solutions and notes to newly created data.
 
     - For each PersistentData without note_type: apply solutions to matching Problem rows
-    - For note_type == 'atlas': apply notes to AtlasStop rows
-    - For note_type == 'osm': apply notes to OsmNode rows
+    - Notes are no longer applied to entity tables; notes are per-user in user_notes
     """
     print("Applying persistent solutions from previous imports...")
 
@@ -47,56 +46,9 @@ def apply_persistent_solutions(session):
                 )
                 skipped_count += 1
 
-    # Apply persistent ATLAS notes
-    print("Applying persistent ATLAS notes...")
-    atlas_notes = session.query(PersistentData).filter(
-        PersistentData.note_type == 'atlas',
-        PersistentData.sloid.isnot(None)
-    ).all()
-
-    atlas_notes_applied = 0
-    atlas_notes_skipped = 0
-
-    for note_record in atlas_notes:
-        atlas_stop = session.query(AtlasStop).filter(
-            AtlasStop.sloid == note_record.sloid
-        ).first()
-
-        if atlas_stop:
-            atlas_stop.atlas_note = note_record.note
-            atlas_stop.atlas_note_is_persistent = True
-            atlas_notes_applied += 1
-        else:
-            print(f"  - ATLAS stop not found for sloid={note_record.sloid}, skipping note application")
-            atlas_notes_skipped += 1
-
-    # Apply persistent OSM notes
-    print("Applying persistent OSM notes...")
-    osm_notes = session.query(PersistentData).filter(
-        PersistentData.note_type == 'osm',
-        PersistentData.osm_node_id.isnot(None)
-    ).all()
-
-    osm_notes_applied = 0
-    osm_notes_skipped = 0
-
-    for note_record in osm_notes:
-        osm_node = session.query(OsmNode).filter(
-            OsmNode.osm_node_id == note_record.osm_node_id
-        ).first()
-
-        if osm_node:
-            osm_node.osm_note = note_record.note
-            osm_node.osm_note_is_persistent = True
-            osm_notes_applied += 1
-        else:
-            print(f"  - OSM node not found for osm_node_id={note_record.osm_node_id}, skipping note application")
-            osm_notes_skipped += 1
-
     session.commit()
     print(f"Applied {applied_count} persistent solutions from previous imports")
     print(f"Skipped {skipped_count} persistent solutions (stops or problems no longer exist)")
-    print(f"Applied {atlas_notes_applied} persistent ATLAS notes, skipped {atlas_notes_skipped}")
-    print(f"Applied {osm_notes_applied} persistent OSM notes, skipped {osm_notes_skipped}")
+    print("Per-user notes are stored in user_notes and not applied to entity tables.")
 
 

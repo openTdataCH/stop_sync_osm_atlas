@@ -160,8 +160,8 @@
                 </div>
 
                 <!-- Manage persistent solutions link -->
-                <a href="{{ url_for('persistent_data') }}" class="btn btn-info btn-sm btn-block mt-2">
-                  <i class="fas fa-database"></i> Manage Persistent Data
+                <a href="{{ url_for('manage_data') }}" class="btn btn-info btn-sm btn-block mt-2">
+                  <i class="fas fa-database"></i> Manage Data
                 </a>
               </div>
             </div>
@@ -225,6 +225,7 @@
                   <textarea id="atlasNote" class="form-control" placeholder="Add a note for this ATLAS entry..."></textarea>
                   <button id="saveAtlasNote" class="btn btn-sm btn-info mt-2 professional-button">Save Note</button>
                 </div>
+                <div class="others-notes mt-2"></div>
               </div>
               <div id="osmNoteContainer">
                 <div class="note-editor">
@@ -232,6 +233,7 @@
                   <textarea id="osmNote" class="form-control" placeholder="Add a note for this OSM entry..."></textarea>
                   <button id="saveOsmNote" class="btn btn-sm btn-primary mt-2 professional-button">Save Note</button>
                 </div>
+                <div class="others-notes mt-2"></div>
               </div>
             </div>
             

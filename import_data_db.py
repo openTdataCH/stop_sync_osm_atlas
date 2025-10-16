@@ -518,7 +518,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             match_type=safe_value(rec.get('match_type')),
             atlas_lat=atlas_lat,
             atlas_lon=atlas_lon,
-            atlas_duplicate_sloid=False,
+            atlas_duplicate_sloid=None,
             uic_ref=safe_value(rec.get('number'), ""),
             osm_node_id=osm_node_id,
             osm_lat=osm_lat,
@@ -556,8 +556,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         # Duplicates: prefer OSM-side duplicates (priority 3), else ATLAS-side duplicates (priority 2)
         if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
             stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
-            # Flag ATLAS marker for map rendering overlay
-            stop_record.atlas_duplicate_sloid = True
+            # Do NOT set atlas_duplicate_sloid here; OSM-side duplicates should not flag ATLAS as duplicate
         elif sloid and str(sloid) in duplicate_sloid_map:
             stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
             # Store a pointer sloid from the duplicate group for map/UI highlighting
@@ -772,7 +771,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             match_type=match_type_for_unmatched,
             atlas_lat=atlas_lat,
             atlas_lon=atlas_lon,
-            atlas_duplicate_sloid=False,
+            atlas_duplicate_sloid=None,
             uic_ref=safe_value(rec.get('number'), "")
         )
         

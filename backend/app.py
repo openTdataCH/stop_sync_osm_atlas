@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, redirect, url_for
 import logging
 import os
 
@@ -89,10 +89,15 @@ def problems():
     # Render from new structured pages path
     return render_template('pages/problems.html')
 
-@app.route('/persistent_data')
-def persistent_data():
+@app.route('/manage_data')
+def manage_data():
     # Render from new structured pages path
-    return render_template('pages/persistent_data.html')
+    return render_template('pages/manage_data.html')
+
+@app.route('/persistent_data')
+def persistent_data_legacy():
+    # Backward-compatible redirect to the new Manage Data page
+    return redirect(url_for('manage_data'), code=302)
 
 @app.route('/reports')
 def reports_page():

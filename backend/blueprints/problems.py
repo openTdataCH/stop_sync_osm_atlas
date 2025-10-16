@@ -1,12 +1,13 @@
 from flask import Blueprint, request, jsonify, current_app as app
 from flask_login import current_user, login_required
 from sqlalchemy.orm import joinedload, subqueryload
-from backend.models import Stop, AtlasStop, OsmNode, Problem, PersistentData
+from backend.models import Stop, AtlasStop, OsmNode, Problem, PersistentData, UserNote
 from backend.extensions import db, limiter
 from functools import wraps
 from backend.serializers.stops import format_stop_data
 from sqlalchemy.sql import func
 from sqlalchemy import and_
+import sqlalchemy as sa
 
 problems_bp = Blueprint('problems', __name__)
 
@@ -537,53 +538,45 @@ def check_persistent_solution():
 
 @problems_bp.route('/api/save_note/atlas', methods=['POST'])
 @limiter.limit("60/minute")
+@login_required
 def save_atlas_note():
     try:
         data = request.get_json()
         sloid = data.get('sloid')
         note = data.get('note', '')
         make_persistent = data.get('make_persistent', False)
-        login_required_for_persistence = False
         if not sloid:
             return jsonify({"success": False, "error": "Missing sloid"}), 400
-        atlas_stop = AtlasStop.query.filter_by(sloid=sloid).first()
-        if not atlas_stop:
-            atlas_stop = AtlasStop(sloid=sloid)
-            db.session.add(atlas_stop)
-        atlas_stop.atlas_note = note
-        if current_user.is_authenticated:
-            atlas_stop.atlas_note_user_id = getattr(current_user, 'id', None)
-            atlas_stop.atlas_note_user_email = getattr(current_user, 'email', None)
-        # Anonymous users can save notes but cannot persist
-        effective_persist = bool(make_persistent and current_user.is_authenticated)
-        if make_persistent and not current_user.is_authenticated:
-            login_required_for_persistence = True
-        atlas_stop.atlas_note_is_persistent = effective_persist
-        if effective_persist:
-            persistent_note = PersistentData.query.filter_by(
+        # Validate note content
+        if note is None or str(note).strip() == '':
+            return jsonify({"success": False, "error": "Note cannot be empty"}), 400
+        # Validate entity exists to avoid orphan notes
+        atlas_exists = AtlasStop.query.filter_by(sloid=sloid).first()
+        if not atlas_exists:
+            return jsonify({"success": False, "error": "Unknown SLOID"}), 400
+        # Upsert current user's note in user_notes
+        user_id = getattr(current_user, 'id', None)
+        user_email = getattr(current_user, 'email', None)
+        existing = UserNote.query.filter_by(sloid=sloid, note_type='atlas', user_id=user_id).first()
+        if existing:
+            existing.note = note
+            existing.is_persistent = bool(make_persistent)
+            existing.user_email = user_email
+        else:
+            new_note = UserNote(
                 sloid=sloid,
-                note_type='atlas'
-            ).first()
-            if persistent_note:
-                persistent_note.note = note
-                # Persist original note author's identity
-                persistent_note.created_by_user_id = getattr(atlas_stop, 'atlas_note_user_id', None)
-                persistent_note.created_by_user_email = getattr(atlas_stop, 'atlas_note_user_email', None)
-            else:
-                new_persistent_note = PersistentData(
-                    sloid=sloid,
-                    note_type='atlas',
-                    note=note,
-                    created_by_user_id=getattr(atlas_stop, 'atlas_note_user_id', None),
-                    created_by_user_email=getattr(atlas_stop, 'atlas_note_user_email', None)
-                )
-                db.session.add(new_persistent_note)
+                note_type='atlas',
+                user_id=user_id,
+                user_email=user_email,
+                note=note,
+                is_persistent=bool(make_persistent)
+            )
+            db.session.add(new_note)
         db.session.commit()
         return jsonify({
             "success": True,
             "message": "ATLAS note saved successfully",
-            "is_persistent": effective_persist,
-            "login_required_for_persistence": login_required_for_persistence
+            "is_persistent": bool(make_persistent)
         })
     except Exception as e:
         db.session.rollback()
@@ -592,53 +585,45 @@ def save_atlas_note():
 
 @problems_bp.route('/api/save_note/osm', methods=['POST'])
 @limiter.limit("60/minute")
+@login_required
 def save_osm_note():
     try:
         data = request.get_json()
         osm_node_id = data.get('osm_node_id')
         note = data.get('note', '')
         make_persistent = data.get('make_persistent', False)
-        login_required_for_persistence = False
         if not osm_node_id:
             return jsonify({"success": False, "error": "Missing osm_node_id"}), 400
-        osm_node = OsmNode.query.filter_by(osm_node_id=osm_node_id).first()
-        if not osm_node:
-            osm_node = OsmNode(osm_node_id=osm_node_id)
-            db.session.add(osm_node)
-        osm_node.osm_note = note
-        if current_user.is_authenticated:
-            osm_node.osm_note_user_id = getattr(current_user, 'id', None)
-            osm_node.osm_note_user_email = getattr(current_user, 'email', None)
-        # Anonymous users can save notes but cannot persist
-        effective_persist = bool(make_persistent and current_user.is_authenticated)
-        if make_persistent and not current_user.is_authenticated:
-            login_required_for_persistence = True
-        osm_node.osm_note_is_persistent = effective_persist
-        if effective_persist:
-            persistent_note = PersistentData.query.filter_by(
+        # Validate note content
+        if note is None or str(note).strip() == '':
+            return jsonify({"success": False, "error": "Note cannot be empty"}), 400
+        # Validate entity exists to avoid orphan notes
+        osm_exists = OsmNode.query.filter_by(osm_node_id=osm_node_id).first()
+        if not osm_exists:
+            return jsonify({"success": False, "error": "Unknown OSM node id"}), 400
+        # Upsert current user's note in user_notes
+        user_id = getattr(current_user, 'id', None)
+        user_email = getattr(current_user, 'email', None)
+        existing = UserNote.query.filter_by(osm_node_id=osm_node_id, note_type='osm', user_id=user_id).first()
+        if existing:
+            existing.note = note
+            existing.is_persistent = bool(make_persistent)
+            existing.user_email = user_email
+        else:
+            new_note = UserNote(
                 osm_node_id=osm_node_id,
-                note_type='osm'
-            ).first()
-            if persistent_note:
-                persistent_note.note = note
-                # Persist original note author's identity
-                persistent_note.created_by_user_id = getattr(osm_node, 'osm_note_user_id', None)
-                persistent_note.created_by_user_email = getattr(osm_node, 'osm_note_user_email', None)
-            else:
-                new_persistent_note = PersistentData(
-                    osm_node_id=osm_node_id,
-                    note_type='osm',
-                    note=note,
-                    created_by_user_id=getattr(osm_node, 'osm_note_user_id', None),
-                    created_by_user_email=getattr(osm_node, 'osm_note_user_email', None)
-                )
-                db.session.add(new_persistent_note)
+                note_type='osm',
+                user_id=user_id,
+                user_email=user_email,
+                note=note,
+                is_persistent=bool(make_persistent)
+            )
+            db.session.add(new_note)
         db.session.commit()
         return jsonify({
             "success": True,
             "message": "OSM note saved successfully",
-            "is_persistent": effective_persist,
-            "login_required_for_persistence": login_required_for_persistence
+            "is_persistent": bool(make_persistent)
         })
     except Exception as e:
         db.session.rollback()
@@ -655,62 +640,21 @@ def make_note_persistent(note_type: str):
             sloid = (data.get('sloid') or '').strip()
             if not sloid:
                 return jsonify({"success": False, "error": "Missing sloid"}), 400
-            atlas_stop = AtlasStop.query.filter_by(sloid=sloid).first()
-            if not atlas_stop or not atlas_stop.atlas_note:
+            # Persist current user's own note
+            note_row = UserNote.query.filter_by(sloid=sloid, note_type='atlas', user_id=getattr(current_user, 'id', None)).first()
+            if not note_row or not (note_row.note and note_row.note.strip()):
                 return jsonify({"success": False, "error": "No existing note to persist"}), 400
-            persistent_note = PersistentData.query.filter_by(sloid=sloid, note_type='atlas').first()
-            if persistent_note:
-                # Authorization: only owner or admin may update existing persistent note
-                is_admin = bool(getattr(current_user, 'is_admin', False))
-                is_owner = (persistent_note.created_by_user_id is not None) and (persistent_note.created_by_user_id == getattr(current_user, 'id', None))
-                if not (is_admin or is_owner):
-                    return jsonify({"success": False, "error": "Not authorized to update this persistent note"}), 403
-                # Update content but preserve original author attribution
-                persistent_note.note = atlas_stop.atlas_note
-            else:
-                new_persistent_note = PersistentData(
-                    sloid=sloid,
-                    note_type='atlas',
-                    note=atlas_stop.atlas_note,
-                    created_by_user_id=getattr(atlas_stop, 'atlas_note_user_id', None),
-                    created_by_user_email=getattr(atlas_stop, 'atlas_note_user_email', None)
-                )
-                db.session.add(new_persistent_note)
-            atlas_stop.atlas_note_is_persistent = True
-            if current_user.is_authenticated:
-                atlas_stop.atlas_note_user_id = getattr(current_user, 'id', None)
-                atlas_stop.atlas_note_user_email = getattr(current_user, 'email', None)
+            note_row.is_persistent = True
             db.session.commit()
             return jsonify({"success": True})
         elif note_type == 'osm':
             osm_node_id = (data.get('osm_node_id') or '').strip()
             if not osm_node_id:
                 return jsonify({"success": False, "error": "Missing osm_node_id"}), 400
-            osm_node = OsmNode.query.filter_by(osm_node_id=osm_node_id).first()
-            if not osm_node or not osm_node.osm_note:
+            note_row = UserNote.query.filter_by(osm_node_id=osm_node_id, note_type='osm', user_id=getattr(current_user, 'id', None)).first()
+            if not note_row or not (note_row.note and note_row.note.strip()):
                 return jsonify({"success": False, "error": "No existing note to persist"}), 400
-            persistent_note = PersistentData.query.filter_by(osm_node_id=osm_node_id, note_type='osm').first()
-            if persistent_note:
-                # Authorization: only owner or admin may update existing persistent note
-                is_admin = bool(getattr(current_user, 'is_admin', False))
-                is_owner = (persistent_note.created_by_user_id is not None) and (persistent_note.created_by_user_id == getattr(current_user, 'id', None))
-                if not (is_admin or is_owner):
-                    return jsonify({"success": False, "error": "Not authorized to update this persistent note"}), 403
-                # Update content but preserve original author attribution
-                persistent_note.note = osm_node.osm_note
-            else:
-                new_persistent_note = PersistentData(
-                    osm_node_id=osm_node_id,
-                    note_type='osm',
-                    note=osm_node.osm_note,
-                    created_by_user_id=getattr(osm_node, 'osm_note_user_id', None),
-                    created_by_user_email=getattr(osm_node, 'osm_note_user_email', None)
-                )
-                db.session.add(new_persistent_note)
-            osm_node.osm_note_is_persistent = True
-            if current_user.is_authenticated:
-                osm_node.osm_note_user_id = getattr(current_user, 'id', None)
-                osm_node.osm_note_user_email = getattr(current_user, 'email', None)
+            note_row.is_persistent = True
             db.session.commit()
             return jsonify({"success": True})
         else:
@@ -727,14 +671,12 @@ def check_persistent_atlas_note():
         sloid = request.args.get('sloid')
         if not sloid:
             return jsonify({"success": False, "error": "Missing sloid"}), 400
-        atlas_stop = AtlasStop.query.filter_by(sloid=sloid).first()
-        if not atlas_stop:
-            return jsonify({"success": True, "is_persistent": False, "persistent_note": None})
-        return jsonify({
-            "success": True,
-            "is_persistent": atlas_stop.atlas_note_is_persistent,
-            "persistent_note": atlas_stop.atlas_note if atlas_stop.atlas_note_is_persistent else None
-        })
+        if current_user.is_authenticated:
+            note_row = UserNote.query.filter_by(sloid=sloid, note_type='atlas', user_id=getattr(current_user, 'id', None)).first()
+            is_persistent = bool(note_row and note_row.is_persistent)
+            return jsonify({"success": True, "is_persistent": is_persistent, "persistent_note": note_row.note if is_persistent else None})
+        # Anonymous: no personal persistence status
+        return jsonify({"success": True, "is_persistent": False, "persistent_note": None})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -746,15 +688,53 @@ def check_persistent_osm_note():
         osm_node_id = request.args.get('osm_node_id')
         if not osm_node_id:
             return jsonify({"success": False, "error": "Missing osm_node_id"}), 400
-        osm_node = OsmNode.query.filter_by(osm_node_id=osm_node_id).first()
-        if not osm_node:
-            return jsonify({"success": True, "is_persistent": False, "persistent_note": None})
-        return jsonify({
-            "success": True,
-            "is_persistent": osm_node.osm_note_is_persistent,
-            "persistent_note": osm_node.osm_note if osm_node.osm_note_is_persistent else None
-        })
+        if current_user.is_authenticated:
+            note_row = UserNote.query.filter_by(osm_node_id=osm_node_id, note_type='osm', user_id=getattr(current_user, 'id', None)).first()
+            is_persistent = bool(note_row and note_row.is_persistent)
+            return jsonify({"success": True, "is_persistent": is_persistent, "persistent_note": note_row.note if is_persistent else None})
+        return jsonify({"success": True, "is_persistent": False, "persistent_note": None})
     except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@problems_bp.route('/api/notes', methods=['GET'])
+@limiter.limit("120/minute")
+def get_notes_for_entity():
+    try:
+        sloid = (request.args.get('sloid') or '').strip()
+        osm_node_id = (request.args.get('osm_node_id') or '').strip()
+        note_type = None
+        filter_kwargs = {}
+        if sloid:
+            note_type = 'atlas'
+            filter_kwargs = { 'sloid': sloid, 'note_type': 'atlas' }
+        elif osm_node_id:
+            note_type = 'osm'
+            filter_kwargs = { 'osm_node_id': osm_node_id, 'note_type': 'osm' }
+        else:
+            return jsonify({"success": False, "error": "Missing sloid or osm_node_id"}), 400
+
+        your = None
+        if current_user.is_authenticated:
+            row = UserNote.query.filter_by(user_id=getattr(current_user, 'id', None), **filter_kwargs).first()
+            if row:
+                your = { 'note': row.note or '', 'is_persistent': bool(row.is_persistent), 'updated_at': row.updated_at.isoformat() if row.updated_at else None }
+        # Others: only show persistent notes from other users
+        others_query = UserNote.query.filter_by(**filter_kwargs).filter(UserNote.is_persistent == True)
+        if current_user.is_authenticated:
+            others_query = others_query.filter(UserNote.user_id != getattr(current_user, 'id', None))
+        others_rows = others_query.order_by(UserNote.updated_at.desc()).all()
+        others = [
+            {
+                'author_email': r.user_email,
+                'note': r.note or '',
+                'is_persistent': bool(r.is_persistent),
+                'updated_at': r.updated_at.isoformat() if r.updated_at else None
+            } for r in others_rows
+        ]
+        return jsonify({ 'success': True, 'note_type': note_type, 'your': your, 'others': others })
+    except Exception as e:
+        app.logger.error(f"Error fetching notes: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 
@@ -790,8 +770,37 @@ def get_persistent_data():
                 'author_user_id': ps.created_by_user_id
             }
             results.append(result)
+        # Group persistent user notes by entity
+        note_groups = []
+        # ATLAS note groups
+        atlas_notes = UserNote.query.filter(UserNote.note_type == 'atlas', UserNote.is_persistent == True)
+        if note_type == 'atlas':
+            pass
+        elif note_type == 'osm':
+            atlas_notes = atlas_notes.filter(sa.text('1=0'))
+        atlas_map = {}
+        for r in atlas_notes.all():
+            if not r.sloid:
+                continue
+            grp = atlas_map.setdefault(r.sloid, [])
+            grp.append({ 'id': r.id, 'author_email': r.user_email, 'note': r.note or '', 'updated_at': r.updated_at.isoformat() if r.updated_at else None })
+        for sloid_key, notes in atlas_map.items():
+            note_groups.append({ 'kind': 'atlas', 'sloid': sloid_key, 'notes': notes })
+        # OSM note groups
+        osm_notes = UserNote.query.filter(UserNote.note_type == 'osm', UserNote.is_persistent == True)
+        if note_type == 'atlas':
+            osm_notes = osm_notes.filter(sa.text('1=0'))
+        osm_map = {}
+        for r in osm_notes.all():
+            if not r.osm_node_id:
+                continue
+            grp = osm_map.setdefault(r.osm_node_id, [])
+            grp.append({ 'id': r.id, 'author_email': r.user_email, 'note': r.note or '', 'updated_at': r.updated_at.isoformat() if r.updated_at else None })
+        for osm_id, notes in osm_map.items():
+            note_groups.append({ 'kind': 'osm', 'osm_node_id': osm_id, 'notes': notes })
         return jsonify({
             'persistent_data': results,
+            'note_groups': note_groups,
             'total': total_count,
             'page': page,
             'limit': limit
@@ -838,6 +847,48 @@ def delete_persistent_data(solution_id):
         return jsonify({"success": True, "message": "Persistent solution deleted successfully"})
     except Exception as e:
         app.logger.error(f"Error deleting persistent solution: {str(e)}")
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@problems_bp.route('/api/user_notes/<int:note_id>', methods=['DELETE'])
+@limiter.limit("30/minute")
+@login_required
+def delete_user_note(note_id: int):
+    try:
+        note = db.session.get(UserNote, note_id)
+        if not note:
+            return jsonify({"success": False, "error": "Note not found"}), 404
+        is_admin = bool(getattr(current_user, 'is_admin', False))
+        is_owner = note.user_id == getattr(current_user, 'id', None)
+        if not (is_admin or is_owner):
+            return jsonify({"success": False, "error": "Not authorized to delete this note"}), 403
+        db.session.delete(note)
+        db.session.commit()
+        return jsonify({"success": True, "message": "Note deleted"})
+    except Exception as e:
+        app.logger.error(f"Error deleting user note: {str(e)}")
+        db.session.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@problems_bp.route('/api/user_notes/<int:note_id>/make_non_persistent', methods=['POST'])
+@limiter.limit("30/minute")
+@login_required
+def user_note_make_non_persistent(note_id: int):
+    try:
+        note = db.session.get(UserNote, note_id)
+        if not note:
+            return jsonify({"success": False, "error": "Note not found"}), 404
+        is_admin = bool(getattr(current_user, 'is_admin', False))
+        is_owner = note.user_id == getattr(current_user, 'id', None)
+        if not (is_admin or is_owner):
+            return jsonify({"success": False, "error": "Not authorized to modify this note"}), 403
+        note.is_persistent = False
+        db.session.commit()
+        return jsonify({"success": True, "message": "Note made non-persistent"})
+    except Exception as e:
+        app.logger.error(f"Error making note non-persistent: {str(e)}")
         db.session.rollback()
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -890,9 +941,9 @@ def make_non_persistent(solution_id):
 def clear_all_persistent():
     try:
         Problem.query.update({Problem.is_persistent: False})
-        AtlasStop.query.update({AtlasStop.atlas_note_is_persistent: False})
-        OsmNode.query.update({OsmNode.osm_note_is_persistent: False})
         PersistentData.query.delete()
+        # Delete all persistent user notes
+        db.session.query(UserNote).filter(UserNote.is_persistent == True).delete(synchronize_session=False)
         db.session.commit()
         return jsonify({"success": True, "message": "All persistent data cleared."})
     except Exception as e:
@@ -907,8 +958,8 @@ def clear_all_persistent():
 def clear_all_non_persistent():
     try:
         Problem.query.filter(Problem.is_persistent == False).update({Problem.solution: None})
-        AtlasStop.query.filter(AtlasStop.atlas_note_is_persistent == False).update({AtlasStop.atlas_note: None})
-        OsmNode.query.filter(OsmNode.osm_note_is_persistent == False).update({OsmNode.osm_note: None})
+        # Delete all non-persistent user notes
+        db.session.query(UserNote).filter(UserNote.is_persistent == False).delete(synchronize_session=False)
         db.session.commit()
         return jsonify({"success": True, "message": "All non-persistent data cleared."})
     except Exception as e:
@@ -927,17 +978,15 @@ def get_non_persistent_data():
                 Problem.solution.isnot(None),
                 Problem.solution != ''
             ).count()
-            atlas_note_count = AtlasStop.query.filter(
-                AtlasStop.atlas_note.isnot(None), 
-                AtlasStop.atlas_note != '', 
-                AtlasStop.atlas_note_is_persistent == False
-            ).count()
-            osm_note_count = OsmNode.query.filter(
-                OsmNode.osm_note.isnot(None), 
-                OsmNode.osm_note != '', 
-                OsmNode.osm_note_is_persistent == False
-            ).count()
-            return jsonify({'solution_count': solution_count, 'note_count': atlas_note_count + osm_note_count})
+            # Notes: count current user's non-persistent user_notes if logged in; else 0
+            note_count = 0
+            if current_user.is_authenticated:
+                note_count = db.session.query(UserNote).filter(
+                    UserNote.user_id == getattr(current_user, 'id', None),
+                    UserNote.is_persistent == False,
+                    (UserNote.note.isnot(None)),
+                ).count()
+            return jsonify({'solution_count': solution_count, 'note_count': note_count})
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 100))
         offset = (page - 1) * limit
@@ -969,44 +1018,39 @@ def get_non_persistent_data():
                     'osm_node_id': p.osm_node_id,
                     'stop_id': p.stop_id
                 })
-        if filter_type in ['all', 'atlas_note']:
-            atlas_query = db.session.query(
-                AtlasStop.sloid,
-                AtlasStop.atlas_note
-            ).filter(
-                AtlasStop.atlas_note.isnot(None),
-                AtlasStop.atlas_note != '',
-                AtlasStop.atlas_note_is_persistent == False
-            ).order_by(AtlasStop.sloid)
-            atlas_notes = atlas_query.all()
-            for note in atlas_notes:
-                results.append({
-                    'id': f"atlas_{note.sloid}",
-                    'type': 'note',
-                    'note_type': 'atlas',
-                    'note': note.atlas_note,
-                    'sloid': note.sloid,
-                    'osm_node_id': None
-                })
-        if filter_type in ['all', 'osm_note']:
-            osm_query = db.session.query(
-                OsmNode.osm_node_id,
-                OsmNode.osm_note
-            ).filter(
-                OsmNode.osm_note.isnot(None),
-                OsmNode.osm_note != '',
-                OsmNode.osm_note_is_persistent == False
-            ).order_by(OsmNode.osm_node_id)
-            osm_notes = osm_query.all()
-            for note in osm_notes:
-                results.append({
-                    'id': f"osm_{note.osm_node_id}",
-                    'type': 'note',
-                    'note_type': 'osm', 
-                    'note': note.osm_note,
-                    'sloid': None,
-                    'osm_node_id': note.osm_node_id
-                })
+        if current_user.is_authenticated:
+            if filter_type in ['all', 'atlas_note']:
+                atlas_user_notes = db.session.query(UserNote).filter(
+                    UserNote.user_id == getattr(current_user, 'id', None),
+                    UserNote.note_type == 'atlas',
+                    UserNote.is_persistent == False,
+                    UserNote.note.isnot(None)
+                ).order_by(UserNote.sloid)
+                for r in atlas_user_notes.all():
+                    results.append({
+                        'id': r.id,
+                        'type': 'note',
+                        'note_type': 'atlas',
+                        'note': r.note or '',
+                        'sloid': r.sloid,
+                        'osm_node_id': None
+                    })
+            if filter_type in ['all', 'osm_note']:
+                osm_user_notes = db.session.query(UserNote).filter(
+                    UserNote.user_id == getattr(current_user, 'id', None),
+                    UserNote.note_type == 'osm',
+                    UserNote.is_persistent == False,
+                    UserNote.note.isnot(None)
+                ).order_by(UserNote.osm_node_id)
+                for r in osm_user_notes.all():
+                    results.append({
+                        'id': r.id,
+                        'type': 'note',
+                        'note_type': 'osm',
+                        'note': r.note or '',
+                        'sloid': None,
+                        'osm_node_id': r.osm_node_id
+                    })
         results.sort(key=lambda x: (x['type'], str(x['id'])))
         total_count = len(results)
         paged_results = results[offset:offset + limit]

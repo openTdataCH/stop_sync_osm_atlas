@@ -405,8 +405,12 @@ function updateFiltersUI() {
         finalGroupStrings.push(chipTopN);
     }
     if(activeFilters.showDuplicatesOnly) {
-        var badgeHtml = '<span class="badge badge-purple mr-1 mb-1" style="background-color: purple;">Duplicate ATLAS Only <a href="#" class="text-dark remove-filter" data-type="showDuplicatesOnly">x</a></span>';
-        finalGroupStrings.push(badgeHtml);
+        var dupChip = buildRemovableChip({
+            label: 'Duplicate ATLAS',
+            badgeClass: 'badge-secondary',
+            data: { type: 'showDuplicatesOnly' }
+        });
+        finalGroupStrings.push(dupChip);
     }
 
     if (finalGroupStrings.length > 0) {

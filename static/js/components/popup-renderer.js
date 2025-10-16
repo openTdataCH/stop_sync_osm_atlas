@@ -23,6 +23,7 @@
 
         const rows = [];
         let routesSection = '';
+        let notesSection = '';
 
         if(isAtlas){
             rows.push(['Sloid', unmatched ? data.sloid : link(data.sloid, 'atlas')]);
@@ -49,6 +50,13 @@
             routesSection = `
                 <div class="route-section">
                     ${PopupUtils.createCollapsible('Routes', unifiedRoutesHtml, COLLAPSIBLE_DEFAULT_EXPANDED)}
+                </div>
+            `;
+            // Notes collapsible for ATLAS
+            const atlasNotesBody = `<div class="popup-notes" data-type="atlas" data-sloid="${data.sloid || ''}">Loading notes...</div>`;
+            notesSection = `
+                <div class="notes-section">
+                    ${PopupUtils.createCollapsible('Notes', atlasNotesBody, COLLAPSIBLE_DEFAULT_EXPANDED)}
                 </div>
             `;
         }
@@ -120,17 +128,16 @@
                 rows.push(['Local Ref', data.osm_local_ref || 'N/A']);
             }
             routesSection = `<div class="route-section">${routeHtml(data.routes_osm, isOsm)}</div>`;
+            // Notes collapsible for OSM
+            const osmNotesBody = `<div class="popup-notes" data-type="osm" data-osm-node-id="${data.osm_node_id || ''}">Loading notes...</div>`;
+            notesSection = `
+                <div class="notes-section">
+                    ${PopupUtils.createCollapsible('Notes', osmNotesBody, COLLAPSIBLE_DEFAULT_EXPANDED)}
+                </div>
+            `;
         }
 
-        // Add note author if available
-        if (isAtlas && data.atlas_note) {
-            rows.push(['Note', data.atlas_note]);
-            rows.push(['Note Author', data.atlas_note_author_email ? data.atlas_note_author_email : '<em>Not a user</em>']);
-        }
-        if (isOsm && data.osm_note) {
-            rows.push(['Note', data.osm_note]);
-            rows.push(['Note Author', data.osm_note_author_email ? data.osm_note_author_email : '<em>Not a user</em>']);
-        }
+        // Notes are shown via collapsible section; skip legacy inline note rows
 
         const tableRowsHtml = rows.map(([k,v]) => `<tr><td>${k}:</td><td>${v}</td></tr>`).join('');
 
@@ -172,6 +179,7 @@
                 ${bubbleHeader}
                 <table class="popup-table">${tableRowsHtml}</table>
                 ${routesSection}
+                ${notesSection}
                 ${extraBtns}
                 ${osmEditorLinkHtml}
             </div>`;

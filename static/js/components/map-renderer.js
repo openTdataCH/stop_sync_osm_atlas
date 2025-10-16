@@ -18,6 +18,19 @@ function getCachedDivIcon(key, html, className, size, anchor) {
     return icon;
 }
 
+// Robust truthiness helper for duplicate flags coming from mixed backends
+// Treats null/undefined/empty/"false"/"0"/"none"/"null" as false; anything else as true
+function isDuplicateFlagSet(value) {
+    if (value === null || value === undefined) return false;
+    // Only treat non-empty, meaningful strings as true. Booleans/numbers are legacy noise.
+    if (typeof value === 'string') {
+        const str = value.trim().toLowerCase();
+        if (str === '' || str === 'false' || str === 'true' || str === '0' || str === '1' || str === 'none' || str === 'null') return false;
+        return true;
+    }
+    return false;
+}
+
 // Helper to build and cache a labeled circle SVG icon
 function getCachedLabeledCircleIcon(keyPrefix, color, letter, size, radius, weight, fillOpacity) {
     const key = `${keyPrefix}|${color}|${letter}|${size}`;
@@ -242,7 +255,7 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
             weight: weight
         });
     }
-    if (duplicateSloid && duplicateSloid !== '') { // Check if duplicateSloid has a value
+    if (isDuplicateFlagSet(duplicateSloid)) { // Show labeled icon only when truly flagged
         const icon = getCachedLabeledCircleIcon('atlas', color, 'D', size, radius, weight, fillOpacity);
         return L.marker([lat, lon], { icon: icon });
     } else {
@@ -385,6 +398,70 @@ function attachPopupLineHandlersToMap(mapInstance) {
             if (!(stopId && type)) return;
 
             const $btn = $root.find('button.manual-match-target');
+
+            // Load popup notes content when the collapsible is present
+            const $notes = $root.find('.popup-notes');
+            if ($notes.length) {
+                $notes.each(function(){
+                    const $el = $(this);
+                    const type = $el.data('type');
+                    const sloid = $el.data('sloid');
+                    const osmNodeId = $el.data('osm-node-id');
+                    const params = type === 'atlas' ? { sloid: sloid } : { osm_node_id: osmNodeId };
+                    $.getJSON('/api/notes', params, function(resp){
+                        const your = resp && resp.your ? resp.your : null;
+                        const others = resp && Array.isArray(resp.others) ? resp.others : [];
+                        const yourVal = (your && your.note) ? your.note : '';
+                        const isPersistent = !!(your && your.is_persistent);
+                        const idPrefix = type === 'atlas' ? 'popupAtlas' : 'popupOsm';
+                        const editorHtml = `
+                            <div class="popup-note-editor">
+                                <textarea class="form-control form-control-sm mb-1" id="${idPrefix}Note" placeholder="Add a note..."></textarea>
+                                <div class="d-flex align-items-center">
+                                    <button class="btn btn-sm btn-primary mr-2 save-popup-note" data-type="${type}">${'Save note'}</button>
+                                    <label class="form-check form-check-inline align-middle ml-1 mb-0 small">
+                                        <input class="form-check-input popup-note-persist" type="checkbox" ${isPersistent ? 'checked' : ''}> <span class="form-check-label"> Make persistent</span>
+                                    </label>
+                                </div>
+                                <div class="small text-muted mt-2">Other user notes</div>
+                                <div class="popup-others-notes"></div>
+                            </div>`;
+                        $el.html(editorHtml);
+                        $el.find(`#${idPrefix}Note`).val(yourVal);
+                        const othersHtml = others.length ? others.map(o => {
+                            const ts = o.updated_at ? new Date(o.updated_at).toLocaleString() : '';
+                            return `<div class="card card-body py-1 px-2 mb-1"><div class="small"><strong>${o.author_email || 'Unknown user'}</strong> · <span class="text-muted">${ts}</span></div><div>${SharedUtils.escapeHtml(o.note || '')}</div></div>`;
+                        }).join('') : '<div class="text-muted small"><em>No other persistent notes.</em></div>';
+                        $el.find('.popup-others-notes').html(othersHtml);
+                    });
+                });
+
+                // Delegate save handler inside popup
+                $root.off('click.savePopupNote').on('click.savePopupNote', '.save-popup-note', function(){
+                    const $editor = $(this).closest('.popup-note-editor');
+                    const isAtlas = $(this).data('type') === 'atlas';
+                    const note = $editor.find('textarea').val();
+                    const makePersistent = $editor.find('.popup-note-persist').is(':checked');
+                    const payload = { note: note, make_persistent: makePersistent };
+                    if (isAtlas) payload.sloid = $notes.data('sloid'); else payload.osm_node_id = $notes.data('osm-node-id');
+                    const url = isAtlas ? '/api/save_note/atlas' : '/api/save_note/osm';
+                    const btn = $(this);
+                    const original = btn.html();
+                    btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+                    $.ajax({ url: url, method: 'POST', contentType: 'application/json', data: JSON.stringify(payload) })
+                        .done(function(resp){
+                            if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
+                                window.ProblemsUI.showTemporaryMessage('Note saved' + (resp && resp.is_persistent ? ' (persistent)' : ''), 'success');
+                            }
+                        })
+                        .fail(function(xhr){
+                            if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
+                                window.ProblemsUI.showTemporaryMessage('Error saving note', 'error');
+                            }
+                        })
+                        .always(function(){ btn.prop('disabled', false).html(original); });
+                });
+            }
 
             // Ensure UI reflects current selection state
             if (typeof window.updateManualMatchButtonsUI === 'function') {
