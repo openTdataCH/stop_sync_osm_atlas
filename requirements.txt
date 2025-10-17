@@ -47,3 +47,7 @@ shapely==2.0.2
 
 # Progress bars (for data pipeline scripts)
 tqdm==4.66.1
+
+# Markdown rendering for in-app documentation
+mistune==3.0.2
+bleach==6.1.0

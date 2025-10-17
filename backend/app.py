@@ -13,6 +13,7 @@ from backend.blueprints.stats import stats_bp
 from backend.blueprints.problems import problems_bp
 from backend.blueprints.auth import auth_bp
 from backend.services.audit import record_auth_event
+from backend.blueprints.docs import docs_bp
 from backend.auth_models import User
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
@@ -68,6 +69,7 @@ app.register_blueprint(search_bp)
 app.register_blueprint(stats_bp)
 app.register_blueprint(problems_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(docs_bp)
 
 # Exempt legacy JSON APIs from CSRF for now (forms remain protected). Problems endpoints require CSRF.
 csrf.exempt(data_bp)
