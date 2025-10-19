@@ -45,9 +45,19 @@ def _read_markdown(filename: str) -> str:
 def _convert_markdown_to_html(markdown_text: str) -> str:
     # Rewrite repo-relative image/asset paths to the docs assets route
     # Example: !(...](documentation/images/foo.png) -> !(...](/docs/assets/images/foo.png)
-    if '](documentation/' in markdown_text:
+    if (
+        '](documentation/' in markdown_text
+        or '](images/' in markdown_text
+        or 'src="documentation/' in markdown_text
+        or 'src="images/' in markdown_text
+    ):
         prefix = url_for("docs.docs_asset", filename="")  # ends with '/docs/assets/'
+        # Markdown image/link paths
         markdown_text = markdown_text.replace('](documentation/', f']({prefix}')
+        markdown_text = markdown_text.replace('](images/', f']({prefix}images/')
+        # Raw HTML img tags inside markdown
+        markdown_text = markdown_text.replace('src="documentation/', f'src="{prefix}')
+        markdown_text = markdown_text.replace('src="images/', f'src="{prefix}images/')
 
     if mistune is None:
         return '<p>Markdown renderer not available. Please install dependencies.</p>'
