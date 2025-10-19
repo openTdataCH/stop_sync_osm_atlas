@@ -33,6 +33,29 @@ def _derive_title(filename: str) -> str:
     return os.path.splitext(filename)[0].replace('_', ' ').title()
 
 
+def _derive_level(filename: str) -> int:
+    """Return hierarchical level inferred from numeric prefix.
+
+    Examples:
+    - "1. Foo.md" -> 1
+    - "1.1 Bar.md" -> 2
+    - "1.2.3 Baz.md" -> 3
+    Non-numbered files -> 0
+    """
+    name = os.path.splitext(filename)[0]
+    first_token = name.split(' ')[0] if ' ' in name else name
+    trimmed = first_token.rstrip('.')
+    if not trimmed or not trimmed[0].isdigit():
+        return 0
+    # Ensure the token is composed of digits and dots
+    if not all(ch.isdigit() or ch == '.' for ch in trimmed):
+        return 0
+    segments = [seg for seg in trimmed.split('.') if seg]
+    if not segments or not all(seg.isdigit() for seg in segments):
+        return 0
+    return len(segments)
+
+
 def _read_markdown(filename: str) -> str:
     docs_dir = _get_docs_dir()
     safe_path = safe_join(docs_dir, filename)
@@ -101,7 +124,9 @@ def docs_page(page: str = ''):
     raw_markdown = _read_markdown(active_file)
     html_content = _convert_markdown_to_html(raw_markdown)
 
-    sidebar_items: List[Tuple[str, str]] = [(f, _derive_title(f)) for f in files]
+    sidebar_items: List[Tuple[str, str, int]] = [
+        (f, _derive_title(f), _derive_level(f)) for f in files
+    ]
     return render_template(
         'pages/docs.html',
         sidebar_items=sidebar_items,

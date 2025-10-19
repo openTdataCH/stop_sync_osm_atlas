@@ -7,6 +7,11 @@
     .docs-container { padding: 1rem; }
     .docs-sidebar { border-right: 1px solid #e9ecef; max-width: 280px; }
     .docs-sidebar .list-group-item.active { background-color: #f8f9fa; color: #212529; font-weight: 600; }
+    /* Bootstrap default left padding is ~1.25rem; make sublevels larger */
+    .docs-sidebar .list-group-item.level-2 { padding-left: 2rem; }
+    .docs-sidebar .list-group-item.level-3 { padding-left: 2.5rem; }
+    .docs-sidebar .list-group-item.level-4 { padding-left: 3rem; }
+    .docs-sidebar .list-group-item.level-5 { padding-left: 3.5rem; }
     .docs-content img { max-width: 100%; height: auto; }
     .docs-content pre { background: #f8f9fa; padding: .75rem; border-radius: .25rem; overflow: auto; }
     .docs-content table { width: 100%; }
@@ -15,11 +20,14 @@
 
 {% block content %}
 <div class="container-fluid docs-container">
+  <div class="mb-3">
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Map</a>
+  </div>
   <div class="row">
     <div class="col-md-3 docs-sidebar pr-0">
       <div class="list-group list-group-flush">
-        {% for file, title in sidebar_items %}
-          <a class="list-group-item list-group-item-action{% if file == active_file %} active{% endif %}" href="{{ url_for('docs.docs_page', page=file[:-3]) }}">{{ title }}</a>
+        {% for file, title, level in sidebar_items %}
+          <a class="list-group-item list-group-item-action level-{{ level }}{% if file == active_file %} active{% endif %}" href="{{ url_for('docs.docs_page', page=file[:-3]) }}">{{ title }}</a>
         {% endfor %}
       </div>
     </div>
@@ -31,12 +39,7 @@
       </div>
     </div>
   </div>
-  <div class="mt-3">
-    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Map</a>
-  </div>
-  <div class="mt-2">
-    <small class="text-muted">Images and assets served from <code>/docs/assets/</code>.</small>
-  </div>
+</div>
 {% endblock %}
 
 
