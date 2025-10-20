@@ -1,5 +1,5 @@
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Optional
 
 from flask import Blueprint, render_template, abort, send_from_directory, request, url_for
 from werkzeug.utils import safe_join
@@ -54,6 +54,62 @@ def _derive_level(filename: str) -> int:
     if not segments or not all(seg.isdigit() for seg in segments):
         return 0
     return len(segments)
+
+
+def _top_level_section_key(filename: str) -> Optional[str]:
+    """Return the top-level numeric section as a string (e.g. '0', '1'), or None."""
+    name = os.path.splitext(filename)[0]
+    first_token = name.split(' ')[0] if ' ' in name else name
+    trimmed = first_token.rstrip('.')
+    if not trimmed or not trimmed[0].isdigit():
+        return None
+    if not all(ch.isdigit() or ch == '.' for ch in trimmed):
+        return None
+    top = trimmed.split('.')[0]
+    if not top.isdigit():
+        return None
+    return top
+
+
+def _group_files_by_section(files: List[str]) -> List[Dict]:
+    """Group markdown files by their top-level numeric section.
+
+    Returns a list of sections sorted by numeric key. Each section is a dict:
+    { 'key': '1', 'number': 1, 'root_file': '1. Title.md', 'root_title': '1. Title',
+      'items': [ { 'file': '1.1 Foo.md', 'title': '1.1 Foo', 'level': 2 }, ... ] }
+    Root file is the level-1 file for that section if present; items include only
+    files with level > 1 belonging to the section.
+    """
+    sections_map: Dict[str, Dict] = {}
+    for f in files:
+        key = _top_level_section_key(f)
+        if key is None:
+            continue
+        level = _derive_level(f)
+        title = _derive_title(f)
+        if key not in sections_map:
+            sections_map[key] = {
+                'key': key,
+                'number': int(key),
+                'root_file': None,
+                'root_title': None,
+                'items': []
+            }
+        if level <= 1:
+            sections_map[key]['root_file'] = f
+            sections_map[key]['root_title'] = title
+        else:
+            sections_map[key]['items'].append({
+                'file': f,
+                'title': title,
+                'level': level,
+            })
+
+    for sec in sections_map.values():
+        sec['items'].sort(key=lambda it: it['file'].lower())
+
+    sections = sorted(sections_map.values(), key=lambda s: s['number'])
+    return sections
 
 
 def _read_markdown(filename: str) -> str:
@@ -124,14 +180,41 @@ def docs_page(page: str = ''):
     raw_markdown = _read_markdown(active_file)
     html_content = _convert_markdown_to_html(raw_markdown)
 
-    sidebar_items: List[Tuple[str, str, int]] = [
-        (f, _derive_title(f), _derive_level(f)) for f in files
-    ]
+    sections = _group_files_by_section(files)
+    # Build an ordered flat list for prev/next navigation
+    ordered_pages: List[Dict[str, str]] = []
+    for sec in sections:
+        if sec.get('root_file'):
+            ordered_pages.append({
+                'file': sec['root_file'],
+                'title': sec.get('root_title') or _derive_title(sec['root_file']),
+            })
+        for item in sec['items']:
+            ordered_pages.append({
+                'file': item['file'],
+                'title': item['title'],
+            })
+
+    prev_page: Optional[Dict[str, str]] = None
+    next_page: Optional[Dict[str, str]] = None
+    try:
+        idx = next(i for i, p in enumerate(ordered_pages) if p['file'] == active_file)
+        if idx > 0:
+            prev_page = ordered_pages[idx - 1]
+        if idx < len(ordered_pages) - 1:
+            next_page = ordered_pages[idx + 1]
+    except StopIteration:
+        prev_page = None
+        next_page = None
+    active_section = _top_level_section_key(active_file)
     return render_template(
         'pages/docs.html',
-        sidebar_items=sidebar_items,
+        sections=sections,
         active_file=active_file,
+        active_section=active_section,
         content_html=html_content,
+        prev_page=prev_page,
+        next_page=next_page,
     )
 
 

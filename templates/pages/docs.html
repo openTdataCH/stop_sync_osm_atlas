@@ -5,16 +5,35 @@
 {% block head_css %}
   <style>
     .docs-container { padding: 1rem; }
-    .docs-sidebar { border-right: 1px solid #e9ecef; max-width: 280px; }
-    .docs-sidebar .list-group-item.active { background-color: #f8f9fa; color: #212529; font-weight: 600; }
-    /* Bootstrap default left padding is ~1.25rem; make sublevels larger */
-    .docs-sidebar .list-group-item.level-2 { padding-left: 2rem; }
-    .docs-sidebar .list-group-item.level-3 { padding-left: 2.5rem; }
-    .docs-sidebar .list-group-item.level-4 { padding-left: 3rem; }
-    .docs-sidebar .list-group-item.level-5 { padding-left: 3.5rem; }
+    .docs-sidebar { border-right: 0; max-width: 320px; }
+    .docs-sidebar .docs-section-header { cursor: pointer; user-select: none; border-radius: .5rem; }
+    .docs-sidebar .docs-section-header.active { background-color: #f8f9fa; color: #212529; font-weight: 600; }
+    .docs-sidebar .docs-section-link { font-weight: 600; color: #212529; text-decoration: none; }
+    .docs-sidebar .docs-section-link:hover { text-decoration: underline; }
+    .docs-sidebar .docs-toggle { color: #6c757d; }
+    .docs-sidebar .docs-toggle:focus { box-shadow: none; }
+    .docs-sidebar .chevron { transition: transform .15s ease-in-out; }
+    .docs-sidebar .chevron.rotate { transform: rotate(90deg); }
+    /* Subitems */
+    .docs-sidebar .docs-subitems { margin-bottom: .5rem; }
+    .docs-sidebar .docs-subitems .list-group-item { padding: .5rem 1rem .5rem 1.75rem; }
+    .docs-sidebar .docs-subitems .list-group-item.active { background-color: #eef2ff; color: #1f2937; font-weight: 600; }
+    .docs-sidebar .docs-subitems .list-group .list-group-item:first-child { border-top-left-radius: .5rem; border-top-right-radius: .5rem; }
+    .docs-sidebar .docs-subitems .list-group .list-group-item:last-child { border-bottom-left-radius: .5rem; border-bottom-right-radius: .5rem; }
+    /* Optional increased indent by level */
+    .docs-sidebar .docs-subitems .level-3 { padding-left: 2.25rem; }
+    .docs-sidebar .docs-subitems .level-4 { padding-left: 2.75rem; }
+    .docs-sidebar .docs-subitems .level-5 { padding-left: 3.25rem; }
     .docs-content img { max-width: 100%; height: auto; }
     .docs-content pre { background: #f8f9fa; padding: .75rem; border-radius: .25rem; overflow: auto; }
     .docs-content table { width: 100%; }
+
+    /* Prev/Next buttons */
+    .docs-nav { gap: .75rem; }
+    .docs-nav-btn { border-radius: .5rem; border: 1px solid #dee2e6; background: #fff; padding: .75rem 1rem; }
+    .docs-nav-btn:hover { background: #f8f9fa; text-decoration: none; }
+    .docs-nav-btn .nav-label { font-weight: 700; font-size: 1rem; }
+    .docs-nav-btn .nav-title { font-size: .875rem; color: #6c757d; }
   </style>
 {% endblock %}
 
@@ -25,9 +44,43 @@
   </div>
   <div class="row">
     <div class="col-md-3 docs-sidebar pr-0">
-      <div class="list-group list-group-flush">
-        {% for file, title, level in sidebar_items %}
-          <a class="list-group-item list-group-item-action level-{{ level }}{% if file == active_file %} active{% endif %}" href="{{ url_for('docs.docs_page', page=file[:-3]) }}">{{ title }}</a>
+      <div class="list-group list-group-flush" id="docs-sections">
+        {% for sec in sections %}
+        <div class="docs-section" data-section="{{ sec.key }}">
+          <div class="list-group-item d-flex align-items-center justify-content-between docs-section-header shadow-sm mb-2{% if active_section == sec.key %} active{% endif %}"
+               {% if sec.root_file %} data-root-href="{{ url_for('docs.docs_page', page=sec.root_file[:-3]) }}"{% endif %}>
+            <div class="d-flex align-items-center">
+              {% if sec['items']|length > 0 %}
+                <button class="btn btn-sm btn-link p-0 mr-2 docs-toggle" type="button" data-section="{{ sec.key }}" aria-expanded="false" aria-controls="sec-{{ sec.key }}-items">
+                  <i class="fas fa-chevron-right chevron"></i>
+                </button>
+              {% else %}
+                <span class="mr-2" style="display:inline-block;width:1rem;"></span>
+              {% endif %}
+              {% if sec.root_title %}
+                {% if sec.root_file %}
+                  <a class="docs-section-link" href="{{ url_for('docs.docs_page', page=sec.root_file[:-3]) }}" data-section-link="{{ sec.key }}">{{ sec.root_title }}</a>
+                {% else %}
+                  <span class="docs-section-link" data-section-link="{{ sec.key }}">{{ sec.root_title }}</span>
+                {% endif %}
+              {% else %}
+                {% if sec.root_file %}
+                  <a class="docs-section-link" href="{{ url_for('docs.docs_page', page=sec.root_file[:-3]) }}" data-section-link="{{ sec.key }}">Section {{ sec.key }}</a>
+                {% else %}
+                  <span class="docs-section-link" data-section-link="{{ sec.key }}">Section {{ sec.key }}</span>
+                {% endif %}
+              {% endif %}
+            </div>
+            <span class="badge badge-light" title="Subsections">{{ sec['items']|length }}</span>
+          </div>
+          <div id="sec-{{ sec.key }}-items" class="docs-subitems collapse" data-subitems="{{ sec.key }}">
+            <div class="list-group list-group-flush">
+              {% for item in sec['items'] %}
+                <a class="list-group-item list-group-item-action level-{{ item.level }}{% if item.file == active_file %} active{% endif %}" href="{{ url_for('docs.docs_page', page=item.file[:-3]) }}">{{ item.title }}</a>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
         {% endfor %}
       </div>
     </div>
@@ -37,9 +90,134 @@
           {{ content_html | safe }}
         </div>
       </div>
+      <div class="d-flex justify-content-between align-items-stretch mt-3 docs-nav">
+        {% if prev_page %}
+        <a id="docs-prev" href="{{ url_for('docs.docs_page', page=prev_page['file'][:-3]) }}" class="docs-nav-btn d-flex align-items-center shadow-sm">
+          <i class="fas fa-arrow-left mr-2"></i>
+          <span class="text-left">
+            <div class="nav-label">Previous</div>
+            <div class="nav-title">{{ prev_page['title'] }}</div>
+          </span>
+        </a>
+        {% else %}
+        <span></span>
+        {% endif %}
+        {% if next_page %}
+        <a id="docs-next" href="{{ url_for('docs.docs_page', page=next_page['file'][:-3]) }}" class="docs-nav-btn d-flex align-items-center shadow-sm">
+          <span class="text-right mr-2">
+            <div class="nav-label">Next</div>
+            <div class="nav-title">{{ next_page['title'] }}</div>
+          </span>
+          <i class="fas fa-arrow-right"></i>
+        </a>
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
 {% endblock %}
 
 
+
+{% block scripts %}
+<script>
+  (function() {
+    var STORAGE_KEY = 'docsSidebarExpanded';
+    function getExpanded() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }
+    }
+    function setExpanded(arr) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); } catch(e) {}
+    }
+    function isExpanded(arr, key) { return arr.indexOf(key) !== -1; }
+    function addExpanded(arr, key) { if (!isExpanded(arr, key)) arr.push(key); }
+    function removeExpanded(arr, key) { var i = arr.indexOf(key); if (i !== -1) arr.splice(i, 1); }
+
+    function updateSectionVisual(sectionEl, expanded) {
+      var chevron = sectionEl.querySelector('.chevron');
+      var sub = sectionEl.querySelector('.docs-subitems');
+      if (expanded) {
+        if (chevron) chevron.classList.add('rotate');
+        if (sub) sub.classList.add('show');
+      } else {
+        if (chevron) chevron.classList.remove('rotate');
+        if (sub) sub.classList.remove('show');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var expanded = getExpanded();
+      var activeSection = '{{ active_section or '' }}';
+      if (activeSection) {
+        addExpanded(expanded, activeSection);
+        setExpanded(expanded);
+      }
+
+      document.querySelectorAll('.docs-section').forEach(function(sec) {
+        var key = sec.getAttribute('data-section');
+        updateSectionVisual(sec, isExpanded(expanded, key));
+      });
+
+      document.querySelectorAll('.docs-toggle').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var key = btn.getAttribute('data-section');
+          var sections = getExpanded();
+          if (isExpanded(sections, key)) {
+            removeExpanded(sections, key);
+          } else {
+            addExpanded(sections, key);
+          }
+          setExpanded(sections);
+          var secEl = btn.closest('.docs-section');
+          updateSectionVisual(secEl, isExpanded(sections, key));
+        });
+      });
+
+      // Make the entire header clickable to navigate to the root page
+      document.querySelectorAll('.docs-section-header').forEach(function(header){
+        header.addEventListener('click', function(e){
+          // Ignore if the toggle button itself was clicked
+          if (e.target.closest('.docs-toggle')) return;
+          var href = header.getAttribute('data-root-href');
+          if (href) { window.location.href = href; }
+        });
+      });
+
+      // Clicking the main number should also expand before navigating (if same page)
+      document.querySelectorAll('[data-section-link]').forEach(function(a) {
+        a.addEventListener('click', function() {
+          var key = a.getAttribute('data-section-link');
+          var sections = getExpanded();
+          addExpanded(sections, key);
+          setExpanded(sections);
+        });
+      });
+
+      // Smooth scroll hint on prev/next clicks
+      function smoothNavigate(id, direction) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('click', function(e) {
+          // Let the link navigate, but add a subtle scroll animation first
+          // Only if same origin navigation
+          try {
+            var url = new URL(el.href, window.location.href);
+            if (url.origin === window.location.origin) {
+              e.preventDefault();
+              var distance = Math.min(300, Math.max(150, window.innerHeight * 0.4));
+              var start = window.scrollY;
+              var target = direction === 'down' ? start + distance : Math.max(0, start - distance);
+              window.scrollTo({ top: target, behavior: 'smooth' });
+              setTimeout(function() { window.location.href = el.href; }, 180);
+            }
+          } catch(_) { /* ignore */ }
+        });
+      }
+      smoothNavigate('docs-prev', 'up');
+      smoothNavigate('docs-next', 'down');
+    });
+  })();
+</script>
+{% endblock %}
