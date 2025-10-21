@@ -91,8 +91,8 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 ![Schema pipeline](documentation/images/PipelineSchema.png)
 When the `app` container starts (and data import is not skipped), the entrypoint runs:
 
-- `get_atlas_data.py`: downloads ATLAS data and GTFS, builds optimized route/stop artifacts
-- `get_osm_data.py`: fetches OSM data via Overpass and processes it
+- `Download_and_process_data/get_atlas_data.py`: downloads ATLAS data and GTFS, builds optimized route/stop artifacts
+- `Download_and_process_data/get_osm_data.py`: fetches OSM data via Overpass and processes it
 
 Downloads are cached under `data/raw/` and processed artifacts under `data/processed/`  See [DATA_ORGANIZATION.md](documentation/DATA_ORGANIZATION.md) for details.
 

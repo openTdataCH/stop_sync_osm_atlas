@@ -65,17 +65,17 @@ if [ "$SKIP_DATA_IMPORT" != "true" ]; then
         
         # Download ATLAS data
         echo "Downloading ATLAS data..."
-        python get_atlas_data.py
+        python -m Download_and_process_data.get_atlas_data
         echo "Finished get_atlas_data.py"
 
         # Download OSM data via Overpass API
         echo "Downloading OSM data via Overpass API..."
-        python -c "from get_osm_data import query_overpass; query_overpass()"
+        python -c "from Download_and_process_data.get_osm_data import query_overpass; query_overpass()"
         echo "Finished OSM Overpass query"
 
         # Process OSM data
         echo "Processing OSM data..."
-        python get_osm_data.py
+        python -m Download_and_process_data.get_osm_data
         echo "Finished get_osm_data.py processing"
 
         # Run the complete matching pipeline and import to database

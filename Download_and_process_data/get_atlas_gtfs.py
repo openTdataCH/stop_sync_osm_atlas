@@ -6,7 +6,7 @@ import requests
 import pandas as pd
 from typing import Dict, Set, Tuple, Optional
 
-from geo_utils import filter_points_in_switzerland
+from .geo_utils import filter_points_in_switzerland
 
 
 def download_and_extract_gtfs(gtfs_url):

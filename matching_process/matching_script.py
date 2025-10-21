@@ -132,8 +132,8 @@ def final_pipeline(route_matching_strategy='unified'):
     4. Perform distance-based matching for any still unmatched entries
     5. Perform route-based matching for remaining unmatched entries based on the chosen strategy.
     
-    Note: This function assumes data files already exist. Use get_atlas_data.py and 
-    get_osm_data.py to download the required data files before running this pipeline.
+    Note: This function assumes data files already exist. Use Download_and_process_data/get_atlas_data.py and 
+    Download_and_process_data/get_osm_data.py to download the required data files before running this pipeline.
     """
     # --- Load Data ---
     # Prefer environment overrides, else use defaults
@@ -166,7 +166,7 @@ def final_pipeline(route_matching_strategy='unified'):
         # Optional auto-download fallback if the data preparation ran elsewhere
         if os.getenv('DOWNLOAD_IF_MISSING', '1').lower() in ('1', 'true', 'yes'):
             try:
-                from get_atlas_data import get_atlas_stops
+                from Download_and_process_data.get_atlas_data import get_atlas_stops
                 os.makedirs(os.path.dirname(atlas_csv_pref) or '.', exist_ok=True)
                 atlas_url = os.getenv('ATLAS_DOWNLOAD_URL', "https://data.opentransportdata.swiss/en/dataset/traffic-points-actual-date/permalink")
                 logger.info("ATLAS CSV missing. Attempting automatic download...")
@@ -178,11 +178,11 @@ def final_pipeline(route_matching_strategy='unified'):
             attempted = [atlas_csv_pref] + [p for p in alternates_atlas if p]
             raise FileNotFoundError(
                 f"Required ATLAS CSV not found. Tried: {attempted}. "
-                f"Set ATLAS_STOPS_CSV to an absolute path or run get_atlas_data.py first."
+                f"Set ATLAS_STOPS_CSV to an absolute path or run Download_and_process_data/get_atlas_data.py first."
             )
     atlas_df = pd.read_csv(atlas_csv_file, sep=";")
     # ATLAS data is expected to be pre-filtered to BOARDING_PLATFORM entries
-    # by the get_atlas_data.py script.
+    # by the Download_and_process_data/get_atlas_data.py script.
     if not osm_xml_file:
         wait_list = [osm_xml_pref] + [p for p in alternates_osm if p]
         logger.info("OSM XML not found immediately. Waiting briefly for file to appear...")
@@ -190,7 +190,7 @@ def final_pipeline(route_matching_strategy='unified'):
     if not osm_xml_file:
         if os.getenv('DOWNLOAD_IF_MISSING', '1').lower() in ('1', 'true', 'yes'):
             try:
-                from get_osm_data import query_overpass
+                from Download_and_process_data.get_osm_data import query_overpass
                 logger.info("OSM XML missing. Querying Overpass API automatically...")
                 xml_text = query_overpass()
                 if xml_text:
@@ -204,7 +204,7 @@ def final_pipeline(route_matching_strategy='unified'):
             attempted = [osm_xml_pref] + [p for p in alternates_osm if p]
             raise FileNotFoundError(
                 f"Required OSM XML not found. Tried: {attempted}. "
-                f"Set OSM_XML_FILE to an absolute path or run get_osm_data.py first."
+                f"Set OSM_XML_FILE to an absolute path or run Download_and_process_data/get_osm_data.py first."
             )
     all_osm_nodes, uic_ref_dict, name_index = parse_osm_xml(osm_xml_file)
 

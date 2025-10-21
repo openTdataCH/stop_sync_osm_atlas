@@ -9,14 +9,14 @@ import os
 import datetime
 from typing import Optional
 
-from geo_utils import filter_points_in_switzerland
-from get_atlas_gtfs import (
+from .geo_utils import filter_points_in_switzerland
+from .get_atlas_gtfs import (
     download_and_extract_gtfs,
     load_gtfs_data_streaming,
     build_integrated_gtfs_data_streaming,
     _normalize_route_id_for_matching,
 )
-from get_atlas_hrdf import (
+from .get_atlas_hrdf import (
     download_and_extract_hrdf,
     process_hrdf_direction_data,
 )
