@@ -26,7 +26,11 @@
     .docs-sidebar .docs-subitems .level-5 { padding-left: 3.25rem; }
     .docs-content img { max-width: 100%; height: auto; }
     .docs-content pre { background: #f8f9fa; padding: .75rem; border-radius: .25rem; overflow: auto; }
-    .docs-content table { width: 100%; }
+    .docs-content table { width: 100%; border-collapse: collapse; }
+    .docs-content th,
+    .docs-content td { border: 1px solid #dee2e6; padding: .5rem .75rem; }
+    .docs-content thead th { background-color: #f8f9fa; }
+    .docs-content tbody tr:nth-child(odd) { background-color: #fcfcfd; }
 
     /* Prev/Next buttons */
     .docs-nav { gap: .75rem; }
