@@ -5,23 +5,32 @@ set -e
 export PYTHONPATH=$PYTHONPATH:/app
 
 
-echo "Waiting for MySQL database at db:3306..."
-while ! mysqladmin ping -h"db" -P3306 --silent --user=${MYSQL_USER} --password=${MYSQL_PASSWORD}; do
-    sleep 1
-done
-echo "MySQL is up and ready."
+# Allow overriding DB host/port for hosted environments (e.g., Render)
+DB_HOST=${DB_HOST:-db}
+DB_PORT=${DB_PORT:-3306}
+WAIT_FOR_DB=${WAIT_FOR_DB:-true}
+
+if [ "$WAIT_FOR_DB" = "true" ]; then
+    echo "Waiting for MySQL database at ${DB_HOST}:${DB_PORT}..."
+    while ! mysqladmin ping -h"${DB_HOST}" -P"${DB_PORT}" --silent --user=${MYSQL_USER} --password=${MYSQL_PASSWORD}; do
+        sleep 1
+    done
+    echo "MySQL is up and ready."
+else
+    echo "WAIT_FOR_DB=false, skipping DB wait."
+fi
 
 # Ensure the authentication database exists even on existing volumes (dev convenience)
 if [ -n "$MYSQL_ROOT_PASSWORD" ]; then
     echo "Ensuring auth_db exists..."
-    mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE DATABASE IF NOT EXISTS auth_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
+    mysql -h "${DB_HOST}" -P"${DB_PORT}" -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE DATABASE IF NOT EXISTS auth_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
 
     # Optionally create a dedicated auth user with least-privilege grants if env vars are provided
     if [ -n "$AUTH_DB_USER" ] && [ -n "$AUTH_DB_PASSWORD" ]; then
         echo "Ensuring dedicated user '$AUTH_DB_USER' has privileges on auth_db..."
-        mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE USER IF NOT EXISTS '${AUTH_DB_USER}'@'%' IDENTIFIED BY '${AUTH_DB_PASSWORD}'; GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX ON auth_db.* TO '${AUTH_DB_USER}'@'%'; FLUSH PRIVILEGES;" || true
+        mysql -h "${DB_HOST}" -P"${DB_PORT}" -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE USER IF NOT EXISTS '${AUTH_DB_USER}'@'%' IDENTIFIED BY '${AUTH_DB_PASSWORD}'; GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX ON auth_db.* TO '${AUTH_DB_USER}'@'%'; FLUSH PRIVILEGES;" || true
         echo "Revoking 'stops_user' privileges on auth_db (keeping its stops_db access)..."
-        mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "REVOKE ALL PRIVILEGES ON auth_db.* FROM 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
+        mysql -h "${DB_HOST}" -P"${DB_PORT}" -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "REVOKE ALL PRIVILEGES ON auth_db.* FROM 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
     fi
 fi
 
