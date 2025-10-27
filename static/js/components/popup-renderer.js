@@ -5,6 +5,29 @@
 
     const COLLAPSIBLE_DEFAULT_EXPANDED = false;
 
+    // Map a match_type string to the corresponding docs URL
+    function getMatchDocUrl(matchType){
+        if(!matchType) return null;
+        const mt = String(matchType).toLowerCase();
+        // Exact
+        if(mt.startsWith('exact')){
+            return '/docs/2.1%20Exact%20matching.md';
+        }
+        // Name-based
+        if(mt.includes('name')){
+            return '/docs/2.2%20Name%20matching.md';
+        }
+        // Distance-based (handles distance_matching_1_*, 2, 3a, 3b, etc.)
+        if(mt.includes('distance')){
+            return '/docs/2.3%20Distance%20matching.md';
+        }
+        // Route-based (handles route_unified_* etc.)
+        if(mt.startsWith('route')){
+            return '/docs/2.4%20Route%20Matching.md';
+        }
+        return null;
+    }
+
     function renderBubble(data, opts){
         const { type, unmatched = false } = opts;
         if(!type) throw new Error('PopupRenderer.renderBubble – type is required');
@@ -44,7 +67,12 @@
                 if(data.distance_m){
                     rows.push(['Distance', `${parseFloat(data.distance_m).toFixed(1)} m`]);
                 }
-                rows.push(['Match Type', data.match_type || 'N/A']);
+                const mtText = data.match_type || 'N/A';
+                const docUrl = getMatchDocUrl(mtText);
+                const mtHtml = docUrl
+                    ? `${mtText} <a href="${docUrl}" class="matchtype-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs for this matching method"><i class="fas fa-info-circle"></i></a>`
+                    : mtText;
+                rows.push(['Match Type', mtHtml]);
             }
             const unifiedRoutesHtml = PopupUtils.formatUnifiedRouteList(data.routes_unified);
             routesSection = `
@@ -96,7 +124,12 @@
                 if (displayType) rows.push(['Type', displayType]);
                 if(data.osm_lat && data.osm_lon) rows.push(['Coordinates', `(${data.osm_lat}, ${data.osm_lon})`]);
                 if(data.distance_m)  rows.push(['Distance', `${parseFloat(data.distance_m).toFixed(1)} m`]);
-                rows.push(['Match Type', data.match_type || 'N/A']);
+                const mtText = data.match_type || 'N/A';
+                const docUrl = getMatchDocUrl(mtText);
+                const mtHtml = docUrl
+                    ? `${mtText} <a href="${docUrl}" class="matchtype-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs for this matching method"><i class="fas fa-info-circle"></i></a>`
+                    : mtText;
+                rows.push(['Match Type', mtHtml]);
             } else {
                 if(data.uic_ref) rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
                 if(data.osm_uic_ref) rows.push(['OSM UIC Ref', data.osm_uic_ref]);
