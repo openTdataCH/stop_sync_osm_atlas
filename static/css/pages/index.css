@@ -1,0 +1,20 @@
+/* Page-specific overrides for templates/pages/index.html (map page).
+   Most component styling lives under static/css/src/06-components/*.css
+   and is bundled via static/css/main.css. Keep this file small. */
+
+/* Prevent page scroll on index; internal panels manage their own scroll */
+body { overflow: hidden; }
+main { overflow: hidden; min-height: 0; }
+
+/* Scope padding to the index root container only */
+.index-root {
+  padding: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden; /* contain inner scroll areas */
+}
+
+/* Fallback minimum height so the map stays usable even if flex sizing fails */
+#map { min-height: 500px; }
+
+

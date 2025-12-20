@@ -8,147 +8,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <!-- Popup CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
-  <style>
-    /* Custom inline CSS for a compact filter panel */
-    #filterPanel .card { margin-bottom: 1rem; }
-    #activeFilters .badge { cursor: pointer; }
-    .compact-group { margin-bottom: 1rem; }
-    .compact-group label { font-weight: bold; }
-    /* Make the map container fill the window height */
-    html, body {
-        height: 100%;
-        margin: 0;
-        padding: 0;
-    }
-    /* Prevent page scroll on index; internal panels manage their own scroll */
-    body { overflow: hidden; }
-    main { overflow: hidden; min-height: 0; }
-    /* Scope padding to the index root container only */
-    .index-root {
-        padding: 10px;
-        flex: 1 1 auto;
-        min-height: 0;
-        overflow: hidden; /* contain inner scroll areas */
-    }
-    #map {
-        height: 100%;
-        min-height: 500px;  /* Fallback minimum height */
-    }
-
-    /* Make left panel card a flex column so footer stays fixed and body scrolls */
-    #filterPanelContainer > .card.flex-grow-1 {
-        display: flex;
-        flex-direction: column;
-        min-height: 0; /* allow children to shrink for scroll */
-    }
-    #filterPanelBody {
-        flex: 1 1 auto;
-        min-height: 0;
-        overflow-y: auto; /* only this section scrolls */
-    }
-    #fixedFilterControls {
-        flex: 0 0 auto; /* fixed at the bottom of the card */
-        background: #fff;
-        border-top: 1px solid #dee2e6;
-    }
-
-    /* Header icon styling */
-    .header-icon {
-        height: 88px; /* Increased by 10% */
-        width: auto;
-        vertical-align: middle;
-        position: relative;
-        z-index: 1;
-    }
-
-    .header-title {
-        position: relative;
-        z-index: 2;
-        background: white; /* Ensure text is readable */
-        padding: 0 5px; /* Reduced padding */
-    }
-
-    .header-container {
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        margin: 0 -60px; /* Increased negative margin to bring images closer */
-    }
-
-    /* Accordion Styling */
-    .accordion .card-header {
-      cursor: pointer;
-      background-color: #f8f9fa;
-      border-bottom: 1px solid #dee2e6;
-      padding: 0.75rem 1.25rem;
-    }
-    .accordion .card-header:hover {
-      background-color: #e9ecef;
-    }
-    .accordion .card-header h5 {
-      margin-bottom: 0;
-      font-size: 1rem;
-      font-weight: 500;
-    }
-    .accordion .card-header .btn-link {
-      color: #343a40;
-      text-decoration: none;
-      width: 100%;
-      text-align: left;
-    }
-    .accordion .card-header .btn-link:focus {
-      text-decoration: none;
-      box-shadow: none;
-    }
-    .accordion .card-body {
-      padding: 1rem;
-      border-top: 1px solid #dee2e6;
-    }
-    .accordion .card {
-        margin-bottom: 5px; /* Space between accordion items */
-        border-radius: .35rem; /* Slightly rounded corners for accordion items */
-    }
-    .accordion > .card:first-of-type {
-        border-bottom: 0;
-        border-bottom-right-radius: 0;
-        border-bottom-left-radius: 0;
-    }
-    .accordion > .card:not(:first-of-type):not(:last-of-type) {
-        border-bottom: 0;
-        border-radius: 0;
-    }
-    .accordion > .card:last-of-type {
-        border-top-left-radius: 0;
-        border-top-right-radius: 0;
-    }
-
-    /* Custom styles for nested accordions and master checkboxes */
-    .nested-accordion-header {
-        display: flex;
-        align-items: center;
-        padding: 0.5rem 0.75rem;
-        background-color: #f0f0f0; /* Slightly different for distinction */
-        border-bottom: 1px solid #e0e0e0;
-    }
-    .nested-accordion-header input[type="checkbox"] {
-        margin-right: 0.5rem;
-    }
-    .nested-accordion-header .accordion-toggle-icon {
-        margin-left: auto;
-        transition: transform 0.2s ease-in-out;
-    }
-    .nested-accordion-header .accordion-toggle-icon.collapsed {
-        transform: rotate(-90deg);
-    }
-    .nested-accordion-content {
-        padding-left: 1.5rem; /* Indent content */
-        border-left: 2px solid #eee;
-        margin-left: 0.5rem; /* Align with checkbox */
-    }
-
-    /* Unified Popup Styles moved to popup.html */
-  </style>
+  <!-- Index page styles (moved out of template for maintainability) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/index.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -505,7 +366,6 @@
 <script src="{{ url_for('static', filename='js/components/move_popup.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-renderer.js') }}"></script>
 <!-- Legacy manual-matching.js removed in favor of problems-page manual matching -->
-<script src="{{ url_for('static', filename='js/pages/report.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/filters.js') }}"></script>

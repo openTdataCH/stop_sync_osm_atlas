@@ -808,7 +808,18 @@ $(document).ready(function(){
         }
     });
 
-    initReportGeneration();
+    // Report functionality is only needed on /reports, but index has a "Reports" button.
+    // Guard against missing report.js on pages that don't load it.
+    if (window.initReportGeneration) {
+        window.initReportGeneration();
+    } else {
+        var $reportBtn = $('#generateReportBtn');
+        if ($reportBtn.length) {
+            $reportBtn.on('click', function() {
+                window.location.href = '/reports';
+            });
+        }
+    }
 
     $('#focusRandomVisibleEntryBtn').on('click', focusOnRandomFilteredStop);
 
