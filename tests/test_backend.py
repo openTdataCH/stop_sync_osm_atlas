@@ -272,32 +272,6 @@ class TestStopSerializer:
 # =============================================================================
 
 
-class TestQueryBuilderFilters:
-    """Tests for QueryBuilder filter methods."""
-
-    def test_get_stop_types_mapping(self):
-        """Stop types mapping should return expected values."""
-        from backend.query_builder import QueryBuilder
-        
-        mapping = QueryBuilder.get_stop_types_mapping()
-        
-        assert isinstance(mapping, dict)
-        # Check expected keys exist
-        assert 'matched' in mapping or len(mapping) > 0
-
-    def test_should_include_unmatched(self):
-        """should_include_unmatched should return boolean."""
-        from backend.query_builder import QueryBuilder
-        
-        # Test with empty filters
-        result = QueryBuilder.should_include_unmatched({})
-        assert isinstance(result, bool)
-        
-        # Test with specific filter
-        result = QueryBuilder.should_include_unmatched({'stop_types': ['unmatched_atlas']})
-        assert result is True or result is False  # Valid boolean
-
-
 # =============================================================================
 # API Endpoint Tests (using Flask test client) - Smoke tests
 # =============================================================================

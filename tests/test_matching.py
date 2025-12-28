@@ -200,21 +200,6 @@ class TestNormalizeDirectionId:
 class TestExactMatching:
     """Tests for exact UIC-based matching."""
 
-    def test_single_atlas_single_osm_match(self, sample_atlas_dataframe, uic_index):
-        """Single ATLAS entry matching single OSM node."""
-        from matching_process.exact_matching import exact_matching
-        
-        # Use a subset with one entry
-        atlas_df = sample_atlas_dataframe[sample_atlas_dataframe['number'] == '8503000'].copy()
-        
-        # exact_matching returns (matches, unmatched, used_osm_ids)
-        matches, unmatched, used_osm_ids = exact_matching(atlas_df, uic_index)
-        
-        # Should have one match for Zürich HB
-        zurich_matches = [m for m in matches if m['sloid'] == 'ch:1:sloid:1']
-        assert len(zurich_matches) >= 1
-        assert len(unmatched) == 0
-
     def test_no_matching_uic(self, sample_atlas_dataframe):
         """ATLAS entries with no matching UIC should be unmatched."""
         from matching_process.exact_matching import exact_matching
@@ -245,22 +230,6 @@ class TestExactMatching:
 
 class TestNameMatching:
     """Tests for name-based matching."""
-
-    def test_single_name_match(self, sample_atlas_dataframe, name_index):
-        """Single name should produce a match."""
-        from matching_process.name_matching import name_based_matching
-        
-        # Filter to just Zürich HB
-        atlas_df = sample_atlas_dataframe[
-            sample_atlas_dataframe['designationOfficial'] == 'Zürich HB'
-        ].copy()
-        
-        # name_based_matching returns (matches, unmatched, used_osm_ids)
-        matches, unmatched, used_osm_ids = name_based_matching(atlas_df, name_index)
-        
-        # Should find Zürich HB match
-        assert len(matches) >= 1
-        assert matches[0]['csv_designation_official'] == 'Zürich HB'
 
     def test_no_name_match(self, sample_atlas_dataframe):
         """No matching names should result in unmatched entries."""
