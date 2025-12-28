@@ -275,7 +275,7 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
     const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
     const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
     const size = radius * 2;
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 18;
+    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
     if (useCanvasOnly) {
         return L.circleMarker([lat, lon], { 
             color: color, 
@@ -310,7 +310,7 @@ function createOsmMarker(lat, lon, color, osmNodeType = null) {
     const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
     const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
     const size = radius * 2;
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 18;
+    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
     if (useCanvasOnly) {
         return L.circleMarker([lat, lon], { 
             color: color, 

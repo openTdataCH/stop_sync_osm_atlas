@@ -1,0 +1,105 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  javascript-tests:
+    name: JavaScript Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Jest tests
+        run: npm test -- --coverage --ci
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: js-coverage-report
+          path: coverage/
+          retention-days: 7
+
+  python-lint:
+    name: Python Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install linting tools
+        run: |
+          pip install flake8 black isort
+
+      - name: Run flake8
+        run: |
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+
+      - name: Check formatting with black
+        continue-on-error: true
+        run: black --check --diff .
+
+      - name: Check import sorting with isort
+        continue-on-error: true
+        run: isort --check-only --diff .
+
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run Python tests
+        run: |
+          pytest tests/ --cov=matching_process --cov=backend --cov-report=xml --cov-report=html -v
+        env:
+          FLASK_ENV: testing
+          TESTING: 'true'
+          DATABASE_URI: 'sqlite:///:memory:'
+          AUTH_DATABASE_URI: 'sqlite:///:memory:'
+          SECRET_KEY: 'test-secret-key'
+
+      - name: Upload Python coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: python-coverage-report
+          path: htmlcov/
+          retention-days: 7
+          if-no-files-found: ignore

@@ -167,6 +167,54 @@
   color: var(--color-white);
 }
 
+.btn-outline-success {
+  background-color: transparent;
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.btn-outline-success:hover {
+  background-color: var(--color-success);
+  border-color: var(--color-success);
+  color: var(--color-white);
+}
+
+.btn-outline-danger {
+  background-color: transparent;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.btn-outline-danger:hover {
+  background-color: var(--color-danger);
+  border-color: var(--color-danger);
+  color: var(--color-white);
+}
+
+.btn-outline-warning {
+  background-color: transparent;
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.btn-outline-warning:hover {
+  background-color: var(--color-warning);
+  border-color: var(--color-warning);
+  color: var(--color-dark);
+}
+
+.btn-outline-info {
+  background-color: transparent;
+  border-color: var(--color-info);
+  color: var(--color-info);
+}
+
+.btn-outline-info:hover {
+  background-color: var(--color-info);
+  border-color: var(--color-info);
+  color: var(--color-white);
+}
+
 /* -------------------------------------------------------------------------
    Button Groups
    ------------------------------------------------------------------------- */

@@ -20,6 +20,7 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 - [Generating Reports](#generating-reports)
 - [Project Report](#project-report)
 - [Project Status](#project-status)
+- [CI & Tests](#ci--tests)
 - [Contributing](#contributing)
 
 ---
@@ -187,6 +188,28 @@ The project uses Alembic (via Flask‑Migrate) to manage schema. On startup, the
   - Make solutions/notes persistent in bulk
 
 See the full policy: [Permissions and Roles](documentation/PERMISSIONS.md).
+
+
+## CI & Tests
+
+This repository uses **GitHub Actions** for continuous integration.
+
+- Workflow: [tests.yml](.github/workflows/tests.yml)
+- CI documentation: [CI and Tests](documentation/7.%20GITHUB_ACTIONS_AND_TESTS.md)
+  - [JavaScript tests (Jest)](documentation/7.1%20JavaScript%20tests.md)
+  - [Python lint and tests](documentation/7.2%20Python%20lint%20and%20tests.md)
+
+Quick local commands:
+
+```bash
+# JavaScript unit tests
+npm ci
+npm test
+
+# Python linting
+python -m pip install flake8 black isort
+flake8 .
+```
 
 
 ## Contributing and project Status

@@ -641,13 +641,8 @@ function loadDataForViewport() {
          // Reset global store for data lookup
          stopsById = {}; 
          
-         // Only clear non-manual match lines
-         linesLayer.eachLayer(function(layer) {
-             if (!layer.options || !layer.options.isManualMatch) {
-                 linesLayer.removeLayer(layer);
-             }
-         });
-         // viewportDataCache.renderedStopIds = new Set(); // Unused
+         // Clear existing connection lines (preserves manual match overlay lines)
+         LineRenderer.clearLines(linesLayer);
 
          // --- Client-side Filtering for Show Duplicates Only --- 
          let data = rawStops;
@@ -756,8 +751,6 @@ function loadDataForViewport() {
          data.forEach(function(stop) {
             if (stop.stop_type === 'matched') {
                 if (stop.sloid && Array.isArray(stop.osm_matches)) {
-                    let atlasMarkerData = null;
-
                     if (showAtlasNodes && stop.atlas_lat != null && stop.atlas_lon != null) {
                         // Use the new helper function to create the ATLAS marker
                         var isStation = stop.osm_matches && stop.osm_matches.length > 0 && stop.osm_matches.some(om => om.osm_public_transport === 'station' && om.osm_aerialway !== 'station');
@@ -765,7 +758,7 @@ function loadDataForViewport() {
                         
                         const atlasLat = +stop.atlas_lat;
                         const atlasLon = +stop.atlas_lon;
-                        atlasMarkerData = {
+                        allMarkerData.push({
                             lat: atlasLat,
                             lon: atlasLon,
                             type: 'atlas',
@@ -774,8 +767,7 @@ function loadDataForViewport() {
                             originalLat: atlasLat,
                             originalLon: atlasLon,
                             stopData: stop
-                        };
-                        allMarkerData.push(atlasMarkerData);
+                        });
                     }
 
                     if (showOSMNodes) {
@@ -805,8 +797,7 @@ function loadDataForViewport() {
                                     osmNodeType: osm_match.osm_node_type,
                                     originalLat: osmLat,
                                     originalLon: osmLon,
-                                    stopData: stopDataForOsmPopup,
-                                    atlasMarkerData: atlasMarkerData
+                                    stopData: stopDataForOsmPopup
                                 });
                                 
                                 createdOsmMarkers.add(osmNodeIdKey);
@@ -815,12 +806,11 @@ function loadDataForViewport() {
                     }
                 } else if (stop.sloid && stop.osm_node_id && (!Array.isArray(stop.osm_matches) || stop.osm_matches.length <= 1)) {
                      const osmNodeIdKey = `osm-${stop.osm_node_id}`;
-                     let atlasMarkerData = null;
 
                      if (showAtlasNodes && stop.atlas_lat != null && stop.atlas_lon != null) {
                          const atlasLat = +stop.atlas_lat;
                          const atlasLon = +stop.atlas_lon;
-                         atlasMarkerData = {
+                         allMarkerData.push({
                              lat: atlasLat,
                              lon: atlasLon,
                              type: 'atlas',
@@ -829,8 +819,7 @@ function loadDataForViewport() {
                              originalLat: atlasLat,
                              originalLon: atlasLon,
                              stopData: stop
-                         };
-                         allMarkerData.push(atlasMarkerData);
+                         });
                      }
                      
                      if (showOSMNodes && stop.osm_lat != null && stop.osm_lon != null && !createdOsmMarkers.has(osmNodeIdKey)) {
@@ -844,8 +833,7 @@ function loadDataForViewport() {
                              osmNodeType: stop.osm_node_type,
                              originalLat: osmLat,
                              originalLon: osmLon,
-                             stopData: stop,
-                             atlasMarkerData: atlasMarkerData
+                             stopData: stop
                          });
                          createdOsmMarkers.add(osmNodeIdKey);
                      }
@@ -924,8 +912,8 @@ function loadDataForViewport() {
          var currentZoom = map.getZoom();
          var lastZoom = viewportDataCache.lastRenderZoom;
          var crossedThreshold = (lastZoom !== null) && (
-             (lastZoom < 18 && currentZoom >= 18) || 
-             (lastZoom >= 18 && currentZoom < 18)
+             (lastZoom < 23 && currentZoom >= 23) || 
+             (lastZoom >= 23 && currentZoom < 23)
          );
          viewportDataCache.lastRenderZoom = currentZoom;
 
@@ -1027,23 +1015,18 @@ function loadDataForViewport() {
              }
          });
 
-         // 4. Add connection lines after markers are created (only at high zoom)
-         if (map.getZoom() >= ZOOM_LINE_THRESHOLD) {
-             allMarkerData.forEach(function(markerData) {
-                 if (markerData.atlasMarkerData && markerData.type === 'osm') {
-                     const isManual = (markerData.stopData && markerData.stopData.match_type === 'manual') || (markerData.atlasMarkerData && markerData.atlasMarkerData.stopData && markerData.atlasMarkerData.stopData.match_type === 'manual');
-                     const isPersistent = (markerData.stopData && markerData.stopData.manual_is_persistent === true) || (markerData.atlasMarkerData && markerData.atlasMarkerData.stopData && markerData.atlasMarkerData.stopData.manual_is_persistent === true);
-                     const style = isManual ? { color: 'purple', dashArray: isPersistent ? null : '5,5', weight: 2 } : { color: 'green' };
-                     var line = L.polyline([
-                         [markerData.atlasMarkerData.originalLat, markerData.atlasMarkerData.originalLon],
-                         [markerData.originalLat, markerData.originalLon]
-                     ], style);
-                     linesLayer.addLayer(line);
-                 }
-             });
-         }
+         // 4. Draw connection lines between matched ATLAS-OSM pairs
+         // Uses LineRenderer for consistent handling of all match types (1:1, 1:N, N:1)
+         LineRenderer.drawAll(data, linesLayer, {
+             showAtlas: showAtlasNodes,
+             showOsm: showOSMNodes,
+             minZoom: ZOOM_LINE_THRESHOLD,
+             currentZoom: map.getZoom(),
+             isContext: false
+         });
 
-         // 5. Handle OSM nodes with multiple ATLAS matches
+         // 5. Handle OSM nodes with multiple ATLAS matches (marker creation only)
+         // Note: Line drawing is handled by LineRenderer.drawAll() above
          if (showOSMNodes && map.getZoom() >= ZOOM_LINE_THRESHOLD) {
              Object.keys(osmNodeToAtlasMatches).forEach(function(osmNodeId) {
                  const multiMatchData = osmNodeToAtlasMatches[osmNodeId];
@@ -1074,10 +1057,10 @@ function loadDataForViewport() {
                              osm_railway: osmBaseData.osm_railway,
                              osm_lat: osmBaseData.osm_lat,
                              osm_lon: osmBaseData.osm_lon,
-                             osm_node_type: osmBaseData.osm_node_type, // Include the node type
+                             osm_node_type: osmBaseData.osm_node_type,
                              uic_ref: osmBaseData.uic_ref, 
                              routes_osm: osmBaseData.routes_osm,
-                             atlas_matches: multiMatchData.atlas_matches, // Includes isOperatorMismatch flag per match
+                             atlas_matches: multiMatchData.atlas_matches,
                          };
 
                          // Add the multi-match OSM marker data for cluster handling
@@ -1095,19 +1078,7 @@ function loadDataForViewport() {
                          
                          // Use cluster handling for this marker too
                          createMarkersWithOverlapHandling([additionalOsmMarkerData], markersLayer);
-                          createdOsmMarkers.add(osmNodeIdKey); 
-                     }
-
-                     if (showAtlasNodes) {
-                         multiMatchData.atlas_matches.forEach(function(atlasMatch) {
-                             if (atlasMatch.atlas_lat != null && atlasMatch.atlas_lon != null && multiMatchData.osm_data && multiMatchData.osm_data.osm_lat != null && multiMatchData.osm_data.osm_lon != null) {
-                                 var line = L.polyline([
-                                     [parseFloat(atlasMatch.atlas_lat), parseFloat(atlasMatch.atlas_lon)],
-                                     [parseFloat(multiMatchData.osm_data.osm_lat), parseFloat(multiMatchData.osm_data.osm_lon)]
-                                 ], { color: "purple" }); 
-                                 linesLayer.addLayer(line);
-                             }
-                         });
+                         createdOsmMarkers.add(osmNodeIdKey); 
                      }
                  }
              });

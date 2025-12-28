@@ -300,19 +300,16 @@ window.ProblemsMap = (function() {
                         stopData: osmData,
                         opacity: 0.6
                     });
-                    
-                    // Add connection lines for matched pairs (only at high zoom)
-                    if (problemMap.getZoom() >= PROBLEM_LINE_ZOOM_THRESHOLD && stop.stop_type === 'matched' && stop.atlas_lat && osmData.osm_lat) {
-                        const isManual = (stop.match_type === 'manual');
-                        const isPersistent = !!stop.manual_is_persistent;
-                        const style = isManual ? { color: 'purple', opacity: 0.6, weight: 2, dashArray: isPersistent ? null : '5,5' } : { color: 'green', opacity: 0.4, weight: 2 };
-                        const line = L.polyline([
-                            [parseFloat(stop.atlas_lat), parseFloat(stop.atlas_lon)],
-                            [parseFloat(osmData.osm_lat), parseFloat(osmData.osm_lon)]
-                        ], style);
-                        contextMarkersLayer.addLayer(line);
-                    }
                 });
+            });
+            
+            // Draw connection lines for matched pairs using LineRenderer (centralized, deduped)
+            LineRenderer.drawAll(filteredData, contextMarkersLayer, {
+                showAtlas: true,
+                showOsm: true,
+                minZoom: PROBLEM_LINE_ZOOM_THRESHOLD,
+                currentZoom: problemMap.getZoom(),
+                isContext: true
             });
             
             // Create markers with overlap handling (batch add to keep UI responsive)
