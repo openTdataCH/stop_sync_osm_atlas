@@ -71,10 +71,17 @@ if [ "${AUTO_MIGRATE:-false}" = "true" ]; then
     if [ ! -d "migrations" ]; then
         flask db init || true
     fi
-    # Autogenerate migration scripts from models (safe in dev)
-    flask db migrate -m "Auto migration" || true
+    # Ensure DB is at current head before trying to autogenerate migrations.
+    # If upgrade fails (transient DB/network), skip migrate to avoid confusing
+    # "Target database is not up to date" errors.
+    if flask db upgrade; then
+        # Autogenerate migration scripts from models (safe in dev)
+        flask db migrate -m "Auto migration" || true
+    else
+        echo "WARN: flask db upgrade failed; skipping flask db migrate"
+    fi
 fi
-flask db upgrade || true
+flask db upgrade
 
 # Create auth tables (quick fix for multi-database bind issue)
 echo "Creating auth tables..."

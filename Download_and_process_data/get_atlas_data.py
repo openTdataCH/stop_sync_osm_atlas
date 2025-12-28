@@ -77,6 +77,7 @@ def write_unified_routes_csv_direct(
     gtfs_data,
     hrdf_data: Optional[pd.DataFrame],
     traffic_points: pd.DataFrame,
+    integrated_gtfs_data: Optional[pd.DataFrame] = None,
     unified_out_path: str = "data/processed/atlas_routes_unified.csv"
 ):
     """Create unified routes CSV directly from source data without intermediate files."""
@@ -84,7 +85,11 @@ def write_unified_routes_csv_direct(
     unified_rows = []
 
     # Process GTFS data
-    if gtfs_data and 'stop_route_unique' in gtfs_data and 'routes' in gtfs_data and 'route_directions' in gtfs_data:
+    if integrated_gtfs_data is not None:
+        print("Processing GTFS data for unified routes (reusing precomputed integration)...")
+        integrated_data = integrated_gtfs_data
+
+    elif gtfs_data and 'stop_route_unique' in gtfs_data and 'routes' in gtfs_data and 'route_directions' in gtfs_data:
         print("Processing GTFS data for unified routes...")
         
         # Build integrated GTFS data (per-stop, per-route with a representative direction)
@@ -163,6 +168,7 @@ if __name__ == "__main__":
     gtfs_url = "https://data.opentransportdata.swiss/de/dataset/timetable-2025-gtfs2020/permalink"
 
     gtfs_stream = None
+    integrated_data = None
     try:
         gtfs_folder = download_and_extract_gtfs(gtfs_url)
 
@@ -221,6 +227,7 @@ if __name__ == "__main__":
             gtfs_data=gtfs_stream,
             hrdf_data=hrdf_results,
             traffic_points=stops_data,
+            integrated_gtfs_data=integrated_data,
             unified_out_path="data/processed/atlas_routes_unified.csv"
         )
     except Exception as e:

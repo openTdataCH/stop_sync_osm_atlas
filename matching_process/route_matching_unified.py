@@ -63,7 +63,8 @@ def _get_osm_directions_from_xml(xml_file):
 
 
 def _load_unified_routes(unified_csv_path: str = 'data/processed/atlas_routes_unified.csv'):
-    df = pd.read_csv(unified_csv_path)
+    # Use dtype=str + low_memory=False to avoid mixed-type inference warnings and keep parsing stable.
+    df = pd.read_csv(unified_csv_path, dtype=str, low_memory=False)
     # Build per-sloid indexes
     by_sloid = defaultdict(lambda: {
         'gtfs': [],
@@ -116,7 +117,7 @@ def _load_osm_routes(osm_routes_csv: str = 'data/processed/osm_nodes_with_routes
         except Exception:
             route_name_to_id = {}
     try:
-        df = pd.read_csv(osm_routes_csv)
+        df = pd.read_csv(osm_routes_csv, dtype=str, low_memory=False)
     except Exception:
         return mapping
     # Build tokens per node

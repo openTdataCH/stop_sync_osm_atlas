@@ -1,7 +1,7 @@
 services:
   db:
     image: postgis/postgis:16-3.4
-    container_name: bachelor_project_db
+    container_name: stop_sync_osm_atlas_db
     restart: unless-stopped
     environment:
       POSTGRES_DB: stops_db
@@ -25,7 +25,7 @@ services:
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
-    container_name: bachelor_project_app
+    container_name: stop_sync_osm_atlas_app
     restart: unless-stopped
     ports:
       - "5001:5001"
@@ -77,7 +77,7 @@ services:
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
-    container_name: bachelor_project_app_dev
+    container_name: stop_sync_osm_atlas_app_dev
     restart: unless-stopped
     ports:
       - "5001:5001"

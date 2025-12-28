@@ -189,11 +189,6 @@ The project uses Alembic (via Flask‑Migrate) to manage schema. On startup, the
 See the full policy: [Permissions and Roles](documentation/PERMISSIONS.md).
 
 
-## Bachelor Project Report
-
-Check the bachelor project report at: [ISC_SEC_memoire_diplome_GuillemMASSAGUE-OrestisMALASPINAS-2025.pdf](ISC_SEC_memoire_diplome_GuillemMASSAGUE-OrestisMALASPINAS-2025.pdf)
-
-
 ## Contributing and project Status
 
 This project is a **work in progress**. Feedback and improvements are welcome!
