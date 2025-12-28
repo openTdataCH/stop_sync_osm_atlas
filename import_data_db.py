@@ -561,83 +561,83 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 # conservative: mark as persistent if we have a persistent entry
                 stop_record.manual_is_persistent = True
         
-        # Create problems with additional metadata for better sorting
-        if problems.get('distance_problem'):
-            # For distance problems, store the distance for efficient sorting
-            distance_priority = compute_distance_priority(rec)
-            distance_problem = Problem(
-                problem_type='distance',
-                solution=None,  # Will be set by persistent solutions if available
-                is_persistent=False,
-                priority=distance_priority
-            )
-            stop_record.problems.append(distance_problem)
+            # Create problems with additional metadata for better sorting
+            if problems.get('distance_problem'):
+                # For distance problems, store the distance for efficient sorting
+                distance_priority = compute_distance_priority(rec)
+                distance_problem = Problem(
+                    problem_type='distance',
+                    solution=None,  # Will be set by persistent solutions if available
+                    is_persistent=False,
+                    priority=distance_priority
+                )
+                stop_record.problems.append(distance_problem)
             
-        if problems.get('attributes_problem'):
-            attributes_priority = compute_attributes_priority(rec)
-            attributes_problem = Problem(
-                problem_type='attributes',
-                solution=None,
-                is_persistent=False,
-                priority=attributes_priority
-            )
-            stop_record.problems.append(attributes_problem)
+            if problems.get('attributes_problem'):
+                attributes_priority = compute_attributes_priority(rec)
+                attributes_problem = Problem(
+                    problem_type='attributes',
+                    solution=None,
+                    is_persistent=False,
+                    priority=attributes_priority
+                )
+                stop_record.problems.append(attributes_problem)
 
-        # Duplicates: prefer OSM-side duplicates (priority 3), else ATLAS-side duplicates (priority 2)
-        if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
-            # Do NOT set atlas_duplicate_sloid here; OSM-side duplicates should not flag ATLAS as duplicate
-        elif sloid and str(sloid) in duplicate_sloid_map:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
-            # Store a pointer sloid from the duplicate group for map/UI highlighting
-            try:
-                stop_record.atlas_duplicate_sloid = str(duplicate_sloid_map.get(str(sloid)))
-            except Exception:
-                stop_record.atlas_duplicate_sloid = 'dup'
+            # Duplicates: prefer OSM-side duplicates (priority 3), else ATLAS-side duplicates (priority 2)
+            if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
+                stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
+                # Do NOT set atlas_duplicate_sloid here; OSM-side duplicates should not flag ATLAS as duplicate
+            elif sloid and str(sloid) in duplicate_sloid_map:
+                stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
+                # Store a pointer sloid from the duplicate group for map/UI highlighting
+                try:
+                    stop_record.atlas_duplicate_sloid = str(duplicate_sloid_map.get(str(sloid)))
+                except Exception:
+                    stop_record.atlas_duplicate_sloid = 'dup'
 
-        session.add(stop_record)
+            session.add(stop_record)
 
-        if sloid and sloid not in processed_sloids:
-            designation_official = safe_value(rec.get('csv_designation_official')) or safe_value(rec.get('designationOfficial')) or safe_value(rec.get('csv_designation')) or ""
-            atlas_record = AtlasStop(
-                sloid=sloid,
-                atlas_designation=safe_value(rec.get('csv_designation'), ""),
-                atlas_designation_official=designation_official,
-                atlas_business_org_abbr=safe_value(rec.get('csv_business_org_abbr', '')),
-                routes_unified=atlas_routes_mapping_unified.get(sloid, None) if atlas_routes_mapping_unified else None,
-                atlas_note=None,
-                atlas_note_is_persistent=False
-            )
-            session.add(atlas_record)
-            processed_sloids.add(sloid)
+            if sloid and sloid not in processed_sloids:
+                designation_official = safe_value(rec.get('csv_designation_official')) or safe_value(rec.get('designationOfficial')) or safe_value(rec.get('csv_designation')) or ""
+                atlas_record = AtlasStop(
+                    sloid=sloid,
+                    atlas_designation=safe_value(rec.get('csv_designation'), ""),
+                    atlas_designation_official=designation_official,
+                    atlas_business_org_abbr=safe_value(rec.get('csv_business_org_abbr', '')),
+                    routes_unified=atlas_routes_mapping_unified.get(sloid, None) if atlas_routes_mapping_unified else None,
+                    atlas_note=None,
+                    atlas_note_is_persistent=False
+                )
+                session.add(atlas_record)
+                processed_sloids.add(sloid)
 
-        routes_osm_data = osm_routes_mapping.get(osm_node_id, []) if osm_node_id else []
-        if osm_node_id and osm_node_id not in processed_osm_node_ids:
-            osm_record = OsmNode(
-                osm_node_id=osm_node_id,
-                osm_local_ref=safe_value(rec.get('osm_local_ref')),
-                osm_name=safe_value(rec.get('osm_name')) or get_from_tags(rec, 'name'),
-                osm_uic_name=safe_value(rec.get('osm_uic_name')) or get_from_tags(rec, 'uic_name'),
-                osm_uic_ref=safe_value(rec.get('osm_uic_ref')) or get_from_tags(rec, 'uic_ref'),
-                osm_network=safe_value(rec.get('osm_network', '')),
-                osm_operator=safe_value(rec.get('osm_operator', '')),
+            routes_osm_data = osm_routes_mapping.get(osm_node_id, []) if osm_node_id else []
+            if osm_node_id and osm_node_id not in processed_osm_node_ids:
+                osm_record = OsmNode(
+                    osm_node_id=osm_node_id,
+                    osm_local_ref=safe_value(rec.get('osm_local_ref')),
+                    osm_name=safe_value(rec.get('osm_name')) or get_from_tags(rec, 'name'),
+                    osm_uic_name=safe_value(rec.get('osm_uic_name')) or get_from_tags(rec, 'uic_name'),
+                    osm_uic_ref=safe_value(rec.get('osm_uic_ref')) or get_from_tags(rec, 'uic_ref'),
+                    osm_network=safe_value(rec.get('osm_network', '')),
+                    osm_operator=safe_value(rec.get('osm_operator', '')),
 
-                osm_public_transport=safe_value(rec.get('osm_public_transport')),
-                osm_railway=safe_value(rec.get('osm_railway')),
-                osm_amenity=safe_value(rec.get('osm_amenity')),
-                osm_aerialway=safe_value(rec.get('osm_aerialway')),
-                routes_osm=routes_osm_data if routes_osm_data else None,
-                osm_note=None,
-                osm_note_is_persistent=False
-            )
-            session.add(osm_record)
-            processed_osm_node_ids.add(osm_node_id)
+                    osm_public_transport=safe_value(rec.get('osm_public_transport')),
+                    osm_railway=safe_value(rec.get('osm_railway')),
+                    osm_amenity=safe_value(rec.get('osm_amenity')),
+                    osm_aerialway=safe_value(rec.get('osm_aerialway')),
+                    routes_osm=routes_osm_data if routes_osm_data else None,
+                    osm_note=None,
+                    osm_note_is_persistent=False
+                )
+                session.add(osm_record)
+                processed_osm_node_ids.add(osm_node_id)
 
-        inserted += 1
-        if BATCH_SIZE > 0 and (inserted % BATCH_SIZE) == 0:
-            session.commit()
-            session.expunge_all()
-            print(f"  Committed batch: {format_progress(inserted, len(matched_records), start_time=_t0)}")
+            inserted += 1
+            if BATCH_SIZE > 0 and (inserted % BATCH_SIZE) == 0:
+                session.commit()
+                session.expunge_all()
+                print(f"  Committed batch: {format_progress(inserted, len(matched_records), start_time=_t0)}")
 
         # Final commit for any remainder
         session.commit()
