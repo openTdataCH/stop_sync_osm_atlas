@@ -28,7 +28,6 @@ def download_and_extract_hrdf(hrdf_url):
                 if os.path.isfile(existing_path):
                     os.remove(existing_path)
                 else:
-                    import shutil
                     shutil.rmtree(existing_path, ignore_errors=True)
             except OSError:
                 pass

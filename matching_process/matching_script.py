@@ -5,6 +5,7 @@ from collections import defaultdict
 import logging
 import os
 import time
+from utils.timing import timed_phase
 from matching_process.utils import is_osm_station, haversine_distance
 # Import functions from distance_matching.py
 from matching_process.distance_matching import distance_matching, transform_for_distance_matching
@@ -180,7 +181,8 @@ def final_pipeline(route_matching_strategy='unified'):
                 f"Required ATLAS CSV not found. Tried: {attempted}. "
                 f"Set ATLAS_STOPS_CSV to an absolute path or run Download_and_process_data/get_atlas_data.py first."
             )
-    atlas_df = pd.read_csv(atlas_csv_file, sep=";")
+    with timed_phase("Matching: load ATLAS CSV"):
+        atlas_df = pd.read_csv(atlas_csv_file, sep=";")
     # ATLAS data is expected to be pre-filtered to BOARDING_PLATFORM entries
     # by the Download_and_process_data/get_atlas_data.py script.
     if not osm_xml_file:
@@ -206,7 +208,8 @@ def final_pipeline(route_matching_strategy='unified'):
                 f"Required OSM XML not found. Tried: {attempted}. "
                 f"Set OSM_XML_FILE to an absolute path or run Download_and_process_data/get_osm_data.py first."
             )
-    all_osm_nodes, uic_ref_dict, name_index = parse_osm_xml(osm_xml_file)
+    with timed_phase("Matching: parse OSM XML"):
+        all_osm_nodes, uic_ref_dict, name_index = parse_osm_xml(osm_xml_file)
 
     # (Manual matches moved to the end; see dedicated section below)
 
@@ -235,13 +238,15 @@ def final_pipeline(route_matching_strategy='unified'):
     
     # --- Exact Matching ---
     logger.info("Performing exact matching...")
-    exact_matches, unmatched_after_exact, used_osm_ids_exact = exact_matching(atlas_df, uic_ref_dict)
+    with timed_phase("Matching: exact matching"):
+        exact_matches, unmatched_after_exact, used_osm_ids_exact = exact_matching(atlas_df, uic_ref_dict)
     logger.info(f"Exact matching: {len(exact_matches)} matches; {len(unmatched_after_exact)} unmatched.")
     
     # --- Name-Based Matching ---
     logger.info("Performing name-based matching...")
     unmatched_after_exact_df = pd.DataFrame(unmatched_after_exact)
-    name_matches, unmatched_after_name, used_osm_ids_name = name_based_matching(unmatched_after_exact_df, name_index)
+    with timed_phase("Matching: name-based matching"):
+        name_matches, unmatched_after_name, used_osm_ids_name = name_based_matching(unmatched_after_exact_df, name_index)
     unmatched_after_name_df = pd.DataFrame(unmatched_after_name)
     logger.info(f"Name-based matching: {len(name_matches)} matches; {len(unmatched_after_name_df)} unmatched.")
     
@@ -268,12 +273,13 @@ def final_pipeline(route_matching_strategy='unified'):
     
     if len(unmatched_after_name_df) > 0:
         # Get all results from distance_matching
-        all_distance_results = distance_matching(
-            unmatched_after_name_df, 
-            filtered_osm_nodes_no_stations, # Use the station-filtered list
-            max_distance=50,
-            all_xml_nodes_for_stage4=all_osm_nodes # Pass all OSM nodes for Stage 4 check
-        )
+        with timed_phase("Matching: distance-based matching"):
+            all_distance_results = distance_matching(
+                unmatched_after_name_df, 
+                filtered_osm_nodes_no_stations, # Use the station-filtered list
+                max_distance=50,
+                all_xml_nodes_for_stage4=all_osm_nodes # Pass all OSM nodes for Stage 4 check
+            )
         # Separate the results
         for match in all_distance_results:
             if match.get('match_type') == 'no_nearby_counterpart':
@@ -313,13 +319,14 @@ def final_pipeline(route_matching_strategy='unified'):
     
     # Route matching is performed on entries not yet matched by exact, name, or actual distance
     if len(unmatched_after_distance_df) > 0:
-        route_matches, newly_used = perform_unified_route_matching(
-            unmatched_after_distance_df,
-            filtered_osm_nodes_for_route,
-            osm_xml_file=osm_xml_file,
-            used_osm_nodes=used_osm_ids_total,
-            max_distance=50
-        )
+        with timed_phase("Matching: route-based matching"):
+            route_matches, newly_used = perform_unified_route_matching(
+                unmatched_after_distance_df,
+                filtered_osm_nodes_for_route,
+                osm_xml_file=osm_xml_file,
+                used_osm_nodes=used_osm_ids_total,
+                max_distance=50
+            )
         used_osm_ids_total.update(newly_used)
     else:
         route_matches = []

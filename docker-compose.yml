@@ -1,4 +1,15 @@
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: stop_sync_osm_atlas_redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   db:
     image: postgis/postgis:16-3.4
     container_name: stop_sync_osm_atlas_db
@@ -36,6 +47,8 @@ services:
     depends_on:
       db:
         condition: service_healthy # Waits for db to be healthy before starting app
+      redis:
+        condition: service_healthy
     environment:
       # Flask environment variables (some are also in Dockerfile for explicitness)
       FLASK_APP: backend/app.py
@@ -48,6 +61,7 @@ services:
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
       AUTO_MIGRATE: "true"
+      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
       # Data processing control flags
       MATCH_ONLY: "${MATCH_ONLY:-false}" # Use host env or default to false; set MATCH_ONLY=true to skip downloads
       # Email/SES configuration
@@ -88,6 +102,8 @@ services:
     depends_on:
       db:
         condition: service_healthy # Waits for db to be healthy before starting app
+      redis:
+        condition: service_healthy
     environment:
       # Flask environment variables (some are also in Dockerfile for explicitness)
       FLASK_APP: backend/app.py
@@ -102,6 +118,7 @@ services:
       SESSION_COOKIE_SECURE: "false"
       # Auto-generate and apply migrations in dev
       AUTO_MIGRATE: "true"
+      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
       # Email/SES configuration (dev)
       APP_NAME: "OSM-ATLAS Sync"
       SUPPORT_EMAIL: "support@example.com"

@@ -6,6 +6,8 @@ import csv
 import json
 import os
 
+from utils.timing import timed_phase
+
 # Create data directories
 os.makedirs("data/raw", exist_ok=True)
 os.makedirs("data/processed", exist_ok=True)
@@ -274,11 +276,13 @@ def main():
         print("Using existing OSM data file")
     except FileNotFoundError:
         print("OSM data file not found, fetching from Overpass API...")
-        xml_data = query_overpass()
+        with timed_phase("OSM: Overpass download"):
+            xml_data = query_overpass()
     
     if xml_data:
         # Process the data and output as CSV with direction information
-        process_osm_data_to_csv(xml_data, "data/processed/osm_nodes_with_routes.csv")
+        with timed_phase("OSM: XML -> osm_nodes_with_routes.csv"):
+            process_osm_data_to_csv(xml_data, "data/processed/osm_nodes_with_routes.csv")
 
 if __name__ == "__main__":
     main()

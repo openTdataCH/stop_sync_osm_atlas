@@ -15,6 +15,9 @@ Flask-Limiter==3.5.0
 Flask-Talisman==1.1.0
 Flask-Migrate==4.0.5
 Werkzeug==3.0.3
+
+# Rate limit storage backend
+redis==5.0.1
 # HTTP requests
 requests==2.31.0
 

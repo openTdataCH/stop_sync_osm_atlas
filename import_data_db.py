@@ -7,11 +7,14 @@ from matching_process.matching_script import final_pipeline
 from matching_process.problem_detection import analyze_stop_problems, compute_distance_priority, compute_attributes_priority
 import os
 import re
+import time
 
 # Import models
 from backend.models import Stop, AtlasStop, OsmNode, RouteAndDirection, Problem
 from backend.services.import_persistence import apply_persistent_solutions as apply_persistent_solutions_service
 from backend.services.stats_export import export_pipeline_stats, save_stats_to_file
+
+from utils.timing import timed_phase, format_progress
 
 # Database Setup
 DATABASE_URI = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/stops_db')
@@ -420,29 +423,32 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
       - Automatic problem detection and flagging
     """
     # Ensure database schema is updated before importing
-    ensure_schema_updated()
+    with timed_phase("DB: migrations"):
+        ensure_schema_updated()
     
-    print("Deleting existing data from database...")
-    # Delete from tables, respecting foreign key relations by deleting problems first
-    session.query(Problem).delete()
-    session.query(Stop).delete()
-    session.query(AtlasStop).delete()
-    session.query(OsmNode).delete()
-    session.query(RouteAndDirection).delete()
-    session.commit()
-    print("Existing data deleted. Starting new import.")
+    with timed_phase("DB: delete existing data"):
+        print("Deleting existing data from database...")
+        # Delete from tables, respecting foreign key relations by deleting problems first
+        session.query(Problem).delete()
+        session.query(Stop).delete()
+        session.query(AtlasStop).delete()
+        session.query(OsmNode).delete()
+        session.query(RouteAndDirection).delete()
+        session.commit()
+        print("Existing data deleted. Starting new import.")
     
-    # Load route information
-    # Avoid re-reading the same CSV twice by preloading and passing to both loaders
-    try:
-        _preloaded_osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
-    except Exception:
-        _preloaded_osm_routes_df = None
-    atlas_routes_mapping, atlas_hrdf_routes_mapping, osm_routes_mapping = load_route_data(osm_routes_df=_preloaded_osm_routes_df)
-    atlas_routes_mapping_unified = load_unified_route_data()
-    
-    # Build route+direction to nodes/sloids mappings for routes_and_directions table
-    osm_route_dir_to_nodes, atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids = build_route_direction_mapping(osm_routes_df=_preloaded_osm_routes_df)
+    with timed_phase("DB: load route mappings"):
+        # Load route information
+        # Avoid re-reading the same CSV twice by preloading and passing to both loaders
+        try:
+            _preloaded_osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
+        except Exception:
+            _preloaded_osm_routes_df = None
+        atlas_routes_mapping, atlas_hrdf_routes_mapping, osm_routes_mapping = load_route_data(osm_routes_df=_preloaded_osm_routes_df)
+        atlas_routes_mapping_unified = load_unified_route_data()
+
+        # Build route+direction to nodes/sloids mappings for routes_and_directions table
+        osm_route_dir_to_nodes, atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids = build_route_direction_mapping(osm_routes_df=_preloaded_osm_routes_df)
     
     # Keep track of processed detail records to avoid duplicates
     processed_sloids = set()
@@ -502,48 +508,58 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
 
     # --- Insert Matched Records ---
     matched_records = base_data.get('matched', [])
-    
-    for rec in matched_records:
-        atlas_lat, atlas_lon = validate_coordinates(
-            rec, 'csv_lat', 'csv_lon', 'sloid', rec.get('sloid'), 'matched'
-        )
-        if atlas_lat is None:
-            continue
-        
-        try:
-            osm_lat = float(safe_value(rec.get('osm_lat'))) if safe_value(rec.get('osm_lat')) is not None else None
-            osm_lon = float(safe_value(rec.get('osm_lon'))) if safe_value(rec.get('osm_lon')) is not None else None
-            if osm_lat is not None and math.isnan(osm_lat): osm_lat = None
-            if osm_lon is not None and math.isnan(osm_lon): osm_lon = None
-        except Exception:
-            osm_lat, osm_lon = None, None
-        
-        sloid = safe_value(rec.get('sloid'))
-        osm_node_id = safe_value(rec.get('osm_node_id'))
-        distance_m = safe_value(rec.get('distance_m'))
-        
-        rec['stop_type'] = 'matched'
-        problems = analyze_stop_problems(rec)
-        
-        stop_record = Stop(
-            sloid=sloid,
-            stop_type='matched',
-            match_type=safe_value(rec.get('match_type')),
-            atlas_lat=atlas_lat,
-            atlas_lon=atlas_lon,
-            atlas_duplicate_sloid=None,
-            uic_ref=safe_value(rec.get('number'), ""),
-            osm_node_id=osm_node_id,
-            osm_lat=osm_lat,
-            osm_lon=osm_lon,
-            distance_m=distance_m,
-            osm_node_type=get_osm_node_type(rec),
-            geom=make_point_geom(atlas_lat, atlas_lon) if atlas_lat is not None and atlas_lon is not None else make_point_geom(osm_lat, osm_lon),
-        )
-        # If this record was manually matched in a previous run and persisted, carry the flag
-        if safe_value(rec.get('match_type')) == 'manual':
-            # conservative: mark as persistent if we have a persistent entry
-            stop_record.manual_is_persistent = True
+
+    print("\nDetecting problems and importing matched records...")
+    print("  Checks: distance, attributes, duplicates")
+
+    BATCH_SIZE = int(os.getenv('DB_IMPORT_BATCH_SIZE', '5000'))
+    _t0 = time.time()
+    inserted = 0
+
+    with timed_phase("DB: insert matched records"):
+        for rec in matched_records:
+            atlas_lat, atlas_lon = validate_coordinates(
+                rec, 'csv_lat', 'csv_lon', 'sloid', rec.get('sloid'), 'matched'
+            )
+            if atlas_lat is None:
+                continue
+
+            try:
+                osm_lat = float(safe_value(rec.get('osm_lat'))) if safe_value(rec.get('osm_lat')) is not None else None
+                osm_lon = float(safe_value(rec.get('osm_lon'))) if safe_value(rec.get('osm_lon')) is not None else None
+                if osm_lat is not None and math.isnan(osm_lat):
+                    osm_lat = None
+                if osm_lon is not None and math.isnan(osm_lon):
+                    osm_lon = None
+            except Exception:
+                osm_lat, osm_lon = None, None
+
+            sloid = safe_value(rec.get('sloid'))
+            osm_node_id = safe_value(rec.get('osm_node_id'))
+            distance_m = safe_value(rec.get('distance_m'))
+
+            rec['stop_type'] = 'matched'
+            problems = analyze_stop_problems(rec)
+
+            stop_record = Stop(
+                sloid=sloid,
+                stop_type='matched',
+                match_type=safe_value(rec.get('match_type')),
+                atlas_lat=atlas_lat,
+                atlas_lon=atlas_lon,
+                atlas_duplicate_sloid=None,
+                uic_ref=safe_value(rec.get('number'), ""),
+                osm_node_id=osm_node_id,
+                osm_lat=osm_lat,
+                osm_lon=osm_lon,
+                distance_m=distance_m,
+                osm_node_type=get_osm_node_type(rec),
+                geom=make_point_geom(atlas_lat, atlas_lon) if atlas_lat is not None and atlas_lon is not None else make_point_geom(osm_lat, osm_lon),
+            )
+            # If this record was manually matched in a previous run and persisted, carry the flag
+            if safe_value(rec.get('match_type')) == 'manual':
+                # conservative: mark as persistent if we have a persistent entry
+                stop_record.manual_is_persistent = True
         
         # Create problems with additional metadata for better sorting
         if problems.get('distance_problem'):
@@ -579,47 +595,54 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             except Exception:
                 stop_record.atlas_duplicate_sloid = 'dup'
 
-        session.add(stop_record)
-        
-        if sloid and sloid not in processed_sloids:
-            designation_official = safe_value(rec.get('csv_designation_official')) or safe_value(rec.get('designationOfficial')) or safe_value(rec.get('csv_designation')) or ""
-            atlas_record = AtlasStop(
-                sloid=sloid,
-                atlas_designation=safe_value(rec.get('csv_designation'), ""),
-                atlas_designation_official=designation_official,
-                atlas_business_org_abbr=safe_value(rec.get('csv_business_org_abbr', '')),
-                routes_unified=atlas_routes_mapping_unified.get(sloid, None) if atlas_routes_mapping_unified else None,
-                atlas_note=None,
-                atlas_note_is_persistent=False
-            )
-            session.add(atlas_record)
-            processed_sloids.add(sloid)
-            
-        routes_osm_data = osm_routes_mapping.get(osm_node_id, []) if osm_node_id else []
-        if osm_node_id and osm_node_id not in processed_osm_node_ids:
-            osm_record = OsmNode(
-                osm_node_id=osm_node_id,
-                osm_local_ref=safe_value(rec.get('osm_local_ref')),
-                osm_name=safe_value(rec.get('osm_name')) or get_from_tags(rec, 'name'),
-                osm_uic_name=safe_value(rec.get('osm_uic_name')) or get_from_tags(rec, 'uic_name'),
-                osm_uic_ref=safe_value(rec.get('osm_uic_ref')) or get_from_tags(rec, 'uic_ref'),
-                osm_network=safe_value(rec.get('osm_network', '')),
-                osm_operator=safe_value(rec.get('osm_operator', '')),
+            session.add(stop_record)
 
-                osm_public_transport=safe_value(rec.get('osm_public_transport')),
-                osm_railway=safe_value(rec.get('osm_railway')),
-                osm_amenity=safe_value(rec.get('osm_amenity')),
-                osm_aerialway=safe_value(rec.get('osm_aerialway')),
-                routes_osm=routes_osm_data if routes_osm_data else None,
-                osm_note=None,
-                osm_note_is_persistent=False
-            )
-            session.add(osm_record)
-            processed_osm_node_ids.add(osm_node_id)
+            if sloid and sloid not in processed_sloids:
+                designation_official = safe_value(rec.get('csv_designation_official')) or safe_value(rec.get('designationOfficial')) or safe_value(rec.get('csv_designation')) or ""
+                atlas_record = AtlasStop(
+                    sloid=sloid,
+                    atlas_designation=safe_value(rec.get('csv_designation'), ""),
+                    atlas_designation_official=designation_official,
+                    atlas_business_org_abbr=safe_value(rec.get('csv_business_org_abbr', '')),
+                    routes_unified=atlas_routes_mapping_unified.get(sloid, None) if atlas_routes_mapping_unified else None,
+                    atlas_note=None,
+                    atlas_note_is_persistent=False
+                )
+                session.add(atlas_record)
+                processed_sloids.add(sloid)
 
-    # Commit all matched records at once
-    session.commit()
-    print(f"Imported {len(matched_records)} matched records")
+            routes_osm_data = osm_routes_mapping.get(osm_node_id, []) if osm_node_id else []
+            if osm_node_id and osm_node_id not in processed_osm_node_ids:
+                osm_record = OsmNode(
+                    osm_node_id=osm_node_id,
+                    osm_local_ref=safe_value(rec.get('osm_local_ref')),
+                    osm_name=safe_value(rec.get('osm_name')) or get_from_tags(rec, 'name'),
+                    osm_uic_name=safe_value(rec.get('osm_uic_name')) or get_from_tags(rec, 'uic_name'),
+                    osm_uic_ref=safe_value(rec.get('osm_uic_ref')) or get_from_tags(rec, 'uic_ref'),
+                    osm_network=safe_value(rec.get('osm_network', '')),
+                    osm_operator=safe_value(rec.get('osm_operator', '')),
+
+                    osm_public_transport=safe_value(rec.get('osm_public_transport')),
+                    osm_railway=safe_value(rec.get('osm_railway')),
+                    osm_amenity=safe_value(rec.get('osm_amenity')),
+                    osm_aerialway=safe_value(rec.get('osm_aerialway')),
+                    routes_osm=routes_osm_data if routes_osm_data else None,
+                    osm_note=None,
+                    osm_note_is_persistent=False
+                )
+                session.add(osm_record)
+                processed_osm_node_ids.add(osm_node_id)
+
+            inserted += 1
+            if BATCH_SIZE > 0 and (inserted % BATCH_SIZE) == 0:
+                session.commit()
+                session.expunge_all()
+                print(f"  Committed batch: {format_progress(inserted, len(matched_records), start_time=_t0)}")
+
+        # Final commit for any remainder
+        session.commit()
+        session.expunge_all()
+        print(f"Imported {len(matched_records)} matched records")
 
     # Precompute structures for unmatched priority classification
     # Build OSM coordinate set from matched and unmatched data
