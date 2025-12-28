@@ -1,14 +1,26 @@
-/* minimal, non-breaking base rules */
+/* ==========================================================================
+   BASE STYLES
+   Reset and foundational element styles using design tokens.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Box Sizing Reset
+   ------------------------------------------------------------------------- */
 html {
   box-sizing: border-box;
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: inherit;
 }
 
-/* extracted from legacy style.css (kept identical for stability) */
-html, body {
+/* -------------------------------------------------------------------------
+   Document Setup
+   ------------------------------------------------------------------------- */
+html,
+body {
   height: 100%;
   margin: 0;
   padding: 0;
@@ -17,15 +29,105 @@ html, body {
 }
 
 body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background-color: #f8f9fa;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--font-normal);
+  line-height: var(--leading-normal);
+  color: var(--color-fg);
+  background-color: var(--color-bg-subtle);
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* -------------------------------------------------------------------------
+   Focus Styles
+   ------------------------------------------------------------------------- */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Remove focus outline for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* -------------------------------------------------------------------------
+   Selection
+   ------------------------------------------------------------------------- */
+::selection {
+  background-color: var(--color-primary-muted);
+  color: var(--color-fg);
+}
+
+/* -------------------------------------------------------------------------
+   Scrollbar Styling (WebKit browsers)
+   ------------------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-width);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: var(--radius-full);
+  border: 2px solid var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* -------------------------------------------------------------------------
+   Links
+   ------------------------------------------------------------------------- */
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
+/* -------------------------------------------------------------------------
+   Images
+   ------------------------------------------------------------------------- */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* -------------------------------------------------------------------------
+   Container Fluid Override
+   ------------------------------------------------------------------------- */
+.container-fluid {
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
   display: flex;
   flex-direction: column;
 }
 
 @media (max-width: 768px) {
   .container-fluid {
-    padding: 5px;
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
   }
 }
 

@@ -3,42 +3,28 @@
 {% block title %}Documentation{% endblock %}
 
 {% block head_css %}
-  <style>
-    .docs-container { padding: 1rem; }
-    .docs-sidebar { border-right: 0; max-width: 320px; }
-    .docs-sidebar .docs-section-header { cursor: pointer; user-select: none; border-radius: .5rem; }
-    .docs-sidebar .docs-section-header.active { background-color: #f8f9fa; color: #212529; font-weight: 600; }
-    .docs-sidebar .docs-section-link { font-weight: 600; color: #212529; text-decoration: none; }
-    .docs-sidebar .docs-section-link:hover { text-decoration: underline; }
-    .docs-sidebar .docs-toggle { color: #6c757d; }
-    .docs-sidebar .docs-toggle:focus { box-shadow: none; }
-    .docs-sidebar .chevron { transition: transform .15s ease-in-out; }
-    .docs-sidebar .chevron.rotate { transform: rotate(90deg); }
-    /* Subitems */
-    .docs-sidebar .docs-subitems { margin-bottom: .5rem; }
-    .docs-sidebar .docs-subitems .list-group-item { padding: .5rem 1rem .5rem 1.75rem; }
-    .docs-sidebar .docs-subitems .list-group-item.active { background-color: #eef2ff; color: #1f2937; font-weight: 600; }
-    .docs-sidebar .docs-subitems .list-group .list-group-item:first-child { border-top-left-radius: .5rem; border-top-right-radius: .5rem; }
-    .docs-sidebar .docs-subitems .list-group .list-group-item:last-child { border-bottom-left-radius: .5rem; border-bottom-right-radius: .5rem; }
-    /* Optional increased indent by level */
-    .docs-sidebar .docs-subitems .level-3 { padding-left: 2.25rem; }
-    .docs-sidebar .docs-subitems .level-4 { padding-left: 2.75rem; }
-    .docs-sidebar .docs-subitems .level-5 { padding-left: 3.25rem; }
-    .docs-content img { max-width: 100%; height: auto; }
-    .docs-content pre { background: #f8f9fa; padding: .75rem; border-radius: .25rem; overflow: auto; }
-    .docs-content table { width: 100%; border-collapse: collapse; }
-    .docs-content th,
-    .docs-content td { border: 1px solid #dee2e6; padding: .5rem .75rem; }
-    .docs-content thead th { background-color: #f8f9fa; }
-    .docs-content tbody tr:nth-child(odd) { background-color: #fcfcfd; }
-
-    /* Prev/Next buttons */
-    .docs-nav { gap: .75rem; }
-    .docs-nav-btn { border-radius: .5rem; border: 1px solid #dee2e6; background: #fff; padding: .75rem 1rem; }
-    .docs-nav-btn:hover { background: #f8f9fa; text-decoration: none; }
-    .docs-nav-btn .nav-label { font-weight: 700; font-size: 1rem; }
-    .docs-nav-btn .nav-title { font-size: .875rem; color: #6c757d; }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/docs.css') }}">
+  <!-- Mermaid.js for diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#E3F2FD',
+        primaryTextColor: '#1565C0',
+        primaryBorderColor: '#4A90E2',
+        lineColor: '#546E7A',
+        secondaryColor: '#FFF3E0',
+        tertiaryColor: '#E8F5E9'
+      },
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis'
+      }
+    });
+  </script>
 {% endblock %}
 
 {% block content %}

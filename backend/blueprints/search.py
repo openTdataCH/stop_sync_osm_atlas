@@ -189,22 +189,122 @@ def get_top_matches():
 @limiter.limit("30/minute")
 def get_random_stop():
     try:
-        # Fast random pick using id range sampling (avoids ORDER BY RAND() and large OFFSET scans)
-        min_id, max_id = db.session.query(func.min(Stop.id), func.max(Stop.id)).first()
-        if min_id is None or max_id is None:
-            return jsonify({"error": "No stop found."}), 404
+        # Honor the same filters as the main UI.
+        stop_filter_str = request.args.get('stop_filter', None)
+        match_method_str = request.args.get('match_method', None)
+        show_duplicates_only = request.args.get('show_duplicates_only', 'false').lower() == 'true'
+        top_n = request.args.get('top_n', None)
 
-        random_stop = None
-        for _ in range(5):
-            candidate_id = random.randint(min_id, max_id)
-            random_stop = Stop.query.filter(Stop.id >= candidate_id).order_by(Stop.id.asc()).limit(1).first()
-            if random_stop:
-                break
-        if not random_stop:
-            # Fallback to the first available stop within range
-            random_stop = Stop.query.order_by(Stop.id.asc()).first()
-        if not random_stop:
-            return jsonify({"error": "No stop found."}), 404
+        filters = parse_filter_params(request.args)
+        query_builder = get_query_builder()
+
+        query = optimize_query_for_endpoint(Stop.query, 'search')
+        query = query_builder.apply_common_filters(query, filters)
+
+        all_category_conditions = []
+        stop_type_match_method_or_conditions = []
+        current_stop_types = []
+        if stop_filter_str and stop_filter_str.lower() != 'all':
+            current_stop_types = [t.strip() for t in stop_filter_str.split(',') if t.strip()]
+        current_match_methods = []
+        if match_method_str:
+            current_match_methods = [m.strip() for m in match_method_str.split(',') if m.strip()]
+
+        if 'matched' in current_stop_types:
+            relevant_matched_methods = [
+                m for m in current_match_methods if (
+                    m in ['exact', 'name', 'manual'] or
+                    m.startswith('distance_matching_') or
+                    m.startswith('route_')
+                )
+            ]
+            if relevant_matched_methods:
+                method_conditions = []
+                for m in relevant_matched_methods:
+                    if m.startswith('distance_matching_'):
+                        method_conditions.append(Stop.match_type.like(f"{m}%"))
+                    elif m.startswith('route_'):
+                        # Match both legacy and unified route match types
+                        method_conditions.append(Stop.match_type.like(f"{m}%"))
+                        if not m.startswith('route_unified_'):
+                            suffix = m[len('route_'):]
+                            method_conditions.append(Stop.match_type.like(f"route_unified_{suffix}%"))
+                    else:
+                        method_conditions.append(Stop.match_type == m)
+                stop_type_match_method_or_conditions.append(
+                    db.and_(Stop.stop_type == 'matched', db.or_(*method_conditions))
+                )
+            else:
+                # If no match methods are selected, include all matched stops.
+                if not current_match_methods:
+                    stop_type_match_method_or_conditions.append(Stop.stop_type == 'matched')
+
+        if 'unmatched' in current_stop_types:
+            filter_for_no_osm_nearby = 'no_nearby_counterpart' in current_match_methods
+            filter_for_osm_nearby = 'osm_within_50m' in current_match_methods
+            unmatched_specific_condition = Stop.stop_type == 'unmatched'
+            if filter_for_no_osm_nearby and not filter_for_osm_nearby:
+                unmatched_specific_condition = db.and_(
+                    Stop.stop_type == 'unmatched',
+                    Stop.match_type == 'no_nearby_counterpart'
+                )
+            elif not filter_for_no_osm_nearby and filter_for_osm_nearby:
+                unmatched_specific_condition = db.and_(
+                    Stop.stop_type == 'unmatched',
+                    db.or_(Stop.match_type != 'no_nearby_counterpart', Stop.match_type.is_(None))
+                )
+            # Keep the "station" stop type as part of unmatched set, matching /api/data and /api/global_stats semantics.
+            stop_type_match_method_or_conditions.append(db.or_(
+                unmatched_specific_condition,
+                Stop.stop_type == 'station'
+            ))
+
+        if 'osm' in current_stop_types:
+            stop_type_match_method_or_conditions.append(Stop.stop_type == 'osm')
+
+        if stop_type_match_method_or_conditions:
+            all_category_conditions.append(db.or_(*stop_type_match_method_or_conditions))
+        elif current_stop_types and not stop_type_match_method_or_conditions:
+            all_category_conditions.append(db.false())
+
+        if all_category_conditions:
+            query = query.filter(db.and_(*all_category_conditions))
+
+        if show_duplicates_only:
+            query = query.filter(Stop.atlas_duplicate_sloid.isnot(None)).filter(Stop.atlas_duplicate_sloid != '')
+
+        # If Top-N mode is active, pick randomly from the (small) top-N set.
+        n_val = None
+        if top_n:
+            try:
+                n_val = int(top_n)
+            except Exception:
+                n_val = None
+        if n_val and n_val > 0:
+            top_query = query.filter(Stop.stop_type == 'matched', Stop.distance_m.isnot(None)) \
+                .order_by(Stop.distance_m.desc()) \
+                .limit(n_val)
+            candidates = top_query.all()
+            if not candidates:
+                return jsonify({"error": "No stop found for the current filters."}), 404
+            random_stop = random.choice(candidates)
+        else:
+            # Fast random pick using id range sampling (avoids ORDER BY RAND() and large OFFSET scans)
+            min_id, max_id = query.with_entities(func.min(Stop.id), func.max(Stop.id)).first()
+            if min_id is None or max_id is None:
+                return jsonify({"error": "No stop found for the current filters."}), 404
+
+            random_stop = None
+            for _ in range(5):
+                candidate_id = random.randint(min_id, max_id)
+                random_stop = query.filter(Stop.id >= candidate_id).order_by(Stop.id.asc()).limit(1).first()
+                if random_stop:
+                    break
+            if not random_stop:
+                # Fallback to the first available stop within range
+                random_stop = query.order_by(Stop.id.asc()).first()
+            if not random_stop:
+                return jsonify({"error": "No stop found for the current filters."}), 404
 
         stop_data = format_stop_data(random_stop, include_routes=False, include_notes=False)
 

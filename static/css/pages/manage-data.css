@@ -1,80 +1,202 @@
-/* Styles specific to the Manage Data page */
+/* ==========================================================================
+   MANAGE DATA PAGE
+   Styles specific to the Manage Data page.
+   ========================================================================== */
 
+/* -------------------------------------------------------------------------
+   Solution Cards
+   ------------------------------------------------------------------------- */
 .solution-card {
-    margin-bottom: 15px;
-    border-left: 5px solid #28a745;
-    transition: all 0.2s ease;
+  margin-bottom: var(--space-4);
+  border-left: 5px solid var(--color-success);
+  transition: all var(--transition-fast);
 }
 
 .solution-card:hover {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-md);
 }
 
-.solution-card.distance { border-left-color: #dc3545; }
-.solution-card.unmatched { border-left-color: #ffc107; }
-.solution-card.attributes { border-left-color: #17a2b8; }
-.solution-card.atlas_note { border-left-color: #0dcaf0; }
-.solution-card.osm_note { border-left-color: #0d6efd; }
+.solution-card.distance {
+  border-left-color: var(--color-danger);
+}
+
+.solution-card.unmatched {
+  border-left-color: var(--color-warning);
+}
+
+.solution-card.attributes {
+  border-left-color: var(--color-info);
+}
+
+.solution-card.atlas_note {
+  border-left-color: var(--color-cyan);
+}
+
+.solution-card.osm_note {
+  border-left-color: var(--color-primary);
+}
 
 .solution-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2);
 }
 
 .solution-content {
-    margin-top: 10px;
-    padding: 10px;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-    max-height: 200px;
-    overflow-y: auto;
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background-color: var(--color-bg-subtle);
+  border-radius: var(--radius-sm);
+  max-height: 200px;
+  overflow-y: auto;
 }
 
-.tab-content { max-height: none; overflow-y: visible; }
+/* -------------------------------------------------------------------------
+   Tab Content & Navigation
+   ------------------------------------------------------------------------- */
+.tab-content {
+  max-height: none;
+  overflow-y: visible;
+}
 
-.pagination-container { display: flex; justify-content: center; margin-top: 20px; }
+.nav-tabs {
+  margin-bottom: var(--space-5);
+}
 
-/* Tab navigation improvements */
-.nav-tabs { margin-bottom: 20px; }
-.nav-tabs .nav-link { color: #495057; border: 1px solid transparent; transition: all 0.2s ease; }
-.nav-tabs .nav-link:hover { border-color: #e9ecef #e9ecef #dee2e6; color: #007bff; }
-.nav-tabs .nav-link.active { color: #495057; background-color: #fff; border-color: #dee2e6 #dee2e6 #fff; }
+.nav-tabs .nav-link {
+  color: var(--color-fg);
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+}
 
-/* Data container styling */
-#dataContainer { min-height: 200px; }
+.nav-tabs .nav-link:hover {
+  border-color: var(--color-border) var(--color-border) var(--color-border-emphasis);
+  color: var(--color-primary);
+}
 
-/* Button group improvements */
-.btn-group .btn { margin-right: 5px; }
-.btn-group .btn:last-child { margin-right: 0; }
+.nav-tabs .nav-link.active {
+  color: var(--color-fg);
+  background-color: var(--color-bg);
+  border-color: var(--color-border-emphasis) var(--color-border-emphasis) var(--color-bg);
+}
 
-/* Style for the 'Clear All' button */
-.clear-all-btn { margin-bottom: 0; }
+/* -------------------------------------------------------------------------
+   Layout Components
+   ------------------------------------------------------------------------- */
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-5);
+}
 
-/* Alert improvements for page */
-.alert { border: 1px solid transparent; border-radius: 0.375rem; }
-.alert-dismissible .close { padding: 0.75rem 1.25rem; }
+#dataContainer {
+  min-height: 200px;
+}
 
-/* Loading states */
-.spinner-border-sm { width: 1rem; height: 1rem; }
+/* -------------------------------------------------------------------------
+   Button Groups
+   ------------------------------------------------------------------------- */
+.btn-group .btn {
+  margin-right: var(--space-1);
+}
 
-/* Keep navbar badges consistent */
-.manage-data-page .badge { all: unset; }
-.manage-data-page .badge { display: inline-block; padding: 0.25em 0.6em; font-size: 75%; font-weight: 700; line-height: 1; text-align: center; white-space: nowrap; vertical-align: baseline; border-radius: 0.375rem; }
-.manage-data-page .badge-success { color: #fff; background-color: #28a745; }
-.manage-data-page .badge-info { color: #fff; background-color: #17a2b8; }
-.manage-data-page .badge-primary { color: #fff; background-color: #007bff; }
-.manage-data-page .badge-warning { color: #212529; background-color: #ffc107; }
-.manage-data-page .badge-danger { color: #fff; background-color: #dc3545; }
-.manage-data-page .badge-secondary { color: #fff; background-color: #6c757d; }
+.btn-group .btn:last-child {
+  margin-right: 0;
+}
 
-/* Responsive improvements */
+.clear-all-btn {
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Alerts
+   ------------------------------------------------------------------------- */
+.alert {
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+
+.alert-dismissible .close {
+  padding: var(--space-3) var(--space-4);
+}
+
+/* -------------------------------------------------------------------------
+   Loading States
+   ------------------------------------------------------------------------- */
+.spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* -------------------------------------------------------------------------
+   Badge Overrides for Manage Data Page
+   ------------------------------------------------------------------------- */
+.manage-data-page .badge {
+  all: unset;
+  display: inline-block;
+  padding: 0.25em 0.6em;
+  font-size: 75%;
+  font-weight: var(--font-bold);
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: var(--radius-md);
+}
+
+.manage-data-page .badge-success {
+  color: var(--color-white);
+  background-color: var(--color-success);
+}
+
+.manage-data-page .badge-info {
+  color: var(--color-white);
+  background-color: var(--color-info);
+}
+
+.manage-data-page .badge-primary {
+  color: var(--color-white);
+  background-color: var(--color-primary);
+}
+
+.manage-data-page .badge-warning {
+  color: var(--color-dark);
+  background-color: var(--color-warning);
+}
+
+.manage-data-page .badge-danger {
+  color: var(--color-white);
+  background-color: var(--color-danger);
+}
+
+.manage-data-page .badge-secondary {
+  color: var(--color-white);
+  background-color: var(--color-secondary);
+}
+
+/* -------------------------------------------------------------------------
+   Responsive Improvements
+   ------------------------------------------------------------------------- */
 @media (max-width: 768px) {
-    .solution-header { flex-direction: column; align-items: flex-start; gap: 10px; }
-    .btn-group { width: 100%; }
-    .btn-group .btn { flex: 1; margin-right: 5px; }
-    .tab-content { max-height: calc(100vh - 400px); }
+  .solution-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .btn-group {
+    width: 100%;
+  }
+
+  .btn-group .btn {
+    flex: 1;
+    margin-right: var(--space-1);
+  }
+
+  .tab-content {
+    max-height: calc(100vh - 400px);
+  }
 }
 
 

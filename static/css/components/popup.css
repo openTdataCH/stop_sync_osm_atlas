@@ -1,75 +1,355 @@
-/* Popup-specific styles */
-.unified-popup{display:flex;flex-direction:column;max-width:100%;margin:0;padding:0}
-.popup-section{padding:8px;margin-bottom:8px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
-.atlas-section{background-color:rgba(235,248,235,.95);border-left:3px solid #28a745}
-.osm-section{background-color:rgba(235,241,255,.95);border-left:3px solid #007bff}
-.matches-container{display:flex;flex-wrap:wrap;gap:8px;margin-top:5px;padding:8px}
-.popup-table{width:100%;margin-bottom:8px;border-collapse:collapse;font-size:12px}
-.popup-table td{padding:2px 3px;vertical-align:top;border-bottom:1px solid rgba(0,0,0,.05)}
-.popup-table td:first-child{font-weight:bold;width:35%;color:#555}
-.osm-match{padding:6px;margin-bottom:8px;flex:0 1 200px;border-radius:6px;background-color:rgba(235,241,255,.9);border-left:4px solid #007bff;box-shadow:0 1px 2px rgba(0,0,0,.1);transition:transform .1s ease}
-.osm-match:hover{transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,.15)}
-.atlas-match{padding:6px;margin-bottom:8px;flex:0 1 200px;border-radius:6px;background-color:rgba(235,248,235,.9);border-left:4px solid #28a745;box-shadow:0 1px 2px rgba(0,0,0,.1);transition:transform .1s ease}
-.atlas-match:hover{transform:translateY(-1px);box-shadow:0 2px 4px rgba(0,0,0,.15)}
-.atlas-match.unmatched{border-left-color:red;background-color:rgba(255,235,235,.9)}
-.osm-match.unmatched{border-left-color:gray;background-color:rgba(230,230,230,.9)}
-.additional-match{padding-top:6px;margin-top:0}
-.route-section{margin-top:6px;margin-bottom:6px;font-size:11px}
-.leaflet-popup-content{margin:0;overflow:auto!important;min-width:0;min-height:0;padding:0;position:relative;max-width:none}
-.leaflet-popup-content::-webkit-resizer{display:none}
-.popup-drag-handle{position:sticky;top:0;left:0;right:0;height:28px;background-color:#f8f9fa;border-bottom:1px solid rgba(0,0,0,.1);border-radius:12px 12px 0 0;cursor:grab;display:flex;align-items:center;justify-content:center;font-size:12px;color:#666;user-select:none;z-index:1000;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-bottom:5px}
-.popup-drag-handle svg{margin-right:5px;vertical-align:middle}
-.leaflet-popup-dragging .popup-drag-handle{cursor:grabbing}
-.leaflet-popup-content>div.unified-popup{padding:0 10px 12px 10px}
-.popup-connection-line{stroke:rgba(80,80,80,.6);stroke-width:1.5;stroke-dasharray:4,3;pointer-events:none}
-.leaflet-popup-dragging{opacity:.9;filter:drop-shadow(0 4px 8px rgba(0,0,0,.3))}
-.leaflet-popup-resizing{opacity:.9}
-.leaflet-popup-content h4{margin-top:0;margin-bottom:6px;font-size:14px;color:#333;border-bottom:1px solid rgba(0,0,0,.1);padding-bottom:4px}
-.leaflet-popup-content h5{margin-top:4px;margin-bottom:6px;font-size:13px;color:#444}
-.leaflet-popup-content button{margin-top:4px;margin-right:4px;padding:3px 8px;font-size:11px;border-radius:4px;border:1px solid #ccc;background:#f8f9fa;cursor:pointer;transition:all .2s ease}
-.leaflet-popup-content button:hover{background:#e9ecef;border-color:#adb5bd}
+/* ==========================================================================
+   POPUP COMPONENT
+   Map popup styles for Leaflet integration.
+   ========================================================================== */
 
-/* Style for popup actions container */
-.popup-actions {
-    padding-left: 8px;
-    padding-bottom: 8px;
+/* -------------------------------------------------------------------------
+   Unified Popup Container
+   ------------------------------------------------------------------------- */
+.unified-popup {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
 }
 
-/* Style for the 'See Matches' button */
+/* -------------------------------------------------------------------------
+   Popup Sections
+   ------------------------------------------------------------------------- */
+.popup-section {
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+}
+
+.atlas-section {
+  background-color: var(--color-success-bg);
+  border-left: 3px solid var(--color-success);
+}
+
+.osm-section {
+  background-color: var(--color-info-bg);
+  border-left: 3px solid var(--color-primary);
+}
+
+/* -------------------------------------------------------------------------
+   Matches Container
+   ------------------------------------------------------------------------- */
+.matches-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+}
+
+/* -------------------------------------------------------------------------
+   Popup Table
+   ------------------------------------------------------------------------- */
+.popup-table {
+  width: 100%;
+  margin-bottom: var(--space-2);
+  border-collapse: collapse;
+  font-size: var(--text-xs);
+}
+
+.popup-table td {
+  padding: 2px 3px;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.popup-table td:first-child {
+  font-weight: var(--font-bold);
+  width: 35%;
+  color: var(--color-fg-muted);
+}
+
+/* -------------------------------------------------------------------------
+   Match Cards
+   ------------------------------------------------------------------------- */
+.osm-match {
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
+  flex: 0 1 200px;
+  border-radius: var(--radius-md);
+  background-color: var(--color-info-bg);
+  border-left: 4px solid var(--color-primary);
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--transition-fast);
+}
+
+.osm-match:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.atlas-match {
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
+  flex: 0 1 200px;
+  border-radius: var(--radius-md);
+  background-color: var(--color-success-bg);
+  border-left: 4px solid var(--color-success);
+  box-shadow: var(--shadow-xs);
+  transition: transform var(--transition-fast);
+}
+
+.atlas-match:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.atlas-match.unmatched {
+  border-left-color: var(--color-danger);
+  background-color: rgba(255, 235, 235, 0.9);
+}
+
+.osm-match.unmatched {
+  border-left-color: var(--color-secondary);
+  background-color: rgba(230, 230, 230, 0.9);
+}
+
+.additional-match {
+  padding-top: var(--space-2);
+  margin-top: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Route Section
+   ------------------------------------------------------------------------- */
+.route-section {
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
+}
+
+/* -------------------------------------------------------------------------
+   Leaflet Popup Overrides
+   ------------------------------------------------------------------------- */
+.leaflet-popup-content {
+  margin: 0;
+  overflow: auto !important;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  position: relative;
+  max-width: none;
+}
+
+.leaflet-popup-content::-webkit-resizer {
+  display: none;
+}
+
+.leaflet-popup-content > div.unified-popup {
+  padding: 0 var(--space-3) var(--space-3) var(--space-3);
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2);
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+.leaflet-popup {
+  margin-bottom: 30px;
+}
+
+.leaflet-popup-tip-container {
+  pointer-events: none;
+  z-index: 1;
+}
+
+.leaflet-popup-tip {
+  width: 18px;
+  height: 18px;
+}
+
+/* -------------------------------------------------------------------------
+   Popup Headings
+   ------------------------------------------------------------------------- */
+.leaflet-popup-content h4 {
+  margin-top: 0;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-dark);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding-bottom: var(--space-1);
+}
+
+.leaflet-popup-content h5 {
+  margin-top: var(--space-1);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-fg);
+}
+
+/* -------------------------------------------------------------------------
+   Popup Buttons
+   ------------------------------------------------------------------------- */
+.leaflet-popup-content button {
+  margin-top: var(--space-1);
+  margin-right: var(--space-1);
+  padding: 3px var(--space-2);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-emphasis);
+  background: var(--color-bg-subtle);
+  color: var(--color-dark);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.leaflet-popup-content button:hover {
+  background: var(--color-bg-muted);
+  border-color: var(--color-fg-subtle);
+  color: var(--color-black);
+}
+
+/* Save note button */
+.leaflet-popup-content .save-popup-note {
+  color: var(--color-dark) !important;
+}
+
+.leaflet-popup-content .save-popup-note:hover {
+  color: var(--color-black) !important;
+}
+
+/* -------------------------------------------------------------------------
+   Popup Actions Container
+   ------------------------------------------------------------------------- */
+.popup-actions {
+  padding-left: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
 .popup-actions .btn-secondary {
-    color: #343a40 !important; /* Use dark gray text color */
-    background-color: #e9ecef; /* Lighter gray background to ensure contrast */
-    border-color: #adb5bd;
+  color: var(--color-dark) !important;
+  background-color: var(--color-bg-muted);
+  border-color: var(--color-fg-subtle);
 }
 
 .popup-actions .btn-secondary:hover {
-    color: #ffffff !important; /* White text on hover */
-    background-color: #6c757d; /* Standard secondary hover background */
-    border-color: #6c757d;
+  color: var(--color-white) !important;
+  background-color: var(--color-secondary);
+  border-color: var(--color-secondary);
 }
 
-/* OSM editor link container spacing */
+/* -------------------------------------------------------------------------
+   Popup Links
+   ------------------------------------------------------------------------- */
+.leaflet-popup-content a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-base);
+}
+
+.leaflet-popup-content a:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
+/* -------------------------------------------------------------------------
+   OSM Editor Link
+   ------------------------------------------------------------------------- */
 .osm-editor-link-container {
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(0, 0, 0, 0.1);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 .osm-editor-link {
-    font-size: 12px;
-    color: #007bff;
-    text-decoration: none;
+  font-size: var(--text-xs);
+  color: var(--color-primary);
+  text-decoration: none;
 }
 
 .osm-editor-link:hover {
-    text-decoration: underline;
+  text-decoration: underline;
 }
 
-.leaflet-popup-content-wrapper{border-radius:12px;box-shadow:0 3px 14px rgba(0,0,0,.2);padding:6px;overflow:hidden;background:#fff}
-.leaflet-popup-content a{color:#0066cc;text-decoration:none;transition:color .2s ease}
-.leaflet-popup-content a:hover{color:#004499;text-decoration:underline}
-.leaflet-popup{margin-bottom:30px}
-.leaflet-popup-tip-container{pointer-events:none;z-index:1}
-.leaflet-popup-tip{width:18px;height:18px}
-.customPopup .leaflet-popup-close-button{position:absolute;top:0;left:0;padding:4px 5px 0 5px;border:none;text-align:center;width:24px;height:24px;font:18px/20px Tahoma,Verdana,sans-serif;color:#666;text-decoration:none;font-weight:bold;border-radius:0 0 12px 0;background-color:rgba(255,255,255,.8);z-index:10001}
-.customPopup .leaflet-popup-close-button:hover{color:#333;background-color:rgba(255,255,255,1)} 
+/* -------------------------------------------------------------------------
+   Popup Drag Handle
+   ------------------------------------------------------------------------- */
+.popup-drag-handle {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background-color: var(--color-bg-subtle);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+  user-select: none;
+  z-index: var(--z-dropdown);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: var(--space-2);
+}
+
+.popup-drag-handle svg {
+  margin-right: var(--space-2);
+  vertical-align: middle;
+}
+
+.leaflet-popup-dragging .popup-drag-handle {
+  cursor: grabbing;
+}
+
+/* -------------------------------------------------------------------------
+   Popup Connection Line
+   ------------------------------------------------------------------------- */
+.popup-connection-line {
+  stroke: rgba(80, 80, 80, 0.6);
+  stroke-width: 1.5;
+  stroke-dasharray: 4, 3;
+  pointer-events: none;
+}
+
+/* -------------------------------------------------------------------------
+   Popup States
+   ------------------------------------------------------------------------- */
+.leaflet-popup-dragging {
+  opacity: 0.9;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+}
+
+.leaflet-popup-resizing {
+  opacity: 0.9;
+}
+
+/* -------------------------------------------------------------------------
+   Custom Popup Close Button
+   ------------------------------------------------------------------------- */
+.customPopup .leaflet-popup-close-button {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: var(--space-1) var(--space-2) 0 var(--space-2);
+  border: none;
+  text-align: center;
+  width: 24px;
+  height: 24px;
+  font: 18px/20px var(--font-sans);
+  color: var(--color-fg-muted);
+  text-decoration: none;
+  font-weight: var(--font-bold);
+  border-radius: 0 0 var(--radius-lg) 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 10001;
+  transition: all var(--transition-fast);
+}
+
+.customPopup .leaflet-popup-close-button:hover {
+  color: var(--color-dark);
+  background-color: rgba(255, 255, 255, 1);
+} 

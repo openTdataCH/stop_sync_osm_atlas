@@ -1,8 +1,81 @@
-/* Sorting controls (transitional, identical selectors) */
-#sortingControls { margin-top: 10px; }
-#sortingControls .dropdown-menu { min-width: 100%; }
-#sortingControls .sort-option { cursor: pointer; padding: 8px 16px; }
-#sortingControls .sort-option:hover { background-color: #f8f9fa; }
-#sortingControls .sort-option i { width: 16px; margin-right: 8px; }
+/* ==========================================================================
+   C-SORTING-CONTROLS COMPONENT
+   Sorting controls component styles.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Sorting Controls Container
+   ------------------------------------------------------------------------- */
+#sortingControls {
+  margin-top: var(--space-3);
+}
+
+#sortingControls .dropdown-menu {
+  min-width: 100%;
+}
+
+/* -------------------------------------------------------------------------
+   Sort Option
+   ------------------------------------------------------------------------- */
+#sortingControls .sort-option {
+  cursor: pointer;
+  padding: var(--space-2) var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  transition: background-color var(--transition-fast);
+}
+
+#sortingControls .sort-option:hover {
+  background-color: var(--color-bg-subtle);
+}
+
+#sortingControls .sort-option i {
+  width: 16px;
+  margin-right: var(--space-2);
+  color: var(--color-fg-muted);
+}
+
+#sortingControls .sort-option.active {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-primary);
+}
+
+#sortingControls .sort-option.active i {
+  color: var(--color-primary);
+}
+
+/* -------------------------------------------------------------------------
+   Sort Button
+   ------------------------------------------------------------------------- */
+.c-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--color-fg);
+  cursor: pointer;
+  transition: 
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.c-sort-button:hover {
+  background-color: var(--color-bg-subtle);
+  border-color: var(--color-border-emphasis);
+}
+
+.c-sort-button__icon {
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.c-sort-button__label {
+  font-weight: var(--font-medium);
+}
 
 

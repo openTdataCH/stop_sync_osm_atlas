@@ -20,24 +20,36 @@ def exact_matching(atlas_df: pd.DataFrame, uic_ref_dict):
     unmatched = []
     used_osm_ids = set()
 
-    # Group ATLAS entries by UIC reference (number). Avoid repeated astype in the loop
-    number_as_str = atlas_df['number'].astype(str)
-    grouped_atlas = atlas_df.groupby(number_as_str)
-
     # Bind frequently used globals to locals for faster access in tight loops
     is_station = is_osm_station
     haversine = haversine_distance
+    pd_notna = pd.notna
+
+    # Pre-group ATLAS rows in pure Python.
+    #
+    # Pandas `groupby(...)->to_dict()` per group can be surprisingly costly when
+    # there are many small groups (which is common for UIC references).
+    # Converting once and grouping in Python preserves:
+    # - the same per-row dictionaries (same keys/values),
+    # - the same within-group order (original CSV order),
+    # - and the same group processing order as pandas `groupby` on `astype(str)`:
+    #   lexicographic order of the stringified UIC key.
+    atlas_records = atlas_df.to_dict(orient="records")
+    atlas_by_uic = {}
+    for rec in atlas_records:
+        uic_key = str(rec.get("number"))
+        atlas_by_uic.setdefault(uic_key, []).append(rec)
+
+    uic_keys = sorted(atlas_by_uic.keys())
 
     # Disable tqdm when not attached to a TTY to reduce overhead in batch runs
-    for uic_ref, group in tqdm(grouped_atlas, total=len(grouped_atlas), desc="Exact Matching", disable=not sys.stderr.isatty()):
-        atlas_entries = group.to_dict(orient="records")
-        uic_ref_str = str(uic_ref)
+    for uic_ref_str in tqdm(uic_keys, total=len(uic_keys), desc="Exact Matching", disable=not sys.stderr.isatty()):
+        atlas_entries = atlas_by_uic[uic_ref_str]
         osm_candidates = uic_ref_dict.get(uic_ref_str, [])
 
         # Skip if no OSM candidates for this UIC reference
         if not osm_candidates:
-            for entry in atlas_entries:
-                unmatched.append(entry)
+            unmatched.extend(atlas_entries)
             continue
 
         # Filter out already used OSM nodes and OSM stations
@@ -48,28 +60,34 @@ def exact_matching(atlas_df: pd.DataFrame, uic_ref_dict):
 
         # Case 1: No available OSM nodes (all used previously or are stations)
         if not available_osm:
-            for entry in atlas_entries:
-                unmatched.append(entry)
+            unmatched.extend(atlas_entries)
             continue
 
         # Case 2: Only one OSM node for this UIC - match all ATLAS entries to it
         available_osm_len = len(available_osm)
         if available_osm_len == 1:
             osm_node = available_osm[0]
+            osm_node_id = osm_node['node_id']
+            tags = osm_node['tags']
+            osm_network = tags.get('network', '')
+            osm_operator = tags.get('operator', '')
+            osm_amenity = tags.get('amenity', '')
+            osm_railway = tags.get('railway', '')
+            osm_aerialway = tags.get('aerialway', '')
+            osm_name = tags.get('name', '')
+            osm_uic_name = tags.get('uic_name', '')
+            osm_uic_ref = tags.get('uic_ref', '')
+            osm_public_transport = tags.get('public_transport', '')
+            osm_original_operator = tags.get('original_operator')
+
             for atlas_entry in atlas_entries:
                 csv_lat = atlas_entry['wgs84North']
                 csv_lon = atlas_entry['wgs84East']
-                otdp_designation = str(atlas_entry['designation']).strip() if pd.notna(atlas_entry['designation']) else ""
-                designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd.notna(atlas_entry.get('designationOfficial')) else otdp_designation
+                otdp_designation = str(atlas_entry['designation']).strip() if pd_notna(atlas_entry['designation']) else ""
+                designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd_notna(atlas_entry.get('designationOfficial')) else otdp_designation
                 business_org_abbr = str(atlas_entry.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
 
                 dist = haversine(csv_lat, csv_lon, osm_node['lat'], osm_node['lon'])
-                tags = osm_node['tags']
-                osm_network = tags.get('network', '')
-                osm_operator = tags.get('operator', '')
-                osm_amenity = tags.get('amenity', '')
-                osm_railway = tags.get('railway', '')
-                osm_aerialway = tags.get('aerialway', '')
 
                 matches.append({
                     'sloid': atlas_entry['sloid'],
@@ -80,26 +98,26 @@ def exact_matching(atlas_df: pd.DataFrame, uic_ref_dict):
                     'csv_lat': csv_lat,
                     'csv_lon': csv_lon,
                     'csv_business_org_abbr': business_org_abbr,
-                    'osm_node_id': osm_node['node_id'],
+                    'osm_node_id': osm_node_id,
                     'osm_lat': osm_node['lat'],
                     'osm_lon': osm_node['lon'],
                     'osm_local_ref': osm_node.get('local_ref'),
                     'osm_network': osm_network,
                     'osm_operator': osm_operator,
-                    'osm_original_operator': tags.get('original_operator'),
+                    'osm_original_operator': osm_original_operator,
                     'osm_amenity': osm_amenity,
                     'osm_railway': osm_railway,
                     'osm_aerialway': osm_aerialway,
-                    'osm_name': tags.get('name', ''),
-                    'osm_uic_name': tags.get('uic_name', ''),
-                    'osm_uic_ref': tags.get('uic_ref', ''),
-                    'osm_public_transport': tags.get('public_transport', ''),
+                    'osm_name': osm_name,
+                    'osm_uic_name': osm_uic_name,
+                    'osm_uic_ref': osm_uic_ref,
+                    'osm_public_transport': osm_public_transport,
                     'distance_m': dist,
                     'match_type': 'exact',
                     'candidate_pool_size': available_osm_len,
                     'matching_notes': "Single OSM node for this UIC reference"
                 })
-            used_osm_ids.add(osm_node['node_id'])
+            used_osm_ids.add(osm_node_id)
             continue
 
         # Case 3: Only one ATLAS entry - match to all available OSM nodes
@@ -108,8 +126,8 @@ def exact_matching(atlas_df: pd.DataFrame, uic_ref_dict):
 
             csv_lat = atlas_entry['wgs84North']
             csv_lon = atlas_entry['wgs84East']
-            otdp_designation = str(atlas_entry['designation']).strip() if pd.notna(atlas_entry['designation']) else ""
-            designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd.notna(atlas_entry.get('designationOfficial')) else otdp_designation
+            otdp_designation = str(atlas_entry['designation']).strip() if pd_notna(atlas_entry['designation']) else ""
+            designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd_notna(atlas_entry.get('designationOfficial')) else otdp_designation
             business_org_abbr = str(atlas_entry.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
 
             # Match to all available OSM nodes
@@ -157,69 +175,84 @@ def exact_matching(atlas_df: pd.DataFrame, uic_ref_dict):
         matched_atlas_ids = set()
         matched_osm_ids = set()
 
-        # First pass: Try to match based on exact local_ref/designation match
+        # First pass: Try to match based on exact local_ref/designation match (case-insensitive).
+        #
+        # Performance note:
+        # The original implementation scanned *all* available OSM candidates for every ATLAS entry.
+        # That can become O(N*M) for large UIC groups.
+        # Here we build a lookup from normalized local_ref -> candidates (in original order)
+        # and then only scan the much smaller candidate list for the relevant local_ref.
+        local_ref_lookup = {}
+        for cand in available_osm:
+            lr = str(cand.get('local_ref') or "").strip()
+            if not lr:
+                continue
+            local_ref_lookup.setdefault(lr.lower(), []).append((cand, lr))
+
         for atlas_entry in atlas_entries:
             sloid = atlas_entry['sloid']
             if sloid in matched_atlas_ids:
                 continue
 
-            otdp_designation = str(atlas_entry['designation']).strip() if pd.notna(atlas_entry['designation']) else ""
+            otdp_designation = str(atlas_entry['designation']).strip() if pd_notna(atlas_entry['designation']) else ""
+            if not otdp_designation:
+                continue
 
-            for osm_node in available_osm:
+            cand_list = local_ref_lookup.get(otdp_designation.lower())
+            if not cand_list:
+                continue
+
+            for osm_node, osm_local_ref in cand_list:
                 osm_id = osm_node['node_id']
                 if osm_id in matched_osm_ids or osm_id in used_osm_ids:
                     continue
 
-                osm_local_ref = str(osm_node.get('local_ref') or "").strip()
+                csv_lat = atlas_entry['wgs84North']
+                csv_lon = atlas_entry['wgs84East']
+                designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd_notna(atlas_entry.get('designationOfficial')) else otdp_designation
+                business_org_abbr = str(atlas_entry.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
 
-                # Check for exact designation/local_ref match
-                if otdp_designation and osm_local_ref and otdp_designation.lower() == osm_local_ref.lower():
-                    csv_lat = atlas_entry['wgs84North']
-                    csv_lon = atlas_entry['wgs84East']
-                    designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd.notna(atlas_entry.get('designationOfficial')) else otdp_designation
-                    business_org_abbr = str(atlas_entry.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
+                dist = haversine(csv_lat, csv_lon, osm_node['lat'], osm_node['lon'])
+                tags = osm_node['tags']
+                osm_network = tags.get('network', '')
+                osm_operator = tags.get('operator', '')
+                osm_amenity = tags.get('amenity', '')
+                osm_railway = tags.get('railway', '')
+                osm_aerialway = tags.get('aerialway', '')
 
-                    dist = haversine(csv_lat, csv_lon, osm_node['lat'], osm_node['lon'])
-                    tags = osm_node['tags']
-                    osm_network = tags.get('network', '')
-                    osm_operator = tags.get('operator', '')
-                    osm_amenity = tags.get('amenity', '')
-                    osm_railway = tags.get('railway', '')
-                    osm_aerialway = tags.get('aerialway', '')
+                matches.append({
+                    'sloid': sloid,
+                    'number': atlas_entry['number'],
+                    'uic_ref': uic_ref_str,
+                    'csv_designation': otdp_designation,
+                    'csv_designation_official': designation_official,
+                    'csv_lat': csv_lat,
+                    'csv_lon': csv_lon,
+                    'csv_business_org_abbr': business_org_abbr,
+                    'osm_node_id': osm_id,
+                    'osm_lat': osm_node['lat'],
+                    'osm_lon': osm_node['lon'],
+                    'osm_local_ref': osm_local_ref,
+                    'osm_network': osm_network,
+                    'osm_operator': osm_operator,
+                    'osm_original_operator': tags.get('original_operator'),
+                    'osm_amenity': osm_amenity,
+                    'osm_railway': osm_railway,
+                    'osm_aerialway': osm_aerialway,
+                    'osm_name': tags.get('name', ''),
+                    'osm_uic_name': tags.get('uic_name', ''),
+                    'osm_uic_ref': tags.get('uic_ref', ''),
+                    'osm_public_transport': tags.get('public_transport', ''),
+                    'distance_m': dist,
+                    'match_type': 'exact',
+                    'candidate_pool_size': available_osm_len,
+                    'matching_notes': "Exact local_ref/designation match"
+                })
 
-                    matches.append({
-                        'sloid': sloid,
-                        'number': atlas_entry['number'],
-                        'uic_ref': uic_ref_str,
-                        'csv_designation': otdp_designation,
-                        'csv_designation_official': designation_official,
-                        'csv_lat': csv_lat,
-                        'csv_lon': csv_lon,
-                        'csv_business_org_abbr': business_org_abbr,
-                        'osm_node_id': osm_id,
-                        'osm_lat': osm_node['lat'],
-                        'osm_lon': osm_node['lon'],
-                        'osm_local_ref': osm_local_ref,
-                        'osm_network': osm_network,
-                        'osm_operator': osm_operator,
-                        'osm_original_operator': tags.get('original_operator'),
-                        'osm_amenity': osm_amenity,
-                        'osm_railway': osm_railway,
-                        'osm_aerialway': osm_aerialway,
-                        'osm_name': tags.get('name', ''),
-                        'osm_uic_name': tags.get('uic_name', ''),
-                        'osm_uic_ref': tags.get('uic_ref', ''),
-                        'osm_public_transport': tags.get('public_transport', ''),
-                        'distance_m': dist,
-                        'match_type': 'exact',
-                        'candidate_pool_size': available_osm_len,
-                        'matching_notes': "Exact local_ref/designation match"
-                    })
-
-                    matched_atlas_ids.add(sloid)
-                    matched_osm_ids.add(osm_id)
-                    used_osm_ids.add(osm_id)
-                    break
+                matched_atlas_ids.add(sloid)
+                matched_osm_ids.add(osm_id)
+                used_osm_ids.add(osm_id)
+                break
 
         # Add all unmatched atlas entries to the unmatched list
         for atlas_entry in atlas_entries:

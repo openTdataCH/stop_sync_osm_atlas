@@ -1,8 +1,177 @@
+/* ==========================================================================
+   C-MODAL COMPONENT
+   Modal/dialog component for overlays and popups.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Modal Container
+   ------------------------------------------------------------------------- */
 .c-modal {
   display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-modal);
+  overflow-x: hidden;
+  overflow-y: auto;
+  outline: 0;
 }
+
 .c-modal.is-open {
   display: block;
+}
+
+/* -------------------------------------------------------------------------
+   Modal Backdrop
+   ------------------------------------------------------------------------- */
+.c-modal__backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  z-index: var(--z-modal-backdrop);
+}
+
+/* -------------------------------------------------------------------------
+   Modal Dialog
+   ------------------------------------------------------------------------- */
+.c-modal__dialog {
+  position: relative;
+  width: auto;
+  max-width: 500px;
+  margin: var(--space-8) auto;
+  pointer-events: none;
+  z-index: var(--z-modal);
+}
+
+.c-modal__dialog--sm {
+  max-width: 360px;
+}
+
+.c-modal__dialog--lg {
+  max-width: 800px;
+}
+
+.c-modal__dialog--xl {
+  max-width: 1140px;
+}
+
+.c-modal__dialog--fullscreen {
+  max-width: none;
+  margin: 0;
+  height: 100%;
+}
+
+/* -------------------------------------------------------------------------
+   Modal Content
+   ------------------------------------------------------------------------- */
+.c-modal__content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  pointer-events: auto;
+  background-color: var(--color-bg);
+  background-clip: padding-box;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  outline: 0;
+  animation: fadeInUp var(--transition-slow) ease-out;
+}
+
+/* -------------------------------------------------------------------------
+   Modal Header
+   ------------------------------------------------------------------------- */
+.c-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.c-modal__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--color-fg);
+  line-height: var(--leading-snug);
+}
+
+/* -------------------------------------------------------------------------
+   Modal Close Button
+   ------------------------------------------------------------------------- */
+.c-modal__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2);
+  margin: calc(-1 * var(--space-2));
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-muted);
+  font-size: var(--text-xl);
+  line-height: 1;
+  cursor: pointer;
+  transition: 
+    color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.c-modal__close:hover {
+  color: var(--color-fg);
+  background-color: var(--color-bg-muted);
+}
+
+/* -------------------------------------------------------------------------
+   Modal Body
+   ------------------------------------------------------------------------- */
+.c-modal__body {
+  position: relative;
+  flex: 1 1 auto;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+/* -------------------------------------------------------------------------
+   Modal Footer
+   ------------------------------------------------------------------------- */
+.c-modal__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-width) solid var(--color-border);
+  background-color: var(--color-bg-subtle);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/* -------------------------------------------------------------------------
+   Modal Animation
+   ------------------------------------------------------------------------- */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.c-modal.is-open .c-modal__content {
+  animation: modalFadeIn var(--transition-slow) ease-out;
 }
 
 

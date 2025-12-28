@@ -5,25 +5,65 @@ set -e
 export PYTHONPATH=$PYTHONPATH:/app
 
 
-echo "Waiting for MySQL database at db:3306..."
-while ! mysqladmin ping -h"db" -P3306 --silent --user=${MYSQL_USER} --password=${MYSQL_PASSWORD}; do
-    sleep 1
-done
-echo "MySQL is up and ready."
+echo "Waiting for Postgres database..."
+python - <<'PY'
+import os
+import time
+from urllib.parse import urlparse, urlunparse
 
-# Ensure the authentication database exists even on existing volumes (dev convenience)
-if [ -n "$MYSQL_ROOT_PASSWORD" ]; then
-    echo "Ensuring auth_db exists..."
-    mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE DATABASE IF NOT EXISTS auth_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; GRANT ALL PRIVILEGES ON auth_db.* TO 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
+from sqlalchemy import create_engine, text
 
-    # Optionally create a dedicated auth user with least-privilege grants if env vars are provided
-    if [ -n "$AUTH_DB_USER" ] && [ -n "$AUTH_DB_PASSWORD" ]; then
-        echo "Ensuring dedicated user '$AUTH_DB_USER' has privileges on auth_db..."
-        mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "CREATE USER IF NOT EXISTS '${AUTH_DB_USER}'@'%' IDENTIFIED BY '${AUTH_DB_PASSWORD}'; GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX ON auth_db.* TO '${AUTH_DB_USER}'@'%'; FLUSH PRIVILEGES;" || true
-        echo "Revoking 'stops_user' privileges on auth_db (keeping its stops_db access)..."
-        mysql -h db -uroot -p"${MYSQL_ROOT_PASSWORD}" -e "REVOKE ALL PRIVILEGES ON auth_db.* FROM 'stops_user'@'%'; FLUSH PRIVILEGES;" || true
-    fi
-fi
+def wait_for_db(uri: str, name: str, attempts: int = 60) -> None:
+    engine = create_engine(uri, pool_pre_ping=True)
+    last_err = None
+    for _ in range(attempts):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            return
+        except Exception as e:
+            last_err = e
+            time.sleep(1)
+    raise SystemExit(f"Database not ready: {name}: {last_err}")
+
+def ensure_db_exists(target_uri: str) -> None:
+    """Ensure the database referenced by target_uri exists.
+
+    For Postgres, CREATE DATABASE cannot run inside a transaction.
+    """
+    parsed = urlparse(target_uri)
+    dbname = (parsed.path or '').lstrip('/')
+    if not dbname:
+        return
+
+    # Connect to the server default 'postgres' database
+    server_uri = urlunparse(parsed._replace(path='/postgres'))
+    engine = create_engine(server_uri, pool_pre_ping=True)
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        exists = conn.execute(
+            text("SELECT 1 FROM pg_database WHERE datname = :d"),
+            {"d": dbname},
+        ).scalar()
+        if not exists:
+            conn.execute(text(f'CREATE DATABASE "{dbname}"'))
+
+database_uri = os.environ.get('DATABASE_URI')
+auth_uri = os.environ.get('AUTH_DATABASE_URI')
+
+if not database_uri:
+    raise SystemExit('DATABASE_URI is not set')
+
+wait_for_db(database_uri, 'DATABASE_URI')
+if auth_uri:
+    # auth_db might not exist yet on reused volumes; try to create it, then wait.
+    try:
+        wait_for_db(auth_uri, 'AUTH_DATABASE_URI', attempts=3)
+    except SystemExit:
+        ensure_db_exists(auth_uri)
+        wait_for_db(auth_uri, 'AUTH_DATABASE_URI')
+
+print('Postgres is up and ready.')
+PY
 
 # Run database migrations
 echo "Running database migrations..."

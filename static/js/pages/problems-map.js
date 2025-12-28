@@ -22,18 +22,50 @@ window.ProblemsMap = (function() {
         const problemMap = L.map('problemMap', {
             closePopupOnClick: false,
             // Use SVG renderer so popup connection lines can be drawn (same as main map)
-            preferCanvas: false
+            preferCanvas: false,
+            maxZoom: AppConstants.MAP.MAX_ZOOM,
+            zoomControl: false
         }).setView([47.3769, 8.5417], 13);
         
         // Use same tile layer as main page
         const osmLayerProblems = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-             maxZoom: 19,
+             maxZoom: AppConstants.MAP.MAX_ZOOM,
+             maxNativeZoom: AppConstants.MAP.MAX_NATIVE_ZOOM,
              attribution: '© OpenStreetMap'
-        }).addTo(problemMap);
+        });
+
+        const transportLayerProblems = L.tileLayer('https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png', {
+            maxZoom: AppConstants.MAP.MAX_ZOOM,
+            maxNativeZoom: 18,
+            attribution: 'Map <a href="https://memomaps.de/">memomaps.de</a> <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+
+        const satelliteLayerProblems = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: AppConstants.MAP.MAX_ZOOM,
+            maxNativeZoom: 19,
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
+        });
+
+        osmLayerProblems.addTo(problemMap);
+
+        const baseMaps = {
+            "OpenStreetMap": osmLayerProblems,
+            "Transport Map": transportLayerProblems,
+            "Satellite": satelliteLayerProblems
+        };
         
         const problemMarkersLayer = L.layerGroup().addTo(problemMap);
         const problemLinesLayer = L.layerGroup().addTo(problemMap);
         const contextMarkersLayer = L.layerGroup().addTo(problemMap);
+
+        const overlayMaps = {
+            "Problem Markers": problemMarkersLayer,
+            "Connection Lines": problemLinesLayer
+        };
+
+        // Put layer + zoom controls on the right (they will be offset under the context toggle)
+        L.control.zoom({ position: 'topright' }).addTo(problemMap);
+        L.control.layers(baseMaps, overlayMaps, { position: 'topright' }).addTo(problemMap);
         
         // Attach standard popup-line handlers (shared)
         attachPopupLineHandlersToMap(problemMap);
@@ -56,6 +88,26 @@ window.ProblemsMap = (function() {
             problemLinesLayer: problemLinesLayer,
             contextMarkersLayer: contextMarkersLayer
         });
+
+        positionProblemsMapRightControls();
+        window.addEventListener('resize', positionProblemsMapRightControls);
+    }
+
+    function positionProblemsMapRightControls() {
+        const mapEl = document.getElementById('problemMap');
+        if (!mapEl) return;
+
+        const corner = mapEl.querySelector('.leaflet-top.leaflet-right');
+        if (!corner) return;
+
+        const toggle = document.querySelector('#mapSection .map-context-toggle');
+        if (!toggle) return;
+
+        // Move toggle into the corner container if it's not already there
+        // This puts it at the top of the right corner (above zoom and layers)
+        if (toggle.parentElement !== corner) {
+            corner.prepend(toggle);
+        }
     }
 
     /**
@@ -345,7 +397,7 @@ window.ProblemsMap = (function() {
             
             // Enforce min-width constraints from CSS
             const minMapWidth = parseInt(mapSection.css('min-width'), 10) || 300;
-            const minProblemWidth = parseInt(problemSection.css('min-width'), 10) || 350;
+            const minProblemWidth = parseInt(problemSection.css('min-width'), 10) || 450;
 
             if (newMapWidth < minMapWidth) {
                 newMapWidth = minMapWidth;
@@ -382,29 +434,20 @@ window.ProblemsMap = (function() {
     function initializeFilterToggle() {
         const filterPanel = $('#filterPanel');
         const filterToggleBtn = $('#filterToggleBtn');
-        const contentArea = $('#contentArea');
+        
+        // Load saved state from localStorage
+        var savedState = localStorage.getItem('problemsFilterPanelCollapsed');
+        if (savedState === 'true') {
+            filterPanel.addClass('collapsed');
+        }
         
         filterToggleBtn.on('click', function() {
             filterPanel.toggleClass('collapsed');
             
-            // Update button text and icon
-            const isCollapsed = filterPanel.hasClass('collapsed');
-            const toggleText = filterToggleBtn.find('.toggle-text');
-            const toggleIcon = filterToggleBtn.find('.toggle-icon');
-            
-            if (isCollapsed) {
-                toggleText.text('Show');
-            } else {
-                toggleText.text('Filters');
-            }
-            
-            // Force map to resize after transition
-            setTimeout(() => {
-                const problemMap = ProblemsState.getProblemMap();
-                if (problemMap) {
-                    problemMap.invalidateSize();
-                }
-            }, 350); // Slightly longer than CSS transition
+            // Save state to localStorage
+            var isCollapsed = filterPanel.hasClass('collapsed');
+            localStorage.setItem('problemsFilterPanelCollapsed', isCollapsed);
+            // No need to invalidate map size - panel now overlays the map
         });
     }
 

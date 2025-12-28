@@ -1,92 +1,78 @@
 """HRDF data download and processing module."""
 import os
-import io
 import zipfile
 import requests
 import pandas as pd
+import shutil
 from typing import Dict, Set, Tuple, List
 from collections import defaultdict
 
 
 def download_and_extract_hrdf(hrdf_url):
-    """Download and extract HRDF data, keeping only the files we need."""
-    print(f"HRDF: downloading from {hrdf_url}…")
-    response = requests.get(hrdf_url, stream=True)
-    response.raise_for_status()
+    """Download and extract HRDF data, keeping only the files we need.
 
-    # Files we actually need for processing
+    Performance note:
+      - HRDF ZIPs are very large; extracting everything and then deleting is slow.
+      - We only extract: GLEISE_LV95, FPLAN, BAHNHOF (placed directly in data/raw/hrdf).
+    """
     needed_files = {'GLEISE_LV95', 'FPLAN', 'BAHNHOF'}
 
-    print("HRDF: download successful, extracting ZIP file…")
-    with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-        # Get the list of files to see what folders are created
-        all_files = z.namelist()
-        print(f"HRDF: ZIP contains {len(all_files)} files")
-        
-        # Extract everything to a dedicated HRDF folder to avoid deleting non-HRDF assets
-        hrdf_root = os.path.join("data", "raw", "hrdf")
-        os.makedirs(hrdf_root, exist_ok=True)
-        # Clear previous extracted content to avoid mixing versions
-        try:
-            for existing_name in os.listdir(hrdf_root):
-                existing_path = os.path.join(hrdf_root, existing_name)
+    hrdf_root = os.path.join("data", "raw", "hrdf")
+    os.makedirs(hrdf_root, exist_ok=True)
+
+    # Clear previous extracted content to avoid mixing versions
+    try:
+        for existing_name in os.listdir(hrdf_root):
+            existing_path = os.path.join(hrdf_root, existing_name)
+            try:
                 if os.path.isfile(existing_path):
                     os.remove(existing_path)
                 else:
                     import shutil
                     shutil.rmtree(existing_path, ignore_errors=True)
-        except Exception:
-            pass
+            except OSError:
+                pass
+    except Exception:
+        pass
 
-        z.extractall(hrdf_root)
-        print(f"HRDF: extracted to {hrdf_root}")
-        
-        # Find the HRDF folder by looking for folders that contain HRDF files
-        hrdf_folders = []
-        for file_path in all_files:
-            if '/' in file_path:  # It's in a subfolder
-                folder_name = file_path.split('/')[0]
-                if folder_name not in hrdf_folders:
-                    # Check if this looks like an HRDF folder (contains typical HRDF files)
-                    if any(hrdf_file in file_path for hrdf_file in ['GLEISE_LV95', 'FPLAN', 'BAHNHOF']):
-                        hrdf_folders.append(folder_name)
-        
-        if hrdf_folders:
-            # Use the first HRDF folder found
-            hrdf_folder = os.path.join(hrdf_root, hrdf_folders[0])
-            print(f"HRDF: detected folder {hrdf_folder}")
-        else:
-            # Files might be extracted directly to hrdf_root
-            print(f"HRDF: files extracted directly to {hrdf_root}")
-            hrdf_folder = hrdf_root
+    zip_path = os.path.join(hrdf_root, "hrdf.zip")
+    zip_tmp_path = zip_path + ".part"
+    print(f"HRDF: downloading from {hrdf_url}…")
+    with requests.get(hrdf_url, stream=True, timeout=120) as resp:
+        resp.raise_for_status()
+        with open(zip_tmp_path, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    f.write(chunk)
+    os.replace(zip_tmp_path, zip_path)
 
-        # Clean up: keep only the files we need (inside the dedicated HRDF folder)
-        files_deleted = 0
-        if os.path.exists(hrdf_folder):
-            files_in_folder = os.listdir(hrdf_folder)
-            for file_name in files_in_folder:
-                file_path = os.path.join(hrdf_folder, file_name)
-                if os.path.isfile(file_path) and file_name not in needed_files:
-                    try:
-                        os.remove(file_path)
-                        files_deleted += 1
-                    except OSError:
-                        pass  # Ignore deletion errors
-            
-            print(f"HRDF: cleaned up {files_deleted} unnecessary files, kept {len(needed_files)} needed files")
-            
-            # Verify we have the files we need
-            missing_files = []
-            for needed_file in needed_files:
-                if not os.path.exists(os.path.join(hrdf_folder, needed_file)):
-                    missing_files.append(needed_file)
-            
-            if missing_files:
-                print(f"HRDF: Warning - missing required files: {missing_files}")
-            else:
-                print(f"HRDF: All required files present: {list(needed_files)}")
-        
-        return hrdf_folder
+    print("HRDF: download successful, extracting required files…")
+    extracted = 0
+    with zipfile.ZipFile(zip_path) as z:
+        basename_to_member: Dict[str, str] = {}
+        for member in z.namelist():
+            base = os.path.basename(member)
+            if base in needed_files and base not in basename_to_member:
+                basename_to_member[base] = member
+
+        missing = sorted(needed_files - set(basename_to_member.keys()))
+        if missing:
+            raise RuntimeError(f"HRDF ZIP missing required files: {missing}")
+
+        for base, member in basename_to_member.items():
+            out_path = os.path.join(hrdf_root, base)
+            with z.open(member) as src, open(out_path, "wb") as dst:
+                shutil.copyfileobj(src, dst, length=1024 * 1024)
+            extracted += 1
+
+    # Optionally remove the downloaded ZIP to save disk space
+    try:
+        os.remove(zip_path)
+    except OSError:
+        pass
+
+    print(f"HRDF: extracted {extracted} required files to {hrdf_root}")
+    return hrdf_root
 
 
 def parse_gleise_lv95_for_sloids(hrdf_path, target_sloids, two_pass: bool = True, use_fast_guard: bool = True):

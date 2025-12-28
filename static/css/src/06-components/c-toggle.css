@@ -1,17 +1,165 @@
-/* Apple-like Toggle Switch for AND/OR (transitional, identical selectors) */
-.apple-toggle-container { position: relative; display: inline-block; margin: 0 0.5rem; }
-.apple-toggle { opacity: 0; width: 0; height: 0; position: absolute; }
-.apple-toggle-label { display: flex; align-items: center; justify-content: space-between; width: 70px; height: 30px; background-color: #007bff; border-radius: 15px; cursor: pointer; position: relative; transition: background-color 0.3s ease; padding: 0 5px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.2); }
-.apple-toggle-label::before { content: ''; position: absolute; width: 26px; height: 26px; border-radius: 50%; background-color: white; top: 2px; left: 2px; transition: transform 0.3s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-.apple-toggle:checked + .apple-toggle-label { background-color: #28a745; }
-.apple-toggle:checked + .apple-toggle-label::before { transform: translateX(40px); }
-.apple-toggle-text-left, .apple-toggle-text-right { display: none; }
-.filter-operator-toggle-text { font-size: 0.9rem; font-weight: 600; color: #6c757d; transition: color 0.3s ease; }
-.apple-toggle:not(:checked) ~ .filter-operator-toggle-and, .apple-toggle:checked ~ .filter-operator-toggle-or { color: #343a40; }
-.filter-chip-operator { font-size: 0.75rem; color: #6c757d; font-weight: 500; margin: 0 0.2rem; }
+/* ==========================================================================
+   C-TOGGLE COMPONENT
+   Toggle switch component styles.
+   ========================================================================== */
 
-/* Route filter widths */
-#routeFilterInput #routeIdFilter { flex-grow: 8; min-width: 100px; }
-#routeFilterInput #directionFilter { flex-grow: 2; min-width: 60px; flex-basis: 20%; }
+/* -------------------------------------------------------------------------
+   Apple-style Toggle Switch
+   ------------------------------------------------------------------------- */
+.apple-toggle-container {
+  position: relative;
+  display: inline-block;
+  margin: 0 var(--space-2);
+}
+
+.apple-toggle {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.apple-toggle-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 70px;
+  height: 30px;
+  background-color: var(--color-primary);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  position: relative;
+  transition: background-color var(--transition-slow);
+  padding: 0 var(--space-2);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.apple-toggle-label::before {
+  content: '';
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: var(--color-white);
+  top: 2px;
+  left: 2px;
+  transition: transform var(--transition-slow);
+  box-shadow: var(--shadow-sm);
+}
+
+.apple-toggle:checked + .apple-toggle-label {
+  background-color: var(--color-success);
+}
+
+.apple-toggle:checked + .apple-toggle-label::before {
+  transform: translateX(40px);
+}
+
+.apple-toggle:focus + .apple-toggle-label {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2), 0 0 0 3px var(--color-focus-ring);
+}
+
+/* Toggle text (hidden by default) */
+.apple-toggle-text-left,
+.apple-toggle-text-right {
+  display: none;
+}
+
+/* -------------------------------------------------------------------------
+   Filter Operator Toggle
+   ------------------------------------------------------------------------- */
+.filter-operator-toggle-text {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-fg-muted);
+  transition: color var(--transition-slow);
+}
+
+.apple-toggle:not(:checked) ~ .filter-operator-toggle-and,
+.apple-toggle:checked ~ .filter-operator-toggle-or {
+  color: var(--color-dark);
+}
+
+.filter-chip-operator {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+  font-weight: var(--font-medium);
+  margin: 0 var(--space-1);
+  line-height: var(--leading-tight);
+  vertical-align: middle;
+}
+
+/* -------------------------------------------------------------------------
+   Route Filter Widths
+   ------------------------------------------------------------------------- */
+#routeFilterInput #routeIdFilter {
+  flex-grow: 8;
+  min-width: 100px;
+}
+
+#routeFilterInput #directionFilter {
+  flex-grow: 2;
+  min-width: 60px;
+  flex-basis: 20%;
+}
+
+/* -------------------------------------------------------------------------
+   Generic Toggle Component
+   ------------------------------------------------------------------------- */
+.c-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.c-toggle__input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.c-toggle__track {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background-color: var(--color-border-emphasis);
+  border-radius: var(--radius-full);
+  transition: background-color var(--transition-fast);
+}
+
+.c-toggle__input:checked + .c-toggle__track {
+  background-color: var(--color-primary);
+}
+
+.c-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background-color: var(--color-white);
+  border-radius: 50%;
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast);
+}
+
+.c-toggle__input:checked ~ .c-toggle__track .c-toggle__thumb {
+  transform: translateX(20px);
+}
+
+.c-toggle__input:focus + .c-toggle__track {
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.c-toggle__label {
+  margin-left: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-fg);
+}
 
 

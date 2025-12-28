@@ -465,7 +465,7 @@ def final_pipeline(route_matching_strategy='unified'):
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
         from backend.models import PersistentData
-        DATABASE_URI = os.getenv('DATABASE_URI', 'mysql+pymysql://stops_user:1234@localhost:3306/stops_db')
+        DATABASE_URI = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/stops_db')
         engine = create_engine(DATABASE_URI)
         Session = sessionmaker(bind=engine)
         tmp_session = Session()

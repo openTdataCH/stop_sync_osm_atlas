@@ -1,7 +1,139 @@
+/* ==========================================================================
+   O-LAYOUT OBJECT
+   Flexible layout object for creating various arrangements.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Base Layout (Flexbox)
+   ------------------------------------------------------------------------- */
 .o-layout {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-4);
+}
+
+/* -------------------------------------------------------------------------
+   Layout Direction Variants
+   ------------------------------------------------------------------------- */
+.o-layout--row {
+  flex-direction: row;
+}
+
+.o-layout--column {
+  flex-direction: column;
+}
+
+.o-layout--row-reverse {
+  flex-direction: row-reverse;
+}
+
+.o-layout--column-reverse {
+  flex-direction: column-reverse;
+}
+
+/* -------------------------------------------------------------------------
+   Layout Alignment
+   ------------------------------------------------------------------------- */
+.o-layout--center {
+  justify-content: center;
+  align-items: center;
+}
+
+.o-layout--start {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.o-layout--end {
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+
+.o-layout--between {
+  justify-content: space-between;
+}
+
+.o-layout--around {
+  justify-content: space-around;
+}
+
+.o-layout--evenly {
+  justify-content: space-evenly;
+}
+
+/* -------------------------------------------------------------------------
+   Layout Gap Variants
+   ------------------------------------------------------------------------- */
+.o-layout--gap-sm {
+  gap: var(--space-2);
+}
+
+.o-layout--gap-lg {
+  gap: var(--space-6);
+}
+
+.o-layout--gap-none {
+  gap: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Layout Wrapping
+   ------------------------------------------------------------------------- */
+.o-layout--nowrap {
+  flex-wrap: nowrap;
+}
+
+/* -------------------------------------------------------------------------
+   Layout Items
+   ------------------------------------------------------------------------- */
+.o-layout__item {
+  flex: 0 0 auto;
+}
+
+.o-layout__item--grow {
+  flex-grow: 1;
+}
+
+.o-layout__item--shrink {
+  flex-shrink: 1;
+}
+
+.o-layout__item--fill {
+  flex: 1 1 0%;
+}
+
+/* -------------------------------------------------------------------------
+   Grid Layout Variant
+   ------------------------------------------------------------------------- */
+.o-layout--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.o-layout--grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.o-layout--grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.o-layout--grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* -------------------------------------------------------------------------
+   Responsive Grid
+   ------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .o-layout--grid-2,
+  .o-layout--grid-3,
+  .o-layout--grid-4 {
+    grid-template-columns: 1fr;
+  }
 }
 
 

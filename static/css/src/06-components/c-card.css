@@ -1,13 +1,43 @@
+/* ==========================================================================
+   C-CARD COMPONENT
+   Card container component for grouping related content.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Base Card
+   ------------------------------------------------------------------------- */
 .c-card {
-  background: #fff;
-  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-md);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
 }
 
+/* -------------------------------------------------------------------------
+   Card Sections
+   ------------------------------------------------------------------------- */
 .c-card__header {
   padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: var(--border-width) solid var(--color-border);
+  background-color: var(--color-bg-subtle);
+  font-weight: var(--font-semibold);
+  color: var(--color-fg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.c-card__header h1,
+.c-card__header h2,
+.c-card__header h3,
+.c-card__header h4,
+.c-card__header h5,
+.c-card__header h6 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
 }
 
 .c-card__body {
@@ -16,7 +46,90 @@
 
 .c-card__footer {
   padding: var(--space-3) var(--space-4);
-  border-top: 1px solid var(--color-border);
+  border-top: var(--border-width) solid var(--color-border);
+  background-color: var(--color-bg-subtle);
+}
+
+/* -------------------------------------------------------------------------
+   Card Variants
+   ------------------------------------------------------------------------- */
+.c-card--flat {
+  box-shadow: none;
+}
+
+.c-card--elevated {
+  box-shadow: var(--shadow-md);
+}
+
+.c-card--elevated:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.c-card--interactive {
+  cursor: pointer;
+  transition: 
+    box-shadow var(--transition-base),
+    transform var(--transition-base);
+}
+
+.c-card--interactive:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+/* -------------------------------------------------------------------------
+   Card with Accent Border
+   ------------------------------------------------------------------------- */
+.c-card--accent-left {
+  border-left-width: 4px;
+}
+
+.c-card--primary {
+  border-left-color: var(--color-primary);
+}
+
+.c-card--success {
+  border-left-color: var(--color-success);
+}
+
+.c-card--warning {
+  border-left-color: var(--color-warning);
+}
+
+.c-card--danger {
+  border-left-color: var(--color-danger);
+}
+
+.c-card--info {
+  border-left-color: var(--color-info);
+}
+
+/* -------------------------------------------------------------------------
+   Card Header Styles (Bootstrap compatibility)
+   ------------------------------------------------------------------------- */
+.card-header {
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-bg-muted);
+  border-bottom: var(--border-width) solid var(--color-border-muted);
+  font-weight: var(--font-semibold);
+  color: var(--color-fg);
+  border-radius: var(--radius-md) var(--radius-md) 0 0 !important;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-body {
+  padding: var(--space-4);
+}
+
+.card-footer {
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-bg-subtle);
+  border-top: var(--border-width) solid var(--color-border-muted);
+  border-radius: 0 0 var(--radius-md) var(--radius-md) !important;
+  flex-shrink: 0;
 }
 
 

@@ -10,53 +10,6 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
   <!-- Problems Page Specific CSS -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/problems.css') }}">
-  <style>
-    /* Inline styles for basic layout - more complex styles are in problems.css */
-    html, body {
-        height: 100%;
-        margin: 0;
-        padding: 0;
-        overflow: hidden; /* prevent whole-page scroll; inner areas handle their own scroll */
-    }
-    .container-fluid.problems-page-root {
-        height: calc(100vh - 36px); /* account for header so full column remains visible */
-        padding: 0;
-        overflow: hidden; /* contain internal scroll areas */
-    }
-    /* Dropdown styling */
-    .problem-type-options-list {
-        border: 1px solid rgba(0, 0, 0, .15);
-        border-radius: .25rem;
-        margin-top: .125rem;
-        max-height: 520px;
-        overflow-y: auto;
-    }
-
-    .dropdown-item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    /* Map context toggle button positioning */
-    .map-section { position: relative; }
-    .map-context-toggle {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        z-index: 1000;
-    }
-    /* Light background for the off state (see other markers) */
-    .map-context-toggle .btn-outline-secondary {
-        background-color: rgba(255, 255, 255, 0.9);
-        color: #343a40;
-        border-color: rgba(0, 0, 0, 0.15);
-    }
-    .map-context-toggle .btn-outline-secondary:hover,
-    .map-context-toggle .btn-outline-secondary:focus {
-        background-color: rgba(255, 255, 255, 0.95);
-        color: #212529;
-    }
-  </style>
 {% endblock %}
 
 {% block content %}
@@ -65,118 +18,115 @@
   
   <!-- Main Content Area -->
   <div class="main-content flex-grow-1">
-    <!-- Collapsible Filter Panel -->
-    <div class="filter-panel" id="filterPanel">
-      <button class="filter-toggle-btn" id="filterToggleBtn" type="button">
-        <i class="fas fa-filter"></i>
-        <span class="toggle-text">Filters</span>
-        <i class="fas fa-chevron-left toggle-icon"></i>
-      </button>
-      
-      <div class="filter-content" id="filterContent">
-        <div class="filter-header d-flex justify-content-between align-items-center">
-          <strong><i class="fas fa-sliders-h"></i> Problem Filters</strong>
-          <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">
-            <i class="fas fa-arrow-left"></i> Back to Map
-          </a>
-        </div>
+    
+    <!-- Map and Problem Content -->
+    <div class="content-area" id="contentArea">
+      <!-- Collapsible Filter Panel -->
+      <div class="filter-panel c-filter-panel" id="filterPanel">
+        <button class="filter-toggle-btn c-filter-panel__toggle" id="filterToggleBtn" type="button" title="Toggle filters">
+          <i class="fas fa-sliders-h"></i>
+          <i class="fas fa-chevron-left toggle-icon"></i>
+        </button>
         
-        <div class="filter-body">
-          <div class="compact-group">
-            <label for="problemTypeFilter">Filter by Problem Type:</label>
-            <div>
-              <button class="btn btn-outline-secondary dropdown-toggle btn-block" type="button" id="problemTypeFilter" data-toggle="collapse" data-target="#problemTypeFilterCollapse" aria-expanded="false" aria-controls="problemTypeFilterCollapse">
-                <i class="fas fa-filter"></i> All Problems <span class="caret"></span>
-              </button>
-              <div class="collapse" id="problemTypeFilterCollapse">
-                <div class="problem-type-options-list" id="problemTypeFilterDropdown">
-                  <!-- Options will be dynamically populated by JavaScript -->
+        <div class="filter-content c-filter-panel__content" id="filterContent">
+          <div class="filter-header">
+            <strong><i class="fas fa-sliders-h"></i> Problem Filters</strong>
+          </div>
+          
+          <div class="filter-body">
+            <div class="compact-group">
+              <label for="problemTypeFilter">Filter by Problem Type:</label>
+              <div>
+                <button class="btn btn-outline-secondary dropdown-toggle btn-block" type="button" id="problemTypeFilter" data-toggle="collapse" data-target="#problemTypeFilterCollapse" aria-expanded="false" aria-controls="problemTypeFilterCollapse">
+                  <i class="fas fa-filter"></i> All Problems <span class="caret"></span>
+                </button>
+                <div class="collapse" id="problemTypeFilterCollapse">
+                  <div class="problem-type-options-list" id="problemTypeFilterDropdown">
+                    <!-- Options will be dynamically populated by JavaScript -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sorting Controls -->
+            <div class="compact-group" id="sortingControls" style="display: none;">
+              <label for="sortButton">Sort Distance Problems:</label>
+              <div class="dropdown">
+                <button class="btn btn-outline-info dropdown-toggle btn-block" type="button" id="sortButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  <i class="fas fa-sort"></i> Default Order
+                </button>
+                <div class="dropdown-menu w-100" aria-labelledby="sortButton">
+                  <a class="dropdown-item sort-option" href="#" data-sort-by="distance" data-sort-order="desc">
+                    <i class="fas fa-sort-numeric-up"></i> Largest distance
+                  </a>
+                  <a class="dropdown-item sort-option" href="#" data-sort-by="distance" data-sort-order="asc">
+                    <i class="fas fa-sort-numeric-down"></i> Smallest distance
+                  </a>
+                  <div class="dropdown-divider"></div>
+                  <a class="dropdown-item sort-option" href="#" data-sort-by="priority" data-sort-order="asc">
+                    <i class="fas fa-layer-group"></i> Sorted by priority
+                  </a>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Sorting Controls -->
-          <div class="compact-group" id="sortingControls" style="display: none;">
-            <label for="sortButton">Sort Distance Problems:</label>
-            <div class="dropdown">
-              <button class="btn btn-outline-info dropdown-toggle btn-block" type="button" id="sortButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                <i class="fas fa-sort"></i> Default Order
-              </button>
-              <div class="dropdown-menu w-100" aria-labelledby="sortButton">
-                <a class="dropdown-item sort-option" href="#" data-sort-by="distance" data-sort-order="desc">
-                  <i class="fas fa-sort-numeric-up"></i> Largest distance
-                </a>
-                <a class="dropdown-item sort-option" href="#" data-sort-by="distance" data-sort-order="asc">
-                  <i class="fas fa-sort-numeric-down"></i> Smallest distance
-                </a>
-                <div class="dropdown-divider"></div>
-                <a class="dropdown-item sort-option" href="#" data-sort-by="priority" data-sort-order="asc">
-                  <i class="fas fa-layer-group"></i> Sorted by priority
-                </a>
+          <!-- Fixed bottom controls (always visible): from Atlas Operator down -->
+          <div class="filter-fixed-controls" id="filterFixedControls">
+            <div class="compact-group">
+              <label for="atlasOperatorFilterProblems">Atlas Operator:</label>
+              <div id="atlasOperatorFilterProblems"></div>
+            </div>
+
+            <!-- Active Filters inline row -->
+            <div class="compact-group active-filters-row d-flex align-items-center">
+              <div id="problemsActiveFilters" class="flex-grow-1">
+                <!-- Chips will be rendered here -->
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Fixed bottom controls (always visible): from Atlas Operator down -->
-        <div class="filter-fixed-controls" id="filterFixedControls">
-          <div class="compact-group">
-            <label for="atlasOperatorFilterProblems">Atlas Operator:</label>
-            <div id="atlasOperatorFilterProblems"></div>
-          </div>
-
-          <!-- Active Filters inline row -->
-          <div class="compact-group active-filters-row d-flex align-items-center">
-            <div id="problemsActiveFilters" class="flex-grow-1">
-              <!-- Chips will be rendered here -->
-            </div>
-          </div>
-
-          <div class="compact-group mt-3">
-            <div class="card persistence-card">
-              <div class="card-header bg-light d-flex align-items-center">
-                <strong><i class="fas fa-thumbtack mr-1"></i> Persistence Options</strong>
-                <i class="fas fa-info-circle text-muted ml-2 info-icon" data-toggle="tooltip" data-placement="right" title="Persistent solutions and notes are re-applied automatically after data imports." tabindex="0"></i>
-              </div>
-              <div class="card-body">
-                <div class="row align-items-center">
-                  <div class="col-6">
-                    <div class="custom-control custom-switch m-0">
-                      <input type="checkbox" class="custom-control-input" id="autoPersistToggle" {% if not current_user.is_authenticated %}disabled{% endif %}>
-                      <label class="custom-control-label" for="autoPersistToggle">
-                        <span class="toggle-label"><span>Auto-Persist</span><br><span>new solutions</span></span>
-                      </label>
-                    </div>
-                  </div>
-                  <div class="col-6">
-                    <div class="custom-control custom-switch m-0">
-                      <input type="checkbox" class="custom-control-input" id="autoPersistNotesToggle" {% if not current_user.is_authenticated %}disabled{% endif %}>
-                      <label class="custom-control-label" for="autoPersistNotesToggle">
-                        <span class="toggle-label"><span>Auto-Persist</span><br><span>new notes</span></span>
-                      </label>
-                    </div>
-                  </div>
+            <div class="compact-group mt-3">
+              <div class="card persistence-card">
+                <div class="card-header bg-light d-flex align-items-center">
+                  <strong><i class="fas fa-thumbtack mr-1"></i> Persistence Options</strong>
+                  <i class="fas fa-info-circle text-muted ml-2 info-icon" data-toggle="tooltip" data-placement="right" title="Persistent solutions and notes are re-applied automatically after data imports." tabindex="0"></i>
                 </div>
+                <div class="card-body">
+                  <div class="row align-items-center">
+                    <div class="col-6">
+                      <div class="custom-control custom-switch m-0">
+                        <input type="checkbox" class="custom-control-input" id="autoPersistToggle" {% if not current_user.is_authenticated %}disabled{% endif %}>
+                        <label class="custom-control-label" for="autoPersistToggle">
+                          <span class="toggle-label"><span>Auto-Persist</span><br><span>new solutions</span></span>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="custom-control custom-switch m-0">
+                        <input type="checkbox" class="custom-control-input" id="autoPersistNotesToggle" {% if not current_user.is_authenticated %}disabled{% endif %}>
+                        <label class="custom-control-label" for="autoPersistNotesToggle">
+                          <span class="toggle-label"><span>Auto-Persist</span><br><span>new notes</span></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
 
-                <!-- Manage persistent solutions link -->
-                <a href="{{ url_for('manage_data') }}" class="btn btn-info btn-sm btn-block mt-2">
-                  <i class="fas fa-database"></i> Manage Data
-                </a>
+                  <!-- Manage persistent solutions link -->
+                  <a href="{{ url_for('manage_data') }}" class="btn btn-info btn-sm btn-block mt-2">
+                    <i class="fas fa-database"></i> Manage Data
+                  </a>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-    
-    <!-- Map and Problem Content -->
-    <div class="content-area" id="contentArea">
+      
       <!-- Map Section -->
       <div class="map-section" id="mapSection">
         <div id="problemMap"></div>
         <!-- Context toggle moved to map corner -->
-        <div class="map-context-toggle">
+        <div class="map-context-toggle leaflet-control">
           <button id="toggleContextBtn" class="btn btn-outline-secondary btn-sm" type="button">
             <i class="fas fa-eye"></i> See other markers
           </button>

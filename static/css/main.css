@@ -1,48 +1,67 @@
-/* 01-settings */
+/* ==========================================================================
+   MAIN CSS - Stop Sync OSM Atlas
+   
+   This file imports all CSS modules following ITCSS (Inverted Triangle CSS)
+   architecture for better organization and specificity management.
+   
+   Layer Order (low to high specificity):
+   1. Settings    - Design tokens, variables, config
+   2. Tools       - Mixins, functions, animations
+   3. Generic     - Resets, normalizations, base rules
+   4. Elements    - Bare HTML element styles
+   5. Objects     - Layout patterns (OOCSS)
+   6. Components  - UI components (BEM)
+   7. Utilities   - Helper classes (!important allowed)
+   8. Pages       - Page-specific overrides
+   ========================================================================== */
+
+/* 01-settings - Design Tokens & Variables */
 @import url('src/01-settings/tokens.css');
 
-/* 02-tools */
+/* 02-tools - Mixins, Animations & Helper Patterns */
 @import url('src/02-tools/tools.css');
 
-/* 03-generic */
+/* 03-generic - Resets & Base Rules */
 @import url('src/03-generic/base.css');
 
-/* 04-elements */
-@import url('src/04-elements/forms.css');
+/* 04-elements - HTML Element Styles */
 @import url('src/04-elements/typography.css');
+@import url('src/04-elements/forms.css');
 @import url('src/04-elements/buttons.css');
 
-/* 05-objects */
+/* 05-objects - Layout Patterns */
 @import url('src/05-objects/o-container.css');
 @import url('src/05-objects/o-layout.css');
 @import url('src/05-objects/o-stack.css');
 
-/* 06-components */
+/* 06-components - UI Components */
 @import url('src/06-components/c-button.css');
 @import url('src/06-components/c-card.css');
-@import url('src/06-components/c-modal.css');
 @import url('src/06-components/c-chip.css');
+@import url('src/06-components/c-modal.css');
 @import url('src/06-components/c-dropdown.css');
-@import url('src/06-components/c-direction-dropdown.css');
 @import url('src/06-components/c-navbar.css');
-@import url('src/06-components/c-operator-dropdown.css');
-@import url('src/06-components/c-layout-map.css');
-@import url('src/06-components/c-filter-panel.css');
-@import url('src/06-components/c-marker-cluster.css');
 @import url('src/06-components/c-header.css');
 @import url('src/06-components/c-footer.css');
-@import url('src/06-components/c-sorting-controls.css');
-@import url('src/06-components/c-dropdown-zindex.css');
-@import url('src/06-components/c-toggle.css');
-@import url('src/06-components/c-distance-indicator.css');
+@import url('src/06-components/c-filter-panel.css');
+@import url('src/06-components/c-compact-group.css');
 @import url('src/06-components/c-accordion.css');
+@import url('src/06-components/c-toggle.css');
 @import url('src/06-components/c-toast.css');
+@import url('src/06-components/c-sorting-controls.css');
+@import url('src/06-components/c-distance-indicator.css');
+@import url('src/06-components/c-direction-dropdown.css');
+@import url('src/06-components/c-operator-dropdown.css');
+@import url('src/06-components/c-layout-map.css');
+@import url('src/06-components/c-marker-cluster.css');
+@import url('src/06-components/c-dropdown-zindex.css');
 
-/* 07-utilities */
+/* 07-utilities - Helper Classes */
 @import url('src/07-utilities/u-spacing.css');
 @import url('src/07-utilities/u-display.css');
 @import url('src/07-utilities/u-visibility.css');
 @import url('src/07-utilities/u-text.css');
 
-/* 08-pages */
+/* 08-pages - Page-Specific Styles */
+@import url('pages/reports.css');
 

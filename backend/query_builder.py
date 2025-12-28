@@ -92,9 +92,16 @@ class FilterBuilder:
                 if route_conditions:
                     conditions.append(db.or_(*route_conditions) if len(route_conditions) > 1 else route_conditions[0])
             elif filter_type == 'hrdf_route':
-                conditions.append(Stop.atlas_stop_details.has(
-                    func.json_search(AtlasStop.routes_unified, 'one', value, None, '$[*].line_name') != None
-                ))
+                # Postgres JSONB: check if any routes_unified entry has a matching line_name.
+                conditions.append(
+                    Stop.atlas_stop_details.has(
+                        func.jsonb_path_exists(
+                            AtlasStop.routes_unified,
+                            '$[*] ? (@.line_name == $line)',
+                            func.jsonb_build_object('line', value)
+                        )
+                    )
+                )
             else:  # UIC ref
                 conditions.append(Stop.uic_ref.like(f'%{value}%'))
         
@@ -202,6 +209,8 @@ class QueryBuilder:
             )
             if station_conditions:
                 conditions.append(db.or_(*station_conditions) if len(station_conditions) > 1 else station_conditions[0])
+            else:
+                conditions.append(db.false())
         
         # Apply all conditions
         if conditions:

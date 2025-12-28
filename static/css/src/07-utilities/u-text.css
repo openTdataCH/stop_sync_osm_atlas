@@ -1,5 +1,97 @@
+/* ==========================================================================
+   TEXT UTILITIES
+   Text alignment, decoration, and styling utility classes.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Text Alignment
+   ------------------------------------------------------------------------- */
+.u-text-left { text-align: left !important; }
 .u-text-center { text-align: center !important; }
 .u-text-right { text-align: right !important; }
-.u-text-muted { color: #6c757d !important; }
+.u-text-justify { text-align: justify !important; }
+
+/* -------------------------------------------------------------------------
+   Text Colors
+   ------------------------------------------------------------------------- */
+.u-text-muted { color: var(--color-fg-muted) !important; }
+.u-text-subtle { color: var(--color-fg-subtle) !important; }
+.u-text-primary { color: var(--color-primary) !important; }
+.u-text-success { color: var(--color-success) !important; }
+.u-text-warning { color: var(--color-warning) !important; }
+.u-text-danger { color: var(--color-danger) !important; }
+.u-text-info { color: var(--color-info) !important; }
+.u-text-white { color: var(--color-white) !important; }
+.u-text-dark { color: var(--color-dark) !important; }
+
+/* -------------------------------------------------------------------------
+   Text Size
+   ------------------------------------------------------------------------- */
+.u-text-xs { font-size: var(--text-xs) !important; }
+.u-text-sm { font-size: var(--text-sm) !important; }
+.u-text-base { font-size: var(--text-base) !important; }
+.u-text-lg { font-size: var(--text-lg) !important; }
+.u-text-xl { font-size: var(--text-xl) !important; }
+.u-text-2xl { font-size: var(--text-2xl) !important; }
+
+/* -------------------------------------------------------------------------
+   Font Weight
+   ------------------------------------------------------------------------- */
+.u-font-normal { font-weight: var(--font-normal) !important; }
+.u-font-medium { font-weight: var(--font-medium) !important; }
+.u-font-semibold { font-weight: var(--font-semibold) !important; }
+.u-font-bold { font-weight: var(--font-bold) !important; }
+
+/* -------------------------------------------------------------------------
+   Text Decoration
+   ------------------------------------------------------------------------- */
+.u-underline { text-decoration: underline !important; }
+.u-line-through { text-decoration: line-through !important; }
+.u-no-underline { text-decoration: none !important; }
+
+/* -------------------------------------------------------------------------
+   Text Transform
+   ------------------------------------------------------------------------- */
+.u-uppercase { text-transform: uppercase !important; }
+.u-lowercase { text-transform: lowercase !important; }
+.u-capitalize { text-transform: capitalize !important; }
+.u-normal-case { text-transform: none !important; }
+
+/* -------------------------------------------------------------------------
+   Whitespace
+   ------------------------------------------------------------------------- */
+.u-whitespace-normal { white-space: normal !important; }
+.u-whitespace-nowrap { white-space: nowrap !important; }
+.u-whitespace-pre { white-space: pre !important; }
+.u-whitespace-pre-wrap { white-space: pre-wrap !important; }
+
+/* -------------------------------------------------------------------------
+   Text Overflow
+   ------------------------------------------------------------------------- */
+.u-truncate {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.u-break-words { word-wrap: break-word !important; }
+.u-break-all { word-break: break-all !important; }
+
+/* -------------------------------------------------------------------------
+   Line Height
+   ------------------------------------------------------------------------- */
+.u-leading-none { line-height: 1 !important; }
+.u-leading-tight { line-height: 1.2 !important; }
+.u-leading-snug { line-height: 1.375 !important; }
+.u-leading-normal { line-height: 1.5 !important; }
+.u-leading-relaxed { line-height: 1.625 !important; }
+
+/* -------------------------------------------------------------------------
+   Letter Spacing
+   ------------------------------------------------------------------------- */
+.u-tracking-tight { letter-spacing: -0.025em !important; }
+.u-tracking-normal { letter-spacing: 0 !important; }
+.u-tracking-wide { letter-spacing: 0.025em !important; }
+.u-tracking-wider { letter-spacing: 0.05em !important; }
 
 

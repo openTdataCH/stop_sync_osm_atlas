@@ -1,6 +1,48 @@
-/* Footer link and spacing (transitional) */
-.text-muted a { color: #6c757d !important; transition: color 0.15s ease-in-out; }
-.text-muted a:hover { color: #495057 !important; text-decoration: none; }
-#repo-footer { padding-top: 0.125rem !important; }
+/* ==========================================================================
+   C-FOOTER COMPONENT
+   Footer component styles.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Footer Link Styles
+   ------------------------------------------------------------------------- */
+.text-muted a {
+  color: var(--color-fg-muted) !important;
+  transition: color var(--transition-fast);
+}
+
+.text-muted a:hover {
+  color: var(--color-fg) !important;
+  text-decoration: none;
+}
+
+/* -------------------------------------------------------------------------
+   Repository Footer
+   ------------------------------------------------------------------------- */
+#repo-footer {
+  padding-top: var(--space-1) !important;
+}
+
+/* -------------------------------------------------------------------------
+   Footer Container
+   ------------------------------------------------------------------------- */
+.c-footer {
+  padding: var(--space-4);
+  background-color: var(--color-bg-subtle);
+  border-top: var(--border-width) solid var(--color-border);
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.c-footer a {
+  color: var(--color-fg-muted);
+  transition: color var(--transition-fast);
+}
+
+.c-footer a:hover {
+  color: var(--color-fg);
+  text-decoration: none;
+}
 
 

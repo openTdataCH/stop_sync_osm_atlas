@@ -15,6 +15,7 @@
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
     <script src="{{ url_for('static', filename='js/components/map-renderer.js') }}"></script>
     <script src="{{ url_for('static', filename='js/components/popup-utils.js') }}"></script>
     <script src="{{ url_for('static', filename='js/components/popup-renderer.js') }}"></script>
@@ -22,12 +23,35 @@
     
     <script>
         $(document).ready(function() {
-            var map = L.map('map').setView([46.8, 8.2], 8); // Default view
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxNativeZoom: 19,
-                maxZoom: 19,
+            var map = L.map('map', {
+                maxZoom: AppConstants.MAP.MAX_ZOOM
+            }).setView([46.8, 8.2], 8); // Default view
+            
+            var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxNativeZoom: AppConstants.MAP.MAX_NATIVE_ZOOM,
+                maxZoom: AppConstants.MAP.MAX_ZOOM,
                 attribution: '© OpenStreetMap'
             }).addTo(map);
+
+            var transportLayer = L.tileLayer('https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png', {
+                maxZoom: AppConstants.MAP.MAX_ZOOM,
+                maxNativeZoom: 18,
+                attribution: 'Map <a href="https://memomaps.de/">memomaps.de</a> <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            });
+
+            var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: AppConstants.MAP.MAX_ZOOM,
+                maxNativeZoom: 19,
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
+            });
+
+            var baseMaps = {
+                "OpenStreetMap": osmLayer,
+                "Transport Map": transportLayer,
+                "Satellite": satelliteLayer
+            };
+
+            L.control.layers(baseMaps, {}, { position: 'topleft' }).addTo(map);
 
             const uicRef = new URLSearchParams(window.location.search).get('uic_ref');
             const operator = new URLSearchParams(window.location.search).get('operator');

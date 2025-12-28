@@ -1,33 +1,195 @@
+/* ==========================================================================
+   DESIGN TOKENS
+   Centralized design system variables for consistent styling across the app.
+   ========================================================================== */
+
 :root {
-  /* color */
+  /* -------------------------------------------------------------------------
+     COLORS - Semantic color palette
+     ------------------------------------------------------------------------- */
+  
+  /* Base colors */
+  --color-white: #ffffff;
+  --color-black: #111111;
+  
+  /* Background colors */
   --color-bg: #ffffff;
+  --color-bg-subtle: #f8f9fa;
+  --color-bg-muted: #e9ecef;
+  --color-bg-emphasis: #f0f4f8;
+  
+  /* Foreground/Text colors */
   --color-fg: #111111;
-  --color-primary: #0b57d0;
-  --color-secondary: #0a7;
+  --color-fg-muted: #6c757d;
+  --color-fg-subtle: #adb5bd;
+  
+  /* Brand colors */
+  --color-primary: #007bff;
+  --color-primary-hover: #0056b3;
+  --color-primary-subtle: #f0f7ff;
+  --color-primary-muted: #b6d4fe;
+  
+  --color-secondary: #6c757d;
+  --color-secondary-hover: #5a6268;
+  --color-secondary-subtle: #f8f9fa;
+  
+  /* Semantic colors */
+  --color-success: #28a745;
+  --color-success-hover: #218838;
+  --color-success-subtle: #d4edda;
+  --color-success-bg: rgba(235, 248, 235, 0.95);
+  --color-success-fg: #155724;
+  --color-success-border: #c3e6cb;
+  
+  --color-warning: #ffc107;
+  --color-warning-hover: #e0a800;
+  --color-warning-subtle: #fff3cd;
+  --color-warning-bg: rgba(255, 243, 205, 0.95);
+  --color-warning-fg: #856404;
+  --color-warning-border: #ffeeba;
+  --color-warning-text: #856404;
+  
+  --color-danger: #dc3545;
+  --color-danger-hover: #c82333;
+  --color-danger-subtle: #f8d7da;
+  --color-danger-bg: rgba(248, 215, 218, 0.95);
+  --color-danger-fg: #721c24;
+  --color-danger-border: #f5c6cb;
+  --color-danger-text: #721c24;
+  
+  --color-info: #17a2b8;
+  --color-info-hover: #138496;
+  --color-info-subtle: #d1ecf1;
+  --color-info-bg: rgba(235, 241, 255, 0.95);
+  --color-info-fg: #0c5460;
+  --color-info-border: #bee5eb;
+  --color-info-text: #0c5460;
+  
+  /* Additional semantic colors */
+  --color-cyan: #0dcaf0;
+  --color-orange: #fd7e14;
+  --color-dark: #343a40;
+  --color-light: #f8f9fa;
+  
+  /* Border colors */
   --color-border: #e5e7eb;
-
-  /* spacing */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-
-  /* type */
-  --font-sans: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-  --text-sm: 0.875rem;
-  --text-base: 1rem;
-  --text-lg: 1.125rem;
-
-  /* radius */
+  --color-border-muted: #dee2e6;
+  --color-border-emphasis: #ced4da;
+  
+  /* Focus colors */
+  --color-focus-ring: rgba(0, 123, 255, 0.25);
+  --color-focus-border: #80bdff;
+  
+  /* -------------------------------------------------------------------------
+     SPACING - Consistent spacing scale (based on 0.25rem = 4px)
+     ------------------------------------------------------------------------- */
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  
+  /* -------------------------------------------------------------------------
+     TYPOGRAPHY
+     ------------------------------------------------------------------------- */
+  
+  /* Font families */
+  --font-sans: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  
+  /* Font sizes */
+  --text-xs: 0.75rem;     /* 12px */
+  --text-sm: 0.875rem;    /* 14px */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.75rem;    /* 28px */
+  
+  /* Font weights */
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+  
+  /* Line heights */
+  --leading-none: 1;
+  --leading-tight: 1.2;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  
+  /* -------------------------------------------------------------------------
+     BORDERS & RADIUS
+     ------------------------------------------------------------------------- */
+  --radius-none: 0;
   --radius-sm: 4px;
   --radius-md: 8px;
-
-  /* z-index scale */
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+  
+  --border-width: 1px;
+  --border-width-thick: 2px;
+  
+  /* -------------------------------------------------------------------------
+     SHADOWS
+     ------------------------------------------------------------------------- */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.15);
+  --shadow-xl: 0 10px 25px rgba(0, 0, 0, 0.2);
+  
+  /* Colored shadows */
+  --shadow-primary: 0 4px 12px rgba(0, 123, 255, 0.25);
+  --shadow-success: 0 4px 12px rgba(40, 167, 69, 0.25);
+  --shadow-danger: 0 4px 12px rgba(220, 53, 69, 0.25);
+  
+  /* -------------------------------------------------------------------------
+     TRANSITIONS
+     ------------------------------------------------------------------------- */
+  --transition-fast: 0.15s ease-in-out;
+  --transition-base: 0.2s ease-in-out;
+  --transition-slow: 0.3s ease-in-out;
+  --transition-bounce: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* -------------------------------------------------------------------------
+     Z-INDEX SCALE
+     ------------------------------------------------------------------------- */
   --z-base: 0;
   --z-dropdown: 1000;
-  --z-modal: 2000;
+  --z-sticky: 1020;
+  --z-fixed: 1030;
+  --z-modal-backdrop: 1040;
+  --z-modal: 1050;
+  --z-popover: 1060;
+  --z-tooltip: 1070;
+  --z-toast: 9999;
+  
+  /* -------------------------------------------------------------------------
+     SIZING
+     ------------------------------------------------------------------------- */
+  --container-max-width: 1200px;
+  --sidebar-width: 380px;
+  --sidebar-collapsed-width: 50px;
+  --navbar-height: 80px;
+  --input-height: 38px;
+  --input-height-sm: 32px;
+  --input-height-lg: 44px;
+  
+  /* -------------------------------------------------------------------------
+     SCROLLBAR
+     ------------------------------------------------------------------------- */
+  --scrollbar-width: 8px;
+  --scrollbar-track: var(--color-bg-muted);
+  --scrollbar-thumb: var(--color-fg-subtle);
+  --scrollbar-thumb-hover: var(--color-fg-muted);
 }
 
 

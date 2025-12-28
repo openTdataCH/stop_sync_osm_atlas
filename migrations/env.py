@@ -39,6 +39,16 @@ def get_engine_url():
 config.set_main_option('sqlalchemy.url', get_engine_url())
 target_db = current_app.extensions['migrate'].db
 
+# PostGIS installs and owns several system tables/views. They are not part of our
+# SQLAlchemy metadata and must never be dropped/created by Alembic autogenerate.
+_POSTGIS_MANAGED_TABLES = {
+    "spatial_ref_sys",
+    "geometry_columns",
+    "geography_columns",
+    "raster_columns",
+    "raster_overviews",
+}
+
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
@@ -64,8 +74,22 @@ def run_migrations_offline():
 
     """
     url = config.get_main_option("sqlalchemy.url")
+
+    def include_object(object, name, type_, reflected, compare_to):
+        # Skip PostGIS managed objects during autogenerate.
+        if type_ == "table" and name in _POSTGIS_MANAGED_TABLES:
+            return False
+        # If Alembic tries to consider constraints/indexes for these tables, skip them too.
+        table = getattr(object, "table", None)
+        if table is not None and getattr(table, "name", None) in _POSTGIS_MANAGED_TABLES:
+            return False
+        return True
+
     context.configure(
-        url=url, target_metadata=get_metadata(), literal_binds=True
+        url=url,
+        target_metadata=get_metadata(),
+        literal_binds=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -90,9 +114,20 @@ def run_migrations_online():
                 directives[:] = []
                 logger.info('No changes in schema detected.')
 
+    def include_object(object, name, type_, reflected, compare_to):
+        # Skip PostGIS managed objects during autogenerate.
+        if type_ == "table" and name in _POSTGIS_MANAGED_TABLES:
+            return False
+        table = getattr(object, "table", None)
+        if table is not None and getattr(table, "name", None) in _POSTGIS_MANAGED_TABLES:
+            return False
+        return True
+
     conf_args = current_app.extensions['migrate'].configure_args
     if conf_args.get("process_revision_directives") is None:
         conf_args["process_revision_directives"] = process_revision_directives
+    if conf_args.get("include_object") is None:
+        conf_args["include_object"] = include_object
 
     connectable = get_engine()
 

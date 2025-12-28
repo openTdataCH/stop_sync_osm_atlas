@@ -1,212 +1,202 @@
-/* Styles specific to the Problems page */
+/* ==========================================================================
+   PROBLEMS PAGE
+   Styles specific to the Problems page.
+   ========================================================================== */
 
-/* Main Content Layout */
+/* -------------------------------------------------------------------------
+   Page Layout (moved from inline styles)
+   ------------------------------------------------------------------------- */
+.problems-page-root {
+  height: calc(100vh - 36px); /* account for header */
+  padding: 0;
+  overflow: hidden;
+}
+
+/* -------------------------------------------------------------------------
+   Main Content Layout
+   ------------------------------------------------------------------------- */
 .main-content {
   display: flex;
-  /* Use the root container height; avoid hardcoded subtraction so fixed controls can fit */
   height: 100%;
   position: relative;
   overflow: hidden;
 }
 
-/* Collapsible Filter Panel */
-.filter-panel {
-  position: relative;
-  background: #fff;
-  border-right: 2px solid #e9ecef;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  width: 380px; 
-  min-width: 380px;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+/* -------------------------------------------------------------------------
+   Collapsible Filter Panel (Overlay Mode for Problems Page)
+   ------------------------------------------------------------------------- */
+/* Problems page filter panel overrides */
+.problems-page-root .c-filter-panel {
+  --c-filter-panel-width: 380px;
+  --c-filter-panel-collapsed-width: 40px;
+  --c-filter-panel-padding: var(--space-2);
+  --c-filter-panel-toggle-inset: var(--c-filter-panel-padding);
+  padding: var(--c-filter-panel-padding);
 }
 
-.filter-panel.collapsed {
-  width: 50px;
-  min-width: 50px;
+/* Prevent any horizontal scrolling inside the filter panel */
+.problems-page-root .c-filter-panel,
+.problems-page-root .c-filter-panel * {
+  box-sizing: border-box;
 }
 
-/* Filter Toggle Button */
-.filter-toggle-btn {
-  position: absolute;
-  top: 10px;
-  right: -25px;
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 0 8px 8px 0;
-  padding: 12px 8px;
-  cursor: pointer;
-  z-index: 1001;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: 2px 0 8px rgba(0, 123, 255, 0.3);
-  transition: all 0.3s ease;
-  min-height: 80px;
-  justify-content: center;
+/* Ensure the content fills properly within the panel */
+.problems-page-root .c-filter-panel__content {
+  width: calc(100% - 26px); /* Match component toggle spacing */
+  overflow-x: hidden;
 }
 
-.filter-toggle-btn:hover {
-  background: #0056b3;
-  transform: translateX(2px);
+.problems-page-root .filter-body,
+.problems-page-root .filter-fixed-controls,
+.problems-page-root .problem-type-options-list {
+  overflow-x: hidden;
 }
 
-.filter-toggle-btn .toggle-text {
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  font-size: 11px;
-  letter-spacing: 1px;
-}
 
-.filter-toggle-btn .toggle-icon {
-  font-size: 14px;
-  transition: transform 0.3s ease;
-}
 
-.filter-panel.collapsed .filter-toggle-btn .toggle-icon {
-  transform: rotate(180deg);
-}
+/* Note: Main filter panel styles are in static/css/src/06-components/c-filter-panel.css */
 
-/* Filter Content */
-.filter-content {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0; /* allow inner scroll areas to shrink */
-  opacity: 1;
-  transition: opacity 0.3s ease;
-}
-
-.filter-panel.collapsed .filter-content {
-  opacity: 0;
-  pointer-events: none;
-}
-
+/* -------------------------------------------------------------------------
+   Filter Content
+   ------------------------------------------------------------------------- */
 .filter-header {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  padding: 10px 16px; /* tighter header */
-  border-bottom: 1px solid #dee2e6;
-  font-weight: 600;
-  color: #343a40;
+  background: linear-gradient(135deg, var(--color-bg-subtle) 0%, var(--color-bg-muted) 100%);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-dark);
   flex-shrink: 0;
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
 }
 
 .filter-body {
-  padding: 10px 14px 6px 14px; /* tighter bottom to reduce gap to Atlas Operator */
-  overflow-y: auto; /* scrollable area (e.g., All Problems) */
-  flex: 1 1 auto; /* fill available space so fixed controls remain visible */
+  padding: var(--space-2) var(--space-3) var(--space-1) var(--space-3);
+  overflow-y: auto;
+  flex: 1 1 auto;
   min-height: 0;
 }
 
-/* Reduce spacing between stacked items inside the filter body */
-.filter-body .compact-group {
-  margin-bottom: 10px;
-}
-.filter-body .compact-group:last-child {
-  margin-bottom: 8px;
-}
+/* Note: compact-group base styles are in c-compact-group.css */
 
 /* Fixed bottom controls (Atlas Operator and below) */
 .filter-fixed-controls {
-  flex: 0 0 auto; /* fixed height area */
-  padding: 6px 12px 8px 12px; /* reduce top padding to bring it closer to body */
-  border-top: 1px solid #dee2e6;
-  background: #fff;
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-3) var(--space-2) var(--space-3);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
+  border-bottom-left-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
 }
 
-/* Compact persistence card spacing */
+/* -------------------------------------------------------------------------
+   Persistence Card Compact Spacing
+   ------------------------------------------------------------------------- */
 .persistence-card .card-header {
-  padding: 0.5rem 0.75rem;
+  padding: var(--space-2) var(--space-3);
 }
+
 .persistence-card .card-body {
-  padding: 0.5rem 0.75rem;
+  padding: var(--space-2) var(--space-3);
 }
+
 .persistence-card .custom-control-label {
   line-height: 1.2;
 }
+
 .persistence-card .custom-control-label .toggle-label {
   display: inline-block;
 }
+
+/* Add left margin to custom-switch toggles for consistent alignment */
+.persistence-card .custom-control.custom-switch {
+  padding-left: 2.25rem;
+}
+
 .persistence-card .info-icon {
   cursor: help;
 }
 
 /* Active filters row spacing */
 .active-filters-row label {
-  font-weight: 600;
-}
-.active-filters-row #problemsActiveFilters {
-  padding: 6px 0; /* remove extra padding to save space */
+  font-weight: var(--font-semibold);
 }
 
-/* Content Area */
+.active-filters-row #problemsActiveFilters {
+  padding: var(--space-1) 0;
+}
+
+/* -------------------------------------------------------------------------
+   Content Area - needs position:relative for overlay panel
+   ------------------------------------------------------------------------- */
 .content-area {
   flex: 1;
   display: flex;
   flex-direction: row;
   min-width: 0;
-  background: #f8f9fa;
-  padding: 10px;
-  gap: 10px;
+  background: var(--color-bg-subtle);
+  padding: var(--space-2);
+  gap: var(--space-2);
+  position: relative; /* For absolute positioned filter panel */
 }
 
-/* Map Section */
+/* -------------------------------------------------------------------------
+   Map Section
+   ------------------------------------------------------------------------- */
 .map-section {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 400px;
-  background: white;
-  border-radius: 8px;
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 #problemMap {
   flex: 1;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
-/* Problem Info Bar */
+/* -------------------------------------------------------------------------
+   Problem Info Bar
+   ------------------------------------------------------------------------- */
 .problem-info-bar {
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  padding: 12px 20px;
+  background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg-subtle) 100%);
+  padding: var(--space-3) var(--space-5);
   flex-shrink: 0;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .problem-info-bar h5 {
-  font-weight: 600;
-  color: #495057;
+  font-weight: var(--font-semibold);
+  color: var(--color-fg);
   margin: 0;
 }
 
 .problem-content-header {
-  padding: 12px 20px;
+  padding: var(--space-3) var(--space-5);
   flex-shrink: 0;
-  background: #f8f9fa;
+  background: var(--color-bg-subtle);
 }
 
-/* Modern Resize Divider */
+/* -------------------------------------------------------------------------
+   Resize Divider
+   ------------------------------------------------------------------------- */
 .resize-divider {
   width: 8px;
-  background: linear-gradient(to right, #e9ecef 0%, #dee2e6 50%, #e9ecef 100%);
+  background: linear-gradient(to right, var(--color-border) 0%, var(--color-border-emphasis) 50%, var(--color-border) 100%);
   cursor: col-resize;
   position: relative;
   flex-shrink: 0;
-  border-radius: 4px;
-  transition: all 0.2s ease;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
 }
 
 .resize-divider:hover {
-  background: linear-gradient(to right, #007bff 0%, #0056b3 50%, #007bff 100%);
+  background: linear-gradient(to right, var(--color-primary) 0%, var(--color-primary-hover) 50%, var(--color-primary) 100%);
 }
 
 .resize-handle {
@@ -214,106 +204,116 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: #6c757d;
-  font-size: 12px;
+  color: var(--color-secondary);
+  font-size: var(--text-xs);
   pointer-events: none;
 }
 
 .resize-divider:hover .resize-handle {
-  color: white;
+  color: var(--color-white);
 }
 
-/* Problem Section */
+/* -------------------------------------------------------------------------
+   Problem Section
+   ------------------------------------------------------------------------- */
 .problem-section {
-  background: white;
-  border-radius: 8px;
-  flex: 0 0 500px;
-  min-width: 350px;
-  max-width: 70vw;
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  flex: 0 0 600px;
+  min-width: 450px;
+  max-width: 50vw;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
 .problem-content {
-  padding: 0 20px 20px 20px;
+  padding: 0 var(--space-5) var(--space-5) var(--space-5);
   overflow-y: auto;
   flex: 1;
 }
 
-/* Problem Sections */
+/* -------------------------------------------------------------------------
+   Problem Sections
+   ------------------------------------------------------------------------- */
 .problem-section-item {
-  background: #f8f9fa;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-  border: 1px solid #e9ecef;
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--color-border);
 }
 
 /* Normalize spacing between consecutive sections */
 .problem-section-item + .problem-section-item {
-  margin-top: 16px;
+  margin-top: var(--space-4);
 }
 
 .problem-section-item h6 {
-  color: #495057;
-  font-weight: 600;
-  margin-bottom: 12px;
+  color: var(--color-fg);
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--space-3);
   display: flex;
   align-items: center;
-  font-size: 1rem;
-  gap: 8px;
+  font-size: var(--text-base);
+  gap: var(--space-2);
 }
 
 .issue-container {
   border: 2px solid transparent;
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 15px;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  margin-bottom: var(--space-4);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
 /* Subtle priority tag */
 .priority-tag {
   display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1.5px solid #ced4da;
-  color: #495057;
-  background-color: #ffffff;
-  font-size: 0.8rem;
-  font-weight: 600;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--color-border-emphasis);
+  color: var(--color-fg);
+  background-color: var(--color-bg);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
   vertical-align: middle;
 }
 
 .issue-container.active {
-  border-color: #007bff;
+  border-color: var(--color-primary);
   box-shadow: 0 0 15px rgba(0, 123, 255, 0.3);
 }
 
 .attribute-resolution-table {
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
 }
+
 .attribute-resolution-table td {
   vertical-align: middle;
 }
+
 .attribute-resolution-table .attribute-value {
   max-width: 150px;
   word-wrap: break-word;
 }
+
 .attribute-resolution-table .attribute-action {
   width: 150px;
   text-align: center;
 }
 
+/* -------------------------------------------------------------------------
+   Scroll Indicator
+   ------------------------------------------------------------------------- */
 .scroll-indicator {
   position: absolute;
-  bottom: 20px;
+  bottom: var(--space-5);
   left: 50%;
   transform: translateX(-50%);
-  color: #007bff;
-  font-size: 24px;
+  color: var(--color-primary);
+  font-size: var(--text-2xl);
   opacity: 0;
   transition: opacity 0.5s ease;
   animation: bounce 2s infinite;
@@ -336,160 +336,182 @@
   }
 }
 
-/* Styles for temporary user messages */
+/* -------------------------------------------------------------------------
+   Temporary Messages
+   ------------------------------------------------------------------------- */
 .temporary-message {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 9999;
-    padding: 12px 24px;
-    border-radius: 8px;
-    display: none;
-    font-weight: 500;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-    border: none;
-    min-width: 200px;
-    text-align: center;
+  position: fixed;
+  bottom: var(--space-5);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-md);
+  display: none;
+  font-weight: var(--font-medium);
+  box-shadow: var(--shadow-lg);
+  border: none;
+  min-width: 200px;
+  text-align: center;
 }
 
 .temporary-message.alert-success {
-    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-    color: #155724;
-    border-left: 4px solid #28a745;
+  background: linear-gradient(135deg, var(--color-success-bg) 0%, #c3e6cb 100%);
+  color: var(--color-success-fg);
+  border-left: 4px solid var(--color-success);
 }
 
 .temporary-message.alert-error {
-    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-    color: #721c24;
-    border-left: 4px solid #dc3545;
+  background: linear-gradient(135deg, var(--color-danger-bg) 0%, #f5c6cb 100%);
+  color: var(--color-danger-fg);
+  border-left: 4px solid var(--color-danger);
 }
 
 .temporary-message.alert-warning {
-    background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
-    color: #856404;
-    border-left: 4px solid #ffc107;
+  background: linear-gradient(135deg, var(--color-warning-bg) 0%, #ffeaa7 100%);
+  color: var(--color-warning-fg);
+  border-left: 4px solid var(--color-warning);
 }
 
 .temporary-message.alert-info {
-    background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
-    color: #0c5460;
-    border-left: 4px solid #17a2b8;
+  background: linear-gradient(135deg, var(--color-info-bg) 0%, #bee5eb 100%);
+  color: var(--color-info-fg);
+  border-left: 4px solid var(--color-info);
 }
 
-/* Solution status section styling */
+/* -------------------------------------------------------------------------
+   Solution Status Section
+   ------------------------------------------------------------------------- */
 .solution-status-section {
-    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    margin-bottom: 20px;
+  background: linear-gradient(135deg, var(--color-bg-subtle) 0%, var(--color-bg-muted) 100%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-5);
 }
 
 .solution-display {
-    margin-bottom: 0;
-    border-radius: 6px;
-    border: 1px solid #d4edda;
-    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+  margin-bottom: 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-success-border);
+  background: linear-gradient(135deg, var(--color-success-bg) 0%, #c3e6cb 100%);
 }
 
 .clear-solution-btn {
-    border-radius: 4px;
-    font-size: 0.875rem;
-    padding: 4px 8px;
-    transition: all 0.2s ease;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-2);
+  transition: all var(--transition-fast);
 }
 
 .clear-solution-btn:hover {
-    background-color: #6c757d;
-    border-color: #6c757d;
-    color: white;
-    transform: translateY(-1px);
+  background-color: var(--color-secondary);
+  border-color: var(--color-secondary);
+  color: var(--color-white);
+  transform: translateY(-1px);
 }
 
-/* Keyboard shortcuts hint */
+/* -------------------------------------------------------------------------
+   Keyboard Shortcuts Hint
+   ------------------------------------------------------------------------- */
 .keyboard-shortcuts-hint {
-    position: fixed;
-    bottom: 80px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 10px 15px;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    z-index: 1000;
-    display: none;
+  position: fixed;
+  bottom: 80px;
+  right: var(--space-5);
+  background: rgba(0, 0, 0, 0.8);
+  color: var(--color-white);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  z-index: var(--z-dropdown);
+  display: none;
 }
 
 .keyboard-shortcuts-hint.show {
-    display: block;
-    animation: fadeInUp 0.3s ease;
+  display: block;
+  animation: fadeInUp var(--transition-base);
 }
 
 @keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-/* Utility classes */
+/* -------------------------------------------------------------------------
+   Utility Classes
+   ------------------------------------------------------------------------- */
 .user-select-none {
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 .gap-2 > * {
-    margin-right: 8px;
-    margin-bottom: 8px;
+  margin-right: var(--space-2);
+  margin-bottom: var(--space-2);
 }
 
 .gap-2 > *:last-child {
-    margin-right: 0;
+  margin-right: 0;
 }
 
-/* Filter Design Improvements */
+/* -------------------------------------------------------------------------
+   Filter Design Improvements
+   ------------------------------------------------------------------------- */
 .dropdown-item.problem-sub-filter {
   position: relative;
-  padding-left: 2.5rem !important; /* Indent sub-filters slightly more */
+  padding-left: 2.5rem !important;
 }
 
 .dropdown-item.problem-sub-filter::before {
-  content: "↳"; /* Unicode arrow for a clean, minimal look */
+  content: "↳";
   position: absolute;
   left: 1.2rem;
   top: 50%;
   transform: translateY(-50%);
   font-size: 1.1em;
-  color: #6c757d; /* Bootstrap's secondary text color */
-} 
+  color: var(--color-secondary);
+}
 
-/* Priority circles inside dropdown */
+/* -------------------------------------------------------------------------
+   Priority Circles
+   ------------------------------------------------------------------------- */
 .priority-circle {
   display: inline-block;
-  position: relative; /* enable absolute centering of inner text */
+  position: relative;
   width: 28px;
   height: 28px;
   box-sizing: border-box;
-  border-radius: 50%;
-  border: 2px solid #dee2e6; /* use whole pixel to avoid optical drift */
-  background-color: #ffffff;
-  font-weight: 600;
-  font-size: 0.875rem; /* match badge/count size */
+  border-radius: var(--radius-full);
+  border: 2px solid var(--color-border);
+  background-color: var(--color-bg);
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
   letter-spacing: 0;
-  font-variant-numeric: tabular-nums; /* consistent numeric width */
-  color: #6c757d; /* neutral text by default */
-  vertical-align: middle; /* align with neighbors */
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-secondary);
+  vertical-align: middle;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
-.priority-circle.pr-1 { color: #dc3545; }
-.priority-circle.pr-2 { color: #fd7e14; }
-.priority-circle.pr-3 { color: #17a2b8; }
+
+.priority-circle.pr-1 {
+  color: var(--color-danger);
+}
+
+.priority-circle.pr-2 {
+  color: var(--color-orange);
+}
+
+.priority-circle.pr-3 {
+  color: var(--color-info);
+}
+
 .priority-circle .pc-text {
   position: absolute;
   top: 50%;
@@ -498,27 +520,50 @@
   line-height: 1;
   white-space: nowrap;
 }
-.priority-circle.pr-all { border-color: #dee2e6; color: #6c757d; width: auto; padding: 0 10px; border-radius: 999px; }
 
-/* Hover (when not selected) shows a subtle tint */
-.priority-circle.pr-1:hover { border-color: #dc3545; background-color: rgba(220, 53, 69, 0.08); }
-.priority-circle.pr-2:hover { border-color: #fd7e14; background-color: rgba(253, 126, 20, 0.1); }
-.priority-circle.pr-3:hover { border-color: #17a2b8; background-color: rgba(23, 162, 184, 0.1); }
-.priority-circle.pr-all:hover { border-color: #6c757d; background-color: rgba(108, 117, 125, 0.08); }
+.priority-circle.pr-all {
+  border-color: var(--color-border);
+  color: var(--color-secondary);
+}
 
-/* Selected state: clean highlight, keep original text colors */
+.priority-circle.pr-all .pc-text {
+  font-size: var(--text-xs);
+}
+
+/* Hover states */
+.priority-circle.pr-1:hover {
+  border-color: var(--color-danger);
+  background-color: rgba(220, 53, 69, 0.08);
+}
+
+.priority-circle.pr-2:hover {
+  border-color: var(--color-orange);
+  background-color: rgba(253, 126, 20, 0.1);
+}
+
+.priority-circle.pr-3:hover {
+  border-color: var(--color-info);
+  background-color: rgba(23, 162, 184, 0.1);
+}
+
+.priority-circle.pr-all:hover {
+  border-color: var(--color-secondary);
+  background-color: rgba(108, 117, 125, 0.08);
+}
+
+/* Selected state */
 .priority-circle.selected {
-  border-color: #343a40;
+  border-color: var(--color-dark);
   background-color: rgba(52, 58, 64, 0.06);
   box-shadow: 0 0 0 3px rgba(52, 58, 64, 0.12);
 }
 
-/* Ensure the priority row (inside the dropdown) aligns items to the left, not spaced out */
+/* Ensure priority row aligns items to the left */
 .problem-type-options-list .dropdown-item.d-flex.align-items-center {
   justify-content: flex-start;
 }
 
-/* Remove blue/active background style for the priority row selections */
+/* Remove blue/active background style for priority row selections */
 .problem-type-options-list .priority-row a.priority-option:active,
 .problem-type-options-list .priority-row a.priority-option:focus,
 .problem-type-options-list .priority-row a.priority-option:hover {
@@ -529,16 +574,27 @@
 /* Keep text colors per priority on hover/focus/active */
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-1,
 .problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-1,
-.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-1 { color: #dc3545 !important; }
+.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-1 {
+  color: var(--color-danger) !important;
+}
+
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-2,
 .problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-2,
-.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-2 { color: #fd7e14 !important; }
+.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-2 {
+  color: var(--color-orange) !important;
+}
+
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-3,
 .problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-3,
-.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-3 { color: #17a2b8 !important; }
+.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-3 {
+  color: var(--color-info) !important;
+}
+
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-all,
 .problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-all,
-.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-all { color: #6c757d !important; }
+.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-all {
+  color: var(--color-secondary) !important;
+}
 
 .problem-type-options-list .priority-row {
   background: transparent !important;
@@ -548,4 +604,51 @@
 .priority-option {
   display: inline-block;
   text-decoration: none !important;
+}
+
+/* -------------------------------------------------------------------------
+   Problem Type Dropdown (inline styles moved here)
+   ------------------------------------------------------------------------- */
+.problem-type-options-list {
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  margin-top: var(--space-1);
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.problem-type-options-list .dropdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--text-sm);
+}
+
+/* -------------------------------------------------------------------------
+   Map Context Toggle (moved from inline)
+   ------------------------------------------------------------------------- */
+.map-context-toggle {
+  position: relative;
+  margin-top: var(--space-2) !important;
+  margin-right: 10px !important;
+  z-index: var(--z-dropdown);
+  pointer-events: auto;
+  display: block;
+  clear: both;
+  float: right;
+}
+
+.map-context-toggle .btn-outline-secondary {
+  background-color: rgba(255, 255, 255, 0.9);
+  color: var(--color-dark);
+  border-color: var(--color-border);
+  font-size: var(--text-sm);
+  box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+  white-space: nowrap;
+}
+
+.map-context-toggle .btn-outline-secondary:hover,
+.map-context-toggle .btn-outline-secondary:focus {
+  background-color: rgba(255, 255, 255, 0.95);
+  color: var(--color-fg);
 }

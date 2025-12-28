@@ -1,105 +1,260 @@
-/* Filter panel and badges (extracted, identical selectors) */
-#filterPanelContainer {
-  padding-right: 10px;
-  height: 100%;
+/* ==========================================================================
+   C-FILTER-PANEL COMPONENT
+   Collapsible filter panel component.
+   Uses absolute positioning to overlay the map without causing layout shifts.
+   ========================================================================== */
+
+.c-filter-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--z-dropdown);
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  height: 100%;
+  overflow: visible;
+  transition: width var(--transition-base);
+  
+  /* Default width - can be overridden by page specific CSS */
+  width: var(--c-filter-panel-width, 400px);
 }
 
-#filterPanelContainer > .card {
-  border: none;
-  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-  border-radius: 0.5rem;
+/* When collapsed, shrink the panel width but keep it visible for toggle button */
+.c-filter-panel.collapsed {
+  width: var(--c-filter-panel-collapsed-width, 40px); /* Just enough for the toggle button */
+}
+
+.c-filter-panel.collapsed .c-filter-panel__content {
+  transform: translateX(calc(-100% - 20px)); /* Slide out beyond left edge */
+}
+
+/* Inner content container */
+.c-filter-panel__content {
   display: flex;
   flex-direction: column;
+  width: calc(100% - 26px); /* Account for toggle button space */
   height: 100%;
+  min-height: 0;
+  transition: transform var(--transition-base);
+  
+  /* Visual styling (Card-like) */
+  background: var(--color-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
   overflow: hidden;
 }
 
-.card-header {
-  background-color: #e9ecef;
-  border-bottom: 1px solid #dee2e6;
-  font-weight: 600;
-  color: #495057;
-  border-radius: 0.5rem 0.5rem 0 0 !important;
-  flex-shrink: 0;
+.c-filter-panel.collapsed .c-filter-panel__content {
+  pointer-events: none;
+}
+
+/* Toggle Button - positioned at right edge of panel */
+.c-filter-panel__toggle {
+  position: absolute;
+  top: 50%;
+  right: var(--c-filter-panel-toggle-inset, 0);
+  transform: translateY(-50%);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  width: 28px;
+  height: 56px;
+  padding: 0;
+  cursor: pointer;
+  z-index: calc(var(--z-dropdown) + 20);
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.c-filter-panel__toggle:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  box-shadow: 0 3px 12px rgba(0, 123, 255, 0.15);
+}
+
+.c-filter-panel__toggle:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.c-filter-panel__toggle .toggle-icon {
+  font-size: 11px;
+  transition: transform 0.25s ease;
+}
+
+.c-filter-panel__toggle .fa-sliders-h {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* Collapsed state for button - icon rotates */
+.c-filter-panel.collapsed .c-filter-panel__toggle .toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* Note: compact-group base styles are now in c-compact-group.css */
+
+/* Compact groups within filter panel body - index page specific */
+#filterPanelBody > .compact-group {
+  margin-bottom: var(--space-4);
+}
+
+#filterPanelBody > .compact-group:last-of-type {
+  margin-bottom: var(--space-2);
+}
+
+/* -------------------------------------------------------------------------
+   Filter Body Non-Nested Sections
+   Add consistent left margin to all filter checkboxes for professional alignment
+   ------------------------------------------------------------------------- */
+#filterPanelBody > .compact-group > .row .form-check,
+#filterPanelBody > .compact-group > .form-check {
+  padding-left: var(--space-4);
+}
+
+/* -------------------------------------------------------------------------
+   Active Filters Container
+   ------------------------------------------------------------------------- */
+#activeFilters,
+#problemsActiveFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
   align-items: center;
 }
 
-#filterPanelBody {
-  padding: 1rem 1rem 0 1rem;
-  overflow-y: auto;
-  flex-grow: 1;
-  min-height: 0;
-  scrollbar-width: thin;
-  scrollbar-color: #adb5bd #e9ecef;
-}
-
-#filterPanelBody::-webkit-scrollbar { width: 8px; }
-#filterPanelBody::-webkit-scrollbar-track { background: #e9ecef; border-radius: 10px; }
-#filterPanelBody::-webkit-scrollbar-thumb { background-color: #adb5bd; border-radius: 10px; border: 2px solid #e9ecef; }
-#filterPanelBody::-webkit-scrollbar-thumb:hover { background-color: #868e96; }
-
-.card-footer {
-  background-color: #f8f9fa;
-  border-top: 1px solid #dee2e6;
-  border-radius: 0 0 0.5rem 0.5rem !important;
+/* Active filters in scrolling body */
+#activeFilters {
+  padding: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border-muted);
+  background-color: var(--color-bg-subtle);
   flex-shrink: 0;
 }
 
-#fixedFilterControls { flex-shrink: 0; padding: 0.5rem 1rem; background-color: #ffffff; border-top: 1px solid #dee2e6; }
-#fixedFilterControls > .card { margin-top: 0.5rem; box-shadow: none; border: 1px solid #dee2e6; }
-#fixedFilterControls > .card > .card-header { padding: 0.5rem 1rem; }
-#fixedFilterControls > .card > .card-body { padding: 0.5rem 1rem; }
-#fixedFilterControls > #activeFilters { padding: 0.5rem 0; border-top: 1px solid #dee2e6; margin-top: 0.5rem; margin-bottom: 0.5rem; }
-#fixedFilterControls > .card-footer { padding: 0.5rem 0 0 0; border-top: none; background-color: transparent; }
+/* -------------------------------------------------------------------------
+   Active Filter Badges
+   ------------------------------------------------------------------------- */
+#activeFilters .badge,
+#problemsActiveFilters .badge {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  border-radius: var(--radius-full);
+  padding: 0.35rem 0.6rem;
+  line-height: var(--leading-tight);
+  background-color: var(--color-bg);
+  border: 1.5px solid currentColor;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  margin: var(--space-1);
+  transition: opacity var(--transition-fast);
+}
 
-.compact-group { margin-bottom: 1rem; }
-.compact-group:last-child { margin-bottom: 0; }
+#activeFilters .badge:hover,
+#problemsActiveFilters .badge:hover {
+  opacity: 0.8;
+}
 
-#activeFilters, #problemsActiveFilters { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
-#activeFilters .badge, #problemsActiveFilters .badge { font-size: 0.875rem; font-weight: 600; border-radius: 999px; padding: 0.35rem 0.6rem; line-height: 1.2; background-color: #ffffff; border: 1.5px solid currentColor; color: #495057; cursor: pointer; }
-#activeFilters .badge-secondary, #problemsActiveFilters .badge-secondary { color: #6c757d; border-color: #6c757d; background-color: #ffffff; }
-#activeFilters .badge-primary, #problemsActiveFilters .badge-primary { color: #007bff; border-color: #007bff; background-color: #ffffff; }
-#activeFilters .badge-success, #problemsActiveFilters .badge-success { color: #28a745; border-color: #28a745; background-color: #ffffff; }
-#activeFilters .badge-warning, #problemsActiveFilters .badge-warning { color: #ffc107; border-color: #ffc107; background-color: #ffffff; }
-#activeFilters .badge-info, #problemsActiveFilters .badge-info { color: #17a2b8; border-color: #17a2b8; background-color: #ffffff; }
-#activeFilters .badge-danger, #problemsActiveFilters .badge-danger { color: #dc3545; border-color: #dc3545; background-color: #ffffff; }
-#activeFilters .badge a, #problemsActiveFilters .badge a { text-decoration: none; margin-left: 0.25rem; font-weight: 600; font-size: 0.95rem; }
-#activeFilters .badge a:hover, #problemsActiveFilters .badge a:hover { text-decoration: none; opacity: 0.8; }
+/* Badge color variants */
+#activeFilters .badge-primary,
+#problemsActiveFilters .badge-primary {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background-color: var(--color-bg);
+}
 
-#activeFilters .badge, #problemsActiveFilters .badge { margin: 0.3rem 0.2rem; }
+#activeFilters .badge-secondary,
+#problemsActiveFilters .badge-secondary {
+  color: var(--color-secondary);
+  border-color: var(--color-secondary);
+  background-color: var(--color-bg);
+}
 
-/* Ensure AND/OR operator is vertically centered relative to chips */
-#activeFilters .filter-chip-operator, #problemsActiveFilters .filter-chip-operator {
+#activeFilters .badge-success,
+#problemsActiveFilters .badge-success {
+  color: var(--color-success);
+  border-color: var(--color-success);
+  background-color: var(--color-bg);
+}
+
+#activeFilters .badge-warning,
+#problemsActiveFilters .badge-warning {
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+  background-color: var(--color-bg);
+}
+
+#activeFilters .badge-info,
+#problemsActiveFilters .badge-info {
+  color: var(--color-info);
+  border-color: var(--color-info);
+  background-color: var(--color-bg);
+}
+
+#activeFilters .badge-danger,
+#problemsActiveFilters .badge-danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  background-color: var(--color-bg);
+}
+
+/* Badge close button */
+#activeFilters .badge a,
+#problemsActiveFilters .badge a {
+  text-decoration: none;
+  margin-left: var(--space-1);
+  font-weight: var(--font-semibold);
+  font-size: 0.95em;
+  color: inherit;
+}
+
+#activeFilters .badge a:hover,
+#problemsActiveFilters .badge a:hover {
+  text-decoration: none;
+  opacity: 0.8;
+}
+
+/* -------------------------------------------------------------------------
+   Filter Chip Operator (AND/OR)
+   ------------------------------------------------------------------------- */
+#activeFilters .filter-chip-operator,
+#problemsActiveFilters .filter-chip-operator {
   display: inline-flex;
   align-items: center;
-  line-height: 1.2;
+  line-height: var(--leading-tight);
   vertical-align: middle;
 }
 
-/* Compact groups directly under filterPanelBody */
-#filterPanelBody > .compact-group { margin-bottom: 1.25rem; }
-#filterPanelBody > .compact-group:last-of-type { margin-bottom: 0.5rem; }
+/* -------------------------------------------------------------------------
+   Filter Type Selector
+   ------------------------------------------------------------------------- */
+#filterTypeSelector {
+  width: auto;
+  display: inline-block !important;
+  margin-bottom: var(--space-2);
+}
 
-/* Remove margin from header form group */
-.card-header .form-group.d-flex.align-items-center.justify-content-center { margin-bottom: 0 !important; }
+/* -------------------------------------------------------------------------
+   Header Form Group
+   ------------------------------------------------------------------------- */
+.card-header .form-group.d-flex.align-items-center.justify-content-center {
+  margin-bottom: 0 !important;
+}
 
-/* Active Filters container in the scrolling body */
-#activeFilters { padding: 0.75rem; border-top: 1px solid #dee2e6; background-color: #f8f9fa; flex-shrink: 0; }
-
-/* Ensure the select for Search by fits well */
-#filterTypeSelector { width: auto; display: inline-block !important; margin-bottom: 0.5rem; }
-
-/* Remove bottom margin from last compact-group within any card-body */
-.card-body .compact-group:last-child { margin-bottom: 0; }
-
-/* Responsive tweaks */
+/* -------------------------------------------------------------------------
+   Responsive Adjustments
+   ------------------------------------------------------------------------- */
 @media (max-width: 768px) {
-  #filterPanelBody { padding: 0.75rem; }
+  #filterPanelBody {
+    padding: var(--space-3);
+  }
 }
 
 

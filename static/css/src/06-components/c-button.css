@@ -1,18 +1,159 @@
+/* ==========================================================================
+   C-BUTTON COMPONENT
+   Custom button component styles (in addition to base button elements).
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Base Button Component
+   ------------------------------------------------------------------------- */
 .c-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-tight);
+  text-decoration: none;
+  border: var(--border-width) solid var(--color-border);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
   background: var(--color-bg);
+  color: var(--color-fg);
+  cursor: pointer;
+  transition: 
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.c-button:hover {
+  background-color: var(--color-bg-subtle);
+  border-color: var(--color-border-emphasis);
+  transform: translateY(-1px);
+}
+
+.c-button:active {
+  transform: translateY(0);
+}
+
+.c-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+/* -------------------------------------------------------------------------
+   Button Variants
+   ------------------------------------------------------------------------- */
+.c-button--primary {
+  background: var(--color-primary);
+  color: var(--color-white);
+  border-color: transparent;
+}
+
+.c-button--primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.c-button--secondary {
+  background: var(--color-secondary);
+  color: var(--color-white);
+  border-color: transparent;
+}
+
+.c-button--secondary:hover {
+  background: var(--color-secondary-hover);
+}
+
+.c-button--success {
+  background: var(--color-success);
+  color: var(--color-white);
+  border-color: transparent;
+}
+
+.c-button--success:hover {
+  background: var(--color-success-hover);
+}
+
+.c-button--danger {
+  background: var(--color-danger);
+  color: var(--color-white);
+  border-color: transparent;
+}
+
+.c-button--danger:hover {
+  background: var(--color-danger-hover);
+}
+
+.c-button--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-fg-muted);
+}
+
+.c-button--ghost:hover {
+  background: var(--color-bg-muted);
   color: var(--color-fg);
 }
 
-.c-button--primary {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: transparent;
+/* -------------------------------------------------------------------------
+   Button Sizes
+   ------------------------------------------------------------------------- */
+.c-button--sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+}
+
+.c-button--lg {
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-base);
+}
+
+/* -------------------------------------------------------------------------
+   Button with Icon
+   ------------------------------------------------------------------------- */
+.c-button__icon {
+  flex-shrink: 0;
+  width: 1em;
+  height: 1em;
+}
+
+.c-button--icon-only {
+  padding: var(--space-2);
+}
+
+.c-button--icon-only.c-button--sm {
+  padding: var(--space-1);
+}
+
+/* -------------------------------------------------------------------------
+   Button States
+   ------------------------------------------------------------------------- */
+.c-button--loading {
+  position: relative;
+  color: transparent;
+  pointer-events: none;
+}
+
+.c-button--loading::after {
+  content: '';
+  position: absolute;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.c-button:disabled,
+.c-button--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 

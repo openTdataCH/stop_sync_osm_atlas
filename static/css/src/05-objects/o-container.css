@@ -1,10 +1,69 @@
+/* ==========================================================================
+   O-CONTAINER OBJECT
+   Container layout object for centering and constraining content width.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Base Container
+   ------------------------------------------------------------------------- */
 .o-container {
   width: 100%;
   margin-left: auto;
   margin-right: auto;
   padding-left: var(--space-4);
   padding-right: var(--space-4);
-  max-width: 1200px;
+  max-width: var(--container-max-width);
+}
+
+/* -------------------------------------------------------------------------
+   Container Size Variants
+   ------------------------------------------------------------------------- */
+.o-container--sm {
+  max-width: 640px;
+}
+
+.o-container--md {
+  max-width: 768px;
+}
+
+.o-container--lg {
+  max-width: 1024px;
+}
+
+.o-container--xl {
+  max-width: 1280px;
+}
+
+.o-container--fluid {
+  max-width: none;
+}
+
+/* -------------------------------------------------------------------------
+   Container Padding Variants
+   ------------------------------------------------------------------------- */
+.o-container--narrow {
+  padding-left: var(--space-2);
+  padding-right: var(--space-2);
+}
+
+.o-container--wide {
+  padding-left: var(--space-6);
+  padding-right: var(--space-6);
+}
+
+/* -------------------------------------------------------------------------
+   Responsive Adjustments
+   ------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  .o-container {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+  }
+  
+  .o-container--wide {
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+  }
 }
 
 

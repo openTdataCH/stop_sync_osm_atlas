@@ -17,11 +17,15 @@
      * Map zoom level thresholds for rendering optimization
      */
     AppConstants.MAP = {
+        // Prevent zooming out to a world/continent view (app is Switzerland-focused)
+        // Leaflet zoom: ~2-3 is world/continent, ~5 is Europe, ~6-7 is central Europe.
+        MIN_ZOOM: 8,
+
         // Below this zoom level, markers are not rendered (performance optimization)
         ZOOM_MARKER_THRESHOLD: 13,
         
         // Below this zoom level, connection lines between matches are not rendered
-        ZOOM_LINE_THRESHOLD: 14,
+        ZOOM_LINE_THRESHOLD: 13,
         
         // Number of additional zoom levels to keep the "zoom in" banner visible
         ADDITIONAL_BANNER_ZOOM_LEVELS: 2,
@@ -32,8 +36,18 @@
         // Default zoom level when map first loads
         DEFAULT_ZOOM: 13,
         
-        // Maximum zoom level
-        MAX_ZOOM: 19
+        // Maximum zoom level (allows upscaling tiles for better precision)
+        MAX_ZOOM: 22,
+
+        // Maximum zoom level where tiles are actually available
+        MAX_NATIVE_ZOOM: 19,
+
+        // Keep panning constrained to a Switzerland-centric "half of Europe" envelope.
+        // Format: [[southWestLat, southWestLon], [northEastLat, northEastLon]]
+        MAX_BOUNDS: [[45.5, 5.5], [48.0, 11.0]],
+
+        // How strongly Leaflet resists panning outside MAX_BOUNDS (1.0 = hard stop)
+        MAX_BOUNDS_VISCOSITY: 1.0
     };
 
     /**
@@ -41,13 +55,13 @@
      */
     AppConstants.DATA_LOADING = {
         // If filtered results are <= this count, render markers even below zoom threshold
-        LOW_ZOOM_SMALLSET_LIMIT: 250,
+        LOW_ZOOM_SMALLSET_LIMIT: 550,
         
-        // Mid-zoom data cap to prevent loading too many stops
-        MID_ZOOM_LIMIT: 500,
+        // Data cap for all zoom levels below the uncapped threshold
+        GENERAL_LIMIT: 2000,
         
         // Debounce delay (ms) for map pan/zoom events to prevent excessive API calls
-        VIEW_DEBOUNCE_MS: 320
+        VIEW_DEBOUNCE_MS: 150
     };
 
     /**

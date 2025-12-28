@@ -1,38 +1,233 @@
-/* Accordion Styling Enhancements (transitional, identical selectors) */
-.accordion .card { margin-bottom: 8px; border-radius: 0.4rem; border: 1px solid #dee2e6; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-.accordion .card-header { cursor: pointer; background-color: #f8f9fa; border-bottom: 1px solid #dee2e6; padding: 0.75rem 1.25rem; transition: background-color 0.2s ease-in-out; }
-.accordion .card-header:hover { background-color: #e9ecef; }
-.accordion .card-header h5 { margin-bottom: 0; font-size: 0.95rem; font-weight: 600; color: #495057; }
-.accordion .card-header .btn-link { color: #343a40; text-decoration: none; width: 100%; text-align: left; padding: 0; font-weight: inherit; }
-.accordion .card-header .btn-link:focus, .accordion .card-header .btn-link:active { text-decoration: none; box-shadow: none; outline: none; }
-.accordion .card-header .btn-link::after { content: '\f078'; font-family: "Font Awesome 5 Free"; font-weight: 900; float: right; transition: transform 0.2s ease-in-out; }
-.accordion .card-header .btn-link[aria-expanded="true"]::after { content: '\f077'; }
-.accordion .card-body { padding: 1rem 1.25rem; border-top: none; background-color: #ffffff; }
-.accordion .card-body .compact-group > label { font-size: 0.9rem; font-weight: 600; color: #333; margin-bottom: 0.75rem; display: block; }
-.accordion > .card:not(:last-of-type) { border-bottom: 0; border-bottom-right-radius: 0; border-bottom-left-radius: 0; }
-.accordion > .card:not(:first-of-type) { border-top-left-radius: 0; border-top-right-radius: 0; }
+/* ==========================================================================
+   C-ACCORDION COMPONENT
+   Accordion/collapsible panel component styles.
+   ========================================================================== */
 
-/* Nested accordion and matching subcategory styles */
-.nested-accordion-header { display: flex; align-items: center; padding: 0.5rem 0.75rem; background-color: #f0f0f0; border-bottom: 1px solid #e0e0e0; cursor: pointer; transition: background-color 0.2s ease-in-out; }
-.nested-accordion-header:hover { background-color: #e9ecef; }
-.nested-accordion-header input[type="checkbox"].master-filter-checkbox { margin-right: 0.75rem; flex-shrink: 0; }
-.nested-accordion-header label { font-weight: 500; font-size: 0.9rem; margin-bottom: 0; flex-grow: 1; }
-.nested-accordion-header .accordion-toggle-icon { margin-left: auto; transition: transform 0.2s ease-in-out; font-size: 0.8rem; color: #6c757d; }
-.nested-accordion-header[aria-expanded="true"] .accordion-toggle-icon { transform: rotate(0deg); }
-.nested-accordion-header[aria-expanded="false"] .accordion-toggle-icon { transform: rotate(-90deg); }
-.nested-accordion-content { padding: 0.75rem 1rem 0.75rem 1.5rem; border-left: 2px solid #e9ecef; margin-left: 0.75rem; background-color: #fff; }
-.nested-accordion-content .compact-group { margin-bottom: 0.75rem; }
-.nested-accordion-content .compact-group:last-child { margin-bottom: 0; }
-.nested-accordion-content .form-check { margin-bottom: 0.3rem; }
-.nested-accordion-content label { font-size: 0.85rem; }
+/* -------------------------------------------------------------------------
+   Accordion Container
+   ------------------------------------------------------------------------- */
+.accordion .card {
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid var(--color-border-muted);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
 
-.matching-subcategory-header { display: flex; align-items: center; padding: 0.3rem 0; margin-bottom: 0.25rem; }
-.matching-subcategory-header input[type="checkbox"].master-filter-checkbox { margin-right: 0.5rem; }
-.matching-subcategory-header .accordion-link { font-weight: 500; font-size: 0.9rem; color: #495057; text-decoration: none; }
-.matching-subcategory-header .accordion-link:hover { text-decoration: underline; }
-.matching-subcategory-header .accordion-toggle-icon { font-size: 0.75rem; color: #6c757d; }
-.matching-subcategory-content { padding-left: 1.2rem; margin-left: 0.5rem; border-left: 2px solid #e9ecef; padding-top: 0.5rem; padding-bottom: 0.5rem; }
-.matching-subcategory-content .form-check { margin-bottom: 0.25rem; }
-.matching-subcategory-content label { font-size: 0.85rem; font-weight: normal; }
+.accordion > .card:not(:last-of-type) {
+  border-bottom: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.accordion > .card:not(:first-of-type) {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Accordion Header
+   ------------------------------------------------------------------------- */
+.accordion .card-header {
+  cursor: pointer;
+  background-color: var(--color-bg-subtle);
+  border-bottom: var(--border-width) solid var(--color-border-muted);
+  padding: var(--space-3) var(--space-4);
+  transition: background-color var(--transition-base);
+}
+
+.accordion .card-header:hover {
+  background-color: var(--color-bg-muted);
+}
+
+.accordion .card-header h5 {
+  margin-bottom: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-fg);
+}
+
+/* -------------------------------------------------------------------------
+   Accordion Button/Link
+   ------------------------------------------------------------------------- */
+.accordion .card-header .btn-link {
+  color: var(--color-dark);
+  text-decoration: none;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  font-weight: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.accordion .card-header .btn-link:focus,
+.accordion .card-header .btn-link:active {
+  text-decoration: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.accordion .card-header .btn-link::after {
+  content: '\f078';
+  font-family: "Font Awesome 5 Free";
+  font-weight: 900;
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+  transition: transform var(--transition-base);
+}
+
+.accordion .card-header .btn-link[aria-expanded="true"]::after {
+  content: '\f077';
+}
+
+/* -------------------------------------------------------------------------
+   Accordion Body
+   ------------------------------------------------------------------------- */
+.accordion .card-body {
+  padding: var(--space-4);
+  border-top: none;
+  background-color: var(--color-bg);
+}
+
+/* Note: compact-group styles are now in c-compact-group.css */
+
+/* -------------------------------------------------------------------------
+   Nested Accordion
+   ------------------------------------------------------------------------- */
+.nested-accordion-header {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-bg-muted);
+  border-bottom: var(--border-width) solid var(--color-border);
+  cursor: pointer;
+  transition: background-color var(--transition-base);
+}
+
+.nested-accordion-header:hover {
+  background-color: var(--color-bg-muted);
+}
+
+.nested-accordion-header input[type="checkbox"].master-filter-checkbox {
+  margin-right: var(--space-3);
+  flex-shrink: 0;
+}
+
+.nested-accordion-header label {
+  font-weight: var(--font-medium);
+  font-size: var(--text-sm);
+  margin-bottom: 0;
+  flex-grow: 1;
+  cursor: pointer;
+}
+
+.nested-accordion-header .accordion-toggle-icon {
+  margin-left: auto;
+  transition: transform var(--transition-base);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.nested-accordion-header[aria-expanded="true"] .accordion-toggle-icon {
+  transform: rotate(0deg);
+}
+
+.nested-accordion-header[aria-expanded="false"] .accordion-toggle-icon {
+  transform: rotate(-90deg);
+}
+
+/* -------------------------------------------------------------------------
+   Nested Accordion Content
+   ------------------------------------------------------------------------- */
+.nested-accordion-content {
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-6);
+  border-left: 2px solid var(--color-bg-muted);
+  margin-left: var(--space-3);
+  background-color: var(--color-bg);
+}
+
+.nested-accordion-content .form-check {
+  margin-bottom: var(--space-1);
+}
+
+/* -------------------------------------------------------------------------
+   Matching Subcategory Styles
+   ------------------------------------------------------------------------- */
+.matching-subcategory-header {
+  display: flex;
+  align-items: center;
+  padding: var(--space-1) 0;
+  margin-bottom: var(--space-1);
+}
+
+.matching-subcategory-header input[type="checkbox"].master-filter-checkbox {
+  margin-right: var(--space-2);
+}
+
+/* -------------------------------------------------------------------------
+   Master Filter Checkbox Styling
+   Ensure master checkboxes match the rounded-square style of regular checkboxes
+   ------------------------------------------------------------------------- */
+input[type="checkbox"].master-filter-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1rem;
+  height: 1rem;
+  background-color: var(--color-bg);
+  border: var(--border-width) solid var(--color-border-emphasis);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+input[type="checkbox"].master-filter-checkbox:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='white' d='M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px;
+}
+
+input[type="checkbox"].master-filter-checkbox:focus {
+  border-color: var(--color-focus-border);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
+.matching-subcategory-header .accordion-link {
+  font-weight: var(--font-medium);
+  font-size: var(--text-sm);
+  color: var(--color-fg);
+  text-decoration: none;
+}
+
+.matching-subcategory-header .accordion-link:hover {
+  text-decoration: underline;
+}
+
+.matching-subcategory-header .accordion-toggle-icon {
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.matching-subcategory-content {
+  padding-left: var(--space-5);
+  margin-left: var(--space-2);
+  border-left: 2px solid var(--color-bg-muted);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.matching-subcategory-content .form-check {
+  margin-bottom: var(--space-1);
+  padding-left: var(--space-4);
+}
+
+/* Note: label typography is handled by c-compact-group.css */
 
 

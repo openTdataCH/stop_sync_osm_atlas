@@ -50,7 +50,7 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
     
     **On the first run**, Docker will automatically:
     - Build the application image
-    - Download and start MySQL database
+    - Download and start Postgres (PostGIS) database
     - Download ATLAS data from OpenTransportData.swiss
     - Download GTFS and HRDF data for route matching
     - Download OSM data via the Overpass API
@@ -58,7 +58,7 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
     - Import everything into the database
     - Start the Flask web application
 
-    This typically takes 15 minutes. Data and database state are cached across runs (`./data` directory and the `mysql_data` volume).
+    This typically takes 15 minutes. Data and database state are cached across runs (`./data` directory and the `postgres_data` volume).
 
     **Match-Only Mode (Skip Data Downloads):**
     ```bash
@@ -74,12 +74,7 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 
 4.  **Access the application**:
     - Web app: [http://localhost:5001](http://localhost:5001)
-    - MySQL database: `localhost:3306` (user: `stops_user`, password: `1234`)
-
-    For better security, you can enable a dedicated auth DB user by creating a `.env` from `.env.example` and setting:
-    - `AUTH_DB_USER`
-    - `AUTH_DB_PASSWORD`
-    Optionally override `AUTH_DATABASE_URI` to use this user.
+    - Postgres database: `localhost:5432` (user: `stops_user`, password: `1234`)
 
 5.  **To stop the services**:
     ```bash
@@ -99,7 +94,7 @@ Downloads are cached under `data/raw/` and processed artifacts under `data/proce
 **Speed up iterations**: Use `MATCH_ONLY=true` to skip downloads and data processing and only run the matching/import process using existing data files. This requires that a full pipeline has been run at least once to generate the necessary processed files.
 
 ### Data Import (Entrypoint)
-After acquisition, `import_data_db.py` populates the MySQL databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
+After acquisition, `import_data_db.py` populates the Postgres databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
 
 Set `SKIP_DATA_IMPORT=true` (the `app-dev` service already does this) to bypass acquisition/import when you only want to run the web app against an existing database.
 
@@ -119,8 +114,6 @@ Access it at [http://localhost:5001/](http://localhost:5001/).
 ## Environment & Secrets
 
 - This repo provides `env.example` (copy to `.env` if you want to override defaults). Key variables:
-  - `MYSQL_USER`, `MYSQL_PASSWORD`: base MySQL user for `stops_db` (dev default: `stops_user`/`1234`).
-  - `AUTH_DB_USER`, `AUTH_DB_PASSWORD`: optional dedicated user for `auth_db` (least privilege). If set, the entrypoint will create/grant it and revoke `stops_user` on `auth_db`.
   - `DATABASE_URI`, `AUTH_DATABASE_URI`: SQLAlchemy URIs. Override to use your chosen users.
   - `SECRET_KEY`: Flask secret key (set a strong value in production).
   - `AUTO_MIGRATE`, `MATCH_ONLY`, `SKIP_DATA_IMPORT`: control data pipeline and migrations.
@@ -131,12 +124,8 @@ Access it at [http://localhost:5001/](http://localhost:5001/).
 
 Example `.env` snippet:
 ```env
-MYSQL_USER=stops_user
-MYSQL_PASSWORD=1234
-AUTH_DB_USER=auth_user
-AUTH_DB_PASSWORD=change-me-strong
-DATABASE_URI=mysql+pymysql://stops_user:1234@db/stops_db
-AUTH_DATABASE_URI=mysql+pymysql://auth_user:change-me-strong@db/auth_db
+DATABASE_URI=postgresql+psycopg://stops_user:1234@db:5432/stops_db
+AUTH_DATABASE_URI=postgresql+psycopg://stops_user:1234@db:5432/auth_db
 SECRET_KEY=dev-insecure
 AUTO_MIGRATE=true
 # CAPTCHA (Cloudflare Turnstile)
@@ -167,7 +156,7 @@ If you are running the `app-dev` service instead, replace `app` with `app-dev`:
 docker compose exec app-dev python manage.py list-users
 ```
 
-The project uses Alembic (via Flask‑Migrate) to manage schema for both MySQL databases (`stops_db` and `auth_db`). On startup, the application waits for MySQL and runs `flask db upgrade` to apply migrations. In development, migrations can be auto‑generated on first run.
+The project uses Alembic (via Flask‑Migrate) to manage schema. On startup, the application waits for Postgres and runs `flask db upgrade` to apply migrations. Auth tables live in the `auth_db` bind and are ensured by `create_auth_tables.py`.
 
 
 ## Authentication

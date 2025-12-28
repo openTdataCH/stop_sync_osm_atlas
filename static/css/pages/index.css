@@ -1,20 +1,178 @@
-/* Page-specific overrides for templates/pages/index.html (map page).
+/* ==========================================================================
+   INDEX PAGE (Map View)
+   Page-specific overrides for templates/pages/index.html (map page).
    Most component styling lives under static/css/src/06-components/*.css
-   and is bundled via static/css/main.css. Keep this file small. */
+   and is bundled via static/css/main.css. Keep this file small.
+   ========================================================================== */
 
+/* -------------------------------------------------------------------------
+   Page Layout Overrides
+   ------------------------------------------------------------------------- */
 /* Prevent page scroll on index; internal panels manage their own scroll */
-body { overflow: hidden; }
-main { overflow: hidden; min-height: 0; }
+body {
+  overflow: hidden;
+}
+
+main {
+  overflow: hidden;
+  min-height: 0;
+}
 
 /* Scope padding to the index root container only */
 .index-root {
-  padding: 10px;
+  padding: var(--space-2);
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden; /* contain inner scroll areas */
+  overflow: hidden;
 }
 
-/* Fallback minimum height so the map stays usable even if flex sizing fails */
-#map { min-height: 500px; }
+/* Container for map + overlay panel - needs position:relative for absolute panel */
+.index-root > .d-flex.flex-row {
+  position: relative;
+}
+
+/* Ensure map fills the flex container properly */
+#map {
+  flex: 1 1 auto;
+  min-height: 500px;
+  width: 100%;
+  height: 100%;
+}
+
+/* -------------------------------------------------------------------------
+   Collapsible Filter Panel (Overlay Mode)
+   ------------------------------------------------------------------------- */
+/* Override width for index page */
+#filterPanelContainer {
+  --c-filter-panel-width: 480px;
+  --c-filter-panel-collapsed-width: 40px;
+  --c-filter-panel-padding: var(--space-2);
+  --c-filter-panel-toggle-inset: var(--c-filter-panel-padding);
+  padding: var(--c-filter-panel-padding);
+}
+
+/* Ensure the content fills properly within the panel */
+#filterPanelContainer .c-filter-panel__content {
+  width: calc(100% - 26px); /* Match component toggle spacing */
+}
+
+
+
+/* Filter panel body needs to scroll */
+#filterPanelBody {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--space-3);
+}
+
+/* Fixed controls stay at the bottom */
+#fixedFilterControls {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-4);
+  width: 100%;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+
+#fixedFilterControls .card {
+  border-radius: var(--radius-lg);
+  margin-top: var(--space-2);
+  background: var(--color-bg);
+  overflow: hidden;
+  width: 100%;
+  border: 1px solid var(--color-border);
+}
+
+#fixedFilterControls .card-header {
+  background: linear-gradient(to right, var(--color-bg-subtle), var(--color-bg));
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+}
+
+#fixedFilterControls .card-header h5 {
+  font-size: var(--text-sm);
+  font-weight: var(--font-bold);
+  color: var(--color-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Modern rounded search inputs */
+#fixedFilterControls .input-group {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+}
+
+#fixedFilterControls .custom-select,
+#fixedFilterControls .form-control {
+  border-color: var(--color-border);
+}
+
+#fixedFilterControls .custom-select:focus,
+#fixedFilterControls .form-control:focus {
+  box-shadow: none;
+  border-color: var(--color-primary);
+}
+
+#fixedFilterControls .btn-outline-secondary {
+  border-color: var(--color-border);
+  background: var(--color-bg-subtle);
+  color: var(--color-text);
+}
+
+#fixedFilterControls .btn-outline-secondary:hover {
+  background: var(--color-primary);
+  color: var(--color-white);
+  border-color: var(--color-primary);
+}
+
+/* Map container fills entire space (panel overlays it) */
+#mapContainer {
+  flex: 1 1 auto;
+  min-width: 0; /* Required for Leaflet/Flexbox to work properly */
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* -------------------------------------------------------------------------
+   OSM Query Tool Styles
+   ------------------------------------------------------------------------- */
+.osm-query-button {
+  background-color: var(--color-bg);
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  color: var(--color-dark);
+  transition: all var(--transition-fast);
+}
+
+.osm-query-button:hover {
+  background-color: var(--color-bg-muted);
+}
+
+.osm-query-button.active {
+  background-color: var(--color-primary);
+  color: var(--color-white);
+}
+
+.osm-query-button i {
+  font-size: var(--text-sm);
+}
+
+.osm-query-results .last-child-no-border:last-child {
+  border-bottom: none !important;
+}
+
+.osm-query-loading {
+  padding: var(--space-2);
+  text-align: center;
+}
 
 

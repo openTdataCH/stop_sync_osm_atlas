@@ -102,6 +102,7 @@ function filterByRoute(routeId, directions) {
     activeFilters.filterType = 'route';
     
     updateFiltersUI();
+    if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
     loadDataForViewport();
     updateHeaderSummary();
 }
@@ -133,6 +134,7 @@ function filterByHrdfRoute(lineName) {
     activeFilters.routeDirections.push(''); // No direction for HRDF routes for now
     
     updateFiltersUI();
+    if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
     loadDataForViewport();
     updateHeaderSummary();
 }
@@ -162,6 +164,7 @@ function addCustomFilter(value, filterType) {
     activeFilters.routeDirections.push('');
     
     updateFiltersUI();
+    if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
     loadDataForViewport();
     updateHeaderSummary();
 }
@@ -415,10 +418,11 @@ function updateFiltersUI() {
 
     if (finalGroupStrings.length > 0) {
         var finalHtml = joinWithAnd(finalGroupStrings);
-        container.html(finalHtml);
+                container.html(finalHtml);
     } else {
         container.html('<span class="badge badge-secondary mr-1 mb-1">All entries</span>');
     }
+
 }
 
 // Function to toggle between standard filter input and route filter input based on filter type
@@ -452,6 +456,7 @@ function addTextFilter() {
         activeFilters.routeDirections.push(''); // No direction for standard filters
         $('#stationFilter').val(''); // Clear input field after adding
         updateFiltersUI();
+        if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
         loadDataForViewport(); // Load data based on all active filters
         updateHeaderSummary();
 
@@ -490,6 +495,7 @@ function addRouteFilter() {
             $('#directionFilter').val('');
             
             updateFiltersUI();
+            if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
             loadDataForViewport();
             updateHeaderSummary();
         } else {
@@ -542,6 +548,7 @@ function filterByStation(stopId, stopCategory) {
     activeFilters.filterType = filterType;
     
     updateFiltersUI();
+    if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
     loadDataForViewport();
     updateHeaderSummary();
 }
@@ -687,6 +694,12 @@ function updateActiveFilters() {
     activeFilters.showDuplicatesOnly = $('#filterDuplicatesOnly').is(':checked');
     
     updateFiltersUI();
+    
+    // Invalidate viewport cache when filters change to ensure fresh data is fetched
+    if (typeof window.invalidateViewportCache === 'function') {
+        window.invalidateViewportCache();
+    }
+    
     loadDataForViewport();
     
     if(activeFilters.topN && (anyMatchedMethodActive || activeFilters.stopType.includes('matched'))) {
@@ -731,6 +744,7 @@ function setRouteDirection(index, direction) {
         activeFilters.routeDirections[index] = direction;
         
         updateFiltersUI();
+        if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
         loadDataForViewport(); // Reload data with new direction filter
         updateHeaderSummary();
     }

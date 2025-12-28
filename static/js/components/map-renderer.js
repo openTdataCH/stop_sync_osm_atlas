@@ -144,6 +144,35 @@ class MarkerClusterManager {
     }
 
     /**
+     * Returns the clustered data with calculated offsets, without creating Leaflet markers.
+     * @returns {Array} Array of objects { lat, lon, markerData }
+     */
+    getClusteredData() {
+        const results = [];
+        this.clusters.forEach((markerDataArray, coordKey) => {
+            const [centerLat, centerLon] = coordKey.split(',').map(Number);
+            const clusterSize = markerDataArray.length;
+            
+            // Sort markers to ensure consistent ordering (Atlas first, then OSM)
+            markerDataArray.sort((a, b) => {
+                if (a.type === 'atlas' && b.type === 'osm') return -1;
+                if (a.type === 'osm' && b.type === 'atlas') return 1;
+                return 0;
+            });
+            
+            markerDataArray.forEach((markerData, index) => {
+                const { offsetLat, offsetLon } = this._calculateOffset(centerLat, centerLon, clusterSize, index);
+                results.push({
+                    lat: offsetLat,
+                    lon: offsetLon,
+                    markerData: markerData
+                });
+            });
+        });
+        return results;
+    }
+
+    /**
      * Creates all markers with proper offset handling
      * @param {L.LayerGroup} layer - Leaflet layer group to add markers to
      * @returns {Array} Array of created markers

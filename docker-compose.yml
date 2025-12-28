@@ -1,21 +1,20 @@
 services:
   db:
-    image: mysql:8.0
+    image: postgis/postgis:16-3.4
     container_name: bachelor_project_db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root #
-      MYSQL_DATABASE: stops_db
-      MYSQL_USER: stops_user
-      MYSQL_PASSWORD: 1234 # Password for stops_user is '1234'
+      POSTGRES_DB: stops_db
+      POSTGRES_USER: stops_user
+      POSTGRES_PASSWORD: 1234
     ports:
-      - "3306:3306" # Exposes MySQL to your host machine on port 3306
+      - "5432:5432" # Exposes Postgres to your host machine on port 5432
     volumes:
-      - mysql_data:/var/lib/mysql
-      # MySQL data persists in the volume; database and user are created via env vars
+      - postgres_data:/var/lib/postgresql/data
+      # Create auth_db on first init
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      # Using CMD-SHELL to ensure proper variable expansion for healthcheck
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -h localhost -p 5432"]
       interval: 10s
       timeout: 5s
       retries: 2
@@ -38,20 +37,13 @@ services:
       db:
         condition: service_healthy # Waits for db to be healthy before starting app
     environment:
-      # Pass MySQL credentials to the entrypoint script and Python apps
-      MYSQL_USER: ${MYSQL_USER:-stops_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-1234} # Ensure this matches db service password
-      MYSQL_ROOT_PASSWORD: root # Needed for entrypoint.sh to create auth_db
-      # Optional dedicated auth DB user (best practice for least privilege)
-      AUTH_DB_USER: ${AUTH_DB_USER:-}
-      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-}
       # Flask environment variables (some are also in Dockerfile for explicitness)
       FLASK_APP: backend/app.py
       FLASK_ENV: development # Or production
       FLASK_DEBUG: 1 # Enables Flask debugger
       # Database URI for SQLAlchemy, now configurable via .env
-      DATABASE_URI: ${DATABASE_URI:-mysql+pymysql://stops_user:1234@db/stops_db}
-      AUTH_DATABASE_URI: ${AUTH_DATABASE_URI:-mysql+pymysql://stops_user:1234@db/auth_db}
+      DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/stops_db}
+      AUTH_DATABASE_URI: ${AUTH_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/auth_db}
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
@@ -97,20 +89,13 @@ services:
       db:
         condition: service_healthy # Waits for db to be healthy before starting app
     environment:
-      # Pass MySQL credentials to the entrypoint script and Python apps
-      MYSQL_USER: ${MYSQL_USER:-stops_user}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-1234} # Ensure this matches db service password
-      MYSQL_ROOT_PASSWORD: root # Needed for entrypoint.sh to create auth_db
-      # Optional dedicated auth DB user (best practice for least privilege)
-      AUTH_DB_USER: ${AUTH_DB_USER:-}
-      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-}
       # Flask environment variables (some are also in Dockerfile for explicitness)
       FLASK_APP: backend/app.py
       FLASK_ENV: development # Or production
       FLASK_DEBUG: 1 # Enables Flask debugger
       # Database URI for SQLAlchemy, now configurable via .env
-      DATABASE_URI: ${DATABASE_URI:-mysql+pymysql://stops_user:1234@db/stops_db}
-      AUTH_DATABASE_URI: ${AUTH_DATABASE_URI:-mysql+pymysql://stops_user:1234@db/auth_db}
+      DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/stops_db}
+      AUTH_DATABASE_URI: ${AUTH_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/auth_db}
       SKIP_DATA_IMPORT: "true" # Skip data import for this service
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"
@@ -133,4 +118,4 @@ services:
     # mem_reservation: 1g # Optional: guarantee 1g
 
 volumes:
-  mysql_data: # Persists MySQL data
+  postgres_data: # Persists Postgres data

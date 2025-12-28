@@ -1,3 +1,19 @@
+/* ==========================================================================
+   VISIBILITY UTILITIES
+   Visibility, opacity, and accessibility utility classes.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Visibility
+   ------------------------------------------------------------------------- */
+.u-visible { visibility: visible !important; }
+.u-invisible { visibility: hidden !important; }
+
+/* -------------------------------------------------------------------------
+   Screen Reader Only (Accessibility)
+   Visually hidden but accessible to screen readers.
+   ------------------------------------------------------------------------- */
+.u-sr-only,
 .u-visually-hidden {
   position: absolute !important;
   width: 1px !important;
@@ -9,5 +25,52 @@
   white-space: nowrap !important;
   border: 0 !important;
 }
+
+/* Allow element to be focusable when navigated to via keyboard */
+.u-sr-only-focusable:focus,
+.u-sr-only-focusable:active {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+  clip: auto !important;
+  white-space: normal !important;
+}
+
+/* -------------------------------------------------------------------------
+   Opacity
+   ------------------------------------------------------------------------- */
+.u-opacity-0 { opacity: 0 !important; }
+.u-opacity-25 { opacity: 0.25 !important; }
+.u-opacity-50 { opacity: 0.5 !important; }
+.u-opacity-75 { opacity: 0.75 !important; }
+.u-opacity-100 { opacity: 1 !important; }
+
+/* -------------------------------------------------------------------------
+   Pointer Events
+   ------------------------------------------------------------------------- */
+.u-pointer-events-none { pointer-events: none !important; }
+.u-pointer-events-auto { pointer-events: auto !important; }
+
+/* -------------------------------------------------------------------------
+   User Select
+   ------------------------------------------------------------------------- */
+.u-select-none { user-select: none !important; }
+.u-select-text { user-select: text !important; }
+.u-select-all { user-select: all !important; }
+.u-select-auto { user-select: auto !important; }
+
+/* -------------------------------------------------------------------------
+   Cursor
+   ------------------------------------------------------------------------- */
+.u-cursor-auto { cursor: auto !important; }
+.u-cursor-default { cursor: default !important; }
+.u-cursor-pointer { cursor: pointer !important; }
+.u-cursor-wait { cursor: wait !important; }
+.u-cursor-text { cursor: text !important; }
+.u-cursor-move { cursor: move !important; }
+.u-cursor-not-allowed { cursor: not-allowed !important; }
+.u-cursor-grab { cursor: grab !important; }
+.u-cursor-grabbing { cursor: grabbing !important; }
 
 

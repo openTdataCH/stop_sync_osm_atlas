@@ -1,0 +1,215 @@
+/* ==========================================================================
+   DOCS PAGE
+   Documentation page specific styles.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Container
+   ------------------------------------------------------------------------- */
+.docs-container {
+  padding: var(--space-4);
+}
+
+/* -------------------------------------------------------------------------
+   Sidebar Navigation
+   ------------------------------------------------------------------------- */
+.docs-sidebar {
+  border-right: 0;
+  max-width: 320px;
+}
+
+.docs-sidebar .docs-section-header {
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--radius-md);
+}
+
+.docs-sidebar .docs-section-header.active {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-fg);
+  font-weight: var(--font-semibold);
+}
+
+.docs-sidebar .docs-section-link {
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
+  color: var(--color-fg);
+  text-decoration: none;
+}
+
+.docs-sidebar .docs-section-link:hover {
+  text-decoration: underline;
+}
+
+.docs-sidebar .docs-toggle {
+  color: var(--color-fg-muted);
+}
+
+.docs-sidebar .docs-toggle:focus {
+  box-shadow: none;
+}
+
+.docs-sidebar .chevron {
+  transition: transform var(--transition-fast);
+}
+
+.docs-sidebar .chevron.rotate {
+  transform: rotate(90deg);
+}
+
+/* -------------------------------------------------------------------------
+   Sidebar Subitems
+   ------------------------------------------------------------------------- */
+.docs-sidebar .docs-subitems {
+  margin-bottom: var(--space-2);
+}
+
+.docs-sidebar .docs-subitems .list-group-item {
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-6);
+  font-size: var(--text-sm);
+}
+
+.docs-sidebar .docs-subitems .list-group-item.active {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-dark);
+  font-weight: var(--font-semibold);
+}
+
+.docs-sidebar .docs-subitems .list-group .list-group-item:first-child {
+  border-top-left-radius: var(--radius-md);
+  border-top-right-radius: var(--radius-md);
+}
+
+.docs-sidebar .docs-subitems .list-group .list-group-item:last-child {
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+}
+
+/* Optional increased indent by level */
+.docs-sidebar .docs-subitems .level-3 {
+  padding-left: 2.25rem;
+}
+
+.docs-sidebar .docs-subitems .level-4 {
+  padding-left: 2.75rem;
+}
+
+.docs-sidebar .docs-subitems .level-5 {
+  padding-left: 3.25rem;
+}
+
+/* -------------------------------------------------------------------------
+   Content Area
+   ------------------------------------------------------------------------- */
+.docs-content img {
+  max-width: 100%;
+  height: auto;
+}
+
+.docs-content pre {
+  background: var(--color-bg-subtle);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  overflow: auto;
+  font-size: var(--text-sm);
+}
+
+.docs-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.docs-content th,
+.docs-content td {
+  border: var(--border-width) solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+}
+
+.docs-content thead th {
+  background-color: var(--color-bg-subtle);
+  font-weight: var(--font-semibold);
+}
+
+.docs-content tbody tr:nth-child(odd) {
+  background-color: var(--color-bg);
+}
+
+.docs-content tbody tr:nth-child(even) {
+  background-color: var(--color-bg-subtle);
+}
+
+/* -------------------------------------------------------------------------
+   Prev/Next Navigation Buttons
+   ------------------------------------------------------------------------- */
+.docs-nav {
+  gap: var(--space-3);
+}
+
+.docs-nav-btn {
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-bg);
+  padding: var(--space-3) var(--space-4);
+  transition: background-color var(--transition-fast);
+}
+
+.docs-nav-btn:hover {
+  background: var(--color-bg-subtle);
+  text-decoration: none;
+}
+
+.docs-nav-btn .nav-label {
+  font-weight: var(--font-bold);
+  font-size: var(--text-base);
+}
+
+.docs-nav-btn .nav-title {
+  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+}
+
+/* -------------------------------------------------------------------------
+   Dynamic Statistics Styling
+   ------------------------------------------------------------------------- */
+.dynamic-stat {
+  font-weight: var(--font-semibold);
+  color: var(--color-accent);
+  background: var(--color-bg-subtle);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.dynamic-stat.stat-unavailable {
+  color: var(--color-fg-muted);
+  font-style: italic;
+}
+
+/* Tooltip for dynamic stats */
+.dynamic-stat[title] {
+  cursor: help;
+  border-bottom: 1px dotted var(--color-border);
+}
+/* -------------------------------------------------------------------------
+   Mermaid Diagrams
+   ------------------------------------------------------------------------- */
+.mermaid {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--color-border);
+  overflow-x: auto;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Center mermaid diagrams */
+.docs-content .mermaid {
+  display: flex;
+  justify-content: center;
+}

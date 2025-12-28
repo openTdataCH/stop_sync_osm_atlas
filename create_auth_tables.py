@@ -6,13 +6,13 @@ multiple database binds with __bind_key__.
 """
 
 import os
-from sqlalchemy import create_engine, text, MetaData, Table, Column, Integer, String, Text, Boolean, DateTime, ForeignKey
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, Text, Boolean, DateTime, ForeignKey
 
 def create_auth_tables():
     """Create the auth tables directly in the auth database."""
     
     # Get the auth database URI
-    auth_db_uri = os.getenv('AUTH_DATABASE_URI', 'mysql+pymysql://stops_user:1234@localhost:3306/auth_db')
+    auth_db_uri = os.getenv('AUTH_DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/auth_db')
     
     print(f"Creating auth tables in: {auth_db_uri}")
     
@@ -66,39 +66,9 @@ def create_auth_tables():
             Column('occurred_at', DateTime, nullable=False),
         )
         
-        # Check if tables already exist
-        with auth_engine.connect() as conn:
-            result = conn.execute(text("SHOW TABLES LIKE 'users'"))
-            if result.fetchone():
-                print("✓ 'users' table already exists in auth_db")
-            else:
-                metadata.create_all(auth_engine, tables=[users_table])
-                print("✓ Created 'users' table in auth_db")
-            result = conn.execute(text("SHOW TABLES LIKE 'auth_events'"))
-            if result.fetchone():
-                print("✓ 'auth_events' table already exists in auth_db")
-            else:
-                metadata.create_all(auth_engine, tables=[auth_events_table])
-                print("✓ Created 'auth_events' table in auth_db")
-        # Ensure column types are compatible (attempt widen if previously String)
-        with auth_engine.connect() as conn:
-            try:
-                conn.execute(text("ALTER TABLE users MODIFY COLUMN totp_secret TEXT NULL"))
-            except Exception:
-                pass
-            
-        # Verify tables exist
-        with auth_engine.connect() as conn:
-            result = conn.execute(text("SHOW TABLES LIKE 'users'"))
-            if result.fetchone():
-                print("✓ Verified 'users' table exists in auth_db")
-            else:
-                print("✗ Failed to verify 'users' table creation")
-            result = conn.execute(text("SHOW TABLES LIKE 'auth_events'"))
-            if result.fetchone():
-                print("✓ Verified 'auth_events' table exists in auth_db")
-            else:
-                print("✗ Failed to verify 'auth_events' table creation")
+        # Create (idempotent): SQLAlchemy will emit CREATE TABLE only if missing.
+        metadata.create_all(auth_engine, tables=[users_table, auth_events_table])
+        print("✓ Ensured 'users' and 'auth_events' tables exist in auth_db")
         
     except Exception as e:
         print(f"✗ Error creating auth tables: {e}")

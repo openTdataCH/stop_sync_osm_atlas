@@ -1,13 +1,185 @@
+/* ==========================================================================
+   C-CHIP COMPONENT
+   Chip/badge component for displaying tags, status, and filters.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Base Chip
+   ------------------------------------------------------------------------- */
 .c-chip {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: 0.25rem 0.5rem;
-  border-radius: 999px;
-  background-color: #fff;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  background-color: var(--color-bg);
   border: 1.5px solid currentColor;
-  color: #495057;
-  line-height: 1.2;
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-tight);
+}
+
+/* -------------------------------------------------------------------------
+   Chip Variants (Color)
+   ------------------------------------------------------------------------- */
+.c-chip--primary {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.c-chip--secondary {
+  color: var(--color-secondary);
+  border-color: var(--color-secondary);
+}
+
+.c-chip--success {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.c-chip--warning {
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+.c-chip--danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.c-chip--info {
+  color: var(--color-info);
+  border-color: var(--color-info);
+}
+
+.c-chip--dark {
+  color: var(--color-dark);
+  border-color: var(--color-dark);
+}
+
+/* -------------------------------------------------------------------------
+   Filled Chip Variants
+   ------------------------------------------------------------------------- */
+.c-chip--filled {
+  background-color: currentColor;
+  color: var(--color-white);
+}
+
+.c-chip--filled.c-chip--primary {
+  background-color: var(--color-primary);
+}
+
+.c-chip--filled.c-chip--success {
+  background-color: var(--color-success);
+}
+
+.c-chip--filled.c-chip--warning {
+  background-color: var(--color-warning);
+  color: var(--color-dark);
+}
+
+.c-chip--filled.c-chip--danger {
+  background-color: var(--color-danger);
+}
+
+.c-chip--filled.c-chip--info {
+  background-color: var(--color-info);
+}
+
+/* -------------------------------------------------------------------------
+   Chip Sizes
+   ------------------------------------------------------------------------- */
+.c-chip--sm {
+  padding: 2px var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.c-chip--lg {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-base);
+}
+
+/* -------------------------------------------------------------------------
+   Interactive Chip
+   ------------------------------------------------------------------------- */
+.c-chip--interactive {
+  cursor: pointer;
+  transition: 
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.c-chip--interactive:hover {
+  background-color: var(--color-bg-muted);
+  transform: translateY(-1px);
+}
+
+/* -------------------------------------------------------------------------
+   Removable Chip
+   ------------------------------------------------------------------------- */
+.c-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: var(--space-1);
+  margin-right: calc(-1 * var(--space-1));
+  padding: 0;
+  width: 1.25em;
+  height: 1.25em;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: inherit;
+  font-size: 1.1em;
+  font-weight: var(--font-bold);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast);
+}
+
+.c-chip__remove:hover {
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------------------
+   Badge Styles (Bootstrap compatibility)
+   Common badge styling used across navbar and filters.
+   ------------------------------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.6rem;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-tight);
+  border-radius: var(--radius-full);
+  background-color: var(--color-bg);
+  border: 1.5px solid currentColor;
+  color: var(--color-fg-muted);
+}
+
+.badge-primary { color: var(--color-primary); border-color: var(--color-primary); }
+.badge-secondary { color: var(--color-secondary); border-color: var(--color-secondary); }
+.badge-success { color: var(--color-success); border-color: var(--color-success); }
+.badge-warning { color: var(--color-warning); border-color: var(--color-warning); }
+.badge-danger { color: var(--color-danger); border-color: var(--color-danger); }
+.badge-info { color: var(--color-info); border-color: var(--color-info); }
+.badge-dark { color: var(--color-dark); border-color: var(--color-dark); }
+
+/* Badge with close button */
+.badge a {
+  text-decoration: none;
+  margin-left: var(--space-1);
+  font-weight: var(--font-semibold);
+  font-size: 0.95em;
+  color: inherit;
+}
+
+.badge a:hover {
+  text-decoration: none;
+  opacity: 0.8;
 }
 
 

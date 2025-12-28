@@ -5,6 +5,7 @@ var markersLayer = L.layerGroup();
 var linesLayer = L.layerGroup();
 var topNLayer = L.layerGroup(); // For top N distances overlay
 var stopsById = {};   // Global store for stops by id.
+var renderedMarkers = new Map(); // Track currently rendered markers by unique key (type-id)
 // manual matching variables are now defined in manual-matching.js
 
 // Performance tuning constants (from AppConstants)
@@ -18,7 +19,64 @@ var ADDITIONAL_BANNER_ZOOM_LEVELS = AppConstants.MAP.ADDITIONAL_BANNER_ZOOM_LEVE
 var currentDataRequest = null;  // jqXHR of in-flight /api/data
 var currentDataRequestSeq = 0;  // sequence id to ignore stale responses
 var loadViewportTimer = null;   // debounce timer id
+var zoomBannerTimeout = null;   // debounce timer for the zoom warning banner
 var suppressViewportReloadCount = 0; // skip this many reloads after programmatic center
+
+// Viewport cache: avoid refetching while panning within a buffered extent.
+// This reduces API calls and prevents marker reshuffling caused by capped results.
+var viewportDataCache = {
+    bounds: null,     // L.LatLngBounds of the cached (buffered) query extent
+    key: null,        // stable key representing non-bbox request params + mode
+    zoom: null,       // zoom level used for the cached request
+    data: null,       // cached response data for smooth transitions
+    capped: false,    // whether the cached data was limited/capped
+    renderedStopIds: new Set(), // track which stops are currently rendered
+    lastRenderZoom: null // track the zoom level of the last render to detect threshold crossings
+};
+
+/**
+ * Invalidate the viewport cache, forcing the next load to fetch fresh data.
+ * Call this when filters change or when you need to force a refresh.
+ */
+function invalidateViewportCache() {
+    viewportDataCache.bounds = null;
+    viewportDataCache.key = null;
+    viewportDataCache.zoom = null;
+    viewportDataCache.data = null;
+    viewportDataCache.capped = false;
+    viewportDataCache.renderedStopIds = new Set();
+    viewportDataCache.lastRenderZoom = null;
+}
+
+// Expose globally for filter changes
+window.invalidateViewportCache = invalidateViewportCache;
+
+function _expandBounds(bounds, ratio) {
+    try {
+        var sw = bounds.getSouthWest();
+        var ne = bounds.getNorthEast();
+        var latSpan = ne.lat - sw.lat;
+        var lonSpan = ne.lng - sw.lng;
+        return L.latLngBounds(
+            [sw.lat - latSpan * ratio, sw.lng - lonSpan * ratio],
+            [ne.lat + latSpan * ratio, ne.lng + lonSpan * ratio]
+        );
+    } catch (e) {
+        return bounds;
+    }
+}
+
+function _stableParamsKey(params, mode) {
+    // Build a stable string key from params excluding bbox-only fields.
+    // Note: 'limit' IS included since changing it should invalidate cache.
+    var ignored = { min_lat: 1, max_lat: 1, min_lon: 1, max_lon: 1, offset: 1 };
+    var keys = Object.keys(params || {}).filter(function(k) { return !ignored[k]; }).sort();
+    var parts = ['mode=' + String(mode || '')];
+    keys.forEach(function(k) {
+        parts.push(k + '=' + String(params[k]));
+    });
+    return parts.join('&');
+}
 
 // Note: popup HTML generation functions are provided by popup-renderer.js
 // Note: createAtlasMarker and createOsmMarker functions are now provided by map-renderer.js
@@ -28,17 +86,86 @@ function initMap() {
     map = L.map('map', {
         closePopupOnClick: false, // Prevent map click from closing popups
         // Use SVG renderer so popup connection lines can be drawn in the map's SVG layer
-        preferCanvas: false
+        preferCanvas: false,
+        // Switzerland-focused: prevent zooming too far out and panning far away
+        minZoom: AppConstants.MAP.MIN_ZOOM,
+        maxZoom: AppConstants.MAP.MAX_ZOOM,
+        maxBounds: AppConstants.MAP.MAX_BOUNDS,
+        maxBoundsViscosity: AppConstants.MAP.MAX_BOUNDS_VISCOSITY,
+        zoomControl: false
     }).setView(AppConstants.MAP.DEFAULT_CENTER, AppConstants.MAP.DEFAULT_ZOOM);
     
     osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
          maxZoom: AppConstants.MAP.MAX_ZOOM,
+         maxNativeZoom: AppConstants.MAP.MAX_NATIVE_ZOOM,
          attribution: '© OpenStreetMap'
     });
+
+    var transportLayer = L.tileLayer('https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png', {
+        maxZoom: AppConstants.MAP.MAX_ZOOM,
+        maxNativeZoom: 18,
+        attribution: 'Map <a href="https://memomaps.de/">memomaps.de</a> <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    });
+
+    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: AppConstants.MAP.MAX_ZOOM,
+        maxNativeZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
+    });
+    
     osmLayer.addTo(map);
+
+    var baseMaps = {
+        "OpenStreetMap": osmLayer,
+        "Transport Map": transportLayer,
+        "Satellite": satelliteLayer
+    };
+
+    var overlayMaps = {
+        "Markers": markersLayer,
+        "Connection Lines": linesLayer
+    };
+
+    // Put layer + zoom controls on the right (they will be offset under the stats overlay)
+    L.control.zoom({ position: 'topright' }).addTo(map);
+    L.control.layers(baseMaps, overlayMaps, { position: 'topright' }).addTo(map);
+
+    // Random stop control (below the layers control)
+    try {
+        var RandomStopControl = L.Control.extend({
+            options: { position: 'topright' },
+            onAdd: function() {
+                var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                var link = L.DomUtil.create('a', '', container);
+                link.href = '#';
+                link.title = 'View random stop (uses current filters)';
+                link.setAttribute('aria-label', 'View random stop');
+                link.innerHTML = '<i class="fas fa-random"></i>';
+
+                L.DomEvent.disableClickPropagation(container);
+                L.DomEvent.disableScrollPropagation(container);
+                L.DomEvent.on(link, 'click', L.DomEvent.stop);
+                L.DomEvent.on(link, 'click', function() {
+                    if (typeof focusOnRandomFilteredStop === 'function') {
+                        focusOnRandomFilteredStop();
+                    }
+                });
+                return container;
+            }
+        });
+        map.addControl(new RandomStopControl());
+    } catch (e) {
+        // If Leaflet isn't ready for some reason, fail silently.
+        console.error('Failed to add RandomStopControl:', e);
+    }
+
     markersLayer.addTo(map);
     linesLayer.addTo(map);
     topNLayer.addTo(map);
+
+    // Place right-side Leaflet controls under the stats overlay (#headerSummary)
+    positionIndexMapRightControls();
+    window.addEventListener('resize', positionIndexMapRightControls);
     
     // Attach standard popup-line handlers
     var openPopups = attachPopupLineHandlersToMap(map);
@@ -57,6 +184,23 @@ function initMap() {
             loadDataForViewport();
         }, VIEW_DEBOUNCE_MS);
     });
+}
+
+function positionIndexMapRightControls() {
+    const mapEl = document.getElementById('map');
+    if (!mapEl) return;
+
+    const corner = mapEl.querySelector('.leaflet-top.leaflet-right');
+    if (!corner) return;
+
+    const header = document.getElementById('headerSummary');
+    if (!header) {
+        corner.style.marginTop = '';
+        return;
+    }
+
+    const offset = header.offsetTop + header.offsetHeight + 8;
+    corner.style.marginTop = offset > 0 ? offset + 'px' : '';
 }
 
 
@@ -86,7 +230,9 @@ function ensureZoomBannerExists() {
     banner.style.borderRadius = AppConstants.ZOOM_BANNER.BORDER_RADIUS;
     banner.style.fontSize = AppConstants.ZOOM_BANNER.FONT_SIZE;
     banner.style.display = 'none';
-    banner.textContent = 'Zoom in to see all stop markers';
+    banner.style.transition = 'opacity 0.2s ease-in-out';
+    banner.style.pointerEvents = 'none'; // Don't block map interactions
+    banner.textContent = 'Zoom in to see individual stop markers';
     var mapContainer = document.getElementById('map');
     if (mapContainer && mapContainer.parentElement) {
         mapContainer.parentElement.style.position = 'relative';
@@ -96,12 +242,37 @@ function ensureZoomBannerExists() {
     }
 }
 
-function showZoomBanner(show) {
+function showZoomBanner(show, delayMs = 0) {
     var banner = document.getElementById('zoomBanner');
     if (!banner) return;
-    banner.style.display = show ? 'block' : 'none';
+    
+    if (zoomBannerTimeout) {
+        clearTimeout(zoomBannerTimeout);
+        zoomBannerTimeout = null;
+    }
+
+    if (show) {
+        // If already visible, just ensure it stays visible
+        if (banner.style.display === 'block') return;
+        
+        if (delayMs > 0) {
+            zoomBannerTimeout = setTimeout(function() {
+                banner.style.display = 'block';
+                zoomBannerTimeout = null;
+            }, delayMs);
+        } else {
+            banner.style.display = 'block';
+        }
+    } else {
+        banner.style.display = 'none';
+    }
 }
 
+function setZoomBannerText(text) {
+    var banner = document.getElementById('zoomBanner');
+    if (!banner) return;
+    banner.textContent = text;
+}
 
 function loadTopNMatches() {
     topNLayer.clearLayers();
@@ -206,78 +377,184 @@ function loadDataForViewport() {
     if(activeFilters.topN) {
         markersLayer.clearLayers();
         linesLayer.clearLayers();
+        // Top-N mode is explicit and doesn't need the "zoom in" guidance banner.
+        showZoomBanner(false);
         return;
     }
     // Zoom gating: do not load or render markers if zoom is too low
     var zoom = map.getZoom();
     var isLowZoom = zoom < ZOOM_MARKER_THRESHOLD;
-    var showPartialBanner = !isLowZoom && zoom < (ZOOM_MARKER_THRESHOLD + ADDITIONAL_BANNER_ZOOM_LEVELS);
-    if (!isLowZoom) {
-        // At early post-threshold zooms, we still hint that not all markers may be visible
-        showZoomBanner(showPartialBanner);
+
+    // Determine whether the user has any active filters that should take precedence at low zoom.
+    // If true, we still cap results for performance, but show entries matching the filters.
+    var hasAnyActiveFilter = (
+        (activeFilters.station && activeFilters.station.length > 0) ||
+        (activeFilters.stopType && activeFilters.stopType.length > 0) ||
+        (activeFilters.nodeType && activeFilters.nodeType.length > 0) ||
+        (activeFilters.matchMethods && activeFilters.matchMethods.length > 0) ||
+        (activeFilters.transportTypes && activeFilters.transportTypes.length > 0) ||
+        (activeFilters.atlasOperators && activeFilters.atlasOperators.length > 0) ||
+        !!activeFilters.showDuplicatesOnly
+    );
+    // Banner policy:
+    // - Show it at ALL zoom levels where we might not be rendering "all markers" (i.e., while results are capped),
+    //   and hide it only once we reach the fully-uncapped zoom level.
+    // This fixes the previous behavior where the banner only appeared at a single zoom level.
+    var fullUncappedZoom = zoom >= (ZOOM_MARKER_THRESHOLD + ADDITIONAL_BANNER_ZOOM_LEVELS);
+    var shouldShowBanner = !fullUncappedZoom;
+    
+    // Helper to count active filters
+    var filterCount = (activeFilters.station?.length || 0) + 
+                      (activeFilters.atlasOperators?.length || 0);
+    
+    // Add 1 for each non-empty array filter that isn't just "all"
+    if (activeFilters.stopType?.length > 0) filterCount++;
+    if (activeFilters.nodeType?.length > 0) filterCount++;
+    if (activeFilters.matchMethods?.length > 0) filterCount++;
+    if (activeFilters.transportTypes?.length > 0) filterCount++;
+    if (activeFilters.showDuplicatesOnly) filterCount++;
+
+    if (shouldShowBanner) {
+        if (isLowZoom) {
+            if (hasAnyActiveFilter) {
+                // More informative message showing filter context
+                var filterText = filterCount > 0 ? ` (${filterCount} filter${filterCount !== 1 ? 's' : ''} active)` : '';
+                setZoomBannerText('🔍 Low zoom: showing filtered results' + filterText);
+            } else {
+                setZoomBannerText('📍 Overview mode: showing unmatched ATLAS stops only. Zoom in for all markers.');
+            }
+        } else {
+            // Mid-zoom: still capped but closer
+            // If filters are active, show filter info instead of generic zoom message
+            if (hasAnyActiveFilter) {
+                 var filterText = filterCount > 0 ? ` (${filterCount} filter${filterCount !== 1 ? 's' : ''} active)` : '';
+                 setZoomBannerText('🔍 Showing filtered results' + filterText);
+            } else {
+                setZoomBannerText('📍 Zoom in a bit more to see all markers in this area');
+            }
+        }
     }
-    var bounds = map.getBounds();
+    showZoomBanner(shouldShowBanner, 150);
+    var viewportBounds = map.getBounds();
     var params = {
-        min_lat: bounds.getSouth(),
-        max_lat: bounds.getNorth(),
-        min_lon: bounds.getWest(),
-        max_lon: bounds.getEast(),
+        min_lat: viewportBounds.getSouth(),
+        max_lat: viewportBounds.getNorth(),
+        min_lon: viewportBounds.getWest(),
+        max_lon: viewportBounds.getEast(),
         offset: 0,
-        zoom: zoom
+        zoom: zoom,
+        include_meta: 1
     };
 
     // Decide result limiting based on zoom level
-    var fullUncappedZoom = zoom >= (ZOOM_MARKER_THRESHOLD + ADDITIONAL_BANNER_ZOOM_LEVELS);
-    if (isLowZoom) {
-        params.limit = LOW_ZOOM_SMALLSET_LIMIT; // keep probe small at low zoom
-    } else if (!fullUncappedZoom) {
-        params.limit = AppConstants.DATA_LOADING.MID_ZOOM_LIMIT; // mid-zoom cap
-    } // else: omit limit at high zoom to fetch all markers
-    
-    // Determine if pure OSM nodes should be included in stop_filter when 'unmatched' is active
-    var includeOsmInStopFilterForUnmatched = activeFilters.stopType.includes('unmatched') &&
-                                           (activeFilters.nodeType.includes('osm') || activeFilters.nodeType.length === 0) && // OSM node type selected OR no node types selected (all)
-                                           !activeFilters.stopType.includes('osm'); // Avoid duplicate 'osm' if already there for other reasons
-    
-    // Prepare stop type filter parameter
-    if(activeFilters.stopType.length > 0 || includeOsmInStopFilterForUnmatched) { // check includeOsmInStopFilterForUnmatched as it might be the only reason to send stop_filter
-        var stopFilterTypes = [...activeFilters.stopType];
-        if (includeOsmInStopFilterForUnmatched) {
-            if (!stopFilterTypes.includes('osm')) { // Ensure 'osm' is not added if already present
-                stopFilterTypes.push('osm');
+    if (!fullUncappedZoom) {
+        params.limit = AppConstants.DATA_LOADING.GENERAL_LIMIT;
+    }
+
+    if (isLowZoom && !hasAnyActiveFilter) {
+        // Low-zoom policy: show only unmatched ATLAS markers (overview)
+        params.stop_filter = 'unmatched';
+        params.node_type = 'atlas';
+
+        // Keep operator filter if active
+        if (activeFilters.atlasOperators.length > 0) {
+            params.atlas_operator = activeFilters.atlasOperators.join(',');
+        }
+    } else {
+        // Normal or filtered mode: build standard filters
+        
+        // Determine if pure OSM nodes should be included in stop_filter when 'unmatched' is active
+        var includeOsmInStopFilterForUnmatched = activeFilters.stopType.includes('unmatched') &&
+                                            (activeFilters.nodeType.includes('osm') || activeFilters.nodeType.length === 0) &&
+                                            !activeFilters.stopType.includes('osm');
+
+        if(activeFilters.stopType.length > 0 || includeOsmInStopFilterForUnmatched) {
+            var stopFilterTypes = [...activeFilters.stopType];
+            if (includeOsmInStopFilterForUnmatched) {
+                if (!stopFilterTypes.includes('osm')) {
+                    stopFilterTypes.push('osm');
+                }
+            }
+            if (stopFilterTypes.length > 0) {
+                params.stop_filter = stopFilterTypes.join(',');
             }
         }
-        if (stopFilterTypes.length > 0) {
-            params.stop_filter = stopFilterTypes.join(',');
+
+        if(activeFilters.nodeType.length > 0) {
+            params.node_type = activeFilters.nodeType.join(',');
+        }
+        if(activeFilters.matchMethods.length > 0) {
+            params.match_method = activeFilters.matchMethods.join(',');
+        }
+        if(activeFilters.station.length > 0) {
+            params.station_filter = activeFilters.station.join(',');
+            params.filter_types = activeFilters.stationTypes.join(',');
+            params.route_directions = activeFilters.routeDirections.join(',');
+        }
+        if (activeFilters.transportTypes.length > 0) {
+            params.transport_types = activeFilters.transportTypes.join(',');
+        }
+        if (activeFilters.atlasOperators.length > 0) {
+            params.atlas_operator = activeFilters.atlasOperators.join(',');
         }
     }
+
+    // Viewport cache: if we already fetched a buffered area covering the current view
+    // with the same non-bbox params AND zoom level, skip the request and keep markers.
+    // This avoids reshuffling caused by capped/limited responses on small pans.
+    var mode = isLowZoom ? (hasAnyActiveFilter ? 'lowzoom_filtered' : 'lowzoom_unmatched_atlas') : 'normal';
+    var requestKey = _stableParamsKey(params, mode);
     
-    // Add node type filter parameter
-    if(activeFilters.nodeType.length > 0) {
-        params.node_type = activeFilters.nodeType.join(',');
+    // Cache hit conditions:
+    // 1. Same request parameters (filters, limits, etc.)
+    // 2. Same zoom level OR (Zoom In AND Cached data was uncapped)
+    // 3. Current viewport is contained within cached bounds
+    var canReuseCache = false;
+    if (viewportDataCache.bounds && viewportDataCache.key === requestKey) {
+        if (viewportDataCache.zoom === zoom) {
+             canReuseCache = true;
+        } else if (zoom > viewportDataCache.zoom && !viewportDataCache.capped) {
+             canReuseCache = true;
+        }
     }
-    
-    // Prepare match method filter parameter - use the already prepared activeFilters.matchMethods
-    if(activeFilters.matchMethods.length > 0) {
-        params.match_method = activeFilters.matchMethods.join(',');
+
+    if (canReuseCache) {
+        try {
+            // Use a slightly smaller bounds for the check to be safe (avoid edge cases)
+            var checkBounds = viewportBounds.pad(-0.05);
+            if (viewportDataCache.bounds.contains(checkBounds)) {
+                // Cache hit - no need to refetch, markers stay stable
+
+                // Check if we need to update the banner for mid-zoom/no-filter case
+                if (shouldShowBanner && !isLowZoom && !hasAnyActiveFilter) {
+                     var cachedStops = viewportDataCache.data || [];
+                     var limit = params.limit;
+                     var capped = (limit && cachedStops.length >= limit);
+                     
+                     if (!capped) {
+                         showZoomBanner(false);
+                     } else {
+                         showZoomBanner(true);
+                     }
+                } else if (!shouldShowBanner) {
+                    showZoomBanner(false);
+                }
+
+                return;
+            }
+        } catch (e) {
+            // Bounds check failed, proceed with fetch
+        }
     }
-    
-    // Add station filter values and type if available
-    if(activeFilters.station.length > 0) {
-        params.station_filter = activeFilters.station.join(',');
-        params.filter_types = activeFilters.stationTypes.join(',');
-        params.route_directions = activeFilters.routeDirections.join(',');
-    }
-    
-    // Add transport type filters to params (New)
-    if (activeFilters.transportTypes.length > 0) {
-        params.transport_types = activeFilters.transportTypes.join(',');
-    }
-    
-    // Add atlas operator filters to params
-    if (activeFilters.atlasOperators.length > 0) {
-        params.atlas_operator = activeFilters.atlasOperators.join(',');
-    }
+
+    // Expand requested bbox so small pans stay within the cached extent.
+    // Use larger buffer at lower zooms where panning covers more ground.
+    var bufferRatio = isLowZoom ? 0.5 : 0.35;
+    var bufferedBounds = _expandBounds(viewportBounds, bufferRatio);
+    params.min_lat = bufferedBounds.getSouth();
+    params.max_lat = bufferedBounds.getNorth();
+    params.min_lon = bufferedBounds.getWest();
+    params.max_lon = bufferedBounds.getEast();
     
     // Cancel previous data request if still in flight
     if (currentDataRequest && currentDataRequest.readyState !== 4) {
@@ -287,70 +564,151 @@ function loadDataForViewport() {
     currentDataRequest = $.getJSON("/api/data", params, function(rawData) {
          // Ignore stale responses
          if (mySeq !== currentDataRequestSeq) return;
-         // Check first few items for atlas_is_duplicate
-         rawData.slice(0, 5).forEach((item, index) => {
-         });
 
-         // If low zoom: only render when the filtered result count <= LOW_ZOOM_SMALLSET_LIMIT
-         if (isLowZoom) {
+         // Update cache with new data
+         viewportDataCache.bounds = bufferedBounds;
+         viewportDataCache.key = requestKey;
+         viewportDataCache.zoom = zoom;
+         
+         var meta = null;
+         var rawStops = rawData;
+         if (rawData && typeof rawData === 'object' && Array.isArray(rawData.stops)) {
+             rawStops = rawData.stops;
+             meta = rawData.meta || null;
+         }
+
+         // Determine if the result set was capped by the backend limit
+         var capped = false;
+         if (meta && meta.has_more) {
+             capped = true;
+         } else if (params && params.limit && Array.isArray(rawStops) && rawStops.length >= params.limit) {
+             capped = true;
+         }
+         
+         viewportDataCache.capped = capped;
+
+         // Update banner visibility and text based on actual data returned
+         if (shouldShowBanner) {
+             if (hasAnyActiveFilter) {
+                 var resultCount = Array.isArray(rawStops) ? rawStops.length : 0;
+                 
+                 // Recalculate filter count to be safe
+                 var currentFilterCount = (activeFilters.station?.length || 0) + 
+                                          (activeFilters.atlasOperators?.length || 0);
+                 if (activeFilters.stopType?.length > 0) currentFilterCount++;
+                 if (activeFilters.nodeType?.length > 0) currentFilterCount++;
+                 if (activeFilters.matchMethods?.length > 0) currentFilterCount++;
+                 if (activeFilters.transportTypes?.length > 0) currentFilterCount++;
+                 if (activeFilters.showDuplicatesOnly) currentFilterCount++;
+                 
+                 var filterText = currentFilterCount > 0 ? ` (${currentFilterCount} filter${currentFilterCount !== 1 ? 's' : ''} active)` : '';
+
+                 if (capped) {
+                     setZoomBannerText('🔍 Showing first ' + resultCount + ' filtered results. Zoom in to see all.');
+                 } else {
+                     // If not capped, we are showing ALL results for this filter in this view
+                     // So we can just say "Showing X results"
+                     if (isLowZoom) {
+                         setZoomBannerText('🔍 Low zoom: showing ' + resultCount + ' filtered result' + (resultCount !== 1 ? 's' : '') + filterText);
+                     } else {
+                         setZoomBannerText('🔍 Showing ' + resultCount + ' filtered result' + (resultCount !== 1 ? 's' : '') + filterText);
+                     }
+                 }
+                 showZoomBanner(true);
+             } else if (!isLowZoom) {
+                 // Mid-zoom, no filters.
+                 // If we are not capped, we are showing all markers, so we can hide the "Zoom in" warning.
+                 if (!capped) {
+                     showZoomBanner(false);
+                 }
+                 // If capped, the default text "Zoom in a bit more..." set before the request is still valid.
+             }
+         }
+
+         // If low zoom with no active filters: we are showing unmatched atlas markers.
+         if (isLowZoom && !hasAnyActiveFilter) {
              // Apply client-side duplicates filter before counting
-             let probeData = rawData;
+             let probeData = rawStops;
              if (activeFilters.showDuplicatesOnly) {
                  probeData = probeData.filter(stop => stop.atlas_duplicate_sloid && stop.atlas_duplicate_sloid !== '');
              }
-             if (probeData.length === 0) {
-                 // Show banner but KEEP existing markers; do not clear layers at low zoom
-                 showZoomBanner(true);
-                 return;
-             }
-            if (probeData.length > LOW_ZOOM_SMALLSET_LIMIT) {
-                 // Too many to render at low zoom – show banner and skip rendering, but keep existing markers
-                 showZoomBanner(true);
-                 return;
-             }
-             // Else: small enough – proceed to render using probeData, hide banner
-             showZoomBanner(false);
-             // Continue with normal pipeline using probeData instead of rawData
-             rawData = probeData;
+             rawStops = probeData;
          }
+         
+         // Store cached data for potential future use
+         viewportDataCache.data = rawStops;
 
-         markersLayer.clearLayers();
+         // Reset global store for data lookup
+         stopsById = {}; 
+         
          // Only clear non-manual match lines
          linesLayer.eachLayer(function(layer) {
              if (!layer.options || !layer.options.isManualMatch) {
                  linesLayer.removeLayer(layer);
              }
          });
-         stopsById = {}; // Reset global store
+         // viewportDataCache.renderedStopIds = new Set(); // Unused
 
          // --- Client-side Filtering for Show Duplicates Only --- 
-         let data = rawData;
+         let data = rawStops;
             if (activeFilters.showDuplicatesOnly) {
                 // Apply this filter after the operator mismatch filter
                 data = data.filter(stop => typeof isDuplicateFlagSet === 'function' ? isDuplicateFlagSet(stop.atlas_duplicate_sloid) : (stop.atlas_duplicate_sloid && stop.atlas_duplicate_sloid !== ''));
             }
          
          // Node type visibility flags
-         var showAtlasNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("atlas") !== -1;
-         var showOSMNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("osm") !== -1;
-         var showUnmatchedOSM = activeFilters.stopType.includes('unmatched') && showOSMNodes;
+         var showAtlasNodes, showOSMNodes;
+         if (isLowZoom) {
+             if (!hasAnyActiveFilter) {
+                 showAtlasNodes = true;
+                 showOSMNodes = false;
+             } else {
+                 showAtlasNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("atlas") !== -1;
+                 showOSMNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("osm") !== -1;
+             }
+         } else {
+             showAtlasNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("atlas") !== -1;
+             showOSMNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("osm") !== -1;
+         }
 
-         // --- Refactored Data Processing ---
-         var osmNodeToAtlasMatches = {};
-         var allStopsData = []; 
-
+         // Cache stop lookup for later interactions
          data.forEach(function(rawStop) {
              stopsById[rawStop.id] = rawStop;
-             allStopsData.push(rawStop); 
+         });
 
-             if (rawStop.stop_type === 'matched' && rawStop.sloid && Array.isArray(rawStop.osm_matches)) {
+         // 1) Detect OSM nodes that have multiple ATLAS matches (cheap pass).
+         // We use this to avoid building heavy per-node structures unless needed.
+         var osmMultiMatchNodeIds = null;
+         if (showOSMNodes) {
+             var osmMatchCount = Object.create(null);
+             data.forEach(function(s) {
+                 if (s.stop_type !== 'matched' || !Array.isArray(s.osm_matches)) return;
+                 s.osm_matches.forEach(function(m) {
+                     if (!m || !m.osm_node_id) return;
+                     var k = String(m.osm_node_id);
+                     osmMatchCount[k] = (osmMatchCount[k] || 0) + 1;
+                 });
+             });
+             osmMultiMatchNodeIds = new Set();
+             Object.keys(osmMatchCount).forEach(function(k) {
+                 if (osmMatchCount[k] > 1) osmMultiMatchNodeIds.add(k);
+             });
+         }
+
+         // 2) Build detailed multi-match payload only when it can actually be used (high zoom).
+         var osmNodeToAtlasMatches = {};
+         var shouldBuildMultiMatchDetails = !!(showOSMNodes && osmMultiMatchNodeIds && osmMultiMatchNodeIds.size > 0 && map.getZoom() >= ZOOM_LINE_THRESHOLD);
+         if (shouldBuildMultiMatchDetails) {
+             data.forEach(function(rawStop) {
+                 if (rawStop.stop_type !== 'matched' || !rawStop.sloid || !Array.isArray(rawStop.osm_matches)) return;
                  rawStop.osm_matches.forEach(function(osmMatch) {
                      if (!osmMatch || !osmMatch.osm_node_id) return;
-                     const nodeId = osmMatch.osm_node_id;
+                     const nodeId = String(osmMatch.osm_node_id);
+                     if (!osmMultiMatchNodeIds.has(nodeId)) return;
 
                      if (!osmNodeToAtlasMatches[nodeId]) {
                          osmNodeToAtlasMatches[nodeId] = {
-                             osm_data: { 
+                             osm_data: {
                                  osm_id: osmMatch.osm_id,
                                  osm_node_id: osmMatch.osm_node_id,
                                  osm_name: osmMatch.osm_name,
@@ -365,8 +723,8 @@ function loadDataForViewport() {
                                  osm_railway: osmMatch.osm_railway,
                                  osm_lat: osmMatch.osm_lat,
                                  osm_lon: osmMatch.osm_lon,
-                                 osm_node_type: osmMatch.osm_node_type, // Include the node type
-                                 lat: osmMatch.osm_lat, 
+                                 osm_node_type: osmMatch.osm_node_type,
+                                 lat: osmMatch.osm_lat,
                                  lon: osmMatch.osm_lon,
                                  routes_osm: osmMatch.routes_osm,
                                  uic_ref: rawStop.uic_ref
@@ -375,7 +733,7 @@ function loadDataForViewport() {
                          };
                      }
                      osmNodeToAtlasMatches[nodeId].atlas_matches.push({
-                         id: rawStop.id, 
+                         id: rawStop.id,
                          sloid: rawStop.sloid,
                          uic_ref: rawStop.uic_ref,
                          atlas_designation: rawStop.atlas_designation,
@@ -388,14 +746,14 @@ function loadDataForViewport() {
                          routes_unified: rawStop.routes_unified
                      });
                  });
-             }
-         });
+             });
+         }
 
-                  // 2. Collect Marker Data for Cluster Management
-         var createdOsmMarkers = new Set(); 
+         // 3) Collect Marker Data for Cluster Management
+         var createdOsmMarkers = new Set();
          var allMarkerData = [];
 
-         allStopsData.forEach(function(stop) {
+         data.forEach(function(stop) {
             if (stop.stop_type === 'matched') {
                 if (stop.sloid && Array.isArray(stop.osm_matches)) {
                     let atlasMarkerData = null;
@@ -405,14 +763,16 @@ function loadDataForViewport() {
                         var isStation = stop.osm_matches && stop.osm_matches.length > 0 && stop.osm_matches.some(om => om.osm_public_transport === 'station' && om.osm_aerialway !== 'station');
                         if (!isStation && stop.osm_public_transport === 'station' && stop.osm_aerialway !== 'station') isStation = true;
                         
+                        const atlasLat = +stop.atlas_lat;
+                        const atlasLon = +stop.atlas_lon;
                         atlasMarkerData = {
-                            lat: parseFloat(stop.atlas_lat),
-                            lon: parseFloat(stop.atlas_lon),
+                            lat: atlasLat,
+                            lon: atlasLon,
                             type: 'atlas',
                             color: 'green',
                             duplicateSloid: stop.atlas_duplicate_sloid,
-                            originalLat: parseFloat(stop.atlas_lat),
-                            originalLon: parseFloat(stop.atlas_lon),
+                            originalLat: atlasLat,
+                            originalLon: atlasLon,
                             stopData: stop
                         };
                         allMarkerData.push(atlasMarkerData);
@@ -421,42 +781,30 @@ function loadDataForViewport() {
                     if (showOSMNodes) {
                         stop.osm_matches.forEach(function(osm_match) {
                             if (!osm_match || !osm_match.osm_node_id || !osm_match.osm_lat || !osm_match.osm_lon) return;
-                            const nodeId = osm_match.osm_node_id;
+                            const nodeId = String(osm_match.osm_node_id);
                             const osmNodeIdKey = `osm-${nodeId}`; 
-                            const multiMatchData = osmNodeToAtlasMatches[nodeId];
-                            const hasMultipleAtlasMatches = multiMatchData && multiMatchData.atlas_matches.length > 1;
+                            const hasMultipleAtlasMatches = osmMultiMatchNodeIds && osmMultiMatchNodeIds.has(nodeId);
 
                             if (!hasMultipleAtlasMatches && !createdOsmMarkers.has(osmNodeIdKey)) {
+                                // Keep stopData minimal: used mainly for /api/stop_popup (stop_id + view_type).
+                                // Also keep match flags for line styling.
                                 const stopDataForOsmPopup = {
-                                    ...stop, 
-                                    id: osm_match.osm_id || stop.id, 
-                                    osm_node_id: osm_match.osm_node_id,
-                                    osm_name: osm_match.osm_name,
-                                    osm_uic_name: osm_match.osm_uic_name,
-                                    osm_uic_ref: osm_match.osm_uic_ref,
-                                    osm_local_ref: osm_match.osm_local_ref,
-                                    osm_network: osm_match.osm_network,
-                                    osm_operator: osm_match.osm_operator,
-                                    osm_public_transport: osm_match.osm_public_transport,
-                                    osm_amenity: osm_match.osm_amenity,
-                                    osm_aerialway: osm_match.osm_aerialway,
-                                    osm_railway: osm_match.osm_railway,
-                                    osm_lat: osm_match.osm_lat,
-                                    osm_lon: osm_match.osm_lon,
-                                    distance_m: osm_match.distance_m,
-                                    routes_osm: osm_match.routes_osm,
-                                    lat: osm_match.osm_lat,
-                                    lon: osm_match.osm_lon,
+                                    id: osm_match.osm_id || stop.id,
                                     stop_type: 'matched',
+                                    match_type: stop.match_type,
+                                    manual_is_persistent: stop.manual_is_persistent,
+                                    osm_node_id: osm_match.osm_node_id
                                 };
+                                const osmLat = +osm_match.osm_lat;
+                                const osmLon = +osm_match.osm_lon;
                                 allMarkerData.push({
-                                    lat: parseFloat(osm_match.osm_lat),
-                                    lon: parseFloat(osm_match.osm_lon),
+                                    lat: osmLat,
+                                    lon: osmLon,
                                     type: 'osm',
                                     color: 'blue',
                                     osmNodeType: osm_match.osm_node_type,
-                                    originalLat: parseFloat(osm_match.osm_lat),
-                                    originalLon: parseFloat(osm_match.osm_lon),
+                                    originalLat: osmLat,
+                                    originalLon: osmLon,
                                     stopData: stopDataForOsmPopup,
                                     atlasMarkerData: atlasMarkerData
                                 });
@@ -470,28 +818,32 @@ function loadDataForViewport() {
                      let atlasMarkerData = null;
 
                      if (showAtlasNodes && stop.atlas_lat != null && stop.atlas_lon != null) {
+                         const atlasLat = +stop.atlas_lat;
+                         const atlasLon = +stop.atlas_lon;
                          atlasMarkerData = {
-                             lat: parseFloat(stop.atlas_lat),
-                             lon: parseFloat(stop.atlas_lon),
+                             lat: atlasLat,
+                             lon: atlasLon,
                              type: 'atlas',
                              color: 'green',
                              duplicateSloid: stop.atlas_duplicate_sloid,
-                             originalLat: parseFloat(stop.atlas_lat),
-                             originalLon: parseFloat(stop.atlas_lon),
+                             originalLat: atlasLat,
+                             originalLon: atlasLon,
                              stopData: stop
                          };
                          allMarkerData.push(atlasMarkerData);
                      }
                      
                      if (showOSMNodes && stop.osm_lat != null && stop.osm_lon != null && !createdOsmMarkers.has(osmNodeIdKey)) {
+                         const osmLat = +stop.osm_lat;
+                         const osmLon = +stop.osm_lon;
                          allMarkerData.push({
-                             lat: parseFloat(stop.osm_lat),
-                             lon: parseFloat(stop.osm_lon),
+                             lat: osmLat,
+                             lon: osmLon,
                              type: 'osm',
                              color: 'blue',
                              osmNodeType: stop.osm_node_type,
-                             originalLat: parseFloat(stop.osm_lat),
-                             originalLon: parseFloat(stop.osm_lon),
+                             originalLat: osmLat,
+                             originalLon: osmLon,
                              stopData: stop,
                              atlasMarkerData: atlasMarkerData
                          });
@@ -502,14 +854,16 @@ function loadDataForViewport() {
             // --- Handle Station-Matched ATLAS Stops ---
             else if (stop.stop_type === 'station') {
                 if (showAtlasNodes) {
+                    const atlasLat = +(stop.atlas_lat || stop.lat);
+                    const atlasLon = +(stop.atlas_lon || stop.lon);
                     allMarkerData.push({
-                        lat: parseFloat(stop.atlas_lat || stop.lat),
-                        lon: parseFloat(stop.atlas_lon || stop.lon),
+                        lat: atlasLat,
+                        lon: atlasLon,
                         type: 'atlas',
                         color: 'orange',
                         duplicateSloid: stop.atlas_duplicate_sloid,
-                        originalLat: parseFloat(stop.atlas_lat || stop.lat),
-                        originalLon: parseFloat(stop.atlas_lon || stop.lon),
+                        originalLat: atlasLat,
+                        originalLon: atlasLon,
                         stopData: stop
                     });
                 }
@@ -517,14 +871,16 @@ function loadDataForViewport() {
             // --- Handle Unmatched ATLAS Stops ---
             else if (stop.stop_type === 'unmatched') {
                  if (showAtlasNodes) {
+                    const atlasLat = +stop.lat;
+                    const atlasLon = +stop.lon;
                     allMarkerData.push({
-                        lat: parseFloat(stop.lat),
-                        lon: parseFloat(stop.lon),
+                        lat: atlasLat,
+                        lon: atlasLon,
                         type: 'atlas',
                         color: 'red',
                         duplicateSloid: stop.atlas_duplicate_sloid,
-                        originalLat: parseFloat(stop.lat),
-                        originalLon: parseFloat(stop.lon),
+                        originalLat: atlasLat,
+                        originalLon: atlasLon,
                         stopData: stop
                     });
                 }
@@ -533,14 +889,16 @@ function loadDataForViewport() {
             else if (stop.stop_type === 'osm') {
                  const osmNodeIdKey = `osm-${stop.osm_node_id}`;
                  if (showOSMNodes && !createdOsmMarkers.has(osmNodeIdKey)) { // Check if not already created as part of a match
+                     const osmLat = +stop.osm_lat;
+                     const osmLon = +stop.osm_lon;
                      allMarkerData.push({
-                         lat: parseFloat(stop.osm_lat),
-                         lon: parseFloat(stop.osm_lon),
+                         lat: osmLat,
+                         lon: osmLon,
                          type: 'osm',
                          color: 'gray',
                          osmNodeType: stop.osm_node_type,
-                         originalLat: parseFloat(stop.osm_lat),
-                         originalLon: parseFloat(stop.osm_lon),
+                         originalLat: osmLat,
+                         originalLon: osmLon,
                          stopData: stop
                      });
                      createdOsmMarkers.add(osmNodeIdKey);
@@ -548,8 +906,126 @@ function loadDataForViewport() {
             }
          });
 
-         // 3. Create markers with overlap handling (batch add to avoid long main thread blocks)
-         createMarkersWithOverlapHandling(allMarkerData, markersLayer, { batchAdd: true, batchSize: 150 });
+         // 3. Sync markers with overlap handling (Diffing)
+         var clusterManager = new MarkerClusterManager();
+         allMarkerData.forEach(function(m) { clusterManager.addMarker(m.lat, m.lon, m); });
+         var clusteredData = clusterManager.getClusteredData();
+         
+         var newRenderedKeys = new Set();
+         
+         // Helper to generate unique key
+         function getMarkerKey(m) {
+             if (m.type === 'atlas') return 'atlas-' + m.stopData.id;
+             if (m.type === 'osm') return 'osm-' + (m.stopData.osm_node_id || m.stopData.id);
+             return null;
+         }
+
+         // Detect if we crossed the zoom threshold where marker representation changes (Circle <-> Icon)
+         var currentZoom = map.getZoom();
+         var lastZoom = viewportDataCache.lastRenderZoom;
+         var crossedThreshold = (lastZoom !== null) && (
+             (lastZoom < 18 && currentZoom >= 18) || 
+             (lastZoom >= 18 && currentZoom < 18)
+         );
+         viewportDataCache.lastRenderZoom = currentZoom;
+
+         clusteredData.forEach(function(item) {
+             var mData = item.markerData;
+             var key = getMarkerKey(mData);
+             if (!key) return;
+             
+             newRenderedKeys.add(key);
+             
+             var shouldRecreate = false;
+             if (renderedMarkers.has(key)) {
+                 if (crossedThreshold) {
+                     // If we crossed the threshold, we might need to switch between CircleMarker and Marker
+                     // For simplicity and robustness, we recreate all markers when crossing the threshold.
+                     shouldRecreate = true;
+                 }
+             }
+
+             if (renderedMarkers.has(key) && !shouldRecreate) {
+                 // Update existing marker position
+                 var marker = renderedMarkers.get(key);
+                 var oldLatLng = marker.getLatLng();
+                 if (oldLatLng.lat !== item.lat || oldLatLng.lng !== item.lon) {
+                     marker.setLatLng([item.lat, item.lon]);
+                 }
+                 // Update data for popup
+                 marker.options.markerData = mData;
+             } else {
+                 // Remove existing if we need to recreate
+                 if (renderedMarkers.has(key)) {
+                     markersLayer.removeLayer(renderedMarkers.get(key));
+                     renderedMarkers.delete(key);
+                 }
+
+                 // Create new marker
+                 var marker;
+                 if (mData.type === 'atlas') {
+                     marker = createAtlasMarker(item.lat, item.lon, mData.color, mData.duplicateSloid);
+                 } else {
+                     marker = createOsmMarker(item.lat, item.lon, mData.color, mData.osmNodeType);
+                 }
+                 
+                 // Attach data for popup
+                 marker.options.markerData = mData;
+                 
+                 // Bind popup logic
+                 if (mData.popup) {
+                    marker.bindPopup(mData.popup);
+                 } else if (mData.stopData && mData.type) {
+                    marker.on('click', function() {
+                        var currentData = this.options.markerData; // Use latest data
+                        if (this._popupLoaded || this._popupLoading) {
+                            if (this._popupLoaded && this.getPopup()) this.openPopup();
+                            return;
+                        }
+                        this._popupLoading = true;
+                        var self = this;
+                        if (typeof $ !== 'undefined' && $.getJSON) {
+                            $.getJSON('/api/stop_popup', { stop_id: currentData.stopData.id, view_type: currentData.type })
+                              .done(function(resp) {
+                                  try {
+                                      const enriched = resp && (resp.stop || resp);
+                                      let content = '';
+                                      if (enriched && enriched.stop_type === 'unmatched') {
+                                          content = currentData.type === 'atlas'
+                                            ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
+                                            : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
+                                      } else {
+                                          content = PopupRenderer.generatePopupHtml(enriched, currentData.type);
+                                      }
+                                      const popup = createPopupWithOptions(content);
+                                      self.bindPopup(popup);
+                                      self._popupLoaded = true;
+                                      self.openPopup();
+                                  } catch (e) {
+                                      console.error('Failed to render popup:', e);
+                                  } finally {
+                                      self._popupLoading = false;
+                                  }
+                              })
+                              .fail(function() {
+                                  self._popupLoading = false;
+                              });
+                        }
+                    });
+                 }
+                 
+                 markersLayer.addLayer(marker);
+                 renderedMarkers.set(key, marker);
+             }
+         });
+         
+         // Remove markers that are no longer in the view
+         renderedMarkers.forEach(function(marker, key) {
+             if (!newRenderedKeys.has(key)) {
+                 markersLayer.removeLayer(marker);
+                 renderedMarkers.delete(key);
+             }
+         });
 
          // 4. Add connection lines after markers are created (only at high zoom)
          if (map.getZoom() >= ZOOM_LINE_THRESHOLD) {
@@ -638,6 +1114,15 @@ function loadDataForViewport() {
          }
 
          // Legacy manual match overlay removed
+    }).fail(function(jqXHR, textStatus, errorThrown) {
+         // Avoid noisy alerts on aborts (expected during fast pan/zoom)
+         if (textStatus === 'abort') return;
+         console.error("Failed to fetch /api/data:", textStatus, errorThrown);
+         try {
+             console.error("Server response:", jqXHR.responseJSON || jqXHR.responseText);
+         } catch (e) {}
+         // Keep existing markers rather than clearing; show banner to hint something is wrong
+         showZoomBanner(true);
     });
 }
 
@@ -705,8 +1190,26 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
 
 // Function to fetch and center on a random stop based on current filters
 function focusOnRandomFilteredStop() {
-    // Simple, fast random pick without passing filters
-    $.getJSON("/api/random_stop", {}, function(data) {
+    // Random pick honoring current filters
+    var params = {
+        stop_filter: (activeFilters.stopType && activeFilters.stopType.length > 0) ? activeFilters.stopType.join(',') : null,
+        match_method: (activeFilters.matchMethods && activeFilters.matchMethods.length > 0) ? activeFilters.matchMethods.join(',') : null,
+        station_filter: (activeFilters.station && activeFilters.station.length > 0) ? activeFilters.station.join(',') : null,
+        filter_types: (activeFilters.stationTypes && activeFilters.stationTypes.length > 0) ? activeFilters.stationTypes.join(',') : null,
+        route_directions: (activeFilters.routeDirections && activeFilters.routeDirections.length > 0) ? activeFilters.routeDirections.join(',') : null,
+        transport_types: (activeFilters.transportTypes && activeFilters.transportTypes.length > 0) ? activeFilters.transportTypes.join(',') : null,
+        node_type: (activeFilters.nodeType && activeFilters.nodeType.length > 0) ? activeFilters.nodeType.join(',') : null,
+        atlas_operator: (activeFilters.atlasOperators && activeFilters.atlasOperators.length > 0) ? activeFilters.atlasOperators.join(',') : null,
+        top_n: activeFilters.topN || null,
+        show_duplicates_only: (activeFilters.showDuplicatesOnly ? 'true' : 'false')
+    };
+    Object.keys(params).forEach(function(k) {
+        if (params[k] === null || params[k] === undefined || params[k] === '') {
+            delete params[k];
+        }
+    });
+
+    $.getJSON("/api/random_stop", params, function(data) {
         if (data.error) {
             alert("Error focusing on random stop: " + data.error);
             return;
@@ -784,12 +1287,54 @@ function initSearchTypeSelector() {
     });
 }
 
- 
+// Apply saved filter panel state from localStorage
+function applySavedFilterPanelState() {
+    var filterPanel = document.getElementById('filterPanelContainer');
+    if (!filterPanel) return false;
+    
+    var savedState = localStorage.getItem('indexFilterPanelCollapsed');
+    if (savedState === 'true') {
+        // Disable transitions temporarily for instant state application
+        filterPanel.style.transition = 'none';
+        filterPanel.classList.add('collapsed');
+        
+        // Force reflow to apply the collapsed state immediately
+        filterPanel.offsetHeight;
+        
+        // Re-enable transitions after a frame
+        requestAnimationFrame(function() {
+            filterPanel.style.transition = '';
+        });
+        
+        return true; // Panel was collapsed
+    }
+    return false; // Panel was not collapsed
+}
+
+// Filter panel toggle functionality
+function initFilterPanelToggle() {
+    var filterPanel = document.getElementById('filterPanelContainer');
+    var toggleBtn = document.getElementById('filterToggleBtn');
+    
+    if (!filterPanel || !toggleBtn) return;
+    
+    toggleBtn.addEventListener('click', function() {
+        filterPanel.classList.toggle('collapsed');
+        var isCollapsed = filterPanel.classList.contains('collapsed');
+        localStorage.setItem('indexFilterPanelCollapsed', isCollapsed);
+        // No need to invalidate map size - panel now overlays the map
+    });
+}
 
 $(document).ready(function(){
+    // Apply saved panel state BEFORE initializing map
+    var panelWasCollapsed = applySavedFilterPanelState();
+    
     initMap();
+    
     // loadDataForViewport(); // updateActiveFilters will call this after initial filter setup
     initSearchTypeSelector();
+    initFilterPanelToggle();
 
     // logFilterPanelLayout("Document Ready"); // Function removed in refactor
 
@@ -803,25 +1348,19 @@ $(document).ready(function(){
         onSelectionChange: function(selectedOperators) {
             activeFilters.atlasOperators = selectedOperators;
             updateFiltersUI();
+            if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
             loadDataForViewport();
             updateHeaderSummary();
         }
     });
 
-    // Report functionality is only needed on /reports, but index has a "Reports" button.
-    // Guard against missing report.js on pages that don't load it.
+    // Report functionality is only needed on /reports.
+    // Index uses the navbar for navigation.
     if (window.initReportGeneration) {
         window.initReportGeneration();
-    } else {
-        var $reportBtn = $('#generateReportBtn');
-        if ($reportBtn.length) {
-            $reportBtn.on('click', function() {
-                window.location.href = '/reports';
-            });
-        }
     }
 
-    $('#focusRandomVisibleEntryBtn').on('click', focusOnRandomFilteredStop);
+
 
     // Log layout when accordion sections are shown or hidden
     $('#filterAccordion .collapse, .nested-accordion-content.collapse').on('shown.bs.collapse hidden.bs.collapse', function (e) {
@@ -836,6 +1375,14 @@ $(document).ready(function(){
 
     // Remove the old, duplicated event listener for new search type dropdown options
     // The initSearchTypeModal handles the new modal-based selector.
+});
+
+// Additional safety: invalidate map size when window fully loads (images, fonts, etc.)
+// This catches edge cases where flex layout changes after DOMContentLoaded
+$(window).on('load', function() {
+    if (map) {
+        map.invalidateSize();
+    }
 });
 
 
@@ -882,6 +1429,7 @@ function updateHeaderSummary() {
         if (data.error) {
             summaryContainer.html(`<div><small>Error loading summary.</small></div>`);
             console.error("Error loading global stats:", data.error);
+            positionIndexMapRightControls();
             return;
         }
 
@@ -918,8 +1466,10 @@ function updateHeaderSummary() {
         }
 
         summaryContainer.html(summaryHtml);
+        positionIndexMapRightControls();
     }).fail(function() {
         summaryContainer.html(`<div><small>Failed to load summary.</small></div>`);
         console.error("Failed to fetch global stats from server.");
+        positionIndexMapRightControls();
     });
 }

@@ -124,6 +124,23 @@ def filter_points_in_switzerland(df: pd.DataFrame, lat_col: str, lon_col: str) -
         return pd.DataFrame(columns=df.columns)
 
     swiss_poly = _load_swiss_polygon()
+    # Cheap bounding-box prefilter to reduce the number of points that GeoPandas needs to test.
+    # This preserves exact semantics because we still do the precise polygon test afterwards.
+    try:
+        minx, miny, maxx, maxy = swiss_poly.bounds  # (lon_min, lat_min, lon_max, lat_max)
+        df = df[
+            df[lon_col].between(minx, maxx, inclusive='both') &
+            df[lat_col].between(miny, maxy, inclusive='both')
+        ].copy()
+    except Exception:
+        # If bounds fail for any reason, fall back to the full dataset
+        pass
+
+    bbox_filtered = len(df)
+    if bbox_filtered == 0:
+        print(f"Swiss filter: bbox prefilter kept 0 (from {before:,} total)")
+        return pd.DataFrame(columns=df.columns)
+
     # Accurate point-in-polygon on full dataset
     try:
         gdf = gpd.GeoDataFrame(
@@ -134,7 +151,7 @@ def filter_points_in_switzerland(df: pd.DataFrame, lat_col: str, lon_col: str) -
         inside_or_border = gdf.intersects(swiss_poly)
         filtered = gdf[inside_or_border].drop(columns='geometry')
         
-        print(f"Swiss filter: filter kept {len(filtered):,} (from {before:,} total)")
+        print(f"Swiss filter: filter kept {len(filtered):,} (from {before:,} total; bbox prefilter kept {bbox_filtered:,})")
         return pd.DataFrame(filtered)
     except Exception as exc:
         raise RuntimeError(f"Swiss polygon containment failed: {exc}")

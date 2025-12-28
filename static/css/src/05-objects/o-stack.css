@@ -1,5 +1,89 @@
+/* ==========================================================================
+   O-STACK OBJECT
+   Vertical stack layout object for consistent spacing between elements.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Base Stack (default spacing)
+   ------------------------------------------------------------------------- */
 .o-stack > * + * {
   margin-top: var(--space-4);
+}
+
+/* -------------------------------------------------------------------------
+   Stack Spacing Variants
+   ------------------------------------------------------------------------- */
+.o-stack--xs > * + * {
+  margin-top: var(--space-1);
+}
+
+.o-stack--sm > * + * {
+  margin-top: var(--space-2);
+}
+
+.o-stack--md > * + * {
+  margin-top: var(--space-4);
+}
+
+.o-stack--lg > * + * {
+  margin-top: var(--space-6);
+}
+
+.o-stack--xl > * + * {
+  margin-top: var(--space-8);
+}
+
+/* -------------------------------------------------------------------------
+   Stack with Dividers
+   ------------------------------------------------------------------------- */
+.o-stack--divided > * + * {
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.o-stack--divided.o-stack--sm > * + * {
+  padding-top: var(--space-2);
+}
+
+.o-stack--divided.o-stack--lg > * + * {
+  padding-top: var(--space-6);
+}
+
+/* -------------------------------------------------------------------------
+   Horizontal Stack (inline)
+   ------------------------------------------------------------------------- */
+.o-stack--horizontal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.o-stack--horizontal > * + * {
+  margin-top: 0;
+  margin-left: var(--space-4);
+}
+
+.o-stack--horizontal.o-stack--sm > * + * {
+  margin-left: var(--space-2);
+}
+
+.o-stack--horizontal.o-stack--lg > * + * {
+  margin-left: var(--space-6);
+}
+
+/* -------------------------------------------------------------------------
+   Centered Stack
+   ------------------------------------------------------------------------- */
+.o-stack--center {
+  align-items: center;
+  text-align: center;
+}
+
+/* -------------------------------------------------------------------------
+   Stack Exception (reset for specific children)
+   ------------------------------------------------------------------------- */
+.o-stack__exception {
+  margin-top: 0 !important;
 }
 
 

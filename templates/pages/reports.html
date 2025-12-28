@@ -2,48 +2,23 @@
 
 {% block title %}Reports{% endblock %}
 
-{% block head_css %}
-<style>
-  .loading-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.7);
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .loading-content {
-    background: white;
-    padding: 40px;
-    border-radius: 10px;
-    text-align: center;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-    max-width: 400px;
-  }
-</style>
-{% endblock %}
-
 {% block content %}
 <!-- Loading overlay for report generation -->
 <div id="reportLoadingOverlay" class="loading-overlay" style="display: none;">
   <div class="loading-content">
-    <h4 class="mb-3">Generating Report...</h4>
+    <h4 class="mb-3"><i class="fas fa-file-alt mr-2"></i>Generating Report</h4>
     
     <!-- Progress bar -->
-    <div class="progress mb-3" style="height: 25px;">
+    <div class="progress mb-3">
       <div id="reportProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
            role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-        <span id="progressText">Starting...</span>
       </div>
     </div>
     
     <!-- Status text -->
     <div id="progressStatus" class="mb-3">
-      <div><span id="entriesProcessed">0</span> of <span id="totalEntries">0</span> entries processed</div>
+      <div class="mb-1"><strong id="progressText">Starting...</strong></div>
+      <div class="text-muted small"><span id="entriesProcessed">0</span> of <span id="totalEntries">0</span> entries processed</div>
       <div id="etaText" class="text-muted small" style="display: none;">
         Estimated time remaining: <span id="etaValue">-</span>
       </div>
@@ -51,185 +26,267 @@
     
     <!-- Download button (hidden initially) -->
     <div id="downloadSection" style="display: none;">
-      <div class="alert alert-success">Report generated successfully!</div>
-      <button type="button" class="btn btn-success" id="downloadReportBtn">
-        <i class="fas fa-download"></i> Download Report
+      <div class="alert alert-success mb-3"><i class="fas fa-check-circle mr-2"></i>Report generated successfully!</div>
+      <button type="button" class="btn btn-success btn-lg" id="downloadReportBtn">
+        <i class="fas fa-download mr-2"></i>Download Report
       </button>
     </div>
     
     <!-- Error section (hidden initially) -->
     <div id="errorSection" style="display: none;">
       <div class="alert alert-danger">
-        <strong>Error:</strong> <span id="errorMessage"></span>
+        <i class="fas fa-exclamation-circle mr-2"></i><span id="errorMessage"></span>
       </div>
     </div>
     
     <!-- Controls -->
-    <div id="progressControls">
+    <div id="progressControls" class="mt-4">
       <button type="button" class="btn btn-outline-secondary" onclick="cancelReportGeneration()">
-        <i class="fas fa-times"></i> Cancel
+        <i class="fas fa-times mr-1"></i>Cancel
       </button>
     </div>
   </div>
 </div>
 
-<div class="container py-3">
-  <div class="row">
-    <div class="col-md-8 col-lg-6 mx-auto">
-      <div class="card">
-        <div class="card-header d-flex align-items-center justify-content-between">
-          <strong>Generate Report</strong>
-          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('index') }}">Back to map</a>
-        </div>
-        <div class="card-body">
-          <div class="alert alert-info" role="alert">
-            Downloads are limited to 20 reports per IP address per day to ensure fair use.
+<div class="reports-page">
+  <div class="reports-container">
+    <!-- Page Header -->
+    <a class="back-link" href="{{ url_for('index') }}">
+      <i class="fas fa-arrow-left"></i>
+      Back to map
+    </a>
+    
+    <div class="reports-header">
+      <h1>Generate Report</h1>
+      <p>Export data from the OSM & ATLAS synchronization database in PDF or CSV format.</p>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="info-banner">
+      <i class="fas fa-info-circle info-banner__icon"></i>
+      <span class="info-banner__text">Downloads are limited to 20 reports per IP address per day to ensure fair use.</span>
+    </div>
+
+    <form id="reportForm">
+      <div class="reports-layout">
+        <!-- Left Column: Filters -->
+        <div class="reports-card">
+          <div class="reports-card__header">
+            <div class="reports-card__header-icon">
+              <i class="fas fa-filter"></i>
+            </div>
+            <h2>Data Selection</h2>
           </div>
-          <form id="reportForm">
-            <div class="form-group">
-              <label>Report Category</label>
-              <div class="custom-control custom-radio">
-                <input type="radio" id="categoryDistance" name="reportCategory" class="custom-control-input" value="distance" checked>
-                <label class="custom-control-label" for="categoryDistance">Matched pairs</label>
-              </div>
-              <div class="custom-control custom-radio">
-                <input type="radio" id="categoryUnmatched" name="reportCategory" class="custom-control-input" value="unmatched">
-                <label class="custom-control-label" for="categoryUnmatched">Unmatched entries</label>
-              </div>
-              <div class="custom-control custom-radio">
-                <input type="radio" id="categoryProblems" name="reportCategory" class="custom-control-input" value="problems">
-                <label class="custom-control-label" for="categoryProblems">Problems</label>
+          <div class="reports-card__body">
+            <!-- Report Category -->
+            <div class="filter-section">
+              <label class="filter-section__label">Report Category</label>
+              <div class="option-group">
+                <label class="option-card">
+                  <input type="radio" id="categoryDistance" name="reportCategory" value="distance" checked>
+                  <div class="option-card__content">
+                    <span class="option-card__indicator"></span>
+                    <span class="option-card__title">Matched pairs</span>
+                  </div>
+                </label>
+                <label class="option-card">
+                  <input type="radio" id="categoryUnmatched" name="reportCategory" value="unmatched">
+                  <div class="option-card__content">
+                    <span class="option-card__indicator"></span>
+                    <span class="option-card__title">Unmatched entries</span>
+                  </div>
+                </label>
+                <label class="option-card">
+                  <input type="radio" id="categoryProblems" name="reportCategory" value="problems">
+                  <div class="option-card__content">
+                    <span class="option-card__indicator"></span>
+                    <span class="option-card__title">Problems</span>
+                  </div>
+                </label>
               </div>
             </div>
 
             <!-- Unmatched specific options -->
-            <div class="form-group" id="unmatchedOptions" style="display: none;">
-              <label>Include sources</label>
-              <div class="custom-control custom-checkbox">
-                <input type="checkbox" class="custom-control-input" id="sourceAtlas" checked>
-                <label class="custom-control-label" for="sourceAtlas">ATLAS</label>
-              </div>
-              <div class="custom-control custom-checkbox">
-                <input type="checkbox" class="custom-control-input" id="sourceOsm" checked>
-                <label class="custom-control-label" for="sourceOsm">OSM</label>
+            <div class="filter-section" id="unmatchedOptions" style="display: none;">
+              <label class="filter-section__label">Include sources</label>
+              <div class="chip-group">
+                <label class="chip-option">
+                  <input type="checkbox" id="sourceAtlas" checked>
+                  <span>ATLAS</span>
+                </label>
+                <label class="chip-option">
+                  <input type="checkbox" id="sourceOsm" checked>
+                  <span>OSM</span>
+                </label>
               </div>
             </div>
 
             <!-- Problems specific options -->
-            <div class="form-group" id="problemsOptions" style="display: none;">
-              <div class="mb-2"><strong>Problem types</strong></div>
-              <div class="row">
-                <div class="col-6">
-                  <div class="custom-control custom-checkbox">
-                    <input type="checkbox" class="custom-control-input" id="ptypeDistance" value="distance" checked>
-                    <label class="custom-control-label" for="ptypeDistance">Distance</label>
-                  </div>
-                  <div class="custom-control custom-checkbox">
-                    <input type="checkbox" class="custom-control-input" id="ptypeUnmatched" value="unmatched" checked>
-                    <label class="custom-control-label" for="ptypeUnmatched">Unmatched</label>
-                  </div>
-                </div>
-                <div class="col-6">
-                  <div class="custom-control custom-checkbox">
-                    <input type="checkbox" class="custom-control-input" id="ptypeAttributes" value="attributes" checked>
-                    <label class="custom-control-label" for="ptypeAttributes">Attributes</label>
-                  </div>
-                  <div class="custom-control custom-checkbox">
-                    <input type="checkbox" class="custom-control-input" id="ptypeDuplicates" value="duplicates" checked>
-                    <label class="custom-control-label" for="ptypeDuplicates">Duplicates</label>
-                  </div>
+            <div class="filter-section" id="problemsOptions" style="display: none;">
+              <div class="filter-subsection">
+                <label class="filter-subsection__label"><i class="fas fa-tag"></i> Problem types</label>
+                <div class="chip-group">
+                  <label class="chip-option">
+                    <input type="checkbox" id="ptypeDistance" value="distance" checked>
+                    <span>Distance</span>
+                  </label>
+                  <label class="chip-option">
+                    <input type="checkbox" id="ptypeUnmatched" value="unmatched" checked>
+                    <span>Unmatched</span>
+                  </label>
+                  <label class="chip-option">
+                    <input type="checkbox" id="ptypeAttributes" value="attributes" checked>
+                    <span>Attributes</span>
+                  </label>
+                  <label class="chip-option">
+                    <input type="checkbox" id="ptypeDuplicates" value="duplicates" checked>
+                    <span>Duplicates</span>
+                  </label>
                 </div>
               </div>
-              <hr>
-              <div class="mb-2"><strong>Priorities</strong></div>
-              <div class="d-flex">
-                <div class="custom-control custom-checkbox mr-3">
-                  <input type="checkbox" class="custom-control-input" id="priority1" value="1" checked>
-                  <label class="custom-control-label" for="priority1">P1</label>
-                </div>
-                <div class="custom-control custom-checkbox mr-3">
-                  <input type="checkbox" class="custom-control-input" id="priority2" value="2" checked>
-                  <label class="custom-control-label" for="priority2">P2</label>
-                </div>
-                <div class="custom-control custom-checkbox">
-                  <input type="checkbox" class="custom-control-input" id="priority3" value="3" checked>
-                  <label class="custom-control-label" for="priority3">P3</label>
+              
+              <div class="filter-subsection">
+                <label class="filter-subsection__label"><i class="fas fa-exclamation-triangle"></i> Priorities</label>
+                <div class="chip-group">
+                  <label class="chip-option">
+                    <input type="checkbox" id="priority1" value="1" checked>
+                    <span>P1</span>
+                  </label>
+                  <label class="chip-option">
+                    <input type="checkbox" id="priority2" value="2" checked>
+                    <span>P2</span>
+                  </label>
+                  <label class="chip-option">
+                    <input type="checkbox" id="priority3" value="3" checked>
+                    <span>P3</span>
+                  </label>
                 </div>
               </div>
-              <hr>
-              <div class="mb-2"><strong>Status</strong></div>
-              <div class="d-flex">
-                <div class="custom-control custom-checkbox mr-3">
-                  <input type="checkbox" class="custom-control-input" id="statusSolved" value="solved" checked>
-                  <label class="custom-control-label" for="statusSolved">Solved</label>
-                </div>
-                <div class="custom-control custom-checkbox">
-                  <input type="checkbox" class="custom-control-input" id="statusUnsolved" value="unsolved" checked>
-                  <label class="custom-control-label" for="statusUnsolved">Unsolved</label>
+              
+              <div class="filter-subsection">
+                <label class="filter-subsection__label"><i class="fas fa-check-circle"></i> Status</label>
+                <div class="chip-group">
+                  <label class="chip-option">
+                    <input type="checkbox" id="statusSolved" value="solved" checked>
+                    <span>Solved</span>
+                  </label>
+                  <label class="chip-option">
+                    <input type="checkbox" id="statusUnsolved" value="unsolved" checked>
+                    <span>Unsolved</span>
+                  </label>
                 </div>
               </div>
             </div>
 
+            <div class="section-divider"></div>
+
             <!-- Operator filter -->
-            <div class="form-group">
-              <label>ATLAS operator</label>
+            <div class="filter-section">
+              <label class="filter-section__label">ATLAS Operator</label>
+              <p class="filter-section__description">Filter results by one or more operators. Leave empty for all.</p>
               <div id="atlasOperatorFilterReports"></div>
             </div>
 
-            <!-- Additional columns -->
-            <div class="form-group">
-              <label>Additional columns</label>
-              <div class="custom-control custom-checkbox">
-                <input type="checkbox" class="custom-control-input" id="includeAtlasCoords">
-                <label class="custom-control-label" for="includeAtlasCoords">Include ATLAS lat/lon</label>
-              </div>
-              <div class="custom-control custom-checkbox">
-                <input type="checkbox" class="custom-control-input" id="includeOsmCoords">
-                <label class="custom-control-label" for="includeOsmCoords">Include OSM lat/lon</label>
-              </div>
-            </div>
+            <div class="section-divider"></div>
 
-            <div class="form-group">
-              <label for="reportFormatModal">Report Format</label>
-              <select class="form-control" id="reportFormatModal">
-                <option value="pdf">PDF</option>
-                <option value="csv">CSV</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Number of Entries</label>
-              <div class="custom-control custom-radio">
-                <input type="radio" id="limitAll" name="limitMode" class="custom-control-input" value="all" checked>
-                <label class="custom-control-label" for="limitAll">All</label>
-              </div>
-              <div class="custom-control custom-radio d-flex align-items-center mt-1">
-                <input type="radio" id="limitUpTo" name="limitMode" class="custom-control-input" value="upto">
-                <label class="custom-control-label mr-2" for="limitUpTo"><span id="limitModeLabelUpto">First</span> N</label>
-                <input type="number" id="reportLimitModal" class="form-control" value="50" min="1" max="10000" style="width: 120px;" disabled>
+            <!-- Additional columns -->
+            <div class="filter-section">
+              <label class="filter-section__label">Additional Columns</label>
+              <div class="chip-group">
+                <label class="chip-option">
+                  <input type="checkbox" id="includeAtlasCoords">
+                  <span>ATLAS lat/lon</span>
+                </label>
+                <label class="chip-option">
+                  <input type="checkbox" id="includeOsmCoords">
+                  <span>OSM lat/lon</span>
+                </label>
               </div>
             </div>
-            <div class="form-group">
-              <label for="sortOrderModal">Sort Order:</label>
-              <select id="sortOrderModal" class="form-control">
-                <option value="operator_asc" selected>Operator (A → Z)</option>
-                <option value="operator_desc">Operator (Z → A)</option>
-                <option value="distance_desc">Distance (Descending)</option>
-                <option value="distance_asc">Distance (Ascending)</option>
-                <option value="priority_desc">Priority (Descending)</option>
-                <option value="priority_asc">Priority (Ascending)</option>
-              </select>
-              <small id="sortHelp" class="form-text text-muted mt-1"></small>
+          </div>
+        </div>
+
+        <!-- Right Column: Output Options -->
+        <div>
+          <div class="reports-card">
+            <div class="reports-card__header">
+              <div class="reports-card__header-icon">
+                <i class="fas fa-cog"></i>
+              </div>
+              <h2>Output Options</h2>
             </div>
-            <div class="form-group">
-              <small id="selectionSummary" class="text-muted"></small>
+            <div class="reports-card__body">
+              <!-- Report Format -->
+              <div class="filter-section">
+                <label class="filter-section__label" for="reportFormatModal">Report Format</label>
+                <select class="form-select-custom" id="reportFormatModal">
+                  <option value="pdf">PDF Document</option>
+                  <option value="csv">CSV Spreadsheet</option>
+                </select>
+              </div>
+
+              <div class="section-divider"></div>
+
+              <!-- Sort Order -->
+              <div class="filter-section">
+                <label class="filter-section__label" for="sortOrderModal">Sort Order</label>
+                <select id="sortOrderModal" class="form-select-custom">
+                  <option value="operator_asc" selected>Operator (A → Z)</option>
+                  <option value="operator_desc">Operator (Z → A)</option>
+                  <option value="distance_desc">Distance (Descending)</option>
+                  <option value="distance_asc">Distance (Ascending)</option>
+                  <option value="priority_desc">Priority (Descending)</option>
+                  <option value="priority_asc">Priority (Ascending)</option>
+                </select>
+                <p class="filter-section__description" id="sortHelp"></p>
+              </div>
+
+              <div class="section-divider"></div>
+
+              <!-- Number of Entries -->
+              <div class="filter-section">
+                <label class="filter-section__label">Number of Entries</label>
+                <div class="option-group">
+                  <label class="option-card">
+                    <input type="radio" id="limitAll" name="limitMode" value="all" checked>
+                    <div class="option-card__content">
+                      <span class="option-card__indicator"></span>
+                      <span class="option-card__title">All entries</span>
+                    </div>
+                  </label>
+                  <label class="option-card">
+                    <input type="radio" id="limitUpTo" name="limitMode" value="upto">
+                    <div class="option-card__content">
+                      <span class="option-card__indicator"></span>
+                      <span class="option-card__title"><span id="limitModeLabelUpto">First</span> N entries</span>
+                    </div>
+                  </label>
+                </div>
+                <div class="limit-input-group">
+                  <label for="reportLimitModal" class="sr-only">Number</label>
+                  <input type="number" id="reportLimitModal" value="50" min="1" max="10000" disabled>
+                  <span class="text-muted small">entries (max 10,000)</span>
+                </div>
+              </div>
             </div>
-            <div class="d-flex justify-content-end">
-              <button type="submit" class="btn btn-primary">Generate</button>
-            </div>
-          </form>
+          </div>
+
+          <!-- Summary Card -->
+          <div class="summary-card">
+            <div class="summary-card__title">Selection Summary</div>
+            <div class="summary-card__text" id="selectionSummary">Matched pairs sorted by operator (ascending)</div>
+          </div>
+
+          <!-- Generate Button -->
+          <div class="generate-btn-wrapper">
+            <button type="submit" class="generate-btn">
+              <i class="fas fa-file-export"></i>
+              Generate Report
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </form>
   </div>
 </div>
 {% endblock %}

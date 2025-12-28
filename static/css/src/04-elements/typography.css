@@ -1,16 +1,131 @@
-/* typography element styles (extracted from legacy, identical for stability) */
+/* ==========================================================================
+   TYPOGRAPHY
+   Element-level typography styles using design tokens.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Headings
+   ------------------------------------------------------------------------- */
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 0;
+  margin-bottom: var(--space-3);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-tight);
+  color: var(--color-dark);
+}
+
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-xl); }
+h4 { font-size: var(--text-lg); }
+h5 { font-size: var(--text-base); }
+h6 { font-size: var(--text-sm); }
+
+/* Display heading variant */
 h1.display-4 {
-  color: #343a40;
-  font-weight: 600;
-  margin: 0.5rem 0;
+  font-size: var(--text-3xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-dark);
+  margin: var(--space-2) 0;
   background-color: transparent;
 }
 
 @media (max-width: 768px) {
   h1.display-4 {
-    font-size: 1.75rem;
-    margin-bottom: 1rem;
+    font-size: var(--text-3xl);
+    margin-bottom: var(--space-4);
   }
+}
+
+/* -------------------------------------------------------------------------
+   Paragraphs & Text
+   ------------------------------------------------------------------------- */
+p {
+  margin-top: 0;
+  margin-bottom: var(--space-4);
+}
+
+small,
+.text-sm {
+  font-size: var(--text-sm);
+}
+
+.text-xs {
+  font-size: var(--text-xs);
+}
+
+.text-lg {
+  font-size: var(--text-lg);
+}
+
+/* -------------------------------------------------------------------------
+   Text Colors
+   ------------------------------------------------------------------------- */
+.text-muted {
+  color: var(--color-fg-muted) !important;
+}
+
+.text-muted a {
+  color: var(--color-fg-muted) !important;
+  transition: color var(--transition-fast);
+}
+
+.text-muted a:hover {
+  color: var(--color-fg) !important;
+  text-decoration: none;
+}
+
+.text-primary { color: var(--color-primary) !important; }
+.text-success { color: var(--color-success) !important; }
+.text-warning { color: var(--color-warning) !important; }
+.text-danger { color: var(--color-danger) !important; }
+.text-info { color: var(--color-info) !important; }
+
+/* -------------------------------------------------------------------------
+   Font Weights
+   ------------------------------------------------------------------------- */
+.font-normal { font-weight: var(--font-normal) !important; }
+.font-medium { font-weight: var(--font-medium) !important; }
+.font-semibold { font-weight: var(--font-semibold) !important; }
+.font-bold { font-weight: var(--font-bold) !important; }
+
+/* -------------------------------------------------------------------------
+   Labels & Captions
+   ------------------------------------------------------------------------- */
+label {
+  display: inline-block;
+  margin-bottom: var(--space-2);
+  font-weight: var(--font-medium);
+  color: var(--color-fg);
+}
+
+/* -------------------------------------------------------------------------
+   Code
+   ------------------------------------------------------------------------- */
+code,
+pre {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+code {
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--color-bg-muted);
+  border-radius: var(--radius-sm);
+  color: var(--color-danger);
+}
+
+pre {
+  padding: var(--space-4);
+  background-color: var(--color-bg-muted);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+pre code {
+  padding: 0;
+  background-color: transparent;
+  color: inherit;
 }
 
 

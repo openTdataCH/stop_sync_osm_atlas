@@ -15,12 +15,10 @@ ENV C_INCLUDE_PATH=/usr/include/gdal
 
 # Install system dependencies
 # wkhtmltopdf for PDF generation
-# mysql-client for mysqladmin in entrypoint script
 # dos2unix to handle line ending issues
 # GDAL and geospatial libraries for GeoPandas
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wkhtmltopdf \
-    default-mysql-client \
     dos2unix \
     gdal-bin \
     libgdal-dev \

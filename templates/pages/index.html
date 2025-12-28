@@ -15,26 +15,26 @@
 {% block content %}
 <div class="container-fluid d-flex flex-column flex-grow-1 index-root">
   
-  <div class="row flex-grow-1" style="overflow: hidden;">
+  <div class="d-flex flex-row flex-grow-1" style="overflow: hidden;">
     <!-- Consolidated Filter Panel -->
-    <div class="col-md-3 d-flex flex-column" id="filterPanelContainer">
-      <div class="card flex-grow-1">
+    <div class="d-flex flex-column c-filter-panel" id="filterPanelContainer">
+      <div class="card flex-grow-1 c-filter-panel__content">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <strong>Filters</strong>
+          <strong><i class="fas fa-sliders-h mr-2"></i>Filters</strong>
         </div>
         <div class="card-body" id="filterPanelBody">
           <!-- Node Type Filters -->
           <div class="compact-group">
               <label>Node Type</label>
-              <div class="form-row">
-                <div class="col">
-                  <div class="form-check form-check-inline">
+              <div class="row">
+                <div class="col-6">
+                  <div class="form-check">
                     <input type="checkbox" class="filter-node-type form-check-input" id="filterAtlas" value="atlas">
                     <label class="form-check-label" for="filterAtlas">ATLAS</label>
                   </div>
                 </div>
-                <div class="col">
-                  <div class="form-check form-check-inline">
+                <div class="col-6">
+                  <div class="form-check">
                     <input type="checkbox" class="filter-node-type form-check-input" id="filterOSM" value="osm">
                     <label class="form-check-label" for="filterOSM">OSM</label>
                   </div>
@@ -42,7 +42,7 @@
               </div>
           </div>
 
-          <!-- Stop Type: Matched (Simplified Accordion) -->
+          <!-- Stop Type: Matched -->
           <div class="compact-group">
             <div class="matching-subcategory-header" data-toggle="collapse" data-target="#collapseMatchedStopType" aria-expanded="true" aria-controls="collapseMatchedStopType">
                 <input type="checkbox" id="masterMatchedCheckbox" class="master-filter-checkbox" data-children-container="#collapseMatchedStopType">
@@ -54,28 +54,28 @@
                 <!-- Matching Methods -->
                 <div class="compact-group mt-2" id="matchingMethodContainer">
                   <label>Matching Methods</label>
-                  <div class="form-row">
-                    <div class="col">
-                      <div class="form-check form-check-inline">
+                  <div class="row">
+                    <div class="col-6">
+                      <div class="form-check">
                         <input type="checkbox" class="filter-match-method form-check-input" id="filterExact" value="exact">
                         <label class="form-check-label" for="filterExact">Exact</label>
                       </div>
                     </div>
-                    <div class="col">
-                      <div class="form-check form-check-inline">
+                    <div class="col-6">
+                      <div class="form-check">
                         <input type="checkbox" class="filter-match-method form-check-input" id="filterName" value="name">
                         <label class="form-check-label" for="filterName">Name</label>
                       </div>
                     </div>
                   </div>
-                  <div class="form-row mt-1">
-                     <div class="col">
-                       <div class="form-check form-check-inline">
+                  <div class="row">
+                     <div class="col-6">
+                       <div class="form-check">
                          <input type="checkbox" class="filter-match-method form-check-input" id="filterManual" value="manual">
                          <label class="form-check-label" for="filterManual">Manual</label>
                        </div>
                      </div>
-                     <div class="col">
+                     <div class="col-6">
                      </div>
                   </div>
                 </div>
@@ -216,7 +216,7 @@
         <!-- Fixed controls at the bottom -->
         <div id="fixedFilterControls">
           <!-- Search -->
-          <div class="card mt-3">
+          <div class="card">
             <div class="card-header">
               <h5 class="mb-0">Search</h5>
             </div>
@@ -254,25 +254,19 @@
           <div id="activeFilters" class="p-2 border-top">
               <!-- Badges will be dynamically inserted here -->
           </div>
-
-          <!-- Additional Controls: Report -->
-          <div class="card-footer">
-            <div class="row">
-              <div class="col-6 pr-1">
-                <button id="focusRandomVisibleEntryBtn" class="btn btn-sm btn-info btn-block mb-2" title="Center on a random stop and open its popup (does not change filters)"><i class="fas fa-random"></i> View random stop</button>
-              </div>
-              <div class="col-6 pl-1">
-                <button id="generateReportBtn" class="btn btn-sm btn-secondary btn-block mb-2" title="Generate various reports based on current data."><i class="fas fa-file-alt"></i> Reports</button>
-              </div>
-            </div>
-          </div>
         </div> <!-- This closes fixedFilterControls -->
 
       </div> <!-- This closes the main card -->
+      
+      <!-- Filter Toggle Button -->
+      <button class="filter-toggle-btn c-filter-panel__toggle" id="filterToggleBtn" type="button" title="Toggle filters">
+        <i class="fas fa-sliders-h"></i>
+        <i class="fas fa-chevron-left toggle-icon"></i>
+      </button>
     </div>
     <!-- Map Container -->
-    <div class="col-md-9">
-      <div id="map" style="height: 100%; position: relative;">
+    <div class="flex-grow-1" id="mapContainer">
+      <div id="map">
         {{ stats_overlay() }}
       </div>
     </div>
@@ -365,6 +359,7 @@
 <script src="{{ url_for('static', filename='js/components/popup-renderer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/move_popup.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-renderer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/osm-query-tool.js') }}"></script>
 <!-- Legacy manual-matching.js removed in favor of problems-page manual matching -->
 <script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>

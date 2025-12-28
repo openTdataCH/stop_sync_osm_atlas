@@ -148,34 +148,41 @@ function initReportGeneration() {
         // Help text
         var help = '';
         if (cat === 'distance') {
-            if (sort.indexOf('distance_') === 0) help = 'Entries are sorted by distance. "Top N" selects the closest/farthest entries depending on direction.';
-            else help = 'Entries are sorted by operator. "First N" selects the first alphabetical groups (N/A, A, ...).';
+            if (sort.indexOf('distance_') === 0) help = 'Entries sorted by distance. "Top N" selects closest/farthest.';
+            else help = 'Entries sorted by operator alphabetically.';
         } else if (cat === 'unmatched') {
-            help = 'Entries are sorted by operator. "First N" selects the first alphabetical groups (N/A, A, ...).';
+            help = 'Entries sorted by operator alphabetically.';
         } else if (cat === 'problems') {
-            if (sort.indexOf('priority_') === 0) help = 'Entries are sorted by priority. "Top N" selects highest priority first.';
-            else help = 'Entries are sorted by operator. "First N" selects the first alphabetical groups (N/A, A, ...).';
+            if (sort.indexOf('priority_') === 0) help = 'Entries sorted by priority. "Top N" selects highest priority.';
+            else help = 'Entries sorted by operator alphabetically.';
         }
         if ($sortHelp.length) { $sortHelp.text(help); }
 
-        // Summary line
-        var parts = [];
-        if (cat === 'distance') parts.push('Matched pairs');
-        if (cat === 'unmatched') parts.push('Unmatched entries');
-        if (cat === 'problems') parts.push('Problems');
-        parts.push('sorted by');
-        if (sort.indexOf('operator_') === 0) parts.push('operator');
-        if (sort.indexOf('distance_') === 0) parts.push('distance');
-        if (sort.indexOf('priority_') === 0) parts.push('priority');
-        parts.push(sort.endsWith('_asc') ? '(ascending)' : '(descending)');
-        if (mode === 'upto') parts.push(', ' + (isTop ? 'top' : 'first') + ' ' + (limit || 'N'));
-        if ($summary.length) { $summary.text(parts.join(' ')); }
+        // Summary line - more descriptive
+        var categoryName = '';
+        if (cat === 'distance') categoryName = 'Matched pairs';
+        if (cat === 'unmatched') categoryName = 'Unmatched entries';
+        if (cat === 'problems') categoryName = 'Problems';
+        
+        var sortName = '';
+        if (sort.indexOf('operator_') === 0) sortName = 'operator';
+        if (sort.indexOf('distance_') === 0) sortName = 'distance';
+        if (sort.indexOf('priority_') === 0) sortName = 'priority';
+        
+        var direction = sort.endsWith('_asc') ? 'ascending' : 'descending';
+        
+        var summary = categoryName + ' sorted by ' + sortName + ' (' + direction + ')';
+        if (mode === 'upto') {
+            summary += ', ' + (isTop ? 'top' : 'first') + ' ' + (limit || 'N') + ' entries';
+        }
+        if ($summary.length) { $summary.text(summary); }
     }
 
     // React on sort, limit, category changes
     $(document).on('change', '#sortOrderModal, #reportLimitModal, input[name="reportCategory"]', updateSortHelpAndSummary);
     // Initial render
     updateSortHelpAndSummary();
+    
     function resetProgressOverlay() {
         $('#reportProgressBar').css('width', '0%').attr('aria-valuenow', 0);
         $('#progressText').text('Starting...');
@@ -254,7 +261,7 @@ function initReportGeneration() {
         if (status === 'starting') {
             $('#progressText').text('Starting...');
         } else if (status === 'processing') {
-            $('#progressText').text(percentage + '%');
+            $('#progressText').text(percentage + '% complete');
             
             // Show ETA if available
             if (progress.eta && progress.eta > 0) {
@@ -264,7 +271,7 @@ function initReportGeneration() {
                 $('#etaText').show();
             }
         } else if (status === 'completed') {
-            $('#progressText').text('100%');
+            $('#progressText').text('Complete!');
             $('#reportProgressBar').css('width', '100%').attr('aria-valuenow', 100);
             stopProgressPolling();
             showDownloadButton();

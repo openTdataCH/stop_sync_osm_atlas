@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 import math
 import pandas as pd
@@ -6,20 +6,33 @@ from scipy.spatial import KDTree
 from matching_process.matching_script import final_pipeline
 from matching_process.problem_detection import analyze_stop_problems, compute_distance_priority, compute_attributes_priority
 import os
+import re
 
 # Import models
 from backend.models import Stop, AtlasStop, OsmNode, RouteAndDirection, Problem
 from backend.services.import_persistence import apply_persistent_solutions as apply_persistent_solutions_service
+from backend.services.stats_export import export_pipeline_stats, save_stats_to_file
 
 # Database Setup
-DATABASE_URI = os.getenv('DATABASE_URI', 'mysql+pymysql://stops_user:1234@localhost:3306/stops_db')
+DATABASE_URI = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/stops_db')
 engine = create_engine(DATABASE_URI)
 Session = sessionmaker(bind=engine)
 session = Session()
 
+def make_point_geom(lat, lon):
+    """Create a PostGIS POINT geometry (SRID 4326) from lat/lon, or None if missing."""
+    if lat is None or lon is None:
+        return None
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except Exception:
+        return None
+    return func.ST_SetSRID(func.ST_MakePoint(lon_f, lat_f), 4326)
+
 
 def safe_value(val, default=None):
-    """Safely handle NaN, None, and other problematic values for MySQL"""
+    """Safely handle NaN, None, and other problematic values for DB inserts"""
     if val is None:
         return default
     if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
@@ -524,7 +537,8 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             osm_lat=osm_lat,
             osm_lon=osm_lon,
             distance_m=distance_m,
-            osm_node_type=get_osm_node_type(rec)
+            osm_node_type=get_osm_node_type(rec),
+            geom=make_point_geom(atlas_lat, atlas_lon) if atlas_lat is not None and atlas_lon is not None else make_point_geom(osm_lat, osm_lon),
         )
         # If this record was manually matched in a previous run and persisted, carry the flag
         if safe_value(rec.get('match_type')) == 'manual':
@@ -772,7 +786,8 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             atlas_lat=atlas_lat,
             atlas_lon=atlas_lon,
             atlas_duplicate_sloid=None,
-            uic_ref=safe_value(rec.get('number'), "")
+            uic_ref=safe_value(rec.get('number'), ""),
+            geom=make_point_geom(atlas_lat, atlas_lon),
         )
         
         if problems.get('unmatched_problem'):
@@ -833,7 +848,8 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             osm_node_id=osm_node_id,
             osm_lat=osm_lat,
             osm_lon=osm_lon,
-            osm_node_type=get_osm_node_type(rec, is_osm_unmatched=True)
+            osm_node_type=get_osm_node_type(rec, is_osm_unmatched=True),
+            geom=make_point_geom(osm_lat, osm_lon),
         )
 
         if problems.get('unmatched_problem'):
@@ -981,7 +997,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     apply_persistent_solutions_service(session)
     
     # Count problems in the database
-    from sqlalchemy import func
     total_stops = session.query(Stop).count()
     distance_problems = session.query(Problem).filter(Problem.problem_type == 'distance').count()
     isolated_problems = session.query(Problem).filter(Problem.problem_type == 'unmatched').count()
@@ -1005,6 +1020,70 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     session.close()
     print("Data import complete!")
 
+
+def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids, atlas_df=None):
+    """
+    Export pipeline statistics to data/stats.json after import completes.
+    
+    Args:
+        base_data: Dictionary with matched, unmatched_atlas, unmatched_osm
+        duplicate_sloid_map: Map of duplicate ATLAS sloids
+        no_nearby_sloids: Set of ATLAS sloids with no OSM within 50m
+        atlas_df: Optional ATLAS DataFrame for total count
+    """
+    try:
+        matched_records = base_data.get('matched', [])
+        unmatched_atlas = base_data.get('unmatched_atlas', [])
+        unmatched_osm = base_data.get('unmatched_osm', [])
+        
+        # Get total ATLAS platforms from DataFrame if available
+        total_atlas = None
+        if atlas_df is not None:
+            total_atlas = len(atlas_df)
+        
+        # Calculate total OSM nodes (matched + unmatched)
+        matched_osm_ids = {r.get('osm_node_id') for r in matched_records if r.get('osm_node_id')}
+        total_osm = len(matched_osm_ids) + len(unmatched_osm)
+        
+        # Check routes for unmatched OSM nodes
+        unmatched_with_routes_count = 0
+        try:
+            routes_path = "data/processed/osm_nodes_with_routes.csv"
+            if os.path.exists(routes_path):
+                routes_df = pd.read_csv(routes_path)
+                nodes_with_routes = set(routes_df['node_id'].astype(str).unique())
+                unmatched_with_routes_count = sum(
+                    1 for node in unmatched_osm 
+                    if str(node.get('node_id')) in nodes_with_routes
+                )
+        except Exception as e:
+            print(f"Warning: Could not count unmatched OSM with routes: {e}")
+        
+        stats = export_pipeline_stats(
+            matched_records=matched_records,
+            unmatched_atlas=unmatched_atlas,
+            unmatched_osm=unmatched_osm,
+            duplicate_sloid_map=duplicate_sloid_map,
+            no_nearby_osm_sloids=no_nearby_sloids,
+            total_atlas_platforms=total_atlas,
+            total_osm_nodes=total_osm,
+        )
+        
+        # Add routes count for unmatched OSM
+        stats['unmatched_analysis']['osm']['with_routes'] = unmatched_with_routes_count
+        
+        filepath = save_stats_to_file(stats)
+        print(f"\n==== STATISTICS EXPORTED ====")
+        print(f"Stats saved to: {filepath}")
+        print(f"Generated at: {stats['generated_at']}")
+        print(f"Summary: {stats['summary']['matched_pairs']} matched pairs ({stats['summary']['match_rate_percent']}%)")
+        
+        return stats
+    except Exception as e:
+        print(f"Warning: Failed to export stats: {e}")
+        return None
+
+
 if __name__ == "__main__":
     # Run the final pipeline to obtain base_data in-memory
     print("Running the final pipeline to obtain base data...")
@@ -1014,4 +1093,8 @@ if __name__ == "__main__":
     print("Importing data into the database...")
     # Pass the new set of sloids to the import function
     import_to_database(base_data, duplicate_sloid_map_result, no_nearby_sloids)
+    
+    # Export statistics to data/stats.json
+    export_stats_after_import(base_data, duplicate_sloid_map_result, no_nearby_sloids)
+    
     print("Process completed successfully!")

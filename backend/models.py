@@ -1,4 +1,6 @@
 from backend.extensions import db
+from geoalchemy2 import Geometry
+from sqlalchemy.dialects.postgresql import JSONB
 
 """
 Model definitions for core entities and related tables.
@@ -13,6 +15,8 @@ class Stop(db.Model):
         db.Index('idx_osm_lat_lon', 'osm_lat', 'osm_lon'),
         db.Index('idx_stop_type_match_type', 'stop_type', 'match_type'),
         db.Index('idx_distance_m', 'distance_m'),
+        # PostGIS spatial index for fast viewport queries (only applies on Postgres)
+        db.Index('idx_stops_geom_gist', 'geom', postgresql_using='gist'),
     )
     
     id = db.Column(db.Integer, primary_key=True)
@@ -30,6 +34,10 @@ class Stop(db.Model):
     osm_lat = db.Column(db.Float)
     osm_lon = db.Column(db.Float)
     distance_m = db.Column(db.Float)
+
+    # Display geometry (atlas point if present, else osm point). SRID 4326 (WGS84).
+    # Populated by the import pipeline; indexed for bbox queries.
+    geom = db.Column(Geometry(geometry_type='POINT', srid=4326), nullable=True)
     
     # OSM node type for marker rendering
     osm_node_type = db.Column(db.String(50))
@@ -150,7 +158,7 @@ class AtlasStop(db.Model):
     atlas_designation = db.Column(db.String(255))
     atlas_designation_official = db.Column(db.String(255))
     atlas_business_org_abbr = db.Column(db.String(100))
-    routes_unified = db.Column(db.JSON)
+    routes_unified = db.Column(JSONB)
     atlas_note = db.Column(db.Text)
     atlas_note_is_persistent = db.Column(db.Boolean, default=False)
     # Attribution for latest note change
@@ -171,7 +179,7 @@ class OsmNode(db.Model):
     osm_amenity = db.Column(db.String(255))
     osm_aerialway = db.Column(db.String(255))
     osm_operator = db.Column(db.String(255))
-    routes_osm = db.Column(db.JSON)
+    routes_osm = db.Column(JSONB)
     osm_note = db.Column(db.Text)
     osm_note_is_persistent = db.Column(db.Boolean, default=False)
     # Attribution for latest note change
@@ -204,9 +212,9 @@ class RouteAndDirection(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     direction_id = db.Column(db.String(20))
     osm_route_id = db.Column(db.String(100))
-    osm_nodes_json = db.Column(db.JSON)
+    osm_nodes_json = db.Column(JSONB)
     atlas_route_id = db.Column(db.String(100))
-    atlas_sloids_json = db.Column(db.JSON)
+    atlas_sloids_json = db.Column(JSONB)
     route_name = db.Column(db.String(255))
     route_short_name = db.Column(db.String(50))
     route_long_name = db.Column(db.String(255))

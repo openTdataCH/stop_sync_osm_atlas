@@ -2,9 +2,10 @@
 Flask==3.0.0
 
 # Database
-PyMySQL==1.1.0
 SQLAlchemy==2.0.23
 cryptography==41.0.7
+psycopg[binary]==3.2.1
+GeoAlchemy2==0.16.0
 
 # Flask extensions
 Flask-SQLAlchemy==3.1.1
