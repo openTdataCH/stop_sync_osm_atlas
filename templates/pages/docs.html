@@ -6,25 +6,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/docs.css') }}">
   <!-- Mermaid.js for diagrams -->
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-  <script>
-    mermaid.initialize({
-      startOnLoad: true,
-      theme: 'base',
-      themeVariables: {
-        primaryColor: '#E3F2FD',
-        primaryTextColor: '#1565C0',
-        primaryBorderColor: '#4A90E2',
-        lineColor: '#546E7A',
-        secondaryColor: '#FFF3E0',
-        tertiaryColor: '#E8F5E9'
-      },
-      flowchart: {
-        useMaxWidth: true,
-        htmlLabels: true,
-        curve: 'basis'
-      }
-    });
-  </script>
+  <script src="{{ url_for('static', filename='js/shared/mermaid-config.js') }}"></script>
 {% endblock %}
 
 {% block content %}

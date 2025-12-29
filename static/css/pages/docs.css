@@ -213,3 +213,87 @@
   display: flex;
   justify-content: center;
 }
+
+/* Apply rounded corners to Mermaid diagram elements */
+.mermaid .node rect,
+.mermaid .node polygon,
+.mermaid .cluster rect {
+  rx: var(--radius-sm) !important;
+  ry: var(--radius-sm) !important;
+}
+
+.mermaid .edgeLabel rect {
+  rx: var(--radius-sm) !important;
+  ry: var(--radius-sm) !important;
+}
+
+/* -------------------------------------------------------------------------
+   Operator Normalizations Page
+   ------------------------------------------------------------------------- */
+.normalizations-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.normalizations-header {
+  margin-bottom: var(--space-6);
+}
+
+.normalizations-table {
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.normalizations-table table {
+  width: 100%;
+  margin: 0;
+}
+
+.normalizations-table th {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-primary);
+  font-weight: var(--font-semibold);
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.normalizations-table td {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.normalizations-table tr:last-child td {
+  border-bottom: none;
+}
+
+.normalizations-table tbody tr:hover {
+  background-color: var(--color-bg-subtle);
+}
+
+.badge-count {
+  background-color: var(--color-primary-subtle);
+  color: var(--color-primary);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+}
+
+.info-box {
+  background-color: var(--color-primary-subtle);
+  border-left: 4px solid var(--color-primary);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-sm);
+}
+
+.info-box i {
+  color: var(--color-primary);
+  margin-right: var(--space-2);
+}

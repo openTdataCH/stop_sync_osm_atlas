@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import csv
 from typing import List, Tuple, Dict, Optional
 
 from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify
@@ -429,6 +430,28 @@ def docs_page(page: str = ''):
 def docs_asset(filename: str):
     docs_dir = _get_docs_dir()
     return send_from_directory(docs_dir, filename)
+
+
+@docs_bp.route('/docs/data/operator-normalizations')
+def operator_normalizations_view():
+    """Display the operator normalizations CSV as an HTML table."""
+    csv_path = os.path.abspath(os.path.join(
+        os.path.dirname(__file__), '..', '..', 'matching_process', 'operator_normalizations.csv'
+    ))
+    
+    if not os.path.isfile(csv_path):
+        abort(404)
+    
+    rows = []
+    with open(csv_path, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    
+    return render_template(
+        'pages/operator_normalizations.html',
+        rows=rows,
+        total_count=len(rows)
+    )
 
 
 @docs_bp.route('/api/docs/stats')
