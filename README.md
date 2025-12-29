@@ -12,7 +12,6 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 
 - [Prerequisites](#prerequisites)
 - [Installation & Setup (with Docker)](#installation--setup-with-docker)
-- [Database Setup (Migrations)](#database-setup-migrations)
 - [Data Acquisition (Entrypoint)](#data-acquisition-entrypoint)
 - [Data Import (Entrypoint)](#data-import-entrypoint)
 - [Running the Web Application](#running-the-web-application)
