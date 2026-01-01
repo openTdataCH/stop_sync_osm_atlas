@@ -91,6 +91,7 @@ def sanitize_html(text):
     Sanitize HTML content to prevent XSS attacks.
     
     Allows basic formatting tags while stripping scripts and event handlers.
+    Dangerous tags like <script> and <style> have their content removed entirely.
     
     Args:
         text: HTML text to sanitize.
@@ -101,9 +102,22 @@ def sanitize_html(text):
     if text is None:
         return ''
     
-    return bleach.clean(
-        str(text),
+    # Use Cleaner to strip content from dangerous tags (script, style, etc.)
+    cleaner = bleach.Cleaner(
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
-        strip=True
+        strip=True,
+        strip_comments=True
     )
+    
+    # First pass: remove script/style tags and their content using regex
+    import re
+    text_str = str(text)
+    # Remove script tags and their content
+    text_str = re.sub(r'<script[^>]*>.*?</script>', '', text_str, flags=re.IGNORECASE | re.DOTALL)
+    # Remove style tags and their content
+    text_str = re.sub(r'<style[^>]*>.*?</style>', '', text_str, flags=re.IGNORECASE | re.DOTALL)
+    
+    # Second pass: use bleach to clean remaining HTML
+    return cleaner.clean(text_str)
+
