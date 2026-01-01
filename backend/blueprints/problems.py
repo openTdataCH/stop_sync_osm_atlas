@@ -35,8 +35,15 @@ def apply_atlas_operator_filter(query, atlas_operator_filter):
 @limiter.limit("120/minute")
 def get_problems():
     try:
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 100))
+        from backend.services.validators import validate_pagination
+        try:
+            page, limit = validate_pagination(
+                request.args.get('page', 1),
+                request.args.get('limit', 100),
+                max_limit=1000
+            )
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
         offset = (page - 1) * limit
         problem_type_filter = request.args.get('problem_type', 'all')
         solution_status_filter = request.args.get('solution_status', 'all')
@@ -431,10 +438,17 @@ def get_problem_stats():
 @limiter.limit("30/minute")
 def save_solution():
     try:
+        from backend.services.validators import validate_text_content
         data = request.get_json()
         problem_id = data.get('problem_id')
         problem_type = data.get('problem_type')
         solution = data.get('solution')
+        # Validate solution content if provided
+        if solution:
+            try:
+                solution = validate_text_content(solution, max_length=10000, field_name='solution')
+            except ValueError as e:
+                return jsonify({"success": False, "error": str(e)}), 400
         if not problem_id:
             return jsonify({"success": False, "error": "Missing problem_id parameter"}), 400
         mapped_problem_type = 'unmatched' if problem_type == 'isolated' else problem_type
@@ -541,15 +555,19 @@ def check_persistent_solution():
 @login_required
 def save_atlas_note():
     try:
+        from backend.services.validators import validate_text_content, sanitize_html
         data = request.get_json()
         sloid = data.get('sloid')
         note = data.get('note', '')
         make_persistent = data.get('make_persistent', False)
         if not sloid:
             return jsonify({"success": False, "error": "Missing sloid"}), 400
-        # Validate note content
-        if note is None or str(note).strip() == '':
-            return jsonify({"success": False, "error": "Note cannot be empty"}), 400
+        # Validate and sanitize note content
+        try:
+            note = validate_text_content(note, max_length=50000, field_name='note')
+            note = sanitize_html(note)
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
         # Validate entity exists to avoid orphan notes
         atlas_exists = AtlasStop.query.filter_by(sloid=sloid).first()
         if not atlas_exists:
@@ -588,15 +606,19 @@ def save_atlas_note():
 @login_required
 def save_osm_note():
     try:
+        from backend.services.validators import validate_text_content, sanitize_html
         data = request.get_json()
         osm_node_id = data.get('osm_node_id')
         note = data.get('note', '')
         make_persistent = data.get('make_persistent', False)
         if not osm_node_id:
             return jsonify({"success": False, "error": "Missing osm_node_id"}), 400
-        # Validate note content
-        if note is None or str(note).strip() == '':
-            return jsonify({"success": False, "error": "Note cannot be empty"}), 400
+        # Validate and sanitize note content
+        try:
+            note = validate_text_content(note, max_length=50000, field_name='note')
+            note = sanitize_html(note)
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 400
         # Validate entity exists to avoid orphan notes
         osm_exists = OsmNode.query.filter_by(osm_node_id=osm_node_id).first()
         if not osm_exists:
@@ -742,8 +764,15 @@ def get_notes_for_entity():
 @limiter.limit("60/minute")
 def get_persistent_data():
     try:
-        page = int(request.args.get('page', 1))
-        limit = int(request.args.get('limit', 100))
+        from backend.services.validators import validate_pagination
+        try:
+            page, limit = validate_pagination(
+                request.args.get('page', 1),
+                request.args.get('limit', 100),
+                max_limit=500
+            )
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
         offset = (page - 1) * limit
         problem_type = request.args.get('problem_type', None)
         note_type = request.args.get('note_type', None)

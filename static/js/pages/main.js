@@ -1303,6 +1303,16 @@ $(document).ready(function(){
     
     initMap();
     
+    // Fix race condition: flexbox layout may not be fully computed when Leaflet initializes
+    // on first page visit (cold cache). Double rAF ensures we wait for layout + paint phases.
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+            if (map) {
+                map.invalidateSize();
+            }
+        });
+    });
+    
     // loadDataForViewport(); // updateActiveFilters will call this after initial filter setup
     initSearchTypeSelector();
     initFilterPanelToggle();

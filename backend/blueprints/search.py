@@ -159,7 +159,11 @@ def search():
 @limiter.limit("60/minute")
 def get_top_matches():
     try:
-        limit = int(request.args.get('limit', 10))
+        from backend.services.validators import validate_pagination
+        try:
+            _, limit = validate_pagination(1, request.args.get('limit', 10), max_limit=100)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
         match_method_str = request.args.get('match_method', None)
         filters = parse_filter_params(request.args)
         query_builder = get_query_builder()
