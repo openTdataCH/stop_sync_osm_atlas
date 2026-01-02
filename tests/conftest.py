@@ -10,7 +10,6 @@ This module provides:
 import os
 import sys
 import pytest
-import pandas as pd
 
 # Ensure project root is in path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,6 +26,7 @@ def sample_atlas_dataframe():
     
     Columns match the expected structure from the ATLAS CSV processing.
     """
+    import pandas as pd
     return pd.DataFrame({
         'sloid': ['ch:1:sloid:1', 'ch:1:sloid:2', 'ch:1:sloid:3'],
         'number': ['8503000', '8507000', '8500010'],  # UIC refs
