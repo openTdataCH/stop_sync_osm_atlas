@@ -56,7 +56,7 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
     - Import everything into the database
     - Start the Flask web application
 
-    This typically takes 15 minutes. Data and database state are cached across runs (`./data` directory and the `postgres_data` volume).
+    This typically takes 20 minutes. Data and database state are cached across runs (`./data` directory and the `postgres_data` volume).
 
     **Match-Only Mode (Skip Data Downloads):**
     ```bash
@@ -82,7 +82,35 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 
 ## Pipeline
 
-![Pipeline Schema](documentation/images/PipelineSchema.png)
+> [!NOTE] 
+> For the best experience viewing the documentation diagrams, we recommend reading the documentation within the running web application. GitHub's Mermaid renderer may fail to render complex diagrams.
+
+```mermaid
+flowchart LR
+    subgraph Sources["Data Sources"]
+        A[("ATLAS<br/>Official Swiss Data")]
+        O[("OSM<br/>Community Data")]
+    end
+    
+    subgraph Pipeline["Processing Pipeline"]
+        direction TB
+        D["1. Download & Process"]
+        M["2. Multi-Stage Matching"]
+        P["3. Problem Detection"]
+        I["4. Database Import"]
+        D --> M --> P --> I
+    end
+    
+    subgraph Output["Output"]
+        DB[("PostgreSQL<br/>+ PostGIS")]
+        W["Web Application"]
+        DB --> W
+    end
+    
+    A --> D
+    O --> D
+    I --> DB
+```
 
 When the `app` container starts (and data import is not skipped), the entrypoint runs:
 
