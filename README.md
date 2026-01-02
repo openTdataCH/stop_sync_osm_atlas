@@ -12,15 +12,13 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 
 - [Prerequisites](#prerequisites)
 - [Installation & Setup (with Docker)](#installation--setup-with-docker)
-- [Data Acquisition (Entrypoint)](#data-acquisition-entrypoint)
-- [Data Import (Entrypoint)](#data-import-entrypoint)
+- [Pipeline](#pipeline)
 - [Running the Web Application](#running-the-web-application)
-- [Usage](#usage)
-- [Generating Reports](#generating-reports)
-- [Project Report](#project-report)
-- [Project Status](#project-status)
+- [Environment & Secrets](#environment--secrets)
+- [Admin Management CLI](#admin-management-cli)
+- [Authentication](#authentication)
 - [CI & Tests](#ci--tests)
-- [Contributing](#contributing)
+- [Contributing and Project Status](#contributing-and-project-status)
 
 ---
 
@@ -82,34 +80,38 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
     ```
     To remove all data: `docker compose down -v`
 
-## Pipline (Entrypoint)
-![Schema pipeline](documentation/images/PipelineSchema.png)
+## Pipeline
+
+![Pipeline Schema](documentation/images/PipelineSchema.png)
+
 When the `app` container starts (and data import is not skipped), the entrypoint runs:
 
 - `Download_and_process_data/get_atlas_data.py`: downloads ATLAS data and GTFS, builds optimized route/stop artifacts
 - `Download_and_process_data/get_osm_data.py`: fetches OSM data via Overpass and processes it
 
-Downloads are cached under `data/raw/` and processed artifacts under `data/processed/`  See [DATA_ORGANIZATION.md](documentation/DATA_ORGANIZATION.md) for details.
+Downloads are cached under `data/raw/` and processed artifacts under `data/processed/` — see [1. Download and process data](documentation/1.%20Download%20and%20process%20data.md) for details.
 
 **Speed up iterations**: Use `MATCH_ONLY=true` to skip downloads and data processing and only run the matching/import process using existing data files. This requires that a full pipeline has been run at least once to generate the necessary processed files.
 
-### Data Import (Entrypoint)
+### Data Import
+
 After acquisition, `import_data_db.py` populates the Postgres databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
 
 Set `SKIP_DATA_IMPORT=true` (the `app-dev` service already does this) to bypass acquisition/import when you only want to run the web app against an existing database.
 
-### Running the Web Application
+## Running the Web Application
+
 The Flask server is started automatically by Docker Compose.
 
 Access it at [http://localhost:5001/](http://localhost:5001/).
 
-**Usage:**
+### Usage
 
 - **Map View**: Browse stops by type (`matched`, `unmatched`, `osm`) and match method.
 - **Filters & Search**: Filter by ATLAS SLOID, OSM Node ID, UIC reference, or route.
-- **Problems**: On the problems page you can solve the problems. See [PROBLEMS_DEFINITIONS.md](documentation/PROBLEMS_DEFINITIONS.md).
-- **Manage Data**: See [PERSISTENT_DATA.md](documentation/PERSISTENT_DATA.md).
-- **Generating Reports:** The web app can generate CSV and PDF reports. See [GENERATE_REPORTS.md](documentation/GENERATE_REPORTS.md)
+- **Problems**: On the problems page you can solve the problems. See [3. Problems](documentation/3.%20Problems.md).
+- **Manage Data**: See [4.2 Persistent Data](documentation/4.2%20Persistent%20Data.md).
+- **Generating Reports:** The web app can generate CSV and PDF reports. See [5.3 Generate Reports](documentation/5.3%20Generate%20Reports.md).
 
 ## Environment & Secrets
 
@@ -186,7 +188,7 @@ The project uses Alembic (via Flask‑Migrate) to manage schema. On startup, the
   - Clear all non‑persistent data
   - Make solutions/notes persistent in bulk
 
-See the full policy: [Permissions and Roles](documentation/PERMISSIONS.md).
+See the full policy: [6.1 Permissions and Roles](documentation/6.1%20Permissions%20and%20Roles.md).
 
 
 ## CI & Tests

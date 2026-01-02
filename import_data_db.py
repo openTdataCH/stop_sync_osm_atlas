@@ -1068,19 +1068,52 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids, 
         matched_osm_ids = {r.get('osm_node_id') for r in matched_records if r.get('osm_node_id')}
         total_osm = len(matched_osm_ids) + len(unmatched_osm)
         
-        # Check routes for unmatched OSM nodes
+        # Calculate OSM route stats
+        osm_with_routes_count = 0
         unmatched_with_routes_count = 0
         try:
             routes_path = "data/processed/osm_nodes_with_routes.csv"
             if os.path.exists(routes_path):
+                # We only need checking existence for unmatched, but for stats we need total unique nodes
                 routes_df = pd.read_csv(routes_path)
+                
+                # Stats: Total OSM nodes with routes
+                if 'node_id' in routes_df.columns:
+                    osm_with_routes_count = routes_df['node_id'].nunique()
+                else:
+                    osm_with_routes_count = len(routes_df)
+                
+                # Unmatched analysis
                 nodes_with_routes = set(routes_df['node_id'].astype(str).unique())
                 unmatched_with_routes_count = sum(
                     1 for node in unmatched_osm 
                     if str(node.get('node_id')) in nodes_with_routes
                 )
         except Exception as e:
-            print(f"Warning: Could not count unmatched OSM with routes: {e}")
+            print(f"Warning: Could not calculate OSM route stats: {e}")
+
+        # Calculate ATLAS route stats
+        atlas_route_stats = {}
+        try:
+            unified_path = "data/processed/atlas_routes_unified.csv"
+            if os.path.exists(unified_path):
+                df_unified = pd.read_csv(unified_path, dtype=str)
+                gtfs_matches = df_unified[df_unified['source'] == 'gtfs']['sloid'].nunique()
+                hrdf_matches = df_unified[df_unified['source'] == 'hrdf']['sloid'].nunique()
+                any_route = df_unified['sloid'].nunique()
+                
+                atlas_route_stats = {
+                    'atlas_total': total_atlas if total_atlas else 0, # Passed earlier
+                    'atlas_gtfs_matches': gtfs_matches,
+                    'atlas_hrdf_matches': hrdf_matches,
+                    'atlas_with_routes': any_route
+                }
+        except Exception as e:
+            print(f"Warning: Could not calculate ATLAS route stats: {e}")
+        
+        osm_route_stats = {
+            'osm_with_routes': osm_with_routes_count
+        }
         
         stats = export_pipeline_stats(
             matched_records=matched_records,
@@ -1090,9 +1123,11 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids, 
             no_nearby_osm_sloids=no_nearby_sloids,
             total_atlas_platforms=total_atlas,
             total_osm_nodes=total_osm,
+            atlas_route_stats=atlas_route_stats,
+            osm_route_stats=osm_route_stats
         )
         
-        # Add routes count for unmatched OSM
+        # Add routes count for unmatched OSM (already in stats['unmatched_analysis']['osm'])
         stats['unmatched_analysis']['osm']['with_routes'] = unmatched_with_routes_count
         
         filepath = save_stats_to_file(stats)

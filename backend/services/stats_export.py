@@ -30,6 +30,8 @@ def export_pipeline_stats(
     no_nearby_osm_sloids: set,
     total_atlas_platforms: int = None,
     total_osm_nodes: int = None,
+    atlas_route_stats: Dict[str, int] = None,
+    osm_route_stats: Dict[str, int] = None,
 ) -> Dict[str, Any]:
     """
     Export comprehensive pipeline statistics after matching.
@@ -213,6 +215,21 @@ def export_pipeline_stats(
         "match_type_counts": match_type_counts,
     }
     
+    # Add detailed route stats if provided
+    if atlas_route_stats or osm_route_stats:
+        stats['routes'] = {}
+        if atlas_route_stats:
+            stats['routes'].update(atlas_route_stats)
+            # Calculate percentages if total atlas is available
+            if total_atlas_platforms and total_atlas_platforms > 0:
+                any_route = atlas_route_stats.get('atlas_with_routes', 0)
+                gtfs_matches = atlas_route_stats.get('atlas_gtfs_matches', 0)
+                stats['routes']['atlas_with_routes_percent'] = round((any_route / total_atlas_platforms * 100), 1)
+                stats['routes']['gtfs_coverage_percent'] = round((gtfs_matches / total_atlas_platforms * 100), 1)
+                
+        if osm_route_stats:
+            stats['routes'].update(osm_route_stats)
+
     return stats
 
 
