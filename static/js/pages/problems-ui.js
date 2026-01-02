@@ -4,7 +4,7 @@
  * ProblemsUI - UI rendering, display, and interaction functionality
  * Depends on: ProblemsState, PopupRenderer (from popup-renderer.js)
  */
-window.ProblemsUI = (function() {
+window.ProblemsUI = (function () {
     'use strict';
 
     // Small UI helpers
@@ -42,8 +42,8 @@ window.ProblemsUI = (function() {
         return {
             badge: `<span class="badge badge-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`,
             ident: isOsm ? (member.osm_node_id || '-') : (member.sloid || '-'),
-            name: isOsm ? (member.osm_name || member.osm_uic_name || '-') 
-                        : (member.atlas_designation_official || member.atlas_designation || '-'),
+            name: isOsm ? (member.osm_name || member.osm_uic_name || '-')
+                : (member.atlas_designation_official || member.atlas_designation || '-'),
             isOsm
         };
     }
@@ -105,7 +105,7 @@ window.ProblemsUI = (function() {
             const hint = $('#keyboardHint');
             hint.addClass('show');
             ProblemsState.setKeyboardHintShown(true);
-            
+
             // Auto-hide after 5 seconds
             const timeout = setTimeout(() => {
                 hideKeyboardHint();
@@ -134,7 +134,7 @@ window.ProblemsUI = (function() {
         let html = '<div class="problem-section-item">';
         html += '<h6><i class="fas fa-exchange-alt"></i> Attribute Comparison</h6>';
         // Priority-aware concise info banner for attributes, shown above the popups
-        (function(){
+        (function () {
             const pr = Number(problem.priority);
             let alertClass = 'alert-info';
             let icon = 'info-circle';
@@ -177,7 +177,7 @@ window.ProblemsUI = (function() {
                      </div>`;
         })();
         html += '<div class="row">';
-        
+
         // ATLAS column
         html += '<div class="col-md-6">';
         html += '<h6 class="text-info mb-3"><i class="fas fa-map-marker-alt"></i> ATLAS Entry</h6>';
@@ -202,16 +202,16 @@ window.ProblemsUI = (function() {
                     }
                 }
             });
-            html += PopupRenderer.generatePopupHtml(atlasData, 'atlas');
+            html += PopupRenderer.generatePopupHtml(atlasData, 'atlas', { hideRoutesAndNotes: true });
         } else {
             html += '<div class="alert alert-warning">ATLAS info not available</div>';
         }
         html += '</div>';
-        
+
         // OSM column
         html += '<div class="col-md-6">';
         html += '<h6 class="text-primary mb-3"><i class="fas fa-map"></i> OSM Entry</h6>';
-        
+
         if (typeof PopupRenderer !== 'undefined') {
             // Create a temporary OSM data object
             const osmData = {
@@ -232,15 +232,15 @@ window.ProblemsUI = (function() {
                     osmData[key] = problem[key];
                 }
             });
-            html += PopupRenderer.generatePopupHtml(osmData, 'osm');
+            html += PopupRenderer.generatePopupHtml(osmData, 'osm', { hideRoutesAndNotes: true });
         } else {
             html += '<div class="alert alert-warning">OSM info not available</div>';
         }
         html += '</div>';
-        
+
         html += '</div>'; // End row
         html += '</div>'; // End problem-section-item
-        
+
         return html;
     }
 
@@ -254,12 +254,12 @@ window.ProblemsUI = (function() {
             { atlas: 'atlas_designation', osm: 'osm_local_ref', label: 'Local Reference' },
             // Transport type comparison removed from attributes problem resolution per requirements
         ];
-        
+
         const mismatches = [];
         attributesToCheck.forEach(attr => {
             const atlasValue = problem[attr.atlas] || '';
             const osmValue = problem[attr.osm] || '';
-            
+
             // Consider it a mismatch if values are different
             if (atlasValue !== osmValue) {
                 mismatches.push(attr);
@@ -320,7 +320,7 @@ window.ProblemsUI = (function() {
         const isAtlas = problem.stop_type === 'unmatched';
         const subject = isAtlas ? 'ATLAS entry' : 'OSM entry';
         const { alertClass, icon } = getPriorityAlertStyle(pr);
-        
+
         let intent = '';
         if (pr === 1) intent = 'No counterpart exists for this UIC or none within 80 m';
         else if (pr === 2) intent = 'No counterpart within 50 m or platform count mismatch for this UIC';
@@ -351,7 +351,7 @@ window.ProblemsUI = (function() {
                 `<div class="alert ${alertClass}"><small><i class="fas fa-${icon}"></i> ${subject} is unmatched. ${intent}.</small></div>${buttonsHtml}`
             );
         }
-        
+
         // Fallback for unexpected cases
         return wrapInSection(
             '<i class="fas fa-exclamation-triangle text-danger"></i> Data Inconsistency',
@@ -365,7 +365,7 @@ window.ProblemsUI = (function() {
     function generateAttributesActionButtons(problem) {
         let html = '<div class="problem-section-item">';
         html += '<h6><i class="fas fa-tools"></i> Resolution Actions</h6>';
-        
+
         const mismatches = getMismatchedAttributes(problem);
         let solution = {};
         if (problem.solution && problem.solution.trim() !== '' && problem.solution.trim().startsWith('{')) {
@@ -440,19 +440,19 @@ window.ProblemsUI = (function() {
         let html = '<div class="problem-section-item">';
         html += `<h6>${title}</h6>`;
         html += '<div class="alert alert-info"><small><i class="fas fa-info-circle"></i> ' +
-                (isOsmGroup ? 'Multiple OSM nodes share the same UIC and local_ref. Review each and decide which should remain.'
-                             : 'Multiple ATLAS entries share the UIC number and designation. Review and decide which should remain.') +
-                '</small></div>';
+            (isOsmGroup ? 'Multiple OSM nodes share the same UIC and local_ref. Review each and decide which should remain.'
+                : 'Multiple ATLAS entries share the UIC number and designation. Review and decide which should remain.') +
+            '</small></div>';
 
         // Table of members
         html += '<table class="table table-sm"><thead><tr>' +
-                '<th>Source</th><th>Identifier</th><th>Name</th><th>Coords</th><th>Action</th></tr></thead><tbody>';
+            '<th>Source</th><th>Identifier</th><th>Name</th><th>Coords</th><th>Action</th></tr></thead><tbody>';
 
         (problem.members || []).forEach(member => {
             const { badge, ident, name, isOsm } = getMemberDisplayInfo(member, problem.group_type);
             const coords = isOsm
-                ? (member.osm_lat && member.osm_lon ? `${Math.round(member.osm_lat*1e5)/1e5}, ${Math.round(member.osm_lon*1e5)/1e5}` : '-')
-                : (member.atlas_lat && member.atlas_lon ? `${Math.round(member.atlas_lat*1e5)/1e5}, ${Math.round(member.atlas_lon*1e5)/1e5}` : '-');
+                ? (member.osm_lat && member.osm_lon ? `${Math.round(member.osm_lat * 1e5) / 1e5}, ${Math.round(member.osm_lon * 1e5) / 1e5}` : '-')
+                : (member.atlas_lat && member.atlas_lon ? `${Math.round(member.atlas_lat * 1e5) / 1e5}, ${Math.round(member.atlas_lon * 1e5) / 1e5}` : '-');
 
             const hasSolution = typeof member.solution === 'string' && member.solution.trim() !== '';
             const isKeep = hasSolution && member.solution.trim().toLowerCase() === 'keep';
@@ -503,7 +503,7 @@ window.ProblemsUI = (function() {
 
         const hasPersistentSolutions = solvedMembers.some(m => m.is_persistent);
         let persistenceHtml = '';
-        
+
         if (hasPersistentSolutions) {
             persistenceHtml = `
                 <div class="mt-2">
@@ -533,13 +533,13 @@ window.ProblemsUI = (function() {
                             <strong>Proposed Solution:</strong>
                             <ul class="mb-0 mt-2">
                                 ${solvedMembers.map(m => {
-                                    const isOsm = problem.group_type === 'osm' ? true : (problem.group_type === 'atlas' ? false : !!m.osm_node_id);
-                                    const sourceBadge = isOsm ? '<span class="badge badge-secondary">OSM</span>' : '<span class="badge badge-secondary">ATLAS</span>';
-                                    const ident = isOsm ? (m.osm_node_id || '-') : (m.sloid || '-');
-                                    const sol = (m.solution || '').trim();
-                                    const persistentIcon = m.is_persistent ? ' <i class="fas fa-database"></i>' : '';
-                                    return `<li>${sourceBadge} ${ident} → <strong>${sol}</strong>${persistentIcon}</li>`;
-                                }).join('')}
+            const isOsm = problem.group_type === 'osm' ? true : (problem.group_type === 'atlas' ? false : !!m.osm_node_id);
+            const sourceBadge = isOsm ? '<span class="badge badge-secondary">OSM</span>' : '<span class="badge badge-secondary">ATLAS</span>';
+            const ident = isOsm ? (m.osm_node_id || '-') : (m.sloid || '-');
+            const sol = (m.solution || '').trim();
+            const persistentIcon = m.is_persistent ? ' <i class="fas fa-database"></i>' : '';
+            return `<li>${sourceBadge} ${ident} → <strong>${sol}</strong>${persistentIcon}</li>`;
+        }).join('')}
                             </ul>
                             <small class="text-muted">You can modify any member's decision using the buttons below.</small>
                         </div>
@@ -680,25 +680,25 @@ window.ProblemsUI = (function() {
         if (totalIssues > 1) {
             displayText += ` (Issue ${issueIndex + 1}/${totalIssues})`;
         }
-        
+
         // Add distance indicator for distance problems
         if (problem.problem === 'distance' && problem.distance_m) {
             const distance = Math.round(problem.distance_m);
             const distanceClass = distance > 100 ? 'high-distance' : '';
             displayText += `<span class="distance-indicator ${distanceClass}">(${distance}m apart)</span>`;
         }
-        
+
         // Add persistence indicator to header if solution is persistent
         let persistenceIcon = '';
         if (problem.is_persistent) {
             persistenceIcon = ` <i class="fas fa-database text-success" title="This solution is persistent"></i>`;
         }
-        
+
         html += `<h5 class="text-center mb-3">${displayText}${persistenceIcon}</h5>`;
 
         // Generate action buttons and content based on problem type
         let actionButtonsHtml = '';
-        
+
         // Handle duplicates differently due to their multi-member structure
         if (problem.problem === 'duplicates') {
             if (Array.isArray(problem.members) && problem.members.length > 0) {
@@ -712,7 +712,7 @@ window.ProblemsUI = (function() {
                     '<i class="fas fa-clone"></i> Duplicates',
                     '<div class="alert alert-info"><small>This entry is part of a duplicates group. Open the Duplicates view to resolve this issue.</small></div>' +
                     '<button class="btn btn-sm btn-outline-primary professional-button" onclick="ProblemsData.updateProblemTypeFilter(\'duplicates\', \'all\')">' +
-                        '<i class="fas fa-external-link-alt"></i> Open Duplicates'
+                    '<i class="fas fa-external-link-alt"></i> Open Duplicates'
                     + '</button>'
                 );
             }
@@ -724,7 +724,7 @@ window.ProblemsUI = (function() {
                 'data-stop-id': problem.stop_id
             };
             actionButtonsHtml += generateSolutionStatusSection(problem, clearButtonDataAttrs);
-            
+
             // Resolution Actions for other problem types
             switch (problem.problem) {
                 case 'distance':
@@ -740,7 +740,7 @@ window.ProblemsUI = (function() {
             }
         }
         html += actionButtonsHtml;
-        
+
         // Add concise, priority-aware info banner below the resolution actions (except for distance & unmatched which already show an integrated banner)
         if (problem.problem !== 'distance' && problem.problem !== 'unmatched') {
             html += generateProblemInfoBanner(problem);
@@ -754,9 +754,9 @@ window.ProblemsUI = (function() {
      */
     function setupIntersectionObserver() {
         const options = {
-          root: document.getElementById('problemContent'),
-          rootMargin: '0px',
-          threshold: 0.6, // Use a slightly lower threshold
+            root: document.getElementById('problemContent'),
+            rootMargin: '0px',
+            threshold: 0.6, // Use a slightly lower threshold
         };
 
         const observer = new IntersectionObserver((entries, observer) => {
@@ -771,12 +771,12 @@ window.ProblemsUI = (function() {
                         ProblemsState.setCurrentEntryProblemIndex(newProblemIndex);
                         const problem = currentEntryProblems[newProblemIndex];
                         ProblemsState.setCurrentProblem(problem);
-                        
+
                         // Update map
                         const problemMap = ProblemsState.getProblemMap();
                         const markersLayer = ProblemsState.getProblemMarkersLayer();
                         const linesLayer = ProblemsState.getProblemLinesLayer();
-                        
+
                         if (problemMap && typeof drawProblemOnMap !== 'undefined') {
                             drawProblemOnMap(problemMap, problem, {
                                 markersLayer: markersLayer,
@@ -794,7 +794,7 @@ window.ProblemsUI = (function() {
                             $('#notesSection').show();
                             $('#standardNotesContainer').hide();
                             $('#duplicatesNotesContainer').show().html(generateDuplicatesNotesSection(problem));
-        } else {
+                        } else {
                             // Show standard notes container for other problem types
                             $('#notesSection').show();
                             $('#standardNotesContainer').show();
@@ -807,7 +807,7 @@ window.ProblemsUI = (function() {
                 }
             });
         }, options);
-        
+
         ProblemsState.setObserver(observer);
     }
 
@@ -817,11 +817,11 @@ window.ProblemsUI = (function() {
     function displayProblem(index) {
         const problemsByEntry = ProblemsState.getProblemsByEntry();
         const totalProblems = ProblemsState.getTotalProblems();
-        
+
         if (index < 0 || index >= problemsByEntry.length) {
             return;
         }
-        
+
         ProblemsState.setCurrentProblemIndex(index);
         const currentEntryProblems = problemsByEntry[index];
         ProblemsState.setCurrentEntryProblems(currentEntryProblems);
@@ -854,7 +854,7 @@ window.ProblemsUI = (function() {
         });
 
         // Setup intersection observer for the new items
-        $('.issue-container').each(function() {
+        $('.issue-container').each(function () {
             if (observer) {
                 observer.observe(this);
             }
@@ -865,12 +865,12 @@ window.ProblemsUI = (function() {
         if (firstProblem) {
             // Make first issue active
             $(`.issue-container[data-problem-id="${firstProblem.id}"]`).addClass('active');
-            
+
             // Draw the problem markers and lines on the map
             const problemMap = ProblemsState.getProblemMap();
             const markersLayer = ProblemsState.getProblemMarkersLayer();
             const linesLayer = ProblemsState.getProblemLinesLayer();
-            
+
             if (problemMap && typeof drawProblemOnMap !== 'undefined') {
                 drawProblemOnMap(problemMap, firstProblem, {
                     markersLayer: markersLayer,
@@ -905,7 +905,7 @@ window.ProblemsUI = (function() {
                 }
             }
         }
-        
+
         // Add scroll indicator if needed
         const problemContent = $('#problemContent');
         let scrollIndicator = problemContent.find('.scroll-indicator');
@@ -935,7 +935,7 @@ window.ProblemsUI = (function() {
         const allProblems = ProblemsState.getAllProblems();
         const totalProblems = ProblemsState.getTotalProblems();
         const problemsByEntry = ProblemsState.getProblemsByEntry();
-        
+
         // Navigation should be disabled only if we are at the very beginning, or at the very end of ALL problems
         $('#prevProblemBtn').prop('disabled', currentProblemIndex <= 0 && currentPage === 1);
         $('#nextProblemBtn').prop('disabled', allProblems.length === totalProblems && currentProblemIndex >= problemsByEntry.length - 1);

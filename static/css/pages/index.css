@@ -128,6 +128,13 @@ main {
   border-color: var(--color-primary);
 }
 
+#activeFilters {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  margin-top: var(--space-2);
+  background: var(--color-bg);
+}
+
 /* Map container fills entire space (panel overlays it) */
 #mapContainer {
   flex: 1 1 auto;

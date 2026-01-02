@@ -1,36 +1,36 @@
-(function(global){
+(function (global) {
     'use strict';
 
     const PopupUtils = {};
 
-    function normalizeRoutes(routes){
-        if(!routes){ return []; }
-        if(typeof routes === 'string'){
-            try{ routes = JSON.parse(routes); }catch(e){ return []; }
+    function normalizeRoutes(routes) {
+        if (!routes) { return []; }
+        if (typeof routes === 'string') {
+            try { routes = JSON.parse(routes); } catch (e) { return []; }
         }
-        if(Array.isArray(routes)){ return routes.filter(Boolean); }
+        if (Array.isArray(routes)) { return routes.filter(Boolean); }
         return [routes];
     }
 
-    function groupRoutes(routes){
+    function groupRoutes(routes) {
         const groups = {};
         routes.forEach(route => {
-            if(!route) return;
+            if (!route) return;
             const routeId = route.route_id || 'unknown';
             const routeName = route.route_short_name || route.route_name || route.route_id || 'Unnamed Route';
-            if(!groups[routeId]){
+            if (!groups[routeId]) {
                 groups[routeId] = { name: routeName, directions: [], routeId };
             }
-            if(route.direction_id !== undefined && !groups[routeId].directions.includes(route.direction_id)){
+            if (route.direction_id !== undefined && !groups[routeId].directions.includes(route.direction_id)) {
                 groups[routeId].directions.push(route.direction_id);
             }
         });
         return groups;
     }
 
-    function formatRouteList(routes){
+    function formatRouteList(routes) {
         routes = normalizeRoutes(routes);
-        if(routes.length === 0){ return '<i>No route information available</i>'; }
+        if (routes.length === 0) { return '<i>No route information available</i>'; }
         const routeGroups = groupRoutes(routes);
         const itemsHtml = Object.values(routeGroups).map(group => {
             const directions = group.directions.slice().sort();
@@ -54,21 +54,30 @@
             const right = [route.route_id || '', route.line_name || ''].filter(Boolean).join(' / ');
             const sourceChip = source ? `<span class="chip">${source}</span>` : '';
             const dirStr = direction ? `<small>${direction}</small>` : '';
-            return `<li>${sourceChip} ${displayName} ${dirStr} ${right ? `<small>(${right})</small>` : ''}</li>`;
+
+            // Add filter link if route_id exists
+            let routeFilterLink = '';
+            if (route.route_id) {
+                // Pass simple direction code if available, or empty string
+                const dirId = route.direction_id || '';
+                routeFilterLink = ` <a href="#" onclick="filterByRoute('${route.route_id}', '${dirId}'); return false;" title="Filter by this route"><i class="fas fa-filter text-muted small"></i></a>`;
+            }
+
+            return `<li>${sourceChip} ${displayName} ${routeFilterLink} ${dirStr} ${right ? `<small>(${right})</small>` : ''}</li>`;
         }).join('');
         return `<ul class="route-list" style="margin-top: 5px; padding-left: 15px;">${itemsHtml}</ul>`;
     }
 
-    function categorizeRoutes(atlasRoutes, osmRoutes){
+    function categorizeRoutes(atlasRoutes, osmRoutes) {
         const atlasArr = normalizeRoutes(atlasRoutes);
-        const osmArr   = normalizeRoutes(osmRoutes);
+        const osmArr = normalizeRoutes(osmRoutes);
         const matched = [];
         const atlasOnly = [...atlasArr];
-        const osmOnly   = [...osmArr];
+        const osmOnly = [...osmArr];
         atlasArr.forEach(atlasRoute => {
-            if(!atlasRoute || !atlasRoute.route_id) return;
+            if (!atlasRoute || !atlasRoute.route_id) return;
             const matchIdx = osmArr.findIndex(osmRoute => osmRoute && osmRoute.route_id === atlasRoute.route_id && osmRoute.direction_id === atlasRoute.direction_id);
-            if(matchIdx !== -1){
+            if (matchIdx !== -1) {
                 const osmRoute = osmArr[matchIdx];
                 matched.push({
                     route_id: atlasRoute.route_id,
@@ -78,9 +87,9 @@
                     route_name: osmRoute.route_name
                 });
                 const atlasIdx = atlasOnly.findIndex(r => r && r.route_id === atlasRoute.route_id && r.direction_id === atlasRoute.direction_id);
-                if(atlasIdx !== -1) atlasOnly.splice(atlasIdx, 1);
+                if (atlasIdx !== -1) atlasOnly.splice(atlasIdx, 1);
                 const osmIdx = osmOnly.findIndex(r => r && r.route_id === osmRoute.route_id && r.direction_id === osmRoute.direction_id);
-                if(osmIdx !== -1) osmOnly.splice(osmIdx, 1);
+                if (osmIdx !== -1) osmOnly.splice(osmIdx, 1);
             }
         });
         return { matchedRoutes: matched, atlasOnlyRoutes: atlasOnly, osmOnlyRoutes: osmOnly };
@@ -144,18 +153,18 @@
         return html || '<i>No route information available</i>';
     }
 
-    function createFilterLink(value, type, displayText){
-        if(!value) return 'N/A';
+    function createFilterLink(value, type, displayText) {
+        if (!value) return 'N/A';
         const text = displayText || value;
         return `<a href="#" onclick="addCustomFilter('${value}', '${type}'); return false;">${text}</a>`;
     }
 
     PopupUtils.normalizeRoutes = normalizeRoutes;
-    PopupUtils.groupRoutes     = groupRoutes;
+    PopupUtils.groupRoutes = groupRoutes;
     PopupUtils.formatRouteList = formatRouteList;
     PopupUtils.formatUnifiedRouteList = formatUnifiedRouteList;
-    PopupUtils.categorizeRoutes= categorizeRoutes;
-    PopupUtils.createFilterLink= createFilterLink;
+    PopupUtils.categorizeRoutes = categorizeRoutes;
+    PopupUtils.createFilterLink = createFilterLink;
     PopupUtils.createCollapsible = createCollapsible;
     PopupUtils.toggleCollapsible = toggleCollapsible;
     PopupUtils.formatRoutesDisplay = formatRoutesDisplay;
