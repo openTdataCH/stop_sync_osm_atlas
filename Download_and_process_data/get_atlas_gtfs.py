@@ -368,15 +368,24 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points):
         candidates = atlas_by_number.get(uic)
         if candidates is None or candidates.empty:
             continue
+        
+        # Handling Parent Stations (nref is None)
+        # If we have a generic "Parent" GTFS ID (no platform), map it to ALL ATLAS platforms at that station.
+        # This checks if nref is None or empty.
+        if pd.isna(nref) or not nref:
+            # Broadcast to ALL candidates (1-to-many)
+            for sloid_cand in candidates['sloid']:
+                fallback_rows.append((stop_id, sloid_cand))
+            continue
+
         # Fallback 1: unique entry by number
         if len(candidates) == 1:
             fallback_rows.append((stop_id, candidates.iloc[0]['sloid']))
             continue
         # Fallback 2: compare last sloid token with normalized_local_ref
-        if pd.notna(nref):
-            token_matches = candidates[candidates['sloid_last_token'] == nref]
-            if not token_matches.empty:
-                fallback_rows.append((stop_id, token_matches.iloc[0]['sloid']))
+        token_matches = candidates[candidates['sloid_last_token'] == nref]
+        if not token_matches.empty:
+            fallback_rows.append((stop_id, token_matches.iloc[0]['sloid']))
 
     if fallback_rows:
         fb_df = pd.DataFrame(fallback_rows, columns=['stop_id', 'sloid']).drop_duplicates()

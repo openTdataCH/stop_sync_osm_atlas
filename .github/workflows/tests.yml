@@ -20,57 +20,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Check documentation links
+      - name: Install dependencies
         run: |
-          python3 << 'EOF'
-          import os
-          from pathlib import Path
-          import re
-          import sys
+          pip install pytest
 
-          docs_dir = Path("documentation")
-          broken_links = []
-          total_links = 0
-
-          print("Checking documentation links...")
-          print("=" * 60)
-
-          for md_file in sorted(docs_dir.glob("*.md")):
-              with open(md_file, encoding='utf-8') as f:
-                  content = f.read()
-              
-              # Find all markdown links to .md files
-              links = re.findall(r'\[[^\]]+\]\(([^)]+\.md[^)]*)\)', content)
-              
-              for link in links:
-                  total_links += 1
-                  # Clean URL (remove URL encoding and anchors)
-                  clean_link = link.split('#')[0].replace('%20', ' ')
-                  target = docs_dir / clean_link
-                  
-                  if not target.exists():
-                      broken_links.append({
-                          'file': md_file.name,
-                          'link': link,
-                          'target': str(target)
-                      })
-
-          print(f"Total links checked: {total_links}")
-          print(f"Broken links found: {len(broken_links)}")
-          print()
-
-          if broken_links:
-              print("❌ BROKEN LINKS DETECTED:")
-              print("=" * 60)
-              for item in broken_links:
-                  print(f"\nFile: {item['file']}")
-                  print(f"  Link: {item['link']}")
-                  print(f"  Target: {item['target']}")
-              sys.exit(1)
-          else:
-              print("✅ All documentation links are valid!")
-              sys.exit(0)
-          EOF
+      - name: Check documentation links
+        run: pytest tests/test_docs_links.py
 
   javascript-tests:
     name: JavaScript Tests

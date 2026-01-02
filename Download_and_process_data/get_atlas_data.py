@@ -86,17 +86,19 @@ def write_unified_routes_csv_direct(
     today = datetime.date.today().isoformat()
     unified_rows = []
 
-    # Process GTFS data
+    # Process GTFS data - determine which integrated data to use
+    integrated_data = None
+    
     if integrated_gtfs_data is not None:
         print("Processing GTFS data for unified routes (reusing precomputed integration)...")
         integrated_data = integrated_gtfs_data
-
     elif gtfs_data and 'stop_route_unique' in gtfs_data and 'routes' in gtfs_data and 'route_directions' in gtfs_data:
         print("Processing GTFS data for unified routes...")
-        
         # Build integrated GTFS data (per-stop, per-route with a representative direction)
         integrated_data = build_integrated_gtfs_data_streaming(gtfs_data, traffic_points)
-        
+    
+    # Process integrated GTFS data (common path for both branches above)
+    if integrated_data is not None and not integrated_data.empty:
         for r in integrated_data.itertuples(index=False):
             sloid = getattr(r, 'sloid', None)
             route_id = getattr(r, 'route_id', None)
