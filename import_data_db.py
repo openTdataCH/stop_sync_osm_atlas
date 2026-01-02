@@ -1044,7 +1044,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     print("Data import complete!")
 
 
-def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids, atlas_df=None):
+def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
     """
     Export pipeline statistics to data/stats.json after import completes.
     
@@ -1052,17 +1052,16 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids, 
         base_data: Dictionary with matched, unmatched_atlas, unmatched_osm
         duplicate_sloid_map: Map of duplicate ATLAS sloids
         no_nearby_sloids: Set of ATLAS sloids with no OSM within 50m
-        atlas_df: Optional ATLAS DataFrame for total count
     """
     try:
         matched_records = base_data.get('matched', [])
         unmatched_atlas = base_data.get('unmatched_atlas', [])
         unmatched_osm = base_data.get('unmatched_osm', [])
         
-        # Get total ATLAS platforms from DataFrame if available
-        total_atlas = None
-        if atlas_df is not None:
-            total_atlas = len(atlas_df)
+        # Calculate total ATLAS platforms from records
+        matched_sloids = {r.get('sloid') for r in matched_records if r.get('sloid')}
+        unmatched_sloids = {r.get('sloid') for r in unmatched_atlas if r.get('sloid')}
+        total_atlas = len(matched_sloids | unmatched_sloids)
         
         # Calculate total OSM nodes (matched + unmatched)
         matched_osm_ids = {r.get('osm_node_id') for r in matched_records if r.get('osm_node_id')}
