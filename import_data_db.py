@@ -5,6 +5,7 @@ import pandas as pd
 from scipy.spatial import KDTree
 from matching_process.matching_script import final_pipeline
 from matching_process.problem_detection import analyze_stop_problems, compute_distance_priority, compute_attributes_priority
+from matching_process.spatial_index import to_xyz
 import os
 import re
 import time
@@ -646,27 +647,20 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
 
     # Precompute structures for unmatched priority classification
     # Build OSM coordinate set from matched and unmatched data
+    # Using centralized to_xyz from spatial_index instead of local definition
     osm_points = []  # list of (x,y,z)
-    def _to_xyz(lat, lon):
-        lat_rad = math.radians(float(lat))
-        lon_rad = math.radians(float(lon))
-        return (
-            math.cos(lat_rad) * math.cos(lon_rad),
-            math.cos(lat_rad) * math.sin(lon_rad),
-            math.sin(lat_rad)
-        )
     # OSM from matched records
     for rec in base_data.get('matched', []):
         lat = safe_value(rec.get('osm_lat'))
         lon = safe_value(rec.get('osm_lon'))
         if lat is not None and lon is not None:
-            osm_points.append(_to_xyz(lat, lon))
+            osm_points.append(to_xyz(lat, lon))
     # OSM from unmatched_osm
     for rec in base_data.get('unmatched_osm', []):
         lat = safe_value(rec.get('lat'))
         lon = safe_value(rec.get('lon'))
         if lat is not None and lon is not None:
-            osm_points.append(_to_xyz(lat, lon))
+            osm_points.append(to_xyz(lat, lon))
     osm_kdtree = KDTree(osm_points) if osm_points else None
 
     # Build ATLAS coordinate set from matched and unmatched
@@ -675,12 +669,12 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         lat = safe_value(rec.get('csv_lat'))
         lon = safe_value(rec.get('csv_lon'))
         if lat is not None and lon is not None:
-            atlas_points.append(_to_xyz(lat, lon))
+            atlas_points.append(to_xyz(lat, lon))
     for rec in base_data.get('unmatched_atlas', []):
         lat = safe_value(rec.get('wgs84North'))
         lon = safe_value(rec.get('wgs84East'))
         if lat is not None and lon is not None:
-            atlas_points.append(_to_xyz(lat, lon))
+            atlas_points.append(to_xyz(lat, lon))
     atlas_kdtree = KDTree(atlas_points) if atlas_points else None
 
     # Build counts by UIC
@@ -722,7 +716,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     def _nearest_distance_to(points_tree, points_list, target_lat, target_lon):
         if points_tree is None or not points_list:
             return None
-        x, y, z = _to_xyz(target_lat, target_lon)
+        x, y, z = to_xyz(target_lat, target_lon)
         # KDTree was built on chord distances in 3D; we need haversine distance
         # Compute nearest index by querying Euclidean distance in 3D space
         dist, idx = points_tree.query((x, y, z), k=1)

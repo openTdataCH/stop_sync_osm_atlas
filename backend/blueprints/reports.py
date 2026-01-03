@@ -463,8 +463,9 @@ def download_report(task_id):
                     del completed_reports[task_id]
                 if task_id in report_progress:
                     del report_progress[task_id]
-            except:
-                pass
+            except Exception as e:
+                # Non-critical cleanup failure - log for debugging
+                app.logger.debug(f"Cleanup failed for report {task_id} (non-critical): {e}")
         
         # Schedule file cleanup
         cleanup_thread = threading.Thread(target=remove_file)
@@ -497,8 +498,9 @@ def cancel_report(task_id):
             filepath = completed_reports[task_id]['file_path']
             if os.path.exists(filepath):
                 os.remove(filepath)
-        except:
-            pass
+        except Exception as e:
+            # Non-critical cleanup failure - log for debugging
+            app.logger.debug(f"Failed to clean up report file (non-critical): {e}")
         del completed_reports[task_id]
     
     return jsonify({"status": "cancelled"})

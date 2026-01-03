@@ -484,7 +484,8 @@ def final_pipeline(route_matching_strategy='unified'):
             if pm.sloid and pm.osm_node_id:
                 manual_pairs.add((str(pm.sloid), str(pm.osm_node_id)))
         tmp_session.close()
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Could not load persistent manual matches (non-critical): {e}")
         manual_pairs = set()
 
     if manual_pairs:

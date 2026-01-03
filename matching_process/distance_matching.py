@@ -11,6 +11,11 @@ import traceback
 # Local isolation radius (formerly from detection_config)
 def get_isolation_radius() -> int:
     return 50
+
+# Ratio test constants for multi-candidate matching (Stage 3b)
+RATIO_TEST_MIN_D2 = 10  # Minimum distance (meters) for second-closest candidate
+RATIO_TEST_FACTOR = 4   # Minimum ratio (d2/d1) required to accept closest match
+
 from .utils import haversine_distance
 
 # Setup logging
@@ -544,9 +549,9 @@ def distance_matching(unmatched_df, xml_nodes, run_stage1=True, run_stage2=True,
                 d2 = second_closest['distance']
                 
                 # Check conditions:
-                # 1. Second closest node is at least 10 meters away (d2 >= 10)
-                # 2. Closest node is at least 4 times closer than second closest (d2/d1 >= 4)
-                if d2 >= 10 and d2/d1 >= 4:
+                # 1. Second closest node is at least RATIO_TEST_MIN_D2 meters away
+                # 2. Closest node is at least RATIO_TEST_FACTOR times closer than second closest
+                if d2 >= RATIO_TEST_MIN_D2 and d2/d1 >= RATIO_TEST_FACTOR:
                     match_dict = create_match_dict(
                         csv_row, closest['lat'], closest['lon'], closest['node'], d1,
                         'distance_matching_3b', 

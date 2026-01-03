@@ -12,6 +12,7 @@ import logging
 import numpy as np
 from typing import Dict, List, Tuple, Any, Optional, Union
 from scipy.spatial import KDTree
+from matching_process.spatial_index import batch_to_xyz, lat_lon_to_xyz_list
 
 # Import centralized configuration
 # Inline configuration constants (formerly in detection_config.py)
@@ -21,6 +22,11 @@ ENABLE_OPERATOR_MISMATCH_CHECK = True
 ENABLE_NAME_MISMATCH_CHECK = True
 ENABLE_UIC_MISMATCH_CHECK = True
 ENABLE_LOCAL_REF_MISMATCH_CHECK = True
+
+# Distance thresholds for priority classification (in meters)
+DISTANCE_THRESHOLD_P1 = 80  # P1: Non-SBB with distance > 80m
+DISTANCE_THRESHOLD_P2 = 25  # P2: Non-SBB with distance > 25m and <= 80m
+DISTANCE_THRESHOLD_P3 = 15  # P3: Any operator with distance > 15m and <= 25m
 
 def get_isolation_radius() -> int:
     return ISOLATION_CHECK_RADIUS_M
@@ -51,13 +57,13 @@ def compute_distance_priority(match_record: Dict[str, Any]) -> Optional[int]:
         atlas_operator = match_record.get('csv_business_org_abbr')
         is_sbb = _is_sbb(atlas_operator)
 
-        if d > 80 and not is_sbb:
+        if d > DISTANCE_THRESHOLD_P1 and not is_sbb:
             return 1
-        if d > 25 and d <= 80 and not is_sbb:
+        if d > DISTANCE_THRESHOLD_P2 and d <= DISTANCE_THRESHOLD_P1 and not is_sbb:
             return 2
-        if d > 25 and is_sbb:
+        if d > DISTANCE_THRESHOLD_P2 and is_sbb:
             return 3
-        if d > 15 and d <= 25:
+        if d > DISTANCE_THRESHOLD_P3 and d <= DISTANCE_THRESHOLD_P2:
             return 3
         return None
     except Exception:
@@ -242,17 +248,13 @@ def detect_atlas_isolation(atlas_stops: List[Dict[str, Any]],
     
     try:
         # Create spatial index from OSM nodes for efficient proximity searches
-        osm_coords = []
-        for node in osm_nodes:
-            lat, lon = node.get('lat'), node.get('lon')
-            if lat is not None and lon is not None:
-                lat_rad = np.radians(float(lat))
-                lon_rad = np.radians(float(lon))
-                # Convert to 3D Cartesian coordinates for KDTree
-                x = np.cos(lat_rad) * np.cos(lon_rad)
-                y = np.cos(lat_rad) * np.sin(lon_rad)  
-                z = np.sin(lat_rad)
-                osm_coords.append([x, y, z])
+        # Use centralized batch_to_xyz for coordinate conversion
+        valid_osm_coords = [
+            (float(node['lat']), float(node['lon']))
+            for node in osm_nodes
+            if node.get('lat') is not None and node.get('lon') is not None
+        ]
+        osm_coords = batch_to_xyz(valid_osm_coords).tolist() if valid_osm_coords else []
         
         if not osm_coords:
             # No valid OSM coordinates - all ATLAS stops are isolated
@@ -280,13 +282,8 @@ def detect_atlas_isolation(atlas_stops: List[Dict[str, Any]],
                 continue
                 
             try:
-                lat_rad = np.radians(float(lat))
-                lon_rad = np.radians(float(lon))
-                query_point = [
-                    np.cos(lat_rad) * np.cos(lon_rad),
-                    np.cos(lat_rad) * np.sin(lon_rad),
-                    np.sin(lat_rad)
-                ]
+                # Use centralized lat_lon_to_xyz_list for coordinate conversion
+                query_point = lat_lon_to_xyz_list(float(lat), float(lon))
                 
                 # Find OSM nodes within radius
                 indices = osm_kdtree.query_ball_point(query_point, radius_rad)
@@ -332,17 +329,13 @@ def detect_osm_isolation(osm_nodes: List[Dict[str, Any]],
     
     try:
         # Create spatial index from ATLAS stops for efficient proximity searches
-        atlas_coords = []
-        for stop in atlas_stops:
-            lat, lon = stop.get('lat'), stop.get('lon')
-            if lat is not None and lon is not None:
-                lat_rad = np.radians(float(lat))
-                lon_rad = np.radians(float(lon))
-                # Convert to 3D Cartesian coordinates for KDTree
-                x = np.cos(lat_rad) * np.cos(lon_rad)
-                y = np.cos(lat_rad) * np.sin(lon_rad)
-                z = np.sin(lat_rad)
-                atlas_coords.append([x, y, z])
+        # Use centralized batch_to_xyz for coordinate conversion
+        valid_atlas_coords = [
+            (float(stop['lat']), float(stop['lon']))
+            for stop in atlas_stops
+            if stop.get('lat') is not None and stop.get('lon') is not None
+        ]
+        atlas_coords = batch_to_xyz(valid_atlas_coords).tolist() if valid_atlas_coords else []
         
         if not atlas_coords:
             # No valid ATLAS coordinates - all OSM nodes are isolated
@@ -370,13 +363,8 @@ def detect_osm_isolation(osm_nodes: List[Dict[str, Any]],
                 continue
                 
             try:
-                lat_rad = np.radians(float(lat))
-                lon_rad = np.radians(float(lon))
-                query_point = [
-                    np.cos(lat_rad) * np.cos(lon_rad),
-                    np.cos(lat_rad) * np.sin(lon_rad),
-                    np.sin(lat_rad)
-                ]
+                # Use centralized lat_lon_to_xyz_list for coordinate conversion
+                query_point = lat_lon_to_xyz_list(float(lat), float(lon))
                 
                 # Find ATLAS stops within radius
                 indices = atlas_kdtree.query_ball_point(query_point, radius_rad)

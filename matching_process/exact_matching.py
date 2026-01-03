@@ -2,6 +2,7 @@ import sys
 import pandas as pd
 from tqdm import tqdm
 from matching_process.utils import is_osm_station, haversine_distance
+from matching_process.match_record import create_match_record, extract_atlas_fields
 
 
 def exact_matching(atlas_df: pd.DataFrame, uic_ref_dict):
@@ -83,91 +84,52 @@ def exact_matching(atlas_df: pd.DataFrame, uic_ref_dict):
             for atlas_entry in atlas_entries:
                 csv_lat = atlas_entry['wgs84North']
                 csv_lon = atlas_entry['wgs84East']
-                otdp_designation = str(atlas_entry['designation']).strip() if pd_notna(atlas_entry['designation']) else ""
-                designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd_notna(atlas_entry.get('designationOfficial')) else otdp_designation
-                business_org_abbr = str(atlas_entry.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
-
                 dist = haversine(csv_lat, csv_lon, osm_node['lat'], osm_node['lon'])
 
-                matches.append({
-                    'sloid': atlas_entry['sloid'],
-                    'number': atlas_entry['number'],
-                    'uic_ref': uic_ref_str,
-                    'csv_designation': otdp_designation,
-                    'csv_designation_official': designation_official,
-                    'csv_lat': csv_lat,
-                    'csv_lon': csv_lon,
-                    'csv_business_org_abbr': business_org_abbr,
-                    'osm_node_id': osm_node_id,
-                    'osm_lat': osm_node['lat'],
-                    'osm_lon': osm_node['lon'],
-                    'osm_local_ref': osm_node.get('local_ref'),
-                    'osm_network': osm_network,
-                    'osm_operator': osm_operator,
-                    'osm_original_operator': osm_original_operator,
-                    'osm_amenity': osm_amenity,
-                    'osm_railway': osm_railway,
-                    'osm_aerialway': osm_aerialway,
-                    'osm_name': osm_name,
-                    'osm_uic_name': osm_uic_name,
-                    'osm_uic_ref': osm_uic_ref,
-                    'osm_public_transport': osm_public_transport,
-                    'distance_m': dist,
-                    'match_type': 'exact',
-                    'candidate_pool_size': available_osm_len,
-                    'matching_notes': "Single OSM node for this UIC reference"
-                })
+                # Use centralized factory function for match record creation
+                match = create_match_record(
+                    sloid=atlas_entry['sloid'],
+                    csv_lat=csv_lat,
+                    csv_lon=csv_lon,
+                    osm_node=osm_node,
+                    distance_m=dist,
+                    match_type='exact',
+                    matching_notes="Single OSM node for this UIC reference",
+                    number=atlas_entry['number'],
+                    uic_ref=uic_ref_str,
+                    candidate_pool_size=available_osm_len,
+                    **extract_atlas_fields(atlas_entry, pd_notna),
+                )
+                matches.append(match)
             used_osm_ids.add(osm_node_id)
             continue
 
         # Case 3: Only one ATLAS entry - match to all available OSM nodes
         if len(atlas_entries) == 1:
             atlas_entry = atlas_entries[0]
-
             csv_lat = atlas_entry['wgs84North']
             csv_lon = atlas_entry['wgs84East']
-            otdp_designation = str(atlas_entry['designation']).strip() if pd_notna(atlas_entry['designation']) else ""
-            designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd_notna(atlas_entry.get('designationOfficial')) else otdp_designation
-            business_org_abbr = str(atlas_entry.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
+            atlas_fields = extract_atlas_fields(atlas_entry, pd_notna)
 
             # Match to all available OSM nodes
             for osm_node in available_osm:
                 dist = haversine(csv_lat, csv_lon, osm_node['lat'], osm_node['lon'])
-                tags = osm_node['tags']
-                osm_network = tags.get('network', '')
-                osm_operator = tags.get('operator', '')
-                osm_amenity = tags.get('amenity', '')
-                osm_railway = tags.get('railway', '')
-                osm_aerialway = tags.get('aerialway', '')
 
-                matches.append({
-                    'sloid': atlas_entry['sloid'],
-                    'number': atlas_entry['number'],
-                    'uic_ref': uic_ref_str,
-                    'csv_designation': otdp_designation,
-                    'csv_designation_official': designation_official,
-                    'csv_lat': csv_lat,
-                    'csv_lon': csv_lon,
-                    'csv_business_org_abbr': business_org_abbr,
-                    'osm_node_id': osm_node['node_id'],
-                    'osm_lat': osm_node['lat'],
-                    'osm_lon': osm_node['lon'],
-                    'osm_local_ref': osm_node.get('local_ref'),
-                    'osm_network': osm_network,
-                    'osm_operator': osm_operator,
-                    'osm_original_operator': tags.get('original_operator'),
-                    'osm_amenity': osm_amenity,
-                    'osm_railway': osm_railway,
-                    'osm_aerialway': osm_aerialway,
-                    'osm_name': tags.get('name', ''),
-                    'osm_uic_name': tags.get('uic_name', ''),
-                    'osm_uic_ref': tags.get('uic_ref', ''),
-                    'osm_public_transport': tags.get('public_transport', ''),
-                    'distance_m': dist,
-                    'match_type': 'exact',
-                    'candidate_pool_size': available_osm_len,
-                    'matching_notes': "Single ATLAS entry matched to multiple OSM nodes with same UIC reference"
-                })
+                # Use centralized factory function for match record creation
+                match = create_match_record(
+                    sloid=atlas_entry['sloid'],
+                    csv_lat=csv_lat,
+                    csv_lon=csv_lon,
+                    osm_node=osm_node,
+                    distance_m=dist,
+                    match_type='exact',
+                    matching_notes="Single ATLAS entry matched to multiple OSM nodes with same UIC reference",
+                    number=atlas_entry['number'],
+                    uic_ref=uic_ref_str,
+                    candidate_pool_size=available_osm_len,
+                    **atlas_fields,
+                )
+                matches.append(match)
                 used_osm_ids.add(osm_node['node_id'])
             continue
 
@@ -209,45 +171,23 @@ def exact_matching(atlas_df: pd.DataFrame, uic_ref_dict):
 
                 csv_lat = atlas_entry['wgs84North']
                 csv_lon = atlas_entry['wgs84East']
-                designation_official = str(atlas_entry.get('designationOfficial')).strip() if pd_notna(atlas_entry.get('designationOfficial')) else otdp_designation
-                business_org_abbr = str(atlas_entry.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
-
                 dist = haversine(csv_lat, csv_lon, osm_node['lat'], osm_node['lon'])
-                tags = osm_node['tags']
-                osm_network = tags.get('network', '')
-                osm_operator = tags.get('operator', '')
-                osm_amenity = tags.get('amenity', '')
-                osm_railway = tags.get('railway', '')
-                osm_aerialway = tags.get('aerialway', '')
 
-                matches.append({
-                    'sloid': sloid,
-                    'number': atlas_entry['number'],
-                    'uic_ref': uic_ref_str,
-                    'csv_designation': otdp_designation,
-                    'csv_designation_official': designation_official,
-                    'csv_lat': csv_lat,
-                    'csv_lon': csv_lon,
-                    'csv_business_org_abbr': business_org_abbr,
-                    'osm_node_id': osm_id,
-                    'osm_lat': osm_node['lat'],
-                    'osm_lon': osm_node['lon'],
-                    'osm_local_ref': osm_local_ref,
-                    'osm_network': osm_network,
-                    'osm_operator': osm_operator,
-                    'osm_original_operator': tags.get('original_operator'),
-                    'osm_amenity': osm_amenity,
-                    'osm_railway': osm_railway,
-                    'osm_aerialway': osm_aerialway,
-                    'osm_name': tags.get('name', ''),
-                    'osm_uic_name': tags.get('uic_name', ''),
-                    'osm_uic_ref': tags.get('uic_ref', ''),
-                    'osm_public_transport': tags.get('public_transport', ''),
-                    'distance_m': dist,
-                    'match_type': 'exact',
-                    'candidate_pool_size': available_osm_len,
-                    'matching_notes': "Exact local_ref/designation match"
-                })
+                # Use centralized factory function for match record creation
+                match = create_match_record(
+                    sloid=sloid,
+                    csv_lat=csv_lat,
+                    csv_lon=csv_lon,
+                    osm_node=osm_node,
+                    distance_m=dist,
+                    match_type='exact',
+                    matching_notes="Exact local_ref/designation match",
+                    number=atlas_entry['number'],
+                    uic_ref=uic_ref_str,
+                    candidate_pool_size=available_osm_len,
+                    **extract_atlas_fields(atlas_entry, pd_notna),
+                )
+                matches.append(match)
 
                 matched_atlas_ids.add(sloid)
                 matched_osm_ids.add(osm_id)
