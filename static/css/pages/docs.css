@@ -191,6 +191,7 @@
   cursor: help;
   border-bottom: 1px dotted var(--color-border);
 }
+
 /* -------------------------------------------------------------------------
    Mermaid Diagrams
    ------------------------------------------------------------------------- */
@@ -296,4 +297,89 @@
 .info-box i {
   color: var(--color-primary);
   margin-right: var(--space-2);
+}
+
+/* -------------------------------------------------------------------------
+   GitHub-style Alerts
+   Styled blockquote alerts like [!NOTE], [!IMPORTANT], etc.
+   ------------------------------------------------------------------------- */
+.github-alert {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border-left: 4px solid;
+}
+
+.github-alert .alert-title {
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.github-alert .alert-title i {
+  font-size: var(--text-base);
+}
+
+.github-alert .alert-content {
+  font-size: var(--text-sm);
+}
+
+.github-alert .alert-content p {
+  margin: 0;
+}
+
+.github-alert .alert-content p+p {
+  margin-top: var(--space-2);
+}
+
+/* Note - Blue/Info */
+.github-alert.alert-note {
+  background-color: rgba(56, 139, 253, 0.1);
+  border-left-color: #388bfd;
+}
+
+.github-alert.alert-note .alert-title {
+  color: #388bfd;
+}
+
+/* Tip - Green */
+.github-alert.alert-tip {
+  background-color: rgba(46, 160, 67, 0.1);
+  border-left-color: #2ea043;
+}
+
+.github-alert.alert-tip .alert-title {
+  color: #2ea043;
+}
+
+/* Important - Red (matches app danger color) */
+.github-alert.alert-important {
+  background-color: var(--color-danger-subtle, rgba(220, 53, 69, 0.1));
+  border-left-color: var(--color-danger, #dc3545);
+}
+
+.github-alert.alert-important .alert-title {
+  color: var(--color-danger, #dc3545);
+}
+
+/* Warning - Yellow/Orange */
+.github-alert.alert-warning {
+  background-color: rgba(210, 153, 34, 0.1);
+  border-left-color: #d29922;
+}
+
+.github-alert.alert-warning .alert-title {
+  color: #d29922;
+}
+
+/* Caution - Red */
+.github-alert.alert-caution {
+  background-color: rgba(248, 81, 73, 0.1);
+  border-left-color: #f85149;
+}
+
+.github-alert.alert-caution .alert-title {
+  color: #f85149;
 }

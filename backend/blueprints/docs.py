@@ -206,58 +206,93 @@ def _read_markdown(filename: str) -> str:
         return f.read()
 
 
+def _convert_github_alerts_to_html(markdown_text: str) -> str:
+    """
+    Convert GitHub-style alerts/admonitions to styled HTML.
+    
+    Handles patterns like:
+    > [!NOTE]
+    > Content here
+    
+    Converts to styled divs with appropriate icons.
+    """
+    alert_types = {
+        'NOTE': ('info-circle', 'alert-note'),
+        'TIP': ('lightbulb', 'alert-tip'),
+        'IMPORTANT': ('exclamation-circle', 'alert-important'),
+        'WARNING': ('exclamation-triangle', 'alert-warning'),
+        'CAUTION': ('radiation', 'alert-caution'),
+    }
+    
+    # Pattern matches > [!TYPE] followed by > lines until end of block
+    # This handles multi-line alerts
+    def replace_alert(match):
+        alert_type = match.group(1).upper()
+        content = match.group(2)
+        
+        if alert_type not in alert_types:
+            return match.group(0)
+        
+        icon, css_class = alert_types[alert_type]
+        
+        # Clean up the content - remove leading > from each line
+        lines = content.strip().split('\n')
+        cleaned_lines = []
+        for line in lines:
+            # Remove leading > and optional space
+            if line.startswith('> '):
+                cleaned_lines.append(line[2:])
+            elif line.startswith('>'):
+                cleaned_lines.append(line[1:])
+            else:
+                cleaned_lines.append(line)
+        
+        cleaned_content = '\n'.join(cleaned_lines).strip()
+        
+        return f'''<div class="github-alert {css_class}">
+<div class="alert-title"><i class="fas fa-{icon}"></i> {alert_type.title()}</div>
+<div class="alert-content">
+
+{cleaned_content}
+
+</div>
+</div>
+
+'''
+    
+    # Match > [!TYPE]\n> content pattern (multi-line)
+    # This regex captures the alert type and all subsequent > lines
+    pattern = r'>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\n((?:>.*(?:\n|$))+)'
+    
+    return re.sub(pattern, replace_alert, markdown_text, flags=re.IGNORECASE)
+
+
 def _convert_markdown_to_html(markdown_text: str) -> str:
     markdown_text = _rewrite_repo_links_to_github(markdown_text)
+    
+    # Convert GitHub-style alerts to HTML before markdown processing
+    markdown_text = _convert_github_alerts_to_html(markdown_text)
     
     # Replace stats placeholders with actual values from stats.json
     markdown_text = _replace_stats_placeholders(markdown_text)
 
     # Rewrite repo-relative image/asset paths to the docs assets route
-    # Example: !(...](documentation/images/foo.png) -> !(...](/docs/assets/images/foo.png)
-    # For SVG diagrams, use the dynamic stats endpoint to inject live values
+    # Example: ![...](images/foo.png) -> ![...](/docs/assets/images/foo.png)
     if (
         '](documentation/' in markdown_text
         or '](images/' in markdown_text
-        or '](diagrams/' in markdown_text
         or 'src="documentation/' in markdown_text
         or 'src="images/' in markdown_text
-        or 'src="diagrams/' in markdown_text
     ):
         prefix = url_for("docs.docs_asset", filename="")  # ends with '/docs/assets/'
-        svg_prefix = url_for("docs.get_svg_with_stats", svg_name="")  # for SVG diagrams with stats
         
-        # For SVG files in diagrams/, use the dynamic endpoint
-        # Match patterns like ](diagrams/overview.svg) and replace with dynamic endpoint
-        markdown_text = re.sub(
-            r'\]\(diagrams/([^)]+\.svg)\)',
-            lambda m: f']({svg_prefix}{m.group(1)})',
-            markdown_text
-        )
-        
-        # Markdown image/link paths (non-SVG diagrams and other assets)
+        # Markdown image/link paths
         markdown_text = markdown_text.replace('](documentation/', f']({prefix}')
         markdown_text = markdown_text.replace('](images/', f']({prefix}images/')
-        # Only replace non-SVG diagram references (SVGs already handled above)
-        markdown_text = re.sub(
-            r'\]\(diagrams/([^)]+(?<!\.svg))\)',
-            lambda m: f']({prefix}diagrams/{m.group(1)})',
-            markdown_text
-        )
         
         # Raw HTML img tags inside markdown
         markdown_text = markdown_text.replace('src="documentation/', f'src="{prefix}')
         markdown_text = markdown_text.replace('src="images/', f'src="{prefix}images/')
-        # For SVG src attributes, use dynamic endpoint
-        markdown_text = re.sub(
-            r'src="diagrams/([^"]+\.svg)"',
-            lambda m: f'src="{svg_prefix}{m.group(1)}"',
-            markdown_text
-        )
-        markdown_text = re.sub(
-            r'src="diagrams/([^"]+(?<!\.svg))"',
-            lambda m: f'src="{prefix}diagrams/{m.group(1)}"',
-            markdown_text
-        )
 
     if mistune is None:
         return '<p>Markdown renderer not available. Please install dependencies.</p>'
@@ -278,14 +313,15 @@ def _convert_markdown_to_html(markdown_text: str) -> str:
         return html
 
     allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + [
-        'p', 'pre', 'code', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'span', 'div'
+        'p', 'pre', 'code', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'span', 'div', 'i'
     ]
     allowed_attrs = {
         **bleach.sanitizer.ALLOWED_ATTRIBUTES,
         'img': ['src', 'alt', 'title'],
         'a': ['href', 'title', 'name', 'target', 'rel'],
         'span': ['class', 'data-stat-key', 'title'],
-        'div': ['class']
+        'div': ['class'],
+        'i': ['class']
     }
     sanitized = bleach.clean(html, tags=allowed_tags, attributes=allowed_attrs)
     sanitized = bleach.linkify(sanitized)
@@ -463,8 +499,7 @@ def get_documentation_stats():
     1. Pipeline stats from data/stats.json (generated during import)
     2. Real-time stats from database (problem resolutions, user activity)
     
-    This endpoint is used to dynamically populate statistics in documentation
-    pages and can also update SVG diagrams with current values.
+    This endpoint is used to dynamically populate statistics in documentation pages.
     """
     try:
         # Load pipeline stats from file
@@ -591,80 +626,5 @@ def _get_realtime_db_stats() -> Dict:
                 "by_priority": {}
             }
         }
-
-
-@docs_bp.route('/api/docs/stats/svg/<path:svg_name>')
-def get_svg_with_stats(svg_name: str):
-    """
-    Serve an SVG diagram with dynamic statistics injected.
-    
-    This endpoint reads the SVG file, replaces placeholder values with
-    current statistics, and returns the updated SVG.
-    
-    Placeholders in SVG files should use the format: {{stat_key}}
-    Example: {{summary.matched_pairs}} or {{summary.match_rate_percent}}
-    """
-    try:
-        docs_dir = _get_docs_dir()
-        svg_path = safe_join(docs_dir, 'diagrams', svg_name)
-        
-        if not svg_path or not os.path.exists(svg_path):
-            abort(404)
-        
-        with open(svg_path, 'r', encoding='utf-8') as f:
-            svg_content = f.read()
-        
-        # Load stats
-        stats_file_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'data', 'stats.json'
-        )
-        
-        if os.path.exists(stats_file_path):
-            with open(stats_file_path, 'r', encoding='utf-8') as f:
-                stats = json.load(f)
-            
-            # Replace placeholders with actual values
-            svg_content = _replace_svg_placeholders(svg_content, stats)
-        
-        from flask import Response
-        return Response(svg_content, mimetype='image/svg+xml')
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-def _replace_svg_placeholders(svg_content: str, stats: Dict) -> str:
-    """
-    Replace {{placeholder}} patterns in SVG with actual stat values.
-    
-    Supports nested keys like {{summary.matched_pairs}}.
-    """
-    def get_nested_value(data: Dict, key_path: str):
-        """Get a nested value from a dictionary using dot notation."""
-        keys = key_path.split('.')
-        value = data
-        for key in keys:
-            if isinstance(value, dict) and key in value:
-                value = value[key]
-            else:
-                return None
-        return value
-    
-    # Find all placeholders in the format {{key}} or {{key.subkey}}
-    pattern = r'\{\{([a-zA-Z0-9_.]+)\}\}'
-    
-    def replace_match(match):
-        key_path = match.group(1)
-        value = get_nested_value(stats, key_path)
-        if value is not None:
-            # Format numbers with commas for readability
-            if isinstance(value, (int, float)):
-                if isinstance(value, float):
-                    return f"{value:,.1f}"
-                return f"{value:,}"
-            return str(value)
-        return match.group(0)  # Return original if not found
-    
-    return re.sub(pattern, replace_match, svg_content)
 
 
