@@ -33,38 +33,13 @@ def test_documentation_links():
         
         for link in links:
             total_links += 1
-            # Clean URL (remove URL encoding and anchors)
-            clean_link = link.split('#')[0].replace('%20', ' ')
+            # Clean URL: decode URL encoding (e.g., %20 -> space) and remove anchors
+            from urllib.parse import unquote
+            clean_link = unquote(link.split('#')[0])
             
-            # Resolve relative path from the current markdown file's directory
-            # If the link starts with /, it might be absolute path from repo root or absolute system path
-            # But usually in our doc, it's relative.
-            if clean_link.startswith('/'):
-               # If it starts with /, assume it is relative to repo root (GitHub style)
-               # But standard markdown usually treats / as FS root. 
-               # Let's assume standard relative paths for now as per original script logic which did `docs_dir / clean_link`
-               # Wait, original script was: `target = docs_dir / clean_link`
-               # That implies all links were relative to `documentation/` folder, OR 
-               # that the script assumed flat structure or specific structure.
-               
-               # Let's replicate original logic exactly first to ensure parity, then improve if needed.
-               # Original: target = docs_dir / clean_link
-               # This basically assumes clean_link is relative to 'documentation' folder? 
-               # Or that it just worked because most things are flat?
-               
-               # Re-reading original script:
-               # docs_dir = Path("documentation")
-               # for md_file...
-               #   target = docs_dir / clean_link
-               
-               # If `1. Download.md` links to `images/foo.png` (not .md), original script didn't check it (regex only matches .md)
-               # If `1. Download.md` links to `2. Matching.md`, `docs_dir / "2. Matching.md"` works.
-               
-               # So we stick to that logic for now.
-               target = docs_dir / clean_link
-            else:
-               # If it's a simple filename, it works with / operator
-               target = docs_dir / clean_link
+            # All documentation links are relative to the documentation directory
+            # (flat structure with all .md files in the same directory)
+            target = docs_dir / clean_link
             
             if not target.exists():
                 broken_links.append({

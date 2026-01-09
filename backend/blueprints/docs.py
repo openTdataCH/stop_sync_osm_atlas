@@ -407,6 +407,8 @@ def _replace_stats_placeholders(markdown_text: str) -> str:
 @docs_bp.route('/docs')
 @docs_bp.route('/docs/<path:page>')
 def docs_page(page: str = ''):
+    from urllib.parse import unquote
+    
     files = _list_markdown_files()
     if not files:
         abort(404)
@@ -414,8 +416,10 @@ def docs_page(page: str = ''):
     # If no page specified, default to the first doc
     active_file = None
     if page:
+        # Decode URL-encoded characters (e.g., %20 -> space)
+        decoded_page = unquote(page)
         # Accept either with or without .md
-        candidate = page if page.lower().endswith('.md') else f"{page}.md"
+        candidate = decoded_page if decoded_page.lower().endswith('.md') else f"{decoded_page}.md"
         if candidate in files:
             active_file = candidate
     if active_file is None:
