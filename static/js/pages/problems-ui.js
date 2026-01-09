@@ -556,48 +556,6 @@ window.ProblemsUI = (function () {
     }
 
     /**
-     * Generate notes section for duplicates problems
-     */
-    function generateDuplicatesNotesSection(problem) {
-        let html = '<div class="problem-section-item">';
-        html += '<h6><i class="fas fa-sticky-note"></i> Notes</h6>';
-        html += '<p><small class="text-muted">Add notes for individual duplicate entries below.</small></p>';
-
-        (problem.members || []).forEach(member => {
-            const { badge, ident, name, isOsm } = getMemberDisplayInfo(member, problem.group_type);
-
-            html += `
-                <div class="mb-3">
-                    <label class="form-label">${badge} ${ident} - ${name}</label>
-                    <div class="note-editor">
-                        <textarea class="form-control member-note-text" 
-                                placeholder="Add a note for this ${isOsm ? 'OSM' : 'ATLAS'} entry..."
-                                data-stop-id="${member.stop_id}"
-                                data-note-type="${isOsm ? 'osm' : 'atlas'}"
-                                data-sloid="${isOsm ? '' : (member.sloid || '')}"
-                                data-osm-node-id="${isOsm ? (member.osm_node_id || '') : ''}">${isOsm ? (member.osm_note || '') : (member.atlas_note || '')}</textarea>
-                        <div class="form-check mt-1">
-                            <input class="form-check-input member-note-persist" type="checkbox" 
-                                   data-stop-id="${member.stop_id}"
-                                   ${isOsm ? (member.osm_note_is_persistent ? 'checked' : '') : (member.atlas_note_is_persistent ? 'checked' : '')}>
-                            <label class="form-check-label">Make note persistent across imports</label>
-                        </div>
-                        <button class="btn btn-info btn-sm professional-button save-member-note mt-2" 
-                                data-note-type="${isOsm ? 'osm' : 'atlas'}" 
-                                data-sloid="${isOsm ? '' : (member.sloid || '')}" 
-                                data-osm-node-id="${isOsm ? (member.osm_node_id || '') : ''}" 
-                                data-stop-id="${member.stop_id}">
-                            Save Note
-                        </button>
-                    </div>
-                </div>`;
-        });
-
-        html += '</div>';
-        return html;
-    }
-
-    /**
      * Generate a concise, priority-aware information banner placed BELOW the action buttons
      */
     function generateProblemInfoBanner(problem) {
@@ -790,10 +748,10 @@ window.ProblemsUI = (function () {
 
                         // Update notes based on problem type
                         if (problem.problem === 'duplicates' && Array.isArray(problem.members) && problem.members.length > 0) {
-                            // Show duplicates notes container and populate it
-                            $('#notesSection').show();
-                            $('#standardNotesContainer').hide();
-                            $('#duplicatesNotesContainer').show().html(generateDuplicatesNotesSection(problem));
+                            // Use unified notes loader for duplicates
+                            if (window.ProblemsNotes && window.ProblemsNotes.loadNotesForDuplicates) {
+                                window.ProblemsNotes.loadNotesForDuplicates(problem);
+                            }
                         } else {
                             // Show standard notes container for other problem types
                             $('#notesSection').show();
@@ -891,10 +849,10 @@ window.ProblemsUI = (function () {
 
             // Load notes for the first problem and setup notes container visibility
             if (firstProblem.problem === 'duplicates' && Array.isArray(firstProblem.members) && firstProblem.members.length > 0) {
-                // Show duplicates notes container and populate it
-                $('#notesSection').show();
-                $('#standardNotesContainer').hide();
-                $('#duplicatesNotesContainer').show().html(generateDuplicatesNotesSection(firstProblem));
+                // Use unified notes loader for duplicates
+                if (window.ProblemsNotes && window.ProblemsNotes.loadNotesForDuplicates) {
+                    window.ProblemsNotes.loadNotesForDuplicates(firstProblem);
+                }
             } else {
                 // Show standard notes container for other problem types
                 $('#notesSection').show();
@@ -961,7 +919,6 @@ window.ProblemsUI = (function () {
         generateAttributesActionButtons,
         generateDuplicatesActionButtons,
         generateDuplicatesSolutionStatusSection,
-        generateDuplicatesNotesSection,
         renderSingleProblemUI,
         setupIntersectionObserver,
         displayProblem,
