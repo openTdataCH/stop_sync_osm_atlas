@@ -60,6 +60,78 @@ def test_documentation_links():
         
         pytest.fail("\n".join(message))
 
+
+def test_documentation_links_in_rendered_html():
+    """
+    Test that links rendered in the Flask web application work correctly.
+    
+    This catches issues where:
+    - Markdown links (.md) aren't properly rewritten to Flask routes
+    - Internal links result in 404 errors
+    """
+    try:
+        import sys
+        from pathlib import Path
+        
+        # Add repo root to path to import Flask app
+        repo_root = Path(__file__).parent.parent
+        sys.path.insert(0, str(repo_root))
+        
+        from backend.app import create_app
+        from bs4 import BeautifulSoup
+        from urllib.parse import urlparse
+    except ImportError as e:
+        pytest.skip(f"Flask app or dependencies not available: {e}")
+    
+    app = create_app()
+    app.config['TESTING'] = True
+    
+    with app.test_client() as client:
+        # Get the intro page to find all doc links
+        response = client.get('/docs')
+        if response.status_code != 200:
+            pytest.skip("Documentation route not available")
+        
+        html = response.data.decode('utf-8')
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # Find all internal links in the rendered content
+        broken_links = []
+        tested_links = set()
+        
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            parsed = urlparse(href)
+            
+            # Only test internal /docs/ links
+            if not parsed.path.startswith('/docs'):
+                continue
+            
+            # Skip duplicates
+            if href in tested_links:
+                continue
+            tested_links.add(href)
+            
+            # Test the link
+            link_response = client.get(parsed.path)
+            if link_response.status_code != 200:
+                broken_links.append({
+                    'link': href,
+                    'status': link_response.status_code,
+                    'text': link.get_text(strip=True)[:50]
+                })
+        
+        print(f"Tested {len(tested_links)} internal documentation links")
+        
+        if broken_links:
+            message = ["❌ BROKEN LINKS IN RENDERED HTML:", "=" * 60]
+            for item in broken_links:
+                message.append(f"\n  Link: {item['link']}")
+                message.append(f"  Text: {item['text']}")
+                message.append(f"  Status: {item['status']}")
+            pytest.fail("\n".join(message))
+
+
 if __name__ == "__main__":
     # Allow running directly with python for debugging
     try:
@@ -77,3 +149,4 @@ if __name__ == "__main__":
         import sys
         print(e)
         sys.exit(1)
+

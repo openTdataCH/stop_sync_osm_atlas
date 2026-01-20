@@ -103,6 +103,46 @@ def _rewrite_repo_links_to_github(markdown_text: str) -> str:
     return pattern.sub(repl, markdown_text)
 
 
+def _rewrite_internal_doc_links_to_routes(markdown_text: str) -> str:
+    """Rewrite relative .md links to internal /docs/ Flask routes.
+
+    Transforms links like [Text](1.%20Download%20and%20process%20data.md)
+    into [Text](/docs/1. Download and process data) for proper routing.
+    """
+    from urllib.parse import unquote
+
+    # Match [text](file.md) or [text](file.md#anchor)
+    # Negative lookbehind avoids matching images: ![alt](...)
+    pattern = re.compile(r'(?<!!)\[([^\]]+)\]\(([^)]+\.md(?:#[^)]*)?)\)')
+
+    def repl(match: re.Match) -> str:
+        link_text = match.group(1)
+        href = match.group(2)
+
+        # Skip external links and absolute paths
+        if href.startswith(('http://', 'https://', '/')):
+            return match.group(0)
+
+        # Split anchor if present
+        if '#' in href:
+            path_part, anchor = href.split('#', 1)
+            anchor = '#' + anchor
+        else:
+            path_part = href
+            anchor = ''
+
+        # Decode URL encoding and remove .md extension
+        clean_name = unquote(path_part)
+        if clean_name.lower().endswith('.md'):
+            clean_name = clean_name[:-3]
+
+        # Build Flask route URL
+        new_href = url_for('docs.docs_page', page=clean_name) + anchor
+        return f'[{link_text}]({new_href})'
+
+    return pattern.sub(repl, markdown_text)
+
+
 def _get_docs_dir() -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'documentation'))
 
@@ -269,6 +309,9 @@ def _convert_github_alerts_to_html(markdown_text: str) -> str:
 
 def _convert_markdown_to_html(markdown_text: str) -> str:
     markdown_text = _rewrite_repo_links_to_github(markdown_text)
+    
+    # Rewrite internal .md links to Flask /docs/ routes
+    markdown_text = _rewrite_internal_doc_links_to_routes(markdown_text)
     
     # Convert GitHub-style alerts to HTML before markdown processing
     markdown_text = _convert_github_alerts_to_html(markdown_text)
