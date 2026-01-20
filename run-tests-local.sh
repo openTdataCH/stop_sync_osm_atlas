@@ -16,11 +16,11 @@ echo -e "${BLUE}========================================${NC}\n"
 
 # Build the Docker image first
 echo -e "${GREEN}Building Docker image...${NC}"
-docker-compose build app-dev
+docker compose build app-dev
 
 # Function to run tests in container
 run_in_container() {
-    docker-compose run --rm app-dev bash -c "$1"
+    docker compose run --rm app-dev bash -c "$1"
 }
 
 # 1. JavaScript Tests
