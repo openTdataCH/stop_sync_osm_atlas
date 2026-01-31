@@ -1,0 +1,11 @@
+# Ensure consistent LF line endings across all environments
+* text=auto eol=lf
+
+# Explicitly enforce LF for shell scripts
+*.sh text eol=lf
+
+# Enforce LF for SQL and run scripts
+*.sql text eol=lf
+
+# Enforce LF for Python source files
+*.py text eol=lf 

@@ -1,0 +1,138 @@
+/* ==========================================================================
+   C-COMPACT-GROUP COMPONENT
+   Standardized compact form groups for filter panels and forms.
+   Provides consistent typography and spacing for label/control pairs.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Base Component
+   ------------------------------------------------------------------------- */
+.compact-group {
+  margin-bottom: var(--space-4);
+}
+
+.compact-group:last-child {
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Labels
+   All labels within compact-group share consistent typography.
+   ------------------------------------------------------------------------- */
+.compact-group > label,
+.compact-group > .compact-group-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-dark);
+  margin-bottom: var(--space-2);
+  line-height: var(--leading-normal);
+  letter-spacing: 0.01em;
+}
+
+/* -------------------------------------------------------------------------
+   Checkbox Labels (within .form-check)
+   Smaller, regular weight for checkbox/radio options.
+   ------------------------------------------------------------------------- */
+.compact-group .form-check-label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-normal);
+  color: var(--color-fg);
+  line-height: var(--leading-normal);
+  margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Nested Labels (inside collapsible sections)
+   Slightly smaller for hierarchy indication.
+   ------------------------------------------------------------------------- */
+.compact-group .matching-subcategory-content label,
+.compact-group .collapse label {
+  font-size: var(--text-sm);
+  font-weight: var(--font-normal);
+  color: var(--color-fg);
+}
+
+/* -------------------------------------------------------------------------
+   Accordion Link Text
+   Consistent styling for collapsible section headers.
+   ------------------------------------------------------------------------- */
+.compact-group .accordion-link,
+.compact-group .matching-subcategory-header > a {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-dark);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.compact-group .accordion-link:hover,
+.compact-group .matching-subcategory-header > a:hover {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+/* -------------------------------------------------------------------------
+   Spacing Between Rows
+   ------------------------------------------------------------------------- */
+.compact-group .row + .row {
+  margin-top: var(--space-1);
+}
+
+/* -------------------------------------------------------------------------
+   Form Controls Inside Compact Group
+   ------------------------------------------------------------------------- */
+.compact-group .form-control,
+.compact-group .custom-select {
+  font-size: var(--text-sm);
+}
+
+.compact-group .form-control-sm,
+.compact-group .custom-select-sm {
+  font-size: var(--text-xs);
+}
+
+/* -------------------------------------------------------------------------
+   Buttons Inside Compact Group
+   ------------------------------------------------------------------------- */
+.compact-group .btn {
+  font-size: var(--text-sm);
+}
+
+.compact-group .btn-sm {
+  font-size: var(--text-xs);
+}
+
+/* -------------------------------------------------------------------------
+   Input Groups
+   ------------------------------------------------------------------------- */
+.compact-group .input-group-text {
+  font-size: var(--text-sm);
+}
+
+/* -------------------------------------------------------------------------
+   Nested Compact Groups (reduced spacing)
+   ------------------------------------------------------------------------- */
+.compact-group .compact-group {
+  margin-bottom: var(--space-3);
+}
+
+/* -------------------------------------------------------------------------
+   Filter Panel Specific Adjustments
+   Tighter spacing within filter panels.
+   ------------------------------------------------------------------------- */
+.c-filter-panel .compact-group,
+.filter-body .compact-group {
+  margin-bottom: var(--space-3);
+}
+
+.c-filter-panel .compact-group:last-child,
+.filter-body .compact-group:last-child {
+  margin-bottom: 0;
+}
+
+/* Slightly smaller labels in filter panels for density */
+.c-filter-panel .compact-group > label,
+.filter-body .compact-group > label {
+  margin-bottom: var(--space-1);
+}

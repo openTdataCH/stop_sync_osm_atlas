@@ -1,0 +1,23 @@
+publiccodeYmlVersion: "0.2"
+name: "OSM & ATLAS Synchronization"
+description:
+  en: "Pipeline and web app to analyze and resolve discrepancies between ATLAS and OSM public transport stops."
+url: "https://example.org/osm-atlas-sync"
+softwareType: application
+intendedAudience:
+  countries:
+    - CH
+    - EU
+maintenance:
+  type: community
+legal:
+  license: AGPL-3.0-or-later
+  repoOwner: "OSM & ATLAS Synchronization contributors"
+  authors:
+    - name: "Project contributors"
+releaseDate: "2025-09-01"
+platforms:
+  - web
+categories:
+  - data-visualization
+  - transport

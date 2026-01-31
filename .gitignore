@@ -1,0 +1,82 @@
+# Data files - organized in data/ directory
+data/
+
+memoire/
+
+# Text files (except requirements.txt)
+*.txt
+!requirements.txt
+
+requirements.txt.backup
+
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.env
+
+# Node.js
+node_modules/
+npm-debug.log
+coverage/
+
+# Logs
+*.log
+
+
+
+# LaTeX compilation files
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.listing
+*.lof
+*.lot
+*.out
+*.ptc
+*.xdv
+*.toc
+*.synctex.gz
+*.nav
+*.snm
+*.vrb
+*.log

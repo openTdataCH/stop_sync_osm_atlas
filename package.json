@@ -1,0 +1,37 @@
+{
+  "name": "stop-sync-osm-atlas",
+  "version": "1.0.0",
+  "description": "Frontend tests for Stop Sync OSM Atlas",
+  "private": true,
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "roots": [
+      "<rootDir>/static/js/tests"
+    ],
+    "testMatch": [
+      "**/*.test.js"
+    ],
+    "moduleFileExtensions": [
+      "js"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/static/js/tests/setup.js"
+    ],
+    "collectCoverageFrom": [
+      "static/js/components/**/*.js",
+      "static/js/pages/**/*.js",
+      "!static/js/**/*.test.js"
+    ],
+    "coverageDirectory": "coverage",
+    "verbose": true
+  }
+}

@@ -1,0 +1,167 @@
+/* ==========================================================================
+   C-NAVBAR COMPONENT
+   Navigation bar component styles.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Container Fluid (Navbar Context)
+   ------------------------------------------------------------------------- */
+.container-fluid {
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar > .container-fluid {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* -------------------------------------------------------------------------
+   Navbar Base
+   ------------------------------------------------------------------------- */
+.navbar {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Navbar Brand
+   ------------------------------------------------------------------------- */
+.navbar .navbar-brand {
+  display: flex;
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: var(--leading-none);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.navbar .navbar-brand img {
+  display: block;
+  height: var(--navbar-height);
+}
+
+.navbar .navbar-brand span {
+  line-height: var(--leading-none);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+}
+
+/* -------------------------------------------------------------------------
+   Navbar Navigation
+   ------------------------------------------------------------------------- */
+.navbar .navbar-nav {
+  align-items: center;
+}
+
+.navbar .nav-link,
+.navbar .navbar-text {
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+  line-height: var(--leading-tight);
+  color: var(--color-fg);
+  transition: color var(--transition-fast);
+}
+
+.navbar .nav-link:hover {
+  color: var(--color-primary);
+}
+
+/* -------------------------------------------------------------------------
+   Navbar Badges
+   Consistent chip-style badges in the navbar.
+   ------------------------------------------------------------------------- */
+.navbar .badge {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  border-radius: var(--radius-full);
+  padding: 0.35rem 0.6rem;
+  line-height: var(--leading-tight);
+  background-color: var(--color-bg);
+  border: 1.5px solid currentColor;
+  color: var(--color-fg-muted);
+}
+
+.navbar .badge-primary { 
+  color: var(--color-primary); 
+  border-color: var(--color-primary); 
+  background-color: var(--color-bg); 
+}
+
+.navbar .badge-secondary { 
+  color: var(--color-secondary); 
+  border-color: var(--color-secondary); 
+  background-color: var(--color-bg); 
+}
+
+.navbar .badge-success { 
+  color: var(--color-success); 
+  border-color: var(--color-success); 
+  background-color: var(--color-bg); 
+}
+
+.navbar .badge-warning { 
+  color: var(--color-warning); 
+  border-color: var(--color-warning); 
+  background-color: var(--color-bg); 
+}
+
+.navbar .badge-danger { 
+  color: var(--color-danger); 
+  border-color: var(--color-danger); 
+  background-color: var(--color-bg); 
+}
+
+.navbar .badge-info { 
+  color: var(--color-info); 
+  border-color: var(--color-info); 
+  background-color: var(--color-bg); 
+}
+
+.navbar .badge-dark { 
+  color: var(--color-dark); 
+  border-color: var(--color-dark); 
+  background-color: var(--color-bg); 
+}
+
+/* -------------------------------------------------------------------------
+   Navbar Buttons
+   ------------------------------------------------------------------------- */
+.navbar .btn {
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+  line-height: var(--leading-tight);
+}
+
+/* -------------------------------------------------------------------------
+   Navbar Toggler
+   ------------------------------------------------------------------------- */
+.navbar .navbar-toggler {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Responsive Navbar
+   ------------------------------------------------------------------------- */
+@media (min-width: 992px) {
+  .navbar {
+    flex-wrap: nowrap;
+  }
+  
+  .navbar > .container-fluid {
+    flex-wrap: nowrap;
+  }
+  
+  .navbar .navbar-collapse {
+    display: flex !important;
+    align-items: center;
+  }
+}
+
+

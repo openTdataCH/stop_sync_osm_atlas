@@ -1,0 +1,28 @@
+{% macro header_chip(title_text) %}
+<div class="header-container">
+  <div class="header-chip">
+    <object type="image/svg+xml" data="{{ url_for('static', filename='header/header.svg') }}" class="header-icon" aria-label="OSM &amp; ATLAS Logo"></object>
+    <span class="header-title">{{ title_text }}</span>
+  </div>
+  <div class="auth-controls">
+    {% if current_user.is_authenticated %}
+      <span class="badge badge-success mr-2">Logged in as {{ current_user.email }}</span>
+      {% if current_user.is_totp_enabled %}
+        <span class="badge badge-info mr-2" title="Two-factor enabled"><i class="fas fa-shield-alt"></i> 2FA</span>
+      {% else %}
+        <a href="{{ url_for('auth.enable_2fa') }}" class="btn btn-sm btn-outline-info mr-2">Enable 2FA</a>
+      {% endif %}
+      <form action="{{ url_for('auth.logout') }}" method="post" style="display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-outline-danger">Logout</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{% macro stats_overlay() %}
+<div id="headerSummary" class="header-summary"></div>
+{% endmacro %}
+
+

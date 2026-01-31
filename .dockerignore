@@ -1,0 +1,43 @@
+# VCS and IDE metadata
+.git
+.gitmodules
+.gitignore
+.vscode/
+.idea/
+
+# Python caches and build artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Env files (never send secrets to build context)
+.env
+.env.*
+
+# Large data directories (exclude by default)
+data/raw/
+# Explicitly include the Switzerland boundary cache used by get_atlas_data.py
+!data/raw/switzerland.geojson
+data/processed/*
+!data/processed/osm_nodes_with_routes.csv
+!data/processed/atlas_routes_unified.csv
+
+# Documentation and report assets
+memoire/
+documentation/
+
+

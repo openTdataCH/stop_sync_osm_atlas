@@ -1,0 +1,260 @@
+/* ==========================================================================
+   C-FILTER-PANEL COMPONENT
+   Collapsible filter panel component.
+   Uses absolute positioning to overlay the map without causing layout shifts.
+   ========================================================================== */
+
+.c-filter-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: visible;
+  transition: width var(--transition-base);
+  
+  /* Default width - can be overridden by page specific CSS */
+  width: var(--c-filter-panel-width, 400px);
+}
+
+/* When collapsed, shrink the panel width but keep it visible for toggle button */
+.c-filter-panel.collapsed {
+  width: var(--c-filter-panel-collapsed-width, 40px); /* Just enough for the toggle button */
+}
+
+.c-filter-panel.collapsed .c-filter-panel__content {
+  transform: translateX(calc(-100% - 20px)); /* Slide out beyond left edge */
+}
+
+/* Inner content container */
+.c-filter-panel__content {
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - 26px); /* Account for toggle button space */
+  height: 100%;
+  min-height: 0;
+  transition: transform var(--transition-base);
+  
+  /* Visual styling (Card-like) */
+  background: var(--color-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.c-filter-panel.collapsed .c-filter-panel__content {
+  pointer-events: none;
+}
+
+/* Toggle Button - positioned at right edge of panel */
+.c-filter-panel__toggle {
+  position: absolute;
+  top: 50%;
+  right: var(--c-filter-panel-toggle-inset, 0);
+  transform: translateY(-50%);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  width: 28px;
+  height: 56px;
+  padding: 0;
+  cursor: pointer;
+  z-index: calc(var(--z-dropdown) + 20);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 11px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.c-filter-panel__toggle:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  box-shadow: 0 3px 12px rgba(0, 123, 255, 0.15);
+}
+
+.c-filter-panel__toggle:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.c-filter-panel__toggle .toggle-icon {
+  font-size: 11px;
+  transition: transform 0.25s ease;
+}
+
+.c-filter-panel__toggle .fa-sliders-h {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+/* Collapsed state for button - icon rotates */
+.c-filter-panel.collapsed .c-filter-panel__toggle .toggle-icon {
+  transform: rotate(180deg);
+}
+
+/* Note: compact-group base styles are now in c-compact-group.css */
+
+/* Compact groups within filter panel body - index page specific */
+#filterPanelBody > .compact-group {
+  margin-bottom: var(--space-4);
+}
+
+#filterPanelBody > .compact-group:last-of-type {
+  margin-bottom: var(--space-2);
+}
+
+/* -------------------------------------------------------------------------
+   Filter Body Non-Nested Sections
+   Add consistent left margin to all filter checkboxes for professional alignment
+   ------------------------------------------------------------------------- */
+#filterPanelBody > .compact-group > .row .form-check,
+#filterPanelBody > .compact-group > .form-check {
+  padding-left: var(--space-4);
+}
+
+/* -------------------------------------------------------------------------
+   Active Filters Container
+   ------------------------------------------------------------------------- */
+#activeFilters,
+#problemsActiveFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+/* Active filters in scrolling body */
+#activeFilters {
+  padding: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border-muted);
+  background-color: var(--color-bg-subtle);
+  flex-shrink: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Active Filter Badges
+   ------------------------------------------------------------------------- */
+#activeFilters .badge,
+#problemsActiveFilters .badge {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  border-radius: var(--radius-full);
+  padding: 0.35rem 0.6rem;
+  line-height: var(--leading-tight);
+  background-color: var(--color-bg);
+  border: 1.5px solid currentColor;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  margin: var(--space-1);
+  transition: opacity var(--transition-fast);
+}
+
+#activeFilters .badge:hover,
+#problemsActiveFilters .badge:hover {
+  opacity: 0.8;
+}
+
+/* Badge color variants */
+#activeFilters .badge-primary,
+#problemsActiveFilters .badge-primary {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background-color: var(--color-bg);
+}
+
+#activeFilters .badge-secondary,
+#problemsActiveFilters .badge-secondary {
+  color: var(--color-secondary);
+  border-color: var(--color-secondary);
+  background-color: var(--color-bg);
+}
+
+#activeFilters .badge-success,
+#problemsActiveFilters .badge-success {
+  color: var(--color-success);
+  border-color: var(--color-success);
+  background-color: var(--color-bg);
+}
+
+#activeFilters .badge-warning,
+#problemsActiveFilters .badge-warning {
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+  background-color: var(--color-bg);
+}
+
+#activeFilters .badge-info,
+#problemsActiveFilters .badge-info {
+  color: var(--color-info);
+  border-color: var(--color-info);
+  background-color: var(--color-bg);
+}
+
+#activeFilters .badge-danger,
+#problemsActiveFilters .badge-danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  background-color: var(--color-bg);
+}
+
+/* Badge close button */
+#activeFilters .badge a,
+#problemsActiveFilters .badge a {
+  text-decoration: none;
+  margin-left: var(--space-1);
+  font-weight: var(--font-semibold);
+  font-size: 0.95em;
+  color: inherit;
+}
+
+#activeFilters .badge a:hover,
+#problemsActiveFilters .badge a:hover {
+  text-decoration: none;
+  opacity: 0.8;
+}
+
+/* -------------------------------------------------------------------------
+   Filter Chip Operator (AND/OR)
+   ------------------------------------------------------------------------- */
+#activeFilters .filter-chip-operator,
+#problemsActiveFilters .filter-chip-operator {
+  display: inline-flex;
+  align-items: center;
+  line-height: var(--leading-tight);
+  vertical-align: middle;
+}
+
+/* -------------------------------------------------------------------------
+   Filter Type Selector
+   ------------------------------------------------------------------------- */
+#filterTypeSelector {
+  width: auto;
+  display: inline-block !important;
+  margin-bottom: var(--space-2);
+}
+
+/* -------------------------------------------------------------------------
+   Header Form Group
+   ------------------------------------------------------------------------- */
+.card-header .form-group.d-flex.align-items-center.justify-content-center {
+  margin-bottom: 0 !important;
+}
+
+/* -------------------------------------------------------------------------
+   Responsive Adjustments
+   ------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  #filterPanelBody {
+    padding: var(--space-3);
+  }
+}
+
+

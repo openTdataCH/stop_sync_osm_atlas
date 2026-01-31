@@ -1,0 +1,14 @@
+{% extends "layouts/auth.html" %}
+{% block title %}Email verified{% endblock %}
+{% block content %}
+<div class="container mt-5" style="max-width: 560px;">
+  <div class="alert alert-success" role="alert">
+    <h4 class="alert-heading">Email verified</h4>
+    <p>Your email has been verified successfully. You can now sign in to your account.</p>
+    <hr>
+    <a href="{{ url_for('auth.login') }}" class="btn btn-success">Go to login</a>
+  </div>
+</div>
+{% endblock %}
+
+
