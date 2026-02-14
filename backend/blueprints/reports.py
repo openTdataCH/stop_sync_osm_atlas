@@ -18,9 +18,66 @@ reports_bp = Blueprint('reports', __name__)
 
 # Global storage for report progress and completed reports
 # In production, consider using Redis or database storage
-report_progress = {}  # task_id -> {status, processed, total, eta, error}
+report_progress = {}  # task_id -> {status, processed, total, eta, error, created_at}
 completed_reports = {}  # task_id -> {file_path, filename, created_at}
 _state_lock = threading.Lock()
+
+# Cleanup configuration
+REPORT_MAX_AGE_SECONDS = 604800    # 1 week
+CLEANUP_INTERVAL_SECONDS = 3600    # 1 hour
+
+
+def _cleanup_stale_reports():
+    """Remove report files and state entries older than REPORT_MAX_AGE_SECONDS."""
+    now = datetime.now()
+    stale_task_ids = []
+
+    with _state_lock:
+        # Find stale completed reports
+        for task_id, info in list(completed_reports.items()):
+            age = (now - info['created_at']).total_seconds()
+            if age > REPORT_MAX_AGE_SECONDS:
+                stale_task_ids.append(task_id)
+
+        # Find stale/abandoned progress entries (no completed report)
+        for task_id, info in list(report_progress.items()):
+            if task_id in stale_task_ids:
+                continue
+            if task_id not in completed_reports:
+                created_at = info.get('created_at')
+                if created_at and (now - created_at).total_seconds() > REPORT_MAX_AGE_SECONDS:
+                    stale_task_ids.append(task_id)
+
+        # Remove stale entries and their files
+        for task_id in stale_task_ids:
+            report_info = completed_reports.pop(task_id, None)
+            report_progress.pop(task_id, None)
+            if report_info:
+                filepath = report_info.get('file_path')
+                if filepath:
+                    try:
+                        if os.path.exists(filepath):
+                            os.remove(filepath)
+                    except OSError:
+                        pass
+
+    return len(stale_task_ids)
+
+
+def _periodic_cleanup():
+    """Background thread that periodically cleans up stale reports."""
+    while True:
+        time.sleep(CLEANUP_INTERVAL_SECONDS)
+        try:
+            count = _cleanup_stale_reports()
+            if count > 0:
+                print(f"Report cleanup: removed {count} stale report(s)")
+        except Exception:
+            pass
+
+
+_cleanup_thread = threading.Thread(target=_periodic_cleanup, daemon=True)
+_cleanup_thread.start()
 
 
 def update_progress(task_id, processed, total, start_time=None):
@@ -242,12 +299,15 @@ def generate_report_data(params, task_id):
 def generate_report_async():
     """Start async report generation"""
     try:
+        # Lazy cleanup of stale reports on each new request
+        _cleanup_stale_reports()
+
         data = request.get_json()
         if not data:
             return jsonify({"error": "No data provided"}), 400
-            
+
         task_id = str(uuid.uuid4())
-        
+
         # Initialize progress tracking
         with _state_lock:
             report_progress[task_id] = {
@@ -255,7 +315,8 @@ def generate_report_async():
                 'processed': 0,
                 'total': 0,
                 'eta': None,
-                'error': None
+                'error': None,
+                'created_at': datetime.now()
             }
         
         # Get the actual app instance for the background thread
