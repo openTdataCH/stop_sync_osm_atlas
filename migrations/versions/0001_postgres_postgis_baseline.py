@@ -129,8 +129,6 @@ def upgrade():
         # PostGIS geometry column for fast viewport queries (lon/lat, SRID 4326)
         sa.Column('geom', Geometry(geometry_type='POINT', srid=4326), nullable=True),
     )
-    op.create_index('idx_atlas_lat_lon', 'stops', ['atlas_lat', 'atlas_lon'], unique=False)
-    op.create_index('idx_osm_lat_lon', 'stops', ['osm_lat', 'osm_lon'], unique=False)
     op.create_index('idx_stop_type_match_type', 'stops', ['stop_type', 'match_type'], unique=False)
     op.create_index('idx_distance_m', 'stops', ['distance_m'], unique=False)
     op.create_index('idx_stops_geom_gist', 'stops', ['geom'], unique=False, postgresql_using='gist')
