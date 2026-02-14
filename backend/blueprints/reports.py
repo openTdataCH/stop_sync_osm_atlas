@@ -20,24 +20,26 @@ reports_bp = Blueprint('reports', __name__)
 # In production, consider using Redis or database storage
 report_progress = {}  # task_id -> {status, processed, total, eta, error}
 completed_reports = {}  # task_id -> {file_path, filename, created_at}
+_state_lock = threading.Lock()
 
 
 def update_progress(task_id, processed, total, start_time=None):
     """Update progress for a report generation task"""
-    if task_id not in report_progress:
-        return
-    
-    report_progress[task_id]['processed'] = processed
-    report_progress[task_id]['total'] = total
-    
-    # Calculate ETA
-    if start_time and processed > 0:
-        elapsed = time.time() - start_time
-        rate = processed / elapsed
-        remaining = total - processed
-        eta = remaining / rate if rate > 0 else None
-        report_progress[task_id]['eta'] = eta
-    
+    with _state_lock:
+        if task_id not in report_progress:
+            return
+
+        report_progress[task_id]['processed'] = processed
+        report_progress[task_id]['total'] = total
+
+        # Calculate ETA
+        if start_time and processed > 0:
+            elapsed = time.time() - start_time
+            rate = processed / elapsed
+            remaining = total - processed
+            eta = remaining / rate if rate > 0 else None
+            report_progress[task_id]['eta'] = eta
+
     print(f"Progress {task_id}: {processed}/{total}")
 
 
@@ -197,7 +199,9 @@ def generate_report_data(params, task_id):
         all_data = []
         
         while True:
-            if task_id not in report_progress:  # Check if cancelled
+            with _state_lock:
+                cancelled = task_id not in report_progress
+            if cancelled:  # Check if cancelled
                 return None
                 
             chunk_query = query.offset(offset).limit(chunk_size)
@@ -225,8 +229,10 @@ def generate_report_data(params, task_id):
         return all_data, report_type
         
     except Exception as e:
-        report_progress[task_id]['status'] = 'error'
-        report_progress[task_id]['error'] = str(e)
+        with _state_lock:
+            if task_id in report_progress:
+                report_progress[task_id]['status'] = 'error'
+                report_progress[task_id]['error'] = str(e)
         print(f"Error in generate_report_data: {e}")
         return None
 
@@ -243,13 +249,14 @@ def generate_report_async():
         task_id = str(uuid.uuid4())
         
         # Initialize progress tracking
-        report_progress[task_id] = {
-            'status': 'starting',
-            'processed': 0,
-            'total': 0,
-            'eta': None,
-            'error': None
-        }
+        with _state_lock:
+            report_progress[task_id] = {
+                'status': 'starting',
+                'processed': 0,
+                'total': 0,
+                'eta': None,
+                'error': None
+            }
         
         # Get the actual app instance for the background thread
         flask_app = app._get_current_object()
@@ -273,8 +280,11 @@ def background_report_generation(params, task_id, flask_app):
     """Background function to generate report"""
     with flask_app.app_context():
         try:
-            report_progress[task_id]['status'] = 'processing'
-            
+            with _state_lock:
+                if task_id not in report_progress:
+                    return
+                report_progress[task_id]['status'] = 'processing'
+
             # Generate report data
             result = generate_report_data(params, task_id)
             if result is None:
@@ -415,17 +425,20 @@ def background_report_generation(params, task_id, flask_app):
                     f.write(pdf)
             
             # Store completed report
-            completed_reports[task_id] = {
-                'file_path': filepath,
-                'filename': filename,
-                'created_at': datetime.now()
-            }
-            
-            report_progress[task_id]['status'] = 'completed'
-            
+            with _state_lock:
+                completed_reports[task_id] = {
+                    'file_path': filepath,
+                    'filename': filename,
+                    'created_at': datetime.now()
+                }
+                if task_id in report_progress:
+                    report_progress[task_id]['status'] = 'completed'
+
         except Exception as e:
-            report_progress[task_id]['status'] = 'error' 
-            report_progress[task_id]['error'] = str(e)
+            with _state_lock:
+                if task_id in report_progress:
+                    report_progress[task_id]['status'] = 'error'
+                    report_progress[task_id]['error'] = str(e)
             flask_app.logger.error(f"Background report generation error: {str(e)}")
 
 
@@ -433,10 +446,10 @@ def background_report_generation(params, task_id, flask_app):
 @limiter.limit("60/minute")
 def get_report_progress(task_id):
     """Get progress of report generation"""
-    if task_id not in report_progress:
-        return jsonify({"error": "Task not found"}), 404
-    
-    progress = report_progress[task_id].copy()
+    with _state_lock:
+        if task_id not in report_progress:
+            return jsonify({"error": "Task not found"}), 404
+        progress = report_progress[task_id].copy()
     return jsonify(progress)
 
 
@@ -444,12 +457,12 @@ def get_report_progress(task_id):
 @limiter.limit("20/minute")  
 def download_report(task_id):
     """Download completed report"""
-    if task_id not in completed_reports:
-        return jsonify({"error": "Report not found"}), 404
-    
-    report_info = completed_reports[task_id]
-    filepath = report_info['file_path']
-    filename = report_info['filename']
+    with _state_lock:
+        if task_id not in completed_reports:
+            return jsonify({"error": "Report not found"}), 404
+        report_info = completed_reports[task_id]
+        filepath = report_info['file_path']
+        filename = report_info['filename']
     
     if not os.path.exists(filepath):
         return jsonify({"error": "Report file not found"}), 404
@@ -459,10 +472,9 @@ def download_report(task_id):
             try:
                 time.sleep(1)  # Give time for download to start
                 os.remove(filepath)
-                if task_id in completed_reports:
-                    del completed_reports[task_id]
-                if task_id in report_progress:
-                    del report_progress[task_id]
+                with _state_lock:
+                    completed_reports.pop(task_id, None)
+                    report_progress.pop(task_id, None)
             except Exception as e:
                 # Non-critical cleanup failure - log for debugging
                 app.logger.debug(f"Cleanup failed for report {task_id} (non-critical): {e}")
@@ -490,19 +502,18 @@ def download_report(task_id):
 @limiter.limit("60/minute")
 def cancel_report(task_id):
     """Cancel report generation"""
-    if task_id in report_progress:
-        del report_progress[task_id]
-    if task_id in completed_reports:
-        # Clean up file if it exists
+    with _state_lock:
+        report_progress.pop(task_id, None)
+        report_info = completed_reports.pop(task_id, None)
+    if report_info:
         try:
-            filepath = completed_reports[task_id]['file_path']
+            filepath = report_info['file_path']
             if os.path.exists(filepath):
                 os.remove(filepath)
         except Exception as e:
             # Non-critical cleanup failure - log for debugging
             app.logger.debug(f"Failed to clean up report file (non-critical): {e}")
-        del completed_reports[task_id]
-    
+
     return jsonify({"status": "cancelled"})
 
 
