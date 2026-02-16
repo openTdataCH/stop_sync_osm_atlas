@@ -119,7 +119,6 @@ When the `app` container starts (and data import is not skipped), the entrypoint
 
 Downloads are cached under `data/raw/` and processed artifacts under `data/processed/` — see [1. Download and process data](documentation/1.%20Download%20and%20process%20data.md) for details.
 
-**Speed up iterations**: Use `MATCH_ONLY=true` to skip downloads and data processing and only run the matching/import process using existing data files. This requires that a full pipeline has been run at least once to generate the necessary processed files.
 
 ### Data Import
 
@@ -141,83 +140,6 @@ Access it at [http://localhost:5001/](http://localhost:5001/).
 - **Manage Data**: See [4.2 Persistent Data](documentation/4.2%20Persistent%20Data.md).
 - **Generating Reports:** The web app can generate CSV and PDF reports. See [5.3 Generate Reports](documentation/5.3%20Generate%20Reports.md).
 
-## Environment & Secrets
-
-- This repo provides `env.example` (copy to `.env` if you want to override defaults). Key variables:
-  - `DATABASE_URI`, `AUTH_DATABASE_URI`: SQLAlchemy URIs. Override to use your chosen users.
-  - `SECRET_KEY`: Flask secret key (set a strong value in production).
-  - `AUTO_MIGRATE`, `MATCH_ONLY`, `SKIP_DATA_IMPORT`: control data pipeline and migrations.
-  - `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`: Cloudflare Turnstile CAPTCHA (optional locally; required to enable CAPTCHA on auth forms).
-  - `AWS_REGION`, `SES_FROM_EMAIL`: Amazon SES region and a verified sender identity (only required if you want to send emails).
-  - `SES_CONFIGURATION_SET` (optional): existing SES configuration set name.
-  - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (optional): AWS credentials if not using instance/task roles.
-
-Example `.env` snippet:
-```env
-DATABASE_URI=postgresql+psycopg://stops_user:1234@db:5432/stops_db
-AUTH_DATABASE_URI=postgresql+psycopg://stops_user:1234@db:5432/auth_db
-SECRET_KEY=dev-insecure
-AUTO_MIGRATE=true
-# CAPTCHA (Cloudflare Turnstile)
-TURNSTILE_SITE_KEY=your-turnstile-site-key
-TURNSTILE_SECRET_KEY=your-turnstile-secret-key
-# Email (Amazon SES)
-AWS_REGION=eu-west-1
-SES_FROM_EMAIL=no-reply@example.com
-# SES_CONFIGURATION_SET=your-config-set
-# If not using roles, provide AWS credentials via env
-# AWS_ACCESS_KEY_ID=...
-# AWS_SECRET_ACCESS_KEY=...
-```
-
-## Admin Management CLI
-
-Use `manage.py` to list users, create users, and grant/revoke admin (run these inside the container). This is the simplest way to become admin locally:
-```bash
-# Inside the container
-docker compose exec app python manage.py list-users
-docker compose exec app python manage.py create-user --email you@example.com --password 'StrongPass' --admin
-docker compose exec app python manage.py set-admin --email you@example.com --on
-docker compose exec app python manage.py set-admin --email you@example.com --off
-```
-
-If you are running the `app-dev` service instead, replace `app` with `app-dev`:
-```bash
-docker compose exec app-dev python manage.py list-users
-```
-
-The project uses Alembic (via Flask‑Migrate) to manage schema. On startup, the application waits for Postgres and runs `flask db upgrade` to apply migrations. Auth tables live in the `auth_db` bind and are ensured by `create_auth_tables.py`.
-
-
-## Authentication
-
-- Authentication features: email/password (Argon2id), optional email verification, TOTP 2FA with backup codes, rate limiting and progressive lockout.
-
-### Local auth notes
-- You can log in with any account you create via the UI or `manage.py`.
-- Email verification is optional locally; if SES is not configured, verification emails are skipped harmlessly.
-- CAPTCHA (Turnstile) checks are skipped if keys are not set.
-
-### Roles and permissions
-- Anonymous (not logged in):
-  - Access the web UI pages
-  - Save non‑persistent solutions and notes
-  - View lists of persistent and non‑persistent data
-  - Cannot make anything persistent or modify persistent data
-- Users (authenticated):
-  - Everything anonymous users can do
-  - Make a solution or note persistent individually
-  - Delete or make non‑persistent their own persistent records
-- Admins:
-  - Everything users can do
-  - Delete any persistent record
-  - Make a specific solution non‑persistent
-  - Clear all persistent data
-  - Clear all non‑persistent data
-  - Make solutions/notes persistent in bulk
-
-See the full policy: [6.1 Permissions and Roles](documentation/6.1%20Permissions%20and%20Roles.md).
-
 
 ## CI & Tests
 
@@ -225,20 +147,6 @@ This repository uses **GitHub Actions** for continuous integration.
 
 - Workflow: [tests.yml](.github/workflows/tests.yml)
 - CI documentation: [CI and Tests](documentation/7.%20GITHUB_ACTIONS_AND_TESTS.md)
-  - [JavaScript tests (Jest)](documentation/7.1%20JavaScript%20tests.md)
-  - [Python lint and tests](documentation/7.2%20Python%20lint%20and%20tests.md)
-
-Quick local commands:
-
-```bash
-# JavaScript unit tests
-npm ci
-npm test
-
-# Python linting
-python -m pip install flake8 black isort
-flake8 .
-```
 
 
 ## Contributing and project Status
