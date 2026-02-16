@@ -29,7 +29,6 @@ class Stop(db.Model):
     # Core location and linking attributes
     atlas_lat = db.Column(db.Float)
     atlas_lon = db.Column(db.Float)
-    uic_ref = db.Column(db.String(100), index=True)
     osm_node_id = db.Column(db.String(100), index=True)
     osm_lat = db.Column(db.Float)
     osm_lon = db.Column(db.Float)
@@ -44,11 +43,12 @@ class Stop(db.Model):
     
     atlas_duplicate_sloid = db.Column(db.String(100), default=None)
     
-    # Relationship to ATLAS stop details
-    atlas_stop_details = db.relationship('AtlasStop', primaryjoin='Stop.sloid == AtlasStop.sloid', foreign_keys='AtlasStop.sloid', uselist=False, lazy='joined')
-    
+    # Relationship to ATLAS stop details (lazy='select' to avoid unnecessary JOINs on /api/data;
+    # endpoints that need details use explicit joinedload() via optimize_query_for_endpoint)
+    atlas_stop_details = db.relationship('AtlasStop', primaryjoin='Stop.sloid == AtlasStop.sloid', foreign_keys='AtlasStop.sloid', uselist=False, lazy='select')
+
     # Relationship to OSM node details
-    osm_node_details = db.relationship('OsmNode', primaryjoin='Stop.osm_node_id == OsmNode.osm_node_id', foreign_keys='OsmNode.osm_node_id', uselist=False, lazy='joined')
+    osm_node_details = db.relationship('OsmNode', primaryjoin='Stop.osm_node_id == OsmNode.osm_node_id', foreign_keys='OsmNode.osm_node_id', uselist=False, lazy='select')
 
     # Relationship to problems
     problems = db.relationship('Problem', back_populates='stop', cascade="all, delete-orphan")
@@ -73,40 +73,12 @@ class Problem(db.Model):
     stop = db.relationship('Stop', back_populates='problems')
 
     def to_dict(self):
-        # Build minimal stop data without relying on a non-existent Stop.to_dict()
-        stop_data = {}
-        if self.stop:
-            stop_data = {
-                'sloid': self.stop.sloid,
-                'stop_type': self.stop.stop_type,
-                'match_type': self.stop.match_type,
-            }
+        # Use the Stop relationships instead of issuing separate queries.
+        # Callers should use joinedload/subqueryload to pre-load these.
+        stop = self.stop
+        atlas_details = stop.atlas_stop_details if stop else None
+        osm_details = stop.osm_node_details if stop else None
 
-        # Get OSM and ATLAS specific data from their respective tables
-        atlas_data = {}
-        if self.stop and self.stop.sloid:
-            atlas_stop = AtlasStop.query.filter_by(sloid=self.stop.sloid).first()
-            if atlas_stop:
-                atlas_data = {
-                    'atlas_designation': atlas_stop.atlas_designation,
-                    'atlas_designation_official': atlas_stop.atlas_designation_official,
-                    'atlas_business_org_abbr': atlas_stop.atlas_business_org_abbr,
-                    'atlas_note': atlas_stop.atlas_note
-                }
-        
-        osm_data = {}
-        if self.stop and self.stop.osm_node_id:
-            osm_node = OsmNode.query.filter_by(osm_node_id=self.stop.osm_node_id).first()
-            if osm_node:
-                osm_data = {
-                    'osm_name': osm_node.osm_name,
-                    'osm_local_ref': osm_node.osm_local_ref,
-                    'osm_operator': osm_node.osm_operator,
-                    'osm_note': osm_node.osm_note,
-                    'osm_public_transport': osm_node.osm_public_transport,
-                }
-
-        # Merge all data into a single dictionary
         return {
             'id': self.id,
             'stop_id': self.stop_id,
@@ -114,18 +86,18 @@ class Problem(db.Model):
             'solution': self.solution,
             'is_persistent': self.is_persistent,
             'priority': self.priority,
-            'sloid': stop_data.get('sloid'),
-            'stop_type': stop_data.get('stop_type'),
-            'match_type': stop_data.get('match_type'),
-            'atlas_designation': atlas_data.get('atlas_designation'),
-            'atlas_designation_official': atlas_data.get('atlas_designation_official'),
-            'atlas_business_org_abbr': atlas_data.get('atlas_business_org_abbr'),
-            'atlas_note': atlas_data.get('atlas_note'),
-            'osm_name': osm_data.get('osm_name'),
-            'osm_local_ref': osm_data.get('osm_local_ref'),
-            'osm_operator': osm_data.get('osm_operator'),
-            'osm_note': osm_data.get('osm_note'),
-            'osm_public_transport': osm_data.get('osm_public_transport'),
+            'sloid': stop.sloid if stop else None,
+            'stop_type': stop.stop_type if stop else None,
+            'match_type': stop.match_type if stop else None,
+            'atlas_designation': atlas_details.atlas_designation if atlas_details else None,
+            'atlas_designation_official': atlas_details.atlas_designation_official if atlas_details else None,
+            'atlas_business_org_abbr': atlas_details.atlas_business_org_abbr if atlas_details else None,
+            'atlas_note': atlas_details.atlas_note if atlas_details else None,
+            'osm_name': osm_details.osm_name if osm_details else None,
+            'osm_local_ref': osm_details.osm_local_ref if osm_details else None,
+            'osm_operator': osm_details.osm_operator if osm_details else None,
+            'osm_note': osm_details.osm_note if osm_details else None,
+            'osm_public_transport': osm_details.osm_public_transport if osm_details else None,
         }
 
 class PersistentData(db.Model):
@@ -155,6 +127,7 @@ class AtlasStop(db.Model):
     )
     
     sloid = db.Column(db.String(100), primary_key=True)
+    uic_ref = db.Column(db.String(100), index=True)
     atlas_designation = db.Column(db.String(255))
     atlas_designation_official = db.Column(db.String(255))
     atlas_business_org_abbr = db.Column(db.String(100))

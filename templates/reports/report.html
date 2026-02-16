@@ -109,7 +109,7 @@
                 <td class="col-osm-id">{{ item.osm_node_id or 'N/A' }}</td>
                 <td>{{ item.osm_node_details.osm_local_ref if item.osm_node_details and item.osm_node_details.osm_local_ref else 'N/A' }}</td>
                 <td>{{ item.osm_node_details.osm_name if item.osm_node_details and item.osm_node_details.osm_name else 'N/A' }}</td>
-                <td>{{ item.uic_ref or 'N/A' }}</td>
+                <td>{{ (item.atlas_stop_details.uic_ref if item.atlas_stop_details and item.atlas_stop_details.uic_ref else (item.osm_node_details.osm_uic_ref if item.osm_node_details else None)) or 'N/A' }}</td>
                 {% if include_fields and 'atlas_coords' in include_fields %}
                 <td>{{ ('%.6f'|format(item.atlas_lat)) if item.atlas_lat is not none else 'N/A' }}</td>
                 <td>{{ ('%.6f'|format(item.atlas_lon)) if item.atlas_lon is not none else 'N/A' }}</td>

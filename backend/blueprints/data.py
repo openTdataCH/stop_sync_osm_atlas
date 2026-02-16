@@ -134,7 +134,10 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
                     if route_specific_conditions:
                         station_id_sub_conditions.append(db.or_(*route_specific_conditions))
                 else:
-                    station_id_sub_conditions.append(Stop.uic_ref.like(f'%{value}%'))
+                    station_id_sub_conditions.append(db.or_(
+                        Stop.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),
+                        Stop.osm_node_details.has(OsmNode.osm_uic_ref.ilike(f'%{value}%'))
+                    ))
             if station_id_sub_conditions:
                 all_category_conditions.append(db.or_(*station_id_sub_conditions))
             else:
@@ -292,7 +295,6 @@ def get_data():
                 "sloid": stop.sloid,
                 "stop_type": stop.stop_type,
                 "match_type": stop.match_type,
-                "uic_ref": stop.uic_ref,
                 "osm_node_id": stop.osm_node_id,
                 "atlas_lat": stop.atlas_lat,
                 "atlas_lon": stop.atlas_lon,
@@ -416,7 +418,7 @@ def get_stop_popup():
                     "osm_lat": stop.osm_lat,
                     "osm_lon": stop.osm_lon,
                     "osm_node_type": stop.osm_node_type,
-                    "uic_ref": stop.uic_ref,
+                    "uic_ref": osm_details.osm_uic_ref if osm_details else None,
                     "routes_osm": osm_details.routes_osm if osm_details else None,
                     "atlas_matches": []
                 }
@@ -425,7 +427,7 @@ def get_stop_popup():
                     osm_centric["atlas_matches"].append({
                         "id": r.id,
                         "sloid": r.sloid,
-                        "uic_ref": r.uic_ref,
+                        "uic_ref": atlas.uic_ref if atlas else None,
                         "atlas_designation": atlas.atlas_designation if atlas else None,
                         "atlas_designation_official": atlas.atlas_designation_official if atlas else None,
                         "atlas_business_org_abbr": atlas.atlas_business_org_abbr if atlas else None,

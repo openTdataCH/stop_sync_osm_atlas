@@ -97,13 +97,13 @@ def get_problems():
                 except Exception:
                     prio_val = None
                 if st.osm_node_id and osm_details and osm_details.osm_local_ref and prio_val == 3:
-                    key = (str(st.uic_ref or ''), str(osm_details.osm_local_ref or '').lower())
+                    key = (str((st.atlas_stop_details.uic_ref if st.atlas_stop_details else None) or osm_details.osm_uic_ref or ''), str(osm_details.osm_local_ref or '').lower())
                     osm_groups[key].append(pr)
                 # ATLAS-side grouping: (uic_ref, designation)
                 atlas_details = st.atlas_stop_details
                 # Keep ATLAS groups side-pure: include only ATLAS-side duplicates (priority == 2)
                 if getattr(st, 'sloid', None) and atlas_details and getattr(atlas_details, 'atlas_designation', None) and prio_val == 2:
-                    atlas_key = (str(st.uic_ref or ''), str(atlas_details.atlas_designation or '').strip().lower())
+                    atlas_key = (str((atlas_details.uic_ref if atlas_details else None) or ''), str(atlas_details.atlas_designation or '').strip().lower())
                     atlas_groups[atlas_key].append(pr)
             def build_osm_group_payload(key, problems_list):
                 members = {}

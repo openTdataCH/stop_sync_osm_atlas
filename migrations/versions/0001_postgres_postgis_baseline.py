@@ -1,9 +1,5 @@
 """Postgres/PostGIS baseline schema
 
-Revision ID: 0001_postgres_postgis_baseline
-Revises:
-Create Date: 2025-12-20
-
 This is a squashed baseline migration intended for a clean Postgres/PostGIS cutover.
 It creates the current schema in one step and enables PostGIS.
 """
@@ -29,6 +25,7 @@ def upgrade():
     op.create_table(
         'atlas_stops',
         sa.Column('sloid', sa.String(length=100), primary_key=True),
+        sa.Column('uic_ref', sa.String(length=100)),
         sa.Column('atlas_designation', sa.String(length=255)),
         sa.Column('atlas_designation_official', sa.String(length=255)),
         sa.Column('atlas_business_org_abbr', sa.String(length=100)),
@@ -39,6 +36,7 @@ def upgrade():
         sa.Column('atlas_note_user_email', sa.String(length=255)),
     )
     op.create_index('idx_atlas_operator', 'atlas_stops', ['atlas_business_org_abbr'], unique=False)
+    op.create_index('ix_atlas_stops_uic_ref', 'atlas_stops', ['uic_ref'], unique=False)
     op.create_index('ix_atlas_stops_atlas_note_user_id', 'atlas_stops', ['atlas_note_user_id'], unique=False)
 
     # --- osm_nodes ---
@@ -119,7 +117,6 @@ def upgrade():
         sa.Column('manual_is_persistent', sa.Boolean(), server_default=sa.text('false')),
         sa.Column('atlas_lat', sa.Float()),
         sa.Column('atlas_lon', sa.Float()),
-        sa.Column('uic_ref', sa.String(length=100), index=True),
         sa.Column('osm_node_id', sa.String(length=100), index=True),
         sa.Column('osm_lat', sa.Float()),
         sa.Column('osm_lon', sa.Float()),

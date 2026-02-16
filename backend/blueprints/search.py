@@ -89,7 +89,7 @@ def search():
             db.or_(
                 AtlasStop.atlas_designation.ilike(search_pattern),
                 AtlasStop.atlas_designation_official.ilike(search_pattern),
-                Stop.uic_ref.ilike(search_pattern),
+                AtlasStop.uic_ref.ilike(search_pattern),
                 AtlasStop.atlas_business_org_abbr.ilike(search_pattern),
                 OsmNode.osm_name.ilike(search_pattern),
                 OsmNode.osm_local_ref.ilike(search_pattern),
@@ -120,7 +120,7 @@ def search():
                 "match_type": stop.match_type,
                 "atlas_designation": stop.atlas_stop_details.atlas_designation if stop.atlas_stop_details else None,
                 "atlas_designation_official": stop.atlas_stop_details.atlas_designation_official if stop.atlas_stop_details else None,
-                "uic_ref": stop.uic_ref,
+                "uic_ref": (stop.atlas_stop_details.uic_ref if stop.atlas_stop_details else None),
                 "osm_node_id": stop.osm_node_id,
                 "osm_local_ref": stop.osm_node_details.osm_local_ref if stop.osm_node_details else None,
                 "osm_uic_name": stop.osm_node_details.osm_uic_name if stop.osm_node_details else None,
@@ -133,7 +133,7 @@ def search():
                 AtlasStop.atlas_designation.ilike(search_pattern),
                 AtlasStop.atlas_designation_official.ilike(search_pattern),
                 AtlasStop.atlas_business_org_abbr.ilike(search_pattern),
-                Stop.uic_ref.ilike(search_pattern)
+                AtlasStop.uic_ref.ilike(search_pattern)
             )
         )
         unmatched_stops = unmatched_query.all()
@@ -147,7 +147,7 @@ def search():
                 "match_type": stop.match_type,
                 "atlas_designation": stop.atlas_stop_details.atlas_designation if stop.atlas_stop_details else None,
                 "atlas_designation_official": stop.atlas_stop_details.atlas_designation_official if stop.atlas_stop_details else None,
-                "uic_ref": stop.uic_ref,
+                "uic_ref": (stop.atlas_stop_details.uic_ref if stop.atlas_stop_details else None),
                 "osm_railway": (stop.osm_node_details.osm_railway if stop.osm_node_details else None),
                 "osm_amenity": (stop.osm_node_details.osm_amenity if stop.osm_node_details else None),
                 "osm_aerialway": (stop.osm_node_details.osm_aerialway if stop.osm_node_details else None),

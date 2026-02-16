@@ -28,7 +28,7 @@ def format_stop_data(stop: Stop, problem_type: str = None, include_routes: bool 
         "distance_m": stop.distance_m,
         "atlas_designation": atlas_details.atlas_designation if atlas_details else None,
         "atlas_designation_official": atlas_details.atlas_designation_official if atlas_details else None,
-        "uic_ref": stop.uic_ref,
+        "uic_ref": atlas_details.uic_ref if atlas_details else None,
         "osm_node_id": stop.osm_node_id,
         "osm_local_ref": osm_details.osm_local_ref if osm_details else None,
         "osm_name": osm_details.osm_name if osm_details else None,
