@@ -28,13 +28,17 @@ function isDuplicateFlagSet(value) {
         if (str === '' || str === 'false' || str === 'true' || str === '0' || str === '1' || str === 'none' || str === 'null') return false;
         return true;
     }
+    // Also accept boolean true, in case backend sends boolean
+    if (value === true) return true;
+
     return false;
 }
 
 // Helper to build and cache a labeled circle SVG icon
 function getCachedLabeledCircleIcon(keyPrefix, color, letter, size, radius, weight, fillOpacity) {
     const key = `${keyPrefix}|${color}|${letter}|${size}`;
-    const html = `\n            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">\n                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>\n                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">${letter}</text>\n            </svg>`;
+    // Use dominant-baseline="central" for better vertical centering
+    const html = `\n            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">\n                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>\n                <text x="${radius}" y="${radius}" text-anchor="middle" dominant-baseline="central" fill="white" font-size="${radius + 2}" font-weight="bold" font-family="Arial, sans-serif">${letter}</text>\n            </svg>`;
     return getCachedDivIcon(key, html, 'custom-div-icon', [size, size], [radius, radius]);
 }
 
@@ -105,11 +109,11 @@ class MarkerClusterManager {
      */
     addMarker(lat, lon, markerData) {
         const key = this._normalizeCoordinates(lat, lon);
-        
+
         if (!this.clusters.has(key)) {
             this.clusters.set(key, []);
         }
-        
+
         this.clusters.get(key).push({
             lat: lat,
             lon: lon,
@@ -134,12 +138,12 @@ class MarkerClusterManager {
         // This is a rough approximation - exact conversion depends on zoom level
         const pixelToDegree = 0.000008; // Approximate conversion factor
         const radiusInDegrees = this.offsetRadius * pixelToDegree;
-        
+
         // Arrange markers in a circular pattern around the center
         const angle = (2 * Math.PI * index) / count;
         const offsetLat = centerLat + radiusInDegrees * Math.sin(angle);
         const offsetLon = centerLon + radiusInDegrees * Math.cos(angle);
-        
+
         return { offsetLat, offsetLon };
     }
 
@@ -152,14 +156,14 @@ class MarkerClusterManager {
         this.clusters.forEach((markerDataArray, coordKey) => {
             const [centerLat, centerLon] = coordKey.split(',').map(Number);
             const clusterSize = markerDataArray.length;
-            
+
             // Sort markers to ensure consistent ordering (Atlas first, then OSM)
             markerDataArray.sort((a, b) => {
                 if (a.type === 'atlas' && b.type === 'osm') return -1;
                 if (a.type === 'osm' && b.type === 'atlas') return 1;
                 return 0;
             });
-            
+
             markerDataArray.forEach((markerData, index) => {
                 const { offsetLat, offsetLon } = this._calculateOffset(centerLat, centerLon, clusterSize, index);
                 results.push({
@@ -177,37 +181,37 @@ class MarkerClusterManager {
      * @param {L.LayerGroup} layer - Leaflet layer group to add markers to
      * @returns {Array} Array of created markers
      */
-     createMarkersWithOffsets(layer, options = {}) {
+    createMarkersWithOffsets(layer, options = {}) {
         const allMarkers = [];
-        
+
         this.clusters.forEach((markerDataArray, coordKey) => {
             const [centerLat, centerLon] = coordKey.split(',').map(Number);
             const clusterSize = markerDataArray.length;
-            
+
             // Sort markers to ensure consistent ordering (Atlas first, then OSM)
             markerDataArray.sort((a, b) => {
                 if (a.type === 'atlas' && b.type === 'osm') return -1;
                 if (a.type === 'osm' && b.type === 'atlas') return 1;
                 return 0;
             });
-            
+
             markerDataArray.forEach((markerData, index) => {
                 const { offsetLat, offsetLon } = this._calculateOffset(centerLat, centerLon, clusterSize, index);
-                
+
                 // Create the marker with offset position
                 let marker;
                 if (markerData.type === 'atlas') {
                     marker = this._createAtlasMarkerWithCluster(
-                        offsetLat, offsetLon, markerData.color, markerData.duplicateSloid, 
+                        offsetLat, offsetLon, markerData.color, markerData.duplicateSloid,
                         clusterSize, index, markerData.originalLat, markerData.originalLon
                     );
                 } else {
                     marker = this._createOsmMarkerWithCluster(
-                        offsetLat, offsetLon, markerData.color, markerData.osmNodeType, 
+                        offsetLat, offsetLon, markerData.color, markerData.osmNodeType,
                         clusterSize, index, markerData.originalLat, markerData.originalLon
                     );
                 }
-                
+
                 // Bind popup or lazy loader and add to layer
                 if (markerData.popup) {
                     marker.bindPopup(markerData.popup);
@@ -221,43 +225,43 @@ class MarkerClusterManager {
                         marker._popupLoading = true;
                         if (typeof $ !== 'undefined' && $.getJSON) {
                             $.getJSON('/api/stop_popup', { stop_id: markerData.stopData.id, view_type: markerData.type })
-                              .done(function(resp) {
-                                  try {
-                                      const enriched = resp && (resp.stop || resp);
-                                      let content = '';
-                                      if (enriched && enriched.stop_type === 'unmatched') {
-                                          content = markerData.type === 'atlas'
-                                            ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
-                                            : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
-                                      } else {
-                                          content = PopupRenderer.generatePopupHtml(enriched, markerData.type);
-                                      }
-                                      const popup = createPopupWithOptions(content);
-                                      marker.bindPopup(popup);
-                                      marker._popupLoaded = true;
-                                      marker.openPopup();
-                                  } catch (e) {
-                                      console.error('Failed to render popup:', e);
-                                  } finally {
-                                      marker._popupLoading = false;
-                                  }
-                              })
-                              .fail(function() {
-                                  marker._popupLoading = false;
-                              });
+                                .done(function (resp) {
+                                    try {
+                                        const enriched = resp && (resp.stop || resp);
+                                        let content = '';
+                                        if (enriched && enriched.stop_type === 'unmatched') {
+                                            content = markerData.type === 'atlas'
+                                                ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
+                                                : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
+                                        } else {
+                                            content = PopupRenderer.generatePopupHtml(enriched, markerData.type);
+                                        }
+                                        const popup = createPopupWithOptions(content);
+                                        marker.bindPopup(popup);
+                                        marker._popupLoaded = true;
+                                        marker.openPopup();
+                                    } catch (e) {
+                                        console.error('Failed to render popup:', e);
+                                    } finally {
+                                        marker._popupLoading = false;
+                                    }
+                                })
+                                .fail(function () {
+                                    marker._popupLoading = false;
+                                });
                         } else {
                             marker._popupLoading = false;
                         }
                     });
                 }
-                
+
                 if (!options.deferAdd) {
                     layer.addLayer(marker);
                 }
                 allMarkers.push(marker);
             });
         });
-        
+
         return allMarkers;
     }
 }
@@ -275,26 +279,29 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
     const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
     const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
     const size = radius * 2;
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
-    if (useCanvasOnly) {
-        return L.circleMarker([lat, lon], { 
-            color: color, 
-            radius: radius,
-            fillOpacity: fillOpacity,
-            weight: weight
-        });
-    }
-    if (isDuplicateFlagSet(duplicateSloid)) { // Show labeled icon only when truly flagged
+
+    // Check for duplicate status FIRST to ensure 'D' label is shown
+    if (isDuplicateFlagSet(duplicateSloid)) {
         const icon = getCachedLabeledCircleIcon('atlas', color, 'D', size, radius, weight, fillOpacity);
         return L.marker([lat, lon], { icon: icon });
-    } else {
-        return L.circleMarker([lat, lon], { 
-            color: color, 
+    }
+
+    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
+    if (useCanvasOnly) {
+        return L.circleMarker([lat, lon], {
+            color: color,
             radius: radius,
             fillOpacity: fillOpacity,
             weight: weight
         });
     }
+
+    return L.circleMarker([lat, lon], {
+        color: color,
+        radius: radius,
+        fillOpacity: fillOpacity,
+        weight: weight
+    });
 }
 
 /**
@@ -310,30 +317,31 @@ function createOsmMarker(lat, lon, color, osmNodeType = null) {
     const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
     const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
     const size = radius * 2;
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
-    if (useCanvasOnly) {
-        return L.circleMarker([lat, lon], { 
-            color: color, 
-            radius: radius,
-            fillOpacity: fillOpacity,
-            weight: weight
-        });
-    }
-    
+
     if (osmNodeType === 'platform') {
         const icon = getCachedLabeledCircleIcon('osm', color, 'P', size, radius, weight, fillOpacity);
         return L.marker([lat, lon], { icon: icon });
     } else if (osmNodeType === 'railway_station') {
         const icon = getCachedLabeledCircleIcon('osm', color, 'S', size, radius, weight, fillOpacity);
         return L.marker([lat, lon], { icon: icon });
-    } else {
-        return L.circleMarker([lat, lon], { 
-            color: color, 
+    }
+
+    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
+    if (useCanvasOnly) {
+        return L.circleMarker([lat, lon], {
+            color: color,
             radius: radius,
             fillOpacity: fillOpacity,
             weight: weight
         });
     }
+
+    return L.circleMarker([lat, lon], {
+        color: color,
+        radius: radius,
+        fillOpacity: fillOpacity,
+        weight: weight
+    });
 }
 
 /**
@@ -347,7 +355,7 @@ function addLayersInChunks(layer, markers, batchSize = 200) {
     function addNextChunk() {
         const end = Math.min(currentIndex + batchSize, markers.length);
         for (let i = currentIndex; i < end; i++) {
-            try { layer.addLayer(markers[i]); } catch (e) {}
+            try { layer.addLayer(markers[i]); } catch (e) { }
         }
         currentIndex = end;
         if (currentIndex < markers.length) {
@@ -359,12 +367,12 @@ function addLayersInChunks(layer, markers, batchSize = 200) {
 
 function createMarkersWithOverlapHandling(markerDataArray, layer, options = {}) {
     const clusterManager = new MarkerClusterManager();
-    
+
     // Add all markers to the cluster manager
     markerDataArray.forEach(markerData => {
         clusterManager.addMarker(markerData.lat, markerData.lon, markerData);
     });
-    
+
     // Create markers with offset handling, deferring actual add if batching
     const markers = clusterManager.createMarkersWithOffsets(layer, { deferAdd: !!options.batchAdd });
     if (options.batchAdd) {
@@ -414,7 +422,7 @@ function createPopupWithOptions(content) {
  */
 function attachPopupLineHandlersToMap(mapInstance) {
     const openPopups = [];
-    mapInstance.on('popupopen', function(e) {
+    mapInstance.on('popupopen', function (e) {
         openPopups.push(e.popup);
         try {
             // Always work with the actual popup DOM element
@@ -431,13 +439,13 @@ function attachPopupLineHandlersToMap(mapInstance) {
             // Load popup notes content when the collapsible is present
             const $notes = $root.find('.popup-notes');
             if ($notes.length) {
-                $notes.each(function(){
+                $notes.each(function () {
                     const $el = $(this);
                     const type = $el.data('type');
                     const sloid = $el.data('sloid');
                     const osmNodeId = $el.data('osm-node-id');
                     const params = type === 'atlas' ? { sloid: sloid } : { osm_node_id: osmNodeId };
-                    $.getJSON('/api/notes', params, function(resp){
+                    $.getJSON('/api/notes', params, function (resp) {
                         const your = resp && resp.your ? resp.your : null;
                         const others = resp && Array.isArray(resp.others) ? resp.others : [];
                         const yourVal = (your && your.note) ? your.note : '';
@@ -466,7 +474,7 @@ function attachPopupLineHandlersToMap(mapInstance) {
                 });
 
                 // Delegate save handler inside popup
-                $root.off('click.savePopupNote').on('click.savePopupNote', '.save-popup-note', function(){
+                $root.off('click.savePopupNote').on('click.savePopupNote', '.save-popup-note', function () {
                     const $editor = $(this).closest('.popup-note-editor');
                     const isAtlas = $(this).data('type') === 'atlas';
                     const note = $editor.find('textarea').val();
@@ -478,17 +486,17 @@ function attachPopupLineHandlersToMap(mapInstance) {
                     const original = btn.html();
                     btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
                     $.ajax({ url: url, method: 'POST', contentType: 'application/json', data: JSON.stringify(payload) })
-                        .done(function(resp){
+                        .done(function (resp) {
                             if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
                                 window.ProblemsUI.showTemporaryMessage('Note saved' + (resp && resp.is_persistent ? ' (persistent)' : ''), 'success');
                             }
                         })
-                        .fail(function(xhr){
+                        .fail(function (xhr) {
                             if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
                                 window.ProblemsUI.showTemporaryMessage('Error saving note', 'error');
                             }
                         })
-                        .always(function(){ btn.prop('disabled', false).html(original); });
+                        .always(function () { btn.prop('disabled', false).html(original); });
                 });
             }
 
@@ -497,7 +505,7 @@ function attachPopupLineHandlersToMap(mapInstance) {
                 window.updateManualMatchButtonsUI();
             }
 
-            $btn.off('click.mm').on('click.mm', function(){
+            $btn.off('click.mm').on('click.mm', function () {
                 const current = window.manualMatchContext;
                 if (!current) {
                     // Start selection from this popup
@@ -511,7 +519,7 @@ function attachPopupLineHandlersToMap(mapInstance) {
                         </div>
                     `);
                     $('body').append(banner);
-                    $('#cancelManualMatch').on('click', function(){
+                    $('#cancelManualMatch').on('click', function () {
                         window.manualMatchContext = null;
                         $('.manual-match-banner').remove();
                         if (typeof window.updateManualMatchButtonsUI === 'function') {
@@ -527,7 +535,7 @@ function attachPopupLineHandlersToMap(mapInstance) {
                 // Attempt to finalize if clicking on opposite dataset
                 if ((current.from === 'atlas' && type === 'osm') || (current.from === 'osm' && type === 'atlas')) {
                     const atlasId = current.from === 'atlas' ? current.stopId : stopId;
-                    const osmId   = current.from === 'atlas' ? stopId : current.stopId;
+                    const osmId = current.from === 'atlas' ? stopId : current.stopId;
                     const makePersistent = (typeof ProblemsState !== 'undefined' && ProblemsState.getAutoPersistEnabled && ProblemsState.getAutoPersistEnabled()) || false;
 
                     $.ajax({
@@ -535,7 +543,7 @@ function attachPopupLineHandlersToMap(mapInstance) {
                         method: 'POST',
                         contentType: 'application/json',
                         data: JSON.stringify({ atlas_stop_id: atlasId, osm_stop_id: osmId, make_persistent: makePersistent }),
-                    }).done(function(resp){
+                    }).done(function (resp) {
                         window.manualMatchContext = null;
                         $('.manual-match-banner').remove();
                         // Success notification
@@ -555,7 +563,7 @@ function attachPopupLineHandlersToMap(mapInstance) {
                         if (typeof window.updateManualMatchButtonsUI === 'function') {
                             window.updateManualMatchButtonsUI();
                         }
-                    }).fail(function(){
+                    }).fail(function () {
                         if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
                             window.ProblemsUI.showTemporaryMessage('Failed to save manual match', 'error');
                         }
@@ -564,18 +572,18 @@ function attachPopupLineHandlersToMap(mapInstance) {
             });
         } catch (err) { /* ignore */ }
     });
-    mapInstance.on('popupclose', function(e) {
+    mapInstance.on('popupclose', function (e) {
         const idx = openPopups.indexOf(e.popup);
         if (idx !== -1) openPopups.splice(idx, 1);
         if (e.popup instanceof L.DraggablePopup && e.popup._line) {
-            try { e.popup._removeLine(); } catch {}
+            try { e.popup._removeLine(); } catch { }
         }
     });
-    mapInstance.on('move', function() {
+    mapInstance.on('move', function () {
         if (window.updateAllPopupLines) window.updateAllPopupLines();
         openPopups.forEach(popup => { if (popup._updatePosition) popup._updatePosition(); });
     });
-    mapInstance.on('zoom', function() {
+    mapInstance.on('zoom', function () {
         if (window.updateAllPopupLines) window.updateAllPopupLines();
         openPopups.forEach(popup => { if (popup._updatePosition) popup._updatePosition(); });
     });
@@ -583,10 +591,10 @@ function attachPopupLineHandlersToMap(mapInstance) {
 }
 
 // Global helper to keep popup buttons in sync with current manual selection
-window.updateManualMatchButtonsUI = function() {
+window.updateManualMatchButtonsUI = function () {
     const ctx = window.manualMatchContext;
     // For every visible popup, set appropriate button text
-    $('.leaflet-popup').each(function(){
+    $('.leaflet-popup').each(function () {
         const $root = $(this);
         const $container = $root.find('.popup-content-container').first();
         const type = $container.data('type');
@@ -618,14 +626,14 @@ function drawProblemOnMap(map, problemData, layers) {
         const atlasMarker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'green', stop.atlas_duplicate_sloid);
         const atlasPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'atlas'));
         atlasMarker.bindPopup(atlasPopup).addTo(layers.markersLayer);
-        
+
         const osmMarker = createOsmMarker(stop.osm_lat, stop.osm_lon, 'blue', stop.osm_node_type);
         const osmPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'osm'));
         osmMarker.bindPopup(osmPopup).addTo(layers.markersLayer);
-        
+
         // Use same line styling as main page for consistency
-        const line = L.polyline([[stop.atlas_lat, stop.atlas_lon], [stop.osm_lat, stop.osm_lon]], { 
-            color: 'green', 
+        const line = L.polyline([[stop.atlas_lat, stop.atlas_lon], [stop.osm_lat, stop.osm_lon]], {
+            color: 'green',
             weight: 2
         });
         line.addTo(layers.linesLayer);
@@ -702,7 +710,7 @@ function drawProblemOnMap(map, problemData, layers) {
             map.fitBounds(bounds.pad(0.2));
         }
         // Open a limited number of popups to avoid clutter
-        createdMarkers.slice(0, 6).forEach(m => { try { m.openPopup(); } catch(e) {} });
+        createdMarkers.slice(0, 6).forEach(m => { try { m.openPopup(); } catch (e) { } });
     }
 }
 
