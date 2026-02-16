@@ -553,7 +553,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 osm_lat=osm_lat,
                 osm_lon=osm_lon,
                 distance_m=distance_m,
-                osm_node_type=get_osm_node_type(rec),
                 geom=make_point_geom(atlas_lat, atlas_lon) if atlas_lat is not None and atlas_lon is not None else make_point_geom(osm_lat, osm_lon),
             )
             # If this record was manually matched in a previous run and persisted, carry the flag
@@ -627,6 +626,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                     osm_railway=safe_value(rec.get('osm_railway')),
                     osm_amenity=safe_value(rec.get('osm_amenity')),
                     osm_aerialway=safe_value(rec.get('osm_aerialway')),
+                    osm_node_type=get_osm_node_type(rec),
                     routes_osm=routes_osm_data if routes_osm_data else None,
                     osm_note=None,
                     osm_note_is_persistent=False
@@ -864,7 +864,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             osm_node_id=osm_node_id,
             osm_lat=osm_lat,
             osm_lon=osm_lon,
-            osm_node_type=get_osm_node_type(rec, is_osm_unmatched=True),
             geom=make_point_geom(osm_lat, osm_lon),
         )
 
@@ -895,6 +894,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 osm_railway=get_from_tags(rec, 'railway', ''),
                 osm_amenity=get_from_tags(rec, 'amenity', ''),
                 osm_aerialway=get_from_tags(rec, 'aerialway', ''),
+                osm_node_type=get_osm_node_type(rec, is_osm_unmatched=True),
                 routes_osm=routes_osm_data if routes_osm_data else None,
                 osm_note=None,
                 osm_note_is_persistent=False

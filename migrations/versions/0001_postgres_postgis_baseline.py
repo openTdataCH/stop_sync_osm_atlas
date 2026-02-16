@@ -53,6 +53,7 @@ def upgrade():
         sa.Column('osm_amenity', sa.String(length=255)),
         sa.Column('osm_aerialway', sa.String(length=255)),
         sa.Column('osm_operator', sa.String(length=255)),
+        sa.Column('osm_node_type', sa.String(length=50)),
         sa.Column('routes_osm', JSONB),
         sa.Column('osm_note', sa.Text()),
         sa.Column('osm_note_is_persistent', sa.Boolean(), server_default=sa.text('false')),
@@ -121,7 +122,6 @@ def upgrade():
         sa.Column('osm_lat', sa.Float()),
         sa.Column('osm_lon', sa.Float()),
         sa.Column('distance_m', sa.Float()),
-        sa.Column('osm_node_type', sa.String(length=50)),
         sa.Column('atlas_duplicate_sloid', sa.String(length=100)),
         # PostGIS geometry column for fast viewport queries (lon/lat, SRID 4326)
         sa.Column('geom', Geometry(geometry_type='POINT', srid=4326), nullable=True),

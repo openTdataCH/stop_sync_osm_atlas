@@ -11,8 +11,6 @@ conditions rather than database-level foreign keys.
 class Stop(db.Model):
     __tablename__ = 'stops'
     __table_args__ = (
-        db.Index('idx_atlas_lat_lon', 'atlas_lat', 'atlas_lon'),
-        db.Index('idx_osm_lat_lon', 'osm_lat', 'osm_lon'),
         db.Index('idx_stop_type_match_type', 'stop_type', 'match_type'),
         db.Index('idx_distance_m', 'distance_m'),
         # PostGIS spatial index for fast viewport queries (only applies on Postgres)
@@ -37,10 +35,7 @@ class Stop(db.Model):
     # Display geometry (atlas point if present, else osm point). SRID 4326 (WGS84).
     # Populated by the import pipeline; indexed for bbox queries.
     geom = db.Column(Geometry(geometry_type='POINT', srid=4326), nullable=True)
-    
-    # OSM node type for marker rendering
-    osm_node_type = db.Column(db.String(50))
-    
+
     atlas_duplicate_sloid = db.Column(db.String(100), default=None)
     
     # Relationship to ATLAS stop details (lazy='select' to avoid unnecessary JOINs on /api/data;
@@ -152,6 +147,7 @@ class OsmNode(db.Model):
     osm_amenity = db.Column(db.String(255))
     osm_aerialway = db.Column(db.String(255))
     osm_operator = db.Column(db.String(255))
+    osm_node_type = db.Column(db.String(50))
     routes_osm = db.Column(JSONB)
     osm_note = db.Column(db.Text)
     osm_note_is_persistent = db.Column(db.Boolean, default=False)
