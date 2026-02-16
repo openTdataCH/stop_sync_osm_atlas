@@ -549,7 +549,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 atlas_lat=atlas_lat,
                 atlas_lon=atlas_lon,
                 atlas_duplicate_sloid=None,
-                uic_ref=safe_value(rec.get('number'), ""),
                 osm_node_id=osm_node_id,
                 osm_lat=osm_lat,
                 osm_lon=osm_lon,
@@ -602,6 +601,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 designation_official = safe_value(rec.get('csv_designation_official')) or safe_value(rec.get('designationOfficial')) or safe_value(rec.get('csv_designation')) or ""
                 atlas_record = AtlasStop(
                     sloid=sloid,
+                    uic_ref=safe_value(rec.get('number'), ""),
                     atlas_designation=safe_value(rec.get('csv_designation'), ""),
                     atlas_designation_official=designation_official,
                     atlas_business_org_abbr=safe_value(rec.get('csv_business_org_abbr', '')),
@@ -803,7 +803,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             atlas_lat=atlas_lat,
             atlas_lon=atlas_lon,
             atlas_duplicate_sloid=None,
-            uic_ref=safe_value(rec.get('number'), ""),
             geom=make_point_geom(atlas_lat, atlas_lon),
         )
         
@@ -823,6 +822,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             designation_official = safe_value(rec.get('designationOfficial')) or safe_value(rec.get('designation')) or ""
             atlas_record = AtlasStop(
                 sloid=sloid,
+                uic_ref=safe_value(rec.get('number'), ""),
                 atlas_designation=safe_value(rec.get('designation'), ""),
                 atlas_designation_official=designation_official,
                 atlas_business_org_abbr=safe_value(rec.get('servicePointBusinessOrganisationAbbreviationEn', '')),
@@ -861,7 +861,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         
         stop_record = Stop(
             stop_type='osm',
-            uic_ref=get_from_tags(rec, 'uic_ref', ''),
             osm_node_id=osm_node_id,
             osm_lat=osm_lat,
             osm_lon=osm_lon,

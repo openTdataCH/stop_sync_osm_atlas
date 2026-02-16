@@ -102,8 +102,11 @@ class FilterBuilder:
                         )
                     )
                 )
-            else:  # UIC ref
-                conditions.append(Stop.uic_ref.like(f'%{value}%'))
+            else:  # UIC ref — search both atlas and osm tables
+                conditions.append(db.or_(
+                    Stop.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),
+                    Stop.osm_node_details.has(OsmNode.osm_uic_ref.ilike(f'%{value}%'))
+                ))
         
         return conditions
 

@@ -387,7 +387,7 @@ def background_report_generation(params, task_id, flask_app):
                                 stop.osm_node_id or 'N/A',
                                 (osm_details.osm_local_ref if osm_details and osm_details.osm_local_ref else 'N/A'),
                                 (osm_details.osm_name if osm_details and osm_details.osm_name else 'N/A'),
-                                (stop.uic_ref or 'N/A')
+                                ((stop.atlas_stop_details.uic_ref if stop.atlas_stop_details and stop.atlas_stop_details.uic_ref else (stop.osm_node_details.osm_uic_ref if stop.osm_node_details else None)) or 'N/A')
                             ]
                             if 'atlas_coords' in include_fields:
                                 row.extend([
@@ -782,7 +782,7 @@ def generate_report():
                         stop.osm_node_id or 'N/A',
                         (osm_details.osm_local_ref if osm_details and osm_details.osm_local_ref else 'N/A'),
                         (osm_details.osm_name if osm_details and osm_details.osm_name else 'N/A'),
-                        (stop.uic_ref or 'N/A')
+                        ((stop.atlas_stop_details.uic_ref if stop.atlas_stop_details and stop.atlas_stop_details.uic_ref else (stop.osm_node_details.osm_uic_ref if stop.osm_node_details else None)) or 'N/A')
                     ]
                     if 'atlas_coords' in include_fields:
                         row.extend([
