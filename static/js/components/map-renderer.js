@@ -2,7 +2,62 @@
 
 // This file contains shared functions for rendering markers, popups, and lines on a Leaflet map.
 
-// Cache for reusing identical L.divIcon instances
+// -------------------------------------------------------------------------
+// Leaflet SVG Renderer Extension: Text Labels inside CircleMarkers
+// -------------------------------------------------------------------------
+// Extends Leaflet's built-in SVG renderer so that L.circleMarker instances
+// with a `label` option (e.g., 'P', 'S', 'D') get a <text> element drawn
+// inside the circle. This keeps everything in the single SVG layer —
+// no extra DOM nodes, no divIcons, no performance penalty.
+(function () {
+    if (!L || !L.SVG) return;
+
+    var _origInitPath = L.SVG.prototype._initPath;
+    var _origUpdateCircle = L.SVG.prototype._updateCircle;
+    var _origRemovePath = L.SVG.prototype._removePath;
+
+    L.SVG.prototype._initPath = function (layer) {
+        _origInitPath.call(this, layer);
+        // If the layer has a label option, create a <text> element
+        if (layer.options && layer.options.label) {
+            var text = L.SVG.create('text');
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('dominant-baseline', 'central');
+            text.setAttribute('fill', 'white');
+            text.setAttribute('font-weight', 'bold');
+            text.setAttribute('font-family', 'Arial, sans-serif');
+            text.setAttribute('pointer-events', 'none');
+            // Font size scales with marker radius
+            var fontSize = (layer.options.radius || 6) + 2;
+            text.setAttribute('font-size', fontSize);
+            text.textContent = layer.options.label;
+            layer._textEl = text;
+        }
+    };
+
+    L.SVG.prototype._updateCircle = function (layer) {
+        _origUpdateCircle.call(this, layer);
+        // Position the label text at the circle center
+        if (layer._textEl) {
+            var p = layer._point;
+            layer._textEl.setAttribute('x', p.x);
+            layer._textEl.setAttribute('y', p.y);
+            // Ensure the text element is in the DOM and after the circle
+            if (!layer._textEl.parentNode) {
+                layer._path.parentNode.appendChild(layer._textEl);
+            }
+        }
+    };
+
+    L.SVG.prototype._removePath = function (layer) {
+        if (layer._textEl && layer._textEl.parentNode) {
+            layer._textEl.parentNode.removeChild(layer._textEl);
+        }
+        _origRemovePath.call(this, layer);
+    };
+})();
+
+// Cache for reusing identical L.divIcon instances (used only on Problems page fallback)
 const DivIconCache = new Map();
 function getCachedDivIcon(key, html, className, size, anchor) {
     if (DivIconCache.has(key)) {
@@ -34,7 +89,7 @@ function isDuplicateFlagSet(value) {
     return false;
 }
 
-// Helper to build and cache a labeled circle SVG icon
+// Helper to build and cache a labeled circle SVG icon (used only on Problems page)
 function getCachedLabeledCircleIcon(keyPrefix, color, letter, size, radius, weight, fillOpacity) {
     const key = `${keyPrefix}|${color}|${letter}|${size}`;
     // Use dominant-baseline="central" for better vertical centering
@@ -268,80 +323,62 @@ class MarkerClusterManager {
 
 /**
  * Creates a marker for an ATLAS stop.
+ * Always uses L.circleMarker for performance. If the stop is a duplicate,
+ * the `label` option triggers the SVG renderer extension to draw a 'D'.
  * @param {number} lat - Latitude.
  * @param {number} lon - Longitude.
  * @param {string} color - Marker color.
  * @param {string|null} duplicateSloid - The SLOID of a duplicate, if one exists.
- * @returns {L.Marker} A Leaflet marker.
+ * @returns {L.CircleMarker} A Leaflet circle marker.
  */
 function createAtlasMarker(lat, lon, color, duplicateSloid) {
     const radius = AppConstants.MARKERS.DEFAULT_RADIUS;
     const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
     const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
-    const size = radius * 2;
 
-    // Check for duplicate status FIRST to ensure 'D' label is shown
-    if (isDuplicateFlagSet(duplicateSloid)) {
-        const icon = getCachedLabeledCircleIcon('atlas', color, 'D', size, radius, weight, fillOpacity);
-        return L.marker([lat, lon], { icon: icon });
-    }
-
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
-    if (useCanvasOnly) {
-        return L.circleMarker([lat, lon], {
-            color: color,
-            radius: radius,
-            fillOpacity: fillOpacity,
-            weight: weight
-        });
-    }
-
-    return L.circleMarker([lat, lon], {
+    const opts = {
         color: color,
         radius: radius,
         fillOpacity: fillOpacity,
         weight: weight
-    });
+    };
+
+    if (isDuplicateFlagSet(duplicateSloid)) {
+        opts.label = 'D';
+    }
+
+    return L.circleMarker([lat, lon], opts);
 }
 
 /**
  * Creates a marker for an OSM stop.
+ * Always uses L.circleMarker for performance. If the node is a platform
+ * or station, the `label` option triggers the SVG renderer extension.
  * @param {number} lat - Latitude.
  * @param {number} lon - Longitude.
  * @param {string} color - Marker color.
  * @param {string} osmNodeType - The OSM node type ('platform', 'railway_station', etc.).
- * @returns {L.Marker} A Leaflet marker.
+ * @returns {L.CircleMarker} A Leaflet circle marker.
  */
 function createOsmMarker(lat, lon, color, osmNodeType = null) {
     const radius = AppConstants.MARKERS.DEFAULT_RADIUS;
     const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
     const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
-    const size = radius * 2;
 
-    if (osmNodeType === 'platform') {
-        const icon = getCachedLabeledCircleIcon('osm', color, 'P', size, radius, weight, fillOpacity);
-        return L.marker([lat, lon], { icon: icon });
-    } else if (osmNodeType === 'railway_station') {
-        const icon = getCachedLabeledCircleIcon('osm', color, 'S', size, radius, weight, fillOpacity);
-        return L.marker([lat, lon], { icon: icon });
-    }
-
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
-    if (useCanvasOnly) {
-        return L.circleMarker([lat, lon], {
-            color: color,
-            radius: radius,
-            fillOpacity: fillOpacity,
-            weight: weight
-        });
-    }
-
-    return L.circleMarker([lat, lon], {
+    const opts = {
         color: color,
         radius: radius,
         fillOpacity: fillOpacity,
         weight: weight
-    });
+    };
+
+    if (osmNodeType === 'platform') {
+        opts.label = 'P';
+    } else if (osmNodeType === 'railway_station') {
+        opts.label = 'S';
+    }
+
+    return L.circleMarker([lat, lon], opts);
 }
 
 /**
