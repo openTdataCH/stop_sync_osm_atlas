@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func, case
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, load_only
 from backend.models import Stop, AtlasStop, OsmNode
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
@@ -263,6 +263,8 @@ def get_data():
                     limit = None
 
         query = _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, request.args)
+        # Eager-load only osm_node_type from osm_nodes to avoid N+1 queries
+        query = query.options(joinedload(Stop.osm_node_details).load_only(OsmNode.osm_node_type))
 
         # If a limit is applied (mid/low zoom caps), ensure results are stable across requests
         # and prioritize unmatched rows first to reduce "disappearing/reappearing" markers.
@@ -304,7 +306,7 @@ def get_data():
                 "lat": lat,
                 "lon": lon,
                 "atlas_duplicate_sloid": stop.atlas_duplicate_sloid,
-                "osm_node_type": stop.osm_node_type
+                "osm_node_type": stop.osm_node_details.osm_node_type if stop.osm_node_details else None
             })
         if include_meta:
             return jsonify({
@@ -390,7 +392,7 @@ def get_stop_popup():
                         "routes_osm": osm_details.routes_osm if osm_details else None,
                         "match_type": r.match_type,
                         "atlas_duplicate_sloid": r.atlas_duplicate_sloid,
-                        "osm_node_type": r.osm_node_type
+                        "osm_node_type": osm_details.osm_node_type if osm_details else None
                     })
             if osm_matches:
                 enriched["osm_matches"] = osm_matches
@@ -417,7 +419,7 @@ def get_stop_popup():
                     "osm_railway": osm_details.osm_railway if osm_details else None,
                     "osm_lat": stop.osm_lat,
                     "osm_lon": stop.osm_lon,
-                    "osm_node_type": stop.osm_node_type,
+                    "osm_node_type": osm_details.osm_node_type if osm_details else None,
                     "uic_ref": osm_details.osm_uic_ref if osm_details else None,
                     "routes_osm": osm_details.routes_osm if osm_details else None,
                     "atlas_matches": []

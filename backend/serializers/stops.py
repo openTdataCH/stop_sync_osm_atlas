@@ -16,7 +16,7 @@ def format_stop_data(stop: Stop, problem_type: str = None, include_routes: bool 
         "atlas_operator": atlas_details.atlas_business_org_abbr if atlas_details else None,
         "atlas_name": atlas_details.atlas_designation if atlas_details else None,
         "atlas_local_ref": None,
-        "atlas_transport_type": stop.osm_node_type,
+        "atlas_transport_type": osm_details.osm_node_type if osm_details else None,
         "osm_lat": stop.osm_lat,
         "osm_lon": stop.osm_lon,
         "osm_network": osm_details.osm_network if osm_details else None,
@@ -35,7 +35,7 @@ def format_stop_data(stop: Stop, problem_type: str = None, include_routes: bool 
         "osm_uic_name": osm_details.osm_uic_name if osm_details else None,
         "osm_uic_ref": osm_details.osm_uic_ref if osm_details else None,
         "atlas_duplicate_sloid": stop.atlas_duplicate_sloid,
-        "osm_node_type": stop.osm_node_type,
+        "osm_node_type": osm_details.osm_node_type if osm_details else None,
     }
 
     if include_routes:

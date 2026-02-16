@@ -227,23 +227,39 @@ class TestStopSerializer:
         mock_stop.osm_lat = 47.0
         mock_stop.osm_lon = 8.0
         mock_stop.uic_ref = '8503000'
-        mock_stop.osm_node_type = 'stop_position'
         mock_stop.atlas_duplicate_sloid = None
         mock_stop.atlas_stop_details = None
-        mock_stop.osm_node_details = None
-        
+        mock_osm_details = MagicMock()
+        mock_osm_details.osm_node_type = 'stop_position'
+        mock_osm_details.osm_network = None
+        mock_osm_details.osm_operator = None
+        mock_osm_details.osm_public_transport = 'stop_position'
+        mock_osm_details.osm_railway = None
+        mock_osm_details.osm_amenity = None
+        mock_osm_details.osm_aerialway = None
+        mock_osm_details.osm_local_ref = None
+        mock_osm_details.osm_name = None
+        mock_osm_details.osm_uic_name = None
+        mock_osm_details.osm_uic_ref = None
+        mock_osm_details.routes_osm = None
+        mock_osm_details.osm_note = None
+        mock_osm_details.osm_note_is_persistent = False
+        mock_osm_details.osm_note_user_email = None
+        mock_stop.osm_node_details = mock_osm_details
+
         result = format_stop_data(mock_stop)
-        
+
         assert result['sloid'] == 'ch:1:sloid:123'
         assert result['osm_node_id'] == 'osm_456'
         assert result['match_type'] == 'exact'
         assert result['stop_type'] == 'matched'
+        assert result['osm_node_type'] == 'stop_position'
 
     def test_format_stop_data_excludes_routes_when_disabled(self):
         """Routes should be excluded when include_routes=False."""
         from unittest.mock import MagicMock
         from backend.serializers.stops import format_stop_data
-        
+
         mock_stop = MagicMock()
         mock_stop.id = 1
         mock_stop.sloid = 'ch:1:sloid:123'
@@ -256,7 +272,6 @@ class TestStopSerializer:
         mock_stop.osm_lat = 47.0
         mock_stop.osm_lon = 8.0
         mock_stop.uic_ref = '8503000'
-        mock_stop.osm_node_type = 'stop_position'
         mock_stop.atlas_duplicate_sloid = None
         mock_stop.atlas_stop_details = None
         mock_stop.osm_node_details = None
