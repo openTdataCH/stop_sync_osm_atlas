@@ -15,6 +15,23 @@ import pandas as pd
 from collections import defaultdict
 
 
+def _make_ctx(atlas_df, osm_nodes, uic_ref_dict, name_index):
+    """Helper to build a MatchingContext from test data in the new API."""
+    from matching_process.pipeline import MatchingContext
+    from matching_process.state import AtlasState, OsmIndex
+
+    atlas_state = AtlasState(
+        atlas_df=atlas_df,
+        duplicate_sloid_map={},
+    )
+    osm_idx = OsmIndex(
+        xml_nodes=osm_nodes,
+        uic_ref_dict=uic_ref_dict,
+        name_index=name_index,
+    )
+    return MatchingContext(atlas=atlas_state, osm=osm_idx)
+
+
 # =============================================================================
 # Tests for matching_process/utils.py
 # =============================================================================
@@ -234,16 +251,17 @@ class TestPipelineRunner:
         output = run_pipeline([], matching_context)
 
         assert len(output.matched) == 0
-        assert len(output.unmatched_atlas) == len(matching_context.atlas_df)
+        assert len(output.unmatched_atlas) == 3  # 3 atlas entries from fixture
 
     def test_simple_predicate_runs(self, matching_context):
         from matching_process.pipeline import run_pipeline, make_match
 
         def always_match_first(ctx):
             """Dummy predicate that matches the first unmatched row."""
-            row = ctx.atlas_unmatched.iloc[0].to_dict()
+            unmatched = ctx.atlas.get_unmatched_records()
+            row = unmatched[0]
             # Pick first available OSM node
-            osm = next(iter(ctx.osm_nodes.values()))
+            osm = next(iter(ctx.osm._all_nodes.values()))
             return [make_match(row, osm, 'test_pred', 'test')]
 
         output = run_pipeline([always_match_first], matching_context)
@@ -257,14 +275,15 @@ class TestPipelineRunner:
         from matching_process.pipeline import run_pipeline, make_match
 
         def match_one(ctx):
-            row = ctx.atlas_unmatched.iloc[0].to_dict()
-            osm = next(iter(ctx.osm_nodes.values()))
+            unmatched = ctx.atlas.get_unmatched_records()
+            row = unmatched[0]
+            osm = next(iter(ctx.osm._all_nodes.values()))
             return [make_match(row, osm, 'test', 'note')]
 
         run_pipeline([match_one], matching_context)
 
-        assert len(matching_context.matched_atlas_ids) == 1
-        assert len(matching_context.used_osm_ids) >= 1
+        assert len(matching_context.atlas.matched_ids) == 1
+        assert len(matching_context.osm.used_ids) >= 1
 
     def test_multiple_predicates_chain(self, matching_context):
         from matching_process.pipeline import run_pipeline, make_match
@@ -273,14 +292,16 @@ class TestPipelineRunner:
 
         def pred_a(ctx):
             call_order.append('a')
-            row = ctx.atlas_unmatched.iloc[0].to_dict()
-            osm = list(ctx.osm_nodes.values())[0]
+            unmatched = ctx.atlas.get_unmatched_records()
+            row = unmatched[0]
+            osm = list(ctx.osm._all_nodes.values())[0]
             return [make_match(row, osm, 'pred_a', 'note')]
 
         def pred_b(ctx):
             call_order.append('b')
-            row = ctx.atlas_unmatched.iloc[0].to_dict()
-            osm = list(ctx.osm_nodes.values())[1]
+            unmatched = ctx.atlas.get_unmatched_records()
+            row = unmatched[0]
+            osm = list(ctx.osm._all_nodes.values())[1]
             return [make_match(row, osm, 'pred_b', 'note')]
 
         output = run_pipeline([pred_a, pred_b], matching_context)
@@ -297,10 +318,11 @@ class TestPipelineRunner:
 
         def match_all(ctx):
             results = []
-            osm_list = list(ctx.osm_nodes.values())
-            for i, (_, row) in enumerate(ctx.atlas_unmatched.iterrows()):
+            unmatched = ctx.atlas.get_unmatched_records()
+            osm_list = list(ctx.osm._all_nodes.values())
+            for i, row in enumerate(unmatched):
                 results.append(make_match(
-                    row.to_dict(), osm_list[i % len(osm_list)], 'bulk', 'note'))
+                    row, osm_list[i % len(osm_list)], 'bulk', 'note'))
             return results
 
         was_called = []
@@ -373,7 +395,7 @@ class TestExactMatching:
         from matching_process.exact_matching import exact_uic
 
         # Clear the uic_ref_dict so nothing matches
-        matching_context.uic_ref_dict = {}
+        matching_context.osm._uic_ref_dict = {}
 
         matches = exact_uic(matching_context)
         assert len(matches) == 0
@@ -381,7 +403,6 @@ class TestExactMatching:
     def test_single_osm_for_uic(self):
         """When only one OSM node has the UIC, all ATLAS entries with that UIC match it."""
         from matching_process.exact_matching import exact_uic
-        from matching_process.pipeline import MatchingContext
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1'],
@@ -394,18 +415,16 @@ class TestExactMatching:
             'servicePointBusinessOrganisationAbbreviationEn': ['SBB'],
         })
 
-        uic_dict = {
-            '8503000': [{
-                'node_id': 'osm_1', 'lat': 47.3770, 'lon': 8.5418,
-                'tags': {'name': 'Zürich HB', 'uic_ref': '8503000'},
-                'local_ref': None,
-            }]
+        osm_node = {
+            'node_id': 'osm_1', 'lat': 47.3770, 'lon': 8.5418,
+            'tags': {'name': 'Zürich HB', 'uic_ref': '8503000'},
+            'local_ref': None,
         }
 
-        ctx = MatchingContext(
-            atlas_df=atlas_df, osm_nodes={}, uic_ref_dict=uic_dict,
-            name_index={}, atlas_unmatched=atlas_df.copy(),
-        )
+        osm_nodes = {(47.3770, 8.5418): osm_node}
+        uic_dict = {'8503000': [osm_node]}
+
+        ctx = _make_ctx(atlas_df, osm_nodes, uic_dict, {})
 
         matches = exact_uic(ctx)
 
@@ -429,18 +448,17 @@ class TestExactMatching:
             assert 'matching_notes' in match
 
     def test_used_osm_ids_updated(self, matching_context):
-        """Matched OSM IDs should be added to ctx.used_osm_ids."""
+        """Matched OSM IDs should be added to ctx.osm.used_ids."""
         from matching_process.exact_matching import exact_uic
 
         matches = exact_uic(matching_context)
 
         for match in matches:
-            assert match['osm_node_id'] in matching_context.used_osm_ids
+            assert match['osm_node_id'] in matching_context.osm.used_ids
 
     def test_many_to_many_refines_by_local_ref(self):
         """Multiple ATLAS + multiple OSM should refine by designation == local_ref."""
         from matching_process.exact_matching import exact_uic
-        from matching_process.pipeline import MatchingContext
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1', 's2'],
@@ -453,23 +471,22 @@ class TestExactMatching:
             'servicePointBusinessOrganisationAbbreviationEn': ['SBB', 'SBB'],
         })
 
-        uic_dict = {
-            '8503000': [
-                {
-                    'node_id': 'osm_a', 'lat': 47.3770, 'lon': 8.5418,
-                    'tags': {'uic_ref': '8503000'}, 'local_ref': '1',
-                },
-                {
-                    'node_id': 'osm_b', 'lat': 47.3771, 'lon': 8.5419,
-                    'tags': {'uic_ref': '8503000'}, 'local_ref': '2',
-                },
-            ]
+        osm_a = {
+            'node_id': 'osm_a', 'lat': 47.3770, 'lon': 8.5418,
+            'tags': {'uic_ref': '8503000'}, 'local_ref': '1',
+        }
+        osm_b = {
+            'node_id': 'osm_b', 'lat': 47.3771, 'lon': 8.5419,
+            'tags': {'uic_ref': '8503000'}, 'local_ref': '2',
         }
 
-        ctx = MatchingContext(
-            atlas_df=atlas_df, osm_nodes={}, uic_ref_dict=uic_dict,
-            name_index={}, atlas_unmatched=atlas_df.copy(),
-        )
+        osm_nodes = {
+            (47.3770, 8.5418): osm_a,
+            (47.3771, 8.5419): osm_b,
+        }
+        uic_dict = {'8503000': [osm_a, osm_b]}
+
+        ctx = _make_ctx(atlas_df, osm_nodes, uic_dict, {})
 
         matches = exact_uic(ctx)
 
@@ -491,7 +508,7 @@ class TestNameMatching:
         """No matching names should result in no matches."""
         from matching_process.name_matching import name_match
 
-        matching_context.name_index = {}
+        matching_context.osm._name_index = {}
 
         matches = name_match(matching_context)
         assert len(matches) == 0
@@ -499,7 +516,6 @@ class TestNameMatching:
     def test_single_candidate_matched(self):
         """A single candidate for a name should be matched directly."""
         from matching_process.name_matching import name_match
-        from matching_process.pipeline import MatchingContext
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1'],
@@ -512,17 +528,15 @@ class TestNameMatching:
             'servicePointBusinessOrganisationAbbreviationEn': ['SBB'],
         })
 
-        name_idx = {
-            'Zürich HB': [{
-                'node_id': 'osm_1', 'lat': 47.3770, 'lon': 8.5418,
-                'tags': {'name': 'Zürich HB'}, 'local_ref': None,
-            }]
+        osm_node = {
+            'node_id': 'osm_1', 'lat': 47.3770, 'lon': 8.5418,
+            'tags': {'name': 'Zürich HB'}, 'local_ref': None,
         }
 
-        ctx = MatchingContext(
-            atlas_df=atlas_df, osm_nodes={}, uic_ref_dict={},
-            name_index=name_idx, atlas_unmatched=atlas_df.copy(),
-        )
+        osm_nodes = {(47.3770, 8.5418): osm_node}
+        name_idx = {'Zürich HB': [osm_node]}
+
+        ctx = _make_ctx(atlas_df, osm_nodes, {}, name_idx)
 
         matches = name_match(ctx)
 
@@ -533,7 +547,6 @@ class TestNameMatching:
     def test_multiple_candidates_refines_by_local_ref(self):
         """Multiple name candidates should refine by designation == local_ref."""
         from matching_process.name_matching import name_match
-        from matching_process.pipeline import MatchingContext
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1'],
@@ -546,19 +559,22 @@ class TestNameMatching:
             'servicePointBusinessOrganisationAbbreviationEn': ['SBB'],
         })
 
-        name_idx = {
-            'Zürich HB': [
-                {'node_id': 'osm_a', 'lat': 47.37, 'lon': 8.54,
-                 'tags': {'name': 'Zürich HB'}, 'local_ref': '1'},
-                {'node_id': 'osm_b', 'lat': 47.37, 'lon': 8.54,
-                 'tags': {'name': 'Zürich HB'}, 'local_ref': '2'},
-            ]
+        osm_a = {
+            'node_id': 'osm_a', 'lat': 47.37, 'lon': 8.54,
+            'tags': {'name': 'Zürich HB'}, 'local_ref': '1',
+        }
+        osm_b = {
+            'node_id': 'osm_b', 'lat': 47.37, 'lon': 8.54,
+            'tags': {'name': 'Zürich HB'}, 'local_ref': '2',
         }
 
-        ctx = MatchingContext(
-            atlas_df=atlas_df, osm_nodes={}, uic_ref_dict={},
-            name_index=name_idx, atlas_unmatched=atlas_df.copy(),
-        )
+        osm_nodes = {
+            (47.37, 8.54): osm_a,  # Note: duplicate coord key — only one stored
+            (47.3701, 8.5401): osm_b,
+        }
+        name_idx = {'Zürich HB': [osm_a, osm_b]}
+
+        ctx = _make_ctx(atlas_df, osm_nodes, {}, name_idx)
 
         matches = name_match(ctx)
 
@@ -685,7 +701,7 @@ class TestMatchingIntegration:
 
     def test_no_nearby_osm_in_output(self):
         """Pipeline output should flag entries with no nearby OSM node."""
-        from matching_process.pipeline import run_pipeline, MatchingContext
+        from matching_process.pipeline import run_pipeline
 
         # One ATLAS entry in the middle of nowhere
         atlas_df = pd.DataFrame({
@@ -706,11 +722,7 @@ class TestMatchingIntegration:
             }
         }
 
-        ctx = MatchingContext(
-            atlas_df=atlas_df, osm_nodes=osm_nodes,
-            uic_ref_dict={}, name_index={},
-            atlas_unmatched=atlas_df.copy(),
-        )
+        ctx = _make_ctx(atlas_df, osm_nodes, {}, {})
 
         output = run_pipeline([], ctx)
 

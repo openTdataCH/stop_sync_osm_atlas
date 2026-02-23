@@ -11,7 +11,7 @@ import os
 import pandas as pd
 
 from matching_process.pipeline import MatchingContext, make_match
-from matching_process.utils import is_osm_station, haversine_distance
+from matching_process.utils import haversine_distance
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +24,15 @@ def postpass_unique_uic(ctx: MatchingContext) -> list[dict]:
     """Match when only one unused OSM node remains for a UIC reference."""
     matches: list[dict] = []
 
-    for uic, group_df in ctx.atlas_unmatched.groupby(
-        ctx.atlas_unmatched['number'].astype(str)
+    unmatched = ctx.atlas.get_unmatched_records()
+    unmatched_df = pd.DataFrame(unmatched)
+    if unmatched_df.empty:
+        return matches
+
+    for uic, group_df in unmatched_df.groupby(
+        unmatched_df['number'].astype(str)
     ):
-        available = [
-            c for c in ctx.uic_ref_dict.get(str(uic), [])
-            if c['node_id'] not in ctx.used_osm_ids and not is_osm_station(c)
-        ]
+        available = ctx.osm.get_by_uic(str(uic))
         if len(available) != 1:
             continue
 
@@ -41,7 +43,7 @@ def postpass_unique_uic(ctx: MatchingContext) -> list[dict]:
                 "Post-pass unique-by-UIC consolidation",
                 pool_size=1,
             ))
-        ctx.used_osm_ids.add(osm['node_id'])
+        ctx.osm.mark_used(osm['node_id'])
 
     return matches
 
