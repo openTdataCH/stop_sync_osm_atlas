@@ -48,19 +48,19 @@ def ensure_db_exists(target_uri: str) -> None:
             conn.execute(text(f'CREATE DATABASE "{dbname}"'))
 
 database_uri = os.environ.get('DATABASE_URI')
-auth_uri = os.environ.get('AUTH_DATABASE_URI')
+auth_uri = os.environ.get('USER_INPUT_DATABASE_URI')
 
 if not database_uri:
     raise SystemExit('DATABASE_URI is not set')
 
 wait_for_db(database_uri, 'DATABASE_URI')
 if auth_uri:
-    # auth_db might not exist yet on reused volumes; try to create it, then wait.
+    # user_input_db might not exist yet on reused volumes; try to create it, then wait.
     try:
-        wait_for_db(auth_uri, 'AUTH_DATABASE_URI', attempts=3)
+        wait_for_db(auth_uri, 'USER_INPUT_DATABASE_URI', attempts=3)
     except SystemExit:
         ensure_db_exists(auth_uri)
-        wait_for_db(auth_uri, 'AUTH_DATABASE_URI')
+        wait_for_db(auth_uri, 'USER_INPUT_DATABASE_URI')
 
 print('Postgres is up and ready.')
 PY
@@ -83,32 +83,11 @@ if [ "${AUTO_MIGRATE:-false}" = "true" ]; then
 fi
 flask db upgrade
 
-# Create auth tables (quick fix for multi-database bind issue)
-echo "Creating auth tables..."
-python create_auth_tables.py || true
-
 # Check if data import should be skipped
 if [ "$SKIP_DATA_IMPORT" != "true" ]; then
 
-    # Check if we should run only matching (skip data downloads)
-    if [ "$MATCH_ONLY" = "true" ]; then
-        echo "MATCH_ONLY mode: Skipping data downloads, running only matching and database import..."
-        
-        # Verify required processed files exist
-        if [ ! -f "data/processed/osm_nodes_with_routes.csv" ] || [ ! -f "data/processed/atlas_routes_unified.csv" ]; then
-            echo "Error: MATCH_ONLY=true but required processed files are missing."
-            echo "Please run the full pipeline first (without MATCH_ONLY) to download and process data."
-            exit 1
-        fi
-        
-        # Run only the matching pipeline and database import
-        echo "Running matching pipeline and database import..."
-        python import_data_db.py
-        echo "Finished import_data_db.py"
-        
-    else
-        # Full pipeline: download, process, and import
-        echo "Running full data preparation and import pipeline..."
+    # Full pipeline: download, process, and import
+    echo "Running full data preparation and import pipeline..."
         
         # Download ATLAS data
         echo "Downloading ATLAS data..."
@@ -131,7 +110,6 @@ if [ "$SKIP_DATA_IMPORT" != "true" ]; then
         echo "Finished import_data_db.py"
 
         echo "All data scripts executed successfully."
-    fi
 else
     echo "SKIP_DATA_IMPORT is set to true. Skipping data import."
 fi

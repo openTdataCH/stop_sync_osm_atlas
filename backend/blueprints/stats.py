@@ -103,23 +103,20 @@ def get_global_stats():
         if 'unmatched' in current_stop_types_gs:
             filter_for_no_osm_nearby = 'no_nearby_counterpart' in current_match_methods_gs
             filter_for_osm_nearby = 'osm_within_50m' in current_match_methods_gs
-            unmatched_specific_condition = Stop.stop_type == 'unmatched'
+            unmatched_specific_condition = Stop.stop_type == 'atlas_unmatched'
             if filter_for_no_osm_nearby and not filter_for_osm_nearby:
                 unmatched_specific_condition = db.and_(
-                    Stop.stop_type == 'unmatched',
+                    Stop.stop_type == 'atlas_unmatched',
                     Stop.match_type == 'no_nearby_counterpart'
                 )
             elif not filter_for_no_osm_nearby and filter_for_osm_nearby:
                 unmatched_specific_condition = db.and_(
-                    Stop.stop_type == 'unmatched',
+                    Stop.stop_type == 'atlas_unmatched',
                     db.or_(Stop.match_type != 'no_nearby_counterpart', Stop.match_type.is_(None))
                 )
-            stop_type_match_method_or_conditions_gs.append(db.or_(
-                unmatched_specific_condition,
-                Stop.stop_type == 'station'
-            ))
+            stop_type_match_method_or_conditions_gs.append(unmatched_specific_condition)
         if 'osm' in current_stop_types_gs:
-            stop_type_match_method_or_conditions_gs.append(Stop.stop_type == 'osm')
+            stop_type_match_method_or_conditions_gs.append(Stop.stop_type == 'osm_unmatched')
         if stop_type_match_method_or_conditions_gs:
             all_category_conditions.append(db.or_(*stop_type_match_method_or_conditions_gs))
         elif current_stop_types_gs and not stop_type_match_method_or_conditions_gs:
@@ -129,7 +126,7 @@ def get_global_stats():
         else:
             query = base_query
         if show_duplicates_only:
-            query = query.filter(Stop.atlas_duplicate_sloid.isnot(None)).filter(Stop.atlas_duplicate_sloid != '')
+            query = query.filter(Stop.has_atlas_duplicate == True)
         if top_n:
             try:
                 n_val = int(top_n)
@@ -144,10 +141,10 @@ def get_global_stats():
         ).subquery('f')
         total_atlas_expr = func.count(func.distinct(filtered.c.sloid))
         matched_atlas_expr = func.count(func.distinct(case((filtered.c.stop_type == 'matched', filtered.c.sloid), else_=None)))
-        unmatched_atlas_expr = func.count(func.distinct(case((filtered.c.stop_type.in_(['unmatched', 'station']), filtered.c.sloid), else_=None)))
+        unmatched_atlas_expr = func.count(func.distinct(case((filtered.c.stop_type == 'atlas_unmatched', filtered.c.sloid), else_=None)))
         total_osm_expr = func.count(func.distinct(filtered.c.osm_node_id))
         matched_osm_expr = func.count(func.distinct(case((filtered.c.stop_type == 'matched', filtered.c.osm_node_id), else_=None)))
-        unmatched_osm_expr = func.count(func.distinct(case((filtered.c.stop_type == 'osm', filtered.c.osm_node_id), else_=None)))
+        unmatched_osm_expr = func.count(func.distinct(case((filtered.c.stop_type == 'osm_unmatched', filtered.c.osm_node_id), else_=None)))
         matched_pairs_count_expr = func.count(case((filtered.c.stop_type == 'matched', 1), else_=None))
         res = db.session.query(
             total_atlas_expr.label('total_atlas'),

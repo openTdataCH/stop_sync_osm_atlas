@@ -21,14 +21,7 @@ function getCachedDivIcon(key, html, className, size, anchor) {
 // Robust truthiness helper for duplicate flags coming from mixed backends
 // Treats null/undefined/empty/"false"/"0"/"none"/"null" as false; anything else as true
 function isDuplicateFlagSet(value) {
-    if (value === null || value === undefined) return false;
-    // Only treat non-empty, meaningful strings as true. Booleans/numbers are legacy noise.
-    if (typeof value === 'string') {
-        const str = value.trim().toLowerCase();
-        if (str === '' || str === 'false' || str === 'true' || str === '0' || str === '1' || str === 'none' || str === 'null') return false;
-        return true;
-    }
-    return false;
+    return !!value;
 }
 
 // Helper to build and cache a labeled circle SVG icon
@@ -53,9 +46,9 @@ class MarkerClusterManager {
      * Creates an ATLAS marker for clustered/offset rendering.
      * Delegates to the globally available createAtlasMarker helper.
      */
-    _createAtlasMarkerWithCluster(lat, lon, color, duplicateSloid, clusterSize, index, originalLat, originalLon) {
+    _createAtlasMarkerWithCluster(lat, lon, color, hasAtlasDuplicate, clusterSize, index, originalLat, originalLon) {
         try {
-            return createAtlasMarker(lat, lon, color, duplicateSloid);
+            return createAtlasMarker(lat, lon, color, hasAtlasDuplicate);
         } catch (e) {
             // Fallback to a simple circle marker if helper is unavailable
             return L.circleMarker([lat, lon], {
@@ -198,7 +191,7 @@ class MarkerClusterManager {
                 let marker;
                 if (markerData.type === 'atlas') {
                     marker = this._createAtlasMarkerWithCluster(
-                        offsetLat, offsetLon, markerData.color, markerData.duplicateSloid,
+                        offsetLat, offsetLon, markerData.color, markerData.hasAtlasDuplicate,
                         clusterSize, index, markerData.originalLat, markerData.originalLon
                     );
                 } else {
@@ -225,7 +218,7 @@ class MarkerClusterManager {
                                     try {
                                         const enriched = resp && (resp.stop || resp);
                                         let content = '';
-                                        if (enriched && enriched.stop_type === 'unmatched') {
+                                        if (enriched && enriched.stop_type === 'atlas_unmatched') {
                                             content = markerData.type === 'atlas'
                                                 ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
                                                 : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
@@ -267,10 +260,10 @@ class MarkerClusterManager {
  * @param {number} lat - Latitude.
  * @param {number} lon - Longitude.
  * @param {string} color - Marker color.
- * @param {string|null} duplicateSloid - The SLOID of a duplicate, if one exists.
+ * @param {boolean} hasAtlasDuplicate - Whether this stop has an atlas duplicate.
  * @returns {L.Marker} A Leaflet marker.
  */
-function createAtlasMarker(lat, lon, color, duplicateSloid) {
+function createAtlasMarker(lat, lon, color, hasAtlasDuplicate) {
     const radius = AppConstants.MARKERS.DEFAULT_RADIUS;
     const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
     const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
@@ -284,7 +277,7 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
             weight: weight
         });
     }
-    if (isDuplicateFlagSet(duplicateSloid)) { // Show labeled icon only when truly flagged
+    if (hasAtlasDuplicate) { // Show labeled icon only when truly flagged
         const icon = getCachedLabeledCircleIcon('atlas', color, 'D', size, radius, weight, fillOpacity);
         return L.marker([lat, lon], { icon: icon });
     } else {
@@ -615,7 +608,7 @@ function drawProblemOnMap(map, problemData, layers) {
 
     // Case: 'distance' or 'attributes' problem (a matched pair)
     if ((stop.problem === 'distance' || stop.problem === 'attributes') && stop.stop_type === 'matched' && stop.atlas_lat && stop.osm_lat) {
-        const atlasMarker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'green', stop.atlas_duplicate_sloid);
+        const atlasMarker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'green', stop.has_atlas_duplicate);
         const atlasPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'atlas'));
         atlasMarker.bindPopup(atlasPopup).addTo(layers.markersLayer);
 
@@ -635,13 +628,13 @@ function drawProblemOnMap(map, problemData, layers) {
     }
     // Case: 'unmatched' problem
     else if (stop.problem === 'unmatched') {
-        if (stop.stop_type === 'unmatched' && stop.atlas_lat) { // Isolated ATLAS
-            const marker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'red', stop.atlas_duplicate_sloid);
+        if (stop.stop_type === 'atlas_unmatched' && stop.atlas_lat) { // Isolated ATLAS
+            const marker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'red', stop.has_atlas_duplicate);
             popup = createPopupWithOptions(PopupRenderer.generateSingleAtlasBubbleHtml(stop, true));
             marker.bindPopup(popup).addTo(layers.markersLayer);
             map.setView([stop.atlas_lat, stop.atlas_lon], 16);
             marker.openPopup();
-        } else if (stop.stop_type === 'osm' && stop.osm_lat) { // Isolated OSM
+        } else if (stop.stop_type === 'osm_unmatched' && stop.osm_lat) { // Isolated OSM
             const marker = createOsmMarker(stop.osm_lat, stop.osm_lon, 'gray', stop.osm_node_type);
             popup = createPopupWithOptions(PopupRenderer.generateSingleOsmBubbleHtml(stop, true));
             marker.bindPopup(popup).addTo(layers.markersLayer);
@@ -662,17 +655,15 @@ function drawProblemOnMap(map, problemData, layers) {
             if (!isOsmGroup && member.atlas_lat != null && member.atlas_lon != null) {
                 // Use same color semantics as main map: green matched, red unmatched, orange stations
                 let atlasColor = 'green';
-                if (member.stop_type === 'unmatched') {
+                if (member.stop_type === 'atlas_unmatched') {
                     atlasColor = 'red';
-                } else if (member.stop_type === 'station') {
-                    atlasColor = 'orange';
                 }
                 markerDataArray.push({
                     lat: parseFloat(member.atlas_lat),
                     lon: parseFloat(member.atlas_lon),
                     type: 'atlas',
                     color: atlasColor,
-                    duplicateSloid: member.atlas_duplicate_sloid,
+                    hasAtlasDuplicate: member.has_atlas_duplicate,
                     originalLat: parseFloat(member.atlas_lat),
                     originalLon: parseFloat(member.atlas_lon),
                     stopData: member,

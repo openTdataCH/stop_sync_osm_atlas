@@ -99,7 +99,7 @@ def detect_unmatched_problems(stop_type: str, match_type: str = None, is_isolate
     - An unmatched OSM stop has no ATLAS counterpart within the isolation radius
     
     Args:
-        stop_type: Type of stop ('unmatched', 'osm', 'matched', etc.)
+        stop_type: Type of stop ('atlas_unmatched', 'osm_unmatched', 'matched', etc.)
         match_type: Additional matching information (e.g., 'no_nearby_counterpart')
         is_isolated: Flag indicating if the stop is isolated (unified for both ATLAS and OSM)
         
@@ -107,7 +107,7 @@ def detect_unmatched_problems(stop_type: str, match_type: str = None, is_isolate
         bool: True if unmatched problem detected, False otherwise
     """
     # Any unmatched ATLAS or standalone OSM entry is an unmatched problem.
-    if stop_type in ('unmatched', 'osm'):
+    if stop_type in ('atlas_unmatched', 'osm_unmatched'):
         return True
     # Also consider explicit flag from matching stage
     if match_type == 'no_nearby_counterpart' or is_isolated:

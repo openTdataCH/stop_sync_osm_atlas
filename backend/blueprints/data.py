@@ -185,24 +185,21 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
     if 'unmatched' in current_stop_types:
         filter_for_no_osm_nearby = 'no_nearby_counterpart' in current_match_methods
         filter_for_osm_nearby = 'osm_within_50m' in current_match_methods
-        unmatched_specific_condition = Stop.stop_type == 'unmatched'
+        unmatched_specific_condition = Stop.stop_type == 'atlas_unmatched'
         if filter_for_no_osm_nearby and not filter_for_osm_nearby:
             unmatched_specific_condition = db.and_(
-                Stop.stop_type == 'unmatched',
+                Stop.stop_type == 'atlas_unmatched',
                 Stop.match_type == 'no_nearby_counterpart'
             )
         elif not filter_for_no_osm_nearby and filter_for_osm_nearby:
             unmatched_specific_condition = db.and_(
-                Stop.stop_type == 'unmatched',
+                Stop.stop_type == 'atlas_unmatched',
                 db.or_(Stop.match_type != 'no_nearby_counterpart', Stop.match_type.is_(None))
             )
-        stop_type_match_method_or_conditions.append(db.or_(
-            unmatched_specific_condition,
-            Stop.stop_type == 'station'
-        ))
+        stop_type_match_method_or_conditions.append(unmatched_specific_condition)
 
     if 'osm' in current_stop_types:
-        stop_type_match_method_or_conditions.append(Stop.stop_type == 'osm')
+        stop_type_match_method_or_conditions.append(Stop.stop_type == 'osm_unmatched')
 
     if stop_type_match_method_or_conditions:
         all_category_conditions.append(db.or_(*stop_type_match_method_or_conditions))
@@ -270,10 +267,9 @@ def get_data():
         # and prioritize unmatched rows first to reduce "disappearing/reappearing" markers.
         if limit is not None:
             stop_type_rank = case(
-                (Stop.stop_type == 'unmatched', 0),
-                (Stop.stop_type == 'station', 1),
+                (Stop.stop_type == 'atlas_unmatched', 0),
+                (Stop.stop_type == 'osm_unmatched', 1),
                 (Stop.stop_type == 'matched', 2),
-                (Stop.stop_type == 'osm', 3),
                 else_=9,
             )
             query = query.order_by(stop_type_rank.asc(), Stop.id.asc())
@@ -305,7 +301,7 @@ def get_data():
                 "distance_m": stop.distance_m,
                 "lat": lat,
                 "lon": lon,
-                "atlas_duplicate_sloid": stop.atlas_duplicate_sloid,
+                "has_atlas_duplicate": stop.has_atlas_duplicate or False,
                 "osm_node_type": stop.osm_node_details.osm_node_type if stop.osm_node_details else None
             })
         if include_meta:
@@ -349,12 +345,7 @@ def get_stop_popup():
         ).filter(Stop.id == stop_id).first()
         if not stop:
             return jsonify({"error": "Stop not found"}), 404
-        enriched = format_stop_data(stop, include_routes=True, include_notes=True)
-        # Include attribution for notes if present
-        if stop.atlas_stop_details:
-            enriched['atlas_note_author_email'] = stop.atlas_stop_details.atlas_note_user_email
-        if stop.osm_node_details:
-            enriched['osm_note_author_email'] = stop.osm_node_details.osm_note_user_email
+        enriched = format_stop_data(stop, include_routes=True)
         if stop.stop_type == 'matched' and stop.sloid:
             matched_rows = Stop.query.options(
                 joinedload(Stop.osm_node_details),
@@ -391,7 +382,7 @@ def get_stop_popup():
                         "distance_m": r.distance_m,
                         "routes_osm": osm_details.routes_osm if osm_details else None,
                         "match_type": r.match_type,
-                        "atlas_duplicate_sloid": r.atlas_duplicate_sloid,
+                        "has_atlas_duplicate": r.has_atlas_duplicate or False,
                         "osm_node_type": osm_details.osm_node_type if osm_details else None
                     })
             if osm_matches:

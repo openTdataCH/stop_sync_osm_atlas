@@ -308,7 +308,7 @@ function loadTopNMatches() {
             // --- Client-side filtering for Show Duplicates Only --- 
             if (activeFilters.showDuplicatesOnly) {
                 // Note: This filters *after* the operator mismatch filter if active
-                filteredData = filteredData.filter(stop => typeof isDuplicateFlagSet === 'function' ? isDuplicateFlagSet(stop.atlas_duplicate_sloid) : (stop.atlas_duplicate_sloid && stop.atlas_duplicate_sloid !== ''));
+                filteredData = filteredData.filter(stop => stop.has_atlas_duplicate);
             }
 
             if(filteredData.length === 0) {
@@ -330,7 +330,7 @@ function loadTopNMatches() {
                                 lon: parseFloat(stop.atlas_lon),
                                 type: 'atlas',
                                 color: 'green',
-                                duplicateSloid: stop.atlas_duplicate_sloid,
+                                hasAtlasDuplicate: stop.has_atlas_duplicate,
                                 originalLat: parseFloat(stop.atlas_lat),
                                 originalLon: parseFloat(stop.atlas_lon),
                                 stopData: stop
@@ -453,7 +453,7 @@ function loadDataForViewport() {
 
     if (isLowZoom && !hasAnyActiveFilter) {
         // Low-zoom policy: show only unmatched ATLAS markers (overview)
-        params.stop_filter = 'unmatched';
+        params.stop_filter = 'atlas_unmatched';
         params.node_type = 'atlas';
 
         // Keep operator filter if active
@@ -464,15 +464,15 @@ function loadDataForViewport() {
         // Normal or filtered mode: build standard filters
         
         // Determine if pure OSM nodes should be included in stop_filter when 'unmatched' is active
-        var includeOsmInStopFilterForUnmatched = activeFilters.stopType.includes('unmatched') &&
+        var includeOsmInStopFilterForUnmatched = activeFilters.stopType.includes('atlas_unmatched') &&
                                             (activeFilters.nodeType.includes('osm') || activeFilters.nodeType.length === 0) &&
-                                            !activeFilters.stopType.includes('osm');
+                                            !activeFilters.stopType.includes('osm_unmatched');
 
         if(activeFilters.stopType.length > 0 || includeOsmInStopFilterForUnmatched) {
             var stopFilterTypes = [...activeFilters.stopType];
             if (includeOsmInStopFilterForUnmatched) {
-                if (!stopFilterTypes.includes('osm')) {
-                    stopFilterTypes.push('osm');
+                if (!stopFilterTypes.includes('osm_unmatched')) {
+                    stopFilterTypes.push('osm_unmatched');
                 }
             }
             if (stopFilterTypes.length > 0) {
@@ -630,7 +630,7 @@ function loadDataForViewport() {
              // Apply client-side duplicates filter before counting
              let probeData = rawStops;
              if (activeFilters.showDuplicatesOnly) {
-                 probeData = probeData.filter(stop => stop.atlas_duplicate_sloid && stop.atlas_duplicate_sloid !== '');
+                 probeData = probeData.filter(stop => stop.has_atlas_duplicate);
              }
              rawStops = probeData;
          }
@@ -648,7 +648,7 @@ function loadDataForViewport() {
          let data = rawStops;
             if (activeFilters.showDuplicatesOnly) {
                 // Apply this filter after the operator mismatch filter
-                data = data.filter(stop => typeof isDuplicateFlagSet === 'function' ? isDuplicateFlagSet(stop.atlas_duplicate_sloid) : (stop.atlas_duplicate_sloid && stop.atlas_duplicate_sloid !== ''));
+                data = data.filter(stop => stop.has_atlas_duplicate);
             }
          
          // Node type visibility flags
@@ -763,7 +763,7 @@ function loadDataForViewport() {
                             lon: atlasLon,
                             type: 'atlas',
                             color: 'green',
-                            duplicateSloid: stop.atlas_duplicate_sloid,
+                            hasAtlasDuplicate: stop.has_atlas_duplicate,
                             originalLat: atlasLat,
                             originalLon: atlasLon,
                             stopData: stop
@@ -815,7 +815,7 @@ function loadDataForViewport() {
                              lon: atlasLon,
                              type: 'atlas',
                              color: 'green',
-                             duplicateSloid: stop.atlas_duplicate_sloid,
+                             hasAtlasDuplicate: stop.has_atlas_duplicate,
                              originalLat: atlasLat,
                              originalLon: atlasLon,
                              stopData: stop
@@ -839,25 +839,8 @@ function loadDataForViewport() {
                      }
                 }
             }
-            // --- Handle Station-Matched ATLAS Stops ---
-            else if (stop.stop_type === 'station') {
-                if (showAtlasNodes) {
-                    const atlasLat = +(stop.atlas_lat || stop.lat);
-                    const atlasLon = +(stop.atlas_lon || stop.lon);
-                    allMarkerData.push({
-                        lat: atlasLat,
-                        lon: atlasLon,
-                        type: 'atlas',
-                        color: 'orange',
-                        duplicateSloid: stop.atlas_duplicate_sloid,
-                        originalLat: atlasLat,
-                        originalLon: atlasLon,
-                        stopData: stop
-                    });
-                }
-            }
             // --- Handle Unmatched ATLAS Stops ---
-            else if (stop.stop_type === 'unmatched') {
+            else if (stop.stop_type === 'atlas_unmatched') {
                  if (showAtlasNodes) {
                     const atlasLat = +stop.lat;
                     const atlasLon = +stop.lon;
@@ -866,7 +849,7 @@ function loadDataForViewport() {
                         lon: atlasLon,
                         type: 'atlas',
                         color: 'red',
-                        duplicateSloid: stop.atlas_duplicate_sloid,
+                        hasAtlasDuplicate: stop.has_atlas_duplicate,
                         originalLat: atlasLat,
                         originalLon: atlasLon,
                         stopData: stop
@@ -874,7 +857,7 @@ function loadDataForViewport() {
                 }
             }
             // --- Handle Unmatched OSM Nodes (standalone) ---
-            else if (stop.stop_type === 'osm') {
+            else if (stop.stop_type === 'osm_unmatched') {
                  const osmNodeIdKey = `osm-${stop.osm_node_id}`;
                  if (showOSMNodes && !createdOsmMarkers.has(osmNodeIdKey)) { // Check if not already created as part of a match
                      const osmLat = +stop.osm_lat;
@@ -952,7 +935,7 @@ function loadDataForViewport() {
                  // Create new marker
                  var marker;
                  if (mData.type === 'atlas') {
-                     marker = createAtlasMarker(item.lat, item.lon, mData.color, mData.duplicateSloid);
+                     marker = createAtlasMarker(item.lat, item.lon, mData.color, mData.hasAtlasDuplicate);
                  } else {
                      marker = createOsmMarker(item.lat, item.lon, mData.color, mData.osmNodeType);
                  }
@@ -978,7 +961,7 @@ function loadDataForViewport() {
                                   try {
                                       const enriched = resp && (resp.stop || resp);
                                       let content = '';
-                                      if (enriched && enriched.stop_type === 'unmatched') {
+                                      if (enriched && enriched.stop_type === 'atlas_unmatched') {
                                           content = currentData.type === 'atlas'
                                             ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
                                             : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
@@ -1115,9 +1098,9 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
         let tempMarkerColor = 'purple'; // Default color
         if (stopData.stop_type === 'matched') {
             tempMarkerColor = (popupViewType === 'atlas') ? 'green' : 'blue';
-        } else if (stopData.stop_type === 'unmatched') {
+        } else if (stopData.stop_type === 'atlas_unmatched') {
             tempMarkerColor = (popupViewType === 'atlas') ? 'red' : 'gray'; // Red for ATLAS unmatched, Gray for OSM unmatched if popupViewType is 'osm'
-        } else if (stopData.stop_type === 'osm') { // Pure OSM nodes
+        } else if (stopData.stop_type === 'osm_unmatched') { // Pure OSM nodes
             tempMarkerColor = 'gray';
         }
 
@@ -1128,7 +1111,7 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
             lon: centerLon,
             type: popupViewType,
             color: tempMarkerColor,
-            duplicateSloid: popupViewType === 'atlas' ? stopData.atlas_duplicate_sloid : null,
+            hasAtlasDuplicate: popupViewType === 'atlas' ? stopData.has_atlas_duplicate : false,
             osmNodeType: popupViewType === 'osm' ? stopData.osm_node_type : null,
             popup: popup,
             originalLat: centerLat,

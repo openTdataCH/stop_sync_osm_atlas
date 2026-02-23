@@ -19,11 +19,12 @@ class Stop(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     sloid = db.Column(db.String(100), index=True)
+    # Valid values: 'matched', 'atlas_unmatched', 'osm_unmatched'
     stop_type = db.Column(db.String(50))
     match_type = db.Column(db.String(50))
     # Indicates whether a 'manual' match was saved as persistent data
     manual_is_persistent = db.Column(db.Boolean, default=False)
-    
+
     # Core location and linking attributes
     atlas_lat = db.Column(db.Float)
     atlas_lon = db.Column(db.Float)
@@ -36,7 +37,9 @@ class Stop(db.Model):
     # Populated by the import pipeline; indexed for bbox queries.
     geom = db.Column(Geometry(geometry_type='POINT', srid=4326), nullable=True)
 
-    atlas_duplicate_sloid = db.Column(db.String(100), default=None)
+    # Fast-path booleans for duplicate marker rendering (full group data on detail tables)
+    has_atlas_duplicate = db.Column(db.Boolean, default=False)
+    has_osm_duplicate = db.Column(db.Boolean, default=False)
     
     # Relationship to ATLAS stop details (lazy='select' to avoid unnecessary JOINs on /api/data;
     # endpoints that need details use explicit joinedload() via optimize_query_for_endpoint)
@@ -87,15 +90,14 @@ class Problem(db.Model):
             'atlas_designation': atlas_details.atlas_designation if atlas_details else None,
             'atlas_designation_official': atlas_details.atlas_designation_official if atlas_details else None,
             'atlas_business_org_abbr': atlas_details.atlas_business_org_abbr if atlas_details else None,
-            'atlas_note': atlas_details.atlas_note if atlas_details else None,
             'osm_name': osm_details.osm_name if osm_details else None,
             'osm_local_ref': osm_details.osm_local_ref if osm_details else None,
             'osm_operator': osm_details.osm_operator if osm_details else None,
-            'osm_note': osm_details.osm_note if osm_details else None,
             'osm_public_transport': osm_details.osm_public_transport if osm_details else None,
         }
 
 class PersistentData(db.Model):
+    __bind_key__ = 'user_input'
     __tablename__ = 'persistent_data'
     
     id = db.Column(db.Integer, primary_key=True)
@@ -103,16 +105,14 @@ class PersistentData(db.Model):
     osm_node_id = db.Column(db.String(100), index=True)
     problem_type = db.Column(db.String(50), index=True)
     solution = db.Column(db.String(500))
-    note_type = db.Column(db.String(20), index=True)  # 'atlas', 'osm', or NULL for problem solutions
-    note = db.Column(db.Text)  # For storing persistent notes
     created_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())
     updated_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
     # Ownership/attribution
     created_by_user_id = db.Column(db.Integer, index=True, nullable=True)
     created_by_user_email = db.Column(db.String(255), nullable=True)
-    
+
     __table_args__ = (
-        db.UniqueConstraint('sloid', 'osm_node_id', 'problem_type', 'note_type', name='unique_problem'),
+        db.UniqueConstraint('sloid', 'osm_node_id', 'problem_type', name='unique_problem'),
     )
 
 class AtlasStop(db.Model):
@@ -127,11 +127,8 @@ class AtlasStop(db.Model):
     atlas_designation_official = db.Column(db.String(255))
     atlas_business_org_abbr = db.Column(db.String(100))
     routes_unified = db.Column(JSONB)
-    atlas_note = db.Column(db.Text)
-    atlas_note_is_persistent = db.Column(db.Boolean, default=False)
-    # Attribution for latest note change
-    atlas_note_user_id = db.Column(db.Integer, index=True, nullable=True)
-    atlas_note_user_email = db.Column(db.String(255), nullable=True)
+    # JSONB array of all SLOIDs in the duplicate group (e.g. ["sloid1", "sloid2"])
+    duplicate_group_sloids = db.Column(JSONB)
 
 class OsmNode(db.Model):
     __tablename__ = 'osm_nodes'
@@ -149,13 +146,11 @@ class OsmNode(db.Model):
     osm_operator = db.Column(db.String(255))
     osm_node_type = db.Column(db.String(50))
     routes_osm = db.Column(JSONB)
-    osm_note = db.Column(db.Text)
-    osm_note_is_persistent = db.Column(db.Boolean, default=False)
-    # Attribution for latest note change
-    osm_note_user_id = db.Column(db.Integer, index=True, nullable=True)
-    osm_note_user_email = db.Column(db.String(255), nullable=True)
+    # JSONB array of all OSM node IDs in the duplicate group (e.g. ["123", "456"])
+    duplicate_group_node_ids = db.Column(JSONB)
 
 class UserNote(db.Model):
+    __bind_key__ = 'user_input'
     __tablename__ = 'user_notes'
 
     id = db.Column(db.Integer, primary_key=True)

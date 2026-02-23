@@ -57,21 +57,28 @@ window.ProblemsUI = (function () {
         }
 
         let persistenceHtml = '';
+        let headerIcon = '';
+        let headerText = '';
+
         if (problem.is_persistent) {
+            headerIcon = 'fas fa-database text-success';
+            headerText = 'Persistent Solution';
             persistenceHtml = `
                 <div class="mt-2">
-                    <span class="badge badge-success"><i class="fas fa-database"></i> Persistent Solution</span>
-                    <small class="text-muted ml-2">This solution will be automatically applied after data imports</small>
+                    <span class="badge badge-success"><i class="fas fa-database"></i> Persistent</span>
+                    <small class="text-muted ml-2">Applies automatically on next data import</small>
                 </div>
             `;
         } else {
+            headerIcon = 'fas fa-edit text-info';
+            headerText = 'Local Draft';
             const makePeristentAttrs = serializeDataAttrs(clearButtonDataAttrs);
             persistenceHtml = `
                 <div class="mt-2">
                     <button class="btn btn-sm btn-outline-success make-persistent-btn" ${makePeristentAttrs}>
                         <i class="fas fa-thumbtack"></i> Make Persistent
                     </button>
-                    <small class="text-muted ml-2">Save this solution for future data imports</small>
+                    <small class="text-muted ml-2">Drafted locally. Save to database for future imports.</small>
                 </div>
             `;
         }
@@ -80,8 +87,8 @@ window.ProblemsUI = (function () {
 
         return `
             <div class="problem-section-item solution-status-section">
-                <h6><i class="fas fa-check-circle text-success"></i> Current Solution</h6>
-                <div class="alert alert-success solution-display">
+                <h6><i class="${headerIcon}"></i> ${headerText}</h6>
+                <div class="alert ${problem.is_persistent ? 'alert-success' : 'alert-info'} solution-display">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <strong>Proposed Solution:</strong> ${problem.solution}
@@ -317,7 +324,7 @@ window.ProblemsUI = (function () {
      */
     function generateIsolatedActionButtons(problem) {
         const pr = Number(problem.priority);
-        const isAtlas = problem.stop_type === 'unmatched';
+        const isAtlas = problem.stop_type === 'atlas_unmatched';
         const subject = isAtlas ? 'ATLAS entry' : 'OSM entry';
         const { alertClass, icon } = getPriorityAlertStyle(pr);
 
@@ -334,7 +341,7 @@ window.ProblemsUI = (function () {
         const matchAction = isAtlas ? 'manual-match-atlas' : 'manual-match-osm';
         const missingLabel = isAtlas ? 'Missing OSM' : 'Missing ATLAS';
 
-        if (isAtlas || problem.stop_type === 'osm') {
+        if (isAtlas || problem.stop_type === 'osm_unmatched') {
             const buttonsHtml = `
                 <div class="d-flex flex-wrap gap-2">
                     <button class="btn btn-secondary professional-button" data-action="${matchAction}">Match to</button>
@@ -502,13 +509,17 @@ window.ProblemsUI = (function () {
         }
 
         const hasPersistentSolutions = solvedMembers.some(m => m.is_persistent);
+        const hasLocalDrafts = solvedMembers.some(m => !m.is_persistent);
         let persistenceHtml = '';
 
-        if (hasPersistentSolutions) {
+        let headerIcon = hasLocalDrafts ? 'fas fa-edit text-info' : 'fas fa-database text-success';
+        let headerText = hasLocalDrafts ? 'Local Drafts & Solutions' : 'Persistent Solutions';
+
+        if (hasPersistentSolutions && !hasLocalDrafts) {
             persistenceHtml = `
                 <div class="mt-2">
-                    <span class="badge badge-success"><i class="fas fa-database"></i> Some solutions are persistent</span>
-                    <small class="text-muted ml-2">Persistent solutions will be automatically applied after data imports</small>
+                    <span class="badge badge-success"><i class="fas fa-database"></i> All solutions are persistent</span>
+                    <small class="text-muted ml-2">Applies automatically on next data import</small>
                 </div>
             `;
         } else {
@@ -519,25 +530,25 @@ window.ProblemsUI = (function () {
                             data-problem-type="${problem.problem}">
                         <i class="fas fa-thumbtack"></i> Make All Persistent
                     </button>
-                    <small class="text-muted ml-2">Save all current solutions for future data imports</small>
+                    <small class="text-muted ml-2">Save all current drafts to database for future imports</small>
                 </div>
             `;
         }
 
         return `
             <div class="problem-section-item solution-status-section">
-                <h6><i class="fas fa-check-circle text-success"></i> Current Solution</h6>
-                <div class="alert alert-success solution-display">
+                <h6><i class="${headerIcon}"></i> ${headerText}</h6>
+                <div class="alert ${hasLocalDrafts ? 'alert-info' : 'alert-success'} solution-display">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <strong>Proposed Solution:</strong>
+                            <strong>Proposed Solutions:</strong>
                             <ul class="mb-0 mt-2">
                                 ${solvedMembers.map(m => {
             const isOsm = problem.group_type === 'osm' ? true : (problem.group_type === 'atlas' ? false : !!m.osm_node_id);
             const sourceBadge = isOsm ? '<span class="badge badge-secondary">OSM</span>' : '<span class="badge badge-secondary">ATLAS</span>';
             const ident = isOsm ? (m.osm_node_id || '-') : (m.sloid || '-');
             const sol = (m.solution || '').trim();
-            const persistentIcon = m.is_persistent ? ' <i class="fas fa-database"></i>' : '';
+            const persistentIcon = m.is_persistent ? ' <i class="fas fa-database text-success" title="Persistent"></i>' : ' <i class="fas fa-edit text-info" title="Local Draft"></i>';
             return `<li>${sourceBadge} ${ident} → <strong>${sol}</strong>${persistentIcon}</li>`;
         }).join('')}
                             </ul>
@@ -586,7 +597,7 @@ window.ProblemsUI = (function () {
                     </div>`;
             }
             case 'unmatched': {
-                const isAtlas = problem.stop_type === 'unmatched';
+                const isAtlas = problem.stop_type === 'atlas_unmatched';
                 const subject = isAtlas ? 'ATLAS entry' : 'OSM entry';
                 if (pr === 1) intent = 'No counterpart exists for this UIC or none within 80 m';
                 else if (pr === 2) intent = 'No counterpart within 50 m or platform count mismatch for this UIC';

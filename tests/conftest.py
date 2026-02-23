@@ -151,7 +151,7 @@ def app():
     
     # Use in-memory SQLite for testing (no PostGIS needed for unit tests)
     os.environ['DATABASE_URI'] = 'sqlite:///:memory:'
-    os.environ['AUTH_DATABASE_URI'] = 'sqlite:///:memory:'
+    os.environ['USER_INPUT_DATABASE_URI'] = 'sqlite:///:memory:'
     os.environ['SECRET_KEY'] = 'test-secret-key'
     
     from backend.app import create_app
@@ -180,6 +180,34 @@ def runner(app):
 # =============================================================================
 # Utility Fixtures
 # =============================================================================
+
+
+@pytest.fixture
+def osm_nodes_by_coord(sample_osm_nodes):
+    """OSM nodes keyed by (lat, lon) as expected by the pipeline."""
+    return {
+        (node['lat'], node['lon']): {
+            'node_id': node['id'],
+            'lat': node['lat'],
+            'lon': node['lon'],
+            'tags': node['tags'],
+            'local_ref': node['tags'].get('local_ref'),
+        }
+        for node in sample_osm_nodes.values()
+    }
+
+
+@pytest.fixture
+def matching_context(sample_atlas_dataframe, osm_nodes_by_coord, uic_index, name_index):
+    """Create a MatchingContext for predicate tests."""
+    from matching_process.pipeline import MatchingContext
+    return MatchingContext(
+        atlas_df=sample_atlas_dataframe,
+        osm_nodes=osm_nodes_by_coord,
+        uic_ref_dict=uic_index,
+        name_index=name_index,
+        atlas_unmatched=sample_atlas_dataframe.copy(),
+    )
 
 
 @pytest.fixture

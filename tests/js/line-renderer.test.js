@@ -432,9 +432,8 @@ describe('LineRenderer', () => {
 
         test('skips non-matched stops', () => {
             const data = [
-                { stop_type: 'unmatched', sloid: 'ch:1:sloid:1', atlas_lat: 47.0, atlas_lon: 8.0 },
-                { stop_type: 'osm', osm_node_id: 'n1', osm_lat: 47.0, osm_lon: 8.0 },
-                { stop_type: 'station', sloid: 'ch:1:sloid:2', atlas_lat: 47.0, atlas_lon: 8.0 }
+                { stop_type: 'atlas_unmatched', sloid: 'ch:1:sloid:1', atlas_lat: 47.0, atlas_lon: 8.0 },
+                { stop_type: 'osm_unmatched', osm_node_id: 'n1', osm_lat: 47.0, osm_lon: 8.0 }
             ];
             
             const count = LineRenderer.drawAll(data, mockLayer, {
