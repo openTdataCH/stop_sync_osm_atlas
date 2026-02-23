@@ -172,12 +172,13 @@ def route_match(ctx: MatchingContext) -> list[dict]:
     """Match ATLAS stops to OSM boundaries strictly by common transit routes/lines."""
     matches: list[dict] = []
 
-    hrdf_routes = load_unified_routes()
+    hrdf_routes = _load_unified_routes()
     if not hrdf_routes: # Check if the dictionary is empty
         logger.warning("route_match: Route data unavailable, skipping.")
         return matches
 
-    osm_route_map = load_osm_routes(ctx.osm_xml_file)
+    osm_route_map = _load_osm_routes()
+    name_dirs, uic_dirs = _get_osm_directions_from_xml(ctx.osm_xml_file)
 
     for entry in ctx.atlas.get_unmatched_records():
         sloid = str(entry.get('sloid', ''))
@@ -195,6 +196,15 @@ def route_match(ctx: MatchingContext) -> list[dict]:
         candidates = ctx.osm.query_radius(csv_lat, csv_lon, ctx.max_distance, include_stations=True)
         if not candidates:
             continue
+            
+        # Join the relations for candidates
+        candidate_list = []
+        for c, d in candidates:
+            node_id = str(c.get('node_id'))
+            routes = osm_route_map.get(node_id, [])
+            candidate_list.append((c, d, routes))
+            
+        candidates = candidate_list
 
         # --- Build token sets for ATLAS stop ---
         gtfs_tokens: set[tuple[str, str]] = set()
@@ -252,7 +262,7 @@ def route_match(ctx: MatchingContext) -> list[dict]:
         # P3: name-based direction fallback
         if matched_node is None:
             dir_names: set[str] = set()
-            for e in entries['hrdf'] + entries['gtfs']:
+            for e in atlas_routes_data['hrdf'] + atlas_routes_data['gtfs']:
                 dn = e.get('direction_name')
                 if dn:
                     dir_names.add(dn)
@@ -263,13 +273,12 @@ def route_match(ctx: MatchingContext) -> list[dict]:
                         matched_node, matched_dist = node, dist
                         src = 'hrdf' if any(
                             e.get('direction_name') in dir_names
-                            for e in entries['hrdf']
+                            for e in atlas_routes_data['hrdf']
                         ) else 'gtfs'
                         match_source, match_evidence = src, 'direction_name'
                         break
 
         if matched_node is not None:
-            entry = row.to_dict()
             matches.append(create_match_record(
                 sloid=sloid,
                 csv_lat=csv_lat,
@@ -281,6 +290,6 @@ def route_match(ctx: MatchingContext) -> list[dict]:
                 number=entry.get('number'),
                 **extract_atlas_fields(entry),
             ))
-            ctx.used_osm_ids.add(str(matched_node['node_id']))
+            ctx.osm.mark_used(str(matched_node['node_id']))
 
     return matches
