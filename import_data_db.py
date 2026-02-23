@@ -18,10 +18,19 @@ from backend.services.stats_export import export_pipeline_stats, save_stats_to_f
 from utils.timing import timed_phase, format_progress
 
 # Database Setup
-DATABASE_URI = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/stops_db')
+DATABASE_URI = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/import_db')
+USER_INPUT_DATABASE_URI = os.getenv('USER_INPUT_DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/user_input_db')
+
 engine = create_engine(DATABASE_URI)
+user_input_engine = create_engine(USER_INPUT_DATABASE_URI)
+
+# Bind the session to the reproducible DB (the default) but we might need cross-talk later.
+# For import, we primarily write to the reproducible db.
 Session = sessionmaker(bind=engine)
 session = Session()
+
+user_input_Session = sessionmaker(bind=user_input_engine)
+user_input_session = user_input_Session()
 
 def make_point_geom(lat, lon):
     """Create a PostGIS POINT geometry (SRID 4326) from lat/lon, or None if missing."""
@@ -427,16 +436,14 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     with timed_phase("DB: migrations"):
         ensure_schema_updated()
     
-    with timed_phase("DB: delete existing data"):
-        print("Deleting existing data from database...")
-        # Delete from tables, respecting foreign key relations by deleting problems first
-        session.query(Problem).delete()
-        session.query(Stop).delete()
-        session.query(AtlasStop).delete()
-        session.query(OsmNode).delete()
-        session.query(RouteAndDirection).delete()
+    with timed_phase("DB: truncate existing data"):
+        print("Truncating existing data from database...")
+        # Because import_db is fully rebuilt each run, TRUNCATE is safe and fast.
+        # CASCADE handles the problems → stops FK automatically.
+        from sqlalchemy import text
+        session.execute(text("TRUNCATE TABLE problems, stops, atlas_stops, osm_nodes, routes_and_directions CASCADE"))
         session.commit()
-        print("Existing data deleted. Starting new import.")
+        print("Existing data truncated. Starting new import.")
     
     with timed_phase("DB: load route mappings"):
         # Load route information
@@ -503,9 +510,14 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         if uic:
             _add_osm_dup_candidate(uic, tags.get('local_ref'), rec.get('node_id'), tags.get('public_transport'))
     duplicate_osm_node_ids = set()
+    # Build a map from each OSM node ID to its full duplicate group
+    duplicate_osm_group_map = {}  # {node_id: [all_node_ids_in_group]}
     for _key, node_ids in osm_nodes_by_uic_local_ref.items():
         if len(node_ids) >= 2:
             duplicate_osm_node_ids.update(node_ids)
+            sorted_group = sorted(node_ids)
+            for nid in node_ids:
+                duplicate_osm_group_map[nid] = sorted_group
 
     # --- Insert Matched Records ---
     matched_records = base_data.get('matched', [])
@@ -548,7 +560,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 match_type=safe_value(rec.get('match_type')),
                 atlas_lat=atlas_lat,
                 atlas_lon=atlas_lon,
-                atlas_duplicate_sloid=None,
                 osm_node_id=osm_node_id,
                 osm_lat=osm_lat,
                 osm_lon=osm_lon,
@@ -585,14 +596,10 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             # Duplicates: prefer OSM-side duplicates (priority 3), else ATLAS-side duplicates (priority 2)
             if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
                 stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
-                # Do NOT set atlas_duplicate_sloid here; OSM-side duplicates should not flag ATLAS as duplicate
+                stop_record.has_osm_duplicate = True
             elif sloid and str(sloid) in duplicate_sloid_map:
                 stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
-                # Store a pointer sloid from the duplicate group for map/UI highlighting
-                try:
-                    stop_record.atlas_duplicate_sloid = str(duplicate_sloid_map.get(str(sloid)))
-                except Exception:
-                    stop_record.atlas_duplicate_sloid = 'dup'
+                stop_record.has_atlas_duplicate = True
 
             session.add(stop_record)
 
@@ -605,8 +612,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                     atlas_designation_official=designation_official,
                     atlas_business_org_abbr=safe_value(rec.get('csv_business_org_abbr', '')),
                     routes_unified=atlas_routes_mapping_unified.get(sloid, None) if atlas_routes_mapping_unified else None,
-                    atlas_note=None,
-                    atlas_note_is_persistent=False
+                    duplicate_group_sloids=duplicate_sloid_map.get(str(sloid)) if str(sloid) in duplicate_sloid_map else None,
                 )
                 session.add(atlas_record)
                 processed_sloids.add(sloid)
@@ -628,8 +634,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                     osm_aerialway=safe_value(rec.get('osm_aerialway')),
                     osm_node_type=get_osm_node_type(rec),
                     routes_osm=routes_osm_data if routes_osm_data else None,
-                    osm_note=None,
-                    osm_note_is_persistent=False
+                    duplicate_group_node_ids=duplicate_osm_group_map.get(str(osm_node_id)),
                 )
                 session.add(osm_record)
                 processed_osm_node_ids.add(osm_node_id)
@@ -791,18 +796,17 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         match_type_for_unmatched = 'no_nearby_counterpart' if sloid in no_nearby_osm_sloids else None
 
         problems = analyze_stop_problems({
-            'stop_type': 'unmatched',
+            'stop_type': 'atlas_unmatched',
             'match_type': match_type_for_unmatched,
             'sloid': sloid
         })
 
         stop_record = Stop(
             sloid=sloid,
-            stop_type='unmatched',
+            stop_type='atlas_unmatched',
             match_type=match_type_for_unmatched,
             atlas_lat=atlas_lat,
             atlas_lon=atlas_lon,
-            atlas_duplicate_sloid=None,
             geom=make_point_geom(atlas_lat, atlas_lon),
         )
         
@@ -827,8 +831,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 atlas_designation_official=designation_official,
                 atlas_business_org_abbr=safe_value(rec.get('servicePointBusinessOrganisationAbbreviationEn', '')),
                 routes_unified=atlas_routes_mapping_unified.get(sloid, None) if atlas_routes_mapping_unified else None,
-                atlas_note=None,
-                atlas_note_is_persistent=False
+                duplicate_group_sloids=duplicate_sloid_map.get(str(sloid)) if str(sloid) in duplicate_sloid_map else None,
             )
             session.add(atlas_record)
             processed_sloids.add(sloid)
@@ -836,10 +839,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         # Mark ATLAS duplicates (priority 2) using duplicate_sloid_map
         if sloid and str(sloid) in duplicate_sloid_map:
             stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
-            try:
-                stop_record.atlas_duplicate_sloid = str(duplicate_sloid_map.get(str(sloid)))
-            except Exception:
-                stop_record.atlas_duplicate_sloid = 'dup'
+            stop_record.has_atlas_duplicate = True
 
     session.commit()
 
@@ -854,13 +854,13 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         osm_node_id = str(safe_value(rec.get('node_id')))
         
         problems = analyze_stop_problems({
-            'stop_type': 'osm',
+            'stop_type': 'osm_unmatched',
             'osm_node_id': osm_node_id,
             'is_isolated': rec.get('is_isolated', False)
         })
-        
+
         stop_record = Stop(
-            stop_type='osm',
+            stop_type='osm_unmatched',
             osm_node_id=osm_node_id,
             osm_lat=osm_lat,
             osm_lon=osm_lon,
@@ -896,15 +896,15 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 osm_aerialway=get_from_tags(rec, 'aerialway', ''),
                 osm_node_type=get_osm_node_type(rec, is_osm_unmatched=True),
                 routes_osm=routes_osm_data if routes_osm_data else None,
-                osm_note=None,
-                osm_note_is_persistent=False
+                duplicate_group_node_ids=duplicate_osm_group_map.get(str(osm_node_id)),
             )
             session.add(osm_record)
             processed_osm_node_ids.add(osm_node_id)
-        
+
         # Duplicates: OSM-side duplicates (priority 3)
         if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
             stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
+            stop_record.has_osm_duplicate = True
             
     session.commit()
 
@@ -1010,7 +1010,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     print(f"Route statistics: {matched_routes} matched, {osm_only_routes} OSM-only, {atlas_only_routes} ATLAS-only")
     
     # Apply persistent solutions to newly created problems
-    apply_persistent_solutions_service(session)
+    apply_persistent_solutions_service(session, user_input_session)
     
     # Count problems in the database
     total_stops = session.query(Stop).count()

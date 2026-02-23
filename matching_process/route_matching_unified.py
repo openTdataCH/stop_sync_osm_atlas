@@ -1,91 +1,117 @@
-import pandas as pd
-from collections import defaultdict
+"""
+Route-based matching predicate.
+
+Matches ATLAS stops to OSM nodes by comparing GTFS / HRDF route tokens
+derived from ``atlas_routes_unified.csv`` and ``osm_nodes_with_routes.csv``.
+"""
 import logging
 import os
+import re
 import xml.etree.ElementTree as ET
-from .utils import haversine_distance
-from matching_process.spatial_index import to_xyz, meters_to_unit_chord_radius, build_kdtree_from_nodes
+from collections import defaultdict
+
+import pandas as pd
+
+from matching_process.pipeline import MatchingContext
+from matching_process.match_record import create_match_record, extract_atlas_fields
+from matching_process.utils import haversine_distance
+from matching_process.spatial_index import (
+    build_kdtree_from_nodes, meters_to_unit_chord_radius, lat_lon_to_xyz_list, to_xyz,
+)
 
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Data loaders (unchanged logic, cleaned up)
+# ---------------------------------------------------------------------------
+
 def _normalize_route_id_for_matching(route_id):
     if not route_id:
         return None
-    import re
     return re.sub(r'-j\d+', '-jXX', str(route_id))
 
 
-def _normalize_direction_id(direction_val):
+def _normalize_direction_id(val):
     try:
-        if pd.isna(direction_val):
+        if pd.isna(val):
             return None
-        return str(int(float(direction_val)))
+        return str(int(float(val)))
     except Exception:
         return None
 
 
 def _get_osm_directions_from_xml(xml_file):
+    """Extract per-node direction strings from route relations in the OSM XML."""
     try:
         tree = ET.parse(xml_file)
         root = tree.getroot()
     except Exception:
         return defaultdict(set), defaultdict(set)
 
-    node_id_to_name = {}
-    node_id_to_uic = {}
+    node_id_to_name: dict[str, str] = {}
+    node_id_to_uic: dict[str, str] = {}
     for node in root.findall('.//node'):
-        node_id = node.get('id')
+        nid = node.get('id')
         for tag in node.findall('./tag'):
-            if tag.get('k') == 'name':
-                node_id_to_name[node_id] = tag.get('v')
-            elif tag.get('k') == 'uic_ref':
-                node_id_to_uic[node_id] = tag.get('v')
+            k = tag.get('k')
+            if k == 'name':
+                node_id_to_name[nid] = tag.get('v')
+            elif k == 'uic_ref':
+                node_id_to_uic[nid] = tag.get('v')
 
-    osm_name_directions_map = defaultdict(set)
-    osm_uic_directions_map = defaultdict(set)
+    name_dirs: dict[str, set] = defaultdict(set)
+    uic_dirs: dict[str, set] = defaultdict(set)
+
     for relation in root.findall('.//relation'):
-        if any(tag.get('k') == 'type' and tag.get('v') == 'route' for tag in relation.findall('./tag')):
-            member_nodes = [member.get('ref') for member in relation.findall("./member[@type='node']")]
-            if len(member_nodes) >= 2:
-                first_node_id, last_node_id = member_nodes[0], member_nodes[-1]
-                first_name, last_name = node_id_to_name.get(first_node_id), node_id_to_name.get(last_node_id)
-                if first_name and last_name:
-                    direction_string = f"{first_name} → {last_name}"
-                    for node_id in member_nodes:
-                        osm_name_directions_map[node_id].add(direction_string)
-                first_uic, last_uic = node_id_to_uic.get(first_node_id), node_id_to_uic.get(last_node_id)
-                if first_uic and last_uic:
-                    direction_string = f"{first_uic} → {last_uic}"
-                    for node_id in member_nodes:
-                        osm_uic_directions_map[node_id].add(direction_string)
-    return osm_name_directions_map, osm_uic_directions_map
+        is_route = any(
+            t.get('k') == 'type' and t.get('v') == 'route'
+            for t in relation.findall('./tag')
+        )
+        if not is_route:
+            continue
+        members = [m.get('ref') for m in relation.findall("./member[@type='node']")]
+        if len(members) < 2:
+            continue
+        first, last = members[0], members[-1]
+        fn = node_id_to_name.get(first)
+        ln = node_id_to_name.get(last)
+        if fn and ln:
+            ds = f"{fn} → {ln}"
+            for nid in members:
+                name_dirs[nid].add(ds)
+        fu = node_id_to_uic.get(first)
+        lu = node_id_to_uic.get(last)
+        if fu and lu:
+            ds = f"{fu} → {lu}"
+            for nid in members:
+                uic_dirs[nid].add(ds)
+
+    return name_dirs, uic_dirs
 
 
-def _load_unified_routes(unified_csv_path: str = 'data/processed/atlas_routes_unified.csv'):
-    # Use dtype=str + low_memory=False to avoid mixed-type inference warnings and keep parsing stable.
-    df = pd.read_csv(unified_csv_path, dtype=str, low_memory=False)
-    # Build per-sloid indexes
-    by_sloid = defaultdict(lambda: {
-        'gtfs': [],
-        'hrdf': []
-    })
+def _load_unified_routes(path: str = 'data/processed/atlas_routes_unified.csv'):
+    by_sloid: dict[str, dict[str, list]] = defaultdict(lambda: {'gtfs': [], 'hrdf': []})
+    try:
+        df = pd.read_csv(path, dtype=str, low_memory=False)
+    except FileNotFoundError:
+        return by_sloid
+    except Exception as exc:
+        logger.warning(f"Error loading unified routes: {exc}")
+        return by_sloid
+
     for _, row in df.iterrows():
         sloid = str(row['sloid']) if pd.notna(row['sloid']) else None
         if not sloid:
             continue
-        src = str(row.get('source'))
+        src = str(row.get('source', ''))
         entry = {
             'route_id': row.get('route_id') if pd.notna(row.get('route_id')) else None,
             'route_id_normalized': row.get('route_id_normalized') if pd.notna(row.get('route_id_normalized')) else None,
-            'route_name_short': row.get('route_name_short') if pd.notna(row.get('route_name_short')) else None,
-            'route_name_long': row.get('route_name_long') if pd.notna(row.get('route_name_long')) else None,
             'line_name': row.get('line_name') if pd.notna(row.get('line_name')) else None,
             'direction_id': _normalize_direction_id(row.get('direction_id')),
             'direction_name': row.get('direction_name') if pd.notna(row.get('direction_name')) else None,
             'direction_uic': row.get('direction_uic') if pd.notna(row.get('direction_uic')) else None,
-            'evidence': row.get('evidence') if pd.notna(row.get('evidence')) else None,
-            'as_of': row.get('as_of') if pd.notna(row.get('as_of')) else None,
         }
         if src == 'gtfs':
             by_sloid[sloid]['gtfs'].append(entry)
@@ -94,224 +120,167 @@ def _load_unified_routes(unified_csv_path: str = 'data/processed/atlas_routes_un
     return by_sloid
 
 
-def _load_osm_routes(osm_routes_csv: str = 'data/processed/osm_nodes_with_routes.csv'):
-    mapping = defaultdict(list)
-    # Build fallback mapping from GTFS route names to route_id
-    route_name_to_id = {}
-    gtfs_routes_path = None
+def _load_osm_routes(csv_path: str = 'data/processed/osm_nodes_with_routes.csv'):
+    mapping: dict[str, list] = defaultdict(list)
+
+    # Build fallback name → route_id from GTFS routes.txt
+    route_name_to_id: dict[str, str] = {}
     gtfs_root = 'data/raw'
     if os.path.isdir(gtfs_root):
         for fname in os.listdir(gtfs_root):
             candidate = os.path.join(gtfs_root, fname, 'routes.txt')
             if fname.startswith('gtfs') and os.path.exists(candidate):
-                gtfs_routes_path = candidate
+                try:
+                    gdf = pd.read_csv(candidate, dtype=str,
+                                      usecols=['route_id', 'route_short_name', 'route_long_name'])
+                    for _, r in gdf.iterrows():
+                        for col in ('route_short_name', 'route_long_name'):
+                            if pd.notna(r.get(col)):
+                                route_name_to_id[str(r[col]).strip()] = str(r['route_id']).strip()
+                except Exception:
+                    pass
                 break
-    if gtfs_routes_path:
-        try:
-            gtfs_routes_df = pd.read_csv(gtfs_routes_path, dtype=str, usecols=['route_id', 'route_short_name', 'route_long_name'])
-            for _, r in gtfs_routes_df.iterrows():
-                if pd.notna(r.get('route_short_name')):
-                    route_name_to_id[str(r['route_short_name']).strip()] = str(r['route_id']).strip()
-                if pd.notna(r.get('route_long_name')):
-                    route_name_to_id[str(r['route_long_name']).strip()] = str(r['route_id']).strip()
-        except Exception:
-            route_name_to_id = {}
+
     try:
-        df = pd.read_csv(osm_routes_csv, dtype=str, low_memory=False)
+        df = pd.read_csv(csv_path, dtype=str, low_memory=False)
     except Exception:
         return mapping
-    # Build tokens per node
+
     for _, row in df.iterrows():
         node_id = str(row.get('node_id')) if pd.notna(row.get('node_id')) else None
         if not node_id:
             continue
         direction_id = _normalize_direction_id(row.get('direction_id'))
         route_name = str(row.get('route_name')).strip() if pd.notna(row.get('route_name')) else None
-        gtfs_route_id = str(row.get('gtfs_route_id')).strip() if pd.notna(row.get('gtfs_route_id')) else None
-        if not gtfs_route_id and route_name and route_name in route_name_to_id:
-            gtfs_route_id = route_name_to_id[route_name]
-        # If direction missing, consider both directions 0 and 1
-        directions_to_add = [direction_id] if direction_id is not None else ['0', '1']
-        for did in directions_to_add:
+        gtfs_id = str(row.get('gtfs_route_id')).strip() if pd.notna(row.get('gtfs_route_id')) else None
+        if not gtfs_id and route_name and route_name in route_name_to_id:
+            gtfs_id = route_name_to_id[route_name]
+        for did in ([direction_id] if direction_id is not None else ['0', '1']):
             mapping[node_id].append({
-                'gtfs_route_id': gtfs_route_id,
+                'gtfs_route_id': gtfs_id,
                 'direction_id': did,
                 'route_name': route_name,
             })
     return mapping
 
 
-def perform_unified_route_matching(unmatched_df, xml_nodes, osm_xml_file, used_osm_nodes, max_distance=50):
-    # Load data once
-    unified_by_sloid = _load_unified_routes()
-    osm_routes = _load_osm_routes()
-    osm_name_dirs, osm_uic_dirs = _get_osm_directions_from_xml(osm_xml_file)
+# ---------------------------------------------------------------------------
+# Predicate
+# ---------------------------------------------------------------------------
 
-    matches = []
-    newly_used = set()
+def route_match(ctx: MatchingContext) -> list[dict]:
+    """Match ATLAS stops to OSM boundaries strictly by common transit routes/lines."""
+    matches: list[dict] = []
 
-    # Build KDTree over xml_nodes
-    kd_tree, points, node_pairs = build_kdtree_from_nodes(xml_nodes)
-    # node_pairs is a list of ((lat, lon), node)
-    kd_radius = meters_to_unit_chord_radius(max_distance)
+    hrdf_routes = load_unified_routes()
+    if not hrdf_routes: # Check if the dictionary is empty
+        logger.warning("route_match: Route data unavailable, skipping.")
+        return matches
 
-    # Build name/UIC direction availability per node
-    def node_has_uic_dir(node_id, dir_uic_str):
-        return dir_uic_str in osm_uic_dirs.get(node_id, set())
+    osm_route_map = load_osm_routes(ctx.osm_xml_file)
 
-    def node_has_name_dir(node_id, dir_name_str):
-        return dir_name_str in osm_name_dirs.get(node_id, set())
+    for entry in ctx.atlas.get_unmatched_records():
+        sloid = str(entry.get('sloid', ''))
+        if not sloid:
+            continue
 
-    total = len(unmatched_df)
-    for idx, (_, row) in enumerate(unmatched_df.iterrows(), start=1):
-        sloid = str(row['sloid'])
-        csv_lat = float(row['wgs84North'])
-        csv_lon = float(row['wgs84East'])
-        uic_ref = str(row.get('number', '')).strip() if pd.notna(row.get('number')) else ''
-        entries = unified_by_sloid.get(sloid, {'gtfs': [], 'hrdf': []})
+        atlas_routes_data = hrdf_routes.get(sloid, {'gtfs': [], 'hrdf': []})
+        if not atlas_routes_data['gtfs'] and not atlas_routes_data['hrdf']:
+            continue
 
-        # Candidate OSM nodes nearby (limit by distance roughly using all xml_nodes)
-        candidates = []
-        if kd_tree is not None:
-            try:
-                q_xyz = to_xyz(csv_lat, csv_lon)
-                neighbor_idxs = kd_tree.query_ball_point(q_xyz, r=kd_radius)
-            except Exception:
-                neighbor_idxs = []
-            for ni in neighbor_idxs:
-                (lat, lon), node = node_pairs[ni]
-                node_id = str(node['node_id'])
-                if node_id in used_osm_nodes or node_id in newly_used:
-                    continue
-                dist = haversine_distance(csv_lat, csv_lon, lat, lon)
-                if dist is not None and dist <= max_distance:
-                    candidates.append((node, lat, lon, dist, osm_routes.get(node_id, [])))
-        else:
-            # Fallback: scan all (should rarely happen)
-            for (lat, lon), node in xml_nodes.items():
-                node_id = str(node['node_id'])
-                if node_id in used_osm_nodes or node_id in newly_used:
-                    continue
-                dist = haversine_distance(csv_lat, csv_lon, lat, lon)
-                if dist is not None and dist <= max_distance:
-                    candidates.append((node, lat, lon, dist, osm_routes.get(node_id, [])))
+        csv_lat = float(entry['wgs84North'])
+        csv_lon = float(entry['wgs84East'])
 
-        # Priority P1/P2 GTFS, P3 HRDF, P4 name-based HRDF/GTFS
-        matched = None
-        match_meta = None
+        # Find OSM candidates within max_distance (route matching explicitly ALLOWS station mappings)
+        candidates = ctx.osm.query_radius(csv_lat, csv_lon, ctx.max_distance, include_stations=True)
+        if not candidates:
+            continue
 
-        # Build GTFS tokens from entries
-        gtfs_tokens = set()
-        for e in entries['gtfs']:
+        # --- Build token sets for ATLAS stop ---
+        gtfs_tokens: set[tuple[str, str]] = set()
+        for e in atlas_routes_data['gtfs']:
             if e.get('route_id') and e.get('direction_id'):
                 gtfs_tokens.add((e['route_id'], e['direction_id']))
             if e.get('route_id_normalized') and e.get('direction_id'):
                 gtfs_tokens.add((e['route_id_normalized'], e['direction_id']))
 
-        # Build HRDF tokens
-        hrdf_tokens = set()
-        for e in entries['hrdf']:
+        hrdf_tokens: set[tuple[str, str]] = set()
+        for e in atlas_routes_data['hrdf']:
             if e.get('line_name') and e.get('direction_uic'):
                 hrdf_tokens.add((e['line_name'], e['direction_uic']))
 
-        # Try P1/P2: GTFS tokens
-        for node, lat, lon, dist, node_routes in candidates:
-            node_id = str(node['node_id'])
-            # Derive tokens for node from OSM routes
-            node_tokens = set()
-            for r in node_routes:
-                rid = r.get('gtfs_route_id')
-                did = r.get('direction_id') or '0'
-                if rid:
-                    node_tokens.add((rid, did))
-                    rid_norm = _normalize_route_id_for_matching(rid)
-                    if rid_norm:
-                        node_tokens.add((rid_norm, did))
+        atlas_dir_names: set[str] = set()
+        for e in atlas_routes_data['hrdf'] + atlas_routes_data['gtfs']:
+            dn = e.get('direction_name')
+            if dn:
+                atlas_dir_names.add(dn)
 
-            # Check intersection
-            common = gtfs_tokens.intersection(node_tokens)
-            if common:
-                matched = node
-                match_meta = {
-                    'source': 'gtfs',
-                    'evidence': 'gtfs_tokens',
-                    'route_token': list(common)[0]
-                }
-                break
+        matched_node = None
+        matched_dist = None
+        match_source = None
+        match_evidence = None
 
-        # Try P3: HRDF tokens
-        if matched is None and hrdf_tokens:
-            for node, lat, lon, dist, node_routes in candidates:
-                node_id = str(node['node_id'])
-                for token in hrdf_tokens:
-                    line_name, dir_uic = token
-                    if node_has_uic_dir(node_id, dir_uic):
-                        matched = node
-                        match_meta = {
-                            'source': 'hrdf',
-                            'evidence': 'hrdf_uic',
-                            'route_token': token
-                        }
-                        break
-                if matched is not None:
+        # P1: GTFS tokens
+        if gtfs_tokens:
+            for node, dist, node_routes in candidates:
+                node_tokens: set[tuple[str, str]] = set()
+                for r in node_routes:
+                    rid = r.get('gtfs_route_id')
+                    did = r.get('direction_id', '0')
+                    if rid:
+                        node_tokens.add((rid, did))
+                        norm = _normalize_route_id_for_matching(rid)
+                        if norm:
+                            node_tokens.add((norm, did))
+                if gtfs_tokens & node_tokens:
+                    matched_node, matched_dist = node, dist
+                    match_source, match_evidence = 'gtfs', 'gtfs_tokens'
                     break
 
-        # Try P4: name-based fallback using direction_name
-        if matched is None:
-            # Build available direction_name strings from unified
-            dir_names = set(e['direction_name'] for e in entries['hrdf'] if e.get('direction_name'))
-            dir_names.update(e['direction_name'] for e in entries['gtfs'] if e.get('direction_name'))
+        # P2: HRDF UIC direction
+        if matched_node is None and hrdf_tokens:
+            for node, dist, _ in candidates:
+                nid = str(node['node_id'])
+                for _, dir_uic in hrdf_tokens:
+                    if dir_uic in uic_dirs.get(nid, set()):
+                        matched_node, matched_dist = node, dist
+                        match_source, match_evidence = 'hrdf', 'hrdf_uic'
+                        break
+                if matched_node:
+                    break
+
+        # P3: name-based direction fallback
+        if matched_node is None:
+            dir_names: set[str] = set()
+            for e in entries['hrdf'] + entries['gtfs']:
+                dn = e.get('direction_name')
+                if dn:
+                    dir_names.add(dn)
             if dir_names:
-                for node, lat, lon, dist, node_routes in candidates:
-                    node_id = str(node['node_id'])
-                    if any(node_has_name_dir(node_id, dn) for dn in dir_names):
-                        matched = node
-                        match_meta = {
-                            'source': 'hrdf' if any(e.get('direction_name') in dir_names for e in entries['hrdf']) else 'gtfs',
-                            'evidence': 'direction_name',
-                            'route_token': None
-                        }
+                for node, dist, _ in candidates:
+                    nid = str(node['node_id'])
+                    if any(dn in name_dirs.get(nid, set()) for dn in dir_names):
+                        matched_node, matched_dist = node, dist
+                        src = 'hrdf' if any(
+                            e.get('direction_name') in dir_names
+                            for e in entries['hrdf']
+                        ) else 'gtfs'
+                        match_source, match_evidence = src, 'direction_name'
                         break
 
-        if matched is not None:
-            osm_node_id = str(matched['node_id'])
-            newly_used.add(osm_node_id)
-            # Determine distance for matched candidate
-            dist = None
-            for node, lat, lon, d, _routes in candidates:
-                if str(node['node_id']) == osm_node_id:
-                    dist = d
-                    break
-            tags = matched.get('tags', {}) if isinstance(matched.get('tags', {}), dict) else {}
-            result = {
-                'sloid': sloid,
-                'number': row.get('number'),
-                'csv_lat': csv_lat,
-                'csv_lon': csv_lon,
-                'csv_business_org_abbr': row.get('servicePointBusinessOrganisationAbbreviationEn', ''),
-                'osm_node_id': osm_node_id,
-                'osm_lat': matched['lat'],
-                'osm_lon': matched['lon'],
-                'distance_m': dist,
-                'match_type': f"route_unified_{match_meta['source']}",
-                'matching_notes': match_meta['evidence'],
-                'osm_uic_ref': tags.get('uic_ref', ''),
-                'osm_public_transport': tags.get('public_transport', ''),
-                'osm_railway': tags.get('railway', ''),
-                'osm_amenity': tags.get('amenity', ''),
-                'osm_aerialway': tags.get('aerialway', ''),
-                'osm_name': tags.get('name', ''),
-                'osm_uic_name': tags.get('uic_name', ''),
-                'osm_network': tags.get('network', ''),
-                'osm_operator': tags.get('operator', ''),
-                'osm_local_ref': matched.get('local_ref')
-            }
-            matches.append(result)
+        if matched_node is not None:
+            entry = row.to_dict()
+            matches.append(create_match_record(
+                sloid=sloid,
+                csv_lat=csv_lat,
+                csv_lon=csv_lon,
+                osm_node=matched_node,
+                distance_m=matched_dist,
+                match_type=f"route_unified_{match_source}",
+                matching_notes=match_evidence,
+                number=entry.get('number'),
+                **extract_atlas_fields(entry),
+            ))
+            ctx.used_osm_ids.add(str(matched_node['node_id']))
 
-        # Progress hint every 500 items
-        if idx % 500 == 0 or idx == total:
-            logger.info(f"Route matching progress: {idx}/{total} processed; matches so far: {len(matches)}")
-
-    return matches, newly_used
-
-
+    return matches

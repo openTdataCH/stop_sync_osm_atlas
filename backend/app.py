@@ -18,9 +18,9 @@ from backend.auth_models import User
 
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/stops_db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/import_db')
 app.config['SQLALCHEMY_BINDS'] = {
-    'auth': os.getenv('AUTH_DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/auth_db'),
+    'user_input': os.getenv('USER_INPUT_DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/user_input_db'),
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 

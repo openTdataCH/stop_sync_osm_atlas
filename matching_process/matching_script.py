@@ -1,41 +1,78 @@
-# 1: Utility Functions and Data Loading
-import pandas as pd
-import xml.etree.ElementTree as ET
-from collections import defaultdict
+# matching_process/matching_script.py
+"""
+Top-level orchestrator for the ATLAS ↔ OSM matching pipeline.
+
+Loads data, builds indexes, runs the predicate pipeline, and performs
+post-processing (isolation detection, summary reporting).
+"""
 import logging
 import os
 import time
-from utils.timing import timed_phase
-from matching_process.utils import is_osm_station, haversine_distance
-# Import functions from distance_matching.py
-from matching_process.distance_matching import distance_matching, transform_for_distance_matching
-# Import route_matching function
-from matching_process.route_matching_unified import perform_unified_route_matching
-# Import standardize_operator from org_standardization.py
-from matching_process.org_standardization import standardize_operator
-# Import centralized isolation detection
-from matching_process.problem_detection import detect_osm_isolation
-# Import split-out matching stages
-from matching_process.exact_matching import exact_matching
-from matching_process.name_matching import name_based_matching
+import xml.etree.ElementTree as ET
+from collections import defaultdict
 
-# Setup logging for detailed match candidate logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+import pandas as pd
+
+from utils.timing import timed_phase
+
+# Pipeline framework
+from matching_process.pipeline import MatchingContext, run_pipeline
+from matching_process.state import AtlasState, OsmIndex
+
+# Predicates
+from matching_process.exact_matching import exact_uic
+from matching_process.name_matching import name_match
+from matching_process.distance_matching import (
+    group_proximity, local_ref_distance, nearest_distance,
+)
+from matching_process.route_matching_unified import route_match
+from matching_process.postpass_matching import (
+    postpass_unique_uic, duplicate_propagation, manual_match,
+)
+
+# Utilities
+from matching_process.org_standardization import standardize_operator
+from matching_process.problem_detection import detect_osm_isolation
+
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Default pipeline (sequential – matches current behaviour)
+# ---------------------------------------------------------------------------
+DEFAULT_PIPELINE = [
+    exact_uic,
+    name_match,
+    group_proximity,
+    local_ref_distance,
+    nearest_distance,
+    route_match,
+    postpass_unique_uic,
+    duplicate_propagation,
+    manual_match,
+]
+
+
+# ---------------------------------------------------------------------------
+# OSM XML parser (builds the three indexes all predicates share)
+# ---------------------------------------------------------------------------
+
 def parse_osm_xml(xml_file):
     """
-    Parse the OSM XML file and build a comprehensive data structure that can be used for all matching strategies:
-      - all_nodes: Complete representation of all OSM nodes with coordinates and tags
-      - uic_ref_dict: { uic_ref : [ {node_id, lat, lon, local_ref, tags}, ... ] }
-      - name_index: { name_value : [node_info, ...] } for keys: 'name', 'uic_name', 'gtfs:name'
+    Parse OSM XML → (all_nodes, uic_ref_dict, name_index).
+
+    * all_nodes:    {(lat, lon): node_entry}
+    * uic_ref_dict: {uic_ref_str: [node_entry, …]}
+    * name_index:   {name_str: [node_entry, …]}
     """
     tree = ET.parse(xml_file)
     root = tree.getroot()
-    all_nodes = {}
-    uic_ref_dict = defaultdict(list)
-    name_index = defaultdict(list)
-    ref_tag_count = 0
-    
+
+    all_nodes: dict[tuple, dict] = {}
+    uic_ref_dict: dict[str, list] = defaultdict(list)
+    name_index: dict[str, list] = defaultdict(list)
+
     for node in root.iter("node"):
         node_id = node.get("id")
         try:
@@ -43,617 +80,236 @@ def parse_osm_xml(xml_file):
             lon = float(node.get("lon"))
         except (ValueError, TypeError):
             continue
-            
+
         local_ref = None
-        tags = {}
-        
+        tags: dict[str, str] = {}
+
         for tag in node.findall("tag"):
-            k = tag.get("k")
-            v = tag.get("v")
-            # Standardize operator names
+            k, v = tag.get("k"), tag.get("v")
             if k == "operator":
-                original_v = v
-                v, was_changed = standardize_operator(v)
-                if was_changed:
-                    tags['original_operator'] = original_v
+                original = v
+                v, changed = standardize_operator(v)
+                if changed:
+                    tags['original_operator'] = original
             tags[k] = v
             if k == "local_ref":
                 local_ref = v
-            elif k == "ref":
-                ref_tag_count += 1
-                if not local_ref:
-                    local_ref = v
-        
-        # Create node entry that will be used in all data structures
-        node_entry = {
+            elif k == "ref" and not local_ref:
+                local_ref = v
+
+        entry = {
             'node_id': node_id,
             'lat': lat,
             'lon': lon,
             'local_ref': local_ref,
-            'tags': tags
+            'tags': tags,
         }
-        
-        # Store in main nodes dictionary by coordinates
-        all_nodes[(lat, lon)] = node_entry
-        
-        # Build UIC reference index
+        all_nodes[(lat, lon)] = entry
+
         if "uic_ref" in tags:
-            uic_val = tags["uic_ref"]
-            uic_ref_dict[uic_val].append(node_entry)
-        
-        # Build name index
-        for key in ['name', 'uic_name', 'gtfs:name']:
+            uic_ref_dict[tags["uic_ref"]].append(entry)
+
+        for key in ('name', 'uic_name', 'gtfs:name'):
             if key in tags:
-                name_index[tags[key]].append(node_entry)
-    
-    logger.info(f"Parsed OSM XML: {len(all_nodes)} nodes, {len(uic_ref_dict)} uic_ref entries; {ref_tag_count} 'ref' tags encountered.")
+                name_index[tags[key]].append(entry)
+
+    logger.info(
+        f"Parsed OSM XML: {len(all_nodes)} nodes, "
+        f"{len(uic_ref_dict)} uic_ref entries"
+    )
     return all_nodes, uic_ref_dict, name_index
 
 
-# 2: Matching Functions & Station-Level Grouping
-# 3: Distance Matching
+# ---------------------------------------------------------------------------
+# File resolution helpers
+# ---------------------------------------------------------------------------
 
-
-# 4: Final Pipeline
-
-# Use module-level logger defined by basicConfig at import
-
-
-def _resolve_existing_path(preferred_path: str, alternates: list[str]) -> str:
-    """
-    Return the first existing path among preferred_path and alternates.
-    """
-    candidates = [preferred_path] + [p for p in alternates if p]
-    for p in candidates:
+def _resolve_path(preferred: str, alternates: list) -> str:
+    for p in [preferred] + [a for a in alternates if a]:
         if p and os.path.exists(p):
             return p
     return ""
 
 
-def _wait_for_file(paths_to_try: list[str], timeout_seconds: int = 60, poll_seconds: float = 1.0) -> str:
-    """
-    Wait for any of the given paths to exist, returning the first that appears.
-    """
-    deadline = time.time() + max(0, timeout_seconds)
+def _wait_for_file(paths: list[str], timeout: int = 60) -> str:
+    deadline = time.time() + timeout
     while True:
-        for p in paths_to_try:
+        for p in paths:
             if p and os.path.exists(p):
                 return p
         if time.time() >= deadline:
             return ""
-        time.sleep(poll_seconds)
+        time.sleep(1.0)
 
+
+def _auto_download_atlas(path):
+    try:
+        from Download_and_process_data.get_atlas_data import get_atlas_stops
+        os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+        url = os.getenv('ATLAS_DOWNLOAD_URL',
+                        "https://data.opentransportdata.swiss/en/dataset/traffic-points-actual-date/permalink")
+        logger.info("ATLAS CSV missing – auto-downloading…")
+        get_atlas_stops(path, url)
+    except Exception as e:
+        logger.warning(f"Automatic ATLAS download failed: {e}")
+
+
+def _auto_download_osm(path):
+    try:
+        from Download_and_process_data.get_osm_data import query_overpass
+        logger.info("OSM XML missing – querying Overpass…")
+        xml_text = query_overpass()
+        if xml_text:
+            os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(xml_text)
+    except Exception as e:
+        logger.warning(f"Automatic OSM download failed: {e}")
+
+
+def _locate_file(env_key, default, label):
+    """Locate a required data file, optionally waiting / downloading."""
+    pref = os.getenv(env_key, default)
+    alternates = [
+        os.path.join('/app', pref) if not os.path.isabs(pref) else None,
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), pref)
+        if not os.path.isabs(pref) else None,
+    ]
+    path = _resolve_path(pref, alternates)
+    if not path:
+        wait_list = [pref] + [a for a in alternates if a]
+        path = _wait_for_file(wait_list, timeout=int(os.getenv(f'WAIT_FOR_{label}_SECONDS', '60')))
+    if not path and os.getenv('DOWNLOAD_IF_MISSING', '1').lower() in ('1', 'true', 'yes'):
+        if label == 'ATLAS':
+            _auto_download_atlas(pref)
+        else:
+            _auto_download_osm(pref)
+        path = _resolve_path(pref, alternates)
+    if not path:
+        raise FileNotFoundError(
+            f"Required {label} file not found. "
+            f"Tried: {[pref] + [a for a in alternates if a]}"
+        )
+    return path
+
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
 
 def final_pipeline(route_matching_strategy='unified'):
     """
-    Execute the complete matching pipeline:
-    1. Load data from existing CSV and XML files (data must be pre-downloaded)
-    2. Perform exact matching using UIC references
-    3. Perform name-based matching for remaining unmatched entries
-    4. Perform distance-based matching for any still unmatched entries
-    5. Perform route-based matching for remaining unmatched entries based on the chosen strategy.
-    
-    Note: This function assumes data files already exist. Use Download_and_process_data/get_atlas_data.py and 
-    Download_and_process_data/get_osm_data.py to download the required data files before running this pipeline.
+    Execute the complete matching pipeline and return data for DB import.
+
+    Returns
+    -------
+    base_data : dict
+        ``{"matched": [...], "unmatched_atlas": [...], "unmatched_osm": [...]}``
+    duplicate_sloid_map : dict
+        ``{sloid_str: [list_of_group_sloids]}``
+    no_nearby_osm_sloids : set
+        SLOIDs of unmatched ATLAS entries with no OSM node within 50 m.
     """
-    # --- Load Data ---
-    # Prefer environment overrides, else use defaults
-    atlas_csv_pref = os.getenv('ATLAS_STOPS_CSV', "data/raw/stops_ATLAS.csv")
-    osm_xml_pref = os.getenv('OSM_XML_FILE', "data/raw/osm_data.xml")
 
-    # Common alternates to handle different working directories (e.g., Docker /app)
-    alternates_atlas = [
-        os.path.join('/app', atlas_csv_pref) if not os.path.isabs(atlas_csv_pref) else None,
-        os.path.join(os.path.dirname(os.path.dirname(__file__)), atlas_csv_pref) if not os.path.isabs(atlas_csv_pref) else None,
-    ]
-    alternates_osm = [
-        os.path.join('/app', osm_xml_pref) if not os.path.isabs(osm_xml_pref) else None,
-        os.path.join(os.path.dirname(os.path.dirname(__file__)), osm_xml_pref) if not os.path.isabs(osm_xml_pref) else None,
-    ]
+    # ── Load data ────────────────────────────────────────────────────────
+    atlas_csv_file = _locate_file('ATLAS_STOPS_CSV', 'data/raw/stops_ATLAS.csv', 'ATLAS')
+    osm_xml_file = _locate_file('OSM_XML_FILE', 'data/raw/osm_data.xml', 'OSM')
 
-    # Resolve quickly if already present
-    atlas_csv_file = _resolve_existing_path(atlas_csv_pref, alternates_atlas)
-    osm_xml_file = _resolve_existing_path(osm_xml_pref, alternates_osm)
-    
-    logger.info("Loading and parsing data files...")
-    
-    # ATLAS CSV must exist - matching script should never download data
-    if not atlas_csv_file:
-        # Short grace period to accommodate orchestrations that generate the file right before this step
-        wait_list = [atlas_csv_pref] + [p for p in alternates_atlas if p]
-        logger.info("ATLAS CSV not found immediately. Waiting briefly for file to appear...")
-        atlas_csv_file = _wait_for_file(wait_list, timeout_seconds=int(os.getenv('WAIT_FOR_ATLAS_SECONDS', '60')))
-    if not atlas_csv_file:
-        # Optional auto-download fallback if the data preparation ran elsewhere
-        if os.getenv('DOWNLOAD_IF_MISSING', '1').lower() in ('1', 'true', 'yes'):
-            try:
-                from Download_and_process_data.get_atlas_data import get_atlas_stops
-                os.makedirs(os.path.dirname(atlas_csv_pref) or '.', exist_ok=True)
-                atlas_url = os.getenv('ATLAS_DOWNLOAD_URL', "https://data.opentransportdata.swiss/en/dataset/traffic-points-actual-date/permalink")
-                logger.info("ATLAS CSV missing. Attempting automatic download...")
-                get_atlas_stops(atlas_csv_pref, atlas_url)
-                atlas_csv_file = _resolve_existing_path(atlas_csv_pref, alternates_atlas)
-            except Exception as e:
-                logger.warning(f"Automatic ATLAS download failed: {e}")
-        if not atlas_csv_file:
-            attempted = [atlas_csv_pref] + [p for p in alternates_atlas if p]
-            raise FileNotFoundError(
-                f"Required ATLAS CSV not found. Tried: {attempted}. "
-                f"Set ATLAS_STOPS_CSV to an absolute path or run Download_and_process_data/get_atlas_data.py first."
-            )
     with timed_phase("Matching: load ATLAS CSV"):
         atlas_df = pd.read_csv(atlas_csv_file, sep=";")
-    # ATLAS data is expected to be pre-filtered to BOARDING_PLATFORM entries
-    # by the Download_and_process_data/get_atlas_data.py script.
-    if not osm_xml_file:
-        wait_list = [osm_xml_pref] + [p for p in alternates_osm if p]
-        logger.info("OSM XML not found immediately. Waiting briefly for file to appear...")
-        osm_xml_file = _wait_for_file(wait_list, timeout_seconds=int(os.getenv('WAIT_FOR_OSM_SECONDS', '60')))
-    if not osm_xml_file:
-        if os.getenv('DOWNLOAD_IF_MISSING', '1').lower() in ('1', 'true', 'yes'):
-            try:
-                from Download_and_process_data.get_osm_data import query_overpass
-                logger.info("OSM XML missing. Querying Overpass API automatically...")
-                xml_text = query_overpass()
-                if xml_text:
-                    os.makedirs(os.path.dirname(osm_xml_pref) or '.', exist_ok=True)
-                    with open(osm_xml_pref, 'w', encoding='utf-8') as f:
-                        f.write(xml_text)
-                    osm_xml_file = _resolve_existing_path(osm_xml_pref, alternates_osm)
-            except Exception as e:
-                logger.warning(f"Automatic OSM download failed: {e}")
-        if not osm_xml_file:
-            attempted = [osm_xml_pref] + [p for p in alternates_osm if p]
-            raise FileNotFoundError(
-                f"Required OSM XML not found. Tried: {attempted}. "
-                f"Set OSM_XML_FILE to an absolute path or run Download_and_process_data/get_osm_data.py first."
-            )
+
     with timed_phase("Matching: parse OSM XML"):
         all_osm_nodes, uic_ref_dict, name_index = parse_osm_xml(osm_xml_file)
 
-    # (Manual matches moved to the end; see dedicated section below)
+    # ── Identify ATLAS duplicate groups ──────────────────────────────────
+    dup_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
+    non_empty = atlas_df['designation'].notna() & (atlas_df['designation'].astype(str).str.strip() != '')
+    dup_mask = dup_mask & non_empty
 
-    # --- Identify Duplicate ATLAS entries ---
-    # Keep=False marks all occurrences of duplicates as True
-    duplicate_atlas_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
-    # Add condition to exclude rows where designation is empty or NaN
-    non_empty_designation_mask = atlas_df['designation'].notna() & (atlas_df['designation'].astype(str).str.strip() != '')
-    duplicate_atlas_mask = duplicate_atlas_mask & non_empty_designation_mask
-
-    # Create a map from a duplicate sloid to another sloid in its duplicate group
-    duplicate_sloid_map = {}
-    duplicate_rows_df = atlas_df[duplicate_atlas_mask]
-    # Group by 'number' and 'designation' to find duplicate sets
-    for _, group_df in duplicate_rows_df.groupby(['number', 'designation'], sort=False):
-        if len(group_df) > 1:
-            sloids_in_group = group_df['sloid'].astype(str).tolist()
-            for current_sloid in sloids_in_group:
-                # Find the first other sloid in the group to point to
-                other_sloid_pointer = next((s_other for s_other in sloids_in_group if s_other != current_sloid), None)
-                if other_sloid_pointer:
-                    duplicate_sloid_map[current_sloid] = other_sloid_pointer
-
-    num_duplicate_atlas_rows = len(atlas_df[duplicate_atlas_mask]) # Count rows marked as duplicate
-    logger.info(f"Identified {num_duplicate_atlas_rows} ATLAS entries (rows) that are part of a duplicate group based on non-empty 'number' and 'designation'.")
-    
-    # --- Exact Matching ---
-    logger.info("Performing exact matching...")
-    with timed_phase("Matching: exact matching"):
-        exact_matches, unmatched_after_exact, used_osm_ids_exact = exact_matching(atlas_df, uic_ref_dict)
-    logger.info(f"Exact matching: {len(exact_matches)} matches; {len(unmatched_after_exact)} unmatched.")
-    
-    # --- Name-Based Matching ---
-    logger.info("Performing name-based matching...")
-    unmatched_after_exact_df = pd.DataFrame(unmatched_after_exact)
-    with timed_phase("Matching: name-based matching"):
-        name_matches, unmatched_after_name, used_osm_ids_name = name_based_matching(unmatched_after_exact_df, name_index)
-    unmatched_after_name_df = pd.DataFrame(unmatched_after_name)
-    logger.info(f"Name-based matching: {len(name_matches)} matches; {len(unmatched_after_name_df)} unmatched.")
-    
-    # --- Collect Used OSM IDs ---
-    used_osm_ids_total = set()
-    for m in exact_matches + name_matches:
-        if 'osm_node_id' in m:
-            used_osm_ids_total.add(m['osm_node_id'])
-    
-    # --- Distance Matching ---
-    logger.info("Performing distance-based matching...")
-    # Filter out already matched nodes for distance matching
-    filtered_osm_nodes = transform_for_distance_matching(all_osm_nodes, filtered=True, used_node_ids=used_osm_ids_total)
-    
-    # Further filter out OSM stations from filtered_osm_nodes before passing to distance_matching
-    filtered_osm_nodes_no_stations = {
-        coord: node_info for coord, node_info in filtered_osm_nodes.items()
-        if not is_osm_station(node_info)
-    }
-
-    # Initialize lists for actual matches and those with no nearby OSM
-    actual_distance_matches = []
-    no_nearby_osm_entries = []
-    
-    if len(unmatched_after_name_df) > 0:
-        # Get all results from distance_matching
-        with timed_phase("Matching: distance-based matching"):
-            all_distance_results = distance_matching(
-                unmatched_after_name_df, 
-                filtered_osm_nodes_no_stations, # Use the station-filtered list
-                max_distance=50,
-                all_xml_nodes_for_stage4=all_osm_nodes # Pass all OSM nodes for Stage 4 check
-            )
-        # Separate the results
-        for match in all_distance_results:
-            if match.get('match_type') == 'no_nearby_counterpart':
-                no_nearby_osm_entries.append(match)
-            else:
-                actual_distance_matches.append(match)
-    else:
-        all_distance_results = [] # Keep this for consistency if needed elsewhere, though separation makes it less direct
-
-    logger.info(f"Distance matching: Found {len(actual_distance_matches)} actual matches and {len(no_nearby_osm_entries)} ATLAS entries with no OSM nodes within 50m.")
-    
-    # Extract SLOIDs for entries with no nearby OSM nodes
-    no_nearby_osm_sloids = {m['sloid'] for m in no_nearby_osm_entries if 'sloid' in m}
-    
-    # Update used OSM IDs only with actual matches
-    for m in actual_distance_matches:
-        if 'osm_node_id' in m and m['osm_node_id'] != 'NA': # Ensure 'NA' isn't added
-            used_osm_ids_total.add(m['osm_node_id'])
-    
-    # --- Route Matching ---
-    logger.info(f"Performing route-based matching with strategy: '{route_matching_strategy}'...")
-    # Track matched SLOIDs from previous stages (including actual distance matches)
-    matched_sloids = set()
-    for m in (exact_matches + name_matches + actual_distance_matches):
-        if 'sloid' in m:
-            matched_sloids.add(m['sloid'])
-    
-    # Filter unmatched entries after *actual* distance matching
-    # This df still contains the entries that will be marked as 'no_nearby_counterpart'
-    unmatched_after_distance_df = unmatched_after_name_df[~unmatched_after_name_df['sloid'].isin(matched_sloids)]
-
-    # Filter out already matched nodes for route matching
-    filtered_osm_nodes_for_route = {
-        coord: node_info for coord, node_info in all_osm_nodes.items()
-        if node_info['node_id'] not in used_osm_ids_total
-    }
-    
-    # Route matching is performed on entries not yet matched by exact, name, or actual distance
-    if len(unmatched_after_distance_df) > 0:
-        with timed_phase("Matching: route-based matching"):
-            route_matches, newly_used = perform_unified_route_matching(
-                unmatched_after_distance_df,
-                filtered_osm_nodes_for_route,
-                osm_xml_file=osm_xml_file,
-                used_osm_nodes=used_osm_ids_total,
-                max_distance=50
-            )
-        used_osm_ids_total.update(newly_used)
-    else:
-        route_matches = []
-    logger.info(f"Route matching: {len(route_matches)} matches.")
-    
-    # Update used OSM IDs with route matches
-    for m in route_matches:
-        if 'osm_node_id' in m:
-            used_osm_ids_total.add(m['osm_node_id'])
-
-    # Update matched SLOIDs with route matches
-    for m in route_matches:
-        if 'sloid' in m:
-            matched_sloids.add(m['sloid']) # Add route matched sloids
-
-    # --- Post-pass: unique-by-UIC consolidation (safe exact matches) ---
-    logger.info("Running post-pass unique-by-UIC consolidation...")
-    postpass_exact_matches = []
-    # Remaining unmatched after all prior stages
-    remaining_unmatched_df = unmatched_after_name_df[~unmatched_after_name_df['sloid'].isin(matched_sloids)]
-    if not remaining_unmatched_df.empty:
-        # Group by UIC number (ATLAS 'number')
-        for uic_ref, grp_df in remaining_unmatched_df.groupby(remaining_unmatched_df['number'].astype(str)):
-            candidates = uic_ref_dict.get(str(uic_ref), [])
-            if not candidates:
+    with timed_phase("Identifying ATLAS duplicate groups"):
+        duplicate_sloid_map: dict[str, list[str]] = {}
+        for _, group_df in atlas_df[dup_mask].groupby(['number', 'designation'], sort=False):
+            if len(group_df) <= 1:
                 continue
-            # Filter out already used OSM nodes and station nodes
-            available_osm = [c for c in candidates if c['node_id'] not in used_osm_ids_total and not is_osm_station(c)]
-            if len(available_osm) == 1:
-                osm_node = available_osm[0]
-                tags = osm_node.get('tags', {})
-                for _, row in grp_df.iterrows():
-                    csv_lat = row['wgs84North']
-                    csv_lon = row['wgs84East']
-                    designation = str(row['designation']).strip() if pd.notna(row['designation']) else ""
-                    designation_official = str(row.get('designationOfficial')).strip() if pd.notna(row.get('designationOfficial')) else designation
-                    business_org_abbr = str(row.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
-                    dist = haversine_distance(csv_lat, csv_lon, osm_node['lat'], osm_node['lon'])
-                    postpass_exact_matches.append({
-                        'sloid': row['sloid'],
-                        'number': row['number'],
-                        'uic_ref': str(uic_ref),
-                        'csv_designation': designation,
-                        'csv_designation_official': designation_official,
-                        'csv_lat': csv_lat,
-                        'csv_lon': csv_lon,
-                        'csv_business_org_abbr': business_org_abbr,
-                        'osm_node_id': osm_node['node_id'],
-                        'osm_lat': osm_node['lat'],
-                        'osm_lon': osm_node['lon'],
-                        'osm_local_ref': osm_node.get('local_ref'),
-                        'osm_network': tags.get('network', ''),
-                        'osm_operator': tags.get('operator', ''),
-                        'osm_original_operator': tags.get('original_operator'),
-                        'osm_amenity': tags.get('amenity', ''),
-                        'osm_railway': tags.get('railway', ''),
-                        'osm_aerialway': tags.get('aerialway', ''),
-                        'osm_name': tags.get('name', ''),
-                        'osm_uic_name': tags.get('uic_name', ''),
-                        'osm_uic_ref': tags.get('uic_ref', ''),
-                        'osm_public_transport': tags.get('public_transport', ''),
-                        'distance_m': dist,
-                        'match_type': 'exact_postpass',
-                        'candidate_pool_size': 1,
-                        'matching_notes': 'Post-pass unique-by-UIC consolidation'
-                    })
-                    matched_sloids.add(row['sloid'])
-                # Mark this OSM node as used for subsequent logic
-                used_osm_ids_total.add(osm_node['node_id'])
+            sloids = sorted(group_df['sloid'].astype(str).tolist())
+            for s in sloids:
+                duplicate_sloid_map[s] = sloids
 
-    # Build preliminary matches list for duplicate propagation (without manual; applied later)
-    prelim_matches = exact_matches + name_matches + actual_distance_matches + route_matches + postpass_exact_matches
+    atlas_state = AtlasState(
+        atlas_df=atlas_df,
+        duplicate_sloid_map=duplicate_sloid_map
+    )
 
-    # --- Duplicate propagation across ATLAS duplicates ---
-    logger.info("Propagating matches across ATLAS duplicate groups...")
-    duplicate_propagation_matches = []
-    try:
-        # Map sloid -> atlas row for quick lookup
-        atlas_by_sloid_full = {str(row['sloid']): row for _, row in atlas_df.iterrows()}
-        # Build an index of existing matches by sloid
-        matches_by_sloid = {}
-        for m in prelim_matches:
-            s = str(m.get('sloid'))
-            if not s:
-                continue
-            # Keep the match with the smallest distance for propagation
-            prev = matches_by_sloid.get(s)
-            if prev is None or (m.get('distance_m') or float('inf')) < (prev.get('distance_m') or float('inf')):
-                matches_by_sloid[s] = m
+    osm_index = OsmIndex(
+        xml_nodes=all_osm_nodes,
+        uic_ref_dict=uic_ref_dict,
+        name_index=name_index
+    )
 
-        # Reuse previously computed duplicate rows/groups
-        if not duplicate_rows_df.empty:
-            for (_, _), group_df in duplicate_rows_df.groupby(['number', 'designation'], sort=False):
-                sloids_in_group = set(group_df['sloid'].astype(str).tolist())
-                matched_in_group = [s for s in sloids_in_group if s in matches_by_sloid]
-                if not matched_in_group:
-                    continue
-                # Choose a source match with minimal distance among matched sloids
-                def _dist_or_inf(m):
-                    return m.get('distance_m') if m.get('distance_m') is not None else float('inf')
-                source_sloid = min(matched_in_group, key=lambda s: _dist_or_inf(matches_by_sloid[s]))
-                source_match = matches_by_sloid[source_sloid]
-                osm_lat = source_match.get('osm_lat')
-                osm_lon = source_match.get('osm_lon')
-                # Propagate to unmatched members of the group
-                for target_sloid in sloids_in_group:
-                    if target_sloid in matched_sloids:
-                        continue
-                    atlas_row = atlas_by_sloid_full.get(str(target_sloid))
-                    if atlas_row is None:
-                        continue
-                    csv_lat = atlas_row['wgs84North']
-                    csv_lon = atlas_row['wgs84East']
-                    business_org_abbr = str(atlas_row.get('servicePointBusinessOrganisationAbbreviationEn', '') or '').strip()
-                    designation = str(atlas_row['designation']).strip() if pd.notna(atlas_row['designation']) else ''
-                    designation_official = str(atlas_row.get('designationOfficial')).strip() if pd.notna(atlas_row.get('designationOfficial')) else designation
-                    # Recompute distance for the target sloid to the same OSM node
-                    dist = None
-                    if osm_lat is not None and osm_lon is not None:
-                        dist = haversine_distance(csv_lat, csv_lon, osm_lat, osm_lon)
-                    propagated = {
-                        **{k: v for k, v in source_match.items() if k not in ('sloid', 'csv_lat', 'csv_lon', 'csv_designation', 'csv_designation_official', 'csv_business_org_abbr', 'distance_m', 'match_type', 'matching_notes', 'number')},
-                        'sloid': target_sloid,
-                        'number': atlas_row['number'],
-                        'csv_lat': csv_lat,
-                        'csv_lon': csv_lon,
-                        'csv_business_org_abbr': business_org_abbr,
-                        'csv_designation': designation,
-                        'csv_designation_official': designation_official,
-                        'distance_m': dist,
-                        'match_type': 'duplicate_propagation',
-                        'matching_notes': f"Duplicate propagation from sloid {source_sloid}"
-                    }
-                    duplicate_propagation_matches.append(propagated)
-                    matched_sloids.add(target_sloid)
-    except Exception as e:
-        logger.warning(f"Duplicate propagation step failed: {e}")
+    with timed_phase("Context initialization"):
+        ctx = MatchingContext(
+            atlas=atlas_state,
+            osm=osm_index,
+            max_distance=50.0,
+            osm_xml_file=osm_xml_file,
+        )
 
-    # --- Final step: Apply persistent manual matches for remaining unmatched ---
-    manual_matches = []
-    manual_pairs = set()
-    try:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import sessionmaker
-        from backend.models import PersistentData
-        DATABASE_URI = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/stops_db')
-        engine = create_engine(DATABASE_URI)
-        Session = sessionmaker(bind=engine)
-        tmp_session = Session()
-        persistent_manuals = tmp_session.query(PersistentData).filter(
-            PersistentData.problem_type == 'unmatched',
-            PersistentData.solution == 'manual'
-        ).all()
-        for pm in persistent_manuals:
-            if pm.sloid and pm.osm_node_id:
-                manual_pairs.add((str(pm.sloid), str(pm.osm_node_id)))
-        tmp_session.close()
-    except Exception as e:
-        logger.debug(f"Could not load persistent manual matches (non-critical): {e}")
-        manual_pairs = set()
+    with timed_phase("Matching: predicate pipeline"):
+        output = run_pipeline(DEFAULT_PIPELINE, ctx)
 
-    if manual_pairs:
-        atlas_by_sloid = {str(row['sloid']): row for _, row in atlas_df.iterrows()}
-        osm_by_node_id = {str(node.get('node_id')): node for node in all_osm_nodes.values()}
-        for sloid, node_id in manual_pairs:
-            if sloid in matched_sloids:
-                continue
-            if node_id in used_osm_ids_total:
-                continue
-            a = atlas_by_sloid.get(sloid)
-            o = osm_by_node_id.get(node_id)
-            if a and o:
-                manual_matches.append({
-                    'sloid': sloid,
-                    'csv_lat': a.get('wgs84North'),
-                    'csv_lon': a.get('wgs84East'),
-                    'number': a.get('number'),
-                    'osm_node_id': node_id,
-                    'osm_lat': o.get('lat'),
-                    'osm_lon': o.get('lon'),
-                    'osm_public_transport': o.get('tags', {}).get('public_transport'),
-                    'osm_railway': o.get('tags', {}).get('railway'),
-                    'osm_amenity': o.get('tags', {}).get('amenity'),
-                    'osm_aerialway': o.get('tags', {}).get('aerialway'),
-                    'match_type': 'manual'
-                })
-                matched_sloids.add(sloid)
-                used_osm_ids_total.add(node_id)
+    # ── Post-processing ──────────────────────────────────────────────────
 
-    # --- Find Remaining Unmatched Nodes (after applying manual) ---
-    unmatched_osm_nodes = [node for node in all_osm_nodes.values() if node['node_id'] not in used_osm_ids_total]
-    logger.info(f"Unmatched OSM nodes: {len(unmatched_osm_nodes)}")
+    # Isolation detection for unmatched OSM nodes
+    logger.info("Detecting isolated unmatched OSM nodes…")
+    atlas_stops_data = [
+        {'lat': row['wgs84North'], 'lon': row['wgs84East'], 'sloid': row['sloid']}
+        for _, row in atlas_df.iterrows()
+    ]
+    osm_isolation = detect_osm_isolation(output.unmatched_osm, atlas_stops_data)
+    isolated_count = sum(osm_isolation.values())
+    logger.info(f"Found {isolated_count} isolated unmatched OSM nodes")
 
-    # --- Detect isolated OSM nodes using centralized logic ---
-    logger.info("Checking for isolated unmatched OSM nodes...")
-    osm_isolation_status = {}
-    if unmatched_osm_nodes:
-        # Prepare ATLAS stop data for isolation detection
-        atlas_stops_data = []
-        for _, row in atlas_df.iterrows():
-            atlas_stops_data.append({
-                'lat': row['wgs84North'],
-                'lon': row['wgs84East'],
-                'sloid': row['sloid']
-            })
-        
-        # Use centralized isolation detection
-        osm_isolation_status = detect_osm_isolation(unmatched_osm_nodes, atlas_stops_data)
-        isolated_count = sum(osm_isolation_status.values())
-        logger.info(f"Found {isolated_count} isolated unmatched OSM nodes.")
+    unmatched_osm_annotated = []
+    for node in output.unmatched_osm:
+        annotated = node.copy()
+        annotated['is_isolated'] = osm_isolation.get(node.get('node_id'), False)
+        unmatched_osm_annotated.append(annotated)
 
-    # --- Check how many unmatched nodes have routes and UIC references ---
-    unmatched_nodes_with_uic = [node for node in unmatched_osm_nodes if 'uic_ref' in node['tags']]
-    unmatched_nodes_with_uic_count = len(unmatched_nodes_with_uic)
-    
-    # Check how many unmatched nodes have local_ref
-    unmatched_nodes_with_local_ref = [node for node in unmatched_osm_nodes if node.get('local_ref')]
-    unmatched_nodes_with_local_ref_count = len(unmatched_nodes_with_local_ref)
-
-    # Read osm_nodes_with_routes.csv to check which nodes have routes
-    try:
-        nodes_with_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
-        # Get unique node IDs from the CSV
-        nodes_with_routes = set(nodes_with_routes_df['node_id'].astype(str).unique())
-        
-        # Count unmatched nodes that are in the routes file
-        unmatched_with_routes = [node for node in unmatched_osm_nodes 
-                                if str(node['node_id']) in nodes_with_routes]
-        unmatched_with_routes_count = len(unmatched_with_routes)
-    except Exception as e:
-        logger.warning(f"Could not check nodes with routes: {e}")
-        unmatched_with_routes_count = 0
-
-    # --- Combine All Matches ---
-    # Combine only actual matches
-    all_matches = manual_matches + exact_matches + name_matches + actual_distance_matches + route_matches + postpass_exact_matches + duplicate_propagation_matches
-    all_matches_df = pd.DataFrame(all_matches)
-    
-    # --- Calculate Final Unmatched ATLAS Entries (after manual) ---
-    # The definition of final_unmatched_atlas naturally includes those identified as 'no_nearby_counterpart'
-    final_unmatched_atlas = []
-    all_atlas_sloids = set(atlas_df['sloid'])
-    final_unmatched_sloids = all_atlas_sloids - matched_sloids
-    final_unmatched_atlas_df = atlas_df[atlas_df['sloid'].isin(final_unmatched_sloids)]
-    final_unmatched_atlas = final_unmatched_atlas_df.to_dict(orient="records")
-
-    logger.info(f"Final unmatched ATLAS entries: {len(final_unmatched_atlas)}")
-    # Count the entries with no nearby OSM nodes (already calculated)
-    # no_nearby_osm_entries = [match for match in all_matches if match.get('match_type') == 'no_nearby_counterpart'] # This line is removed as it's calculated earlier
-    print(f"ATLAS entries with no OSM nodes within 50 meters: {len(no_nearby_osm_entries)}") # Use the count from separation
-    
-    # --- Prepare Data for Database Import ---
-    # Add isolation status to unmatched OSM nodes for database import
-    unmatched_osm_with_isolation = []
-    for node in unmatched_osm_nodes:
-        node_with_status = node.copy()  # Don't mutate the original
-        node_id = node.get('node_id')
-        node_with_status['is_isolated'] = osm_isolation_status.get(node_id, False)
-        unmatched_osm_with_isolation.append(node_with_status)
-    
+    # ── Build return value (same shape as before) ────────────────────────
     base_data = {
-        "matched": all_matches_df.to_dict(orient="records"),
-        "unmatched_atlas": final_unmatched_atlas, # Use the correctly calculated list
-        "unmatched_osm": unmatched_osm_with_isolation
+        "matched": output.matched,
+        "unmatched_atlas": output.unmatched_atlas,
+        "unmatched_osm": unmatched_osm_annotated,
     }
-    
-    # --- Count Matches by Type for Final Report ---
-    # Split Stage 1 distance matches into regular and stop_position types (using actual_distance_matches)
-    stage1_distance_matches_regular = len([m for m in actual_distance_matches # Use actual_distance_matches
-                                          if m['match_type'].startswith('distance_matching_1_') 
-                                          and not m['match_type'].endswith('_stop_position')])
-    stage1_distance_matches_stop_position = len([m for m in actual_distance_matches # Use actual_distance_matches
-                                               if m['match_type'].startswith('distance_matching_1_') 
-                                               and m['match_type'].endswith('_stop_position')])
-    stage1_distance_matches_total = stage1_distance_matches_regular + stage1_distance_matches_stop_position
 
-    stage2_distance_matches = len([m for m in actual_distance_matches if m['match_type'] == 'distance_matching_2']) # Use actual_distance_matches
-    stage3a_distance_matches = len([m for m in actual_distance_matches if m['match_type'] == 'distance_matching_3a']) # Use actual_distance_matches
-    stage3b_distance_matches = len([m for m in actual_distance_matches if m['match_type'] == 'distance_matching_3b']) # Use actual_distance_matches
-    
-    # Count route matching stages
-    route_gtfs_matches = [m for m in route_matches if m['match_type'].startswith('route_gtfs') or m['match_type'].startswith('route_unified_gtfs')]
-    route_hrdf_matches = [m for m in route_matches if m['match_type'].startswith('route_hrdf') or m['match_type'].startswith('route_unified_hrdf')]
-    
-    # --- Print Final Summary ---
-    print("==== FINAL MATCHING SUMMARY ====")
-    print(f"Total ATLAS entries (with coordinates): {len(atlas_df)}")
-    print(f"Manual matches: {len(manual_matches)}")
-    print(f"Exact matches: {len(exact_matches)}")
-    print(f"Name-based matches: {len(name_matches)}")
-    print(f"Distance-based matches (actual): {len(actual_distance_matches)}") # Report actual count
-    print(f"  ├─ Stage 1 (Group-based proximity): {stage1_distance_matches_total}")
-    print(f"  │  ├─ Using all nodes: {stage1_distance_matches_regular}")
-    print(f"  │  └─ Using stop_position nodes only: {stage1_distance_matches_stop_position}")
-    print(f"  ├─ Stage 2 (Exact local_ref match): {stage2_distance_matches}")
-    print(f"  ├─ Stage 3a (Single candidate): {stage3a_distance_matches}")
-    print(f"  └─ Stage 3b (Relative distance ratio): {stage3b_distance_matches}")
-    # Removed Stage 4 from here as it's reported with unmatched
-    print(f"Route-based matches: {len(route_matches)}")
-    print(f"  ├─ Using GTFS data: {len(route_gtfs_matches)}")
-    print(f"  └─ Using HRDF data: {len(route_hrdf_matches)}")
-    print(f"Post-pass exact matches (consolidation): {len(postpass_exact_matches)}")
-    print(f"Duplicate propagation matches: {len(duplicate_propagation_matches)}")
+    # ── Summary ──────────────────────────────────────────────────────────
+    _print_summary(output, atlas_df, duplicate_sloid_map)
 
-    print(f"Total matched (all methods): {len(all_matches_df)}") # all_matches now excludes 'no_nearby_counterpart'
-    print(f"Unmatched ATLAS entries: {len(final_unmatched_atlas)}")
-    # Report 'no_nearby_counterpart' as a subset of unmatched
-    print(f"  └─ Of which have no OSM nodes within 50m: {len(no_nearby_osm_entries)}")
-    print(f"Unmatched OSM nodes: {len(unmatched_osm_nodes)}")
-    print(f"  ├─ With at least one route: {unmatched_with_routes_count}")
-    print(f"  ├─ With UIC reference: {unmatched_nodes_with_uic_count}")
-    print(f"  └─ With local_ref: {unmatched_nodes_with_local_ref_count}")
+    return base_data, duplicate_sloid_map, output.no_nearby_osm_sloids
 
-    # --- Duplicate Summary ---
-    # Count how many of the matched/unmatched entries are themselves duplicates
-    matched_duplicate_items_count = sum(1 for m in all_matches if 'sloid' in m and str(m['sloid']) in duplicate_sloid_map)
-    unmatched_duplicate_items_count = sum(1 for row in final_unmatched_atlas if str(row['sloid']) in duplicate_sloid_map)
-    
-    # Total unique sloids that are part of a duplicate group and have a mapping
-    total_unique_sloids_in_duplication = len(duplicate_sloid_map)
 
-    print(f"Duplicated ATLAS entries (unique sloids involved in a duplication): {total_unique_sloids_in_duplication}")
-    print(f"  ├─ Matched items that are duplicates: {matched_duplicate_items_count}")
-    print(f"  └─ Unmatched items that are duplicates: {unmatched_duplicate_items_count}")
+# ---------------------------------------------------------------------------
+# Reporting
+# ---------------------------------------------------------------------------
 
+def _print_summary(output, atlas_df, duplicate_sloid_map):
+    """Print a concise matching summary."""
+    from collections import Counter
+    types = Counter(m.get('match_type', '?') for m in output.matched)
+
+    print("\n==== FINAL MATCHING SUMMARY ====")
+    print(f"Total ATLAS entries: {len(atlas_df)}")
+    for mt, count in sorted(types.items(), key=lambda x: -x[1]):
+        print(f"  {mt}: {count}")
+    print(f"Total matched: {len(output.matched)}")
+    print(f"Unmatched ATLAS: {len(output.unmatched_atlas)}")
+    print(f"  └─ No OSM within 50 m: {len(output.no_nearby_osm_sloids)}")
+    print(f"Unmatched OSM: {len(output.unmatched_osm)}")
+
+    matched_dups = sum(
+        1 for m in output.matched
+        if str(m.get('sloid', '')) in duplicate_sloid_map
+    )
+    print(f"Duplicate ATLAS sloids: {len(duplicate_sloid_map)} "
+          f"(matched: {matched_dups})")
     print("Base data is ready for database import.")
-    
-    # Return the map of duplicate sloids
-    return base_data, duplicate_sloid_map, no_nearby_osm_sloids
-

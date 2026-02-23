@@ -241,15 +241,14 @@ window.ProblemsMap = (function() {
                 if (stop.sloid && stop.atlas_lat != null && stop.atlas_lon != null) {
                     let atlasColor = 'gray';
                     if (stop.stop_type === 'matched') atlasColor = 'green';
-                    else if (stop.stop_type === 'unmatched') atlasColor = 'red';
-                    else if (stop.stop_type === 'station') atlasColor = 'orange';
+                    else if (stop.stop_type === 'atlas_unmatched') atlasColor = 'red';
                     
                     contextMarkerData.push({
                         lat: parseFloat(stop.atlas_lat),
                         lon: parseFloat(stop.atlas_lon),
                         type: 'atlas',
                         color: atlasColor,
-                        duplicateSloid: stop.atlas_duplicate_sloid,
+                        hasAtlasDuplicate: stop.has_atlas_duplicate,
                         originalLat: parseFloat(stop.atlas_lat),
                         originalLon: parseFloat(stop.atlas_lon),
                         stopData: stop,
@@ -287,7 +286,7 @@ window.ProblemsMap = (function() {
                 osmNodesToProcess.forEach(osmData => {
                     let osmColor = 'gray';
                     if (osmData.stop_type === 'matched') osmColor = 'blue';
-                    else if (osmData.stop_type === 'osm') osmColor = 'gray';
+                    else if (osmData.stop_type === 'osm_unmatched') osmColor = 'gray';
                     
                     contextMarkerData.push({
                         lat: parseFloat(osmData.osm_lat),

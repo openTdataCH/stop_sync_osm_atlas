@@ -102,7 +102,7 @@
             <tr>
                 {% if report_type == 'unmatched' %}
                 {# item is Stop #}
-                <td class="col-source">{{ 'ATLAS' if item.stop_type == 'unmatched' else 'OSM' }}</td>
+                <td class="col-source">{{ 'ATLAS' if item.stop_type == 'atlas_unmatched' else 'OSM' }}</td>
                 <td class="col-sloid">{{ item.sloid or 'N/A' }}</td>
                 <td>{{ item.atlas_stop_details.atlas_designation_official if item.atlas_stop_details and item.atlas_stop_details.atlas_designation_official else 'N/A' }}</td>
                 <td class="col-operator">{{ item.atlas_stop_details.atlas_business_org_abbr if item.atlas_stop_details and item.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>

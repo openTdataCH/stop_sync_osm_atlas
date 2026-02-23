@@ -227,7 +227,8 @@ class TestStopSerializer:
         mock_stop.osm_lat = 47.0
         mock_stop.osm_lon = 8.0
         mock_stop.uic_ref = '8503000'
-        mock_stop.atlas_duplicate_sloid = None
+        mock_stop.has_atlas_duplicate = False
+        mock_stop.has_osm_duplicate = False
         mock_stop.atlas_stop_details = None
         mock_osm_details = MagicMock()
         mock_osm_details.osm_node_type = 'stop_position'
@@ -242,9 +243,6 @@ class TestStopSerializer:
         mock_osm_details.osm_uic_name = None
         mock_osm_details.osm_uic_ref = None
         mock_osm_details.routes_osm = None
-        mock_osm_details.osm_note = None
-        mock_osm_details.osm_note_is_persistent = False
-        mock_osm_details.osm_note_user_email = None
         mock_stop.osm_node_details = mock_osm_details
 
         result = format_stop_data(mock_stop)
@@ -272,7 +270,8 @@ class TestStopSerializer:
         mock_stop.osm_lat = 47.0
         mock_stop.osm_lon = 8.0
         mock_stop.uic_ref = '8503000'
-        mock_stop.atlas_duplicate_sloid = None
+        mock_stop.has_atlas_duplicate = False
+        mock_stop.has_osm_duplicate = False
         mock_stop.atlas_stop_details = None
         mock_stop.osm_node_details = None
         

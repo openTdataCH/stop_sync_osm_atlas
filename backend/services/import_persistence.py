@@ -1,25 +1,22 @@
 from backend.models import PersistentData, Problem, Stop
 
 
-def apply_persistent_solutions(session):
+def apply_persistent_solutions(reproducible_session, user_input_session):
     """
-    Apply previously saved persistent solutions and notes to newly created data.
+    Apply previously saved persistent solutions from user_input_db to 
+    newly created data in import_db.
 
-    - For each PersistentData without note_type: apply solutions to matching Problem rows
-    - Notes are no longer applied to entity tables; notes are per-user in user_notes
+    Notes are per-user in user_notes and not applied here.
     """
     print("Applying persistent solutions from previous imports...")
 
-    # Get all persistent solutions for problems (note_type is None)
-    persistent_solutions = session.query(PersistentData).filter(
-        PersistentData.note_type.is_(None)
-    ).all()
+    persistent_solutions = user_input_session.query(PersistentData).all()
     applied_count = 0
     skipped_count = 0
 
     for ps in persistent_solutions:
         # Find matching stops in the new data
-        matching_stops = session.query(Stop).filter(
+        matching_stops = reproducible_session.query(Stop).filter(
             (Stop.sloid == ps.sloid) | (Stop.osm_node_id == ps.osm_node_id)
         ).all()
 
@@ -30,7 +27,7 @@ def apply_persistent_solutions(session):
 
         for stop in matching_stops:
             # Find problems of the same type for this stop
-            problem = session.query(Problem).filter(
+            problem = reproducible_session.query(Problem).filter(
                 Problem.stop_id == stop.id,
                 Problem.problem_type == ps.problem_type
             ).first()
@@ -46,7 +43,7 @@ def apply_persistent_solutions(session):
                 )
                 skipped_count += 1
 
-    session.commit()
+    reproducible_session.commit()
     print(f"Applied {applied_count} persistent solutions from previous imports")
     print(f"Skipped {skipped_count} persistent solutions (stops or problems no longer exist)")
     print("Per-user notes are stored in user_notes and not applied to entity tables.")

@@ -16,7 +16,7 @@ _ARGON2_HASHER = PasswordHasher()
 
 
 class User(UserMixin, db.Model):
-    __bind_key__ = 'auth'
+    __bind_key__ = 'user_input'
     __tablename__ = 'users'
 
     id = db.Column(db.Integer, primary_key=True)
@@ -107,7 +107,7 @@ class User(UserMixin, db.Model):
 
 
 class AuthEvent(db.Model):
-    __bind_key__ = 'auth'
+    __bind_key__ = 'user_input'
     __tablename__ = 'auth_events'
     
     id = db.Column(db.Integer, primary_key=True)

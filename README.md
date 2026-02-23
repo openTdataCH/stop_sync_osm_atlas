@@ -58,12 +58,6 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 
     This typically takes 20 minutes. Data and database state are cached across runs (`./data` directory and the `postgres_data` volume).
 
-    **Match-Only Mode (Skip Data Downloads):**
-    ```bash
-    MATCH_ONLY=true docker compose up --build
-    ```
-    Use this when you want to re-run only the matching and database import using previously downloaded data. This is much faster than the full pipeline.
-
     **Development Mode (Skip Data Processing Entirely):**
     ```bash
     docker compose up app-dev
@@ -125,6 +119,18 @@ Downloads are cached under `data/raw/` and processed artifacts under `data/proce
 After acquisition, `import_data_db.py` populates the Postgres databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
 
 Set `SKIP_DATA_IMPORT=true` (the `app-dev` service already does this) to bypass acquisition/import when you only want to run the web app against an existing database.
+
+### Manual Import & Testing (VS Code Tasks)
+
+If you have VS Code installed, we have provided built-in tasks to quickly run commands inside the running database container without constantly restarting Docker:
+1. Open the VS Code Command Palette (`Cmd+Shift+P` on Mac).
+2. Select **`Tasks: Run Task`**.
+3. Choose one of the predefined tasks:
+   - **`Docker: Run All Tests`**: Executes the `pytest` suite.
+   - **`Docker: Run Import Data (Match Only)`**: Manually runs the `import_data_db.py` matching script.
+   - **`Docker: Run Full Data Pipeline`**: Downloads new data and automatically runs the matcher.
+
+You can do this while the `app-dev` profile is running in the background.
 
 ## Running the Web Application
 

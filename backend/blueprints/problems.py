@@ -437,43 +437,8 @@ def get_problem_stats():
 @problems_bp.route('/api/save_solution', methods=['POST'])
 @limiter.limit("30/minute")
 def save_solution():
-    try:
-        from backend.services.validators import validate_text_content
-        data = request.get_json()
-        problem_id = data.get('problem_id')
-        problem_type = data.get('problem_type')
-        solution = data.get('solution')
-        # Validate solution content if provided
-        if solution:
-            try:
-                solution = validate_text_content(solution, max_length=10000, field_name='solution')
-            except ValueError as e:
-                return jsonify({"success": False, "error": str(e)}), 400
-        if not problem_id:
-            return jsonify({"success": False, "error": "Missing problem_id parameter"}), 400
-        mapped_problem_type = 'unmatched' if problem_type == 'isolated' else problem_type
-        if problem_type == 'any':
-            problem = Problem.query.filter_by(stop_id=problem_id).first()
-            if not problem:
-                return jsonify({"success": False, "error": f"No problem found for stop {problem_id}"}), 404
-        else:
-            if not problem_type:
-                return jsonify({"success": False, "error": "Missing problem_type parameter"}), 400
-            problem = Problem.query.filter_by(stop_id=problem_id, problem_type=mapped_problem_type).first()
-            if not problem:
-                 return jsonify({"success": False, "error": f"Problem of type {problem_type} for stop {problem_id} not found"}), 404
-        problem.solution = solution
-        # Attribute the author if authenticated
-        if current_user.is_authenticated:
-            problem.created_by_user_id = getattr(current_user, 'id', None)
-            problem.created_by_user_email = getattr(current_user, 'email', None)
-        problem.is_persistent = False
-        db.session.commit()
-        return jsonify({"success": True, "message": f"{problem.problem_type.capitalize()} solution saved successfully"})
-    except Exception as e:
-        app.logger.error(f"Exception in save_solution: {e}")
-        db.session.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
+    # Deprecated endpoint. Solutions are saved locally via browser localStorage.
+    return jsonify({"success": False, "error": "This endpoint is deprecated. Local drafts are now stored directly in the browser's localStorage until made persistent."}), 410
 
 
 @problems_bp.route('/api/make_solution_persistent', methods=['POST'])
@@ -484,22 +449,32 @@ def make_solution_persistent():
         data = request.get_json()
         problem_id = data.get('problem_id')
         problem_type = data.get('problem_type')
+        solution = data.get('solution') # The frontend now sends the solution string directly from localStorage
+        
         if not problem_id or not problem_type:
             return jsonify({"success": False, "error": "Missing required parameters"}), 400
+            
         mapped_problem_type = 'unmatched' if problem_type == 'isolated' else problem_type
         problem = Problem.query.filter_by(stop_id=problem_id, problem_type=mapped_problem_type).first()
         if not problem:
             return jsonify({"success": False, "error": f"Problem of type {problem_type} for stop {problem_id} not found"}), 404
-        if not problem.solution:
+        
+        # If solution is provided by the frontend, use it. Otherwise, fallback to the problem's current solution
+        solution_to_persist = solution if solution else problem.solution
+            
+        if not solution_to_persist:
             return jsonify({"success": False, "error": "Cannot make an empty solution persistent"}), 400
+            
         stop = db.session.get(Stop, problem_id)
         if not stop:
             return jsonify({"success": False, "error": "Stop not found"}), 404
+
         persistent_solution = PersistentData.query.filter(
             PersistentData.sloid == stop.sloid,
             PersistentData.osm_node_id == stop.osm_node_id,
             PersistentData.problem_type == mapped_problem_type
         ).first()
+
         if persistent_solution:
             # Authorization: only owner or admin may update existing persistent solution
             is_admin = bool(getattr(current_user, 'is_admin', False))
@@ -507,24 +482,28 @@ def make_solution_persistent():
             if not (is_admin or is_owner):
                 return jsonify({"success": False, "error": "Not authorized to update this persistent solution"}), 403
             # Update content but preserve original author attribution
-            persistent_solution.solution = problem.solution
+            persistent_solution.solution = solution_to_persist
             message = "Solution updated in persistent storage"
         else:
-            author_user_id = getattr(problem, 'created_by_user_id', None) or (getattr(current_user, 'id', None) if current_user.is_authenticated else None)
-            author_email = getattr(problem, 'created_by_user_email', None) or (getattr(current_user, 'email', None) if current_user.is_authenticated else None)
+            author_user_id = getattr(current_user, 'id', None) if current_user.is_authenticated else None
+            author_email = getattr(current_user, 'email', None) if current_user.is_authenticated else None
             new_persistent_solution = PersistentData(
                 sloid=stop.sloid,
                 osm_node_id=stop.osm_node_id,
                 problem_type=mapped_problem_type,
-                solution=problem.solution,
+                solution=solution_to_persist,
                 created_by_user_id=author_user_id,
                 created_by_user_email=author_email
             )
             db.session.add(new_persistent_solution)
             message = "Solution saved to persistent storage"
+            
+        # Update the live problem object too, since it is currently active.
+        problem.solution = solution_to_persist
         problem.is_persistent = True
+        
         db.session.commit()
-        return jsonify({"success": True, "message": message, "is_persistent": True})
+        return jsonify({"success": True, "message": message, "is_persistent": True, "solution": solution_to_persist})
     except Exception as e:
         app.logger.error(f"Exception in make_solution_persistent: {e}")
         db.session.rollback()
@@ -779,8 +758,6 @@ def get_persistent_data():
         query = PersistentData.query
         if problem_type:
             query = query.filter(PersistentData.problem_type == problem_type)
-        if note_type:
-            query = query.filter(PersistentData.note_type == note_type)
         total_count = query.count()
         persistent_solutions = query.order_by(PersistentData.updated_at.desc()).offset(offset).limit(limit).all()
         results = []
@@ -791,8 +768,6 @@ def get_persistent_data():
                 'osm_node_id': ps.osm_node_id,
                 'problem_type': ps.problem_type,
                 'solution': ps.solution,
-                'note_type': ps.note_type,
-                'note': ps.note,
                 'created_at': ps.created_at.isoformat() if ps.created_at else None,
                 'updated_at': ps.updated_at.isoformat() if ps.updated_at else None,
                 'author_email': ps.created_by_user_email,
@@ -803,9 +778,7 @@ def get_persistent_data():
         note_groups = []
         # ATLAS note groups
         atlas_notes = UserNote.query.filter(UserNote.note_type == 'atlas', UserNote.is_persistent == True)
-        if note_type == 'atlas':
-            pass
-        elif note_type == 'osm':
+        if note_type == 'osm':
             atlas_notes = atlas_notes.filter(sa.text('1=0'))
         atlas_map = {}
         for r in atlas_notes.all():
@@ -863,14 +836,6 @@ def delete_persistent_data(solution_id):
                 ).first()
                 if problem:
                     problem.is_persistent = False
-        elif solution.note_type == 'atlas':
-            atlas_stop = AtlasStop.query.filter_by(sloid=solution.sloid).first()
-            if atlas_stop:
-                atlas_stop.atlas_note_is_persistent = False
-        elif solution.note_type == 'osm':
-            osm_node = OsmNode.query.filter_by(osm_node_id=solution.osm_node_id).first()
-            if osm_node:
-                osm_node.osm_note_is_persistent = False
         db.session.delete(solution)
         db.session.commit()
         return jsonify({"success": True, "message": "Persistent solution deleted successfully"})
@@ -946,14 +911,6 @@ def make_non_persistent(solution_id):
                 ).first()
                 if problem:
                     problem.is_persistent = False
-        elif solution.note_type == 'atlas':
-            atlas_stop = AtlasStop.query.filter_by(sloid=solution.sloid).first()
-            if atlas_stop:
-                atlas_stop.atlas_note_is_persistent = False
-        elif solution.note_type == 'osm':
-            osm_node = OsmNode.query.filter_by(osm_node_id=solution.osm_node_id).first()
-            if osm_node:
-                osm_node.osm_note_is_persistent = False
         db.session.delete(solution)
         db.session.commit()
         return jsonify({"success": True, "message": "Solution made non-persistent successfully"})
@@ -1096,7 +1053,6 @@ def get_non_persistent_data():
 def make_all_persistent():
     try:
         solutions_made_persistent = 0
-        notes_made_persistent = 0
         problems_to_persist = Problem.query.join(Stop).filter(
             Problem.solution.isnot(None),
             Problem.solution != '',
@@ -1111,36 +1067,11 @@ def make_all_persistent():
             db.session.add(new_persistent_solution)
             problem.is_persistent = True
             solutions_made_persistent += 1
-        atlas_notes_to_persist = AtlasStop.query.filter(
-            AtlasStop.atlas_note.isnot(None),
-            AtlasStop.atlas_note != '',
-            AtlasStop.atlas_note_is_persistent == False
-        ).all()
-        for stop in atlas_notes_to_persist:
-            new_persistent_note = PersistentData(
-                sloid=stop.sloid, note_type='atlas', note=stop.atlas_note
-            )
-            db.session.add(new_persistent_note)
-            stop.atlas_note_is_persistent = True
-            notes_made_persistent += 1
-        osm_notes_to_persist = OsmNode.query.filter(
-            OsmNode.osm_note.isnot(None),
-            OsmNode.osm_note != '',
-            OsmNode.osm_note_is_persistent == False
-        ).all()
-        for node in osm_notes_to_persist:
-            new_persistent_note = PersistentData(
-                osm_node_id=node.osm_node_id, note_type='osm', note=node.osm_note
-            )
-            db.session.add(new_persistent_note)
-            node.osm_note_is_persistent = True
-            notes_made_persistent += 1
         db.session.commit()
         return jsonify({
             "success": True,
             "solutions_made_persistent": solutions_made_persistent,
-            "notes_made_persistent": notes_made_persistent,
-            "message": f"Made {solutions_made_persistent} solutions and {notes_made_persistent} notes persistent"
+            "message": f"Made {solutions_made_persistent} solutions persistent"
         })
     except Exception as e:
         app.logger.error(f"Error making all data persistent: {str(e)}")

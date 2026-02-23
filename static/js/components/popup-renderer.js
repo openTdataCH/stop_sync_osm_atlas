@@ -238,7 +238,7 @@
     function generateInitialBubbleHtml(stop, initialViewType, options = {}) {
         let initialHtml = '';
         const isMatched = stop.stop_type === 'matched';
-        const isUnmatched = stop.stop_type === 'unmatched' || stop.stop_type === 'osm' || stop.stop_type === 'station';
+        const isUnmatched = stop.stop_type === 'atlas_unmatched' || stop.stop_type === 'osm_unmatched';
 
         if (initialViewType === 'atlas') {
             const atlasData = {

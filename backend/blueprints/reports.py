@@ -155,14 +155,14 @@ def generate_report_data(params, task_id):
 
             query = Stop.query
             if sources == {'atlas', 'osm'}:
-                query = query.filter(Stop.stop_type.in_(['unmatched', 'osm']))
+                query = query.filter(Stop.stop_type.in_(['atlas_unmatched', 'osm_unmatched']))
             elif 'atlas' in sources:
-                query = query.filter(Stop.stop_type == 'unmatched')
+                query = query.filter(Stop.stop_type == 'atlas_unmatched')
             else:
-                query = query.filter(Stop.stop_type == 'osm')
+                query = query.filter(Stop.stop_type == 'osm_unmatched')
 
             query = _apply_atlas_operator_filter(query)
-            
+
         elif report_type == 'problems':
             problem_types_str = params.get('problem_types', '')
             selected_types = [t.strip() for t in problem_types_str.split(',') if t.strip()]
@@ -376,7 +376,7 @@ def background_report_generation(params, task_id, flask_app):
                             headers.extend(['OSM Lat', 'OSM Lon'])
                         writer.writerow(headers)
                         for stop in data_for_report:
-                            source = 'ATLAS' if stop.stop_type == 'unmatched' else 'OSM'
+                            source = 'ATLAS' if stop.stop_type == 'atlas_unmatched' else 'OSM'
                             atlas_details = getattr(stop, 'atlas_stop_details', None)
                             osm_details = getattr(stop, 'osm_node_details', None)
                             row = [
@@ -635,11 +635,11 @@ def generate_report():
 
             query = Stop.query
             if sources == {'atlas', 'osm'}:
-                query = query.filter(Stop.stop_type.in_(['unmatched', 'osm']))
+                query = query.filter(Stop.stop_type.in_(['atlas_unmatched', 'osm_unmatched']))
             elif 'atlas' in sources:
-                query = query.filter(Stop.stop_type == 'unmatched')
+                query = query.filter(Stop.stop_type == 'atlas_unmatched')
             else:
-                query = query.filter(Stop.stop_type == 'osm')
+                query = query.filter(Stop.stop_type == 'osm_unmatched')
 
             # Operator filter applies only where ATLAS data exists; .has() will naturally drop OSM-only
             query = _apply_atlas_operator_filter(query)
@@ -771,7 +771,7 @@ def generate_report():
                     headers.extend(['OSM Lat', 'OSM Lon'])
                 cw.writerow(headers)
                 for stop in data_for_report:
-                    source = 'ATLAS' if stop.stop_type == 'unmatched' else 'OSM'
+                    source = 'ATLAS' if stop.stop_type == 'atlas_unmatched' else 'OSM'
                     atlas_details = getattr(stop, 'atlas_stop_details', None)
                     osm_details = getattr(stop, 'osm_node_details', None)
                     row = [

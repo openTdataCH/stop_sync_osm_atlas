@@ -56,7 +56,6 @@ def manual_match():
                 PersistentData.sloid == atlas_stop.sloid,
                 PersistentData.osm_node_id == osm_stop.osm_node_id,
                 PersistentData.problem_type == 'unmatched',
-                PersistentData.note_type.is_(None)
             ).first()
             if existing:
                 existing.solution = 'manual'
@@ -128,7 +127,7 @@ def search():
             })
         unmatched_query = optimize_query_for_endpoint(Stop.query, 'search').outerjoin(
             AtlasStop, Stop.sloid == AtlasStop.sloid
-        ).filter(Stop.stop_type == 'unmatched').filter(
+        ).filter(Stop.stop_type == 'atlas_unmatched').filter(
             db.or_(
                 AtlasStop.atlas_designation.ilike(search_pattern),
                 AtlasStop.atlas_designation_official.ilike(search_pattern),
@@ -246,25 +245,21 @@ def get_random_stop():
         if 'unmatched' in current_stop_types:
             filter_for_no_osm_nearby = 'no_nearby_counterpart' in current_match_methods
             filter_for_osm_nearby = 'osm_within_50m' in current_match_methods
-            unmatched_specific_condition = Stop.stop_type == 'unmatched'
+            unmatched_specific_condition = Stop.stop_type == 'atlas_unmatched'
             if filter_for_no_osm_nearby and not filter_for_osm_nearby:
                 unmatched_specific_condition = db.and_(
-                    Stop.stop_type == 'unmatched',
+                    Stop.stop_type == 'atlas_unmatched',
                     Stop.match_type == 'no_nearby_counterpart'
                 )
             elif not filter_for_no_osm_nearby and filter_for_osm_nearby:
                 unmatched_specific_condition = db.and_(
-                    Stop.stop_type == 'unmatched',
+                    Stop.stop_type == 'atlas_unmatched',
                     db.or_(Stop.match_type != 'no_nearby_counterpart', Stop.match_type.is_(None))
                 )
-            # Keep the "station" stop type as part of unmatched set, matching /api/data and /api/global_stats semantics.
-            stop_type_match_method_or_conditions.append(db.or_(
-                unmatched_specific_condition,
-                Stop.stop_type == 'station'
-            ))
+            stop_type_match_method_or_conditions.append(unmatched_specific_condition)
 
         if 'osm' in current_stop_types:
-            stop_type_match_method_or_conditions.append(Stop.stop_type == 'osm')
+            stop_type_match_method_or_conditions.append(Stop.stop_type == 'osm_unmatched')
 
         if stop_type_match_method_or_conditions:
             all_category_conditions.append(db.or_(*stop_type_match_method_or_conditions))
@@ -275,7 +270,7 @@ def get_random_stop():
             query = query.filter(db.and_(*all_category_conditions))
 
         if show_duplicates_only:
-            query = query.filter(Stop.atlas_duplicate_sloid.isnot(None)).filter(Stop.atlas_duplicate_sloid != '')
+            query = query.filter(Stop.has_atlas_duplicate == True)
 
         # If Top-N mode is active, pick randomly from the (small) top-N set.
         n_val = None
@@ -310,7 +305,7 @@ def get_random_stop():
             if not random_stop:
                 return jsonify({"error": "No stop found for the current filters."}), 404
 
-        stop_data = format_stop_data(random_stop, include_routes=False, include_notes=False)
+        stop_data = format_stop_data(random_stop, include_routes=False)
 
         # Prefer ATLAS coords if available, otherwise OSM
         if random_stop.atlas_lat is not None and random_stop.atlas_lon is not None:

@@ -282,7 +282,7 @@ function updateFiltersUI() {
     }
 
     let unmatchedDisplayString = '';
-    if (activeFilters.unmatchedOptions && activeFilters.stopType.includes('unmatched')) {
+    if (activeFilters.unmatchedOptions && activeFilters.stopType.includes('atlas_unmatched')) {
         if (activeFilters.unmatchedOptions.allSelected) {
             unmatchedDisplayString = buildRemovableChip({
                 label: 'Unmatched: All Reasons',
@@ -561,9 +561,9 @@ function updateActiveFilters() {
         activeFilters.stopType.push('matched');
     }
     if ($('#masterUnmatchedCheckbox').is(':checked')) {
-        activeFilters.stopType.push('unmatched');
+        activeFilters.stopType.push('atlas_unmatched');
     }
-    
+
     // Gather node type filters for matched stops
     activeFilters.nodeType = $('.filter-node-type:checked').map(function() {
         return this.value;
@@ -663,8 +663,8 @@ function updateActiveFilters() {
     // Add other unmatched reasons here if they push to matchMethods or directly influence stopType
 
     if (anyUnmatchedReasonActive) {
-        if (!activeFilters.stopType.includes('unmatched')) {
-            activeFilters.stopType.push('unmatched');
+        if (!activeFilters.stopType.includes('atlas_unmatched')) {
+            activeFilters.stopType.push('atlas_unmatched');
         }
     }
     
