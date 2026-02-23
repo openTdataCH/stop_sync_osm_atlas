@@ -1,0 +1,112 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Docker: Run All Tests",
+            "type": "shell",
+            "command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// app python -m pytest tests/",
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "label": "Docker: Run Current Test File",
+            "type": "shell",
+            "command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// app python -m pytest ${relativeFile}",
+            "problemMatcher": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "label": "Docker: Run Import Data (Match Only)",
+            "type": "shell",
+            "command": "docker exec -it stop_sync_osm_atlas_app python import_data_db.py",
+            "problemMatcher": [],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "label": "Docker: Run Full Data Pipeline",
+            "type": "shell",
+            "command": "docker exec -it stop_sync_osm_atlas_app bash -c \"python -m Download_and_process_data.get_atlas_data && python -c 'from Download_and_process_data.get_osm_data import query_overpass; query_overpass()' && python -m Download_and_process_data.get_osm_data && python import_data_db.py\"",
+            "problemMatcher": [],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "label": "Docker: Run Flask DB Upgrade",
+            "type": "shell",
+            "command": "docker exec -it stop_sync_osm_atlas_app flask db upgrade",
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
+            "label": "Docker: Start App Only (No Import)",
+            "type": "shell",
+            "command": "SKIP_DATA_IMPORT=true docker compose up",
+            "problemMatcher": [],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "isBackground": true
+        },
+        {
+            "label": "Docker: Stop All Containers",
+            "type": "shell",
+            "command": "docker compose down",
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        }
+    ]
+}
