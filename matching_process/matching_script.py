@@ -32,7 +32,6 @@ from matching_process.postpass_matching import (
 
 # Utilities
 from matching_process.org_standardization import standardize_operator
-from matching_process.problem_detection import detect_osm_isolation
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -60,11 +59,13 @@ DEFAULT_PIPELINE = [
 
 def parse_osm_xml(xml_file):
     """
-    Parse OSM XML → (all_nodes, uic_ref_dict, name_index).
+    Parse OSM XML → (all_nodes, uic_ref_dict, name_index, name_dirs, uic_dirs).
 
     * all_nodes:    {(lat, lon): node_entry}
     * uic_ref_dict: {uic_ref_str: [node_entry, …]}
     * name_index:   {name_str: [node_entry, …]}
+    * name_dirs:    {node_id: set of "FirstName → LastName" direction strings}
+    * uic_dirs:     {node_id: set of "FirstUIC → LastUIC" direction strings}
     """
     tree = ET.parse(xml_file)
     root = tree.getroot()
@@ -72,6 +73,10 @@ def parse_osm_xml(xml_file):
     all_nodes: dict[tuple, dict] = {}
     uic_ref_dict: dict[str, list] = defaultdict(list)
     name_index: dict[str, list] = defaultdict(list)
+
+    # Also collect per-node name/UIC for direction extraction from relations
+    node_id_to_name: dict[str, str] = {}
+    node_id_to_uic: dict[str, str] = {}
 
     for node in root.iter("node"):
         node_id = node.get("id")
@@ -108,16 +113,71 @@ def parse_osm_xml(xml_file):
 
         if "uic_ref" in tags:
             uic_ref_dict[tags["uic_ref"]].append(entry)
+            node_id_to_uic[node_id] = tags["uic_ref"]
+
+        if "name" in tags:
+            node_id_to_name[node_id] = tags["name"]
 
         for key in ('name', 'uic_name', 'gtfs:name'):
             if key in tags:
                 name_index[tags[key]].append(entry)
 
+    # Extract per-node direction strings from route relations (single pass)
+    name_dirs: dict[str, set] = defaultdict(set)
+    uic_dirs: dict[str, set] = defaultdict(set)
+
+    # Use sidecar CSV for directions instead of re-parsing relations from the XML
+    dir_csv_path = "data/processed/osm_directions.csv"
+    loaded_from_csv = False
+    
+    if os.path.exists(dir_csv_path):
+        try:
+            df = pd.read_csv(dir_csv_path, dtype=str)
+            df = df.where(pd.notna(df), None)
+            for r in df.to_dict(orient='records'):
+                nid = str(r.get('node_id'))
+                ds = str(r.get('direction_string'))
+                dtype = str(r.get('dir_type'))
+                if not ds or ds == 'None' or not nid or nid == 'None': continue
+                if dtype == 'name':
+                    name_dirs[nid].add(ds)
+                elif dtype == 'uic':
+                    uic_dirs[nid].add(ds)
+            loaded_from_csv = True
+        except Exception as e:
+            logger.warning(f"Error reading {dir_csv_path}: {e}")
+            
+    if not loaded_from_csv:
+        for relation in root.iter("relation"):
+            is_route = any(
+                t.get('k') == 'type' and t.get('v') == 'route'
+                for t in relation.findall('./tag')
+            )
+            if not is_route:
+                continue
+            members = [m.get('ref') for m in relation.findall("./member[@type='node']")]
+            if len(members) < 2:
+                continue
+            first, last = members[0], members[-1]
+            fn = node_id_to_name.get(first)
+            ln = node_id_to_name.get(last)
+            if fn and ln:
+                ds = f"{fn} → {ln}"
+                for nid in members:
+                    name_dirs[nid].add(ds)
+            fu = node_id_to_uic.get(first)
+            lu = node_id_to_uic.get(last)
+            if fu and lu:
+                ds = f"{fu} → {lu}"
+                for nid in members:
+                    uic_dirs[nid].add(ds)
+
     logger.info(
         f"Parsed OSM XML: {len(all_nodes)} nodes, "
-        f"{len(uic_ref_dict)} uic_ref entries"
+        f"{len(uic_ref_dict)} uic_ref entries, "
+        f"{len(name_dirs)} nodes with direction strings"
     )
-    return all_nodes, uic_ref_dict, name_index
+    return all_nodes, uic_ref_dict, name_index, dict(name_dirs), dict(uic_dirs)
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +279,7 @@ def final_pipeline(route_matching_strategy='unified'):
         atlas_df = pd.read_csv(atlas_csv_file, sep=";")
 
     with timed_phase("Matching: parse OSM XML"):
-        all_osm_nodes, uic_ref_dict, name_index = parse_osm_xml(osm_xml_file)
+        all_osm_nodes, uic_ref_dict, name_index, osm_name_dirs, osm_uic_dirs = parse_osm_xml(osm_xml_file)
 
     # ── Identify ATLAS duplicate groups ──────────────────────────────────
     dup_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
@@ -243,7 +303,9 @@ def final_pipeline(route_matching_strategy='unified'):
     osm_index = OsmIndex(
         xml_nodes=all_osm_nodes,
         uic_ref_dict=uic_ref_dict,
-        name_index=name_index
+        name_index=name_index,
+        name_dirs=osm_name_dirs,
+        uic_dirs=osm_uic_dirs,
     )
 
     with timed_phase("Context initialization"):
@@ -257,29 +319,12 @@ def final_pipeline(route_matching_strategy='unified'):
     with timed_phase("Matching: predicate pipeline"):
         output = run_pipeline(DEFAULT_PIPELINE, ctx)
 
-    # ── Post-processing ──────────────────────────────────────────────────
-
-    # Isolation detection for unmatched OSM nodes
-    logger.info("Detecting isolated unmatched OSM nodes…")
-    atlas_stops_data = [
-        {'lat': row['wgs84North'], 'lon': row['wgs84East'], 'sloid': row['sloid']}
-        for _, row in atlas_df.iterrows()
-    ]
-    osm_isolation = detect_osm_isolation(output.unmatched_osm, atlas_stops_data)
-    isolated_count = sum(osm_isolation.values())
-    logger.info(f"Found {isolated_count} isolated unmatched OSM nodes")
-
-    unmatched_osm_annotated = []
-    for node in output.unmatched_osm:
-        annotated = node.copy()
-        annotated['is_isolated'] = osm_isolation.get(node.get('node_id'), False)
-        unmatched_osm_annotated.append(annotated)
-
     # ── Build return value (same shape as before) ────────────────────────
+    # NOTE: Isolation detection is now handled by ProblemContext in import_data_db.py
     base_data = {
         "matched": output.matched,
         "unmatched_atlas": output.unmatched_atlas,
-        "unmatched_osm": unmatched_osm_annotated,
+        "unmatched_osm": output.unmatched_osm,
     }
 
     # ── Summary ──────────────────────────────────────────────────────────

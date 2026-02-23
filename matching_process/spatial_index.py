@@ -69,21 +69,24 @@ def build_kdtree_from_nodes(xml_nodes):
     Returns: (kd_tree_or_None, points_list, nodes_list)
     where nodes_list is a list of ((lat, lon), node_dict)
     """
-    points = []
+    if not xml_nodes:
+        return None, [], []
+        
+    coords = []
     nodes_list = []
     for (lat, lon), node in xml_nodes.items():
         try:
             lat_f = float(lat)
             lon_f = float(lon)
+            coords.append((lat_f, lon_f))
+            nodes_list.append(((lat_f, lon_f), node))
         except Exception:
             continue
-        x, y, z = to_xyz(lat_f, lon_f)
-        points.append((x, y, z))
-        nodes_list.append(((lat_f, lon_f), node))
 
-    if points:
-        tree = KDTree(np.array(points))
-        return tree, points, nodes_list
+    if coords:
+        points = batch_to_xyz(coords)
+        tree = KDTree(points)
+        return tree, points.tolist(), nodes_list
     return None, [], []
 
 

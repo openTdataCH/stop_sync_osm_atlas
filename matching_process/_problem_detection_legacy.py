@@ -240,62 +240,52 @@ def detect_atlas_isolation(atlas_stops: List[Dict[str, Any]],
     if radius_m is None:
         radius_m = get_isolation_radius()
         
-    # Return empty dict if no data
     if not atlas_stops or not osm_nodes:
         return {}
     
     isolation_status = {}
     
     try:
-        # Create spatial index from OSM nodes for efficient proximity searches
-        # Use centralized batch_to_xyz for coordinate conversion
         valid_osm_coords = [
             (float(node['lat']), float(node['lon']))
             for node in osm_nodes
             if node.get('lat') is not None and node.get('lon') is not None
         ]
-        osm_coords = batch_to_xyz(valid_osm_coords).tolist() if valid_osm_coords else []
         
-        if not osm_coords:
-            # No valid OSM coordinates - all ATLAS stops are isolated
+        if not valid_osm_coords:
             for stop in atlas_stops:
                 identifier = _get_atlas_identifier(stop)
                 if identifier:
                     isolation_status[identifier] = True
             return isolation_status
             
-        osm_kdtree = KDTree(osm_coords)
+        osm_kdtree = KDTree(batch_to_xyz(valid_osm_coords))
+        radius_rad = 2 * np.sin((radius_m / 6371000.0) / 2)
         
-        # Convert radius from meters to approximate radians for KDTree query
-        radius_rad = 2 * np.sin((radius_m / 6371000.0) / 2)  # Earth radius in meters
-        
-        # Check each ATLAS stop for nearby OSM nodes
+        # Collect valid stops for batch query
+        valid_stops = []
+        valid_ids = []
+        valid_coords = []
         for stop in atlas_stops:
             identifier = _get_atlas_identifier(stop)
             if not identifier:
                 continue
-                
             lat, lon = stop.get('lat'), stop.get('lon')
             if lat is None or lon is None:
-                # Invalid coordinates - consider isolated
                 isolation_status[identifier] = True
                 continue
-                
-            try:
-                # Use centralized lat_lon_to_xyz_list for coordinate conversion
-                query_point = lat_lon_to_xyz_list(float(lat), float(lon))
-                
-                # Find OSM nodes within radius
-                indices = osm_kdtree.query_ball_point(query_point, radius_rad)
-                isolation_status[identifier] = len(indices) == 0
-                
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Error processing coordinates for ATLAS stop {identifier}: {e}")
-                isolation_status[identifier] = True
+            valid_stops.append(stop)
+            valid_ids.append(identifier)
+            valid_coords.append((float(lat), float(lon)))
+        
+        if valid_coords:
+            query_points = batch_to_xyz(valid_coords)
+            results = osm_kdtree.query_ball_point(query_points, radius_rad, workers=-1)
+            for i, identifier in enumerate(valid_ids):
+                isolation_status[identifier] = len(results[i]) == 0
                 
     except Exception as e:
         logger.error(f"Error in ATLAS isolation detection: {e}")
-        # Fallback: mark all stops as non-isolated to avoid false positives
         for stop in atlas_stops:
             identifier = _get_atlas_identifier(stop)
             if identifier:
@@ -321,62 +311,50 @@ def detect_osm_isolation(osm_nodes: List[Dict[str, Any]],
     if radius_m is None:
         radius_m = get_isolation_radius()
         
-    # Return empty dict if no data
     if not osm_nodes or not atlas_stops:
         return {}
     
     isolation_status = {}
     
     try:
-        # Create spatial index from ATLAS stops for efficient proximity searches
-        # Use centralized batch_to_xyz for coordinate conversion
         valid_atlas_coords = [
             (float(stop['lat']), float(stop['lon']))
             for stop in atlas_stops
             if stop.get('lat') is not None and stop.get('lon') is not None
         ]
-        atlas_coords = batch_to_xyz(valid_atlas_coords).tolist() if valid_atlas_coords else []
         
-        if not atlas_coords:
-            # No valid ATLAS coordinates - all OSM nodes are isolated
+        if not valid_atlas_coords:
             for node in osm_nodes:
                 node_id = _get_osm_identifier(node)
                 if node_id:
                     isolation_status[node_id] = True
             return isolation_status
             
-        atlas_kdtree = KDTree(atlas_coords)
+        atlas_kdtree = KDTree(batch_to_xyz(valid_atlas_coords))
+        radius_rad = 2 * np.sin((radius_m / 6371000.0) / 2)
         
-        # Convert radius from meters to approximate radians for KDTree query
-        radius_rad = 2 * np.sin((radius_m / 6371000.0) / 2)  # Earth radius in meters
-        
-        # Check each OSM node for nearby ATLAS stops
+        # Collect valid nodes for batch query
+        valid_ids = []
+        valid_coords = []
         for node in osm_nodes:
             node_id = _get_osm_identifier(node)
             if not node_id:
                 continue
-                
             lat, lon = node.get('lat'), node.get('lon')
             if lat is None or lon is None:
-                # Invalid coordinates - consider isolated
                 isolation_status[node_id] = True
                 continue
-                
-            try:
-                # Use centralized lat_lon_to_xyz_list for coordinate conversion
-                query_point = lat_lon_to_xyz_list(float(lat), float(lon))
-                
-                # Find ATLAS stops within radius
-                indices = atlas_kdtree.query_ball_point(query_point, radius_rad)
-                isolation_status[node_id] = len(indices) == 0
-                
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Error processing coordinates for OSM node {node_id}: {e}")
-                isolation_status[node_id] = True
+            valid_ids.append(node_id)
+            valid_coords.append((float(lat), float(lon)))
+        
+        if valid_coords:
+            query_points = batch_to_xyz(valid_coords)
+            results = atlas_kdtree.query_ball_point(query_points, radius_rad, workers=-1)
+            for i, node_id in enumerate(valid_ids):
+                isolation_status[node_id] = len(results[i]) == 0
                 
     except Exception as e:
         logger.error(f"Error in OSM isolation detection: {e}")
-        # Fallback: mark all nodes as non-isolated to avoid false positives
         for node in osm_nodes:
             node_id = _get_osm_identifier(node)
             if node_id:

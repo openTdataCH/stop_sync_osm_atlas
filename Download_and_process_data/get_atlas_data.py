@@ -16,8 +16,8 @@ from .get_atlas_gtfs import (
     download_and_extract_gtfs,
     load_gtfs_data_streaming,
     build_integrated_gtfs_data_streaming,
-    _normalize_route_id_for_matching,
 )
+from utils.route_id import normalize_route_id as _normalize_route_id_for_matching
 from .get_atlas_hrdf import (
     download_and_extract_hrdf,
     process_hrdf_direction_data,

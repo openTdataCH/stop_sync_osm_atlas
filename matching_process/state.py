@@ -3,7 +3,7 @@ from typing import Optional
 import pandas as pd
 
 from matching_process.utils import is_osm_station, haversine_distance
-from matching_process.spatial_index import build_kdtree_from_nodes, lat_lon_to_xyz_list, meters_to_unit_chord_radius
+from matching_process.spatial_index import build_kdtree_from_nodes, lat_lon_to_xyz_list, batch_to_xyz, meters_to_unit_chord_radius
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +31,13 @@ class AtlasState:
 class OsmIndex:
     """Manages OSM indexing, queries (spatial and attribute), and matching exclusion capabilities."""
     
-    def __init__(self, xml_nodes: dict, uic_ref_dict: dict, name_index: dict):
+    def __init__(self, xml_nodes: dict, uic_ref_dict: dict, name_index: dict,
+                 name_dirs: dict = None, uic_dirs: dict = None):
         self._all_nodes = xml_nodes
         self._uic_ref_dict = uic_ref_dict
         self._name_index = name_index
+        self.name_dirs: dict[str, set] = name_dirs or {}
+        self.uic_dirs: dict[str, set] = uic_dirs or {}
         
         self.used_ids: set[str] = set()
         
@@ -133,3 +136,34 @@ class OsmIndex:
                 matches.append((node, d))
                 
         return matches
+
+    def batch_query_radius(self, coords_list: list[tuple[float, float]], max_distance: float, include_stations: bool = False) -> list[list[tuple[dict, float]]]:
+        """Query for matching nodes around a radius for multiple coordinates at once.
+        
+        Returns a list (one per coordinate pair) of lists of tuples (node, actual_distance_in_meters).
+        Excludes used_osm_ids automatically.
+        """
+        self._ensure_spatial_index(include_stations)
+        
+        if self._cached_tree is None or not coords_list:
+            return [[] for _ in coords_list]
+            
+        kd_radius = meters_to_unit_chord_radius(max_distance)
+        points = batch_to_xyz(coords_list)
+        
+        # Query all points at once using KDTree natively
+        indices_list = self._cached_tree.query_ball_point(points, r=kd_radius, workers=-1)
+        
+        results = []
+        for i, (lat, lon) in enumerate(coords_list):
+            matches = []
+            for idx in indices_list[i]:
+                (n_lat, n_lon), node = self._cached_nodes_list[idx]
+                if node['node_id'] in self.used_ids:
+                    continue
+                d = haversine_distance(lat, lon, n_lat, n_lon)
+                if d is not None and d <= max_distance:
+                    matches.append((node, d))
+            results.append(matches)
+            
+        return results

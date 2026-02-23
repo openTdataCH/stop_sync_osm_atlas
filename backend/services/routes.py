@@ -4,12 +4,7 @@ from backend.extensions import db
 from sqlalchemy import text
 
 
-def _normalize_route_id_for_matching(route_id):
-    if not route_id:
-        return None
-    import re
-    return re.sub(r'-j\d+', '-jXX', str(route_id))
-
+from utils.route_id import normalize_route_id
 
 def get_stops_for_route(route_id, direction=None):
     try:
@@ -34,7 +29,7 @@ def get_stops_for_route(route_id, direction=None):
 
         if not route_entries:
             app.logger.info(f"No exact matches for {route_id}, trying normalized matching")
-            normalized_input = _normalize_route_id_for_matching(route_id)
+            normalized_input = normalize_route_id(route_id)
             if normalized_input and normalized_input != route_id:
                 sql_query_normalized = """
                     SELECT 

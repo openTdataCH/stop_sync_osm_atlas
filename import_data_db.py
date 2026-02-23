@@ -2,10 +2,9 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 import math
 import pandas as pd
-from scipy.spatial import KDTree
 from matching_process.matching_script import final_pipeline
-from matching_process.problem_detection import analyze_stop_problems, compute_distance_priority, compute_attributes_priority
-from matching_process.spatial_index import to_xyz
+from matching_process.problem_detection import ProblemContext, run_problem_pipeline, STOP_PROBLEM_PIPELINE
+from matching_process.problem_detection.result import ProblemResult
 import os
 import re
 import time
@@ -163,262 +162,231 @@ def get_from_tags(rec, tag_key, default=None):
     
     return default
 
-def load_route_data(osm_routes_df: pd.DataFrame = None):
-    """Load route data from unified routes file and create mappings for stops to routes.
+def apply_problem_results(stop_record, results: list):
+    """Convert ProblemResult objects into ORM Problem records on a Stop."""
+    for r in results:
+        stop_record.problems.append(Problem(
+            problem_type=r.problem_type,
+            priority=r.priority,
+            solution=None,
+            is_persistent=False,
+        ))
+        if r.has_atlas_duplicate:
+            stop_record.has_atlas_duplicate = True
+        if r.has_osm_duplicate:
+            stop_record.has_osm_duplicate = True
 
-    If osm_routes_df is provided, reuse it to avoid duplicated IO.
-    """
-    # Load unified route mapping
-    atlas_routes_mapping_unified = {}
-    unified_path = "data/processed/atlas_routes_unified.csv"
-    if os.path.exists(unified_path):
-        try:
-            unified_df = pd.read_csv(unified_path, low_memory=False)
-            for sloid, group in unified_df.groupby('sloid'):
-                if pd.isna(sloid):
-                    continue
-                entries = []
-                for _, row in group.iterrows():
-                    entries.append({
-                        'source': row.get('source'),
-                        'route_id': row.get('route_id') if pd.notna(row.get('route_id')) else None,
-                        'route_id_normalized': row.get('route_id_normalized') if pd.notna(row.get('route_id_normalized')) else None,
-                        'route_name_short': row.get('route_name_short') if pd.notna(row.get('route_name_short')) else None,
-                        'route_name_long': row.get('route_name_long') if pd.notna(row.get('route_name_long')) else None,
-                        'line_name': row.get('line_name') if pd.notna(row.get('line_name')) else None,
-                        'direction_id': str(int(float(row.get('direction_id')))) if pd.notna(row.get('direction_id')) else None,
-                        'direction_name': row.get('direction_name') if pd.notna(row.get('direction_name')) else None,
-                        'direction_uic': row.get('direction_uic') if pd.notna(row.get('direction_uic')) else None,
-                        'evidence': row.get('evidence') if pd.notna(row.get('evidence')) else None,
-                        'as_of': row.get('as_of') if pd.notna(row.get('as_of')) else None,
-                    })
-                atlas_routes_mapping_unified[str(sloid)] = entries
-            print(f"Loaded unified route information for {len(atlas_routes_mapping_unified)} ATLAS stops")
-        except Exception as e:
-            print(f"Error loading unified routes: {e}")
-            atlas_routes_mapping_unified = {}
-    else:
-        print(f"Warning: Unified routes file not found at {unified_path}")
-        atlas_routes_mapping_unified = {}
 
-    # Extract GTFS routes from unified data
-    atlas_routes_mapping = {}
-    for sloid, entries in atlas_routes_mapping_unified.items():
-        gtfs_entries = [e for e in entries if e.get('source') == 'gtfs']
-        if gtfs_entries:
-            atlas_routes_mapping[sloid] = [
-                {
-                    'route_id': e.get('route_id'),
-                    'direction_id': e.get('direction_id'),
-                    'route_short_name': e.get('route_name_short'),
-                    'route_long_name': e.get('route_name_long'),
-                }
-                for e in gtfs_entries
-            ]
-    print(f"Extracted GTFS route information for {len(atlas_routes_mapping)} ATLAS stops")
-        
-    # Extract HRDF routes from unified data
-    atlas_hrdf_routes_mapping = {}
-    for sloid, entries in atlas_routes_mapping_unified.items():
-        hrdf_entries = [e for e in entries if e.get('source') == 'hrdf']
-        if hrdf_entries:
-            atlas_hrdf_routes_mapping[str(sloid)] = [
-                {
-                    'line_name': e.get('line_name'),
-                    'direction_name': e.get('direction_name'),
-                    'direction_uic': e.get('direction_uic'),
-                }
-                for e in hrdf_entries
-            ]
-    print(f"Extracted HRDF route information for {len(atlas_hrdf_routes_mapping)} ATLAS stops")
-        
-    # Load OSM routes
-    osm_routes_mapping = {}
+from utils.route_id import normalize_route_id
+
+
+def _safe_direction_id(val):
+    """Convert direction_id to a clean string ('0' or '1'), or None."""
     try:
-        print("Loading OSM routes...")
-        if osm_routes_df is None:
-            osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
-        
-        # Filter out invalid rows early
-        valid_routes = osm_routes_df[
-            pd.notna(osm_routes_df['node_id']) & 
-            (pd.notna(osm_routes_df['gtfs_route_id']) | pd.notna(osm_routes_df['route_name']))
-        ].copy()
-        
-        # Use groupby for more efficient processing
-        for node_id, group in valid_routes.groupby('node_id'):
-            node_id_str = str(node_id)
-            osm_routes_mapping[node_id_str] = []
-            for _, row in group.iterrows():
-                route_info = {
-                    'route_id': row['gtfs_route_id'] if pd.notna(row['gtfs_route_id']) else None,
-                    'direction_id': str(int(float(row['direction_id']))) if pd.notna(row['direction_id']) else None,
-                    'route_name': row['route_name'] if pd.notna(row['route_name']) else None
-                }
-                osm_routes_mapping[node_id_str].append(route_info)
-        print(f"Loaded route information for {len(osm_routes_mapping)} OSM nodes")
-    except Exception as e:
-        print(f"Error loading OSM routes: {e}")
-        
-    return atlas_routes_mapping, atlas_hrdf_routes_mapping, osm_routes_mapping
+        if pd.isna(val):
+            return None
+        return str(int(float(val)))
+    except (ValueError, TypeError):
+        return None
 
-def load_unified_route_data() -> dict:
-    """Load unified routes as a single mapping sloid -> list[route_entry]."""
+
+def _nan_to_none(val):
+    """Convert pandas NaN/NaT to None."""
+    if pd.isna(val):
+        return None
+    return val
+
+
+def _load_unified_routes_df():
+    """Read atlas_routes_unified.csv once and return the DataFrame (or empty)."""
     unified_path = "data/processed/atlas_routes_unified.csv"
-    mapping = {}
     try:
-        df = pd.read_csv(unified_path, low_memory=False)
-        for sloid, group in df.groupby('sloid'):
-            if pd.isna(sloid):
-                continue
-            entries = []
-            for _, row in group.iterrows():
-                entries.append({
-                    'source': row.get('source'),
-                    'route_id': row.get('route_id') if pd.notna(row.get('route_id')) else None,
-                    'route_id_normalized': row.get('route_id_normalized') if pd.notna(row.get('route_id_normalized')) else None,
-                    'route_name_short': row.get('route_name_short') if pd.notna(row.get('route_name_short')) else None,
-                    'route_name_long': row.get('route_name_long') if pd.notna(row.get('route_name_long')) else None,
-                    'line_name': row.get('line_name') if pd.notna(row.get('line_name')) else None,
-                    'direction_id': str(int(float(row.get('direction_id')))) if pd.notna(row.get('direction_id')) else None,
-                    'direction_name': row.get('direction_name') if pd.notna(row.get('direction_name')) else None,
-                    'direction_uic': row.get('direction_uic') if pd.notna(row.get('direction_uic')) else None,
-                    'evidence': row.get('evidence') if pd.notna(row.get('evidence')) else None,
-                    'as_of': row.get('as_of') if pd.notna(row.get('as_of')) else None,
-                })
-            mapping[str(sloid)] = entries
+        return pd.read_csv(unified_path, low_memory=False, dtype=str)
     except FileNotFoundError:
         print("INFO: Unified routes file (atlas_routes_unified.csv) not found.")
+        return pd.DataFrame()
     except Exception as e:
         print(f"Error loading unified routes: {e}")
+        return pd.DataFrame()
+
+
+def _build_unified_mapping(unified_df: pd.DataFrame) -> dict:
+    """Build sloid -> list[route_entry] mapping from the unified DataFrame (vectorized)."""
+    if unified_df.empty:
+        return {}
+    df = unified_df.dropna(subset=['sloid']).copy()
+    # Replace NaN with None for clean dict output
+    df = df.where(df.notna(), None)
+    # Normalize direction_id in bulk
+    df['direction_id'] = df['direction_id'].apply(_safe_direction_id)
+    records = df.to_dict(orient='records')
+    mapping = {}
+    for rec in records:
+        sloid = str(rec['sloid'])
+        mapping.setdefault(sloid, []).append(rec)
     return mapping
 
-def _normalize_route_id_for_matching(route_id):
-    """Remove year codes (j24, j25, etc.) from route IDs for fuzzy matching."""
-    if not route_id:
+
+def _build_osm_routes_mapping(osm_routes_df: pd.DataFrame) -> dict:
+    """Build node_id -> list[route_info] mapping from OSM routes (vectorized)."""
+    if osm_routes_df is None or osm_routes_df.empty:
+        return {}
+    df = osm_routes_df.copy()
+    valid = df[df['node_id'].notna() & (df['gtfs_route_id'].notna() | df['route_name'].notna())].copy()
+    valid['direction_id_clean'] = valid['direction_id'].apply(_safe_direction_id)
+    valid['route_id_clean'] = valid['gtfs_route_id'].where(valid['gtfs_route_id'].notna(), None)
+    valid['route_name_clean'] = valid['route_name'].where(valid['route_name'].notna(), None)
+    mapping = {}
+    for node_id, group in valid.groupby('node_id', sort=False):
+        mapping[str(node_id)] = [
+            {'route_id': r.route_id_clean, 'direction_id': r.direction_id_clean, 'route_name': r.route_name_clean}
+            for r in group.itertuples(index=False)
+        ]
+    return mapping
+
+
+def _find_gtfs_routes_txt():
+    """Locate the GTFS routes.txt file in data/raw/gtfs*/."""
+    gtfs_root = "data/raw"
+    if not os.path.isdir(gtfs_root):
         return None
-    import re
-    # Replace j24, j25, j22, etc. with a generic jXX for comparison
-    normalized = re.sub(r'-j\d+', '-jXX', str(route_id))
-    return normalized
+    for fname in os.listdir(gtfs_root):
+        if fname.startswith("gtfs") and os.path.isdir(os.path.join(gtfs_root, fname)):
+            candidate = os.path.join(gtfs_root, fname, "routes.txt")
+            if os.path.exists(candidate):
+                return candidate
+    return None
 
-def build_route_direction_mapping(osm_routes_df: pd.DataFrame = None):
-    """Build mappings for routes and directions using unified Atlas data.
 
-    If osm_routes_df is provided, reuse it instead of re-reading the CSV to avoid duplicated IO.
+def _build_route_name_to_id() -> dict:
+    """Build fallback mapping from GTFS route names to route_id."""
+    path = _find_gtfs_routes_txt()
+    if not path:
+        return {}
+    try:
+        gdf = pd.read_csv(path, dtype=str, usecols=['route_id', 'route_short_name', 'route_long_name'])
+        mapping = {}
+        for col in ('route_short_name', 'route_long_name'):
+            mask = gdf[col].notna()
+            for name, rid in zip(gdf.loc[mask, col].str.strip(), gdf.loc[mask, 'route_id'].str.strip()):
+                mapping[name] = rid
+        return mapping
+    except Exception as e:
+        print(f"Warning: Failed to build GTFS route name mapping: {e}")
+        return {}
+
+
+def _build_osm_route_dir_to_nodes(osm_routes_df: pd.DataFrame, route_name_to_id: dict) -> dict:
+    """Build (route_id, direction_id) -> {nodes, route_name} from OSM routes (vectorized)."""
+    if osm_routes_df is None or osm_routes_df.empty:
+        return {}
+    df = osm_routes_df.copy()
+    df = df[df['node_id'].notna() & (df['gtfs_route_id'].notna() | df['route_name'].notna())].copy()
+    # Resolve route_id with fallback
+    df['resolved_route_id'] = df['gtfs_route_id'].where(
+        df['gtfs_route_id'].notna() & (df['gtfs_route_id'].astype(str).str.strip() != ''),
+        df['route_name'].map(route_name_to_id)
+    )
+    df = df[df['resolved_route_id'].notna()].copy()
+    df['resolved_route_id'] = df['resolved_route_id'].astype(str).str.strip()
+    df['dir_clean'] = df['direction_id'].apply(_safe_direction_id)
+    # Expand rows without direction to both 0 and 1
+    has_dir = df[df['dir_clean'].notna()].copy()
+    no_dir = df[df['dir_clean'].isna()].copy()
+    expanded = []
+    if not has_dir.empty:
+        expanded.append(has_dir[['node_id', 'resolved_route_id', 'dir_clean', 'route_name']].copy())
+    if not no_dir.empty:
+        for d in ['0', '1']:
+            part = no_dir[['node_id', 'resolved_route_id', 'route_name']].copy()
+            part['dir_clean'] = d
+            expanded.append(part)
+    if not expanded:
+        return {}
+    all_rows = pd.concat(expanded, ignore_index=True)
+    result = {}
+    for (route_id, direction_id), grp in all_rows.groupby(['resolved_route_id', 'dir_clean'], sort=False):
+        result[(route_id, direction_id)] = {
+            'nodes': grp['node_id'].astype(str).tolist(),
+            'route_name': _nan_to_none(grp['route_name'].iloc[0]) if grp['route_name'].notna().any() else None,
+        }
+    return result
+
+
+def _build_atlas_route_dir_mappings(unified_df: pd.DataFrame):
+    """Build GTFS and HRDF route-direction groupings from unified DataFrame.
+
+    Returns (atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids).
     """
-    # Maps for route+direction to nodes
-    osm_route_dir_to_nodes = {}
     atlas_route_dir_to_sloids = {}
     atlas_line_diruic_to_sloids = {}
-    
-    try:
-        # --- Build fallback mapping from GTFS route names to route_id ---
-        gtfs_routes_path = None
-        gtfs_root = "data/raw"
-        if os.path.isdir(gtfs_root):
-            for fname in os.listdir(gtfs_root):
-                if fname.startswith("gtfs_") and os.path.isdir(os.path.join(gtfs_root, fname)):
-                    candidate = os.path.join(gtfs_root, fname, "routes.txt")
-                    if os.path.exists(candidate):
-                        gtfs_routes_path = candidate
-                        break
+    if unified_df.empty:
+        return atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids
 
-        route_name_to_id = {}
-        if gtfs_routes_path:
-            try:
-                gtfs_routes_df = pd.read_csv(gtfs_routes_path, dtype=str, usecols=['route_id', 'route_short_name', 'route_long_name'])
-                for _, r in gtfs_routes_df.iterrows():
-                    if pd.notna(r.get('route_short_name')):
-                        route_name_to_id[str(r['route_short_name']).strip()] = str(r['route_id']).strip()
-                    if pd.notna(r.get('route_long_name')):
-                        route_name_to_id[str(r['route_long_name']).strip()] = str(r['route_id']).strip()
-            except Exception as e:
-                print(f"Warning: Failed to build GTFS route name mapping for import: {e}")
+    df = unified_df.dropna(subset=['sloid']).copy()
+    df['direction_id_clean'] = df['direction_id'].apply(_safe_direction_id)
 
-        # Process OSM routes
-        if osm_routes_df is None:
-            osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
-        for _, row in osm_routes_df.iterrows():
-            direction_id_raw = safe_value(row.get('direction_id'))
-            if pd.isna(row.get('gtfs_route_id')) and pd.isna(row.get('route_name')):
-                continue # Cannot determine route, skip
+    # GTFS routes
+    gtfs = df[(df['source'] == 'gtfs') & df['route_id'].notna() & df['direction_id_clean'].notna()]
+    for (route_id, direction_id), grp in gtfs.groupby(['route_id', 'direction_id_clean'], sort=False):
+        first = grp.iloc[0]
+        atlas_route_dir_to_sloids[(str(route_id), str(direction_id))] = {
+            'sloids': grp['sloid'].astype(str).tolist(),
+            'route_short_name': _nan_to_none(first.get('route_name_short')),
+            'route_long_name': _nan_to_none(first.get('route_name_long')),
+            'route_id_normalized': _nan_to_none(first.get('route_id_normalized')),
+        }
 
-            # Determine route_id using fallback
-            route_id = None
-            if pd.notna(row.get('gtfs_route_id')) and str(row['gtfs_route_id']).strip():
-                route_id = str(row['gtfs_route_id']).strip()
-            else:
-                rname = str(row.get('route_name') or '').strip()
-                if rname in route_name_to_id:
-                    route_id = route_name_to_id[rname]
-            
-            if not route_id:
-                continue # Still no route_id, skip
+    # HRDF routes
+    hrdf = df[(df['source'] == 'hrdf') & df['line_name'].notna() & df['direction_uic'].notna()]
+    for (line_name, direction_uic), grp in hrdf.groupby(['line_name', 'direction_uic'], sort=False):
+        first = grp.iloc[0]
+        atlas_line_diruic_to_sloids[(str(line_name), str(direction_uic))] = {
+            'sloids': grp['sloid'].astype(str).tolist(),
+            'direction_name': _nan_to_none(first.get('direction_name')),
+        }
 
-            # Handle direction
-            directions_to_add = []
-            if pd.notna(direction_id_raw):
-                try:
-                    directions_to_add.append(str(int(float(direction_id_raw))))
-                except (ValueError, TypeError):
-                    continue # Invalid direction format
-            else:
-                # If direction is missing, assume it applies to both
-                directions_to_add = ['0', '1']
+    return atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids
 
-            node_id = str(row['node_id'])
-            for direction_id in directions_to_add:
-                key = (route_id, direction_id)
-                if key not in osm_route_dir_to_nodes:
-                    osm_route_dir_to_nodes[key] = {
-                        'nodes': [],
-                        'route_name': row['route_name'] if pd.notna(row['route_name']) else None
-                    }
-                osm_route_dir_to_nodes[key]['nodes'].append(node_id)
-        
-        # Process ATLAS unified routes
+
+def load_all_route_data(osm_routes_df: pd.DataFrame = None):
+    """Load all route data in a single pass over each CSV.
+
+    Returns a dict with all route mappings needed for the import:
+      - atlas_routes_mapping_unified: sloid -> list[route_entry] (for JSONB on AtlasStop)
+      - osm_routes_mapping: node_id -> list[route_info] (for JSONB on OsmNode)
+      - osm_route_dir_to_nodes: (route_id, dir) -> {nodes, route_name}
+      - atlas_route_dir_to_sloids: (route_id, dir) -> {sloids, ...}
+      - atlas_line_diruic_to_sloids: (line_name, dir_uic) -> {sloids, ...}
+    """
+    # 1. Read atlas_routes_unified.csv ONCE
+    unified_df = _load_unified_routes_df()
+    atlas_routes_mapping_unified = _build_unified_mapping(unified_df)
+    atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids = _build_atlas_route_dir_mappings(unified_df)
+    print(f"Loaded unified route information for {len(atlas_routes_mapping_unified)} ATLAS stops")
+    print(f"Built GTFS route+direction to sloids mapping for {len(atlas_route_dir_to_sloids)} ATLAS routes")
+    print(f"Built HRDF line+direction_uic to sloids mapping for {len(atlas_line_diruic_to_sloids)} ATLAS routes")
+
+    # 2. Read osm_nodes_with_routes.csv ONCE
+    if osm_routes_df is None:
         try:
-            unified_df = pd.read_csv("data/processed/atlas_routes_unified.csv", low_memory=False)
-            for _, row in unified_df.iterrows():
-                sloid = row.get('sloid')
-                if pd.isna(sloid):
-                    continue
-                source = row.get('source')
-                if source == 'gtfs':
-                    if pd.notna(row.get('route_id')) and pd.notna(row.get('direction_id')):
-                        route_id = str(row.get('route_id'))
-                        direction_id = str(int(float(row.get('direction_id'))))
-                        key = (route_id, direction_id)
-                        if key not in atlas_route_dir_to_sloids:
-                            atlas_route_dir_to_sloids[key] = {
-                                'sloids': [],
-                                'route_short_name': row.get('route_name_short') if pd.notna(row.get('route_name_short')) else None,
-                                'route_long_name': row.get('route_name_long') if pd.notna(row.get('route_name_long')) else None,
-                                'route_id_normalized': row.get('route_id_normalized') if pd.notna(row.get('route_id_normalized')) else None,
-                            }
-                        atlas_route_dir_to_sloids[key]['sloids'].append(str(sloid))
-                elif source == 'hrdf':
-                    if pd.notna(row.get('line_name')) and pd.notna(row.get('direction_uic')):
-                        line_name = str(row.get('line_name'))
-                        direction_uic = str(row.get('direction_uic'))
-                        key = (line_name, direction_uic)
-                        if key not in atlas_line_diruic_to_sloids:
-                            atlas_line_diruic_to_sloids[key] = {
-                                'sloids': [],
-                                'direction_name': row.get('direction_name') if pd.notna(row.get('direction_name')) else None
-                            }
-                        atlas_line_diruic_to_sloids[key]['sloids'].append(str(sloid))
-        except FileNotFoundError:
-            print("INFO: Unified routes file (atlas_routes_unified.csv) not found, skipping Atlas unified route/direction mapping.")
-        
-        print(f"Built route+direction to nodes mapping for {len(osm_route_dir_to_nodes)} OSM routes")
-        print(f"Built GTFS route+direction to sloids mapping for {len(atlas_route_dir_to_sloids)} ATLAS routes")
-        print(f"Built HRDF line+direction_uic to sloids mapping for {len(atlas_line_diruic_to_sloids)} ATLAS routes")
-    except Exception as e:
-        print(f"Error building route-direction mappings: {e}")
-        
-    return osm_route_dir_to_nodes, atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids
+            osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
+        except Exception:
+            osm_routes_df = pd.DataFrame()
+
+    osm_routes_mapping = _build_osm_routes_mapping(osm_routes_df)
+    route_name_to_id = _build_route_name_to_id()
+    osm_route_dir_to_nodes = _build_osm_route_dir_to_nodes(osm_routes_df, route_name_to_id)
+    print(f"Loaded route information for {len(osm_routes_mapping)} OSM nodes")
+    print(f"Built route+direction to nodes mapping for {len(osm_route_dir_to_nodes)} OSM routes")
+
+    return {
+        'atlas_routes_mapping_unified': atlas_routes_mapping_unified,
+        'osm_routes_mapping': osm_routes_mapping,
+        'osm_route_dir_to_nodes': osm_route_dir_to_nodes,
+        'atlas_route_dir_to_sloids': atlas_route_dir_to_sloids,
+        'atlas_line_diruic_to_sloids': atlas_line_diruic_to_sloids,
+    }
 
 # --------------------------
 # Data Import Function
@@ -452,11 +420,13 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             _preloaded_osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
         except Exception:
             _preloaded_osm_routes_df = None
-        atlas_routes_mapping, atlas_hrdf_routes_mapping, osm_routes_mapping = load_route_data(osm_routes_df=_preloaded_osm_routes_df)
-        atlas_routes_mapping_unified = load_unified_route_data()
 
-        # Build route+direction to nodes/sloids mappings for routes_and_directions table
-        osm_route_dir_to_nodes, atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids = build_route_direction_mapping(osm_routes_df=_preloaded_osm_routes_df)
+        all_route_data = load_all_route_data(osm_routes_df=_preloaded_osm_routes_df)
+        atlas_routes_mapping_unified = all_route_data['atlas_routes_mapping_unified']
+        osm_routes_mapping = all_route_data['osm_routes_mapping']
+        osm_route_dir_to_nodes = all_route_data['osm_route_dir_to_nodes']
+        atlas_route_dir_to_sloids = all_route_data['atlas_route_dir_to_sloids']
+        atlas_line_diruic_to_sloids = all_route_data['atlas_line_diruic_to_sloids']
     
     # Keep track of processed detail records to avoid duplicates
     processed_sloids = set()
@@ -479,45 +449,9 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         print(f"{len(duplicate_sloids)} sloids are matched to more than one OSM node")
         print(f"Examples: {list(duplicate_sloids)[:5]}")
 
-    # --- Precompute OSM duplicate nodes by (uic_ref, local_ref) BEFORE inserting matched ---
-    def _is_platform_like(pt):
-        return pt in ('platform', 'stop_position')
-    osm_nodes_by_uic_local_ref = {}
-    def _add_osm_dup_candidate(uic_val, local_ref_val, node_id_val, pt_val):
-        try:
-            if not uic_val or not local_ref_val:
-                return
-            if not _is_platform_like(pt_val):
-                return
-            key = (
-                str(uic_val).strip(),
-                str(local_ref_val).strip().lower()
-            )
-            if key not in osm_nodes_by_uic_local_ref:
-                osm_nodes_by_uic_local_ref[key] = set()
-            osm_nodes_by_uic_local_ref[key].add(str(node_id_val))
-        except Exception:
-            pass
-    # From matched
-    for rec in base_data.get('matched', []):
-        uic = safe_value(rec.get('osm_uic_ref'))
-        if uic:
-            _add_osm_dup_candidate(uic, safe_value(rec.get('osm_local_ref')), safe_value(rec.get('osm_node_id')), safe_value(rec.get('osm_public_transport')))
-    # From unmatched_osm
-    for rec in base_data.get('unmatched_osm', []):
-        tags = rec.get('tags', {}) if isinstance(rec.get('tags', {}), dict) else {}
-        uic = safe_value(tags.get('uic_ref'))
-        if uic:
-            _add_osm_dup_candidate(uic, tags.get('local_ref'), rec.get('node_id'), tags.get('public_transport'))
-    duplicate_osm_node_ids = set()
-    # Build a map from each OSM node ID to its full duplicate group
-    duplicate_osm_group_map = {}  # {node_id: [all_node_ids_in_group]}
-    for _key, node_ids in osm_nodes_by_uic_local_ref.items():
-        if len(node_ids) >= 2:
-            duplicate_osm_node_ids.update(node_ids)
-            sorted_group = sorted(node_ids)
-            for nid in node_ids:
-                duplicate_osm_group_map[nid] = sorted_group
+    # --- Build problem detection context (KDTrees, UIC counts, duplicate maps) ---
+    with timed_phase("DB: build problem context"):
+        problem_ctx = ProblemContext.build(base_data, duplicate_sloid_map)
 
     # --- Insert Matched Records ---
     matched_records = base_data.get('matched', [])
@@ -552,7 +486,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             distance_m = safe_value(rec.get('distance_m'))
 
             rec['stop_type'] = 'matched'
-            problems = analyze_stop_problems(rec)
 
             stop_record = Stop(
                 sloid=sloid,
@@ -566,40 +499,10 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 distance_m=distance_m,
                 geom=make_point_geom(atlas_lat, atlas_lon) if atlas_lat is not None and atlas_lon is not None else make_point_geom(osm_lat, osm_lon),
             )
-            # If this record was manually matched in a previous run and persisted, carry the flag
             if safe_value(rec.get('match_type')) == 'manual':
-                # conservative: mark as persistent if we have a persistent entry
                 stop_record.manual_is_persistent = True
-        
-            # Create problems with additional metadata for better sorting
-            if problems.get('distance_problem'):
-                # For distance problems, store the distance for efficient sorting
-                distance_priority = compute_distance_priority(rec)
-                distance_problem = Problem(
-                    problem_type='distance',
-                    solution=None,  # Will be set by persistent solutions if available
-                    is_persistent=False,
-                    priority=distance_priority
-                )
-                stop_record.problems.append(distance_problem)
-            
-            if problems.get('attributes_problem'):
-                attributes_priority = compute_attributes_priority(rec)
-                attributes_problem = Problem(
-                    problem_type='attributes',
-                    solution=None,
-                    is_persistent=False,
-                    priority=attributes_priority
-                )
-                stop_record.problems.append(attributes_problem)
 
-            # Duplicates: prefer OSM-side duplicates (priority 3), else ATLAS-side duplicates (priority 2)
-            if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
-                stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
-                stop_record.has_osm_duplicate = True
-            elif sloid and str(sloid) in duplicate_sloid_map:
-                stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
-                stop_record.has_atlas_duplicate = True
+            apply_problem_results(stop_record, run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, rec))
 
             session.add(stop_record)
 
@@ -634,7 +537,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                     osm_aerialway=safe_value(rec.get('osm_aerialway')),
                     osm_node_type=get_osm_node_type(rec),
                     routes_osm=routes_osm_data if routes_osm_data else None,
-                    duplicate_group_node_ids=duplicate_osm_group_map.get(str(osm_node_id)),
+                    duplicate_group_node_ids=problem_ctx.duplicate_osm_group_map.get(str(osm_node_id)),
                 )
                 session.add(osm_record)
                 processed_osm_node_ids.add(osm_node_id)
@@ -650,140 +553,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         session.expunge_all()
         print(f"Imported {len(matched_records)} matched records")
 
-    # Precompute structures for unmatched priority classification
-    # Build OSM coordinate set from matched and unmatched data
-    # Using centralized to_xyz from spatial_index instead of local definition
-    osm_points = []  # list of (x,y,z)
-    # OSM from matched records
-    for rec in base_data.get('matched', []):
-        lat = safe_value(rec.get('osm_lat'))
-        lon = safe_value(rec.get('osm_lon'))
-        if lat is not None and lon is not None:
-            osm_points.append(to_xyz(lat, lon))
-    # OSM from unmatched_osm
-    for rec in base_data.get('unmatched_osm', []):
-        lat = safe_value(rec.get('lat'))
-        lon = safe_value(rec.get('lon'))
-        if lat is not None and lon is not None:
-            osm_points.append(to_xyz(lat, lon))
-    osm_kdtree = KDTree(osm_points) if osm_points else None
-
-    # Build ATLAS coordinate set from matched and unmatched
-    atlas_points = []
-    for rec in base_data.get('matched', []):
-        lat = safe_value(rec.get('csv_lat'))
-        lon = safe_value(rec.get('csv_lon'))
-        if lat is not None and lon is not None:
-            atlas_points.append(to_xyz(lat, lon))
-    for rec in base_data.get('unmatched_atlas', []):
-        lat = safe_value(rec.get('wgs84North'))
-        lon = safe_value(rec.get('wgs84East'))
-        if lat is not None and lon is not None:
-            atlas_points.append(to_xyz(lat, lon))
-    atlas_kdtree = KDTree(atlas_points) if atlas_points else None
-
-    # Build counts by UIC
-    atlas_count_by_uic = {}
-    for rec in base_data.get('matched', []):
-        uic = safe_value(rec.get('number'))
-        if uic is None: continue
-        key = str(uic)
-        atlas_count_by_uic[key] = atlas_count_by_uic.get(key, 0) + 1
-    for rec in base_data.get('unmatched_atlas', []):
-        uic = safe_value(rec.get('number'))
-        if uic is None: continue
-        key = str(uic)
-        atlas_count_by_uic[key] = atlas_count_by_uic.get(key, 0) + 1
-
-    osm_count_by_uic = {}
-    osm_platform_count_by_uic = {}
-    # From matched
-    for rec in base_data.get('matched', []):
-        uic = safe_value(rec.get('osm_uic_ref'))
-        if uic:
-            key = str(uic)
-            osm_count_by_uic[key] = osm_count_by_uic.get(key, 0) + 1
-            if _is_platform_like(safe_value(rec.get('osm_public_transport'))):
-                osm_platform_count_by_uic[key] = osm_platform_count_by_uic.get(key, 0) + 1
-    # From unmatched_osm
-    for rec in base_data.get('unmatched_osm', []):
-        uic = None
-        tags = rec.get('tags', {}) if isinstance(rec.get('tags', {}), dict) else {}
-        if 'uic_ref' in tags:
-            uic = safe_value(tags.get('uic_ref'))
-        if uic:
-            key = str(uic)
-            osm_count_by_uic[key] = osm_count_by_uic.get(key, 0) + 1
-            pt = tags.get('public_transport')
-            if _is_platform_like(pt):
-                osm_platform_count_by_uic[key] = osm_platform_count_by_uic.get(key, 0) + 1
-
-    def _nearest_distance_to(points_tree, points_list, target_lat, target_lon):
-        if points_tree is None or not points_list:
-            return None
-        x, y, z = to_xyz(target_lat, target_lon)
-        # KDTree was built on chord distances in 3D; we need haversine distance
-        # Compute nearest index by querying Euclidean distance in 3D space
-        dist, idx = points_tree.query((x, y, z), k=1)
-        # Convert back to haversine distance using great-circle angle from dot product
-        # Recompute angle between unit vectors to avoid precision loss
-        try:
-            # Clip dot product to [-1,1]
-            ux, uy, uz = x, y, z
-            vx, vy, vz = points_list[idx]
-            # Recover lat/lon from stored xyz is not available here; we stored xyz only in points_tree
-            # Instead compute angle from Euclidean distance of unit vectors: ||u - v|| = sqrt(2 - 2 cos(theta))
-            # => cos(theta) = 1 - (||u - v||^2)/2
-            euclid = dist
-            cos_theta = 1 - (euclid * euclid) / 2.0
-            cos_theta = max(-1.0, min(1.0, cos_theta))
-            theta = math.acos(cos_theta)
-            meters = 6371000.0 * theta
-            return meters
-        except Exception:
-            return None
-
-    def compute_unmatched_priority_for_atlas(rec):
-        # Inputs
-        uic = safe_value(rec.get('number'))
-        nearest = _nearest_distance_to(osm_kdtree, osm_points, safe_value(rec.get('wgs84North')), safe_value(rec.get('wgs84East')))
-        # P1 conditions
-        if uic is not None:
-            if osm_count_by_uic.get(str(uic), 0) == 0:
-                return 1
-        if nearest is None:
-            # Treat no OSM available as worse than 80m
-            return 1
-        if nearest > 80:
-            return 1
-        # P2 conditions
-        if nearest > 50:
-            return 2
-        if uic is not None:
-            key = str(uic)
-            if osm_platform_count_by_uic.get(key, 0) != atlas_count_by_uic.get(key, 0):
-                return 2
-        # P3
-        return 3
-
-    def compute_unmatched_priority_for_osm(rec):
-        tags = rec.get('tags', {}) if isinstance(rec.get('tags', {}), dict) else {}
-        uic = safe_value(tags.get('uic_ref'))
-        nearest = _nearest_distance_to(atlas_kdtree, atlas_points, safe_value(rec.get('lat')), safe_value(rec.get('lon')))
-        # P1: zero opposite UIC
-        if uic is not None:
-            if atlas_count_by_uic.get(str(uic), 0) == 0:
-                return 1
-        # P2: radius or platform mismatch
-        if nearest is None or nearest > 50:
-            return 2
-        if uic is not None:
-            key = str(uic)
-            if osm_platform_count_by_uic.get(key, 0) != atlas_count_by_uic.get(key, 0):
-                return 2
-        # P3
-        return 3
-
     # --- Insert Unmatched ATLAS Records ---
     unmatched_records = base_data.get('unmatched_atlas', [])
     for rec in unmatched_records:
@@ -794,12 +563,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
 
         sloid = safe_value(rec.get('sloid'))
         match_type_for_unmatched = 'no_nearby_counterpart' if sloid in no_nearby_osm_sloids else None
-
-        problems = analyze_stop_problems({
-            'stop_type': 'atlas_unmatched',
-            'match_type': match_type_for_unmatched,
-            'sloid': sloid
-        })
+        rec['stop_type'] = 'atlas_unmatched'
 
         stop_record = Stop(
             sloid=sloid,
@@ -809,19 +573,11 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             atlas_lon=atlas_lon,
             geom=make_point_geom(atlas_lat, atlas_lon),
         )
-        
-        if problems.get('unmatched_problem'):
-            unmatched_priority = compute_unmatched_priority_for_atlas(rec)
-            unmatched_problem = Problem(
-                problem_type='unmatched',
-                solution=None,
-                is_persistent=False,
-                priority=unmatched_priority
-            )
-            stop_record.problems.append(unmatched_problem)
+
+        apply_problem_results(stop_record, run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, rec))
 
         session.add(stop_record)
-        
+
         if sloid and sloid not in processed_sloids:
             designation_official = safe_value(rec.get('designationOfficial')) or safe_value(rec.get('designation')) or ""
             atlas_record = AtlasStop(
@@ -836,11 +592,6 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             session.add(atlas_record)
             processed_sloids.add(sloid)
 
-        # Mark ATLAS duplicates (priority 2) using duplicate_sloid_map
-        if sloid and str(sloid) in duplicate_sloid_map:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=2))
-            stop_record.has_atlas_duplicate = True
-
     session.commit()
 
     # --- Insert Unmatched OSM Records ---
@@ -850,14 +601,9 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             rec, 'lat', 'lon', 'node_id', rec.get('node_id'), 'unmatched OSM'
         )
         if osm_lat is None: continue
-        
+
         osm_node_id = str(safe_value(rec.get('node_id')))
-        
-        problems = analyze_stop_problems({
-            'stop_type': 'osm_unmatched',
-            'osm_node_id': osm_node_id,
-            'is_isolated': rec.get('is_isolated', False)
-        })
+        rec['stop_type'] = 'osm_unmatched'
 
         stop_record = Stop(
             stop_type='osm_unmatched',
@@ -867,15 +613,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             geom=make_point_geom(osm_lat, osm_lon),
         )
 
-        if problems.get('unmatched_problem'):
-            unmatched_priority = compute_unmatched_priority_for_osm(rec)
-            unmatched_problem = Problem(
-                problem_type='unmatched',
-                solution=None,
-                is_persistent=False,
-                priority=unmatched_priority
-            )
-            stop_record.problems.append(unmatched_problem)
+        apply_problem_results(stop_record, run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, rec))
 
         session.add(stop_record)
 
@@ -896,16 +634,11 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
                 osm_aerialway=get_from_tags(rec, 'aerialway', ''),
                 osm_node_type=get_osm_node_type(rec, is_osm_unmatched=True),
                 routes_osm=routes_osm_data if routes_osm_data else None,
-                duplicate_group_node_ids=duplicate_osm_group_map.get(str(osm_node_id)),
+                duplicate_group_node_ids=problem_ctx.duplicate_osm_group_map.get(str(osm_node_id)),
             )
             session.add(osm_record)
             processed_osm_node_ids.add(osm_node_id)
 
-        # Duplicates: OSM-side duplicates (priority 3)
-        if osm_node_id and str(osm_node_id) in duplicate_osm_node_ids:
-            stop_record.problems.append(Problem(problem_type='duplicates', solution=None, is_persistent=False, priority=3))
-            stop_record.has_osm_duplicate = True
-            
     session.commit()
 
     # --- Insert Route and Direction Records ---
@@ -913,6 +646,17 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
     osm_only_routes = 0
     atlas_only_routes = 0
     
+    routes_to_insert = []
+    
+    # Pre-build normalized index for ATLAS routes
+    atlas_normalized_to_original = {}
+    for (atlas_route_id, atlas_direction_id), atlas_info in atlas_route_dir_to_sloids.items():
+        norm_id = normalize_route_id(atlas_route_id)
+        if norm_id:
+            atlas_normalized_to_original.setdefault((norm_id, atlas_direction_id), []).append(
+                (atlas_route_id, atlas_info)
+            )
+
     for (osm_route_id, direction_id), osm_data in osm_route_dir_to_nodes.items():
         atlas_data = atlas_route_dir_to_sloids.get((osm_route_id, direction_id))
         atlas_matched_route_id = None
@@ -920,16 +664,11 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
         if atlas_data:
             atlas_matched_route_id = osm_route_id
         else:
-            osm_route_normalized = _normalize_route_id_for_matching(osm_route_id)
+            osm_route_normalized = normalize_route_id(osm_route_id)
             if osm_route_normalized:
-                for (atlas_route_id, atlas_direction_id), atlas_info in atlas_route_dir_to_sloids.items():
-                    if (
-                        atlas_direction_id == direction_id
-                        and _normalize_route_id_for_matching(atlas_route_id) == osm_route_normalized
-                    ):
-                        atlas_data = atlas_info
-                        atlas_matched_route_id = atlas_route_id
-                        break
+                matches = atlas_normalized_to_original.get((osm_route_normalized, direction_id))
+                if matches:
+                    atlas_matched_route_id, atlas_data = matches[0]
 
         if atlas_data and atlas_matched_route_id:
             route_record = RouteAndDirection(
@@ -963,7 +702,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             )
             osm_only_routes += 1
             
-        session.add(route_record)
+        routes_to_insert.append(route_record)
     
     processed_keys = set(osm_route_dir_to_nodes.keys())
     for (atlas_route_id, direction_id), atlas_data in atlas_route_dir_to_sloids.items():
@@ -984,7 +723,7 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             route_id_normalized=atlas_data.get('route_id_normalized') if isinstance(atlas_data, dict) else None,
         )
         atlas_only_routes += 1
-        session.add(route_record)
+        routes_to_insert.append(route_record)
 
     # Add HRDF-only consolidated rows
     for (line_name, direction_uic), atlas_data in atlas_line_diruic_to_sloids.items():
@@ -1004,8 +743,9 @@ def import_to_database(base_data, duplicate_sloid_map, no_nearby_osm_sloids):
             direction_uic=direction_uic,
         )
         atlas_only_routes += 1
-        session.add(route_record)
+        routes_to_insert.append(route_record)
     
+    session.bulk_save_objects(routes_to_insert)
     session.commit()
     print(f"Route statistics: {matched_routes} matched, {osm_only_routes} OSM-only, {atlas_only_routes} ATLAS-only")
     

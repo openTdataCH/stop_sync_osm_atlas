@@ -138,23 +138,23 @@ class TestNormalizeRouteId:
     """Tests for route ID normalization."""
 
     def test_normalize_journey_numbers(self):
-        from matching_process.route_matching_unified import _normalize_route_id_for_matching
+        from utils.route_id import normalize_route_id as _normalize_route_id_for_matching
         assert _normalize_route_id_for_matching('route-j25') == 'route-jXX'
         assert _normalize_route_id_for_matching('route-j123') == 'route-jXX'
         assert _normalize_route_id_for_matching('IC-j1') == 'IC-jXX'
 
     def test_no_journey_number_unchanged(self):
-        from matching_process.route_matching_unified import _normalize_route_id_for_matching
+        from utils.route_id import normalize_route_id as _normalize_route_id_for_matching
         assert _normalize_route_id_for_matching('route123') == 'route123'
         assert _normalize_route_id_for_matching('IC') == 'IC'
 
     def test_none_input(self):
-        from matching_process.route_matching_unified import _normalize_route_id_for_matching
+        from utils.route_id import normalize_route_id as _normalize_route_id_for_matching
         assert _normalize_route_id_for_matching(None) is None
         assert _normalize_route_id_for_matching('') is None
 
     def test_multiple_journey_patterns(self):
-        from matching_process.route_matching_unified import _normalize_route_id_for_matching
+        from utils.route_id import normalize_route_id as _normalize_route_id_for_matching
         assert _normalize_route_id_for_matching('route-j1-j2') == 'route-jXX-jXX'
 
 
