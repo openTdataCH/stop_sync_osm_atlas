@@ -67,16 +67,25 @@ def duplicate_propagation(ctx: MatchingContext) -> list[dict]:
 
     for entry in unmatched:
         sloid = str(entry.get('sloid', ''))
-        atlas_dup_id = ctx.atlas.duplicate_sloid_map.get(sloid)
-        if not atlas_dup_id:
+        dup_group_sloids = ctx.atlas.duplicate_sloid_map.get(sloid)
+        if not dup_group_sloids:
             continue
 
-        # Is the target duplicated SLOID matched?
-        target_match = sloid_to_match.get(atlas_dup_id)
+        # Is any target in the duplicated SLOID group matched?
+        target_match = None
+        target_sloid = None
+        for cand_sloid in dup_group_sloids:
+            if cand_sloid != sloid:
+                m = sloid_to_match.get(cand_sloid)
+                if m:
+                    target_match = m
+                    target_sloid = cand_sloid
+                    break
+                    
         if not target_match:
             continue
 
-        target_row = all_rows_dict.get(atlas_dup_id)
+        target_row = all_rows_dict.get(target_sloid)
         if not target_row:
             continue
 
@@ -100,20 +109,9 @@ def duplicate_propagation(ctx: MatchingContext) -> list[dict]:
             }
         }
 
-        dist = target_match.get('distance_m')
-        if dist is None:
-            # Fallback calculation if target lacked distance
-            dist = haversine_distance(
-                float(entry['wgs84North']),
-                float(entry['wgs84East']),
-                osm_node.get('lat') or 0.0,
-                osm_node.get('lon') or 0.0
-            )
-
         new_matches.append(make_match(
             entry, osm_node, 'duplicate_propagation',
-            f"Propagated from duplicated sloid: {atlas_dup_id}",
-            distance_m=dist,
+            f"Propagated from duplicated sloid: {target_sloid}"
         ))
 
     return new_matches

@@ -1,9 +1,7 @@
 import requests
 import xml.etree.ElementTree as ET
 from collections import defaultdict
-import pandas as pd
-import csv 
-import json
+import csv
 import os
 
 from utils.timing import timed_phase
@@ -69,23 +67,29 @@ def process_osm_data_to_csv(xml_data, output_file="data/processed/osm_nodes_with
     nodes = {}
     routes = {}
     node_routes = defaultdict(list)
+    node_directions_name = defaultdict(set)
+    node_directions_uic = defaultdict(set)
     
     # Extract all nodes
     for node in root.findall(".//node"):
         node_id = node.get('id')
         node_type = None
         uic_ref = None
+        node_name = None
         
         for tag in node.findall("./tag"):
             if tag.get('k') == 'public_transport':
                 node_type = tag.get('v')
             elif tag.get('k') == 'uic_ref':
                 uic_ref = tag.get('v')
+            elif tag.get('k') == 'name':
+                node_name = tag.get('v')
         
         nodes[node_id] = {
             'id': node_id,
             'type': node_type,
             'uic_ref': uic_ref,
+            'name': node_name,
         }
     
     # Extract all relations that are routes
@@ -132,10 +136,30 @@ def process_osm_data_to_csv(xml_data, output_file="data/processed/osm_nodes_with
         routes[relation_id] = route_info
         
         # Map each node in this route to the route
-        for member in relation.findall("./member[@type='node']"):
-            node_ref = member.get('ref')
+        members = [member.get('ref') for member in relation.findall("./member[@type='node']")]
+        for node_ref in members:
             if node_ref in nodes:
                 node_routes[node_ref].append(relation_id)
+
+        # Extract direction strings based on first and last nodes of the relation
+        if len(members) >= 2:
+            first, last = members[0], members[-1]
+            first_node = nodes.get(first, {})
+            last_node = nodes.get(last, {})
+            
+            fn = first_node.get('name')
+            ln = last_node.get('name')
+            if fn and ln:
+                ds = f"{fn} → {ln}"
+                for nid in members:
+                    node_directions_name[nid].add(ds)
+                    
+            fu = first_node.get('uic_ref')
+            lu = last_node.get('uic_ref')
+            if fu and lu:
+                ds = f"{fu} → {lu}"
+                for nid in members:
+                    node_directions_uic[nid].add(ds)
     
     print(f"Found {len(nodes)} nodes and {len(routes)} routes")
 
@@ -204,67 +228,19 @@ def process_osm_data_to_csv(xml_data, output_file="data/processed/osm_nodes_with
     print(f"CSV data saved to {output_file} with {total_rows} node-route pairs")
     print(f"Successfully matched direction_id for {rows_with_direction} node-route pairs")
     
-    # Create routes-with-nodes CSV
-    create_routes_with_nodes_csv(output_file)
-
-def create_routes_with_nodes_csv(nodes_routes_csv):
-    """
-    Create a CSV file that groups nodes by route and direction.
+    # Write directions CSV
+    directions_output = "data/processed/osm_directions.csv"
+    with open(directions_output, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['node_id', 'dir_type', 'direction_string'])
+        for nid, dirs in node_directions_name.items():
+            for d in dirs:
+                writer.writerow([nid, 'name', d])
+        for nid, dirs in node_directions_uic.items():
+            for d in dirs:
+                writer.writerow([nid, 'uic', d])
+    print(f"Directions data saved to {directions_output}")
     
-    Args:
-        nodes_routes_csv: Path to the CSV with node-route pairs
-    """
-    print("\nCreating route to nodes mapping CSV...")
-    
-    try:
-        # Read the node-routes CSV
-        df = pd.read_csv(nodes_routes_csv)
-        
-        # Group by gtfs_route_id and direction_id
-        route_groups = df.groupby(['gtfs_route_id', 'direction_id'])
-        
-        # Create rows with route info and list of nodes
-        routes_with_nodes = []
-        
-        for (route_id, direction_id), group in route_groups:
-            # Skip if route_id is missing
-            if pd.isna(route_id) or route_id == '':
-                continue
-                
-            # Get route info from first row
-            first_row = group.iloc[0]
-            route_name = first_row['route_name']
-            
-            # Get list of node_ids for this route+direction
-            node_ids = group['node_id'].tolist()
-            
-            # Create a row for this route+direction combination
-            route_row = {
-                'route_id': route_id,
-                'direction_id': direction_id,
-                'route_name': route_name,
-                'nodes_count': len(node_ids),
-                'nodes_list': node_ids
-            }
-            
-            routes_with_nodes.append(route_row)
-        
-        # Convert to DataFrame
-        routes_df = pd.DataFrame(routes_with_nodes)
-        
-        # Add nodes_list as JSON string column for CSV export
-        routes_df['nodes_json'] = routes_df['nodes_list'].apply(lambda x: json.dumps(x))
-        
-        # Save to processed directory
-        output_file = "data/processed/osm_routes_with_nodes.csv"
-        routes_df.to_csv(output_file, index=False)
-        
-        print(f"Created mapping for {len(routes_df)} route+direction combinations")
-        print(f"Route-nodes mapping saved to {output_file}")
-        
-    except Exception as e:
-        print(f"Error creating routes-with-nodes CSV: {e}")
-
 def main():
     """
     Main function to run the script.

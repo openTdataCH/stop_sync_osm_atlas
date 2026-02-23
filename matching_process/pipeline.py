@@ -12,7 +12,7 @@ import logging
 from matching_process.utils import haversine_distance
 from matching_process.match_record import create_match_record, extract_atlas_fields
 from matching_process.spatial_index import (
-    build_kdtree_from_nodes, meters_to_unit_chord_radius, lat_lon_to_xyz_list,
+    build_kdtree_from_nodes, meters_to_unit_chord_radius, lat_lon_to_xyz_list, batch_to_xyz,
 )
 
 logger = logging.getLogger(__name__)
@@ -134,19 +134,32 @@ def compute_no_nearby_osm(unmatched_atlas: list, osm_nodes: dict,
     if tree is None:
         return {e.get('sloid') for e in unmatched_atlas if e.get('sloid')}
 
-    kd_radius = meters_to_unit_chord_radius(radius)
-    no_nearby: set = set()
-
+    # Collect valid entries with coordinates
+    valid_entries = []
+    coords = []
     for entry in unmatched_atlas:
         lat = entry.get('wgs84North')
         lon = entry.get('wgs84East')
-        if lat is None or lon is None:
-            continue
-        q = lat_lon_to_xyz_list(float(lat), float(lon))
+        if lat is not None and lon is not None:
+            valid_entries.append(entry)
+            coords.append((float(lat), float(lon)))
+
+    if not coords:
+        return set()
+
+    kd_radius = meters_to_unit_chord_radius(radius)
+    points = batch_to_xyz(coords)
+    
+    # Batch query all points at once
+    indices_list = tree.query_ball_point(points, r=kd_radius, workers=-1)
+
+    no_nearby: set = set()
+    for i, entry in enumerate(valid_entries):
+        lat, lon = coords[i]
         has_nearby = False
-        for idx in tree.query_ball_point(q, r=kd_radius):
+        for idx in indices_list[i]:
             (olat, olon), _ = nodes_list[idx]
-            d = haversine_distance(float(lat), float(lon), olat, olon)
+            d = haversine_distance(lat, lon, olat, olon)
             if d is not None and d <= radius:
                 has_nearby = True
                 break

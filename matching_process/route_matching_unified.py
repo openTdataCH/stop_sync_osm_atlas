@@ -6,8 +6,6 @@ derived from ``atlas_routes_unified.csv`` and ``osm_nodes_with_routes.csv``.
 """
 import logging
 import os
-import re
-import xml.etree.ElementTree as ET
 from collections import defaultdict
 
 import pandas as pd
@@ -26,10 +24,7 @@ logger = logging.getLogger(__name__)
 # Data loaders (unchanged logic, cleaned up)
 # ---------------------------------------------------------------------------
 
-def _normalize_route_id_for_matching(route_id):
-    if not route_id:
-        return None
-    return re.sub(r'-j\d+', '-jXX', str(route_id))
+from utils.route_id import normalize_route_id
 
 
 def _normalize_direction_id(val):
@@ -39,55 +34,6 @@ def _normalize_direction_id(val):
         return str(int(float(val)))
     except Exception:
         return None
-
-
-def _get_osm_directions_from_xml(xml_file):
-    """Extract per-node direction strings from route relations in the OSM XML."""
-    try:
-        tree = ET.parse(xml_file)
-        root = tree.getroot()
-    except Exception:
-        return defaultdict(set), defaultdict(set)
-
-    node_id_to_name: dict[str, str] = {}
-    node_id_to_uic: dict[str, str] = {}
-    for node in root.findall('.//node'):
-        nid = node.get('id')
-        for tag in node.findall('./tag'):
-            k = tag.get('k')
-            if k == 'name':
-                node_id_to_name[nid] = tag.get('v')
-            elif k == 'uic_ref':
-                node_id_to_uic[nid] = tag.get('v')
-
-    name_dirs: dict[str, set] = defaultdict(set)
-    uic_dirs: dict[str, set] = defaultdict(set)
-
-    for relation in root.findall('.//relation'):
-        is_route = any(
-            t.get('k') == 'type' and t.get('v') == 'route'
-            for t in relation.findall('./tag')
-        )
-        if not is_route:
-            continue
-        members = [m.get('ref') for m in relation.findall("./member[@type='node']")]
-        if len(members) < 2:
-            continue
-        first, last = members[0], members[-1]
-        fn = node_id_to_name.get(first)
-        ln = node_id_to_name.get(last)
-        if fn and ln:
-            ds = f"{fn} → {ln}"
-            for nid in members:
-                name_dirs[nid].add(ds)
-        fu = node_id_to_uic.get(first)
-        lu = node_id_to_uic.get(last)
-        if fu and lu:
-            ds = f"{fu} → {lu}"
-            for nid in members:
-                uic_dirs[nid].add(ds)
-
-    return name_dirs, uic_dirs
 
 
 def _load_unified_routes(path: str = 'data/processed/atlas_routes_unified.csv'):
@@ -100,18 +46,19 @@ def _load_unified_routes(path: str = 'data/processed/atlas_routes_unified.csv'):
         logger.warning(f"Error loading unified routes: {exc}")
         return by_sloid
 
-    for _, row in df.iterrows():
-        sloid = str(row['sloid']) if pd.notna(row['sloid']) else None
+    df = df.where(pd.notna(df), None)
+    for row in df.to_dict(orient='records'):
+        sloid = str(row['sloid']) if row.get('sloid') is not None else None
         if not sloid:
             continue
         src = str(row.get('source', ''))
         entry = {
-            'route_id': row.get('route_id') if pd.notna(row.get('route_id')) else None,
-            'route_id_normalized': row.get('route_id_normalized') if pd.notna(row.get('route_id_normalized')) else None,
-            'line_name': row.get('line_name') if pd.notna(row.get('line_name')) else None,
+            'route_id': row.get('route_id'),
+            'route_id_normalized': row.get('route_id_normalized'),
+            'line_name': row.get('line_name'),
             'direction_id': _normalize_direction_id(row.get('direction_id')),
-            'direction_name': row.get('direction_name') if pd.notna(row.get('direction_name')) else None,
-            'direction_uic': row.get('direction_uic') if pd.notna(row.get('direction_uic')) else None,
+            'direction_name': row.get('direction_name'),
+            'direction_uic': row.get('direction_uic'),
         }
         if src == 'gtfs':
             by_sloid[sloid]['gtfs'].append(entry)
@@ -131,11 +78,10 @@ def _load_osm_routes(csv_path: str = 'data/processed/osm_nodes_with_routes.csv')
             candidate = os.path.join(gtfs_root, fname, 'routes.txt')
             if fname.startswith('gtfs') and os.path.exists(candidate):
                 try:
-                    gdf = pd.read_csv(candidate, dtype=str,
-                                      usecols=['route_id', 'route_short_name', 'route_long_name'])
-                    for _, r in gdf.iterrows():
+                    gdf = gdf.where(pd.notna(gdf), None)
+                    for r in gdf.to_dict(orient='records'):
                         for col in ('route_short_name', 'route_long_name'):
-                            if pd.notna(r.get(col)):
+                            if r.get(col):
                                 route_name_to_id[str(r[col]).strip()] = str(r['route_id']).strip()
                 except Exception:
                     pass
@@ -146,13 +92,14 @@ def _load_osm_routes(csv_path: str = 'data/processed/osm_nodes_with_routes.csv')
     except Exception:
         return mapping
 
-    for _, row in df.iterrows():
-        node_id = str(row.get('node_id')) if pd.notna(row.get('node_id')) else None
+    df = df.where(pd.notna(df), None)
+    for row in df.to_dict(orient='records'):
+        node_id = str(row.get('node_id')) if row.get('node_id') is not None else None
         if not node_id:
             continue
         direction_id = _normalize_direction_id(row.get('direction_id'))
-        route_name = str(row.get('route_name')).strip() if pd.notna(row.get('route_name')) else None
-        gtfs_id = str(row.get('gtfs_route_id')).strip() if pd.notna(row.get('gtfs_route_id')) else None
+        route_name = str(row.get('route_name')).strip() if row.get('route_name') is not None else None
+        gtfs_id = str(row.get('gtfs_route_id')).strip() if row.get('gtfs_route_id') is not None else None
         if not gtfs_id and route_name and route_name in route_name_to_id:
             gtfs_id = route_name_to_id[route_name]
         for did in ([direction_id] if direction_id is not None else ['0', '1']):
@@ -178,9 +125,17 @@ def route_match(ctx: MatchingContext) -> list[dict]:
         return matches
 
     osm_route_map = _load_osm_routes()
-    name_dirs, uic_dirs = _get_osm_directions_from_xml(ctx.osm_xml_file)
+    name_dirs = ctx.osm.name_dirs
+    uic_dirs = ctx.osm.uic_dirs
 
-    for entry in ctx.atlas.get_unmatched_records():
+    unmatched = ctx.atlas.get_unmatched_records()
+    if not unmatched:
+        return matches
+        
+    coords = [(float(e['wgs84North']), float(e['wgs84East'])) for e in unmatched]
+    batch_candidates = ctx.osm.batch_query_radius(coords, ctx.max_distance, include_stations=True)
+
+    for i, entry in enumerate(unmatched):
         sloid = str(entry.get('sloid', ''))
         if not sloid:
             continue
@@ -193,7 +148,7 @@ def route_match(ctx: MatchingContext) -> list[dict]:
         csv_lon = float(entry['wgs84East'])
 
         # Find OSM candidates within max_distance (route matching explicitly ALLOWS station mappings)
-        candidates = ctx.osm.query_radius(csv_lat, csv_lon, ctx.max_distance, include_stations=True)
+        candidates = batch_candidates[i]
         if not candidates:
             continue
             
@@ -239,7 +194,7 @@ def route_match(ctx: MatchingContext) -> list[dict]:
                     did = r.get('direction_id', '0')
                     if rid:
                         node_tokens.add((rid, did))
-                        norm = _normalize_route_id_for_matching(rid)
+                        norm = normalize_route_id(rid)
                         if norm:
                             node_tokens.add((norm, did))
                 if gtfs_tokens & node_tokens:

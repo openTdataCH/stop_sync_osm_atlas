@@ -299,12 +299,7 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
     return integrated
 
 
-def _normalize_route_id_for_matching(route_id: Optional[str]) -> Optional[str]:
-    """Normalize GTFS route_id by removing year codes like -j24, -j25, etc."""
-    if route_id is None or (isinstance(route_id, float) and pd.isna(route_id)):
-        return None
-    import re
-    return re.sub(r'-j\d+', '-jXX', str(route_id))
+# The normalize_route_id function is imported at module level when needed
 
 
 def match_gtfs_to_atlas(gtfs_data, traffic_points):

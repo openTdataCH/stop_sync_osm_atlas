@@ -14,13 +14,13 @@ def test_full_pipeline_micro_dataset():
     atlas_df = pd.read_csv("tests/data/sample_atlas.csv")
     
     # 1. Parse OSM XML
-    all_osm_nodes, uic_ref_dict, name_index = parse_osm_xml("tests/data/sample_osm.xml")
-    
+    all_osm_nodes, uic_ref_dict, name_index, osm_name_dirs, osm_uic_dirs = parse_osm_xml("tests/data/sample_osm.xml")
+
     # 2. Identify ATLAS duplicate groups (replicate prod logic)
     dup_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
     non_empty = atlas_df['designation'].notna() & (atlas_df['designation'].astype(str).str.strip() != '')
     dup_mask = dup_mask & non_empty
-    
+
     duplicate_sloid_map = {}
     for _, group_df in atlas_df[dup_mask].groupby(['number', 'designation'], sort=False):
         if len(group_df) <= 1:
@@ -38,7 +38,9 @@ def test_full_pipeline_micro_dataset():
     osm_index = OsmIndex(
         xml_nodes=all_osm_nodes,
         uic_ref_dict=uic_ref_dict,
-        name_index=name_index
+        name_index=name_index,
+        name_dirs=osm_name_dirs,
+        uic_dirs=osm_uic_dirs,
     )
 
     ctx = MatchingContext(

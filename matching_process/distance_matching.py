@@ -10,6 +10,7 @@ Three predicates, each progressively looser:
 from collections import defaultdict
 import logging
 
+import numpy as np
 import pandas as pd
 
 from matching_process.pipeline import MatchingContext, make_match
@@ -36,44 +37,48 @@ def bipartite_match(atlas_entries: list[dict], osm_nodes: list[dict],
     within *max_distance*.  Returns ``[]`` on any conflict or violation.
     """
     n = len(atlas_entries)
-    if n != len(osm_nodes) or n == 0:
+    m = len(osm_nodes)
+    if n != m or n == 0:
         return []
 
-    # Build and sort the full distance matrix
-    matrix: list[tuple[int, int, float]] = []
-    for ai, a in enumerate(atlas_entries):
-        for oi, o in enumerate(osm_nodes):
-            d = haversine_distance(
-                float(a['wgs84North']), float(a['wgs84East']),
-                o['lat'], o['lon'],
-            )
-            if d is not None:
-                matrix.append((ai, oi, d))
-    matrix.sort(key=lambda x: x[2])
+    # Extract coordinates
+    a_coords = np.array([(float(a['wgs84North']), float(a['wgs84East'])) for a in atlas_entries])
+    o_coords = np.array([(float(o['lat']), float(o['lon'])) for o in osm_nodes])
+    
+    # Broadcast to n x m x 2
+    lat1 = np.radians(a_coords[:, 0])[:, np.newaxis]
+    lon1 = np.radians(a_coords[:, 1])[:, np.newaxis]
+    lat2 = np.radians(o_coords[:, 0])[np.newaxis, :]
+    lon2 = np.radians(o_coords[:, 1])[np.newaxis, :]
+    
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    
+    a = np.sin(dlat/2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2)**2
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1.0 - a))
+    
+    R = 6371000.0
+    dist_matrix = R * c
 
-    # Each ATLAS entry's closest OSM
-    a_to_o: dict[int, tuple[int, float]] = {}
-    for ai, oi, d in matrix:
-        if ai not in a_to_o:
-            a_to_o[ai] = (oi, d)
+    # Find nearest OSM for each ATLAS
+    min_osm_indices = np.argmin(dist_matrix, axis=1)
+    # Find nearest ATLAS for each OSM
+    min_atlas_indices = np.argmin(dist_matrix, axis=0)
 
-    # Each OSM node's closest ATLAS
-    o_to_a: dict[int, tuple[int, float]] = {}
-    for ai, oi, d in matrix:
-        if oi not in o_to_a:
-            o_to_a[oi] = (ai, d)
-
-    # Reciprocal check
-    for ai, (oi, _) in a_to_o.items():
-        if oi in o_to_a and o_to_a[oi][0] != ai:
+    results = []
+    
+    for ai in range(n):
+        oi = min_osm_indices[ai]
+        if min_atlas_indices[oi] == ai: # Mutual nearest
+            d = float(dist_matrix[ai, oi])
+            if d <= max_distance:
+                results.append((ai, int(oi), d))
+            else:
+                return []
+        else:
             return []
-
-    # Distance check
-    for _, (_, d) in a_to_o.items():
-        if d > max_distance:
-            return []
-
-    return [(ai, oi, d) for ai, (oi, d) in a_to_o.items()]
+            
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +162,14 @@ def local_ref_distance(ctx: MatchingContext) -> list[dict]:
     """Match by exact ``local_ref`` == ATLAS ``designation`` within *max_distance*."""
     matches: list[dict] = []
 
-    for entry in ctx.atlas.get_unmatched_records():
+    unmatched = ctx.atlas.get_unmatched_records()
+    if not unmatched:
+        return matches
+
+    coords = [(float(e['wgs84North']), float(e['wgs84East'])) for e in unmatched]
+    batch_candidates = ctx.osm.batch_query_radius(coords, ctx.max_distance, include_stations=False)
+
+    for i, entry in enumerate(unmatched):
         desig = (
             str(entry.get('designation', '')).strip()
             if pd.notna(entry.get('designation')) else ''
@@ -165,14 +177,11 @@ def local_ref_distance(ctx: MatchingContext) -> list[dict]:
         if not desig:
             continue
 
-        csv_lat = float(entry['wgs84North'])
-        csv_lon = float(entry['wgs84East'])
-
         best_node = None
         best_dist = float('inf')
 
         # Will automatically omit used / station OSMs
-        candidates = ctx.osm.query_radius(csv_lat, csv_lon, ctx.max_distance, include_stations=False)
+        candidates = batch_candidates[i]
         for node, d in candidates:
             lr = (node.get('local_ref') or '').strip()
             if lr.lower() != desig.lower():
@@ -199,12 +208,16 @@ def nearest_distance(ctx: MatchingContext) -> list[dict]:
     """Single-candidate match or ratio-test match within *max_distance*."""
     matches: list[dict] = []
 
-    for entry in ctx.atlas.get_unmatched_records():
-        csv_lat = float(entry['wgs84North'])
-        csv_lon = float(entry['wgs84East'])
+    unmatched = ctx.atlas.get_unmatched_records()
+    if not unmatched:
+        return matches
 
+    coords = [(float(e['wgs84North']), float(e['wgs84East'])) for e in unmatched]
+    batch_candidates = ctx.osm.batch_query_radius(coords, ctx.max_distance, include_stations=False)
+
+    for i, entry in enumerate(unmatched):
         # Collect all candidates within max_distance (already filters out used IDs & stations natively via KDTree)
-        candidates = ctx.osm.query_radius(csv_lat, csv_lon, ctx.max_distance, include_stations=False)
+        candidates = batch_candidates[i]
         if not candidates:
             continue
             
