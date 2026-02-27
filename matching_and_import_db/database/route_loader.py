@@ -1,0 +1,244 @@
+"""
+Route data loaders for the database import pipeline.
+
+Loads and builds all route mappings (ATLAS unified routes, OSM routes,
+GTFS / HRDF direction groupings) needed by ``import_to_database``.
+"""
+import os
+
+import pandas as pd
+
+from matching_and_import_db.utils.route_id import normalize_route_id
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _safe_direction_id(val):
+    """Convert direction_id to a clean string ('0' or '1'), or None."""
+    try:
+        if pd.isna(val):
+            return None
+        return str(int(float(val)))
+    except (ValueError, TypeError):
+        return None
+
+
+def _nan_to_none(val):
+    """Convert pandas NaN/NaT to None."""
+    if pd.isna(val):
+        return None
+    return val
+
+
+# ---------------------------------------------------------------------------
+# Unified ATLAS routes
+# ---------------------------------------------------------------------------
+
+def _load_unified_routes_df():
+    """Read atlas_routes_unified.csv once and return the DataFrame (or empty)."""
+    unified_path = "data/processed/atlas_routes_unified.csv"
+    try:
+        return pd.read_csv(unified_path, low_memory=False, dtype=str)
+    except FileNotFoundError:
+        print("INFO: Unified routes file (atlas_routes_unified.csv) not found.")
+        return pd.DataFrame()
+    except Exception as e:
+        print(f"Error loading unified routes: {e}")
+        return pd.DataFrame()
+
+
+def _build_unified_mapping(unified_df: pd.DataFrame) -> dict:
+    """Build sloid -> list[route_entry] mapping from the unified DataFrame (vectorized)."""
+    if unified_df.empty:
+        return {}
+    df = unified_df.dropna(subset=['sloid']).copy()
+    # Replace NaN with None for clean dict output
+    df = df.where(df.notna(), None)
+    # Normalize direction_id in bulk
+    df['direction_id'] = df['direction_id'].apply(_safe_direction_id)
+    records = df.to_dict(orient='records')
+    mapping = {}
+    for rec in records:
+        sloid = str(rec['sloid'])
+        mapping.setdefault(sloid, []).append(rec)
+    return mapping
+
+
+# ---------------------------------------------------------------------------
+# OSM routes
+# ---------------------------------------------------------------------------
+
+def _build_osm_routes_mapping(osm_routes_df: pd.DataFrame) -> dict:
+    """Build node_id -> list[route_info] mapping from OSM routes (vectorized)."""
+    if osm_routes_df is None or osm_routes_df.empty:
+        return {}
+    df = osm_routes_df.copy()
+    valid = df[df['node_id'].notna() & (df['gtfs_route_id'].notna() | df['route_name'].notna())].copy()
+    valid['direction_id_clean'] = valid['direction_id'].apply(_safe_direction_id)
+    valid['route_id_clean'] = valid['gtfs_route_id'].where(valid['gtfs_route_id'].notna(), None)
+    valid['route_name_clean'] = valid['route_name'].where(valid['route_name'].notna(), None)
+    mapping = {}
+    for node_id, group in valid.groupby('node_id', sort=False):
+        mapping[str(node_id)] = [
+            {'route_id': r.route_id_clean, 'direction_id': r.direction_id_clean, 'route_name': r.route_name_clean}
+            for r in group.itertuples(index=False)
+        ]
+    return mapping
+
+
+# ---------------------------------------------------------------------------
+# GTFS helpers
+# ---------------------------------------------------------------------------
+
+def _find_gtfs_routes_txt():
+    """Locate the GTFS routes.txt file in data/raw/gtfs*/."""
+    gtfs_root = "data/raw"
+    if not os.path.isdir(gtfs_root):
+        return None
+    for fname in os.listdir(gtfs_root):
+        if fname.startswith("gtfs") and os.path.isdir(os.path.join(gtfs_root, fname)):
+            candidate = os.path.join(gtfs_root, fname, "routes.txt")
+            if os.path.exists(candidate):
+                return candidate
+    return None
+
+
+def _build_route_name_to_id() -> dict:
+    """Build fallback mapping from GTFS route names to route_id."""
+    path = _find_gtfs_routes_txt()
+    if not path:
+        return {}
+    try:
+        gdf = pd.read_csv(path, dtype=str, usecols=['route_id', 'route_short_name', 'route_long_name'])
+        mapping = {}
+        for col in ('route_short_name', 'route_long_name'):
+            mask = gdf[col].notna()
+            for name, rid in zip(gdf.loc[mask, col].str.strip(), gdf.loc[mask, 'route_id'].str.strip()):
+                mapping[name] = rid
+        return mapping
+    except Exception as e:
+        print(f"Warning: Failed to build GTFS route name mapping: {e}")
+        return {}
+
+
+def _build_osm_route_dir_to_nodes(osm_routes_df: pd.DataFrame, route_name_to_id: dict) -> dict:
+    """Build (route_id, direction_id) -> {nodes, route_name} from OSM routes (vectorized)."""
+    if osm_routes_df is None or osm_routes_df.empty:
+        return {}
+    df = osm_routes_df.copy()
+    df = df[df['node_id'].notna() & (df['gtfs_route_id'].notna() | df['route_name'].notna())].copy()
+    # Resolve route_id with fallback
+    df['resolved_route_id'] = df['gtfs_route_id'].where(
+        df['gtfs_route_id'].notna() & (df['gtfs_route_id'].astype(str).str.strip() != ''),
+        df['route_name'].map(route_name_to_id)
+    )
+    df = df[df['resolved_route_id'].notna()].copy()
+    df['resolved_route_id'] = df['resolved_route_id'].astype(str).str.strip()
+    df['dir_clean'] = df['direction_id'].apply(_safe_direction_id)
+    # Expand rows without direction to both 0 and 1
+    has_dir = df[df['dir_clean'].notna()].copy()
+    no_dir = df[df['dir_clean'].isna()].copy()
+    expanded = []
+    if not has_dir.empty:
+        expanded.append(has_dir[['node_id', 'resolved_route_id', 'dir_clean', 'route_name']].copy())
+    if not no_dir.empty:
+        for d in ['0', '1']:
+            part = no_dir[['node_id', 'resolved_route_id', 'route_name']].copy()
+            part['dir_clean'] = d
+            expanded.append(part)
+    if not expanded:
+        return {}
+    all_rows = pd.concat(expanded, ignore_index=True)
+    result = {}
+    for (route_id, direction_id), grp in all_rows.groupby(['resolved_route_id', 'dir_clean'], sort=False):
+        result[(route_id, direction_id)] = {
+            'nodes': grp['node_id'].astype(str).tolist(),
+            'route_name': _nan_to_none(grp['route_name'].iloc[0]) if grp['route_name'].notna().any() else None,
+        }
+    return result
+
+
+# ---------------------------------------------------------------------------
+# ATLAS direction groupings
+# ---------------------------------------------------------------------------
+
+def _build_atlas_route_dir_mappings(unified_df: pd.DataFrame):
+    """Build GTFS and HRDF route-direction groupings from unified DataFrame.
+
+    Returns (atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids).
+    """
+    atlas_route_dir_to_sloids = {}
+    atlas_line_diruic_to_sloids = {}
+    if unified_df.empty:
+        return atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids
+
+    df = unified_df.dropna(subset=['sloid']).copy()
+    df['direction_id_clean'] = df['direction_id'].apply(_safe_direction_id)
+
+    # GTFS routes
+    gtfs = df[(df['source'] == 'gtfs') & df['route_id'].notna() & df['direction_id_clean'].notna()]
+    for (route_id, direction_id), grp in gtfs.groupby(['route_id', 'direction_id_clean'], sort=False):
+        first = grp.iloc[0]
+        atlas_route_dir_to_sloids[(str(route_id), str(direction_id))] = {
+            'sloids': grp['sloid'].astype(str).tolist(),
+            'route_short_name': _nan_to_none(first.get('route_name_short')),
+            'route_long_name': _nan_to_none(first.get('route_name_long')),
+            'route_id_normalized': _nan_to_none(first.get('route_id_normalized')),
+        }
+
+    # HRDF routes
+    hrdf = df[(df['source'] == 'hrdf') & df['line_name'].notna() & df['direction_uic'].notna()]
+    for (line_name, direction_uic), grp in hrdf.groupby(['line_name', 'direction_uic'], sort=False):
+        first = grp.iloc[0]
+        atlas_line_diruic_to_sloids[(str(line_name), str(direction_uic))] = {
+            'sloids': grp['sloid'].astype(str).tolist(),
+            'direction_name': _nan_to_none(first.get('direction_name')),
+        }
+
+    return atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def load_all_route_data(osm_routes_df: pd.DataFrame = None):
+    """Load all route data in a single pass over each CSV.
+
+    Returns a dict with all route mappings needed for the import:
+      - atlas_routes_mapping_unified: sloid -> list[route_entry] (for JSONB on AtlasStop)
+      - osm_routes_mapping: node_id -> list[route_info] (for JSONB on OsmNode)
+      - osm_route_dir_to_nodes: (route_id, dir) -> {nodes, route_name}
+      - atlas_route_dir_to_sloids: (route_id, dir) -> {sloids, ...}
+      - atlas_line_diruic_to_sloids: (line_name, dir_uic) -> {sloids, ...}
+    """
+    # 1. Read atlas_routes_unified.csv ONCE
+    unified_df = _load_unified_routes_df()
+    atlas_routes_mapping_unified = _build_unified_mapping(unified_df)
+    atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids = _build_atlas_route_dir_mappings(unified_df)
+    print(f"Loaded unified route information for {len(atlas_routes_mapping_unified)} ATLAS stops")
+    print(f"Built GTFS route+direction to sloids mapping for {len(atlas_route_dir_to_sloids)} ATLAS routes")
+    print(f"Built HRDF line+direction_uic to sloids mapping for {len(atlas_line_diruic_to_sloids)} ATLAS routes")
+
+    # 2. Read osm_nodes_with_routes.csv ONCE
+    if osm_routes_df is None:
+        try:
+            osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
+        except Exception:
+            osm_routes_df = pd.DataFrame()
+
+    osm_routes_mapping = _build_osm_routes_mapping(osm_routes_df)
+    route_name_to_id = _build_route_name_to_id()
+    osm_route_dir_to_nodes = _build_osm_route_dir_to_nodes(osm_routes_df, route_name_to_id)
+    print(f"Loaded route information for {len(osm_routes_mapping)} OSM nodes")
+    print(f"Built route+direction to nodes mapping for {len(osm_route_dir_to_nodes)} OSM routes")
+
+    return {
+        'atlas_routes_mapping_unified': atlas_routes_mapping_unified,
+        'osm_routes_mapping': osm_routes_mapping,
+        'osm_route_dir_to_nodes': osm_route_dir_to_nodes,
+        'atlas_route_dir_to_sloids': atlas_route_dir_to_sloids,
+        'atlas_line_diruic_to_sloids': atlas_line_diruic_to_sloids,
+    }

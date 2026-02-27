@@ -8,11 +8,8 @@ from dataclasses import dataclass, field
 import pandas as pd
 import logging
 
-from utils.common import haversine_distance
-from utils.match_record import create_match_record, extract_atlas_fields
-from utils.spatial_index import (
-    build_kdtree_from_nodes, meters_to_unit_chord_radius, batch_to_xyz,
-)
+from matching_and_import_db.utils.common import haversine_distance
+from matching_and_import_db.utils.match_record import create_match_record, extract_atlas_fields
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +39,6 @@ class PipelineOutput:
     matched: list
     unmatched_atlas: list
     unmatched_osm: list
-    duplicate_sloid_map: dict
-    no_nearby_osm_sloids: set
 
 
 # ---------------------------------------------------------------------------
@@ -81,9 +76,6 @@ def run_pipeline(predicates: list, ctx: MatchingContext) -> PipelineOutput:
     """
     for predicate in predicates:
         unmatched = ctx.atlas.get_unmatched_records()
-        if not unmatched:
-            logger.info(f"  Skipping {predicate.__name__}: no unmatched ATLAS entries")
-            continue
 
         logger.info(
             f"  Running {predicate.__name__} "
@@ -108,62 +100,8 @@ def run_pipeline(predicates: list, ctx: MatchingContext) -> PipelineOutput:
     unmatched_atlas = ctx.atlas.get_unmatched_records()
     unmatched_osm = ctx.osm.get_unmatched_nodes()
 
-    no_nearby = compute_no_nearby_osm(
-        unmatched_atlas, ctx.osm._all_nodes, radius=ctx.max_distance,
-    )
-
     return PipelineOutput(
         matched=ctx.all_matches,
         unmatched_atlas=unmatched_atlas,
         unmatched_osm=unmatched_osm,
-        duplicate_sloid_map=ctx.atlas.duplicate_sloid_map,
-        no_nearby_osm_sloids=no_nearby,
     )
-
-
-# ---------------------------------------------------------------------------
-# Post-processing helpers
-# ---------------------------------------------------------------------------
-
-def compute_no_nearby_osm(unmatched_atlas: list, osm_nodes: dict,
-                          radius: float = 50) -> set:
-    """Return SLOIDs of unmatched ATLAS entries with no OSM node within *radius* m."""
-    tree, _points, nodes_list = build_kdtree_from_nodes(osm_nodes)
-    if tree is None:
-        return {e.get('sloid') for e in unmatched_atlas if e.get('sloid')}
-
-    # Collect valid entries with coordinates
-    valid_entries = []
-    coords = []
-    for entry in unmatched_atlas:
-        lat = entry.get('wgs84North')
-        lon = entry.get('wgs84East')
-        if lat is not None and lon is not None:
-            valid_entries.append(entry)
-            coords.append((float(lat), float(lon)))
-
-    if not coords:
-        return set()
-
-    kd_radius = meters_to_unit_chord_radius(radius)
-    points = batch_to_xyz(coords)
-    
-    # Batch query all points at once
-    indices_list = tree.query_ball_point(points, r=kd_radius, workers=-1)
-
-    no_nearby: set = set()
-    for i, entry in enumerate(valid_entries):
-        lat, lon = coords[i]
-        has_nearby = False
-        for idx in indices_list[i]:
-            (olat, olon), _ = nodes_list[idx]
-            d = haversine_distance(lat, lon, olat, olon)
-            if d is not None and d <= radius:
-                has_nearby = True
-                break
-        if not has_nearby:
-            sloid = entry.get('sloid')
-            if sloid:
-                no_nearby.add(sloid)
-
-    return no_nearby

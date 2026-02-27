@@ -111,7 +111,7 @@ Downloads are cached under `data/raw/` and processed artifacts under `data/proce
 
 ### Data Import
 
-After acquisition, `matching_and_import_db/import_data_db.py` populates the Postgres databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
+After acquisition, `matching_and_import_db/database/importer.py` populates the Postgres databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
 
 Set `SKIP_DATA_IMPORT=true` to bypass acquisition/import when you only want to run the web app against an existing database.
 
@@ -122,7 +122,7 @@ If you have VS Code installed, we have provided built-in tasks to quickly run co
 2. Select **`Tasks: Run Task`**.
 3. Choose one of the predefined tasks:
    - **`Docker: Run All Tests`**: Executes the `pytest` suite.
-   - **`Docker: Run Import Data (Match Only)`**: Manually runs the `matching_and_import_db/import_data_db.py` matching script.
+   - **`Docker: Run Import Data (Match Only)`**: Manually runs the `matching_and_import_db/database/importer.py` matching script.
    - **`Docker: Run Full Data Pipeline`**: Downloads new data and automatically runs the matcher.
 
 You can do this while the `app` container is running in the background.

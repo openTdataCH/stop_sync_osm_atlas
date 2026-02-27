@@ -9,7 +9,6 @@ import os
 import datetime
 from typing import Optional
 
-from utils.timing import timed_phase
 
 from .geo_utils import filter_points_in_switzerland
 from .get_atlas_gtfs import (
@@ -17,7 +16,7 @@ from .get_atlas_gtfs import (
     load_gtfs_data_streaming,
     build_integrated_gtfs_data_streaming,
 )
-from utils.route_id import normalize_route_id as _normalize_route_id_for_matching
+from matching_and_import_db.utils.route_id import normalize_route_id as _normalize_route_id_for_matching
 from .get_atlas_hrdf import (
     download_and_extract_hrdf,
     process_hrdf_direction_data,
@@ -163,8 +162,7 @@ if __name__ == "__main__":
     atlas_stops_csv_output_path = "data/raw/stops_ATLAS.csv"
     download_url = "https://data.opentransportdata.swiss/en/dataset/traffic-points-actual-date/permalink"
 
-    with timed_phase("ATLAS: download + filter stops"):
-        get_atlas_stops(atlas_stops_csv_output_path, download_url)
+    get_atlas_stops(atlas_stops_csv_output_path, download_url)
     
     # Load traffic points data
     stops_data = pd.read_csv(atlas_stops_csv_output_path, sep=';')
@@ -176,13 +174,10 @@ if __name__ == "__main__":
     gtfs_stream = None
     integrated_data = None
     try:
-        with timed_phase("GTFS: download + extract"):
-            gtfs_folder = download_and_extract_gtfs(gtfs_url)
+        gtfs_folder = download_and_extract_gtfs(gtfs_url)
 
-        with timed_phase("GTFS: load + integrate"):
-            gtfs_stream = load_gtfs_data_streaming(gtfs_folder)
-            integrated_data = build_integrated_gtfs_data_streaming(gtfs_stream, stops_data)
-
+        gtfs_stream = load_gtfs_data_streaming(gtfs_folder)
+        integrated_data = build_integrated_gtfs_data_streaming(gtfs_stream, stops_data)
 
         # Print statistics
         total_gtfs_stops = len(integrated_data['stop_id'].unique())
@@ -206,16 +201,14 @@ if __name__ == "__main__":
     
     hrdf_results = None
     try:
-        with timed_phase("HRDF: download + extract"):
-            hrdf_folder = download_and_extract_hrdf(hrdf_url)
+        hrdf_folder = download_and_extract_hrdf(hrdf_url)
         
         if os.path.exists(hrdf_folder):
             # List the contents of the HRDF folder to see what files we have
             hrdf_files = os.listdir(hrdf_folder)
             print(f"HRDF: folder contains {len(hrdf_files)} items")
             
-            with timed_phase("HRDF: parse + build directions"):
-                hrdf_results = process_hrdf_direction_data(stops_data, hrdf_folder)
+            hrdf_results = process_hrdf_direction_data(stops_data, hrdf_folder)
             
             if hrdf_results is not None:
                 print("\n=== HRDF Direction Summary ===")
@@ -233,14 +226,13 @@ if __name__ == "__main__":
     
     # Build unified routes file directly from source data
     try:
-        with timed_phase("Unified routes: write atlas_routes_unified.csv"):
-            write_unified_routes_csv_direct(
-                gtfs_data=gtfs_stream,
-                hrdf_data=hrdf_results,
-                traffic_points=stops_data,
-                integrated_gtfs_data=integrated_data,
-                unified_out_path="data/processed/atlas_routes_unified.csv"
-            )
+        write_unified_routes_csv_direct(
+            gtfs_data=gtfs_stream,
+            hrdf_data=hrdf_results,
+            traffic_points=stops_data,
+            integrated_gtfs_data=integrated_data,
+            unified_out_path="data/processed/atlas_routes_unified.csv"
+        )
     except Exception as e:
         print(f"Error writing unified routes CSV: {e}")
 

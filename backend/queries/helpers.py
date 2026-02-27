@@ -43,12 +43,12 @@ def optimize_query_for_endpoint(query, endpoint_type):
     }
     config = eager_load_config.get(endpoint_type, {'atlas': True, 'osm': True})
     from sqlalchemy.orm import joinedload
-    from backend.models import Stop
+    from backend.models import StopsMatched
     options = []
     if config['atlas']:
-        options.append(joinedload(Stop.atlas_stop_details))
+        options.append(joinedload(StopsMatched.atlas_stop_details))
     if config['osm']:
-        options.append(joinedload(Stop.osm_node_details))
+        options.append(joinedload(StopsMatched.osm_node_details))
     if options:
         query = query.options(*options)
     return query

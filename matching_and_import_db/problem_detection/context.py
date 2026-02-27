@@ -12,7 +12,7 @@ from typing import Optional
 
 from scipy.spatial import KDTree
 
-from utils.spatial_index import to_xyz, batch_to_xyz, meters_to_unit_chord_radius
+from matching_and_import_db.utils.spatial_index import to_xyz, batch_to_xyz, meters_to_unit_chord_radius
 
 logger = logging.getLogger(__name__)
 

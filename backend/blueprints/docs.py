@@ -583,11 +583,11 @@ def _get_realtime_db_stats() -> Dict:
     """
     try:
         from backend.extensions import db
-        from backend.models import Stop, Problem, PersistentData
+        from backend.models import StopsMatched, Problem, PersistentData
         from sqlalchemy import func
         
         # Total stops in database
-        total_stops = db.session.query(func.count(Stop.id)).scalar() or 0
+        total_stops = db.session.query(func.count(StopsMatched.id)).scalar() or 0
         
         # Problem statistics
         total_problems = db.session.query(func.count(Problem.id)).scalar() or 0

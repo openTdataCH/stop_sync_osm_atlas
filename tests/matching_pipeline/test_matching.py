@@ -42,7 +42,7 @@ class TestHaversineDistance:
 
     def test_same_point_returns_zero(self):
         """Two identical points should have zero distance."""
-        from utils.common import haversine_distance
+        from matching_and_import_db.utils.common import haversine_distance
 
         distance = haversine_distance(47.0, 8.0, 47.0, 8.0)
         assert distance is not None
@@ -50,7 +50,7 @@ class TestHaversineDistance:
 
     def test_known_distance_zurich_bern(self, known_coordinates):
         """Test with known distance between Zürich and Bern."""
-        from utils.common import haversine_distance
+        from matching_and_import_db.utils.common import haversine_distance
 
         coords = known_coordinates['zurich_bern']
         lat1, lon1 = coords['point1']
@@ -66,7 +66,7 @@ class TestHaversineDistance:
 
     def test_short_distance(self, known_coordinates):
         """Test short distance calculation (< 100m)."""
-        from utils.common import haversine_distance
+        from matching_and_import_db.utils.common import haversine_distance
 
         coords = known_coordinates['short_distance']
         lat1, lon1 = coords['point1']
@@ -79,7 +79,7 @@ class TestHaversineDistance:
 
     def test_invalid_input_returns_none(self):
         """Invalid inputs should return None, not raise exceptions."""
-        from utils.common import haversine_distance
+        from matching_and_import_db.utils.common import haversine_distance
 
         assert haversine_distance('invalid', 8.0, 47.0, 8.0) is None
         assert haversine_distance(47.0, None, 47.0, 8.0) is None
@@ -87,7 +87,7 @@ class TestHaversineDistance:
 
     def test_string_numbers_work(self):
         """String representations of numbers should work."""
-        from utils.common import haversine_distance
+        from matching_and_import_db.utils.common import haversine_distance
 
         distance = haversine_distance('47.0', '8.0', '47.0', '8.0')
         assert distance is not None
@@ -98,33 +98,33 @@ class TestIsOsmStation:
     """Tests for the is_osm_station function."""
 
     def test_railway_station_is_station(self):
-        from utils.common import is_osm_station
+        from matching_and_import_db.utils.common import is_osm_station
         node = {'tags': {'railway': 'station'}}
         assert is_osm_station(node) is True
 
     def test_public_transport_station_is_station(self):
-        from utils.common import is_osm_station
+        from matching_and_import_db.utils.common import is_osm_station
         node = {'tags': {'public_transport': 'station'}}
         assert is_osm_station(node) is True
 
     def test_aerialway_station_is_not_station(self):
-        from utils.common import is_osm_station
+        from matching_and_import_db.utils.common import is_osm_station
         node = {'tags': {'aerialway': 'station'}}
         assert is_osm_station(node) is False
 
     def test_stop_position_is_not_station(self):
-        from utils.common import is_osm_station
+        from matching_and_import_db.utils.common import is_osm_station
         node = {'tags': {'public_transport': 'stop_position'}}
         assert is_osm_station(node) is False
 
     def test_empty_tags_is_not_station(self):
-        from utils.common import is_osm_station
+        from matching_and_import_db.utils.common import is_osm_station
         assert is_osm_station({'tags': {}}) is False
         assert is_osm_station({}) is False
 
     def test_combined_tags_railway_and_aerialway(self):
         """When both railway=station and aerialway=station present, aerialway takes precedence."""
-        from utils.common import is_osm_station
+        from matching_and_import_db.utils.common import is_osm_station
         node = {'tags': {'railway': 'station', 'aerialway': 'station'}}
         assert is_osm_station(node) is False
 
@@ -138,23 +138,23 @@ class TestNormalizeRouteId:
     """Tests for route ID normalization."""
 
     def test_normalize_journey_numbers(self):
-        from utils.route_id import normalize_route_id as _normalize_route_id_for_matching
+        from matching_and_import_db.utils.route_id import normalize_route_id as _normalize_route_id_for_matching
         assert _normalize_route_id_for_matching('route-j25') == 'route-jXX'
         assert _normalize_route_id_for_matching('route-j123') == 'route-jXX'
         assert _normalize_route_id_for_matching('IC-j1') == 'IC-jXX'
 
     def test_no_journey_number_unchanged(self):
-        from utils.route_id import normalize_route_id as _normalize_route_id_for_matching
+        from matching_and_import_db.utils.route_id import normalize_route_id as _normalize_route_id_for_matching
         assert _normalize_route_id_for_matching('route123') == 'route123'
         assert _normalize_route_id_for_matching('IC') == 'IC'
 
     def test_none_input(self):
-        from utils.route_id import normalize_route_id as _normalize_route_id_for_matching
+        from matching_and_import_db.utils.route_id import normalize_route_id as _normalize_route_id_for_matching
         assert _normalize_route_id_for_matching(None) is None
         assert _normalize_route_id_for_matching('') is None
 
     def test_multiple_journey_patterns(self):
-        from utils.route_id import normalize_route_id as _normalize_route_id_for_matching
+        from matching_and_import_db.utils.route_id import normalize_route_id as _normalize_route_id_for_matching
         assert _normalize_route_id_for_matching('route-j1-j2') == 'route-jXX-jXX'
 
 
@@ -162,22 +162,22 @@ class TestNormalizeDirectionId:
     """Tests for direction ID normalization."""
 
     def test_integer_string(self):
-        from matching_and_import_db.route_matching_unified import _normalize_direction_id
+        from matching_and_import_db.predicates.route_matching_unified import _normalize_direction_id
         assert _normalize_direction_id('123') == '123'
         assert _normalize_direction_id('1') == '1'
 
     def test_float_to_int_string(self):
-        from matching_and_import_db.route_matching_unified import _normalize_direction_id
+        from matching_and_import_db.predicates.route_matching_unified import _normalize_direction_id
         assert _normalize_direction_id(123.0) == '123'
         assert _normalize_direction_id('123.0') == '123'
 
     def test_nan_returns_none(self):
-        from matching_and_import_db.route_matching_unified import _normalize_direction_id
+        from matching_and_import_db.predicates.route_matching_unified import _normalize_direction_id
         assert _normalize_direction_id(pd.NA) is None
         assert _normalize_direction_id(float('nan')) is None
 
     def test_invalid_value_returns_none(self):
-        from matching_and_import_db.route_matching_unified import _normalize_direction_id
+        from matching_and_import_db.predicates.route_matching_unified import _normalize_direction_id
         assert _normalize_direction_id('invalid') is None
 
 
@@ -392,7 +392,7 @@ class TestExactMatching:
 
     def test_no_matching_uic(self, matching_context):
         """ATLAS entries with no matching UIC should produce no matches."""
-        from matching_and_import_db.exact_matching import exact_uic
+        from matching_and_import_db.predicates.exact_matching import exact_uic
 
         # Clear the uic_ref_dict so nothing matches
         matching_context.osm._uic_ref_dict = {}
@@ -402,7 +402,7 @@ class TestExactMatching:
 
     def test_single_osm_for_uic(self):
         """When only one OSM node has the UIC, all ATLAS entries with that UIC match it."""
-        from matching_and_import_db.exact_matching import exact_uic
+        from matching_and_import_db.predicates.exact_matching import exact_uic
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1'],
@@ -435,7 +435,7 @@ class TestExactMatching:
 
     def test_match_record_structure(self, matching_context):
         """Verify exact matching returns properly structured match records."""
-        from matching_and_import_db.exact_matching import exact_uic
+        from matching_and_import_db.predicates.exact_matching import exact_uic
 
         matches = exact_uic(matching_context)
 
@@ -449,7 +449,7 @@ class TestExactMatching:
 
     def test_used_osm_ids_updated(self, matching_context):
         """Matched OSM IDs should be added to ctx.osm.used_ids."""
-        from matching_and_import_db.exact_matching import exact_uic
+        from matching_and_import_db.predicates.exact_matching import exact_uic
 
         matches = exact_uic(matching_context)
 
@@ -458,7 +458,7 @@ class TestExactMatching:
 
     def test_many_to_many_refines_by_local_ref(self):
         """Multiple ATLAS + multiple OSM should refine by designation == local_ref."""
-        from matching_and_import_db.exact_matching import exact_uic
+        from matching_and_import_db.predicates.exact_matching import exact_uic
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1', 's2'],
@@ -506,7 +506,7 @@ class TestNameMatching:
 
     def test_no_name_match(self, matching_context):
         """No matching names should result in no matches."""
-        from matching_and_import_db.name_matching import name_match
+        from matching_and_import_db.predicates.name_matching import name_match
 
         matching_context.osm._name_index = {}
 
@@ -515,7 +515,7 @@ class TestNameMatching:
 
     def test_single_candidate_matched(self):
         """A single candidate for a name should be matched directly."""
-        from matching_and_import_db.name_matching import name_match
+        from matching_and_import_db.predicates.name_matching import name_match
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1'],
@@ -546,7 +546,7 @@ class TestNameMatching:
 
     def test_multiple_candidates_refines_by_local_ref(self):
         """Multiple name candidates should refine by designation == local_ref."""
-        from matching_and_import_db.name_matching import name_match
+        from matching_and_import_db.predicates.name_matching import name_match
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1'],
@@ -583,7 +583,7 @@ class TestNameMatching:
 
     def test_match_record_structure(self, matching_context):
         """Verify name matching returns properly structured records."""
-        from matching_and_import_db.name_matching import name_match
+        from matching_and_import_db.predicates.name_matching import name_match
 
         matches = name_match(matching_context)
 
@@ -604,7 +604,7 @@ class TestBipartiteMatch:
 
     def test_equal_size_conflict_free(self):
         """N-to-N with no conflicts should produce N pairs."""
-        from matching_and_import_db.distance_matching import bipartite_match
+        from matching_and_import_db.predicates.distance_matching import bipartite_match
 
         atlas = [
             {'wgs84North': 47.0, 'wgs84East': 8.0},
@@ -621,7 +621,7 @@ class TestBipartiteMatch:
 
     def test_unequal_size_returns_empty(self):
         """Different sizes should return empty."""
-        from matching_and_import_db.distance_matching import bipartite_match
+        from matching_and_import_db.predicates.distance_matching import bipartite_match
 
         atlas = [{'wgs84North': 47.0, 'wgs84East': 8.0}]
         osm = [
@@ -633,7 +633,7 @@ class TestBipartiteMatch:
 
     def test_exceeds_max_distance_returns_empty(self):
         """All pairs beyond max_distance should return empty."""
-        from matching_and_import_db.distance_matching import bipartite_match
+        from matching_and_import_db.predicates.distance_matching import bipartite_match
 
         atlas = [{'wgs84North': 47.0, 'wgs84East': 8.0}]
         osm = [{'lat': 48.0, 'lon': 9.0}]  # ~130 km away
@@ -642,7 +642,7 @@ class TestBipartiteMatch:
 
     def test_conflict_returns_empty(self):
         """Conflicting assignments (non-reciprocal) should return empty."""
-        from matching_and_import_db.distance_matching import bipartite_match
+        from matching_and_import_db.predicates.distance_matching import bipartite_match
 
         # Two ATLAS entries both closest to the same OSM node
         atlas = [
@@ -672,8 +672,8 @@ class TestMatchingIntegration:
     def test_exact_then_name_pipeline(self, matching_context):
         """Running exact_uic then name_match in sequence should work."""
         from matching_and_import_db.pipeline import run_pipeline
-        from matching_and_import_db.exact_matching import exact_uic
-        from matching_and_import_db.name_matching import name_match
+        from matching_and_import_db.predicates.exact_matching import exact_uic
+        from matching_and_import_db.predicates.name_matching import name_match
 
         output = run_pipeline([exact_uic, name_match], matching_context)
 
@@ -690,8 +690,8 @@ class TestMatchingIntegration:
     def test_matched_osm_ids_not_reused(self, matching_context):
         """An OSM node matched by exact should not be re-matched by name."""
         from matching_and_import_db.pipeline import run_pipeline
-        from matching_and_import_db.exact_matching import exact_uic
-        from matching_and_import_db.name_matching import name_match
+        from matching_and_import_db.predicates.exact_matching import exact_uic
+        from matching_and_import_db.predicates.name_matching import name_match
 
         output = run_pipeline([exact_uic, name_match], matching_context)
 

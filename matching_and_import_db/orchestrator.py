@@ -13,8 +13,6 @@ from collections import defaultdict
 
 import pandas as pd
 
-from utils.timing import timed_phase
-
 # Pipeline framework
 from matching_and_import_db.pipeline import MatchingContext, run_pipeline
 from matching_and_import_db.state import AtlasState, OsmState
@@ -109,51 +107,29 @@ def run_matching():
         ``{"matched": [...], "unmatched_atlas": [...], "unmatched_osm": [...]}``
     duplicate_sloid_map : dict
         ``{sloid_str: [list_of_group_sloids]}``
-    no_nearby_osm_sloids : set
-        SLOIDs of unmatched ATLAS entries with no OSM node within 50 m.
     """
 
     # ── Load data ────────────────────────────────────────────────────────
     atlas_csv_file = _locate_file('ATLAS_STOPS_CSV', 'data/raw/stops_ATLAS.csv', 'ATLAS')
     osm_xml_file = _locate_file('OSM_XML_FILE', 'data/raw/osm_data.xml', 'OSM')
 
-    with timed_phase("Matching: load ATLAS CSV"):
-        atlas_df = pd.read_csv(atlas_csv_file, sep=";")
+    atlas_df = pd.read_csv(atlas_csv_file, sep=";")
 
-    with timed_phase("Matching: parse OSM XML"):
-        osm_index = OsmState.from_xml_file(osm_xml_file)
+    osm_index = OsmState.from_xml_file(osm_xml_file)
 
-    # ── Identify ATLAS duplicate groups ──────────────────────────────────
-    dup_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
-    non_empty = atlas_df['designation'].notna() & (atlas_df['designation'].astype(str).str.strip() != '')
-    dup_mask = dup_mask & non_empty
+    # ── Identify ATLAS duplicate groups & init State ─────────────────────
+    atlas_state = AtlasState.from_dataframe(atlas_df)
+    duplicate_sloid_map = atlas_state.duplicate_sloid_map
 
-    with timed_phase("Identifying ATLAS duplicate groups"):
-        duplicate_sloid_map: dict[str, list[str]] = {}
-        for _, group_df in atlas_df[dup_mask].groupby(['number', 'designation'], sort=False):
-            if len(group_df) <= 1:
-                continue
-            sloids = sorted(group_df['sloid'].astype(str).tolist())
-            for s in sloids:
-                duplicate_sloid_map[s] = sloids
-
-    atlas_state = AtlasState(
-        atlas_df=atlas_df,
-        duplicate_sloid_map=duplicate_sloid_map
+    ctx = MatchingContext(
+        atlas=atlas_state,
+        osm=osm_index,
+        max_distance=50.0,
     )
 
-    with timed_phase("Context initialization"):
-        ctx = MatchingContext(
-            atlas=atlas_state,
-            osm=osm_index,
-            max_distance=50.0,
-        )
-
-    with timed_phase("Matching: predicate pipeline"):
-        output = run_pipeline(DEFAULT_PIPELINE, ctx)
+    output = run_pipeline(DEFAULT_PIPELINE, ctx)
 
     # ── Build return value (same shape as before) ────────────────────────
-    # NOTE: Isolation detection is now handled by ProblemContext in import_data_db.py
     base_data = {
         "matched": output.matched,
         "unmatched_atlas": output.unmatched_atlas,
@@ -163,7 +139,7 @@ def run_matching():
     # ── Summary ──────────────────────────────────────────────────────────
     _print_summary(output, atlas_df, duplicate_sloid_map)
 
-    return base_data, duplicate_sloid_map, output.no_nearby_osm_sloids
+    return base_data, duplicate_sloid_map
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +157,6 @@ def _print_summary(output, atlas_df, duplicate_sloid_map):
         print(f"  {mt}: {count}")
     print(f"Total matched: {len(output.matched)}")
     print(f"Unmatched ATLAS: {len(output.unmatched_atlas)}")
-    print(f"  └─ No OSM within 50 m: {len(output.no_nearby_osm_sloids)}")
     print(f"Unmatched OSM: {len(output.unmatched_osm)}")
 
     matched_dups = sum(
