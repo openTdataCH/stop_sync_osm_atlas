@@ -10,12 +10,8 @@ from collections import defaultdict
 
 import pandas as pd
 
-from matching_process.pipeline import MatchingContext
-from matching_process.match_record import create_match_record, extract_atlas_fields
-from matching_process.utils import haversine_distance
-from matching_process.spatial_index import (
-    build_kdtree_from_nodes, meters_to_unit_chord_radius, lat_lon_to_xyz_list, to_xyz,
-)
+from matching_and_import_db.pipeline import MatchingContext
+from utils.match_record import create_match_record, extract_atlas_fields
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +74,7 @@ def _load_osm_routes(csv_path: str = 'data/processed/osm_nodes_with_routes.csv')
             candidate = os.path.join(gtfs_root, fname, 'routes.txt')
             if fname.startswith('gtfs') and os.path.exists(candidate):
                 try:
+                    gdf = pd.read_csv(candidate, dtype=str)
                     gdf = gdf.where(pd.notna(gdf), None)
                     for r in gdf.to_dict(orient='records'):
                         for col in ('route_short_name', 'route_long_name'):

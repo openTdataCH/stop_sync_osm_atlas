@@ -17,14 +17,14 @@ from collections import defaultdict
 
 def _make_ctx(atlas_df, osm_nodes, uic_ref_dict, name_index):
     """Helper to build a MatchingContext from test data in the new API."""
-    from matching_process.pipeline import MatchingContext
-    from matching_process.state import AtlasState, OsmIndex
+    from matching_and_import_db.pipeline import MatchingContext
+    from matching_and_import_db.state import AtlasState, OsmState
 
     atlas_state = AtlasState(
         atlas_df=atlas_df,
         duplicate_sloid_map={},
     )
-    osm_idx = OsmIndex(
+    osm_idx = OsmState(
         xml_nodes=osm_nodes,
         uic_ref_dict=uic_ref_dict,
         name_index=name_index,
@@ -33,7 +33,7 @@ def _make_ctx(atlas_df, osm_nodes, uic_ref_dict, name_index):
 
 
 # =============================================================================
-# Tests for matching_process/utils.py
+# Tests for utils/common.py
 # =============================================================================
 
 
@@ -42,7 +42,7 @@ class TestHaversineDistance:
 
     def test_same_point_returns_zero(self):
         """Two identical points should have zero distance."""
-        from matching_process.utils import haversine_distance
+        from utils.common import haversine_distance
 
         distance = haversine_distance(47.0, 8.0, 47.0, 8.0)
         assert distance is not None
@@ -50,7 +50,7 @@ class TestHaversineDistance:
 
     def test_known_distance_zurich_bern(self, known_coordinates):
         """Test with known distance between Zürich and Bern."""
-        from matching_process.utils import haversine_distance
+        from utils.common import haversine_distance
 
         coords = known_coordinates['zurich_bern']
         lat1, lon1 = coords['point1']
@@ -66,7 +66,7 @@ class TestHaversineDistance:
 
     def test_short_distance(self, known_coordinates):
         """Test short distance calculation (< 100m)."""
-        from matching_process.utils import haversine_distance
+        from utils.common import haversine_distance
 
         coords = known_coordinates['short_distance']
         lat1, lon1 = coords['point1']
@@ -79,7 +79,7 @@ class TestHaversineDistance:
 
     def test_invalid_input_returns_none(self):
         """Invalid inputs should return None, not raise exceptions."""
-        from matching_process.utils import haversine_distance
+        from utils.common import haversine_distance
 
         assert haversine_distance('invalid', 8.0, 47.0, 8.0) is None
         assert haversine_distance(47.0, None, 47.0, 8.0) is None
@@ -87,7 +87,7 @@ class TestHaversineDistance:
 
     def test_string_numbers_work(self):
         """String representations of numbers should work."""
-        from matching_process.utils import haversine_distance
+        from utils.common import haversine_distance
 
         distance = haversine_distance('47.0', '8.0', '47.0', '8.0')
         assert distance is not None
@@ -98,33 +98,33 @@ class TestIsOsmStation:
     """Tests for the is_osm_station function."""
 
     def test_railway_station_is_station(self):
-        from matching_process.utils import is_osm_station
+        from utils.common import is_osm_station
         node = {'tags': {'railway': 'station'}}
         assert is_osm_station(node) is True
 
     def test_public_transport_station_is_station(self):
-        from matching_process.utils import is_osm_station
+        from utils.common import is_osm_station
         node = {'tags': {'public_transport': 'station'}}
         assert is_osm_station(node) is True
 
     def test_aerialway_station_is_not_station(self):
-        from matching_process.utils import is_osm_station
+        from utils.common import is_osm_station
         node = {'tags': {'aerialway': 'station'}}
         assert is_osm_station(node) is False
 
     def test_stop_position_is_not_station(self):
-        from matching_process.utils import is_osm_station
+        from utils.common import is_osm_station
         node = {'tags': {'public_transport': 'stop_position'}}
         assert is_osm_station(node) is False
 
     def test_empty_tags_is_not_station(self):
-        from matching_process.utils import is_osm_station
+        from utils.common import is_osm_station
         assert is_osm_station({'tags': {}}) is False
         assert is_osm_station({}) is False
 
     def test_combined_tags_railway_and_aerialway(self):
         """When both railway=station and aerialway=station present, aerialway takes precedence."""
-        from matching_process.utils import is_osm_station
+        from utils.common import is_osm_station
         node = {'tags': {'railway': 'station', 'aerialway': 'station'}}
         assert is_osm_station(node) is False
 
@@ -162,22 +162,22 @@ class TestNormalizeDirectionId:
     """Tests for direction ID normalization."""
 
     def test_integer_string(self):
-        from matching_process.route_matching_unified import _normalize_direction_id
+        from matching_and_import_db.route_matching_unified import _normalize_direction_id
         assert _normalize_direction_id('123') == '123'
         assert _normalize_direction_id('1') == '1'
 
     def test_float_to_int_string(self):
-        from matching_process.route_matching_unified import _normalize_direction_id
+        from matching_and_import_db.route_matching_unified import _normalize_direction_id
         assert _normalize_direction_id(123.0) == '123'
         assert _normalize_direction_id('123.0') == '123'
 
     def test_nan_returns_none(self):
-        from matching_process.route_matching_unified import _normalize_direction_id
+        from matching_and_import_db.route_matching_unified import _normalize_direction_id
         assert _normalize_direction_id(pd.NA) is None
         assert _normalize_direction_id(float('nan')) is None
 
     def test_invalid_value_returns_none(self):
-        from matching_process.route_matching_unified import _normalize_direction_id
+        from matching_and_import_db.route_matching_unified import _normalize_direction_id
         assert _normalize_direction_id('invalid') is None
 
 
@@ -190,7 +190,7 @@ class TestMakeMatch:
     """Tests for the make_match helper."""
 
     def test_creates_valid_record(self):
-        from matching_process.pipeline import make_match
+        from matching_and_import_db.pipeline import make_match
 
         atlas_entry = {
             'sloid': 'ch:1:sloid:1',
@@ -219,7 +219,7 @@ class TestMakeMatch:
         assert record['distance_m'] < 200
 
     def test_atlas_fields_extracted(self):
-        from matching_process.pipeline import make_match
+        from matching_and_import_db.pipeline import make_match
 
         atlas_entry = {
             'sloid': 'ch:1:sloid:1',
@@ -246,7 +246,7 @@ class TestPipelineRunner:
     """Tests for the run_pipeline function."""
 
     def test_empty_predicates_returns_all_unmatched(self, matching_context):
-        from matching_process.pipeline import run_pipeline
+        from matching_and_import_db.pipeline import run_pipeline
 
         output = run_pipeline([], matching_context)
 
@@ -254,7 +254,7 @@ class TestPipelineRunner:
         assert len(output.unmatched_atlas) == 3  # 3 atlas entries from fixture
 
     def test_simple_predicate_runs(self, matching_context):
-        from matching_process.pipeline import run_pipeline, make_match
+        from matching_and_import_db.pipeline import run_pipeline, make_match
 
         def always_match_first(ctx):
             """Dummy predicate that matches the first unmatched row."""
@@ -272,7 +272,7 @@ class TestPipelineRunner:
         assert len(output.unmatched_atlas) == 2
 
     def test_runner_updates_tracking_sets(self, matching_context):
-        from matching_process.pipeline import run_pipeline, make_match
+        from matching_and_import_db.pipeline import run_pipeline, make_match
 
         def match_one(ctx):
             unmatched = ctx.atlas.get_unmatched_records()
@@ -286,7 +286,7 @@ class TestPipelineRunner:
         assert len(matching_context.osm.used_ids) >= 1
 
     def test_multiple_predicates_chain(self, matching_context):
-        from matching_process.pipeline import run_pipeline, make_match
+        from matching_and_import_db.pipeline import run_pipeline, make_match
 
         call_order = []
 
@@ -314,7 +314,7 @@ class TestPipelineRunner:
 
     def test_skips_predicate_when_all_matched(self, matching_context):
         """If all ATLAS entries are matched, remaining predicates are skipped."""
-        from matching_process.pipeline import run_pipeline, make_match
+        from matching_and_import_db.pipeline import run_pipeline, make_match
 
         def match_all(ctx):
             results = []
@@ -340,7 +340,7 @@ class TestComputeNoNearbyOsm:
     """Tests for the compute_no_nearby_osm function."""
 
     def test_far_away_entry_detected(self):
-        from matching_process.pipeline import compute_no_nearby_osm
+        from matching_and_import_db.pipeline import compute_no_nearby_osm
 
         # An ATLAS entry far from any OSM node
         unmatched = [{'sloid': 'far_away', 'wgs84North': 0.0, 'wgs84East': 0.0}]
@@ -356,7 +356,7 @@ class TestComputeNoNearbyOsm:
         assert 'far_away' in result
 
     def test_nearby_entry_not_flagged(self):
-        from matching_process.pipeline import compute_no_nearby_osm
+        from matching_and_import_db.pipeline import compute_no_nearby_osm
 
         # ATLAS entry very close to an OSM node
         unmatched = [{'sloid': 'close', 'wgs84North': 47.0001, 'wgs84East': 8.0001}]
@@ -372,7 +372,7 @@ class TestComputeNoNearbyOsm:
         assert 'close' not in result
 
     def test_empty_unmatched(self):
-        from matching_process.pipeline import compute_no_nearby_osm
+        from matching_and_import_db.pipeline import compute_no_nearby_osm
 
         result = compute_no_nearby_osm([], {(47.0, 8.0): {
             'node_id': 'n1', 'lat': 47.0, 'lon': 8.0,
@@ -392,7 +392,7 @@ class TestExactMatching:
 
     def test_no_matching_uic(self, matching_context):
         """ATLAS entries with no matching UIC should produce no matches."""
-        from matching_process.exact_matching import exact_uic
+        from matching_and_import_db.exact_matching import exact_uic
 
         # Clear the uic_ref_dict so nothing matches
         matching_context.osm._uic_ref_dict = {}
@@ -402,7 +402,7 @@ class TestExactMatching:
 
     def test_single_osm_for_uic(self):
         """When only one OSM node has the UIC, all ATLAS entries with that UIC match it."""
-        from matching_process.exact_matching import exact_uic
+        from matching_and_import_db.exact_matching import exact_uic
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1'],
@@ -435,7 +435,7 @@ class TestExactMatching:
 
     def test_match_record_structure(self, matching_context):
         """Verify exact matching returns properly structured match records."""
-        from matching_process.exact_matching import exact_uic
+        from matching_and_import_db.exact_matching import exact_uic
 
         matches = exact_uic(matching_context)
 
@@ -449,7 +449,7 @@ class TestExactMatching:
 
     def test_used_osm_ids_updated(self, matching_context):
         """Matched OSM IDs should be added to ctx.osm.used_ids."""
-        from matching_process.exact_matching import exact_uic
+        from matching_and_import_db.exact_matching import exact_uic
 
         matches = exact_uic(matching_context)
 
@@ -458,7 +458,7 @@ class TestExactMatching:
 
     def test_many_to_many_refines_by_local_ref(self):
         """Multiple ATLAS + multiple OSM should refine by designation == local_ref."""
-        from matching_process.exact_matching import exact_uic
+        from matching_and_import_db.exact_matching import exact_uic
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1', 's2'],
@@ -506,7 +506,7 @@ class TestNameMatching:
 
     def test_no_name_match(self, matching_context):
         """No matching names should result in no matches."""
-        from matching_process.name_matching import name_match
+        from matching_and_import_db.name_matching import name_match
 
         matching_context.osm._name_index = {}
 
@@ -515,7 +515,7 @@ class TestNameMatching:
 
     def test_single_candidate_matched(self):
         """A single candidate for a name should be matched directly."""
-        from matching_process.name_matching import name_match
+        from matching_and_import_db.name_matching import name_match
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1'],
@@ -546,7 +546,7 @@ class TestNameMatching:
 
     def test_multiple_candidates_refines_by_local_ref(self):
         """Multiple name candidates should refine by designation == local_ref."""
-        from matching_process.name_matching import name_match
+        from matching_and_import_db.name_matching import name_match
 
         atlas_df = pd.DataFrame({
             'sloid': ['s1'],
@@ -583,7 +583,7 @@ class TestNameMatching:
 
     def test_match_record_structure(self, matching_context):
         """Verify name matching returns properly structured records."""
-        from matching_process.name_matching import name_match
+        from matching_and_import_db.name_matching import name_match
 
         matches = name_match(matching_context)
 
@@ -604,7 +604,7 @@ class TestBipartiteMatch:
 
     def test_equal_size_conflict_free(self):
         """N-to-N with no conflicts should produce N pairs."""
-        from matching_process.distance_matching import bipartite_match
+        from matching_and_import_db.distance_matching import bipartite_match
 
         atlas = [
             {'wgs84North': 47.0, 'wgs84East': 8.0},
@@ -621,7 +621,7 @@ class TestBipartiteMatch:
 
     def test_unequal_size_returns_empty(self):
         """Different sizes should return empty."""
-        from matching_process.distance_matching import bipartite_match
+        from matching_and_import_db.distance_matching import bipartite_match
 
         atlas = [{'wgs84North': 47.0, 'wgs84East': 8.0}]
         osm = [
@@ -633,7 +633,7 @@ class TestBipartiteMatch:
 
     def test_exceeds_max_distance_returns_empty(self):
         """All pairs beyond max_distance should return empty."""
-        from matching_process.distance_matching import bipartite_match
+        from matching_and_import_db.distance_matching import bipartite_match
 
         atlas = [{'wgs84North': 47.0, 'wgs84East': 8.0}]
         osm = [{'lat': 48.0, 'lon': 9.0}]  # ~130 km away
@@ -642,7 +642,7 @@ class TestBipartiteMatch:
 
     def test_conflict_returns_empty(self):
         """Conflicting assignments (non-reciprocal) should return empty."""
-        from matching_process.distance_matching import bipartite_match
+        from matching_and_import_db.distance_matching import bipartite_match
 
         # Two ATLAS entries both closest to the same OSM node
         atlas = [
@@ -671,9 +671,9 @@ class TestMatchingIntegration:
 
     def test_exact_then_name_pipeline(self, matching_context):
         """Running exact_uic then name_match in sequence should work."""
-        from matching_process.pipeline import run_pipeline
-        from matching_process.exact_matching import exact_uic
-        from matching_process.name_matching import name_match
+        from matching_and_import_db.pipeline import run_pipeline
+        from matching_and_import_db.exact_matching import exact_uic
+        from matching_and_import_db.name_matching import name_match
 
         output = run_pipeline([exact_uic, name_match], matching_context)
 
@@ -689,9 +689,9 @@ class TestMatchingIntegration:
 
     def test_matched_osm_ids_not_reused(self, matching_context):
         """An OSM node matched by exact should not be re-matched by name."""
-        from matching_process.pipeline import run_pipeline
-        from matching_process.exact_matching import exact_uic
-        from matching_process.name_matching import name_match
+        from matching_and_import_db.pipeline import run_pipeline
+        from matching_and_import_db.exact_matching import exact_uic
+        from matching_and_import_db.name_matching import name_match
 
         output = run_pipeline([exact_uic, name_match], matching_context)
 
@@ -701,7 +701,7 @@ class TestMatchingIntegration:
 
     def test_no_nearby_osm_in_output(self):
         """Pipeline output should flag entries with no nearby OSM node."""
-        from matching_process.pipeline import run_pipeline
+        from matching_and_import_db.pipeline import run_pipeline
 
         # One ATLAS entry in the middle of nowhere
         atlas_df = pd.DataFrame({

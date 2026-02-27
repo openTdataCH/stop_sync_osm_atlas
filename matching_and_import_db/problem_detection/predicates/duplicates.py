@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from matching_process.problem_detection.result import ProblemResult
-from matching_process.problem_detection.context import ProblemContext
+from matching_and_import_db.problem_detection.result import ProblemResult
+from matching_and_import_db.problem_detection.context import ProblemContext
 
 
 def duplicates_problem(ctx: ProblemContext, stop: dict) -> list[ProblemResult]:

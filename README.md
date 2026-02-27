@@ -103,15 +103,15 @@ flowchart LR
 
 When the `app` container starts (and data import is not skipped), the entrypoint runs:
 
-- `Download_and_process_data/get_atlas_data.py`: downloads ATLAS data and GTFS, builds optimized route/stop artifacts
-- `Download_and_process_data/get_osm_data.py`: fetches OSM data via Overpass and processes it
+- `matching_and_import_db/downloader/get_atlas_data.py`: downloads ATLAS data and GTFS, builds optimized route/stop artifacts
+- `matching_and_import_db/downloader/get_osm_data.py`: fetches OSM data via Overpass and processes it
 
 Downloads are cached under `data/raw/` and processed artifacts under `data/processed/` — see [1. Download and process data](documentation/1.%20Download%20and%20process%20data.md) for details.
 
 
 ### Data Import
 
-After acquisition, `import_data_db.py` populates the Postgres databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
+After acquisition, `matching_and_import_db/import_data_db.py` populates the Postgres databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
 
 Set `SKIP_DATA_IMPORT=true` to bypass acquisition/import when you only want to run the web app against an existing database.
 
@@ -122,7 +122,7 @@ If you have VS Code installed, we have provided built-in tasks to quickly run co
 2. Select **`Tasks: Run Task`**.
 3. Choose one of the predefined tasks:
    - **`Docker: Run All Tests`**: Executes the `pytest` suite.
-   - **`Docker: Run Import Data (Match Only)`**: Manually runs the `import_data_db.py` matching script.
+   - **`Docker: Run Import Data (Match Only)`**: Manually runs the `matching_and_import_db/import_data_db.py` matching script.
    - **`Docker: Run Full Data Pipeline`**: Downloads new data and automatically runs the matcher.
 
 You can do this while the `app` container is running in the background.

@@ -2,11 +2,10 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
 import math
 import pandas as pd
-from matching_process.matching_script import final_pipeline
-from matching_process.problem_detection import ProblemContext, run_problem_pipeline, STOP_PROBLEM_PIPELINE
-from matching_process.problem_detection.result import ProblemResult
+from matching_and_import_db.orchestrator import run_matching
+from matching_and_import_db.problem_detection import ProblemContext, run_problem_pipeline, STOP_PROBLEM_PIPELINE
+from matching_and_import_db.problem_detection.result import ProblemResult
 import os
-import re
 import time
 
 # Import models
@@ -878,7 +877,7 @@ if __name__ == "__main__":
     # Run the final pipeline to obtain base_data in-memory
     print("Running the final pipeline to obtain base data...")
     # Unpack the three return values
-    base_data, duplicate_sloid_map_result, no_nearby_sloids = final_pipeline()
+    base_data, duplicate_sloid_map_result, no_nearby_sloids = run_matching()
     # Directly import the in-memory base_data into the database
     print("Importing data into the database...")
     # Pass the new set of sloids to the import function

@@ -1,9 +1,13 @@
 import logging
-from typing import Optional
+import os
+import xml.etree.ElementTree as ET
+from collections import defaultdict
+
 import pandas as pd
 
-from matching_process.utils import is_osm_station, haversine_distance
-from matching_process.spatial_index import build_kdtree_from_nodes, lat_lon_to_xyz_list, batch_to_xyz, meters_to_unit_chord_radius
+from utils.common import is_osm_station, haversine_distance
+from utils.spatial_index import build_kdtree_from_nodes, batch_to_xyz, meters_to_unit_chord_radius
+from utils.org_standardization import standardize_operator
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +32,132 @@ class AtlasState:
         return {str(row['sloid']): row.to_dict() for _, row in self._df.iterrows()}
 
 
-class OsmIndex:
+class OsmState:
     """Manages OSM indexing, queries (spatial and attribute), and matching exclusion capabilities."""
     
+    @classmethod
+    def from_xml_file(cls, xml_file: str) -> 'OsmState':
+        """
+        Parse OSM XML and initialize OsmState.
+
+        * all_nodes:    {(lat, lon): node_entry}
+        * uic_ref_dict: {uic_ref_str: [node_entry, …]}
+        * name_index:   {name_str: [node_entry, …]}
+        * name_dirs:    {node_id: set of "FirstName → LastName" direction strings}
+        * uic_dirs:     {node_id: set of "FirstUIC → LastUIC" direction strings}
+        """
+        tree = ET.parse(xml_file)
+        root = tree.getroot()
+
+        all_nodes: dict[tuple, dict] = {}
+        uic_ref_dict: dict[str, list] = defaultdict(list)
+        name_index: dict[str, list] = defaultdict(list)
+
+        # Also collect per-node name/UIC for direction extraction from relations
+        node_id_to_name: dict[str, str] = {}
+        node_id_to_uic: dict[str, str] = {}
+
+        for node in root.iter("node"):
+            node_id = node.get("id")
+            try:
+                lat = float(node.get("lat"))
+                lon = float(node.get("lon"))
+            except (ValueError, TypeError):
+                continue
+
+            local_ref = None
+            tags: dict[str, str] = {}
+
+            for tag in node.findall("tag"):
+                k, v = tag.get("k"), tag.get("v")
+                if k == "operator":
+                    original = v
+                    v, changed = standardize_operator(v)
+                    if changed:
+                        tags['original_operator'] = original
+                tags[k] = v
+                if k == "local_ref":
+                    local_ref = v
+                elif k == "ref" and not local_ref:
+                    local_ref = v
+
+            entry = {
+                'node_id': node_id,
+                'lat': lat,
+                'lon': lon,
+                'local_ref': local_ref,
+                'tags': tags,
+            }
+            all_nodes[(lat, lon)] = entry
+
+            if "uic_ref" in tags:
+                uic_ref_dict[tags["uic_ref"]].append(entry)
+                node_id_to_uic[node_id] = tags["uic_ref"]
+
+            if "name" in tags:
+                node_id_to_name[node_id] = tags["name"]
+
+            for key in ('name', 'uic_name', 'gtfs:name'):
+                if key in tags:
+                    name_index[tags[key]].append(entry)
+
+        # Extract per-node direction strings from route relations (single pass)
+        name_dirs: dict[str, set] = defaultdict(set)
+        uic_dirs: dict[str, set] = defaultdict(set)
+
+        # Use sidecar CSV for directions instead of re-parsing relations from the XML
+        dir_csv_path = "data/processed/osm_directions.csv"
+        loaded_from_csv = False
+        
+        if os.path.exists(dir_csv_path):
+            try:
+                df = pd.read_csv(dir_csv_path, dtype=str)
+                df = df.where(pd.notna(df), None)
+                for r in df.to_dict(orient='records'):
+                    nid = str(r.get('node_id'))
+                    ds = str(r.get('direction_string'))
+                    dtype = str(r.get('dir_type'))
+                    if not ds or ds == 'None' or not nid or nid == 'None': continue
+                    if dtype == 'name':
+                        name_dirs[nid].add(ds)
+                    elif dtype == 'uic':
+                        uic_dirs[nid].add(ds)
+                loaded_from_csv = True
+            except Exception as e:
+                logger.warning(f"Error reading {dir_csv_path}: {e}")
+                
+        if not loaded_from_csv:
+            for relation in root.iter("relation"):
+                is_route = any(
+                    t.get('k') == 'type' and t.get('v') == 'route'
+                    for t in relation.findall('./tag')
+                )
+                if not is_route:
+                    continue
+                members = [m.get('ref') for m in relation.findall("./member[@type='node']")]
+                if len(members) < 2:
+                    continue
+                first, last = members[0], members[-1]
+                fn = node_id_to_name.get(first)
+                ln = node_id_to_name.get(last)
+                if fn and ln:
+                    ds = f"{fn} → {ln}"
+                    for nid in members:
+                        name_dirs[nid].add(ds)
+                fu = node_id_to_uic.get(first)
+                lu = node_id_to_uic.get(last)
+                if fu and lu:
+                    ds = f"{fu} → {lu}"
+                    for nid in members:
+                        uic_dirs[nid].add(ds)
+
+        logger.info(
+            f"Parsed OSM XML: {len(all_nodes)} nodes, "
+            f"{len(uic_ref_dict)} uic_ref entries, "
+            f"{len(name_dirs)} nodes with direction strings"
+        )
+        return cls(all_nodes, uic_ref_dict, name_index, dict(name_dirs), dict(uic_dirs))
+
     def __init__(self, xml_nodes: dict, uic_ref_dict: dict, name_index: dict,
                  name_dirs: dict = None, uic_dirs: dict = None):
         self._all_nodes = xml_nodes
@@ -46,11 +173,9 @@ class OsmIndex:
         self._cached_pts = []
         self._cached_nodes_list = []
         self._cached_include_stations = None
-        self._spatial_index_valid = False
         
     def mark_used(self, node_id: str):
         self.used_ids.add(node_id)
-        self._spatial_index_valid = False  # Mark spatial index dirty
         
     def is_used(self, node_id: str) -> bool:
         return node_id in self.used_ids
@@ -107,35 +232,6 @@ class OsmIndex:
             }
             self._cached_tree, self._cached_pts, self._cached_nodes_list = build_kdtree_from_nodes(valid_nodes)
             self._cached_include_stations = include_stations
-            self._spatial_index_valid = True
-
-    def query_radius(self, lat: float, lon: float, max_distance: float, include_stations: bool = False) -> list[tuple[dict, float]]:
-        """Query for matching nodes around a radius.
-        
-        Returns a list of tuples (node, actual_distance_in_meters).
-        Excludes used_osm_ids automatically.
-        """
-        self._ensure_spatial_index(include_stations)
-        
-        if self._cached_tree is None:
-            return []
-            
-        matches = []
-        kd_radius = meters_to_unit_chord_radius(max_distance)
-        q = lat_lon_to_xyz_list(lat, lon)
-        
-        for idx in self._cached_tree.query_ball_point(q, r=kd_radius):
-            (n_lat, n_lon), node = self._cached_nodes_list[idx]
-            
-            # Skip nodes that have already been used
-            if node['node_id'] in self.used_ids:
-                continue
-                
-            d = haversine_distance(lat, lon, n_lat, n_lon)
-            if d is not None and d <= max_distance:
-                matches.append((node, d))
-                
-        return matches
 
     def batch_query_radius(self, coords_list: list[tuple[float, float]], max_distance: float, include_stations: bool = False) -> list[list[tuple[dict, float]]]:
         """Query for matching nodes around a radius for multiple coordinates at once.

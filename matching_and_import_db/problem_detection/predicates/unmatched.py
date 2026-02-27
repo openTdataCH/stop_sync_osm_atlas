@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from matching_process.problem_detection.result import ProblemResult
-from matching_process.problem_detection.context import ProblemContext, _safe
+from matching_and_import_db.problem_detection.result import ProblemResult
+from matching_and_import_db.problem_detection.context import ProblemContext, _safe
 
 
 def _atlas_priority(ctx: ProblemContext, stop: dict) -> int:

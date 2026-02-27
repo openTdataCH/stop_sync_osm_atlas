@@ -7,7 +7,7 @@ refining by ``designation`` == ``local_ref`` when multiple candidates exist.
 from collections import defaultdict
 import pandas as pd
 
-from matching_process.pipeline import MatchingContext, make_match
+from matching_and_import_db.pipeline import MatchingContext, make_match
 
 def exact_uic(ctx: MatchingContext) -> list[dict]:
     """Match by ATLAS number == OSM uic_ref, refine by designation == local_ref."""

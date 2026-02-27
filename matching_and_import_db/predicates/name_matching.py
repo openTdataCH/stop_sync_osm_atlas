@@ -6,7 +6,7 @@ Matches ATLAS ``designationOfficial`` against OSM ``name`` / ``uic_name`` /
 """
 import pandas as pd
 
-from matching_process.pipeline import MatchingContext, make_match
+from matching_and_import_db.pipeline import MatchingContext, make_match
 
 
 def name_match(ctx: MatchingContext) -> list[dict]:

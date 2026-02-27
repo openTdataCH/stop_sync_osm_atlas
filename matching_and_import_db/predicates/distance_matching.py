@@ -13,8 +13,7 @@ import logging
 import numpy as np
 import pandas as pd
 
-from matching_process.pipeline import MatchingContext, make_match
-from matching_process.utils import is_osm_station, haversine_distance
+from matching_and_import_db.pipeline import MatchingContext, make_match
 
 logger = logging.getLogger(__name__)
 

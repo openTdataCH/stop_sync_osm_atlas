@@ -11,9 +11,9 @@ from __future__ import annotations
 import logging
 from typing import Callable
 
-from matching_process.problem_detection.context import ProblemContext
-from matching_process.problem_detection.result import ProblemResult
-from matching_process.problem_detection.predicates import (
+from matching_and_import_db.problem_detection.context import ProblemContext
+from matching_and_import_db.problem_detection.result import ProblemResult
+from matching_and_import_db.problem_detection.predicates import (
     distance_problem,
     attributes_problem,
     unmatched_problem,
