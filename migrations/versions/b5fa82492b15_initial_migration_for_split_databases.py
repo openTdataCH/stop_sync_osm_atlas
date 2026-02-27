@@ -39,7 +39,6 @@ def upgrade_():
         sa.Column('atlas_designation', sa.String(length=255), nullable=True),
         sa.Column('atlas_designation_official', sa.String(length=255), nullable=True),
         sa.Column('atlas_business_org_abbr', sa.String(length=100), nullable=True),
-        sa.Column('routes_unified', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column('duplicate_group_sloids', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.PrimaryKeyConstraint('sloid')
     )
@@ -61,38 +60,52 @@ def upgrade_():
         sa.Column('osm_aerialway', sa.String(length=255), nullable=True),
         sa.Column('osm_operator', sa.String(length=255), nullable=True),
         sa.Column('osm_node_type', sa.String(length=50), nullable=True),
-        sa.Column('routes_osm', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column('duplicate_group_node_ids', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.PrimaryKeyConstraint('osm_node_id')
     )
 
-    # routes_and_directions
-    op.create_table('routes_and_directions',
+    # route_atlas_stops
+    op.create_table('route_atlas_stops',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('direction_id', sa.String(length=20), nullable=True),
-        sa.Column('osm_route_id', sa.String(length=100), nullable=True),
-        sa.Column('osm_nodes_json', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column('atlas_route_id', sa.String(length=100), nullable=True),
-        sa.Column('atlas_sloids_json', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column('route_name', sa.String(length=255), nullable=True),
-        sa.Column('route_short_name', sa.String(length=50), nullable=True),
-        sa.Column('route_long_name', sa.String(length=255), nullable=True),
-        sa.Column('route_type', sa.String(length=50), nullable=True),
-        sa.Column('match_type', sa.String(length=50), nullable=True),
-        sa.Column('source', sa.String(length=10), nullable=True),
-        sa.Column('atlas_line_name', sa.String(length=100), nullable=True),
-        sa.Column('direction_uic', sa.String(length=50), nullable=True),
-        sa.Column('route_id_normalized', sa.String(length=100), nullable=True),
+        sa.Column('direction_id', sa.String(length=20), nullable=True),
+        sa.Column('sloid', sa.String(length=100), nullable=True),
+        sa.Column('stop_sequence', sa.Integer(), nullable=True),
+        sa.ForeignKeyConstraint(['sloid'], ['atlas_stops.sloid'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    with op.batch_alter_table('routes_and_directions') as batch_op:
-        batch_op.create_index('idx_atlas_line_direction_uic', ['atlas_line_name', 'direction_uic'], unique=False)
-        batch_op.create_index('idx_atlas_route_direction', ['atlas_route_id', 'direction_id'], unique=False)
-        batch_op.create_index('idx_osm_route_direction', ['osm_route_id', 'direction_id'], unique=False)
-        batch_op.create_index('idx_source', ['source'], unique=False)
+    with op.batch_alter_table('route_atlas_stops') as batch_op:
+        batch_op.create_index('idx_atlas_route_dir_seq', ['atlas_route_id', 'direction_id', 'stop_sequence'], unique=False)
+        batch_op.create_index(batch_op.f('ix_route_atlas_stops_sloid'), ['sloid'], unique=False)
 
-    # stops
-    op.create_table('stops',
+    # route_osm_stops
+    op.create_table('route_osm_stops',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('osm_route_id', sa.String(length=100), nullable=True),
+        sa.Column('direction_id', sa.String(length=20), nullable=True),
+        sa.Column('osm_node_id', sa.String(length=100), nullable=True),
+        sa.Column('stop_sequence', sa.Integer(), nullable=True),
+        sa.ForeignKeyConstraint(['osm_node_id'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('route_osm_stops') as batch_op:
+        batch_op.create_index('idx_osm_route_dir_seq', ['osm_route_id', 'direction_id', 'stop_sequence'], unique=False)
+        batch_op.create_index(batch_op.f('ix_route_osm_stops_osm_node_id'), ['osm_node_id'], unique=False)
+
+    # routes_matched
+    op.create_table('routes_matched',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('atlas_route_id', sa.String(length=100), nullable=True),
+        sa.Column('osm_route_id', sa.String(length=100), nullable=True),
+        sa.Column('match_type', sa.String(length=50), nullable=True),
+        sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('routes_matched') as batch_op:
+        batch_op.create_index('idx_routes_matched_atlas', ['atlas_route_id'], unique=False)
+        batch_op.create_index('idx_routes_matched_osm', ['osm_route_id'], unique=False)
+
+    # stops_matched
+    op.create_table('stops_matched',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('sloid', sa.String(length=100), nullable=True),
         sa.Column('stop_type', sa.String(length=50), nullable=True),
@@ -109,13 +122,12 @@ def upgrade_():
         sa.Column('has_osm_duplicate', sa.Boolean(), nullable=True),
         sa.PrimaryKeyConstraint('id')
     )
-    with op.batch_alter_table('stops') as batch_op:
+    with op.batch_alter_table('stops_matched') as batch_op:
         batch_op.create_index('idx_distance_m', ['distance_m'], unique=False)
         batch_op.create_index('idx_stop_type_match_type', ['stop_type', 'match_type'], unique=False)
-        # Note: GeoAlchemy2 automatically creates a GiST spatial index on
-        # geometry columns, so we do NOT create idx_stops_geom manually.
         batch_op.create_index(batch_op.f('ix_stops_osm_node_id'), ['osm_node_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_stops_sloid'), ['sloid'], unique=False)
+        batch_op.create_index('idx_stops_geom_gist', ['geom'], unique=False, postgresql_using='gist')
 
     # problems (depends on stops)
     op.create_table('problems',
@@ -127,7 +139,7 @@ def upgrade_():
         sa.Column('created_by_user_id', sa.Integer(), nullable=True),
         sa.Column('created_by_user_email', sa.String(length=255), nullable=True),
         sa.Column('priority', sa.Integer(), nullable=True),
-        sa.ForeignKeyConstraint(['stop_id'], ['stops.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['stop_id'], ['stops_matched.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('problems') as batch_op:

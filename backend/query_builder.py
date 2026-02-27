@@ -5,7 +5,7 @@ This module consolidates common filtering patterns to reduce code duplication an
 
 from backend.services.routes import get_stops_for_route
 from backend.extensions import db
-from backend.models import Stop, AtlasStop, OsmNode
+from backend.models import StopsMatched, AtlasStop, OsmNode
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 
@@ -23,12 +23,12 @@ class FilterBuilder:
         
         # Define transport type mappings
         transport_mappings = {
-            'ferry_terminal': Stop.osm_node_details.has(OsmNode.osm_amenity == 'ferry_terminal'),
-            'tram_stop': Stop.osm_node_details.has(OsmNode.osm_railway == 'tram_stop'),
-            'station': Stop.osm_node_details.has(db.and_(OsmNode.osm_public_transport == 'station', OsmNode.osm_aerialway != 'station')),
-            'platform': Stop.osm_node_details.has(OsmNode.osm_public_transport == 'platform'),
-            'stop_position': Stop.osm_node_details.has(OsmNode.osm_public_transport == 'stop_position'),
-            'aerialway_station': Stop.osm_node_details.has(OsmNode.osm_aerialway == 'station')
+            'ferry_terminal': StopsMatched.osm_node_details.has(OsmNode.osm_amenity == 'ferry_terminal'),
+            'tram_stop': StopsMatched.osm_node_details.has(OsmNode.osm_railway == 'tram_stop'),
+            'station': StopsMatched.osm_node_details.has(db.and_(OsmNode.osm_public_transport == 'station', OsmNode.osm_aerialway != 'station')),
+            'platform': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'platform'),
+            'stop_position': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'stop_position'),
+            'aerialway_station': StopsMatched.osm_node_details.has(OsmNode.osm_aerialway == 'station')
         }
         
         for transport_type in selected_transport_types:
@@ -45,9 +45,9 @@ class FilterBuilder:
         
         conditions = []
         if 'atlas' in node_types:
-            conditions.append(Stop.sloid.isnot(None))
+            conditions.append(StopsMatched.sloid.isnot(None))
         if 'osm' in node_types:
-            conditions.append(Stop.osm_node_id.isnot(None))
+            conditions.append(StopsMatched.osm_node_id.isnot(None))
         
         return conditions
     
@@ -57,7 +57,7 @@ class FilterBuilder:
         if not atlas_operators:
             return None
         
-        return Stop.atlas_stop_details.has(
+        return StopsMatched.atlas_stop_details.has(
             AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
         )
     
@@ -79,22 +79,22 @@ class FilterBuilder:
             direction = route_directions[i].strip()
             
             if filter_type == 'atlas':
-                conditions.append(Stop.sloid.like(f'%{value}%'))
+                conditions.append(StopsMatched.sloid.like(f'%{value}%'))
             elif filter_type == 'osm':
-                conditions.append(Stop.osm_node_id.like(f'%{value}%'))
+                conditions.append(StopsMatched.osm_node_id.like(f'%{value}%'))
             elif filter_type == 'route':
                 route_stops = route_query_func(value, direction if direction else None)
                 route_conditions = []
                 if route_stops['atlas_sloids']:
-                    route_conditions.append(Stop.sloid.in_(route_stops['atlas_sloids']))
+                    route_conditions.append(StopsMatched.sloid.in_(route_stops['atlas_sloids']))
                 if route_stops['osm_nodes']:
-                    route_conditions.append(Stop.osm_node_id.in_(route_stops['osm_nodes']))
+                    route_conditions.append(StopsMatched.osm_node_id.in_(route_stops['osm_nodes']))
                 if route_conditions:
                     conditions.append(db.or_(*route_conditions) if len(route_conditions) > 1 else route_conditions[0])
             elif filter_type == 'hrdf_route':
                 # Postgres JSONB: check if any routes_unified entry has a matching line_name.
                 conditions.append(
-                    Stop.atlas_stop_details.has(
+                    StopsMatched.atlas_stop_details.has(
                         func.jsonb_path_exists(
                             AtlasStop.routes_unified,
                             '$[*] ? (@.line_name == $line)',
@@ -104,8 +104,8 @@ class FilterBuilder:
                 )
             else:  # UIC ref — search both atlas and osm tables
                 conditions.append(db.or_(
-                    Stop.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),
-                    Stop.osm_node_details.has(OsmNode.osm_uic_ref.ilike(f'%{value}%'))
+                    StopsMatched.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),
+                    StopsMatched.osm_node_details.has(OsmNode.osm_uic_ref.ilike(f'%{value}%'))
                 ))
         
         return conditions
@@ -151,13 +151,13 @@ class QueryBuilder:
         Returns:
             SQLAlchemy query object
         """
-        query = Stop.query
+        query = StopsMatched.query
         
         options = []
         if eager_load_atlas:
-            options.append(joinedload(Stop.atlas_stop_details))
+            options.append(joinedload(StopsMatched.atlas_stop_details))
         if eager_load_osm:
-            options.append(joinedload(Stop.osm_node_details))
+            options.append(joinedload(StopsMatched.osm_node_details))
         
         if options:
             query = query.options(*options)

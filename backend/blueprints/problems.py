@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app as app
 from flask_login import current_user, login_required
 from sqlalchemy.orm import joinedload, subqueryload
-from backend.models import Stop, AtlasStop, OsmNode, Problem, PersistentData, UserNote
+from backend.models import StopsMatched, AtlasStop, OsmNode, Problem, PersistentData, UserNote
 from backend.extensions import db, limiter
 from functools import wraps
 from backend.serializers.stops import format_stop_data
@@ -25,7 +25,7 @@ def apply_atlas_operator_filter(query, atlas_operator_filter):
     if atlas_operator_filter:
         atlas_operators = [op.strip() for op in atlas_operator_filter.split(',') if op.strip()]
         if atlas_operators:
-            return query.filter(Stop.atlas_stop_details.has(
+            return query.filter(StopsMatched.atlas_stop_details.has(
                 AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
             ))
     return query
@@ -51,7 +51,7 @@ def get_problems():
         sort_by = request.args.get('sort_by', 'default')
         sort_order = request.args.get('sort_order', 'asc')
         priority_filter = request.args.get('priority', None)
-        query = Problem.query.join(Stop)
+        query = Problem.query.join(StopsMatched)
         if problem_type_filter != 'all':
             mapped_type = 'unmatched' if problem_type_filter == 'isolated' else problem_type_filter
             query = query.filter(Problem.problem_type == mapped_type)
@@ -68,7 +68,7 @@ def get_problems():
                 pass
 
         if problem_type_filter == 'duplicates':
-            dup_query = Problem.query.join(Stop).filter(Problem.problem_type == 'duplicates')
+            dup_query = Problem.query.join(StopsMatched).filter(Problem.problem_type == 'duplicates')
             dup_query = apply_atlas_operator_filter(dup_query, atlas_operator_filter)
             # Apply priority filter for duplicates as well
             if priority_filter and priority_filter != 'all':
@@ -78,8 +78,8 @@ def get_problems():
                 except ValueError:
                     pass
             dup_query = dup_query.options(
-                joinedload(Problem.stop).subqueryload(Stop.atlas_stop_details),
-                joinedload(Problem.stop).subqueryload(Stop.osm_node_details)
+                joinedload(Problem.stop).subqueryload(StopsMatched.atlas_stop_details),
+                joinedload(Problem.stop).subqueryload(StopsMatched.osm_node_details)
             )
             duplicate_problems = dup_query.all()
             from collections import defaultdict
@@ -250,9 +250,9 @@ def get_problems():
         total_problems = db.session.query(func.count()).select_from(distinct_stop_ids_subquery).scalar()
         if sort_by == 'distance' and problem_type_filter == 'distance':
             if sort_order == 'desc':
-                query = query.order_by(func.coalesce(Stop.distance_m, -1).desc(), Problem.stop_id, Problem.problem_type)
+                query = query.order_by(func.coalesce(StopsMatched.distance_m, -1).desc(), Problem.stop_id, Problem.problem_type)
             else:
-                query = query.order_by(func.coalesce(Stop.distance_m, 1000000000000).asc(), Problem.stop_id, Problem.problem_type)
+                query = query.order_by(func.coalesce(StopsMatched.distance_m, 1000000000000).asc(), Problem.stop_id, Problem.problem_type)
         elif sort_by == 'priority':
             if sort_order == 'desc':
                 query = query.order_by(func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
@@ -261,7 +261,7 @@ def get_problems():
         else:
             query = query.order_by(Problem.stop_id, Problem.problem_type)
         if sort_by == 'distance' and problem_type_filter == 'distance':
-            stop_distance_query = db.session.query(Stop.id, Stop.distance_m).join(Problem).filter(
+            stop_distance_query = db.session.query(StopsMatched.id, StopsMatched.distance_m).join(Problem).filter(
                 Problem.problem_type == problem_type_filter if problem_type_filter != 'all' else True
             )
             solution_status_filter = request.args.get('solution_status', 'all')
@@ -277,13 +277,13 @@ def get_problems():
                 except ValueError:
                     pass
             if sort_order == 'desc':
-                stop_distance_query = stop_distance_query.distinct().order_by(func.coalesce(Stop.distance_m, -1).desc(), Stop.id)
+                stop_distance_query = stop_distance_query.distinct().order_by(func.coalesce(StopsMatched.distance_m, -1).desc(), StopsMatched.id)
             else:
-                stop_distance_query = stop_distance_query.distinct().order_by(func.coalesce(Stop.distance_m, 1000000000000).asc(), Stop.id)
+                stop_distance_query = stop_distance_query.distinct().order_by(func.coalesce(StopsMatched.distance_m, 1000000000000).asc(), StopsMatched.id)
             paged_stops = stop_distance_query.offset(offset).limit(limit).all()
             paged_stop_ids = [stop[0] for stop in paged_stops]
         elif sort_by == 'priority':
-            stop_ids_query = db.session.query(Problem.stop_id, func.min(Problem.priority)).join(Stop)
+            stop_ids_query = db.session.query(Problem.stop_id, func.min(Problem.priority)).join(StopsMatched)
             if problem_type_filter != 'all':
                 mapped_type = 'unmatched' if problem_type_filter == 'isolated' else problem_type_filter
                 stop_ids_query = stop_ids_query.filter(Problem.problem_type == mapped_type)
@@ -307,7 +307,7 @@ def get_problems():
             paged_stops = stop_ids_query.offset(offset).limit(limit).all()
             paged_stop_ids = [row[0] for row in paged_stops]
         else:
-            stop_ids_query = db.session.query(Problem.stop_id).join(Stop)
+            stop_ids_query = db.session.query(Problem.stop_id).join(StopsMatched)
             if problem_type_filter != 'all':
                 mapped_type = 'unmatched' if problem_type_filter == 'isolated' else problem_type_filter
                 stop_ids_query = stop_ids_query.filter(Problem.problem_type == mapped_type)
@@ -329,8 +329,8 @@ def get_problems():
             final_problems = []
         else:
             final_query = Problem.query.options(
-                joinedload(Problem.stop).subqueryload(Stop.atlas_stop_details),
-                joinedload(Problem.stop).subqueryload(Stop.osm_node_details)
+                joinedload(Problem.stop).subqueryload(StopsMatched.atlas_stop_details),
+                joinedload(Problem.stop).subqueryload(StopsMatched.osm_node_details)
             ).filter(Problem.stop_id.in_(paged_stop_ids))
             # Ensure we filter by the selected problem type at the final fetch as well
             if problem_type_filter != 'all':
@@ -350,9 +350,9 @@ def get_problems():
                     pass
             if sort_by == 'distance' and problem_type_filter == 'distance':
                 if sort_order == 'desc':
-                    final_query = final_query.join(Stop).order_by(func.coalesce(Stop.distance_m, -1).desc(), Problem.stop_id, Problem.problem_type)
+                    final_query = final_query.join(StopsMatched).order_by(func.coalesce(StopsMatched.distance_m, -1).desc(), Problem.stop_id, Problem.problem_type)
                 else:
-                    final_query = final_query.join(Stop).order_by(func.coalesce(Stop.distance_m, 1000000000000).asc(), Problem.stop_id, Problem.problem_type)
+                    final_query = final_query.join(StopsMatched).order_by(func.coalesce(StopsMatched.distance_m, 1000000000000).asc(), Problem.stop_id, Problem.problem_type)
             elif sort_by == 'priority':
                 if sort_order == 'desc':
                     final_query = final_query.order_by(func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
@@ -399,7 +399,7 @@ def get_problem_stats():
         selected_priority = request.args.get('priority')
         problem_types_internal = ['distance', 'unmatched', 'attributes', 'duplicates']
         for p_type in problem_types_internal:
-            base_query = db.session.query(func.count(Problem.id)).join(Stop).filter(Problem.problem_type == p_type)
+            base_query = db.session.query(func.count(Problem.id)).join(StopsMatched).filter(Problem.problem_type == p_type)
             base_query = apply_atlas_operator_filter(base_query, atlas_operator_filter)
             if selected_priority and selected_priority != 'all':
                 try:
@@ -414,7 +414,7 @@ def get_problem_stats():
             solved_count = solved_query.scalar()
             stats[key_out]['solved'] = solved_count
             stats[key_out]['unsolved'] = total_count - solved_count
-        all_problems_query = db.session.query(func.count(func.distinct(Problem.stop_id))).join(Stop)
+        all_problems_query = db.session.query(func.count(func.distinct(Problem.stop_id))).join(StopsMatched)
         all_problems_query = apply_atlas_operator_filter(all_problems_query, atlas_operator_filter)
         if selected_priority and selected_priority != 'all':
             try:
@@ -465,9 +465,9 @@ def make_solution_persistent():
         if not solution_to_persist:
             return jsonify({"success": False, "error": "Cannot make an empty solution persistent"}), 400
             
-        stop = db.session.get(Stop, problem_id)
+        stop = db.session.get(StopsMatched, problem_id)
         if not stop:
-            return jsonify({"success": False, "error": "Stop not found"}), 404
+            return jsonify({"success": False, "error": "StopsMatched not found"}), 404
 
         persistent_solution = PersistentData.query.filter(
             PersistentData.sloid == stop.sloid,
@@ -826,8 +826,8 @@ def delete_persistent_data(solution_id):
         if not (is_admin or is_owner):
             return jsonify({"success": False, "error": "Not authorized to delete this persistent record"}), 403
         if solution.problem_type:
-            stop = Stop.query.filter(
-                and_(Stop.sloid == solution.sloid, Stop.osm_node_id == solution.osm_node_id)
+            stop = StopsMatched.query.filter(
+                and_(StopsMatched.sloid == solution.sloid, StopsMatched.osm_node_id == solution.osm_node_id)
             ).first()
             if stop:
                 problem = Problem.query.filter_by(
@@ -901,8 +901,8 @@ def make_non_persistent(solution_id):
         if not (is_admin or is_owner):
             return jsonify({"success": False, "error": "Not authorized to modify this persistent record"}), 403
         if solution.problem_type:
-            stop = Stop.query.filter(
-                and_(Stop.sloid == solution.sloid, Stop.osm_node_id == solution.osm_node_id)
+            stop = StopsMatched.query.filter(
+                and_(StopsMatched.sloid == solution.sloid, StopsMatched.osm_node_id == solution.osm_node_id)
             ).first()
             if stop:
                 problem = Problem.query.filter_by(
@@ -984,9 +984,9 @@ def get_non_persistent_data():
                 Problem.problem_type,
                 Problem.solution,
                 Problem.stop_id,
-                Stop.sloid,
-                Stop.osm_node_id
-            ).join(Stop).filter(
+                StopsMatched.sloid,
+                StopsMatched.osm_node_id
+            ).join(StopsMatched).filter(
                 Problem.is_persistent == False,
                 Problem.solution.isnot(None),
                 Problem.solution != ''
@@ -1053,7 +1053,7 @@ def get_non_persistent_data():
 def make_all_persistent():
     try:
         solutions_made_persistent = 0
-        problems_to_persist = Problem.query.join(Stop).filter(
+        problems_to_persist = Problem.query.join(StopsMatched).filter(
             Problem.solution.isnot(None),
             Problem.solution != '',
             Problem.is_persistent == False

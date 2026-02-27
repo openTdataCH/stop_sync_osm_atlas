@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func, case
 from sqlalchemy.orm import joinedload, load_only
-from backend.models import Stop, AtlasStop, OsmNode
+from backend.models import StopsMatched, AtlasStop, OsmNode
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
 from flask_login import current_user
@@ -48,21 +48,21 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
     node_type_filter_str = args.get('node_type', None)
     atlas_operator_filter_str = args.get('atlas_operator', None)
 
-    query = Stop.query
+    query = StopsMatched.query
     all_category_conditions = []
 
     # Viewport filter (PostGIS): use indexed geometry column for fast bbox queries.
     envelope = ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326)
-    all_category_conditions.append(ST_Intersects(Stop.geom, envelope))
+    all_category_conditions.append(ST_Intersects(StopsMatched.geom, envelope))
 
     if node_type_filter_str and node_type_filter_str.lower() != 'all':
         node_types = [nt.strip() for nt in node_type_filter_str.split(',') if nt.strip()]
         if node_types:
             node_type_or_conditions = []
             if 'atlas' in node_types:
-                node_type_or_conditions.append(Stop.sloid.isnot(None))
+                node_type_or_conditions.append(StopsMatched.sloid.isnot(None))
             if 'osm' in node_types:
-                node_type_or_conditions.append(Stop.osm_node_id.isnot(None))
+                node_type_or_conditions.append(StopsMatched.osm_node_id.isnot(None))
             if node_type_or_conditions:
                 all_category_conditions.append(
                     db.or_(*node_type_or_conditions) if len(node_type_or_conditions) > 1 else node_type_or_conditions[0]
@@ -73,26 +73,26 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
         if selected_transport_types:
             transport_sub_conditions = []
             if 'ferry_terminal' in selected_transport_types:
-                transport_sub_conditions.append(Stop.osm_node_details.has(OsmNode.osm_amenity == 'ferry_terminal'))
+                transport_sub_conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_amenity == 'ferry_terminal'))
             if 'tram_stop' in selected_transport_types:
-                transport_sub_conditions.append(Stop.osm_node_details.has(OsmNode.osm_railway == 'tram_stop'))
+                transport_sub_conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_railway == 'tram_stop'))
             if 'station' in selected_transport_types:
                 transport_sub_conditions.append(
-                    Stop.osm_node_details.has(db.and_(OsmNode.osm_public_transport == 'station', OsmNode.osm_aerialway != 'station'))
+                    StopsMatched.osm_node_details.has(db.and_(OsmNode.osm_public_transport == 'station', OsmNode.osm_aerialway != 'station'))
                 )
             if 'platform' in selected_transport_types:
-                transport_sub_conditions.append(Stop.osm_node_details.has(OsmNode.osm_public_transport == 'platform'))
+                transport_sub_conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'platform'))
             if 'stop_position' in selected_transport_types:
-                transport_sub_conditions.append(Stop.osm_node_details.has(OsmNode.osm_public_transport == 'stop_position'))
+                transport_sub_conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'stop_position'))
             if 'aerialway_station' in selected_transport_types:
-                transport_sub_conditions.append(Stop.osm_node_details.has(OsmNode.osm_aerialway == 'station'))
+                transport_sub_conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_aerialway == 'station'))
             if transport_sub_conditions:
                 all_category_conditions.append(db.or_(*transport_sub_conditions))
 
     if atlas_operator_filter_str:
         atlas_operators = [op.strip() for op in atlas_operator_filter_str.split(',') if op.strip()]
         if atlas_operators:
-            operator_condition = Stop.atlas_stop_details.has(
+            operator_condition = StopsMatched.atlas_stop_details.has(
                 AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
             )
             all_category_conditions.append(operator_condition)
@@ -111,32 +111,22 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
                 filter_type = filter_types[i].strip()
                 direction = route_directions[i].strip()
                 if filter_type == 'atlas':
-                    station_id_sub_conditions.append(Stop.sloid.like(f'%{value}%'))
+                    station_id_sub_conditions.append(StopsMatched.sloid.like(f'%{value}%'))
                 elif filter_type == 'osm':
-                    station_id_sub_conditions.append(Stop.osm_node_id.like(f'%{value}%'))
-                elif filter_type == 'hrdf_route':
-                    station_id_sub_conditions.append(
-                        Stop.atlas_stop_details.has(
-                            func.jsonb_path_exists(
-                                AtlasStop.routes_unified,
-                                '$[*] ? (@.line_name == $line)',
-                                func.jsonb_build_object('line', value)
-                            )
-                        )
-                    )
-                elif filter_type == 'route':
+                    station_id_sub_conditions.append(StopsMatched.osm_node_id.like(f'%{value}%'))
+                elif filter_type in ['hrdf_route', 'route']:
                     route_stops = get_stops_for_route(value, direction if direction else None)
                     route_specific_conditions = []
                     if route_stops['atlas_sloids']:
-                        route_specific_conditions.append(Stop.sloid.in_(route_stops['atlas_sloids']))
+                        route_specific_conditions.append(StopsMatched.sloid.in_(route_stops['atlas_sloids']))
                     if route_stops['osm_nodes']:
-                        route_specific_conditions.append(Stop.osm_node_id.in_(route_stops['osm_nodes']))
+                        route_specific_conditions.append(StopsMatched.osm_node_id.in_(route_stops['osm_nodes']))
                     if route_specific_conditions:
                         station_id_sub_conditions.append(db.or_(*route_specific_conditions))
                 else:
                     station_id_sub_conditions.append(db.or_(
-                        Stop.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),
-                        Stop.osm_node_details.has(OsmNode.osm_uic_ref.ilike(f'%{value}%'))
+                        StopsMatched.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),
+                        StopsMatched.osm_node_details.has(OsmNode.osm_uic_ref.ilike(f'%{value}%'))
                     ))
             if station_id_sub_conditions:
                 all_category_conditions.append(db.or_(*station_id_sub_conditions))
@@ -165,41 +155,41 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
             other_method_conditions = []
             for method in relevant_matched_methods:
                 if method.startswith('route_'):
-                    route_matching_conditions.append(Stop.match_type.like(f'{method}%'))
+                    route_matching_conditions.append(StopsMatched.match_type.like(f'{method}%'))
                     if not method.startswith('route_unified_'):
                         suffix = method[len('route_'):]
-                        route_matching_conditions.append(Stop.match_type.like(f'route_unified_{suffix}%'))
+                        route_matching_conditions.append(StopsMatched.match_type.like(f'route_unified_{suffix}%'))
                 elif method.startswith('distance_matching_'):
-                    other_method_conditions.append(Stop.match_type.like(f'{method}%'))
+                    other_method_conditions.append(StopsMatched.match_type.like(f'{method}%'))
                 else:
-                    other_method_conditions.append(Stop.match_type == method)
+                    other_method_conditions.append(StopsMatched.match_type == method)
             all_method_conditions = other_method_conditions + route_matching_conditions
             if all_method_conditions:
                 stop_type_match_method_or_conditions.append(
-                    db.and_(Stop.stop_type == 'matched', db.or_(*all_method_conditions))
+                    db.and_(StopsMatched.stop_type == 'matched', db.or_(*all_method_conditions))
                 )
         else:
             if not current_match_methods:
-                stop_type_match_method_or_conditions.append(Stop.stop_type == 'matched')
+                stop_type_match_method_or_conditions.append(StopsMatched.stop_type == 'matched')
 
     if 'unmatched' in current_stop_types:
         filter_for_no_osm_nearby = 'no_nearby_counterpart' in current_match_methods
         filter_for_osm_nearby = 'osm_within_50m' in current_match_methods
-        unmatched_specific_condition = Stop.stop_type == 'atlas_unmatched'
+        unmatched_specific_condition = StopsMatched.stop_type == 'atlas_unmatched'
         if filter_for_no_osm_nearby and not filter_for_osm_nearby:
             unmatched_specific_condition = db.and_(
-                Stop.stop_type == 'atlas_unmatched',
-                Stop.match_type == 'no_nearby_counterpart'
+                StopsMatched.stop_type == 'atlas_unmatched',
+                StopsMatched.match_type == 'no_nearby_counterpart'
             )
         elif not filter_for_no_osm_nearby and filter_for_osm_nearby:
             unmatched_specific_condition = db.and_(
-                Stop.stop_type == 'atlas_unmatched',
-                db.or_(Stop.match_type != 'no_nearby_counterpart', Stop.match_type.is_(None))
+                StopsMatched.stop_type == 'atlas_unmatched',
+                db.or_(StopsMatched.match_type != 'no_nearby_counterpart', StopsMatched.match_type.is_(None))
             )
         stop_type_match_method_or_conditions.append(unmatched_specific_condition)
 
     if 'osm' in current_stop_types:
-        stop_type_match_method_or_conditions.append(Stop.stop_type == 'osm_unmatched')
+        stop_type_match_method_or_conditions.append(StopsMatched.stop_type == 'osm_unmatched')
 
     if stop_type_match_method_or_conditions:
         all_category_conditions.append(db.or_(*stop_type_match_method_or_conditions))
@@ -261,18 +251,18 @@ def get_data():
 
         query = _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, request.args)
         # Eager-load only osm_node_type from osm_nodes to avoid N+1 queries
-        query = query.options(joinedload(Stop.osm_node_details).load_only(OsmNode.osm_node_type))
+        query = query.options(joinedload(StopsMatched.osm_node_details).load_only(OsmNode.osm_node_type))
 
         # If a limit is applied (mid/low zoom caps), ensure results are stable across requests
         # and prioritize unmatched rows first to reduce "disappearing/reappearing" markers.
         if limit is not None:
             stop_type_rank = case(
-                (Stop.stop_type == 'atlas_unmatched', 0),
-                (Stop.stop_type == 'osm_unmatched', 1),
-                (Stop.stop_type == 'matched', 2),
+                (StopsMatched.stop_type == 'atlas_unmatched', 0),
+                (StopsMatched.stop_type == 'osm_unmatched', 1),
+                (StopsMatched.stop_type == 'matched', 2),
                 else_=9,
             )
-            query = query.order_by(stop_type_rank.asc(), Stop.id.asc())
+            query = query.order_by(stop_type_rank.asc(), StopsMatched.id.asc())
 
         query = query.offset(offset)
         has_more = False
@@ -339,18 +329,18 @@ def get_stop_popup():
         view_type = request.args.get('view_type', type=str)
         if not stop_id:
             return jsonify({"error": "stop_id is required"}), 400
-        stop = Stop.query.options(
-            joinedload(Stop.atlas_stop_details),
-            joinedload(Stop.osm_node_details)
-        ).filter(Stop.id == stop_id).first()
+        stop = StopsMatched.query.options(
+            joinedload(StopsMatched.atlas_stop_details),
+            joinedload(StopsMatched.osm_node_details)
+        ).filter(StopsMatched.id == stop_id).first()
         if not stop:
-            return jsonify({"error": "Stop not found"}), 404
+            return jsonify({"error": "StopsMatched not found"}), 404
         enriched = format_stop_data(stop, include_routes=True)
         if stop.stop_type == 'matched' and stop.sloid:
-            matched_rows = Stop.query.options(
-                joinedload(Stop.osm_node_details),
-                joinedload(Stop.atlas_stop_details)
-            ).filter(Stop.sloid == stop.sloid, Stop.stop_type == 'matched').all()
+            matched_rows = StopsMatched.query.options(
+                joinedload(StopsMatched.osm_node_details),
+                joinedload(StopsMatched.atlas_stop_details)
+            ).filter(StopsMatched.sloid == stop.sloid, StopsMatched.stop_type == 'matched').all()
             atlas_lat = stop.atlas_lat
             atlas_lon = stop.atlas_lon
             if atlas_lat is None or atlas_lon is None:
@@ -380,7 +370,6 @@ def get_stop_popup():
                         "osm_lat": r.osm_lat,
                         "osm_lon": r.osm_lon,
                         "distance_m": r.distance_m,
-                        "routes_osm": osm_details.routes_osm if osm_details else None,
                         "match_type": r.match_type,
                         "has_atlas_duplicate": r.has_atlas_duplicate or False,
                         "osm_node_type": osm_details.osm_node_type if osm_details else None
@@ -388,9 +377,9 @@ def get_stop_popup():
             if osm_matches:
                 enriched["osm_matches"] = osm_matches
         if view_type == 'osm' and stop.osm_node_id:
-            same_osm_rows = Stop.query.options(
-                joinedload(Stop.atlas_stop_details)
-            ).filter(Stop.osm_node_id == stop.osm_node_id, Stop.stop_type == 'matched').all()
+            same_osm_rows = StopsMatched.query.options(
+                joinedload(StopsMatched.atlas_stop_details)
+            ).filter(StopsMatched.osm_node_id == stop.osm_node_id, StopsMatched.stop_type == 'matched').all()
             if len(same_osm_rows) > 1:
                 osm_details = stop.osm_node_details
                 osm_centric = {
@@ -412,7 +401,6 @@ def get_stop_popup():
                     "osm_lon": stop.osm_lon,
                     "osm_node_type": osm_details.osm_node_type if osm_details else None,
                     "uic_ref": osm_details.osm_uic_ref if osm_details else None,
-                    "routes_osm": osm_details.routes_osm if osm_details else None,
                     "atlas_matches": []
                 }
                 for r in same_osm_rows:
@@ -427,8 +415,7 @@ def get_stop_popup():
                         "atlas_lat": r.atlas_lat,
                         "atlas_lon": r.atlas_lon,
                         "distance_m": r.distance_m,
-                        "match_type": r.match_type,
-                        "routes_unified": getattr(atlas, 'routes_unified', None) if atlas else None
+                        "match_type": r.match_type
                     })
                 return jsonify({"stop": osm_centric})
         return jsonify({"stop": enriched})

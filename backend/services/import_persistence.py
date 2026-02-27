@@ -1,4 +1,4 @@
-from backend.models import PersistentData, Problem, Stop
+from backend.models import PersistentData, Problem, StopsMatched
 
 
 def apply_persistent_solutions(reproducible_session, user_input_session):
@@ -16,8 +16,8 @@ def apply_persistent_solutions(reproducible_session, user_input_session):
 
     for ps in persistent_solutions:
         # Find matching stops in the new data
-        matching_stops = reproducible_session.query(Stop).filter(
-            (Stop.sloid == ps.sloid) | (Stop.osm_node_id == ps.osm_node_id)
+        matching_stops = reproducible_session.query(StopsMatched).filter(
+            (StopsMatched.sloid == ps.sloid) | (StopsMatched.osm_node_id == ps.osm_node_id)
         ).all()
 
         if not matching_stops:
@@ -38,7 +38,7 @@ def apply_persistent_solutions(reproducible_session, user_input_session):
                 applied_count += 1
             else:
                 print(
-                    f"  - Stop exists but problem type '{ps.problem_type}' no longer detected for: "
+                    f"  - StopsMatched exists but problem type '{ps.problem_type}' no longer detected for: "
                     f"sloid={stop.sloid}, osm_node_id={stop.osm_node_id}"
                 )
                 skipped_count += 1

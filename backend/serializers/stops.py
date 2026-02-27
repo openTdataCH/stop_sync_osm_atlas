@@ -1,6 +1,6 @@
-from backend.models import Stop, AtlasStop, OsmNode
+from backend.models import StopsMatched, AtlasStop, OsmNode
 
-def format_stop_data(stop: Stop, problem_type: str = None, include_routes: bool = True) -> dict:
+def format_stop_data(stop: StopsMatched, problem_type: str = None, include_routes: bool = True) -> dict:
     atlas_details = stop.atlas_stop_details
     osm_details = stop.osm_node_details
 
@@ -43,8 +43,8 @@ def format_stop_data(stop: Stop, problem_type: str = None, include_routes: bool 
 
     if include_routes:
         result.update({
-            "routes_unified": getattr(atlas_details, 'routes_unified', None) if atlas_details else None,
-            "routes_osm": osm_details.routes_osm if osm_details else None,
+            "routes_unified": [],
+            "routes_osm": [],
         })
 
     if problem_type:

@@ -11,7 +11,7 @@ from collections import defaultdict
 import pandas as pd
 
 from matching_and_import_db.pipeline import MatchingContext
-from utils.match_record import create_match_record, extract_atlas_fields
+from matching_and_import_db.utils.match_record import create_match_record, extract_atlas_fields
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Data loaders (unchanged logic, cleaned up)
 # ---------------------------------------------------------------------------
 
-from utils.route_id import normalize_route_id
+from matching_and_import_db.utils.route_id import normalize_route_id
 
 
 def _normalize_direction_id(val):

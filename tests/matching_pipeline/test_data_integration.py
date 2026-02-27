@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 # Ensure project root is in path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from Download_and_process_data.get_atlas_data import write_unified_routes_csv_direct
+from matching_and_import_db.downloader.get_atlas_data import write_unified_routes_csv_direct
 
 class TestUnifiedRoutesIntegration:
     """Tests for the Unified Routes CSV generation."""

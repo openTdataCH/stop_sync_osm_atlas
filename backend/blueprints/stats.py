@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func, case
-from backend.models import Stop
+from backend.models import StopsMatched
 from backend.extensions import db, limiter
 from backend.query_helpers import get_query_builder, parse_filter_params
 from collections import OrderedDict
@@ -63,7 +63,7 @@ def get_global_stats():
 
         filters = parse_filter_params(request.args)
         query_builder = get_query_builder()
-        base_query = query_builder.apply_common_filters(Stop.query, filters)
+        base_query = query_builder.apply_common_filters(StopsMatched.query, filters)
 
         all_category_conditions = []
         stop_type_match_method_or_conditions_gs = []
@@ -85,38 +85,38 @@ def get_global_stats():
                 method_conditions = []
                 for m in relevant_matched_methods:
                     if m.startswith('distance_matching_'):
-                        method_conditions.append(Stop.match_type.like(f"{m}%"))
+                        method_conditions.append(StopsMatched.match_type.like(f"{m}%"))
                     elif m.startswith('route_'):
                         # Match both legacy and unified route match types
-                        method_conditions.append(Stop.match_type.like(f"{m}%"))
+                        method_conditions.append(StopsMatched.match_type.like(f"{m}%"))
                         if not m.startswith('route_unified_'):
                             suffix = m[len('route_'):]
-                            method_conditions.append(Stop.match_type.like(f"route_unified_{suffix}%"))
+                            method_conditions.append(StopsMatched.match_type.like(f"route_unified_{suffix}%"))
                     else:
-                        method_conditions.append(Stop.match_type == m)
+                        method_conditions.append(StopsMatched.match_type == m)
                 stop_type_match_method_or_conditions_gs.append(
-                    db.and_(Stop.stop_type == 'matched', db.or_(*method_conditions))
+                    db.and_(StopsMatched.stop_type == 'matched', db.or_(*method_conditions))
                 )
             else:
                 if not current_match_methods_gs:
-                    stop_type_match_method_or_conditions_gs.append(Stop.stop_type == 'matched')
+                    stop_type_match_method_or_conditions_gs.append(StopsMatched.stop_type == 'matched')
         if 'unmatched' in current_stop_types_gs:
             filter_for_no_osm_nearby = 'no_nearby_counterpart' in current_match_methods_gs
             filter_for_osm_nearby = 'osm_within_50m' in current_match_methods_gs
-            unmatched_specific_condition = Stop.stop_type == 'atlas_unmatched'
+            unmatched_specific_condition = StopsMatched.stop_type == 'atlas_unmatched'
             if filter_for_no_osm_nearby and not filter_for_osm_nearby:
                 unmatched_specific_condition = db.and_(
-                    Stop.stop_type == 'atlas_unmatched',
-                    Stop.match_type == 'no_nearby_counterpart'
+                    StopsMatched.stop_type == 'atlas_unmatched',
+                    StopsMatched.match_type == 'no_nearby_counterpart'
                 )
             elif not filter_for_no_osm_nearby and filter_for_osm_nearby:
                 unmatched_specific_condition = db.and_(
-                    Stop.stop_type == 'atlas_unmatched',
-                    db.or_(Stop.match_type != 'no_nearby_counterpart', Stop.match_type.is_(None))
+                    StopsMatched.stop_type == 'atlas_unmatched',
+                    db.or_(StopsMatched.match_type != 'no_nearby_counterpart', StopsMatched.match_type.is_(None))
                 )
             stop_type_match_method_or_conditions_gs.append(unmatched_specific_condition)
         if 'osm' in current_stop_types_gs:
-            stop_type_match_method_or_conditions_gs.append(Stop.stop_type == 'osm_unmatched')
+            stop_type_match_method_or_conditions_gs.append(StopsMatched.stop_type == 'osm_unmatched')
         if stop_type_match_method_or_conditions_gs:
             all_category_conditions.append(db.or_(*stop_type_match_method_or_conditions_gs))
         elif current_stop_types_gs and not stop_type_match_method_or_conditions_gs:
@@ -126,18 +126,18 @@ def get_global_stats():
         else:
             query = base_query
         if show_duplicates_only:
-            query = query.filter(Stop.has_atlas_duplicate == True)
+            query = query.filter(StopsMatched.has_atlas_duplicate == True)
         if top_n:
             try:
                 n_val = int(top_n)
             except Exception:
                 n_val = None
             if n_val and n_val > 0:
-                query = query.order_by(Stop.distance_m.desc()).limit(n_val)
+                query = query.order_by(StopsMatched.distance_m.desc()).limit(n_val)
         filtered = query.with_entities(
-            Stop.sloid.label('sloid'),
-            Stop.osm_node_id.label('osm_node_id'),
-            Stop.stop_type.label('stop_type')
+            StopsMatched.sloid.label('sloid'),
+            StopsMatched.osm_node_id.label('osm_node_id'),
+            StopsMatched.stop_type.label('stop_type')
         ).subquery('f')
         total_atlas_expr = func.count(func.distinct(filtered.c.sloid))
         matched_atlas_expr = func.count(func.distinct(case((filtered.c.stop_type == 'matched', filtered.c.sloid), else_=None)))

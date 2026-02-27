@@ -6,7 +6,7 @@ export PYTHONPATH=$PYTHONPATH:/app
 
 
 echo "Waiting for Postgres database..."
-python init_db.py
+python matching_and_import_db/database/init.py
 
 # Run database migrations
 echo "Running database migrations..."
@@ -32,8 +32,8 @@ if [ "$SKIP_DATA_IMPORT" != "true" ]; then
 
         # Run the complete matching pipeline and import to database
         echo "🔄 Running matching pipeline and importing to database..."
-    python matching_and_import_db/import_data_db.py
-        echo "Finished import_data_db.py"
+        python matching_and_import_db/database/importer.py
+        echo "Finished importer.py"
 
         echo "All data scripts executed successfully."
 else

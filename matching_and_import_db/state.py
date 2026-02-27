@@ -5,15 +5,34 @@ from collections import defaultdict
 
 import pandas as pd
 
-from utils.common import is_osm_station, haversine_distance
-from utils.spatial_index import build_kdtree_from_nodes, batch_to_xyz, meters_to_unit_chord_radius
-from utils.org_standardization import standardize_operator
+from matching_and_import_db.utils.common import is_osm_station, haversine_distance
+from matching_and_import_db.utils.spatial_index import build_kdtree_from_nodes, batch_to_xyz, meters_to_unit_chord_radius
+from matching_and_import_db.utils.org_standardization import standardize_operator
 
 logger = logging.getLogger(__name__)
 
 class AtlasState:
     """Manages the fully populated ATLAS dataset and provides unmatched records on demand."""
     
+    @classmethod
+    def from_dataframe(cls, atlas_df: pd.DataFrame) -> 'AtlasState':
+        """
+        Builds AtlasState directly from a DataFrame, computing duplicate sets automatically.
+        """
+        dup_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
+        non_empty = atlas_df['designation'].notna() & (atlas_df['designation'].astype(str).str.strip() != '')
+        dup_mask = dup_mask & non_empty
+
+        duplicate_sloid_map: dict[str, list[str]] = {}
+        for _, group_df in atlas_df[dup_mask].groupby(['number', 'designation'], sort=False):
+            if len(group_df) <= 1:
+                continue
+            sloids = sorted(group_df['sloid'].astype(str).tolist())
+            for s in sloids:
+                duplicate_sloid_map[s] = sloids
+
+        return cls(atlas_df, duplicate_sloid_map)
+
     def __init__(self, atlas_df: pd.DataFrame, duplicate_sloid_map: dict):
         self._df = atlas_df
         self.duplicate_sloid_map = duplicate_sloid_map
