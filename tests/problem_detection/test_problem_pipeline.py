@@ -9,16 +9,16 @@ Tests cover:
 """
 
 import pytest
-from matching_process.problem_detection.context import ProblemContext
-from matching_process.problem_detection.result import ProblemResult
-from matching_process.problem_detection.pipeline import (
+from matching_and_import_db.problem_detection.context import ProblemContext
+from matching_and_import_db.problem_detection.result import ProblemResult
+from matching_and_import_db.problem_detection.pipeline import (
     run_problem_pipeline,
     STOP_PROBLEM_PIPELINE,
 )
-from matching_process.problem_detection.predicates.distance import distance_problem, _compute_priority
-from matching_process.problem_detection.predicates.attributes import attributes_problem
-from matching_process.problem_detection.predicates.unmatched import unmatched_problem
-from matching_process.problem_detection.predicates.duplicates import duplicates_problem
+from matching_and_import_db.problem_detection.predicates.distance import distance_problem, _compute_priority
+from matching_and_import_db.problem_detection.predicates.attributes import attributes_problem
+from matching_and_import_db.problem_detection.predicates.unmatched import unmatched_problem
+from matching_and_import_db.problem_detection.predicates.duplicates import duplicates_problem
 
 
 # =============================================================================

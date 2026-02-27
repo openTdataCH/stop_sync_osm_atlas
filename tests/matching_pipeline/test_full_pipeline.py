@@ -1,8 +1,7 @@
 import pandas as pd
-from matching_process.matching_script import parse_osm_xml
-from matching_process.pipeline import MatchingContext, run_pipeline
-from matching_process.matching_script import DEFAULT_PIPELINE
-from matching_process.state import AtlasState, OsmIndex
+from matching_and_import_db.pipeline import MatchingContext, run_pipeline
+from matching_and_import_db.orchestrator import DEFAULT_PIPELINE
+from matching_and_import_db.state import AtlasState, OsmState
 
 def test_full_pipeline_micro_dataset():
     """
@@ -14,7 +13,7 @@ def test_full_pipeline_micro_dataset():
     atlas_df = pd.read_csv("tests/data/sample_atlas.csv")
     
     # 1. Parse OSM XML
-    all_osm_nodes, uic_ref_dict, name_index, osm_name_dirs, osm_uic_dirs = parse_osm_xml("tests/data/sample_osm.xml")
+    osm_index = OsmState.from_xml_file("tests/data/sample_osm.xml")
 
     # 2. Identify ATLAS duplicate groups (replicate prod logic)
     dup_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
@@ -35,19 +34,10 @@ def test_full_pipeline_micro_dataset():
         duplicate_sloid_map=duplicate_sloid_map
     )
 
-    osm_index = OsmIndex(
-        xml_nodes=all_osm_nodes,
-        uic_ref_dict=uic_ref_dict,
-        name_index=name_index,
-        name_dirs=osm_name_dirs,
-        uic_dirs=osm_uic_dirs,
-    )
-
     ctx = MatchingContext(
         atlas=atlas_state,
         osm=osm_index,
         max_distance=50.0,
-        osm_xml_file="tests/data/sample_osm.xml",
     )
     
     # 4. Run pipeline

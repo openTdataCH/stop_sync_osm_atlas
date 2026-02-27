@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from matching_process.problem_detection.result import ProblemResult
-from matching_process.problem_detection.context import (
+from matching_and_import_db.problem_detection.result import ProblemResult
+from matching_and_import_db.problem_detection.context import (
     ProblemContext,
     DISTANCE_THRESHOLD_P1,
     DISTANCE_THRESHOLD_P2,

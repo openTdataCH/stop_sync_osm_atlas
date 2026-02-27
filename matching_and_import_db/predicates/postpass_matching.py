@@ -10,8 +10,7 @@ import os
 
 import pandas as pd
 
-from matching_process.pipeline import MatchingContext, make_match
-from matching_process.utils import haversine_distance
+from matching_and_import_db.pipeline import MatchingContext, make_match
 
 logger = logging.getLogger(__name__)
 

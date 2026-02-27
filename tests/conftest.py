@@ -170,16 +170,16 @@ def runner(app):
 
 @pytest.fixture
 def matching_context(sample_atlas_dataframe, sample_osm_nodes, uic_index, name_index):
-    """Create a MatchingContext with AtlasState and OsmIndex for predicate tests."""
-    from matching_process.pipeline import MatchingContext
-    from matching_process.state import AtlasState, OsmIndex
+    """Create a MatchingContext with AtlasState and OsmState for predicate tests."""
+    from matching_and_import_db.pipeline import MatchingContext
+    from matching_and_import_db.state import AtlasState, OsmState
 
     atlas_state = AtlasState(
         atlas_df=sample_atlas_dataframe,
         duplicate_sloid_map={},
     )
 
-    osm_idx = OsmIndex(
+    osm_idx = OsmState(
         xml_nodes=sample_osm_nodes,
         uic_ref_dict=uic_index,
         name_index=name_index,

@@ -5,14 +5,13 @@ Defines MatchingContext (shared state), PipelineOutput, the sequential runner,
 and the make_match() helper used by all predicates.
 """
 from dataclasses import dataclass, field
-from typing import Optional
 import pandas as pd
 import logging
 
-from matching_process.utils import haversine_distance
-from matching_process.match_record import create_match_record, extract_atlas_fields
-from matching_process.spatial_index import (
-    build_kdtree_from_nodes, meters_to_unit_chord_radius, lat_lon_to_xyz_list, batch_to_xyz,
+from utils.common import haversine_distance
+from utils.match_record import create_match_record, extract_atlas_fields
+from utils.spatial_index import (
+    build_kdtree_from_nodes, meters_to_unit_chord_radius, batch_to_xyz,
 )
 
 logger = logging.getLogger(__name__)
@@ -28,14 +27,13 @@ class MatchingContext:
 
     # Encapsulated state managers
     atlas: 'AtlasState'
-    osm: 'OsmIndex'
+    osm: 'OsmState'
     
     # Internal Tracking
     all_matches: list = field(default_factory=list)
 
-    # Config / supplementary data
+    # Config
     max_distance: float = 50.0
-    osm_xml_file: str = ""
 
 
 @dataclass

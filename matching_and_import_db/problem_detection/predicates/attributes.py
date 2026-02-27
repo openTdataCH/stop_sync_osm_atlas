@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from matching_process.problem_detection.result import ProblemResult
-from matching_process.problem_detection.context import (
+from matching_and_import_db.problem_detection.result import ProblemResult
+from matching_and_import_db.problem_detection.context import (
     ProblemContext,
     ENABLE_OPERATOR_MISMATCH_CHECK,
     ENABLE_NAME_MISMATCH_CHECK,
