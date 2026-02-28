@@ -79,13 +79,14 @@ class ProblemContext:
     duplicate_osm_node_ids: set = field(default_factory=set)      # set of node_ids
 
     @classmethod
-    def build(cls, base_data: dict, duplicate_sloid_map: dict) -> "ProblemContext":
+    def build(cls, output: 'PipelineResult') -> "ProblemContext":
         """One-time construction of every shared index from pipeline output."""
-        ctx = cls(duplicate_sloid_map=duplicate_sloid_map)
+        # Using output.duplicate_sloid_map 
+        ctx = cls(duplicate_sloid_map=output.duplicate_sloid_map)
 
-        matched = base_data.get('matched', [])
-        unmatched_atlas = base_data.get('unmatched_atlas', [])
-        unmatched_osm = base_data.get('unmatched_osm', [])
+        matched = output.matched
+        unmatched_atlas = output.unmatched_atlas
+        unmatched_osm = output.unmatched_osm
 
         # -- Spatial indexes --------------------------------------------------
         ctx._build_spatial_indexes(matched, unmatched_atlas, unmatched_osm)
@@ -114,17 +115,13 @@ class ProblemContext:
     # Private builders
     # ------------------------------------------------------------------
 
-    def _build_spatial_indexes(self, matched, unmatched_atlas, unmatched_osm):
+    def _build_spatial_indexes(self, matched: list['MatchRecord'], unmatched_atlas: list['AtlasNode'], unmatched_osm: list['OsmNode']):
         # OSM point cloud (matched osm + unmatched osm)
         osm_coords = []
         for rec in matched:
-            lat, lon = _safe(rec.get('osm_lat')), _safe(rec.get('osm_lon'))
-            if lat is not None and lon is not None:
-                osm_coords.append((float(lat), float(lon)))
-        for rec in unmatched_osm:
-            lat, lon = _safe(rec.get('lat')), _safe(rec.get('lon'))
-            if lat is not None and lon is not None:
-                osm_coords.append((float(lat), float(lon)))
+            osm_coords.append((rec.osm_node.lat, rec.osm_node.lon))
+        for node in unmatched_osm:
+            osm_coords.append((node.lat, node.lon))
 
         if osm_coords:
             self.osm_points = batch_to_xyz(osm_coords).tolist()
@@ -133,49 +130,41 @@ class ProblemContext:
         # ATLAS point cloud (matched atlas + unmatched atlas)
         atlas_coords = []
         for rec in matched:
-            lat, lon = _safe(rec.get('csv_lat')), _safe(rec.get('csv_lon'))
-            if lat is not None and lon is not None:
-                atlas_coords.append((float(lat), float(lon)))
-        for rec in unmatched_atlas:
-            lat, lon = _safe(rec.get('wgs84North')), _safe(rec.get('wgs84East'))
-            if lat is not None and lon is not None:
-                atlas_coords.append((float(lat), float(lon)))
+            atlas_coords.append((rec.atlas_node.lat, rec.atlas_node.lon))
+        for node in unmatched_atlas:
+            atlas_coords.append((node.lat, node.lon))
 
         if atlas_coords:
             self.atlas_points = batch_to_xyz(atlas_coords).tolist()
             self.atlas_kdtree = KDTree(self.atlas_points)
 
-    def _build_uic_counts(self, matched, unmatched_atlas, unmatched_osm):
+    def _build_uic_counts(self, matched: list['MatchRecord'], unmatched_atlas: list['AtlasNode'], unmatched_osm: list['OsmNode']):
         # ATLAS UIC counts
         for rec in matched:
-            uic = _safe(rec.get('number'))
-            if uic is not None:
-                key = str(uic)
+            if rec.atlas_node.uic_ref:
+                key = str(rec.atlas_node.uic_ref)
                 self.atlas_count_by_uic[key] = self.atlas_count_by_uic.get(key, 0) + 1
-        for rec in unmatched_atlas:
-            uic = _safe(rec.get('number'))
-            if uic is not None:
-                key = str(uic)
+        for node in unmatched_atlas:
+            if node.uic_ref:
+                key = str(node.uic_ref)
                 self.atlas_count_by_uic[key] = self.atlas_count_by_uic.get(key, 0) + 1
 
         # OSM UIC counts (+ platform sub-count)
         for rec in matched:
-            uic = _safe(rec.get('osm_uic_ref'))
-            if uic:
-                key = str(uic)
+            if rec.osm_node.uic_ref:
+                key = str(rec.osm_node.uic_ref)
                 self.osm_count_by_uic[key] = self.osm_count_by_uic.get(key, 0) + 1
-                if _is_platform_like(_safe(rec.get('osm_public_transport'))):
+                if rec.osm_node.is_station is False and _is_platform_like(rec.osm_node.public_transport):
                     self.osm_platform_count_by_uic[key] = self.osm_platform_count_by_uic.get(key, 0) + 1
-        for rec in unmatched_osm:
-            tags = rec.get('tags', {}) if isinstance(rec.get('tags', {}), dict) else {}
-            uic = _safe(tags.get('uic_ref'))
-            if uic:
-                key = str(uic)
+                    
+        for node in unmatched_osm:
+            if node.uic_ref:
+                key = str(node.uic_ref)
                 self.osm_count_by_uic[key] = self.osm_count_by_uic.get(key, 0) + 1
-                if _is_platform_like(tags.get('public_transport')):
+                if node.is_station is False and _is_platform_like(node.public_transport):
                     self.osm_platform_count_by_uic[key] = self.osm_platform_count_by_uic.get(key, 0) + 1
 
-    def _build_osm_duplicate_map(self, matched, unmatched_osm):
+    def _build_osm_duplicate_map(self, matched: list['MatchRecord'], unmatched_osm: list['OsmNode']):
         """Build OSM duplicate groups by (uic_ref, local_ref) for platform-like nodes."""
         by_key: dict[tuple, set] = {}
 
@@ -187,18 +176,17 @@ class ProblemContext:
 
         for rec in matched:
             _add(
-                _safe(rec.get('osm_uic_ref')),
-                _safe(rec.get('osm_local_ref')),
-                _safe(rec.get('osm_node_id')),
-                _safe(rec.get('osm_public_transport')),
+                rec.osm_node.uic_ref,
+                rec.osm_node.local_ref,
+                rec.osm_node.node_id,
+                rec.osm_node.public_transport,
             )
-        for rec in unmatched_osm:
-            tags = rec.get('tags', {}) if isinstance(rec.get('tags', {}), dict) else {}
+        for node in unmatched_osm:
             _add(
-                _safe(tags.get('uic_ref')),
-                tags.get('local_ref'),
-                rec.get('node_id'),
-                tags.get('public_transport'),
+                node.uic_ref,
+                node.local_ref,
+                node.node_id,
+                node.public_transport,
             )
 
         for node_ids in by_key.values():

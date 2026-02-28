@@ -7,7 +7,7 @@ in matched/unmatched ATLAS↔OSM stop data.
 Usage:
     from matching_and_import_db.problem_detection import ProblemContext, run_problem_pipeline, STOP_PROBLEM_PIPELINE
 
-    ctx = ProblemContext.build(base_data, duplicate_sloid_map)
+    ctx = ProblemContext.build(base_data)
     problems = run_problem_pipeline(STOP_PROBLEM_PIPELINE, ctx, stop_record)
 """
 

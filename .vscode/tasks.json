@@ -20,6 +20,21 @@
             }
         },
         {
+            "label": "Docker: Run Small Pipeline Test",
+            "type": "shell",
+            "command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// app python -m pytest tests/matching_pipeline/test_small_pipeline.py -v",
+            "problemMatcher": [],
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": true,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            }
+        },
+        {
             "label": "Docker: Run Current Test File",
             "type": "shell",
             "command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// app python -m pytest ${relativeFile}",

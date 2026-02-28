@@ -17,36 +17,22 @@ import pandas as pd
 from matching_and_import_db.pipeline import MatchingContext, run_pipeline
 from matching_and_import_db.state import AtlasState, OsmState
 
-# Predicates
-from matching_and_import_db.predicates import (
-    exact_uic,
-    name_match,
-    group_proximity,
-    local_ref_distance,
-    nearest_distance,
-    route_match,
-    postpass_unique_uic,
-    duplicate_propagation,
-    manual_match,
-)
+from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
+from matching_and_import_db.predicates.name_matching import NameMatchPredicate
+from matching_and_import_db.predicates.distance_matching import GroupProximityPredicate, LocalRefDistancePredicate, NearestDistancePredicate
+from matching_and_import_db.predicates.route_matching_unified import RouteMatchPredicate
+from matching_and_import_db.predicates.postpass_matching import PostpassUniqueUicPredicate, DuplicatePropagationPredicate, ManualMatchPredicate
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Default pipeline (sequential – matches current behaviour)
-# ---------------------------------------------------------------------------
 DEFAULT_PIPELINE = [
-    exact_uic,
-    name_match,
-    group_proximity,
-    local_ref_distance,
-    nearest_distance,
-    route_match,
-    postpass_unique_uic,
-    duplicate_propagation,
-    manual_match,
+    ExactUicPredicate(),
+    NameMatchPredicate(),
+    GroupProximityPredicate(),
+    LocalRefDistancePredicate(),
+    NearestDistancePredicate(),
+    RouteMatchPredicate(),
+    PostpassUniqueUicPredicate(),
+    DuplicatePropagationPredicate(),
+    ManualMatchPredicate(),
 ]
 
 
@@ -99,14 +85,10 @@ def run_matching():
     """
     Execute the complete matching pipeline and return data for DB import.
 
-    The pipeline is defined by :data:`DEFAULT_PIPELINE`.
-
     Returns
     -------
-    base_data : dict
-        ``{"matched": [...], "unmatched_atlas": [...], "unmatched_osm": [...]}``
-    duplicate_sloid_map : dict
-        ``{sloid_str: [list_of_group_sloids]}``
+    output : PipelineResult
+        Strongly typed result containing matched, unmatched, and state mappings.
     """
 
     # ── Load data ────────────────────────────────────────────────────────
@@ -119,7 +101,6 @@ def run_matching():
 
     # ── Identify ATLAS duplicate groups & init State ─────────────────────
     atlas_state = AtlasState.from_dataframe(atlas_df)
-    duplicate_sloid_map = atlas_state.duplicate_sloid_map
 
     ctx = MatchingContext(
         atlas=atlas_state,
@@ -127,29 +108,24 @@ def run_matching():
         max_distance=50.0,
     )
 
-    output = run_pipeline(DEFAULT_PIPELINE, ctx)
+    pipeline = DEFAULT_PIPELINE
 
-    # ── Build return value (same shape as before) ────────────────────────
-    base_data = {
-        "matched": output.matched,
-        "unmatched_atlas": output.unmatched_atlas,
-        "unmatched_osm": output.unmatched_osm,
-    }
+    output = run_pipeline(pipeline, ctx)
 
     # ── Summary ──────────────────────────────────────────────────────────
-    _print_summary(output, atlas_df, duplicate_sloid_map)
+    _print_summary(output, atlas_df)
 
-    return base_data, duplicate_sloid_map
+    return output
 
 
 # ---------------------------------------------------------------------------
 # Reporting
 # ---------------------------------------------------------------------------
 
-def _print_summary(output, atlas_df, duplicate_sloid_map):
+def _print_summary(output, atlas_df):
     """Print a concise matching summary."""
     from collections import Counter
-    types = Counter(m.get('match_type', '?') for m in output.matched)
+    types = Counter(m.match_type for m in output.matched)
 
     print("\n==== FINAL MATCHING SUMMARY ====")
     print(f"Total ATLAS entries: {len(atlas_df)}")
@@ -161,8 +137,8 @@ def _print_summary(output, atlas_df, duplicate_sloid_map):
 
     matched_dups = sum(
         1 for m in output.matched
-        if str(m.get('sloid', '')) in duplicate_sloid_map
+        if m.atlas_node.sloid in output.duplicate_sloid_map
     )
-    print(f"Duplicate ATLAS sloids: {len(duplicate_sloid_map)} "
+    print(f"Duplicate ATLAS sloids: {len(output.duplicate_sloid_map)} "
           f"(matched: {matched_dups})")
     print("Base data is ready for database import.")

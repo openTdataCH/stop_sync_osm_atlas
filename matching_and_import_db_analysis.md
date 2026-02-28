@@ -1,20 +1,20 @@
-# Architecting the ATLAS ↔ OSM Matching System: A Deep Dive
+# Architecting the ATLAS ↔ OSM Matching System: A Deep Dive (Data-First Architecture)
 
-This document provides a highly detailed, 360-degree architectural overview of the `matching_and_import_db` pipeline. It covers the complete lifecycle of data, starting from when the Docker container launches, traversing the in-memory state architecture, illustrating predicate interactions, problem detection, and finally arriving at the database insertion logic.
+This document provides a highly detailed, 360-degree architectural overview of the `matching_and_import_db` pipeline. It covers the complete lifecycle of data, starting from when the Docker container launches, traversing the strongly-typed domain models, illustrating predicate interactions and transactions, handling problem detection internally, and finally arriving at the database insertion logic.
 
-It intentionally steps away from merely listing stages and instead focuses on **how the system handles state, execution contexts, database hydration, and large-scale memory management**. This document contains abundant code snippets to facilitate a rapid ramp-up for deep-diving and debugging.
+It intentionally focuses on **data structures, strictly typed domain models, atomic transactional states, and encapsulation**, reflecting the modernized **Data-First Architecture.**
 
 ---
 
 ## 1. The Entrypoint & Trigger Flow
 
-The journey begins in the system's `entrypoint.sh` script. Instead of running a persistent daemon, the matching pipeline is executed as an initialization step before the API server boots up. 
+The journey begins in the system's `entrypoint.sh` script. Instead of running a persistent daemon, the matching pipeline is executed as an initialization step before the API server boots up.
 
 ### Triggering the Pipeline (`entrypoint.sh`)
 ```bash
 # entrypoint.sh excerpt
 if [ "$SKIP_DATA_IMPORT" != "true" ]; then
-    echo "🔄 Running matching pipeline and importing to database..."
+    echo "Running matching pipeline and importing to database..."
     python matching_and_import_db/database/importer.py
     echo "Finished importer.py"
 fi
@@ -26,7 +26,7 @@ exec python backend/app.py
 Notice that the entry point calls `matching_and_import_db/database/importer.py` directly. This acts as our "God script" that subsequently requests the data processing pipeline to execute in memory, and then orchestrates the insertion into PostGIS.
 
 ### Orchestrator Call
-If we look at the very bottom of `importer.py` (when run as `__main__`), it triggers `run_matching()` from `orchestrator.py` to get the raw data dicts, and *then* imports them.
+If we look at the very bottom of `importer.py` (when run as `__main__`), it triggers `run_matching()` from `orchestrator.py` to get the rigorously typed `PipelineResult`, and *then* imports them. Note that `import_to_database` receives **both** the `PipelineResult` and the `duplicate_sloid_map` as separate arguments, and a final stats export runs afterwards.
 
 ```python
 # matching_and_import_db/database/importer.py (__main__ block)
@@ -34,533 +34,519 @@ if __name__ == "__main__":
     # ... parsing arguments ...
 
     print("Running the final pipeline to obtain base data...")
-    # Step 1: Run the raw heuristics engine (Returns primitive types: dicts, lists)
-    base_data, duplicate_sloid_map_result = run_matching()
-    
+    result = run_matching()
+
     print("Importing data into the database...")
-    # Step 2: Inject primitives into the PostGIS / SQLAlchemy schema
     no_nearby_sloids = import_to_database(
-        base_data, 
-        duplicate_sloid_map_result, 
+        result,
+        result.duplicate_sloid_map,
         run_phase1=not args.skip_phase1,
         run_phase2=not args.skip_phase2,
         run_phase3=not args.skip_phase3
     )
+
+    # Export statistics to data/stats.json
+    export_stats_after_import(result, result.duplicate_sloid_map, no_nearby_sloids)
 ```
 
 ---
 
-## 2. In-Memory State & Spatial Architecture
+## 2. Strong Domain Models (The Data-First Paradigm)
 
-Because iterating through databases iteratively to find nearest neighbors is prohibitively slow, the application pulls **everything** into RAM before doing heuristic matching. 
+The entire architecture is built upon python `dataclasses` that enforce strict schema constraints. This completely eliminates "Primitive Obsession" where generic, unpredictable dictionaries were previously used.
 
-To prevent utter chaos, the `run_matching` function organizes this data into strict, object-oriented State Managers: `AtlasState` and `OsmState`.
-
-```python
-# matching_and_import_db/orchestrator.py (Excerpt)
-def run_matching():
-    # ── Load data ────────────────────────────────────────────────────────
-    atlas_csv_file = _locate_file('ATLAS_STOPS_CSV', 'data/raw/stops_ATLAS.csv', 'ATLAS')
-    osm_xml_file = _locate_file('OSM_XML_FILE', 'data/raw/osm_data.xml', 'OSM')
-
-    # Load raw CSV via Pandas
-    atlas_df = pd.read_csv(atlas_csv_file, sep=";")
-    
-    # Custom XML Parsing logic
-    osm_index = OsmState.from_xml_file(osm_xml_file)
-
-    # ── Initialize State ─────────────────────
-    atlas_state = AtlasState.from_dataframe(atlas_df)
-    
-    # ... Next we build the execution context ...
-```
-
-### 2.1 `AtlasState` (The Flat DataFrame Manager)
-
-Data originating from ATLAS comes as a flat CSV. `AtlasState` simply acts as an isolation barrier over a `pandas.DataFrame`. It tracks which rows (identified by `sloid`) have been permanently locked to an OSM node.
+Both `AtlasNode` and `OsmNode` are `frozen=True`, making them immutable value objects once constructed.
 
 ```python
-# matching_and_import_db/state.py
-class AtlasState:
-    """Manages the fully populated ATLAS dataset and provides unmatched records on demand."""
-    
-    @classmethod
-    def from_dataframe(cls, atlas_df: pd.DataFrame) -> 'AtlasState':
-        """
-        Builds AtlasState directly from a DataFrame, computing duplicate sets automatically.
-        """
-        # Finds exact duplicate groups early to manage clustering edge-cases
-        dup_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
-        # ... logic ...
-        return cls(atlas_df, duplicate_sloid_map)
-
-    def __init__(self, atlas_df: pd.DataFrame, duplicate_sloid_map: dict):
-        self._df = atlas_df
-        self.duplicate_sloid_map = duplicate_sloid_map
-        # THIS IS THE CRITICAL STATE MUTATION BARRIER:
-        self.matched_ids: set[str] = set()
-        
-    def add_matched_sloid(self, sloid: str):
-        self.matched_ids.add(sloid)
-        
-    def get_unmatched_records(self) -> list[dict]:
-        """Provides raw dicts for unmatched ATLAS records cleanly."""
-        unmatched_df = self._df[~self._df['sloid'].isin(self.matched_ids)]
-        return unmatched_df.to_dict(orient="records")
-```
-
-### 2.2 `OsmState` (The Spatial and Attribute Master)
-
-`OsmState` is vastly more complicated than `AtlasState`. OSM Data is hierarchical (Nodes, Ways, Relations) and intensely geospatial. The `OsmState` class builds hash map indexes for attributes, and a `scipy.spatial.KDTree` for radius searching.
-
-```python
-# matching_and_import_db/state.py
-class OsmState:
-    """Manages OSM indexing, queries (spatial and attribute), and matching exclusion capabilities."""
-    
-    @classmethod
-    def from_xml_file(cls, xml_file: str) -> 'OsmState':
-        # ... massive tree = ET.parse(xml_file) logic ...
-        all_nodes: dict[tuple, dict] = {}
-        uic_ref_dict: dict[str, list] = defaultdict(list)
-        name_index: dict[str, list] = defaultdict(list)
-        # ... builds dictionaries indexing nodes by UIC, Name, and raw coordinates ...
-        return cls(all_nodes, uic_ref_dict, name_index, dict(name_dirs), dict(uic_dirs))
-
-    def mark_used(self, node_id: str):
-        """Once claimed by a predicate, the node is locked out forever."""
-        self.used_ids.add(node_id)
-        
-    def get_by_uic(self, uic: str) -> list[dict]:
-        """Gets matching nodes by UIC, skipping any that are already marked used."""
-        return [
-            c for c in self._uic_ref_dict.get(str(uic), [])
-            if c['node_id'] not in self.used_ids and not is_osm_station(c)
-        ]
-```
-
-**The Spatial Indexing (KDTree) Magic:**
-Instead of computing Haversine distances for $N \times M$ rows, `OsmState` caches a KDTree that operates natively on Euclidean abstractions. It exposes a `batch_query_radius` function.
-
-```python
-    def batch_query_radius(self, coords_list, max_distance: float, include_stations: bool = False):
-        """Query for matching nodes around a radius for multiple coordinates at once."""
-        self._ensure_spatial_index(include_stations)
-        # ...
-        kd_radius = meters_to_unit_chord_radius(max_distance)
-        points = batch_to_xyz(coords_list)
-        
-        # Super-fast C-native SCIPY querying across all given points at once
-        indices_list = self._cached_tree.query_ball_point(points, r=kd_radius, workers=-1)
-        # Filters out nodes inside self.used_ids on the fly ...
-```
-
----
-
-## 3. Understanding the Abstractions (OOP in the Matching Pipeline)
-
-The codebase relies on a few core **abstractions** (implemented as Python classes and higher-order functions) to manage complexity. An abstraction hides complicated details behind a simple interface.
-
-Here are the specific abstractions we use:
-
-1. **State Managers (`AtlasState`, `OsmState`)**
-   - **What they are:** Classes acting as localized, in-memory databases.
-   - **Why we need them:** They abstract away the painful details of querying CSV files or raw XML trees. Predicates simply call `ctx.osm.get_by_uic()` without knowing *how* the lookup or spatial KDTree is implemented.
-2. **The Context (`MatchingContext`)**
-   - **What it is:** A Data Class that bundles the State Managers together.
-   - **Why we need it:** It acts as a single "source of truth" passed to every predicate, avoiding the use of dangerous global variables.
-3. **Predicates (e.g., `exact_uic`, `nearest_distance`)**
-   - **What they are:** Standalone heuristic functions.
-   - **Why we need them:** They encapsulate a specific algorithmic rule (a "heuristic strategy"). They all share the exact same signature: `def predicate_name(ctx: MatchingContext) -> list[dict]`.
-4. **The Pipeline (`run_pipeline`)**
-   - **What it is:** A sequential runner function.
-   - **Why we need it:** It abstracts the control flow. It iterates through a list of predicates, executing them one by one, and handles the global state book-keeping automatically after each predicate finishes.
-
----
-
-## 4. The Execution Context (`MatchingContext`)
-
-To prevent predicates from arbitrarily manipulating raw data or referencing global variables, the pipeline creates an immutable context wrapper holding references to our states. Everything a predicate does **must** go through this context.
-
-```python
-# matching_and_import_db/pipeline.py
-@dataclass
-class MatchingContext:
-    """Robust, immutable context referencing state managers for the pipeline run."""
-    atlas: 'AtlasState'
-    osm: 'OsmState'
-    all_matches: list = field(default_factory=list)
-    max_distance: float = 50.0
-```
-
-### Flow of execution in `pipeline.py`:
-The `run_pipeline` function takes `DEFAULT_PIPELINE` (a list of function pointers), iterates through them, and updates the `ctx.all_matches`.
-
-```python
-# matching_and_import_db/pipeline.py
-def run_pipeline(predicates: list, ctx: MatchingContext) -> PipelineOutput:
-    for predicate in predicates:
-        # Each predicate is just a function that accepts `ctx`
-        matches = predicate(ctx)
-
-        # --- Book-keeping ---
-        # The predicate returns raw dictionaries of matched pairs.
-        # We must commit them globally here so the NEXT predicate doesn't see them.
-        for m in matches:
-            ctx.all_matches.append(m)
-            sloid = m.get('sloid')
-            if sloid:
-                ctx.atlas.add_matched_sloid(sloid)
-            osm_id = m.get('osm_node_id')
-            if osm_id and osm_id != 'NA':
-                ctx.osm.mark_used(osm_id)
-
-    # Gather leftovers
-    return PipelineOutput(
-        matched=ctx.all_matches,
-        unmatched_atlas=ctx.atlas.get_unmatched_records(),
-        unmatched_osm=ctx.osm.get_unmatched_nodes(),
-    )
-```
-
-**Architectural Note / Bug Vector:** 
-There is a known architectural pattern here where `ctx.osm.mark_used(osm_id)` happens strictly *after* the entire predicate runs (`for m in matches:` block). 
-If a predicate evaluates *two* ATLAS nodes inside its execution, both might attempt to match to the *same* OSM Node, because `ctx.osm.is_used` returns `False` during the predicate's runtime. The state is only reconciled afterwards. Predicates must manually manage `ctx.osm.mark_used()` internally to avoid internal collisions safely. That's why inside predicates, you'll sometimes see `ctx.osm.mark_used()` called manually.
-
----
-
-## 5. Anatomy of a Predicate
-
-Instead of listing all predicates, let us look at the structure of a single predicate (`exact_matching.py`) to understand *how* the heuristics operate against the Context Architecture.
-
-1. First, request all available ATLAS entries (`ctx.atlas.get_unmatched_records`).
-2. Do heavy grouping or querying (e.g., query `ctx.osm.get_by_uic`).
-3. Whenever a candidate acts dynamically, use the standard `make_match` utility.
-4. Call `ctx.osm.mark_used` to secure it mid-loop.
-5. Append and return it.
-
-```python
-# matching_and_import_db/predicates/exact_matching.py
-def exact_uic(ctx: MatchingContext) -> list[dict]:
-    matches: list[dict] = []
-
-    # 1. Fetch available ATLAS context cleanly
-    atlas_by_uic: dict[str, list[dict]] = {}
-    for rec in ctx.atlas.get_unmatched_records():
-        atlas_by_uic.setdefault(str(rec.get("number")), []).append(rec)
-
-    for uic, entries in sorted(atlas_by_uic.items()):
-        # 2. Fetch purely available OSM context natively via indexed attribute
-        available = ctx.osm.get_by_uic(uic)
-        if not available:
-            continue
-
-        if len(available) == 1:
-            osm = available[0]
-            for entry in entries:
-                # 3. Create the standard match dictionary payload
-                matches.append(make_match(
-                    entry, osm, 'exact',
-                    "Single OSM node for this UIC reference",
-                    pool_size=1,
-                ))
-            # 4. MUTATE THE STATE IMMEDIATELY. This is crucial for internal loops.
-            ctx.osm.mark_used(osm['node_id'])
-            continue
-
-        # ... handle collisions ...
-    return matches
-```
-
----
-
-## 6. Exiting the Pipeline Matrix
-
-Back in `orchestrator.py` we take the `PipelineOutput` and convert it into a simple monolithic dictionary tree:
-
-```python
-base_data = {
-    "matched": output.matched,
-    "unmatched_atlas": output.unmatched_atlas,
-    "unmatched_osm": output.unmatched_osm,
-}
-return base_data, duplicate_sloid_map
-```
-
-This massive dictionary holds the entirety of our transit data payload. No objects, no fancy getters or setters, purely atomic JSON-serializable dictionaries.
-
----
-
-## 7. Real-World Database Insertion & Problem Detection
-
-`importer.py` takes the monolithic `base_data` structure and carefully transforms it into PostgreSQL representations.
-Before inserting into SQLAlchemy, it builds a secondary abstract structure: the **`ProblemContext`**. This context allows the system to determine if there's any anomaly with a match (e.g., coordinates too far apart, attribute disagreement) natively on the fly, immediately marking database lines as "Problematic".
-
-### Database Truncation (Phases)
-The importer aggressively wipes database tables. It uses cascades. It guarantees an absolutely clean state.
-
-```python
-# matching_and_import_db/database/importer.py (Phase control architecture)
-if run_phase1:
-    session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, route_atlas_stops, route_osm_stops CASCADE"))
-if run_phase2:
-    session.execute(text("TRUNCATE TABLE routes_matched CASCADE"))
-if run_phase3:
-    session.execute(text("TRUNCATE TABLE problems, stops_matched CASCADE"))
-session.commit()
-```
-
-### Entity Hydration (The SQLAlchemy Loop)
-
-The most important part of `importer.py` is its extraction and insertion of matches into the polymorphic schema (`StopsMatched`, `AtlasStop`, `OsmNode`). 
-
-In the database:
-- `AtlasStop` records the raw ATLAS info.
-- `OsmNode` records the raw OSM info.
-- `StopsMatched` acts as the junction table that connects an `AtlasStop` (`sloid`) to an `OsmNode` (`osm_node_id`). It stores both `atlas_lat` and `osm_lat`.
-
-```python
-# matching_and_import_db/database/importer.py
-for rec in matched_records:
-    # Safely extract values avoiding NaN exceptions
-    atlas_lat, atlas_lon = validate_coordinates(...)
-    sloid = safe_value(rec.get('sloid'))
-    osm_node_id = safe_value(rec.get('osm_node_id'))
-
-    # Build the matching junction first
-    stop_record = StopsMatched(
-        sloid=sloid,
-        stop_type='matched',
-        match_type=safe_value(rec.get('match_type')),
-        atlas_lat=atlas_lat,
-        atlas_lon=atlas_lon,
-        osm_node_id=osm_node_id,
-        osm_lat=osm_lat,
-        osm_lon=osm_lon,
-        distance_m=safe_value(rec.get('distance_m')),
-        geom=make_point_geom(atlas_lat, atlas_lon)
-    )
-
-    # Run side-system problem heuristic, attaching Problem flags back to stop_record.
-    apply_problem_results(stop_record, run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, rec))
-    
-    # Store directly in session batched
-    session.add(stop_record)
-
-    # Insert individual atomic Atlas Data
-    if run_phase1 and sloid not in processed_sloids:
-        atlas_record = AtlasStop(
-            sloid=sloid,
-            uic_ref=safe_value(rec.get('number'), ""),
-            atlas_designation=safe_value(rec.get('csv_designation'), ""),
-            # ...
-        )
-        session.add(atlas_record)
-        processed_sloids.add(sloid)
-
-    # Insert individual atomic OSM Data
-    if run_phase1 and osm_node_id not in processed_osm_node_ids:
-        osm_record = OsmNode(
-            osm_node_id=osm_node_id,
-            osm_name=safe_value(rec.get('osm_name')),
-            # ...
-        )
-        session.add(osm_record)
-        processed_osm_node_ids.add(osm_node_id)
-```
-
-**Memory Safety in the Importer Engine:**
-To avoid overwhelming Python's memory with SQLAlchemy instances, the backend uses aggressive transaction batching:
-
-```python
-# Batching mechanism in importer.py
-inserted += 1
-if BATCH_SIZE > 0 and (inserted % BATCH_SIZE) == 0:
-    session.commit()
-    # Expunge all flushes objects from the SQLAlchemy identity map, preventing RAM leaks!
-    session.expunge_all() 
-```
-
-### Route Indexing
-
-After inserting spatial data and matches, the `importer.py` loads transit routing lines. It utilizes `RouteAtlasStops` and `RouteOsmStops` to link individual `StopsMatched` sequentially. This is essential, as the order of node visits in a transit system matters immensely.
-
-```python
-# Route hydration inside importer.py
-for (osm_route_id, direction_id), osm_data in osm_route_dir_to_nodes.items():
-    if run_phase1:
-        # Insert Sequential Route Ordering Data
-        for i, node_id in enumerate(osm_data['nodes']):
-            routes_to_insert.append(RouteOsmStops(
-                osm_route_id=osm_route_id, 
-                direction_id=direction_id, 
-                osm_node_id=node_id, 
-                stop_sequence=i
-            ))
-```
-Finally `session.bulk_save_objects(routes_to_insert)` commits it rapidly without instantiating full ORM relationship structures.
-
----
-
-## 8. Critique of Current Abstractions
-
-Looking at the system through the lens of Linus Torvalds’ philosophy—*"Bad programmers worry about the code. Good programmers worry about data structures and their relationships"*—reveals exactly where this pipeline currently struggles.
-
-Currently, the pipeline is too focused on **behavior** (predicates, helper functions, and pipelines) and has neglected **strict data contracts**, leading to "Primitive Obsession" and state-synchronization bugs.
-
-### Visualization of the Current Architecture
-
-Currently, the core data structures are `AtlasState` and `OsmState`, which are wrapped by the `MatchingContext`. These states consume raw files and export **untyped dictionaries** to the predicates.
-
-```mermaid
-flowchart TD
-    subgraph Raw Data
-        A["ATLAS (CSV)"]
-        B["OSM (XML)"]
-    end
-
-    subgraph "State Management (The Memory Layer)"
-        AtlasState["AtlasState\n- pandas DataFrame\n- matched_ids (Set)"]
-        OsmState["OsmState\n- KDTree (SciPy)\n- Dict Indexes (name, uic)\n- used_ids (Set)"]
-        Context["MatchingContext\n(DataClass Binder)"]
-    end
-
-    subgraph "Heuristics (The Behavior Layer)"
-        Predicates["Predicates\n(exact_uic, nearest_distance, etc.)"]
-        MakeMatch["make_match()\nReturns: dict"]
-    end
-
-    subgraph "Output"
-        PipeOutput["PipelineOutput\n(Lists of dicts)"]
-    end
-
-    A --> AtlasState
-    B --> OsmState
-    AtlasState -->|Binds| Context
-    OsmState -->|Binds| Context
-    Context -->|Passes Context| Predicates
-    
-    Predicates -->|Queries & dicts| AtlasState
-    Predicates -->|Queries & dicts| OsmState
-    Predicates -->|Creates| MakeMatch
-    MakeMatch -->|Appends dict to| PipeOutput
-
-    style Context fill:#2b2b2b,stroke:#a6a6a6,stroke-width:2px,color:#fff
-    style Predicates fill:#284b63,stroke:#1a303f,color:#fff
-    style MakeMatch fill:#8a2a2a,stroke:#5c1a1a,stroke-width:2px,color:#fff
-```
-
-### Abstraction Weaknesses & Leakages
-
-While the `MatchingContext` and `State` classes are a step in the right direction to avoid global variables, they suffer from two major architectural flaws that violate Torvalds' rule:
-
-#### A. Primitive Obsession (Untyped Dictionaries)
-
-```python
-def make_match(atlas_entry: dict, osm_node: dict, match_type: str, notes: str, pool_size: int = 0) -> dict:
-   dist = haversine_distance(
-       atlas_entry['wgs84North'], atlas_entry['wgs84East'], ...
-   )
-```
-*   **The Flaw:** The system relies entirely on standard Python string-keyed dictionaries (`dict`) to represent complex domain entities. When `ctx.atlas.get_unmatched_records()` is called, it returns `list[dict]`. 
-*   **Why it's bad:** There is no *data structure contract*. The predicate must guess or hope that keys like `wgs84North` or `sloid` exist. `make_match` blindly accepts `**kwargs` and manipulates arbitrary keys. If the raw data shape changes, the code crashes deep inside a heuristic rather than failing safely at the data boundary.
-
-#### B. The "Batch State Mutation" Bug (Leaky State Machine)
-
-```python
-# from pipeline.py
-for m in matches:
-    ctx.all_matches.append(m)
-    sloid = m.get('sloid')
-    if sloid: ctx.atlas.add_matched_sloid(sloid)
-    osm_id = m.get('osm_node_id')
-    if osm_id and osm_id != 'NA': ctx.osm.mark_used(osm_id)
-```
-*   **The Flaw:** The pipeline delegates the responsibility of state mutation (`mark_used`, `add_matched_sloid`) to the *orchestrator loop*, rather than providing atomic transactions. As noted in `pipeline.py`, the orchestrator iterates and updates the state *after* the predicate finishes.
-*   **Why it's bad:** A single predicate might evaluate two ATLAS stops and match them *both* to the same OSM node during its loop, returning a collision. Predicates are thereby forced to know about internal state mechanics and often have to manually call `ctx.osm.mark_used()` themselves to prevent internal collisions.  The `MatchingContext` fails to protect its own data integrity.
-
----
-
-## 9. Proposed Improvements (Data-First Architecture)
-
-To fix this, we must shift our focus from **how** the matching happens to **what** data structures are involved. 
-
-### Improvement 1: Strong Domain Entities (Dataclasses / Pydantic)
-Stop using `dict`. We need strict, predictable data models describing an `AtlasNode`, an `OsmNode`, and a `MatchRecord`. 
-By doing this, the `KDTree` and predicates interact with strictly typed objects carrying their own validation logic.
-
-```python
+# matching_and_import_db/models.py
 @dataclass(frozen=True)
 class AtlasNode:
     sloid: str
     lat: float
     lon: float
-    uic_ref: Optional[str]
+    uic_ref: str
     designation: str
+    designation_official: str
+    business_org_abbr: str
+    raw_data: dict[str, Any]  # Original dictionary for stray fields
 
+@dataclass(frozen=True)
+class OsmNode:
+    node_id: str
+    lat: float
+    lon: float
+    local_ref: Optional[str]
+    name: Optional[str]
+    uic_name: Optional[str]
+    uic_ref: Optional[str]
+    network: str
+    operator: str
+    public_transport: Optional[str]
+    railway: Optional[str]
+    amenity: Optional[str]
+    aerialway: Optional[str]
+    tags: dict[str, str]
+
+    @property
+    def is_station(self) -> bool:
+        """Checks whether this node is a station-level entity (not a platform)."""
+        return (
+            self.public_transport == 'station' or
+            self.railway == 'station' or
+            self.aerialway == 'station'
+        )
+```
+
+`MatchRecord` is the mutable join entity holding the match result plus its detected problems:
+
+```python
 @dataclass
-class MatchTransaction:
+class MatchRecord:
     atlas_node: AtlasNode
     osm_node: OsmNode
     match_type: str
     distance_m: float
+    notes: str
+    candidate_pool_size: int = 0
+    problems: list[ProblemResult] = field(default_factory=list)
+
+    def evaluate_problems(self, problem_ctx: ProblemContext, predicates: list) -> None:
+        """
+        Runs the given problem predicates against this match.
+        Each predicate receives the MatchRecord directly (self) and returns
+        a list of ProblemResult objects.
+        """
+        self.problems.clear()
+
+        for predicate in predicates:
+            try:
+                self.problems.extend(predicate(problem_ctx, self))
+            except Exception:
+                logger.warning(
+                    f"Problem Predicate {predicate.__name__} failed for MatchRecord "
+                    f"{self.atlas_node.sloid} <-> {self.osm_node.node_id}",
+                    exc_info=True
+                )
 ```
 
-### Improvement 2: A Mutating Transaction Manager
-Instead of `Predicate -> returns list -> Pipeline -> updates states`, the Context itself should handle transactions atomically. The `MatchingContext` should expose a `.commit()` method. If a predicate finds a match, it immediately commits it. The Context then updates both `AtlasState` and `OsmState` simultaneously, ensuring 0% chance of double-booking nodes.
+Problem predicates are **polymorphic**: each accepts a union type `MatchRecord | AtlasNode | OsmNode` and uses `isinstance` checks internally to decide what to evaluate. For example, `distance_problem` only acts on `MatchRecord` (returning `[]` for bare nodes), while `unmatched_problem` only acts on bare `AtlasNode` or `OsmNode` records. This allows the same predicate list (`STOP_PROBLEM_PIPELINE`) to be used for both matched and unmatched records.
 
-### Improvement 3: Decoupling Spatial Indexing from State
-Right now, `OsmState` is doing too much: XML parsing, holding the spatial KDTree, managing attribute dictionaries, and tracking "used" flags. The Spatial Index should be its own dedicated, immutable Data Structure, while `OsmState` simply handles the read/write tracking pointers.
+Each problem predicate returns `list[ProblemResult]`, a lightweight frozen value object decoupled from SQLAlchemy:
+
+```python
+# matching_and_import_db/problem_detection/result.py
+@dataclass(frozen=True)
+class ProblemResult:
+    problem_type: str        # 'distance', 'attributes', 'unmatched', 'duplicates'
+    priority: int            # 1 = P1, 2 = P2, 3 = P3
+    has_atlas_duplicate: bool = False
+    has_osm_duplicate: bool = False
+```
+
+Whenever a system component requests data, it gets these robust Data Classes. It no longer has to guess what keys exist.
 
 ---
 
-### Visualization of the Improved Architecture
+## 3. In-Memory State & Spatial Architecture
 
-If we redesign the system focusing purely on data structures and strict transactions, the architecture becomes significantly more robust:
+Because iterating through databases iteratively to find nearest neighbors is prohibitively slow, the application pulls **everything** into RAM before doing heuristic matching.
+
+To prevent utter chaos, the `run_matching` function organizes this data into strict, object-oriented State Managers: `AtlasState` and `OsmState`.
+
+### 3.1 `AtlasState` (The Frame Mapper)
+
+Data originating from ATLAS comes as a flat CSV. `AtlasState` acts as an isolation barrier over a `pandas.DataFrame`, yielding strictly typed `AtlasNode` entities. It is constructed via the `from_dataframe` class method, which also pre-computes duplicate SLOID groups automatically.
+
+```python
+# matching_and_import_db/state.py
+class AtlasState:
+    @classmethod
+    def from_dataframe(cls, atlas_df: pd.DataFrame) -> 'AtlasState':
+        """Builds AtlasState, computing duplicate sets automatically."""
+        # ... duplicate detection logic ...
+        return cls(atlas_df, duplicate_sloid_map)
+
+    def get_unmatched_records(self) -> list[AtlasNode]:
+        """Provides strongly-typed domain models representing unmatched records."""
+        unmatched_df = self._df[~self._df['sloid'].isin(self.matched_ids)]
+        return [self._to_atlas_node(row) for _, row in unmatched_df.iterrows()]
+```
+
+### 3.2 `OsmState` (The Spatial and Attribute Master)
+
+OSM data is parsed from raw XML via `OsmState.from_xml_file()` and requires multiple access patterns:
+
+*   **Spatial Index:** A `scipy.spatial.KDTree` built **lazily** on first use via `_ensure_spatial_index()`. Crucially, `used_ids` are filtered **at query time**, so the tree is not rebuilt after each match. Spatial queries are performed in batches via `batch_query_radius()`.
+*   **Attribute Indexes:** Hash maps (`_uic_ref_dict`, `_name_index`) providing strictly typed `OsmNode` instances on-demand, automatically skipping nodes already locked.
+*   **Route Direction Indexes:** Per-node direction strings (`name_dirs`, `uic_dirs`) extracted either from a sidecar CSV (`data/processed/osm_directions.csv`) or by parsing `<relation>` elements from the OSM XML.
+
+During XML parsing, operator values are standardized via `standardize_operator()`, with the original value preserved in `tags['original_operator']`.
+
+### 3.3 Why Index OSM and Not ATLAS?
+
+The matching pipeline is intentionally **ATLAS-driven**. The core orchestration loop (in `pipeline.py` / `orchestrator.py`) requests the remaining unmatched ATLAS nodes (`ctx.atlas.get_unmatched_records()`), streams through them sequentially, and uses their properties as the search keys to dynamically query the `OsmState` indexes (e.g., `ctx.osm.get_by_uic(uic)`).
+
+---
+
+## 4. The Transactional Execution Context
+
+To prevent predicates from arbitrarily manipulating raw data or causing massive race conditions during state mutation, the pipeline creates a **unified transactional wrapper**, `MatchingContext`.
+
+```python
+# matching_and_import_db/pipeline.py
+@dataclass
+class MatchingContext:
+    """Robust, shared context referencing state managers for the pipeline run."""
+    atlas: AtlasState
+    osm: OsmState
+    all_matches: list[MatchRecord] = field(default_factory=list)
+    max_distance: float = 50.0
+
+    def commit(self, atlas_node: AtlasNode, osm_node: OsmNode, match_type: str,
+               distance_m: float, notes: str, candidate_pool_size: int = 0) -> None:
+        """Atomically locks the resources securely to prevent collisions."""
+        record = MatchRecord(
+            atlas_node=atlas_node,
+            osm_node=osm_node,
+            match_type=match_type,
+            distance_m=distance_m,
+            notes=notes,
+            candidate_pool_size=candidate_pool_size
+        )
+        self.all_matches.append(record)
+        self.atlas.add_matched_sloid(atlas_node.sloid)
+        # Guard: some predicates (e.g., ManualMatch) may commit with a synthetic 'NA' node
+        if osm_node.node_id and osm_node.node_id != 'NA':
+            self.osm.mark_used(osm_node.node_id)
+```
+
+The `commit()` method ensures atomic locking of nodes inside predicates instantly, replacing the buggy post-loop mutation mechanic. The guard on `osm_node.node_id` allows certain predicates (like manual matches) to commit records that don't correspond to a real OSM node.
+
+---
+
+## 5. Anatomy of a Predicate (`BasePredicate`)
+
+All heuristic strategies inherit from `BasePredicate` ensuring consistency. The pipeline enforces these strict signatures.
+
+```python
+# matching_and_import_db/predicates/__init__.py
+class BasePredicate(ABC):
+    def __init__(self, name: Optional[str] = None, max_distance: float = 50.0):
+        self._name = name or self.__class__.__name__
+        self.max_distance = max_distance
+
+    @abstractmethod
+    def run(self, ctx: MatchingContext) -> None:
+        """Executes the heuristic, calling ctx.commit() for each match found."""
+        pass
+```
+
+The general predicate lifecycle is:
+
+1.  It streams unmatched records from `ctx.atlas`.
+2.  It evaluates candidates from `ctx.osm` (spatial, attribute, or route-based lookup).
+3.  When an algorithmic condition passes, it calls `ctx.commit()` immediately executing the state mutation.
+
+### Concrete Example: `NameMatchPredicate`
+
+```python
+# matching_and_import_db/predicates/name_matching.py
+class NameMatchPredicate(BasePredicate):
+    """Match ATLAS designationOfficial against OSM name / uic_name / gtfs:name."""
+
+    def run(self, ctx: MatchingContext) -> None:
+        for entry in ctx.atlas.get_unmatched_records():
+            name = (entry.designation_official or '').strip()
+            if not name:
+                continue
+
+            candidates = ctx.osm.get_by_name(name)  # Auto-skips used nodes!
+            if not candidates:
+                continue
+
+            osm = None
+            if len(candidates) == 1:
+                osm = candidates[0]
+            else:
+                # Refine by designation == local_ref
+                desig = (entry.designation or '').strip().lower()
+                if desig:
+                    for c in candidates:
+                        if (c.local_ref or '').strip().lower() == desig:
+                            osm = c
+                            break
+
+            if osm:
+                dist = haversine_distance(entry.lat, entry.lon, osm.lat, osm.lon)
+                ctx.commit(
+                    atlas_node=entry,
+                    osm_node=osm,
+                    match_type='name',
+                    distance_m=dist,
+                    notes=f"Name index match ({len(candidates)} candidates)",
+                    candidate_pool_size=len(candidates)
+                )
+```
+
+### 5.1 The Full Predicate Pipeline
+
+The pipeline runs **9 predicates** sequentially in `orchestrator.py`. Each successive predicate only sees ATLAS/OSM nodes that remain unmatched after all previous predicates:
+
+```python
+# matching_and_import_db/orchestrator.py
+DEFAULT_PIPELINE = [
+    ExactUicPredicate(),             # Exact UIC reference match
+    NameMatchPredicate(),            # designationOfficial ↔ OSM name
+    GroupProximityPredicate(),        # Group-based proximity matching
+    LocalRefDistancePredicate(),     # local_ref + distance
+    NearestDistancePredicate(),      # Pure nearest-neighbor
+    RouteMatchPredicate(),           # Route-informed matching
+    PostpassUniqueUicPredicate(),    # Unique UIC cleanup
+    DuplicatePropagationPredicate(), # Duplicate group propagation
+    ManualMatchPredicate(),          # Manual overrides from user input DB
+]
+```
+
+---
+
+## 6. The Abstract Architecture
+
+The system is organized into four tiers, each with a clear responsibility boundary:
+
+**Tier 1 - Behavior (Predicates):** The 9 concrete predicates (inheriting from `BasePredicate`) contain all matching heuristics. They never touch raw state directly; they only interact with the Orchestration Tier below.
+
+**Tier 2 - Orchestration (`MatchingContext`):** Acts as the single gateway between predicates and data. It exposes read-only queries (delegating to `AtlasState` / `OsmState`) and a `commit()` method that atomically locks both the ATLAS and OSM nodes involved in a match. Predicates request candidate nodes through the context and submit matches back through it, but never mutate state themselves.
+
+**Tier 3 - State & Indexing (`AtlasState`, `OsmState`):** Encapsulates all in-memory storage and fast-lookup structures. `AtlasState` wraps a pandas DataFrame and a `matched_ids` set. `OsmState` manages a lazy KDTree for spatial queries and hash-map indexes for attribute lookups (UIC ref, name, route directions). Both expose methods that automatically filter out already-matched nodes.
+
+**Tier 4 - Domain Data (Models):** Immutable value objects (`AtlasNode`, `OsmNode`) flow upward from Tier 3 to Tier 1. The mutable `MatchRecord` is created by `commit()` and accumulates in `MatchingContext.all_matches`.
+
+The data flow is: predicates request candidates (steps 1-3), then commit matches (steps 4-6). Reads flow upward through the tiers; mutations flow downward only through `commit()`.
 
 ```mermaid
 flowchart TD
-    subgraph "Domain Models (Strict Contracts)"
-        AtlasNode["AtlasNode (Dataclass)"]
-        OsmNode["OsmNode (Dataclass)"]
-        MatchRecord["MatchRecord (Dataclass)"]
+    %% Define Styles
+    classDef model fill:#8e44ad,color:#fff,stroke:#fff,stroke-width:2px
+    classDef state fill:#2980b9,color:#fff,stroke:#fff,stroke-width:2px
+    classDef context fill:#34495e,color:#fff,stroke:#fff,stroke-width:2px
+    classDef behavior fill:#d35400,color:#fff,stroke:#fff,stroke-width:2px
+    classDef action fill:#27ae60,color:#fff,stroke:#fff,stroke-width:2px
+
+    subgraph "1. Behavior Tier"
+        Predicate["BasePredicate<br/>(9 concrete predicates)"]:::behavior
     end
 
-    subgraph "Data Structures & Indexing"
-        AtlasDS["Atlas Repository\n(Dict by SLOID)"]
-        SpatialDS["Spatial Index\n(KDTree strictly for OsmNodes)"]
-        AttrDS["Attribute Index\n(Hash maps by UIC, Name)"]
+    subgraph "2. Orchestration Tier (The Gatekeepers)"
+        Context{"MatchingContext<br/>Read Server"}:::context
+        Commit["Transaction Coordinator<br/>commit(atlas, osm)"]:::action
     end
 
-    subgraph "Transactional State Manager"
-        Context["MatchingContext"]
-        Commit["commit(atlas_node, osm_node)"]
+    subgraph "3. State & Indexing Tier (Storage)"
+        AtlasDS[("AtlasState<br/>(DataFrame + matched_ids set)")]:::state
+        SpatialDS[("OSM Spatial Index<br/>(Lazy KDTree + batch_query)")]:::state
+        AttrDS[("OSM Attribute Index<br/>(UIC / Name / Route hash maps)")]:::state
     end
 
-    subgraph "Behavior (Predicates)"
-        Rules["Heuristics Pipeline"]
+    subgraph "4. Domain Data Tier (Types)"
+        AtlasNode["AtlasNode (frozen)"]:::model
+        OsmNode["OsmNode (frozen)"]:::model
+        MatchRecord["MatchRecord"]:::model
     end
 
-    %% Data flow
-    AttrDS & SpatialDS -->|Returns List[OsmNode]| Context
-    AtlasDS -->|Returns List[AtlasNode]| Context
+    %% Step-by-Step Flow
+    Predicate -- "1. Request candidates" --> Context
+    Context -- "2. Fast lookup" --> AtlasDS & SpatialDS & AttrDS
+    AtlasDS -. "Yields" .-> AtlasNode
+    SpatialDS & AttrDS -. "Yields" .-> OsmNode
+    Context -. "3. Returns Models" .-> Predicate
 
-    Rules -->|1. Requests Candidates| Context
-    Context -->|2. Yields typed Models| Rules
-    
-    Rules -->|3. Identifies Match| Commit
-    Commit -->|4. Atomically Locks| SpatialDS
-    Commit -->|4. Atomically Locks| AtlasDS
-    Commit -->|5. Instantiates| MatchRecord
-
-    style Commit fill:#2b8a3e,stroke:#186226,stroke-width:2px,color:#fff
-    style MatchRecord fill:#e67e22,stroke:#d35400,stroke-width:2px,color:#fff
-    style Rules fill:#284b63,stroke:#1a303f,color:#fff
+    %% Mutation Flow
+    Predicate -- "4. Finds Match -> Commands Commit" --> Commit
+    Commit -- "5. Mutates lock flags securely" --> AtlasDS & SpatialDS & AttrDS
+    Commit -- "6. Instantiates result" --> MatchRecord
 ```
 
-### Summary of the Shift
-By making these adjustments:
-1. **You eliminate KeyErrors:** Because `wgs84North` and `lon` are merged into standard `lat/lon` fields upfront in the Domain Model.
-2. **You eliminate the pipeline bug:** Because `ctx.commit(atlas, osm)` modifies the locked-node sets instantly *before* the next iteration of the predicate's loop.
-3. **You adhere to the Linus principle:** The developer no longer has to mentally trace dictionary keys or worry about *when* an OSM node is locked. They simply query strongly typed data structures and issue transactional commits to the manager.
+---
 
+## 7. Extracting and Hydrating Output via `PipelineResult`
+
+Back in `orchestrator.py`, the pipeline aggregates the final execution artifacts into a perfectly typed container:
+
+```python
+# matching_and_import_db/models.py
+@dataclass
+class PipelineResult:
+    matched: list[MatchRecord]
+    unmatched_atlas: list[AtlasNode]
+    unmatched_osm: list[OsmNode]
+    duplicate_sloid_map: dict[str, list[str]]
+    no_nearby_osm_sloids: set[str]
+```
+
+### 7.1 The Three-Phase Import
+
+The importer (`importer.py`) organizes database insertion into three independently skippable phases, each behind its own `--skip-phaseN` flag:
+
+| Phase | Tables | Content |
+|-------|--------|---------|
+| Phase 1 | `atlas_stops`, `osm_nodes`, `route_atlas_stops`, `route_osm_stops` | Raw detail records and route sequences |
+| Phase 2 | `routes_matched` | Matched route pairs (ATLAS ↔ OSM routes) |
+| Phase 3 | `stops_matched`, `problems` | Core match records and detected problems |
+
+Each phase TRUNCATEs its tables with CASCADE before inserting (safe because the import DB is fully rebuilt each run).
+
+### 7.2 Import Flow for Matched Records
+
+For matched records, problem detection runs **inside** the domain model before DB insertion:
+
+```python
+# matching_and_import_db/database/importer.py (simplified)
+from matching_and_import_db.problem_detection import ProblemContext, STOP_PROBLEM_PIPELINE
+
+problem_ctx = ProblemContext.build(result)
+
+for current_match in result.matched:
+    # Problem detection runs natively within the MatchRecord.
+    # The same STOP_PROBLEM_PIPELINE is passed in — predicates that don't
+    # apply to MatchRecord (e.g. unmatched_problem) simply return [].
+    current_match.evaluate_problems(problem_ctx, STOP_PROBLEM_PIPELINE)
+
+    stop_record = StopsMatched(
+        sloid=current_match.atlas_node.sloid,
+        osm_node_id=current_match.osm_node.node_id,
+        match_type=current_match.match_type,
+        distance_m=current_match.distance_m,
+        atlas_lat=current_match.atlas_node.lat,
+        atlas_lon=current_match.atlas_node.lon,
+        osm_lat=current_match.osm_node.lat,
+        osm_lon=current_match.osm_node.lon,
+        geom=make_point_geom(...)
+    )
+
+    # Problems are cascaded via helper
+    apply_problem_results(stop_record, current_match.problems)
+    session.add(stop_record)
+```
+
+For **unmatched** ATLAS and OSM records, the importer calls `run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, atlas_node)` directly, passing the bare `AtlasNode` or `OsmNode` instead of a `MatchRecord`. The same polymorphic predicates handle this: `unmatched_problem` and `duplicates_problem` activate for bare nodes, while `distance_problem` and `attributes_problem` return empty lists. The importer also computes isolation status (no OSM node within 50m) for unmatched ATLAS records.
+
+Batched commits occur every `DB_IMPORT_BATCH_SIZE` (default 5000) records for performance.
+
+### 7.3 End-to-End Data Flow
+
+```mermaid
+flowchart LR
+    classDef data fill:#3498db,color:#fff
+    classDef process fill:#e67e22,color:#fff
+    classDef db fill:#27ae60,color:#fff
+
+    CSV["ATLAS CSV"]:::data
+    XML["OSM XML"]:::data
+
+    AS["AtlasState<br/>(from_dataframe)"]:::process
+    OS["OsmState<br/>(from_xml_file)"]:::process
+
+    Pipeline["Predicate Pipeline<br/>(9 predicates)"]:::process
+    PR["PipelineResult"]:::data
+
+    ProbCtx["ProblemContext<br/>(KDTrees, UIC counts)"]:::process
+    Eval["evaluate_problems()<br/>per MatchRecord"]:::process
+
+    Phase1["Phase 1<br/>atlas_stops, osm_nodes, routes"]:::db
+    Phase2["Phase 2<br/>routes_matched"]:::db
+    Phase3["Phase 3<br/>stops_matched, problems"]:::db
+
+    CSV --> AS
+    XML --> OS
+    AS & OS --> Pipeline
+    Pipeline --> PR
+    PR --> ProbCtx
+    PR & ProbCtx --> Eval
+    Eval --> Phase3
+    PR --> Phase1
+    PR --> Phase2
+```
+
+By abstracting all problem resolution into `MatchRecord.evaluate_problems()` and securing matching states atomically through `MatchingContext.commit()`, the Data-First Architecture heavily decreases complexity, reduces bug vectors, and achieves robust Type Safety across the pipeline.
+
+---
+
+## 8. Remaining Architecture Improvement Suggestions
+
+The architecture has recently been overhauled to support native domain models in predicates, eliminate circular imports, and decompose the `import_to_database()` monolith. 
+
+The following performance optimizations remain:
+
+### 8.1 Implement `OsmNode` Instantiation Caching
+
+**Current state:** The `OsmState` manager stores raw dictionaries internally. Whenever a predicate requests data (e.g., `get_by_uic()`, `get_by_name()`, or `batch_query_radius()`), it calls `_to_osm_node()` to dynamically instantiate a completely new `OsmNode` tracking object. Since predicates constantly query overlapping node IDs, the pipeline wastes memory and CPU time repeatedly creating and discarding identical immutable objects.
+
+**Suggested improvement:** Because `OsmNode` objects are defined with `frozen=True` (immutable), they should be constructed exactly once and shared. Implement a lazily populated cache dictionary (`dict[str, OsmNode]` mapping `node_id` to `OsmNode`) inside `OsmState`. Once an `OsmNode` is built for the first time, all subsequent spatial or attribute queries for that node should return the exact same cached object reference in memory.
+
+### 8.2 Optimize `get_unmatched_records()` Execution
+
+**Current state:** Nine different predicates call `AtlasState.get_unmatched_records()` in sequence. Internally, this function iterates over an entire `pandas.DataFrame` using `.iterrows()` (an extremely slow operation in Pandas). For each row, it checks if the `sloid` is in `matched_ids`, and if not, instantiates a brand new `AtlasNode`. Thus, if there are 10,000 unmatched records, the pipeline slowly crawls the DataFrame and instantiates 10,000 `AtlasNode` items from scratch, 9 separate times.
+
+**Suggested improvement:** In `AtlasState.from_dataframe()`, pre-compute and store a standard Python dictionary `self._all_nodes: dict[str, AtlasNode] = {}` that maps every `sloid` to its pre-built `AtlasNode`. Then, refactor `get_unmatched_records()` to execute a highly optimized list comprehension over the cached dictionary instead of using raw Pandas functions.
+
+```python
+# Proposed: cache all nodes at construction
+class AtlasState:
+    def __init__(self, atlas_df, duplicate_sloid_map):
+        self._all_nodes = {str(row['sloid']): self._to_atlas_node(row)
+                           for _, row in atlas_df.iterrows()}
+        self.matched_ids: set[str] = set()
+
+    def get_unmatched_records(self) -> list[AtlasNode]:
+        # Fast, O(N) list comprehension avoiding .iterrows()
+        return [n for sloid, n in self._all_nodes.items()
+                if sloid not in self.matched_ids]
+```
+
+---
+
+## 9. Deep Dive: Pre-grouping OSM Stops (`OsmStopGroup` Architecture)
+
+**Context & Motivation:** Currently, `get_osm_data.py` only extracts `node` structures, meaning physical platforms mapped as lines/polygons (`way`) and complex multi-part stations grouped by relations (`stop_area`) are entirely missed. Consequently, the pipeline operates on fragmented point geometries. Predicates like `distance_matching.py` attempt to loosely group these backward by running twin spatial inquiries for `stop_positions` vs. generic nodes, which is redundant, error-prone, and adds excessive latency.
+
+The rigorous Data-First architectural solution is to introduce a strict `OsmStopGroup` domain model upstream in `matching_and_import_db.models` and perform aggregation *before* any predicate operates.
+
+### 9.1 Data Ingestion Upgrades (`get_osm_data.py`)
+To incorporate full topological reality, the Overpass API query must be expanded:
+*   **Ways (Lines/Polygons):** Query for `way(area.searchArea)["public_transport"~"platform|station"];` utilizing Overpass's native `out center;`. This effortlessly flattens physical geometries into synthetic singular centroid nodes that the existing coordinate math natively comprehends.
+*   **Relations (`stop_area`):** Query for structural groupings using `relation(area.searchArea)["type"="public_transport"]["public_transport"="stop_area"];`, parsing out their recursive `<member>` subsets to understand which nodes and ways functionally constitute reality's "one station".
+
+### 9.2 The Unified `OsmStopGroup` Domain Model
+We replace treating every coordinate as an independent matching target with a holistic wrapper.
+
+```python
+# matching_and_import_db/models.py
+@dataclass(frozen=True)
+class OsmStopGroup:
+    group_id: str                 # E.g., 'relation_12345' or synthetic 'group_A'
+    lat: float                    # Averaged centroid of all constituents
+    lon: float                    # Averaged centroid
+    uic_ref: Optional[str]        # Unified if available
+    name: Optional[str]           # Unified designation
+    members: tuple[OsmNode, ...]  # The raw physical components
+    
+    @property
+    def platforms(self) -> list[OsmNode]: ...
+    @property
+    def stop_positions(self) -> list[OsmNode]: ...
+```
+
+### 9.3 Upstream Construction Pipeline (`OsmState`)
+Instead of `OsmState` storing a flat array of nodes, it evaluates the ingested XML into `OsmStopGroup` entities via a prioritized heuristic algorithm securely guarded behind the State Manager boundary:
+
+1.  **Relation-based Clustering:** All nodes/ways explicitly referenced inside a standard OSM `stop_area` relation are bound into a single `OsmStopGroup`.
+2.  **Explicit Standard ID Clustering:** Outstanding standalone elements pointing to identically matched `uic_ref` strings are fused. (The most robust geographic anchor available).
+3.  **Spatial-Semantic Clustering:** Items carrying identical `name` strings laying within a tight spatial dependency radius (e.g., `<30m`) compose a group.
+4.  **Singleton Wrap:** Finally, solitary unassociated assets are individually wrapped in 1-member `OsmStopGroup` shells ensuring pipeline uniformity.
+
+### 9.4 Refactoring Predicates and Matching
+This entirely dissolves the internal bipartite overhead natively inside `distance_matching.py`:
+
+*   The `OsmState` manager projects its KDTree referencing the **Centroids** of `OsmStopGroup` objects.
+*   `MatchingContext.osm` exclusively vends grouped objects to the heuristic algorithms.
+*   The `GroupProximityPredicate` is massively streamlined. `MatchRecord` commits map one `AtlasNode` permanently to one `OsmStopGroup` umbrella, effortlessly linking all downstream geometries in one sweep.

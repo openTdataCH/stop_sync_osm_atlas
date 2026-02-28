@@ -1,13 +1,17 @@
 import logging
 import os
+import math
 import xml.etree.ElementTree as ET
 from collections import defaultdict
+from typing import Optional
 
 import pandas as pd
 
 from matching_and_import_db.utils.common import is_osm_station, haversine_distance
 from matching_and_import_db.utils.spatial_index import build_kdtree_from_nodes, batch_to_xyz, meters_to_unit_chord_radius
 from matching_and_import_db.utils.org_standardization import standardize_operator
+from matching_and_import_db.models import AtlasNode
+from matching_and_import_db.models import OsmNode
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +45,40 @@ class AtlasState:
     def add_matched_sloid(self, sloid: str):
         self.matched_ids.add(sloid)
         
-    def get_unmatched_records(self) -> list[dict]:
-        """Provides raw dicts for unmatched ATLAS records cleanly without Pandas handling required by predicates."""
+    def _to_atlas_node(self, row: pd.Series) -> AtlasNode:
+        """Safely convert a pandas row into our strong Domain Entity."""
+        # Pandas tends to return NaNs. Let's make sure we have pure strings or Nones for text.
+        def _str(val) -> str:
+            if pd.isna(val): return ""
+            return str(val).strip()
+
+        # Same for float coordinates (we assume they exist at this level of processing, else they will error)
+        try:
+            lat = float(row['wgs84North'])
+            lon = float(row['wgs84East'])
+        except (ValueError, TypeError, KeyError):
+            lat = 0.0
+            lon = 0.0
+
+        return AtlasNode(
+            sloid=str(row['sloid']),
+            lat=lat,
+            lon=lon,
+            uic_ref=_str(row.get('number')),
+            designation=_str(row.get('designation')),
+            designation_official=_str(row.get('designationOfficial')),
+            business_org_abbr=_str(row.get('servicePointBusinessOrganisationAbbreviationEn')),
+            raw_data=row.to_dict()
+        )
+
+    def get_unmatched_records(self) -> list[AtlasNode]:
+        """Provides strongly typed DOMAIN ENTITIES for unmatched records cleanly."""
         unmatched_df = self._df[~self._df['sloid'].isin(self.matched_ids)]
-        return unmatched_df.to_dict(orient="records")
+        return [self._to_atlas_node(row) for _, row in unmatched_df.iterrows()]
         
-    def get_all_rows_as_dict(self) -> dict[str, dict]:
-        """Returns all records mapped by sloid for lookups."""
-        return {str(row['sloid']): row.to_dict() for _, row in self._df.iterrows()}
+    def get_all_rows_as_dict(self) -> dict[str, AtlasNode]:
+        """Returns all records mapped by sloid natively as domain models."""
+        return {str(row['sloid']): self._to_atlas_node(row) for _, row in self._df.iterrows()}
 
 
 class OsmState:
@@ -177,6 +207,29 @@ class OsmState:
         )
         return cls(all_nodes, uic_ref_dict, name_index, dict(name_dirs), dict(uic_dirs))
 
+    def _to_osm_node(self, entry: dict) -> 'OsmNode':
+        """Internal helper to convert dictionary entries into our strict entity model."""
+        def _str(v):
+            return str(v).strip() if v is not None else None
+            
+        tags = entry.get('tags', {})
+        return OsmNode(
+            node_id=str(entry['node_id']),
+            lat=float(entry['lat']),
+            lon=float(entry['lon']),
+            local_ref=_str(entry.get('local_ref')),
+            name=_str(tags.get('name')),
+            uic_name=_str(tags.get('uic_name')),
+            uic_ref=_str(tags.get('uic_ref')),
+            network=_str(tags.get('network', '')),
+            operator=_str(tags.get('operator', '')),
+            public_transport=_str(tags.get('public_transport')),
+            railway=_str(tags.get('railway')),
+            amenity=_str(tags.get('amenity')),
+            aerialway=_str(tags.get('aerialway')),
+            tags=tags
+        )
+
     def __init__(self, xml_nodes: dict, uic_ref_dict: dict, name_index: dict,
                  name_dirs: dict = None, uic_dirs: dict = None):
         self._all_nodes = xml_nodes
@@ -199,33 +252,35 @@ class OsmState:
     def is_used(self, node_id: str) -> bool:
         return node_id in self.used_ids
         
-    def get_unmatched_nodes(self) -> list[dict]:
-        return [n for n in self._all_nodes.values() if n['node_id'] not in self.used_ids]
+    def get_unmatched_nodes(self) -> list[OsmNode]:
+        return [self._to_osm_node(n) for n in self._all_nodes.values() if n['node_id'] not in self.used_ids]
     
-    def get_by_uic(self, uic: str) -> list[dict]:
+    def get_by_uic(self, uic: str) -> list[OsmNode]:
         """Gets unmatched non-station nodes for a UIC reference."""
         return [
-            c for c in self._uic_ref_dict.get(str(uic), [])
+            self._to_osm_node(c) for c in self._uic_ref_dict.get(str(uic), [])
             if c['node_id'] not in self.used_ids and not is_osm_station(c)
         ]
         
-    def get_by_name(self, name: str) -> list[dict]:
+    def get_by_name(self, name: str) -> list[OsmNode]:
         """Gets unmatched non-station nodes for a given name."""
         return [
-            c for c in self._name_index.get(name, [])
+            self._to_osm_node(c) for c in self._name_index.get(name, [])
             if c['node_id'] not in self.used_ids and not is_osm_station(c)
         ]
         
-    def get_all_unmatched_grouped(self, key: str, stop_position_only: bool = False) -> dict[str, list[dict]]:
+    def get_all_unmatched_grouped(self, key: str, stop_position_only: bool = False) -> dict[str, list[OsmNode]]:
         """Used heavily by group_proximity to build lookup indexes."""
         from collections import defaultdict
         
         result = defaultdict(list)
-        for node in self.get_unmatched_nodes():
-            if is_osm_station(node):
+        for node_dict in self._all_nodes.values():
+            if node_dict['node_id'] in self.used_ids:
+                continue
+            if is_osm_station(node_dict):
                 continue
             
-            tags = node.get('tags', {})
+            tags = node_dict.get('tags', {})
             val = tags.get(key)
             if not val:
                 continue
@@ -233,7 +288,7 @@ class OsmState:
             if stop_position_only and tags.get('public_transport') != 'stop_position':
                 continue
                 
-            result[val].append(node)
+            result[val].append(self._to_osm_node(node_dict))
             
         return dict(result)
 
@@ -252,10 +307,10 @@ class OsmState:
             self._cached_tree, self._cached_pts, self._cached_nodes_list = build_kdtree_from_nodes(valid_nodes)
             self._cached_include_stations = include_stations
 
-    def batch_query_radius(self, coords_list: list[tuple[float, float]], max_distance: float, include_stations: bool = False) -> list[list[tuple[dict, float]]]:
+    def batch_query_radius(self, coords_list: list[tuple[float, float]], max_distance: float, include_stations: bool = False) -> list[list[tuple[OsmNode, float]]]:
         """Query for matching nodes around a radius for multiple coordinates at once.
         
-        Returns a list (one per coordinate pair) of lists of tuples (node, actual_distance_in_meters).
+        Returns a list (one per coordinate pair) of lists of tuples (OsmNode, actual_distance_in_meters).
         Excludes used_osm_ids automatically.
         """
         self._ensure_spatial_index(include_stations)
@@ -273,12 +328,12 @@ class OsmState:
         for i, (lat, lon) in enumerate(coords_list):
             matches = []
             for idx in indices_list[i]:
-                (n_lat, n_lon), node = self._cached_nodes_list[idx]
-                if node['node_id'] in self.used_ids:
+                (n_lat, n_lon), node_dict = self._cached_nodes_list[idx]
+                if node_dict['node_id'] in self.used_ids:
                     continue
                 d = haversine_distance(lat, lon, n_lat, n_lon)
                 if d is not None and d <= max_distance:
-                    matches.append((node, d))
+                    matches.append((self._to_osm_node(node_dict), d))
             results.append(matches)
             
         return results

@@ -23,8 +23,9 @@ if [ "${AUTO_MIGRATE:-false}" = "true" ]; then
     else
         echo "WARN: flask db upgrade failed; skipping flask db migrate"
     fi
+else
+    flask db upgrade
 fi
-flask db upgrade
 
 # Check if data import should be skipped
 if [ "$SKIP_DATA_IMPORT" != "true" ]; then
