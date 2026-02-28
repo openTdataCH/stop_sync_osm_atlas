@@ -6,10 +6,12 @@ from matching_and_import_db.problem_detection.result import ProblemResult
 from matching_and_import_db.problem_detection.context import ProblemContext, _safe
 
 
-def _atlas_priority(ctx: ProblemContext, stop: dict) -> int:
-    uic = _safe(stop.get('number'))
-    lat = _safe(stop.get('wgs84North'))
-    lon = _safe(stop.get('wgs84East'))
+from matching_and_import_db.models import MatchRecord, AtlasNode, OsmNode
+
+def _atlas_priority(ctx: ProblemContext, record: AtlasNode) -> int:
+    uic = _safe(record.uic_ref)
+    lat = _safe(record.lat)
+    lon = _safe(record.lon)
 
     nearest = ctx.nearest_osm_distance(lat, lon) if lat is not None and lon is not None else None
 
@@ -31,11 +33,11 @@ def _atlas_priority(ctx: ProblemContext, stop: dict) -> int:
     return 3
 
 
-def _osm_priority(ctx: ProblemContext, stop: dict) -> int:
-    tags = stop.get('tags', {}) if isinstance(stop.get('tags', {}), dict) else {}
-    uic = _safe(tags.get('uic_ref'))
-    lat = _safe(stop.get('lat'))
-    lon = _safe(stop.get('lon'))
+def _osm_priority(ctx: ProblemContext, record: OsmNode) -> int:
+    tags = record.tags or {}
+    uic = _safe(record.uic_ref)
+    lat = _safe(record.lat)
+    lon = _safe(record.lon)
 
     nearest = ctx.nearest_atlas_distance(lat, lon) if lat is not None and lon is not None else None
 
@@ -54,12 +56,11 @@ def _osm_priority(ctx: ProblemContext, stop: dict) -> int:
     return 3
 
 
-def unmatched_problem(ctx: ProblemContext, stop: dict) -> list[ProblemResult]:
-    stop_type = stop.get('stop_type')
-
-    if stop_type == 'atlas_unmatched':
-        return [ProblemResult(problem_type='unmatched', priority=_atlas_priority(ctx, stop))]
-    if stop_type == 'osm_unmatched':
-        return [ProblemResult(problem_type='unmatched', priority=_osm_priority(ctx, stop))]
+def unmatched_problem(ctx: ProblemContext, record: MatchRecord | AtlasNode | OsmNode) -> list[ProblemResult]:
+    
+    if isinstance(record, AtlasNode):
+        return [ProblemResult(problem_type='unmatched', priority=_atlas_priority(ctx, record))]
+    if isinstance(record, OsmNode):
+        return [ProblemResult(problem_type='unmatched', priority=_osm_priority(ctx, record))]
 
     return []

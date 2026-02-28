@@ -6,9 +6,19 @@ from matching_and_import_db.problem_detection.result import ProblemResult
 from matching_and_import_db.problem_detection.context import ProblemContext
 
 
-def duplicates_problem(ctx: ProblemContext, stop: dict) -> list[ProblemResult]:
-    osm_node_id = stop.get('osm_node_id')
-    sloid = stop.get('sloid')
+from matching_and_import_db.models import MatchRecord, AtlasNode, OsmNode
+
+def duplicates_problem(ctx: ProblemContext, record: MatchRecord | AtlasNode | OsmNode) -> list[ProblemResult]:
+    
+    if isinstance(record, MatchRecord):
+        osm_node_id = record.osm_node.node_id
+        sloid = record.atlas_node.sloid
+    elif isinstance(record, AtlasNode):
+        osm_node_id = None
+        sloid = record.sloid
+    else:
+        osm_node_id = record.node_id
+        sloid = None
 
     # Prefer OSM-side duplicates (P3) over ATLAS-side (P2) — only flag one
     if osm_node_id and str(osm_node_id) in ctx.duplicate_osm_node_ids:

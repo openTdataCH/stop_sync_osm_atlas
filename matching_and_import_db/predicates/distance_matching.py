@@ -7,13 +7,14 @@ Three predicates, each progressively looser:
 * **local_ref_distance** – exact ``local_ref`` match within *max_distance*
 * **nearest_distance** – single-candidate or ratio-test proximity match
 """
+import numpy as np
 from collections import defaultdict
 import logging
 
-import numpy as np
-import pandas as pd
-
-from matching_and_import_db.pipeline import MatchingContext, make_match
+from matching_and_import_db.pipeline import MatchingContext
+from matching_and_import_db.predicates import BasePredicate
+from matching_and_import_db.models import AtlasNode, OsmNode
+from matching_and_import_db.utils.common import haversine_distance
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ RATIO_TEST_FACTOR = 4    # d2 / d1 must be ≥ this
 # Shared helper – conflict-free bipartite matching
 # ---------------------------------------------------------------------------
 
-def bipartite_match(atlas_entries: list[dict], osm_nodes: list[dict],
+def bipartite_match(atlas_entries: list[AtlasNode], osm_nodes: list[OsmNode],
                     max_distance: float) -> list[tuple[int, int, float]]:
     """
     Try a conflict-free nearest-neighbour assignment.
@@ -41,8 +42,8 @@ def bipartite_match(atlas_entries: list[dict], osm_nodes: list[dict],
         return []
 
     # Extract coordinates
-    a_coords = np.array([(float(a['wgs84North']), float(a['wgs84East'])) for a in atlas_entries])
-    o_coords = np.array([(float(o['lat']), float(o['lon'])) for o in osm_nodes])
+    a_coords = np.array([(a.lat, a.lon) for a in atlas_entries])
+    o_coords = np.array([(o.lat, o.lon) for o in osm_nodes])
     
     # Broadcast to n x m x 2
     lat1 = np.radians(a_coords[:, 0])[:, np.newaxis]
@@ -84,166 +85,165 @@ def bipartite_match(atlas_entries: list[dict], osm_nodes: list[dict],
 # Predicate 1 – group proximity
 # ---------------------------------------------------------------------------
 
-def group_proximity(ctx: MatchingContext) -> list[dict]:
+class GroupProximityPredicate(BasePredicate):
     """Conflict-free bipartite proximity matching within UIC / name groups."""
-    matches: list[dict] = []
-    matched_here: set[str] = set()
 
-    # --- Build OSM groupings ---
-    osm_by: dict[str, dict[str, list[dict]]] = {
-        'uic_ref': ctx.osm.get_all_unmatched_grouped('uic_ref', stop_position_only=False),
-        'uic_name': ctx.osm.get_all_unmatched_grouped('uic_name', stop_position_only=False),
-        'name': ctx.osm.get_all_unmatched_grouped('name', stop_position_only=False),
-    }
-    osm_sp_by: dict[str, dict[str, list[dict]]] = {
-        'uic_ref': ctx.osm.get_all_unmatched_grouped('uic_ref', stop_position_only=True),
-        'uic_name': ctx.osm.get_all_unmatched_grouped('uic_name', stop_position_only=True),
-        'name': ctx.osm.get_all_unmatched_grouped('name', stop_position_only=True),
-    }
+    def run(self, ctx: MatchingContext) -> None:
+        matched_here: set[str] = set()
 
-    # --- Try each grouping key in priority order ---
-    grouping_keys = [
-        ('uic_ref', 'number'),
-        ('uic_name', 'designationOfficial'),
-        ('name', 'designationOfficial'),
-    ]
+        # --- Build OSM groupings ---
+        osm_by: dict[str, dict[str, list[OsmNode]]] = {
+            'uic_ref': ctx.osm.get_all_unmatched_grouped('uic_ref', stop_position_only=False),
+            'uic_name': ctx.osm.get_all_unmatched_grouped('uic_name', stop_position_only=False),
+            'name': ctx.osm.get_all_unmatched_grouped('name', stop_position_only=False),
+        }
+        osm_sp_by: dict[str, dict[str, list[OsmNode]]] = {
+            'uic_ref': ctx.osm.get_all_unmatched_grouped('uic_ref', stop_position_only=True),
+            'uic_name': ctx.osm.get_all_unmatched_grouped('uic_name', stop_position_only=True),
+            'name': ctx.osm.get_all_unmatched_grouped('name', stop_position_only=True),
+        }
 
-    # Convert unmatched atlas dicts to grouping dictionary manually to avoid pandas
-    remaining = [e for e in ctx.atlas.get_unmatched_records() if e['sloid'] not in matched_here]
-    
-    for osm_key, atlas_col in grouping_keys:
-        grouped_atlas = defaultdict(list)
-        for rec in remaining:
-            val = rec.get(atlas_col)
-            if pd.notna(val) and val != "":
-                grouped_atlas[str(val)].append(rec)
+        # --- Try each grouping key in priority order ---
+        # Note: 'number' -> uic_ref, 'designationOfficial' -> designation_official.
+        grouping_keys = [
+            ('uic_ref', lambda n: n.uic_ref),
+            ('uic_name', lambda n: n.designation_official),
+            ('name', lambda n: n.designation_official),
+        ]
 
-        for group_val_str, atlas_entries in grouped_atlas.items():
-            # Filter entries that might be matched already
-            valid_atlas_entries = [e for e in atlas_entries if e['sloid'] not in matched_here]
-            if not valid_atlas_entries:
-                continue
+        # Convert unmatched atlas entries to list
+        remaining = [e for e in ctx.atlas.get_unmatched_records() if e.sloid not in matched_here]
+        
+        for osm_key, getter in grouping_keys:
+            grouped_atlas = defaultdict(list)
+            for rec in remaining:
+                val = getter(rec)
+                if val and val != "":
+                    grouped_atlas[str(val)].append(rec)
 
-            # Try all-nodes first, then stop_position-only fallback
-            for node_pool, suffix in [
-                (osm_by[osm_key].get(group_val_str, []), ''),
-                (osm_sp_by[osm_key].get(group_val_str, []), '_stop_position'),
-            ]:
-                avail = [n for n in node_pool if not ctx.osm.is_used(n['node_id'])]
-                pairs = bipartite_match(valid_atlas_entries, avail, ctx.max_distance)
-                if not pairs:
+            for group_val_str, atlas_entries in grouped_atlas.items():
+                valid_atlas_entries = [e for e in atlas_entries if e.sloid not in matched_here]
+                if not valid_atlas_entries:
                     continue
 
-                for ai, oi, _dist in pairs:
-                    entry = valid_atlas_entries[ai]
-                    osm = avail[oi]
-                    matches.append(make_match(
-                        entry, osm,
-                        f'distance_matching_1_{osm_key}{suffix}',
-                        f"Conflict-free proximity match ({osm_key})",
-                        pool_size=len(avail),
-                    ))
-                    matched_here.add(entry['sloid'])
-                    ctx.osm.mark_used(osm['node_id'])
-                break  # don't try stop_position fallback when all-nodes worked
+                # Try all-nodes first, then stop_position-only fallback
+                for node_pool, suffix in [
+                    (osm_by[osm_key].get(group_val_str, []), ''),
+                    (osm_sp_by[osm_key].get(group_val_str, []), '_stop_position'),
+                ]:
+                    avail = [n for n in node_pool if not ctx.osm.is_used(n.node_id)]
+                    pairs = bipartite_match(valid_atlas_entries, avail, ctx.max_distance)
+                    if not pairs:
+                        continue
 
-        # update remaining logic
-        remaining = [e for e in remaining if e['sloid'] not in matched_here]
+                    for ai, oi, dist in pairs:
+                        entry = valid_atlas_entries[ai]
+                        osm = avail[oi]
+                        ctx.commit(
+                            atlas_node=entry,
+                            osm_node=osm,
+                            match_type=f'distance_matching_1_{osm_key}{suffix}',
+                            distance_m=dist,
+                            notes=f"Conflict-free proximity match ({osm_key})",
+                            candidate_pool_size=len(avail)
+                        )
+                        matched_here.add(entry.sloid)
+                    break  # don't try stop_position fallback when all-nodes worked
 
-    return matches
+            # update remaining logic
+            remaining = [e for e in remaining if e.sloid not in matched_here]
 
 
 # ---------------------------------------------------------------------------
 # Predicate 2 – local_ref within distance
 # ---------------------------------------------------------------------------
 
-def local_ref_distance(ctx: MatchingContext) -> list[dict]:
+class LocalRefDistancePredicate(BasePredicate):
     """Match by exact ``local_ref`` == ATLAS ``designation`` within *max_distance*."""
-    matches: list[dict] = []
 
-    unmatched = ctx.atlas.get_unmatched_records()
-    if not unmatched:
-        return matches
+    def run(self, ctx: MatchingContext) -> None:
+        unmatched = ctx.atlas.get_unmatched_records()
+        if not unmatched:
+            return
 
-    coords = [(float(e['wgs84North']), float(e['wgs84East'])) for e in unmatched]
-    batch_candidates = ctx.osm.batch_query_radius(coords, ctx.max_distance, include_stations=False)
+        coords = [(e.lat, e.lon) for e in unmatched]
+        batch_candidates = ctx.osm.batch_query_radius(coords, ctx.max_distance, include_stations=False)
 
-    for i, entry in enumerate(unmatched):
-        desig = (
-            str(entry.get('designation', '')).strip()
-            if pd.notna(entry.get('designation')) else ''
-        )
-        if not desig:
-            continue
-
-        best_node = None
-        best_dist = float('inf')
-
-        # Will automatically omit used / station OSMs
-        candidates = batch_candidates[i]
-        for node, d in candidates:
-            lr = (node.get('local_ref') or '').strip()
-            if lr.lower() != desig.lower():
+        for i, entry in enumerate(unmatched):
+            desig = (entry.designation or '').strip()
+            if not desig:
                 continue
-            if d < best_dist:
-                best_node = node
-                best_dist = d
 
-        if best_node:
-            matches.append(make_match(
-                entry, best_node, 'distance_matching_2',
-                "Exact local_ref match within max_distance",
-            ))
-            ctx.osm.mark_used(best_node['node_id'])
+            best_node = None
+            best_dist = float('inf')
 
-    return matches
+            # Will automatically omit used / station OSMs
+            candidates = batch_candidates[i]
+            for node, d in candidates:
+                lr = (node.local_ref or '').strip()
+                if lr.lower() != desig.lower():
+                    continue
+                if d < best_dist:
+                    best_node = node
+                    best_dist = d
+
+            if best_node:
+                ctx.commit(
+                    atlas_node=entry,
+                    osm_node=best_node,
+                    match_type='distance_matching_2',
+                    distance_m=best_dist,
+                    notes="Exact local_ref match within max_distance",
+                    candidate_pool_size=len(candidates)
+                )
 
 
 # ---------------------------------------------------------------------------
 # Predicate 3 – nearest candidate / ratio test
 # ---------------------------------------------------------------------------
 
-def nearest_distance(ctx: MatchingContext) -> list[dict]:
+class NearestDistancePredicate(BasePredicate):
     """Single-candidate match or ratio-test match within *max_distance*."""
-    matches: list[dict] = []
 
-    unmatched = ctx.atlas.get_unmatched_records()
-    if not unmatched:
-        return matches
+    def run(self, ctx: MatchingContext) -> None:
+        unmatched = ctx.atlas.get_unmatched_records()
+        if not unmatched:
+            return
 
-    coords = [(float(e['wgs84North']), float(e['wgs84East'])) for e in unmatched]
-    batch_candidates = ctx.osm.batch_query_radius(coords, ctx.max_distance, include_stations=False)
+        coords = [(e.lat, e.lon) for e in unmatched]
+        batch_candidates = ctx.osm.batch_query_radius(coords, ctx.max_distance, include_stations=False)
 
-    for i, entry in enumerate(unmatched):
-        # Collect all candidates within max_distance (already filters out used IDs & stations natively via KDTree)
-        candidates = batch_candidates[i]
-        if not candidates:
-            continue
-            
-        candidates.sort(key=lambda x: x[1])
+        for i, entry in enumerate(unmatched):
+            # Collect all candidates within max_distance (already filters out used IDs & stations natively via KDTree)
+            candidates = batch_candidates[i]
+            if not candidates:
+                continue
+                
+            candidates.sort(key=lambda x: x[1])
 
-        # Case A: single candidate
-        if len(candidates) == 1:
-            node, d = candidates[0]
-            matches.append(make_match(
-                entry, node, 'distance_matching_3a',
-                "Single candidate within max_distance",
-                pool_size=1,
-            ))
-            ctx.osm.mark_used(node['node_id'])
+            # Case A: single candidate
+            if len(candidates) == 1:
+                node, d = candidates[0]
+                ctx.commit(
+                    atlas_node=entry,
+                    osm_node=node,
+                    match_type='distance_matching_3a',
+                    distance_m=d,
+                    notes="Single candidate within max_distance",
+                    candidate_pool_size=1
+                )
 
-        # Case B: ratio test
-        elif len(candidates) > 1:
-            d1 = candidates[0][1]
-            d2 = candidates[1][1]
-            if d2 >= RATIO_TEST_MIN_D2 and d2 / d1 >= RATIO_TEST_FACTOR:
-                node = candidates[0][0]
-                matches.append(make_match(
-                    entry, node, 'distance_matching_3b',
-                    f"Ratio test: d1={d1:.1f}m, d2={d2:.1f}m, "
-                    f"ratio={d2 / d1:.1f}",
-                    pool_size=len(candidates),
-                ))
-                ctx.osm.mark_used(node['node_id'])
-
-    return matches
+            # Case B: ratio test
+            elif len(candidates) > 1:
+                d1 = candidates[0][1]
+                d2 = candidates[1][1]
+                if d2 >= RATIO_TEST_MIN_D2 and d2 / d1 >= RATIO_TEST_FACTOR:
+                    node = candidates[0][0]
+                    ctx.commit(
+                        atlas_node=entry,
+                        osm_node=node,
+                        match_type='distance_matching_3b',
+                        distance_m=d1,
+                        notes=f"Ratio test: d1={d1:.1f}m, d2={d2:.1f}m, ratio={d2 / d1:.1f}",
+                        candidate_pool_size=len(candidates)
+                    )

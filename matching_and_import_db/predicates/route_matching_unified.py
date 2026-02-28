@@ -112,136 +112,130 @@ def _load_osm_routes(csv_path: str = 'data/processed/osm_nodes_with_routes.csv')
 # Predicate
 # ---------------------------------------------------------------------------
 
-def route_match(ctx: MatchingContext) -> list[dict]:
+from matching_and_import_db.predicates import BasePredicate
+from matching_and_import_db.utils.common import haversine_distance
+
+class RouteMatchPredicate(BasePredicate):
     """Match ATLAS stops to OSM boundaries strictly by common transit routes/lines."""
-    matches: list[dict] = []
 
-    hrdf_routes = _load_unified_routes()
-    if not hrdf_routes: # Check if the dictionary is empty
-        logger.warning("route_match: Route data unavailable, skipping.")
-        return matches
+    def run(self, ctx: MatchingContext) -> None:
+        hrdf_routes = _load_unified_routes()
+        if not hrdf_routes: # Check if the dictionary is empty
+            logger.warning("route_match: Route data unavailable, skipping.")
+            return
 
-    osm_route_map = _load_osm_routes()
-    name_dirs = ctx.osm.name_dirs
-    uic_dirs = ctx.osm.uic_dirs
+        osm_route_map = _load_osm_routes()
+        name_dirs = ctx.osm.name_dirs
+        uic_dirs = ctx.osm.uic_dirs
 
-    unmatched = ctx.atlas.get_unmatched_records()
-    if not unmatched:
-        return matches
-        
-    coords = [(float(e['wgs84North']), float(e['wgs84East'])) for e in unmatched]
-    batch_candidates = ctx.osm.batch_query_radius(coords, ctx.max_distance, include_stations=True)
-
-    for i, entry in enumerate(unmatched):
-        sloid = str(entry.get('sloid', ''))
-        if not sloid:
-            continue
-
-        atlas_routes_data = hrdf_routes.get(sloid, {'gtfs': [], 'hrdf': []})
-        if not atlas_routes_data['gtfs'] and not atlas_routes_data['hrdf']:
-            continue
-
-        csv_lat = float(entry['wgs84North'])
-        csv_lon = float(entry['wgs84East'])
-
-        # Find OSM candidates within max_distance (route matching explicitly ALLOWS station mappings)
-        candidates = batch_candidates[i]
-        if not candidates:
-            continue
+        unmatched = ctx.atlas.get_unmatched_records()
+        if not unmatched:
+            return
             
-        # Join the relations for candidates
-        candidate_list = []
-        for c, d in candidates:
-            node_id = str(c.get('node_id'))
-            routes = osm_route_map.get(node_id, [])
-            candidate_list.append((c, d, routes))
-            
-        candidates = candidate_list
+        coords = [(e.lat, e.lon) for e in unmatched]
+        batch_candidates = ctx.osm.batch_query_radius(coords, ctx.max_distance, include_stations=True)
 
-        # --- Build token sets for ATLAS stop ---
-        gtfs_tokens: set[tuple[str, str]] = set()
-        for e in atlas_routes_data['gtfs']:
-            if e.get('route_id') and e.get('direction_id'):
-                gtfs_tokens.add((e['route_id'], e['direction_id']))
-            if e.get('route_id_normalized') and e.get('direction_id'):
-                gtfs_tokens.add((e['route_id_normalized'], e['direction_id']))
+        for i, entry in enumerate(unmatched):
+            sloid = entry.sloid
+            if not sloid:
+                continue
 
-        hrdf_tokens: set[tuple[str, str]] = set()
-        for e in atlas_routes_data['hrdf']:
-            if e.get('line_name') and e.get('direction_uic'):
-                hrdf_tokens.add((e['line_name'], e['direction_uic']))
+            atlas_routes_data = hrdf_routes.get(sloid, {'gtfs': [], 'hrdf': []})
+            if not atlas_routes_data['gtfs'] and not atlas_routes_data['hrdf']:
+                continue
 
-        atlas_dir_names: set[str] = set()
-        for e in atlas_routes_data['hrdf'] + atlas_routes_data['gtfs']:
-            dn = e.get('direction_name')
-            if dn:
-                atlas_dir_names.add(dn)
+            csv_lat = entry.lat
+            csv_lon = entry.lon
 
-        matched_node = None
-        matched_dist = None
-        match_source = None
-        match_evidence = None
+            # Find OSM candidates within max_distance (route matching explicitly ALLOWS station mappings)
+            candidates = batch_candidates[i]
+            if not candidates:
+                continue
+                
+            # Join the relations for candidates
+            candidate_list = []
+            for c, d in candidates:
+                node_id = str(c.node_id)
+                routes = osm_route_map.get(node_id, [])
+                candidate_list.append((c, d, routes))
 
-        # P1: GTFS tokens
-        if gtfs_tokens:
-            for node, dist, node_routes in candidates:
-                node_tokens: set[tuple[str, str]] = set()
-                for r in node_routes:
-                    rid = r.get('gtfs_route_id')
-                    did = r.get('direction_id', '0')
-                    if rid:
-                        node_tokens.add((rid, did))
-                        norm = normalize_route_id(rid)
-                        if norm:
-                            node_tokens.add((norm, did))
-                if gtfs_tokens & node_tokens:
-                    matched_node, matched_dist = node, dist
-                    match_source, match_evidence = 'gtfs', 'gtfs_tokens'
-                    break
+            # Build GTFS tokens
+            gtfs_tokens: set[tuple[str, str]] = set()
+            for e in atlas_routes_data['gtfs']:
+                if e.get('route_id_normalized') and e.get('direction_id'):
+                    gtfs_tokens.add((e['route_id_normalized'], e['direction_id']))
 
-        # P2: HRDF UIC direction
-        if matched_node is None and hrdf_tokens:
-            for node, dist, _ in candidates:
-                nid = str(node['node_id'])
-                for _, dir_uic in hrdf_tokens:
-                    if dir_uic in uic_dirs.get(nid, set()):
-                        matched_node, matched_dist = node, dist
-                        match_source, match_evidence = 'hrdf', 'hrdf_uic'
-                        break
-                if matched_node:
-                    break
+            hrdf_tokens: set[tuple[str, str]] = set()
+            for e in atlas_routes_data['hrdf']:
+                if e.get('line_name') and e.get('direction_uic'):
+                    hrdf_tokens.add((e['line_name'], e['direction_uic']))
 
-        # P3: name-based direction fallback
-        if matched_node is None:
-            dir_names: set[str] = set()
+            atlas_dir_names: set[str] = set()
             for e in atlas_routes_data['hrdf'] + atlas_routes_data['gtfs']:
                 dn = e.get('direction_name')
                 if dn:
-                    dir_names.add(dn)
-            if dir_names:
-                for node, dist, _ in candidates:
-                    nid = str(node['node_id'])
-                    if any(dn in name_dirs.get(nid, set()) for dn in dir_names):
+                    atlas_dir_names.add(dn)
+
+            matched_node = None
+            matched_dist = None
+            match_source = None
+            match_evidence = None
+
+            # P1: GTFS tokens
+            if gtfs_tokens:
+                for node, dist, node_routes in candidate_list:
+                    node_tokens: set[tuple[str, str]] = set()
+                    for r in node_routes:
+                        rid = r.get('gtfs_route_id')
+                        did = r.get('direction_id', '0')
+                        if rid:
+                            node_tokens.add((rid, did))
+                            norm = normalize_route_id(rid)
+                            if norm:
+                                node_tokens.add((norm, did))
+                    if gtfs_tokens & node_tokens:
                         matched_node, matched_dist = node, dist
-                        src = 'hrdf' if any(
-                            e.get('direction_name') in dir_names
-                            for e in atlas_routes_data['hrdf']
-                        ) else 'gtfs'
-                        match_source, match_evidence = src, 'direction_name'
+                        match_source, match_evidence = 'gtfs', 'gtfs_tokens'
                         break
 
-        if matched_node is not None:
-            matches.append(create_match_record(
-                sloid=sloid,
-                csv_lat=csv_lat,
-                csv_lon=csv_lon,
-                osm_node=matched_node,
-                distance_m=matched_dist,
-                match_type=f"route_unified_{match_source}",
-                matching_notes=match_evidence,
-                number=entry.get('number'),
-                **extract_atlas_fields(entry),
-            ))
-            ctx.osm.mark_used(str(matched_node['node_id']))
+            # P2: HRDF UIC direction
+            if matched_node is None and hrdf_tokens:
+                for node, dist, _ in candidate_list:
+                    nid = str(node.node_id)
+                    for _, dir_uic in hrdf_tokens:
+                        if dir_uic in uic_dirs.get(nid, set()):
+                            matched_node, matched_dist = node, dist
+                            match_source, match_evidence = 'hrdf', 'hrdf_uic'
+                            break
+                    if matched_node:
+                        break
 
-    return matches
+            # P3: name-based direction fallback
+            if matched_node is None:
+                dir_names: set[str] = set()
+                for e in atlas_routes_data['hrdf'] + atlas_routes_data['gtfs']:
+                    dn = e.get('direction_name')
+                    if dn:
+                        dir_names.add(dn)
+                if dir_names:
+                    for node, dist, _ in candidate_list:
+                        nid = str(node.node_id)
+                        if any(dn in name_dirs.get(nid, set()) for dn in dir_names):
+                            matched_node, matched_dist = node, dist
+                            src = 'hrdf' if any(
+                                e.get('direction_name') in dir_names
+                                for e in atlas_routes_data['hrdf']
+                            ) else 'gtfs'
+                            match_source, match_evidence = src, 'direction_name'
+                            break
+
+            if matched_node is not None:
+                ctx.commit(
+                    atlas_node=entry,
+                    osm_node=matched_node,
+                    match_type=f"route_unified_{match_source}",
+                    distance_m=matched_dist,
+                    notes=match_evidence,
+                    candidate_pool_size=len(candidate_list)
+                )
+

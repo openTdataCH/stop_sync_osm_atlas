@@ -34,20 +34,23 @@ def _compute_priority(distance_m: float, atlas_operator: Optional[str]) -> Optio
     return None
 
 
-def distance_problem(ctx: ProblemContext, stop: dict) -> list[ProblemResult]:
-    if stop.get('stop_type') != 'matched':
+from matching_and_import_db.models import MatchRecord, AtlasNode, OsmNode
+
+def distance_problem(ctx: ProblemContext, record: MatchRecord | AtlasNode | OsmNode) -> list[ProblemResult]:
+    if not isinstance(record, MatchRecord):
         return []
 
-    raw = stop.get('distance_m')
-    if raw is None:
+    if record.distance_m is None:
         return []
 
     try:
-        d = float(raw)
+        d = float(record.distance_m)
     except (ValueError, TypeError):
         return []
 
-    priority = _compute_priority(d, stop.get('csv_business_org_abbr'))
+    # get atlas operator alias from atlas_node
+    operator = record.atlas_node.business_org_abbr
+    priority = _compute_priority(d, operator)
     if priority is None:
         return []
 
