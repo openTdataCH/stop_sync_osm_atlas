@@ -696,5 +696,3 @@ function drawProblemOnMap(map, problemData, layers) {
         createdMarkers.slice(0, 6).forEach(m => { try { m.openPopup(); } catch (e) { } });
     }
 }
-
-
