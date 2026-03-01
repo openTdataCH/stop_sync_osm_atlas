@@ -63,21 +63,6 @@ services:
       AUTO_MIGRATE: "true"
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
       SKIP_DATA_IMPORT: "${SKIP_DATA_IMPORT:-false}" # Skip data import on startup if true
-      # Email/SES configuration
-      APP_NAME: "OSM-ATLAS Sync"
-      SUPPORT_EMAIL: "support@example.com" # optional, shown in email footer
-      AWS_REGION: "eu-west-1" # set to your SES region
-      SES_FROM_EMAIL: "no-reply@example.com" # must be a verified SES identity
-      # Turnstile (optional; if unset, verification is skipped)
-      TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:-}"
-      TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"
-      # Optional SES configuration set for deliverability tracking
-      # SES_CONFIGURATION_SET: "your-config-set"
-      # AWS credentials are picked up automatically by the AWS SDK (boto3)
-      # You can export AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in your shell
-      # or add them here if you prefer (not recommended to commit secrets):
-      # AWS_ACCESS_KEY_ID: "..."
-      # AWS_SECRET_ACCESS_KEY: "..."
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 4g # Increase to avoid OOM issues
     # mem_reservation: 1g # Optional: guarantee 1g

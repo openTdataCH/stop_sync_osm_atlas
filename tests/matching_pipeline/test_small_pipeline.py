@@ -130,14 +130,10 @@ def test_small_pipeline_end_to_end():
     assert match_rate >= 0.50, f"Match rate too low: {match_rate:.0%}"
     assert match_rate <= 1.00, f"Match rate too high: {match_rate:.0%}"
 
-    
     # 2. Database Insertion (Execute the data-first importer)
-    import_to_database(
-        result, 
-        result.duplicate_sloid_map, 
-        run_phase1=True, 
-        run_phase2=True, 
-        run_phase3=True
+    no_nearby_sloids = import_to_database(
+        result,
+        result.duplicate_sloid_map
     )
     
     # 3. Verify Database State

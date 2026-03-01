@@ -15,8 +15,7 @@ var activeFilters = {
         allSelected: false,
         methods: {
             exact: false,
-            name: false,
-            manual: false
+            name: false
         },
         distanceMatching: {
             allSelected: false,
@@ -589,8 +588,7 @@ function updateActiveFilters() {
         allSelected: $('#masterMatchedCheckbox').is(':checked'),
         methods: {
             exact: $('#filterExact').is(':checked'),
-            name: $('#filterName').is(':checked'),
-            manual: $('#filterManual').is(':checked')
+            name: $('#filterName').is(':checked')
         },
         distanceMatching: {
             allSelected: $('#masterDistanceMatchingCheckbox').is(':checked'),
@@ -623,7 +621,7 @@ function updateActiveFilters() {
     // Check standard matching methods
     for (const method in activeFilters.matchedOptions.methods) {
         if (activeFilters.matchedOptions.methods[method]) {
-            activeFilters.matchMethods.push(method === 'exact' ? 'exact' : (method === 'name' ? 'name' : 'manual')); // Use actual values
+            activeFilters.matchMethods.push(method);
             anyMatchedMethodActive = true;
         }
     }

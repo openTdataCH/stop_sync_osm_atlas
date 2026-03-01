@@ -3,10 +3,8 @@ Post-pass matching predicates.
 
 * **postpass_unique_uic** – match when only one unused OSM node remains for a UIC
 * **duplicate_propagation** – propagate matches across ATLAS duplicate groups
-* **manual_match** – apply persistent manual matches from the user-input database
 """
 import logging
-import os
 
 from typing import TYPE_CHECKING
 import pandas as pd
@@ -106,61 +104,3 @@ class DuplicatePropagationPredicate(BasePredicate):
                 notes=f"Propagated from duplicated sloid: {target_sloid}",
                 candidate_pool_size=1
             )
-
-
-# ---------------------------------------------------------------------------
-# Predicate – persistent manual matches
-# ---------------------------------------------------------------------------
-
-class ManualMatchPredicate(BasePredicate):
-    """Apply persistent manual matches stored in the user-input database."""
-
-    def run(self, ctx: 'MatchingContext') -> None:
-        try:
-            from sqlalchemy import create_engine
-            from sqlalchemy.orm import sessionmaker
-            from backend.models import PersistentData
-
-            db_uri = os.getenv(
-                'USER_INPUT_DATABASE_URI',
-                'postgresql+psycopg://stops_user:1234@localhost:5432/user_input_db',
-            )
-            engine = create_engine(db_uri)
-            Session = sessionmaker(bind=engine)
-            session = Session()
-
-            pairs: set[tuple[str, str]] = set()
-            for pm in session.query(PersistentData).filter(
-                PersistentData.problem_type == 'unmatched',
-                PersistentData.solution == 'manual',
-            ).all():
-                if pm.sloid and pm.osm_node_id:
-                    pairs.add((str(pm.sloid), str(pm.osm_node_id)))
-            session.close()
-        except Exception as exc:
-            logger.debug(f"Could not load persistent manual matches (non-critical): {exc}")
-            return
-
-        if not pairs:
-            return
-
-        all_rows_dict = ctx.atlas.get_all_rows_as_dict()
-
-        for sloid, node_id in pairs:
-            if sloid in ctx.atlas.matched_ids or ctx.osm.is_used(node_id):
-                continue
-            
-            a = all_rows_dict.get(sloid)
-            # Find the original raw osm dict
-            o_dict = ctx.osm._all_nodes.get(node_id)
-            if a and o_dict:
-                o_obj = ctx.osm._to_osm_node(o_dict)
-                dist = haversine_distance(a.lat, a.lon, o_obj.lat, o_obj.lon)
-                ctx.commit(
-                    atlas_node=a,
-                    osm_node=o_obj,
-                    match_type='manual',
-                    distance_m=dist,
-                    notes="Persistent manual match",
-                    candidate_pool_size=1
-                )

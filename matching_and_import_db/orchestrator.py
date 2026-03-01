@@ -21,7 +21,7 @@ from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
 from matching_and_import_db.predicates.name_matching import NameMatchPredicate
 from matching_and_import_db.predicates.distance_matching import GroupProximityPredicate, LocalRefDistancePredicate, NearestDistancePredicate
 from matching_and_import_db.predicates.route_matching_unified import RouteMatchPredicate
-from matching_and_import_db.predicates.postpass_matching import PostpassUniqueUicPredicate, DuplicatePropagationPredicate, ManualMatchPredicate
+from matching_and_import_db.predicates.postpass_matching import PostpassUniqueUicPredicate, DuplicatePropagationPredicate
 
 DEFAULT_PIPELINE = [
     ExactUicPredicate(),
@@ -32,7 +32,6 @@ DEFAULT_PIPELINE = [
     RouteMatchPredicate(),
     PostpassUniqueUicPredicate(),
     DuplicatePropagationPredicate(),
-    ManualMatchPredicate(),
 ]
 
 
@@ -101,6 +100,10 @@ def run_matching():
 
     # ── Identify ATLAS duplicate groups & init State ─────────────────────
     atlas_state = AtlasState.from_dataframe(atlas_df)
+
+    # ── Pre-group platform ↔ stop_position pairs ─────────────────────────
+    atlas_uic_counts = atlas_df.groupby('number').size().to_dict()
+    osm_index.build_groups(atlas_uic_counts)
 
     ctx = MatchingContext(
         atlas=atlas_state,

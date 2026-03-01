@@ -4,40 +4,43 @@
 {% block title %}Problem Identification Tool{% endblock %}
 
 {% block head_css %}
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-  <!-- Popup CSS -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
-  <!-- Problems Page Specific CSS -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/problems.css') }}">
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<!-- Popup CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
+<!-- Problems Page Specific CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/problems.css') }}">
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid problems-page-root d-flex flex-column">
-  
-  
+
+
   <!-- Main Content Area -->
   <div class="main-content flex-grow-1">
-    
+
     <!-- Map and Problem Content -->
     <div class="content-area" id="contentArea">
       <!-- Collapsible Filter Panel -->
       <div class="filter-panel c-filter-panel" id="filterPanel">
-        <button class="filter-toggle-btn c-filter-panel__toggle" id="filterToggleBtn" type="button" title="Toggle filters">
+        <button class="filter-toggle-btn c-filter-panel__toggle" id="filterToggleBtn" type="button"
+          title="Toggle filters">
           <i class="fas fa-sliders-h"></i>
           <i class="fas fa-chevron-left toggle-icon"></i>
         </button>
-        
+
         <div class="filter-content c-filter-panel__content" id="filterContent">
           <div class="filter-header">
             <strong><i class="fas fa-sliders-h"></i> Problem Filters</strong>
           </div>
-          
+
           <div class="filter-body">
             <div class="compact-group">
               <label for="problemTypeFilter">Filter by Problem Type:</label>
               <div>
-                <button class="btn btn-outline-secondary dropdown-toggle btn-block" type="button" id="problemTypeFilter" data-toggle="collapse" data-target="#problemTypeFilterCollapse" aria-expanded="false" aria-controls="problemTypeFilterCollapse">
+                <button class="btn btn-outline-secondary dropdown-toggle btn-block" type="button" id="problemTypeFilter"
+                  data-toggle="collapse" data-target="#problemTypeFilterCollapse" aria-expanded="false"
+                  aria-controls="problemTypeFilterCollapse">
                   <i class="fas fa-filter"></i> All Problems <span class="caret"></span>
                 </button>
                 <div class="collapse" id="problemTypeFilterCollapse">
@@ -52,7 +55,8 @@
             <div class="compact-group" id="sortingControls" style="display: none;">
               <label for="sortButton">Sort Distance Problems:</label>
               <div class="dropdown">
-                <button class="btn btn-outline-info dropdown-toggle btn-block" type="button" id="sortButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <button class="btn btn-outline-info dropdown-toggle btn-block" type="button" id="sortButton"
+                  data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                   <i class="fas fa-sort"></i> Default Order
                 </button>
                 <div class="dropdown-menu w-100" aria-labelledby="sortButton">
@@ -85,43 +89,11 @@
               </div>
             </div>
 
-            <div class="compact-group mt-3">
-              <div class="card persistence-card">
-                <div class="card-header bg-light d-flex align-items-center">
-                  <strong><i class="fas fa-thumbtack mr-1"></i> Persistence Options</strong>
-                  <i class="fas fa-info-circle text-muted ml-2 info-icon" data-toggle="tooltip" data-placement="right" title="Persistent solutions and notes are re-applied automatically after data imports." tabindex="0"></i>
-                </div>
-                <div class="card-body">
-                  <div class="row align-items-center">
-                    <div class="col-6">
-                      <div class="custom-control custom-switch m-0">
-                        <input type="checkbox" class="custom-control-input" id="autoPersistToggle" {% if not current_user.is_authenticated %}disabled{% endif %}>
-                        <label class="custom-control-label" for="autoPersistToggle">
-                          <span class="toggle-label"><span>Auto-Persist</span><br><span>new solutions</span></span>
-                        </label>
-                      </div>
-                    </div>
-                    <div class="col-6">
-                      <div class="custom-control custom-switch m-0">
-                        <input type="checkbox" class="custom-control-input" id="autoPersistNotesToggle" {% if not current_user.is_authenticated %}disabled{% endif %}>
-                        <label class="custom-control-label" for="autoPersistNotesToggle">
-                          <span class="toggle-label"><span>Auto-Persist</span><br><span>new notes</span></span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
 
-                  <!-- Manage persistent solutions link -->
-                  <a href="{{ url_for('manage_data') }}" class="btn btn-info btn-sm btn-block mt-2">
-                    <i class="fas fa-database"></i> Manage Data
-                  </a>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
-      
+
       <!-- Map Section -->
       <div class="map-section" id="mapSection">
         <div id="problemMap"></div>
@@ -132,14 +104,14 @@
           </button>
         </div>
       </div>
-      
+
       <!-- Resizable Divider -->
       <div class="resize-divider" id="resizeDivider">
         <div class="resize-handle">
           <i class="fas fa-grip-lines-vertical"></i>
         </div>
       </div>
-      
+
       <!-- Problem Solving Section -->
       <div class="problem-section" id="problemSection">
         <!-- Problem Info and Navigation Bar -->
@@ -150,10 +122,10 @@
             </button>
           </div>
           <button id="nextProblemBtn" class="btn btn-outline-secondary">
-              Next <i class="fas fa-chevron-right"></i>
+            Next <i class="fas fa-chevron-right"></i>
           </button>
         </div>
-        
+
         <div class="problem-content-header text-center">
           <h5 id="problemTypeDisplay" class="mb-0">Loading...</h5>
         </div>
@@ -162,46 +134,18 @@
           <div id="actionButtonsContent">
             <!-- Problem-specific content will be dynamically inserted here -->
           </div>
-          
-          <!-- Notes Section -->
-          <div class="notes-section" id="notesSection" style="display: none;">
-            <!-- Standard notes for distance, unmatched, attributes problems -->
-            <div id="standardNotesContainer" class="problem-section-item">
-              <h6><i class="fas fa-sticky-note"></i> Notes</h6>
-              
-              <div id="atlasNoteContainer" class="mb-3">
-                <div class="note-editor">
-                  <label for="atlasNote" class="form-label"></label>
-                  <textarea id="atlasNote" class="form-control" placeholder="Add a note for this ATLAS entry..."></textarea>
-                  <button id="saveAtlasNote" class="btn btn-sm btn-info mt-2 professional-button">Save Note</button>
-                </div>
-                <div class="others-notes mt-2"></div>
-              </div>
-              <div id="osmNoteContainer">
-                <div class="note-editor">
-                  <label for="osmNote" class="form-label"></label>
-                  <textarea id="osmNote" class="form-control" placeholder="Add a note for this OSM entry..."></textarea>
-                  <button id="saveOsmNote" class="btn btn-sm btn-primary mt-2 professional-button">Save Note</button>
-                </div>
-                <div class="others-notes mt-2"></div>
-              </div>
-            </div>
-            
-            <!-- Duplicates-specific notes container -->
-            <div id="duplicatesNotesContainer">
-              <!-- Content will be dynamically generated for duplicates -->
-            </div>
-          </div>
+
+
         </div>
       </div>
     </div>
   </div>
-  
+
   <!-- Keyboard Shortcuts Hint -->
   <div class="keyboard-shortcuts-hint" id="keyboardHint">
     <div><strong>Keyboard Shortcuts:</strong></div>
     <div>→ / Space: Next Entry</div>
-    <div>← : Previous Entry</div> 
+    <div>← : Previous Entry</div>
     <div>↑ / ↓ : Scroll Issues</div>
   </div>
 </div>
@@ -229,8 +173,7 @@
 <script src="{{ url_for('static', filename='js/pages/problems-ui.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/problems-solutions.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/problems-notes.js') }}"></script>
+
 <!-- Main problems page coordinator -->
 <script src="{{ url_for('static', filename='js/pages/problems.js') }}"></script>
 {% endblock %}
-
-

@@ -110,7 +110,6 @@ def upgrade_():
         sa.Column('sloid', sa.String(length=100), nullable=True),
         sa.Column('stop_type', sa.String(length=50), nullable=True),
         sa.Column('match_type', sa.String(length=50), nullable=True),
-        sa.Column('manual_is_persistent', sa.Boolean(), nullable=True),
         sa.Column('atlas_lat', sa.Float(), nullable=True),
         sa.Column('atlas_lon', sa.Float(), nullable=True),
         sa.Column('osm_node_id', sa.String(length=100), nullable=True),
@@ -134,10 +133,6 @@ def upgrade_():
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('stop_id', sa.Integer(), nullable=True),
         sa.Column('problem_type', sa.String(length=50), nullable=False),
-        sa.Column('solution', sa.String(length=500), nullable=True),
-        sa.Column('is_persistent', sa.Boolean(), nullable=True),
-        sa.Column('created_by_user_id', sa.Integer(), nullable=True),
-        sa.Column('created_by_user_email', sa.String(length=255), nullable=True),
         sa.Column('priority', sa.Integer(), nullable=True),
         sa.ForeignKeyConstraint(['stop_id'], ['stops_matched.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
@@ -146,7 +141,6 @@ def upgrade_():
         batch_op.create_index('idx_problem_priority', ['priority'], unique=False)
         batch_op.create_index('idx_problem_stop_id', ['stop_id'], unique=False)
         batch_op.create_index('idx_problem_type', ['problem_type'], unique=False)
-        batch_op.create_index(batch_op.f('ix_problems_created_by_user_id'), ['created_by_user_id'], unique=False)
 
 
 # ── user_input database (user_input_db) ─────────────────────────────────────

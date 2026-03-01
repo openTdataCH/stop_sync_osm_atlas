@@ -22,9 +22,6 @@ class StopsMatched(db.Model):
     # Valid values: 'matched', 'atlas_unmatched', 'osm_unmatched'
     stop_type = db.Column(db.String(50))
     match_type = db.Column(db.String(50))
-    # Indicates whether a 'manual' match was saved as persistent data
-    manual_is_persistent = db.Column(db.Boolean, default=False)
-
     # Core location and linking attributes
     atlas_lat = db.Column(db.Float)
     atlas_lon = db.Column(db.Float)
@@ -61,11 +58,6 @@ class Problem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     stop_id = db.Column(db.Integer, db.ForeignKey('stops_matched.id', ondelete='CASCADE'))
     problem_type = db.Column(db.String(50), nullable=False)
-    solution = db.Column(db.String(500))
-    is_persistent = db.Column(db.Boolean, default=False)
-    # Attribution
-    created_by_user_id = db.Column(db.Integer, index=True, nullable=True)
-    created_by_user_email = db.Column(db.String(255), nullable=True)
     # Priority for this problem within its category (1 = highest)
     priority = db.Column(db.Integer)
     stop = db.relationship('StopsMatched', back_populates='problems')
@@ -81,8 +73,6 @@ class Problem(db.Model):
             'id': self.id,
             'stop_id': self.stop_id,
             'problem': self.problem_type,
-            'solution': self.solution,
-            'is_persistent': self.is_persistent,
             'priority': self.priority,
             'sloid': stop.sloid if stop else None,
             'stop_type': stop.stop_type if stop else None,
@@ -96,24 +86,7 @@ class Problem(db.Model):
             'osm_public_transport': osm_details.osm_public_transport if osm_details else None,
         }
 
-class PersistentData(db.Model):
-    __bind_key__ = 'user_input'
-    __tablename__ = 'persistent_data'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    sloid = db.Column(db.String(100), index=True)
-    osm_node_id = db.Column(db.String(100), index=True)
-    problem_type = db.Column(db.String(50), index=True)
-    solution = db.Column(db.String(500))
-    created_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())
-    updated_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
-    # Ownership/attribution
-    created_by_user_id = db.Column(db.Integer, index=True, nullable=True)
-    created_by_user_email = db.Column(db.String(255), nullable=True)
 
-    __table_args__ = (
-        db.UniqueConstraint('sloid', 'osm_node_id', 'problem_type', name='unique_problem'),
-    )
 
 class AtlasStop(db.Model):
     __tablename__ = 'atlas_stops'
@@ -147,26 +120,7 @@ class OsmNode(db.Model):
     # JSONB array of all OSM node IDs in the duplicate group (e.g. ["123", "456"])
     duplicate_group_node_ids = db.Column(JSONB)
 
-class UserNote(db.Model):
-    __bind_key__ = 'user_input'
-    __tablename__ = 'user_notes'
 
-    id = db.Column(db.Integer, primary_key=True)
-    # Either sloid or osm_node_id will be set, depending on note_type
-    sloid = db.Column(db.String(100), index=True, nullable=True)
-    osm_node_id = db.Column(db.String(100), index=True, nullable=True)
-    # 'atlas' or 'osm'
-    note_type = db.Column(db.String(20), index=True, nullable=False)
-    user_id = db.Column(db.Integer, index=True, nullable=False)
-    user_email = db.Column(db.String(255), nullable=True)
-    note = db.Column(db.Text)
-    is_persistent = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())
-    updated_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
-
-    __table_args__ = (
-        db.UniqueConstraint('sloid', 'osm_node_id', 'note_type', 'user_id', name='unique_user_note'),
-    )
 
 class RouteAtlasStops(db.Model):
     __tablename__ = 'route_atlas_stops'

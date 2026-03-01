@@ -1,76 +1,12 @@
 from flask import Blueprint, request, jsonify, current_app as app
 import random
 from sqlalchemy import func
-from backend.models import StopsMatched, AtlasStop, OsmNode, PersistentData, Problem
+from backend.models import StopsMatched, AtlasStop, OsmNode
 from backend.extensions import db, limiter
-from flask_login import login_required
 from backend.serializers.stops import format_stop_data
 from backend.query_helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint
 
 search_bp = Blueprint('search', __name__)
-
-
-@search_bp.route('/api/manual_match', methods=['POST'])
-@limiter.limit("30/minute")
-@login_required
-def manual_match():
-    try:
-        payload = request.get_json() or {}
-        atlas_stop_id = payload.get('atlas_stop_id')
-        osm_stop_id = payload.get('osm_stop_id')
-        make_persistent = bool(payload.get('make_persistent', False))
-        if not atlas_stop_id or not osm_stop_id:
-            return jsonify({"success": False, "error": "atlas_stop_id and osm_stop_id are required"}), 400
-        atlas_stop = db.session.get(StopsMatched, atlas_stop_id)
-        osm_stop = db.session.get(StopsMatched, osm_stop_id)
-        if not atlas_stop or not osm_stop:
-            return jsonify({"success": False, "error": "One or both stops not found"}), 404
-        atlas_stop.stop_type = 'matched'
-        atlas_stop.match_type = 'manual'
-        atlas_stop.osm_node_id = osm_stop.osm_node_id
-        atlas_stop.osm_lat = osm_stop.osm_lat
-        atlas_stop.osm_lon = osm_stop.osm_lon
-        osm_stop.stop_type = 'matched'
-        osm_stop.match_type = 'manual'
-        osm_stop.sloid = atlas_stop.sloid
-        osm_stop.atlas_lat = atlas_stop.atlas_lat
-        osm_stop.atlas_lon = atlas_stop.atlas_lon
-        if make_persistent:
-            atlas_stop.manual_is_persistent = True
-            osm_stop.manual_is_persistent = True
-        db.session.add(atlas_stop)
-        db.session.add(osm_stop)
-        db.session.flush()
-        atlas_unmatched = Problem.query.filter_by(stop_id=atlas_stop.id, problem_type='unmatched').first()
-        if atlas_unmatched:
-            atlas_unmatched.solution = f"Manual match to OSM {osm_stop.osm_node_id}"
-            atlas_unmatched.is_persistent = make_persistent
-            db.session.add(atlas_unmatched)
-        osm_unmatched = Problem.query.filter_by(stop_id=osm_stop.id, problem_type='unmatched').first()
-        if osm_unmatched:
-            osm_unmatched.solution = f"Manual match to ATLAS {atlas_stop.sloid}"
-            osm_unmatched.is_persistent = make_persistent
-            db.session.add(osm_unmatched)
-        if make_persistent:
-            existing = PersistentData.query.filter(
-                PersistentData.sloid == atlas_stop.sloid,
-                PersistentData.osm_node_id == osm_stop.osm_node_id,
-                PersistentData.problem_type == 'unmatched',
-            ).first()
-            if existing:
-                existing.solution = 'manual'
-            else:
-                db.session.add(PersistentData(
-                    sloid=atlas_stop.sloid,
-                    osm_node_id=osm_stop.osm_node_id,
-                    problem_type='unmatched',
-                    solution='manual'
-                ))
-        db.session.commit()
-        return jsonify({"success": True, "message": "Manual match saved", "is_persistent": make_persistent})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @search_bp.route('/api/search', methods=['GET'])
@@ -216,7 +152,7 @@ def get_random_stop():
         if 'matched' in current_stop_types:
             relevant_matched_methods = [
                 m for m in current_match_methods if (
-                    m in ['exact', 'name', 'manual'] or
+                    m in ['exact', 'name'] or
                     m.startswith('distance_matching_') or
                     m.startswith('route_')
                 )

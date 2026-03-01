@@ -122,8 +122,8 @@ If you have VS Code installed, we have provided built-in tasks to quickly run co
 2. Select **`Tasks: Run Task`**.
 3. Choose one of the predefined tasks:
    - **`Docker: Run All Tests`**: Executes the `pytest` suite.
-   - **`Docker: Run Import Data (Match Only)`**: Manually runs the `matching_and_import_db/database/importer.py` matching script.
-   - **`Docker: Run Full Data Pipeline`**: Downloads new data and automatically runs the matcher.
+   - **`Docker: Run Matching & Import (Existing Data)`**: Manually runs the `matching_and_import_db/database/importer.py` matching script.
+   - **`Docker: Run Full Data Pipeline (Download & Match & Import)`**: Downloads new data and automatically runs the matcher.
 
 You can do this while the `app` container is running in the background.
 

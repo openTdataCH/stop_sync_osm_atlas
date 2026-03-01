@@ -419,8 +419,6 @@ function attachPopupLineHandlersToMap(mapInstance) {
             const type = $container.data('type'); // 'atlas' or 'osm'
             if (!(stopId && type)) return;
 
-            const $btn = $root.find('button.manual-match-target');
-
             // Load popup notes content when the collapsible is present
             const $notes = $root.find('.popup-notes');
             if ($notes.length) {
@@ -485,76 +483,6 @@ function attachPopupLineHandlersToMap(mapInstance) {
                 });
             }
 
-            // Ensure UI reflects current selection state
-            if (typeof window.updateManualMatchButtonsUI === 'function') {
-                window.updateManualMatchButtonsUI();
-            }
-
-            $btn.off('click.mm').on('click.mm', function () {
-                const current = window.manualMatchContext;
-                if (!current) {
-                    // Start selection from this popup
-                    window.manualMatchContext = { from: type, stopId: stopId };
-                    $('.manual-match-banner').remove();
-                    const msg = type === 'atlas' ? 'Select an OSM entry to complete the match' : 'Select an ATLAS entry to complete the match';
-                    const banner = $(`
-                        <div class="manual-match-banner alert alert-info" role="alert" style="position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:2000;">
-                            ${msg}
-                            <button type="button" class="btn btn-sm btn-outline-secondary ml-2" id="cancelManualMatch">Cancel</button>
-                        </div>
-                    `);
-                    $('body').append(banner);
-                    $('#cancelManualMatch').on('click', function () {
-                        window.manualMatchContext = null;
-                        $('.manual-match-banner').remove();
-                        if (typeof window.updateManualMatchButtonsUI === 'function') {
-                            window.updateManualMatchButtonsUI();
-                        }
-                    });
-                    if (typeof window.updateManualMatchButtonsUI === 'function') {
-                        window.updateManualMatchButtonsUI();
-                    }
-                    return;
-                }
-
-                // Attempt to finalize if clicking on opposite dataset
-                if ((current.from === 'atlas' && type === 'osm') || (current.from === 'osm' && type === 'atlas')) {
-                    const atlasId = current.from === 'atlas' ? current.stopId : stopId;
-                    const osmId = current.from === 'atlas' ? stopId : current.stopId;
-                    const makePersistent = (typeof ProblemsState !== 'undefined' && ProblemsState.getAutoPersistEnabled && ProblemsState.getAutoPersistEnabled()) || false;
-
-                    $.ajax({
-                        url: '/api/manual_match',
-                        method: 'POST',
-                        contentType: 'application/json',
-                        data: JSON.stringify({ atlas_stop_id: atlasId, osm_stop_id: osmId, make_persistent: makePersistent }),
-                    }).done(function (resp) {
-                        window.manualMatchContext = null;
-                        $('.manual-match-banner').remove();
-                        // Success notification
-                        if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
-                            window.ProblemsUI.showTemporaryMessage('Manual match saved' + (resp && resp.is_persistent ? ' (persistent)' : ''), 'success');
-                        }
-                        // Optional: refresh Problems view if present
-                        if (typeof ProblemsData !== 'undefined' && ProblemsData.fetchProblems && typeof ProblemsState !== 'undefined') {
-                            const idx = ProblemsState.getCurrentProblemIndex ? ProblemsState.getCurrentProblemIndex() : 0;
-                            ProblemsData.fetchProblems(ProblemsState.getCurrentPage ? ProblemsState.getCurrentPage() : 1);
-                            setTimeout(() => {
-                                if (window.ProblemsUI && window.ProblemsUI.displayProblem) {
-                                    window.ProblemsUI.displayProblem(idx);
-                                }
-                            }, 400);
-                        }
-                        if (typeof window.updateManualMatchButtonsUI === 'function') {
-                            window.updateManualMatchButtonsUI();
-                        }
-                    }).fail(function () {
-                        if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
-                            window.ProblemsUI.showTemporaryMessage('Failed to save manual match', 'error');
-                        }
-                    });
-                }
-            });
         } catch (err) { /* ignore */ }
     });
     mapInstance.on('popupclose', function (e) {
@@ -574,24 +502,6 @@ function attachPopupLineHandlersToMap(mapInstance) {
     });
     return openPopups;
 }
-
-// Global helper to keep popup buttons in sync with current manual selection
-window.updateManualMatchButtonsUI = function () {
-    const ctx = window.manualMatchContext;
-    // For every visible popup, set appropriate button text
-    $('.leaflet-popup').each(function () {
-        const $root = $(this);
-        const $container = $root.find('.popup-content-container').first();
-        const type = $container.data('type');
-        const $btn = $root.find('button.manual-match-target');
-        if (!$btn.length) return;
-        if (ctx && ctx.from && ((ctx.from === 'atlas' && type === 'osm') || (ctx.from === 'osm' && type === 'atlas'))) {
-            $btn.text('Match to this entry');
-        } else {
-            $btn.text('Match to');
-        }
-    });
-};
 
 /**
  * Draws a problem case on the map, including markers and lines.

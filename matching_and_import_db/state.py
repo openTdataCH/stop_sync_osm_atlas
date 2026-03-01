@@ -7,7 +7,7 @@ from typing import Optional
 
 import pandas as pd
 
-from matching_and_import_db.utils.common import is_osm_station, haversine_distance
+from matching_and_import_db.utils.common import haversine_distance
 from matching_and_import_db.utils.spatial_index import build_kdtree_from_nodes, batch_to_xyz, meters_to_unit_chord_radius
 from matching_and_import_db.utils.org_standardization import standardize_operator
 from matching_and_import_db.models import AtlasNode
@@ -67,8 +67,7 @@ class AtlasState:
             uic_ref=_str(row.get('number')),
             designation=_str(row.get('designation')),
             designation_official=_str(row.get('designationOfficial')),
-            business_org_abbr=_str(row.get('servicePointBusinessOrganisationAbbreviationEn')),
-            raw_data=row.to_dict()
+            business_org_abbr=_str(row.get('servicePointBusinessOrganisationAbbreviationEn'))
         )
 
     def get_unmatched_records(self) -> list[AtlasNode]:
@@ -237,59 +236,185 @@ class OsmState:
         self._name_index = name_index
         self.name_dirs: dict[str, set] = name_dirs or {}
         self.uic_dirs: dict[str, set] = uic_dirs or {}
-        
+
         self.used_ids: set[str] = set()
-        
+
+        # OSM node grouping (platform ↔ stop_position pairs)
+        # sibling node_id → representative node_id
+        self._group_representative: dict[str, str] = {}
+        # representative node_id → list of sibling OsmNode domain objects
+        self._group_siblings: dict[str, list[OsmNode]] = {}
+
         # Spatial indices
         self._cached_tree = None
         self._cached_pts = []
         self._cached_nodes_list = []
         self._cached_include_stations = None
-        
+
+    def build_groups(self, atlas_uic_counts: dict[str, int]) -> None:
+        """Pre-group platform ↔ stop_position pairs within each UIC.
+
+        Uses Option B: UIC-scoped reciprocal nearest-neighbour pairing within 12m,
+        with a count-match condition (only keep groups for a UIC when
+        atlas_count == number of proposed OSM groups for that UIC).
+        """
+        MAX_GROUP_DISTANCE = 12.0  # meters
+
+        groups_by_uic: dict[str, list[tuple[dict, dict]]] = defaultdict(list)
+
+        for uic, entries in self._uic_ref_dict.items():
+            if len(entries) < 2:
+                continue
+
+            platforms = [e for e in entries if e['tags'].get('public_transport') == 'platform']
+            stop_positions = [e for e in entries if e['tags'].get('public_transport') == 'stop_position']
+
+            if not platforms or not stop_positions:
+                continue
+
+            # For each stop_position find nearest platform within 12m
+            sp_to_nearest_plat: dict[str, tuple[dict, float]] = {}
+            for sp in stop_positions:
+                best_plat, best_d = None, MAX_GROUP_DISTANCE
+                for plat in platforms:
+                    d = haversine_distance(sp['lat'], sp['lon'], plat['lat'], plat['lon'])
+                    if d is not None and d < best_d:
+                        best_d = d
+                        best_plat = plat
+                if best_plat is not None:
+                    sp_to_nearest_plat[sp['node_id']] = (best_plat, best_d)
+
+            # For each platform find nearest stop_position within 12m
+            plat_to_nearest_sp: dict[str, tuple[dict, float]] = {}
+            for plat in platforms:
+                best_sp, best_d = None, MAX_GROUP_DISTANCE
+                for sp in stop_positions:
+                    d = haversine_distance(plat['lat'], plat['lon'], sp['lat'], sp['lon'])
+                    if d is not None and d < best_d:
+                        best_d = d
+                        best_sp = sp
+                if best_sp is not None:
+                    plat_to_nearest_sp[plat['node_id']] = (best_sp, best_d)
+
+            # Reciprocal check: form pair only if both point at each other
+            used_plats: set[str] = set()
+            used_sps: set[str] = set()
+            for sp in stop_positions:
+                if sp['node_id'] in used_sps:
+                    continue
+                match = sp_to_nearest_plat.get(sp['node_id'])
+                if match is None:
+                    continue
+                plat, _ = match
+                if plat['node_id'] in used_plats:
+                    continue
+                reverse = plat_to_nearest_sp.get(plat['node_id'])
+                if reverse is None:
+                    continue
+                rev_sp, _ = reverse
+                if rev_sp['node_id'] == sp['node_id']:
+                    groups_by_uic[uic].append((plat, sp))
+                    used_plats.add(plat['node_id'])
+                    used_sps.add(sp['node_id'])
+
+        # Count-match condition and representative selection
+        total_groups = 0
+        for uic, pairs in groups_by_uic.items():
+            # Total OSM nodes for this UIC that would result after grouping:
+            # ungrouped nodes + groups (each pair counts as 1)
+            all_uic_entries = self._uic_ref_dict[uic]
+            grouped_ids = set()
+            for plat, sp in pairs:
+                grouped_ids.add(plat['node_id'])
+                grouped_ids.add(sp['node_id'])
+            ungrouped_count = sum(1 for e in all_uic_entries if e['node_id'] not in grouped_ids)
+            effective_count = ungrouped_count + len(pairs)
+
+            atlas_count = atlas_uic_counts.get(uic, 0)
+            if atlas_count != effective_count:
+                continue
+
+            for plat, sp in pairs:
+                # Representative selection: prefer node with uic_ref, then prefer platform
+                plat_has_uic = 'uic_ref' in plat['tags']
+                sp_has_uic = 'uic_ref' in sp['tags']
+                if sp_has_uic and not plat_has_uic:
+                    representative, sibling = sp, plat
+                else:
+                    representative, sibling = plat, sp
+
+                rep_id = representative['node_id']
+                sib_id = sibling['node_id']
+                self._group_representative[sib_id] = rep_id
+                self._group_siblings[rep_id] = [self._to_osm_node(sibling)]
+                total_groups += 1
+
+        logger.info(f"OSM grouping: {total_groups} platform↔stop_position pairs formed")
+
+    def get_siblings(self, node_id: str) -> list[OsmNode]:
+        """Returns sibling OsmNodes for a representative node (empty if none)."""
+        return self._group_siblings.get(node_id, [])
+
+    def _is_sibling(self, node_id: str) -> bool:
+        """Returns True if this node is a sibling (hidden from predicates)."""
+        return node_id in self._group_representative
+
     def mark_used(self, node_id: str):
         self.used_ids.add(node_id)
-        
+        # Cascade: also lock siblings
+        for sibling in self._group_siblings.get(node_id, []):
+            self.used_ids.add(sibling.node_id)
+
     def is_used(self, node_id: str) -> bool:
         return node_id in self.used_ids
-        
+
     def get_unmatched_nodes(self) -> list[OsmNode]:
-        return [self._to_osm_node(n) for n in self._all_nodes.values() if n['node_id'] not in self.used_ids]
+        return [
+            self._to_osm_node(n) for n in self._all_nodes.values()
+            if n['node_id'] not in self.used_ids and not self._is_sibling(n['node_id'])
+        ]
     
     def get_by_uic(self, uic: str) -> list[OsmNode]:
-        """Gets unmatched non-station nodes for a UIC reference."""
+        """Gets unmatched non-station nodes for a UIC reference (excludes siblings)."""
         return [
             self._to_osm_node(c) for c in self._uic_ref_dict.get(str(uic), [])
-            if c['node_id'] not in self.used_ids and not is_osm_station(c)
+            if c['node_id'] not in self.used_ids
+            and not self._is_sibling(c['node_id'])
+            and not self._to_osm_node(c).is_station
         ]
-        
+
     def get_by_name(self, name: str) -> list[OsmNode]:
-        """Gets unmatched non-station nodes for a given name."""
+        """Gets unmatched non-station nodes for a given name (excludes siblings)."""
         return [
             self._to_osm_node(c) for c in self._name_index.get(name, [])
-            if c['node_id'] not in self.used_ids and not is_osm_station(c)
+            if c['node_id'] not in self.used_ids
+            and not self._is_sibling(c['node_id'])
+            and not self._to_osm_node(c).is_station
         ]
         
     def get_all_unmatched_grouped(self, key: str, stop_position_only: bool = False) -> dict[str, list[OsmNode]]:
-        """Used heavily by group_proximity to build lookup indexes."""
+        """Used heavily by group_proximity to build lookup indexes (excludes siblings)."""
         from collections import defaultdict
-        
+
         result = defaultdict(list)
         for node_dict in self._all_nodes.values():
             if node_dict['node_id'] in self.used_ids:
                 continue
-            if is_osm_station(node_dict):
+            if self._is_sibling(node_dict['node_id']):
                 continue
-            
+            if self._to_osm_node(node_dict).is_station:
+                continue
+
             tags = node_dict.get('tags', {})
             val = tags.get(key)
             if not val:
                 continue
-                
+
             if stop_position_only and tags.get('public_transport') != 'stop_position':
                 continue
-                
+
             result[val].append(self._to_osm_node(node_dict))
-            
+
         return dict(result)
 
     def _ensure_spatial_index(self, include_stations: bool = False):
@@ -302,7 +427,7 @@ class OsmState:
             # We filter out `used_ids` AT QUERY TIME instead of rebuilding the tree.
             valid_nodes = {
                 coord: n for coord, n in self._all_nodes.items()
-                if include_stations or not is_osm_station(n)
+                if include_stations or not self._to_osm_node(n).is_station
             }
             self._cached_tree, self._cached_pts, self._cached_nodes_list = build_kdtree_from_nodes(valid_nodes)
             self._cached_include_stations = include_stations
@@ -330,6 +455,8 @@ class OsmState:
             for idx in indices_list[i]:
                 (n_lat, n_lon), node_dict = self._cached_nodes_list[idx]
                 if node_dict['node_id'] in self.used_ids:
+                    continue
+                if self._is_sibling(node_dict['node_id']):
                     continue
                 d = haversine_distance(lat, lon, n_lat, n_lon)
                 if d is not None and d <= max_distance:
