@@ -192,15 +192,6 @@
         }
         const bubbleHeader = `<h5>${headerText}${linkHtml}</h5>`;
 
-        let extraBtns = '';
-        if (unmatched) {
-            if (isAtlas) {
-                extraBtns = `<button class="btn btn-sm btn-outline-secondary manual-match-target" type="button" data-stop-id="${data.id}" data-type="atlas">Match to</button>`;
-            } else if (isOsm) {
-                extraBtns = `<button class="btn btn-sm btn-outline-secondary manual-match-target" type="button" data-stop-id="${data.id}" data-type="osm">Match to</button>`;
-            }
-        }
-
         // Add OSM iD editor link for OSM popups
         let osmEditorLinkHtml = '';
         if (isOsm && data.osm_node_id) {
@@ -218,7 +209,6 @@
                 <table class="popup-table">${tableRowsHtml}</table>
                 ${routesSection}
                 ${notesSection}
-                ${extraBtns}
                 ${osmEditorLinkHtml}
             </div>`;
     }

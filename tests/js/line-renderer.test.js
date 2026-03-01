@@ -46,24 +46,11 @@ const LineRenderer = {};
 
 const LINE_STYLES = {
     default: { color: 'green', weight: 2, opacity: 1 },
-    manualPersistent: { color: 'purple', weight: 2, opacity: 1 },
-    manualTemporary: { color: 'purple', weight: 2, dashArray: '5,5', opacity: 1 },
-    context: { color: 'green', weight: 2, opacity: 0.4 },
-    contextManual: { color: 'purple', weight: 2, opacity: 0.6 },
-    contextManualTemporary: { color: 'purple', weight: 2, opacity: 0.6, dashArray: '5,5' }
+    context: { color: 'green', weight: 2, opacity: 0.4 }
 };
 
-LineRenderer.getStyle = function(matchType, isPersistent, isContext) {
-    if (isContext) {
-        if (matchType === 'manual') {
-            return isPersistent ? LINE_STYLES.contextManual : LINE_STYLES.contextManualTemporary;
-        }
-        return LINE_STYLES.context;
-    }
-    if (matchType === 'manual') {
-        return isPersistent ? LINE_STYLES.manualPersistent : LINE_STYLES.manualTemporary;
-    }
-    return LINE_STYLES.default;
+LineRenderer.getStyle = function(matchType, isContext) {
+    return isContext ? LINE_STYLES.context : LINE_STYLES.default;
 };
 
 LineRenderer._buildLineKey = function(sloid, osmNodeId) {
@@ -81,8 +68,7 @@ LineRenderer._getOsmNodesFromStop = function(stop) {
             osm_node_id: stop.osm_node_id,
             osm_lat: stop.osm_lat,
             osm_lon: stop.osm_lon,
-            match_type: stop.match_type,
-            manual_is_persistent: stop.manual_is_persistent
+            match_type: stop.match_type
         }];
     }
     return [];
@@ -100,9 +86,7 @@ LineRenderer._drawLinesForStop = function(stop, layer, drawnKeys, isContext) {
         if (drawnKeys.has(key)) return;
         drawnKeys.add(key);
         
-        const matchType = osm.match_type || stop.match_type;
-        const isPersistent = osm.manual_is_persistent || stop.manual_is_persistent;
-        const style = this.getStyle(matchType, isPersistent, isContext);
+        const style = this.getStyle(stop.match_type, isContext);
         
         const line = L.polyline([
             [parseFloat(stop.atlas_lat), parseFloat(stop.atlas_lon)],
@@ -134,11 +118,7 @@ LineRenderer.drawAll = function(data, layer, options) {
 
 LineRenderer.clearLines = function(layer) {
     if (!layer) return;
-    layer.eachLayer(function(line) {
-        if (!line.options || !line.options.isManualMatch) {
-            layer.removeLayer(line);
-        }
-    });
+    layer.clearLayers();
 };
 
 // ==========================================
@@ -158,44 +138,25 @@ describe('LineRenderer', () => {
     // -----------------------------------------
     describe('getStyle', () => {
         test('returns green style for standard exact match', () => {
-            const style = LineRenderer.getStyle('exact', false, false);
+            const style = LineRenderer.getStyle('exact', false);
             expect(style.color).toBe('green');
             expect(style.weight).toBe(2);
-            expect(style.dashArray).toBeUndefined();
         });
 
         test('returns green style for distance matching', () => {
-            const style = LineRenderer.getStyle('distance_matching_50', false, false);
+            const style = LineRenderer.getStyle('distance_matching_50', false);
             expect(style.color).toBe('green');
         });
 
         test('returns green style for name matching', () => {
-            const style = LineRenderer.getStyle('name', false, false);
+            const style = LineRenderer.getStyle('name', false);
             expect(style.color).toBe('green');
-        });
-
-        test('returns purple solid for persistent manual matches', () => {
-            const style = LineRenderer.getStyle('manual', true, false);
-            expect(style.color).toBe('purple');
-            expect(style.dashArray).toBeUndefined();
-        });
-
-        test('returns purple dashed for non-persistent manual matches', () => {
-            const style = LineRenderer.getStyle('manual', false, false);
-            expect(style.color).toBe('purple');
-            expect(style.dashArray).toBe('5,5');
         });
 
         test('returns context style with lower opacity', () => {
-            const style = LineRenderer.getStyle('exact', false, true);
+            const style = LineRenderer.getStyle('exact', true);
             expect(style.color).toBe('green');
             expect(style.opacity).toBe(0.4);
-        });
-
-        test('returns context manual style', () => {
-            const style = LineRenderer.getStyle('manual', true, true);
-            expect(style.color).toBe('purple');
-            expect(style.opacity).toBe(0.6);
         });
     });
 
@@ -468,31 +429,6 @@ describe('LineRenderer', () => {
             expect(count).toBe(0);
         });
 
-        test('applies manual match style correctly', () => {
-            const data = [{
-                stop_type: 'matched',
-                sloid: 'ch:1:sloid:1',
-                atlas_lat: 47.0,
-                atlas_lon: 8.0,
-                osm_node_id: 'n1',
-                osm_lat: 47.001,
-                osm_lon: 8.001,
-                match_type: 'manual',
-                manual_is_persistent: false
-            }];
-            
-            LineRenderer.drawAll(data, mockLayer, {
-                showAtlas: true,
-                showOsm: true,
-                minZoom: 13,
-                currentZoom: 15,
-                isContext: false
-            });
-            
-            expect(polylineCalls[0].options.color).toBe('purple');
-            expect(polylineCalls[0].options.dashArray).toBe('5,5');
-        });
-
         test('handles empty data array', () => {
             const count = LineRenderer.drawAll([], mockLayer, {
                 showAtlas: true,
@@ -619,8 +555,7 @@ describe('LineRenderer Integration Scenarios', () => {
                 osm_node_id: 'O2',
                 osm_lat: 47.11,
                 osm_lon: 8.11,
-                match_type: 'manual',
-                manual_is_persistent: true
+                match_type: 'name'
             },
             {
                 stop_type: 'matched',
@@ -630,11 +565,10 @@ describe('LineRenderer Integration Scenarios', () => {
                 osm_node_id: 'O3',
                 osm_lat: 47.12,
                 osm_lon: 8.12,
-                match_type: 'manual',
-                manual_is_persistent: false
+                match_type: 'distance_matching_50'
             }
         ];
-        
+
         LineRenderer.drawAll(data, mockLayer, {
             showAtlas: true,
             showOsm: true,
@@ -642,12 +576,10 @@ describe('LineRenderer Integration Scenarios', () => {
             currentZoom: 15,
             isContext: false
         });
-        
-        // Verify styling for each line
-        expect(polylineCalls[0].options.color).toBe('green'); // exact
-        expect(polylineCalls[1].options.color).toBe('purple'); // manual persistent
-        expect(polylineCalls[1].options.dashArray).toBeUndefined();
-        expect(polylineCalls[2].options.color).toBe('purple'); // manual temp
-        expect(polylineCalls[2].options.dashArray).toBe('5,5');
+
+        // All match types use the same green style
+        expect(polylineCalls[0].options.color).toBe('green');
+        expect(polylineCalls[1].options.color).toBe('green');
+        expect(polylineCalls[2].options.color).toBe('green');
     });
 });

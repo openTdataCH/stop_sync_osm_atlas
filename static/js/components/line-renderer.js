@@ -24,22 +24,9 @@
      */
     const LINE_STYLES = {
         // Standard automatic match (exact, name, distance, route matching)
-        default: { 
-            color: 'green', 
+        default: {
+            color: 'green',
             weight: 2,
-            opacity: 1
-        },
-        // Manual match that has been persisted to the database
-        manualPersistent: { 
-            color: 'purple', 
-            weight: 2,
-            opacity: 1
-        },
-        // Manual match that is temporary (not yet persisted)
-        manualTemporary: { 
-            color: 'purple', 
-            weight: 2, 
-            dashArray: '5,5',
             opacity: 1
         },
         // Context/background lines (used in problems view)
@@ -48,18 +35,12 @@
             weight: 2,
             opacity: 0.4
         },
-        // Context manual match lines
-        contextManual: {
-            color: 'purple',
+        // OSM group line (platform ↔ stop_position sibling pair)
+        osm_group: {
+            color: '#e6b800',
             weight: 2,
-            opacity: 0.6
-        },
-        // Context manual temporary lines
-        contextManualTemporary: {
-            color: 'purple',
-            weight: 2,
-            opacity: 0.6,
-            dashArray: '5,5'
+            opacity: 0.9,
+            dashArray: '6,4'
         }
     };
 
@@ -69,25 +50,13 @@
 
     /**
      * Get the appropriate line style for a match
-     * 
-     * @param {string} matchType - The type of match ('exact', 'name', 'manual', 'distance_matching_*', etc.)
-     * @param {boolean} isPersistent - Whether a manual match is persisted
+     *
+     * @param {string} matchType - The type of match ('exact', 'name', 'distance_matching_*', etc.)
      * @param {boolean} isContext - Whether this is a context/background line
      * @returns {Object} Leaflet polyline style options
      */
-    LineRenderer.getStyle = function(matchType, isPersistent, isContext) {
-        if (isContext) {
-            if (matchType === 'manual') {
-                return isPersistent ? LINE_STYLES.contextManual : LINE_STYLES.contextManualTemporary;
-            }
-            return LINE_STYLES.context;
-        }
-        
-        if (matchType === 'manual') {
-            return isPersistent ? LINE_STYLES.manualPersistent : LINE_STYLES.manualTemporary;
-        }
-        
-        return LINE_STYLES.default;
+    LineRenderer.getStyle = function(matchType, isContext) {
+        return isContext ? LINE_STYLES.context : LINE_STYLES.default;
     };
 
     /**
@@ -106,34 +75,77 @@
      */
     LineRenderer.drawAll = function(data, layer, options) {
         const { showAtlas, showOsm, minZoom, currentZoom, isContext } = options;
-        
+
         // Early exit conditions
         if (currentZoom < minZoom) {
             return 0;
         }
-        
+
         if (!showAtlas || !showOsm) {
             return 0;
         }
-        
+
         if (!Array.isArray(data) || data.length === 0) {
             return 0;
         }
-        
+
         // Track drawn lines to prevent duplicates
         // Key format: "sloid-osm_node_id"
         const drawnKeys = new Set();
         let lineCount = 0;
-        
+
+        // Pass 1: Draw normal green lines and collect primary OSM coords per sloid
+        // (primary = any matched row that is NOT osm_group)
+        const primaryOsmBySloid = {};
+
         data.forEach(function(stop) {
             if (stop.stop_type !== 'matched') {
                 return;
             }
-            
+
+            // Draw green ATLAS→OSM line for all matched stops (including osm_group)
             const linesDrawn = LineRenderer._drawLinesForStop(stop, layer, drawnKeys, isContext);
             lineCount += linesDrawn;
+
+            // Record the primary (non-osm_group) OSM coords per sloid for yellow group lines
+            if (stop.match_type !== 'osm_group' && stop.sloid && stop.osm_lat != null && stop.osm_lon != null) {
+                primaryOsmBySloid[stop.sloid] = {
+                    osm_lat: stop.osm_lat,
+                    osm_lon: stop.osm_lon,
+                    osm_node_id: stop.osm_node_id
+                };
+            }
         });
-        
+
+        // Pass 2: Draw yellow lines for osm_group rows (sibling OSM ↔ primary OSM)
+        data.forEach(function(stop) {
+            if (stop.stop_type !== 'matched' || stop.match_type !== 'osm_group') {
+                return;
+            }
+            if (stop.osm_lat == null || stop.osm_lon == null) {
+                return;
+            }
+
+            const primary = primaryOsmBySloid[stop.sloid];
+            if (!primary || primary.osm_lat == null || primary.osm_lon == null) {
+                return;
+            }
+
+            const key = LineRenderer._buildLineKey(stop.osm_node_id, primary.osm_node_id);
+            if (drawnKeys.has(key)) {
+                return;
+            }
+            drawnKeys.add(key);
+
+            const line = L.polyline([
+                [parseFloat(primary.osm_lat), parseFloat(primary.osm_lon)],
+                [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)]
+            ], LINE_STYLES.osm_group);
+
+            layer.addLayer(line);
+            lineCount++;
+        });
+
         return lineCount;
     };
 
@@ -160,25 +172,18 @@
     };
 
     /**
-     * Clear all non-manual-match lines from a layer.
-     * Preserves lines marked with isManualMatch option for overlay persistence.
-     * 
+     * Clear all lines from a layer.
+     *
      * @param {L.LayerGroup} layer - Layer to clear
      */
     LineRenderer.clearLines = function(layer) {
         if (!layer) return;
-        
-        layer.eachLayer(function(line) {
-            // Preserve lines explicitly marked as manual match overlays
-            if (!line.options || !line.options.isManualMatch) {
-                layer.removeLayer(line);
-            }
-        });
+        layer.clearLayers();
     };
 
     /**
-     * Clear all lines from a layer (including manual match lines).
-     * 
+     * Clear all lines from a layer.
+     *
      * @param {L.LayerGroup} layer - Layer to clear
      */
     LineRenderer.clearAllLines = function(layer) {
@@ -229,12 +234,8 @@
             }
             drawnKeys.add(key);
             
-            // Determine match type - check osm-specific match_type first, then stop-level
-            const matchType = osm.match_type || stop.match_type;
-            const isPersistent = osm.manual_is_persistent || stop.manual_is_persistent;
-            
             // Get appropriate style
-            const style = LineRenderer.getStyle(matchType, isPersistent, isContext);
+            const style = LineRenderer.getStyle(stop.match_type, isContext);
             
             // Create and add the line
             const line = L.polyline([
@@ -269,8 +270,7 @@
                 osm_node_id: stop.osm_node_id,
                 osm_lat: stop.osm_lat,
                 osm_lon: stop.osm_lon,
-                match_type: stop.match_type,
-                manual_is_persistent: stop.manual_is_persistent
+                match_type: stop.match_type
             }];
         }
         

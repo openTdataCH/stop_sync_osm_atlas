@@ -76,7 +76,7 @@ def get_global_stats():
         if 'matched' in current_stop_types_gs:
             relevant_matched_methods = [
                 m for m in current_match_methods_gs if (
-                    m in ['exact', 'name', 'manual'] or 
+                    m in ['exact', 'name'] or
                     m.startswith('distance_matching_') or 
                     m.startswith('route_')
                 )

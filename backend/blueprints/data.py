@@ -4,7 +4,6 @@ from sqlalchemy.orm import joinedload, load_only
 from backend.models import StopsMatched, AtlasStop, OsmNode
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
-from flask_login import current_user
 from backend.services.routes import get_stops_for_route
 import json
 from geoalchemy2.functions import ST_Intersects, ST_MakeEnvelope
@@ -144,7 +143,7 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
     if 'matched' in current_stop_types:
         relevant_matched_methods = []
         for method in current_match_methods:
-            if method in ['exact', 'name', 'manual']:
+            if method in ['exact', 'name']:
                 relevant_matched_methods.append(method)
             elif method.startswith('distance_matching_'):
                 relevant_matched_methods.append(method)

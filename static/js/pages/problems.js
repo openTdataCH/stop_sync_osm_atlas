@@ -182,60 +182,6 @@ $(document).ready(function(){
     }, 300);
 
     // ====== EVENT HANDLERS ======
-    // Manual matching action buttons
-    $('#actionButtonsContent').on('click', 'button[data-action="manual-match-atlas"]', function() {
-        const currentProblem = ProblemsState.getCurrentProblem();
-        if (!currentProblem) return;
-        // Ensure context markers are visible for selecting the opposite entry
-        try {
-            if (typeof ProblemsState !== 'undefined' && ProblemsState.getShowContext && !ProblemsState.getShowContext()) {
-                if (window.ProblemsMap && typeof window.ProblemsMap.toggleContext === 'function') {
-                    window.ProblemsMap.toggleContext();
-                }
-            }
-        } catch (e) {}
-        showPersistentManualMatchBanner('atlas', currentProblem.stop_id);
-    });
-
-    $('#actionButtonsContent').on('click', 'button[data-action="manual-match-osm"]', function() {
-        const currentProblem = ProblemsState.getCurrentProblem();
-        if (!currentProblem) return;
-        // Ensure context markers are visible for selecting the opposite entry
-        try {
-            if (typeof ProblemsState !== 'undefined' && ProblemsState.getShowContext && !ProblemsState.getShowContext()) {
-                if (window.ProblemsMap && typeof window.ProblemsMap.toggleContext === 'function') {
-                    window.ProblemsMap.toggleContext();
-                }
-            }
-        } catch (e) {}
-        showPersistentManualMatchBanner('osm', currentProblem.stop_id);
-    });
-
-    // Helper: persistent banner for manual matching selection, with cancel
-    function showPersistentManualMatchBanner(fromType, stopId) {
-        // Remove existing banner if any
-        $('.manual-match-banner').remove();
-        window.manualMatchContext = { from: fromType, stopId: stopId };
-        const targetText = fromType === 'atlas' ? 'Select an OSM entry to complete the match' : 'Select an ATLAS entry to complete the match';
-        const banner = $(`
-            <div class="manual-match-banner alert alert-info" role="alert" style="position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:2000;">
-                ${targetText}
-                <button type="button" class="btn btn-sm btn-outline-secondary ml-2" id="cancelManualMatch">Cancel</button>
-            </div>
-        `);
-        $('body').append(banner);
-        $('#cancelManualMatch').on('click', function(){
-            window.manualMatchContext = null;
-            $('.manual-match-banner').remove();
-            if (typeof window.updateManualMatchButtonsUI === 'function') {
-                window.updateManualMatchButtonsUI();
-            }
-        });
-        if (typeof window.updateManualMatchButtonsUI === 'function') {
-            window.updateManualMatchButtonsUI();
-        }
-    }
-
     // Navigation buttons
     $('#prevProblemBtn').on('click', function() {
         const currentIndex = ProblemsState.getCurrentProblemIndex();

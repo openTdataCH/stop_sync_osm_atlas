@@ -6,7 +6,6 @@ var linesLayer = L.layerGroup();
 var topNLayer = L.layerGroup(); // For top N distances overlay
 var stopsById = {};   // Global store for stops by id.
 var renderedMarkers = new Map(); // Track currently rendered markers by unique key (type-id)
-// manual matching variables are now defined in manual-matching.js
 
 // Performance tuning constants (from AppConstants)
 var ZOOM_MARKER_THRESHOLD = AppConstants.MAP.ZOOM_MARKER_THRESHOLD;
@@ -351,13 +350,10 @@ function loadTopNMatches() {
                         
                         // Add connecting line when both node types are visible (Top N view is lightweight)
                         if(showAtlasNodes && showOSMNodes) {
-                            const isManual = stop.match_type === 'manual';
-                            const isPersistent = !!stop.manual_is_persistent;
-                            const style = isManual ? { color: 'purple', dashArray: isPersistent ? null : '5,5' } : { color: 'green' };
                             var line = L.polyline([
                                 [parseFloat(stop.atlas_lat), parseFloat(stop.atlas_lon)],
                                 [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)]
-                            ], style);
+                            ], { color: 'green' });
                             topNLayer.addLayer(line);
                         }
                     }
@@ -453,7 +449,7 @@ function loadDataForViewport() {
 
     if (isLowZoom && !hasAnyActiveFilter) {
         // Low-zoom policy: show only unmatched ATLAS markers (overview)
-        params.stop_filter = 'atlas_unmatched';
+        params.stop_filter = 'unmatched';
         params.node_type = 'atlas';
 
         // Keep operator filter if active
@@ -641,7 +637,7 @@ function loadDataForViewport() {
          // Reset global store for data lookup
          stopsById = {}; 
          
-         // Clear existing connection lines (preserves manual match overlay lines)
+         // Clear existing connection lines
          LineRenderer.clearLines(linesLayer);
 
          // --- Client-side Filtering for Show Duplicates Only --- 
@@ -784,7 +780,6 @@ function loadDataForViewport() {
                                     id: osm_match.osm_id || stop.id,
                                     stop_type: 'matched',
                                     match_type: stop.match_type,
-                                    manual_is_persistent: stop.manual_is_persistent,
                                     osm_node_id: osm_match.osm_node_id
                                 };
                                 const osmLat = +osm_match.osm_lat;
@@ -1067,7 +1062,6 @@ function loadDataForViewport() {
              });
          }
 
-         // Legacy manual match overlay removed
     }).fail(function(jqXHR, textStatus, errorThrown) {
          // Avoid noisy alerts on aborts (expected during fast pan/zoom)
          if (textStatus === 'abort') return;

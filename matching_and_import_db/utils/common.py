@@ -1,16 +1,3 @@
-def is_osm_station(osm_node):
-    """Return True if an OSM node represents a station (railway or public_transport),
-    excluding aerialway stations which are handled separately.
-    """
-    tags = osm_node.get('tags', {})
-    # If it's an aerialway station, do not mark as station here
-    if tags.get('aerialway') == 'station':
-        return False
-    # Otherwise treat railway/public_transport station as a station
-    if tags.get('railway') == 'station' or tags.get('public_transport') == 'station':
-        return True
-    return False
-
 def haversine_distance(lat1, lon1, lat2, lon2):
     """Calculate the Haversine distance (in meters) between two points.
     Returns None on invalid input rather than throwing.

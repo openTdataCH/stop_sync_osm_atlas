@@ -32,20 +32,14 @@ def _compute_priority(record: MatchRecord) -> Optional[int]:
 
     # P1: Name mismatch (designation_official vs uic_name)
     if ENABLE_NAME_MISMATCH_CHECK:
-        atlas_name = str(
-            record.atlas_node.designation_official or
-            record.atlas_node.raw_data.get('designationOfficial', '') or ''
-        ).strip()
+        atlas_name = str(record.atlas_node.designation_official or '').strip()
         osm_name = str(record.osm_node.uic_name or '').strip()
         if _both_present(atlas_name, osm_name) and atlas_name.lower() != osm_name.lower():
             return 1
 
     # P2: Local ref mismatch
     if ENABLE_LOCAL_REF_MISMATCH_CHECK:
-        atlas_ref = str(
-            record.atlas_node.designation or
-            record.atlas_node.raw_data.get('designation', '') or ''
-        ).strip()
+        atlas_ref = str(record.atlas_node.designation or '').strip()
         osm_ref = str(record.osm_node.local_ref or '').strip()
         if _both_present(atlas_ref, osm_ref) and atlas_ref.lower() != osm_ref.lower():
             return 2

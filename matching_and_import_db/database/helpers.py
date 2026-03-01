@@ -104,8 +104,6 @@ def apply_problem_results(stop_record, results: list):
         stop_record.problems.append(Problem(
             problem_type=r.problem_type,
             priority=r.priority,
-            solution=None,
-            is_persistent=False,
         ))
         if r.has_atlas_duplicate:
             stop_record.has_atlas_duplicate = True

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <title>{% block title %}My App{% endblock %}</title>
-  <meta name="csrf-token" content="{{ csrf_token() }}">
   <!-- Bootstrap CSS for UI elements -->
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <!-- Font Awesome for icons -->
@@ -11,46 +11,36 @@
   <!-- Layered CSS entry -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   {% block head_css %}{% endblock %}
- </head>
- <body class="d-flex flex-column min-vh-100">
-   {% include "components/navbar.html" %}
-   {% with messages = get_flashed_messages(with_categories=true) %}
-   {% if messages %}
-   <div class="container mt-3">
-     {% for category, message in messages %}
-     <div class="alert alert-{{ 'warning' if category == 'message' else category }} alert-dismissible fade show" role="alert">
-       {{ message }}
-       <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-         <span aria-hidden="true">&times;</span>
-       </button>
-     </div>
-     {% endfor %}
-   </div>
-   {% endif %}
-   {% endwith %}
-   <main class="flex-grow-1 d-flex flex-column">
-     {% block content %}{% endblock %}
-   </main>
+</head>
 
-   <!-- jQuery -->
+<body class="d-flex flex-column min-vh-100">
+  {% include "components/navbar.html" %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+  <div class="container mt-3">
+    {% for category, message in messages %}
+    <div class="alert alert-{{ 'warning' if category == 'message' else category }} alert-dismissible fade show"
+      role="alert">
+      {{ message }}
+      <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
+  <main class="flex-grow-1 d-flex flex-column">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <!-- Popper.js (required for Bootstrap dropdowns) -->
   <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
   <!-- Bootstrap JS -->
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-   {% block scripts %}{% endblock %}
-   <script>
-     // Expose auth status to frontend if needed later
-     window.__authStatusEndpoint = "{{ url_for('auth.auth_status') }}";
-    // Configure jQuery AJAX to include CSRF token header
-    (function() {
-      var meta = document.querySelector('meta[name="csrf-token"]');
-      if (meta && window.jQuery) {
-        $.ajaxSetup({ headers: { 'X-CSRFToken': meta.getAttribute('content') } });
-      }
-    })();
-   </script>
- </body>
+  {% block scripts %}{% endblock %}
+</body>
+
 </html>
-
-

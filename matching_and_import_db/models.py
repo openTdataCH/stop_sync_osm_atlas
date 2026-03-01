@@ -19,7 +19,6 @@ class AtlasNode:
     designation: str
     designation_official: str
     business_org_abbr: str
-    raw_data: dict[str, Any]  # Store original dictionary backing this for any stray fields
 
 
 @dataclass(frozen=True)
@@ -42,10 +41,11 @@ class OsmNode:
     @property
     def is_station(self) -> bool:
         """Helper mapped from utils.common.is_osm_station natively onto the model."""
+        if self.aerialway == 'station':
+            return False
         return (
             self.public_transport == 'station' or
-            self.railway == 'station' or
-            self.aerialway == 'station'
+            self.railway == 'station'
         )
 
 
@@ -84,3 +84,4 @@ class PipelineResult:
     unmatched_osm: list[OsmNode]
     duplicate_sloid_map: dict[str, list[str]]
     no_nearby_osm_sloids: set[str]
+    osm_group_siblings: dict[str, list[OsmNode]] = field(default_factory=dict)

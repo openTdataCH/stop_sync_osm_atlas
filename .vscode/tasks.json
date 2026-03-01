@@ -12,7 +12,7 @@
             },
             "presentation": {
                 "echo": true,
-                "reveal": "always",
+                "command": "docker exec stop_sync_osm_atlas_app python -m matching_and_import_db.database.importer",
                 "focus": true,
                 "panel": "shared",
                 "showReuseMessage": true,
@@ -21,7 +21,7 @@
         },
         {
             "label": "Docker: Run Small Pipeline Test",
-            "type": "shell",
+            "command": "docker exec stop_sync_osm_atlas_app bash -c \"python matching_and_import_db/downloader/get_atlas_data.py && python matching_and_import_db/downloader/get_osm_data.py && python -m matching_and_import_db.database.importer\"",
             "command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// app python -m pytest tests/matching_pipeline/test_small_pipeline.py -v",
             "problemMatcher": [],
             "group": "test",
@@ -35,24 +35,9 @@
             }
         },
         {
-            "label": "Docker: Run Current Test File",
+            "label": "Docker: Run Matching \u0026 Import (Existing Data)",
             "type": "shell",
-            "command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// app python -m pytest ${relativeFile}",
-            "problemMatcher": [],
-            "group": "test",
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            }
-        },
-        {
-            "label": "Docker: Run Import Data (Match Only)",
-            "type": "shell",
-            "command": "docker exec -it stop_sync_osm_atlas_app python import_data_db.py",
+            "command": "docker exec -it stop_sync_osm_atlas_app python matching_and_import_db/database/importer.py",
             "problemMatcher": [],
             "group": "build",
             "presentation": {
@@ -65,9 +50,9 @@
             }
         },
         {
-            "label": "Docker: Run Full Data Pipeline",
+            "label": "Docker: Run Full Data Pipeline (Download \u0026 Match \u0026 Import)",
             "type": "shell",
-            "command": "docker exec -it stop_sync_osm_atlas_app bash -c \"python -m Download_and_process_data.get_atlas_data && python -c 'from Download_and_process_data.get_osm_data import query_overpass; query_overpass()' && python -m Download_and_process_data.get_osm_data && python import_data_db.py\"",
+            "command": "docker exec -it stop_sync_osm_atlas_app bash -c \"python matching_and_import_db/downloader/get_atlas_data.py \u0026\u0026 python matching_and_import_db/downloader/get_osm_data.py \u0026\u0026 python matching_and_import_db/database/importer.py\"",
             "problemMatcher": [],
             "group": "build",
             "presentation": {
@@ -108,20 +93,6 @@
                 "clear": false
             },
             "isBackground": true
-        },
-        {
-            "label": "Docker: Stop All Containers",
-            "type": "shell",
-            "command": "docker compose down",
-            "problemMatcher": [],
-            "presentation": {
-                "echo": true,
-                "reveal": "always",
-                "focus": true,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": false
-            }
         }
     ]
 }

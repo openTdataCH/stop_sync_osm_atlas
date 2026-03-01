@@ -3,41 +3,21 @@ Flask==3.0.0
 
 # Database
 SQLAlchemy==2.0.23
-cryptography==41.0.7
 psycopg[binary]==3.2.1
 GeoAlchemy2==0.16.0
 
 # Flask extensions
 Flask-SQLAlchemy==3.1.1
-Flask-Login==0.6.3
-Flask-WTF==1.2.1
 Flask-Limiter==3.5.0
 Flask-Talisman==1.1.0
 Flask-Migrate==4.0.5
 Werkzeug==3.0.3
 
-# Rate limit storage backend
-redis==5.0.1
 # HTTP requests
 requests==2.31.0
 
-# Authentication & Security
-argon2-cffi==23.1.0
-pyotp==2.9.0
-itsdangerous==2.1.2
-email-validator==2.1.1
-
-# QR code generation (for 2FA)
-qrcode==7.4.2
-
-# Image processing (for QR codes)
-Pillow==10.1.0
-
 # PDF generation (for reports)
 pdfkit==1.0.0
-
-# Email service (AWS SES)
-boto3==1.34.0
 
 # Data processing (for data pipeline scripts only)
 # These are needed for: get_atlas_data.py, import_data_db.py, matching_process/

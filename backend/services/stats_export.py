@@ -78,7 +78,6 @@ def export_pipeline_stats(
     # Extract specific match counts
     exact_matches = match_type_counts.get('exact', 0)
     name_matches = match_type_counts.get('name', 0)
-    manual_matches = match_type_counts.get('manual', 0)
     exact_postpass_matches = match_type_counts.get('exact_postpass', 0)
     duplicate_propagation_matches = match_type_counts.get('duplicate_propagation', 0)
     
@@ -185,7 +184,6 @@ def export_pipeline_stats(
             "post_processing": {
                 "unique_by_uic": exact_postpass_matches,
                 "duplicate_propagation": duplicate_propagation_matches,
-                "manual": manual_matches,
             }
         },
         
