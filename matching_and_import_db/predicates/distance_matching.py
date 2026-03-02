@@ -145,7 +145,6 @@ class GroupProximityPredicate(BasePredicate):
                             match_type=f'distance_matching_1_{osm_key}{suffix}',
                             distance_m=dist,
                             notes=f"Conflict-free proximity match ({osm_key})",
-                            candidate_pool_size=len(avail)
                         )
                         matched_here.add(entry.sloid)
                     break  # don't try stop_position fallback when all-nodes worked
@@ -194,7 +193,6 @@ class LocalRefDistancePredicate(BasePredicate):
                     match_type='distance_matching_2',
                     distance_m=best_dist,
                     notes="Exact local_ref match within max_distance",
-                    candidate_pool_size=len(candidates)
                 )
 
 
@@ -230,7 +228,6 @@ class NearestDistancePredicate(BasePredicate):
                     match_type='distance_matching_3a',
                     distance_m=d,
                     notes="Single candidate within max_distance",
-                    candidate_pool_size=1
                 )
 
             # Case B: ratio test
@@ -245,5 +242,4 @@ class NearestDistancePredicate(BasePredicate):
                         match_type='distance_matching_3b',
                         distance_m=d1,
                         notes=f"Ratio test: d1={d1:.1f}m, d2={d2:.1f}m, ratio={d2 / d1:.1f}",
-                        candidate_pool_size=len(candidates)
                     )

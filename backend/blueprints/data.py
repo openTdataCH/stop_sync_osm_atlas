@@ -250,7 +250,11 @@ def get_data():
 
         query = _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, request.args)
         # Eager-load only osm_node_type from osm_nodes to avoid N+1 queries
-        query = query.options(joinedload(StopsMatched.osm_node_details).load_only(OsmNode.osm_node_type))
+        # and defer matching_notes to keep the viewport query light.
+        query = query.options(
+            joinedload(StopsMatched.osm_node_details).load_only(OsmNode.osm_node_type),
+            db.defer(StopsMatched.matching_notes)
+        )
 
         # If a limit is applied (mid/low zoom caps), ensure results are stable across requests
         # and prioritize unmatched rows first to reduce "disappearing/reappearing" markers.
@@ -370,7 +374,8 @@ def get_stop_popup():
                         "osm_lon": r.osm_lon,
                         "distance_m": r.distance_m,
                         "match_type": r.match_type,
-                        "has_atlas_duplicate": r.has_atlas_duplicate or False,
+                        "matching_notes": r.matching_notes,
+                        "has_osm_duplicate": r.has_osm_duplicate or False,
                         "osm_node_type": osm_details.osm_node_type if osm_details else None
                     })
             if osm_matches:
@@ -414,7 +419,8 @@ def get_stop_popup():
                         "atlas_lat": r.atlas_lat,
                         "atlas_lon": r.atlas_lon,
                         "distance_m": r.distance_m,
-                        "match_type": r.match_type
+                        "match_type": r.match_type,
+                        "matching_notes": r.matching_notes
                     })
                 return jsonify({"stop": osm_centric})
         return jsonify({"stop": enriched})

@@ -79,7 +79,7 @@ class ProblemContext:
     duplicate_osm_node_ids: set = field(default_factory=set)      # set of node_ids
 
     @classmethod
-    def build(cls, output: 'PipelineResult') -> "ProblemContext":
+    def build(cls, output: 'MatchingOutput') -> "ProblemContext":
         """One-time construction of every shared index from pipeline output."""
         # Using output.duplicate_sloid_map 
         ctx = cls(duplicate_sloid_map=output.duplicate_sloid_map)

@@ -50,7 +50,6 @@ class PostpassUniqueUicPredicate(BasePredicate):
                     match_type='exact_postpass',
                     distance_m=dist,
                     notes="Post-pass unique-by-UIC consolidation",
-                    candidate_pool_size=1
                 )
 
 
@@ -102,5 +101,4 @@ class DuplicatePropagationPredicate(BasePredicate):
                 match_type='duplicate_propagation',
                 distance_m=dist,
                 notes=f"Propagated from duplicated sloid: {target_sloid}",
-                candidate_pool_size=1
             )

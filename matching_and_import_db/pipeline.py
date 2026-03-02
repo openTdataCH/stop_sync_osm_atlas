@@ -33,13 +33,12 @@ class MatchingContext:
     # Config
     max_distance: float = 50.0
 
-    def commit(self, 
-               atlas_node: 'AtlasNode', 
-               osm_node: 'OsmNode', 
-               match_type: str, 
-               distance_m: float, 
-               notes: str, 
-               candidate_pool_size: int = 0) -> None:
+    def commit(self,
+               atlas_node: 'AtlasNode',
+               osm_node: 'OsmNode',
+               match_type: str,
+               distance_m: float,
+               notes: str) -> None:
         """
         Atomically records a match and immediately mutates locks in the State managers
         to prevent subsequent iterations within the same predicate from double-booking nodes.
@@ -51,7 +50,6 @@ class MatchingContext:
             match_type=match_type,
             distance_m=distance_m,
             notes=notes,
-            candidate_pool_size=candidate_pool_size
         )
         
         # 2. Add to global tracking
@@ -95,8 +93,4 @@ def run_pipeline(predicates: list['BasePredicate'], ctx: MatchingContext) -> 'Pi
         matched=ctx.all_matches,
         unmatched_atlas=unmatched_atlas,
         unmatched_osm=unmatched_osm,
-        duplicate_sloid_map=ctx.atlas.duplicate_sloid_map, # We pull this directly from State
-        no_nearby_osm_sloids=set(), # Calculated later in orchestrator/importer
-        osm_group_siblings=dict(ctx.osm._group_siblings),
-        all_osm_nodes=ctx.osm.get_all_nodes(),
     )

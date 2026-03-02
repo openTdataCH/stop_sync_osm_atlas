@@ -37,7 +37,6 @@ class ExactUicPredicate(BasePredicate):
                         distance_m=0.0, # Handled via haversine internally in commit or via problem heuristic later. Actually wait, problem ctx calculates distance if we leave it 0? Wait, the original `make_match` calculated haversine explicitly.
                         # Wait, I omitted haversine from ctx.commit! Let's calculate it here.
                         notes="Single OSM node for this UIC reference",
-                        candidate_pool_size=1
                     )
                 # ctx.commit already locks it immediately.
                 continue
@@ -51,7 +50,6 @@ class ExactUicPredicate(BasePredicate):
                         match_type='exact',
                         distance_m=0.0,
                         notes="Single ATLAS entry matched to multiple OSM nodes",
-                        candidate_pool_size=len(available)
                     )
                 continue
 
@@ -75,6 +73,5 @@ class ExactUicPredicate(BasePredicate):
                         match_type='exact',
                         distance_m=0.0,
                         notes="Exact local_ref/designation match",
-                        candidate_pool_size=len(available)
                     )
                     break  # one match per ATLAS entry

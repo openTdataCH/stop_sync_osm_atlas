@@ -19,9 +19,11 @@ class AtlasState:
     """Manages the fully populated ATLAS dataset and provides unmatched records on demand."""
     
     @classmethod
-    def from_dataframe(cls, atlas_df: pd.DataFrame) -> 'AtlasState':
+    def from_dataframe(cls, atlas_df: pd.DataFrame,
+                       routes_csv_path: str = 'data/processed/atlas_routes_unified.csv') -> 'AtlasState':
         """
         Builds AtlasState directly from a DataFrame, computing duplicate sets automatically.
+        Also loads the unified routes CSV if available.
         """
         dup_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
         non_empty = atlas_df['designation'].notna() & (atlas_df['designation'].astype(str).str.strip() != '')
@@ -35,16 +37,63 @@ class AtlasState:
             for s in sloids:
                 duplicate_sloid_map[s] = sloids
 
-        return cls(atlas_df, duplicate_sloid_map)
+        routes_by_sloid = cls._load_routes(routes_csv_path)
+        return cls(atlas_df, duplicate_sloid_map, routes_by_sloid)
 
-    def __init__(self, atlas_df: pd.DataFrame, duplicate_sloid_map: dict):
+    @staticmethod
+    def _load_routes(path: str) -> dict:
+        """Load atlas_routes_unified.csv into a per-sloid dict keyed by source."""
+        def _norm_dir(val):
+            try:
+                if pd.isna(val):
+                    return None
+                return str(int(float(val)))
+            except Exception:
+                return None
+
+        by_sloid: dict[str, dict[str, list]] = defaultdict(lambda: {'gtfs': [], 'hrdf': []})
+        if not os.path.exists(path):
+            logger.warning(f"Routes CSV not found at {path!r}; route matching will be skipped.")
+            return {}
+        try:
+            df = pd.read_csv(path, dtype=str, low_memory=False)
+        except Exception as exc:
+            logger.warning(f"Error loading routes CSV {path!r}: {exc}")
+            return {}
+        df = df.where(pd.notna(df), None)
+        for row in df.to_dict(orient='records'):
+            sloid = str(row['sloid']) if row.get('sloid') is not None else None
+            if not sloid:
+                continue
+            src = str(row.get('source', ''))
+            entry = {
+                'route_id': row.get('route_id'),
+                'route_id_normalized': row.get('route_id_normalized'),
+                'line_name': row.get('line_name'),
+                'direction_id': _norm_dir(row.get('direction_id')),
+                'direction_name': row.get('direction_name'),
+                'direction_uic': row.get('direction_uic'),
+            }
+            if src == 'gtfs':
+                by_sloid[sloid]['gtfs'].append(entry)
+            elif src == 'hrdf':
+                by_sloid[sloid]['hrdf'].append(entry)
+        return dict(by_sloid)
+
+    def __init__(self, atlas_df: pd.DataFrame, duplicate_sloid_map: dict,
+                 routes_by_sloid: dict = None):
         self._df = atlas_df
         self.duplicate_sloid_map = duplicate_sloid_map
+        self._routes_by_sloid: dict[str, dict[str, list]] = routes_by_sloid or {}
         self.matched_ids: set[str] = set()
         
     def add_matched_sloid(self, sloid: str):
         self.matched_ids.add(sloid)
-        
+
+    def get_routes(self, sloid: str) -> dict[str, list]:
+        """Returns {'gtfs': [...], 'hrdf': [...]} route entries for the given sloid."""
+        return self._routes_by_sloid.get(sloid, {'gtfs': [], 'hrdf': []})
+
     def _to_atlas_node(self, row: pd.Series) -> AtlasNode:
         """Safely convert a pandas row into our strong Domain Entity."""
         # Pandas tends to return NaNs. Let's make sure we have pure strings or Nones for text.
@@ -149,14 +198,29 @@ class OsmState:
                 if key in tags:
                     name_index[tags[key]].append(entry)
 
-        # Extract per-node direction strings from route relations (single pass)
+        # Extract per-node direction strings and route data from route relations (single pass)
         name_dirs: dict[str, set] = defaultdict(set)
         uic_dirs: dict[str, set] = defaultdict(set)
+        node_routes: dict[str, list] = defaultdict(list)
 
-        # Use sidecar CSV for directions instead of re-parsing relations from the XML
+        def _parse_direction_from_ref_trips(val: str):
+            """H suffix → '0' (outbound), R suffix → '1' (inbound)."""
+            if not val:
+                return None
+            for tid in val.split(','):
+                tid = tid.strip()
+                if tid.endswith('.H'):
+                    return '0'
+                if tid.endswith('.R'):
+                    return '1'
+            return None
+
+        # Always parse relations from XML to build node_routes.
+        # Direction strings are loaded from sidecar CSV if available (perf cache),
+        # otherwise also derived from the same relation pass.
         dir_csv_path = "data/processed/osm_directions.csv"
-        loaded_from_csv = False
-        
+        loaded_dirs_from_csv = False
+
         if os.path.exists(dir_csv_path):
             try:
                 df = pd.read_csv(dir_csv_path, dtype=str)
@@ -165,26 +229,43 @@ class OsmState:
                     nid = str(r.get('node_id'))
                     ds = str(r.get('direction_string'))
                     dtype = str(r.get('dir_type'))
-                    if not ds or ds == 'None' or not nid or nid == 'None': continue
+                    if not ds or ds == 'None' or not nid or nid == 'None':
+                        continue
                     if dtype == 'name':
                         name_dirs[nid].add(ds)
                     elif dtype == 'uic':
                         uic_dirs[nid].add(ds)
-                loaded_from_csv = True
+                loaded_dirs_from_csv = True
             except Exception as e:
                 logger.warning(f"Error reading {dir_csv_path}: {e}")
-                
-        if not loaded_from_csv:
-            for relation in root.iter("relation"):
-                is_route = any(
-                    t.get('k') == 'type' and t.get('v') == 'route'
-                    for t in relation.findall('./tag')
-                )
-                if not is_route:
-                    continue
-                members = [m.get('ref') for m in relation.findall("./member[@type='node']")]
-                if len(members) < 2:
-                    continue
+
+        for relation in root.iter("relation"):
+            rel_tags: dict[str, str] = {t.get('k'): t.get('v') for t in relation.findall('./tag')}
+            if rel_tags.get('type') != 'route':
+                continue
+
+            members = [m.get('ref') for m in relation.findall("./member[@type='node']")]
+            if not members:
+                continue
+
+            # --- route data (always extracted) ---
+            gtfs_route_id = rel_tags.get('gtfs:route_id')
+            route_name = rel_tags.get('name')
+            direction_id = _parse_direction_from_ref_trips(rel_tags.get('ref_trips', ''))
+            # If direction is unknown, create entries for both directions so the
+            # predicate can still match on route_id alone (preserves old CSV behaviour).
+            direction_ids = [direction_id] if direction_id is not None else ['0', '1']
+            for did in direction_ids:
+                route_entry = {
+                    'gtfs_route_id': gtfs_route_id,
+                    'direction_id': did,
+                    'route_name': route_name,
+                }
+                for nid in members:
+                    node_routes[nid].append(route_entry)
+
+            # --- direction strings (only if not loaded from CSV) ---
+            if not loaded_dirs_from_csv and len(members) >= 2:
                 first, last = members[0], members[-1]
                 fn = node_id_to_name.get(first)
                 ln = node_id_to_name.get(last)
@@ -202,9 +283,11 @@ class OsmState:
         logger.info(
             f"Parsed OSM XML: {len(all_nodes)} nodes, "
             f"{len(uic_ref_dict)} uic_ref entries, "
-            f"{len(name_dirs)} nodes with direction strings"
+            f"{len(name_dirs)} nodes with direction strings, "
+            f"{len(node_routes)} nodes with route data"
         )
-        return cls(all_nodes, uic_ref_dict, name_index, dict(name_dirs), dict(uic_dirs))
+        return cls(all_nodes, uic_ref_dict, name_index, dict(name_dirs), dict(uic_dirs),
+                   dict(node_routes))
 
     def _to_osm_node(self, entry: dict) -> 'OsmNode':
         """Internal helper to convert dictionary entries into our strict entity model."""
@@ -230,12 +313,14 @@ class OsmState:
         )
 
     def __init__(self, xml_nodes: dict, uic_ref_dict: dict, name_index: dict,
-                 name_dirs: dict = None, uic_dirs: dict = None):
+                 name_dirs: dict = None, uic_dirs: dict = None,
+                 node_routes: dict = None):
         self._all_nodes = xml_nodes
         self._uic_ref_dict = uic_ref_dict
         self._name_index = name_index
         self.name_dirs: dict[str, set] = name_dirs or {}
         self.uic_dirs: dict[str, set] = uic_dirs or {}
+        self._node_routes: dict[str, list] = node_routes or {}
 
         self.used_ids: set[str] = set()
 
@@ -354,6 +439,10 @@ class OsmState:
     def get_siblings(self, node_id: str) -> list[OsmNode]:
         """Returns sibling OsmNodes for a representative node (empty if none)."""
         return self._group_siblings.get(node_id, [])
+
+    def get_node_routes(self, node_id: str) -> list[dict]:
+        """Returns route entries for a node: [{'gtfs_route_id', 'direction_id', 'route_name'}, ...]."""
+        return self._node_routes.get(node_id, [])
 
     def _is_sibling(self, node_id: str) -> bool:
         """Returns True if this node is a sibling (hidden from predicates)."""
