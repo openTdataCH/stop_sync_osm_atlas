@@ -86,6 +86,7 @@ function initMap() {
         closePopupOnClick: false, // Prevent map click from closing popups
         // Use SVG renderer so popup connection lines can be drawn in the map's SVG layer
         preferCanvas: false,
+        renderer: L.svg({ padding: 0.1 }),
         // Switzerland-focused: prevent zooming too far out and panning far away
         minZoom: AppConstants.MAP.MIN_ZOOM,
         maxZoom: AppConstants.MAP.MAX_ZOOM,
@@ -94,6 +95,15 @@ function initMap() {
         zoomControl: false
     }).setView(AppConstants.MAP.DEFAULT_CENTER, AppConstants.MAP.DEFAULT_ZOOM);
     
+    // Increase SVG renderer padding at high zoom to prevent lines/markers
+    // from disappearing when one end is off-screen
+    map.on('zoomend', function() {
+        var renderer = map.getRenderer(map);
+        if (renderer) {
+            renderer.options.padding = map.getZoom() >= 16 ? 2.0 : 0.1;
+        }
+    });
+
     osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
          maxZoom: AppConstants.MAP.MAX_ZOOM,
          maxNativeZoom: AppConstants.MAP.MAX_NATIVE_ZOOM,
