@@ -23,10 +23,20 @@ window.ProblemsMap = (function() {
             closePopupOnClick: false,
             // Use SVG renderer so popup connection lines can be drawn (same as main map)
             preferCanvas: false,
+            renderer: L.svg({ padding: 0.1 }),
             maxZoom: AppConstants.MAP.MAX_ZOOM,
             zoomControl: false
         }).setView([47.3769, 8.5417], 13);
         
+        // Increase SVG renderer padding at high zoom to prevent lines/markers
+        // from disappearing when one end is off-screen
+        problemMap.on('zoomend', function() {
+            var renderer = problemMap.getRenderer(problemMap);
+            if (renderer) {
+                renderer.options.padding = problemMap.getZoom() >= 16 ? 2.0 : 0.1;
+            }
+        });
+
         // Use same tile layer as main page
         const osmLayerProblems = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
              maxZoom: AppConstants.MAP.MAX_ZOOM,
