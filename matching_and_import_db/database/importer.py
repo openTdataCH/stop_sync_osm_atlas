@@ -18,6 +18,7 @@ from sqlalchemy import func, text
 
 # --- Internal modules -------------------------------------------------------
 from matching_and_import_db.orchestrator import run_matching
+from matching_and_import_db.models import MatchingOutput
 from matching_and_import_db.problem_detection.context import ProblemContext
 from matching_and_import_db.problem_detection.pipeline import run_problem_pipeline, STOP_PROBLEM_PIPELINE
 from matching_and_import_db.problem_detection.result import ProblemResult
@@ -93,6 +94,7 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
             osm_lat=osm_lat,
             osm_lon=osm_lon,
             distance_m=distance_m,
+            matching_notes=current_match.notes,
             geom=make_point_geom(atlas_lat, atlas_lon) if atlas_lat is not None and atlas_lon is not None else make_point_geom(osm_lat, osm_lon),
         )
         apply_problem_results(stop_record, current_match.problems)
@@ -309,7 +311,7 @@ def _print_problem_summary(session):
 # --------------------------
 # Data Import Function
 # --------------------------
-def import_to_database(base_data, duplicate_sloid_map):
+def import_to_database(base_data: MatchingOutput):
     """
     Fully refresh the database "Import DB" .
     """
@@ -347,13 +349,13 @@ def import_to_database(base_data, duplicate_sloid_map):
 
     problem_ctx = ProblemContext.build(base_data)
 
+    duplicate_sloid_map = base_data.duplicate_sloid_map
+
     # 0. Import ALL OSM nodes upfront (satisfies route_osm_stops FK by construction)
-    all_osm_nodes = getattr(base_data, 'all_osm_nodes', [])
-    _import_all_osm_nodes(session, all_osm_nodes, problem_ctx)
+    _import_all_osm_nodes(session, base_data.all_osm_nodes, problem_ctx)
 
     # 1. Import Matched
-    osm_group_siblings = getattr(base_data, 'osm_group_siblings', None) or {}
-    _import_matched_stops(session, base_data.matched, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids, osm_group_siblings)
+    _import_matched_stops(session, base_data.matched, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids, base_data.osm_group_siblings)
 
     # 2. Import Unmatched Atlas
     no_nearby_osm_sloids = _import_unmatched_atlas(session, base_data.unmatched_atlas, problem_ctx, duplicate_sloid_map, processed_sloids)
@@ -467,10 +469,7 @@ if __name__ == "__main__":
     result = run_matching()
     
     print("Importing data into the database...")
-    no_nearby_sloids = import_to_database(
-        result, 
-        result.duplicate_sloid_map
-    )
-    
+    no_nearby_sloids = import_to_database(result)
+
     export_stats_after_import(result, result.duplicate_sloid_map, no_nearby_sloids)
     print("Process completed successfully!")

@@ -206,13 +206,12 @@ class TestMakeMatch:
             'tags': {'name': 'Zürich HB', 'uic_ref': '8503000'},
         }
 
-        record = make_match(atlas_entry, osm_node, 'exact', 'test note', pool_size=3)
+        record = make_match(atlas_entry, osm_node, 'exact', 'test note')
 
         assert record['sloid'] == 'ch:1:sloid:1'
         assert record['osm_node_id'] == 'osm_1'
         assert record['match_type'] == 'exact'
         assert record['matching_notes'] == 'test note'
-        assert record['candidate_pool_size'] == 3
         assert record['distance_m'] is not None
         assert record['distance_m'] >= 0
         # Very close points should have a small distance
@@ -699,11 +698,10 @@ class TestMatchingIntegration:
         # No duplicate OSM IDs in matches
         assert len(osm_ids) == len(set(osm_ids))
 
-    def test_no_nearby_osm_in_output(self):
-        """Pipeline output should flag entries with no nearby OSM node."""
+    def test_unmatched_atlas_in_output(self):
+        """Pipeline output should include unmatched ATLAS entries."""
         from matching_and_import_db.pipeline import run_pipeline
 
-        # One ATLAS entry in the middle of nowhere
         atlas_df = pd.DataFrame({
             'sloid': ['isolated'],
             'number': ['0000000'],
@@ -726,4 +724,4 @@ class TestMatchingIntegration:
 
         output = run_pipeline([], ctx)
 
-        assert 'isolated' in output.no_nearby_osm_sloids
+        assert any(n.sloid == 'isolated' for n in output.unmatched_atlas)

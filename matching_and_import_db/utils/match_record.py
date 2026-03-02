@@ -61,7 +61,6 @@ class MatchRecord(TypedDict, total=False):
     # Match metadata
     distance_m: Optional[float]
     match_type: str
-    candidate_pool_size: int
     matching_notes: str
 
 
@@ -80,7 +79,6 @@ def create_match_record(
     csv_designation: str = "",
     csv_designation_official: str = "",
     csv_business_org_abbr: str = "",
-    candidate_pool_size: int = 0,
 ) -> MatchRecord:
     """
     Factory function to create a standardized match record.
@@ -102,8 +100,7 @@ def create_match_record(
         csv_designation: ATLAS designation
         csv_designation_official: ATLAS official designation
         csv_business_org_abbr: Business organization abbreviation
-        candidate_pool_size: Number of candidates considered
-        
+
     Returns:
         MatchRecord dictionary with all standard fields populated
         
@@ -153,7 +150,6 @@ def create_match_record(
         # Match metadata
         distance_m=distance_m,
         match_type=match_type,
-        candidate_pool_size=candidate_pool_size,
         matching_notes=matching_notes,
     )
 

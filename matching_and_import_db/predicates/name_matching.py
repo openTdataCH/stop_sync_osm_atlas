@@ -44,5 +44,4 @@ class NameMatchPredicate(BasePredicate):
                     match_type='name',
                     distance_m=dist,
                     notes=f"Name index match ({len(candidates)} candidates)",
-                    candidate_pool_size=len(candidates)
                 )

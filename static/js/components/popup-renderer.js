@@ -73,6 +73,9 @@
                     ? `${mtText} <a href="${docUrl}" class="matchtype-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs for this matching method"><i class="fas fa-info-circle"></i></a>`
                     : mtText;
                 rows.push(['Match Type', mtHtml]);
+                if (data.matching_notes) {
+                    rows.push(['Matching Rationale', `<span class="matching-notes-text">${data.matching_notes}</span>`]);
+                }
             }
             const unifiedRoutesHtml = PopupUtils.formatUnifiedRouteList(data.routes_unified);
             routesSection = `
@@ -130,6 +133,9 @@
                     ? `${mtText} <a href="${docUrl}" class="matchtype-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs for this matching method"><i class="fas fa-info-circle"></i></a>`
                     : mtText;
                 rows.push(['Match Type', mtHtml]);
+                if (data.matching_notes) {
+                    rows.push(['Matching Rationale', `<span class="matching-notes-text">${data.matching_notes}</span>`]);
+                }
             } else {
                 if (data.uic_ref) rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
                 if (data.osm_uic_ref) rows.push(['OSM UIC Ref', data.osm_uic_ref]);

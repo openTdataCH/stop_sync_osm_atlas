@@ -25,6 +25,7 @@ def format_stop_data(stop: StopsMatched, problem_type: str = None, include_route
         "osm_amenity": osm_details.osm_amenity if osm_details else None,
         "osm_aerialway": osm_details.osm_aerialway if osm_details else None,
         "distance_m": stop.distance_m,
+        "matching_notes": stop.matching_notes,
         "atlas_designation": atlas_details.atlas_designation if atlas_details else None,
         "atlas_designation_official": atlas_details.atlas_designation_official if atlas_details else None,
         "uic_ref": atlas_details.uic_ref if atlas_details else None,

@@ -16,6 +16,7 @@ import pandas as pd
 # Pipeline framework
 from matching_and_import_db.pipeline import MatchingContext, run_pipeline
 from matching_and_import_db.state import AtlasState, OsmState
+from matching_and_import_db.models import MatchingOutput
 
 from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
 from matching_and_import_db.predicates.name_matching import NameMatchPredicate
@@ -80,14 +81,15 @@ def _locate_file(env_key, default, label):
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def run_matching():
+def run_matching() -> MatchingOutput:
     """
     Execute the complete matching pipeline and return data for DB import.
 
     Returns
     -------
-    output : PipelineResult
-        Strongly typed result containing matched, unmatched, and state mappings.
+    output : MatchingOutput
+        Pipeline results combined with pre-pipeline state (duplicate groups,
+        OSM sibling groups, all OSM nodes).
     """
 
     # ── Load data ────────────────────────────────────────────────────────
@@ -99,7 +101,10 @@ def run_matching():
     osm_index = OsmState.from_xml_file(osm_xml_file)
 
     # ── Identify ATLAS duplicate groups & init State ─────────────────────
-    atlas_state = AtlasState.from_dataframe(atlas_df)
+    atlas_state = AtlasState.from_dataframe(
+        atlas_df,
+        routes_csv_path='data/processed/atlas_routes_unified.csv',
+    )
 
     # ── Pre-group platform ↔ stop_position pairs ─────────────────────────
     atlas_uic_counts = {str(k): v for k, v in atlas_df.groupby('number').size().items()}
@@ -113,7 +118,16 @@ def run_matching():
 
     pipeline = DEFAULT_PIPELINE
 
-    output = run_pipeline(pipeline, ctx)
+    pipeline_result = run_pipeline(pipeline, ctx)
+
+    output = MatchingOutput(
+        matched=pipeline_result.matched,
+        unmatched_atlas=pipeline_result.unmatched_atlas,
+        unmatched_osm=pipeline_result.unmatched_osm,
+        duplicate_sloid_map=atlas_state.duplicate_sloid_map,
+        osm_group_siblings=dict(osm_index._group_siblings),
+        all_osm_nodes=osm_index.get_all_nodes(),
+    )
 
     # ── Summary ──────────────────────────────────────────────────────────
     _print_summary(output, atlas_df)

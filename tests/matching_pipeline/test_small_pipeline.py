@@ -131,10 +131,7 @@ def test_small_pipeline_end_to_end():
     assert match_rate <= 1.00, f"Match rate too high: {match_rate:.0%}"
 
     # 2. Database Insertion (Execute the data-first importer)
-    no_nearby_sloids = import_to_database(
-        result,
-        result.duplicate_sloid_map
-    )
+    no_nearby_sloids = import_to_database(result)
     
     # 3. Verify Database State
     matched_db_count = session.query(StopsMatched).filter(StopsMatched.stop_type == 'matched').count()

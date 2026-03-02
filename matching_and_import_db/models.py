@@ -56,7 +56,6 @@ class MatchRecord:
     match_type: str
     distance_m: float
     notes: str
-    candidate_pool_size: int = 0
     problems: list['ProblemResult'] = field(default_factory=list)
 
     def evaluate_problems(self, problem_ctx: 'ProblemContext', predicates: list) -> None:
@@ -82,7 +81,14 @@ class PipelineResult:
     matched: list[MatchRecord]
     unmatched_atlas: list[AtlasNode]
     unmatched_osm: list[OsmNode]
+
+
+@dataclass
+class MatchingOutput:
+    """Full output of run_matching(): pipeline results + pre-pipeline state."""
+    matched: list[MatchRecord]
+    unmatched_atlas: list[AtlasNode]
+    unmatched_osm: list[OsmNode]
     duplicate_sloid_map: dict[str, list[str]]
-    no_nearby_osm_sloids: set[str]
     osm_group_siblings: dict[str, list[OsmNode]] = field(default_factory=dict)
     all_osm_nodes: list[OsmNode] = field(default_factory=list)
