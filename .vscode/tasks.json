@@ -37,7 +37,7 @@
         {
             "label": "Docker: Run Matching \u0026 Import (Existing Data)",
             "type": "shell",
-            "command": "docker exec -it stop_sync_osm_atlas_app python matching_and_import_db/database/importer.py",
+            "command": "docker compose up -d db redis app && docker exec stop_sync_osm_atlas_app python -m matching_and_import_db.database.importer",
             "problemMatcher": [],
             "group": "build",
             "presentation": {
@@ -52,7 +52,7 @@
         {
             "label": "Docker: Run Full Data Pipeline (Download \u0026 Match \u0026 Import)",
             "type": "shell",
-            "command": "docker exec -it stop_sync_osm_atlas_app bash -c \"python matching_and_import_db/downloader/get_atlas_data.py \u0026\u0026 python matching_and_import_db/downloader/get_osm_data.py \u0026\u0026 python matching_and_import_db/database/importer.py\"",
+            "command": "docker compose up -d db redis app && docker exec stop_sync_osm_atlas_app bash -c \"python matching_and_import_db/downloader/get_atlas_data.py \u0026\u0026 python matching_and_import_db/downloader/get_osm_data.py \u0026\u0026 python -m matching_and_import_db.database.importer\"",
             "problemMatcher": [],
             "group": "build",
             "presentation": {
@@ -67,7 +67,7 @@
         {
             "label": "Docker: Run Flask DB Upgrade",
             "type": "shell",
-            "command": "docker exec -it stop_sync_osm_atlas_app flask db upgrade",
+            "command": "docker compose up -d db redis app && docker exec -it stop_sync_osm_atlas_app flask db upgrade",
             "problemMatcher": [],
             "presentation": {
                 "echo": true,

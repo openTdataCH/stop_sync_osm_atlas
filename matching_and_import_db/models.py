@@ -85,3 +85,4 @@ class PipelineResult:
     duplicate_sloid_map: dict[str, list[str]]
     no_nearby_osm_sloids: set[str]
     osm_group_siblings: dict[str, list[OsmNode]] = field(default_factory=dict)
+    all_osm_nodes: list[OsmNode] = field(default_factory=list)

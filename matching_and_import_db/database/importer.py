@@ -40,6 +40,29 @@ from backend.models import StopsMatched, AtlasStop, OsmNode, RouteAtlasStops, Ro
 from backend.services.stats_export import export_pipeline_stats, save_stats_to_file
 
 
+def _import_all_osm_nodes(session, all_osm_nodes, problem_ctx):
+    """Insert ALL OSM nodes upfront so FK constraints from route_osm_stops are always satisfied."""
+    for node in all_osm_nodes:
+        record = OsmNode(
+            osm_node_id=str(node.node_id),
+            osm_local_ref=node.local_ref,
+            osm_name=node.name,
+            osm_uic_name=node.uic_name,
+            osm_uic_ref=node.uic_ref,
+            osm_network=node.network,
+            osm_operator=node.operator,
+            osm_public_transport=node.public_transport,
+            osm_railway=node.railway,
+            osm_amenity=node.amenity,
+            osm_aerialway=node.aerialway,
+            osm_node_type=get_osm_node_type(node.tags, is_osm_unmatched=True) if node.tags else None,
+            duplicate_group_node_ids=problem_ctx.duplicate_osm_group_map.get(str(node.node_id)),
+        )
+        session.add(record)
+    session.commit()
+    print(f"Imported {len(all_osm_nodes)} OSM nodes")
+
+
 def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids, osm_group_siblings=None):
     print("\nDetecting problems and importing matched records...")
     print("  Checks: distance, attributes, duplicates")
@@ -48,7 +71,8 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
     _t0 = time.time()
     inserted = 0
 
-    for current_match in matched_records:
+    total = len(matched_records)
+    for idx, current_match in enumerate(matched_records):
         atlas_lat, atlas_lon = current_match.atlas_node.lat, current_match.atlas_node.lon
         osm_lat, osm_lon = current_match.osm_node.lat, current_match.osm_node.lon
 
@@ -86,24 +110,8 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
             session.add(atlas_record)
             processed_sloids.add(sloid)
 
-        if osm_node_id and osm_node_id not in processed_osm_node_ids:
-                osm_record = OsmNode(
-                    osm_node_id=osm_node_id,
-                    osm_local_ref=current_match.osm_node.local_ref,
-                    osm_name=current_match.osm_node.name,
-                    osm_uic_name=current_match.osm_node.uic_name,
-                    osm_uic_ref=current_match.osm_node.uic_ref,
-                    osm_network=current_match.osm_node.network,
-                    osm_operator=current_match.osm_node.operator,
-                    osm_public_transport=current_match.osm_node.public_transport,
-                    osm_railway=current_match.osm_node.railway,
-                    osm_amenity=current_match.osm_node.amenity,
-                    osm_aerialway=current_match.osm_node.aerialway,
-                    osm_node_type=get_osm_node_type(current_match.osm_node.tags, is_osm_unmatched=True) if current_match.osm_node.tags else None,
-                    duplicate_group_node_ids=problem_ctx.duplicate_osm_group_map.get(str(osm_node_id)),
-                )
-                session.add(osm_record)
-                processed_osm_node_ids.add(osm_node_id)
+        if osm_node_id:
+            processed_osm_node_ids.add(osm_node_id)
 
         # Emit sibling rows for OSM node groups (platform ↔ stop_position pairs)
         if osm_group_siblings and osm_node_id:
@@ -123,35 +131,18 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
                 )
                 session.add(sibling_record)
                 inserted += 1
-
-                if sibling.node_id not in processed_osm_node_ids:
-                    sib_osm_record = OsmNode(
-                        osm_node_id=sibling.node_id,
-                        osm_local_ref=sibling.local_ref,
-                        osm_name=sibling.name,
-                        osm_uic_name=sibling.uic_name,
-                        osm_uic_ref=sibling.uic_ref,
-                        osm_network=sibling.network,
-                        osm_operator=sibling.operator,
-                        osm_public_transport=sibling.public_transport,
-                        osm_railway=sibling.railway,
-                        osm_amenity=sibling.amenity,
-                        osm_aerialway=sibling.aerialway,
-                        osm_node_type=get_osm_node_type(sibling.tags, is_osm_unmatched=True) if sibling.tags else None,
-                        duplicate_group_node_ids=problem_ctx.duplicate_osm_group_map.get(str(sibling.node_id)),
-                    )
-                    session.add(sib_osm_record)
-                    processed_osm_node_ids.add(sibling.node_id)
+                processed_osm_node_ids.add(sibling.node_id)
 
         inserted += 1
         if BATCH_SIZE > 0 and (inserted % BATCH_SIZE) == 0:
             session.commit()
             session.expunge_all()
             elapsed = max(0.001, time.time() - _t0)
-            rate = inserted / elapsed
-            pct = (inserted / len(matched_records)) * 100.0
-            eta_s = int((len(matched_records) - inserted) / max(rate, 1e-9))
-            print(f"  Committed batch: {inserted:,}/{len(matched_records):,} ({pct:.1f}%) | {rate:.1f}/s | ETA {eta_s}s")
+            progress = idx + 1
+            rate = progress / elapsed
+            pct = (progress / total) * 100.0
+            eta_s = int((total - progress) / max(rate, 1e-9))
+            print(f"  Committed batch: {progress:,}/{total:,} ({pct:.1f}%) | {rate:.1f}/s | ETA {eta_s}s")
 
     session.commit()
     session.expunge_all()
@@ -227,23 +218,7 @@ def _import_unmatched_osm(session, unmatched_osm_records, problem_ctx, processed
 
         session.add(stop_record)
 
-        if osm_node_id and osm_node_id not in processed_osm_node_ids:
-            osm_record = OsmNode(
-                osm_node_id=osm_node_id,
-                osm_local_ref=osm_node.local_ref,
-                osm_name=osm_node.name,
-                osm_uic_name=osm_node.uic_name,
-                osm_uic_ref=osm_node.uic_ref,
-                osm_network=osm_node.network,
-                osm_operator=osm_node.operator,
-                osm_public_transport=osm_node.public_transport,
-                osm_railway=osm_node.railway,
-                osm_amenity=osm_node.amenity,
-                osm_aerialway=osm_node.aerialway,
-                osm_node_type=get_osm_node_type(osm_node.tags, is_osm_unmatched=True) if osm_node.tags else None,
-                duplicate_group_node_ids=problem_ctx.duplicate_osm_group_map.get(str(osm_node_id)),
-            )
-            session.add(osm_record)
+        if osm_node_id:
             processed_osm_node_ids.add(osm_node_id)
 
     session.commit()
@@ -309,7 +284,7 @@ def _import_routes(session, all_route_data):
     
     session.bulk_save_objects(routes_to_insert)
     session.commit()
-    print(f"Route matching completed: {matched_routes} routes matched")
+    print(f"Route import completed: {matched_routes} ATLAS↔OSM route pairs linked")
 
 def _print_problem_summary(session):
     total_stops = session.query(StopsMatched).count()
@@ -371,6 +346,10 @@ def import_to_database(base_data, duplicate_sloid_map):
         print(f"{len(duplicate_sloids)} sloids are matched to more than one OSM node")
 
     problem_ctx = ProblemContext.build(base_data)
+
+    # 0. Import ALL OSM nodes upfront (satisfies route_osm_stops FK by construction)
+    all_osm_nodes = getattr(base_data, 'all_osm_nodes', [])
+    _import_all_osm_nodes(session, all_osm_nodes, problem_ctx)
 
     # 1. Import Matched
     osm_group_siblings = getattr(base_data, 'osm_group_siblings', None) or {}
