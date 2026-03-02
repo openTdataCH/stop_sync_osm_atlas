@@ -368,6 +368,10 @@ class OsmState:
     def is_used(self, node_id: str) -> bool:
         return node_id in self.used_ids
 
+    def get_all_nodes(self) -> list[OsmNode]:
+        """Returns ALL OSM nodes (matched, unmatched, siblings, stations — everything)."""
+        return [self._to_osm_node(n) for n in self._all_nodes.values()]
+
     def get_unmatched_nodes(self) -> list[OsmNode]:
         return [
             self._to_osm_node(n) for n in self._all_nodes.values()

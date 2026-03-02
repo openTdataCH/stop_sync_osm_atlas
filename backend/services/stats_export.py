@@ -59,12 +59,12 @@ def export_pipeline_stats(
     
     # Calculate total ATLAS if not provided
     if total_atlas_platforms is None:
-        matched_sloids = {r.get('sloid') for r in matched_records if r.get('sloid')}
-        unmatched_sloids = {r.get('sloid') for r in unmatched_atlas if r.get('sloid')}
+        matched_sloids = {getattr(r.atlas_node, 'sloid', None) for r in matched_records if getattr(r.atlas_node, 'sloid', None)}
+        unmatched_sloids = {getattr(r, 'sloid', None) for r in unmatched_atlas if getattr(r, 'sloid', None)}
         total_atlas_platforms = len(matched_sloids | unmatched_sloids)
-    
+
     # Count distinct matched ATLAS sloids
-    distinct_matched_atlas = len({r.get('sloid') for r in matched_records if r.get('sloid')})
+    distinct_matched_atlas = len({getattr(r.atlas_node, 'sloid', None) for r in matched_records if getattr(r.atlas_node, 'sloid', None)})
     
     # Match rate calculation
     match_rate = (distinct_matched_atlas / total_atlas_platforms * 100) if total_atlas_platforms > 0 else 0
@@ -72,7 +72,7 @@ def export_pipeline_stats(
     # Count matches by type
     match_type_counts = {}
     for record in matched_records:
-        match_type = record.get('match_type', 'unknown')
+        match_type = getattr(record, 'match_type', 'unknown') or 'unknown'
         match_type_counts[match_type] = match_type_counts.get(match_type, 0) + 1
     
     # Extract specific match counts
@@ -113,10 +113,10 @@ def export_pipeline_stats(
     unmatched_osm_with_local_ref = 0
     
     for node in unmatched_osm:
-        tags = node.get('tags', {})
+        tags = getattr(node, 'tags', None) or {}
         if 'uic_ref' in tags:
             unmatched_osm_with_uic_ref += 1
-        if node.get('local_ref') or tags.get('local_ref'):
+        if getattr(node, 'local_ref', None) or tags.get('local_ref'):
             unmatched_osm_with_local_ref += 1
         # Note: Route membership would need to be checked against osm_nodes_with_routes.csv
         # This is handled separately in the pipeline
@@ -127,12 +127,12 @@ def export_pipeline_stats(
     # Duplicate counts
     total_duplicate_sloids = len(duplicate_sloid_map) if duplicate_sloid_map else 0
     matched_duplicate_items = sum(
-        1 for r in matched_records 
-        if r.get('sloid') and str(r.get('sloid')) in duplicate_sloid_map
+        1 for r in matched_records
+        if getattr(r.atlas_node, 'sloid', None) and str(r.atlas_node.sloid) in duplicate_sloid_map
     )
     unmatched_duplicate_items = sum(
-        1 for r in unmatched_atlas 
-        if r.get('sloid') and str(r.get('sloid')) in duplicate_sloid_map
+        1 for r in unmatched_atlas
+        if getattr(r, 'sloid', None) and str(r.sloid) in duplicate_sloid_map
     )
     
     # Build the stats object

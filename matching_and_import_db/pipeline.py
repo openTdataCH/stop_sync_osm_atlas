@@ -98,4 +98,5 @@ def run_pipeline(predicates: list['BasePredicate'], ctx: MatchingContext) -> 'Pi
         duplicate_sloid_map=ctx.atlas.duplicate_sloid_map, # We pull this directly from State
         no_nearby_osm_sloids=set(), # Calculated later in orchestrator/importer
         osm_group_siblings=dict(ctx.osm._group_siblings),
+        all_osm_nodes=ctx.osm.get_all_nodes(),
     )

@@ -102,7 +102,7 @@ def run_matching():
     atlas_state = AtlasState.from_dataframe(atlas_df)
 
     # ── Pre-group platform ↔ stop_position pairs ─────────────────────────
-    atlas_uic_counts = atlas_df.groupby('number').size().to_dict()
+    atlas_uic_counts = {str(k): v for k, v in atlas_df.groupby('number').size().items()}
     osm_index.build_groups(atlas_uic_counts)
 
     ctx = MatchingContext(
