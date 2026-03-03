@@ -327,8 +327,8 @@ class OsmState:
         # OSM node grouping (platform ↔ stop_position pairs)
         # sibling node_id → representative node_id
         self._group_representative: dict[str, str] = {}
-        # representative node_id → list of sibling OsmNode domain objects
-        self._group_siblings: dict[str, list[OsmNode]] = {}
+        # representative node_id → (group_type, [sibling OsmNode domain objects])
+        self._group_siblings: dict[str, tuple[str, list[OsmNode]]] = {}
 
         # Spatial indices
         self._cached_tree = None
@@ -336,15 +336,26 @@ class OsmState:
         self._cached_nodes_list = []
         self._cached_include_stations = None
 
-    def build_groups(self, atlas_uic_counts: dict[str, int]) -> None:
-        """Pre-group platform ↔ stop_position pairs within each UIC.
+    def build_groups(self, atlas_uic_counts: dict[str, int],
+                     atlas_designation_to_uic: dict[str, str] = None) -> None:
+        """Pre-group platform ↔ stop_position pairs before any predicate runs.
 
-        Uses Option B: UIC-scoped reciprocal nearest-neighbour pairing within 12m,
-        with a count-match condition (only keep groups for a UIC when
-        atlas_count == number of proposed OSM groups for that UIC).
+        Path 1 (osm_group_uic): UIC-scoped reciprocal nearest-neighbour pairing
+        within 12m, with ratio test and count-match condition.
+
+        Path 2 (osm_group_name): Name-scoped pairing for nodes sharing a ``name``
+        tag where uic_ref values do not diverge (at least one lacks uic_ref).
+        Same ratio test and count-match condition (anchored via UIC or uic_name).
         """
         MAX_GROUP_DISTANCE = 12.0  # meters
+        RATIO_TEST_FACTOR = 1.5
 
+        atlas_designation_to_uic = atlas_designation_to_uic or {}
+
+        # ------------------------------------------------------------------
+        # Path 1: UIC-based grouping
+        # ------------------------------------------------------------------
+        uic_groups = 0
         groups_by_uic: dict[str, list[tuple[dict, dict]]] = defaultdict(list)
 
         for uic, entries in self._uic_ref_dict.items():
@@ -357,56 +368,13 @@ class OsmState:
             if not platforms or not stop_positions:
                 continue
 
-            # For each stop_position find nearest platform within 12m
-            sp_to_nearest_plat: dict[str, tuple[dict, float]] = {}
-            for sp in stop_positions:
-                best_plat, best_d = None, MAX_GROUP_DISTANCE
-                for plat in platforms:
-                    d = haversine_distance(sp['lat'], sp['lon'], plat['lat'], plat['lon'])
-                    if d is not None and d < best_d:
-                        best_d = d
-                        best_plat = plat
-                if best_plat is not None:
-                    sp_to_nearest_plat[sp['node_id']] = (best_plat, best_d)
+            pairs = self._find_reciprocal_pairs(
+                platforms, stop_positions, MAX_GROUP_DISTANCE, RATIO_TEST_FACTOR)
+            if pairs:
+                groups_by_uic[uic].extend(pairs)
 
-            # For each platform find nearest stop_position within 12m
-            plat_to_nearest_sp: dict[str, tuple[dict, float]] = {}
-            for plat in platforms:
-                best_sp, best_d = None, MAX_GROUP_DISTANCE
-                for sp in stop_positions:
-                    d = haversine_distance(plat['lat'], plat['lon'], sp['lat'], sp['lon'])
-                    if d is not None and d < best_d:
-                        best_d = d
-                        best_sp = sp
-                if best_sp is not None:
-                    plat_to_nearest_sp[plat['node_id']] = (best_sp, best_d)
-
-            # Reciprocal check: form pair only if both point at each other
-            used_plats: set[str] = set()
-            used_sps: set[str] = set()
-            for sp in stop_positions:
-                if sp['node_id'] in used_sps:
-                    continue
-                match = sp_to_nearest_plat.get(sp['node_id'])
-                if match is None:
-                    continue
-                plat, _ = match
-                if plat['node_id'] in used_plats:
-                    continue
-                reverse = plat_to_nearest_sp.get(plat['node_id'])
-                if reverse is None:
-                    continue
-                rev_sp, _ = reverse
-                if rev_sp['node_id'] == sp['node_id']:
-                    groups_by_uic[uic].append((plat, sp))
-                    used_plats.add(plat['node_id'])
-                    used_sps.add(sp['node_id'])
-
-        # Count-match condition and representative selection
-        total_groups = 0
+        # Count-match condition and representative selection for UIC path
         for uic, pairs in groups_by_uic.items():
-            # Total OSM nodes for this UIC that would result after grouping:
-            # ungrouped nodes + groups (each pair counts as 1)
             all_uic_entries = self._uic_ref_dict[uic]
             grouped_ids = set()
             for plat, sp in pairs:
@@ -420,25 +388,217 @@ class OsmState:
                 continue
 
             for plat, sp in pairs:
-                # Representative selection: prefer node with uic_ref, then prefer platform
-                plat_has_uic = 'uic_ref' in plat['tags']
-                sp_has_uic = 'uic_ref' in sp['tags']
-                if sp_has_uic and not plat_has_uic:
-                    representative, sibling = sp, plat
-                else:
-                    representative, sibling = plat, sp
+                self._register_group(plat, sp, 'osm_group_uic')
+                uic_groups += 1
 
-                rep_id = representative['node_id']
-                sib_id = sibling['node_id']
-                self._group_representative[sib_id] = rep_id
-                self._group_siblings[rep_id] = [self._to_osm_node(sibling)]
-                total_groups += 1
+        # ------------------------------------------------------------------
+        # Path 2: Name-based grouping
+        # ------------------------------------------------------------------
+        name_groups = 0
+        already_grouped = set(self._group_representative.keys())
+        for rep_id, (_, siblings) in self._group_siblings.items():
+            already_grouped.add(rep_id)
+            for sib in siblings:
+                already_grouped.add(sib.node_id)
 
-        logger.info(f"OSM grouping: {total_groups} platform↔stop_position pairs formed")
+        groups_by_name_uic: dict[str, list[tuple[dict, dict]]] = defaultdict(list)
+
+        for name, entries in self._name_index.items():
+            # Skip nodes already grouped by path 1
+            entries = [e for e in entries if e['node_id'] not in already_grouped]
+            if len(entries) < 2:
+                continue
+
+            platforms = [e for e in entries if e['tags'].get('public_transport') == 'platform']
+            stop_positions = [e for e in entries if e['tags'].get('public_transport') == 'stop_position']
+
+            if not platforms or not stop_positions:
+                continue
+
+            pairs = self._find_reciprocal_pairs(
+                platforms, stop_positions, MAX_GROUP_DISTANCE, RATIO_TEST_FACTOR,
+                require_uic_non_divergence=True)
+
+            for plat, sp in pairs:
+                # Anchor to a UIC for count-match: use uic_ref from whichever
+                # node has it, or resolve via uic_name → ATLAS designationOfficial
+                anchor_uic = self._resolve_anchor_uic(plat, sp, atlas_designation_to_uic)
+                if anchor_uic:
+                    groups_by_name_uic.setdefault(anchor_uic, []).append((plat, sp))
+
+        # Count-match condition for name-based path (anchored by UIC)
+        for uic, pairs in groups_by_name_uic.items():
+            # Count distinct logical entities for this UIC after all grouping:
+            # = ungrouped nodes + path1 groups (each counts as 1) + name-based pairs (each counts as 1)
+            all_uic_entries = self._uic_ref_dict.get(uic, [])
+            uic_node_ids = {e['node_id'] for e in all_uic_entries}
+            name_pair_ids = set()
+            for plat, sp in pairs:
+                name_pair_ids.add(plat['node_id'])
+                name_pair_ids.add(sp['node_id'])
+
+            all_involved_ids = uic_node_ids | name_pair_ids
+            grouped_by_path1 = all_involved_ids & already_grouped
+            path1_group_count = sum(1 for nid in uic_node_ids if nid in self._group_siblings)
+            ungrouped = all_involved_ids - grouped_by_path1 - name_pair_ids
+            effective_count = len(ungrouped) + path1_group_count + len(pairs)
+
+            atlas_count = atlas_uic_counts.get(uic, 0)
+            if atlas_count != effective_count:
+                continue
+
+            for plat, sp in pairs:
+                if plat['node_id'] in already_grouped or sp['node_id'] in already_grouped:
+                    continue
+                self._register_group(plat, sp, 'osm_group_name')
+                already_grouped.add(plat['node_id'])
+                already_grouped.add(sp['node_id'])
+                name_groups += 1
+
+        logger.info(
+            f"OSM grouping: {uic_groups} UIC-based + {name_groups} name-based "
+            f"= {uic_groups + name_groups} platform↔stop_position pairs formed"
+        )
+
+    def _register_group(self, plat: dict, sp: dict, group_type: str) -> None:
+        """Register a platform ↔ stop_position group (platform = representative)."""
+        rep_id = plat['node_id']
+        sib_id = sp['node_id']
+        self._group_representative[sib_id] = rep_id
+        self._group_siblings[rep_id] = (group_type, [self._to_osm_node(sp)])
+
+    @staticmethod
+    def _find_reciprocal_pairs(
+        platforms: list[dict], stop_positions: list[dict],
+        max_distance: float, ratio_factor: float,
+        require_uic_non_divergence: bool = False,
+    ) -> list[tuple[dict, dict]]:
+        """Find reciprocal nearest-neighbour platform ↔ stop_position pairs.
+
+        Returns list of (platform_entry, stop_position_entry) tuples.
+        Applies a ratio test: skips pairing when d2/d1 < ratio_factor.
+        """
+        # For each stop_position find nearest + second-nearest platform
+        sp_to_nearest: dict[str, tuple[dict, float]] = {}
+        sp_to_second_d: dict[str, float] = {}
+        for sp in stop_positions:
+            best_plat, best_d = None, max_distance
+            second_d = float('inf')
+            for plat in platforms:
+                if require_uic_non_divergence:
+                    sp_uic = sp['tags'].get('uic_ref')
+                    plat_uic = plat['tags'].get('uic_ref')
+                    if sp_uic and plat_uic and sp_uic != plat_uic:
+                        continue
+                d = haversine_distance(sp['lat'], sp['lon'], plat['lat'], plat['lon'])
+                if d is None:
+                    continue
+                if d < best_d:
+                    second_d = best_d
+                    best_d = d
+                    best_plat = plat
+                elif d < second_d:
+                    second_d = d
+            if best_plat is not None:
+                sp_to_nearest[sp['node_id']] = (best_plat, best_d)
+                sp_to_second_d[sp['node_id']] = second_d
+
+        # For each platform find nearest + second-nearest stop_position
+        plat_to_nearest: dict[str, tuple[dict, float]] = {}
+        plat_to_second_d: dict[str, float] = {}
+        for plat in platforms:
+            best_sp, best_d = None, max_distance
+            second_d = float('inf')
+            for sp in stop_positions:
+                if require_uic_non_divergence:
+                    sp_uic = sp['tags'].get('uic_ref')
+                    plat_uic = plat['tags'].get('uic_ref')
+                    if sp_uic and plat_uic and sp_uic != plat_uic:
+                        continue
+                d = haversine_distance(plat['lat'], plat['lon'], sp['lat'], sp['lon'])
+                if d is None:
+                    continue
+                if d < best_d:
+                    second_d = best_d
+                    best_d = d
+                    best_sp = sp
+                elif d < second_d:
+                    second_d = d
+            if best_sp is not None:
+                plat_to_nearest[plat['node_id']] = (best_sp, best_d)
+                plat_to_second_d[plat['node_id']] = second_d
+
+        # Reciprocal check + ratio test
+        pairs: list[tuple[dict, dict]] = []
+        used_plats: set[str] = set()
+        used_sps: set[str] = set()
+        for sp in stop_positions:
+            if sp['node_id'] in used_sps:
+                continue
+            match = sp_to_nearest.get(sp['node_id'])
+            if match is None:
+                continue
+            plat, d1_sp = match
+            if plat['node_id'] in used_plats:
+                continue
+
+            # Reciprocal check
+            reverse = plat_to_nearest.get(plat['node_id'])
+            if reverse is None:
+                continue
+            rev_sp, _ = reverse
+            if rev_sp['node_id'] != sp['node_id']:
+                continue
+
+            # Ratio test on stop_position side
+            d2_sp = sp_to_second_d.get(sp['node_id'], float('inf'))
+            if d1_sp > 0 and d2_sp / d1_sp < ratio_factor:
+                continue
+
+            # Ratio test on platform side
+            d1_plat = plat_to_nearest[plat['node_id']][1]
+            d2_plat = plat_to_second_d.get(plat['node_id'], float('inf'))
+            if d1_plat > 0 and d2_plat / d1_plat < ratio_factor:
+                continue
+
+            pairs.append((plat, sp))
+            used_plats.add(plat['node_id'])
+            used_sps.add(sp['node_id'])
+
+        return pairs
+
+    @staticmethod
+    def _resolve_anchor_uic(plat: dict, sp: dict,
+                            atlas_designation_to_uic: dict[str, str]) -> Optional[str]:
+        """Resolve the UIC anchor for a name-based pair.
+
+        Returns the UIC string if one node has uic_ref, or if a node's uic_name
+        maps to an ATLAS designationOfficial. Returns None if no anchor found.
+        """
+        plat_uic = plat['tags'].get('uic_ref')
+        sp_uic = sp['tags'].get('uic_ref')
+        if plat_uic:
+            return plat_uic
+        if sp_uic:
+            return sp_uic
+
+        # Try uic_name → ATLAS designationOfficial lookup
+        for entry in (plat, sp):
+            uic_name = entry['tags'].get('uic_name')
+            if uic_name and uic_name in atlas_designation_to_uic:
+                return atlas_designation_to_uic[uic_name]
+        return None
 
     def get_siblings(self, node_id: str) -> list[OsmNode]:
         """Returns sibling OsmNodes for a representative node (empty if none)."""
-        return self._group_siblings.get(node_id, [])
+        entry = self._group_siblings.get(node_id)
+        if entry is None:
+            return []
+        return entry[1]
+
+    def get_siblings_with_type(self, node_id: str) -> tuple[str, list[OsmNode]] | None:
+        """Returns (group_type, siblings) or None if not a representative."""
+        return self._group_siblings.get(node_id)
 
     def get_node_routes(self, node_id: str) -> list[dict]:
         """Returns route entries for a node: [{'gtfs_route_id', 'direction_id', 'route_name'}, ...]."""
@@ -451,8 +611,10 @@ class OsmState:
     def mark_used(self, node_id: str):
         self.used_ids.add(node_id)
         # Cascade: also lock siblings
-        for sibling in self._group_siblings.get(node_id, []):
-            self.used_ids.add(sibling.node_id)
+        entry = self._group_siblings.get(node_id)
+        if entry:
+            for sibling in entry[1]:
+                self.used_ids.add(sibling.node_id)
 
     def is_used(self, node_id: str) -> bool:
         return node_id in self.used_ids
@@ -485,7 +647,7 @@ class OsmState:
             and not self._to_osm_node(c).is_station
         ]
         
-    def get_all_unmatched_grouped(self, key: str, stop_position_only: bool = False) -> dict[str, list[OsmNode]]:
+    def get_all_unmatched_grouped(self, key: str) -> dict[str, list[OsmNode]]:
         """Used heavily by group_proximity to build lookup indexes (excludes siblings)."""
         from collections import defaultdict
 
@@ -501,9 +663,6 @@ class OsmState:
             tags = node_dict.get('tags', {})
             val = tags.get(key)
             if not val:
-                continue
-
-            if stop_position_only and tags.get('public_transport') != 'stop_position':
                 continue
 
             result[val].append(self._to_osm_node(node_dict))

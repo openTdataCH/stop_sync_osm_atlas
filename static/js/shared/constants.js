@@ -37,7 +37,7 @@
         DEFAULT_ZOOM: 13,
         
         // Maximum zoom level (allows upscaling tiles for better precision)
-        MAX_ZOOM: 22,
+        MAX_ZOOM: 20,
 
         // Maximum zoom level where tiles are actually available
         MAX_NATIVE_ZOOM: 19,

@@ -82,19 +82,14 @@ def export_pipeline_stats(
     duplicate_propagation_matches = match_type_counts.get('duplicate_propagation', 0)
     
     # Distance matching breakdown
-    distance_stage1_regular = sum(
+    distance_stage1 = sum(
         v for k, v in match_type_counts.items() 
-        if k.startswith('distance_matching_1_') and not k.endswith('_stop_position')
+        if k.startswith('distance_matching_1_')
     )
-    distance_stage1_stop_position = sum(
-        v for k, v in match_type_counts.items() 
-        if k.startswith('distance_matching_1_') and k.endswith('_stop_position')
-    )
-    distance_stage1_total = distance_stage1_regular + distance_stage1_stop_position
     distance_stage2 = match_type_counts.get('distance_matching_2', 0)
     distance_stage3a = match_type_counts.get('distance_matching_3a', 0)
     distance_stage3b = match_type_counts.get('distance_matching_3b', 0)
-    total_distance_matches = distance_stage1_total + distance_stage2 + distance_stage3a + distance_stage3b
+    total_distance_matches = distance_stage1 + distance_stage2 + distance_stage3a + distance_stage3b
     
     # Route matching breakdown
     route_gtfs_matches = sum(
@@ -165,9 +160,7 @@ def export_pipeline_stats(
                 "count": total_distance_matches,
                 "description": "Proximity-based spatial matching (≤50m)",
                 "breakdown": {
-                    "stage1_group": distance_stage1_total,
-                    "stage1_regular": distance_stage1_regular,
-                    "stage1_stop_position": distance_stage1_stop_position,
+                    "stage1_group": distance_stage1,
                     "stage2_local_ref": distance_stage2,
                     "stage3a_single": distance_stage3a,
                     "stage3b_relative": distance_stage3b,

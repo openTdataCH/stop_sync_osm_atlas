@@ -108,7 +108,16 @@ def run_matching() -> MatchingOutput:
 
     # ── Pre-group platform ↔ stop_position pairs ─────────────────────────
     atlas_uic_counts = {str(k): v for k, v in atlas_df.groupby('number').size().items()}
-    osm_index.build_groups(atlas_uic_counts)
+
+    # Build designationOfficial → UIC mapping for name-based group anchoring
+    atlas_designation_to_uic: dict[str, str] = {}
+    for _, row in atlas_df.iterrows():
+        desig = str(row.get('designationOfficial', '')).strip()
+        uic = str(row.get('number', '')).strip()
+        if desig and uic:
+            atlas_designation_to_uic[desig] = uic
+
+    osm_index.build_groups(atlas_uic_counts, atlas_designation_to_uic)
 
     ctx = MatchingContext(
         atlas=atlas_state,

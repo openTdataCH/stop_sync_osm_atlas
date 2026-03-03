@@ -64,6 +64,22 @@ def upgrade_():
         sa.PrimaryKeyConstraint('osm_node_id')
     )
 
+    # osm_stop_groups (platform ↔ stop_position pairs from pre-matching grouping)
+    op.create_table('osm_stop_groups',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('representative_node_id', sa.String(length=100), nullable=False),
+        sa.Column('sibling_node_id', sa.String(length=100), nullable=False),
+        sa.Column('group_type', sa.String(length=50), nullable=False),
+        sa.Column('sibling_lat', sa.Float(), nullable=True),
+        sa.Column('sibling_lon', sa.Float(), nullable=True),
+        sa.ForeignKeyConstraint(['representative_node_id'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['sibling_node_id'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('osm_stop_groups') as batch_op:
+        batch_op.create_index(batch_op.f('ix_osm_stop_groups_representative_node_id'), ['representative_node_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_osm_stop_groups_sibling_node_id'), ['sibling_node_id'], unique=False)
+
     # route_atlas_stops
     op.create_table('route_atlas_stops',
         sa.Column('id', sa.Integer(), nullable=False),
@@ -76,6 +92,8 @@ def upgrade_():
     )
     with op.batch_alter_table('route_atlas_stops') as batch_op:
         batch_op.create_index('idx_atlas_route_dir_seq', ['atlas_route_id', 'direction_id', 'stop_sequence'], unique=False)
+        batch_op.create_index(batch_op.f('ix_route_atlas_stops_atlas_route_id'), ['atlas_route_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_route_atlas_stops_direction_id'), ['direction_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_route_atlas_stops_sloid'), ['sloid'], unique=False)
 
     # route_osm_stops
@@ -90,7 +108,9 @@ def upgrade_():
     )
     with op.batch_alter_table('route_osm_stops') as batch_op:
         batch_op.create_index('idx_osm_route_dir_seq', ['osm_route_id', 'direction_id', 'stop_sequence'], unique=False)
+        batch_op.create_index(batch_op.f('ix_route_osm_stops_direction_id'), ['direction_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_route_osm_stops_osm_node_id'), ['osm_node_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_route_osm_stops_osm_route_id'), ['osm_route_id'], unique=False)
 
     # routes_matched
     op.create_table('routes_matched',
@@ -101,8 +121,8 @@ def upgrade_():
         sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('routes_matched') as batch_op:
-        batch_op.create_index('idx_routes_matched_atlas', ['atlas_route_id'], unique=False)
-        batch_op.create_index('idx_routes_matched_osm', ['osm_route_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_routes_matched_atlas_route_id'), ['atlas_route_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_routes_matched_osm_route_id'), ['osm_route_id'], unique=False)
 
     # stops_matched
     op.create_table('stops_matched',
@@ -116,6 +136,7 @@ def upgrade_():
         sa.Column('osm_lat', sa.Float(), nullable=True),
         sa.Column('osm_lon', sa.Float(), nullable=True),
         sa.Column('distance_m', sa.Float(), nullable=True),
+        sa.Column('matching_notes', sa.Text(), nullable=True),
         sa.Column('geom', geoalchemy2.types.Geometry(geometry_type='POINT', srid=4326, dimension=2, from_text='ST_GeomFromEWKT', name='geometry'), nullable=True),
         sa.Column('has_atlas_duplicate', sa.Boolean(), nullable=True),
         sa.Column('has_osm_duplicate', sa.Boolean(), nullable=True),
@@ -124,8 +145,8 @@ def upgrade_():
     with op.batch_alter_table('stops_matched') as batch_op:
         batch_op.create_index('idx_distance_m', ['distance_m'], unique=False)
         batch_op.create_index('idx_stop_type_match_type', ['stop_type', 'match_type'], unique=False)
-        batch_op.create_index(batch_op.f('ix_stops_osm_node_id'), ['osm_node_id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_stops_sloid'), ['sloid'], unique=False)
+        batch_op.create_index(batch_op.f('ix_stops_matched_osm_node_id'), ['osm_node_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_stops_matched_sloid'), ['sloid'], unique=False)
         batch_op.create_index('idx_stops_geom_gist', ['geom'], unique=False, postgresql_using='gist')
 
     # problems (depends on stops)

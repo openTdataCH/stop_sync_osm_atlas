@@ -33,11 +33,10 @@ from matching_and_import_db.database.helpers import (
     apply_problem_results,
 )
 from matching_and_import_db.database.route_loader import load_all_route_data
-from matching_and_import_db.utils.common import haversine_distance
 from matching_and_import_db.utils.route_id import normalize_route_id
 
 # --- External models --------------------------------------------------------
-from backend.models import StopsMatched, AtlasStop, OsmNode, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem
+from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStopGroup, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem
 from backend.services.stats_export import export_pipeline_stats, save_stats_to_file
 
 
@@ -64,7 +63,7 @@ def _import_all_osm_nodes(session, all_osm_nodes, problem_ctx):
     print(f"Imported {len(all_osm_nodes)} OSM nodes")
 
 
-def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids, osm_group_siblings=None):
+def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids):
     print("\nDetecting problems and importing matched records...")
     print("  Checks: distance, attributes, duplicates")
 
@@ -115,26 +114,6 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
         if osm_node_id:
             processed_osm_node_ids.add(osm_node_id)
 
-        # Emit sibling rows for OSM node groups (platform ↔ stop_position pairs)
-        if osm_group_siblings and osm_node_id:
-            for sibling in osm_group_siblings.get(osm_node_id, []):
-                sib_d = haversine_distance(atlas_lat, atlas_lon, sibling.lat, sibling.lon)
-                sibling_record = StopsMatched(
-                    sloid=sloid,
-                    stop_type='matched',
-                    match_type='osm_group',
-                    atlas_lat=atlas_lat,
-                    atlas_lon=atlas_lon,
-                    osm_node_id=sibling.node_id,
-                    osm_lat=sibling.lat,
-                    osm_lon=sibling.lon,
-                    distance_m=sib_d,
-                    geom=make_point_geom(atlas_lat, atlas_lon) if atlas_lat is not None and atlas_lon is not None else make_point_geom(sibling.lat, sibling.lon),
-                )
-                session.add(sibling_record)
-                inserted += 1
-                processed_osm_node_ids.add(sibling.node_id)
-
         inserted += 1
         if BATCH_SIZE > 0 and (inserted % BATCH_SIZE) == 0:
             session.commit()
@@ -149,6 +128,23 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
     session.commit()
     session.expunge_all()
     print(f"Imported {len(matched_records)} matched records")
+
+
+def _import_osm_groups(session, osm_group_siblings):
+    """Import OSM node groups (platform ↔ stop_position pairs) into the dedicated table."""
+    count = 0
+    for rep_node_id, (group_type, siblings) in osm_group_siblings.items():
+        for sib in siblings:
+            session.add(OsmStopGroup(
+                representative_node_id=rep_node_id,
+                sibling_node_id=sib.node_id,
+                group_type=group_type,
+                sibling_lat=sib.lat,
+                sibling_lon=sib.lon,
+            ))
+            count += 1
+    session.commit()
+    print(f"Imported {count} OSM group pairs")
 
 def _import_unmatched_atlas(session, unmatched_records, problem_ctx, duplicate_sloid_map, processed_sloids):
     no_nearby_osm_sloids = set()
@@ -318,7 +314,7 @@ def import_to_database(base_data: MatchingOutput):
     ensure_schema_updated()
 
     print("Truncating all database tables...")
-    session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, route_atlas_stops, route_osm_stops CASCADE"))
+    session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, osm_stop_groups, route_atlas_stops, route_osm_stops CASCADE"))
     session.execute(text("TRUNCATE TABLE routes_matched CASCADE"))
     session.execute(text("TRUNCATE TABLE problems, stops_matched CASCADE"))
     session.commit()
@@ -354,8 +350,11 @@ def import_to_database(base_data: MatchingOutput):
     # 0. Import ALL OSM nodes upfront (satisfies route_osm_stops FK by construction)
     _import_all_osm_nodes(session, base_data.all_osm_nodes, problem_ctx)
 
+    # 0b. Import OSM groups (platform ↔ stop_position pairs) into dedicated table
+    _import_osm_groups(session, base_data.osm_group_siblings)
+
     # 1. Import Matched
-    _import_matched_stops(session, base_data.matched, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids, base_data.osm_group_siblings)
+    _import_matched_stops(session, base_data.matched, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids)
 
     # 2. Import Unmatched Atlas
     no_nearby_osm_sloids = _import_unmatched_atlas(session, base_data.unmatched_atlas, problem_ctx, duplicate_sloid_map, processed_sloids)

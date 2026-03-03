@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func, case
 from sqlalchemy.orm import joinedload, load_only
-from backend.models import StopsMatched, AtlasStop, OsmNode
+from collections import defaultdict
+from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStopGroup
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
 from backend.services.routes import get_stops_for_route
@@ -95,6 +96,14 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
                 AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
             )
             all_category_conditions.append(operator_condition)
+
+    osm_group_filter_str = args.get('osm_group_filter', None)
+    if osm_group_filter_str and osm_group_filter_str.lower() == 'true':
+        all_category_conditions.append(
+            StopsMatched.osm_node_id.in_(
+                db.session.query(OsmStopGroup.representative_node_id)
+            )
+        )
 
     if station_filter_str:
         filter_values = [val.strip() for val in station_filter_str.split(',') if val.strip()]
@@ -297,6 +306,25 @@ def get_data():
                 "has_atlas_duplicate": stop.has_atlas_duplicate or False,
                 "osm_node_type": stop.osm_node_details.osm_node_type if stop.osm_node_details else None
             })
+        # Enrich matched stops with OSM group siblings (platform ↔ stop_position pairs)
+        matched_osm_ids = [s['osm_node_id'] for s in regular_stops if s['stop_type'] == 'matched' and s['osm_node_id']]
+        if matched_osm_ids:
+            groups = OsmStopGroup.query.filter(
+                OsmStopGroup.representative_node_id.in_(matched_osm_ids)
+            ).all()
+            if groups:
+                groups_by_rep = defaultdict(list)
+                for g in groups:
+                    groups_by_rep[g.representative_node_id].append({
+                        'sibling_node_id': g.sibling_node_id,
+                        'sibling_lat': g.sibling_lat,
+                        'sibling_lon': g.sibling_lon,
+                        'group_type': g.group_type,
+                    })
+                for stop in regular_stops:
+                    if stop['osm_node_id'] in groups_by_rep:
+                        stop['osm_group_siblings'] = groups_by_rep[stop['osm_node_id']]
+
         if include_meta:
             return jsonify({
                 "stops": regular_stops,
@@ -380,6 +408,24 @@ def get_stop_popup():
                     })
             if osm_matches:
                 enriched["osm_matches"] = osm_matches
+            # Include OSM group siblings (platform ↔ stop_position pairs)
+            if stop.osm_node_id:
+                group_siblings = OsmStopGroup.query.filter(
+                    OsmStopGroup.representative_node_id == stop.osm_node_id
+                ).all()
+                if group_siblings:
+                    enriched["osm_group_siblings"] = []
+                    for g in group_siblings:
+                        sib_osm = OsmNode.query.get(g.sibling_node_id)
+                        enriched["osm_group_siblings"].append({
+                            'sibling_node_id': g.sibling_node_id,
+                            'sibling_lat': g.sibling_lat,
+                            'sibling_lon': g.sibling_lon,
+                            'group_type': g.group_type,
+                            'osm_name': sib_osm.osm_name if sib_osm else None,
+                            'osm_public_transport': sib_osm.osm_public_transport if sib_osm else None,
+                            'osm_uic_ref': sib_osm.osm_uic_ref if sib_osm else None,
+                        })
         if view_type == 'osm' and stop.osm_node_id:
             same_osm_rows = StopsMatched.query.options(
                 joinedload(StopsMatched.atlas_stop_details)
