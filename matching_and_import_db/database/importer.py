@@ -221,7 +221,7 @@ def _import_unmatched_osm(session, unmatched_osm_records, problem_ctx, processed
 
     session.commit()
 
-def _import_routes(session, all_route_data):
+def _import_routes(session, all_route_data, known_sloids):
     matched_routes = 0
     routes_to_insert = []
     
@@ -268,17 +268,27 @@ def _import_routes(session, all_route_data):
             ))
             matched_routes += 1
             
+    skipped_sloids = 0
     for (atlas_route_id, direction_id), atlas_data in atlas_route_dir_to_sloids.items():
         for i, sloid in enumerate(atlas_data['sloids']):
+            if sloid not in known_sloids:
+                skipped_sloids += 1
+                continue
             routes_to_insert.append(RouteAtlasStops(
                 atlas_route_id=atlas_route_id, direction_id=direction_id, sloid=sloid, stop_sequence=i
             ))
 
     for (line_name, direction_uic), atlas_data in atlas_line_diruic_to_sloids.items():
         for i, sloid in enumerate(atlas_data['sloids']):
+            if sloid not in known_sloids:
+                skipped_sloids += 1
+                continue
             routes_to_insert.append(RouteAtlasStops(
                 atlas_route_id=line_name, direction_id=direction_uic, sloid=sloid, stop_sequence=i
             ))
+
+    if skipped_sloids:
+        print(f"  Skipped {skipped_sloids} route-atlas entries (SLOID not in atlas_stops)")
     
     session.bulk_save_objects(routes_to_insert)
     session.commit()
@@ -363,7 +373,7 @@ def import_to_database(base_data: MatchingOutput):
     _import_unmatched_osm(session, base_data.unmatched_osm, problem_ctx, processed_osm_node_ids)
 
     # 4. Import Routes
-    _import_routes(session, all_route_data)
+    _import_routes(session, all_route_data, processed_sloids)
 
     _print_problem_summary(session)
 
