@@ -400,7 +400,8 @@ function loadDataForViewport() {
         (activeFilters.matchMethods && activeFilters.matchMethods.length > 0) ||
         (activeFilters.transportTypes && activeFilters.transportTypes.length > 0) ||
         (activeFilters.atlasOperators && activeFilters.atlasOperators.length > 0) ||
-        !!activeFilters.showDuplicatesOnly
+        !!activeFilters.showDuplicatesOnly ||
+        !!activeFilters.showOsmGroupsOnly
     );
     // Banner policy:
     // - Show it at ALL zoom levels where we might not be rendering "all markers" (i.e., while results are capped),
@@ -419,6 +420,7 @@ function loadDataForViewport() {
     if (activeFilters.matchMethods?.length > 0) filterCount++;
     if (activeFilters.transportTypes?.length > 0) filterCount++;
     if (activeFilters.showDuplicatesOnly) filterCount++;
+    if (activeFilters.showOsmGroupsOnly) filterCount++;
 
     if (shouldShowBanner) {
         if (isLowZoom) {
@@ -502,6 +504,9 @@ function loadDataForViewport() {
         }
         if (activeFilters.atlasOperators.length > 0) {
             params.atlas_operator = activeFilters.atlasOperators.join(',');
+        }
+        if (activeFilters.showOsmGroupsOnly) {
+            params.osm_group_filter = 'true';
         }
     }
 
@@ -1159,7 +1164,8 @@ function focusOnRandomFilteredStop() {
         node_type: (activeFilters.nodeType && activeFilters.nodeType.length > 0) ? activeFilters.nodeType.join(',') : null,
         atlas_operator: (activeFilters.atlasOperators && activeFilters.atlasOperators.length > 0) ? activeFilters.atlasOperators.join(',') : null,
         top_n: activeFilters.topN || null,
-        show_duplicates_only: (activeFilters.showDuplicatesOnly ? 'true' : 'false')
+        show_duplicates_only: (activeFilters.showDuplicatesOnly ? 'true' : 'false'),
+        osm_group_filter: activeFilters.showOsmGroupsOnly ? 'true' : null
     };
     Object.keys(params).forEach(function(k) {
         if (params[k] === null || params[k] === undefined || params[k] === '') {
@@ -1384,7 +1390,8 @@ function updateHeaderSummary() {
         node_type: activeFilters.nodeType.join(',') || null,
         atlas_operator: activeFilters.atlasOperators.join(',') || null,
         top_n: activeFilters.topN || null,
-        show_duplicates_only: activeFilters.showDuplicatesOnly.toString()
+        show_duplicates_only: activeFilters.showDuplicatesOnly.toString(),
+        osm_group_filter: activeFilters.showOsmGroupsOnly ? 'true' : null
     };
 
     Object.keys(params).forEach(key => {

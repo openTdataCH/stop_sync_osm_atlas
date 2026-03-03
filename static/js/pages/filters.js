@@ -39,7 +39,8 @@ var activeFilters = {
     },
     transportTypes: [],
     topN: null,
-    showDuplicatesOnly: false
+    showDuplicatesOnly: false,
+    showOsmGroupsOnly: false
 };
 
 // Helper function to normalize route IDs for display
@@ -414,6 +415,14 @@ function updateFiltersUI() {
         });
         finalGroupStrings.push(dupChip);
     }
+    if(activeFilters.showOsmGroupsOnly) {
+        var osmGroupChip = buildRemovableChip({
+            label: 'OSM Groups',
+            badgeClass: 'badge-warning',
+            data: { type: 'showOsmGroupsOnly' }
+        });
+        finalGroupStrings.push(osmGroupChip);
+    }
 
     if (finalGroupStrings.length > 0) {
         var finalHtml = joinWithAnd(finalGroupStrings);
@@ -688,8 +697,9 @@ function updateActiveFilters() {
         }
     }
 
-    // Operator Mismatch and Show Duplicates (their values are read directly when needed)
+    // Operator Mismatch, Show Duplicates, OSM Groups (their values are read directly when needed)
     activeFilters.showDuplicatesOnly = $('#filterDuplicatesOnly').is(':checked');
+    activeFilters.showOsmGroupsOnly = $('#filterOsmGroup').is(':checked');
     
     updateFiltersUI();
     
@@ -835,6 +845,9 @@ function initFilterEventHandlers() {
                 case 'showDuplicatesOnly':
                     $('#filterDuplicatesOnly').prop('checked', false).trigger('change');
                     break;
+                case 'showOsmGroupsOnly':
+                    $('#filterOsmGroup').prop('checked', false).trigger('change');
+                    break;
                 // Add other special cases if any are not covered by data-target or a standard checkbox classes
                 default:
                     // If a type is missed, it might require manual update or a new case.
@@ -893,7 +906,7 @@ function initFilterEventHandlers() {
     });
 
     // Attach change handlers to filter checkboxes and input elements.
-    $('.master-filter-checkbox, .filter-node-type, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type').on('change', function() {
+    $('.master-filter-checkbox, .filter-node-type, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-group').on('change', function() {
         updateActiveFilters();
         updateHeaderSummary(); 
     });

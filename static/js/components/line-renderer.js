@@ -94,56 +94,34 @@
         const drawnKeys = new Set();
         let lineCount = 0;
 
-        // Pass 1: Draw normal green lines and collect primary OSM coords per sloid
-        // (primary = any matched row that is NOT osm_group)
-        const primaryOsmBySloid = {};
-
         data.forEach(function(stop) {
             if (stop.stop_type !== 'matched') {
                 return;
             }
 
-            // Draw green ATLAS→OSM line for all matched stops (including osm_group)
+            // Draw green ATLAS→OSM line
             const linesDrawn = LineRenderer._drawLinesForStop(stop, layer, drawnKeys, isContext);
             lineCount += linesDrawn;
 
-            // Record the primary (non-osm_group) OSM coords per sloid for yellow group lines
-            if (stop.match_type !== 'osm_group' && stop.sloid && stop.osm_lat != null && stop.osm_lon != null) {
-                primaryOsmBySloid[stop.sloid] = {
-                    osm_lat: stop.osm_lat,
-                    osm_lon: stop.osm_lon,
-                    osm_node_id: stop.osm_node_id
-                };
-            }
-        });
+            // Draw yellow lines for OSM group siblings (platform ↔ stop_position pairs)
+            if (stop.osm_group_siblings && stop.osm_lat != null && stop.osm_lon != null) {
+                stop.osm_group_siblings.forEach(function(sib) {
+                    if (sib.sibling_lat == null || sib.sibling_lon == null) {
+                        return;
+                    }
+                    const key = LineRenderer._buildLineKey(stop.osm_node_id, sib.sibling_node_id);
+                    if (drawnKeys.has(key)) {
+                        return;
+                    }
+                    drawnKeys.add(key);
 
-        // Pass 2: Draw yellow lines for osm_group rows (sibling OSM ↔ primary OSM)
-        data.forEach(function(stop) {
-            if (stop.stop_type !== 'matched' || stop.match_type !== 'osm_group') {
-                return;
+                    layer.addLayer(L.polyline([
+                        [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)],
+                        [parseFloat(sib.sibling_lat), parseFloat(sib.sibling_lon)]
+                    ], LINE_STYLES.osm_group));
+                    lineCount++;
+                });
             }
-            if (stop.osm_lat == null || stop.osm_lon == null) {
-                return;
-            }
-
-            const primary = primaryOsmBySloid[stop.sloid];
-            if (!primary || primary.osm_lat == null || primary.osm_lon == null) {
-                return;
-            }
-
-            const key = LineRenderer._buildLineKey(stop.osm_node_id, primary.osm_node_id);
-            if (drawnKeys.has(key)) {
-                return;
-            }
-            drawnKeys.add(key);
-
-            const line = L.polyline([
-                [parseFloat(primary.osm_lat), parseFloat(primary.osm_lon)],
-                [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)]
-            ], LINE_STYLES.osm_group);
-
-            layer.addLayer(line);
-            lineCount++;
         });
 
         return lineCount;

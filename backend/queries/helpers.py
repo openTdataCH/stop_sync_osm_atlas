@@ -30,6 +30,9 @@ def parse_filter_params(request_args):
         route_directions_str = request_args.get('route_directions', '')
         filters['filter_types'] = [ft.strip() for ft in filter_types_str.split(',') if ft.strip()] if filter_types_str else []
         filters['route_directions'] = [rd.strip() for rd in route_directions_str.split(',') if rd.strip()] if route_directions_str else []
+    if request_args.get('osm_group_filter', '').lower() == 'true':
+        filters['osm_group_filter'] = True
+
     return filters
 
 

@@ -93,14 +93,9 @@ class GroupProximityPredicate(BasePredicate):
 
         # --- Build OSM groupings ---
         osm_by: dict[str, dict[str, list[OsmNode]]] = {
-            'uic_ref': ctx.osm.get_all_unmatched_grouped('uic_ref', stop_position_only=False),
-            'uic_name': ctx.osm.get_all_unmatched_grouped('uic_name', stop_position_only=False),
-            'name': ctx.osm.get_all_unmatched_grouped('name', stop_position_only=False),
-        }
-        osm_sp_by: dict[str, dict[str, list[OsmNode]]] = {
-            'uic_ref': ctx.osm.get_all_unmatched_grouped('uic_ref', stop_position_only=True),
-            'uic_name': ctx.osm.get_all_unmatched_grouped('uic_name', stop_position_only=True),
-            'name': ctx.osm.get_all_unmatched_grouped('name', stop_position_only=True),
+            'uic_ref': ctx.osm.get_all_unmatched_grouped('uic_ref'),
+            'uic_name': ctx.osm.get_all_unmatched_grouped('uic_name'),
+            'name': ctx.osm.get_all_unmatched_grouped('name'),
         }
 
         # --- Try each grouping key in priority order ---
@@ -126,28 +121,23 @@ class GroupProximityPredicate(BasePredicate):
                 if not valid_atlas_entries:
                     continue
 
-                # Try all-nodes first, then stop_position-only fallback
-                for node_pool, suffix in [
-                    (osm_by[osm_key].get(group_val_str, []), ''),
-                    (osm_sp_by[osm_key].get(group_val_str, []), '_stop_position'),
-                ]:
-                    avail = [n for n in node_pool if not ctx.osm.is_used(n.node_id)]
-                    pairs = bipartite_match(valid_atlas_entries, avail, ctx.max_distance)
-                    if not pairs:
-                        continue
+                avail = [n for n in osm_by[osm_key].get(group_val_str, [])
+                         if not ctx.osm.is_used(n.node_id)]
+                pairs = bipartite_match(valid_atlas_entries, avail, ctx.max_distance)
+                if not pairs:
+                    continue
 
-                    for ai, oi, dist in pairs:
-                        entry = valid_atlas_entries[ai]
-                        osm = avail[oi]
-                        ctx.commit(
-                            atlas_node=entry,
-                            osm_node=osm,
-                            match_type=f'distance_matching_1_{osm_key}{suffix}',
-                            distance_m=dist,
-                            notes=f"Conflict-free proximity match ({osm_key})",
-                        )
-                        matched_here.add(entry.sloid)
-                    break  # don't try stop_position fallback when all-nodes worked
+                for ai, oi, dist in pairs:
+                    entry = valid_atlas_entries[ai]
+                    osm = avail[oi]
+                    ctx.commit(
+                        atlas_node=entry,
+                        osm_node=osm,
+                        match_type=f'distance_matching_1_{osm_key}',
+                        distance_m=dist,
+                        notes=f"Conflict-free proximity match ({osm_key})",
+                    )
+                    matched_here.add(entry.sloid)
 
             # update remaining logic
             remaining = [e for e in remaining if e.sloid not in matched_here]

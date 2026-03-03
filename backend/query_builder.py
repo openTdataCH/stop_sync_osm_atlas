@@ -5,7 +5,7 @@ This module consolidates common filtering patterns to reduce code duplication an
 
 from backend.services.routes import get_stops_for_route
 from backend.extensions import db
-from backend.models import StopsMatched, AtlasStop, OsmNode
+from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStopGroup
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
 
@@ -214,6 +214,14 @@ class QueryBuilder:
                 conditions.append(db.or_(*station_conditions) if len(station_conditions) > 1 else station_conditions[0])
             else:
                 conditions.append(db.false())
+        
+        # OSM group filter
+        if filters.get('osm_group_filter'):
+            conditions.append(
+                StopsMatched.osm_node_id.in_(
+                    db.session.query(OsmStopGroup.representative_node_id)
+                )
+            )
         
         # Apply all conditions
         if conditions:
