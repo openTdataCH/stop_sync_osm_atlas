@@ -51,9 +51,19 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
     query = StopsMatched.query
     all_category_conditions = []
 
-    # Viewport filter (PostGIS): use indexed geometry column for fast bbox queries.
+    # Viewport filter: use indexed geometry column (ATLAS point) for fast bbox queries.
+    # We also check osm_lat/osm_lon for matched stops to ensure they aren't hidden
+    # if the viewport zooms strictly into the OSM node and the ATLAS node goes out of bounds.
     envelope = ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326)
-    all_category_conditions.append(ST_Intersects(StopsMatched.geom, envelope))
+    spatial_condition = db.or_(
+        ST_Intersects(StopsMatched.geom, envelope),
+        db.and_(
+            StopsMatched.stop_type == 'matched',
+            StopsMatched.osm_lat >= min_lat, StopsMatched.osm_lat <= max_lat,
+            StopsMatched.osm_lon >= min_lon, StopsMatched.osm_lon <= max_lon
+        )
+    )
+    all_category_conditions.append(spatial_condition)
 
     if node_type_filter_str and node_type_filter_str.lower() != 'all':
         node_types = [nt.strip() for nt in node_type_filter_str.split(',') if nt.strip()]
@@ -101,7 +111,9 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
     if osm_group_filter_str and osm_group_filter_str.lower() == 'true':
         all_category_conditions.append(
             StopsMatched.osm_node_id.in_(
-                db.session.query(OsmStopGroup.representative_node_id)
+                db.session.query(OsmStopGroup.node_id_1).union(
+                    db.session.query(OsmStopGroup.node_id_2)
+                )
             )
         )
 
@@ -306,24 +318,61 @@ def get_data():
                 "has_atlas_duplicate": stop.has_atlas_duplicate or False,
                 "osm_node_type": stop.osm_node_details.osm_node_type if stop.osm_node_details else None
             })
-        # Enrich matched stops with OSM group siblings (platform ↔ stop_position pairs)
+        # Enrich matched stops with OSM group partner (platform ↔ stop_position pairs)
         matched_osm_ids = [s['osm_node_id'] for s in regular_stops if s['stop_type'] == 'matched' and s['osm_node_id']]
         if matched_osm_ids:
+            matched_osm_set = set(matched_osm_ids)
             groups = OsmStopGroup.query.filter(
-                OsmStopGroup.representative_node_id.in_(matched_osm_ids)
+                db.or_(
+                    OsmStopGroup.node_id_1.in_(matched_osm_ids),
+                    OsmStopGroup.node_id_2.in_(matched_osm_ids),
+                )
             ).all()
             if groups:
-                groups_by_rep = defaultdict(list)
+                # Collect all partner node IDs so we can fetch their coordinates
+                partner_node_ids = set()
                 for g in groups:
-                    groups_by_rep[g.representative_node_id].append({
-                        'sibling_node_id': g.sibling_node_id,
-                        'sibling_lat': g.sibling_lat,
-                        'sibling_lon': g.sibling_lon,
-                        'group_type': g.group_type,
-                    })
+                    if g.node_id_1 in matched_osm_set:
+                        partner_node_ids.add(g.node_id_2)
+                    if g.node_id_2 in matched_osm_set:
+                        partner_node_ids.add(g.node_id_1)
+
+                # Build a coordinate lookup from viewport data first
+                osm_coords = {s['osm_node_id']: (s['osm_lat'], s['osm_lon'])
+                              for s in regular_stops if s['osm_node_id'] and s['osm_lat'] is not None}
+                # Fetch coordinates for partners not already in viewport
+                missing_ids = [nid for nid in partner_node_ids if nid not in osm_coords]
+                if missing_ids:
+                    partner_rows = db.session.query(
+                        StopsMatched.osm_node_id, StopsMatched.osm_lat, StopsMatched.osm_lon
+                    ).filter(
+                        StopsMatched.osm_node_id.in_(missing_ids),
+                        StopsMatched.osm_lat.isnot(None)
+                    ).distinct(StopsMatched.osm_node_id).all()
+                    for row in partner_rows:
+                        osm_coords[row.osm_node_id] = (row.osm_lat, row.osm_lon)
+
+                partner_map = {}
+                for g in groups:
+                    if g.node_id_1 in matched_osm_set:
+                        coords = osm_coords.get(g.node_id_2, (None, None))
+                        partner_map[g.node_id_1] = {
+                            'partner_node_id': g.node_id_2,
+                            'group_type': g.group_type,
+                            'partner_osm_lat': coords[0],
+                            'partner_osm_lon': coords[1],
+                        }
+                    if g.node_id_2 in matched_osm_set:
+                        coords = osm_coords.get(g.node_id_1, (None, None))
+                        partner_map[g.node_id_2] = {
+                            'partner_node_id': g.node_id_1,
+                            'group_type': g.group_type,
+                            'partner_osm_lat': coords[0],
+                            'partner_osm_lon': coords[1],
+                        }
                 for stop in regular_stops:
-                    if stop['osm_node_id'] in groups_by_rep:
-                        stop['osm_group_siblings'] = groups_by_rep[stop['osm_node_id']]
+                    if stop['osm_node_id'] in partner_map:
+                        stop['osm_group_partner'] = partner_map[stop['osm_node_id']]
 
         if include_meta:
             return jsonify({
@@ -408,24 +457,33 @@ def get_stop_popup():
                     })
             if osm_matches:
                 enriched["osm_matches"] = osm_matches
-            # Include OSM group siblings (platform ↔ stop_position pairs)
+            # Include OSM group partner (platform ↔ stop_position pair)
             if stop.osm_node_id:
-                group_siblings = OsmStopGroup.query.filter(
-                    OsmStopGroup.representative_node_id == stop.osm_node_id
-                ).all()
-                if group_siblings:
-                    enriched["osm_group_siblings"] = []
-                    for g in group_siblings:
-                        sib_osm = OsmNode.query.get(g.sibling_node_id)
-                        enriched["osm_group_siblings"].append({
-                            'sibling_node_id': g.sibling_node_id,
-                            'sibling_lat': g.sibling_lat,
-                            'sibling_lon': g.sibling_lon,
-                            'group_type': g.group_type,
-                            'osm_name': sib_osm.osm_name if sib_osm else None,
-                            'osm_public_transport': sib_osm.osm_public_transport if sib_osm else None,
-                            'osm_uic_ref': sib_osm.osm_uic_ref if sib_osm else None,
-                        })
+                group_row = OsmStopGroup.query.filter(
+                    db.or_(
+                        OsmStopGroup.node_id_1 == stop.osm_node_id,
+                        OsmStopGroup.node_id_2 == stop.osm_node_id,
+                    )
+                ).first()
+                if group_row:
+                    partner_id = group_row.node_id_2 if group_row.node_id_1 == stop.osm_node_id else group_row.node_id_1
+                    partner_osm = OsmNode.query.get(partner_id)
+                    # Get partner coordinates from StopsMatched
+                    partner_coords = db.session.query(
+                        StopsMatched.osm_lat, StopsMatched.osm_lon
+                    ).filter(
+                        StopsMatched.osm_node_id == partner_id,
+                        StopsMatched.osm_lat.isnot(None)
+                    ).first()
+                    enriched["osm_group_partner"] = {
+                        'partner_node_id': partner_id,
+                        'group_type': group_row.group_type,
+                        'osm_name': partner_osm.osm_name if partner_osm else None,
+                        'osm_public_transport': partner_osm.osm_public_transport if partner_osm else None,
+                        'osm_uic_ref': partner_osm.osm_uic_ref if partner_osm else None,
+                        'partner_osm_lat': partner_coords.osm_lat if partner_coords else None,
+                        'partner_osm_lon': partner_coords.osm_lon if partner_coords else None,
+                    }
         if view_type == 'osm' and stop.osm_node_id:
             same_osm_rows = StopsMatched.query.options(
                 joinedload(StopsMatched.atlas_stop_details)

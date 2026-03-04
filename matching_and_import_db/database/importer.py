@@ -34,6 +34,7 @@ from matching_and_import_db.database.helpers import (
 )
 from matching_and_import_db.database.route_loader import load_all_route_data
 from matching_and_import_db.utils.route_id import normalize_route_id
+from matching_and_import_db.utils.common import haversine_distance
 
 # --- External models --------------------------------------------------------
 from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStopGroup, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem
@@ -63,13 +64,14 @@ def _import_all_osm_nodes(session, all_osm_nodes, problem_ctx):
     print(f"Imported {len(all_osm_nodes)} OSM nodes")
 
 
-def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids):
+def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids, group_partner, osm_node_lookup):
     print("\nDetecting problems and importing matched records...")
     print("  Checks: distance, attributes, duplicates")
 
     BATCH_SIZE = int(os.getenv('DB_IMPORT_BATCH_SIZE', '5000'))
     _t0 = time.time()
     inserted = 0
+    partner_count = 0
 
     total = len(matched_records)
     for idx, current_match in enumerate(matched_records):
@@ -83,6 +85,8 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
         osm_node_id = current_match.osm_node.node_id
         distance_m = current_match.distance_m
 
+        geom = make_point_geom(atlas_lat, atlas_lon) if atlas_lat is not None and atlas_lon is not None else make_point_geom(osm_lat, osm_lon)
+
         stop_record = StopsMatched(
             sloid=sloid,
             stop_type='matched',
@@ -94,7 +98,7 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
             osm_lon=osm_lon,
             distance_m=distance_m,
             matching_notes=current_match.notes,
-            geom=make_point_geom(atlas_lat, atlas_lon) if atlas_lat is not None and atlas_lon is not None else make_point_geom(osm_lat, osm_lon),
+            geom=geom,
         )
         apply_problem_results(stop_record, current_match.problems)
         session.add(stop_record)
@@ -114,6 +118,32 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
         if osm_node_id:
             processed_osm_node_ids.add(osm_node_id)
 
+        # Insert a matched row for the group partner (if any)
+        partner_id = group_partner.get(str(osm_node_id))
+        if partner_id and partner_id not in processed_osm_node_ids:
+            partner_node = osm_node_lookup.get(partner_id)
+            if partner_node:
+                p_lat, p_lon = partner_node.lat, partner_node.lon
+                p_distance = haversine_distance(atlas_lat, atlas_lon, p_lat, p_lon) if atlas_lat is not None else None
+                partner_notes = (current_match.notes or '') + ' (group partner)'
+                partner_record = StopsMatched(
+                    sloid=sloid,
+                    stop_type='matched',
+                    match_type=current_match.match_type,
+                    atlas_lat=atlas_lat,
+                    atlas_lon=atlas_lon,
+                    osm_node_id=partner_id,
+                    osm_lat=p_lat,
+                    osm_lon=p_lon,
+                    distance_m=p_distance,
+                    matching_notes=partner_notes.strip(),
+                    geom=geom,
+                )
+                apply_problem_results(partner_record, current_match.problems)
+                session.add(partner_record)
+                processed_osm_node_ids.add(partner_id)
+                partner_count += 1
+
         inserted += 1
         if BATCH_SIZE > 0 and (inserted % BATCH_SIZE) == 0:
             session.commit()
@@ -127,24 +157,19 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
 
     session.commit()
     session.expunge_all()
-    print(f"Imported {len(matched_records)} matched records")
+    print(f"Imported {len(matched_records)} matched records + {partner_count} group partners")
 
 
-def _import_osm_groups(session, osm_group_siblings):
+def _import_osm_groups(session, osm_groups):
     """Import OSM node groups (platform ↔ stop_position pairs) into the dedicated table."""
-    count = 0
-    for rep_node_id, (group_type, siblings) in osm_group_siblings.items():
-        for sib in siblings:
-            session.add(OsmStopGroup(
-                representative_node_id=rep_node_id,
-                sibling_node_id=sib.node_id,
-                group_type=group_type,
-                sibling_lat=sib.lat,
-                sibling_lon=sib.lon,
-            ))
-            count += 1
+    for node_id_1, node_id_2, group_type in osm_groups:
+        session.add(OsmStopGroup(
+            node_id_1=node_id_1,
+            node_id_2=node_id_2,
+            group_type=group_type,
+        ))
     session.commit()
-    print(f"Imported {count} OSM group pairs")
+    print(f"Imported {len(osm_groups)} OSM group pairs")
 
 def _import_unmatched_atlas(session, unmatched_records, problem_ctx, duplicate_sloid_map, processed_sloids):
     no_nearby_osm_sloids = set()
@@ -357,14 +382,21 @@ def import_to_database(base_data: MatchingOutput):
 
     duplicate_sloid_map = base_data.duplicate_sloid_map
 
+    # Build bidirectional group partner lookup and OSM node coordinate lookup
+    group_partner = {}
+    for n1, n2, _ in base_data.osm_groups:
+        group_partner[n1] = n2
+        group_partner[n2] = n1
+    osm_node_lookup = {str(n.node_id): n for n in base_data.all_osm_nodes}
+
     # 0. Import ALL OSM nodes upfront (satisfies route_osm_stops FK by construction)
     _import_all_osm_nodes(session, base_data.all_osm_nodes, problem_ctx)
 
     # 0b. Import OSM groups (platform ↔ stop_position pairs) into dedicated table
-    _import_osm_groups(session, base_data.osm_group_siblings)
+    _import_osm_groups(session, base_data.osm_groups)
 
     # 1. Import Matched
-    _import_matched_stops(session, base_data.matched, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids)
+    _import_matched_stops(session, base_data.matched, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids, group_partner, osm_node_lookup)
 
     # 2. Import Unmatched Atlas
     no_nearby_osm_sloids = _import_unmatched_atlas(session, base_data.unmatched_atlas, problem_ctx, duplicate_sloid_map, processed_sloids)

@@ -129,12 +129,18 @@ def run_matching() -> MatchingOutput:
 
     pipeline_result = run_pipeline(pipeline, ctx)
 
+    # Build flat list of OSM groups: (node_id_1, node_id_2, group_type)
+    osm_groups = [
+        (rep_id, siblings[0].node_id, group_type)
+        for rep_id, (group_type, siblings) in osm_index._group_siblings.items()
+    ]
+
     output = MatchingOutput(
         matched=pipeline_result.matched,
         unmatched_atlas=pipeline_result.unmatched_atlas,
         unmatched_osm=pipeline_result.unmatched_osm,
         duplicate_sloid_map=atlas_state.duplicate_sloid_map,
-        osm_group_siblings=dict(osm_index._group_siblings),
+        osm_groups=osm_groups,
         all_osm_nodes=osm_index.get_all_nodes(),
     )
 

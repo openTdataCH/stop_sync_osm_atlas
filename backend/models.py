@@ -129,11 +129,9 @@ class OsmStopGroup(db.Model):
     __tablename__ = 'osm_stop_groups'
 
     id = db.Column(db.Integer, primary_key=True)
-    representative_node_id = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
-    sibling_node_id = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
+    node_id_1 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
+    node_id_2 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
     group_type = db.Column(db.String(50), nullable=False)
-    sibling_lat = db.Column(db.Float)
-    sibling_lon = db.Column(db.Float)
 
 
 class RouteAtlasStops(db.Model):

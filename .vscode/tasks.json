@@ -37,7 +37,7 @@
         {
             "label": "Docker: Run Matching \u0026 Import (Existing Data)",
             "type": "shell",
-            "command": "docker compose up -d db redis app && docker exec stop_sync_osm_atlas_app python -m matching_and_import_db.database.importer",
+            "command": "SKIP_DATA_IMPORT=true docker compose up -d db redis app && docker exec stop_sync_osm_atlas_app python -m matching_and_import_db.database.importer",
             "problemMatcher": [],
             "group": "build",
             "presentation": {
