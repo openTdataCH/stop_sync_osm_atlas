@@ -219,7 +219,9 @@ class QueryBuilder:
         if filters.get('osm_group_filter'):
             conditions.append(
                 StopsMatched.osm_node_id.in_(
-                    db.session.query(OsmStopGroup.representative_node_id)
+                    db.session.query(OsmStopGroup.node_id_1).union(
+                        db.session.query(OsmStopGroup.node_id_2)
+                    )
                 )
             )
         

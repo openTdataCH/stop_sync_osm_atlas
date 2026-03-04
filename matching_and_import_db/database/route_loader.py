@@ -57,34 +57,26 @@ def _load_unified_routes_df():
 # GTFS helpers
 # ---------------------------------------------------------------------------
 
-def _find_gtfs_routes_txt():
-    """Locate the GTFS routes.txt file in data/raw/gtfs*/."""
-    gtfs_root = "data/raw"
-    if not os.path.isdir(gtfs_root):
-        return None
-    for fname in os.listdir(gtfs_root):
-        if fname.startswith("gtfs") and os.path.isdir(os.path.join(gtfs_root, fname)):
-            candidate = os.path.join(gtfs_root, fname, "routes.txt")
-            if os.path.exists(candidate):
-                return candidate
-    return None
-
-
-def _build_route_name_to_id() -> dict:
-    """Build fallback mapping from GTFS route names to route_id."""
-    path = _find_gtfs_routes_txt()
-    if not path:
+def _build_route_name_to_id(unified_df: pd.DataFrame) -> dict:
+    """Build fallback mapping from route names to route_id using unified route data."""
+    if unified_df is None or unified_df.empty:
         return {}
+    
+    mapping = {}
     try:
-        gdf = pd.read_csv(path, dtype=str, usecols=['route_id', 'route_short_name', 'route_long_name'])
-        mapping = {}
-        for col in ('route_short_name', 'route_long_name'):
-            mask = gdf[col].notna()
-            for name, rid in zip(gdf.loc[mask, col].str.strip(), gdf.loc[mask, 'route_id'].str.strip()):
-                mapping[name] = rid
+        # Filter for GTFS routes
+        df = unified_df[unified_df['source'] == 'gtfs'].copy()
+        
+        for col in ('route_name_short', 'route_name_long'):
+            if col in df.columns:
+                mask = df[col].notna() & df['route_id'].notna()
+                for name, rid in zip(df.loc[mask, col].astype(str).str.strip(), df.loc[mask, 'route_id'].astype(str).str.strip()):
+                    if name:
+                        mapping[name] = rid
+                        
         return mapping
     except Exception as e:
-        print(f"Warning: Failed to build GTFS route name mapping: {e}")
+        print(f"Warning: Failed to build route name mapping from unified data: {e}")
         return {}
 
 
@@ -190,7 +182,7 @@ def load_all_route_data(osm_routes_df: pd.DataFrame = None):
         except Exception:
             osm_routes_df = pd.DataFrame()
 
-    route_name_to_id = _build_route_name_to_id()
+    route_name_to_id = _build_route_name_to_id(unified_df)
     osm_route_dir_to_nodes = _build_osm_route_dir_to_nodes(osm_routes_df, route_name_to_id)
     print(f"Built route+direction to nodes mapping for {len(osm_route_dir_to_nodes)} OSM routes")
 

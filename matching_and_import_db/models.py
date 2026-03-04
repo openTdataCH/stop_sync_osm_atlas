@@ -90,5 +90,5 @@ class MatchingOutput:
     unmatched_atlas: list[AtlasNode]
     unmatched_osm: list[OsmNode]
     duplicate_sloid_map: dict[str, list[str]]
-    osm_group_siblings: dict[str, tuple[str, list[OsmNode]]] = field(default_factory=dict)
+    osm_groups: list[tuple[str, str, str]] = field(default_factory=list)  # [(node_id_1, node_id_2, group_type), ...]
     all_osm_nodes: list[OsmNode] = field(default_factory=list)

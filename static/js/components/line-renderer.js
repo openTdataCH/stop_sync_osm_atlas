@@ -103,24 +103,26 @@
             const linesDrawn = LineRenderer._drawLinesForStop(stop, layer, drawnKeys, isContext);
             lineCount += linesDrawn;
 
-            // Draw yellow lines for OSM group siblings (platform ↔ stop_position pairs)
-            if (stop.osm_group_siblings && stop.osm_lat != null && stop.osm_lon != null) {
-                stop.osm_group_siblings.forEach(function(sib) {
-                    if (sib.sibling_lat == null || sib.sibling_lon == null) {
-                        return;
-                    }
-                    const key = LineRenderer._buildLineKey(stop.osm_node_id, sib.sibling_node_id);
-                    if (drawnKeys.has(key)) {
-                        return;
-                    }
+            // Draw yellow lines for OSM group partners (platform ↔ stop_position pairs)
+            if (stop.osm_group_partner && stop.osm_lat != null && stop.osm_lon != null) {
+                const partner = stop.osm_group_partner;
+                const partnerId = partner.partner_node_id;
+                // Build dedup key with both directions
+                const key = LineRenderer._buildLineKey(stop.osm_node_id, partnerId);
+                const reverseKey = LineRenderer._buildLineKey(partnerId, stop.osm_node_id);
+                if (!drawnKeys.has(key) && !drawnKeys.has(reverseKey)) {
                     drawnKeys.add(key);
-
-                    layer.addLayer(L.polyline([
-                        [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)],
-                        [parseFloat(sib.sibling_lat), parseFloat(sib.sibling_lon)]
-                    ], LINE_STYLES.osm_group));
-                    lineCount++;
-                });
+                    // Use partner coordinates provided by the backend
+                    const partnerLat = partner.partner_osm_lat;
+                    const partnerLon = partner.partner_osm_lon;
+                    if (partnerLat != null && partnerLon != null) {
+                        layer.addLayer(L.polyline([
+                            [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)],
+                            [parseFloat(partnerLat), parseFloat(partnerLon)]
+                        ], LINE_STYLES.osm_group));
+                        lineCount++;
+                    }
+                }
             }
         });
 

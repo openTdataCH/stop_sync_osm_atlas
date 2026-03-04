@@ -626,7 +626,7 @@ class OsmState:
     def get_unmatched_nodes(self) -> list[OsmNode]:
         return [
             self._to_osm_node(n) for n in self._all_nodes.values()
-            if n['node_id'] not in self.used_ids and not self._is_sibling(n['node_id'])
+            if n['node_id'] not in self.used_ids
         ]
     
     def get_by_uic(self, uic: str) -> list[OsmNode]:

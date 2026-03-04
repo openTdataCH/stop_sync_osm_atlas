@@ -67,18 +67,16 @@ def upgrade_():
     # osm_stop_groups (platform ↔ stop_position pairs from pre-matching grouping)
     op.create_table('osm_stop_groups',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('representative_node_id', sa.String(length=100), nullable=False),
-        sa.Column('sibling_node_id', sa.String(length=100), nullable=False),
+        sa.Column('node_id_1', sa.String(length=100), nullable=False),
+        sa.Column('node_id_2', sa.String(length=100), nullable=False),
         sa.Column('group_type', sa.String(length=50), nullable=False),
-        sa.Column('sibling_lat', sa.Float(), nullable=True),
-        sa.Column('sibling_lon', sa.Float(), nullable=True),
-        sa.ForeignKeyConstraint(['representative_node_id'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['sibling_node_id'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['node_id_1'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['node_id_2'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('osm_stop_groups') as batch_op:
-        batch_op.create_index(batch_op.f('ix_osm_stop_groups_representative_node_id'), ['representative_node_id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_osm_stop_groups_sibling_node_id'), ['sibling_node_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_osm_stop_groups_node_id_1'), ['node_id_1'], unique=False)
+        batch_op.create_index(batch_op.f('ix_osm_stop_groups_node_id_2'), ['node_id_2'], unique=False)
 
     # route_atlas_stops
     op.create_table('route_atlas_stops',
