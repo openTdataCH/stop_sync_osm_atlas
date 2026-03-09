@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func, case
 from backend.models import StopsMatched
 from backend.extensions import db, limiter
-from backend.query_helpers import get_query_builder, parse_filter_params
+from backend.query_helpers import get_query_builder, parse_filter_params, resolve_stop_type_match_filters, build_stop_scope_condition
 from collections import OrderedDict
 import threading
 
@@ -21,26 +21,43 @@ def _canonicalize_list_param(value: str) -> str:
     return ','.join(parts)
 
 
+def _canonicalize_station_filter_triples(args) -> tuple:
+    station_values = [value.strip() for value in (args.get('station_filter') or '').split(',') if value.strip()]
+    filter_types = [value.strip() for value in (args.get('filter_types') or '').split(',')] if args.get('filter_types') else []
+    route_directions = [value.strip() for value in (args.get('route_directions') or '').split(',')] if args.get('route_directions') else []
+
+    triples = []
+    for index, station_value in enumerate(station_values):
+        filter_type = filter_types[index] if index < len(filter_types) and filter_types[index] else 'station'
+        route_direction = route_directions[index] if index < len(route_directions) else ''
+        triples.append((station_value, filter_type, route_direction))
+
+    triples.sort()
+    return tuple(triples)
+
+
 def _build_stats_cache_key(args) -> tuple:
     stop_filter_str = _canonicalize_list_param(args.get('stop_filter'))
     match_method_str = _canonicalize_list_param(args.get('match_method'))
-    station_filter_str = _canonicalize_list_param(args.get('station_filter'))
-    filter_types_str = _canonicalize_list_param(args.get('filter_types'))
-    route_directions_str = _canonicalize_list_param(args.get('route_directions'))
+    station_filter_triples = _canonicalize_station_filter_triples(args)
     transport_types_filter_str = _canonicalize_list_param(args.get('transport_types'))
     node_type_filter_str = _canonicalize_list_param(args.get('node_type'))
     atlas_operator_str = _canonicalize_list_param(args.get('atlas_operator'))
+    osm_group_filter = 'true' if (args.get('osm_group_filter', 'false').lower() == 'true') else 'false'
+    osm_group_types = _canonicalize_list_param(args.get('osm_group_types'))
+    osm_include_matched = 'true' if (args.get('osm_include_matched', 'true').lower() != 'false') else 'false'
     show_duplicates_only = 'true' if (args.get('show_duplicates_only', 'false').lower() == 'true') else 'false'
     top_n = args.get('top_n') or ''
     return (
         stop_filter_str,
         match_method_str,
-        station_filter_str,
-        filter_types_str,
-        route_directions_str,
+        station_filter_triples,
         transport_types_filter_str,
         node_type_filter_str,
         atlas_operator_str,
+        osm_group_filter,
+        osm_group_types,
+        osm_include_matched,
         top_n,
         show_duplicates_only,
     )
@@ -65,64 +82,10 @@ def get_global_stats():
         query_builder = get_query_builder()
         base_query = query_builder.apply_common_filters(StopsMatched.query, filters)
 
-        all_category_conditions = []
-        stop_type_match_method_or_conditions_gs = []
-        current_stop_types_gs = []
-        if stop_filter_str and stop_filter_str.lower() != 'all':
-            current_stop_types_gs = [t.strip() for t in stop_filter_str.split(',') if t.strip()]
-        current_match_methods_gs = []
-        if match_method_str:
-            current_match_methods_gs = [m.strip() for m in match_method_str.split(',') if m.strip()]
-        if 'matched' in current_stop_types_gs:
-            relevant_matched_methods = [
-                m for m in current_match_methods_gs if (
-                    m in ['exact', 'name'] or
-                    m.startswith('distance_matching_') or 
-                    m.startswith('route_')
-                )
-            ]
-            if relevant_matched_methods:
-                method_conditions = []
-                for m in relevant_matched_methods:
-                    if m.startswith('distance_matching_'):
-                        method_conditions.append(StopsMatched.match_type.like(f"{m}%"))
-                    elif m.startswith('route_'):
-                        # Match both legacy and unified route match types
-                        method_conditions.append(StopsMatched.match_type.like(f"{m}%"))
-                        if not m.startswith('route_unified_'):
-                            suffix = m[len('route_'):]
-                            method_conditions.append(StopsMatched.match_type.like(f"route_unified_{suffix}%"))
-                    else:
-                        method_conditions.append(StopsMatched.match_type == m)
-                stop_type_match_method_or_conditions_gs.append(
-                    db.and_(StopsMatched.stop_type == 'matched', db.or_(*method_conditions))
-                )
-            else:
-                if not current_match_methods_gs:
-                    stop_type_match_method_or_conditions_gs.append(StopsMatched.stop_type == 'matched')
-        if 'unmatched' in current_stop_types_gs:
-            filter_for_no_osm_nearby = 'no_nearby_counterpart' in current_match_methods_gs
-            filter_for_osm_nearby = 'osm_within_50m' in current_match_methods_gs
-            unmatched_specific_condition = StopsMatched.stop_type == 'atlas_unmatched'
-            if filter_for_no_osm_nearby and not filter_for_osm_nearby:
-                unmatched_specific_condition = db.and_(
-                    StopsMatched.stop_type == 'atlas_unmatched',
-                    StopsMatched.match_type == 'no_nearby_counterpart'
-                )
-            elif not filter_for_no_osm_nearby and filter_for_osm_nearby:
-                unmatched_specific_condition = db.and_(
-                    StopsMatched.stop_type == 'atlas_unmatched',
-                    db.or_(StopsMatched.match_type != 'no_nearby_counterpart', StopsMatched.match_type.is_(None))
-                )
-            stop_type_match_method_or_conditions_gs.append(unmatched_specific_condition)
-        if 'osm' in current_stop_types_gs:
-            stop_type_match_method_or_conditions_gs.append(StopsMatched.stop_type == 'osm_unmatched')
-        if stop_type_match_method_or_conditions_gs:
-            all_category_conditions.append(db.or_(*stop_type_match_method_or_conditions_gs))
-        elif current_stop_types_gs and not stop_type_match_method_or_conditions_gs:
-            all_category_conditions.append(db.false())
-        if all_category_conditions:
-            query = base_query.filter(db.and_(*all_category_conditions))
+        resolved_filters = resolve_stop_type_match_filters(stop_filter_str, match_method_str)
+        scope_condition = build_stop_scope_condition(StopsMatched, resolved_filters)
+        if scope_condition is not None:
+            query = base_query.filter(scope_condition)
         else:
             query = base_query
         if show_duplicates_only:

@@ -1,0 +1,120 @@
+/* ==========================================================================
+   STATS PAGE
+   Styles specific to the Pipeline Stats page.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Page Layout
+   ------------------------------------------------------------------------- */
+.stats-page {
+  background: var(--color-bg-subtle);
+  min-height: calc(100vh - 60px);
+  padding: var(--space-6) 0;
+}
+
+.stats-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+/* -------------------------------------------------------------------------
+   Page Header
+   ------------------------------------------------------------------------- */
+.stats-header {
+  margin-bottom: var(--space-6);
+}
+
+.stats-header h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-fg);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.stats-header p {
+  color: var(--color-fg-muted);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+/* -------------------------------------------------------------------------
+   Back Link
+   ------------------------------------------------------------------------- */
+.stats-page .back-link {
+  display: inline-block;
+  margin-bottom: var(--space-4);
+  color: var(--color-fg-muted);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.stats-page .back-link:hover {
+  color: var(--color-fg);
+}
+
+/* -------------------------------------------------------------------------
+   Stat Cards
+   ------------------------------------------------------------------------- */
+.stat-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  text-align: center;
+  height: 100%;
+}
+
+.stat-card--sm {
+  padding: var(--space-3);
+}
+
+.stat-card__value {
+  font-size: 1.75rem;
+  font-weight: var(--font-bold);
+  color: var(--color-fg);
+  line-height: 1.2;
+}
+
+.stat-card--sm .stat-card__value {
+  font-size: 1.4rem;
+}
+
+.stat-card__label {
+  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+  margin-top: var(--space-1);
+}
+
+/* Card accent colors */
+.stat-card--success {
+  border-left: 4px solid var(--color-success, #28a745);
+}
+
+.stat-card--success .stat-card__value {
+  color: var(--color-success, #28a745);
+}
+
+.stat-card--primary {
+  border-left: 4px solid var(--color-accent, #0366d6);
+}
+
+.stat-card--primary .stat-card__value {
+  color: var(--color-accent, #0366d6);
+}
+
+.stat-card--warning {
+  border-left: 4px solid #f0ad4e;
+}
+
+.stat-card--warning .stat-card__value {
+  color: #e08e0b;
+}
+
+.stat-card--danger {
+  border-left: 4px solid #dc3545;
+}
+
+.stat-card--danger .stat-card__value {
+  color: #dc3545;
+}

@@ -50,6 +50,12 @@ def problems():
 def reports_page():
     return render_template('pages/reports.html')
 
+@app.route('/stats')
+def stats_page():
+    from backend.services.stats_export import load_stats_from_file
+    stats = load_stats_from_file()
+    return render_template('pages/stats.html', stats=stats)
+
 if __name__ == '__main__':
     @app.errorhandler(404)
     def not_found(e):

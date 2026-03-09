@@ -10,8 +10,8 @@ import pandas as pd
 from matching_and_import_db.utils.common import haversine_distance
 from matching_and_import_db.utils.spatial_index import build_kdtree_from_nodes, batch_to_xyz, meters_to_unit_chord_radius
 from matching_and_import_db.utils.org_standardization import standardize_operator
-from matching_and_import_db.models import AtlasNode
-from matching_and_import_db.models import OsmNode
+from matching_and_import_db.models import AtlasNode, AtlasEntity
+from matching_and_import_db.models import OsmNode, OsmEntity
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,16 @@ class AtlasState:
         self.duplicate_sloid_map = duplicate_sloid_map
         self._routes_by_sloid: dict[str, dict[str, list]] = routes_by_sloid or {}
         self.matched_ids: set[str] = set()
+
+        # Pre-grouping maps (derived directly from duplicate_sloid_map)
+        # sibling sloid → representative sloid
+        self._dup_group_representative: dict[str, str] = {}
+        # representative sloid → [sibling sloids]
+        self._dup_group_siblings: dict[str, list[str]] = {}
+
+        # Build grouping immediately — no distance heuristic needed.
+        # Same (number, designation) = same group unconditionally.
+        self._build_duplicate_groups()
         
     def add_matched_sloid(self, sloid: str):
         self.matched_ids.add(sloid)
@@ -119,11 +129,74 @@ class AtlasState:
             business_org_abbr=_str(row.get('servicePointBusinessOrganisationAbbreviationEn'))
         )
 
-    def get_unmatched_records(self) -> list[AtlasNode]:
-        """Provides strongly typed DOMAIN ENTITIES for unmatched records cleanly."""
+    def _build_duplicate_groups(self) -> None:
+        """Pre-group ATLAS duplicates before matching starts.
+
+        Every entry sharing the same (number, designation) forms a group
+        unconditionally — no distance heuristic. The first sorted SLOID
+        is the representative; the rest are siblings.
+        """
+        seen_groups: set[tuple] = set()
+        for sloid, group in self.duplicate_sloid_map.items():
+            key = tuple(group)
+            if key in seen_groups:
+                continue
+            seen_groups.add(key)
+
+            representative_sloid = group[0]  # already sorted
+            siblings = group[1:]
+            if siblings:
+                self._dup_group_siblings[representative_sloid] = siblings
+                for sib_sloid in siblings:
+                    self._dup_group_representative[sib_sloid] = representative_sloid
+
+        grouped_count = sum(len(s) for s in self._dup_group_siblings.values())
+        logger.info(
+            f"ATLAS duplicate grouping: {len(self._dup_group_siblings)} groups, "
+            f"{grouped_count} siblings hidden from predicates"
+        )
+
+    def get_unmatched_records(self) -> list[AtlasEntity]:
+        """Returns unmatched ATLAS entries as entities (groups and singletons).
+
+        Excludes non-representative members of pre-grouped duplicate sets.
+        Representatives are returned as AtlasGroupEntity wrapping their siblings.
+        """
         unmatched_df = self._df[~self._df['sloid'].isin(self.matched_ids)]
-        return [self._to_atlas_node(row) for _, row in unmatched_df.iterrows()]
-        
+        entities: list[AtlasEntity] = []
+        for _, row in unmatched_df.iterrows():
+            sloid = str(row['sloid'])
+            if sloid in self._dup_group_representative:
+                continue  # skip siblings
+            node = self._to_atlas_node(row)
+            siblings = self._dup_group_siblings.get(sloid)
+            if siblings:
+                sib_nodes = [n for s in siblings
+                             if (n := self.get_by_sloid(s)) is not None
+                             and s not in self.matched_ids]
+                if sib_nodes:
+                    entities.append(AtlasEntity(node, sib_nodes, 'atlas_duplicate'))
+                else:
+                    entities.append(AtlasEntity(node))
+            else:
+                entities.append(AtlasEntity(node))
+        return entities
+
+    def get_unmatched_nodes(self) -> list[AtlasNode]:
+        """Returns unmatched representative AtlasNodes (for PipelineResult)."""
+        return [e.representative for e in self.get_unmatched_records()]
+
+    def get_duplicate_siblings(self, sloid: str) -> list[str]:
+        """Returns sibling SLOIDs for a representative (empty list if not a representative)."""
+        return self._dup_group_siblings.get(sloid, [])
+
+    def get_by_sloid(self, sloid: str) -> Optional[AtlasNode]:
+        """Returns a single AtlasNode by SLOID, or None if not found."""
+        match = self._df[self._df['sloid'] == sloid]
+        if match.empty:
+            return None
+        return self._to_atlas_node(match.iloc[0])
+
     def get_all_rows_as_dict(self) -> dict[str, AtlasNode]:
         """Returns all records mapped by sloid natively as domain models."""
         return {str(row['sloid']): self._to_atlas_node(row) for _, row in self._df.iterrows()}
@@ -337,7 +410,8 @@ class OsmState:
         self._cached_include_stations = None
 
     def build_groups(self, atlas_uic_counts: dict[str, int],
-                     atlas_designation_to_uic: dict[str, str] = None) -> None:
+                     atlas_designation_to_uic: dict[str, str] = None,
+                     atlas_uic_nearest_osm_distances: dict[str, list[float]] = None) -> None:
         """Pre-group platform ↔ stop_position pairs before any predicate runs.
 
         Path 1 (osm_group_uic): UIC-scoped reciprocal nearest-neighbour pairing
@@ -351,6 +425,7 @@ class OsmState:
         RATIO_TEST_FACTOR = 1.5
 
         atlas_designation_to_uic = atlas_designation_to_uic or {}
+        atlas_uic_nearest_osm_distances = atlas_uic_nearest_osm_distances or {}
 
         # ------------------------------------------------------------------
         # Path 1: UIC-based grouping
@@ -455,10 +530,104 @@ class OsmState:
                 already_grouped.add(sp['node_id'])
                 name_groups += 1
 
+        # ------------------------------------------------------------------
+        # Path 3: Tram-based grouping (railway=tram_stop ↔ stop_position)
+        # ------------------------------------------------------------------
+        tram_groups = 0
+        # Refresh already_grouped after path 2
+        already_grouped = set(self._group_representative.keys())
+        for rep_id, (_, siblings) in self._group_siblings.items():
+            already_grouped.add(rep_id)
+            for sib in siblings:
+                already_grouped.add(sib.node_id)
+
+        groups_by_tram_uic: dict[str, list[tuple[dict, dict]]] = defaultdict(list)
+
+        for uic, entries in self._uic_ref_dict.items():
+            # Skip nodes already grouped by path 1/2
+            entries = [e for e in entries if e['node_id'] not in already_grouped]
+            if len(entries) < 2:
+                continue
+
+            tram_stops = [e for e in entries
+                          if e['tags'].get('railway') == 'tram_stop']
+            stop_positions = [e for e in entries
+                              if e['tags'].get('public_transport') == 'stop_position']
+
+            if not tram_stops or not stop_positions:
+                continue
+
+            pairs = self._find_reciprocal_pairs(
+                tram_stops, stop_positions, MAX_GROUP_DISTANCE, RATIO_TEST_FACTOR)
+            if pairs:
+                groups_by_tram_uic[uic].extend(pairs)
+
+        # Count-match condition for tram path
+        for uic, pairs in groups_by_tram_uic.items():
+            all_uic_entries = self._uic_ref_dict.get(uic, [])
+            # Exclude nodes already grouped from count
+            remaining = [e for e in all_uic_entries if e['node_id'] not in already_grouped]
+            grouped_ids = set()
+            for tram, sp in pairs:
+                grouped_ids.add(tram['node_id'])
+                grouped_ids.add(sp['node_id'])
+            ungrouped_count = sum(1 for e in remaining if e['node_id'] not in grouped_ids)
+            # Count existing path1/path2 groups for this UIC as 1 each
+            path12_group_count = sum(1 for nid in {e['node_id'] for e in all_uic_entries}
+                                     if nid in self._group_siblings)
+            effective_count = ungrouped_count + path12_group_count + len(pairs)
+
+            atlas_count = atlas_uic_counts.get(uic, 0)
+            if atlas_count != effective_count and not self._allow_single_atlas_outlier_for_tram(
+                uic,
+                atlas_count,
+                effective_count,
+                atlas_uic_nearest_osm_distances,
+            ):
+                continue
+
+            for tram, sp in pairs:
+                if tram['node_id'] in already_grouped or sp['node_id'] in already_grouped:
+                    continue
+                self._register_group(tram, sp, 'osm_group_tram')
+                already_grouped.add(tram['node_id'])
+                already_grouped.add(sp['node_id'])
+                tram_groups += 1
+
         logger.info(
-            f"OSM grouping: {uic_groups} UIC-based + {name_groups} name-based "
-            f"= {uic_groups + name_groups} platform↔stop_position pairs formed"
+            f"OSM grouping: {uic_groups} UIC-based + {name_groups} name-based + "
+            f"{tram_groups} tram-based = {uic_groups + name_groups + tram_groups} pairs formed"
         )
+
+    @staticmethod
+    def _allow_single_atlas_outlier_for_tram(
+        uic: str,
+        atlas_count: int,
+        effective_count: int,
+        atlas_uic_nearest_osm_distances: dict[str, list[float]],
+    ) -> bool:
+        """Allow one extra unmatched ATLAS stop when it is a clear distance outlier.
+
+        This only relaxes the tram count guard by one logical ATLAS stop.
+        The farthest ATLAS row must be both absolutely far from any same-UIC OSM
+        node and clearly separated from the second-farthest row.
+        """
+        if atlas_count != effective_count + 1:
+            return False
+
+        distances = sorted(
+            (float(distance) for distance in atlas_uic_nearest_osm_distances.get(uic, []) if distance is not None),
+            reverse=True,
+        )
+        if len(distances) < atlas_count or len(distances) < 2:
+            return False
+
+        farthest = distances[0]
+        second_farthest = distances[1]
+        outlier_min_distance = 30.0
+        outlier_ratio = 1.8
+
+        return farthest >= outlier_min_distance and farthest / max(second_farthest, 0.001) >= outlier_ratio
 
     def _register_group(self, plat: dict, sp: dict, group_type: str) -> None:
         """Register a platform ↔ stop_position group (platform = representative)."""
@@ -485,6 +654,8 @@ class OsmState:
             best_plat, best_d = None, max_distance
             second_d = float('inf')
             for plat in platforms:
+                if plat['node_id'] == sp['node_id']:
+                    continue
                 if require_uic_non_divergence:
                     sp_uic = sp['tags'].get('uic_ref')
                     plat_uic = plat['tags'].get('uic_ref')
@@ -510,6 +681,8 @@ class OsmState:
             best_sp, best_d = None, max_distance
             second_d = float('inf')
             for sp in stop_positions:
+                if sp['node_id'] == plat['node_id']:
+                    continue
                 if require_uic_non_divergence:
                     sp_uic = sp['tags'].get('uic_ref')
                     plat_uic = plat['tags'].get('uic_ref')
@@ -610,11 +783,6 @@ class OsmState:
 
     def mark_used(self, node_id: str):
         self.used_ids.add(node_id)
-        # Cascade: also lock siblings
-        entry = self._group_siblings.get(node_id)
-        if entry:
-            for sibling in entry[1]:
-                self.used_ids.add(sibling.node_id)
 
     def is_used(self, node_id: str) -> bool:
         return node_id in self.used_ids
@@ -627,27 +795,37 @@ class OsmState:
         return [
             self._to_osm_node(n) for n in self._all_nodes.values()
             if n['node_id'] not in self.used_ids
+            and not self._is_sibling(n['node_id'])
         ]
     
-    def get_by_uic(self, uic: str) -> list[OsmNode]:
-        """Gets unmatched non-station nodes for a UIC reference (excludes siblings)."""
+    def _wrap_entity(self, node_dict: dict) -> OsmEntity:
+        """Wrap a raw node dict as an OsmEntity, attaching siblings if it's a group representative."""
+        node = self._to_osm_node(node_dict)
+        entry = self._group_siblings.get(node_dict['node_id'])
+        if entry:
+            group_type, siblings = entry
+            return OsmEntity(node, siblings, group_type)
+        return OsmEntity(node)
+
+    def get_by_uic(self, uic: str) -> list[OsmEntity]:
+        """Gets unmatched non-station entities for a UIC reference (excludes siblings)."""
         return [
-            self._to_osm_node(c) for c in self._uic_ref_dict.get(str(uic), [])
+            self._wrap_entity(c) for c in self._uic_ref_dict.get(str(uic), [])
             if c['node_id'] not in self.used_ids
             and not self._is_sibling(c['node_id'])
             and not self._to_osm_node(c).is_station
         ]
 
-    def get_by_name(self, name: str) -> list[OsmNode]:
-        """Gets unmatched non-station nodes for a given name (excludes siblings)."""
+    def get_by_name(self, name: str) -> list[OsmEntity]:
+        """Gets unmatched non-station entities for a given name (excludes siblings)."""
         return [
-            self._to_osm_node(c) for c in self._name_index.get(name, [])
+            self._wrap_entity(c) for c in self._name_index.get(name, [])
             if c['node_id'] not in self.used_ids
             and not self._is_sibling(c['node_id'])
             and not self._to_osm_node(c).is_station
         ]
         
-    def get_all_unmatched_grouped(self, key: str) -> dict[str, list[OsmNode]]:
+    def get_all_unmatched_grouped(self, key: str) -> dict[str, list[OsmEntity]]:
         """Used heavily by group_proximity to build lookup indexes (excludes siblings)."""
         from collections import defaultdict
 
@@ -665,7 +843,7 @@ class OsmState:
             if not val:
                 continue
 
-            result[val].append(self._to_osm_node(node_dict))
+            result[val].append(self._wrap_entity(node_dict))
 
         return dict(result)
 
@@ -684,23 +862,23 @@ class OsmState:
             self._cached_tree, self._cached_pts, self._cached_nodes_list = build_kdtree_from_nodes(valid_nodes)
             self._cached_include_stations = include_stations
 
-    def batch_query_radius(self, coords_list: list[tuple[float, float]], max_distance: float, include_stations: bool = False) -> list[list[tuple[OsmNode, float]]]:
+    def batch_query_radius(self, coords_list: list[tuple[float, float]], max_distance: float, include_stations: bool = False) -> list[list[tuple[OsmEntity, float]]]:
         """Query for matching nodes around a radius for multiple coordinates at once.
-        
-        Returns a list (one per coordinate pair) of lists of tuples (OsmNode, actual_distance_in_meters).
+
+        Returns a list (one per coordinate pair) of lists of tuples (OsmEntity, actual_distance_in_meters).
         Excludes used_osm_ids automatically.
         """
         self._ensure_spatial_index(include_stations)
-        
+
         if self._cached_tree is None or not coords_list:
             return [[] for _ in coords_list]
-            
+
         kd_radius = meters_to_unit_chord_radius(max_distance)
         points = batch_to_xyz(coords_list)
-        
+
         # Query all points at once using KDTree natively
         indices_list = self._cached_tree.query_ball_point(points, r=kd_radius, workers=-1)
-        
+
         results = []
         for i, (lat, lon) in enumerate(coords_list):
             matches = []
@@ -712,7 +890,7 @@ class OsmState:
                     continue
                 d = haversine_distance(lat, lon, n_lat, n_lon)
                 if d is not None and d <= max_distance:
-                    matches.append((self._to_osm_node(node_dict), d))
+                    matches.append((self._wrap_entity(node_dict), d))
             results.append(matches)
-            
+
         return results

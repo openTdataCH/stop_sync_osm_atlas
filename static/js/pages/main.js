@@ -20,6 +20,7 @@ var currentDataRequestSeq = 0;  // sequence id to ignore stale responses
 var loadViewportTimer = null;   // debounce timer id
 var zoomBannerTimeout = null;   // debounce timer for the zoom warning banner
 var suppressViewportReloadCount = 0; // skip this many reloads after programmatic center
+var headerSummaryFiltersExpanded = false;
 
 // Viewport cache: avoid refetching while panning within a buffered extent.
 // This reduces API calls and prevents marker reshuffling caused by capped results.
@@ -138,38 +139,9 @@ function initMap() {
         "Connection Lines": linesLayer
     };
 
-    // Put layer + zoom controls on the right (they will be offset under the stats overlay)
-    L.control.zoom({ position: 'topright' }).addTo(map);
-    L.control.layers(baseMaps, overlayMaps, { position: 'topright' }).addTo(map);
-
-    // Random stop control (below the layers control)
-    try {
-        var RandomStopControl = L.Control.extend({
-            options: { position: 'topright' },
-            onAdd: function () {
-                var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-                var link = L.DomUtil.create('a', '', container);
-                link.href = '#';
-                link.title = 'View random stop (uses current filters)';
-                link.setAttribute('aria-label', 'View random stop');
-                link.innerHTML = '<i class="fas fa-random"></i>';
-
-                L.DomEvent.disableClickPropagation(container);
-                L.DomEvent.disableScrollPropagation(container);
-                L.DomEvent.on(link, 'click', L.DomEvent.stop);
-                L.DomEvent.on(link, 'click', function () {
-                    if (typeof focusOnRandomFilteredStop === 'function') {
-                        focusOnRandomFilteredStop();
-                    }
-                });
-                return container;
-            }
-        });
-        map.addControl(new RandomStopControl());
-    } catch (e) {
-        // If Leaflet isn't ready for some reason, fail silently.
-        console.error('Failed to add RandomStopControl:', e);
-    }
+    // Put layer + zoom controls on the bottom-left
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+    L.control.layers(baseMaps, overlayMaps, { position: 'bottomleft' }).addTo(map);
 
     markersLayer.addTo(map);
     linesLayer.addTo(map);
@@ -199,20 +171,7 @@ function initMap() {
 }
 
 function positionIndexMapRightControls() {
-    const mapEl = document.getElementById('map');
-    if (!mapEl) return;
-
-    const corner = mapEl.querySelector('.leaflet-top.leaflet-right');
-    if (!corner) return;
-
-    const header = document.getElementById('headerSummary');
-    if (!header) {
-        corner.style.marginTop = '';
-        return;
-    }
-
-    const offset = header.offsetTop + header.offsetHeight + 8;
-    corner.style.marginTop = offset > 0 ? offset + 'px' : '';
+    // Legacy function, no longer needed since headerSummary is outside the map
 }
 
 
@@ -226,36 +185,13 @@ function positionIndexMapRightControls() {
 
 
 
-// Create and control a low-zoom banner prompting users to zoom in
+// Use zoomBannerInfo inside active filter container
 function ensureZoomBannerExists() {
-    if (document.getElementById('zoomBanner')) return;
-    var banner = document.createElement('div');
-    banner.id = 'zoomBanner';
-    banner.style.position = 'absolute';
-    banner.style.top = AppConstants.ZOOM_BANNER.TOP_POSITION;
-    banner.style.left = '50%';
-    banner.style.transform = 'translateX(-50%)';
-    banner.style.zIndex = AppConstants.ZOOM_BANNER.Z_INDEX;
-    banner.style.background = AppConstants.ZOOM_BANNER.BACKGROUND;
-    banner.style.color = AppConstants.ZOOM_BANNER.COLOR;
-    banner.style.padding = AppConstants.ZOOM_BANNER.PADDING;
-    banner.style.borderRadius = AppConstants.ZOOM_BANNER.BORDER_RADIUS;
-    banner.style.fontSize = AppConstants.ZOOM_BANNER.FONT_SIZE;
-    banner.style.display = 'none';
-    banner.style.transition = 'opacity 0.2s ease-in-out';
-    banner.style.pointerEvents = 'none'; // Don't block map interactions
-    banner.textContent = 'Zoom in to see individual stop markers';
-    var mapContainer = document.getElementById('map');
-    if (mapContainer && mapContainer.parentElement) {
-        mapContainer.parentElement.style.position = 'relative';
-        mapContainer.parentElement.appendChild(banner);
-    } else {
-        document.body.appendChild(banner);
-    }
+    // Rely on the existing #zoomBannerInfo element which is in the DOM
 }
 
 function showZoomBanner(show, delayMs = 0) {
-    var banner = document.getElementById('zoomBanner');
+    var banner = document.getElementById('zoomBannerInfo');
     if (!banner) return;
 
     if (zoomBannerTimeout) {
@@ -264,26 +200,124 @@ function showZoomBanner(show, delayMs = 0) {
     }
 
     if (show) {
-        // If already visible, just ensure it stays visible
-        if (banner.style.display === 'block') return;
+        if (!banner.classList.contains('d-none')) return;
 
         if (delayMs > 0) {
             zoomBannerTimeout = setTimeout(function () {
-                banner.style.display = 'block';
+                banner.classList.remove('d-none');
                 zoomBannerTimeout = null;
             }, delayMs);
         } else {
-            banner.style.display = 'block';
+            banner.classList.remove('d-none');
         }
     } else {
-        banner.style.display = 'none';
+        banner.classList.add('d-none');
     }
 }
 
 function setZoomBannerText(text) {
-    var banner = document.getElementById('zoomBanner');
+    var banner = document.getElementById('zoomBannerInfo');
     if (!banner) return;
     banner.textContent = text;
+}
+
+function getSharedActiveFilterCount() {
+    if (typeof window.getActiveFilterCount === 'function') {
+        return window.getActiveFilterCount();
+    }
+    return 0;
+}
+
+function getSharedActiveFilterCountText() {
+    if (typeof window.getActiveFilterCountText === 'function') {
+        return window.getActiveFilterCountText();
+    }
+    var count = getSharedActiveFilterCount();
+    return count + ' filter' + (count !== 1 ? 's' : '') + ' active';
+}
+
+function setHeaderSummaryFiltersExpanded(expanded) {
+    headerSummaryFiltersExpanded = !!expanded;
+
+    const toggle = $('#headerSummaryFiltersToggle');
+    const panel = $('#headerSummaryFiltersPanel');
+    if (!toggle.length || !panel.length) return;
+
+    toggle.attr('aria-expanded', headerSummaryFiltersExpanded ? 'true' : 'false');
+    panel.toggleClass('d-none', !headerSummaryFiltersExpanded);
+}
+
+function syncHeaderSummaryFilterToggle() {
+    const toggle = $('#headerSummaryFiltersToggle');
+    const label = $('#headerSummaryFiltersLabel');
+    if (!toggle.length || !label.length) return;
+
+    const activeFilterCount = getSharedActiveFilterCount();
+    const hasActiveFilters = activeFilterCount > 0;
+
+    if (hasActiveFilters) {
+        label.text('Filters: ' + activeFilterCount + ' active');
+        toggle.prop('disabled', false);
+    } else {
+        label.text('Filters: None (All entries)');
+        toggle.prop('disabled', true);
+        setHeaderSummaryFiltersExpanded(false);
+    }
+}
+
+function appendOsmGroupParams(params) {
+    params.osm_include_matched = activeFilters.includeMatchedOsmFilters ? 'true' : 'false';
+
+    if (!activeFilters.osmGroups || activeFilters.osmGroups.length === 0) {
+        return params;
+    }
+
+    params.osm_group_filter = 'true';
+    const selectedGroupTypes = activeFilters.osmGroups.filter(function (groupType) {
+        return groupType !== 'all';
+    });
+
+    if (selectedGroupTypes.length > 0) {
+        params.osm_group_types = selectedGroupTypes.join(',');
+    }
+
+    return params;
+}
+
+function appendCurrentFilterParams(params, options) {
+    options = options || {};
+    var includeTopN = options.includeTopN === true;
+    var includeShowDuplicates = options.includeShowDuplicates === true;
+
+    if (activeFilters.stopType.length > 0) {
+        params.stop_filter = activeFilters.stopType.join(',');
+    }
+    if (activeFilters.matchMethods.length > 0) {
+        params.match_method = activeFilters.matchMethods.join(',');
+    }
+    if (activeFilters.station.length > 0) {
+        params.station_filter = activeFilters.station.join(',');
+        params.filter_types = activeFilters.stationTypes.join(',');
+        params.route_directions = activeFilters.routeDirections.join(',');
+    }
+    if (activeFilters.transportTypes.length > 0) {
+        params.transport_types = activeFilters.transportTypes.join(',');
+    }
+    if (activeFilters.nodeType.length > 0) {
+        params.node_type = activeFilters.nodeType.join(',');
+    }
+    if (activeFilters.atlasOperators.length > 0) {
+        params.atlas_operator = activeFilters.atlasOperators.join(',');
+    }
+    if (includeTopN && activeFilters.topN) {
+        params.top_n = activeFilters.topN;
+    }
+    if (includeShowDuplicates) {
+        params.show_duplicates_only = activeFilters.showDuplicatesOnly ? 'true' : 'false';
+    }
+
+    appendOsmGroupParams(params);
+    return params;
 }
 
 function loadTopNMatches() {
@@ -313,6 +347,8 @@ function loadTopNMatches() {
         if (activeFilters.atlasOperators.length > 0) {
             params.atlas_operator = activeFilters.atlasOperators.join(',');
         }
+
+        appendOsmGroupParams(params);
 
         $.getJSON("/api/top_matches", params, function (data) {
             let filteredData = data;
@@ -396,16 +432,8 @@ function loadDataForViewport() {
 
     // Determine whether the user has any active filters that should take precedence at low zoom.
     // If true, we still cap results for performance, but show entries matching the filters.
-    var hasAnyActiveFilter = (
-        (activeFilters.station && activeFilters.station.length > 0) ||
-        (activeFilters.stopType && activeFilters.stopType.length > 0) ||
-        (activeFilters.nodeType && activeFilters.nodeType.length > 0) ||
-        (activeFilters.matchMethods && activeFilters.matchMethods.length > 0) ||
-        (activeFilters.transportTypes && activeFilters.transportTypes.length > 0) ||
-        (activeFilters.atlasOperators && activeFilters.atlasOperators.length > 0) ||
-        !!activeFilters.showDuplicatesOnly ||
-        !!activeFilters.showOsmGroupsOnly
-    );
+    var filterCount = getSharedActiveFilterCount();
+    var hasAnyActiveFilter = filterCount > 0;
     // Banner policy:
     // - Show it at ALL zoom levels where we might not be rendering "all markers" (i.e., while results are capped),
     //   and hide it only once we reach the fully-uncapped zoom level.
@@ -413,23 +441,11 @@ function loadDataForViewport() {
     var fullUncappedZoom = zoom >= (ZOOM_MARKER_THRESHOLD + ADDITIONAL_BANNER_ZOOM_LEVELS);
     var shouldShowBanner = !fullUncappedZoom;
 
-    // Helper to count active filters
-    var filterCount = (activeFilters.station?.length || 0) +
-        (activeFilters.atlasOperators?.length || 0);
-
-    // Add 1 for each non-empty array filter that isn't just "all"
-    if (activeFilters.stopType?.length > 0) filterCount++;
-    if (activeFilters.nodeType?.length > 0) filterCount++;
-    if (activeFilters.matchMethods?.length > 0) filterCount++;
-    if (activeFilters.transportTypes?.length > 0) filterCount++;
-    if (activeFilters.showDuplicatesOnly) filterCount++;
-    if (activeFilters.showOsmGroupsOnly) filterCount++;
-
     if (shouldShowBanner) {
         if (isLowZoom) {
             if (hasAnyActiveFilter) {
                 // More informative message showing filter context
-                var filterText = filterCount > 0 ? ` (${filterCount} filter${filterCount !== 1 ? 's' : ''} active)` : '';
+                var filterText = filterCount > 0 ? ` (${getSharedActiveFilterCountText()})` : '';
                 setZoomBannerText('🔍 Low zoom: showing filtered results' + filterText);
             } else {
                 setZoomBannerText('📍 Overview mode: showing unmatched ATLAS stops only. Zoom in for all markers.');
@@ -438,7 +454,7 @@ function loadDataForViewport() {
             // Mid-zoom: still capped but closer
             // If filters are active, show filter info instead of generic zoom message
             if (hasAnyActiveFilter) {
-                var filterText = filterCount > 0 ? ` (${filterCount} filter${filterCount !== 1 ? 's' : ''} active)` : '';
+                var filterText = filterCount > 0 ? ` (${getSharedActiveFilterCountText()})` : '';
                 setZoomBannerText('🔍 Showing filtered results' + filterText);
             } else {
                 setZoomBannerText('📍 Zoom in a bit more to see all markers in this area');
@@ -464,7 +480,7 @@ function loadDataForViewport() {
 
     if (isLowZoom && !hasAnyActiveFilter) {
         // Low-zoom policy: show only unmatched ATLAS markers (overview)
-        params.stop_filter = 'unmatched';
+        params.stop_filter = 'atlas_unmatched';
         params.node_type = 'atlas';
 
         // Keep operator filter if active
@@ -473,44 +489,7 @@ function loadDataForViewport() {
         }
     } else {
         // Normal or filtered mode: build standard filters
-
-        // Determine if pure OSM nodes should be included in stop_filter when 'unmatched' is active
-        var includeOsmInStopFilterForUnmatched = activeFilters.stopType.includes('atlas_unmatched') &&
-            (activeFilters.nodeType.includes('osm') || activeFilters.nodeType.length === 0) &&
-            !activeFilters.stopType.includes('osm_unmatched');
-
-        if (activeFilters.stopType.length > 0 || includeOsmInStopFilterForUnmatched) {
-            var stopFilterTypes = [...activeFilters.stopType];
-            if (includeOsmInStopFilterForUnmatched) {
-                if (!stopFilterTypes.includes('osm_unmatched')) {
-                    stopFilterTypes.push('osm_unmatched');
-                }
-            }
-            if (stopFilterTypes.length > 0) {
-                params.stop_filter = stopFilterTypes.join(',');
-            }
-        }
-
-        if (activeFilters.nodeType.length > 0) {
-            params.node_type = activeFilters.nodeType.join(',');
-        }
-        if (activeFilters.matchMethods.length > 0) {
-            params.match_method = activeFilters.matchMethods.join(',');
-        }
-        if (activeFilters.station.length > 0) {
-            params.station_filter = activeFilters.station.join(',');
-            params.filter_types = activeFilters.stationTypes.join(',');
-            params.route_directions = activeFilters.routeDirections.join(',');
-        }
-        if (activeFilters.transportTypes.length > 0) {
-            params.transport_types = activeFilters.transportTypes.join(',');
-        }
-        if (activeFilters.atlasOperators.length > 0) {
-            params.atlas_operator = activeFilters.atlasOperators.join(',');
-        }
-        if (activeFilters.showOsmGroupsOnly) {
-            params.osm_group_filter = 'true';
-        }
+        appendCurrentFilterParams(params);
     }
 
     // Viewport cache: if we already fetched a buffered area covering the current view
@@ -619,20 +598,11 @@ function loadDataForViewport() {
         if (shouldShowBanner) {
             if (hasAnyActiveFilter) {
                 var resultCount = Array.isArray(rawStops) ? rawStops.length : 0;
-
-                // Recalculate filter count to be safe
-                var currentFilterCount = (activeFilters.station?.length || 0) +
-                    (activeFilters.atlasOperators?.length || 0);
-                if (activeFilters.stopType?.length > 0) currentFilterCount++;
-                if (activeFilters.nodeType?.length > 0) currentFilterCount++;
-                if (activeFilters.matchMethods?.length > 0) currentFilterCount++;
-                if (activeFilters.transportTypes?.length > 0) currentFilterCount++;
-                if (activeFilters.showDuplicatesOnly) currentFilterCount++;
-
-                var filterText = currentFilterCount > 0 ? ` (${currentFilterCount} filter${currentFilterCount !== 1 ? 's' : ''} active)` : '';
+                var currentFilterCount = getSharedActiveFilterCount();
+                var filterText = currentFilterCount > 0 ? ` (${getSharedActiveFilterCountText()})` : '';
 
                 if (capped) {
-                    setZoomBannerText('🔍 Showing first ' + resultCount + ' filtered results. Zoom in to see all.');
+                    setZoomBannerText('🔍 Showing first ' + resultCount + ' filtered result' + (resultCount !== 1 ? 's' : '') + filterText + '. Zoom in to see all.');
                 } else {
                     // If not capped, we are showing ALL results for this filter in this view
                     // So we can just say "Showing X results"
@@ -1171,19 +1141,7 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
 // Function to fetch and center on a random stop based on current filters
 function focusOnRandomFilteredStop() {
     // Random pick honoring current filters
-    var params = {
-        stop_filter: (activeFilters.stopType && activeFilters.stopType.length > 0) ? activeFilters.stopType.join(',') : null,
-        match_method: (activeFilters.matchMethods && activeFilters.matchMethods.length > 0) ? activeFilters.matchMethods.join(',') : null,
-        station_filter: (activeFilters.station && activeFilters.station.length > 0) ? activeFilters.station.join(',') : null,
-        filter_types: (activeFilters.stationTypes && activeFilters.stationTypes.length > 0) ? activeFilters.stationTypes.join(',') : null,
-        route_directions: (activeFilters.routeDirections && activeFilters.routeDirections.length > 0) ? activeFilters.routeDirections.join(',') : null,
-        transport_types: (activeFilters.transportTypes && activeFilters.transportTypes.length > 0) ? activeFilters.transportTypes.join(',') : null,
-        node_type: (activeFilters.nodeType && activeFilters.nodeType.length > 0) ? activeFilters.nodeType.join(',') : null,
-        atlas_operator: (activeFilters.atlasOperators && activeFilters.atlasOperators.length > 0) ? activeFilters.atlasOperators.join(',') : null,
-        top_n: activeFilters.topN || null,
-        show_duplicates_only: (activeFilters.showDuplicatesOnly ? 'true' : 'false'),
-        osm_group_filter: activeFilters.showOsmGroupsOnly ? 'true' : null
-    };
+    var params = appendCurrentFilterParams({}, { includeTopN: true, includeShowDuplicates: true });
     Object.keys(params).forEach(function (k) {
         if (params[k] === null || params[k] === undefined || params[k] === '') {
             delete params[k];
@@ -1233,84 +1191,7 @@ function fetchAndCenterSpecificStop(identifier, identifierType) {
 }
 
 
-// Function to initialize the new dropdown-based search type selector
-function initSearchTypeSelector() {
-    const selectEl = $('#searchTypeSelect');
-    const filterTypeInput = $('#filterTypeActual');
-    const searchInput = $('#stationFilter'); // Standard search input
-
-    const placeholders = {
-        station: 'Enter UIC Number',
-        atlas: 'Enter ATLAS SloidID',
-        osm: 'Enter OSM Node ID',
-        route: 'Enter Route ID'
-    };
-
-    // Initialize select to current hidden value
-    const initialType = filterTypeInput.val() || 'station';
-    if (selectEl.length) {
-        selectEl.val(initialType);
-    }
-    if (searchInput.length) {
-        searchInput.attr('placeholder', placeholders[initialType] || 'Enter value');
-    }
-    toggleFilterInputs();
-
-    // Handle selection changes
-    selectEl.on('change', function () {
-        const selectedValue = $(this).val();
-        filterTypeInput.val(selectedValue);
-        if (searchInput.length) {
-            searchInput.val('');
-            searchInput.attr('placeholder', placeholders[selectedValue] || 'Enter value');
-        }
-        toggleFilterInputs();
-    });
-}
-
-// Apply saved filter panel state from localStorage
-function applySavedFilterPanelState() {
-    var filterPanel = document.getElementById('filterPanelContainer');
-    if (!filterPanel) return false;
-
-    var savedState = localStorage.getItem('indexFilterPanelCollapsed');
-    if (savedState === 'true') {
-        // Disable transitions temporarily for instant state application
-        filterPanel.style.transition = 'none';
-        filterPanel.classList.add('collapsed');
-
-        // Force reflow to apply the collapsed state immediately
-        filterPanel.offsetHeight;
-
-        // Re-enable transitions after a frame
-        requestAnimationFrame(function () {
-            filterPanel.style.transition = '';
-        });
-
-        return true; // Panel was collapsed
-    }
-    return false; // Panel was not collapsed
-}
-
-// Filter panel toggle functionality
-function initFilterPanelToggle() {
-    var filterPanel = document.getElementById('filterPanelContainer');
-    var toggleBtn = document.getElementById('filterToggleBtn');
-
-    if (!filterPanel || !toggleBtn) return;
-
-    toggleBtn.addEventListener('click', function () {
-        filterPanel.classList.toggle('collapsed');
-        var isCollapsed = filterPanel.classList.contains('collapsed');
-        localStorage.setItem('indexFilterPanelCollapsed', isCollapsed);
-        // No need to invalidate map size - panel now overlays the map
-    });
-}
-
 $(document).ready(function () {
-    // Apply saved panel state BEFORE initializing map
-    var panelWasCollapsed = applySavedFilterPanelState();
-
     initMap();
 
     // Fix race condition: flexbox layout may not be fully computed when Leaflet initializes
@@ -1324,9 +1205,6 @@ $(document).ready(function () {
     });
 
     // loadDataForViewport(); // updateActiveFilters will call this after initial filter setup
-    initSearchTypeSelector();
-    initFilterPanelToggle();
-
     // logFilterPanelLayout("Document Ready"); // Function removed in refactor
 
     // Initialize filter event handlers (moved to filters.js)
@@ -1364,6 +1242,11 @@ $(document).ready(function () {
     updateActiveFilters(); // This will call loadDataForViewport and updateFiltersUI
     updateHeaderSummary(); // Initial summary update
 
+    $(document).on('click', '#headerSummaryFiltersToggle', function () {
+        if ($(this).prop('disabled')) return;
+        setHeaderSummaryFiltersExpanded(!headerSummaryFiltersExpanded);
+    });
+
     // Remove the old, duplicated event listener for new search type dropdown options
     // The initSearchTypeModal handles the new modal-based selector.
 });
@@ -1394,22 +1277,13 @@ function updateAccordionIcons() {
 
 // Function to update the header summary
 function updateHeaderSummary() {
-    const summaryContainer = $('#headerSummary');
-    if (!summaryContainer.length) return;
+    const summaryContainer = $('#headerSummaryInfo');
+    const statsContainer = $('#headerSummaryStats');
+    if (!summaryContainer.length || !statsContainer.length) return;
 
-    var params = {
-        stop_filter: activeFilters.stopType.join(',') || null,
-        match_method: activeFilters.matchMethods.join(',') || null,
-        station_filter: activeFilters.station.join(',') || null,
-        filter_types: activeFilters.stationTypes.join(',') || null,
-        route_directions: activeFilters.routeDirections.join(',') || null,
-        transport_types: activeFilters.transportTypes.join(',') || null,
-        node_type: activeFilters.nodeType.join(',') || null,
-        atlas_operator: activeFilters.atlasOperators.join(',') || null,
-        top_n: activeFilters.topN || null,
-        show_duplicates_only: activeFilters.showDuplicatesOnly.toString(),
-        osm_group_filter: activeFilters.showOsmGroupsOnly ? 'true' : null
-    };
+    syncHeaderSummaryFilterToggle();
+
+    var params = appendCurrentFilterParams({}, { includeTopN: true, includeShowDuplicates: true });
 
     Object.keys(params).forEach(key => {
         if (params[key] === null || params[key] === '') {
@@ -1419,7 +1293,7 @@ function updateHeaderSummary() {
 
     $.getJSON("/api/global_stats", params, function (data) {
         if (data.error) {
-            summaryContainer.html(`<div><small>Error loading summary.</small></div>`);
+            statsContainer.html(`<div><small>Error loading summary.</small></div>`);
             console.error("Error loading global stats:", data.error);
             positionIndexMapRightControls();
             return;
@@ -1450,18 +1324,13 @@ function updateHeaderSummary() {
             summaryHtml = '<div><small>No data matching current filters.</small></div>';
         }
 
-        const activeFilterBadges = $('#activeFilters .badge');
-        if (activeFilterBadges.length > 0 && activeFilterBadges.first().text() !== 'All entries') {
-            summaryHtml += `<div class="mt-1"><small>Filters: ${activeFilterBadges.length} active</small></div>`;
-        } else {
-            summaryHtml += `<div class="mt-1"><small>Filters: None (All entries)</small></div>`;
-        }
-
-        summaryContainer.html(summaryHtml);
+        statsContainer.html(summaryHtml);
+        syncHeaderSummaryFilterToggle();
         positionIndexMapRightControls();
     }).fail(function () {
-        summaryContainer.html(`<div><small>Failed to load summary.</small></div>`);
+        statsContainer.html(`<div><small>Failed to load summary.</small></div>`);
         console.error("Failed to fetch global stats from server.");
+        syncHeaderSummaryFilterToggle();
         positionIndexMapRightControls();
     });
 }

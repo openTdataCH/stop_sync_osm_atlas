@@ -46,7 +46,6 @@
 
         const rows = [];
         let routesSection = '';
-        let notesSection = '';
 
         if (isAtlas) {
             rows.push(['Sloid', unmatched ? data.sloid : link(data.sloid, 'atlas')]);
@@ -81,13 +80,6 @@
             routesSection = `
                 <div class="route-section">
                     ${PopupUtils.createCollapsible('Routes', unifiedRoutesHtml, COLLAPSIBLE_DEFAULT_EXPANDED)}
-                </div>
-            `;
-            // Notes collapsible for ATLAS
-            const atlasNotesBody = `<div class="popup-notes" data-type="atlas" data-sloid="${data.sloid || ''}">Loading notes...</div>`;
-            notesSection = `
-                <div class="notes-section">
-                    ${PopupUtils.createCollapsible('Notes', atlasNotesBody, COLLAPSIBLE_DEFAULT_EXPANDED)}
                 </div>
             `;
         }
@@ -167,13 +159,6 @@
                 rows.push(['Local Ref', data.osm_local_ref || 'N/A']);
             }
             routesSection = `<div class="route-section">${routeHtml(data.routes_osm, isOsm)}</div>`;
-            // Notes collapsible for OSM
-            const osmNotesBody = `<div class="popup-notes" data-type="osm" data-osm-node-id="${data.osm_node_id || ''}">Loading notes...</div>`;
-            notesSection = `
-                <div class="notes-section">
-                    ${PopupUtils.createCollapsible('Notes', osmNotesBody, COLLAPSIBLE_DEFAULT_EXPANDED)}
-                </div>
-            `;
         }
 
         // Notes are shown via collapsible section; skip legacy inline note rows
@@ -206,7 +191,6 @@
 
         if (hideRoutesAndNotes) {
             routesSection = '';
-            notesSection = '';
         }
 
         return `
@@ -214,7 +198,6 @@
                 ${bubbleHeader}
                 <table class="popup-table">${tableRowsHtml}</table>
                 ${routesSection}
-                ${notesSection}
                 ${osmEditorLinkHtml}
             </div>`;
     }
@@ -257,6 +240,9 @@
         } else if (initialViewType === 'osm') {
             let osmData;
             if (stop.is_osm_node) {
+                // For OSM nodes with multiple ATLAS matches, pull match_type
+                // and distance from the first atlas_match if available.
+                const firstAtlas = (Array.isArray(stop.atlas_matches) && stop.atlas_matches.length > 0) ? stop.atlas_matches[0] : null;
                 osmData = {
                     id: stop.id,
                     osm_node_id: stop.osm_node_id,
@@ -273,8 +259,9 @@
                     osm_railway: stop.osm_railway,
                     osm_lat: stop.osm_lat,
                     osm_lon: stop.osm_lon,
-                    distance_m: null,
-                    match_type: null,
+                    distance_m: firstAtlas ? firstAtlas.distance_m : null,
+                    match_type: stop.match_type || (firstAtlas ? firstAtlas.match_type : null),
+                    matching_notes: stop.matching_notes || (firstAtlas ? firstAtlas.matching_notes : null),
                     routes_osm: stop.routes_osm,
                     stop_type: stop.stop_type,
                     isOperatorMismatch: stop.isOperatorMismatch

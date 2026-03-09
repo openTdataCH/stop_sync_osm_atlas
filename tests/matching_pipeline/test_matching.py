@@ -129,6 +129,82 @@ class TestIsOsmStation:
         assert is_osm_station(node) is False
 
 
+class TestOsmGrouping:
+    """Tests for OSM pre-grouping helpers."""
+
+    def test_reciprocal_pairs_do_not_self_match_dual_tagged_node(self):
+        from matching_and_import_db.state import OsmState
+
+        tram_stop_position = {
+            'node_id': '4883672596',
+            'lat': 47.3768119,
+            'lon': 8.5441421,
+            'local_ref': 'C',
+            'tags': {
+                'name': 'Central',
+                'local_ref': 'C',
+                'public_transport': 'stop_position',
+                'railway': 'tram_stop',
+                'tram': 'yes',
+                'uic_ref': '8588078',
+            },
+        }
+        bus_stop_position = {
+            'node_id': '3779317948',
+            'lat': 47.3768371,
+            'lon': 8.5441585,
+            'local_ref': 'C',
+            'tags': {
+                'name': 'Central',
+                'local_ref': 'C',
+                'public_transport': 'stop_position',
+                'bus': 'yes',
+                'uic_ref': '8588078',
+            },
+        }
+
+        osm_state = OsmState(
+            xml_nodes={},
+            uic_ref_dict={},
+            name_index={},
+        )
+
+        pairs = osm_state._find_reciprocal_pairs(
+            [tram_stop_position],
+            [tram_stop_position, bus_stop_position],
+            12.0,
+            1.5,
+        )
+
+        assert [(plat['node_id'], sp['node_id']) for plat, sp in pairs] == [
+            ('4883672596', '3779317948')
+        ]
+
+    def test_tram_count_guard_allows_single_clear_atlas_outlier(self):
+        from matching_and_import_db.state import OsmState
+
+        assert OsmState._allow_single_atlas_outlier_for_tram(
+            '8588078',
+            atlas_count=12,
+            effective_count=11,
+            atlas_uic_nearest_osm_distances={
+                '8588078': [36.47, 18.62, 15.75, 12.61, 9.19, 8.69, 7.65, 6.07, 5.61, 5.55, 4.06, 3.82],
+            },
+        ) is True
+
+    def test_tram_count_guard_rejects_non_outlier_mismatch(self):
+        from matching_and_import_db.state import OsmState
+
+        assert OsmState._allow_single_atlas_outlier_for_tram(
+            '8588078',
+            atlas_count=12,
+            effective_count=11,
+            atlas_uic_nearest_osm_distances={
+                '8588078': [24.0, 18.0, 17.5, 16.0, 15.5, 14.0, 13.5, 12.0, 11.0, 10.0, 9.0, 8.0],
+            },
+        ) is False
+
+
 # =============================================================================
 # Tests for route matching helpers
 # =============================================================================

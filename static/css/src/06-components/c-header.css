@@ -90,20 +90,43 @@
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
+  gap: var(--space-1);
   min-width: 180px;
   box-shadow: var(--shadow-md);
   border: var(--border-width) solid var(--color-border);
-  white-space: nowrap;
-  pointer-events: none;
+  max-width: min(360px, calc(100vw - 2rem));
+  pointer-events: auto;
   backdrop-filter: blur(4px);
 }
 
-.header-summary div {
-  margin-bottom: var(--space-1);
+.header-summary__filters-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  font-weight: var(--font-medium);
+  cursor: pointer;
 }
 
-.header-summary div:last-child {
-  margin-bottom: 0;
+.header-summary__filters-toggle:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.header-summary__filters-toggle-icon {
+  transition: transform var(--transition-fast);
+}
+
+.header-summary__filters-toggle[aria-expanded='true'] .header-summary__filters-toggle-icon {
+  transform: rotate(180deg);
+}
+
+.header-summary__filters-panel {
+  width: 100%;
 }
 
 

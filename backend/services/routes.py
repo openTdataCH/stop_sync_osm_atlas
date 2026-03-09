@@ -5,6 +5,36 @@ from sqlalchemy import text
 
 from matching_and_import_db.utils.route_id import normalize_route_id
 
+def get_unified_routes_for_sloid(sloid):
+    """Return all ATLAS routes that contain this SLOID."""
+    if not sloid:
+        return []
+    try:
+        rows = db.session.execute(
+            text("SELECT DISTINCT atlas_route_id, direction_id FROM route_atlas_stops WHERE sloid = :sloid"),
+            {"sloid": sloid}
+        ).fetchall()
+        return [{"route_id": r[0], "direction_id": r[1]} for r in rows]
+    except Exception as e:
+        app.logger.error(f"Error fetching routes for sloid {sloid}: {e}")
+        return []
+
+
+def get_osm_routes_for_node(osm_node_id):
+    """Return all OSM routes that contain this OSM node."""
+    if not osm_node_id:
+        return []
+    try:
+        rows = db.session.execute(
+            text("SELECT DISTINCT osm_route_id, direction_id FROM route_osm_stops WHERE osm_node_id = :node_id"),
+            {"node_id": str(osm_node_id)}
+        ).fetchall()
+        return [{"route_id": r[0], "direction_id": r[1]} for r in rows]
+    except Exception as e:
+        app.logger.error(f"Error fetching routes for osm_node_id {osm_node_id}: {e}")
+        return []
+
+
 def get_stops_for_route(route_id, direction=None):
     try:
         # Atlas queries

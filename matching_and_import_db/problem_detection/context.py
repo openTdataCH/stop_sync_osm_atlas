@@ -77,11 +77,12 @@ class ProblemContext:
     duplicate_sloid_map: dict = field(default_factory=dict)       # {sloid: [group]}
     duplicate_osm_group_map: dict = field(default_factory=dict)   # {node_id: [group]}
     duplicate_osm_node_ids: set = field(default_factory=set)      # set of node_ids
+    handled_duplicate_sloids: set = field(default_factory=set)    # SLOIDs already handled by duplicate_propagation
 
     @classmethod
     def build(cls, output: 'MatchingOutput') -> "ProblemContext":
         """One-time construction of every shared index from pipeline output."""
-        # Using output.duplicate_sloid_map 
+        # Using output.duplicate_sloid_map
         ctx = cls(duplicate_sloid_map=output.duplicate_sloid_map)
 
         matched = output.matched
@@ -94,8 +95,19 @@ class ProblemContext:
         # -- UIC counts -------------------------------------------------------
         ctx._build_uic_counts(matched, unmatched_atlas, unmatched_osm)
 
-        # -- OSM duplicate groups ---------------------------------------------
-        ctx._build_osm_duplicate_map(matched, unmatched_osm)
+        # -- Build set of OSM node IDs that are members of pre-grouped pairs --
+        grouped_osm_node_ids: set[str] = set()
+        for n1, n2, _ in output.osm_groups:
+            grouped_osm_node_ids.add(str(n1))
+            grouped_osm_node_ids.add(str(n2))
+
+        # -- OSM duplicate groups (excludes pre-grouped nodes) ----------------
+        ctx._build_osm_duplicate_map(matched, unmatched_osm, grouped_osm_node_ids)
+
+        # -- Track ATLAS SLOIDs handled by duplicate_propagation --------------
+        for rec in matched:
+            if rec.match_type == 'duplicate_propagation':
+                ctx.handled_duplicate_sloids.add(str(rec.atlas_node.sloid))
 
         return ctx
 
@@ -164,12 +176,20 @@ class ProblemContext:
                 if node.is_station is False and _is_platform_like(node.public_transport):
                     self.osm_platform_count_by_uic[key] = self.osm_platform_count_by_uic.get(key, 0) + 1
 
-    def _build_osm_duplicate_map(self, matched: list['MatchRecord'], unmatched_osm: list['OsmNode']):
-        """Build OSM duplicate groups by (uic_ref, local_ref) for platform-like nodes."""
+    def _build_osm_duplicate_map(self, matched: list['MatchRecord'], unmatched_osm: list['OsmNode'],
+                                 grouped_osm_node_ids: set[str] | None = None):
+        """Build OSM duplicate groups by (uic_ref, local_ref) for platform-like nodes.
+
+        Excludes node IDs that are members of pre-grouped OSM pairs (platform ↔ stop_position)
+        to avoid flagging handled groups as duplicates.
+        """
+        grouped_osm_node_ids = grouped_osm_node_ids or set()
         by_key: dict[tuple, set] = {}
 
         def _add(uic, local_ref, node_id, pt):
             if not uic or not local_ref or not _is_platform_like(pt):
+                return
+            if str(node_id) in grouped_osm_node_ids:
                 return
             key = (str(uic).strip(), str(local_ref).strip().lower())
             by_key.setdefault(key, set()).add(str(node_id))

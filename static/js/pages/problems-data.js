@@ -288,11 +288,6 @@ window.ProblemsData = (function () {
 
                 // Clear problem content and UI remnants
                 $('#actionButtonsContent').empty();
-                // Hide and clear notes
-                $('#notesSection').hide();
-                $('#standardNotesContainer #atlasNote').val('');
-                $('#standardNotesContainer #osmNote').val('');
-                $('#duplicatesNotesContainer').empty();
                 // Remove any scroll indicator
                 $('#problemContent').find('.scroll-indicator').remove();
 

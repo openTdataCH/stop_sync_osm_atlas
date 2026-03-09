@@ -101,6 +101,8 @@ class AtlasStop(db.Model):
     atlas_designation = db.Column(db.String(255))
     atlas_designation_official = db.Column(db.String(255))
     atlas_business_org_abbr = db.Column(db.String(100))
+    # FK to the representative SLOID (NULL if this IS the representative or not in a group)
+    representative_sloid = db.Column(db.String(100), nullable=True, index=True)
     # JSONB array of all SLOIDs in the duplicate group (e.g. ["sloid1", "sloid2"])
     duplicate_group_sloids = db.Column(JSONB)
 
