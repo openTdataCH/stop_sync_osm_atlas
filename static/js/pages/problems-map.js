@@ -15,6 +15,14 @@ window.ProblemsMap = (function() {
     // Request management for context loading
     let currentContextRequest = null; // jqXHR of in-flight /api/data
 
+    function getAtlasMarkerIdentity(stopData) {
+        if (!stopData) return null;
+        if (stopData.sloid != null && stopData.sloid !== '') return String(stopData.sloid);
+        if (stopData.representative_sloid != null && stopData.representative_sloid !== '') return String(stopData.representative_sloid);
+        if (stopData.id != null && stopData.id !== '') return String(stopData.id);
+        return null;
+    }
+
     /**
      * Initialize the map on the problems page with same style as main page
      */
@@ -244,11 +252,13 @@ window.ProblemsMap = (function() {
             
             // Collect marker data for cluster handling
             var contextMarkerData = [];
+            var createdAtlasMarkers = new Set();
             
             // Process both ATLAS and OSM markers for each stop
             filteredData.forEach(function(stop) {
                 // Handle ATLAS markers
-                if (stop.sloid && stop.atlas_lat != null && stop.atlas_lon != null) {
+                const atlasMarkerKey = getAtlasMarkerIdentity(stop);
+                if (stop.sloid && stop.atlas_lat != null && stop.atlas_lon != null && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
                     let atlasColor = 'gray';
                     if (stop.stop_type === 'matched') atlasColor = 'green';
                     else if (stop.stop_type === 'atlas_unmatched') atlasColor = 'red';
@@ -264,6 +274,9 @@ window.ProblemsMap = (function() {
                         stopData: stop,
                         opacity: 0.6
                     });
+                    if (atlasMarkerKey) {
+                        createdAtlasMarkers.add(atlasMarkerKey);
+                    }
                 }
                 
                 // Handle OSM markers - both direct and from osm_matches array

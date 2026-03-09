@@ -78,6 +78,14 @@ function _stableParamsKey(params, mode) {
     return parts.join('&');
 }
 
+function getAtlasMarkerIdentity(stopData) {
+    if (!stopData) return null;
+    if (stopData.sloid != null && stopData.sloid !== '') return String(stopData.sloid);
+    if (stopData.representative_sloid != null && stopData.representative_sloid !== '') return String(stopData.representative_sloid);
+    if (stopData.id != null && stopData.id !== '') return String(stopData.id);
+    return null;
+}
+
 // Note: popup HTML generation functions are provided by popup-renderer.js
 // Note: createAtlasMarker and createOsmMarker functions are now provided by map-renderer.js
 
@@ -368,11 +376,13 @@ function loadTopNMatches() {
 
                 // Collect marker data for cluster handling
                 var topNMarkerData = [];
+                var createdAtlasMarkers = new Set();
 
                 filteredData.forEach(function (stop) {
                     if (stop.stop_type === 'matched' && stop.atlas_lat && stop.atlas_lon && stop.osm_lat && stop.osm_lon) {
+                        var atlasMarkerKey = getAtlasMarkerIdentity(stop);
 
-                        if (showAtlasNodes) {
+                        if (showAtlasNodes && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
                             topNMarkerData.push({
                                 lat: parseFloat(stop.atlas_lat),
                                 lon: parseFloat(stop.atlas_lon),
@@ -383,6 +393,9 @@ function loadTopNMatches() {
                                 originalLon: parseFloat(stop.atlas_lon),
                                 stopData: stop
                             });
+                            if (atlasMarkerKey) {
+                                createdAtlasMarkers.add(atlasMarkerKey);
+                            }
                         }
                         if (showOSMNodes) {
                             topNMarkerData.push({
@@ -744,12 +757,14 @@ function loadDataForViewport() {
 
         // 3) Collect Marker Data for Cluster Management
         var createdOsmMarkers = new Set();
+        var createdAtlasMarkers = new Set();
         var allMarkerData = [];
 
         data.forEach(function (stop) {
             if (stop.stop_type === 'matched') {
                 if (stop.sloid && Array.isArray(stop.osm_matches)) {
-                    if (showAtlasNodes && stop.atlas_lat != null && stop.atlas_lon != null) {
+                    const atlasMarkerKey = getAtlasMarkerIdentity(stop);
+                    if (showAtlasNodes && stop.atlas_lat != null && stop.atlas_lon != null && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
                         // Use the new helper function to create the ATLAS marker
                         var isStation = stop.osm_matches && stop.osm_matches.length > 0 && stop.osm_matches.some(om => om.osm_public_transport === 'station' && om.osm_aerialway !== 'station');
                         if (!isStation && stop.osm_public_transport === 'station' && stop.osm_aerialway !== 'station') isStation = true;
@@ -766,6 +781,9 @@ function loadDataForViewport() {
                             originalLon: atlasLon,
                             stopData: stop
                         });
+                        if (atlasMarkerKey) {
+                            createdAtlasMarkers.add(atlasMarkerKey);
+                        }
                     }
 
                     if (showOSMNodes) {
@@ -803,8 +821,9 @@ function loadDataForViewport() {
                     }
                 } else if (stop.sloid && stop.osm_node_id && (!Array.isArray(stop.osm_matches) || stop.osm_matches.length <= 1)) {
                     const osmNodeIdKey = `osm-${stop.osm_node_id}`;
+                    const atlasMarkerKey = getAtlasMarkerIdentity(stop);
 
-                    if (showAtlasNodes && stop.atlas_lat != null && stop.atlas_lon != null) {
+                    if (showAtlasNodes && stop.atlas_lat != null && stop.atlas_lon != null && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
                         const atlasLat = +stop.atlas_lat;
                         const atlasLon = +stop.atlas_lon;
                         allMarkerData.push({
@@ -817,6 +836,9 @@ function loadDataForViewport() {
                             originalLon: atlasLon,
                             stopData: stop
                         });
+                        if (atlasMarkerKey) {
+                            createdAtlasMarkers.add(atlasMarkerKey);
+                        }
                     }
 
                     if (showOSMNodes && stop.osm_lat != null && stop.osm_lon != null && !createdOsmMarkers.has(osmNodeIdKey)) {
@@ -838,7 +860,8 @@ function loadDataForViewport() {
             }
             // --- Handle Unmatched ATLAS Stops ---
             else if (stop.stop_type === 'atlas_unmatched') {
-                if (showAtlasNodes) {
+                const atlasMarkerKey = getAtlasMarkerIdentity(stop);
+                if (showAtlasNodes && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
                     const atlasLat = +stop.lat;
                     const atlasLon = +stop.lon;
                     allMarkerData.push({
@@ -851,6 +874,9 @@ function loadDataForViewport() {
                         originalLon: atlasLon,
                         stopData: stop
                     });
+                    if (atlasMarkerKey) {
+                        createdAtlasMarkers.add(atlasMarkerKey);
+                    }
                 }
             }
             // --- Handle Unmatched OSM Nodes (standalone) ---
@@ -883,7 +909,7 @@ function loadDataForViewport() {
 
         // Helper to generate unique key
         function getMarkerKey(m) {
-            if (m.type === 'atlas') return 'atlas-' + m.stopData.id;
+            if (m.type === 'atlas') return 'atlas-' + (getAtlasMarkerIdentity(m.stopData) || m.stopData.id);
             if (m.type === 'osm') return 'osm-' + (m.stopData.osm_node_id || m.stopData.id);
             return null;
         }
