@@ -27,7 +27,7 @@ main {
 }
 
 /* Container for map + overlay panel - needs position:relative for absolute panel */
-.index-root > .d-flex.flex-row {
+.index-root>.d-flex.flex-row {
   position: relative;
 }
 
@@ -40,105 +40,145 @@ main {
 }
 
 /* -------------------------------------------------------------------------
-   Collapsible Filter Panel (Overlay Mode)
+   Top Filters Bar (Overlay Mode)
    ------------------------------------------------------------------------- */
-/* Override width for index page */
-#filterPanelContainer {
-  --c-filter-panel-width: 480px;
-  --c-filter-panel-collapsed-width: 40px;
-  --c-filter-panel-padding: var(--space-2);
-  --c-filter-panel-toggle-inset: var(--c-filter-panel-padding);
-  padding: var(--c-filter-panel-padding);
+.top-filters-overlay {
+  z-index: 1000;
 }
 
-/* Ensure the content fills properly within the panel */
-#filterPanelContainer .c-filter-panel__content {
-  width: calc(100% - 26px); /* Match component toggle spacing */
+.top-filters-bar {
+  /* removed background */
 }
 
-
-
-/* Filter panel body needs to scroll */
-#filterPanelBody {
-  overflow-y: auto;
-  flex: 1 1 auto;
-  min-height: 0;
-  padding: var(--space-3);
+.filter-item .dropdown-toggle {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  color: #1e293b;
+  transition: all 0.2s ease;
 }
 
-/* Fixed controls stay at the bottom */
-#fixedFilterControls {
-  flex-shrink: 0;
-  padding: var(--space-3) var(--space-4);
-  width: 100%;
-  border-top: 1px solid var(--color-border);
-  background: var(--color-bg);
+.filter-item .dropdown-toggle:hover {
+  background: #f8fafc;
+  border-color: rgba(59, 130, 246, 0.4);
 }
 
-#fixedFilterControls .card {
+.filter-item .dropdown-menu {
   border-radius: var(--radius-lg);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.osm-group-subfilters {
+  border-left: 2px solid rgba(59, 130, 246, 0.2);
   margin-top: var(--space-2);
-  background: var(--color-bg);
-  overflow: hidden;
-  width: 100%;
+}
+
+.osm-group-subfilters .custom-checkbox {
+  margin-bottom: var(--space-1);
+}
+
+/* -------------------------------------------------------------------------
+   Smart Search Hint Tooltip
+   ------------------------------------------------------------------------- */
+.smart-search-hint {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1002;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
   border: 1px solid var(--color-border);
-}
-
-#fixedFilterControls .card-header {
-  background: linear-gradient(to right, var(--color-bg-subtle), var(--color-bg));
-  border-bottom: 1px solid var(--color-border);
-  padding: var(--space-2) var(--space-3);
-}
-
-#fixedFilterControls .card-header h5 {
-  font-size: var(--text-sm);
-  font-weight: var(--font-bold);
-  color: var(--color-dark);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Modern rounded search inputs */
-#fixedFilterControls .input-group {
   border-radius: var(--radius-md);
-  overflow: hidden;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-2) var(--space-3);
+  min-width: 250px;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--color-dark);
+  pointer-events: none;
 }
 
-#fixedFilterControls .custom-select,
-#fixedFilterControls .form-control {
-  border-color: var(--color-border);
+.smart-search-hint__title {
+  font-weight: var(--font-semibold);
+  color: var(--color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: var(--space-1);
+  font-size: 0.65rem;
 }
 
-#fixedFilterControls .custom-select:focus,
-#fixedFilterControls .form-control:focus {
-  box-shadow: none;
-  border-color: var(--color-primary);
+.smart-search-hint__item {
+  padding: 2px 0;
+  line-height: var(--leading-snug);
 }
 
-#fixedFilterControls .btn-outline-secondary {
-  border-color: var(--color-border);
-  background: var(--color-bg-subtle);
-  color: var(--color-text);
+.smart-search-hint__item kbd {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 0.3rem;
+  color: var(--color-primary);
+  font-weight: var(--font-medium);
 }
 
-#fixedFilterControls .btn-outline-secondary:hover {
-  background: var(--color-primary);
-  color: var(--color-white);
-  border-color: var(--color-primary);
+/* Zoom banner: centered overlay with semi-transparent background */
+.zoom-banner {
+  position: fixed;
+  left: 50%;
+  top: calc(var(--navbar-height) + 70px);
+  transform: translateX(-50%);
+  z-index: 1001;
+  pointer-events: auto;
+  background: rgba(80, 80, 80, 0.65);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.5rem 1.25rem;
+  border-radius: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 #activeFilters {
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  margin-top: var(--space-2);
-  background: var(--color-bg);
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 0;
+  justify-content: flex-start;
+  padding: 0;
+  border-top: none;
+  background-color: transparent;
+  width: 100%;
+  max-width: 520px;
+}
+
+.header-summary #activeFilters {
+  width: 100%;
+  max-width: none;
+  padding: 0.5rem 0 0;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  background-color: transparent;
+}
+
+.header-summary #headerSummaryStats {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  #activeFilters {
+    max-width: calc(100vw - 2.5rem);
+  }
 }
 
 /* Map container fills entire space (panel overlays it) */
 #mapContainer {
   flex: 1 1 auto;
-  min-width: 0; /* Required for Leaflet/Flexbox to work properly */
+  min-width: 0;
+  /* Required for Leaflet/Flexbox to work properly */
   position: relative;
   z-index: 1;
   display: flex;
@@ -181,5 +221,3 @@ main {
   padding: var(--space-2);
   text-align: center;
 }
-
-

@@ -17,12 +17,13 @@ import pandas as pd
 from matching_and_import_db.pipeline import MatchingContext, run_pipeline
 from matching_and_import_db.state import AtlasState, OsmState
 from matching_and_import_db.models import MatchingOutput
+from matching_and_import_db.utils.common import haversine_distance
 
 from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
 from matching_and_import_db.predicates.name_matching import NameMatchPredicate
 from matching_and_import_db.predicates.distance_matching import GroupProximityPredicate, LocalRefDistancePredicate, NearestDistancePredicate
 from matching_and_import_db.predicates.route_matching_unified import RouteMatchPredicate
-from matching_and_import_db.predicates.postpass_matching import PostpassUniqueUicPredicate, DuplicatePropagationPredicate
+from matching_and_import_db.predicates.postpass_matching import PostpassUniqueUicPredicate
 
 DEFAULT_PIPELINE = [
     ExactUicPredicate(),
@@ -32,8 +33,48 @@ DEFAULT_PIPELINE = [
     NearestDistancePredicate(),
     RouteMatchPredicate(),
     PostpassUniqueUicPredicate(),
-    DuplicatePropagationPredicate(),
 ]
+
+
+def _build_atlas_uic_nearest_osm_distances(
+    atlas_df: pd.DataFrame,
+    osm_index: OsmState,
+) -> dict[str, list[float]]:
+    """Return per-UIC nearest OSM distances for ATLAS rows.
+
+    Distances are measured from each ATLAS row to the nearest OSM node sharing
+    the same UIC. Rows with invalid coordinates or UICs without OSM entries are
+    skipped.
+    """
+    distances_by_uic: dict[str, list[float]] = defaultdict(list)
+
+    for _, row in atlas_df.iterrows():
+        uic = str(row.get('number', '')).strip()
+        if not uic:
+            continue
+
+        osm_entries = osm_index._uic_ref_dict.get(uic, [])
+        if not osm_entries:
+            continue
+
+        try:
+            lat = float(row['wgs84North'])
+            lon = float(row['wgs84East'])
+        except (TypeError, ValueError, KeyError):
+            continue
+
+        nearest_distance = None
+        for entry in osm_entries:
+            distance = haversine_distance(lat, lon, entry['lat'], entry['lon'])
+            if distance is None:
+                continue
+            if nearest_distance is None or distance < nearest_distance:
+                nearest_distance = distance
+
+        if nearest_distance is not None:
+            distances_by_uic[uic].append(nearest_distance)
+
+    return dict(distances_by_uic)
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +149,7 @@ def run_matching() -> MatchingOutput:
 
     # ── Pre-group platform ↔ stop_position pairs ─────────────────────────
     atlas_uic_counts = {str(k): v for k, v in atlas_df.groupby('number').size().items()}
+    atlas_uic_nearest_osm_distances = _build_atlas_uic_nearest_osm_distances(atlas_df, osm_index)
 
     # Build designationOfficial → UIC mapping for name-based group anchoring
     atlas_designation_to_uic: dict[str, str] = {}
@@ -117,7 +159,13 @@ def run_matching() -> MatchingOutput:
         if desig and uic:
             atlas_designation_to_uic[desig] = uic
 
-    osm_index.build_groups(atlas_uic_counts, atlas_designation_to_uic)
+    osm_index.build_groups(
+        atlas_uic_counts,
+        atlas_designation_to_uic,
+        atlas_uic_nearest_osm_distances,
+    )
+
+    # ATLAS duplicate grouping now happens automatically in AtlasState.__init__
 
     ctx = MatchingContext(
         atlas=atlas_state,

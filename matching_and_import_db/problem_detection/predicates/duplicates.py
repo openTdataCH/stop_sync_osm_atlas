@@ -26,7 +26,7 @@ def duplicates_problem(ctx: ProblemContext, record: MatchRecord | AtlasNode | Os
             problem_type='duplicates', priority=3, has_osm_duplicate=True,
         )]
 
-    if sloid and str(sloid) in ctx.duplicate_sloid_map:
+    if sloid and str(sloid) in ctx.duplicate_sloid_map and str(sloid) not in ctx.handled_duplicate_sloids:
         return [ProblemResult(
             problem_type='duplicates', priority=2, has_atlas_duplicate=True,
         )]

@@ -308,19 +308,31 @@ window.ProblemsUI = (function () {
         // Handle duplicates differently due to their multi-member structure
         if (problem.problem === 'duplicates') {
             if (!Array.isArray(problem.members) || problem.members.length === 0) {
-                // Fallback for non-group duplicates (no members available)
+                // Individual duplicate entry (shown in "All Problems" view)
+                const isOsm = !!problem.has_osm_duplicate;
+                const badge = `<span class="badge badge-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
+                const ident = isOsm ? (problem.osm_node_id || '-') : (problem.sloid || '-');
+                const name = isOsm ? (problem.osm_name || problem.osm_uic_name || '-')
+                    : (problem.atlas_designation_official || problem.atlas_designation || '-');
+                const coords = isOsm
+                    ? (problem.osm_lat && problem.osm_lon ? `${Math.round(problem.osm_lat * 1e5) / 1e5}, ${Math.round(problem.osm_lon * 1e5) / 1e5}` : '-')
+                    : (problem.atlas_lat && problem.atlas_lon ? `${Math.round(problem.atlas_lat * 1e5) / 1e5}, ${Math.round(problem.atlas_lon * 1e5) / 1e5}` : '-');
+
+                let infoHtml = '<table class="table table-sm mb-2"><thead><tr>' +
+                    '<th>Source</th><th>Identifier</th><th>Name</th><th>Coords</th></tr></thead><tbody>';
+                infoHtml += `<tr><td>${badge}</td><td>${ident}</td><td>${name}</td><td>${coords}</td></tr>`;
+                infoHtml += '</tbody></table>';
+                infoHtml += '<small class="text-muted"><i class="fas fa-info-circle"></i> Part of a duplicates group</small>';
+
                 actionButtonsHtml += wrapInSection(
-                    '<i class="fas fa-clone"></i> Duplicates',
-                    '<div class="alert alert-info"><small>This entry is part of a duplicates group. Open the Duplicates view to resolve this issue.</small></div>' +
-                    '<button class="btn btn-sm btn-outline-primary professional-button" onclick="ProblemsData.updateProblemTypeFilter(\'duplicates\', \'all\')">' +
-                    '<i class="fas fa-external-link-alt"></i> Open Duplicates'
-                    + '</button>'
+                    '<i class="fas fa-clone"></i> Duplicate Entry',
+                    infoHtml
                 );
             } else {
                 // Info block for Members
                 let html = '<div class="problem-section-item">';
                 html += '<h6><i class="fas fa-clone"></i> Duplicates</h6>';
-                
+
                 // Table of members
                 html += '<table class="table table-sm"><thead><tr>' +
                     '<th>Source</th><th>Identifier</th><th>Name</th><th>Coords</th></tr></thead><tbody>';
@@ -330,8 +342,8 @@ window.ProblemsUI = (function () {
                     const isOsm = isOsmGroup ? true : (problem.group_type === 'atlas' ? false : !!member.osm_node_id);
                     const badge = `<span class="badge badge-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
                     const ident = isOsm ? (member.osm_node_id || '-') : (member.sloid || '-');
-                    const name = isOsm ? (member.osm_name || member.osm_uic_name || '-') 
-                                       : (member.atlas_designation_official || member.atlas_designation || '-');
+                    const name = isOsm ? (member.osm_name || member.osm_uic_name || '-')
+                        : (member.atlas_designation_official || member.atlas_designation || '-');
                     const coords = isOsm
                         ? (member.osm_lat && member.osm_lon ? `${Math.round(member.osm_lat * 1e5) / 1e5}, ${Math.round(member.osm_lon * 1e5) / 1e5}` : '-')
                         : (member.atlas_lat && member.atlas_lon ? `${Math.round(member.atlas_lat * 1e5) / 1e5}, ${Math.round(member.atlas_lon * 1e5) / 1e5}` : '-');
@@ -486,40 +498,24 @@ window.ProblemsUI = (function () {
                 }
             }
 
-            // Load notes for the first problem and setup notes container visibility
-            if (firstProblem.problem === 'duplicates' && Array.isArray(firstProblem.members) && firstProblem.members.length > 0) {
-                // Use unified notes loader for duplicates
-                if (window.ProblemsNotes && window.ProblemsNotes.loadNotesForDuplicates) {
-                    window.ProblemsNotes.loadNotesForDuplicates(firstProblem);
+            // Add scroll indicator if needed
+            const problemContent = $('#problemContent');
+            let scrollIndicator = problemContent.find('.scroll-indicator');
+            if (currentEntryProblems.length > 1) {
+                if (scrollIndicator.length === 0) {
+                    scrollIndicator = $('<div class="scroll-indicator"><i class="fas fa-chevron-down"></i></div>');
+                    problemContent.append(scrollIndicator);
                 }
+                setTimeout(() => scrollIndicator.addClass('visible'), 100);
+
+                // Hide indicator on scroll
+                problemContent.off('scroll.indicator').on('scroll.indicator', () => {
+                    scrollIndicator.removeClass('visible');
+                });
+
             } else {
-                // Show standard notes container for other problem types
-                $('#notesSection').show();
-                $('#standardNotesContainer').show();
-                $('#duplicatesNotesContainer').hide();
-                if (window.ProblemsNotes && window.ProblemsNotes.loadNotesForProblem) {
-                    window.ProblemsNotes.loadNotesForProblem(firstProblem);
-                }
+                scrollIndicator.remove();
             }
-        }
-
-        // Add scroll indicator if needed
-        const problemContent = $('#problemContent');
-        let scrollIndicator = problemContent.find('.scroll-indicator');
-        if (currentEntryProblems.length > 1) {
-            if (scrollIndicator.length === 0) {
-                scrollIndicator = $('<div class="scroll-indicator"><i class="fas fa-chevron-down"></i></div>');
-                problemContent.append(scrollIndicator);
-            }
-            setTimeout(() => scrollIndicator.addClass('visible'), 100);
-
-            // Hide indicator on scroll
-            problemContent.off('scroll.indicator').on('scroll.indicator', () => {
-                scrollIndicator.removeClass('visible');
-            });
-
-        } else {
-            scrollIndicator.remove();
         }
     }
 

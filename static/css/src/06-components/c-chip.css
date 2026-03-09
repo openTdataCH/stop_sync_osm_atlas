@@ -160,13 +160,37 @@
   color: var(--color-fg-muted);
 }
 
-.badge-primary { color: var(--color-primary); border-color: var(--color-primary); }
-.badge-secondary { color: var(--color-secondary); border-color: var(--color-secondary); }
-.badge-success { color: var(--color-success); border-color: var(--color-success); }
-.badge-warning { color: var(--color-warning); border-color: var(--color-warning); }
-.badge-danger { color: var(--color-danger); border-color: var(--color-danger); }
-.badge-info { color: var(--color-info); border-color: var(--color-info); }
-.badge-dark { color: var(--color-dark); border-color: var(--color-dark); }
+.filter-chip-badge {
+  margin: 0;
+  padding: 0.15rem 0.45rem;
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  line-height: var(--leading-tight);
+  color: var(--color-dark);
+  border: 1px solid var(--color-border);
+  background-color: rgba(255, 255, 255, 0.92);
+}
+
+.filter-chip-separator {
+  padding: 0.1rem 0.2rem;
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+  font-weight: var(--font-normal);
+  line-height: 1;
+  color: var(--color-fg-muted);
+  border-color: transparent;
+  background-color: transparent;
+  white-space: nowrap;
+}
+
+.badge-primary { color: var(--color-primary); border-color: var(--color-primary-muted); background-color: var(--color-primary-subtle); }
+.badge-secondary { color: var(--color-secondary); border-color: var(--color-border); background-color: var(--color-secondary-subtle); }
+.badge-success { color: var(--color-success); border-color: var(--color-success-border); background-color: var(--color-success-subtle); }
+.badge-warning { color: var(--color-warning-text); border-color: var(--color-warning-border); background-color: var(--color-warning-subtle); }
+.badge-danger { color: var(--color-danger); border-color: var(--color-danger-border); background-color: var(--color-danger-subtle); }
+.badge-info { color: var(--color-info); border-color: var(--color-info-border); background-color: var(--color-info-subtle); }
+.badge-dark { color: var(--color-dark); border-color: var(--color-border-emphasis); }
 
 /* Badge with close button */
 .badge a {
@@ -175,6 +199,17 @@
   font-weight: var(--font-semibold);
   font-size: 0.95em;
   color: inherit;
+}
+
+.filter-chip-badge a {
+  margin-left: 0.25rem;
+  font-size: 0.85em;
+  opacity: 0.5;
+  transition: opacity var(--transition-fast);
+}
+
+.filter-chip-badge a:hover {
+  opacity: 1;
 }
 
 .badge a:hover {

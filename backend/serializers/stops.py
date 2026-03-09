@@ -1,4 +1,5 @@
 from backend.models import StopsMatched, AtlasStop, OsmNode
+from backend.services.routes import get_unified_routes_for_sloid, get_osm_routes_for_node
 
 def format_stop_data(stop: StopsMatched, problem_type: str = None, include_routes: bool = True) -> dict:
     atlas_details = stop.atlas_stop_details
@@ -36,6 +37,7 @@ def format_stop_data(stop: StopsMatched, problem_type: str = None, include_route
         "osm_uic_ref": osm_details.osm_uic_ref if osm_details else None,
         "has_atlas_duplicate": stop.has_atlas_duplicate or False,
         "has_osm_duplicate": stop.has_osm_duplicate or False,
+        "representative_sloid": atlas_details.representative_sloid if atlas_details else None,
         "duplicate_group_sloids": atlas_details.duplicate_group_sloids if atlas_details else None,
         "duplicate_group_node_ids": osm_details.duplicate_group_node_ids if osm_details else None,
         "osm_node_type": osm_details.osm_node_type if osm_details else None,
@@ -43,8 +45,8 @@ def format_stop_data(stop: StopsMatched, problem_type: str = None, include_route
 
     if include_routes:
         result.update({
-            "routes_unified": [],
-            "routes_osm": [],
+            "routes_unified": get_unified_routes_for_sloid(stop.sloid) if stop.sloid else [],
+            "routes_osm": get_osm_routes_for_node(stop.osm_node_id) if stop.osm_node_id else [],
         })
 
     if problem_type:

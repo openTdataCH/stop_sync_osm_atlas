@@ -39,12 +39,14 @@ def upgrade_():
         sa.Column('atlas_designation', sa.String(length=255), nullable=True),
         sa.Column('atlas_designation_official', sa.String(length=255), nullable=True),
         sa.Column('atlas_business_org_abbr', sa.String(length=100), nullable=True),
+        sa.Column('representative_sloid', sa.String(length=100), nullable=True),
         sa.Column('duplicate_group_sloids', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.PrimaryKeyConstraint('sloid')
     )
     with op.batch_alter_table('atlas_stops') as batch_op:
         batch_op.create_index('idx_atlas_operator', ['atlas_business_org_abbr'], unique=False)
         batch_op.create_index(batch_op.f('ix_atlas_stops_uic_ref'), ['uic_ref'], unique=False)
+        batch_op.create_index(batch_op.f('ix_atlas_stops_representative_sloid'), ['representative_sloid'], unique=False)
 
     # osm_nodes
     op.create_table('osm_nodes',

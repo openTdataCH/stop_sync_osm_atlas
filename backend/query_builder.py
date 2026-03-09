@@ -110,6 +110,17 @@ class FilterBuilder:
         
         return conditions
 
+    @staticmethod
+    def build_osm_group_members_query(osm_group_types=None):
+        node_id_1_query = db.session.query(OsmStopGroup.node_id_1)
+        node_id_2_query = db.session.query(OsmStopGroup.node_id_2)
+
+        if osm_group_types:
+            node_id_1_query = node_id_1_query.filter(OsmStopGroup.group_type.in_(osm_group_types))
+            node_id_2_query = node_id_2_query.filter(OsmStopGroup.group_type.in_(osm_group_types))
+
+        return node_id_1_query.union(node_id_2_query)
+
 
 class QueryBuilder:
     """
@@ -176,6 +187,7 @@ class QueryBuilder:
             Filtered SQLAlchemy query object
         """
         conditions = []
+        osm_conditions = []
         
         # Transport type filter
         if filters.get('transport_types'):
@@ -183,7 +195,7 @@ class QueryBuilder:
                 filters['transport_types']
             )
             if transport_conditions:
-                conditions.append(db.or_(*transport_conditions))
+                osm_conditions.append(db.or_(*transport_conditions))
         
         # Node type filter
         if filters.get('node_types'):
@@ -217,13 +229,18 @@ class QueryBuilder:
         
         # OSM group filter
         if filters.get('osm_group_filter'):
-            conditions.append(
+            osm_conditions.append(
                 StopsMatched.osm_node_id.in_(
-                    db.session.query(OsmStopGroup.node_id_1).union(
-                        db.session.query(OsmStopGroup.node_id_2)
-                    )
+                    self.filter_builder.build_osm_group_members_query(filters.get('osm_group_types'))
                 )
             )
+
+        if osm_conditions:
+            combined_osm_condition = db.and_(*osm_conditions)
+            if filters.get('osm_include_matched', True):
+                conditions.append(combined_osm_condition)
+            else:
+                conditions.append(db.and_(StopsMatched.stop_type != 'matched', combined_osm_condition))
         
         # Apply all conditions
         if conditions:

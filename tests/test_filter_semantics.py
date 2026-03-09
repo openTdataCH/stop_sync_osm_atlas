@@ -1,0 +1,69 @@
+from backend.models import StopsMatched
+from backend.queries.helpers import build_match_method_conditions, build_stop_scope_condition, resolve_stop_type_match_filters
+
+
+def _compile_expression(expr):
+    return str(expr.compile(compile_kwargs={"literal_binds": True}))
+
+
+def test_matched_methods_apply_without_master_stop_type():
+    resolved = resolve_stop_type_match_filters(None, 'exact,name')
+
+    assert resolved['include_matched'] is True
+    assert resolved['matched_methods'] == ['exact', 'name']
+    assert resolved['include_atlas_unmatched'] is False
+    assert resolved['include_osm_unmatched'] is False
+
+
+def test_matched_stop_type_without_matched_methods_still_includes_all_matched():
+    resolved = resolve_stop_type_match_filters('matched', 'no_nearby_counterpart')
+
+    assert resolved['include_matched'] is True
+    assert resolved['matched_methods'] == []
+    assert resolved['include_atlas_unmatched'] is True
+
+
+def test_unmatched_reason_applies_without_master_stop_type():
+    resolved = resolve_stop_type_match_filters(None, 'no_nearby_counterpart')
+
+    assert resolved['include_matched'] is False
+    assert resolved['include_atlas_unmatched'] is True
+    assert resolved['unmatched_reason_filters']['no_nearby_counterpart'] is True
+    assert resolved['unmatched_reason_filters']['osm_within_50m'] is False
+
+
+def test_unknown_stop_type_or_method_still_registers_scope_filter():
+    resolved = resolve_stop_type_match_filters('unknown_type', 'unknown_method')
+
+    assert resolved['has_scope_filter'] is True
+    assert resolved['include_matched'] is False
+    assert resolved['include_atlas_unmatched'] is False
+    assert resolved['include_osm_unmatched'] is False
+
+
+def test_scope_condition_for_exact_only_targets_matched_exact_rows():
+    resolved = resolve_stop_type_match_filters(None, 'exact')
+
+    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
+
+    assert "stop_type = 'matched'" in sql
+    assert "match_type = 'exact'" in sql
+    assert "atlas_unmatched" not in sql
+
+
+def test_scope_condition_for_master_matched_without_methods_is_not_narrowed():
+    resolved = resolve_stop_type_match_filters('matched', None)
+
+    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
+
+    assert "stop_type = 'matched'" in sql
+    assert "match_type = 'exact'" not in sql
+    assert "distance_matching_" not in sql
+    assert "route_gtfs" not in sql
+
+
+def test_route_match_condition_includes_unified_route_variants():
+    sql = _compile_expression(build_match_method_conditions(StopsMatched, ['route_gtfs']))
+
+    assert "route_gtfs%" in sql
+    assert "route_unified_gtfs%" in sql

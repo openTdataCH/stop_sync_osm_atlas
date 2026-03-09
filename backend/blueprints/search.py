@@ -4,7 +4,7 @@ from sqlalchemy import func
 from backend.models import StopsMatched, AtlasStop, OsmNode
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
-from backend.query_helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint
+from backend.query_helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint, resolve_stop_type_match_filters, build_stop_scope_condition, build_match_method_conditions
 
 search_bp = Blueprint('search', __name__)
 
@@ -108,13 +108,8 @@ def get_top_matches():
         if match_method_str:
             specific_methods = [m.strip() for m in match_method_str.split(',') if m.strip()]
             if specific_methods:
-                method_conditions = []
-                for m in specific_methods:
-                    if m.startswith('distance_matching_') or m.startswith('route_'):
-                        method_conditions.append(StopsMatched.match_type.like(f"{m}%"))
-                    else:
-                        method_conditions.append(StopsMatched.match_type == m)
-                query = query.filter(db.or_(*method_conditions))
+                method_condition = build_match_method_conditions(StopsMatched, specific_methods)
+                query = query.filter(method_condition) if method_condition is not None else query.filter(db.false())
             else:
                 query = query.filter(db.false())
         stops = query.order_by(StopsMatched.distance_m.desc()).limit(limit).all()
@@ -140,70 +135,10 @@ def get_random_stop():
         query = optimize_query_for_endpoint(StopsMatched.query, 'search')
         query = query_builder.apply_common_filters(query, filters)
 
-        all_category_conditions = []
-        stop_type_match_method_or_conditions = []
-        current_stop_types = []
-        if stop_filter_str and stop_filter_str.lower() != 'all':
-            current_stop_types = [t.strip() for t in stop_filter_str.split(',') if t.strip()]
-        current_match_methods = []
-        if match_method_str:
-            current_match_methods = [m.strip() for m in match_method_str.split(',') if m.strip()]
-
-        if 'matched' in current_stop_types:
-            relevant_matched_methods = [
-                m for m in current_match_methods if (
-                    m in ['exact', 'name'] or
-                    m.startswith('distance_matching_') or
-                    m.startswith('route_')
-                )
-            ]
-            if relevant_matched_methods:
-                method_conditions = []
-                for m in relevant_matched_methods:
-                    if m.startswith('distance_matching_'):
-                        method_conditions.append(StopsMatched.match_type.like(f"{m}%"))
-                    elif m.startswith('route_'):
-                        # Match both legacy and unified route match types
-                        method_conditions.append(StopsMatched.match_type.like(f"{m}%"))
-                        if not m.startswith('route_unified_'):
-                            suffix = m[len('route_'):]
-                            method_conditions.append(StopsMatched.match_type.like(f"route_unified_{suffix}%"))
-                    else:
-                        method_conditions.append(StopsMatched.match_type == m)
-                stop_type_match_method_or_conditions.append(
-                    db.and_(StopsMatched.stop_type == 'matched', db.or_(*method_conditions))
-                )
-            else:
-                # If no match methods are selected, include all matched stops.
-                if not current_match_methods:
-                    stop_type_match_method_or_conditions.append(StopsMatched.stop_type == 'matched')
-
-        if 'unmatched' in current_stop_types:
-            filter_for_no_osm_nearby = 'no_nearby_counterpart' in current_match_methods
-            filter_for_osm_nearby = 'osm_within_50m' in current_match_methods
-            unmatched_specific_condition = StopsMatched.stop_type == 'atlas_unmatched'
-            if filter_for_no_osm_nearby and not filter_for_osm_nearby:
-                unmatched_specific_condition = db.and_(
-                    StopsMatched.stop_type == 'atlas_unmatched',
-                    StopsMatched.match_type == 'no_nearby_counterpart'
-                )
-            elif not filter_for_no_osm_nearby and filter_for_osm_nearby:
-                unmatched_specific_condition = db.and_(
-                    StopsMatched.stop_type == 'atlas_unmatched',
-                    db.or_(StopsMatched.match_type != 'no_nearby_counterpart', StopsMatched.match_type.is_(None))
-                )
-            stop_type_match_method_or_conditions.append(unmatched_specific_condition)
-
-        if 'osm' in current_stop_types:
-            stop_type_match_method_or_conditions.append(StopsMatched.stop_type == 'osm_unmatched')
-
-        if stop_type_match_method_or_conditions:
-            all_category_conditions.append(db.or_(*stop_type_match_method_or_conditions))
-        elif current_stop_types and not stop_type_match_method_or_conditions:
-            all_category_conditions.append(db.false())
-
-        if all_category_conditions:
-            query = query.filter(db.and_(*all_category_conditions))
+        resolved_filters = resolve_stop_type_match_filters(stop_filter_str, match_method_str)
+        scope_condition = build_stop_scope_condition(StopsMatched, resolved_filters)
+        if scope_condition is not None:
+            query = query.filter(scope_condition)
 
         if show_duplicates_only:
             query = query.filter(StopsMatched.has_atlas_duplicate == True)

@@ -4,276 +4,323 @@
 {% block title %}OSM & ATLAS Matching Tool{% endblock %}
 
 {% block head_css %}
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-  <!-- Popup CSS -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
-  <!-- Index page styles (moved out of template for maintainability) -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/index.css') }}">
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<!-- Popup CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
+<!-- Index page styles (moved out of template for maintainability) -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/index.css') }}">
 {% endblock %}
 
 {% block content %}
 <div class="container-fluid d-flex flex-column flex-grow-1 index-root">
-  
+
   <div class="d-flex flex-row flex-grow-1" style="overflow: hidden;">
-    <!-- Consolidated Filter Panel -->
-    <div class="d-flex flex-column c-filter-panel" id="filterPanelContainer">
-      <div class="card flex-grow-1 c-filter-panel__content">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <strong><i class="fas fa-sliders-h mr-2"></i>Filters</strong>
-        </div>
-        <div class="card-body" id="filterPanelBody">
-          <!-- Node Type Filters -->
-          <div class="compact-group">
-              <label>Node Type</label>
-              <div class="row">
-                <div class="col-6">
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-node-type form-check-input" id="filterAtlas" value="atlas">
-                    <label class="form-check-label" for="filterAtlas">ATLAS</label>
-                  </div>
-                </div>
-                <div class="col-6">
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-node-type form-check-input" id="filterOSM" value="osm">
-                    <label class="form-check-label" for="filterOSM">OSM</label>
-                  </div>
-                </div>
-              </div>
-              <div class="row">
-                <div class="col-6">
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-osm-group form-check-input" id="filterOsmGroup" value="has_osm_group">
-                    <label class="form-check-label" for="filterOsmGroup">OSM Groups</label>
-                  </div>
-                </div>
-              </div>
-          </div>
+    <!-- Top Filters Overlay -->
+    <div class="top-filters-overlay position-absolute w-100 mt-2"
+      style="z-index: 1000; top: 10px; left: 0; pointer-events: none;">
+      <div class="d-flex flex-column align-items-start pl-3 w-100">
+        <div class="top-filters-bar d-flex align-items-center position-relative" style="pointer-events: auto;">
 
-          <!-- Stop Type: Matched -->
-          <div class="compact-group">
-            <div class="matching-subcategory-header" data-toggle="collapse" data-target="#collapseMatchedStopType" aria-expanded="true" aria-controls="collapseMatchedStopType">
-                <input type="checkbox" id="masterMatchedCheckbox" class="master-filter-checkbox" data-children-container="#collapseMatchedStopType">
-                <a class="accordion-link" href="#">
-                   Matched <i class="fas fa-chevron-down accordion-toggle-icon ml-1"></i>
-                </a>
-            </div>
-            <div id="collapseMatchedStopType" class="collapse show matching-subcategory-content">
-                <!-- Matching Methods -->
-                <div class="compact-group mt-2" id="matchingMethodContainer">
-                  <label>Matching Methods</label>
-                  <div class="row">
-                    <div class="col-6">
-                      <div class="form-check">
-                        <input type="checkbox" class="filter-match-method form-check-input" id="filterExact" value="exact">
-                        <label class="form-check-label" for="filterExact">Exact</label>
-                      </div>
-                    </div>
-                    <div class="col-6">
-                      <div class="form-check">
-                        <input type="checkbox" class="filter-match-method form-check-input" id="filterName" value="name">
-                        <label class="form-check-label" for="filterName">Name</label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <!-- Distance Matching (3rd Level Nested Accordion) -->
-                <div class="compact-group">
-                    <div class="matching-subcategory-header">
-                        <input type="checkbox" id="masterDistanceMatchingCheckbox" class="master-filter-checkbox" data-children-container="#collapseDistanceMatching">
-                        <a class="accordion-link" href="#" data-toggle="collapse" data-target="#collapseDistanceMatching" aria-expanded="true" aria-controls="collapseDistanceMatching">
-                            Distance Matching <i class="fas fa-chevron-down accordion-toggle-icon ml-1"></i>
-                        </a>
-                    </div>
-                    <div id="collapseDistanceMatching" class="collapse show matching-subcategory-content">
-                        <div class="form-check mt-2">
-                          <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodStage1" value="distance_matching_1">
-                          <label class="form-check-label" for="distanceMethodStage1">Stage 1: Group-based Proximity</label>
-                        </div>
-                        <div class="form-check">
-                          <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodStage2" value="distance_matching_2">
-                          <label class="form-check-label" for="distanceMethodStage2">Stage 2: Exact local_ref Match</label>
-                        </div>
-                        <div class="form-check">
-                          <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodStage3a" value="distance_matching_3a">
-                          <label class="form-check-label" for="distanceMethodStage3a">Stage 3a: Single Candidate</label>
-                        </div>
-                        <div class="form-check">
-                          <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodStage3b" value="distance_matching_3b">
-                          <label class="form-check-label" for="distanceMethodStage3b">Stage 3b: Relative Distance</label>
-                        </div>
-                    </div>
-                </div>
-                <!-- Route Matching (3rd Level Nested Accordion) -->
-                <div class="compact-group">
-                    <div class="matching-subcategory-header">
-                        <input type="checkbox" id="masterRouteMatchingCheckbox" class="master-filter-checkbox" data-children-container="#collapseRouteMatching">
-                        <a class="accordion-link" href="#" data-toggle="collapse" data-target="#collapseRouteMatching" aria-expanded="true" aria-controls="collapseRouteMatching">
-                            Route Matching <i class="fas fa-chevron-down accordion-toggle-icon ml-1"></i>
-                        </a>
-                    </div>
-                    <div id="collapseRouteMatching" class="collapse show matching-subcategory-content">
-                        <div class="form-check mt-2">
-                          <input type="checkbox" class="filter-route-method form-check-input" id="routeMethodGtfs" value="route_gtfs">
-                          <label class="form-check-label" for="routeMethodGtfs">GTFS</label>
-                        </div>
-                        <div class="form-check">
-                          <input type="checkbox" class="filter-route-method form-check-input" id="routeMethodHrdf" value="route_hrdf">
-                          <label class="form-check-label" for="routeMethodHrdf">HRDF</label>
-                        </div>
-                    </div>
-                </div>
-                <!-- Top N Distances with Toggle Button -->
-                <div class="compact-group mt-2" id="topNDistancesContainer">
-                    <label>Top N Distances</label>
-                    <div class="input-group">
-                      <input type="number" id="topDistance" class="form-control form-control-sm" value="10" min="1">
-                      <div class="input-group-append">
-                        <button id="toggleTopNBtn" class="btn btn-sm btn-outline-secondary" type="button"><i class="fas fa-filter"></i> Activate Top N</button>
-                      </div>
-                    </div>
-                    <div id="topNDistancesMessage"></div>
-                </div>
-            </div>
-          </div>
-
-          <!-- Stop Type: Unmatched (Simplified Accordion) -->
-          <div class="compact-group">
-            <div class="matching-subcategory-header" data-toggle="collapse" data-target="#collapseUnmatchedStopType" aria-expanded="true" aria-controls="collapseUnmatchedStopType">
-                <input type="checkbox" id="masterUnmatchedCheckbox" class="master-filter-checkbox" data-children-container="#collapseUnmatchedStopType">
-                 <a class="accordion-link" href="#">
-                   Unmatched <i class="fas fa-chevron-down accordion-toggle-icon ml-1"></i>
-                </a>
-            </div>
-            <div id="collapseUnmatchedStopType" class="collapse show matching-subcategory-content">
-                <div class="compact-group mt-2" id="unmatchedFiltersContainer">
-                  <label>ATLAS unmatched filters</label>
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-unmatched-method form-check-input" id="filterNoNearbyOSM" value="no_nearby_counterpart">
-                    <label class="form-check-label" for="filterNoNearbyOSM">No OSM within 50m</label>
-                  </div>
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-unmatched-method form-check-input" id="filterOSMNearby" value="osm_within_50m">
-                    <label class="form-check-label" for="filterOSMNearby">OSM within 50m</label>
-                  </div>
-                </div>
-            </div>
-          </div>
-          
-          <!-- Transport Type Filters -->
-          <div class="compact-group">
-            <label>Transport Type</label>
-            <div class="row">
-              <div class="col-6">
-                <div class="form-check">
-                  <input type="checkbox" class="filter-transport-type form-check-input" id="filterFerryTerminal" value="ferry_terminal">
-                  <label class="form-check-label" for="filterFerryTerminal">Ferry Terminal</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" class="filter-transport-type form-check-input" id="filterTramStop" value="tram_stop">
-                  <label class="form-check-label" for="filterTramStop">Tram Stop</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" class="filter-transport-type form-check-input" id="filterStation" value="station">
-                  <label class="form-check-label" for="filterStation">Non-Aerialway Station</label>
-                </div>
-              </div>
-              <div class="col-6">
-                <div class="form-check">
-                  <input type="checkbox" class="filter-transport-type form-check-input" id="filterPlatform" value="platform">
-                  <label class="form-check-label" for="filterPlatform">Platform</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" class="filter-transport-type form-check-input" id="filterStopPosition" value="stop_position">
-                  <label class="form-check-label" for="filterStopPosition">Stop Position</label>
-                </div>
-                <div class="form-check">
-                  <input type="checkbox" class="filter-transport-type form-check-input" id="filterAerialway" value="aerialway_station">
-                  <label class="form-check-label" for="filterAerialway">Aerialway</label>
-                </div>
-              </div>
-            </div>
-          </div>
-          <!-- Atlas Operator Filter -->
-          <div class="compact-group">
-            <label for="atlasOperatorFilter">Atlas Operator</label>
-            <div id="atlasOperatorFilter"></div>
-          </div>
-          
-          <!-- Special Filters (Operator Mismatch, Duplicates) -->
-          <div class="compact-group" id="operatorMismatchContainer">
-            <label>Special Filters</label>
-            <div class="form-check">
-              <input type="checkbox" class="filter-duplicates-only form-check-input" id="filterDuplicatesOnly">
-              <label class="form-check-label" for="filterDuplicatesOnly">Duplicate ATLAS</label>
-            </div>
-          </div>
-          <!-- END OF SCROLLABLE FILTERS -->
-        </div> <!-- This closes filterPanelBody -->
-
-        <!-- Fixed controls at the bottom -->
-        <div id="fixedFilterControls">
           <!-- Search -->
-          <div class="card">
-            <div class="card-header">
-              <h5 class="mb-0">Search</h5>
+          <div class="filter-item mx-1 position-relative">
+            <div class="input-group input-group-sm smart-search-input-group bg-white shadow-sm"
+              style="width: 250px; border-radius: 20px; overflow: hidden; border: 1px solid rgba(15, 23, 42, 0.1);">
+              <div class="input-group-prepend">
+                <span class="input-group-text bg-white border-0" id="search-icon"><i
+                    class="fas fa-search text-muted"></i></span>
+              </div>
+              <input type="text" id="smartSearchInput" class="form-control form-control-sm border-0 pl-0 border-left-0"
+                placeholder="Search location..." aria-describedby="search-icon" style="box-shadow: none;">
             </div>
-            <div class="card-body">
-              <div class="compact-group">
-                <div class="input-group input-group-sm mb-2">
-                  <div class="input-group-prepend">
-                    <select id="searchTypeSelect" class="custom-select custom-select-sm">
-                      <option value="station">UIC Number</option>
-                      <option value="atlas">ATLAS Sloid</option>
-                      <option value="osm">OSM Node ID</option>
-                      <option value="route">Route ID</option>
-                    </select>
+            <div id="smartSearchHint" class="smart-search-hint d-none">
+              <div class="smart-search-hint__title">Accepted formats</div>
+              <div class="smart-search-hint__item"><kbd>8503000</kbd> UIC station code (7 digits)</div>
+              <div class="smart-search-hint__item"><kbd>ch:1:sloid:...</kbd> ATLAS SLOID</div>
+              <div class="smart-search-hint__item"><kbd>node/123456789</kbd> OSM node ID</div>
+              <div class="smart-search-hint__item"><kbd>route:11-T-j25-1</kbd> Route ID</div>
+              <div class="smart-search-hint__item"><kbd>route:... dir:0</kbd> Route + direction</div>
+            </div>
+            <div id="smartSearchError"
+              class="smart-search-feedback invalid-feedback position-absolute bg-white p-2 rounded shadow-sm d-none"
+              style="top: 100%; left: 0; z-index: 1001;"></div>
+          </div>
+
+          <!-- ATLAS dropdown -->
+          <div class="dropdown filter-item mx-1">
+            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm font-weight-bold"
+              type="button" id="atlasDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              ATLAS
+            </button>
+            <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="atlasDropdown"
+              style="width: 280px; max-height: 60vh; overflow-y: auto;">
+              <div class="form-group">
+                <label for="atlasOperatorFilter" class="font-weight-bold small text-uppercase text-muted">ATLAS
+                  Operator</label>
+                <div id="atlasOperatorFilter"></div>
+              </div>
+              <div class="form-group mb-0" id="operatorMismatchContainer">
+                <label class="font-weight-bold small text-uppercase text-muted">ATLAS Flags</label>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="filter-duplicates-only custom-control-input" id="filterDuplicatesOnly">
+                  <label class="custom-control-label" for="filterDuplicatesOnly">Duplicate ATLAS</label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- OSM dropdown -->
+          <div class="dropdown filter-item mx-1">
+            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm font-weight-bold"
+              type="button" id="osmDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              OSM
+            </button>
+            <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="osmDropdown"
+              style="width: 380px; max-height: 60vh; overflow-y: auto;">
+              <div class="form-group">
+                <label class="font-weight-bold small text-uppercase text-muted">Transport Type</label>
+                <div class="row">
+                  <div class="col-6">
+                    <div class="custom-control custom-checkbox">
+                      <input type="checkbox" class="filter-transport-type custom-control-input" id="filterFerryTerminal"
+                        value="ferry_terminal">
+                      <label class="custom-control-label" for="filterFerryTerminal">Ferry Terminal</label>
+                    </div>
+                    <div class="custom-control custom-checkbox">
+                      <input type="checkbox" class="filter-transport-type custom-control-input" id="filterTramStop"
+                        value="tram_stop">
+                      <label class="custom-control-label" for="filterTramStop">Tram Stop</label>
+                    </div>
+                    <div class="custom-control custom-checkbox">
+                      <input type="checkbox" class="filter-transport-type custom-control-input" id="filterStation"
+                        value="station">
+                      <label class="custom-control-label" for="filterStation">Station</label>
+                    </div>
                   </div>
-                  <input type="hidden" id="filterTypeActual" value="station">
-                  <input type="text" id="stationFilter" class="form-control form-control-sm" placeholder="Enter UIC Number" style="display: none;">
-                  <div class="input-group-append" id="addStationFilterContainer" style="display: none;">
-                    <button id="addStationFilter" class="btn btn-sm btn-outline-secondary" type="button">
-                      <i class="fas fa-plus-circle"></i> Add
-                    </button>
+                  <div class="col-6">
+                    <div class="custom-control custom-checkbox">
+                      <input type="checkbox" class="filter-transport-type custom-control-input" id="filterPlatform"
+                        value="platform">
+                      <label class="custom-control-label" for="filterPlatform">Platform</label>
+                    </div>
+                    <div class="custom-control custom-checkbox">
+                      <input type="checkbox" class="filter-transport-type custom-control-input" id="filterStopPosition"
+                        value="stop_position">
+                      <label class="custom-control-label" for="filterStopPosition">Stop Position</label>
+                    </div>
+                    <div class="custom-control custom-checkbox">
+                      <input type="checkbox" class="filter-transport-type custom-control-input" id="filterAerialway"
+                        value="aerialway_station">
+                      <label class="custom-control-label" for="filterAerialway">Aerialway</label>
+                    </div>
                   </div>
                 </div>
-                <div id="routeFilterInput" class="input-group input-group-sm mb-2" style="display:none;">
-                  <input type="text" id="routeIdFilter" class="form-control form-control-sm" placeholder="Enter Route ID">
-                  <input type="text" id="directionFilter" class="form-control form-control-sm ml-1" placeholder="Direction (opt.)">
-                  <div class="input-group-append ml-1">
-                    <button id="addRouteFilter" class="btn btn-sm btn-outline-secondary" type="button"><i class="fas fa-plus-circle"></i> Add</button>
+              </div>
+
+              <div class="form-group mb-0">
+                <label class="font-weight-bold small text-uppercase text-muted mt-2">OSM Groups</label>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="filter-osm-group custom-control-input" id="filterOsmGroup"
+                    value="has_osm_group">
+                  <label class="custom-control-label" for="filterOsmGroup">Only grouped OSM members</label>
+                </div>
+                <div class="osm-group-subfilters mt-2 pl-3 border-left">
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-osm-group-type custom-control-input" id="filterOsmGroupUic"
+                      value="osm_group_uic">
+                    <label class="custom-control-label" for="filterOsmGroupUic">UIC-based groups</label>
+                  </div>
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-osm-group-type custom-control-input" id="filterOsmGroupName"
+                      value="osm_group_name">
+                    <label class="custom-control-label" for="filterOsmGroupName">Name-based groups</label>
+                  </div>
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-osm-group-type custom-control-input" id="filterOsmGroupTram"
+                      value="osm_group_tram">
+                    <label class="custom-control-label" for="filterOsmGroupTram">Tram groups</label>
+                  </div>
+                  <div class="custom-control custom-checkbox mt-2">
+                    <input type="checkbox" class="custom-control-input" id="includeMatchedOsmFilters" checked>
+                    <label class="custom-control-label" for="includeMatchedOsmFilters">Include matched entries</label>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Active Filters Display -->
-          <div id="activeFilters" class="p-2">
-              <!-- Badges will be dynamically inserted here -->
-          </div>
-        </div> <!-- This closes fixedFilterControls -->
+          <!-- Matched dropdown -->
+          <div class="dropdown filter-item mx-1">
+            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm font-weight-bold"
+              type="button" id="matchedDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              Matched
+            </button>
+            <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="matchedDropdown"
+              style="width: 350px; max-height: 60vh; overflow-y: auto;">
+              <div class="custom-control custom-checkbox mb-3 border-bottom pb-2">
+                <input type="checkbox" id="masterMatchedCheckbox" class="master-filter-checkbox custom-control-input">
+                <label class="custom-control-label font-weight-bold text-primary" for="masterMatchedCheckbox">All
+                  Matched Stops</label>
+              </div>
 
-      </div> <!-- This closes the main card -->
-      
-      <!-- Filter Toggle Button -->
-      <button class="filter-toggle-btn c-filter-panel__toggle" id="filterToggleBtn" type="button" title="Toggle filters">
-        <i class="fas fa-sliders-h"></i>
-        <i class="fas fa-chevron-left toggle-icon"></i>
-      </button>
+              <div class="form-group">
+                <label class="font-weight-bold small text-uppercase text-muted">Matching Methods</label>
+                <div class="row">
+                  <div class="col-6">
+                    <div class="custom-control custom-checkbox">
+                      <input type="checkbox" class="filter-match-method custom-control-input" id="filterExact"
+                        value="exact">
+                      <label class="custom-control-label" for="filterExact">Exact</label>
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <div class="custom-control custom-checkbox">
+                      <input type="checkbox" class="filter-match-method custom-control-input" id="filterName"
+                        value="name">
+                      <label class="custom-control-label" for="filterName">Name</label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="font-weight-bold small text-uppercase text-muted d-flex align-items-center mb-1">
+                  <div class="custom-control custom-checkbox d-inline-block mr-2">
+                    <input type="checkbox" id="masterDistanceMatchingCheckbox"
+                      class="master-filter-checkbox custom-control-input">
+                    <label class="custom-control-label" style="font-size:0; padding:0; margin:0; line-height:0"
+                      for="masterDistanceMatchingCheckbox"></label>
+                  </div>
+                  Distance Matching
+                </label>
+                <div class="pl-3 border-left">
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-distance-method custom-control-input" id="distanceMethodStage1"
+                      value="distance_matching_1">
+                    <label class="custom-control-label" for="distanceMethodStage1">Stage 1: Group-based</label>
+                  </div>
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-distance-method custom-control-input" id="distanceMethodStage2"
+                      value="distance_matching_2">
+                    <label class="custom-control-label" for="distanceMethodStage2">Stage 2: Exact local_ref</label>
+                  </div>
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-distance-method custom-control-input"
+                      id="distanceMethodStage3a" value="distance_matching_3a">
+                    <label class="custom-control-label" for="distanceMethodStage3a">Stage 3a: Single Candidate</label>
+                  </div>
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-distance-method custom-control-input"
+                      id="distanceMethodStage3b" value="distance_matching_3b">
+                    <label class="custom-control-label" for="distanceMethodStage3b">Stage 3b: Relative Distance</label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group mb-0">
+                <label class="font-weight-bold small text-uppercase text-muted d-flex align-items-center mb-1">
+                  <div class="custom-control custom-checkbox d-inline-block mr-2">
+                    <input type="checkbox" id="masterRouteMatchingCheckbox"
+                      class="master-filter-checkbox custom-control-input">
+                    <label class="custom-control-label" style="font-size:0; padding:0; margin:0; line-height:0"
+                      for="masterRouteMatchingCheckbox"></label>
+                  </div>
+                  Route Matching
+                </label>
+                <div class="pl-3 border-left">
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-route-method custom-control-input" id="routeMethodGtfs"
+                      value="route_gtfs">
+                    <label class="custom-control-label" for="routeMethodGtfs">GTFS</label>
+                  </div>
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-route-method custom-control-input" id="routeMethodHrdf"
+                      value="route_hrdf">
+                    <label class="custom-control-label" for="routeMethodHrdf">HRDF</label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group mt-3 pt-3 border-top mb-0" id="topNDistancesContainer">
+                <label class="font-weight-bold small text-uppercase text-muted">Top N Distances</label>
+                <div class="input-group input-group-sm">
+                  <input type="number" id="topDistance" class="form-control" value="10" min="1">
+                  <div class="input-group-append">
+                    <button id="toggleTopNBtn" class="btn btn-outline-secondary" type="button"><i
+                        class="fas fa-filter"></i> Activate</button>
+                  </div>
+                </div>
+                <div id="topNDistancesMessage" class="small mt-1"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Unmatched dropdown -->
+          <div class="dropdown filter-item mx-1">
+            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm font-weight-bold"
+              type="button" id="unmatchedDropdown" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              Unmatched
+            </button>
+            <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="unmatchedDropdown" style="width: 250px;">
+              <div class="custom-control custom-checkbox mb-2">
+                <input type="checkbox" class="custom-control-input" id="masterUnmatchedAtlasCheckbox">
+                <label class="custom-control-label font-weight-bold" for="masterUnmatchedAtlasCheckbox">ATLAS
+                  unmatched</label>
+              </div>
+              <div class="pl-3 border-left mb-3">
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="filter-unmatched-method custom-control-input" id="filterNoNearbyOSM"
+                    value="no_nearby_counterpart">
+                  <label class="custom-control-label" for="filterNoNearbyOSM">No OSM &lt; 50m</label>
+                </div>
+                <div class="custom-control custom-checkbox">
+                  <input type="checkbox" class="filter-unmatched-method custom-control-input" id="filterOSMNearby"
+                    value="osm_within_50m">
+                  <label class="custom-control-label" for="filterOSMNearby">OSM &lt; 50m</label>
+                </div>
+              </div>
+
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="masterUnmatchedOsmCheckbox">
+                <label class="custom-control-label font-weight-bold" for="masterUnmatchedOsmCheckbox">OSM
+                  unmatched</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Random button -->
+          <div class="filter-item mx-1">
+            <button class="btn bg-white text-dark btn-sm rounded-pill px-3 shadow-sm font-weight-bold"
+              type="button" id="randomStopBtn" onclick="focusOnRandomFilteredStop()">
+              <i class="fas fa-random"></i> Random
+            </button>
+          </div>
+
+        </div> <!-- /.top-filters-bar -->
+
+        <!-- Active Filters Display -->
+        <div id="filterInfoContainer" class="d-flex flex-row align-items-center mt-2 w-100"
+          style="pointer-events: auto; max-width: 1200px; gap: 0.5rem;">
+          {{ stats_overlay() }}
+        </div>
+
+        <!-- Zoom Banner (centered overlay) -->
+        <div id="zoomBannerInfo" class="zoom-banner d-none"></div>
+
+      </div>
     </div>
     <!-- Map Container -->
     <div class="flex-grow-1" id="mapContainer">
       <div id="map">
-        {{ stats_overlay() }}
       </div>
     </div>
   </div>
-  
-  
+
+
 
   <!-- Bootstrap Modal for Manual Matches Preview -->
-  <div class="modal fade" id="previewModal" tabindex="-1" role="dialog" aria-labelledby="previewModalLabel" aria-hidden="true">
+  <div class="modal fade" id="previewModal" tabindex="-1" role="dialog" aria-labelledby="previewModalLabel"
+    aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
       <div class="modal-content">
         <div class="modal-header">
@@ -293,7 +340,8 @@
   </div>
 
   <!-- New Report Configuration Modal -->
-  <div class="modal fade" id="reportModal" tabindex="-1" role="dialog" aria-labelledby="reportModalLabel" aria-hidden="true">
+  <div class="modal fade" id="reportModal" tabindex="-1" role="dialog" aria-labelledby="reportModalLabel"
+    aria-hidden="true">
     <div class="modal-dialog" role="document">
       <form id="reportForm">
         <div class="modal-content">
@@ -363,5 +411,3 @@
 <script src="{{ url_for('static', filename='js/pages/filters.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/main.js') }}"></script>
 {% endblock %}
-
-

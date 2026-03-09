@@ -207,6 +207,16 @@ class NearestDistancePredicate(BasePredicate):
             if not candidates:
                 continue
                 
+            # Filter out candidates whose local_ref contradicts ATLAS designation
+            desig = (entry.designation or '').strip().lower()
+            if desig:
+                candidates = [
+                    (node, d) for node, d in candidates
+                    if not (node.local_ref or '').strip() or (node.local_ref or '').strip().lower() == desig
+                ]
+                if not candidates:
+                    continue
+
             candidates.sort(key=lambda x: x[1])
 
             # Case A: single candidate

@@ -43,7 +43,6 @@ window.ProblemsState = (function () {
 
     // Auto-persistence state
     let autoPersistEnabled = false;
-    let autoPersistNotesEnabled = false;
 
     // Intersection observer for scroll navigation
     let observer = null;
@@ -136,12 +135,6 @@ window.ProblemsState = (function () {
             localStorage.setItem('autoPersistEnabled', enabled);
         },
 
-        getAutoPersistNotesEnabled: () => autoPersistNotesEnabled,
-        setAutoPersistNotesEnabled: (enabled) => {
-            autoPersistNotesEnabled = enabled;
-            localStorage.setItem('autoPersistNotesEnabled', enabled);
-        },
-
         // Observer getters/setters
         getObserver: () => observer,
         setObserver: (obs) => { observer = obs; },
@@ -163,7 +156,6 @@ window.ProblemsState = (function () {
         initializeSettings: () => {
             // Load auto-persist settings from localStorage
             autoPersistEnabled = localStorage.getItem('autoPersistEnabled') === 'true';
-            autoPersistNotesEnabled = localStorage.getItem('autoPersistNotesEnabled') === 'true';
         },
 
         // Get state summary for debugging
@@ -175,8 +167,7 @@ window.ProblemsState = (function () {
             currentPage,
             totalProblems,
             showContext,
-            autoPersistEnabled,
-            autoPersistNotesEnabled
+            autoPersistEnabled
         })
     };
 })();

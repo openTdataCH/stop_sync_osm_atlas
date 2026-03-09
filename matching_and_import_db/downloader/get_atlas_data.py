@@ -82,7 +82,6 @@ def write_unified_routes_csv_direct(
     unified_out_path: str = "data/processed/atlas_routes_unified.csv"
 ):
     """Create unified routes CSV directly from source data without intermediate files."""
-    today = datetime.date.today().isoformat()
     unified_rows = []
 
     # Process GTFS data - determine which integrated data to use
@@ -111,7 +110,6 @@ def write_unified_routes_csv_direct(
                     'sloid': str(sloid),
                     'source': 'gtfs',
                     'evidence': 'gtfs_first_last',
-                    'as_of': today,
                     'route_id': None if pd.isna(route_id) else str(route_id),
                     'route_id_normalized': _normalize_route_id_for_matching(None if pd.isna(route_id) else str(route_id)),
                     'route_name_short': None if pd.isna(route_short) else str(route_short),
@@ -136,7 +134,6 @@ def write_unified_routes_csv_direct(
                     'sloid': str(sloid),
                     'source': 'hrdf',
                     'evidence': 'hrdf_fplan',
-                    'as_of': today,
                     'route_id': None,
                     'route_id_normalized': None,
                     'route_name_short': None,
@@ -149,7 +146,7 @@ def write_unified_routes_csv_direct(
 
     if unified_rows:
         unified_df = pd.DataFrame(unified_rows, columns=[
-            'sloid','source','evidence','as_of','route_id','route_id_normalized','route_name_short','route_name_long','line_name','direction_id','direction_name','direction_uic'
+            'sloid','source','evidence','route_id','route_id_normalized','route_name_short','route_name_long','line_name','direction_id','direction_name','direction_uic'
         ])
         unified_df.to_csv(unified_out_path, index=False)
         print(f"Unified routes: wrote {len(unified_df):,} rows to {unified_out_path}")

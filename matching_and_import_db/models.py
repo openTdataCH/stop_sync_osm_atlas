@@ -49,6 +49,54 @@ class OsmNode:
         )
 
 
+class AtlasEntity:
+    """Wraps one or more AtlasNodes as a single pipeline participant.
+
+    Delegates attribute access to the representative node, so predicates
+    accessing .sloid, .lat, .uic_ref, etc. work unchanged.
+    """
+
+    def __init__(self, node: AtlasNode, siblings: list[AtlasNode] | None = None,
+                 group_type: str | None = None):
+        self.representative = node
+        self._siblings = siblings or []
+        self.group_type = group_type
+
+    def __getattr__(self, name: str):
+        return getattr(self.representative, name)
+
+    def get_members(self) -> list[AtlasNode]:
+        return [self.representative] + self._siblings
+
+    @property
+    def is_group(self) -> bool:
+        return len(self._siblings) > 0
+
+
+class OsmEntity:
+    """Wraps one or more OsmNodes as a single pipeline participant.
+
+    Delegates attribute access to the representative node, so predicates
+    accessing .node_id, .lat, .tags, etc. work unchanged.
+    """
+
+    def __init__(self, node: OsmNode, siblings: list[OsmNode] | None = None,
+                 group_type: str | None = None):
+        self.representative = node
+        self._siblings = siblings or []
+        self.group_type = group_type
+
+    def __getattr__(self, name: str):
+        return getattr(self.representative, name)
+
+    def get_members(self) -> list[OsmNode]:
+        return [self.representative] + self._siblings
+
+    @property
+    def is_group(self) -> bool:
+        return len(self._siblings) > 0
+
+
 @dataclass
 class MatchRecord:
     atlas_node: AtlasNode
