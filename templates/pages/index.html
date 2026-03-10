@@ -34,16 +34,17 @@
                 placeholder="Search location..." aria-describedby="search-icon" style="box-shadow: none;">
             </div>
             <div id="smartSearchHint" class="smart-search-hint d-none">
-              <div class="smart-search-hint__title">Accepted formats</div>
-              <div class="smart-search-hint__item"><kbd>8503000</kbd> UIC station code (7 digits)</div>
+              <div class="smart-search-hint__title">Accepted formats
+                <a href="/docs/5.3 Filters and Search logic" class="smart-search-doc-link"
+                  target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>
+              </div>
+              <div class="smart-search-hint__item"><kbd>8503000</kbd> UIC station (starts with 85)</div>
               <div class="smart-search-hint__item"><kbd>ch:1:sloid:...</kbd> ATLAS SLOID</div>
-              <div class="smart-search-hint__item"><kbd>node/123456789</kbd> OSM node ID</div>
-              <div class="smart-search-hint__item"><kbd>route:11-T-j25-1</kbd> Route ID</div>
-              <div class="smart-search-hint__item"><kbd>route:... dir:0</kbd> Route + direction</div>
+              <div class="smart-search-hint__item"><kbd>123456789</kbd> OSM node ID</div>
+              <div class="smart-search-hint__item"><kbd>11-T-j25-1</kbd> Route ID</div>
+              <div class="smart-search-hint__item"><kbd>11-T-j25-1 dir:0</kbd> Route + direction</div>
             </div>
-            <div id="smartSearchError"
-              class="smart-search-feedback invalid-feedback position-absolute bg-white p-2 rounded shadow-sm d-none"
-              style="top: 100%; left: 0; z-index: 1001;"></div>
+            <div id="smartSearchError" class="smart-search-feedback d-none"></div>
           </div>
 
           <!-- ATLAS dropdown -->
@@ -140,10 +141,6 @@
                       value="osm_group_tram">
                     <label class="custom-control-label" for="filterOsmGroupTram">Tram groups</label>
                   </div>
-                  <div class="custom-control custom-checkbox mt-2">
-                    <input type="checkbox" class="custom-control-input" id="includeMatchedOsmFilters" checked>
-                    <label class="custom-control-label" for="includeMatchedOsmFilters">Include matched entries</label>
-                  </div>
                 </div>
               </div>
             </div>
@@ -184,15 +181,13 @@
               </div>
 
               <div class="form-group">
-                <label class="font-weight-bold small text-uppercase text-muted d-flex align-items-center mb-1">
-                  <div class="custom-control custom-checkbox d-inline-block mr-2">
+                <div class="font-weight-bold small text-uppercase text-muted d-flex align-items-center mb-1">
+                  <div class="custom-control custom-checkbox d-inline-block">
                     <input type="checkbox" id="masterDistanceMatchingCheckbox"
                       class="master-filter-checkbox custom-control-input">
-                    <label class="custom-control-label" style="font-size:0; padding:0; margin:0; line-height:0"
-                      for="masterDistanceMatchingCheckbox"></label>
+                    <label class="custom-control-label" for="masterDistanceMatchingCheckbox">Distance Matching</label>
                   </div>
-                  Distance Matching
-                </label>
+                </div>
                 <div class="pl-3 border-left">
                   <div class="custom-control custom-checkbox">
                     <input type="checkbox" class="filter-distance-method custom-control-input" id="distanceMethodStage1"
@@ -218,15 +213,13 @@
               </div>
 
               <div class="form-group mb-0">
-                <label class="font-weight-bold small text-uppercase text-muted d-flex align-items-center mb-1">
-                  <div class="custom-control custom-checkbox d-inline-block mr-2">
+                <div class="font-weight-bold small text-uppercase text-muted d-flex align-items-center mb-1">
+                  <div class="custom-control custom-checkbox d-inline-block">
                     <input type="checkbox" id="masterRouteMatchingCheckbox"
                       class="master-filter-checkbox custom-control-input">
-                    <label class="custom-control-label" style="font-size:0; padding:0; margin:0; line-height:0"
-                      for="masterRouteMatchingCheckbox"></label>
+                    <label class="custom-control-label" for="masterRouteMatchingCheckbox">Route Matching</label>
                   </div>
-                  Route Matching
-                </label>
+                </div>
                 <div class="pl-3 border-left">
                   <div class="custom-control custom-checkbox">
                     <input type="checkbox" class="filter-route-method custom-control-input" id="routeMethodGtfs"

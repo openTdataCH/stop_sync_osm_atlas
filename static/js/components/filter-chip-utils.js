@@ -7,7 +7,7 @@
   const FILTER_CHIP_SEPARATOR_CLASS = 'badge filter-chip-badge filter-chip-separator';
 
   function buildSeparatorChip(label) {
-    return '<span class="' + FILTER_CHIP_SEPARATOR_CLASS + '">' + escapeHtml(label) + '</span>';
+    return '<span class="filter-chip-separator">' + escapeHtml(label) + '</span>';
   }
 
   function buildOrGroupHtml(chipsArray) {

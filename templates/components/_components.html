@@ -10,10 +10,13 @@
 {% macro stats_overlay() %}
 <div id="headerSummaryInfo" class="header-summary">
   <div id="headerSummaryStats"></div>
-  <button type="button" id="headerSummaryFiltersToggle" class="header-summary__filters-toggle" aria-expanded="false">
-    <span id="headerSummaryFiltersLabel">Filters: None (All entries)</span>
-    <i class="fas fa-chevron-down header-summary__filters-toggle-icon" aria-hidden="true"></i>
-  </button>
+  <div class="header-summary__filters-row">
+    <button type="button" id="headerSummaryFiltersToggle" class="header-summary__filters-toggle" aria-expanded="false">
+      <span id="headerSummaryFiltersLabel">Filters: None (All entries)</span>
+      <i class="fas fa-chevron-down header-summary__filters-toggle-icon d-none" aria-hidden="true"></i>
+    </button>
+    <a href="#" id="clearAllFilters" class="header-summary__clear-all d-none">Clear all</a>
+  </div>
   <div id="headerSummaryFiltersPanel" class="header-summary__filters-panel d-none">
     <div id="activeFilters" class="d-flex flex-wrap align-items-center"></div>
   </div>

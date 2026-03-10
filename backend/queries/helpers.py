@@ -153,13 +153,13 @@ def parse_filter_params(request_args):
         route_directions_str = request_args.get('route_directions', '')
         filters['filter_types'] = [ft.strip() for ft in filter_types_str.split(',') if ft.strip()] if filter_types_str else []
         filters['route_directions'] = [rd.strip() for rd in route_directions_str.split(',') if rd.strip()] if route_directions_str else []
-    if request_args.get('osm_group_filter', '').lower() == 'true':
-        filters['osm_group_filter'] = True
-        osm_group_types_str = request_args.get('osm_group_types', '')
-        if osm_group_types_str:
-            filters['osm_group_types'] = [group_type.strip() for group_type in osm_group_types_str.split(',') if group_type.strip()]
-
-    filters['osm_include_matched'] = request_args.get('osm_include_matched', 'true').lower() != 'false'
+    osm_group_types_str = request_args.get('osm_group_types')
+    if osm_group_types_str is not None:
+        normalized_group_types = [group_type.strip() for group_type in osm_group_types_str.split(',') if group_type.strip()]
+        if 'all' in normalized_group_types:
+            filters['osm_group_types'] = []
+        elif normalized_group_types:
+            filters['osm_group_types'] = normalized_group_types
 
     return filters
 
