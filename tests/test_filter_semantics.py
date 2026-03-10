@@ -1,5 +1,7 @@
 from backend.models import StopsMatched
-from backend.queries.helpers import build_match_method_conditions, build_stop_scope_condition, resolve_stop_type_match_filters
+from backend.app import app as backend_app
+from backend.query_builder import QueryBuilder
+from backend.queries.helpers import build_match_method_conditions, build_stop_scope_condition, parse_filter_params, resolve_stop_type_match_filters
 
 
 def _compile_expression(expr):
@@ -67,3 +69,45 @@ def test_route_match_condition_includes_unified_route_variants():
 
     assert "route_gtfs%" in sql
     assert "route_unified_gtfs%" in sql
+
+
+def test_parse_filter_params_uses_osm_group_types_without_gate():
+    filters = parse_filter_params({'osm_group_types': 'osm_group_uic,osm_group_name'})
+
+    assert filters['osm_group_types'] == ['osm_group_uic', 'osm_group_name']
+
+
+def test_parse_filter_params_normalizes_osm_group_all_selection():
+    filters = parse_filter_params({'osm_group_types': 'all'})
+
+    assert 'osm_group_types' in filters
+    assert filters['osm_group_types'] == []
+
+
+def test_query_builder_osm_groups_apply_without_legacy_toggle():
+    query_builder = QueryBuilder(None)
+
+    with backend_app.app_context():
+        sql = _compile_expression(
+            query_builder.apply_common_filters(StopsMatched.query, {'osm_group_types': ['osm_group_uic']}).statement
+        )
+
+    assert 'stops_matched.osm_node_id IN' in sql
+    assert 'osm_stop_groups.group_type IN' in sql
+    assert "stops_matched.stop_type != 'matched'" not in sql
+
+
+def test_query_builder_combines_transport_and_osm_group_with_and():
+    query_builder = QueryBuilder(None)
+
+    with backend_app.app_context():
+        sql = _compile_expression(
+            query_builder.apply_common_filters(
+                StopsMatched.query,
+                {'transport_types': ['platform'], 'osm_group_types': ['osm_group_uic']}
+            ).statement
+        )
+
+    assert 'osm_public_transport' in sql
+    assert 'stops_matched.osm_node_id IN' in sql
+    assert ' AND ' in sql

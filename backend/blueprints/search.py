@@ -100,11 +100,14 @@ def get_top_matches():
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         match_method_str = request.args.get('match_method', None)
+        show_duplicates_only = request.args.get('show_duplicates_only', 'false').lower() == 'true'
         filters = parse_filter_params(request.args)
         query_builder = get_query_builder()
         query = optimize_query_for_endpoint(StopsMatched.query, 'search')
         query = query.filter(StopsMatched.stop_type == 'matched', StopsMatched.distance_m.isnot(None))
         query = query_builder.apply_common_filters(query, filters)
+        if show_duplicates_only:
+            query = query.filter(StopsMatched.has_atlas_duplicate == True)
         if match_method_str:
             specific_methods = [m.strip() for m in match_method_str.split(',') if m.strip()]
             if specific_methods:
@@ -222,6 +225,31 @@ def get_stop_by_id():
                 lat_col_name = 'osm_lat'
                 lon_col_name = 'osm_lon'
                 popup_view_type = 'osm'
+        elif identifier_type == 'station':
+            stop = optimize_query_for_endpoint(StopsMatched.query, 'search').join(
+                AtlasStop, StopsMatched.sloid == AtlasStop.sloid
+            ).filter(AtlasStop.uic_ref == identifier).first()
+            if stop:
+                lat_col_name = 'atlas_lat'
+                lon_col_name = 'atlas_lon'
+                popup_view_type = 'atlas'
+        elif identifier_type == 'route':
+            from backend.models import RouteAtlasStops, RouteOsmStops
+            stop = optimize_query_for_endpoint(StopsMatched.query, 'search').join(
+                RouteAtlasStops, StopsMatched.sloid == RouteAtlasStops.sloid
+            ).filter(RouteAtlasStops.atlas_route_id == identifier).first()
+            if stop:
+                lat_col_name = 'atlas_lat'
+                lon_col_name = 'atlas_lon'
+                popup_view_type = 'atlas'
+            else:
+                stop = optimize_query_for_endpoint(StopsMatched.query, 'search').join(
+                    RouteOsmStops, StopsMatched.osm_node_id == RouteOsmStops.osm_node_id
+                ).filter(RouteOsmStops.osm_route_id == identifier).first()
+                if stop:
+                    lat_col_name = 'osm_lat'
+                    lon_col_name = 'osm_lon'
+                    popup_view_type = 'osm'
         else:
             return jsonify({"error": "Invalid identifier_type"}), 400
         if stop:

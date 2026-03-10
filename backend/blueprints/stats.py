@@ -43,9 +43,7 @@ def _build_stats_cache_key(args) -> tuple:
     transport_types_filter_str = _canonicalize_list_param(args.get('transport_types'))
     node_type_filter_str = _canonicalize_list_param(args.get('node_type'))
     atlas_operator_str = _canonicalize_list_param(args.get('atlas_operator'))
-    osm_group_filter = 'true' if (args.get('osm_group_filter', 'false').lower() == 'true') else 'false'
     osm_group_types = _canonicalize_list_param(args.get('osm_group_types'))
-    osm_include_matched = 'true' if (args.get('osm_include_matched', 'true').lower() != 'false') else 'false'
     show_duplicates_only = 'true' if (args.get('show_duplicates_only', 'false').lower() == 'true') else 'false'
     top_n = args.get('top_n') or ''
     return (
@@ -55,9 +53,7 @@ def _build_stats_cache_key(args) -> tuple:
         transport_types_filter_str,
         node_type_filter_str,
         atlas_operator_str,
-        osm_group_filter,
         osm_group_types,
-        osm_include_matched,
         top_n,
         show_duplicates_only,
     )
@@ -96,7 +92,10 @@ def get_global_stats():
             except Exception:
                 n_val = None
             if n_val and n_val > 0:
-                query = query.order_by(StopsMatched.distance_m.desc()).limit(n_val)
+                query = query.filter(
+                    StopsMatched.stop_type == 'matched',
+                    StopsMatched.distance_m.isnot(None)
+                ).order_by(StopsMatched.distance_m.desc()).limit(n_val)
         filtered = query.with_entities(
             StopsMatched.sloid.label('sloid'),
             StopsMatched.osm_node_id.label('osm_node_id'),

@@ -49,7 +49,6 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
     node_type_filter_str = args.get('node_type', None)
     atlas_operator_filter_str = args.get('atlas_operator', None)
     osm_group_types_filter_str = args.get('osm_group_types', None)
-    osm_include_matched = args.get('osm_include_matched', 'true').lower() != 'false'
 
     query = StopsMatched.query
     all_category_conditions = []
@@ -112,9 +111,8 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
             )
             all_category_conditions.append(operator_condition)
 
-    osm_group_filter_str = args.get('osm_group_filter', None)
-    if osm_group_filter_str and osm_group_filter_str.lower() == 'true':
-        osm_group_types = [group_type.strip() for group_type in osm_group_types_filter_str.split(',') if group_type.strip()] if osm_group_types_filter_str else []
+    if osm_group_types_filter_str is not None:
+        osm_group_types = [group_type.strip() for group_type in osm_group_types_filter_str.split(',') if group_type.strip() and group_type.strip() != 'all']
         node_id_1_query = db.session.query(OsmStopGroup.node_id_1)
         node_id_2_query = db.session.query(OsmStopGroup.node_id_2)
         if osm_group_types:
@@ -128,10 +126,7 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
 
     if osm_filter_conditions:
         combined_osm_condition = db.and_(*osm_filter_conditions)
-        if osm_include_matched:
-            all_category_conditions.append(combined_osm_condition)
-        else:
-            all_category_conditions.append(db.and_(StopsMatched.stop_type != 'matched', combined_osm_condition))
+        all_category_conditions.append(combined_osm_condition)
 
     if station_filter_str:
         filter_values = [val.strip() for val in station_filter_str.split(',') if val.strip()]

@@ -258,6 +258,8 @@ function setHeaderSummaryFiltersExpanded(expanded) {
 function syncHeaderSummaryFilterToggle() {
     const toggle = $('#headerSummaryFiltersToggle');
     const label = $('#headerSummaryFiltersLabel');
+    const clearBtn = $('#clearAllFilters');
+    const icon = toggle.find('.header-summary__filters-toggle-icon');
     if (!toggle.length || !label.length) return;
 
     const activeFilterCount = getSharedActiveFilterCount();
@@ -266,26 +268,29 @@ function syncHeaderSummaryFilterToggle() {
     if (hasActiveFilters) {
         label.text('Filters: ' + activeFilterCount + ' active');
         toggle.prop('disabled', false);
+        clearBtn.removeClass('d-none');
+        if (icon.length) icon.removeClass('d-none');
     } else {
         label.text('Filters: None (All entries)');
         toggle.prop('disabled', true);
+        clearBtn.addClass('d-none');
+        if (icon.length) icon.addClass('d-none');
         setHeaderSummaryFiltersExpanded(false);
     }
 }
 
 function appendOsmGroupParams(params) {
-    params.osm_include_matched = activeFilters.includeMatchedOsmFilters ? 'true' : 'false';
-
     if (!activeFilters.osmGroups || activeFilters.osmGroups.length === 0) {
         return params;
     }
 
-    params.osm_group_filter = 'true';
     const selectedGroupTypes = activeFilters.osmGroups.filter(function (groupType) {
         return groupType !== 'all';
     });
 
-    if (selectedGroupTypes.length > 0) {
+    if (activeFilters.osmGroups.includes('all')) {
+        params.osm_group_types = 'all';
+    } else if (selectedGroupTypes.length > 0) {
         params.osm_group_types = selectedGroupTypes.join(',');
     }
 
@@ -311,9 +316,6 @@ function appendCurrentFilterParams(params, options) {
     if (activeFilters.transportTypes.length > 0) {
         params.transport_types = activeFilters.transportTypes.join(',');
     }
-    if (activeFilters.nodeType.length > 0) {
-        params.node_type = activeFilters.nodeType.join(',');
-    }
     if (activeFilters.atlasOperators.length > 0) {
         params.atlas_operator = activeFilters.atlasOperators.join(',');
     }
@@ -326,6 +328,14 @@ function appendCurrentFilterParams(params, options) {
 
     appendOsmGroupParams(params);
     return params;
+}
+
+function getEffectiveMapSideVisibility() {
+    if (activeFilters.showDuplicatesOnly) {
+        return { showAtlas: true, showOsm: false };
+    }
+
+    return { showAtlas: true, showOsm: true };
 }
 
 function loadTopNMatches() {
@@ -355,24 +365,21 @@ function loadTopNMatches() {
         if (activeFilters.atlasOperators.length > 0) {
             params.atlas_operator = activeFilters.atlasOperators.join(',');
         }
+        if (activeFilters.showDuplicatesOnly) {
+            params.show_duplicates_only = 'true';
+        }
 
         appendOsmGroupParams(params);
 
         $.getJSON("/api/top_matches", params, function (data) {
             let filteredData = data;
 
-            // --- Client-side filtering for Show Duplicates Only --- 
-            if (activeFilters.showDuplicatesOnly) {
-                // Note: This filters *after* the operator mismatch filter if active
-                filteredData = filteredData.filter(stop => stop.has_atlas_duplicate);
-            }
-
             if (filteredData.length === 0) {
                 $('#topNDistancesMessage').html("<div class='alert alert-warning mt-2'>No matched nodes satisfy these conditions.</div>");
             } else {
-                // Check if node type filtering is active
-                var showAtlasNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("atlas") !== -1;
-                var showOSMNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("osm") !== -1;
+                var mapSideVisibility = getEffectiveMapSideVisibility();
+                var showAtlasNodes = mapSideVisibility.showAtlas;
+                var showOSMNodes = mapSideVisibility.showOsm;
 
                 // Collect marker data for cluster handling
                 var topNMarkerData = [];
@@ -549,8 +556,9 @@ function loadDataForViewport() {
                 // Re-draw lines from cached data so Leaflet's SVG renderer
                 // picks them up at the new zoom/padding. Without this, lines
                 // clipped at a previous zoom level stay invisible.
-                var showAtlasNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("atlas") !== -1;
-                var showOSMNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("osm") !== -1;
+                var mapSideVisibility = getEffectiveMapSideVisibility();
+                var showAtlasNodes = mapSideVisibility.showAtlas;
+                var showOSMNodes = mapSideVisibility.showOsm;
                 LineRenderer.clearLines(linesLayer);
                 LineRenderer.drawAll(viewportDataCache.data || [], linesLayer, {
                     showAtlas: showAtlasNodes,
@@ -669,12 +677,14 @@ function loadDataForViewport() {
                 showAtlasNodes = true;
                 showOSMNodes = false;
             } else {
-                showAtlasNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("atlas") !== -1;
-                showOSMNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("osm") !== -1;
+                var lowZoomVisibility = getEffectiveMapSideVisibility();
+                showAtlasNodes = lowZoomVisibility.showAtlas;
+                showOSMNodes = lowZoomVisibility.showOsm;
             }
         } else {
-            showAtlasNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("atlas") !== -1;
-            showOSMNodes = activeFilters.nodeType.length === 0 || activeFilters.nodeType.indexOf("osm") !== -1;
+            var normalVisibility = getEffectiveMapSideVisibility();
+            showAtlasNodes = normalVisibility.showAtlas;
+            showOSMNodes = normalVisibility.showOsm;
         }
 
         // Cache stop lookup for later interactions
@@ -1103,7 +1113,7 @@ function loadDataForViewport() {
 }
 
 // Reusable function to center map and open popup for a stop
-function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zoomLevel = 17) {
+function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zoomLevel = 17, shouldOpenPopup = true) {
     if (stopData && centerLat !== undefined && centerLon !== undefined) {
         // After programmatic center, skip the next 1 auto-reload cycle to avoid clearing existing markers
         suppressViewportReloadCount = 1;
@@ -1152,7 +1162,9 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
         const createdMarkers = createMarkersWithOverlapHandling(tempMarkerData, tempLayer);
 
         if (createdMarkers.length > 0) {
-            createdMarkers[0].openPopup();
+            if (shouldOpenPopup) {
+                createdMarkers[0].openPopup();
+            }
             window.currentFocusedMarker = tempLayer; // Store reference to layer instead of marker
         }
 
@@ -1190,29 +1202,41 @@ function focusOnRandomFilteredStop() {
     });
 }
 
-// Function to fetch and center on a specific stop by ID
 function fetchAndCenterSpecificStop(identifier, identifierType) {
-    // Determine the backend identifier_type based on the frontend filterType
-    let backendIdentifierType = '';
-    if (identifierType === 'atlas') {
-        backendIdentifierType = 'sloid';
-    } else if (identifierType === 'osm') {
-        backendIdentifierType = 'osm_node_id';
-    } else {
-        // For UIC or other types, we don't auto-center for now, or could implement later
-        console.log("Centering not implemented for identifier type:", identifierType);
-        return;
-    }
-
-    $.getJSON("/api/stop_by_id", { identifier: identifier, identifier_type: backendIdentifierType }, function (data) {
-        if (data.error) {
-            alert("Error fetching stop " + identifier + ": " + data.error);
+    return new Promise((resolve, reject) => {
+        let backendIdentifierType = '';
+        let typeName = '';
+        if (identifierType === 'atlas') {
+            backendIdentifierType = 'sloid';
+            typeName = 'ATLAS SLOID';
+        } else if (identifierType === 'osm') {
+            backendIdentifierType = 'osm_node_id';
+            typeName = 'OSM node';
+        } else if (identifierType === 'station') {
+            backendIdentifierType = 'station';
+            typeName = 'UIC station';
+        } else if (identifierType === 'route') {
+            backendIdentifierType = 'route';
+            typeName = 'route';
+        } else {
+            console.log("Centering not implemented for identifier type:", identifierType);
+            reject("Invalid identifier type.");
             return;
         }
-        // Use a slightly less zoomed-in level for specific searches compared to random.
-        centerMapAndOpenPopup(data.stop, data.center_lat, data.center_lon, data.popup_view_type, 16);
-    }).fail(function () {
-        alert("Failed to fetch stop " + identifier + " from the server.");
+
+        $.getJSON("/api/stop_by_id", { identifier: identifier, identifier_type: backendIdentifierType }, function (data) {
+            if (data.error) {
+                reject(`No ${typeName} found matching: ${identifier}`);
+                return;
+            }
+            // Use a slightly less zoomed-in level for specific searches compared to random.
+            const openPopup = !(identifierType === 'station' || identifierType === 'route');
+            const zoomLevel = identifierType === 'route' ? 14 : 16;
+            centerMapAndOpenPopup(data.stop, data.center_lat, data.center_lon, data.popup_view_type, zoomLevel, openPopup);
+            resolve();
+        }).fail(function () {
+            reject(`No ${typeName} found matching: ${identifier}`);
+        });
     });
 }
 
@@ -1273,6 +1297,11 @@ $(document).ready(function () {
         setHeaderSummaryFiltersExpanded(!headerSummaryFiltersExpanded);
     });
 
+    $(document).on('click', '#clearAllFilters', function (e) {
+        e.preventDefault();
+        if (typeof window.clearAllFilters === 'function') window.clearAllFilters();
+    });
+
     // Remove the old, duplicated event listener for new search type dropdown options
     // The initSearchTypeModal handles the new modal-based selector.
 });
@@ -1326,7 +1355,6 @@ function updateHeaderSummary() {
         }
 
         let summaryHtml = '';
-        const activeNodeTypes = activeFilters.nodeType;
 
         const totalOSM = data.total_osm_nodes || 0;
         const matchedOSM = data.matched_osm_nodes || 0;
@@ -1339,10 +1367,10 @@ function updateHeaderSummary() {
         const atlasPercentage = totalATLAS > 0 ? ((matchedATLAS / totalATLAS) * 100).toFixed(1) : 0;
 
         // Always show both lines if data is available, colorize percentages
-        if (totalOSM > 0 || (activeNodeTypes.length === 0 || activeNodeTypes.includes('osm'))) {
+        if (totalOSM > 0) {
             summaryHtml += `<div><i class="fas fa-map-marker-alt"></i> ${totalOSM} OSM nodes, <span style="color: #007bff; font-weight: bold;">${osmPercentage}% matched</span></div>`;
         }
-        if (totalATLAS > 0 || (activeNodeTypes.length === 0 || activeNodeTypes.includes('atlas'))) {
+        if (totalATLAS > 0) {
             summaryHtml += `<div><i class="fas fa-atlas"></i> ${totalATLAS} ATLAS stops, <span style="color: #28a745; font-weight: bold;">${atlasPercentage}% matched</span></div>`;
         }
 

@@ -228,7 +228,7 @@ class QueryBuilder:
                 conditions.append(db.false())
         
         # OSM group filter
-        if filters.get('osm_group_filter'):
+        if 'osm_group_types' in filters:
             osm_conditions.append(
                 StopsMatched.osm_node_id.in_(
                     self.filter_builder.build_osm_group_members_query(filters.get('osm_group_types'))
@@ -237,10 +237,7 @@ class QueryBuilder:
 
         if osm_conditions:
             combined_osm_condition = db.and_(*osm_conditions)
-            if filters.get('osm_include_matched', True):
-                conditions.append(combined_osm_condition)
-            else:
-                conditions.append(db.and_(StopsMatched.stop_type != 'matched', combined_osm_condition))
+            conditions.append(combined_osm_condition)
         
         # Apply all conditions
         if conditions:
