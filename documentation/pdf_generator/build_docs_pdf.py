@@ -4,6 +4,7 @@ import hashlib
 import html
 import json
 import re
+import ssl
 import subprocess
 import sys
 from datetime import datetime
@@ -171,7 +172,10 @@ def _fetch_mermaid_svg(diagram_source: str) -> str:
         },
         method='POST',
     )
-    with urlopen(request, timeout=45) as response:
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    with urlopen(request, timeout=45, context=ctx) as response:
         return response.read().decode('utf-8')
 
 
