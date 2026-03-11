@@ -231,7 +231,7 @@ def _convert_foreign_objects_to_svg_text(svg: str) -> str:
                 'text-anchor': 'middle',
                 'dominant-baseline': 'middle',
                 'font-family': 'Trebuchet MS,Verdana,Arial,sans-serif',
-                'font-size': '16',
+                'font-size': '15',
             })
 
             line_count = len(lines)
@@ -289,6 +289,46 @@ def _rewrite_mermaid_blocks(content: str) -> str:
     return pattern.sub(replace, content)
 
 
+def _process_markdown_headers(content: str, filename: str) -> str:
+    name = Path(filename).stem
+    first_token = name.split(' ')[0] if ' ' in name else name
+    prefix = first_token.rstrip('.')
+    
+    if not prefix or not prefix[0].isdigit() or not all(ch.isdigit() or ch == '.' for ch in prefix):
+        return content
+        
+    segments = [seg for seg in prefix.split('.') if seg]
+    if not segments or not all(seg.isdigit() for seg in segments):
+        return content
+        
+    level = len(segments)
+    shift = level - 1
+    
+    lines = content.split('\n')
+    processed_lines = []
+    first_heading_processed = False
+    
+    for line in lines:
+        match = re.match(r'^(#+)\s+(.*)$', line)
+        if match:
+            hashes = match.group(1)
+            title = match.group(2)
+            
+            if shift > 0:
+                hashes += '#' * shift
+            
+            if not first_heading_processed:
+                if not title.startswith(prefix):
+                    title = f"{prefix} {title}"
+                first_heading_processed = True
+                
+            processed_lines.append(f"{hashes} {title}")
+        else:
+            processed_lines.append(line)
+            
+    return '\n'.join(processed_lines)
+
+
 def _prepare_document(doc_paths: list[Path]) -> str:
     anchor_map = _doc_anchor_map(doc_paths)
     generated_at = datetime.now().strftime('%Y-%m-%d %H:%M')
@@ -323,6 +363,7 @@ def _prepare_document(doc_paths: list[Path]) -> str:
         content = _rewrite_internal_doc_links(content, anchor_map)
         content = _rewrite_repo_links(content)
         content = _rewrite_mermaid_blocks(content)
+        content = _process_markdown_headers(content, doc_path.name)
         parts.append(content.strip())
         parts.append('')
 
@@ -361,7 +402,6 @@ def _build_pdf() -> None:
         '--from=gfm+pipe_tables+raw_html',
         '--to=html5',
         '--standalone',
-        '--number-sections',
         f'--css={STYLE_PATH.absolute()}',
         '--resource-path',
         f'{DOCS_DIR}:{REPO_ROOT}',
