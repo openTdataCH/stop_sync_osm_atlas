@@ -38,7 +38,11 @@ class RouteMatchPredicate(BasePredicate):
                 continue
 
             # Find OSM candidates within max_distance (route matching explicitly ALLOWS station mappings)
-            candidates = batch_candidates[i]
+            candidates = [
+                (node, dist)
+                for node, dist in batch_candidates[i]
+                if not ctx.osm.is_used(node.node_id)
+            ]
             if not candidates:
                 continue
 

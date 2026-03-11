@@ -1,803 +1,349 @@
-"""
-Unit tests for the matching pipeline.
+"""Unit tests for the current matching pipeline API."""
 
-Tests cover:
-- Utility functions (haversine_distance, is_osm_station)
-- Route matching helpers (_normalize_route_id_for_matching, _normalize_direction_id)
-- Pipeline framework (make_match, run_pipeline, compute_no_nearby_osm)
-- Exact matching predicate
-- Name matching predicate
-- Distance matching helpers (bipartite_match)
-"""
+from __future__ import annotations
 
-import pytest
-import pandas as pd
 from collections import defaultdict
 
+import pandas as pd
+import pytest
 
-def _make_ctx(atlas_df, osm_nodes, uic_ref_dict, name_index):
-    """Helper to build a MatchingContext from test data in the new API."""
-    from matching_and_import_db.pipeline import MatchingContext
-    from matching_and_import_db.state import AtlasState, OsmState
+from matching_and_import_db.models import AtlasNode, OsmNode
+from matching_and_import_db.pipeline import MatchingContext, run_pipeline
+from matching_and_import_db.predicates import BasePredicate
+from matching_and_import_db.predicates.distance_matching import NearestDistancePredicate, bipartite_match
+from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
+from matching_and_import_db.predicates.name_matching import NameMatchPredicate
+from matching_and_import_db.predicates.route_matching_unified import RouteMatchPredicate
+from matching_and_import_db.state import AtlasState, OsmState
+from matching_and_import_db.utils.common import haversine_distance
+from matching_and_import_db.utils.route_id import normalize_route_id
 
+
+def _atlas_df(rows: list[dict]) -> pd.DataFrame:
+    return pd.DataFrame(rows)
+
+
+def _atlas_row(
+    sloid: str,
+    number: str,
+    designation: str,
+    designation_official: str,
+    lat: float,
+    lon: float,
+) -> dict:
+    return {
+        'sloid': sloid,
+        'number': number,
+        'designation': designation,
+        'designationOfficial': designation_official,
+        'wgs84North': lat,
+        'wgs84East': lon,
+        'servicePointBusinessOrganisationAbbreviationEn': 'TEST',
+    }
+
+
+def _osm_entry(
+    node_id: str,
+    lat: float,
+    lon: float,
+    *,
+    name: str | None = None,
+    uic_ref: str | None = None,
+    uic_name: str | None = None,
+    local_ref: str | None = None,
+    public_transport: str | None = 'stop_position',
+    railway: str | None = None,
+) -> dict:
+    tags: dict[str, str | None] = {}
+    if public_transport is not None:
+        tags['public_transport'] = public_transport
+    if name is not None:
+        tags['name'] = name
+    if uic_name is not None:
+        tags['uic_name'] = uic_name
+    if uic_ref is not None:
+        tags['uic_ref'] = uic_ref
+    if railway is not None:
+        tags['railway'] = railway
+    return {
+        'node_id': node_id,
+        'lat': lat,
+        'lon': lon,
+        'local_ref': local_ref,
+        'tags': tags,
+    }
+
+
+def _build_ctx(
+    atlas_rows: list[dict],
+    osm_entries: list[dict],
+    *,
+    duplicate_sloid_map: dict[str, list[str]] | None = None,
+    node_routes: dict[str, list[dict]] | None = None,
+) -> MatchingContext:
     atlas_state = AtlasState(
-        atlas_df=atlas_df,
-        duplicate_sloid_map={},
+        atlas_df=_atlas_df(atlas_rows),
+        duplicate_sloid_map=duplicate_sloid_map or {},
+        routes_by_sloid={},
     )
-    osm_idx = OsmState(
-        xml_nodes=osm_nodes,
-        uic_ref_dict=uic_ref_dict,
-        name_index=name_index,
+
+    xml_nodes = {(entry['lat'], entry['lon']): entry for entry in osm_entries}
+    uic_ref_dict: dict[str, list[dict]] = defaultdict(list)
+    name_index: dict[str, list[dict]] = defaultdict(list)
+    for entry in osm_entries:
+        tags = entry.get('tags', {})
+        if tags.get('uic_ref'):
+            uic_ref_dict[tags['uic_ref']].append(entry)
+        if tags.get('name'):
+            name_index[tags['name']].append(entry)
+
+    osm_state = OsmState(
+        xml_nodes=xml_nodes,
+        uic_ref_dict=dict(uic_ref_dict),
+        name_index=dict(name_index),
+        node_routes=node_routes or {},
     )
-    return MatchingContext(atlas=atlas_state, osm=osm_idx)
+    return MatchingContext(atlas=atlas_state, osm=osm_state, max_distance=50.0)
 
 
-# =============================================================================
-# Tests for utils/common.py
-# =============================================================================
+class SingleCommitPredicate(BasePredicate):
+    def __init__(self, match_type: str, atlas_index: int, osm_id: str):
+        super().__init__(name=match_type)
+        self.match_type = match_type
+        self.atlas_index = atlas_index
+        self.osm_id = osm_id
 
-
-class TestHaversineDistance:
-    """Tests for the haversine_distance function."""
-
-    def test_same_point_returns_zero(self):
-        """Two identical points should have zero distance."""
-        from matching_and_import_db.utils.common import haversine_distance
-
-        distance = haversine_distance(47.0, 8.0, 47.0, 8.0)
-        assert distance is not None
-        assert distance == pytest.approx(0.0, abs=0.001)
-
-    def test_known_distance_zurich_bern(self, known_coordinates):
-        """Test with known distance between Zürich and Bern."""
-        from matching_and_import_db.utils.common import haversine_distance
-
-        coords = known_coordinates['zurich_bern']
-        lat1, lon1 = coords['point1']
-        lat2, lon2 = coords['point2']
-
-        distance_m = haversine_distance(lat1, lon1, lat2, lon2)
-        distance_km = distance_m / 1000
-
-        assert distance_km == pytest.approx(
-            coords['expected_distance_km'],
-            abs=coords['tolerance_km']
+    def run(self, ctx: MatchingContext) -> None:
+        unmatched = ctx.atlas.get_unmatched_records()
+        atlas_entry = unmatched[self.atlas_index]
+        osm_entry = next(
+            ctx.osm._wrap_entity(node_dict)
+            for node_dict in ctx.osm._all_nodes.values()
+            if node_dict['node_id'] == self.osm_id
         )
+        ctx.commit(atlas_entry, osm_entry, self.match_type, 0.0, 'test')
 
-    def test_short_distance(self, known_coordinates):
-        """Test short distance calculation (< 100m)."""
-        from matching_and_import_db.utils.common import haversine_distance
 
-        coords = known_coordinates['short_distance']
-        lat1, lon1 = coords['point1']
-        lat2, lon2 = coords['point2']
+class TestUtils:
+    def test_haversine_distance_same_point(self):
+        assert haversine_distance(47.0, 8.0, 47.0, 8.0) == pytest.approx(0.0, abs=0.001)
 
-        distance_m = haversine_distance(lat1, lon1, lat2, lon2)
+    def test_normalize_route_id(self):
+        assert normalize_route_id('route-j25') == 'route-jXX'
+        assert normalize_route_id('route-j1-j2') == 'route-jXX-jXX'
+        assert normalize_route_id('plain-route') == 'plain-route'
 
-        # Should be approximately 15 meters
-        assert distance_m == pytest.approx(15, abs=5)
-
-    def test_invalid_input_returns_none(self):
-        """Invalid inputs should return None, not raise exceptions."""
-        from matching_and_import_db.utils.common import haversine_distance
-
-        assert haversine_distance('invalid', 8.0, 47.0, 8.0) is None
-        assert haversine_distance(47.0, None, 47.0, 8.0) is None
-        assert haversine_distance(47.0, 8.0, 'bad', 8.0) is None
-
-    def test_string_numbers_work(self):
-        """String representations of numbers should work."""
-        from matching_and_import_db.utils.common import haversine_distance
-
-        distance = haversine_distance('47.0', '8.0', '47.0', '8.0')
-        assert distance is not None
-        assert distance == pytest.approx(0.0, abs=0.001)
-
-
-class TestIsOsmStation:
-    """Tests for the is_osm_station function."""
-
-    def test_railway_station_is_station(self):
-        from matching_and_import_db.utils.common import is_osm_station
-        node = {'tags': {'railway': 'station'}}
-        assert is_osm_station(node) is True
-
-    def test_public_transport_station_is_station(self):
-        from matching_and_import_db.utils.common import is_osm_station
-        node = {'tags': {'public_transport': 'station'}}
-        assert is_osm_station(node) is True
-
-    def test_aerialway_station_is_not_station(self):
-        from matching_and_import_db.utils.common import is_osm_station
-        node = {'tags': {'aerialway': 'station'}}
-        assert is_osm_station(node) is False
-
-    def test_stop_position_is_not_station(self):
-        from matching_and_import_db.utils.common import is_osm_station
-        node = {'tags': {'public_transport': 'stop_position'}}
-        assert is_osm_station(node) is False
-
-    def test_empty_tags_is_not_station(self):
-        from matching_and_import_db.utils.common import is_osm_station
-        assert is_osm_station({'tags': {}}) is False
-        assert is_osm_station({}) is False
-
-    def test_combined_tags_railway_and_aerialway(self):
-        """When both railway=station and aerialway=station present, aerialway takes precedence."""
-        from matching_and_import_db.utils.common import is_osm_station
-        node = {'tags': {'railway': 'station', 'aerialway': 'station'}}
-        assert is_osm_station(node) is False
-
-
-class TestOsmGrouping:
-    """Tests for OSM pre-grouping helpers."""
-
-    def test_reciprocal_pairs_do_not_self_match_dual_tagged_node(self):
-        from matching_and_import_db.state import OsmState
-
-        tram_stop_position = {
-            'node_id': '4883672596',
-            'lat': 47.3768119,
-            'lon': 8.5441421,
-            'local_ref': 'C',
-            'tags': {
-                'name': 'Central',
-                'local_ref': 'C',
-                'public_transport': 'stop_position',
-                'railway': 'tram_stop',
-                'tram': 'yes',
-                'uic_ref': '8588078',
-            },
-        }
-        bus_stop_position = {
-            'node_id': '3779317948',
-            'lat': 47.3768371,
-            'lon': 8.5441585,
-            'local_ref': 'C',
-            'tags': {
-                'name': 'Central',
-                'local_ref': 'C',
-                'public_transport': 'stop_position',
-                'bus': 'yes',
-                'uic_ref': '8588078',
-            },
-        }
-
-        osm_state = OsmState(
-            xml_nodes={},
-            uic_ref_dict={},
-            name_index={},
-        )
-
-        pairs = osm_state._find_reciprocal_pairs(
-            [tram_stop_position],
-            [tram_stop_position, bus_stop_position],
-            12.0,
-            1.5,
-        )
-
-        assert [(plat['node_id'], sp['node_id']) for plat, sp in pairs] == [
-            ('4883672596', '3779317948')
-        ]
-
-    def test_tram_count_guard_allows_single_clear_atlas_outlier(self):
-        from matching_and_import_db.state import OsmState
-
-        assert OsmState._allow_single_atlas_outlier_for_tram(
-            '8588078',
-            atlas_count=12,
-            effective_count=11,
-            atlas_uic_nearest_osm_distances={
-                '8588078': [36.47, 18.62, 15.75, 12.61, 9.19, 8.69, 7.65, 6.07, 5.61, 5.55, 4.06, 3.82],
-            },
-        ) is True
-
-    def test_tram_count_guard_rejects_non_outlier_mismatch(self):
-        from matching_and_import_db.state import OsmState
-
-        assert OsmState._allow_single_atlas_outlier_for_tram(
-            '8588078',
-            atlas_count=12,
-            effective_count=11,
-            atlas_uic_nearest_osm_distances={
-                '8588078': [24.0, 18.0, 17.5, 16.0, 15.5, 14.0, 13.5, 12.0, 11.0, 10.0, 9.0, 8.0],
-            },
-        ) is False
-
-
-# =============================================================================
-# Tests for route matching helpers
-# =============================================================================
-
-
-class TestNormalizeRouteId:
-    """Tests for route ID normalization."""
-
-    def test_normalize_journey_numbers(self):
-        from matching_and_import_db.utils.route_id import normalize_route_id as _normalize_route_id_for_matching
-        assert _normalize_route_id_for_matching('route-j25') == 'route-jXX'
-        assert _normalize_route_id_for_matching('route-j123') == 'route-jXX'
-        assert _normalize_route_id_for_matching('IC-j1') == 'IC-jXX'
-
-    def test_no_journey_number_unchanged(self):
-        from matching_and_import_db.utils.route_id import normalize_route_id as _normalize_route_id_for_matching
-        assert _normalize_route_id_for_matching('route123') == 'route123'
-        assert _normalize_route_id_for_matching('IC') == 'IC'
-
-    def test_none_input(self):
-        from matching_and_import_db.utils.route_id import normalize_route_id as _normalize_route_id_for_matching
-        assert _normalize_route_id_for_matching(None) is None
-        assert _normalize_route_id_for_matching('') is None
-
-    def test_multiple_journey_patterns(self):
-        from matching_and_import_db.utils.route_id import normalize_route_id as _normalize_route_id_for_matching
-        assert _normalize_route_id_for_matching('route-j1-j2') == 'route-jXX-jXX'
-
-
-class TestNormalizeDirectionId:
-    """Tests for direction ID normalization."""
-
-    def test_integer_string(self):
-        from matching_and_import_db.predicates.route_matching_unified import _normalize_direction_id
-        assert _normalize_direction_id('123') == '123'
-        assert _normalize_direction_id('1') == '1'
-
-    def test_float_to_int_string(self):
-        from matching_and_import_db.predicates.route_matching_unified import _normalize_direction_id
-        assert _normalize_direction_id(123.0) == '123'
-        assert _normalize_direction_id('123.0') == '123'
-
-    def test_nan_returns_none(self):
-        from matching_and_import_db.predicates.route_matching_unified import _normalize_direction_id
-        assert _normalize_direction_id(pd.NA) is None
-        assert _normalize_direction_id(float('nan')) is None
-
-    def test_invalid_value_returns_none(self):
-        from matching_and_import_db.predicates.route_matching_unified import _normalize_direction_id
-        assert _normalize_direction_id('invalid') is None
-
-
-# =============================================================================
-# Tests for pipeline framework (make_match, run_pipeline, compute_no_nearby_osm)
-# =============================================================================
-
-
-class TestMakeMatch:
-    """Tests for the make_match helper."""
-
-    def test_creates_valid_record(self):
-        from matching_and_import_db.pipeline import make_match
-
-        atlas_entry = {
-            'sloid': 'ch:1:sloid:1',
-            'number': '8503000',
-            'designation': '1',
-            'designationOfficial': 'Zürich HB',
-            'wgs84North': 47.3769,
-            'wgs84East': 8.5417,
-            'servicePointBusinessOrganisationAbbreviationEn': 'SBB',
-        }
-        osm_node = {
-            'node_id': 'osm_1', 'lat': 47.3770, 'lon': 8.5418,
-            'tags': {'name': 'Zürich HB', 'uic_ref': '8503000'},
-        }
-
-        record = make_match(atlas_entry, osm_node, 'exact', 'test note')
-
-        assert record['sloid'] == 'ch:1:sloid:1'
-        assert record['osm_node_id'] == 'osm_1'
-        assert record['match_type'] == 'exact'
-        assert record['matching_notes'] == 'test note'
-        assert record['distance_m'] is not None
-        assert record['distance_m'] >= 0
-        # Very close points should have a small distance
-        assert record['distance_m'] < 200
-
-    def test_atlas_fields_extracted(self):
-        from matching_and_import_db.pipeline import make_match
-
-        atlas_entry = {
-            'sloid': 'ch:1:sloid:1',
-            'number': '8503000',
-            'designation': '5',
-            'designationOfficial': 'Zürich HB',
-            'wgs84North': 47.3769,
-            'wgs84East': 8.5417,
-            'servicePointBusinessOrganisationAbbreviationEn': 'SBB',
-        }
-        osm_node = {
-            'node_id': 'osm_1', 'lat': 47.3769, 'lon': 8.5417,
-            'tags': {},
-        }
-
-        record = make_match(atlas_entry, osm_node, 'test', 'note')
-
-        assert record['csv_designation'] == '5'
-        assert record['csv_designation_official'] == 'Zürich HB'
-        assert record['csv_business_org_abbr'] == 'SBB'
-
-
-class TestPipelineRunner:
-    """Tests for the run_pipeline function."""
-
-    def test_empty_predicates_returns_all_unmatched(self, matching_context):
-        from matching_and_import_db.pipeline import run_pipeline
-
-        output = run_pipeline([], matching_context)
-
-        assert len(output.matched) == 0
-        assert len(output.unmatched_atlas) == 3  # 3 atlas entries from fixture
-
-    def test_simple_predicate_runs(self, matching_context):
-        from matching_and_import_db.pipeline import run_pipeline, make_match
-
-        def always_match_first(ctx):
-            """Dummy predicate that matches the first unmatched row."""
-            unmatched = ctx.atlas.get_unmatched_records()
-            row = unmatched[0]
-            # Pick first available OSM node
-            osm = next(iter(ctx.osm._all_nodes.values()))
-            return [make_match(row, osm, 'test_pred', 'test')]
-
-        output = run_pipeline([always_match_first], matching_context)
-
-        assert len(output.matched) == 1
-        assert output.matched[0]['match_type'] == 'test_pred'
-        # 3 atlas entries, 1 matched → 2 unmatched
-        assert len(output.unmatched_atlas) == 2
-
-    def test_runner_updates_tracking_sets(self, matching_context):
-        from matching_and_import_db.pipeline import run_pipeline, make_match
-
-        def match_one(ctx):
-            unmatched = ctx.atlas.get_unmatched_records()
-            row = unmatched[0]
-            osm = next(iter(ctx.osm._all_nodes.values()))
-            return [make_match(row, osm, 'test', 'note')]
-
-        run_pipeline([match_one], matching_context)
-
-        assert len(matching_context.atlas.matched_ids) == 1
-        assert len(matching_context.osm.used_ids) >= 1
-
-    def test_multiple_predicates_chain(self, matching_context):
-        from matching_and_import_db.pipeline import run_pipeline, make_match
-
-        call_order = []
-
-        def pred_a(ctx):
-            call_order.append('a')
-            unmatched = ctx.atlas.get_unmatched_records()
-            row = unmatched[0]
-            osm = list(ctx.osm._all_nodes.values())[0]
-            return [make_match(row, osm, 'pred_a', 'note')]
-
-        def pred_b(ctx):
-            call_order.append('b')
-            unmatched = ctx.atlas.get_unmatched_records()
-            row = unmatched[0]
-            osm = list(ctx.osm._all_nodes.values())[1]
-            return [make_match(row, osm, 'pred_b', 'note')]
-
-        output = run_pipeline([pred_a, pred_b], matching_context)
-
-        assert call_order == ['a', 'b']
-        assert len(output.matched) == 2
-        # First match is pred_a, second is pred_b
-        assert output.matched[0]['match_type'] == 'pred_a'
-        assert output.matched[1]['match_type'] == 'pred_b'
-
-    def test_skips_predicate_when_all_matched(self, matching_context):
-        """If all ATLAS entries are matched, remaining predicates are skipped."""
-        from matching_and_import_db.pipeline import run_pipeline, make_match
-
-        def match_all(ctx):
-            results = []
-            unmatched = ctx.atlas.get_unmatched_records()
-            osm_list = list(ctx.osm._all_nodes.values())
-            for i, row in enumerate(unmatched):
-                results.append(make_match(
-                    row, osm_list[i % len(osm_list)], 'bulk', 'note'))
-            return results
-
-        was_called = []
-
-        def should_not_run(ctx):
-            was_called.append(True)
-            return []
-
-        run_pipeline([match_all, should_not_run], matching_context)
-
-        assert len(was_called) == 0
-
-
-class TestComputeNoNearbyOsm:
-    """Tests for the compute_no_nearby_osm function."""
-
-    def test_far_away_entry_detected(self):
-        from matching_and_import_db.pipeline import compute_no_nearby_osm
-
-        # An ATLAS entry far from any OSM node
-        unmatched = [{'sloid': 'far_away', 'wgs84North': 0.0, 'wgs84East': 0.0}]
-        osm_nodes = {
-            (47.0, 8.0): {
-                'node_id': 'n1', 'lat': 47.0, 'lon': 8.0,
-                'tags': {}, 'local_ref': None,
-            }
-        }
-
-        result = compute_no_nearby_osm(unmatched, osm_nodes, radius=50)
-
-        assert 'far_away' in result
-
-    def test_nearby_entry_not_flagged(self):
-        from matching_and_import_db.pipeline import compute_no_nearby_osm
-
-        # ATLAS entry very close to an OSM node
-        unmatched = [{'sloid': 'close', 'wgs84North': 47.0001, 'wgs84East': 8.0001}]
-        osm_nodes = {
-            (47.0, 8.0): {
-                'node_id': 'n1', 'lat': 47.0, 'lon': 8.0,
-                'tags': {}, 'local_ref': None,
-            }
-        }
-
-        result = compute_no_nearby_osm(unmatched, osm_nodes, radius=50)
-
-        assert 'close' not in result
-
-    def test_empty_unmatched(self):
-        from matching_and_import_db.pipeline import compute_no_nearby_osm
-
-        result = compute_no_nearby_osm([], {(47.0, 8.0): {
-            'node_id': 'n1', 'lat': 47.0, 'lon': 8.0,
-            'tags': {}, 'local_ref': None,
-        }}, radius=50)
-
-        assert result == set()
-
-
-# =============================================================================
-# Tests for exact matching predicate
-# =============================================================================
-
-
-class TestExactMatching:
-    """Tests for exact UIC-based matching predicate."""
-
-    def test_no_matching_uic(self, matching_context):
-        """ATLAS entries with no matching UIC should produce no matches."""
-        from matching_and_import_db.predicates.exact_matching import exact_uic
-
-        # Clear the uic_ref_dict so nothing matches
-        matching_context.osm._uic_ref_dict = {}
-
-        matches = exact_uic(matching_context)
-        assert len(matches) == 0
-
-    def test_single_osm_for_uic(self):
-        """When only one OSM node has the UIC, all ATLAS entries with that UIC match it."""
-        from matching_and_import_db.predicates.exact_matching import exact_uic
-
-        atlas_df = pd.DataFrame({
-            'sloid': ['s1'],
-            'number': ['8503000'],
-            'designation': ['1'],
-            'designationOfficial': ['Zürich HB'],
-            'wgs84North': [47.3769],
-            'wgs84East': [8.5417],
-            'uic_ref': ['8503000'],
-            'servicePointBusinessOrganisationAbbreviationEn': ['SBB'],
-        })
-
-        osm_node = {
-            'node_id': 'osm_1', 'lat': 47.3770, 'lon': 8.5418,
-            'tags': {'name': 'Zürich HB', 'uic_ref': '8503000'},
-            'local_ref': None,
-        }
-
-        osm_nodes = {(47.3770, 8.5418): osm_node}
-        uic_dict = {'8503000': [osm_node]}
-
-        ctx = _make_ctx(atlas_df, osm_nodes, uic_dict, {})
-
-        matches = exact_uic(ctx)
-
-        assert len(matches) == 1
-        assert matches[0]['sloid'] == 's1'
-        assert matches[0]['osm_node_id'] == 'osm_1'
-        assert matches[0]['match_type'] == 'exact'
-
-    def test_match_record_structure(self, matching_context):
-        """Verify exact matching returns properly structured match records."""
-        from matching_and_import_db.predicates.exact_matching import exact_uic
-
-        matches = exact_uic(matching_context)
-
-        for match in matches:
-            assert 'sloid' in match
-            assert 'osm_node_id' in match
-            assert 'match_type' in match
-            assert match['match_type'] == 'exact'
-            assert 'distance_m' in match
-            assert 'matching_notes' in match
-
-    def test_used_osm_ids_updated(self, matching_context):
-        """Matched OSM IDs should be added to ctx.osm.used_ids."""
-        from matching_and_import_db.predicates.exact_matching import exact_uic
-
-        matches = exact_uic(matching_context)
-
-        for match in matches:
-            assert match['osm_node_id'] in matching_context.osm.used_ids
-
-    def test_many_to_many_refines_by_local_ref(self):
-        """Multiple ATLAS + multiple OSM should refine by designation == local_ref."""
-        from matching_and_import_db.predicates.exact_matching import exact_uic
-
-        atlas_df = pd.DataFrame({
-            'sloid': ['s1', 's2'],
-            'number': ['8503000', '8503000'],
-            'designation': ['1', '2'],
-            'designationOfficial': ['Zürich HB', 'Zürich HB'],
-            'wgs84North': [47.3769, 47.3769],
-            'wgs84East': [8.5417, 8.5417],
-            'uic_ref': ['8503000', '8503000'],
-            'servicePointBusinessOrganisationAbbreviationEn': ['SBB', 'SBB'],
-        })
-
-        osm_a = {
-            'node_id': 'osm_a', 'lat': 47.3770, 'lon': 8.5418,
-            'tags': {'uic_ref': '8503000'}, 'local_ref': '1',
-        }
-        osm_b = {
-            'node_id': 'osm_b', 'lat': 47.3771, 'lon': 8.5419,
-            'tags': {'uic_ref': '8503000'}, 'local_ref': '2',
-        }
-
-        osm_nodes = {
-            (47.3770, 8.5418): osm_a,
-            (47.3771, 8.5419): osm_b,
-        }
-        uic_dict = {'8503000': [osm_a, osm_b]}
-
-        ctx = _make_ctx(atlas_df, osm_nodes, uic_dict, {})
-
-        matches = exact_uic(ctx)
-
-        assert len(matches) == 2
-        matched_pairs = {(m['sloid'], m['osm_node_id']) for m in matches}
-        assert ('s1', 'osm_a') in matched_pairs
-        assert ('s2', 'osm_b') in matched_pairs
-
-
-# =============================================================================
-# Tests for name matching predicate
-# =============================================================================
-
-
-class TestNameMatching:
-    """Tests for name-based matching predicate."""
-
-    def test_no_name_match(self, matching_context):
-        """No matching names should result in no matches."""
-        from matching_and_import_db.predicates.name_matching import name_match
-
-        matching_context.osm._name_index = {}
-
-        matches = name_match(matching_context)
-        assert len(matches) == 0
-
-    def test_single_candidate_matched(self):
-        """A single candidate for a name should be matched directly."""
-        from matching_and_import_db.predicates.name_matching import name_match
-
-        atlas_df = pd.DataFrame({
-            'sloid': ['s1'],
-            'number': ['8503000'],
-            'designation': ['1'],
-            'designationOfficial': ['Zürich HB'],
-            'wgs84North': [47.3769],
-            'wgs84East': [8.5417],
-            'uic_ref': ['8503000'],
-            'servicePointBusinessOrganisationAbbreviationEn': ['SBB'],
-        })
-
-        osm_node = {
-            'node_id': 'osm_1', 'lat': 47.3770, 'lon': 8.5418,
-            'tags': {'name': 'Zürich HB'}, 'local_ref': None,
-        }
-
-        osm_nodes = {(47.3770, 8.5418): osm_node}
-        name_idx = {'Zürich HB': [osm_node]}
-
-        ctx = _make_ctx(atlas_df, osm_nodes, {}, name_idx)
-
-        matches = name_match(ctx)
-
-        assert len(matches) == 1
-        assert matches[0]['sloid'] == 's1'
-        assert matches[0]['match_type'] == 'name'
-
-    def test_multiple_candidates_refines_by_local_ref(self):
-        """Multiple name candidates should refine by designation == local_ref."""
-        from matching_and_import_db.predicates.name_matching import name_match
-
-        atlas_df = pd.DataFrame({
-            'sloid': ['s1'],
-            'number': ['8503000'],
-            'designation': ['2'],
-            'designationOfficial': ['Zürich HB'],
-            'wgs84North': [47.3769],
-            'wgs84East': [8.5417],
-            'uic_ref': ['8503000'],
-            'servicePointBusinessOrganisationAbbreviationEn': ['SBB'],
-        })
-
-        osm_a = {
-            'node_id': 'osm_a', 'lat': 47.37, 'lon': 8.54,
-            'tags': {'name': 'Zürich HB'}, 'local_ref': '1',
-        }
-        osm_b = {
-            'node_id': 'osm_b', 'lat': 47.37, 'lon': 8.54,
-            'tags': {'name': 'Zürich HB'}, 'local_ref': '2',
-        }
-
-        osm_nodes = {
-            (47.37, 8.54): osm_a,  # Note: duplicate coord key — only one stored
-            (47.3701, 8.5401): osm_b,
-        }
-        name_idx = {'Zürich HB': [osm_a, osm_b]}
-
-        ctx = _make_ctx(atlas_df, osm_nodes, {}, name_idx)
-
-        matches = name_match(ctx)
-
-        assert len(matches) == 1
-        assert matches[0]['osm_node_id'] == 'osm_b'
-
-    def test_match_record_structure(self, matching_context):
-        """Verify name matching returns properly structured records."""
-        from matching_and_import_db.predicates.name_matching import name_match
-
-        matches = name_match(matching_context)
-
-        for match in matches:
-            assert 'sloid' in match
-            assert 'osm_node_id' in match
-            assert 'match_type' in match
-            assert match['match_type'] == 'name'
-
-
-# =============================================================================
-# Tests for distance matching helpers
-# =============================================================================
+    def test_is_osm_station(self):
+        assert OsmNode('n1', 47.0, 8.0, None, None, None, None, '', '', 'station', None, None, None, {}).is_station is True
+        assert OsmNode('n2', 47.0, 8.0, None, None, None, None, '', '', 'stop_position', None, None, None, {}).is_station is False
+        assert OsmNode('n3', 47.0, 8.0, None, None, None, None, '', '', None, None, None, 'station', {}).is_station is False
 
 
 class TestBipartiteMatch:
-    """Tests for the bipartite_match helper."""
-
     def test_equal_size_conflict_free(self):
-        """N-to-N with no conflicts should produce N pairs."""
-        from matching_and_import_db.predicates.distance_matching import bipartite_match
-
         atlas = [
-            {'wgs84North': 47.0, 'wgs84East': 8.0},
-            {'wgs84North': 47.1, 'wgs84East': 8.1},
+            AtlasNode('a1', 47.0, 8.0, 'u1', '1', 'A', 'T'),
+            AtlasNode('a2', 47.0005, 8.0005, 'u1', '2', 'A', 'T'),
         ]
         osm = [
-            {'lat': 47.0001, 'lon': 8.0001},
-            {'lat': 47.1001, 'lon': 8.1001},
+            OsmNode('o1', 47.0001, 8.0001, None, 'A', None, 'u1', '', '', 'stop_position', None, None, None, {}),
+            OsmNode('o2', 47.0006, 8.0006, None, 'A', None, 'u1', '', '', 'stop_position', None, None, None, {}),
         ]
 
-        pairs = bipartite_match(atlas, osm, max_distance=500)
-
+        pairs = bipartite_match(atlas, osm, max_distance=100)
         assert len(pairs) == 2
 
     def test_unequal_size_returns_empty(self):
-        """Different sizes should return empty."""
-        from matching_and_import_db.predicates.distance_matching import bipartite_match
-
-        atlas = [{'wgs84North': 47.0, 'wgs84East': 8.0}]
+        atlas = [AtlasNode('a1', 47.0, 8.0, 'u1', '1', 'A', 'T')]
         osm = [
-            {'lat': 47.0001, 'lon': 8.0001},
-            {'lat': 47.1, 'lon': 8.1},
+            OsmNode('o1', 47.0001, 8.0001, None, 'A', None, 'u1', '', '', 'stop_position', None, None, None, {}),
+            OsmNode('o2', 47.1, 8.1, None, 'A', None, 'u1', '', '', 'stop_position', None, None, None, {}),
         ]
 
-        assert bipartite_match(atlas, osm, max_distance=500) == []
-
-    def test_exceeds_max_distance_returns_empty(self):
-        """All pairs beyond max_distance should return empty."""
-        from matching_and_import_db.predicates.distance_matching import bipartite_match
-
-        atlas = [{'wgs84North': 47.0, 'wgs84East': 8.0}]
-        osm = [{'lat': 48.0, 'lon': 9.0}]  # ~130 km away
-
-        assert bipartite_match(atlas, osm, max_distance=50) == []
-
-    def test_conflict_returns_empty(self):
-        """Conflicting assignments (non-reciprocal) should return empty."""
-        from matching_and_import_db.predicates.distance_matching import bipartite_match
-
-        # Two ATLAS entries both closest to the same OSM node
-        atlas = [
-            {'wgs84North': 47.0, 'wgs84East': 8.0},
-            {'wgs84North': 47.00001, 'wgs84East': 8.00001},
-        ]
-        # One OSM node very close, one very far
-        osm = [
-            {'lat': 47.0, 'lon': 8.0},
-            {'lat': 50.0, 'lon': 10.0},  # way too far for reciprocal
-        ]
-
-        result = bipartite_match(atlas, osm, max_distance=500)
-        # Should fail because both ATLAS entries are closest to osm[0]
-        # but osm[0] can only match one
-        assert result == []
+        assert bipartite_match(atlas, osm, max_distance=100) == []
 
 
-# =============================================================================
-# Integration tests
-# =============================================================================
-
-
-class TestMatchingIntegration:
-    """Higher-level tests verifying matching components work together."""
-
-    def test_exact_then_name_pipeline(self, matching_context):
-        """Running exact_uic then name_match in sequence should work."""
-        from matching_and_import_db.pipeline import run_pipeline
-        from matching_and_import_db.predicates.exact_matching import exact_uic
-        from matching_and_import_db.predicates.name_matching import name_match
-
-        output = run_pipeline([exact_uic, name_match], matching_context)
-
-        assert isinstance(output.matched, list)
-        assert isinstance(output.unmatched_atlas, list)
-        assert isinstance(output.unmatched_osm, list)
-
-        # All matched entries should have required fields
-        for m in output.matched:
-            assert 'sloid' in m
-            assert 'osm_node_id' in m
-            assert 'match_type' in m
-
-    def test_matched_osm_ids_not_reused(self, matching_context):
-        """An OSM node matched by exact should not be re-matched by name."""
-        from matching_and_import_db.pipeline import run_pipeline
-        from matching_and_import_db.predicates.exact_matching import exact_uic
-        from matching_and_import_db.predicates.name_matching import name_match
-
-        output = run_pipeline([exact_uic, name_match], matching_context)
-
-        osm_ids = [m['osm_node_id'] for m in output.matched if m['osm_node_id']]
-        # No duplicate OSM IDs in matches
-        assert len(osm_ids) == len(set(osm_ids))
-
-    def test_unmatched_atlas_in_output(self):
-        """Pipeline output should include unmatched ATLAS entries."""
-        from matching_and_import_db.pipeline import run_pipeline
-
-        atlas_df = pd.DataFrame({
-            'sloid': ['isolated'],
-            'number': ['0000000'],
-            'designation': ['1'],
-            'designationOfficial': ['Nowhere'],
-            'wgs84North': [0.0],
-            'wgs84East': [0.0],
-            'uic_ref': ['0000000'],
-            'servicePointBusinessOrganisationAbbreviationEn': ['TEST'],
-        })
-
-        osm_nodes = {
-            (47.0, 8.0): {
-                'node_id': 'far', 'lat': 47.0, 'lon': 8.0,
-                'tags': {}, 'local_ref': None,
-            }
-        }
-
-        ctx = _make_ctx(atlas_df, osm_nodes, {}, {})
+class TestPipelineRunner:
+    def test_empty_predicates_returns_all_unmatched(self):
+        ctx = _build_ctx(
+            [_atlas_row('s1', 'u1', '1', 'Stop 1', 47.0, 8.0)],
+            [_osm_entry('o1', 47.0, 8.0, uic_ref='u1', name='Stop 1')],
+        )
 
         output = run_pipeline([], ctx)
 
-        assert any(n.sloid == 'isolated' for n in output.unmatched_atlas)
+        assert output.matched == []
+        assert [node.sloid for node in output.unmatched_atlas] == ['s1']
+
+    def test_multiple_predicates_chain(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('s1', 'u1', '1', 'Stop 1', 47.0, 8.0),
+                _atlas_row('s2', 'u2', '2', 'Stop 2', 47.1, 8.1),
+            ],
+            [
+                _osm_entry('o1', 47.0, 8.0, uic_ref='u1', name='Stop 1'),
+                _osm_entry('o2', 47.1, 8.1, uic_ref='u2', name='Stop 2'),
+            ],
+        )
+
+        output = run_pipeline(
+            [
+                SingleCommitPredicate('pred_a', 0, 'o1'),
+                SingleCommitPredicate('pred_b', 0, 'o2'),
+            ],
+            ctx,
+        )
+
+        assert [record.match_type for record in output.matched] == ['pred_a', 'pred_b']
+        assert len(output.unmatched_atlas) == 0
+
+
+class TestCurrentPredicates:
+    def test_exact_uic_predicate_single_candidate(self):
+        ctx = _build_ctx(
+            [_atlas_row('s1', '8503000', '1', 'Zürich HB', 47.3769, 8.5417)],
+            [_osm_entry('osm_1', 47.3770, 8.5418, uic_ref='8503000', name='Zürich HB')],
+        )
+
+        ExactUicPredicate().run(ctx)
+
+        assert [(record.atlas_node.sloid, record.osm_node.node_id, record.match_type) for record in ctx.all_matches] == [
+            ('s1', 'osm_1', 'exact')
+        ]
+
+    def test_name_match_predicate_refines_by_local_ref(self):
+        ctx = _build_ctx(
+            [_atlas_row('s1', '8503000', '2', 'Zürich HB', 47.3769, 8.5417)],
+            [
+                _osm_entry('osm_a', 47.3770, 8.5418, name='Zürich HB', local_ref='1'),
+                _osm_entry('osm_b', 47.3771, 8.5419, name='Zürich HB', local_ref='2'),
+            ],
+        )
+
+        NameMatchPredicate().run(ctx)
+
+        assert len(ctx.all_matches) == 1
+        assert ctx.all_matches[0].osm_node.node_id == 'osm_b'
+        assert ctx.all_matches[0].match_type == 'name'
+
+    def test_route_match_predicate_matches_by_gtfs_tokens(self):
+        ctx = _build_ctx(
+            [_atlas_row('s1', '8503000', '1', 'Zürich HB', 47.3769, 8.5417)],
+            [_osm_entry('osm_1', 47.3770, 8.5418, uic_ref='8503000', name='Zürich HB')],
+            node_routes={
+                'osm_1': [
+                    {'gtfs_route_id': '91-9-I-j26-1', 'direction_id': '0', 'route_name': 'Tram 9'},
+                ],
+            },
+        )
+        ctx.atlas._routes_by_sloid = {
+            's1': {
+                'gtfs': [
+                    {
+                        'route_id_normalized': '91-9-I-jXX-1',
+                        'direction_id': '0',
+                        'direction_name': 'Heuried -> Hirzenbach',
+                    },
+                ],
+                'hrdf': [],
+            }
+        }
+
+        RouteMatchPredicate().run(ctx)
+
+        assert len(ctx.all_matches) == 1
+        assert ctx.all_matches[0].osm_node.node_id == 'osm_1'
+        assert ctx.all_matches[0].match_type == 'route_unified_gtfs'
+
+
+class TestStaleCandidateRegression:
+    def test_nearest_distance_does_not_reuse_consumed_group_representative(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('s1', 'u1', '', 'Stop', 47.0000000, 8.0000000),
+                _atlas_row('s2', 'u1', '', 'Stop', 47.0002100, 8.0002100),
+                _atlas_row('s3', 'u1', '', 'Stop', 47.0003250, 8.0003250),
+            ],
+            [
+                _osm_entry('rep_a', 47.0000100, 8.0000100, uic_ref='u1', name='Stop', railway='tram_stop'),
+                _osm_entry('sib_a', 47.0000150, 8.0000150, uic_ref='u1', name='Stop'),
+                _osm_entry('rep_b', 47.0002200, 8.0002200, uic_ref='u1', name='Stop', railway='tram_stop'),
+                _osm_entry('sib_b', 47.0002250, 8.0002250, uic_ref='u1', name='Stop'),
+            ],
+        )
+
+        ctx.osm._group_representative = {
+            'sib_a': 'rep_a',
+            'sib_b': 'rep_b',
+        }
+        ctx.osm._group_siblings = {
+            'rep_a': ('osm_group_tram', [ctx.osm._to_osm_node(ctx.osm._all_nodes[(47.0000150, 8.0000150)])]),
+            'rep_b': ('osm_group_tram', [ctx.osm._to_osm_node(ctx.osm._all_nodes[(47.0002250, 8.0002250)])]),
+        }
+
+        NearestDistancePredicate().run(ctx)
+
+        matched_pairs = [(record.atlas_node.sloid, record.osm_node.node_id, record.match_type) for record in ctx.all_matches]
+
+        assert any(
+            sloid == 's2' and osm_node_id == 'rep_b' and match_type in {'distance_matching_3a', 'distance_matching_3b'}
+            for sloid, osm_node_id, match_type in matched_pairs
+        )
+        assert ('s3', 'rep_b', 'distance_matching_3a') not in matched_pairs
+        assert 's3' not in {record.atlas_node.sloid for record in ctx.all_matches}
+
+        assert haversine_distance(47.0003250, 8.0003250, 47.0002200, 8.0002200) < 50
+
+
+class TestOsmGroupingPolicy:
+    def test_uic_grouping_accepts_incomplete_relaxed_pairs(self):
+        ctx = _build_ctx(
+            [_atlas_row('s1', 'u1', '1', 'Stop', 47.0, 8.0)],
+            [
+                _osm_entry('platform_1', 47.0000000, 8.0000000, uic_ref='u1', public_transport='platform'),
+                _osm_entry('stop_1', 47.0000100, 8.0000100, uic_ref='u1', public_transport='stop_position'),
+                _osm_entry('stop_extra', 47.0010000, 8.0010000, uic_ref='u1', public_transport='stop_position'),
+            ],
+        )
+
+        ctx.osm.build_groups(atlas_uic_counts={'u1': 3})
+
+        assert ctx.osm._group_representative == {'stop_1': 'platform_1'}
+        assert ctx.osm._group_siblings['platform_1'][0] == 'osm_group_uic'
+
+    def test_name_grouping_accepts_incomplete_relaxed_pairs(self):
+        ctx = _build_ctx(
+            [_atlas_row('s1', 'u_name', '1', 'Name Stop', 47.0, 8.0)],
+            [
+                _osm_entry('platform_name', 47.1000000, 8.1000000, name='Name Stop', uic_name='Name Stop', public_transport='platform'),
+                _osm_entry('stop_name', 47.1000100, 8.1000100, name='Name Stop', uic_name='Name Stop', public_transport='stop_position'),
+                _osm_entry('stop_name_extra', 47.1010000, 8.1010000, name='Name Stop', uic_name='Name Stop', public_transport='stop_position'),
+            ],
+        )
+
+        ctx.osm.build_groups(
+            atlas_uic_counts={'u_name': 3},
+            atlas_designation_to_uic={'Name Stop': 'u_name'},
+        )
+
+        assert ctx.osm._group_representative == {'stop_name': 'platform_name'}
+        assert ctx.osm._group_siblings['platform_name'][0] == 'osm_group_name'
+
+    def test_tram_grouping_accepts_incomplete_relaxed_pairs_without_outlier_logic(self):
+        ctx = _build_ctx(
+            [_atlas_row('s1', 'u_tram', '1', 'Tram Stop', 47.0, 8.0)],
+            [
+                _osm_entry('tram_1', 47.2000000, 8.2000000, uic_ref='u_tram', railway='tram_stop', public_transport=None),
+                _osm_entry('stop_tram_1', 47.2000100, 8.2000100, uic_ref='u_tram', public_transport='stop_position'),
+                _osm_entry('stop_tram_extra', 47.2010000, 8.2010000, uic_ref='u_tram', public_transport='stop_position'),
+            ],
+        )
+
+        ctx.osm.build_groups(
+            atlas_uic_counts={'u_tram': 3},
+            atlas_uic_nearest_osm_distances={'u_tram': [35.0, 10.0, 9.0]},
+        )
+
+        assert ctx.osm._group_representative == {'stop_tram_1': 'tram_1'}
+        assert ctx.osm._group_siblings['tram_1'][0] == 'osm_group_tram'

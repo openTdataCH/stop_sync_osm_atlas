@@ -53,7 +53,15 @@ def create_app():
     def stats_page():
         from backend.services.stats_export import load_stats_from_file
         stats = load_stats_from_file()
-        return render_template('pages/stats.html', stats=stats)
+
+        # Read priority breakdown from stats.json (populated by pipeline)
+        problem_breakdown = {}
+        if stats and 'problems' in stats and 'by_priority' in stats['problems']:
+            raw = stats['problems']['by_priority']
+            # JSON keys are strings; convert to int for template usage
+            problem_breakdown = {int(k): v for k, v in raw.items()}
+
+        return render_template('pages/stats.html', stats=stats, problem_breakdown=problem_breakdown)
 
     @app.errorhandler(404)
     def not_found(e):

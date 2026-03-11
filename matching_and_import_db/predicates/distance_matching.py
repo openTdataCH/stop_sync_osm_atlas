@@ -23,6 +23,15 @@ RATIO_TEST_MIN_D2 = 10   # minimum d2 in metres
 RATIO_TEST_FACTOR = 4    # d2 / d1 must be ≥ this
 
 
+def _filter_current_candidates(ctx: MatchingContext, candidates: list[tuple[OsmNode, float]]) -> list[tuple[OsmNode, float]]:
+    """Drop candidates whose representative has been consumed since the batch query ran."""
+    return [
+        (node, distance)
+        for node, distance in candidates
+        if not ctx.osm.is_used(node.node_id)
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Shared helper – conflict-free bipartite matching
 # ---------------------------------------------------------------------------
@@ -167,7 +176,7 @@ class LocalRefDistancePredicate(BasePredicate):
             best_dist = float('inf')
 
             # Will automatically omit used / station OSMs
-            candidates = batch_candidates[i]
+            candidates = _filter_current_candidates(ctx, batch_candidates[i])
             for node, d in candidates:
                 lr = (node.local_ref or '').strip()
                 if lr.lower() != desig.lower():
@@ -203,7 +212,7 @@ class NearestDistancePredicate(BasePredicate):
 
         for i, entry in enumerate(unmatched):
             # Collect all candidates within max_distance (already filters out used IDs & stations natively via KDTree)
-            candidates = batch_candidates[i]
+            candidates = _filter_current_candidates(ctx, batch_candidates[i])
             if not candidates:
                 continue
                 

@@ -961,6 +961,16 @@ function initFilterEventHandlers() {
         }
     });
 
+    // Setup subgroup master checkboxes BEFORE the general change handler,
+    // so master checkbox state is updated before updateActiveFilters() reads it.
+    // Order matters: set up leaf-level masters first, then the top-level master.
+    setupMasterCheckbox('#masterUnmatchedAtlasCheckbox', '.filter-unmatched-method');
+    setupMasterCheckbox('#masterDistanceMatchingCheckbox', '.filter-distance-method');
+    setupMasterCheckbox('#masterRouteMatchingCheckbox', '.filter-route-method');
+    setupMasterCheckbox('#filterOsmGroup', '.filter-osm-group-type');
+    // "All Matched" controls all matched method checkboxes (Exact, Name, Distance stages, Route methods)
+    setupMasterCheckbox('#masterMatchedCheckbox', '.filter-match-method, .filter-distance-method, .filter-route-method');
+
     // Attach change handlers to filter checkboxes and input elements.
     $('.master-filter-checkbox, .visibility-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-group, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox').on('change', function () {
         updateActiveFilters();
@@ -1027,15 +1037,6 @@ function initFilterEventHandlers() {
         updateActiveFilters(); // Update based on new topN state (or null)
         updateHeaderSummary();
     });
-
-    // Setup subgroup master checkboxes (ensure this is called only once)
-    // Order matters: set up leaf-level masters first, then the top-level master.
-    setupMasterCheckbox('#masterUnmatchedAtlasCheckbox', '.filter-unmatched-method');
-    setupMasterCheckbox('#masterDistanceMatchingCheckbox', '.filter-distance-method');
-    setupMasterCheckbox('#masterRouteMatchingCheckbox', '.filter-route-method');
-    setupMasterCheckbox('#filterOsmGroup', '.filter-osm-group-type');
-    // "All Matched" controls all matched method checkboxes (Exact, Name, Distance stages, Route methods)
-    setupMasterCheckbox('#masterMatchedCheckbox', '.filter-match-method, .filter-distance-method, .filter-route-method');
 
     // Prevent dropdown menus from closing when interacting with filters inside them
     $('.dropdown-menu').on('click', function (e) {
