@@ -37,7 +37,7 @@ from matching_and_import_db.utils.route_id import normalize_route_id
 
 # --- External models --------------------------------------------------------
 from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStopGroup, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem
-from backend.services.stats_export import export_pipeline_stats, save_stats_to_file
+from backend.services.stats_export import export_pipeline_stats, save_stats_to_file, compute_db_stats
 
 
 def _import_all_osm_nodes(session, all_osm_nodes, problem_ctx):
@@ -303,24 +303,15 @@ def _import_routes(session, all_route_data, known_sloids):
     print(f"Route import completed: {matched_routes} ATLAS↔OSM route pairs linked")
 
 def _print_problem_summary(session):
-    total_stops = session.query(StopsMatched).count()
-    distance_problems = session.query(Problem).filter(Problem.problem_type == 'distance').count()
-    isolated_problems = session.query(Problem).filter(Problem.problem_type == 'unmatched').count()
-    attributes_problems = session.query(Problem).filter(Problem.problem_type == 'attributes').count()
-    duplicates_problems = session.query(Problem).filter(Problem.problem_type == 'duplicates').count()
-    
-    multiple_problems = session.query(Problem.stop_id).group_by(Problem.stop_id).having(func.count(Problem.stop_id) > 1).count()
-    stops_with_problems = session.query(func.count(func.distinct(Problem.stop_id))).scalar()
-    clean_entries = total_stops - stops_with_problems
-
+    ps = compute_db_stats(session)
     print("\n==== PROBLEM DETECTION SUMMARY ====")
-    print(f"Total stops imported: {total_stops}")
-    print(f"Distance problems: {distance_problems}")
-    print(f"Unmatched problems: {isolated_problems}")
-    print(f"Attributes problems: {attributes_problems}")
-    print(f"Duplicates problems: {duplicates_problems}")
-    print(f"Entries with multiple problems: {multiple_problems}")
-    print(f"Clean entries (no problems): {clean_entries}")
+    print(f"Total stops imported: {ps['total_stops']}")
+    print(f"Distance problems: {ps['distance']}")
+    print(f"Unmatched problems: {ps['unmatched']}")
+    print(f"Attributes problems: {ps['attributes']}")
+    print(f"Duplicates problems: {ps['duplicates']}")
+    print(f"Entries with multiple problems: {ps['multiple_problems']}")
+    print(f"Clean entries (no problems): {ps['clean_entries']}")
 
 # --------------------------
 # Data Import Function
@@ -476,6 +467,13 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
             stats['quality_metrics'] = quality
         except Exception as e:
             print(f"Warning: Could not compute quality metrics: {e}")
+
+        # Compute problem statistics from DB
+        try:
+            from matching_and_import_db.database.session import session
+            stats['problems'] = compute_db_stats(session)
+        except Exception as e:
+            print(f"Warning: Could not compute problem statistics: {e}")
 
         filepath = save_stats_to_file(stats)
         print(f"\n==== STATISTICS EXPORTED ====")

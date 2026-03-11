@@ -375,6 +375,7 @@ def compute_quality_metrics(
     not_closest_count = 0
     consistent_count = 0
     total_evaluated = 0
+    not_closest_by_stage: Dict[str, int] = {}
 
     if osm_coords:
         osm_xyz = batch_to_xyz(osm_coords)
@@ -393,12 +394,15 @@ def compute_quality_metrics(
             query_point = to_xyz(a_lat, a_lon)
             _, idx = tree.query(query_point, k=1)
             nearest_osm_id = osm_node_ids[idx]
+            
+            stage = _classify_match_type(getattr(rec, 'match_type', '') or '')
 
             total_evaluated += 1
             if nearest_osm_id == matched_osm_id:
                 consistent_count += 1
             else:
                 not_closest_count += 1
+                not_closest_by_stage[stage] = not_closest_by_stage.get(stage, 0) + 1
 
     not_closest_pct = round(not_closest_count / total_evaluated * 100, 1) if total_evaluated else 0.0
     consistency_pct = round(consistent_count / total_evaluated * 100, 1) if total_evaluated else 0.0
@@ -411,6 +415,7 @@ def compute_quality_metrics(
             "total_evaluated": total_evaluated,
             "percent": not_closest_pct,
         },
+        "not_matched_to_closest_by_stage": not_closest_by_stage,
     }
 
     # ------------------------------------------------------------------
@@ -535,6 +540,58 @@ def load_stats_from_file(filepath: str = None) -> Optional[Dict[str, Any]]:
     
     with open(filepath, 'r', encoding='utf-8') as f:
         return json.load(f)
+
+
+def compute_db_stats(db_session) -> Dict[str, Any]:
+    """Compute problem statistics by querying the database after import.
+
+    Args:
+        db_session: SQLAlchemy session connected to import_db.
+
+    Returns:
+        Dictionary with problem totals, by-type counts, by-priority breakdown,
+        and clean/dirty entry counts.
+    """
+    from backend.models import StopsMatched, Problem
+    from sqlalchemy import func
+
+    total_stops = db_session.query(StopsMatched).count()
+
+    type_counts = dict(
+        db_session.query(Problem.problem_type, func.count(Problem.id))
+        .group_by(Problem.problem_type).all()
+    )
+
+    multiple_problems = (
+        db_session.query(Problem.stop_id)
+        .group_by(Problem.stop_id)
+        .having(func.count(Problem.stop_id) > 1)
+        .count()
+    )
+    stops_with_problems = (
+        db_session.query(func.count(func.distinct(Problem.stop_id))).scalar() or 0
+    )
+
+    # Priority × type breakdown
+    by_priority: Dict[int, Dict[str, int]] = {}
+    rows = (
+        db_session.query(Problem.priority, Problem.problem_type, func.count(Problem.id))
+        .group_by(Problem.priority, Problem.problem_type).all()
+    )
+    for priority, ptype, cnt in rows:
+        by_priority.setdefault(priority, {})[ptype] = cnt
+
+    return {
+        'total_stops': total_stops,
+        'distance': type_counts.get('distance', 0),
+        'unmatched': type_counts.get('unmatched', 0),
+        'attributes': type_counts.get('attributes', 0),
+        'duplicates': type_counts.get('duplicates', 0),
+        'multiple_problems': multiple_problems,
+        'stops_with_problems': stops_with_problems,
+        'clean_entries': max(0, total_stops - stops_with_problems),
+        'by_priority': by_priority,
+    }
 
 
 def get_pipeline_stats() -> Optional[Dict[str, Any]]:

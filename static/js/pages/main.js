@@ -17,6 +17,8 @@ var ADDITIONAL_BANNER_ZOOM_LEVELS = AppConstants.MAP.ADDITIONAL_BANNER_ZOOM_LEVE
 // Request management
 var currentDataRequest = null;  // jqXHR of in-flight /api/data
 var currentDataRequestSeq = 0;  // sequence id to ignore stale responses
+var currentGlobalStatsRequest = null; // jqXHR of in-flight /api/global_stats
+var currentGlobalStatsSeq = 0;  // sequence id to ignore stale global stats responses
 var loadViewportTimer = null;   // debounce timer id
 var zoomBannerTimeout = null;   // debounce timer for the zoom warning banner
 var suppressViewportReloadCount = 0; // skip this many reloads after programmatic center
@@ -462,20 +464,9 @@ function loadDataForViewport() {
     var shouldShowBanner = !fullUncappedZoom;
 
     if (shouldShowBanner) {
-        if (isLowZoom) {
-            if (hasAnyActiveFilter) {
-                // More informative message showing filter context
-                var filterText = filterCount > 0 ? ` (${getSharedActiveFilterCountText()})` : '';
-                setZoomBannerText('🔍 Low zoom: showing filtered results' + filterText);
-            } else {
+        if (!hasAnyActiveFilter) {
+            if (isLowZoom) {
                 setZoomBannerText('📍 Overview mode: showing unmatched ATLAS stops only. Zoom in for all markers.');
-            }
-        } else {
-            // Mid-zoom: still capped but closer
-            // If filters are active, show filter info instead of generic zoom message
-            if (hasAnyActiveFilter) {
-                var filterText = filterCount > 0 ? ` (${getSharedActiveFilterCountText()})` : '';
-                setZoomBannerText('🔍 Showing filtered results' + filterText);
             } else {
                 setZoomBannerText('📍 Zoom in a bit more to see all markers in this area');
             }
@@ -539,14 +530,31 @@ function loadDataForViewport() {
                 // Cache hit - no need to refetch, markers stay stable
 
                 // Check if we need to update the banner for mid-zoom/no-filter case
-                if (shouldShowBanner && !isLowZoom && !hasAnyActiveFilter) {
+                if (shouldShowBanner) {
                     var cachedStops = viewportDataCache.data || [];
                     var limit = params.limit;
                     var capped = (limit && cachedStops.length >= limit);
+                    
+                    if (!hasAnyActiveFilter && !isLowZoom) {
+                        if (!capped) {
+                            showZoomBanner(false);
+                        } else {
+                            showZoomBanner(true);
+                        }
+                    } else if (hasAnyActiveFilter) {
+                        var resultCount = Array.isArray(cachedStops) ? cachedStops.length : 0;
+                        var currentFilterCount = getSharedActiveFilterCount();
+                        var filterText = currentFilterCount > 0 ? ` (${getSharedActiveFilterCountText()})` : '';
 
-                    if (!capped) {
-                        showZoomBanner(false);
-                    } else {
+                        if (capped) {
+                            setZoomBannerText('🔍 Showing first ' + resultCount + ' filtered result' + (resultCount !== 1 ? 's' : '') + filterText + '. Zoom in to see all.');
+                        } else {
+                            if (isLowZoom) {
+                                setZoomBannerText('🔍 Low zoom: showing ' + resultCount + ' filtered result' + (resultCount !== 1 ? 's' : '') + filterText);
+                            } else {
+                                setZoomBannerText('🔍 Showing ' + resultCount + ' filtered result' + (resultCount !== 1 ? 's' : '') + filterText);
+                            }
+                        }
                         showZoomBanner(true);
                     }
                 } else if (!shouldShowBanner) {
@@ -1346,7 +1354,15 @@ function updateHeaderSummary() {
         }
     });
 
-    $.getJSON("/api/global_stats", params, function (data) {
+    var mySeq = ++currentGlobalStatsSeq;
+
+    if (currentGlobalStatsRequest && currentGlobalStatsRequest.readyState !== 4) {
+        try { currentGlobalStatsRequest.abort(); } catch (e) { }
+    }
+
+    currentGlobalStatsRequest = $.getJSON("/api/global_stats", params, function (data) {
+        if (mySeq !== currentGlobalStatsSeq) return;
+
         if (data.error) {
             statsContainer.html(`<div><small>Error loading summary.</small></div>`);
             console.error("Error loading global stats:", data.error);
@@ -1382,6 +1398,8 @@ function updateHeaderSummary() {
         syncHeaderSummaryFilterToggle();
         positionIndexMapRightControls();
     }).fail(function () {
+        if (mySeq !== currentGlobalStatsSeq) return;
+        
         statsContainer.html(`<div><small>Failed to load summary.</small></div>`);
         console.error("Failed to fetch global stats from server.");
         syncHeaderSummaryFilterToggle();

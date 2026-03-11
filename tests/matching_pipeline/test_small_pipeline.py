@@ -69,9 +69,11 @@ def setup_test_env_and_db():
     db_helpers.make_point_geom = noop_geom
     importer_mod.make_point_geom = noop_geom
 
-    # Mock apply_persistent_solutions since user_input DB is a separate in-memory SQLite
-    orig_apply_persistent = importer_mod.apply_persistent_solutions_service
-    importer_mod.apply_persistent_solutions_service = lambda *args, **kwargs: None
+    # Older tests mocked a user-input persistence hook here. Keep the fixture
+    # tolerant if that optional integration is absent in the current importer.
+    orig_apply_persistent = getattr(importer_mod, 'apply_persistent_solutions_service', None)
+    if orig_apply_persistent is not None:
+        importer_mod.apply_persistent_solutions_service = lambda *args, **kwargs: None
     
     db.Model.metadata.create_all(engine)
     db.Model.metadata.create_all(user_input_engine)
@@ -93,7 +95,8 @@ def setup_test_env_and_db():
     db_helpers.ensure_schema_updated = orig_ensure_schema_updated
     db_helpers.make_point_geom = orig_make_point_geom
     importer_mod.make_point_geom = orig_make_point_geom
-    importer_mod.apply_persistent_solutions_service = orig_apply_persistent
+    if orig_apply_persistent is not None:
+        importer_mod.apply_persistent_solutions_service = orig_apply_persistent
 
 
 def test_small_pipeline_end_to_end():
