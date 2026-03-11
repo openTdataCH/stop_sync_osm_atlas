@@ -84,3 +84,5 @@ coverage/
 
 # Generated documentation
 documentation/generated/
+
+latex_document
