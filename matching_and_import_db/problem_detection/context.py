@@ -5,16 +5,23 @@ Built once from pipeline output, then passed to every predicate so that
 expensive operations (KDTree construction, UIC counting) happen only once.
 """
 
+from __future__ import annotations
+
 import math
 import logging
 from dataclasses import dataclass, field
 from typing import Optional
+
+from typing import TYPE_CHECKING
 
 from scipy.spatial import KDTree
 
 from matching_and_import_db.utils.spatial_index import to_xyz, batch_to_xyz, meters_to_unit_chord_radius
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from matching_and_import_db.models import MatchingOutput, MatchRecord, AtlasNode, OsmNode
 
 # ---------------------------------------------------------------------------
 # Configuration constants
@@ -95,11 +102,15 @@ class ProblemContext:
         # -- UIC counts -------------------------------------------------------
         ctx._build_uic_counts(matched, unmatched_atlas, unmatched_osm)
 
-        # -- Build set of OSM node IDs that are members of pre-grouped pairs --
+        # -- Build set of OSM node IDs that are members of pre-grouped pairs/trios --
         grouped_osm_node_ids: set[str] = set()
-        for n1, n2, _ in output.osm_groups:
+        for n1, n2, _ in output.osm_pairs:
             grouped_osm_node_ids.add(str(n1))
             grouped_osm_node_ids.add(str(n2))
+        for middle, side_1, side_2 in output.osm_trios:
+            grouped_osm_node_ids.add(str(middle))
+            grouped_osm_node_ids.add(str(side_1))
+            grouped_osm_node_ids.add(str(side_2))
 
         # -- OSM duplicate groups (excludes pre-grouped nodes) ----------------
         ctx._build_osm_duplicate_map(matched, unmatched_osm, grouped_osm_node_ids)

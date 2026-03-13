@@ -4,6 +4,8 @@ from backend.services.routes import get_unified_routes_for_sloid, get_osm_routes
 def format_stop_data(stop: StopsMatched, problem_type: str = None, include_routes: bool = True) -> dict:
     atlas_details = stop.atlas_stop_details
     osm_details = stop.osm_node_details
+    has_atlas_duplicate = bool(atlas_details and atlas_details.duplicate_group_sloids)
+    has_osm_duplicate = bool(osm_details and osm_details.duplicate_group_node_ids)
 
     result = {
         "id": stop.id,
@@ -35,8 +37,8 @@ def format_stop_data(stop: StopsMatched, problem_type: str = None, include_route
         "osm_name": osm_details.osm_name if osm_details else None,
         "osm_uic_name": osm_details.osm_uic_name if osm_details else None,
         "osm_uic_ref": osm_details.osm_uic_ref if osm_details else None,
-        "has_atlas_duplicate": stop.has_atlas_duplicate or False,
-        "has_osm_duplicate": stop.has_osm_duplicate or False,
+        "has_atlas_duplicate": has_atlas_duplicate,
+        "has_osm_duplicate": has_osm_duplicate,
         "representative_sloid": atlas_details.representative_sloid if atlas_details else None,
         "duplicate_group_sloids": atlas_details.duplicate_group_sloids if atlas_details else None,
         "duplicate_group_node_ids": osm_details.duplicate_group_node_ids if osm_details else None,

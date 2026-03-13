@@ -36,10 +36,6 @@ class StopsMatched(db.Model):
     # Populated by the import pipeline; indexed for bbox queries.
     geom = db.Column(Geometry(geometry_type='POINT', srid=4326), nullable=True)
 
-    # Fast-path booleans for duplicate marker rendering (full group data on detail tables)
-    has_atlas_duplicate = db.Column(db.Boolean, default=False)
-    has_osm_duplicate = db.Column(db.Boolean, default=False)
-    
     # Relationship to ATLAS stop details (lazy='select' to avoid unnecessary JOINs on /api/data;
     # endpoints that need details use explicit joinedload() via optimize_query_for_endpoint)
     atlas_stop_details = db.relationship('AtlasStop', primaryjoin='StopsMatched.sloid == AtlasStop.sloid', foreign_keys='AtlasStop.sloid', uselist=False, lazy='select')
@@ -126,14 +122,24 @@ class OsmNode(db.Model):
 
 
 
-class OsmStopGroup(db.Model):
-    """Platform ↔ stop_position pairs identified by the pre-matching grouping pass."""
-    __tablename__ = 'osm_stop_groups'
+class OsmPair(db.Model):
+    """Two-node OSM pair identified by the pre-matching grouping pass."""
+    __tablename__ = 'osm_pairs'
 
     id = db.Column(db.Integer, primary_key=True)
     node_id_1 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
     node_id_2 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
     group_type = db.Column(db.String(50), nullable=False)
+
+
+class OsmTrio(db.Model):
+    """Three-node OSM trio with one middle node and two side nodes."""
+    __tablename__ = 'osm_trios'
+
+    id = db.Column(db.Integer, primary_key=True)
+    middle_node_id = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
+    side_node_id_1 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
+    side_node_id_2 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
 
 
 class RouteAtlasStops(db.Model):

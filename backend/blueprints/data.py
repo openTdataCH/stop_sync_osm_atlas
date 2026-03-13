@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func, case
 from sqlalchemy.orm import joinedload, load_only
 from collections import defaultdict
-from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStopGroup
+from backend.models import StopsMatched, AtlasStop, OsmNode, OsmPair, OsmTrio
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
 from backend.services.routes import get_stops_for_route, get_osm_routes_for_node, get_unified_routes_for_sloid
@@ -91,9 +91,7 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
             if 'tram_stop' in selected_transport_types:
                 transport_sub_conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_railway == 'tram_stop'))
             if 'station' in selected_transport_types:
-                transport_sub_conditions.append(
-                    StopsMatched.osm_node_details.has(db.and_(OsmNode.osm_public_transport == 'station', OsmNode.osm_aerialway != 'station'))
-                )
+                transport_sub_conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_node_type == 'railway_station'))
             if 'platform' in selected_transport_types:
                 transport_sub_conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'platform'))
             if 'stop_position' in selected_transport_types:
@@ -112,15 +110,44 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
             all_category_conditions.append(operator_condition)
 
     if osm_group_types_filter_str is not None:
-        osm_group_types = [group_type.strip() for group_type in osm_group_types_filter_str.split(',') if group_type.strip() and group_type.strip() != 'all']
-        node_id_1_query = db.session.query(OsmStopGroup.node_id_1)
-        node_id_2_query = db.session.query(OsmStopGroup.node_id_2)
+        legacy_map = {
+            'osm_group_uic': 'osm_pair_uic',
+            'osm_group_name': 'osm_pair_name',
+            'osm_group_tram': 'osm_pair_tram',
+        }
+        osm_group_types = [
+            legacy_map.get(group_type.strip(), group_type.strip())
+            for group_type in osm_group_types_filter_str.split(',')
+            if group_type.strip() and group_type.strip() != 'all'
+        ]
+        include_pairs = True
+        include_trios = True
+        pair_types = []
         if osm_group_types:
-            node_id_1_query = node_id_1_query.filter(OsmStopGroup.group_type.in_(osm_group_types))
-            node_id_2_query = node_id_2_query.filter(OsmStopGroup.group_type.in_(osm_group_types))
+            include_pairs = False
+            include_trios = False
+            pair_types = [t for t in osm_group_types if t.startswith('osm_pair_')]
+            include_pairs = len(pair_types) > 0
+            include_trios = 'osm_trio' in osm_group_types
+
+        if include_pairs:
+            node_id_1_query = db.session.query(OsmPair.node_id_1)
+            node_id_2_query = db.session.query(OsmPair.node_id_2)
+            if pair_types:
+                node_id_1_query = node_id_1_query.filter(OsmPair.group_type.in_(pair_types))
+                node_id_2_query = node_id_2_query.filter(OsmPair.group_type.in_(pair_types))
+            members_query = node_id_1_query.union(node_id_2_query)
+        else:
+            members_query = db.session.query(OsmPair.node_id_1).filter(db.false())
+
+        if include_trios:
+            members_query = members_query.union(db.session.query(OsmTrio.middle_node_id))
+            members_query = members_query.union(db.session.query(OsmTrio.side_node_id_1))
+            members_query = members_query.union(db.session.query(OsmTrio.side_node_id_2))
+
         osm_filter_conditions.append(
             StopsMatched.osm_node_id.in_(
-                node_id_1_query.union(node_id_2_query)
+                members_query
             )
         )
 
@@ -227,6 +254,7 @@ def get_data():
         # and defer matching_notes to keep the viewport query light.
         query = query.options(
             joinedload(StopsMatched.osm_node_details).load_only(OsmNode.osm_node_type),
+            joinedload(StopsMatched.atlas_stop_details).load_only(AtlasStop.duplicate_group_sloids),
             db.defer(StopsMatched.matching_notes)
         )
 
@@ -268,23 +296,23 @@ def get_data():
                 "distance_m": stop.distance_m,
                 "lat": lat,
                 "lon": lon,
-                "has_atlas_duplicate": stop.has_atlas_duplicate or False,
+                "has_atlas_duplicate": bool(stop.atlas_stop_details and stop.atlas_stop_details.duplicate_group_sloids),
                 "osm_node_type": stop.osm_node_details.osm_node_type if stop.osm_node_details else None
             })
-        # Enrich any OSM-backed stop with its group partner (platform ↔ stop_position pairs)
+        # Enrich any OSM-backed stop with pair partners and trio links.
         osm_node_ids = [s['osm_node_id'] for s in regular_stops if s['osm_node_id']]
         if osm_node_ids:
             osm_node_set = set(osm_node_ids)
-            groups = OsmStopGroup.query.filter(
+            pairs = OsmPair.query.filter(
                 db.or_(
-                    OsmStopGroup.node_id_1.in_(osm_node_ids),
-                    OsmStopGroup.node_id_2.in_(osm_node_ids),
+                    OsmPair.node_id_1.in_(osm_node_ids),
+                    OsmPair.node_id_2.in_(osm_node_ids),
                 )
             ).all()
-            if groups:
+            if pairs:
                 # Collect all partner node IDs so we can fetch their coordinates
                 partner_node_ids = set()
-                for g in groups:
+                for g in pairs:
                     if g.node_id_1 in osm_node_set:
                         partner_node_ids.add(g.node_id_2)
                     if g.node_id_2 in osm_node_set:
@@ -306,7 +334,7 @@ def get_data():
                         osm_coords[row.osm_node_id] = (row.osm_lat, row.osm_lon)
 
                 partner_map = {}
-                for g in groups:
+                for g in pairs:
                     if g.node_id_1 in osm_node_set:
                         coords = osm_coords.get(g.node_id_2, (None, None))
                         partner_map[g.node_id_1] = {
@@ -326,6 +354,77 @@ def get_data():
                 for stop in regular_stops:
                     if stop['osm_node_id'] in partner_map:
                         stop['osm_group_partner'] = partner_map[stop['osm_node_id']]
+
+            trio_rows = OsmTrio.query.filter(
+                db.or_(
+                    OsmTrio.middle_node_id.in_(osm_node_ids),
+                    OsmTrio.side_node_id_1.in_(osm_node_ids),
+                    OsmTrio.side_node_id_2.in_(osm_node_ids),
+                )
+            ).all()
+            if trio_rows:
+                trio_link_ids = set()
+                for row in trio_rows:
+                    trio_link_ids.add(row.middle_node_id)
+                    trio_link_ids.add(row.side_node_id_1)
+                    trio_link_ids.add(row.side_node_id_2)
+
+                # Middle node is considered effectively matched when either trio side is matched.
+                trio_middle_ids = {row.middle_node_id for row in trio_rows}
+                trio_side_ids = []
+                for row in trio_rows:
+                    trio_side_ids.append(row.side_node_id_1)
+                    trio_side_ids.append(row.side_node_id_2)
+                matched_side_ids = {
+                    row.osm_node_id for row in db.session.query(StopsMatched.osm_node_id).filter(
+                        StopsMatched.osm_node_id.in_(trio_side_ids),
+                        StopsMatched.stop_type == 'matched',
+                    ).all()
+                }
+                matched_middle_ids = {
+                    row.middle_node_id for row in trio_rows
+                    if row.side_node_id_1 in matched_side_ids or row.side_node_id_2 in matched_side_ids
+                }
+
+                osm_coords = {s['osm_node_id']: (s['osm_lat'], s['osm_lon'])
+                              for s in regular_stops if s['osm_node_id'] and s['osm_lat'] is not None}
+                missing_ids = [nid for nid in trio_link_ids if nid not in osm_coords]
+                if missing_ids:
+                    trio_partner_rows = db.session.query(
+                        StopsMatched.osm_node_id, StopsMatched.osm_lat, StopsMatched.osm_lon
+                    ).filter(
+                        StopsMatched.osm_node_id.in_(missing_ids),
+                        StopsMatched.osm_lat.isnot(None)
+                    ).distinct(StopsMatched.osm_node_id).all()
+                    for row in trio_partner_rows:
+                        osm_coords[row.osm_node_id] = (row.osm_lat, row.osm_lon)
+
+                trio_links_map = defaultdict(list)
+                for row in trio_rows:
+                    trio_nodes = [row.middle_node_id, row.side_node_id_1, row.side_node_id_2]
+                    for source_id in trio_nodes:
+                        if source_id not in osm_node_set:
+                            continue
+                        for target_id in trio_nodes:
+                            if target_id == source_id:
+                                continue
+                            # Draw only middle-to-side links (no side-to-side edge).
+                            if source_id != row.middle_node_id and target_id != row.middle_node_id:
+                                continue
+                            coords = osm_coords.get(target_id, (None, None))
+                            trio_links_map[source_id].append({
+                                'partner_node_id': target_id,
+                                'partner_osm_lat': coords[0],
+                                'partner_osm_lon': coords[1],
+                                'is_middle': source_id == row.middle_node_id,
+                                'partner_is_middle': target_id == row.middle_node_id,
+                            })
+
+                for stop in regular_stops:
+                    links = trio_links_map.get(stop['osm_node_id'])
+                    if links:
+                        stop['osm_trio_links'] = links
+                    stop['is_trio_middle_matched'] = stop['osm_node_id'] in matched_middle_ids and stop['osm_node_id'] in trio_middle_ids
 
         if include_meta:
             return jsonify({
@@ -405,18 +504,18 @@ def get_stop_popup():
                         "distance_m": r.distance_m,
                         "match_type": r.match_type,
                         "matching_notes": r.matching_notes,
-                        "has_osm_duplicate": r.has_osm_duplicate or False,
+                        "has_osm_duplicate": bool(osm_details and osm_details.duplicate_group_node_ids),
                         "osm_node_type": osm_details.osm_node_type if osm_details else None,
                         "routes_osm": get_osm_routes_for_node(r.osm_node_id),
                     })
             if osm_matches:
                 enriched["osm_matches"] = osm_matches
-            # Include OSM group partner (platform ↔ stop_position pair)
+            # Include OSM pair partner (platform ↔ stop_position pair)
             if stop.osm_node_id:
-                group_row = OsmStopGroup.query.filter(
+                group_row = OsmPair.query.filter(
                     db.or_(
-                        OsmStopGroup.node_id_1 == stop.osm_node_id,
-                        OsmStopGroup.node_id_2 == stop.osm_node_id,
+                        OsmPair.node_id_1 == stop.osm_node_id,
+                        OsmPair.node_id_2 == stop.osm_node_id,
                     )
                 ).first()
                 if group_row:
@@ -438,6 +537,36 @@ def get_stop_popup():
                         'partner_osm_lat': partner_coords.osm_lat if partner_coords else None,
                         'partner_osm_lon': partner_coords.osm_lon if partner_coords else None,
                     }
+
+                trio_row = OsmTrio.query.filter(
+                    db.or_(
+                        OsmTrio.middle_node_id == stop.osm_node_id,
+                        OsmTrio.side_node_id_1 == stop.osm_node_id,
+                        OsmTrio.side_node_id_2 == stop.osm_node_id,
+                    )
+                ).first()
+                if trio_row:
+                    trio_nodes = [trio_row.middle_node_id, trio_row.side_node_id_1, trio_row.side_node_id_2]
+                    links = []
+                    for partner_id in trio_nodes:
+                        if partner_id == stop.osm_node_id:
+                            continue
+                        if stop.osm_node_id != trio_row.middle_node_id and partner_id != trio_row.middle_node_id:
+                            continue
+                        partner_coords = db.session.query(
+                            StopsMatched.osm_lat, StopsMatched.osm_lon
+                        ).filter(
+                            StopsMatched.osm_node_id == partner_id,
+                            StopsMatched.osm_lat.isnot(None)
+                        ).first()
+                        links.append({
+                            'partner_node_id': partner_id,
+                            'partner_osm_lat': partner_coords.osm_lat if partner_coords else None,
+                            'partner_osm_lon': partner_coords.osm_lon if partner_coords else None,
+                            'is_middle': stop.osm_node_id == trio_row.middle_node_id,
+                            'partner_is_middle': partner_id == trio_row.middle_node_id,
+                        })
+                    enriched["osm_trio_links"] = links
         if view_type == 'osm' and stop.osm_node_id:
             same_osm_rows = StopsMatched.query.options(
                 joinedload(StopsMatched.atlas_stop_details)

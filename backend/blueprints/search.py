@@ -107,7 +107,7 @@ def get_top_matches():
         query = query.filter(StopsMatched.stop_type == 'matched', StopsMatched.distance_m.isnot(None))
         query = query_builder.apply_common_filters(query, filters)
         if show_duplicates_only:
-            query = query.filter(StopsMatched.has_atlas_duplicate == True)
+            query = query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.duplicate_group_sloids.isnot(None)))
         if match_method_str:
             specific_methods = [m.strip() for m in match_method_str.split(',') if m.strip()]
             if specific_methods:
@@ -144,7 +144,7 @@ def get_random_stop():
             query = query.filter(scope_condition)
 
         if show_duplicates_only:
-            query = query.filter(StopsMatched.has_atlas_duplicate == True)
+            query = query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.duplicate_group_sloids.isnot(None)))
 
         # If Top-N mode is active, pick randomly from the (small) top-N set.
         n_val = None

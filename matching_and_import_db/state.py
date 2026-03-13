@@ -404,11 +404,15 @@ class OsmState:
 
         self.used_ids: set[str] = set()
 
-        # OSM node grouping (platform ↔ stop_position pairs)
+        # OSM node grouping (pairs and trios)
         # sibling node_id → representative node_id
         self._group_representative: dict[str, str] = {}
         # representative node_id → (group_type, [sibling OsmNode domain objects])
         self._group_siblings: dict[str, tuple[str, list[OsmNode]]] = {}
+        # representative node_id → middle node_id for trios
+        self._trio_middle_by_rep: dict[str, str] = {}
+        # representative node_id → side node ids for trios (rep included)
+        self._trio_sides_by_rep: dict[str, tuple[str, str]] = {}
 
         # Spatial indices
         self._cached_tree = None
@@ -419,12 +423,16 @@ class OsmState:
     def build_groups(self, atlas_uic_counts: dict[str, int],
                      atlas_designation_to_uic: dict[str, str] = None,
                      atlas_uic_nearest_osm_distances: dict[str, list[float]] = None) -> None:
-        """Pre-group platform ↔ stop_position pairs before any predicate runs.
+        """Pre-group OSM pairs and trios before any predicate runs.
 
-        Path 1 (osm_group_uic): UIC-scoped reciprocal nearest-neighbour pairing
+        Trio path (osm_trio): UIC-scoped fixed-cardinality grouping with exactly
+        three OSM nodes (one stop_position + two side nodes) and exactly two
+        ATLAS rows for the same UIC.
+
+        Path 1 (osm_pair_uic): UIC-scoped reciprocal nearest-neighbour pairing
         within 12m, with ratio test and count-match condition.
 
-        Path 2 (osm_group_name): Name-scoped pairing for nodes sharing a ``name``
+        Path 2 (osm_pair_name): Name-scoped pairing for nodes sharing a ``name``
         tag where uic_ref values do not diverge (at least one lacks uic_ref).
         Same ratio test and count-match condition (anchored via UIC or uic_name).
         """
@@ -432,7 +440,38 @@ class OsmState:
         atlas_uic_nearest_osm_distances = atlas_uic_nearest_osm_distances or {}
 
         # ------------------------------------------------------------------
-        # Path 1: UIC-based grouping
+        # Trio path: detect and reserve nodes before pair grouping
+        # ------------------------------------------------------------------
+        trio_groups = 0
+        trio_node_ids: set[str] = set()
+        for uic, entries in self._uic_ref_dict.items():
+            if len(entries) != 3:
+                continue
+            if atlas_uic_counts.get(uic, 0) != 2:
+                continue
+
+            stop_positions = [e for e in entries if e['tags'].get('public_transport') == 'stop_position']
+            if len(stop_positions) != 1:
+                continue
+
+            side_nodes = [e for e in entries if e['node_id'] != stop_positions[0]['node_id']]
+            if len(side_nodes) != 2:
+                continue
+
+            sorted_sides = sorted(side_nodes, key=lambda n: str(n['node_id']))
+            representative = sorted_sides[0]
+            side_partner = sorted_sides[1]
+            middle = stop_positions[0]
+            self._register_trio(representative, side_partner, middle)
+            trio_node_ids.update({
+                str(representative['node_id']),
+                str(side_partner['node_id']),
+                str(middle['node_id']),
+            })
+            trio_groups += 1
+
+        # ------------------------------------------------------------------
+        # Path 1: UIC-based pair grouping
         # ------------------------------------------------------------------
         uic_groups = 0
         groups_by_uic: dict[str, list[tuple[dict, dict]]] = defaultdict(list)
@@ -441,14 +480,15 @@ class OsmState:
             if len(entries) < 2:
                 continue
 
-            platforms = [e for e in entries if e['tags'].get('public_transport') == 'platform']
-            stop_positions = [e for e in entries if e['tags'].get('public_transport') == 'stop_position']
+            filtered_entries = [e for e in entries if str(e['node_id']) not in trio_node_ids]
+            platforms = [e for e in filtered_entries if e['tags'].get('public_transport') == 'platform']
+            stop_positions = [e for e in filtered_entries if e['tags'].get('public_transport') == 'stop_position']
 
             if not platforms or not stop_positions:
                 continue
 
             pairs = self._select_group_pairs(
-                entries=entries,
+                entries=filtered_entries,
                 left_nodes=platforms,
                 right_nodes=stop_positions,
                 atlas_count=atlas_uic_counts.get(uic, 0),
@@ -459,11 +499,11 @@ class OsmState:
         # Representative selection for UIC path
         for uic, pairs in groups_by_uic.items():
             for plat, sp in pairs:
-                self._register_group(plat, sp, 'osm_group_uic')
+                self._register_group(plat, sp, 'osm_pair_uic')
                 uic_groups += 1
 
         # ------------------------------------------------------------------
-        # Path 2: Name-based grouping
+        # Path 2: Name-based pair grouping
         # ------------------------------------------------------------------
         name_groups = 0
         already_grouped = set(self._group_representative.keys())
@@ -476,7 +516,7 @@ class OsmState:
 
         for name, entries in self._name_index.items():
             # Skip nodes already grouped by path 1
-            entries = [e for e in entries if e['node_id'] not in already_grouped]
+            entries = [e for e in entries if e['node_id'] not in already_grouped and str(e['node_id']) not in trio_node_ids]
             if len(entries) < 2:
                 continue
 
@@ -547,13 +587,13 @@ class OsmState:
             for plat, sp in pairs:
                 if plat['node_id'] in already_grouped or sp['node_id'] in already_grouped:
                     continue
-                self._register_group(plat, sp, 'osm_group_name')
+                self._register_group(plat, sp, 'osm_pair_name')
                 already_grouped.add(plat['node_id'])
                 already_grouped.add(sp['node_id'])
                 name_groups += 1
 
         # ------------------------------------------------------------------
-        # Path 3: Tram-based grouping (railway=tram_stop ↔ stop_position)
+        # Path 3: Tram-based pair grouping (railway=tram_stop ↔ stop_position)
         # ------------------------------------------------------------------
         tram_groups = 0
         # Refresh already_grouped after path 2
@@ -567,7 +607,7 @@ class OsmState:
 
         for uic, entries in self._uic_ref_dict.items():
             # Skip nodes already grouped by path 1/2
-            entries = [e for e in entries if e['node_id'] not in already_grouped]
+            entries = [e for e in entries if e['node_id'] not in already_grouped and str(e['node_id']) not in trio_node_ids]
             if len(entries) < 2:
                 continue
 
@@ -593,14 +633,14 @@ class OsmState:
             for tram, sp in pairs:
                 if tram['node_id'] in already_grouped or sp['node_id'] in already_grouped:
                     continue
-                self._register_group(tram, sp, 'osm_group_tram')
+                self._register_group(tram, sp, 'osm_pair_tram')
                 already_grouped.add(tram['node_id'])
                 already_grouped.add(sp['node_id'])
                 tram_groups += 1
 
         logger.info(
-            f"OSM grouping: {uic_groups} UIC-based + {name_groups} name-based + "
-            f"{tram_groups} tram-based = {uic_groups + name_groups + tram_groups} pairs formed"
+            f"OSM grouping: {trio_groups} trios + {uic_groups} UIC-based pairs + "
+            f"{name_groups} name-based pairs + {tram_groups} tram-based pairs"
         )
 
     @staticmethod
@@ -659,6 +699,20 @@ class OsmState:
         sib_id = sp['node_id']
         self._group_representative[sib_id] = rep_id
         self._group_siblings[rep_id] = (group_type, [self._to_osm_node(sp)])
+
+    def _register_trio(self, representative: dict, side_partner: dict, middle: dict) -> None:
+        """Register a trio with one representative side node, one side sibling, and one middle node."""
+        rep_id = str(representative['node_id'])
+        side_partner_id = str(side_partner['node_id'])
+        middle_id = str(middle['node_id'])
+        side_partner_node = self._to_osm_node(side_partner)
+        middle_node = self._to_osm_node(middle)
+
+        self._group_representative[side_partner_id] = rep_id
+        self._group_representative[middle_id] = rep_id
+        self._group_siblings[rep_id] = ('osm_trio', [side_partner_node, middle_node])
+        self._trio_middle_by_rep[rep_id] = middle_id
+        self._trio_sides_by_rep[rep_id] = (rep_id, side_partner_id)
 
     @staticmethod
     def _find_reciprocal_pairs(
@@ -797,6 +851,17 @@ class OsmState:
         """Returns (group_type, siblings) or None if not a representative."""
         return self._group_siblings.get(node_id)
 
+    def get_trio_representatives(self) -> list[str]:
+        """Return representative node IDs for all detected trios."""
+        return list(self._trio_middle_by_rep.keys())
+
+    def get_trio_for_representative(self, rep_id: str) -> tuple[str, str, str] | None:
+        """Return (middle_node_id, side_node_id_1, side_node_id_2) for a trio representative."""
+        if rep_id not in self._trio_middle_by_rep or rep_id not in self._trio_sides_by_rep:
+            return None
+        side_1, side_2 = self._trio_sides_by_rep[rep_id]
+        return (self._trio_middle_by_rep[rep_id], side_1, side_2)
+
     def get_node_routes(self, node_id: str) -> list[dict]:
         """Returns route entries for a node: [{'gtfs_route_id', 'direction_id', 'route_name'}, ...]."""
         return self._node_routes.get(node_id, [])
@@ -847,6 +912,13 @@ class OsmState:
             and not self._is_sibling(c['node_id'])
             and not self._to_osm_node(c).is_station
         ]
+
+    def get_by_node_id(self, node_id: str) -> OsmEntity | None:
+        """Return a node by id as OsmEntity, including siblings if representative."""
+        for node_dict in self._all_nodes.values():
+            if str(node_dict['node_id']) == str(node_id):
+                return self._wrap_entity(node_dict)
+        return None
         
     def get_all_unmatched_grouped(self, key: str) -> dict[str, list[OsmEntity]]:
         """Used heavily by group_proximity to build lookup indexes (excludes siblings)."""

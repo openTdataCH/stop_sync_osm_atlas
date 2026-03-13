@@ -66,8 +66,8 @@ def upgrade_():
         sa.PrimaryKeyConstraint('osm_node_id')
     )
 
-    # osm_stop_groups (platform ↔ stop_position pairs from pre-matching grouping)
-    op.create_table('osm_stop_groups',
+    # osm_pairs (two-node pair groups from pre-matching grouping)
+    op.create_table('osm_pairs',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('node_id_1', sa.String(length=100), nullable=False),
         sa.Column('node_id_2', sa.String(length=100), nullable=False),
@@ -76,9 +76,25 @@ def upgrade_():
         sa.ForeignKeyConstraint(['node_id_2'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    with op.batch_alter_table('osm_stop_groups') as batch_op:
-        batch_op.create_index(batch_op.f('ix_osm_stop_groups_node_id_1'), ['node_id_1'], unique=False)
-        batch_op.create_index(batch_op.f('ix_osm_stop_groups_node_id_2'), ['node_id_2'], unique=False)
+    with op.batch_alter_table('osm_pairs') as batch_op:
+        batch_op.create_index(batch_op.f('ix_osm_pairs_node_id_1'), ['node_id_1'], unique=False)
+        batch_op.create_index(batch_op.f('ix_osm_pairs_node_id_2'), ['node_id_2'], unique=False)
+
+    # osm_trios (middle stop_position + two side nodes)
+    op.create_table('osm_trios',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('middle_node_id', sa.String(length=100), nullable=False),
+        sa.Column('side_node_id_1', sa.String(length=100), nullable=False),
+        sa.Column('side_node_id_2', sa.String(length=100), nullable=False),
+        sa.ForeignKeyConstraint(['middle_node_id'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['side_node_id_1'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['side_node_id_2'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id')
+    )
+    with op.batch_alter_table('osm_trios') as batch_op:
+        batch_op.create_index(batch_op.f('ix_osm_trios_middle_node_id'), ['middle_node_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_osm_trios_side_node_id_1'), ['side_node_id_1'], unique=False)
+        batch_op.create_index(batch_op.f('ix_osm_trios_side_node_id_2'), ['side_node_id_2'], unique=False)
 
     # route_atlas_stops
     op.create_table('route_atlas_stops',
@@ -138,8 +154,6 @@ def upgrade_():
         sa.Column('distance_m', sa.Float(), nullable=True),
         sa.Column('matching_notes', sa.Text(), nullable=True),
         sa.Column('geom', geoalchemy2.types.Geometry(geometry_type='POINT', srid=4326, dimension=2, from_text='ST_GeomFromEWKT', name='geometry'), nullable=True),
-        sa.Column('has_atlas_duplicate', sa.Boolean(), nullable=True),
-        sa.Column('has_osm_duplicate', sa.Boolean(), nullable=True),
         sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('stops_matched') as batch_op:
