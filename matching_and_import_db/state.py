@@ -187,8 +187,11 @@ class AtlasState:
         return entities
 
     def get_unmatched_nodes(self) -> list[AtlasNode]:
-        """Returns unmatched representative AtlasNodes (for PipelineResult)."""
-        return [e.representative for e in self.get_unmatched_records()]
+        """Returns unmatched AtlasNodes, including siblings (for PipelineResult)."""
+        nodes = []
+        for e in self.get_unmatched_records():
+            nodes.extend(e.get_members())
+        return nodes
 
     def get_duplicate_siblings(self, sloid: str) -> list[str]:
         """Returns sibling SLOIDs for a representative (empty list if not a representative)."""
@@ -670,10 +673,10 @@ class OsmState:
         """
         # For each stop_position find nearest + second-nearest platform
         sp_to_nearest: dict[str, tuple[dict, float]] = {}
-        sp_to_second_d: dict[str, float] = {}
+        sp_to_second_d: dict[str, float | None] = {}
         for sp in stop_positions:
-            best_plat, best_d = None, max_distance
-            second_d = float('inf')
+            best_plat, best_d = None, None
+            second_d = None
             for plat in platforms:
                 if plat['node_id'] == sp['node_id']:
                     continue
@@ -685,22 +688,22 @@ class OsmState:
                 d = haversine_distance(sp['lat'], sp['lon'], plat['lat'], plat['lon'])
                 if d is None:
                     continue
-                if d < best_d:
+                if best_d is None or d < best_d:
                     second_d = best_d
                     best_d = d
                     best_plat = plat
-                elif d < second_d:
+                elif second_d is None or d < second_d:
                     second_d = d
-            if best_plat is not None:
+            if best_plat is not None and best_d is not None and best_d <= max_distance:
                 sp_to_nearest[sp['node_id']] = (best_plat, best_d)
                 sp_to_second_d[sp['node_id']] = second_d
 
         # For each platform find nearest + second-nearest stop_position
         plat_to_nearest: dict[str, tuple[dict, float]] = {}
-        plat_to_second_d: dict[str, float] = {}
+        plat_to_second_d: dict[str, float | None] = {}
         for plat in platforms:
-            best_sp, best_d = None, max_distance
-            second_d = float('inf')
+            best_sp, best_d = None, None
+            second_d = None
             for sp in stop_positions:
                 if sp['node_id'] == plat['node_id']:
                     continue
@@ -712,13 +715,13 @@ class OsmState:
                 d = haversine_distance(plat['lat'], plat['lon'], sp['lat'], sp['lon'])
                 if d is None:
                     continue
-                if d < best_d:
+                if best_d is None or d < best_d:
                     second_d = best_d
                     best_d = d
                     best_sp = sp
-                elif d < second_d:
+                elif second_d is None or d < second_d:
                     second_d = d
-            if best_sp is not None:
+            if best_sp is not None and best_d is not None and best_d <= max_distance:
                 plat_to_nearest[plat['node_id']] = (best_sp, best_d)
                 plat_to_second_d[plat['node_id']] = second_d
 
@@ -745,14 +748,14 @@ class OsmState:
                 continue
 
             # Ratio test on stop_position side
-            d2_sp = sp_to_second_d.get(sp['node_id'], float('inf'))
-            if d1_sp > 0 and d2_sp / d1_sp < ratio_factor:
+            d2_sp = sp_to_second_d.get(sp['node_id'])
+            if d2_sp is not None and d1_sp > 0 and d2_sp / d1_sp < ratio_factor:
                 continue
 
             # Ratio test on platform side
             d1_plat = plat_to_nearest[plat['node_id']][1]
-            d2_plat = plat_to_second_d.get(plat['node_id'], float('inf'))
-            if d1_plat > 0 and d2_plat / d1_plat < ratio_factor:
+            d2_plat = plat_to_second_d.get(plat['node_id'])
+            if d2_plat is not None and d1_plat > 0 and d2_plat / d1_plat < ratio_factor:
                 continue
 
             pairs.append((plat, sp))
@@ -816,7 +819,6 @@ class OsmState:
         return [
             self._to_osm_node(n) for n in self._all_nodes.values()
             if n['node_id'] not in self.used_ids
-            and not self._is_sibling(n['node_id'])
         ]
     
     def _wrap_entity(self, node_dict: dict) -> OsmEntity:

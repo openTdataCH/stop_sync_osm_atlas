@@ -52,6 +52,12 @@
   font-weight: var(--font-bold);
 }
 
+.navbar .navbar-brand .navbar-brand-text {
+  max-width: calc(100vw - 140px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* -------------------------------------------------------------------------
    Navbar Navigation
    ------------------------------------------------------------------------- */
@@ -161,5 +167,29 @@
   .navbar .navbar-collapse {
     display: flex !important;
     align-items: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem;
+  }
+
+  .navbar .navbar-brand {
+    min-height: 36px;
+  }
+
+  .navbar .navbar-brand img {
+    height: 30px;
+    margin-right: var(--space-1) !important;
+  }
+
+  .navbar .navbar-brand .navbar-brand-text {
+    display: none;
+  }
+
+  .navbar .navbar-toggler {
+    padding: 0.15rem 0.35rem;
   }
 }

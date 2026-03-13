@@ -4,7 +4,6 @@
   // Use shared escapeHtml utility
   const escapeHtml = SharedUtils.escapeHtml;
   const FILTER_CHIP_BADGE_CLASS = 'badge filter-chip-badge';
-  const FILTER_CHIP_SEPARATOR_CLASS = 'badge filter-chip-badge filter-chip-separator';
 
   function buildSeparatorChip(label) {
     return '<span class="filter-chip-separator">' + escapeHtml(label) + '</span>';

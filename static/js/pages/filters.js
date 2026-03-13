@@ -585,7 +585,13 @@ function updateFiltersUI() {
     if (activeFilters.topN) finalGroupStrings.push(buildRemovableChip({ label: 'Top N Distances (' + activeFilters.topN + ')', badgeClass: 'badge-info', data: { type: 'topN', filter: 'topN' } }));
     if (activeFilters.showDuplicatesOnly) finalGroupStrings.push(buildRemovableChip({ label: 'Duplicate ATLAS', badgeClass: 'badge-secondary', data: { type: 'showDuplicatesOnly' } }));
 
-    if (finalGroupStrings.length > 0) container.html(joinWithAnd(finalGroupStrings));
+    if (finalGroupStrings.length > 0) {
+        if (getActiveFilterCount() === 1) {
+            container.html('<span class="header-summary__filters-prefix">Filter:</span>' + joinWithAnd(finalGroupStrings));
+        } else {
+            container.html(joinWithAnd(finalGroupStrings));
+        }
+    }
     else container.html('<span class="badge badge-secondary mr-1 mb-1">All entries</span>');
 
     container.attr('data-active-filter-count', String(getActiveFilterCount()));
@@ -687,15 +693,22 @@ function updateActiveFilters() {
     activeFilters.transportTypes = $('.filter-transport-type:checked').map(function () { return this.value; }).get();
 
     activeFilters.osmGroups = [];
-    if ($('#filterOsmGroup').is(':checked')) {
-        var allOsmGroupTypesChecked = $('.filter-osm-group-type').length > 0 &&
-            $('.filter-osm-group-type:checked').length === $('.filter-osm-group-type').length;
-        var selectedTypes = $('.filter-osm-group-type:checked').map(function () { return this.value; }).get();
+    var osmGroupMasterChecked = $('#filterOsmGroup').is(':checked');
+    var selectedOsmGroupTypes = $('.filter-osm-group-type:checked').map(function () { return this.value; }).get();
+    var anyOsmGroupTypeChecked = selectedOsmGroupTypes.length > 0;
+    var allOsmGroupTypesChecked = $('.filter-osm-group-type').length > 0 &&
+        $('.filter-osm-group-type:checked').length === $('.filter-osm-group-type').length;
 
-        if (allOsmGroupTypesChecked || selectedTypes.length === 0) {
+    if (anyOsmGroupTypeChecked && !osmGroupMasterChecked) {
+        $('#filterOsmGroup').prop('checked', true);
+        osmGroupMasterChecked = true;
+    }
+
+    if (osmGroupMasterChecked || anyOsmGroupTypeChecked) {
+        if (allOsmGroupTypesChecked || selectedOsmGroupTypes.length === 0) {
             activeFilters.osmGroups = ['all'];
         } else {
-            activeFilters.osmGroups = selectedTypes;
+            activeFilters.osmGroups = selectedOsmGroupTypes;
         }
     }
 

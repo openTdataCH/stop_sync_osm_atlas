@@ -81,7 +81,7 @@
             return 0;
         }
 
-        if (!showAtlas || !showOsm) {
+        if (!showOsm) {
             return 0;
         }
 
@@ -95,13 +95,11 @@
         let lineCount = 0;
 
         data.forEach(function(stop) {
-            if (stop.stop_type !== 'matched') {
-                return;
+            if (stop.stop_type === 'matched' && showAtlas) {
+                // Draw green ATLAS→OSM line
+                const linesDrawn = LineRenderer._drawLinesForStop(stop, layer, drawnKeys, isContext);
+                lineCount += linesDrawn;
             }
-
-            // Draw green ATLAS→OSM line
-            const linesDrawn = LineRenderer._drawLinesForStop(stop, layer, drawnKeys, isContext);
-            lineCount += linesDrawn;
 
             // Draw yellow lines for OSM group partners (platform ↔ stop_position pairs)
             if (stop.osm_group_partner && stop.osm_lat != null && stop.osm_lon != null) {

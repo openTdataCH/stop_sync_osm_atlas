@@ -10,6 +10,7 @@ var renderedMarkers = new Map(); // Track currently rendered markers by unique k
 // Performance tuning constants (from AppConstants)
 var ZOOM_MARKER_THRESHOLD = AppConstants.MAP.ZOOM_MARKER_THRESHOLD;
 var ZOOM_LINE_THRESHOLD = AppConstants.MAP.ZOOM_LINE_THRESHOLD;
+var LABEL_ICON_MIN_ZOOM = AppConstants.MAP.LABEL_ICON_MIN_ZOOM;
 var VIEW_DEBOUNCE_MS = AppConstants.DATA_LOADING.VIEW_DEBOUNCE_MS;
 var LOW_ZOOM_SMALLSET_LIMIT = AppConstants.DATA_LOADING.LOW_ZOOM_SMALLSET_LIMIT;
 var ADDITIONAL_BANNER_ZOOM_LEVELS = AppConstants.MAP.ADDITIONAL_BANNER_ZOOM_LEVELS;
@@ -23,6 +24,8 @@ var loadViewportTimer = null;   // debounce timer id
 var zoomBannerTimeout = null;   // debounce timer for the zoom warning banner
 var suppressViewportReloadCount = 0; // skip this many reloads after programmatic center
 var headerSummaryFiltersExpanded = false;
+var headerSummaryCollapsed = false;
+var mobileFiltersOpen = false;
 
 // Viewport cache: avoid refetching while panning within a buffered extent.
 // This reduces API calls and prevents marker reshuffling caused by capped results.
@@ -231,6 +234,51 @@ function setZoomBannerText(text) {
     banner.textContent = text;
 }
 
+function setZoomBannerShiftedByHint(shifted) {
+    var banner = document.getElementById('zoomBannerInfo');
+    if (!banner) return;
+    banner.classList.toggle('zoom-banner--shifted', !!shifted);
+}
+
+function isMobileViewport() {
+    return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function setMobileFiltersOpen(open) {
+    var overlay = document.querySelector('.top-filters-overlay');
+    var toggle = document.getElementById('mobileFiltersToggle');
+    var banner = document.getElementById('zoomBannerInfo');
+    if (!overlay || !toggle) return;
+
+    mobileFiltersOpen = !!open;
+    overlay.classList.toggle('is-mobile-open', mobileFiltersOpen);
+    toggle.setAttribute('aria-expanded', mobileFiltersOpen ? 'true' : 'false');
+    if (banner) {
+        banner.classList.toggle('zoom-banner--filters-open', mobileFiltersOpen);
+    }
+}
+
+function setHeaderSummaryCollapsed(collapsed) {
+    var summary = document.getElementById('headerSummaryInfo');
+    var toggle = document.getElementById('headerSummaryMobileToggle');
+    if (!summary || !toggle) return;
+
+    headerSummaryCollapsed = !!collapsed;
+    summary.classList.toggle('header-summary--collapsed', headerSummaryCollapsed);
+    toggle.setAttribute('aria-expanded', headerSummaryCollapsed ? 'false' : 'true');
+}
+
+function applyMobileLayoutState() {
+    if (isMobileViewport()) {
+        setMobileFiltersOpen(false);
+        setHeaderSummaryCollapsed(true);
+        return;
+    }
+
+    setMobileFiltersOpen(false);
+    setHeaderSummaryCollapsed(false);
+}
+
 function getSharedActiveFilterCount() {
     if (typeof window.getActiveFilterCount === 'function') {
         return window.getActiveFilterCount();
@@ -254,25 +302,42 @@ function setHeaderSummaryFiltersExpanded(expanded) {
     if (!toggle.length || !panel.length) return;
 
     toggle.attr('aria-expanded', headerSummaryFiltersExpanded ? 'true' : 'false');
-    panel.toggleClass('d-none', !headerSummaryFiltersExpanded);
+    
+    const activeFilterCount = getSharedActiveFilterCount();
+    if (activeFilterCount === 1) {
+        panel.removeClass('d-none');
+    } else {
+        panel.toggleClass('d-none', !headerSummaryFiltersExpanded);
+    }
 }
 
 function syncHeaderSummaryFilterToggle() {
     const toggle = $('#headerSummaryFiltersToggle');
     const label = $('#headerSummaryFiltersLabel');
     const clearBtn = $('#clearAllFilters');
+    const panel = $('#headerSummaryFiltersPanel');
+    const row = $('#headerSummaryFiltersRow');
     const icon = toggle.find('.header-summary__filters-toggle-icon');
     if (!toggle.length || !label.length) return;
 
     const activeFilterCount = getSharedActiveFilterCount();
     const hasActiveFilters = activeFilterCount > 0;
 
-    if (hasActiveFilters) {
+    if (activeFilterCount === 1) {
+        if (row.length) row.addClass('d-none');
+        if (panel.length) panel.removeClass('d-none');
+        clearBtn.addClass('d-none');
+    } else if (activeFilterCount > 1) {
+        if (row.length) row.removeClass('d-none');
+        toggle.removeClass('d-none');
         label.text('Filters: ' + activeFilterCount + ' active');
         toggle.prop('disabled', false);
         clearBtn.removeClass('d-none');
         if (icon.length) icon.removeClass('d-none');
+        if (panel.length) panel.toggleClass('d-none', !headerSummaryFiltersExpanded);
     } else {
+        if (row.length) row.removeClass('d-none');
+        toggle.removeClass('d-none');
         label.text('Filters: None (All entries)');
         toggle.prop('disabled', true);
         clearBtn.addClass('d-none');
@@ -936,8 +1001,8 @@ function loadDataForViewport() {
         var currentZoom = map.getZoom();
         var lastZoom = viewportDataCache.lastRenderZoom;
         var crossedThreshold = (lastZoom !== null) && (
-            (lastZoom < 23 && currentZoom >= 23) ||
-            (lastZoom >= 23 && currentZoom < 23)
+            (lastZoom < LABEL_ICON_MIN_ZOOM && currentZoom >= LABEL_ICON_MIN_ZOOM) ||
+            (lastZoom >= LABEL_ICON_MIN_ZOOM && currentZoom < LABEL_ICON_MIN_ZOOM)
         );
         viewportDataCache.lastRenderZoom = currentZoom;
 
@@ -976,9 +1041,9 @@ function loadDataForViewport() {
                 // Create new marker
                 var marker;
                 if (mData.type === 'atlas') {
-                    marker = createAtlasMarker(item.lat, item.lon, mData.color, mData.hasAtlasDuplicate);
+                    marker = createAtlasMarker(item.lat, item.lon, mData.color, mData.hasAtlasDuplicate, currentZoom);
                 } else {
-                    marker = createOsmMarker(item.lat, item.lon, mData.color, mData.osmNodeType);
+                    marker = createOsmMarker(item.lat, item.lon, mData.color, mData.osmNodeType, currentZoom);
                 }
 
                 // Attach data for popup
@@ -1252,6 +1317,86 @@ function fetchAndCenterSpecificStop(identifier, identifierType) {
 $(document).ready(function () {
     initMap();
 
+    applyMobileLayoutState();
+
+    var mobileFiltersToggle = document.getElementById('mobileFiltersToggle');
+    if (mobileFiltersToggle) {
+        mobileFiltersToggle.addEventListener('click', function () {
+            var open = !mobileFiltersOpen;
+            setMobileFiltersOpen(open);
+            if (isMobileViewport() && open) {
+                setHeaderSummaryCollapsed(true);
+            }
+        });
+    }
+
+    var headerSummaryMobileToggle = document.getElementById('headerSummaryMobileToggle');
+    if (headerSummaryMobileToggle) {
+        headerSummaryMobileToggle.addEventListener('click', function () {
+            if (!isMobileViewport()) return;
+            if (mobileFiltersOpen) {
+                setMobileFiltersOpen(false);
+            }
+            setHeaderSummaryCollapsed(!headerSummaryCollapsed);
+        });
+    }
+
+    window.addEventListener('resize', function () {
+        applyMobileLayoutState();
+    });
+
+    var randomStopBtn = document.getElementById('randomStopBtn');
+    var randomStopHint = document.getElementById('randomStopHint');
+    if (randomStopBtn && randomStopHint) {
+        var randomHintShowTimer = null;
+        var randomHintHideTimer = null;
+
+        var cancelRandomHintTimers = function () {
+            if (randomHintShowTimer) {
+                clearTimeout(randomHintShowTimer);
+                randomHintShowTimer = null;
+            }
+            if (randomHintHideTimer) {
+                clearTimeout(randomHintHideTimer);
+                randomHintHideTimer = null;
+            }
+        };
+
+        var showRandomStopHint = function () {
+            if (randomHintHideTimer) {
+                clearTimeout(randomHintHideTimer);
+                randomHintHideTimer = null;
+            }
+            if (!randomStopHint.classList.contains('d-none')) {
+                return;
+            }
+            randomHintShowTimer = setTimeout(function () {
+                randomStopHint.classList.remove('d-none');
+                setZoomBannerShiftedByHint(true);
+                randomHintShowTimer = null;
+            }, 70);
+        };
+
+        var hideRandomStopHint = function () {
+            if (randomHintShowTimer) {
+                clearTimeout(randomHintShowTimer);
+                randomHintShowTimer = null;
+            }
+            randomHintHideTimer = setTimeout(function () {
+                randomStopHint.classList.add('d-none');
+                setZoomBannerShiftedByHint(false);
+                randomHintHideTimer = null;
+            }, 120);
+        };
+
+        randomStopBtn.addEventListener('mouseenter', showRandomStopHint);
+        randomStopBtn.addEventListener('mouseleave', hideRandomStopHint);
+        randomStopBtn.addEventListener('focus', showRandomStopHint);
+        randomStopBtn.addEventListener('blur', hideRandomStopHint);
+        randomStopBtn.addEventListener('click', hideRandomStopHint);
+        window.addEventListener('beforeunload', cancelRandomHintTimers);
+    }
+
     // Fix race condition: flexbox layout may not be fully computed when Leaflet initializes
     // on first page visit (cold cache). Double rAF ensures we wait for layout + paint phases.
     requestAnimationFrame(function () {
@@ -1303,6 +1448,17 @@ $(document).ready(function () {
     $(document).on('click', '#headerSummaryFiltersToggle', function () {
         if ($(this).prop('disabled')) return;
         setHeaderSummaryFiltersExpanded(!headerSummaryFiltersExpanded);
+    });
+
+    $(document).on('click', function (event) {
+        if (!isMobileViewport() || !mobileFiltersOpen) return;
+
+        var overlay = document.querySelector('.top-filters-overlay');
+        if (!overlay) return;
+
+        if (!overlay.contains(event.target)) {
+            setMobileFiltersOpen(false);
+        }
     });
 
     $(document).on('click', '#clearAllFilters', function (e) {
