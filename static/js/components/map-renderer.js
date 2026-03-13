@@ -4,6 +4,12 @@
 
 // Cache for reusing identical L.divIcon instances
 const DivIconCache = new Map();
+const MAP_RENDERER_LABEL_ICON_MIN_ZOOM = (typeof AppConstants !== 'undefined' && AppConstants.MAP && AppConstants.MAP.LABEL_ICON_MIN_ZOOM) || 18;
+const OSM_LABEL_BY_NODE_TYPE = Object.freeze({
+    platform: 'P',
+    railway_station: 'S'
+});
+
 function getCachedDivIcon(key, html, className, size, anchor) {
     if (DivIconCache.has(key)) {
         return DivIconCache.get(key);
@@ -21,7 +27,32 @@ function getCachedDivIcon(key, html, className, size, anchor) {
 // Robust truthiness helper for duplicate flags coming from mixed backends
 // Treats null/undefined/empty/"false"/"0"/"none"/"null" as false; anything else as true
 function isDuplicateFlagSet(value) {
+    if (value === true) return true;
+    if (value === false || value == null) return false;
+    if (typeof value === 'number') return value !== 0 && !Number.isNaN(value);
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        return !(normalized === '' || normalized === 'false' || normalized === '0' || normalized === 'none' || normalized === 'null' || normalized === 'undefined');
+    }
     return !!value;
+}
+
+function resolveMarkerZoom(zoomOverride) {
+    if (typeof zoomOverride === 'number' && !Number.isNaN(zoomOverride)) {
+        return zoomOverride;
+    }
+    if (typeof map !== 'undefined' && map && map.getZoom) {
+        return map.getZoom();
+    }
+    return MAP_RENDERER_LABEL_ICON_MIN_ZOOM;
+}
+
+function shouldUseCanvasMarker(zoomOverride) {
+    return resolveMarkerZoom(zoomOverride) < MAP_RENDERER_LABEL_ICON_MIN_ZOOM;
+}
+
+function resolveOsmLabel(osmNodeType) {
+    return OSM_LABEL_BY_NODE_TYPE[osmNodeType] || null;
 }
 
 // Helper to build and cache a labeled circle SVG icon
@@ -263,12 +294,12 @@ class MarkerClusterManager {
  * @param {boolean} hasAtlasDuplicate - Whether this stop has an atlas duplicate.
  * @returns {L.Marker} A Leaflet marker.
  */
-function createAtlasMarker(lat, lon, color, hasAtlasDuplicate) {
+function createAtlasMarker(lat, lon, color, hasAtlasDuplicate, zoomOverride) {
     const radius = AppConstants.MARKERS.DEFAULT_RADIUS;
     const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
     const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
     const size = radius * 2;
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
+    const useCanvasOnly = shouldUseCanvasMarker(zoomOverride);
     if (useCanvasOnly) {
         return L.circleMarker([lat, lon], {
             color: color,
@@ -277,7 +308,7 @@ function createAtlasMarker(lat, lon, color, hasAtlasDuplicate) {
             weight: weight
         });
     }
-    if (hasAtlasDuplicate) { // Show labeled icon only when truly flagged
+    if (isDuplicateFlagSet(hasAtlasDuplicate)) { // Show labeled icon only when truly flagged
         const icon = getCachedLabeledCircleIcon('atlas', color, 'D', size, radius, weight, fillOpacity);
         return L.marker([lat, lon], { icon: icon });
     } else {
@@ -298,12 +329,12 @@ function createAtlasMarker(lat, lon, color, hasAtlasDuplicate) {
  * @param {string} osmNodeType - The OSM node type ('platform', 'railway_station', etc.).
  * @returns {L.Marker} A Leaflet marker.
  */
-function createOsmMarker(lat, lon, color, osmNodeType = null) {
+function createOsmMarker(lat, lon, color, osmNodeType = null, zoomOverride) {
     const radius = AppConstants.MARKERS.DEFAULT_RADIUS;
     const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
     const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
     const size = radius * 2;
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
+    const useCanvasOnly = shouldUseCanvasMarker(zoomOverride);
     if (useCanvasOnly) {
         return L.circleMarker([lat, lon], {
             color: color,
@@ -313,11 +344,9 @@ function createOsmMarker(lat, lon, color, osmNodeType = null) {
         });
     }
 
-    if (osmNodeType === 'platform') {
-        const icon = getCachedLabeledCircleIcon('osm', color, 'P', size, radius, weight, fillOpacity);
-        return L.marker([lat, lon], { icon: icon });
-    } else if (osmNodeType === 'railway_station') {
-        const icon = getCachedLabeledCircleIcon('osm', color, 'S', size, radius, weight, fillOpacity);
+    const label = resolveOsmLabel(osmNodeType);
+    if (label) {
+        const icon = getCachedLabeledCircleIcon('osm', color, label, size, radius, weight, fillOpacity);
         return L.marker([lat, lon], { icon: icon });
     } else {
         return L.circleMarker([lat, lon], {

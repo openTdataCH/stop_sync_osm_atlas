@@ -271,23 +271,23 @@ def get_data():
                 "has_atlas_duplicate": stop.has_atlas_duplicate or False,
                 "osm_node_type": stop.osm_node_details.osm_node_type if stop.osm_node_details else None
             })
-        # Enrich matched stops with OSM group partner (platform ↔ stop_position pairs)
-        matched_osm_ids = [s['osm_node_id'] for s in regular_stops if s['stop_type'] == 'matched' and s['osm_node_id']]
-        if matched_osm_ids:
-            matched_osm_set = set(matched_osm_ids)
+        # Enrich any OSM-backed stop with its group partner (platform ↔ stop_position pairs)
+        osm_node_ids = [s['osm_node_id'] for s in regular_stops if s['osm_node_id']]
+        if osm_node_ids:
+            osm_node_set = set(osm_node_ids)
             groups = OsmStopGroup.query.filter(
                 db.or_(
-                    OsmStopGroup.node_id_1.in_(matched_osm_ids),
-                    OsmStopGroup.node_id_2.in_(matched_osm_ids),
+                    OsmStopGroup.node_id_1.in_(osm_node_ids),
+                    OsmStopGroup.node_id_2.in_(osm_node_ids),
                 )
             ).all()
             if groups:
                 # Collect all partner node IDs so we can fetch their coordinates
                 partner_node_ids = set()
                 for g in groups:
-                    if g.node_id_1 in matched_osm_set:
+                    if g.node_id_1 in osm_node_set:
                         partner_node_ids.add(g.node_id_2)
-                    if g.node_id_2 in matched_osm_set:
+                    if g.node_id_2 in osm_node_set:
                         partner_node_ids.add(g.node_id_1)
 
                 # Build a coordinate lookup from viewport data first
@@ -307,7 +307,7 @@ def get_data():
 
                 partner_map = {}
                 for g in groups:
-                    if g.node_id_1 in matched_osm_set:
+                    if g.node_id_1 in osm_node_set:
                         coords = osm_coords.get(g.node_id_2, (None, None))
                         partner_map[g.node_id_1] = {
                             'partner_node_id': g.node_id_2,
@@ -315,7 +315,7 @@ def get_data():
                             'partner_osm_lat': coords[0],
                             'partner_osm_lon': coords[1],
                         }
-                    if g.node_id_2 in matched_osm_set:
+                    if g.node_id_2 in osm_node_set:
                         coords = osm_coords.get(g.node_id_1, (None, None))
                         partner_map[g.node_id_2] = {
                             'partner_node_id': g.node_id_1,

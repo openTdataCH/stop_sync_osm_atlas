@@ -26,6 +26,9 @@
         
         // Below this zoom level, connection lines between matches are not rendered
         ZOOM_LINE_THRESHOLD: 13,
+
+        // At or above this zoom level, markers may switch to labeled DOM icons (D/P/S)
+        LABEL_ICON_MIN_ZOOM: 18,
         
         // Number of additional zoom levels to keep the "zoom in" banner visible
         ADDITIONAL_BANNER_ZOOM_LEVELS: 2,
