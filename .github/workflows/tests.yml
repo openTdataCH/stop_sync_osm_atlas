@@ -112,7 +112,7 @@ jobs:
           FLASK_ENV: testing
           TESTING: 'true'
           DATABASE_URI: 'sqlite:///:memory:'
-          AUTH_DATABASE_URI: 'sqlite:///:memory:'
+          USER_INPUT_DATABASE_URI: 'sqlite:///:memory:'
           SECRET_KEY: 'test-secret-key'
 
       - name: Upload Python coverage report

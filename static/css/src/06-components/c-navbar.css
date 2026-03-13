@@ -13,7 +13,7 @@
   flex-direction: column;
 }
 
-.navbar > .container-fluid {
+.navbar>.container-fluid {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -24,8 +24,8 @@
    Navbar Base
    ------------------------------------------------------------------------- */
 .navbar {
-  padding-top: 0;
-  padding-bottom: 0;
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
 }
 
 /* -------------------------------------------------------------------------
@@ -43,13 +43,19 @@
 
 .navbar .navbar-brand img {
   display: block;
-  height: var(--navbar-height);
+  height: calc(var(--navbar-height) - (var(--space-1) * 2));
 }
 
 .navbar .navbar-brand span {
   line-height: var(--leading-none);
-  font-size: var(--text-2xl);
+  font-size: var(--text-lg);
   font-weight: var(--font-bold);
+}
+
+.navbar .navbar-brand .navbar-brand-text {
+  max-width: calc(100vw - 140px);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* -------------------------------------------------------------------------
@@ -87,46 +93,46 @@
   color: var(--color-fg-muted);
 }
 
-.navbar .badge-primary { 
-  color: var(--color-primary); 
-  border-color: var(--color-primary); 
-  background-color: var(--color-bg); 
+.navbar .badge-primary {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  background-color: var(--color-bg);
 }
 
-.navbar .badge-secondary { 
-  color: var(--color-secondary); 
-  border-color: var(--color-secondary); 
-  background-color: var(--color-bg); 
+.navbar .badge-secondary {
+  color: var(--color-secondary);
+  border-color: var(--color-secondary);
+  background-color: var(--color-bg);
 }
 
-.navbar .badge-success { 
-  color: var(--color-success); 
-  border-color: var(--color-success); 
-  background-color: var(--color-bg); 
+.navbar .badge-success {
+  color: var(--color-success);
+  border-color: var(--color-success);
+  background-color: var(--color-bg);
 }
 
-.navbar .badge-warning { 
-  color: var(--color-warning); 
-  border-color: var(--color-warning); 
-  background-color: var(--color-bg); 
+.navbar .badge-warning {
+  color: var(--color-warning);
+  border-color: var(--color-warning);
+  background-color: var(--color-bg);
 }
 
-.navbar .badge-danger { 
-  color: var(--color-danger); 
-  border-color: var(--color-danger); 
-  background-color: var(--color-bg); 
+.navbar .badge-danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  background-color: var(--color-bg);
 }
 
-.navbar .badge-info { 
-  color: var(--color-info); 
-  border-color: var(--color-info); 
-  background-color: var(--color-bg); 
+.navbar .badge-info {
+  color: var(--color-info);
+  border-color: var(--color-info);
+  background-color: var(--color-bg);
 }
 
-.navbar .badge-dark { 
-  color: var(--color-dark); 
-  border-color: var(--color-dark); 
-  background-color: var(--color-bg); 
+.navbar .badge-dark {
+  color: var(--color-dark);
+  border-color: var(--color-dark);
+  background-color: var(--color-bg);
 }
 
 /* -------------------------------------------------------------------------
@@ -153,15 +159,37 @@
   .navbar {
     flex-wrap: nowrap;
   }
-  
-  .navbar > .container-fluid {
+
+  .navbar>.container-fluid {
     flex-wrap: nowrap;
   }
-  
+
   .navbar .navbar-collapse {
     display: flex !important;
     align-items: center;
   }
 }
 
+@media (max-width: 768px) {
+  .navbar {
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem;
+  }
 
+  .navbar .navbar-brand {
+    min-height: 36px;
+  }
+
+  .navbar .navbar-brand img {
+    height: 30px;
+    margin-right: var(--space-1) !important;
+  }
+
+  .navbar .navbar-brand .navbar-brand-text {
+    display: none;
+  }
+
+  .navbar .navbar-toggler {
+    padding: 0.15rem 0.35rem;
+  }
+}

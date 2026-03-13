@@ -583,11 +583,11 @@ def _get_realtime_db_stats() -> Dict:
     """
     try:
         from backend.extensions import db
-        from backend.models import Stop, Problem, PersistentData
+        from backend.models import StopsMatched, Problem
         from sqlalchemy import func
         
         # Total stops in database
-        total_stops = db.session.query(func.count(Stop.id)).scalar() or 0
+        total_stops = db.session.query(func.count(StopsMatched.id)).scalar() or 0
         
         # Problem statistics
         total_problems = db.session.query(func.count(Problem.id)).scalar() or 0
@@ -612,15 +612,6 @@ def _get_realtime_db_stats() -> Dict:
             Problem.solution != ''
         ).scalar() or 0
         unsolved_problems = total_problems - solved_problems
-        
-        # Persistent solutions count
-        persistent_solutions = db.session.query(func.count(PersistentData.id)).scalar() or 0
-        
-        # Manual matches count
-        manual_matches = db.session.query(func.count(PersistentData.id)).filter(
-            PersistentData.problem_type == 'unmatched',
-            PersistentData.solution == 'manual'
-        ).scalar() or 0
         
         # Stops with problems vs clean stops
         stops_with_problems = db.session.query(
@@ -649,10 +640,6 @@ def _get_realtime_db_stats() -> Dict:
                     "p2_medium": problems_by_priority.get(2, 0),
                     "p3_low": problems_by_priority.get(3, 0),
                 }
-            },
-            "persistent_data": {
-                "total_solutions": persistent_solutions,
-                "manual_matches": manual_matches,
             },
             "stops_health": {
                 "with_problems": stops_with_problems,

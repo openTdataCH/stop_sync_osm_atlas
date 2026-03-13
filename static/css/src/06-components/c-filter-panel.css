@@ -127,7 +127,7 @@
 #problemsActiveFilters {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1);
+  gap: 0;
   align-items: center;
 }
 
@@ -147,13 +147,13 @@
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
   border-radius: var(--radius-full);
-  padding: 0.35rem 0.6rem;
-  line-height: var(--leading-tight);
+  padding: 0.1rem 0.25rem;
+  line-height: 1;
   background-color: var(--color-bg);
-  border: 1.5px solid currentColor;
-  color: var(--color-fg-muted);
+  border: 1.5px solid var(--color-fg-muted);
+  color: #374151;
   cursor: pointer;
-  margin: var(--space-1);
+  margin: 0;
   transition: opacity var(--transition-fast);
 }
 
@@ -162,47 +162,35 @@
   opacity: 0.8;
 }
 
-/* Badge color variants */
+/* Badge color variants — dark grey text, colored borders */
 #activeFilters .badge-primary,
 #problemsActiveFilters .badge-primary {
-  color: var(--color-primary);
   border-color: var(--color-primary);
-  background-color: var(--color-bg);
 }
 
 #activeFilters .badge-secondary,
 #problemsActiveFilters .badge-secondary {
-  color: var(--color-secondary);
   border-color: var(--color-secondary);
-  background-color: var(--color-bg);
 }
 
 #activeFilters .badge-success,
 #problemsActiveFilters .badge-success {
-  color: var(--color-success);
   border-color: var(--color-success);
-  background-color: var(--color-bg);
 }
 
 #activeFilters .badge-warning,
 #problemsActiveFilters .badge-warning {
-  color: var(--color-warning);
   border-color: var(--color-warning);
-  background-color: var(--color-bg);
 }
 
 #activeFilters .badge-info,
 #problemsActiveFilters .badge-info {
-  color: var(--color-info);
   border-color: var(--color-info);
-  background-color: var(--color-bg);
 }
 
 #activeFilters .badge-danger,
 #problemsActiveFilters .badge-danger {
-  color: var(--color-danger);
   border-color: var(--color-danger);
-  background-color: var(--color-bg);
 }
 
 /* Badge close button */

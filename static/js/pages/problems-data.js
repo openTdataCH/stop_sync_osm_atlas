@@ -4,7 +4,7 @@
  * ProblemsData - Data fetching, processing, and filtering functionality
  * Depends on: ProblemsState
  */
-window.ProblemsData = (function() {
+window.ProblemsData = (function () {
     'use strict';
 
     /**
@@ -65,20 +65,20 @@ window.ProblemsData = (function() {
      */
     function filterProblemsOnClient(problems, problemType, solutionFilter = 'all') {
         let filtered = [];
-        
+
         if (problemType === 'all') {
             filtered = ProblemsState.getAllProblems();
         } else {
             filtered = ProblemsState.getAllProblems().filter(problem => problem.problem === problemType);
         }
-        
+
         // Apply solution filter
         if (solutionFilter === 'solved') {
             filtered = filtered.filter(problem => problem.solution && problem.solution.trim() !== '');
         } else if (solutionFilter === 'unsolved') {
             filtered = filtered.filter(problem => !problem.solution || problem.solution.trim() === '');
         }
-        
+
         return filtered;
     }
 
@@ -94,53 +94,53 @@ window.ProblemsData = (function() {
         ProblemsState.setCurrentPage(1);
         ProblemsState.setTotalProblems(0);
         ProblemsState.setCurrentProblemIndex(-1);
-        
+
         // Update filter dropdown display
         const filterButton = $('#problemTypeFilter');
-        let typeText = newType === 'all' ? 'All Problems' : 
-                         newType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        
+        let typeText = newType === 'all' ? 'All Problems' :
+            newType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
         if (solutionFilter !== 'all') {
             typeText += ` (${solutionFilter})`;
         }
-        
+
         filterButton.html(`<i class="fas fa-filter"></i> ${typeText} <span class="caret"></span>`);
-        
+
         // Update sorting options visibility
         updateSortingOptionsVisibility(newType);
-        
+
         // Fetch the first page of the new filtered data
         fetchProblems();
 
         // Update chips
         window.FilterChipUtils.renderProblemChips('#problemsActiveFilters', {
-                problemType: ProblemsState.getSelectedProblemType(),
-                solutionFilter: ProblemsState.getCurrentSolutionFilter(),
-                operators: ProblemsState.getSelectedAtlasOperators(),
-                priority: ProblemsState.getSelectedPriority(),
-                onClearProblemType: function() {
-                    // Already at all/all; just fetch again if needed
-                    if (ProblemsState.getSelectedProblemType() !== 'all' || ProblemsState.getCurrentSolutionFilter() !== 'all') {
-                        updateProblemTypeFilter('all', 'all');
-                    }
-                },
-                onClearSolution: function() {
-                    updateProblemTypeFilter(ProblemsState.getSelectedProblemType(), 'all');
-                },
-                onRemoveOperator: function(op) {
-                    const current = ProblemsState.getSelectedAtlasOperators().filter(o => o !== op);
-                    ProblemsState.setSelectedAtlasOperators(current);
-                    if (window.operatorDropdownProblems && window.operatorDropdownProblems.setSelection) {
-                        window.operatorDropdownProblems.setSelection(current);
-                    }
-                    ProblemsState.resetPaginationState();
-                    initializeProblemTypeFilter();
-                    fetchProblems();
-                 },
-                onClearPriority: function() {
-                    ProblemsData.updatePriorityFilter('all');
+            problemType: ProblemsState.getSelectedProblemType(),
+            solutionFilter: ProblemsState.getCurrentSolutionFilter(),
+            operators: ProblemsState.getSelectedAtlasOperators(),
+            priority: ProblemsState.getSelectedPriority(),
+            onClearProblemType: function () {
+                // Already at all/all; just fetch again if needed
+                if (ProblemsState.getSelectedProblemType() !== 'all' || ProblemsState.getCurrentSolutionFilter() !== 'all') {
+                    updateProblemTypeFilter('all', 'all');
                 }
-            });
+            },
+            onClearSolution: function () {
+                updateProblemTypeFilter(ProblemsState.getSelectedProblemType(), 'all');
+            },
+            onRemoveOperator: function (op) {
+                const current = ProblemsState.getSelectedAtlasOperators().filter(o => o !== op);
+                ProblemsState.setSelectedAtlasOperators(current);
+                if (window.operatorDropdownProblems && window.operatorDropdownProblems.setSelection) {
+                    window.operatorDropdownProblems.setSelection(current);
+                }
+                ProblemsState.resetPaginationState();
+                initializeProblemTypeFilter();
+                fetchProblems();
+            },
+            onClearPriority: function () {
+                ProblemsData.updatePriorityFilter('all');
+            }
+        });
     }
 
     /**
@@ -170,7 +170,7 @@ window.ProblemsData = (function() {
         const sortButton = $('#sortButton');
         const currentSortBy = ProblemsState.getCurrentSortBy();
         const currentSortOrder = ProblemsState.getCurrentSortOrder();
-        
+
         if (currentSortBy === 'distance') {
             const orderText = currentSortOrder === 'asc' ? 'Smallest distance' : 'Largest distance';
             const orderIcon = currentSortOrder === 'asc' ? 'fas fa-sort-numeric-down' : 'fas fa-sort-numeric-up';
@@ -186,16 +186,16 @@ window.ProblemsData = (function() {
     function updateSorting(sortBy, sortOrder) {
         ProblemsState.setCurrentSortBy(sortBy);
         ProblemsState.setCurrentSortOrder(sortOrder);
-        
+
         // Reset problems and pagination
         ProblemsState.clearAllProblems();
         ProblemsState.setCurrentPage(1);
         ProblemsState.setTotalProblems(0);
         ProblemsState.setCurrentProblemIndex(-1);
-        
+
         // Update button display
         updateSortingButtonDisplay();
-        
+
         // Fetch the first page with new sorting
         fetchProblems();
     }
@@ -216,7 +216,7 @@ window.ProblemsData = (function() {
             sort_by: ProblemsState.getCurrentSortBy(),
             sort_order: ProblemsState.getCurrentSortOrder()
         };
-        
+
         // Add operator filter if operators are selected
         const selectedOperators = ProblemsState.getSelectedAtlasOperators();
         if (selectedOperators.length > 0) {
@@ -229,7 +229,7 @@ window.ProblemsData = (function() {
             params.priority = selectedPriority;
         }
 
-        $.getJSON("/api/problems", params, function(data) {
+        $.getJSON("/api/problems", params, function (data) {
             if (data.error) {
                 console.error("Error fetching problems:", data.error);
                 $('#problemTypeDisplay').text("Error loading problems.");
@@ -243,33 +243,51 @@ window.ProblemsData = (function() {
             } else {
                 ProblemsState.addProblems(data.problems);
             }
-            
+
             ProblemsState.setCurrentPage(data.page);
+
+            // Hydrate problems with localStorage drafts if any exist
+            if (window.ProblemsSolutions && window.ProblemsSolutions.getDraftKey) {
+                const allProbs = ProblemsState.getAllProblems();
+                allProbs.forEach(prob => {
+                    // Problem groupings (like 'duplicates' API group) might be nested
+                    if (prob.problem === 'duplicates' && Array.isArray(prob.members)) {
+                        prob.members.forEach(member => {
+                            const draftKey = window.ProblemsSolutions.getDraftKey(member.stop_id, member.problem || 'duplicates');
+                            const localDraft = window.localStorage.getItem(draftKey);
+                            if (localDraft) {
+                                member.solution = localDraft;
+                            }
+                        });
+                    } else {
+                        const draftKey = window.ProblemsSolutions.getDraftKey(prob.stop_id, prob.problem);
+                        const localDraft = window.localStorage.getItem(draftKey);
+                        if (localDraft) {
+                            prob.solution = localDraft;
+                        }
+                    }
+                });
+            }
 
             // Group problems by entry
             const problemsByEntry = groupProblemsByEntry(ProblemsState.getAllProblems());
             ProblemsState.setProblemsByEntry(problemsByEntry);
-            
+
             const allProblems = ProblemsState.getAllProblems();
             if (allProblems.length === 0) {
                 const selectedProblemType = ProblemsState.getSelectedProblemType();
                 const solutionFilter = ProblemsState.getCurrentSolutionFilter ? ProblemsState.getCurrentSolutionFilter() : 'all';
-                const problemTypeDisplayText = selectedProblemType === 'all' ? 'problems' : 
-                                             `${selectedProblemType.replace(/_/g, ' ')} problems`;
+                const problemTypeDisplayText = selectedProblemType === 'all' ? 'problems' :
+                    `${selectedProblemType.replace(/_/g, ' ')} problems`;
                 let solutionSuffix = '';
                 if (solutionFilter === 'solved') solutionSuffix = ' (solved)';
                 else if (solutionFilter === 'unsolved') solutionSuffix = ' (unsolved)';
                 const baseMessage = `No more ${problemTypeDisplayText}${solutionSuffix}`;
                 const finalMessage = (solutionFilter === 'solved') ? baseMessage + '.' : baseMessage + ', good job!';
                 $('#problemTypeDisplay').text(finalMessage);
-                
+
                 // Clear problem content and UI remnants
                 $('#actionButtonsContent').empty();
-                // Hide and clear notes
-                $('#notesSection').hide();
-                $('#standardNotesContainer #atlasNote').val('');
-                $('#standardNotesContainer #osmNote').val('');
-                $('#duplicatesNotesContainer').empty();
                 // Remove any scroll indicator
                 $('#problemContent').find('.scroll-indicator').remove();
 
@@ -290,13 +308,13 @@ window.ProblemsData = (function() {
                     window.ProblemsUI.displayProblem(ProblemsState.getCurrentProblemIndex());
                 }
             }
-            
+
             // Note: updateNavButtons will be called from the UI module
             if (window.ProblemsUI && window.ProblemsUI.updateNavButtons) {
                 window.ProblemsUI.updateNavButtons();
             }
             ProblemsState.setIsLoadingMore(false);
-        }).fail(function() {
+        }).fail(function () {
             $('#problemTypeDisplay').text('Error loading problems.');
             ProblemsState.setIsLoadingMore(false);
         });
@@ -316,9 +334,9 @@ window.ProblemsData = (function() {
                 solutionFilter: ProblemsState.getCurrentSolutionFilter(),
                 operators: ProblemsState.getSelectedAtlasOperators(),
                 priority: ProblemsState.getSelectedPriority(),
-                onClearProblemType: function() { updateProblemTypeFilter('all', 'all'); },
-                onClearSolution: function() { updateProblemTypeFilter(ProblemsState.getSelectedProblemType(), 'all'); },
-                onRemoveOperator: function(op) {
+                onClearProblemType: function () { updateProblemTypeFilter('all', 'all'); },
+                onClearSolution: function () { updateProblemTypeFilter(ProblemsState.getSelectedProblemType(), 'all'); },
+                onRemoveOperator: function (op) {
                     const current = ProblemsState.getSelectedAtlasOperators().filter(o => o !== op);
                     ProblemsState.setSelectedAtlasOperators(current);
                     if (window.operatorDropdownProblems && window.operatorDropdownProblems.setSelection) {
@@ -328,7 +346,7 @@ window.ProblemsData = (function() {
                     initializeProblemTypeFilter();
                     fetchProblems();
                 },
-                onClearPriority: function() { updatePriorityFilter('all'); }
+                onClearPriority: function () { updatePriorityFilter('all'); }
             });
         }
     }
@@ -353,7 +371,7 @@ window.ProblemsData = (function() {
      */
     function initializeProblemTypeFilter() {
         const params = {};
-        
+
         // Include operator filter in stats request
         const selectedOperators = ProblemsState.getSelectedAtlasOperators();
         if (selectedOperators.length > 0) {
@@ -364,14 +382,14 @@ window.ProblemsData = (function() {
         if (selectedPriority && selectedPriority !== 'all') {
             params.priority = selectedPriority;
         }
-        
-        $.getJSON("/api/problems/stats", params, function(stats) {
+
+        $.getJSON("/api/problems/stats", params, function (stats) {
             const problemTypes = ['distance', 'unmatched', 'attributes', 'duplicates'];
             const dropdown = $('#problemTypeFilterDropdown');
-            
+
             // Clear existing options
             dropdown.empty();
-            
+
             // Add priority controls at the top of the All Problems section
             const selectedPriorityCircle = ProblemsState.getSelectedPriority ? ProblemsState.getSelectedPriority() : 'all';
             const selectedPriorityStr = String(selectedPriorityCircle);
@@ -380,10 +398,10 @@ window.ProblemsData = (function() {
                     <small><i class="fas fa-layer-group"></i> Priority</small>
                 </div>
                 <div class="dropdown-item priority-row d-flex align-items-center" style="gap: 8px;">
-                    <a class="priority-option" href="#" data-priority="all" title="All priorities"><span class="priority-circle pr-all ${selectedPriorityStr==='all'?'selected':''}"><span class="pc-text">All</span></span></a>
-                    <a class="priority-option" href="#" data-priority="1" title="Priority 1"><span class="priority-circle pr-1 ${selectedPriorityStr==='1'?'selected':''}"><span class="pc-text">P1</span></span></a>
-                    <a class="priority-option" href="#" data-priority="2" title="Priority 2"><span class="priority-circle pr-2 ${selectedPriorityStr==='2'?'selected':''}"><span class="pc-text">P2</span></span></a>
-                    <a class="priority-option" href="#" data-priority="3" title="Priority 3"><span class="priority-circle pr-3 ${selectedPriorityStr==='3'?'selected':''}"><span class="pc-text">P3</span></span></a>
+                    <a class="priority-option" href="#" data-priority="all" title="All priorities"><span class="priority-circle pr-all ${selectedPriorityStr === 'all' ? 'selected' : ''}"><span class="pc-text">All</span></span></a>
+                    <a class="priority-option" href="#" data-priority="1" title="Priority 1"><span class="priority-circle pr-1 ${selectedPriorityStr === '1' ? 'selected' : ''}"><span class="pc-text">P1</span></span></a>
+                    <a class="priority-option" href="#" data-priority="2" title="Priority 2"><span class="priority-circle pr-2 ${selectedPriorityStr === '2' ? 'selected' : ''}"><span class="pc-text">P2</span></span></a>
+                    <a class="priority-option" href="#" data-priority="3" title="Priority 3"><span class="priority-circle pr-3 ${selectedPriorityStr === '3' ? 'selected' : ''}"><span class="pc-text">P3</span></span></a>
                 </div>
                 <div class="dropdown-divider"></div>
                 <a class="dropdown-item problem-type-option" href="#" data-type="all" data-solution-filter="all">
@@ -396,19 +414,19 @@ window.ProblemsData = (function() {
                     <i class="fas fa-exclamation-circle text-warning"></i> All Unsolved <span class="badge badge-warning ml-2">${stats.all.unsolved}</span>
                 </a>
             `);
-            
+
             if (problemTypes.length > 0) {
                 dropdown.append('<div class="dropdown-divider"></div>');
             }
-            
+
             // Add individual problem types
             problemTypes.forEach(type => {
                 const typeStats = stats[type];
                 if (typeStats && typeStats.all > 0) {
                     const displayName = type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    const icon = type === 'distance' ? 'fas fa-ruler' : 
-                                type === 'unmatched' ? 'fas fa-map-marker-alt' : 
-                                type === 'attributes' ? 'fas fa-tags' : 
+                    const icon = type === 'distance' ? 'fas fa-ruler' :
+                        type === 'unmatched' ? 'fas fa-map-marker-alt' :
+                            type === 'attributes' ? 'fas fa-tags' :
                                 type === 'duplicates' ? 'fas fa-clone' : 'fas fa-exclamation-triangle';
 
                     if (type === 'duplicates') {
@@ -462,7 +480,7 @@ window.ProblemsData = (function() {
                     groupParams.priority = selectedPriorityInner;
                 }
 
-                $.getJSON('/api/problems', groupParams, function(resp) {
+                $.getJSON('/api/problems', groupParams, function (resp) {
                     if (resp && typeof resp.total === 'number') {
                         const dupItem = $('#problemTypeFilterDropdown').find('a.dropdown-item.problem-type-option[data-type="duplicates"][data-solution-filter="all"]');
                         const mainBadge = dupItem.find('span.badge.badge-secondary.ml-2');
@@ -475,7 +493,7 @@ window.ProblemsData = (function() {
             })();
 
             // Bind priority option clicks (delegated handler within dropdown)
-            dropdown.off('click.priority').on('click.priority', '.priority-option', function(e) {
+            dropdown.off('click.priority').on('click.priority', '.priority-option', function (e) {
                 e.preventDefault();
                 const pr = $(this).data('priority');
                 ProblemsData.updatePriorityFilter(pr);
@@ -492,9 +510,9 @@ window.ProblemsData = (function() {
                     solutionFilter: ProblemsState.getCurrentSolutionFilter(),
                     operators: ProblemsState.getSelectedAtlasOperators(),
                     priority: ProblemsState.getSelectedPriority(),
-                    onClearProblemType: function() { updateProblemTypeFilter('all', 'all'); },
-                    onClearSolution: function() { updateProblemTypeFilter(ProblemsState.getSelectedProblemType(), 'all'); },
-                    onRemoveOperator: function(op) {
+                    onClearProblemType: function () { updateProblemTypeFilter('all', 'all'); },
+                    onClearSolution: function () { updateProblemTypeFilter(ProblemsState.getSelectedProblemType(), 'all'); },
+                    onRemoveOperator: function (op) {
                         const current = ProblemsState.getSelectedAtlasOperators().filter(o => o !== op);
                         ProblemsState.setSelectedAtlasOperators(current);
                         if (window.operatorDropdownProblems && window.operatorDropdownProblems.setSelection) {
@@ -504,10 +522,10 @@ window.ProblemsData = (function() {
                         initializeProblemTypeFilter();
                         fetchProblems();
                     },
-                    onClearPriority: function() { updatePriorityFilter('all'); }
+                    onClearPriority: function () { updatePriorityFilter('all'); }
                 });
             }
-        }).fail(function() {
+        }).fail(function () {
             console.error("Failed to load problem filter statistics.");
             $('#problemTypeFilterDropdown').html('<a class="dropdown-item disabled" href="#">Error loading filters</a>');
         });
@@ -522,11 +540,11 @@ window.ProblemsData = (function() {
         const allProblems = ProblemsState.getAllProblems();
         const totalProblems = ProblemsState.getTotalProblems();
         const totalEntries = problemsByEntry.length;
-        
+
         if (currentProblemIndex < totalEntries - 1) {
             ProblemsState.setCurrentProblemIndex(currentProblemIndex + 1);
             ProblemsState.setCurrentEntryProblemIndex(0); // Reset to first issue in the new entry
-            
+
             if (window.ProblemsUI && window.ProblemsUI.displayProblem) {
                 window.ProblemsUI.displayProblem(ProblemsState.getCurrentProblemIndex());
             }

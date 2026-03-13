@@ -3,11 +3,11 @@
 
 /**
  * Main Problems Page Application
- * Depends on: ProblemsState, ProblemsMap, ProblemsData, ProblemsUI, ProblemsSolutions, ProblemsNotes
+ * Depends on: ProblemsState, ProblemsMap, ProblemsData, ProblemsUI, ProblemsSolutions
  * Also depends on: OperatorDropdown, PopupRenderer, map utilities
  */
 
-$(document).ready(function(){
+$(document).ready(function () {
     console.log("=== PROBLEMS.JS INITIALIZATION ===");
     // Enable Bootstrap tooltips (for persistence info icon)
     if (typeof $ !== 'undefined' && typeof $.fn.tooltip === 'function') {
@@ -24,9 +24,9 @@ $(document).ready(function(){
         // Force Leaflet map to reflow after size changes
         setTimeout(() => {
             if (window.ProblemsMap && window.ProblemsMap.invalidateMapSize) {
-                try { window.ProblemsMap.invalidateMapSize(); } catch(e) {}
+                try { window.ProblemsMap.invalidateMapSize(); } catch (e) { }
             } else if (typeof L !== 'undefined' && ProblemsState.getProblemMap()) {
-                try { ProblemsState.getProblemMap().invalidateSize(); } catch(e) {}
+                try { ProblemsState.getProblemMap().invalidateSize(); } catch (e) { }
             }
         }, 0);
         // Recompute dropdown height too
@@ -64,19 +64,19 @@ $(document).ready(function(){
             solutionFilter: ProblemsState.getCurrentSolutionFilter(),
             operators: ProblemsState.getSelectedAtlasOperators(),
             priority: ProblemsState.getSelectedPriority(),
-            onClearProblemType: function() {
+            onClearProblemType: function () {
                 ProblemsData.updateProblemTypeFilter('all', 'all');
             },
-            onClearSolution: function() {
+            onClearSolution: function () {
                 ProblemsData.updateProblemTypeFilter(ProblemsState.getSelectedProblemType(), 'all');
             },
-            onClearPriority: function() {
+            onClearPriority: function () {
                 ProblemsData.updatePriorityFilter('all');
                 // Reflect in UI pills
                 $('#priorityFilterProblems .priority-pill').removeClass('active');
                 $('#priorityFilterProblems .priority-pill[data-priority="all"]').addClass('active');
             },
-            onRemoveOperator: function(op) {
+            onRemoveOperator: function (op) {
                 const current = ProblemsState.getSelectedAtlasOperators().filter(o => o !== op);
                 ProblemsState.setSelectedAtlasOperators(current);
                 if (window.operatorDropdownProblems && window.operatorDropdownProblems.setSelection) {
@@ -90,42 +90,38 @@ $(document).ready(function(){
         });
     }
 
-    
+
     // Initialize state management first
     ProblemsState.initializeSettings();
-    
+
     // Initialize map
     ProblemsMap.initProblemMap();
-    
+
     // Initialize UI components
     ProblemsUI.setupIntersectionObserver();
-    
+
     // Initialize operator dropdown for problems page
     window.operatorDropdownProblems = new OperatorDropdown('#atlasOperatorFilterProblems', {
         placeholder: 'Select operators...',
         multiple: true,
-        onSelectionChange: function(selectedOperators) {
+        onSelectionChange: function (selectedOperators) {
             ProblemsState.setSelectedAtlasOperators(selectedOperators);
-            
+
             // Reset problems and pagination when operator filter changes
             ProblemsState.resetPaginationState();
-            
+
             // Reload data with new operator filter
             ProblemsData.initializeProblemTypeFilter(); // Update stats
             ProblemsData.fetchProblems(); // Fetch filtered problems
             renderProblemsChips();
         }
     });
-    
+
     // Load auto-persist settings and update UI
     $('#autoPersistToggle').prop('checked', ProblemsState.getAutoPersistEnabled());
-    $('#autoPersistNotesToggle').prop('checked', ProblemsState.getAutoPersistNotesEnabled());
     // If inputs are disabled (anonymous), force them visually off
     if ($('#autoPersistToggle').is(':disabled')) {
         $('#autoPersistToggle').prop('checked', false);
-    }
-    if ($('#autoPersistNotesToggle').is(':disabled')) {
-        $('#autoPersistNotesToggle').prop('checked', false);
     }
 
     // If toggles are disabled in the DOM (anonymous user), show a login hint on click
@@ -133,7 +129,7 @@ $(document).ready(function(){
         const el = $(selector);
         if (el.is(':disabled')) {
             const label = $('label[for="' + el.attr('id') + '"]');
-            const handler = function(e) {
+            const handler = function (e) {
                 e.preventDefault();
                 if (window.ProblemsUI && typeof window.ProblemsUI.showTemporaryMessage === 'function') {
                     window.ProblemsUI.showTemporaryMessage('To make ' + itemLabel + ' persistent, please log in.', 'info');
@@ -147,97 +143,42 @@ $(document).ready(function(){
         }
     }
     attachDisabledToggleHint('#autoPersistToggle', 'solutions');
-    attachDisabledToggleHint('#autoPersistNotesToggle', 'notes');
-    
+
     // Initialize filters and data
     ProblemsData.initializeProblemTypeFilter(); // Fetch stats and build filter
     ProblemsData.fetchProblems(); // Initial fetch for "All" problems
 
     // Initial chips render
     renderProblemsChips();
-    
+
     // Initialize UI components
     ProblemsMap.initializeResize();
     ProblemsMap.initializeFilterToggle();
-    
+
     // Show keyboard hint after page loads
     setTimeout(() => {
         ProblemsUI.showKeyboardHint();
     }, 2000);
 
     // Recompute dropdown height when the dropdown opens/closes and on resize
-    $(document).on('shown.bs.collapse show.bs.collapse', '#problemTypeFilterCollapse', function() {
+    $(document).on('shown.bs.collapse show.bs.collapse', '#problemTypeFilterCollapse', function () {
         setTimeout(computeProblemTypeDropdownMaxHeight, 0);
     });
-    $(window).on('resize', function(){
+    $(window).on('resize', function () {
         setMainLayoutHeights();
         computeProblemTypeDropdownMaxHeight();
     });
     // Also recompute after the filter panel toggles width (collapse/expand)
-    $('#filterToggleBtn').on('click', function() { setTimeout(computeProblemTypeDropdownMaxHeight, 310); }); // after CSS transition
+    $('#filterToggleBtn').on('click', function () { setTimeout(computeProblemTypeDropdownMaxHeight, 310); }); // after CSS transition
     // Initial computation
-    setTimeout(function(){
+    setTimeout(function () {
         setMainLayoutHeights();
         computeProblemTypeDropdownMaxHeight();
     }, 300);
 
     // ====== EVENT HANDLERS ======
-    // Manual matching action buttons
-    $('#actionButtonsContent').on('click', 'button[data-action="manual-match-atlas"]', function() {
-        const currentProblem = ProblemsState.getCurrentProblem();
-        if (!currentProblem) return;
-        // Ensure context markers are visible for selecting the opposite entry
-        try {
-            if (typeof ProblemsState !== 'undefined' && ProblemsState.getShowContext && !ProblemsState.getShowContext()) {
-                if (window.ProblemsMap && typeof window.ProblemsMap.toggleContext === 'function') {
-                    window.ProblemsMap.toggleContext();
-                }
-            }
-        } catch (e) {}
-        showPersistentManualMatchBanner('atlas', currentProblem.stop_id);
-    });
-
-    $('#actionButtonsContent').on('click', 'button[data-action="manual-match-osm"]', function() {
-        const currentProblem = ProblemsState.getCurrentProblem();
-        if (!currentProblem) return;
-        // Ensure context markers are visible for selecting the opposite entry
-        try {
-            if (typeof ProblemsState !== 'undefined' && ProblemsState.getShowContext && !ProblemsState.getShowContext()) {
-                if (window.ProblemsMap && typeof window.ProblemsMap.toggleContext === 'function') {
-                    window.ProblemsMap.toggleContext();
-                }
-            }
-        } catch (e) {}
-        showPersistentManualMatchBanner('osm', currentProblem.stop_id);
-    });
-
-    // Helper: persistent banner for manual matching selection, with cancel
-    function showPersistentManualMatchBanner(fromType, stopId) {
-        // Remove existing banner if any
-        $('.manual-match-banner').remove();
-        window.manualMatchContext = { from: fromType, stopId: stopId };
-        const targetText = fromType === 'atlas' ? 'Select an OSM entry to complete the match' : 'Select an ATLAS entry to complete the match';
-        const banner = $(`
-            <div class="manual-match-banner alert alert-info" role="alert" style="position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:2000;">
-                ${targetText}
-                <button type="button" class="btn btn-sm btn-outline-secondary ml-2" id="cancelManualMatch">Cancel</button>
-            </div>
-        `);
-        $('body').append(banner);
-        $('#cancelManualMatch').on('click', function(){
-            window.manualMatchContext = null;
-            $('.manual-match-banner').remove();
-            if (typeof window.updateManualMatchButtonsUI === 'function') {
-                window.updateManualMatchButtonsUI();
-            }
-        });
-        if (typeof window.updateManualMatchButtonsUI === 'function') {
-            window.updateManualMatchButtonsUI();
-        }
-    }
-
     // Navigation buttons
-    $('#prevProblemBtn').on('click', function() {
+    $('#prevProblemBtn').on('click', function () {
         const currentIndex = ProblemsState.getCurrentProblemIndex();
         if (currentIndex > 0) {
             ProblemsState.setCurrentProblemIndex(currentIndex - 1);
@@ -249,15 +190,15 @@ $(document).ready(function(){
 
     // Priority selection is handled inside the dropdown via ProblemsData.initializeProblemTypeFilter
 
-    $('#nextProblemBtn').on('click', function() {
+    $('#nextProblemBtn').on('click', function () {
         ProblemsData.navigateToNextProblem();
     });
-    
+
     // Auto-persist toggle handler
-    $('#autoPersistToggle').on('change', function() {
+    $('#autoPersistToggle').on('change', function () {
         const enabled = $(this).is(':checked');
         ProblemsState.setAutoPersistEnabled(enabled);
-        
+
         if (enabled) {
             ProblemsUI.showTemporaryMessage('Auto-persist enabled: Solutions will be saved as persistent data <i class="fas fa-database"></i>', 'info');
         } else {
@@ -265,48 +206,36 @@ $(document).ready(function(){
         }
     });
 
-    // Auto-persist notes toggle handler
-    $('#autoPersistNotesToggle').on('change', function() {
-        const enabled = $(this).is(':checked');
-        ProblemsState.setAutoPersistNotesEnabled(enabled);
-        
-        if (enabled) {
-            ProblemsUI.showTemporaryMessage('Auto-persist notes enabled: Notes will be saved as persistent data <i class="fas fa-database"></i>', 'info');
-        } else {
-            ProblemsUI.showTemporaryMessage('Auto-persist notes disabled: Notes will be saved temporarily <i class="fas fa-clock"></i>', 'info');
-        }
-    });
-    
     // Context toggle button click handler
     $('#toggleContextBtn').on('click', ProblemsMap.toggleContext);
-    
+
     // Problem type filter dropdown handler
-    $(document).on('click', '.problem-type-option', function(e) {
+    $(document).on('click', '.problem-type-option', function (e) {
         e.preventDefault();
         const selectedType = $(this).data('type');
         const solutionFilter = $(this).data('solution-filter') || 'all';
         ProblemsData.updateProblemTypeFilter(selectedType, solutionFilter);
         $('#problemTypeFilterCollapse').collapse('hide');
     });
-    
+
     // Sorting option click handler
-    $(document).on('click', '.sort-option', function(e) {
+    $(document).on('click', '.sort-option', function (e) {
         e.preventDefault();
         const sortBy = $(this).data('sort-by');
         const sortOrder = $(this).data('sort-order');
         ProblemsData.updateSorting(sortBy, sortOrder);
     });
-    
+
     // Solution button click handlers
-    $('#actionButtonsContent').on('click', '.solution-btn', function() {
+    $('#actionButtonsContent').on('click', '.solution-btn', function () {
         console.log("=== SOLUTION BUTTON CLICKED ===");
-        
+
         const issueContainer = $(this).closest('.issue-container');
         const problemId = issueContainer.data('problem-id');
         const currentEntryProblems = ProblemsState.getCurrentEntryProblems();
         // For grouped duplicates problems, id is a string group id. Otherwise numeric.
         const problem = currentEntryProblems.find(p => String(p.id) === String(problemId));
-        
+
         if (!problem) {
             ProblemsUI.showTemporaryMessage('Could not find problem data.', 'error');
             return;
@@ -318,15 +247,15 @@ $(document).ready(function(){
         if (solutionType === 'attribute') {
             const attribute = $(this).data('attribute');
             const value = $(this).data('value');
-            
+
             // Get existing solution or create new object
             let currentSolution = {};
             if (problem.solution && problem.solution.trim().startsWith('{')) {
                 try {
                     currentSolution = JSON.parse(problem.solution);
-                } catch(e) { /* ignore parse error */ }
+                } catch (e) { /* ignore parse error */ }
             }
-            
+
             // Update the specific attribute
             currentSolution[attribute] = value;
             solution = JSON.stringify(currentSolution);
@@ -341,9 +270,9 @@ $(document).ready(function(){
                 return;
             }
         }
-        
+
         console.log("Saving solution:", solution);
-        
+
         if (problem && solution !== undefined) {
             ProblemsSolutions.saveSolution(this, problem.problem, solution);
         } else {
@@ -351,9 +280,9 @@ $(document).ready(function(){
             ProblemsUI.showTemporaryMessage('Missing problem or solution data', 'error');
         }
     });
-    
+
     // Make persistent button handler
-    $('#actionButtonsContent').on('click', '.make-persistent-btn', function() {
+    $('#actionButtonsContent').on('click', '.make-persistent-btn', function () {
         console.log("=== MAKE PERSISTENT BUTTON CLICKED ===");
         const problemId = $(this).data('problem-id');
         const problemType = $(this).data('problem-type');
@@ -361,35 +290,35 @@ $(document).ready(function(){
     });
 
     // Make persistent duplicates button handler
-    $('#actionButtonsContent').on('click', '.make-persistent-duplicates-btn', function() {
+    $('#actionButtonsContent').on('click', '.make-persistent-duplicates-btn', function () {
         console.log("=== MAKE PERSISTENT DUPLICATES BUTTON CLICKED ===");
         const problemId = $(this).data('problem-id');
         const problemType = $(this).data('problem-type');
         const currentEntryProblems = ProblemsState.getCurrentEntryProblems();
         const problem = currentEntryProblems.find(p => String(p.id) === String(problemId));
-        
+
         if (!problem || !problem.members) {
             ProblemsUI.showTemporaryMessage('Could not find duplicate problem data.', 'error');
             return;
         }
-        
+
         // Make all member solutions persistent
         const solvedMembers = problem.members.filter(m => typeof m.solution === 'string' && m.solution.trim() !== '');
         if (solvedMembers.length === 0) {
             ProblemsUI.showTemporaryMessage('No solutions to make persistent.', 'warning');
             return;
         }
-        
+
         const originalButtonHtml = $(this).html();
         $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Saving...');
-        
+
         let processedCount = 0;
         const totalCount = solvedMembers.length;
-        
+
         solvedMembers.forEach(member => {
             ProblemsSolutions.makeSolutionPersistentForStopId(member.stop_id, problemType);
             processedCount++;
-            
+
             if (processedCount === totalCount) {
                 setTimeout(() => {
                     $(this).prop('disabled', false).html(originalButtonHtml);
@@ -406,9 +335,9 @@ $(document).ready(function(){
             }
         });
     });
-    
+
     // Clear solution button handler
-    $('#actionButtonsContent').on('click', '.clear-solution-btn', function() {
+    $('#actionButtonsContent').on('click', '.clear-solution-btn', function () {
         console.log("=== CLEAR SOLUTION BUTTON CLICKED ===");
         const problemId = $(this).data('problem-id');
         const allProblems = ProblemsState.getAllProblems();
@@ -422,31 +351,31 @@ $(document).ready(function(){
     });
 
     // Clear duplicates solutions button handler
-    $('#actionButtonsContent').on('click', '.clear-duplicates-solutions-btn', function() {
+    $('#actionButtonsContent').on('click', '.clear-duplicates-solutions-btn', function () {
         console.log("=== CLEAR DUPLICATES SOLUTIONS BUTTON CLICKED ===");
         const problemId = $(this).data('problem-id');
         const problemType = $(this).data('problem-type');
         const currentEntryProblems = ProblemsState.getCurrentEntryProblems();
         const problem = currentEntryProblems.find(p => String(p.id) === String(problemId));
-        
+
         if (!problem || !problem.members) {
             ProblemsUI.showTemporaryMessage('Could not find duplicate problem data.', 'error');
             return;
         }
-        
+
         // Clear all member solutions
         const solvedMembers = problem.members.filter(m => typeof m.solution === 'string' && m.solution.trim() !== '');
         if (solvedMembers.length === 0) {
             ProblemsUI.showTemporaryMessage('No solutions to clear.', 'warning');
             return;
         }
-        
+
         const originalButtonHtml = $(this).html();
         $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Clearing...');
-        
+
         let processedCount = 0;
         const totalCount = solvedMembers.length;
-        
+
         solvedMembers.forEach(member => {
             // Create a problem-like object for each member to use clearSolution
             const memberProblem = {
@@ -455,7 +384,7 @@ $(document).ready(function(){
                 solution: member.solution,
                 is_persistent: member.is_persistent
             };
-            
+
             $.ajax({
                 url: '/api/save_solution',
                 method: 'POST',
@@ -465,7 +394,7 @@ $(document).ready(function(){
                     problem_type: problemType,
                     solution: ''
                 }),
-                success: function(response) {
+                success: function (response) {
                     processedCount++;
                     if (processedCount === totalCount) {
                         $(this).prop('disabled', false).html(originalButtonHtml);
@@ -480,7 +409,7 @@ $(document).ready(function(){
                         }
                     }
                 }.bind(this),
-                error: function() {
+                error: function () {
                     processedCount++;
                     if (processedCount === totalCount) {
                         $(this).prop('disabled', false).html(originalButtonHtml);
@@ -490,80 +419,14 @@ $(document).ready(function(){
             });
         });
     });
-    
-    // Note saving handler (delegate once)
-    $(document).on('click', '#saveAtlasNote', function() {
-        const noteContent = $('#atlasNote').val();
-        ProblemsNotes.saveNote('atlas', noteContent);
-    });
-    $(document).on('click', '#saveOsmNote', function() {
-        const noteContent = $('#osmNote').val();
-        ProblemsNotes.saveNote('osm', noteContent);
-    });
 
-    // Duplicates per-member notes: toggle editor
-    $(document).on('click', '.toggle-member-notes', function() {
-        const container = $(this).closest('td').find('.member-notes-editor');
-        container.toggle();
-    });
-
-    // Duplicates per-member notes: save
-    $(document).on('click', '.save-member-note', function() {
-        const btn = $(this);
-        const td = btn.closest('td');
-        const noteType = btn.data('note-type'); // 'atlas' or 'osm'
-        const sloid = btn.data('sloid') || null;
-        const osmNodeId = btn.data('osm-node-id') || null;
-        const noteContent = td.find('.member-note-text').val();
-        const makePersistent = td.find('.member-note-persist').is(':checked');
-
-        // Build payload & call existing API endpoints directly
-        const payload = { note: noteContent, make_persistent: makePersistent };
-        let url = null;
-        if (noteType === 'atlas' && sloid) {
-            payload.sloid = sloid;
-            url = '/api/save_note/atlas';
-        } else if (noteType === 'osm' && osmNodeId) {
-            payload.osm_node_id = osmNodeId;
-            url = '/api/save_note/osm';
-        } else {
-            if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
-                window.ProblemsUI.showTemporaryMessage('Missing identifiers to save note', 'error');
-            }
-            return;
-        }
-
-        const originalHtml = btn.html();
-        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> Saving...');
-        $.ajax({
-            url: url,
-            method: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify(payload),
-            success: function(resp) {
-                if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
-                    const icon = resp && resp.is_persistent ? 'database' : 'clock';
-                    window.ProblemsUI.showTemporaryMessage('Note saved <i class="fas fa-' + icon + '"></i>', 'success');
-                }
-            },
-            error: function(xhr, status, error) {
-                if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
-                    window.ProblemsUI.showTemporaryMessage('Error saving note: ' + error, 'error');
-                }
-            },
-            complete: function() {
-                btn.prop('disabled', false).html(originalHtml);
-            }
-        });
-    });
-    
     // Keyboard shortcuts for faster problem solving
-    $(document).on('keydown', function(e) {
+    $(document).on('keydown', function (e) {
         // Only activate shortcuts when not in input fields
         if (!$(e.target).is('input, textarea, select')) {
             ProblemsUI.hideKeyboardHint(); // Hide hint when user starts using shortcuts
-            
-            switch(e.key) {
+
+            switch (e.key) {
                 case 'ArrowRight':
                 case ' ': // Spacebar
                     e.preventDefault();

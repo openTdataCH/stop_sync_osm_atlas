@@ -1,77 +1,12 @@
 from flask import Blueprint, request, jsonify, current_app as app
 import random
 from sqlalchemy import func
-from backend.models import Stop, AtlasStop, OsmNode, PersistentData, Problem
+from backend.models import StopsMatched, AtlasStop, OsmNode
 from backend.extensions import db, limiter
-from flask_login import login_required
 from backend.serializers.stops import format_stop_data
-from backend.query_helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint
+from backend.query_helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint, resolve_stop_type_match_filters, build_stop_scope_condition, build_match_method_conditions
 
 search_bp = Blueprint('search', __name__)
-
-
-@search_bp.route('/api/manual_match', methods=['POST'])
-@limiter.limit("30/minute")
-@login_required
-def manual_match():
-    try:
-        payload = request.get_json() or {}
-        atlas_stop_id = payload.get('atlas_stop_id')
-        osm_stop_id = payload.get('osm_stop_id')
-        make_persistent = bool(payload.get('make_persistent', False))
-        if not atlas_stop_id or not osm_stop_id:
-            return jsonify({"success": False, "error": "atlas_stop_id and osm_stop_id are required"}), 400
-        atlas_stop = db.session.get(Stop, atlas_stop_id)
-        osm_stop = db.session.get(Stop, osm_stop_id)
-        if not atlas_stop or not osm_stop:
-            return jsonify({"success": False, "error": "One or both stops not found"}), 404
-        atlas_stop.stop_type = 'matched'
-        atlas_stop.match_type = 'manual'
-        atlas_stop.osm_node_id = osm_stop.osm_node_id
-        atlas_stop.osm_lat = osm_stop.osm_lat
-        atlas_stop.osm_lon = osm_stop.osm_lon
-        osm_stop.stop_type = 'matched'
-        osm_stop.match_type = 'manual'
-        osm_stop.sloid = atlas_stop.sloid
-        osm_stop.atlas_lat = atlas_stop.atlas_lat
-        osm_stop.atlas_lon = atlas_stop.atlas_lon
-        if make_persistent:
-            atlas_stop.manual_is_persistent = True
-            osm_stop.manual_is_persistent = True
-        db.session.add(atlas_stop)
-        db.session.add(osm_stop)
-        db.session.flush()
-        atlas_unmatched = Problem.query.filter_by(stop_id=atlas_stop.id, problem_type='unmatched').first()
-        if atlas_unmatched:
-            atlas_unmatched.solution = f"Manual match to OSM {osm_stop.osm_node_id}"
-            atlas_unmatched.is_persistent = make_persistent
-            db.session.add(atlas_unmatched)
-        osm_unmatched = Problem.query.filter_by(stop_id=osm_stop.id, problem_type='unmatched').first()
-        if osm_unmatched:
-            osm_unmatched.solution = f"Manual match to ATLAS {atlas_stop.sloid}"
-            osm_unmatched.is_persistent = make_persistent
-            db.session.add(osm_unmatched)
-        if make_persistent:
-            existing = PersistentData.query.filter(
-                PersistentData.sloid == atlas_stop.sloid,
-                PersistentData.osm_node_id == osm_stop.osm_node_id,
-                PersistentData.problem_type == 'unmatched',
-                PersistentData.note_type.is_(None)
-            ).first()
-            if existing:
-                existing.solution = 'manual'
-            else:
-                db.session.add(PersistentData(
-                    sloid=atlas_stop.sloid,
-                    osm_node_id=osm_stop.osm_node_id,
-                    problem_type='unmatched',
-                    solution='manual'
-                ))
-        db.session.commit()
-        return jsonify({"success": True, "message": "Manual match saved", "is_persistent": make_persistent})
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @search_bp.route('/api/search', methods=['GET'])
@@ -81,11 +16,11 @@ def search():
     results = {"osm": [], "atlas": []}
     if query_str:
         search_pattern = f"%{query_str}%"
-        matched_query = optimize_query_for_endpoint(Stop.query, 'search').outerjoin(
-            AtlasStop, Stop.sloid == AtlasStop.sloid
+        matched_query = optimize_query_for_endpoint(StopsMatched.query, 'search').outerjoin(
+            AtlasStop, StopsMatched.sloid == AtlasStop.sloid
         ).outerjoin(
-            OsmNode, Stop.osm_node_id == OsmNode.osm_node_id
-        ).filter(Stop.stop_type == 'matched').filter(
+            OsmNode, StopsMatched.osm_node_id == OsmNode.osm_node_id
+        ).filter(StopsMatched.stop_type == 'matched').filter(
             db.or_(
                 AtlasStop.atlas_designation.ilike(search_pattern),
                 AtlasStop.atlas_designation_official.ilike(search_pattern),
@@ -126,9 +61,9 @@ def search():
                 "osm_uic_name": stop.osm_node_details.osm_uic_name if stop.osm_node_details else None,
                 "osm_uic_ref": stop.osm_node_details.osm_uic_ref if stop.osm_node_details else None
             })
-        unmatched_query = optimize_query_for_endpoint(Stop.query, 'search').outerjoin(
-            AtlasStop, Stop.sloid == AtlasStop.sloid
-        ).filter(Stop.stop_type == 'unmatched').filter(
+        unmatched_query = optimize_query_for_endpoint(StopsMatched.query, 'search').outerjoin(
+            AtlasStop, StopsMatched.sloid == AtlasStop.sloid
+        ).filter(StopsMatched.stop_type == 'atlas_unmatched').filter(
             db.or_(
                 AtlasStop.atlas_designation.ilike(search_pattern),
                 AtlasStop.atlas_designation_official.ilike(search_pattern),
@@ -165,24 +100,22 @@ def get_top_matches():
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
         match_method_str = request.args.get('match_method', None)
+        show_duplicates_only = request.args.get('show_duplicates_only', 'false').lower() == 'true'
         filters = parse_filter_params(request.args)
         query_builder = get_query_builder()
-        query = optimize_query_for_endpoint(Stop.query, 'search')
-        query = query.filter(Stop.stop_type == 'matched', Stop.distance_m.isnot(None))
+        query = optimize_query_for_endpoint(StopsMatched.query, 'search')
+        query = query.filter(StopsMatched.stop_type == 'matched', StopsMatched.distance_m.isnot(None))
         query = query_builder.apply_common_filters(query, filters)
+        if show_duplicates_only:
+            query = query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.duplicate_group_sloids.isnot(None)))
         if match_method_str:
             specific_methods = [m.strip() for m in match_method_str.split(',') if m.strip()]
             if specific_methods:
-                method_conditions = []
-                for m in specific_methods:
-                    if m.startswith('distance_matching_') or m.startswith('route_'):
-                        method_conditions.append(Stop.match_type.like(f"{m}%"))
-                    else:
-                        method_conditions.append(Stop.match_type == m)
-                query = query.filter(db.or_(*method_conditions))
+                method_condition = build_match_method_conditions(StopsMatched, specific_methods)
+                query = query.filter(method_condition) if method_condition is not None else query.filter(db.false())
             else:
                 query = query.filter(db.false())
-        stops = query.order_by(Stop.distance_m.desc()).limit(limit).all()
+        stops = query.order_by(StopsMatched.distance_m.desc()).limit(limit).all()
         stops_data = [format_stop_data(stop) for stop in stops]
         return jsonify(stops_data)
     except Exception as e:
@@ -202,80 +135,16 @@ def get_random_stop():
         filters = parse_filter_params(request.args)
         query_builder = get_query_builder()
 
-        query = optimize_query_for_endpoint(Stop.query, 'search')
+        query = optimize_query_for_endpoint(StopsMatched.query, 'search')
         query = query_builder.apply_common_filters(query, filters)
 
-        all_category_conditions = []
-        stop_type_match_method_or_conditions = []
-        current_stop_types = []
-        if stop_filter_str and stop_filter_str.lower() != 'all':
-            current_stop_types = [t.strip() for t in stop_filter_str.split(',') if t.strip()]
-        current_match_methods = []
-        if match_method_str:
-            current_match_methods = [m.strip() for m in match_method_str.split(',') if m.strip()]
-
-        if 'matched' in current_stop_types:
-            relevant_matched_methods = [
-                m for m in current_match_methods if (
-                    m in ['exact', 'name', 'manual'] or
-                    m.startswith('distance_matching_') or
-                    m.startswith('route_')
-                )
-            ]
-            if relevant_matched_methods:
-                method_conditions = []
-                for m in relevant_matched_methods:
-                    if m.startswith('distance_matching_'):
-                        method_conditions.append(Stop.match_type.like(f"{m}%"))
-                    elif m.startswith('route_'):
-                        # Match both legacy and unified route match types
-                        method_conditions.append(Stop.match_type.like(f"{m}%"))
-                        if not m.startswith('route_unified_'):
-                            suffix = m[len('route_'):]
-                            method_conditions.append(Stop.match_type.like(f"route_unified_{suffix}%"))
-                    else:
-                        method_conditions.append(Stop.match_type == m)
-                stop_type_match_method_or_conditions.append(
-                    db.and_(Stop.stop_type == 'matched', db.or_(*method_conditions))
-                )
-            else:
-                # If no match methods are selected, include all matched stops.
-                if not current_match_methods:
-                    stop_type_match_method_or_conditions.append(Stop.stop_type == 'matched')
-
-        if 'unmatched' in current_stop_types:
-            filter_for_no_osm_nearby = 'no_nearby_counterpart' in current_match_methods
-            filter_for_osm_nearby = 'osm_within_50m' in current_match_methods
-            unmatched_specific_condition = Stop.stop_type == 'unmatched'
-            if filter_for_no_osm_nearby and not filter_for_osm_nearby:
-                unmatched_specific_condition = db.and_(
-                    Stop.stop_type == 'unmatched',
-                    Stop.match_type == 'no_nearby_counterpart'
-                )
-            elif not filter_for_no_osm_nearby and filter_for_osm_nearby:
-                unmatched_specific_condition = db.and_(
-                    Stop.stop_type == 'unmatched',
-                    db.or_(Stop.match_type != 'no_nearby_counterpart', Stop.match_type.is_(None))
-                )
-            # Keep the "station" stop type as part of unmatched set, matching /api/data and /api/global_stats semantics.
-            stop_type_match_method_or_conditions.append(db.or_(
-                unmatched_specific_condition,
-                Stop.stop_type == 'station'
-            ))
-
-        if 'osm' in current_stop_types:
-            stop_type_match_method_or_conditions.append(Stop.stop_type == 'osm')
-
-        if stop_type_match_method_or_conditions:
-            all_category_conditions.append(db.or_(*stop_type_match_method_or_conditions))
-        elif current_stop_types and not stop_type_match_method_or_conditions:
-            all_category_conditions.append(db.false())
-
-        if all_category_conditions:
-            query = query.filter(db.and_(*all_category_conditions))
+        resolved_filters = resolve_stop_type_match_filters(stop_filter_str, match_method_str)
+        scope_condition = build_stop_scope_condition(StopsMatched, resolved_filters)
+        if scope_condition is not None:
+            query = query.filter(scope_condition)
 
         if show_duplicates_only:
-            query = query.filter(Stop.atlas_duplicate_sloid.isnot(None)).filter(Stop.atlas_duplicate_sloid != '')
+            query = query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.duplicate_group_sloids.isnot(None)))
 
         # If Top-N mode is active, pick randomly from the (small) top-N set.
         n_val = None
@@ -285,8 +154,8 @@ def get_random_stop():
             except Exception:
                 n_val = None
         if n_val and n_val > 0:
-            top_query = query.filter(Stop.stop_type == 'matched', Stop.distance_m.isnot(None)) \
-                .order_by(Stop.distance_m.desc()) \
+            top_query = query.filter(StopsMatched.stop_type == 'matched', StopsMatched.distance_m.isnot(None)) \
+                .order_by(StopsMatched.distance_m.desc()) \
                 .limit(n_val)
             candidates = top_query.all()
             if not candidates:
@@ -294,23 +163,23 @@ def get_random_stop():
             random_stop = random.choice(candidates)
         else:
             # Fast random pick using id range sampling (avoids ORDER BY RAND() and large OFFSET scans)
-            min_id, max_id = query.with_entities(func.min(Stop.id), func.max(Stop.id)).first()
+            min_id, max_id = query.with_entities(func.min(StopsMatched.id), func.max(StopsMatched.id)).first()
             if min_id is None or max_id is None:
                 return jsonify({"error": "No stop found for the current filters."}), 404
 
             random_stop = None
             for _ in range(5):
                 candidate_id = random.randint(min_id, max_id)
-                random_stop = query.filter(Stop.id >= candidate_id).order_by(Stop.id.asc()).limit(1).first()
+                random_stop = query.filter(StopsMatched.id >= candidate_id).order_by(StopsMatched.id.asc()).limit(1).first()
                 if random_stop:
                     break
             if not random_stop:
                 # Fallback to the first available stop within range
-                random_stop = query.order_by(Stop.id.asc()).first()
+                random_stop = query.order_by(StopsMatched.id.asc()).first()
             if not random_stop:
                 return jsonify({"error": "No stop found for the current filters."}), 404
 
-        stop_data = format_stop_data(random_stop, include_routes=False, include_notes=False)
+        stop_data = format_stop_data(random_stop, include_routes=False)
 
         # Prefer ATLAS coords if available, otherwise OSM
         if random_stop.atlas_lat is not None and random_stop.atlas_lon is not None:
@@ -345,17 +214,42 @@ def get_stop_by_id():
         lat_col_name, lon_col_name = None, None
         popup_view_type = None
         if identifier_type == 'sloid':
-            stop = optimize_query_for_endpoint(Stop.query, 'search').filter(Stop.sloid == identifier).first()
+            stop = optimize_query_for_endpoint(StopsMatched.query, 'search').filter(StopsMatched.sloid == identifier).first()
             if stop:
                 lat_col_name = 'atlas_lat'
                 lon_col_name = 'atlas_lon'
                 popup_view_type = 'atlas'
         elif identifier_type in ('osm', 'osm_node_id'):
-            stop = optimize_query_for_endpoint(Stop.query, 'search').filter(Stop.osm_node_id == identifier).first()
+            stop = optimize_query_for_endpoint(StopsMatched.query, 'search').filter(StopsMatched.osm_node_id == identifier).first()
             if stop:
                 lat_col_name = 'osm_lat'
                 lon_col_name = 'osm_lon'
                 popup_view_type = 'osm'
+        elif identifier_type == 'station':
+            stop = optimize_query_for_endpoint(StopsMatched.query, 'search').join(
+                AtlasStop, StopsMatched.sloid == AtlasStop.sloid
+            ).filter(AtlasStop.uic_ref == identifier).first()
+            if stop:
+                lat_col_name = 'atlas_lat'
+                lon_col_name = 'atlas_lon'
+                popup_view_type = 'atlas'
+        elif identifier_type == 'route':
+            from backend.models import RouteAtlasStops, RouteOsmStops
+            stop = optimize_query_for_endpoint(StopsMatched.query, 'search').join(
+                RouteAtlasStops, StopsMatched.sloid == RouteAtlasStops.sloid
+            ).filter(RouteAtlasStops.atlas_route_id == identifier).first()
+            if stop:
+                lat_col_name = 'atlas_lat'
+                lon_col_name = 'atlas_lon'
+                popup_view_type = 'atlas'
+            else:
+                stop = optimize_query_for_endpoint(StopsMatched.query, 'search').join(
+                    RouteOsmStops, StopsMatched.osm_node_id == RouteOsmStops.osm_node_id
+                ).filter(RouteOsmStops.osm_route_id == identifier).first()
+                if stop:
+                    lat_col_name = 'osm_lat'
+                    lon_col_name = 'osm_lon'
+                    popup_view_type = 'osm'
         else:
             return jsonify({"error": "Invalid identifier_type"}), 400
         if stop:

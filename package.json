@@ -15,7 +15,7 @@
   "jest": {
     "testEnvironment": "jsdom",
     "roots": [
-      "<rootDir>/static/js/tests"
+      "<rootDir>/tests/js"
     ],
     "testMatch": [
       "**/*.test.js"
@@ -24,7 +24,7 @@
       "js"
     ],
     "setupFilesAfterEnv": [
-      "<rootDir>/static/js/tests/setup.js"
+      "<rootDir>/tests/js/setup.js"
     ],
     "collectCoverageFrom": [
       "static/js/components/**/*.js",

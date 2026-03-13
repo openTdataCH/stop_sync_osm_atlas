@@ -11,9 +11,15 @@ Statistics are divided into two categories:
 """
 
 import json
+import logging
+import math
 import os
+import statistics
+from collections import defaultdict
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 STATS_FILE_PATH = os.path.join(
@@ -32,6 +38,7 @@ def export_pipeline_stats(
     total_osm_nodes: int = None,
     atlas_route_stats: Dict[str, int] = None,
     osm_route_stats: Dict[str, int] = None,
+    osm_nodes_with_routes: set = None,
 ) -> Dict[str, Any]:
     """
     Export comprehensive pipeline statistics after matching.
@@ -59,12 +66,12 @@ def export_pipeline_stats(
     
     # Calculate total ATLAS if not provided
     if total_atlas_platforms is None:
-        matched_sloids = {r.get('sloid') for r in matched_records if r.get('sloid')}
-        unmatched_sloids = {r.get('sloid') for r in unmatched_atlas if r.get('sloid')}
+        matched_sloids = {getattr(r.atlas_node, 'sloid', None) for r in matched_records if getattr(r.atlas_node, 'sloid', None)}
+        unmatched_sloids = {getattr(r, 'sloid', None) for r in unmatched_atlas if getattr(r, 'sloid', None)}
         total_atlas_platforms = len(matched_sloids | unmatched_sloids)
-    
+
     # Count distinct matched ATLAS sloids
-    distinct_matched_atlas = len({r.get('sloid') for r in matched_records if r.get('sloid')})
+    distinct_matched_atlas = len({getattr(r.atlas_node, 'sloid', None) for r in matched_records if getattr(r.atlas_node, 'sloid', None)})
     
     # Match rate calculation
     match_rate = (distinct_matched_atlas / total_atlas_platforms * 100) if total_atlas_platforms > 0 else 0
@@ -72,30 +79,25 @@ def export_pipeline_stats(
     # Count matches by type
     match_type_counts = {}
     for record in matched_records:
-        match_type = record.get('match_type', 'unknown')
+        match_type = getattr(record, 'match_type', 'unknown') or 'unknown'
         match_type_counts[match_type] = match_type_counts.get(match_type, 0) + 1
     
     # Extract specific match counts
     exact_matches = match_type_counts.get('exact', 0)
     name_matches = match_type_counts.get('name', 0)
-    manual_matches = match_type_counts.get('manual', 0)
     exact_postpass_matches = match_type_counts.get('exact_postpass', 0)
     duplicate_propagation_matches = match_type_counts.get('duplicate_propagation', 0)
+    osm_group_propagation_matches = match_type_counts.get('osm_group_propagation', 0)
     
     # Distance matching breakdown
-    distance_stage1_regular = sum(
+    distance_stage1 = sum(
         v for k, v in match_type_counts.items() 
-        if k.startswith('distance_matching_1_') and not k.endswith('_stop_position')
+        if k.startswith('distance_matching_1_')
     )
-    distance_stage1_stop_position = sum(
-        v for k, v in match_type_counts.items() 
-        if k.startswith('distance_matching_1_') and k.endswith('_stop_position')
-    )
-    distance_stage1_total = distance_stage1_regular + distance_stage1_stop_position
     distance_stage2 = match_type_counts.get('distance_matching_2', 0)
     distance_stage3a = match_type_counts.get('distance_matching_3a', 0)
     distance_stage3b = match_type_counts.get('distance_matching_3b', 0)
-    total_distance_matches = distance_stage1_total + distance_stage2 + distance_stage3a + distance_stage3b
+    total_distance_matches = distance_stage1 + distance_stage2 + distance_stage3a + distance_stage3b
     
     # Route matching breakdown
     route_gtfs_matches = sum(
@@ -108,19 +110,44 @@ def export_pipeline_stats(
     )
     total_route_matches = route_gtfs_matches + route_hrdf_matches
     
-    # Unmatched OSM analysis
-    unmatched_osm_with_routes = 0
-    unmatched_osm_with_uic_ref = 0
-    unmatched_osm_with_local_ref = 0
+    # Unmatched OSM analysis matrix
+    unmatched_osm_matrix = {
+        "uic_only": 0,
+        "local_ref_only": 0,
+        "routes_only": 0,
+        "uic_and_local": 0,
+        "uic_and_routes": 0,
+        "local_and_routes": 0,
+        "all_three": 0,
+        "none": 0
+    }
+    
+    osm_routes_set = osm_nodes_with_routes or set()
     
     for node in unmatched_osm:
-        tags = node.get('tags', {})
-        if 'uic_ref' in tags:
-            unmatched_osm_with_uic_ref += 1
-        if node.get('local_ref') or tags.get('local_ref'):
-            unmatched_osm_with_local_ref += 1
-        # Note: Route membership would need to be checked against osm_nodes_with_routes.csv
-        # This is handled separately in the pipeline
+        node_id_str = str(getattr(node, 'node_id', ''))
+        tags = getattr(node, 'tags', None) or {}
+        
+        has_uic = 'uic_ref' in tags
+        has_local = bool(getattr(node, 'local_ref', None) or tags.get('local_ref'))
+        has_routes = node_id_str in osm_routes_set
+        
+        if has_uic and has_local and has_routes:
+            unmatched_osm_matrix["all_three"] += 1
+        elif has_uic and has_local:
+            unmatched_osm_matrix["uic_and_local"] += 1
+        elif has_uic and has_routes:
+            unmatched_osm_matrix["uic_and_routes"] += 1
+        elif has_local and has_routes:
+            unmatched_osm_matrix["local_and_routes"] += 1
+        elif has_uic:
+            unmatched_osm_matrix["uic_only"] += 1
+        elif has_local:
+            unmatched_osm_matrix["local_ref_only"] += 1
+        elif has_routes:
+            unmatched_osm_matrix["routes_only"] += 1
+        else:
+            unmatched_osm_matrix["none"] += 1
     
     # No nearby OSM count
     no_nearby_osm_count = len(no_nearby_osm_sloids) if no_nearby_osm_sloids else 0
@@ -128,13 +155,36 @@ def export_pipeline_stats(
     # Duplicate counts
     total_duplicate_sloids = len(duplicate_sloid_map) if duplicate_sloid_map else 0
     matched_duplicate_items = sum(
-        1 for r in matched_records 
-        if r.get('sloid') and str(r.get('sloid')) in duplicate_sloid_map
+        1 for r in matched_records
+        if getattr(r.atlas_node, 'sloid', None) and str(r.atlas_node.sloid) in duplicate_sloid_map
     )
     unmatched_duplicate_items = sum(
-        1 for r in unmatched_atlas 
-        if r.get('sloid') and str(r.get('sloid')) in duplicate_sloid_map
+        1 for r in unmatched_atlas
+        if getattr(r, 'sloid', None) and str(r.sloid) in duplicate_sloid_map
     )
+    
+    # Calculate Many-to-One metrics per stage
+    mto_pairs_by_type = defaultdict(int)
+    atlas_to_osm = defaultdict(set)
+    osm_to_atlas = defaultdict(set)
+    for record in matched_records:
+        sloid = getattr(getattr(record, 'atlas_node', None), 'sloid', None)
+        osm_id = getattr(getattr(record, 'osm_node', None), 'node_id', None)
+        if sloid and osm_id:
+            atlas_to_osm[str(sloid)].add(str(osm_id))
+            osm_to_atlas[str(osm_id)].add(str(sloid))
+
+    atlas_multi = {s for s, ids in atlas_to_osm.items() if len(ids) > 1}
+    osm_multi = {n for n, ids in osm_to_atlas.items() if len(ids) > 1}
+
+    for record in matched_records:
+        sloid = getattr(getattr(record, 'atlas_node', None), 'sloid', None)
+        osm_id = getattr(getattr(record, 'osm_node', None), 'node_id', None)
+        if sloid and osm_id:
+            if str(sloid) in atlas_multi or str(osm_id) in osm_multi:
+                mt = getattr(record, 'match_type', 'unknown') or 'unknown'
+                mto_pairs_by_type[mt] += 1
+
     
     # Build the stats object
     stats = {
@@ -156,36 +206,47 @@ def export_pipeline_stats(
         "matching_stages": {
             "exact": {
                 "count": exact_matches,
+                "mto": mto_pairs_by_type.get('exact', 0),
                 "description": "UIC reference number equality"
             },
             "name": {
                 "count": name_matches,
+                "mto": mto_pairs_by_type.get('name', 0),
                 "description": "Official name string matching"
             },
             "distance": {
                 "count": total_distance_matches,
+                "mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching')),
                 "description": "Proximity-based spatial matching (≤50m)",
                 "breakdown": {
-                    "stage1_group": distance_stage1_total,
-                    "stage1_regular": distance_stage1_regular,
-                    "stage1_stop_position": distance_stage1_stop_position,
+                    "stage1_group": distance_stage1,
+                    "stage1_group_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching_1_')),
                     "stage2_local_ref": distance_stage2,
+                    "stage2_local_ref_mto": mto_pairs_by_type.get('distance_matching_2', 0),
                     "stage3a_single": distance_stage3a,
+                    "stage3a_single_mto": mto_pairs_by_type.get('distance_matching_3a', 0),
                     "stage3b_relative": distance_stage3b,
+                    "stage3b_relative_mto": mto_pairs_by_type.get('distance_matching_3b', 0),
                 }
             },
             "route": {
                 "count": total_route_matches,
+                "mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('route')),
                 "description": "Shared transit route validation",
                 "breakdown": {
                     "gtfs": route_gtfs_matches,
+                    "gtfs_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('route_gtfs') or k.startswith('route_unified_gtfs')),
                     "hrdf": route_hrdf_matches,
+                    "hrdf_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('route_hrdf') or k.startswith('route_unified_hrdf')),
                 }
             },
             "post_processing": {
                 "unique_by_uic": exact_postpass_matches,
+                "unique_by_uic_mto": mto_pairs_by_type.get('exact_postpass', 0),
                 "duplicate_propagation": duplicate_propagation_matches,
-                "manual": manual_matches,
+                "duplicate_propagation_mto": mto_pairs_by_type.get('duplicate_propagation', 0),
+                "osm_group_propagation": osm_group_propagation_matches,
+                "osm_group_propagation_mto": mto_pairs_by_type.get('osm_group_propagation', 0),
             }
         },
         
@@ -198,9 +259,7 @@ def export_pipeline_stats(
             },
             "osm": {
                 "total": total_unmatched_osm,
-                "with_uic_ref": unmatched_osm_with_uic_ref,
-                "with_local_ref": unmatched_osm_with_local_ref,
-                # Routes count will be added by the caller if available
+                "matrix": unmatched_osm_matrix,
             }
         },
         
@@ -224,13 +283,236 @@ def export_pipeline_stats(
             if total_atlas_platforms and total_atlas_platforms > 0:
                 any_route = atlas_route_stats.get('atlas_with_routes', 0)
                 gtfs_matches = atlas_route_stats.get('atlas_gtfs_matches', 0)
+                hrdf_matches = atlas_route_stats.get('atlas_hrdf_matches', 0)
                 stats['routes']['atlas_with_routes_percent'] = round((any_route / total_atlas_platforms * 100), 1)
                 stats['routes']['gtfs_coverage_percent'] = round((gtfs_matches / total_atlas_platforms * 100), 1)
+                stats['routes']['hrdf_coverage_percent'] = round((hrdf_matches / total_atlas_platforms * 100), 1)
                 
         if osm_route_stats:
             stats['routes'].update(osm_route_stats)
+            if total_osm_nodes and total_osm_nodes > 0:
+                osm_with_routes = osm_route_stats.get('osm_with_routes', 0)
+                stats['routes']['osm_with_routes_percent'] = round((osm_with_routes / total_osm_nodes * 100), 1)
 
     return stats
+
+
+def _classify_match_type(match_type: str) -> str:
+    """Map a raw match_type string to a display stage name."""
+    if match_type == 'exact':
+        return 'exact'
+    if match_type == 'name':
+        return 'name'
+    if match_type == 'distance_matching_trio':
+        return 'distance_trio'
+    if match_type.startswith('distance_matching_1_'):
+        return 'distance_stage1'
+    if match_type == 'distance_matching_2':
+        return 'distance_stage2'
+    if match_type == 'distance_matching_3a':
+        return 'distance_stage3a'
+    if match_type == 'distance_matching_3b':
+        return 'distance_stage3b'
+    if 'gtfs' in match_type:
+        return 'route_gtfs'
+    if 'hrdf' in match_type:
+        return 'route_hrdf'
+    if match_type in ('duplicate_propagation', 'osm_group_propagation', 'exact_postpass'):
+        return 'post_processing'
+    return 'post_processing'
+
+
+def _distance_stats(distances: List[float]) -> Dict[str, Any]:
+    """Compute mean, median, p95 for a list of distances."""
+    if not distances:
+        return {"mean_m": None, "median_m": None, "p95_m": None, "count": 0}
+    distances_sorted = sorted(distances)
+    p95_idx = int(math.ceil(0.95 * len(distances_sorted))) - 1
+    return {
+        "mean_m": round(statistics.mean(distances_sorted), 2),
+        "median_m": round(statistics.median(distances_sorted), 2),
+        "p95_m": round(distances_sorted[max(0, p95_idx)], 2),
+        "count": len(distances_sorted),
+    }
+
+
+def compute_quality_metrics(
+    matched_records: list,
+    all_osm_nodes: list,
+    osm_pairs: List[Tuple[str, str, str]] | None = None,
+    osm_trios: List[Tuple[str, str, str]] | None = None,
+) -> Dict[str, Any]:
+    """Compute matching quality metrics from pipeline results.
+
+    Builds a temporary KDTree of all OSM nodes to evaluate whether each
+    matched pair uses the nearest available OSM node.
+    """
+    from scipy.spatial import KDTree
+    from matching_and_import_db.utils.spatial_index import batch_to_xyz, to_xyz
+
+    # ------------------------------------------------------------------
+    # 1. Distance quality
+    # ------------------------------------------------------------------
+    all_distances: List[float] = []
+    distances_by_stage: Dict[str, List[float]] = defaultdict(list)
+
+    for rec in matched_records:
+        d = getattr(rec, 'distance_m', None)
+        if d is not None and not math.isnan(d):
+            all_distances.append(d)
+            stage = _classify_match_type(getattr(rec, 'match_type', '') or '')
+            distances_by_stage[stage].append(d)
+
+    overall_dist = _distance_stats(all_distances)
+    by_stage_dist = {stage: _distance_stats(dists) for stage, dists in sorted(distances_by_stage.items())}
+
+    # Build KDTree for "not matched to closest" and cross-predicate consistency
+    osm_coords: List[Tuple[float, float]] = []
+    osm_node_ids: List[str] = []
+    for node in all_osm_nodes:
+        lat, lon = getattr(node, 'lat', None), getattr(node, 'lon', None)
+        if lat is not None and lon is not None and lat != 0.0 and lon != 0.0:
+            osm_coords.append((float(lat), float(lon)))
+            osm_node_ids.append(str(node.node_id))
+
+    not_closest_count = 0
+    consistent_count = 0
+    total_evaluated = 0
+    not_closest_by_stage: Dict[str, int] = {}
+
+    if osm_coords:
+        osm_xyz = batch_to_xyz(osm_coords)
+        tree = KDTree(osm_xyz)
+
+        for rec in matched_records:
+            atlas_node = getattr(rec, 'atlas_node', None)
+            osm_node = getattr(rec, 'osm_node', None)
+            if atlas_node is None or osm_node is None:
+                continue
+            a_lat, a_lon = getattr(atlas_node, 'lat', None), getattr(atlas_node, 'lon', None)
+            matched_osm_id = str(osm_node.node_id)
+            if a_lat is None or a_lon is None:
+                continue
+
+            query_point = to_xyz(a_lat, a_lon)
+            _, idx = tree.query(query_point, k=1)
+            nearest_osm_id = osm_node_ids[idx]
+            
+            stage = _classify_match_type(getattr(rec, 'match_type', '') or '')
+
+            total_evaluated += 1
+            if nearest_osm_id == matched_osm_id:
+                consistent_count += 1
+            else:
+                not_closest_count += 1
+                not_closest_by_stage[stage] = not_closest_by_stage.get(stage, 0) + 1
+
+    not_closest_pct = round(not_closest_count / total_evaluated * 100, 1) if total_evaluated else 0.0
+    consistency_pct = round(consistent_count / total_evaluated * 100, 1) if total_evaluated else 0.0
+
+    distance_quality = {
+        "overall": overall_dist,
+        "by_stage": by_stage_dist,
+        "not_matched_to_closest": {
+            "count": not_closest_count,
+            "total_evaluated": total_evaluated,
+            "percent": not_closest_pct,
+        },
+        "not_matched_to_closest_by_stage": not_closest_by_stage,
+    }
+
+    # ------------------------------------------------------------------
+    # 2. Many-to-one analysis
+    # ------------------------------------------------------------------
+    atlas_to_osm: Dict[str, set] = defaultdict(set)
+    osm_to_atlas: Dict[str, set] = defaultdict(set)
+
+    for rec in matched_records:
+        sloid = getattr(getattr(rec, 'atlas_node', None), 'sloid', None)
+        osm_id = getattr(getattr(rec, 'osm_node', None), 'node_id', None)
+        if sloid and osm_id:
+            atlas_to_osm[str(sloid)].add(str(osm_id))
+            osm_to_atlas[str(osm_id)].add(str(sloid))
+
+    atlas_multi = {s: ids for s, ids in atlas_to_osm.items() if len(ids) > 1}
+    osm_multi = {n: ids for n, ids in osm_to_atlas.items() if len(ids) > 1}
+
+    many_to_one = {
+        "atlas_to_multiple_osm": {
+            "count": len(atlas_multi),
+            "max_per_atlas": max((len(v) for v in atlas_multi.values()), default=0),
+        },
+        "osm_to_multiple_atlas": {
+            "count": len(osm_multi),
+            "max_per_osm": max((len(v) for v in osm_multi.values()), default=0),
+        },
+    }
+
+    # ------------------------------------------------------------------
+    # 3. Cross-predicate consistency (reuses KDTree results from above)
+    # ------------------------------------------------------------------
+    cross_predicate = {
+        "consistent_with_nearest": consistent_count,
+        "would_differ_by_nearest": not_closest_count,
+        "total_evaluated": total_evaluated,
+        "consistency_percent": consistency_pct,
+    }
+
+    # ------------------------------------------------------------------
+    # 4. OSM pair/trio stats
+    # ------------------------------------------------------------------
+    osm_pairs = osm_pairs or []
+    osm_trios = osm_trios or []
+
+    matched_osm_ids = set()
+    for rec in matched_records:
+        osm_id = getattr(getattr(rec, 'osm_node', None), 'node_id', None)
+        if osm_id:
+            matched_osm_ids.add(str(osm_id))
+
+    total_groups = len(osm_pairs) + len(osm_trios)
+    by_type: Dict[str, int] = defaultdict(int)
+    both_matched = 0
+    neither_matched = 0
+
+    for n1, n2, group_type in osm_pairs:
+        by_type[group_type] += 1
+        m1 = str(n1) in matched_osm_ids
+        m2 = str(n2) in matched_osm_ids
+        if m1 or m2:
+            both_matched += 1
+        else:
+            neither_matched += 1
+
+    for middle, side_1, side_2 in osm_trios:
+        by_type['osm_trio'] += 1
+        mm = str(middle) in matched_osm_ids
+        m1 = str(side_1) in matched_osm_ids
+        m2 = str(side_2) in matched_osm_ids
+        if mm or m1 or m2:
+            both_matched += 1
+        else:
+            neither_matched += 1
+
+    osm_group_stats = {
+        "total_groups": total_groups,
+        "by_type": dict(by_type),
+        "both_members_matched": both_matched,
+        "neither_matched": neither_matched,
+    }
+
+    logger.info(
+        f"Quality metrics: consistency={consistency_pct}%, "
+        f"not_closest={not_closest_count}, many_to_one_atlas={len(atlas_multi)}, "
+        f"osm_groups={total_groups}"
+    )
+
+    return {
+        "distance_quality": distance_quality,
+        "many_to_one": many_to_one,
+        "cross_predicate_consistency": cross_predicate,
+        "osm_groups": osm_group_stats,
+    }
 
 
 def save_stats_to_file(stats: Dict[str, Any], filepath: str = None) -> str:
@@ -274,6 +556,58 @@ def load_stats_from_file(filepath: str = None) -> Optional[Dict[str, Any]]:
     
     with open(filepath, 'r', encoding='utf-8') as f:
         return json.load(f)
+
+
+def compute_db_stats(db_session) -> Dict[str, Any]:
+    """Compute problem statistics by querying the database after import.
+
+    Args:
+        db_session: SQLAlchemy session connected to import_db.
+
+    Returns:
+        Dictionary with problem totals, by-type counts, by-priority breakdown,
+        and clean/dirty entry counts.
+    """
+    from backend.models import StopsMatched, Problem
+    from sqlalchemy import func
+
+    total_stops = db_session.query(StopsMatched).count()
+
+    type_counts = dict(
+        db_session.query(Problem.problem_type, func.count(Problem.id))
+        .group_by(Problem.problem_type).all()
+    )
+
+    multiple_problems = (
+        db_session.query(Problem.stop_id)
+        .group_by(Problem.stop_id)
+        .having(func.count(Problem.stop_id) > 1)
+        .count()
+    )
+    stops_with_problems = (
+        db_session.query(func.count(func.distinct(Problem.stop_id))).scalar() or 0
+    )
+
+    # Priority × type breakdown
+    by_priority: Dict[int, Dict[str, int]] = {}
+    rows = (
+        db_session.query(Problem.priority, Problem.problem_type, func.count(Problem.id))
+        .group_by(Problem.priority, Problem.problem_type).all()
+    )
+    for priority, ptype, cnt in rows:
+        by_priority.setdefault(priority, {})[ptype] = cnt
+
+    return {
+        'total_stops': total_stops,
+        'distance': type_counts.get('distance', 0),
+        'unmatched': type_counts.get('unmatched', 0),
+        'attributes': type_counts.get('attributes', 0),
+        'duplicates': type_counts.get('duplicates', 0),
+        'multiple_problems': multiple_problems,
+        'stops_with_problems': stops_with_problems,
+        'clean_entries': max(0, total_stops - stops_with_problems),
+        'by_priority': by_priority,
+    }
 
 
 def get_pipeline_stats() -> Optional[Dict[str, Any]]:

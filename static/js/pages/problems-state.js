@@ -4,7 +4,7 @@
  * ProblemsState - Centralized state management for the problems page
  * Handles all global variables and state mutations
  */
-window.ProblemsState = (function() {
+window.ProblemsState = (function () {
     'use strict';
 
     // Map-related state
@@ -19,7 +19,7 @@ window.ProblemsState = (function() {
     let filteredProblems = []; // This will now hold only the currently loaded problems
     let problemsByEntry = {}; // Group problems by entry ID
     let currentEntryProblems = []; // Current entry's problems
-    
+
     // Navigation state
     let currentProblemIndex = -1;
     let currentEntryProblemIndex = 0; // Index within current entry's problems
@@ -43,7 +43,6 @@ window.ProblemsState = (function() {
 
     // Auto-persistence state
     let autoPersistEnabled = false;
-    let autoPersistNotesEnabled = false;
 
     // Intersection observer for scroll navigation
     let observer = null;
@@ -53,16 +52,16 @@ window.ProblemsState = (function() {
         // Map getters/setters
         getProblemMap: () => problemMap,
         setProblemMap: (map) => { problemMap = map; },
-        
+
         getOsmLayerProblems: () => osmLayerProblems,
         setOsmLayerProblems: (layer) => { osmLayerProblems = layer; },
-        
+
         getProblemMarkersLayer: () => problemMarkersLayer,
         setProblemMarkersLayer: (layer) => { problemMarkersLayer = layer; },
-        
+
         getProblemLinesLayer: () => problemLinesLayer,
         setProblemLinesLayer: (layer) => { problemLinesLayer = layer; },
-        
+
         getContextMarkersLayer: () => contextMarkersLayer,
         setContextMarkersLayer: (layer) => { contextMarkersLayer = layer; },
 
@@ -131,15 +130,9 @@ window.ProblemsState = (function() {
 
         // Auto-persistence getters/setters
         getAutoPersistEnabled: () => autoPersistEnabled,
-        setAutoPersistEnabled: (enabled) => { 
+        setAutoPersistEnabled: (enabled) => {
             autoPersistEnabled = enabled;
             localStorage.setItem('autoPersistEnabled', enabled);
-        },
-
-        getAutoPersistNotesEnabled: () => autoPersistNotesEnabled,
-        setAutoPersistNotesEnabled: (enabled) => { 
-            autoPersistNotesEnabled = enabled;
-            localStorage.setItem('autoPersistNotesEnabled', enabled);
         },
 
         // Observer getters/setters
@@ -163,7 +156,6 @@ window.ProblemsState = (function() {
         initializeSettings: () => {
             // Load auto-persist settings from localStorage
             autoPersistEnabled = localStorage.getItem('autoPersistEnabled') === 'true';
-            autoPersistNotesEnabled = localStorage.getItem('autoPersistNotesEnabled') === 'true';
         },
 
         // Get state summary for debugging
@@ -175,8 +167,7 @@ window.ProblemsState = (function() {
             currentPage,
             totalProblems,
             showContext,
-            autoPersistEnabled,
-            autoPersistNotesEnabled
+            autoPersistEnabled
         })
     };
 })();

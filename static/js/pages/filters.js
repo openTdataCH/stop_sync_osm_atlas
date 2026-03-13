@@ -6,42 +6,303 @@ var activeFilters = {
     station: [],
     stationTypes: [],
     routeDirections: [],
-    filterType: 'station', // Default type for the input field, not an active filter itself
-    stopType: [], // Will be populated by updateActiveFilters based on UI
-    nodeType: [], // Will be populated by updateActiveFilters
-    matchMethods: [], // Will be populated by updateActiveFilters
-    atlasOperators: [], // Will be populated by operator dropdown
+    stopType: [],
+    matchMethods: [],
+    atlasOperators: [],
     matchedOptions: {
-        allSelected: false,
-        methods: {
-            exact: false,
-            name: false,
-            manual: false
-        },
-        distanceMatching: {
-            allSelected: false,
-            stage1: false,
-            stage2: false,
-            stage3a: false,
-            stage3b: false
-        },
-        routeMatching: {
-            allSelected: false,
-            gtfs: false,
-            hrdf: false
-        }
+        allSelected: true,
+        methods: { exact: false, name: false },
+        distanceMatching: { allSelected: false, stage1: false, stage2: false, stage3a: false, stage3b: false },
+        routeMatching: { allSelected: false, gtfs: false, hrdf: false }
     },
     unmatchedOptions: {
-        allSelected: false,
-        reasons: {
-            noNearbyOSM: false,
-            osmNearby: false
-        }
+        allSelected: true,
+        reasons: { noNearbyOSM: false, osmNearby: false }
     },
     transportTypes: [],
     topN: null,
-    showDuplicatesOnly: false
+    showDuplicatesOnly: false,
+    osmGroups: []
 };
+
+const SMART_SEARCH_VALIDATION_MESSAGE = 'Allowed formats: UIC (e.g. 8503000), ATLAS SLOID (ch:1:sloid:...), OSM node id (123456789), route (11-T-jXX-1 dir:0)';
+const MATCHED_METHOD_CHECKBOX_SELECTORS = [
+    '#filterExact',
+    '#filterName',
+    '#distanceMethodTrio',
+    '#distanceMethodStage1',
+    '#distanceMethodStage2',
+    '#distanceMethodStage3a',
+    '#distanceMethodStage3b',
+    '#routeMethodGtfs',
+    '#routeMethodHrdf'
+];
+const DISTANCE_METHOD_CHECKBOX_SELECTORS = [
+    '#distanceMethodTrio',
+    '#distanceMethodStage1',
+    '#distanceMethodStage2',
+    '#distanceMethodStage3a',
+    '#distanceMethodStage3b'
+];
+const ROUTE_METHOD_CHECKBOX_SELECTORS = [
+    '#routeMethodGtfs',
+    '#routeMethodHrdf'
+];
+
+function areAllFilterSelectorsChecked(selectors) {
+    return selectors.length > 0 && selectors.every(function (selector) {
+        return $(selector).is(':checked');
+    });
+}
+
+function formatOsmGroupTypeLabel(groupType) {
+    const labels = {
+        osm_pair_uic: 'UIC-based pairs',
+        osm_pair_name: 'Name-based pairs',
+        osm_pair_tram: 'Tram pairs',
+        osm_trio: 'OSM trio'
+    };
+
+    return labels[groupType] || groupType;
+}
+
+function getSelectedMatchedMethodFiltersFromState() {
+    const selectedMethods = [];
+
+    if (!activeFilters.matchedOptions) {
+        return selectedMethods;
+    }
+
+    Object.keys(activeFilters.matchedOptions.methods).forEach(function (method) {
+        if (activeFilters.matchedOptions.methods[method]) {
+            selectedMethods.push(method);
+        }
+    });
+
+    Object.keys(activeFilters.matchedOptions.distanceMatching).forEach(function (stage) {
+        if (stage !== 'allSelected' && activeFilters.matchedOptions.distanceMatching[stage]) {
+            selectedMethods.push('distance_matching_' + stage.replace('stage', ''));
+        }
+    });
+
+    if (activeFilters.matchedOptions.routeMatching.gtfs) {
+        selectedMethods.push('route_gtfs');
+    }
+    if (activeFilters.matchedOptions.routeMatching.hrdf) {
+        selectedMethods.push('route_hrdf');
+    }
+
+    return selectedMethods;
+}
+
+function getSelectedUnmatchedReasonFiltersFromState() {
+    const selectedReasons = [];
+
+    if (!activeFilters.unmatchedOptions) {
+        return selectedReasons;
+    }
+
+    if (activeFilters.unmatchedOptions.reasons.noNearbyOSM) {
+        selectedReasons.push('no_nearby_counterpart');
+    }
+    if (activeFilters.unmatchedOptions.reasons.osmNearby) {
+        selectedReasons.push('osm_within_50m');
+    }
+
+    return selectedReasons;
+}
+
+function isMatchedScopeActive() {
+    return activeFilters.stopType.includes('matched') || getSelectedMatchedMethodFiltersFromState().length > 0;
+}
+
+function isAtlasUnmatchedScopeActive() {
+    return activeFilters.stopType.includes('atlas_unmatched') || getSelectedUnmatchedReasonFiltersFromState().length > 0;
+}
+
+function getActiveFilterCount() {
+    let count = 0;
+    const showMatchedFilters = isMatchedScopeActive();
+    const showUnmatchedAtlasFilters = isAtlasUnmatchedScopeActive();
+
+    if (activeFilters.matchedOptions && showMatchedFilters) {
+        if (activeFilters.matchedOptions.allSelected) {
+            count += 1;
+        } else {
+            Object.keys(activeFilters.matchedOptions.methods).forEach(function (method) {
+                if (activeFilters.matchedOptions.methods[method]) count += 1;
+            });
+
+            if (activeFilters.matchedOptions.distanceMatching.allSelected) {
+                count += 1;
+            } else {
+                Object.keys(activeFilters.matchedOptions.distanceMatching).forEach(function (stage) {
+                    if (stage !== 'allSelected' && activeFilters.matchedOptions.distanceMatching[stage]) count += 1;
+                });
+            }
+
+            if (activeFilters.matchedOptions.routeMatching.allSelected) {
+                count += 1;
+            } else {
+                if (activeFilters.matchedOptions.routeMatching.gtfs) count += 1;
+                if (activeFilters.matchedOptions.routeMatching.hrdf) count += 1;
+            }
+        }
+    }
+
+    if (activeFilters.unmatchedOptions && showUnmatchedAtlasFilters) {
+        if (activeFilters.unmatchedOptions.allSelected) {
+            count += 1;
+        } else {
+            if (activeFilters.unmatchedOptions.reasons.noNearbyOSM) count += 1;
+            if (activeFilters.unmatchedOptions.reasons.osmNearby) count += 1;
+        }
+    }
+
+    if (activeFilters.stopType.includes('osm_unmatched')) count += 1;
+
+    count += activeFilters.station.length;
+    count += activeFilters.transportTypes.length;
+    count += activeFilters.atlasOperators.length;
+
+    if (activeFilters.osmGroups && activeFilters.osmGroups.length > 0) {
+        count += activeFilters.osmGroups.includes('all') ? 1 : activeFilters.osmGroups.length;
+    }
+
+    if (activeFilters.topN) count += 1;
+    if (activeFilters.showDuplicatesOnly) count += 1;
+
+    return count;
+}
+
+function getActiveFilterCountText() {
+    const count = getActiveFilterCount();
+    return count + ' filter' + (count !== 1 ? 's' : '') + ' active';
+}
+
+function showSmartSearchError(message, showHint = true) {
+    const errorEl = $('#smartSearchError');
+    if (!errorEl.length) return;
+
+    if (message) {
+        const docLink = ' <a href="/docs/5.3 Filters and Search logic" class="smart-search-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>';
+        errorEl.html($('<span>').text(message).html() + docLink).removeClass('d-none');
+        if (showHint) {
+            $('#smartSearchHint').removeClass('d-none');
+        } else {
+            // Keep hint hidden if it's not relevant to this error (like "not found")
+            $('#smartSearchHint').addClass('d-none');
+        }
+    } else {
+        errorEl.text('').addClass('d-none');
+    }
+}
+
+function parseSmartSearchInput(rawValue) {
+    const value = rawValue.trim();
+
+    if (!value) {
+        return { error: 'Enter a search value.' };
+    }
+
+    if (/^ch:\d+:sloid:[^\s]+$/i.test(value)) {
+        return { kind: 'atlas', value: value };
+    }
+
+    const uicMatch = value.match(/^85\d{5}(?::\d+)?$/);
+    if (uicMatch) {
+        return { kind: 'station', value: value };
+    }
+
+    const digitMatch = value.match(/^(?:node\/)?(\d+)$/i);
+    if (digitMatch) {
+        return { kind: 'osm', value: digitMatch[1] };
+    }
+
+    // For routes, either they explicitly start with "route:" followed by any non-whitespace characters
+    // OR they look implicitly like a route ID with alphanumeric chunks separated by single dashes (e.g. 11-T-j25-1).
+    const routeMatch = value.match(/^(?:route:([^\s]+)|([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)+))(?:\s+dir:(0|1))?$/i);
+    if (routeMatch) {
+        const routeId = (routeMatch[1] || routeMatch[2]).trim();
+        if (!routeId) {
+            return { error: SMART_SEARCH_VALIDATION_MESSAGE };
+        }
+
+        return {
+            kind: 'route',
+            value: routeId,
+            direction: routeMatch[2] || ''
+        };
+    }
+
+    return { error: SMART_SEARCH_VALIDATION_MESSAGE };
+}
+
+function addSearchToken(token) {
+    let filterType = token.kind;
+    let filterValue = token.value;
+    let direction = token.direction || '';
+
+    if (filterType === 'route') {
+        for (var i = 0; i < activeFilters.station.length; i++) {
+            if (activeFilters.stationTypes[i] === 'route' &&
+                activeFilters.station[i] === filterValue &&
+                activeFilters.routeDirections[i] === direction) {
+                alert('This route and direction combination is already filtered.');
+                return;
+            }
+        }
+    } else {
+        for (var j = 0; j < activeFilters.station.length; j++) {
+            if (activeFilters.stationTypes[j] === filterType && activeFilters.station[j] === filterValue) {
+                alert('This filter is already applied: ' + filterValue);
+                return;
+            }
+        }
+    }
+
+    activeFilters.station.push(filterValue);
+    activeFilters.stationTypes.push(filterType);
+    activeFilters.routeDirections.push(direction);
+
+    // Call the backend first to see if the entry exists
+    fetchAndCenterSpecificStop(filterValue, filterType)
+        .then(function () {
+            // Update UI only if the stop was found successfully
+            updateFiltersUI();
+            if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
+            loadDataForViewport();
+            updateHeaderSummary();
+        })
+        .catch(function (errorMessage) {
+            // Revert the filter addition if not found
+            activeFilters.station.pop();
+            activeFilters.stationTypes.pop();
+            activeFilters.routeDirections.pop();
+
+            showSmartSearchError(errorMessage, false);
+        });
+}
+
+function submitSmartSearch() {
+    const input = $('#smartSearchInput');
+    const parsed = parseSmartSearchInput(input.val() || '');
+
+    if (parsed.error) {
+        showSmartSearchError(parsed.error, true);
+        return;
+    }
+
+    showSmartSearchError('');
+    addSearchToken(parsed);
+
+    // We will let addSearchToken clear the input if it succeeds or keep it if it fails
+    // However since addSearchToken is now async, we don't clear it here directly
+    // Let's clear it conditionally or let the promise handle it.
+    // Actually, it's safer to clear it, but maybe just leave it so they can fix typose?
+    // Let's clear it if the user hit enter, assuming they want to proceed.
+    input.val('');
+}
 
 // Helper function to normalize route IDs for display
 function normalizeRouteIdForDisplay(routeId) {
@@ -58,7 +319,7 @@ function formatDirectionDisplay(direction) {
 
 // Helper function to cycle through direction options
 function getNextDirection(currentDirection) {
-    switch(currentDirection) {
+    switch (currentDirection) {
         case '': return '0';  // Both -> Direction 0
         case '0': return '1'; // Direction 0 -> Direction 1  
         case '1': return '';  // Direction 1 -> Both
@@ -74,33 +335,29 @@ function filterByRoute(routeId, directions) {
         alert("No route ID available.");
         return;
     }
-    
+
     // Check if this route filter is already applied
     var isDuplicate = false;
     for (var i = 0; i < activeFilters.station.length; i++) {
-        if (activeFilters.stationTypes[i] === 'route' && 
+        if (activeFilters.stationTypes[i] === 'route' &&
             activeFilters.station[i] === routeId &&
             activeFilters.routeDirections[i] === directions) {
             isDuplicate = true;
             break;
         }
     }
-    
+
     if (isDuplicate) {
         alert("This route filter is already applied: Route: " + routeId + (directions ? ", Direction: " + directions : ""));
         return;
     }
-    
-    // Set filter type to 'route' for the UI
-    $('#filterTypeActual').val('route');
-    toggleFilterInputs();
-    
+
     // Add the route filter
     activeFilters.station.push(routeId);
     activeFilters.stationTypes.push('route');
     activeFilters.routeDirections.push(directions || '');
     activeFilters.filterType = 'route';
-    
+
     updateFiltersUI();
     if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
     loadDataForViewport();
@@ -116,23 +373,23 @@ function filterByHrdfRoute(lineName) {
     // Check for duplicates
     var isDuplicate = false;
     for (var i = 0; i < activeFilters.station.length; i++) {
-        if (activeFilters.stationTypes[i] === filterType && 
+        if (activeFilters.stationTypes[i] === filterType &&
             activeFilters.station[i] === lineName) {
             isDuplicate = true;
             break;
         }
     }
-    
+
     if (isDuplicate) {
         alert("This HRDF route filter is already applied: " + lineName);
         return;
     }
-    
+
     // Add the filter
     activeFilters.station.push(lineName);
     activeFilters.stationTypes.push(filterType);
     activeFilters.routeDirections.push(''); // No direction for HRDF routes for now
-    
+
     updateFiltersUI();
     if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
     loadDataForViewport();
@@ -142,27 +399,27 @@ function filterByHrdfRoute(lineName) {
 // Add a custom filter programmatically
 function addCustomFilter(value, filterType) {
     if (!value) return;
-    
+
     // Check if this filter is already applied
     var isDuplicate = false;
     for (var i = 0; i < activeFilters.station.length; i++) {
-        if (activeFilters.stationTypes[i] === filterType && 
+        if (activeFilters.stationTypes[i] === filterType &&
             activeFilters.station[i] === value) {
             isDuplicate = true;
             break;
         }
     }
-    
+
     if (isDuplicate) {
         alert("This filter is already applied: " + filterType + ": " + value);
         return;
     }
-    
+
     // Add the filter
     activeFilters.station.push(value);
     activeFilters.stationTypes.push(filterType);
     activeFilters.routeDirections.push('');
-    
+
     updateFiltersUI();
     if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
     loadDataForViewport();
@@ -173,209 +430,136 @@ function addCustomFilter(value, filterType) {
 function updateFiltersUI() {
     var container = $('#activeFilters');
     container.empty();
-    
-    let finalGroupStrings = []; // Array to hold HTML strings of final ANDed groups
-
-    // Helper functions from shared utils (script is loaded before this file)
+    let finalGroupStrings = [];
     const buildOrGroup = window.FilterChipUtils.buildOrGroupHtml;
     const joinWithAnd = window.FilterChipUtils.joinWithAndHtml;
     const buildRemovableChip = window.FilterChipUtils.buildRemovableChip;
+    const showMatchedFilters = isMatchedScopeActive();
+    const showUnmatchedAtlasFilters = isAtlasUnmatchedScopeActive();
 
-    // --- 1. Node Type Filters ---
-    let nodeTypeChips = [];
-    activeFilters.nodeType.forEach(function(filter) {
-        var chip = buildRemovableChip({
-            label: 'Node: ' + filter,
-            badgeClass: 'badge-success',
-            data: { type: 'nodeType', filter: filter }
-        });
-        nodeTypeChips.push(chip);
-    });
-    const nodeTypeGroupHtml = buildOrGroup(nodeTypeChips);
-    if (nodeTypeGroupHtml) finalGroupStrings.push(nodeTypeGroupHtml);
-
-    // --- 2. Stop Status Filters (Matched OR Unmatched) ---
     let matchedDisplayString = '';
-    if (activeFilters.matchedOptions && activeFilters.stopType.includes('matched')) {
+    if (activeFilters.matchedOptions && showMatchedFilters) {
         if (activeFilters.matchedOptions.allSelected) {
             matchedDisplayString = buildRemovableChip({
-                label: 'Matched: All Methods',
+                label: 'Matched Stops',
                 badgeClass: 'badge-primary',
                 data: { type: 'masterMatched', target: '#masterMatchedCheckbox' }
             });
         } else {
             let matchedSubConditionStrings = [];
-            
             let specificMethodChips = [];
             for (const method in activeFilters.matchedOptions.methods) {
                 if (activeFilters.matchedOptions.methods[method]) {
-                    var displayName = method.charAt(0).toUpperCase() + method.slice(1);
-                    var targetId = '#filter' + displayName.charAt(0).toUpperCase() + displayName.slice(1);
-                    var chip = buildRemovableChip({
-                        label: 'Match: ' + displayName,
-                        badgeClass: 'badge-primary',
-                        data: { type: 'specificMatch', target: targetId }
-                    });
-                    specificMethodChips.push(chip);
+                    var dName = method.charAt(0).toUpperCase() + method.slice(1);
+                    specificMethodChips.push(buildRemovableChip({
+                        label: 'Match: ' + dName, badgeClass: 'badge-primary',
+                        data: { type: 'specificMatch', target: '#filter' + dName }
+                    }));
                 }
             }
-            const specificMethodGroupHtml = buildOrGroup(specificMethodChips);
-            if (specificMethodGroupHtml) matchedSubConditionStrings.push(specificMethodGroupHtml);
+            const smGrp = buildOrGroup(specificMethodChips);
+            if (smGrp) matchedSubConditionStrings.push(smGrp);
 
-            if (activeFilters.matchedOptions.distanceMatching.allSelected && !activeFilters.matchedOptions.allSelected) { 
-                var chipAllDist = buildRemovableChip({
-                    label: 'Distance Match: All Stages',
-                    badgeClass: 'badge-info',
-                    data: { type: 'masterDistance', target: '#masterDistanceMatchingCheckbox' }
-                });
-                matchedSubConditionStrings.push(chipAllDist);
-            } else if (!activeFilters.matchedOptions.distanceMatching.allSelected) {
+            if (activeFilters.matchedOptions.distanceMatching.allSelected) {
+                matchedSubConditionStrings.push(buildRemovableChip({ label: 'Distance Match: All Stages', badgeClass: 'badge-info', data: { type: 'masterDistance', target: '#masterDistanceMatchingCheckbox' } }));
+            } else {
                 let distanceStageChips = [];
                 for (const stage in activeFilters.matchedOptions.distanceMatching) {
                     if (stage !== 'allSelected' && activeFilters.matchedOptions.distanceMatching[stage]) {
                         let stageNum = stage.replace('stage', '');
-                        var displayName = 'Dist. Stage ' + stageNum;
-                        if (stage === 'stage1') displayName = 'Dist: Group Proximity';
-                        if (stage === 'stage2') displayName = 'Dist: Local Ref Match';
-                        if (stage === 'stage3a') displayName = 'Dist: Single Candidate';
-                        if (stage === 'stage3b') displayName = 'Dist: Relative Distance';
-                        var chip = buildRemovableChip({
-                            label: displayName,
-                            badgeClass: 'badge-info',
-                            data: { type: 'specificDistance', target: '#distanceMethodStage' + stageNum }
-                        });
-                        distanceStageChips.push(chip);
+                        var dLabel = 'Dist. Stage ' + stageNum;
+                        let target = '#distanceMethodStage' + stageNum;
+                        if (stage === 'trio') {
+                            dLabel = 'Dist: Trio distance';
+                            target = '#distanceMethodTrio';
+                        }
+                        if (stage === 'stage1') dLabel = 'Dist: Group Proximity';
+                        if (stage === 'stage2') dLabel = 'Dist: Local Ref Match';
+                        if (stage === 'stage3a') dLabel = 'Dist: Single Candidate';
+                        if (stage === 'stage3b') dLabel = 'Dist: Relative Distance';
+                        distanceStageChips.push(buildRemovableChip({
+                            label: dLabel, badgeClass: 'badge-info', data: { type: 'specificDistance', target: target }
+                        }));
                     }
                 }
-                const distanceStageGroupHtml = buildOrGroup(distanceStageChips);
-                if (distanceStageGroupHtml) matchedSubConditionStrings.push(distanceStageGroupHtml);
+                const distGrp = buildOrGroup(distanceStageChips);
+                if (distGrp) matchedSubConditionStrings.push(distGrp);
             }
 
-            // Always show specific route chips (GTFS/HRDF) based on selections, even if the master is checked
-            let routeStageChips = [];
-            if (activeFilters.matchedOptions.routeMatching.gtfs) {
-                const chip = buildRemovableChip({
-                    label: 'Route: GTFS',
-                    badgeClass: 'badge-secondary',
-                    data: { type: 'specificRoute', target: '#routeMethodGtfs' }
-                });
-                routeStageChips.push(chip);
+            if (activeFilters.matchedOptions.routeMatching.allSelected) {
+                matchedSubConditionStrings.push(buildRemovableChip({ label: 'Route Match: All', badgeClass: 'badge-secondary', data: { type: 'masterRoute', target: '#masterRouteMatchingCheckbox' } }));
+            } else {
+                let routeStageChips = [];
+                if (activeFilters.matchedOptions.routeMatching.gtfs) {
+                    routeStageChips.push(buildRemovableChip({ label: 'Route: GTFS', badgeClass: 'badge-secondary', data: { type: 'specificRoute', target: '#routeMethodGtfs' } }));
+                }
+                if (activeFilters.matchedOptions.routeMatching.hrdf) {
+                    routeStageChips.push(buildRemovableChip({ label: 'Route: HRDF', badgeClass: 'badge-secondary', data: { type: 'specificRoute', target: '#routeMethodHrdf' } }));
+                }
+                const rGrp = buildOrGroup(routeStageChips);
+                if (rGrp) matchedSubConditionStrings.push(rGrp);
             }
-            if (activeFilters.matchedOptions.routeMatching.hrdf) {
-                const chip = buildRemovableChip({
-                    label: 'Route: HRDF',
-                    badgeClass: 'badge-secondary',
-                    data: { type: 'specificRoute', target: '#routeMethodHrdf' }
-                });
-                routeStageChips.push(chip);
-            }
-            const routeStageGroupHtml = buildOrGroup(routeStageChips);
-            if (routeStageGroupHtml) matchedSubConditionStrings.push(routeStageGroupHtml);
-            
+
             if (matchedSubConditionStrings.length > 0) {
                 matchedDisplayString = joinWithAnd(matchedSubConditionStrings);
-                if (matchedSubConditionStrings.length > 1) { 
-                    matchedDisplayString = '( ' + matchedDisplayString + ' )';
-                }
+                if (matchedSubConditionStrings.length > 1) matchedDisplayString = '( ' + matchedDisplayString + ' )';
             }
         }
     }
 
-    let unmatchedDisplayString = '';
-    if (activeFilters.unmatchedOptions && activeFilters.stopType.includes('unmatched')) {
+    let unmatchedAtlasString = '';
+    if (activeFilters.unmatchedOptions && showUnmatchedAtlasFilters) {
         if (activeFilters.unmatchedOptions.allSelected) {
-            unmatchedDisplayString = buildRemovableChip({
-                label: 'Unmatched: All Reasons',
-                badgeClass: 'badge-warning',
-                data: { type: 'masterUnmatched', target: '#masterUnmatchedCheckbox' }
-            });
+            unmatchedAtlasString = buildRemovableChip({ label: 'Unmatched ATLAS', badgeClass: 'badge-warning', data: { type: 'masterUnmatchedAtlas', target: '#masterUnmatchedAtlasCheckbox' } });
         } else {
-            let unmatchedReasonChips = [];
+            let reasonChips = [];
             if (activeFilters.unmatchedOptions.reasons.noNearbyOSM) {
-                var chip = buildRemovableChip({
-                    label: 'Unmatched: No OSM within 50m',
-                    badgeClass: 'badge-warning',
-                    data: { type: 'specificUnmatched', target: '#filterNoNearbyOSM' }
-                });
-                unmatchedReasonChips.push(chip);
+                reasonChips.push(buildRemovableChip({ label: 'Unmatched ATLAS: No OSM < 50m', badgeClass: 'badge-warning', data: { type: 'specificUnmatched', target: '#filterNoNearbyOSM' } }));
             }
-            if (activeFilters.unmatchedOptions.reasons.osmNearby) { 
-                var chip2 = buildRemovableChip({
-                    label: 'Unmatched: OSM within 50m',
-                    badgeClass: 'badge-warning',
-                    data: { type: 'specificUnmatched', target: '#filterOSMNearby' }
-                });
-                unmatchedReasonChips.push(chip2);
+            if (activeFilters.unmatchedOptions.reasons.osmNearby) {
+                reasonChips.push(buildRemovableChip({ label: 'Unmatched ATLAS: OSM < 50m', badgeClass: 'badge-warning', data: { type: 'specificUnmatched', target: '#filterOSMNearby' } }));
             }
-            unmatchedDisplayString = buildOrGroup(unmatchedReasonChips);
+            unmatchedAtlasString = buildOrGroup(reasonChips);
         }
     }
 
-    let stopStatusGroupHtml = '';
-    if (matchedDisplayString && unmatchedDisplayString) {
-        stopStatusGroupHtml = '( ' + matchedDisplayString + ' <span class="filter-chip-operator">OR</span> ' + unmatchedDisplayString + ' )';
-    } else if (matchedDisplayString) {
-        stopStatusGroupHtml = matchedDisplayString;
-    } else if (unmatchedDisplayString) {
-        stopStatusGroupHtml = unmatchedDisplayString;
+    let unmatchedOsmString = '';
+    if (activeFilters.stopType.includes('osm_unmatched')) {
+        unmatchedOsmString = buildRemovableChip({ label: 'Unmatched OSM', badgeClass: 'badge-warning', data: { type: 'masterUnmatchedOsm', target: '#masterUnmatchedOsmCheckbox' } });
     }
-    if (stopStatusGroupHtml) finalGroupStrings.push(stopStatusGroupHtml);
-    
+
+    let visibilityChips = [];
+    if (matchedDisplayString) visibilityChips.push(matchedDisplayString);
+    if (unmatchedAtlasString) visibilityChips.push(unmatchedAtlasString);
+    if (unmatchedOsmString) visibilityChips.push(unmatchedOsmString);
+    if (visibilityChips.length > 0) finalGroupStrings.push(buildOrGroup(visibilityChips));
+
     let stationIdChips = [];
-    activeFilters.station.forEach(function(filter, index) {
-        var filterType = activeFilters.stationTypes[index] || activeFilters.filterType;
-        var labelText = '';
-        var badgeClass = '';
-        var badgeHtmlContent = '';
-        
-        switch(filterType) {
-            case 'atlas':
-                labelText = 'ATLAS SloidID: '; badgeClass = 'badge-dark'; badgeHtmlContent = labelText + filter;
-                break;
-            case 'osm':
-                labelText = 'OSM Node ID: '; badgeClass = 'badge-dark'; badgeHtmlContent = labelText + filter;
-                break;
-            case 'hrdf_route':
-                labelText = 'HRDF Route: '; badgeClass = 'badge-info'; badgeHtmlContent = labelText + filter;
-                break;
+    activeFilters.station.forEach(function (filter, index) {
+        var filterType = activeFilters.stationTypes[index];
+        var labelText = '', badgeClass = '', badgeHtmlContent = '';
+        switch (filterType) {
+            case 'atlas': labelText = 'ATLAS SloidID: '; badgeClass = 'badge-dark'; badgeHtmlContent = labelText + filter; break;
+            case 'osm': labelText = 'OSM Node ID: '; badgeClass = 'badge-dark'; badgeHtmlContent = labelText + filter; break;
+            case 'hrdf_route': labelText = 'HRDF Route: '; badgeClass = 'badge-info'; badgeHtmlContent = labelText + filter; break;
             case 'route':
                 var direction = activeFilters.routeDirections[index] || '';
                 var normalizedRoute = normalizeRouteIdForDisplay(filter);
                 var directionDisplay = formatDirectionDisplay(direction);
-                
-                labelText = 'Route: '; badgeClass = 'badge-danger';
-                badgeHtmlContent = labelText + normalizedRoute + ', ' + directionDisplay;
+                labelText = 'Route: '; badgeClass = 'badge-danger'; badgeHtmlContent = labelText + normalizedRoute + ', ' + directionDisplay;
                 break;
-            case 'station': 
-            default:
-                labelText = 'UIC: '; badgeClass = 'badge-dark'; badgeHtmlContent = labelText + filter;
-                break;
+            case 'station':
+            default: labelText = 'UIC: '; badgeClass = 'badge-dark'; badgeHtmlContent = labelText + filter; break;
         }
-        
         var badgeHtml;
         if (filterType === 'route') {
-            // Special handling for route filters with direction dropdown
             var currentDirection = activeFilters.routeDirections[index] || '';
             var directionDropdownHtml = '<span class="direction-dropdown" data-index="' + index + '" data-current="' + currentDirection + '">' +
-                '<span class="direction-current">' + directionDisplay + '</span>' +
-                '<i class="fas fa-chevron-down direction-arrow"></i>' +
-                '<div class="direction-options" style="display: none;">' +
-                    '<div class="direction-option" data-direction="">Both</div>' +
-                    '<div class="direction-option" data-direction="0">Dir: 0</div>' +
-                    '<div class="direction-option" data-direction="1">Dir: 1</div>' +
-                '</div>' +
-                '</span>';
-            
-            badgeHtml = '<span class="badge ' + badgeClass + ' mr-1 mb-1">' + labelText + normalizedRoute + ' ' +
-                directionDropdownHtml +
-                ' <a href="#" class="text-dark remove-filter" data-type="station" data-index="' + index + '">×</a></span>';
+                '<span class="direction-current">' + directionDisplay + '</span><i class="fas fa-chevron-down direction-arrow"></i>' +
+                '<div class="direction-options" style="display: none;"><div class="direction-option" data-direction="">Both</div><div class="direction-option" data-direction="0">Dir: 0</div><div class="direction-option" data-direction="1">Dir: 1</div></div></span>';
+            badgeHtml = '<span class="badge ' + badgeClass + ' mr-1 mb-1">' + labelText + normalizedRoute + ' ' + directionDropdownHtml + ' <a href="#" class="text-dark remove-filter" data-type="station" data-index="' + index + '">×</a></span>';
         } else {
-            badgeHtml = buildRemovableChip({
-                label: badgeHtmlContent,
-                badgeClass: badgeClass,
-                data: { type: 'station', index: index },
-                closeChar: '×'
-            });
+            badgeHtml = buildRemovableChip({ label: badgeHtmlContent, badgeClass: badgeClass, data: { type: 'station', index: index }, closeChar: '×' });
         }
         stationIdChips.push(badgeHtml);
     });
@@ -383,170 +567,117 @@ function updateFiltersUI() {
     if (stationIdGroupHtml) finalGroupStrings.push(stationIdGroupHtml);
 
     let transportTypeChips = [];
-    activeFilters.transportTypes.forEach(function(filter) {
-        var displayName = filter.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-        var chip = buildRemovableChip({
-            label: 'Transport: ' + displayName,
-            badgeClass: 'badge-success',
-            data: { type: 'transportType', filter: filter }
-        });
-        transportTypeChips.push(chip);
+    activeFilters.transportTypes.forEach(function (filter) {
+        var dName = filter.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        transportTypeChips.push(buildRemovableChip({ label: dName, badgeClass: 'badge-success', data: { type: 'transportType', filter: filter } }));
     });
     const transportTypeGroupHtml = buildOrGroup(transportTypeChips);
     if (transportTypeGroupHtml) finalGroupStrings.push(transportTypeGroupHtml);
 
-    // --- 6. Atlas Operator Filters ---
     const operatorGroupHtml = window.FilterChipUtils.generateOperatorChipsHtml(activeFilters.atlasOperators, { context: 'index' });
     if (operatorGroupHtml) finalGroupStrings.push(operatorGroupHtml);
 
-    if(activeFilters.topN) {
-        var chipTopN = buildRemovableChip({
-            label: 'Top N Distances (' + activeFilters.topN + ')',
-            badgeClass: 'badge-info',
-            data: { type: 'topN', filter: 'topN' }
-        });
-        finalGroupStrings.push(chipTopN);
+    if (activeFilters.osmGroups && activeFilters.osmGroups.length > 0) {
+        if (activeFilters.osmGroups.includes('all')) {
+            finalGroupStrings.push(buildRemovableChip({ label: 'OSM Groups: All', badgeClass: 'badge-warning', data: { type: 'osmGroup', target: '#filterOsmGroup' } }));
+        } else {
+            let groupChips = [];
+            activeFilters.osmGroups.forEach(function (g) {
+                groupChips.push(buildRemovableChip({ label: 'OSM Group: ' + formatOsmGroupTypeLabel(g), badgeClass: 'badge-warning', data: { type: 'specificOsmGroup', filter: g } }));
+            });
+            const grpHtml = buildOrGroup(groupChips);
+            if (grpHtml) finalGroupStrings.push(grpHtml);
+        }
     }
-    if(activeFilters.showDuplicatesOnly) {
-        var dupChip = buildRemovableChip({
-            label: 'Duplicate ATLAS',
-            badgeClass: 'badge-secondary',
-            data: { type: 'showDuplicatesOnly' }
-        });
-        finalGroupStrings.push(dupChip);
-    }
+
+    if (activeFilters.topN) finalGroupStrings.push(buildRemovableChip({ label: 'Top N Distances (' + activeFilters.topN + ')', badgeClass: 'badge-info', data: { type: 'topN', filter: 'topN' } }));
+    if (activeFilters.showDuplicatesOnly) finalGroupStrings.push(buildRemovableChip({ label: 'Duplicate ATLAS', badgeClass: 'badge-secondary', data: { type: 'showDuplicatesOnly' } }));
 
     if (finalGroupStrings.length > 0) {
-        var finalHtml = joinWithAnd(finalGroupStrings);
-                container.html(finalHtml);
-    } else {
-        container.html('<span class="badge badge-secondary mr-1 mb-1">All entries</span>');
-    }
-
-}
-
-// Function to toggle between standard filter input and route filter input based on filter type
-function toggleFilterInputs() {
-    var filterType = $('#filterTypeActual').val(); // Read from hidden input
-    const stationFilterInput = $('#stationFilter');
-    const stationFilterAddButton = $('#addStationFilterContainer');
-    const routeFilterGroup = $('#routeFilterInput');
-
-    if (filterType === 'route') {
-        stationFilterInput.hide();
-        stationFilterAddButton.hide();
-        routeFilterGroup.css('display', 'flex'); // Use .css('display', 'flex') for input-group
-        $('#routeIdFilter').focus(); // Focus route ID input when switched to route
-    } else {
-        stationFilterInput.show();
-        stationFilterAddButton.css('display', 'flex'); // Use .css('display', 'flex') for input-group-append
-        routeFilterGroup.hide();
-        $('#stationFilter').focus(); // Focus standard input when switched
-    }
-}
-
-// Function to add a standard filter from the text input
-function addTextFilter() {
-    var filterVal = $('#stationFilter').val().trim();
-    var filterType = $('#filterTypeActual').val(); // Get type from hidden input
-    
-    if (filterVal) { // Allow adding if filterVal is not empty, even if it's already in activeFilters.station (the UI will prevent duplicates via alert)
-        activeFilters.station.push(filterVal);
-        activeFilters.stationTypes.push(filterType); // Store the type for this filter
-        activeFilters.routeDirections.push(''); // No direction for standard filters
-        $('#stationFilter').val(''); // Clear input field after adding
-        updateFiltersUI();
-        if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
-        loadDataForViewport(); // Load data based on all active filters
-        updateHeaderSummary();
-
-        // If the filter is for ATLAS Sloid or OSM Node, also center on it
-        if (filterType === 'atlas' || filterType === 'osm') {
-            fetchAndCenterSpecificStop(filterVal, filterType);
-        }
-
-    }
-}
-
-// Function to add a route+direction filter
-function addRouteFilter() {
-    var routeId = $('#routeIdFilter').val().trim();
-    var direction = $('#directionFilter').val().trim();
-    
-    if (routeId) {
-        // Check if this exact route+direction combination already exists
-        var isDuplicate = false;
-        for (var i = 0; i < activeFilters.station.length; i++) {
-            if (activeFilters.stationTypes[i] === 'route' && 
-                activeFilters.station[i] === routeId && 
-                activeFilters.routeDirections[i] === direction) {
-                isDuplicate = true;
-                break;
-            }
-        }
-        
-        if (!isDuplicate) {
-            activeFilters.station.push(routeId);
-            activeFilters.stationTypes.push('route');
-            activeFilters.routeDirections.push(direction);
-            
-            // Clear input fields after adding
-            $('#routeIdFilter').val('');
-            $('#directionFilter').val('');
-            
-            updateFiltersUI();
-            if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
-            loadDataForViewport();
-            updateHeaderSummary();
+        if (getActiveFilterCount() === 1) {
+            container.html('<span class="header-summary__filters-prefix">Filter:</span>' + joinWithAnd(finalGroupStrings));
         } else {
-            alert('This route and direction combination is already filtered.');
+            container.html(joinWithAnd(finalGroupStrings));
         }
-    } else {
-        alert('Please enter a Route ID.');
     }
+    else container.html('<span class="badge badge-secondary mr-1 mb-1">All entries</span>');
+
+    container.attr('data-active-filter-count', String(getActiveFilterCount()));
 }
 
+function clearAllFilters() {
+    // Uncheck all filter checkboxes
+    $('#masterMatchedCheckbox').prop('checked', false);
+    $('#masterUnmatchedAtlasCheckbox').prop('checked', false);
+    $('#masterUnmatchedOsmCheckbox').prop('checked', false);
+    $('#filterDuplicatesOnly').prop('checked', false);
+    $('.filter-match-method, .filter-distance-method, .filter-route-method').prop('checked', false);
+    $('#masterDistanceMatchingCheckbox, #masterRouteMatchingCheckbox').prop('checked', false);
+    $('.filter-unmatched-method').prop('checked', false);
+    $('.filter-transport-type').prop('checked', false);
+    $('.filter-osm-group, .filter-osm-group-type').prop('checked', false);
+
+    // Clear array-based filters
+    activeFilters.station = [];
+    activeFilters.stationTypes = [];
+    activeFilters.routeDirections = [];
+
+    // Clear operators and reset dropdown
+    activeFilters.atlasOperators = [];
+    if (window.operatorDropdown) {
+        window.operatorDropdown.setSelection([]);
+    }
+
+    // Clear top N
+    activeFilters.topN = null;
+    $('#topDistance').val(10);
+    $('#toggleTopNBtn').html('<i class="fas fa-filter"></i> Activate Top N');
+    if (typeof topNLayer !== 'undefined') topNLayer.clearLayers();
+    $('#topNDistancesMessage').empty();
+
+    updateActiveFilters();
+    updateHeaderSummary();
+}
+
+window.getActiveFilterCount = getActiveFilterCount;
+window.getActiveFilterCountText = getActiveFilterCountText;
+window.clearAllFilters = clearAllFilters;
 function filterByStation(stopId, stopCategory) {
     var selectedStop = stopsById[stopId];
     if (!selectedStop) {
-      alert("Stop data not found.");
-      return;
+        alert("Stop data not found.");
+        return;
     }
-    
+
     // Always filter by UIC ref (station) when the "Filter by station" button is clicked
     var filterType = 'station';
     var filterValue = selectedStop.uic_ref || '';
-    
+
     if (!filterValue) {
-      alert("No UIC reference available for this stop.");
-      return;
+        alert("No UIC reference available for this stop.");
+        return;
     }
-    
+
     // Check if this filter is already applied
     var isDuplicate = false;
     for (var i = 0; i < activeFilters.station.length; i++) {
-        if (activeFilters.stationTypes[i] === filterType && 
+        if (activeFilters.stationTypes[i] === filterType &&
             activeFilters.station[i] === filterValue) {
             isDuplicate = true;
             break;
         }
     }
-    
+
     if (isDuplicate) {
-      alert("This filter is already applied: " + filterType + ": " + filterValue);
-      return;
+        alert("This filter is already applied: " + filterType + ": " + filterValue);
+        return;
     }
-    
-    // Update the filter type dropdown for the UI (doesn't affect existing filters)
-    $('#filterTypeActual').val(filterType);
-    toggleFilterInputs();
-    
+
     // Add the filter to the existing filters rather than replacing them
     activeFilters.station.push(filterValue);
     activeFilters.stationTypes.push(filterType);
     activeFilters.routeDirections.push('');
-    activeFilters.filterType = filterType;
-    
+
     updateFiltersUI();
     if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
     loadDataForViewport();
@@ -555,173 +686,123 @@ function filterByStation(stopId, stopCategory) {
 
 // Update the activeFilters object from the UI inputs
 function updateActiveFilters() {
-    // Gather matching filters (stop type) - based on master checkboxes
+    var allDistanceMethodsSelected = areAllFilterSelectorsChecked(DISTANCE_METHOD_CHECKBOX_SELECTORS);
+    var allRouteMethodsSelected = areAllFilterSelectorsChecked(ROUTE_METHOD_CHECKBOX_SELECTORS);
+
+    // Note: master checkbox sync is handled by setupMasterCheckbox() bidirectional handlers.
+    // Do NOT force-sync here — it races with setupMasterCheckbox's change propagation.
+
     activeFilters.stopType = [];
-    if ($('#masterMatchedCheckbox').is(':checked')) {
-        activeFilters.stopType.push('matched');
+    if ($('#masterMatchedCheckbox').is(':checked')) activeFilters.stopType.push('matched');
+    if ($('#masterUnmatchedAtlasCheckbox').is(':checked')) activeFilters.stopType.push('atlas_unmatched');
+    if ($('#masterUnmatchedOsmCheckbox').is(':checked')) activeFilters.stopType.push('osm_unmatched');
+
+    activeFilters.showDuplicatesOnly = $('#filterDuplicatesOnly').is(':checked');
+    activeFilters.transportTypes = $('.filter-transport-type:checked').map(function () { return this.value; }).get();
+
+    activeFilters.osmGroups = [];
+    var osmGroupMasterChecked = $('#filterOsmGroup').is(':checked');
+    var selectedOsmGroupTypes = $('.filter-osm-group-type:checked').map(function () { return this.value; }).get();
+    var anyOsmGroupTypeChecked = selectedOsmGroupTypes.length > 0;
+    var allOsmGroupTypesChecked = $('.filter-osm-group-type').length > 0 &&
+        $('.filter-osm-group-type:checked').length === $('.filter-osm-group-type').length;
+
+    if (anyOsmGroupTypeChecked && !osmGroupMasterChecked) {
+        $('#filterOsmGroup').prop('checked', true);
+        osmGroupMasterChecked = true;
     }
-    if ($('#masterUnmatchedCheckbox').is(':checked')) {
-        activeFilters.stopType.push('unmatched');
+
+    if (osmGroupMasterChecked || anyOsmGroupTypeChecked) {
+        if (allOsmGroupTypesChecked || selectedOsmGroupTypes.length === 0) {
+            activeFilters.osmGroups = ['all'];
+        } else {
+            activeFilters.osmGroups = selectedOsmGroupTypes;
+        }
     }
-    
-    // Gather node type filters for matched stops
-    activeFilters.nodeType = $('.filter-node-type:checked').map(function() {
-        return this.value;
-    }).get();
-    
-    // Gather transport type filters (New)
-    activeFilters.transportTypes = $('.filter-transport-type:checked').map(function() {
-        return this.value;
-    }).get();
-    
-    // Combined Station or Stop filter: read text input (if any)
-    var filterVal = $('#stationFilter').val().trim();
-    // Don't replace, just clear if empty
-    if (filterVal === '') {
-        $('#stationFilter').val('');
-    }
-    
-    // Get the filter type from the hidden input
-    activeFilters.filterType = $('#filterTypeActual').val();
-    
-    // --- Matched Filters Logic ---
+
     activeFilters.matchedOptions = {
         allSelected: $('#masterMatchedCheckbox').is(':checked'),
         methods: {
             exact: $('#filterExact').is(':checked'),
-            name: $('#filterName').is(':checked'),
-            manual: $('#filterManual').is(':checked')
+            name: $('#filterName').is(':checked')
         },
         distanceMatching: {
-            allSelected: $('#masterDistanceMatchingCheckbox').is(':checked'),
+            allSelected: allDistanceMethodsSelected,
+            trio: $('#distanceMethodTrio').is(':checked'),
             stage1: $('#distanceMethodStage1').is(':checked'),
             stage2: $('#distanceMethodStage2').is(':checked'),
             stage3a: $('#distanceMethodStage3a').is(':checked'),
             stage3b: $('#distanceMethodStage3b').is(':checked')
         },
         routeMatching: {
-            allSelected: $('#masterRouteMatchingCheckbox').is(':checked'),
+            allSelected: allRouteMethodsSelected,
             gtfs: $('#routeMethodGtfs').is(':checked'),
             hrdf: $('#routeMethodHrdf').is(':checked')
         }
     };
 
-    // --- Unmatched Filters Logic ---
     activeFilters.unmatchedOptions = {
-        allSelected: $('#masterUnmatchedCheckbox').is(':checked'),
+        allSelected: $('#masterUnmatchedAtlasCheckbox').is(':checked'),
         reasons: {
             noNearbyOSM: $('#filterNoNearbyOSM').is(':checked'),
-            osmNearby: $('#filterOSMNearby').is(':checked') // Added new filter
+            osmNearby: $('#filterOSMNearby').is(':checked')
         }
     };
 
-    // --- Populate activeFilters.stopType and activeFilters.matchMethods ---
-    activeFilters.stopType = [];
     activeFilters.matchMethods = [];
+    const selectedMatchedMethods = getSelectedMatchedMethodFiltersFromState();
+    const selectedUnmatchedReasons = getSelectedUnmatchedReasonFiltersFromState();
+    const hasMatchedScope = activeFilters.matchedOptions.allSelected || selectedMatchedMethods.length > 0;
 
-    let anyMatchedMethodActive = false;
-    // Check standard matching methods
-    for (const method in activeFilters.matchedOptions.methods) {
-        if (activeFilters.matchedOptions.methods[method]) {
-            activeFilters.matchMethods.push(method === 'exact' ? 'exact' : (method === 'name' ? 'name' : 'manual')); // Use actual values
-            anyMatchedMethodActive = true;
-        }
+    if (!activeFilters.matchedOptions.allSelected) {
+        activeFilters.matchMethods = activeFilters.matchMethods.concat(selectedMatchedMethods);
     }
-    // Check distance matching stages
-    for (const stage in activeFilters.matchedOptions.distanceMatching) {
-        if (stage !== 'allSelected' && activeFilters.matchedOptions.distanceMatching[stage]) {
-            activeFilters.matchMethods.push('distance_matching_' + stage.replace('stage', '')); // e.g., distance_matching_1
-            anyMatchedMethodActive = true;
-        }
-    }
-    // Check route matching stages
-    if (activeFilters.matchedOptions.routeMatching.gtfs) {
-        activeFilters.matchMethods.push('route_gtfs');
-        anyMatchedMethodActive = true;
-    }
-    if (activeFilters.matchedOptions.routeMatching.hrdf) {
-        activeFilters.matchMethods.push('route_hrdf');
-        anyMatchedMethodActive = true;
+    if (!activeFilters.unmatchedOptions.allSelected) {
+        activeFilters.matchMethods = activeFilters.matchMethods.concat(selectedUnmatchedReasons);
     }
 
-    if (anyMatchedMethodActive) {
-        if (!activeFilters.stopType.includes('matched')) {
-            activeFilters.stopType.push('matched');
-        }
+    if (activeFilters.topN && !hasMatchedScope) {
+        activeFilters.topN = null;
+        $('#toggleTopNBtn').html('<i class="fas fa-filter"></i> Activate Top N');
+        if (typeof topNLayer !== 'undefined') topNLayer.clearLayers();
+        $('#topNDistancesMessage').empty();
     }
-
-    // --- Populate stopType for Unmatched ---
-    let anyUnmatchedReasonActive = false;
-    if (activeFilters.unmatchedOptions.reasons.noNearbyOSM) {
-        activeFilters.matchMethods.push('no_nearby_counterpart'); 
-        anyUnmatchedReasonActive = true;
-    }
-    if (activeFilters.unmatchedOptions.reasons.osmNearby) { // Added new filter logic
-        activeFilters.matchMethods.push('osm_within_50m'); 
-        anyUnmatchedReasonActive = true;
-    }
-    // Add other unmatched reasons here if they push to matchMethods or directly influence stopType
-
-    if (anyUnmatchedReasonActive) {
-        if (!activeFilters.stopType.includes('unmatched')) {
-            activeFilters.stopType.push('unmatched');
-        }
-    }
-    
-    // --- Top N Filter Logic (remains largely the same but check against anyMatchedMethodActive) ---
-    if (activeFilters.topN && !anyMatchedMethodActive && !activeFilters.stopType.includes('matched')) {
-        // If TopN was active but no matched methods are selected anymore, deactivate TopN
-            activeFilters.topN = null;
-        $('#toggleTopNBtn').html('<i class="fas fa-filter"></i> Activate Top N'); // Reset text
-            topNLayer.clearLayers();
-            $('#topNDistancesMessage').empty();
-        }
-    // Visibility of Top N container depends on if any matched context is active
-    if (anyMatchedMethodActive || activeFilters.stopType.includes('matched')) {
+    if (hasMatchedScope) {
         $('#topNDistancesContainer').show();
     } else {
         $('#topNDistancesContainer').hide();
-        // Also deactivate TopN if its context disappears
         if (activeFilters.topN) {
             activeFilters.topN = null;
             $('#toggleTopNBtn').html('<i class="fas fa-filter"></i> Activate Top N');
-            topNLayer.clearLayers();
+            if (typeof topNLayer !== 'undefined') topNLayer.clearLayers();
             $('#topNDistancesMessage').empty();
         }
     }
 
-    // Operator Mismatch and Show Duplicates (their values are read directly when needed)
-    activeFilters.showDuplicatesOnly = $('#filterDuplicatesOnly').is(':checked');
-    
     updateFiltersUI();
-    
-    // Invalidate viewport cache when filters change to ensure fresh data is fetched
     if (typeof window.invalidateViewportCache === 'function') {
         window.invalidateViewportCache();
     }
-    
     loadDataForViewport();
-    
-    if(activeFilters.topN && (anyMatchedMethodActive || activeFilters.stopType.includes('matched'))) {
+    if (activeFilters.topN && hasMatchedScope) {
         loadTopNMatches();
-    } else if (!activeFilters.topN) { // Ensure TopN layer is cleared if not active
+    } else if (!activeFilters.topN && typeof topNLayer !== 'undefined') {
         topNLayer.clearLayers();
         $('#topNDistancesMessage').empty();
     }
 }
-
 // Function to handle master checkbox logic
 function setupMasterCheckbox(masterCheckboxSelector, childCheckboxSelector) {
     const masterCheckbox = $(masterCheckboxSelector);
     const childCheckboxes = $(childCheckboxSelector);
 
     // Master controls children
-    masterCheckbox.on('change', function() {
+    masterCheckbox.on('change', function () {
         childCheckboxes.prop('checked', $(this).is(':checked')).trigger('change'); // Trigger change on children for other listeners
     });
 
     // Children control master
-    childCheckboxes.on('change', function() {
+    childCheckboxes.on('change', function () {
         if (!$(this).is(':checked')) {
             masterCheckbox.prop('checked', false);
         }
@@ -742,7 +823,7 @@ function setupMasterCheckbox(masterCheckboxSelector, childCheckboxSelector) {
 function setRouteDirection(index, direction) {
     if (index >= 0 && index < activeFilters.routeDirections.length) {
         activeFilters.routeDirections[index] = direction;
-        
+
         updateFiltersUI();
         if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
         loadDataForViewport(); // Reload data with new direction filter
@@ -755,7 +836,7 @@ function toggleDirectionDropdown(index) {
     var dropdown = $('.direction-dropdown[data-index="' + index + '"]');
     var options = dropdown.find('.direction-options');
     var arrow = dropdown.find('.direction-arrow');
-    
+
     if (options.is(':visible')) {
         // Close dropdown
         options.slideUp(200);
@@ -763,12 +844,12 @@ function toggleDirectionDropdown(index) {
         dropdown.removeClass('open');
     } else {
         // Close any other open dropdowns first
-        $('.direction-dropdown.open').each(function() {
+        $('.direction-dropdown.open').each(function () {
             $(this).find('.direction-options').slideUp(200);
             $(this).find('.direction-arrow').removeClass('rotated');
             $(this).removeClass('open');
         });
-        
+
         // Open this dropdown
         options.slideDown(200);
         arrow.addClass('rotated');
@@ -779,12 +860,12 @@ function toggleDirectionDropdown(index) {
 // Initialize filter-related event handlers
 function initFilterEventHandlers() {
     // Remove filter badge and update filters
-    $(document).on('click', '.remove-filter', function(e) {
+    $(document).on('click', '.remove-filter', function (e) {
         e.preventDefault();
         e.stopPropagation(); // Prevent event bubbling
 
         var type = $(this).data('type');
-        var filterValue = $(this).data('filter'); 
+        var filterValue = $(this).data('filter');
         var index = $(this).data('index');
         var targetCheckboxId = $(this).data('target');
 
@@ -801,9 +882,6 @@ function initFilterEventHandlers() {
         } else {
             // Handle types that don't use data-target but have corresponding UI elements or direct activeFilters manipulation
             switch (type) {
-                case 'nodeType':
-                    $('.filter-node-type[value="' + filterValue + '"]').prop('checked', false).trigger('change');
-                    break;
                 case 'transportType':
                     $('.filter-transport-type[value="' + filterValue + '"]').prop('checked', false).trigger('change');
                     break;
@@ -837,13 +915,24 @@ function initFilterEventHandlers() {
                 case 'showDuplicatesOnly':
                     $('#filterDuplicatesOnly').prop('checked', false).trigger('change');
                     break;
+                case 'osmGroup':
+                    $('#filterOsmGroup').prop('checked', false).trigger('change');
+                    break;
+                case 'specificOsmGroup':
+                    var remainingOsmGroupTypes = $('.filter-osm-group-type:checked').not('[value="' + filterValue + '"]');
+                    if (remainingOsmGroupTypes.length === 0) {
+                        $('#filterOsmGroup').prop('checked', false).trigger('change');
+                    } else {
+                        $('.filter-osm-group-type[value="' + filterValue + '"]').prop('checked', false).trigger('change');
+                    }
+                    break;
                 // Add other special cases if any are not covered by data-target or a standard checkbox classes
                 default:
                     // If a type is missed, it might require manual update or a new case.
                     // For safety, if no specific handling and no targetCheckboxId, consider manual update.
                     // However, most filter chips should have a data-target or fall into one of these categories.
                     console.warn('Unhandled filter removal type or missing data-target:', type);
-                    needsManualUpdateCall = true; 
+                    needsManualUpdateCall = true;
             }
         }
 
@@ -857,7 +946,7 @@ function initFilterEventHandlers() {
     // Legacy direction toggle handler - replaced by dropdown handlers
 
     // Direction dropdown handler for route filters
-    $(document).on('click', '.direction-dropdown', function(e) {
+    $(document).on('click', '.direction-dropdown', function (e) {
         e.preventDefault();
         e.stopPropagation(); // Prevent event bubbling
 
@@ -866,17 +955,17 @@ function initFilterEventHandlers() {
     });
 
     // Direction option selection handler
-    $(document).on('click', '.direction-option', function(e) {
+    $(document).on('click', '.direction-option', function (e) {
         e.preventDefault();
         e.stopPropagation(); // Prevent event bubbling
 
         var direction = $(this).data('direction');
         var dropdown = $(this).closest('.direction-dropdown');
         var index = dropdown.data('index');
-        
+
         // Set the new direction
         setRouteDirection(index, direction);
-        
+
         // Close the dropdown
         dropdown.find('.direction-options').slideUp(200);
         dropdown.find('.direction-arrow').removeClass('rotated');
@@ -884,9 +973,9 @@ function initFilterEventHandlers() {
     });
 
     // Close direction dropdowns when clicking outside
-    $(document).on('click', function(e) {
+    $(document).on('click', function (e) {
         if (!$(e.target).closest('.direction-dropdown').length) {
-            $('.direction-dropdown.open').each(function() {
+            $('.direction-dropdown.open').each(function () {
                 $(this).find('.direction-options').slideUp(200);
                 $(this).find('.direction-arrow').removeClass('rotated');
                 $(this).removeClass('open');
@@ -894,48 +983,72 @@ function initFilterEventHandlers() {
         }
     });
 
+    // Setup subgroup master checkboxes BEFORE the general change handler,
+    // so master checkbox state is updated before updateActiveFilters() reads it.
+    // Order matters: set up leaf-level masters first, then the top-level master.
+    setupMasterCheckbox('#masterUnmatchedAtlasCheckbox', '.filter-unmatched-method');
+    setupMasterCheckbox('#masterDistanceMatchingCheckbox', '.filter-distance-method');
+    setupMasterCheckbox('#masterRouteMatchingCheckbox', '.filter-route-method');
+    setupMasterCheckbox('#filterOsmGroup', '.filter-osm-group-type');
+    // "All Matched" controls all matched method checkboxes (Exact, Name, Distance stages, Route methods)
+    setupMasterCheckbox('#masterMatchedCheckbox', '.filter-match-method, .filter-distance-method, .filter-route-method');
+
     // Attach change handlers to filter checkboxes and input elements.
-    $('.master-filter-checkbox, .filter-node-type, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type').on('change', function() {
+    $('.master-filter-checkbox, .visibility-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-group, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox').on('change', function () {
         updateActiveFilters();
-        updateHeaderSummary(); 
+        updateHeaderSummary();
     });
 
-    // Setup Add button for station filter
-    $('#addStationFilter').on('click', function(e) {
+    $('#addSmartSearchFilter').on('click', function (e) {
         e.preventDefault();
-        addTextFilter();
+        submitSmartSearch();
     });
 
-    // Setup Add button for route filter
-    $('#addRouteFilter').on('click', function(e) {
-        e.preventDefault();
-        addRouteFilter();
+    $('#smartSearchInput').on('input', function () {
+        showSmartSearchError('');
     });
 
-    // Also allow adding by pressing Enter in the text inputs
-    $('#stationFilter').on('keypress', function(e) {
-        if (e.which === 13) { // Enter key
-            e.preventDefault();
-            addTextFilter();
+    // Show/hide search format hint on focus/blur
+    $('#smartSearchInput').on('focus', function () {
+        var hint = $('#smartSearchHint');
+        if (hint.length && !$(this).val().trim()) {
+            hint.removeClass('d-none');
         }
     });
 
-    $('#routeIdFilter, #directionFilter').on('keypress', function(e) {
+    $('#smartSearchInput').on('blur', function () {
+        // Small delay so the hint doesn't flicker if user clicks inside it
+        setTimeout(function () {
+            $('#smartSearchHint').addClass('d-none');
+        }, 150);
+    });
+
+    $('#smartSearchInput').on('input', function () {
+        var hint = $('#smartSearchHint');
+        const hasError = $('#smartSearchInput').hasClass('is-invalid');
+        if ($(this).val().trim() && !hasError) {
+            hint.addClass('d-none');
+        } else if (!$(this).val().trim()) {
+            hint.removeClass('d-none');
+        }
+    });
+
+    $('#smartSearchInput').on('keypress', function (e) {
         if (e.which === 13) { // Enter key
             e.preventDefault();
-            addRouteFilter();
+            submitSmartSearch();
         }
     });
 
     // Toggle button for Top N filter
-    $('#toggleTopNBtn').on('click', function() {
-        if(activeFilters.topN) {
+    $('#toggleTopNBtn').on('click', function () {
+        if (activeFilters.topN) {
             activeFilters.topN = null;
-            $(this).html('<i class="fas fa-filter"></i> Activate Top N'); 
+            $(this).html('<i class="fas fa-filter"></i> Activate Top N');
             // updateActiveFilters will handle layer clearing and data reload
         } else {
             var n = parseInt($('#topDistance').val());
-            if(n > 0) {
+            if (n > 0) {
                 activeFilters.topN = n;
                 $(this).html('<i class="fas fa-times-circle"></i> Remove Top N');
             } else {
@@ -944,25 +1057,11 @@ function initFilterEventHandlers() {
             }
         }
         updateActiveFilters(); // Update based on new topN state (or null)
-        updateHeaderSummary(); 
+        updateHeaderSummary();
     });
 
-    // Setup master checkboxes (ensure this is called only once)
-    setupMasterCheckbox('#masterMatchedCheckbox', '#collapseMatchedStopType .form-check-input');
-    setupMasterCheckbox('#masterUnmatchedCheckbox', '#collapseUnmatchedStopType .form-check-input');
-    setupMasterCheckbox('#masterDistanceMatchingCheckbox', '#collapseDistanceMatching .form-check-input');
-    setupMasterCheckbox('#masterRouteMatchingCheckbox', '#collapseRouteMatching .form-check-input');
-
-    // Special handling for sub-masters updating the main master (#masterMatchedCheckbox)
-    $('#masterDistanceMatchingCheckbox, #masterRouteMatchingCheckbox').on('change', function() {
-        const allMatchedChildren = $('#collapseMatchedStopType .form-check-input:not(#masterDistanceMatchingCheckbox, #masterRouteMatchingCheckbox)');
-        const allSubMastersAndChildrenChecked = 
-            allMatchedChildren.filter(':checked').length === allMatchedChildren.length &&
-            $('#masterDistanceMatchingCheckbox').is(':checked') &&
-            $('#masterRouteMatchingCheckbox').is(':checked');
-        
-        $('#masterMatchedCheckbox').prop('checked', allSubMastersAndChildrenChecked);
-        // No .trigger('change') on #masterMatchedCheckbox here to avoid potential loops if not careful,
-        // as this is a derived state. The main change handler for all checkboxes will call updateActiveFilters.
+    // Prevent dropdown menus from closing when interacting with filters inside them
+    $('.dropdown-menu').on('click', function (e) {
+        e.stopPropagation();
     });
 } 

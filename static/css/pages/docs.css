@@ -118,6 +118,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: var(--text-sm);
+  margin-bottom: var(--space-4);
 }
 
 .docs-content th,

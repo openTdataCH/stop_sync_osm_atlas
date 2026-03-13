@@ -8,8 +8,8 @@ Relationships to `AtlasStop` and `OsmNode` are defined via explicit join
 conditions rather than database-level foreign keys.
 """
 
-class Stop(db.Model):
-    __tablename__ = 'stops'
+class StopsMatched(db.Model):
+    __tablename__ = 'stops_matched'
     __table_args__ = (
         db.Index('idx_stop_type_match_type', 'stop_type', 'match_type'),
         db.Index('idx_distance_m', 'distance_m'),
@@ -19,11 +19,9 @@ class Stop(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     sloid = db.Column(db.String(100), index=True)
+    # Valid values: 'matched', 'atlas_unmatched', 'osm_unmatched'
     stop_type = db.Column(db.String(50))
     match_type = db.Column(db.String(50))
-    # Indicates whether a 'manual' match was saved as persistent data
-    manual_is_persistent = db.Column(db.Boolean, default=False)
-    
     # Core location and linking attributes
     atlas_lat = db.Column(db.Float)
     atlas_lon = db.Column(db.Float)
@@ -31,19 +29,19 @@ class Stop(db.Model):
     osm_lat = db.Column(db.Float)
     osm_lon = db.Column(db.Float)
     distance_m = db.Column(db.Float)
+    matching_notes = db.Column(db.Text)
+
 
     # Display geometry (atlas point if present, else osm point). SRID 4326 (WGS84).
     # Populated by the import pipeline; indexed for bbox queries.
     geom = db.Column(Geometry(geometry_type='POINT', srid=4326), nullable=True)
 
-    atlas_duplicate_sloid = db.Column(db.String(100), default=None)
-    
     # Relationship to ATLAS stop details (lazy='select' to avoid unnecessary JOINs on /api/data;
     # endpoints that need details use explicit joinedload() via optimize_query_for_endpoint)
-    atlas_stop_details = db.relationship('AtlasStop', primaryjoin='Stop.sloid == AtlasStop.sloid', foreign_keys='AtlasStop.sloid', uselist=False, lazy='select')
+    atlas_stop_details = db.relationship('AtlasStop', primaryjoin='StopsMatched.sloid == AtlasStop.sloid', foreign_keys='AtlasStop.sloid', uselist=False, lazy='select')
 
     # Relationship to OSM node details
-    osm_node_details = db.relationship('OsmNode', primaryjoin='Stop.osm_node_id == OsmNode.osm_node_id', foreign_keys='OsmNode.osm_node_id', uselist=False, lazy='select')
+    osm_node_details = db.relationship('OsmNode', primaryjoin='StopsMatched.osm_node_id == OsmNode.osm_node_id', foreign_keys='OsmNode.osm_node_id', uselist=False, lazy='select')
 
     # Relationship to problems
     problems = db.relationship('Problem', back_populates='stop', cascade="all, delete-orphan")
@@ -56,19 +54,14 @@ class Problem(db.Model):
         db.Index('idx_problem_priority', 'priority'),
     )
     id = db.Column(db.Integer, primary_key=True)
-    stop_id = db.Column(db.Integer, db.ForeignKey('stops.id', ondelete='CASCADE'))
+    stop_id = db.Column(db.Integer, db.ForeignKey('stops_matched.id', ondelete='CASCADE'))
     problem_type = db.Column(db.String(50), nullable=False)
-    solution = db.Column(db.String(500))
-    is_persistent = db.Column(db.Boolean, default=False)
-    # Attribution
-    created_by_user_id = db.Column(db.Integer, index=True, nullable=True)
-    created_by_user_email = db.Column(db.String(255), nullable=True)
     # Priority for this problem within its category (1 = highest)
     priority = db.Column(db.Integer)
-    stop = db.relationship('Stop', back_populates='problems')
+    stop = db.relationship('StopsMatched', back_populates='problems')
 
     def to_dict(self):
-        # Use the Stop relationships instead of issuing separate queries.
+        # Use the StopsMatched relationships instead of issuing separate queries.
         # Callers should use joinedload/subqueryload to pre-load these.
         stop = self.stop
         atlas_details = stop.atlas_stop_details if stop else None
@@ -78,8 +71,6 @@ class Problem(db.Model):
             'id': self.id,
             'stop_id': self.stop_id,
             'problem': self.problem_type,
-            'solution': self.solution,
-            'is_persistent': self.is_persistent,
             'priority': self.priority,
             'sloid': stop.sloid if stop else None,
             'stop_type': stop.stop_type if stop else None,
@@ -87,33 +78,13 @@ class Problem(db.Model):
             'atlas_designation': atlas_details.atlas_designation if atlas_details else None,
             'atlas_designation_official': atlas_details.atlas_designation_official if atlas_details else None,
             'atlas_business_org_abbr': atlas_details.atlas_business_org_abbr if atlas_details else None,
-            'atlas_note': atlas_details.atlas_note if atlas_details else None,
             'osm_name': osm_details.osm_name if osm_details else None,
             'osm_local_ref': osm_details.osm_local_ref if osm_details else None,
             'osm_operator': osm_details.osm_operator if osm_details else None,
-            'osm_note': osm_details.osm_note if osm_details else None,
             'osm_public_transport': osm_details.osm_public_transport if osm_details else None,
         }
 
-class PersistentData(db.Model):
-    __tablename__ = 'persistent_data'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    sloid = db.Column(db.String(100), index=True)
-    osm_node_id = db.Column(db.String(100), index=True)
-    problem_type = db.Column(db.String(50), index=True)
-    solution = db.Column(db.String(500))
-    note_type = db.Column(db.String(20), index=True)  # 'atlas', 'osm', or NULL for problem solutions
-    note = db.Column(db.Text)  # For storing persistent notes
-    created_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())
-    updated_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
-    # Ownership/attribution
-    created_by_user_id = db.Column(db.Integer, index=True, nullable=True)
-    created_by_user_email = db.Column(db.String(255), nullable=True)
-    
-    __table_args__ = (
-        db.UniqueConstraint('sloid', 'osm_node_id', 'problem_type', 'note_type', name='unique_problem'),
-    )
+
 
 class AtlasStop(db.Model):
     __tablename__ = 'atlas_stops'
@@ -126,12 +97,10 @@ class AtlasStop(db.Model):
     atlas_designation = db.Column(db.String(255))
     atlas_designation_official = db.Column(db.String(255))
     atlas_business_org_abbr = db.Column(db.String(100))
-    routes_unified = db.Column(JSONB)
-    atlas_note = db.Column(db.Text)
-    atlas_note_is_persistent = db.Column(db.Boolean, default=False)
-    # Attribution for latest note change
-    atlas_note_user_id = db.Column(db.Integer, index=True, nullable=True)
-    atlas_note_user_email = db.Column(db.String(255), nullable=True)
+    # FK to the representative SLOID (NULL if this IS the representative or not in a group)
+    representative_sloid = db.Column(db.String(100), nullable=True, index=True)
+    # JSONB array of all SLOIDs in the duplicate group (e.g. ["sloid1", "sloid2"])
+    duplicate_group_sloids = db.Column(JSONB)
 
 class OsmNode(db.Model):
     __tablename__ = 'osm_nodes'
@@ -148,56 +117,61 @@ class OsmNode(db.Model):
     osm_aerialway = db.Column(db.String(255))
     osm_operator = db.Column(db.String(255))
     osm_node_type = db.Column(db.String(50))
-    routes_osm = db.Column(JSONB)
-    osm_note = db.Column(db.Text)
-    osm_note_is_persistent = db.Column(db.Boolean, default=False)
-    # Attribution for latest note change
-    osm_note_user_id = db.Column(db.Integer, index=True, nullable=True)
-    osm_note_user_email = db.Column(db.String(255), nullable=True)
+    # JSONB array of all OSM node IDs in the duplicate group (e.g. ["123", "456"])
+    duplicate_group_node_ids = db.Column(JSONB)
 
-class UserNote(db.Model):
-    __tablename__ = 'user_notes'
+
+
+class OsmPair(db.Model):
+    """Two-node OSM pair identified by the pre-matching grouping pass."""
+    __tablename__ = 'osm_pairs'
 
     id = db.Column(db.Integer, primary_key=True)
-    # Either sloid or osm_node_id will be set, depending on note_type
-    sloid = db.Column(db.String(100), index=True, nullable=True)
-    osm_node_id = db.Column(db.String(100), index=True, nullable=True)
-    # 'atlas' or 'osm'
-    note_type = db.Column(db.String(20), index=True, nullable=False)
-    user_id = db.Column(db.Integer, index=True, nullable=False)
-    user_email = db.Column(db.String(255), nullable=True)
-    note = db.Column(db.Text)
-    is_persistent = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp())
-    updated_at = db.Column(db.TIMESTAMP, server_default=db.func.current_timestamp(), onupdate=db.func.current_timestamp())
+    node_id_1 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
+    node_id_2 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
+    group_type = db.Column(db.String(50), nullable=False)
+
+
+class OsmTrio(db.Model):
+    """Three-node OSM trio with one middle node and two side nodes."""
+    __tablename__ = 'osm_trios'
+
+    id = db.Column(db.Integer, primary_key=True)
+    middle_node_id = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
+    side_node_id_1 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
+    side_node_id_2 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
+
+
+class RouteAtlasStops(db.Model):
+    __tablename__ = 'route_atlas_stops'
+
+    id = db.Column(db.Integer, primary_key=True)
+    atlas_route_id = db.Column(db.String(100), index=True)
+    direction_id = db.Column(db.String(20), index=True)
+    sloid = db.Column(db.String(100), db.ForeignKey('atlas_stops.sloid', ondelete='CASCADE'), index=True)
+    stop_sequence = db.Column(db.Integer)
 
     __table_args__ = (
-        db.UniqueConstraint('sloid', 'osm_node_id', 'note_type', 'user_id', name='unique_user_note'),
+        db.Index('idx_atlas_route_dir_seq', 'atlas_route_id', 'direction_id', 'stop_sequence'),
     )
 
-class RouteAndDirection(db.Model):
-    __tablename__ = 'routes_and_directions'
-    
+class RouteOsmStops(db.Model):
+    __tablename__ = 'route_osm_stops'
+
     id = db.Column(db.Integer, primary_key=True)
-    direction_id = db.Column(db.String(20))
-    osm_route_id = db.Column(db.String(100))
-    osm_nodes_json = db.Column(JSONB)
-    atlas_route_id = db.Column(db.String(100))
-    atlas_sloids_json = db.Column(JSONB)
-    route_name = db.Column(db.String(255))
-    route_short_name = db.Column(db.String(50))
-    route_long_name = db.Column(db.String(255))
-    route_type = db.Column(db.String(50))
-    match_type = db.Column(db.String(50))
-    # Unified fields
-    source = db.Column(db.String(10))  # 'gtfs' or 'hrdf'
-    atlas_line_name = db.Column(db.String(100))
-    direction_uic = db.Column(db.String(50))
-    route_id_normalized = db.Column(db.String(100))
+    osm_route_id = db.Column(db.String(100), index=True)
+    direction_id = db.Column(db.String(20), index=True)
+    osm_node_id = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), index=True)
+    stop_sequence = db.Column(db.Integer)
 
     __table_args__ = (
-        db.Index('idx_osm_route_direction', 'osm_route_id', 'direction_id'),
-        db.Index('idx_atlas_route_direction', 'atlas_route_id', 'direction_id'),
-        db.Index('idx_atlas_line_direction_uic', 'atlas_line_name', 'direction_uic'),
-        db.Index('idx_source', 'source')
-    ) 
+        db.Index('idx_osm_route_dir_seq', 'osm_route_id', 'direction_id', 'stop_sequence'),
+    )
+
+class RoutesMatched(db.Model):
+    __tablename__ = 'routes_matched'
+
+    id = db.Column(db.Integer, primary_key=True)
+    atlas_route_id = db.Column(db.String(100), index=True)
+    osm_route_id = db.Column(db.String(100), index=True)
+    match_type = db.Column(db.String(50))
