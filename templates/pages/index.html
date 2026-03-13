@@ -135,18 +135,23 @@
                 <div class="osm-group-subfilters mt-2 pl-3 border-left">
                   <div class="custom-control custom-checkbox">
                     <input type="checkbox" class="filter-osm-group-type custom-control-input" id="filterOsmGroupUic"
-                      value="osm_group_uic">
-                    <label class="custom-control-label" for="filterOsmGroupUic">UIC-based groups</label>
+                        value="osm_pair_uic">
+                      <label class="custom-control-label" for="filterOsmGroupUic">UIC-based pairs</label>
                   </div>
                   <div class="custom-control custom-checkbox">
                     <input type="checkbox" class="filter-osm-group-type custom-control-input" id="filterOsmGroupName"
-                      value="osm_group_name">
-                    <label class="custom-control-label" for="filterOsmGroupName">Name-based groups</label>
+                        value="osm_pair_name">
+                      <label class="custom-control-label" for="filterOsmGroupName">Name-based pairs</label>
                   </div>
                   <div class="custom-control custom-checkbox">
                     <input type="checkbox" class="filter-osm-group-type custom-control-input" id="filterOsmGroupTram"
-                      value="osm_group_tram">
-                    <label class="custom-control-label" for="filterOsmGroupTram">Tram groups</label>
+                        value="osm_pair_tram">
+                      <label class="custom-control-label" for="filterOsmGroupTram">Tram pairs</label>
+                    </div>
+                    <div class="custom-control custom-checkbox">
+                      <input type="checkbox" class="filter-osm-group-type custom-control-input" id="filterOsmTrio"
+                        value="osm_trio">
+                      <label class="custom-control-label" for="filterOsmTrio">OSM Trio</label>
                   </div>
                 </div>
               </div>
@@ -196,6 +201,11 @@
                   </div>
                 </div>
                 <div class="pl-3 border-left">
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-distance-method custom-control-input" id="distanceMethodTrio"
+                      value="distance_matching_trio">
+                    <label class="custom-control-label" for="distanceMethodTrio">Stage 0: Trio distance</label>
+                  </div>
                   <div class="custom-control custom-checkbox">
                     <input type="checkbox" class="filter-distance-method custom-control-input" id="distanceMethodStage1"
                       value="distance_matching_1">

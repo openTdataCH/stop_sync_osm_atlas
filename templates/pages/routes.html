@@ -1,0 +1,158 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Routes{% endblock %}
+
+{% block head_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/routes.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="routes-page">
+  <div class="routes-container">
+    <header class="routes-header">
+      <h1>Matched Routes</h1>
+      <p>Explore matched ATLAS and OSM routes with ordered stop lists grouped by direction.</p>
+    </header>
+
+    <section class="routes-toolbar" aria-label="Routes filters">
+      <form method="get" action="{{ url_for('routes_page') }}" class="routes-toolbar__form">
+        <div class="routes-toolbar__field routes-toolbar__field--search">
+          <label for="routesSearchInput">Search route ID</label>
+          <input
+            id="routesSearchInput"
+            name="q"
+            type="search"
+            class="form-control"
+            placeholder="Search ATLAS or OSM route ID"
+            value="{{ q }}"
+          >
+        </div>
+
+        <div class="routes-toolbar__field routes-toolbar__field--per-page">
+          <label for="routesPerPageSelect">Per page</label>
+          <select id="routesPerPageSelect" name="per_page" class="form-control">
+            {% for option in [5, 10, 20, 50, 100] %}
+            <option value="{{ option }}" {% if per_page == option %}selected{% endif %}>{{ option }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="routes-toolbar__actions">
+          <button type="submit" class="btn btn-primary">Apply</button>
+          {% if q or per_page != 20 %}
+          <a class="btn btn-outline-secondary" href="{{ url_for('routes_page') }}">Reset</a>
+          {% endif %}
+        </div>
+      </form>
+    </section>
+
+    <section class="routes-summary" aria-live="polite">
+      {% if pagination.total > 0 %}
+      Showing {{ range_start }}-{{ range_end }} of {{ pagination.total }} matched routes.
+      {% else %}
+      No matched routes found.
+      {% endif %}
+    </section>
+
+    {% if route_rows %}
+    <section class="routes-list" aria-label="Matched routes list">
+      {% for route in route_rows %}
+      <article class="route-card">
+        <header class="route-card__header">
+          <div class="route-meta route-meta--atlas">
+            <span class="route-meta__title">ATLAS</span>
+            <div class="route-meta__name">{{ route.atlas_route_name or 'Unknown route' }}</div>
+            <div class="route-meta__id">ID: {{ route.atlas_route_id or '-' }}</div>
+          </div>
+          <div class="route-meta route-meta--osm">
+            <span class="route-meta__title">OSM</span>
+            <div class="route-meta__name">{{ route.osm_route_name or 'Unknown route' }}</div>
+            <div class="route-meta__id">ID: {{ route.osm_route_id or '-' }}</div>
+          </div>
+        </header>
+
+        <div class="route-card__body">
+          {% if route.direction_groups %}
+          {% for direction in route.direction_groups %}
+          <section class="direction-block">
+            <h3 class="direction-block__title">Direction: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}</h3>
+            <div class="direction-block__columns">
+              <div class="stops-column">
+                <h4>ATLAS Stops</h4>
+                {% if direction.atlas_stops %}
+                <ol class="stops-list">
+                  {% for stop in direction.atlas_stops %}
+                  <li>
+                    <span class="stop-label">{{ stop.stop_label or '-' }}</span>
+                    <span class="stop-id">({{ stop.stop_id }})</span>
+                  </li>
+                  {% endfor %}
+                </ol>
+                {% else %}
+                <p class="stops-empty">No ATLAS stops in this direction.</p>
+                {% endif %}
+              </div>
+
+              <div class="stops-column">
+                <h4>OSM Stops</h4>
+                {% if direction.osm_stops %}
+                <ol class="stops-list">
+                  {% for stop in direction.osm_stops %}
+                  <li>
+                    <span class="stop-label">{{ stop.stop_label or '-' }}</span>
+                    <span class="stop-id">({{ stop.stop_id }})</span>
+                  </li>
+                  {% endfor %}
+                </ol>
+                {% else %}
+                <p class="stops-empty">No OSM stops in this direction.</p>
+                {% endif %}
+              </div>
+            </div>
+          </section>
+          {% endfor %}
+          {% else %}
+          <p class="stops-empty">No stop details available for this matched route pair.</p>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+
+    <nav class="routes-pagination" aria-label="Routes pagination">
+      <ul class="pagination justify-content-center">
+        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('routes_page', q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
+            <span aria-hidden="true">&laquo;</span>
+          </a>
+        </li>
+
+        {% for page_num in pagination.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
+          {% if page_num %}
+          <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('routes_page', q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+          {% endif %}
+        {% endfor %}
+
+        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('routes_page', q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
+            <span aria-hidden="true">&raquo;</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+    {% else %}
+    <section class="routes-empty-state" aria-live="polite">
+      <h2>No matched routes to display</h2>
+      <p>Try broadening your search, or verify that route matching data has been imported.</p>
+      {% if q %}
+      <a class="btn btn-outline-primary" href="{{ url_for('routes_page', per_page=per_page) }}">Clear search</a>
+      {% endif %}
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

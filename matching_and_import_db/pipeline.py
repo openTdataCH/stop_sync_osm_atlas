@@ -90,6 +90,11 @@ class MatchingContext:
 
         # 4. OSM group expansion (osm_group_propagation)
         if hasattr(osm_entry, 'is_group') and osm_entry.is_group:
+            # Trio groups are handled explicitly by TrioDistanceMatchingPredicate.
+            # Never auto-propagate trio siblings here, otherwise the middle node
+            # would be incorrectly marked as matched.
+            if getattr(osm_entry, 'group_type', None) == 'osm_trio':
+                return
             for member in osm_entry.get_members():
                 if member.node_id == osm_node.node_id:
                     continue

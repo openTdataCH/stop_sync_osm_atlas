@@ -29,6 +29,7 @@ const SMART_SEARCH_VALIDATION_MESSAGE = 'Allowed formats: UIC (e.g. 8503000), AT
 const MATCHED_METHOD_CHECKBOX_SELECTORS = [
     '#filterExact',
     '#filterName',
+    '#distanceMethodTrio',
     '#distanceMethodStage1',
     '#distanceMethodStage2',
     '#distanceMethodStage3a',
@@ -37,6 +38,7 @@ const MATCHED_METHOD_CHECKBOX_SELECTORS = [
     '#routeMethodHrdf'
 ];
 const DISTANCE_METHOD_CHECKBOX_SELECTORS = [
+    '#distanceMethodTrio',
     '#distanceMethodStage1',
     '#distanceMethodStage2',
     '#distanceMethodStage3a',
@@ -55,9 +57,10 @@ function areAllFilterSelectorsChecked(selectors) {
 
 function formatOsmGroupTypeLabel(groupType) {
     const labels = {
-        osm_group_uic: 'UIC-based',
-        osm_group_name: 'Name-based',
-        osm_group_tram: 'Tram-based'
+        osm_pair_uic: 'UIC-based pairs',
+        osm_pair_name: 'Name-based pairs',
+        osm_pair_tram: 'Tram pairs',
+        osm_trio: 'OSM trio'
     };
 
     return labels[groupType] || groupType;
@@ -465,12 +468,17 @@ function updateFiltersUI() {
                     if (stage !== 'allSelected' && activeFilters.matchedOptions.distanceMatching[stage]) {
                         let stageNum = stage.replace('stage', '');
                         var dLabel = 'Dist. Stage ' + stageNum;
+                        let target = '#distanceMethodStage' + stageNum;
+                        if (stage === 'trio') {
+                            dLabel = 'Dist: Trio distance';
+                            target = '#distanceMethodTrio';
+                        }
                         if (stage === 'stage1') dLabel = 'Dist: Group Proximity';
                         if (stage === 'stage2') dLabel = 'Dist: Local Ref Match';
                         if (stage === 'stage3a') dLabel = 'Dist: Single Candidate';
                         if (stage === 'stage3b') dLabel = 'Dist: Relative Distance';
                         distanceStageChips.push(buildRemovableChip({
-                            label: dLabel, badgeClass: 'badge-info', data: { type: 'specificDistance', target: '#distanceMethodStage' + stageNum }
+                            label: dLabel, badgeClass: 'badge-info', data: { type: 'specificDistance', target: target }
                         }));
                     }
                 }
@@ -720,6 +728,7 @@ function updateActiveFilters() {
         },
         distanceMatching: {
             allSelected: allDistanceMethodsSelected,
+            trio: $('#distanceMethodTrio').is(':checked'),
             stage1: $('#distanceMethodStage1').is(':checked'),
             stage2: $('#distanceMethodStage2').is(':checked'),
             stage3a: $('#distanceMethodStage3a').is(':checked'),

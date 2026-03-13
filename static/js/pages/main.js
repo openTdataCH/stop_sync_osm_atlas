@@ -968,11 +968,12 @@ function loadDataForViewport() {
                 if (showOSMNodes && !createdOsmMarkers.has(osmNodeIdKey)) { // Check if not already created as part of a match
                     const osmLat = +stop.osm_lat;
                     const osmLon = +stop.osm_lon;
+                    const isTrioMiddleMatched = !!stop.is_trio_middle_matched;
                     allMarkerData.push({
                         lat: osmLat,
                         lon: osmLon,
                         type: 'osm',
-                        color: 'gray',
+                        color: isTrioMiddleMatched ? 'blue' : 'gray',
                         osmNodeType: stop.osm_node_type,
                         originalLat: osmLat,
                         originalLon: osmLon,
@@ -1206,7 +1207,7 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
         } else if (stopData.stop_type === 'atlas_unmatched') {
             tempMarkerColor = (popupViewType === 'atlas') ? 'red' : 'gray'; // Red for ATLAS unmatched, Gray for OSM unmatched if popupViewType is 'osm'
         } else if (stopData.stop_type === 'osm_unmatched') { // Pure OSM nodes
-            tempMarkerColor = 'gray';
+            tempMarkerColor = stopData.is_trio_middle_matched ? 'blue' : 'gray';
         }
 
 

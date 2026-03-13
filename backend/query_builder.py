@@ -5,9 +5,9 @@ This module consolidates common filtering patterns to reduce code duplication an
 
 from backend.services.routes import get_stops_for_route
 from backend.extensions import db
-from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStopGroup
+from backend.models import StopsMatched, AtlasStop, OsmNode, OsmPair, OsmTrio
 from sqlalchemy.orm import joinedload
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 
 class FilterBuilder:
@@ -25,7 +25,7 @@ class FilterBuilder:
         transport_mappings = {
             'ferry_terminal': StopsMatched.osm_node_details.has(OsmNode.osm_amenity == 'ferry_terminal'),
             'tram_stop': StopsMatched.osm_node_details.has(OsmNode.osm_railway == 'tram_stop'),
-            'station': StopsMatched.osm_node_details.has(db.and_(OsmNode.osm_public_transport == 'station', OsmNode.osm_aerialway != 'station')),
+            'station': StopsMatched.osm_node_details.has(OsmNode.osm_node_type == 'railway_station'),
             'platform': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'platform'),
             'stop_position': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'stop_position'),
             'aerialway_station': StopsMatched.osm_node_details.has(OsmNode.osm_aerialway == 'station')
@@ -112,14 +112,33 @@ class FilterBuilder:
 
     @staticmethod
     def build_osm_group_members_query(osm_group_types=None):
-        node_id_1_query = db.session.query(OsmStopGroup.node_id_1)
-        node_id_2_query = db.session.query(OsmStopGroup.node_id_2)
+        include_pairs = True
+        include_trios = True
+        pair_types = []
+        if osm_group_types is not None:
+            include_pairs = False
+            include_trios = False
+            pair_types = [t for t in osm_group_types if t.startswith('osm_pair_')]
+            include_pairs = len(pair_types) > 0
+            include_trios = 'osm_trio' in osm_group_types
 
-        if osm_group_types:
-            node_id_1_query = node_id_1_query.filter(OsmStopGroup.group_type.in_(osm_group_types))
-            node_id_2_query = node_id_2_query.filter(OsmStopGroup.group_type.in_(osm_group_types))
+        if include_pairs:
+            node_id_1_query = db.session.query(OsmPair.node_id_1)
+            node_id_2_query = db.session.query(OsmPair.node_id_2)
+            if pair_types:
+                node_id_1_query = node_id_1_query.filter(OsmPair.group_type.in_(pair_types))
+                node_id_2_query = node_id_2_query.filter(OsmPair.group_type.in_(pair_types))
+            query = node_id_1_query.union(node_id_2_query)
+        else:
+            query = db.session.query(OsmPair.node_id_1).filter(text('1=0'))
 
-        return node_id_1_query.union(node_id_2_query)
+        if include_trios:
+            trio_middle = db.session.query(OsmTrio.middle_node_id)
+            trio_side_1 = db.session.query(OsmTrio.side_node_id_1)
+            trio_side_2 = db.session.query(OsmTrio.side_node_id_2)
+            query = query.union(trio_middle).union(trio_side_1).union(trio_side_2)
+
+        return query
 
 
 class QueryBuilder:

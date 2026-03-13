@@ -21,11 +21,13 @@ from matching_and_import_db.utils.common import haversine_distance
 
 from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
 from matching_and_import_db.predicates.name_matching import NameMatchPredicate
+from matching_and_import_db.predicates.trio_distance_matching import TrioDistanceMatchingPredicate
 from matching_and_import_db.predicates.distance_matching import GroupProximityPredicate, LocalRefDistancePredicate, NearestDistancePredicate
 from matching_and_import_db.predicates.route_matching_unified import RouteMatchPredicate
 from matching_and_import_db.predicates.postpass_matching import PostpassUniqueUicPredicate
 
 DEFAULT_PIPELINE = [
+    TrioDistanceMatchingPredicate(),
     ExactUicPredicate(),
     NameMatchPredicate(),
     GroupProximityPredicate(),
@@ -177,18 +179,27 @@ def run_matching() -> MatchingOutput:
 
     pipeline_result = run_pipeline(pipeline, ctx)
 
-    # Build flat list of OSM groups: (node_id_1, node_id_2, group_type)
-    osm_groups = [
-        (rep_id, siblings[0].node_id, group_type)
-        for rep_id, (group_type, siblings) in osm_index._group_siblings.items()
-    ]
+    # Build flat list of OSM pairs and trios from pre-grouping state.
+    osm_pairs = []
+    for rep_id, (group_type, siblings) in osm_index._group_siblings.items():
+        if group_type.startswith('osm_pair_') and siblings:
+            osm_pairs.append((rep_id, siblings[0].node_id, group_type))
+
+    osm_trios = []
+    for rep_id in osm_index.get_trio_representatives():
+        trio = osm_index.get_trio_for_representative(rep_id)
+        if trio is None:
+            continue
+        middle_node_id, side_node_id_1, side_node_id_2 = trio
+        osm_trios.append((middle_node_id, side_node_id_1, side_node_id_2))
 
     output = MatchingOutput(
         matched=pipeline_result.matched,
         unmatched_atlas=pipeline_result.unmatched_atlas,
         unmatched_osm=pipeline_result.unmatched_osm,
         duplicate_sloid_map=atlas_state.duplicate_sloid_map,
-        osm_groups=osm_groups,
+        osm_pairs=osm_pairs,
+        osm_trios=osm_trios,
         all_osm_nodes=osm_index.get_all_nodes(),
     )
 

@@ -74,7 +74,7 @@ def test_route_match_condition_includes_unified_route_variants():
 def test_parse_filter_params_uses_osm_group_types_without_gate():
     filters = parse_filter_params({'osm_group_types': 'osm_group_uic,osm_group_name'})
 
-    assert filters['osm_group_types'] == ['osm_group_uic', 'osm_group_name']
+    assert filters['osm_group_types'] == ['osm_pair_uic', 'osm_pair_name']
 
 
 def test_parse_filter_params_normalizes_osm_group_all_selection():
@@ -89,11 +89,11 @@ def test_query_builder_osm_groups_apply_without_legacy_toggle():
 
     with backend_app.app_context():
         sql = _compile_expression(
-            query_builder.apply_common_filters(StopsMatched.query, {'osm_group_types': ['osm_group_uic']}).statement
+            query_builder.apply_common_filters(StopsMatched.query, {'osm_group_types': ['osm_pair_uic']}).statement
         )
 
     assert 'stops_matched.osm_node_id IN' in sql
-    assert 'osm_stop_groups.group_type IN' in sql
+    assert 'osm_pairs.group_type IN' in sql
     assert "stops_matched.stop_type != 'matched'" not in sql
 
 
@@ -104,10 +104,42 @@ def test_query_builder_combines_transport_and_osm_group_with_and():
         sql = _compile_expression(
             query_builder.apply_common_filters(
                 StopsMatched.query,
-                {'transport_types': ['platform'], 'osm_group_types': ['osm_group_uic']}
+                {'transport_types': ['platform'], 'osm_group_types': ['osm_pair_uic']}
             ).statement
         )
 
     assert 'osm_public_transport' in sql
     assert 'stops_matched.osm_node_id IN' in sql
     assert ' AND ' in sql
+
+
+def test_query_builder_trio_only_filter_excludes_pair_type_predicate():
+    query_builder = QueryBuilder(None)
+
+    with backend_app.app_context():
+        sql = _compile_expression(
+            query_builder.apply_common_filters(StopsMatched.query, {'osm_group_types': ['osm_trio']}).statement
+        )
+
+    assert 'stops_matched.osm_node_id IN' in sql
+    assert 'osm_pairs.group_type IN' not in sql
+
+
+def test_scope_condition_matched_includes_trio_middle_effective_matches():
+    resolved = resolve_stop_type_match_filters('matched', None)
+
+    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
+
+    assert "stop_type = 'matched'" in sql
+    assert 'osm_trios.middle_node_id = stops_matched.osm_node_id' in sql
+    assert "stop_type = 'osm_unmatched'" in sql
+
+
+def test_scope_condition_osm_unmatched_excludes_trio_middle_effective_matches():
+    resolved = resolve_stop_type_match_filters('osm_unmatched', None)
+
+    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
+
+    assert "stop_type = 'osm_unmatched'" in sql
+    assert 'NOT' in sql
+    assert 'osm_trios.middle_node_id = stops_matched.osm_node_id' in sql

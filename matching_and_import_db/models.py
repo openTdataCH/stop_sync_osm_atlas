@@ -41,6 +41,8 @@ class OsmNode:
     @property
     def is_station(self) -> bool:
         """Helper mapped from utils.common.is_osm_station natively onto the model."""
+        if self.public_transport == 'stop_position':
+            return False
         if self.aerialway == 'station':
             return False
         return (
@@ -138,5 +140,6 @@ class MatchingOutput:
     unmatched_atlas: list[AtlasNode]
     unmatched_osm: list[OsmNode]
     duplicate_sloid_map: dict[str, list[str]]
-    osm_groups: list[tuple[str, str, str]] = field(default_factory=list)  # [(node_id_1, node_id_2, group_type), ...]
+    osm_pairs: list[tuple[str, str, str]] = field(default_factory=list)  # [(node_id_1, node_id_2, pair_type), ...]
+    osm_trios: list[tuple[str, str, str]] = field(default_factory=list)  # [(middle_node_id, side_node_id_1, side_node_id_2), ...]
     all_osm_nodes: list[OsmNode] = field(default_factory=list)

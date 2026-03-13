@@ -25,10 +25,16 @@ def safe_value(val, default=None):
     return val
 
 def get_osm_node_type(rec, is_osm_unmatched=False):
-    """Determine the osm_node_type based on OSM tags."""
+    """Determine the osm_node_type based on OSM tags or ORM-like dict fields."""
+    if not isinstance(rec, dict):
+        return None
+
+    # Accept both shapes:
+    # 1) {'tags': {...}} (nested)
+    # 2) {...} where keys are already OSM tag names (flat)
+    tags = rec.get('tags') if isinstance(rec.get('tags'), dict) else rec
+
     if is_osm_unmatched:
-        tags = rec.get('tags', {})
-        if not tags: tags = {}
         osm_public_transport = tags.get('public_transport')
         osm_railway = tags.get('railway')
         osm_amenity = tags.get('amenity')
@@ -39,7 +45,9 @@ def get_osm_node_type(rec, is_osm_unmatched=False):
         osm_amenity = rec.get('osm_amenity')
         osm_aerialway = rec.get('osm_aerialway')
 
-    if osm_public_transport == 'station' and osm_railway == 'station':
+    if osm_public_transport == 'stop_position':
+        return 'stop_position'
+    if (osm_public_transport == 'station' or osm_railway == 'station') and osm_public_transport != 'stop_position':
         return 'railway_station'
     if osm_amenity == 'ferry_terminal':
         return 'ferry_terminal'
@@ -47,8 +55,6 @@ def get_osm_node_type(rec, is_osm_unmatched=False):
         return 'aerialway'
     if osm_public_transport == 'platform':
         return 'platform'
-    if osm_public_transport == 'stop_position':
-        return 'stop_position'
     return None
 
 def ensure_schema_updated():
@@ -56,8 +62,31 @@ def ensure_schema_updated():
     try:
         from flask_migrate import upgrade
         from backend.app import app
+        from backend.extensions import db
+        from sqlalchemy import text
         with app.app_context():
             upgrade()
+            # Development cleanup: remove deprecated duplicate flags from stops_matched
+            # while keeping a single migration history file.
+            db.session.execute(text("ALTER TABLE stops_matched DROP COLUMN IF EXISTS has_atlas_duplicate"))
+            db.session.execute(text("ALTER TABLE stops_matched DROP COLUMN IF EXISTS has_osm_duplicate"))
+            # Development bridge: rename legacy pair table if present.
+            db.session.execute(text("ALTER TABLE IF EXISTS osm_stop_groups RENAME TO osm_pairs"))
+            # Ensure trio table exists for local databases created before trio support.
+            db.session.execute(text(
+                """
+                CREATE TABLE IF NOT EXISTS osm_trios (
+                    id SERIAL PRIMARY KEY,
+                    middle_node_id VARCHAR(100) NOT NULL REFERENCES osm_nodes(osm_node_id) ON DELETE CASCADE,
+                    side_node_id_1 VARCHAR(100) NOT NULL REFERENCES osm_nodes(osm_node_id) ON DELETE CASCADE,
+                    side_node_id_2 VARCHAR(100) NOT NULL REFERENCES osm_nodes(osm_node_id) ON DELETE CASCADE
+                )
+                """
+            ))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_osm_trios_middle_node_id ON osm_trios(middle_node_id)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_osm_trios_side_node_id_1 ON osm_trios(side_node_id_1)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_osm_trios_side_node_id_2 ON osm_trios(side_node_id_2)"))
+            db.session.commit()
         print("Database schema migrated to latest revision.")
     except Exception as e:
         print(f"Error running migrations: {e}")
@@ -105,7 +134,3 @@ def apply_problem_results(stop_record, results: list):
             problem_type=r.problem_type,
             priority=r.priority,
         ))
-        if r.has_atlas_duplicate:
-            stop_record.has_atlas_duplicate = True
-        if r.has_osm_duplicate:
-            stop_record.has_osm_duplicate = True

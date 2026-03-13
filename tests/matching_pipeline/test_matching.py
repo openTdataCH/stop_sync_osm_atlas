@@ -13,6 +13,7 @@ from matching_and_import_db.predicates import BasePredicate
 from matching_and_import_db.predicates.distance_matching import NearestDistancePredicate, bipartite_match
 from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
 from matching_and_import_db.predicates.name_matching import NameMatchPredicate
+from matching_and_import_db.predicates.trio_distance_matching import TrioDistanceMatchingPredicate
 from matching_and_import_db.predicates.route_matching_unified import RouteMatchPredicate
 from matching_and_import_db.state import AtlasState, OsmState
 from matching_and_import_db.utils.common import haversine_distance
@@ -278,8 +279,8 @@ class TestStaleCandidateRegression:
             'sib_b': 'rep_b',
         }
         ctx.osm._group_siblings = {
-            'rep_a': ('osm_group_tram', [ctx.osm._to_osm_node(ctx.osm._all_nodes[(47.0000150, 8.0000150)])]),
-            'rep_b': ('osm_group_tram', [ctx.osm._to_osm_node(ctx.osm._all_nodes[(47.0002250, 8.0002250)])]),
+            'rep_a': ('osm_pair_tram', [ctx.osm._to_osm_node(ctx.osm._all_nodes[(47.0000150, 8.0000150)])]),
+            'rep_b': ('osm_pair_tram', [ctx.osm._to_osm_node(ctx.osm._all_nodes[(47.0002250, 8.0002250)])]),
         }
 
         NearestDistancePredicate().run(ctx)
@@ -310,7 +311,7 @@ class TestOsmGroupingPolicy:
         ctx.osm.build_groups(atlas_uic_counts={'u1': 3})
 
         assert ctx.osm._group_representative == {'stop_1': 'platform_1'}
-        assert ctx.osm._group_siblings['platform_1'][0] == 'osm_group_uic'
+        assert ctx.osm._group_siblings['platform_1'][0] == 'osm_pair_uic'
 
     def test_name_grouping_accepts_incomplete_relaxed_pairs(self):
         ctx = _build_ctx(
@@ -328,7 +329,7 @@ class TestOsmGroupingPolicy:
         )
 
         assert ctx.osm._group_representative == {'stop_name': 'platform_name'}
-        assert ctx.osm._group_siblings['platform_name'][0] == 'osm_group_name'
+        assert ctx.osm._group_siblings['platform_name'][0] == 'osm_pair_name'
 
     def test_tram_grouping_accepts_incomplete_relaxed_pairs_without_outlier_logic(self):
         ctx = _build_ctx(
@@ -346,4 +347,53 @@ class TestOsmGroupingPolicy:
         )
 
         assert ctx.osm._group_representative == {'stop_tram_1': 'tram_1'}
-        assert ctx.osm._group_siblings['tram_1'][0] == 'osm_group_tram'
+        assert ctx.osm._group_siblings['tram_1'][0] == 'osm_pair_tram'
+
+
+class TestOsmTrioMatching:
+    def test_trio_commit_does_not_propagate_middle_node(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('a1', 'u_trio', '1', 'Trio Stop', 47.3000000, 8.3000000),
+                _atlas_row('a2', 'u_trio', '2', 'Trio Stop', 47.3002000, 8.3002000),
+            ],
+            [
+                _osm_entry('side_rep', 47.3000000, 8.3000000, uic_ref='u_trio', public_transport='platform'),
+                _osm_entry('middle', 47.3001000, 8.3001000, uic_ref='u_trio', public_transport='stop_position'),
+                _osm_entry('side_other', 47.3002000, 8.3002000, uic_ref='u_trio', public_transport='platform'),
+            ],
+        )
+        ctx.osm.build_groups(atlas_uic_counts={'u_trio': 2})
+
+        rep_entity = next(e for e in ctx.osm.get_by_uic('u_trio') if e.node_id == 'side_other' or e.node_id == 'side_rep')
+        atlas_entry = next(e for e in ctx.atlas.get_unmatched_records() if e.sloid == 'a1')
+
+        ctx.commit(atlas_entry, rep_entity, 'exact', 0.0, 'test trio propagation guard')
+
+        osm_group_prop_records = [r for r in ctx.all_matches if r.match_type == 'osm_group_propagation']
+        assert osm_group_prop_records == []
+        assert ctx.osm.is_used('middle') is False
+
+    def test_trio_stage_matches_two_side_nodes_and_leaves_middle_unmatched(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('a1', 'u_trio', '1', 'Trio Stop', 47.4000000, 8.4000000),
+                _atlas_row('a2', 'u_trio', '2', 'Trio Stop', 47.4003000, 8.4003000),
+            ],
+            [
+                _osm_entry('side_1', 47.4000100, 8.4000100, uic_ref='u_trio', public_transport='platform'),
+                _osm_entry('middle', 47.4001500, 8.4001500, uic_ref='u_trio', public_transport='stop_position'),
+                _osm_entry('side_2', 47.4002900, 8.4002900, uic_ref='u_trio', public_transport='platform'),
+            ],
+        )
+        ctx.osm.build_groups(atlas_uic_counts={'u_trio': 2})
+
+        run_pipeline([TrioDistanceMatchingPredicate(), ExactUicPredicate(), NameMatchPredicate()], ctx)
+
+        trio_records = [r for r in ctx.all_matches if r.match_type == 'distance_matching_trio']
+        matched_osm_ids = {r.osm_node.node_id for r in trio_records}
+
+        assert len(trio_records) == 2
+        assert matched_osm_ids == {'side_1', 'side_2'}
+        assert ctx.osm.is_used('middle') is False
+        assert 'middle' in {n.node_id for n in ctx.osm.get_unmatched_nodes()}

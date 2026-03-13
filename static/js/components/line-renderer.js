@@ -41,6 +41,13 @@
             weight: 2,
             opacity: 0.9,
             dashArray: '6,4'
+        },
+        // OSM trio connectors (middle to side nodes)
+        osm_trio: {
+            color: '#e67e22',
+            weight: 2,
+            opacity: 0.9,
+            dashArray: '4,4'
         }
     };
 
@@ -121,6 +128,29 @@
                         lineCount++;
                     }
                 }
+            }
+
+            // Draw orange lines for OSM trio links.
+            if (Array.isArray(stop.osm_trio_links) && stop.osm_lat != null && stop.osm_lon != null) {
+                stop.osm_trio_links.forEach(function(link) {
+                    const partnerId = link.partner_node_id;
+                    const key = LineRenderer._buildLineKey(stop.osm_node_id, partnerId);
+                    const reverseKey = LineRenderer._buildLineKey(partnerId, stop.osm_node_id);
+                    if (drawnKeys.has(key) || drawnKeys.has(reverseKey)) {
+                        return;
+                    }
+                    const partnerLat = link.partner_osm_lat;
+                    const partnerLon = link.partner_osm_lon;
+                    if (partnerLat == null || partnerLon == null) {
+                        return;
+                    }
+                    drawnKeys.add(key);
+                    layer.addLayer(L.polyline([
+                        [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)],
+                        [parseFloat(partnerLat), parseFloat(partnerLon)]
+                    ], LINE_STYLES.osm_trio));
+                    lineCount++;
+                });
             }
         });
 

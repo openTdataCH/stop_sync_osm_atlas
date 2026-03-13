@@ -1,12 +1,31 @@
 from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func, case
-from backend.models import StopsMatched
+from sqlalchemy.orm import aliased
+from backend.models import StopsMatched, AtlasStop, OsmTrio
 from backend.extensions import db, limiter
 from backend.query_helpers import get_query_builder, parse_filter_params, resolve_stop_type_match_filters, build_stop_scope_condition
 from collections import OrderedDict
 import threading
 
 stats_bp = Blueprint('stats', __name__)
+
+
+def _build_trio_middle_with_matched_side_condition(stop_model):
+    matched_side = aliased(StopsMatched)
+    matched_side_exists = db.select(1).select_from(matched_side).where(
+        matched_side.stop_type == 'matched',
+        db.or_(
+            matched_side.osm_node_id == OsmTrio.side_node_id_1,
+            matched_side.osm_node_id == OsmTrio.side_node_id_2,
+        )
+    ).exists()
+
+    trio_middle_exists = db.select(1).select_from(OsmTrio).where(
+        OsmTrio.middle_node_id == stop_model.osm_node_id,
+        matched_side_exists,
+    ).exists()
+
+    return db.and_(stop_model.stop_type == 'osm_unmatched', trio_middle_exists)
 
 _STATS_CACHE_MAX_SIZE = 5
 _STATS_CACHE = OrderedDict()
@@ -85,7 +104,7 @@ def get_global_stats():
         else:
             query = base_query
         if show_duplicates_only:
-            query = query.filter(StopsMatched.has_atlas_duplicate == True)
+            query = query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.duplicate_group_sloids.isnot(None)))
         if top_n:
             try:
                 n_val = int(top_n)
@@ -96,18 +115,27 @@ def get_global_stats():
                     StopsMatched.stop_type == 'matched',
                     StopsMatched.distance_m.isnot(None)
                 ).order_by(StopsMatched.distance_m.desc()).limit(n_val)
+        trio_middle_matched_condition = _build_trio_middle_with_matched_side_condition(StopsMatched)
+        effective_stop_type = case(
+            (
+                db.or_(StopsMatched.stop_type == 'matched', trio_middle_matched_condition),
+                'matched',
+            ),
+            else_=StopsMatched.stop_type,
+        ).label('effective_stop_type')
+
         filtered = query.with_entities(
             StopsMatched.sloid.label('sloid'),
             StopsMatched.osm_node_id.label('osm_node_id'),
-            StopsMatched.stop_type.label('stop_type')
+            effective_stop_type,
         ).subquery('f')
         total_atlas_expr = func.count(func.distinct(filtered.c.sloid))
-        matched_atlas_expr = func.count(func.distinct(case((filtered.c.stop_type == 'matched', filtered.c.sloid), else_=None)))
-        unmatched_atlas_expr = func.count(func.distinct(case((filtered.c.stop_type == 'atlas_unmatched', filtered.c.sloid), else_=None)))
+        matched_atlas_expr = func.count(func.distinct(case((filtered.c.effective_stop_type == 'matched', filtered.c.sloid), else_=None)))
+        unmatched_atlas_expr = func.count(func.distinct(case((filtered.c.effective_stop_type == 'atlas_unmatched', filtered.c.sloid), else_=None)))
         total_osm_expr = func.count(func.distinct(filtered.c.osm_node_id))
-        matched_osm_expr = func.count(func.distinct(case((filtered.c.stop_type == 'matched', filtered.c.osm_node_id), else_=None)))
-        unmatched_osm_expr = func.count(func.distinct(case((filtered.c.stop_type == 'osm_unmatched', filtered.c.osm_node_id), else_=None)))
-        matched_pairs_count_expr = func.count(case((filtered.c.stop_type == 'matched', 1), else_=None))
+        matched_osm_expr = func.count(func.distinct(case((filtered.c.effective_stop_type == 'matched', filtered.c.osm_node_id), else_=None)))
+        unmatched_osm_expr = func.count(func.distinct(case((filtered.c.effective_stop_type == 'osm_unmatched', filtered.c.osm_node_id), else_=None)))
+        matched_pairs_count_expr = func.count(case((filtered.c.effective_stop_type == 'matched', 1), else_=None))
         res = db.session.query(
             total_atlas_expr.label('total_atlas'),
             matched_atlas_expr.label('matched_atlas'),

@@ -303,6 +303,8 @@ def _classify_match_type(match_type: str) -> str:
         return 'exact'
     if match_type == 'name':
         return 'name'
+    if match_type == 'distance_matching_trio':
+        return 'distance_trio'
     if match_type.startswith('distance_matching_1_'):
         return 'distance_stage1'
     if match_type == 'distance_matching_2':
@@ -337,7 +339,8 @@ def _distance_stats(distances: List[float]) -> Dict[str, Any]:
 def compute_quality_metrics(
     matched_records: list,
     all_osm_nodes: list,
-    osm_groups: List[Tuple[str, str, str]],
+    osm_pairs: List[Tuple[str, str, str]] | None = None,
+    osm_trios: List[Tuple[str, str, str]] | None = None,
 ) -> Dict[str, Any]:
     """Compute matching quality metrics from pipeline results.
 
@@ -456,24 +459,37 @@ def compute_quality_metrics(
     }
 
     # ------------------------------------------------------------------
-    # 4. OSM group stats
+    # 4. OSM pair/trio stats
     # ------------------------------------------------------------------
+    osm_pairs = osm_pairs or []
+    osm_trios = osm_trios or []
+
     matched_osm_ids = set()
     for rec in matched_records:
         osm_id = getattr(getattr(rec, 'osm_node', None), 'node_id', None)
         if osm_id:
             matched_osm_ids.add(str(osm_id))
 
-    total_groups = len(osm_groups)
+    total_groups = len(osm_pairs) + len(osm_trios)
     by_type: Dict[str, int] = defaultdict(int)
     both_matched = 0
     neither_matched = 0
 
-    for n1, n2, group_type in osm_groups:
+    for n1, n2, group_type in osm_pairs:
         by_type[group_type] += 1
         m1 = str(n1) in matched_osm_ids
         m2 = str(n2) in matched_osm_ids
         if m1 or m2:
+            both_matched += 1
+        else:
+            neither_matched += 1
+
+    for middle, side_1, side_2 in osm_trios:
+        by_type['osm_trio'] += 1
+        mm = str(middle) in matched_osm_ids
+        m1 = str(side_1) in matched_osm_ids
+        m2 = str(side_2) in matched_osm_ids
+        if mm or m1 or m2:
             both_matched += 1
         else:
             neither_matched += 1

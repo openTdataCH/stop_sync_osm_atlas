@@ -89,6 +89,36 @@ def build_match_method_conditions(stop_model, matched_methods):
     return db.or_(*method_conditions) if len(method_conditions) > 1 else method_conditions[0]
 
 
+def build_trio_middle_with_matched_side_condition(stop_model):
+    """Return condition for trio middle nodes whose trio has at least one matched side node.
+
+    These rows are stored as ``osm_unmatched`` in ``stops_matched``, but should be
+    treated as matched for filtering/statistics semantics.
+    """
+    from sqlalchemy.orm import aliased
+    from backend.models import StopsMatched, OsmTrio
+
+    matched_side = aliased(StopsMatched)
+
+    matched_side_exists = db.select(1).select_from(matched_side).where(
+        matched_side.stop_type == 'matched',
+        db.or_(
+            matched_side.osm_node_id == OsmTrio.side_node_id_1,
+            matched_side.osm_node_id == OsmTrio.side_node_id_2,
+        )
+    ).exists()
+
+    trio_middle_exists = db.select(1).select_from(OsmTrio).where(
+        OsmTrio.middle_node_id == stop_model.osm_node_id,
+        matched_side_exists,
+    ).exists()
+
+    return db.and_(
+        stop_model.stop_type == 'osm_unmatched',
+        trio_middle_exists,
+    )
+
+
 def build_atlas_unmatched_condition(stop_model, unmatched_reason_filters):
     filter_for_no_osm_nearby = unmatched_reason_filters['no_nearby_counterpart']
     filter_for_osm_nearby = unmatched_reason_filters['osm_within_50m']
@@ -110,13 +140,17 @@ def build_atlas_unmatched_condition(stop_model, unmatched_reason_filters):
 
 def build_stop_scope_condition(stop_model, resolved_filters):
     scope_conditions = []
+    trio_middle_matched_condition = build_trio_middle_with_matched_side_condition(stop_model)
 
     if resolved_filters['include_matched']:
         matched_methods_condition = build_match_method_conditions(stop_model, resolved_filters['matched_methods'])
         if matched_methods_condition is not None:
-            scope_conditions.append(db.and_(stop_model.stop_type == 'matched', matched_methods_condition))
+            matched_scope = db.and_(stop_model.stop_type == 'matched', matched_methods_condition)
+            if 'distance_matching_trio' in resolved_filters['matched_methods']:
+                matched_scope = db.or_(matched_scope, trio_middle_matched_condition)
+            scope_conditions.append(matched_scope)
         else:
-            scope_conditions.append(stop_model.stop_type == 'matched')
+            scope_conditions.append(db.or_(stop_model.stop_type == 'matched', trio_middle_matched_condition))
 
     if resolved_filters['include_atlas_unmatched']:
         scope_conditions.append(
@@ -124,7 +158,12 @@ def build_stop_scope_condition(stop_model, resolved_filters):
         )
 
     if resolved_filters['include_osm_unmatched']:
-        scope_conditions.append(stop_model.stop_type == 'osm_unmatched')
+        scope_conditions.append(
+            db.and_(
+                stop_model.stop_type == 'osm_unmatched',
+                db.not_(trio_middle_matched_condition),
+            )
+        )
 
     if scope_conditions:
         return db.or_(*scope_conditions) if len(scope_conditions) > 1 else scope_conditions[0]
@@ -155,7 +194,14 @@ def parse_filter_params(request_args):
         filters['route_directions'] = [rd.strip() for rd in route_directions_str.split(',') if rd.strip()] if route_directions_str else []
     osm_group_types_str = request_args.get('osm_group_types')
     if osm_group_types_str is not None:
-        normalized_group_types = [group_type.strip() for group_type in osm_group_types_str.split(',') if group_type.strip()]
+        legacy_map = {
+            'osm_group_uic': 'osm_pair_uic',
+            'osm_group_name': 'osm_pair_name',
+            'osm_group_tram': 'osm_pair_tram',
+        }
+        normalized_group_types = []
+        for group_type in [group_type.strip() for group_type in osm_group_types_str.split(',') if group_type.strip()]:
+            normalized_group_types.append(legacy_map.get(group_type, group_type))
         if 'all' in normalized_group_types:
             filters['osm_group_types'] = []
         elif normalized_group_types:

@@ -36,7 +36,7 @@ from matching_and_import_db.database.route_loader import load_all_route_data
 from matching_and_import_db.utils.route_id import normalize_route_id
 
 # --- External models --------------------------------------------------------
-from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStopGroup, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem
+from backend.models import StopsMatched, AtlasStop, OsmNode, OsmPair, OsmTrio, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem
 from backend.services.stats_export import export_pipeline_stats, save_stats_to_file, compute_db_stats
 
 
@@ -138,16 +138,28 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
     print(f"Imported {len(matched_records)} matched records")
 
 
-def _import_osm_groups(session, osm_groups):
-    """Import OSM node groups (platform ↔ stop_position pairs) into the dedicated table."""
-    for node_id_1, node_id_2, group_type in osm_groups:
-        session.add(OsmStopGroup(
+def _import_osm_pairs(session, osm_pairs):
+    """Import OSM node pairs into the dedicated table."""
+    for node_id_1, node_id_2, group_type in osm_pairs:
+        session.add(OsmPair(
             node_id_1=node_id_1,
             node_id_2=node_id_2,
             group_type=group_type,
         ))
     session.commit()
-    print(f"Imported {len(osm_groups)} OSM group pairs")
+    print(f"Imported {len(osm_pairs)} OSM pairs")
+
+
+def _import_osm_trios(session, osm_trios):
+    """Import OSM trios with middle and side node references."""
+    for middle_node_id, side_node_id_1, side_node_id_2 in osm_trios:
+        session.add(OsmTrio(
+            middle_node_id=middle_node_id,
+            side_node_id_1=side_node_id_1,
+            side_node_id_2=side_node_id_2,
+        ))
+    session.commit()
+    print(f"Imported {len(osm_trios)} OSM trios")
 
 def _import_unmatched_atlas(session, unmatched_records, problem_ctx, duplicate_sloid_map, processed_sloids):
     no_nearby_osm_sloids = set()
@@ -323,7 +335,7 @@ def import_to_database(base_data: MatchingOutput):
     ensure_schema_updated()
 
     print("Truncating all database tables...")
-    session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, osm_stop_groups, route_atlas_stops, route_osm_stops CASCADE"))
+    session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, osm_pairs, osm_trios, route_atlas_stops, route_osm_stops CASCADE"))
     session.execute(text("TRUNCATE TABLE routes_matched CASCADE"))
     session.execute(text("TRUNCATE TABLE problems, stops_matched CASCADE"))
     session.commit()
@@ -359,10 +371,11 @@ def import_to_database(base_data: MatchingOutput):
     # 0. Import ALL OSM nodes upfront (satisfies route_osm_stops FK by construction)
     _import_all_osm_nodes(session, base_data.all_osm_nodes, problem_ctx)
 
-    # 0b. Import OSM groups (platform ↔ stop_position pairs) into dedicated table
-    _import_osm_groups(session, base_data.osm_groups)
+    # 0b. Import OSM pairs and trios into dedicated tables
+    _import_osm_pairs(session, base_data.osm_pairs)
+    _import_osm_trios(session, base_data.osm_trios)
 
-    # 1. Import Matched (osm_group_propagation records from commit() replace the old group_partner hack)
+    # 1. Import Matched (osm_group_propagation records from commit() include pair siblings)
     _import_matched_stops(session, base_data.matched, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids)
 
     # 2. Import Unmatched Atlas
@@ -462,7 +475,8 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
             quality = compute_quality_metrics(
                 matched_records=matched_records,
                 all_osm_nodes=getattr(base_data, 'all_osm_nodes', []),
-                osm_groups=getattr(base_data, 'osm_groups', []),
+                osm_pairs=getattr(base_data, 'osm_pairs', []),
+                osm_trios=getattr(base_data, 'osm_trios', []),
             )
             stats['quality_metrics'] = quality
         except Exception as e:
