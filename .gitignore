@@ -86,3 +86,5 @@ coverage/
 documentation/generated/
 
 latex_document
+
+!tests/data
