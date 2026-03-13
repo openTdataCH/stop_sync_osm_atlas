@@ -7,10 +7,15 @@ and the make_match() helper used by all predicates.
 from dataclasses import dataclass, field
 import pandas as pd
 import logging
+from typing import TYPE_CHECKING
 
 from matching_and_import_db.utils.common import haversine_distance
 from matching_and_import_db.utils.match_record import create_match_record, extract_atlas_fields
 from matching_and_import_db.models import MatchRecord, PipelineResult
+
+if TYPE_CHECKING:
+    from matching_and_import_db.state import AtlasState, OsmState
+    from matching_and_import_db.predicates import BasePredicate
 
 logger = logging.getLogger(__name__)
 

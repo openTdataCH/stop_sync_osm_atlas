@@ -446,9 +446,9 @@ describe('LineRenderer', () => {
     // clearLines Tests
     // -----------------------------------------
     describe('clearLines', () => {
-        test('calls eachLayer on the layer', () => {
+        test('calls clearLayers on the layer', () => {
             LineRenderer.clearLines(mockLayer);
-            expect(mockLayer.eachLayer).toHaveBeenCalled();
+            expect(mockLayer.clearLayers).toHaveBeenCalled();
         });
 
         test('handles null layer gracefully', () => {
