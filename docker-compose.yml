@@ -2,10 +2,10 @@ services:
   redis:
     image: redis:7-alpine
     container_name: stop_sync_osm_atlas_redis
-    restart: unless-stopped
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    restart: "no"
+    command: [ "redis-server", "--save", "", "--appendonly", "no" ]
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -13,19 +13,19 @@ services:
   db:
     image: postgis/postgis:16-3.4
     container_name: stop_sync_osm_atlas_db
-    restart: unless-stopped
+    restart: "no"
     environment:
-      POSTGRES_DB: stops_db
+      POSTGRES_DB: import_db
       POSTGRES_USER: stops_user
       POSTGRES_PASSWORD: 1234
     ports:
       - "5432:5432" # Exposes Postgres to your host machine on port 5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Create auth_db on first init
+      # Create user_input_db on first init
       - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -h localhost -p 5432"]
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -h localhost -p 5432" ]
       interval: 10s
       timeout: 5s
       retries: 2
@@ -37,7 +37,7 @@ services:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
     container_name: stop_sync_osm_atlas_app
-    restart: unless-stopped
+    restart: "no"
     ports:
       - "5001:5001"
     volumes:
@@ -55,81 +55,14 @@ services:
       FLASK_ENV: development # Or production
       FLASK_DEBUG: 1 # Enables Flask debugger
       # Database URI for SQLAlchemy, now configurable via .env
-      DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/stops_db}
-      AUTH_DATABASE_URI: ${AUTH_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/auth_db}
+      DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
+      USER_INPUT_DATABASE_URI: ${USER_INPUT_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/user_input_db}
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
       AUTO_MIGRATE: "true"
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
-      # Data processing control flags
-      MATCH_ONLY: "${MATCH_ONLY:-false}" # Use host env or default to false; set MATCH_ONLY=true to skip downloads
-      # Email/SES configuration
-      APP_NAME: "OSM-ATLAS Sync"
-      SUPPORT_EMAIL: "support@example.com" # optional, shown in email footer
-      AWS_REGION: "eu-west-1" # set to your SES region
-      SES_FROM_EMAIL: "no-reply@example.com" # must be a verified SES identity
-      # Turnstile (optional; if unset, verification is skipped)
-      TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:-}"
-      TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"
-      # Optional SES configuration set for deliverability tracking
-      # SES_CONFIGURATION_SET: "your-config-set"
-      # AWS credentials are picked up automatically by the AWS SDK (boto3)
-      # You can export AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY in your shell
-      # or add them here if you prefer (not recommended to commit secrets):
-      # AWS_ACCESS_KEY_ID: "..."
-      # AWS_SECRET_ACCESS_KEY: "..."
-    cpu_shares: 2048 # Higher CPU priority during contention
-    mem_limit: 4g # Increase to avoid OOM issues
-    # mem_reservation: 1g # Optional: guarantee 1g
-
-  app-dev: # New service for development, skips data import
-    profiles:
-      - dev
-    build:
-      context: .
-      args:
-        APP_UID: ${APP_UID:-1000}
-        APP_GID: ${APP_GID:-1000}
-    container_name: stop_sync_osm_atlas_app_dev
-    restart: unless-stopped
-    ports:
-      - "5001:5001"
-    volumes:
-      - .:/app # Mounts your project directory into the container for live code changes
-      # Mount data directory for persistence
-      - ./data:/app/data
-    depends_on:
-      db:
-        condition: service_healthy # Waits for db to be healthy before starting app
-      redis:
-        condition: service_healthy
-    environment:
-      # Flask environment variables (some are also in Dockerfile for explicitness)
-      FLASK_APP: backend/app.py
-      FLASK_ENV: development # Or production
-      FLASK_DEBUG: 1 # Enables Flask debugger
-      # Database URI for SQLAlchemy, now configurable via .env
-      DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/stops_db}
-      AUTH_DATABASE_URI: ${AUTH_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/auth_db}
-      SKIP_DATA_IMPORT: "true" # Skip data import for this service
-      SECRET_KEY: ${SECRET_KEY:-dev-insecure}
-      FORCE_HTTPS: "false"
-      SESSION_COOKIE_SECURE: "false"
-      # Auto-generate and apply migrations in dev
-      AUTO_MIGRATE: "true"
-      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
-      # Email/SES configuration (dev)
-      APP_NAME: "OSM-ATLAS Sync"
-      SUPPORT_EMAIL: "support@example.com"
-      AWS_REGION: "eu-west-1"
-      SES_FROM_EMAIL: "no-reply@example.com"
-      # Turnstile (optional; if unset, verification is skipped)
-      TURNSTILE_SITE_KEY: "${TURNSTILE_SITE_KEY:-}"
-      TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:-}"
-      # SES_CONFIGURATION_SET: "your-config-set"
-      # AWS_ACCESS_KEY_ID: "..."
-      # AWS_SECRET_ACCESS_KEY: "..."
+      SKIP_DATA_IMPORT: "${SKIP_DATA_IMPORT:-false}" # Skip data import on startup if true
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 4g # Increase to avoid OOM issues
     # mem_reservation: 1g # Optional: guarantee 1g

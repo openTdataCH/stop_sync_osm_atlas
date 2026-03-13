@@ -15,6 +15,14 @@ window.ProblemsMap = (function() {
     // Request management for context loading
     let currentContextRequest = null; // jqXHR of in-flight /api/data
 
+    function getAtlasMarkerIdentity(stopData) {
+        if (!stopData) return null;
+        if (stopData.sloid != null && stopData.sloid !== '') return String(stopData.sloid);
+        if (stopData.representative_sloid != null && stopData.representative_sloid !== '') return String(stopData.representative_sloid);
+        if (stopData.id != null && stopData.id !== '') return String(stopData.id);
+        return null;
+    }
+
     /**
      * Initialize the map on the problems page with same style as main page
      */
@@ -23,10 +31,20 @@ window.ProblemsMap = (function() {
             closePopupOnClick: false,
             // Use SVG renderer so popup connection lines can be drawn (same as main map)
             preferCanvas: false,
+            renderer: L.svg({ padding: 0.1 }),
             maxZoom: AppConstants.MAP.MAX_ZOOM,
             zoomControl: false
         }).setView([47.3769, 8.5417], 13);
         
+        // Increase SVG renderer padding at high zoom to prevent lines/markers
+        // from disappearing when one end is off-screen
+        problemMap.on('zoomend', function() {
+            var renderer = problemMap.getRenderer(problemMap);
+            if (renderer) {
+                renderer.options.padding = problemMap.getZoom() >= 16 ? 2.0 : 0.1;
+            }
+        });
+
         // Use same tile layer as main page
         const osmLayerProblems = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
              maxZoom: AppConstants.MAP.MAX_ZOOM,
@@ -234,27 +252,31 @@ window.ProblemsMap = (function() {
             
             // Collect marker data for cluster handling
             var contextMarkerData = [];
+            var createdAtlasMarkers = new Set();
             
             // Process both ATLAS and OSM markers for each stop
             filteredData.forEach(function(stop) {
                 // Handle ATLAS markers
-                if (stop.sloid && stop.atlas_lat != null && stop.atlas_lon != null) {
+                const atlasMarkerKey = getAtlasMarkerIdentity(stop);
+                if (stop.sloid && stop.atlas_lat != null && stop.atlas_lon != null && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
                     let atlasColor = 'gray';
                     if (stop.stop_type === 'matched') atlasColor = 'green';
-                    else if (stop.stop_type === 'unmatched') atlasColor = 'red';
-                    else if (stop.stop_type === 'station') atlasColor = 'orange';
+                    else if (stop.stop_type === 'atlas_unmatched') atlasColor = 'red';
                     
                     contextMarkerData.push({
                         lat: parseFloat(stop.atlas_lat),
                         lon: parseFloat(stop.atlas_lon),
                         type: 'atlas',
                         color: atlasColor,
-                        duplicateSloid: stop.atlas_duplicate_sloid,
+                        hasAtlasDuplicate: stop.has_atlas_duplicate,
                         originalLat: parseFloat(stop.atlas_lat),
                         originalLon: parseFloat(stop.atlas_lon),
                         stopData: stop,
                         opacity: 0.6
                     });
+                    if (atlasMarkerKey) {
+                        createdAtlasMarkers.add(atlasMarkerKey);
+                    }
                 }
                 
                 // Handle OSM markers - both direct and from osm_matches array
@@ -287,7 +309,7 @@ window.ProblemsMap = (function() {
                 osmNodesToProcess.forEach(osmData => {
                     let osmColor = 'gray';
                     if (osmData.stop_type === 'matched') osmColor = 'blue';
-                    else if (osmData.stop_type === 'osm') osmColor = 'gray';
+                    else if (osmData.stop_type === 'osm_unmatched') osmColor = 'gray';
                     
                     contextMarkerData.push({
                         lat: parseFloat(osmData.osm_lat),

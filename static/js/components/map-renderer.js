@@ -4,6 +4,12 @@
 
 // Cache for reusing identical L.divIcon instances
 const DivIconCache = new Map();
+const MAP_RENDERER_LABEL_ICON_MIN_ZOOM = (typeof AppConstants !== 'undefined' && AppConstants.MAP && AppConstants.MAP.LABEL_ICON_MIN_ZOOM) || 18;
+const OSM_LABEL_BY_NODE_TYPE = Object.freeze({
+    platform: 'P',
+    railway_station: 'S'
+});
+
 function getCachedDivIcon(key, html, className, size, anchor) {
     if (DivIconCache.has(key)) {
         return DivIconCache.get(key);
@@ -21,14 +27,32 @@ function getCachedDivIcon(key, html, className, size, anchor) {
 // Robust truthiness helper for duplicate flags coming from mixed backends
 // Treats null/undefined/empty/"false"/"0"/"none"/"null" as false; anything else as true
 function isDuplicateFlagSet(value) {
-    if (value === null || value === undefined) return false;
-    // Only treat non-empty, meaningful strings as true. Booleans/numbers are legacy noise.
+    if (value === true) return true;
+    if (value === false || value == null) return false;
+    if (typeof value === 'number') return value !== 0 && !Number.isNaN(value);
     if (typeof value === 'string') {
-        const str = value.trim().toLowerCase();
-        if (str === '' || str === 'false' || str === 'true' || str === '0' || str === '1' || str === 'none' || str === 'null') return false;
-        return true;
+        const normalized = value.trim().toLowerCase();
+        return !(normalized === '' || normalized === 'false' || normalized === '0' || normalized === 'none' || normalized === 'null' || normalized === 'undefined');
     }
-    return false;
+    return !!value;
+}
+
+function resolveMarkerZoom(zoomOverride) {
+    if (typeof zoomOverride === 'number' && !Number.isNaN(zoomOverride)) {
+        return zoomOverride;
+    }
+    if (typeof map !== 'undefined' && map && map.getZoom) {
+        return map.getZoom();
+    }
+    return MAP_RENDERER_LABEL_ICON_MIN_ZOOM;
+}
+
+function shouldUseCanvasMarker(zoomOverride) {
+    return resolveMarkerZoom(zoomOverride) < MAP_RENDERER_LABEL_ICON_MIN_ZOOM;
+}
+
+function resolveOsmLabel(osmNodeType) {
+    return OSM_LABEL_BY_NODE_TYPE[osmNodeType] || null;
 }
 
 // Helper to build and cache a labeled circle SVG icon
@@ -53,9 +77,9 @@ class MarkerClusterManager {
      * Creates an ATLAS marker for clustered/offset rendering.
      * Delegates to the globally available createAtlasMarker helper.
      */
-    _createAtlasMarkerWithCluster(lat, lon, color, duplicateSloid, clusterSize, index, originalLat, originalLon) {
+    _createAtlasMarkerWithCluster(lat, lon, color, hasAtlasDuplicate, clusterSize, index, originalLat, originalLon) {
         try {
-            return createAtlasMarker(lat, lon, color, duplicateSloid);
+            return createAtlasMarker(lat, lon, color, hasAtlasDuplicate);
         } catch (e) {
             // Fallback to a simple circle marker if helper is unavailable
             return L.circleMarker([lat, lon], {
@@ -198,7 +222,7 @@ class MarkerClusterManager {
                 let marker;
                 if (markerData.type === 'atlas') {
                     marker = this._createAtlasMarkerWithCluster(
-                        offsetLat, offsetLon, markerData.color, markerData.duplicateSloid,
+                        offsetLat, offsetLon, markerData.color, markerData.hasAtlasDuplicate,
                         clusterSize, index, markerData.originalLat, markerData.originalLon
                     );
                 } else {
@@ -225,7 +249,7 @@ class MarkerClusterManager {
                                     try {
                                         const enriched = resp && (resp.stop || resp);
                                         let content = '';
-                                        if (enriched && enriched.stop_type === 'unmatched') {
+                                        if (enriched && enriched.stop_type === 'atlas_unmatched') {
                                             content = markerData.type === 'atlas'
                                                 ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
                                                 : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
@@ -267,15 +291,15 @@ class MarkerClusterManager {
  * @param {number} lat - Latitude.
  * @param {number} lon - Longitude.
  * @param {string} color - Marker color.
- * @param {string|null} duplicateSloid - The SLOID of a duplicate, if one exists.
+ * @param {boolean} hasAtlasDuplicate - Whether this stop has an atlas duplicate.
  * @returns {L.Marker} A Leaflet marker.
  */
-function createAtlasMarker(lat, lon, color, duplicateSloid) {
+function createAtlasMarker(lat, lon, color, hasAtlasDuplicate, zoomOverride) {
     const radius = AppConstants.MARKERS.DEFAULT_RADIUS;
     const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
     const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
     const size = radius * 2;
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
+    const useCanvasOnly = shouldUseCanvasMarker(zoomOverride);
     if (useCanvasOnly) {
         return L.circleMarker([lat, lon], {
             color: color,
@@ -284,7 +308,7 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
             weight: weight
         });
     }
-    if (isDuplicateFlagSet(duplicateSloid)) { // Show labeled icon only when truly flagged
+    if (isDuplicateFlagSet(hasAtlasDuplicate)) { // Show labeled icon only when truly flagged
         const icon = getCachedLabeledCircleIcon('atlas', color, 'D', size, radius, weight, fillOpacity);
         return L.marker([lat, lon], { icon: icon });
     } else {
@@ -305,12 +329,12 @@ function createAtlasMarker(lat, lon, color, duplicateSloid) {
  * @param {string} osmNodeType - The OSM node type ('platform', 'railway_station', etc.).
  * @returns {L.Marker} A Leaflet marker.
  */
-function createOsmMarker(lat, lon, color, osmNodeType = null) {
+function createOsmMarker(lat, lon, color, osmNodeType = null, zoomOverride) {
     const radius = AppConstants.MARKERS.DEFAULT_RADIUS;
     const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
     const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
     const size = radius * 2;
-    const useCanvasOnly = (typeof map !== 'undefined') && map && map.getZoom && map.getZoom() < 23;
+    const useCanvasOnly = shouldUseCanvasMarker(zoomOverride);
     if (useCanvasOnly) {
         return L.circleMarker([lat, lon], {
             color: color,
@@ -320,11 +344,9 @@ function createOsmMarker(lat, lon, color, osmNodeType = null) {
         });
     }
 
-    if (osmNodeType === 'platform') {
-        const icon = getCachedLabeledCircleIcon('osm', color, 'P', size, radius, weight, fillOpacity);
-        return L.marker([lat, lon], { icon: icon });
-    } else if (osmNodeType === 'railway_station') {
-        const icon = getCachedLabeledCircleIcon('osm', color, 'S', size, radius, weight, fillOpacity);
+    const label = resolveOsmLabel(osmNodeType);
+    if (label) {
+        const icon = getCachedLabeledCircleIcon('osm', color, label, size, radius, weight, fillOpacity);
         return L.marker([lat, lon], { icon: icon });
     } else {
         return L.circleMarker([lat, lon], {
@@ -426,8 +448,6 @@ function attachPopupLineHandlersToMap(mapInstance) {
             const type = $container.data('type'); // 'atlas' or 'osm'
             if (!(stopId && type)) return;
 
-            const $btn = $root.find('button.manual-match-target');
-
             // Load popup notes content when the collapsible is present
             const $notes = $root.find('.popup-notes');
             if ($notes.length) {
@@ -492,76 +512,6 @@ function attachPopupLineHandlersToMap(mapInstance) {
                 });
             }
 
-            // Ensure UI reflects current selection state
-            if (typeof window.updateManualMatchButtonsUI === 'function') {
-                window.updateManualMatchButtonsUI();
-            }
-
-            $btn.off('click.mm').on('click.mm', function () {
-                const current = window.manualMatchContext;
-                if (!current) {
-                    // Start selection from this popup
-                    window.manualMatchContext = { from: type, stopId: stopId };
-                    $('.manual-match-banner').remove();
-                    const msg = type === 'atlas' ? 'Select an OSM entry to complete the match' : 'Select an ATLAS entry to complete the match';
-                    const banner = $(`
-                        <div class="manual-match-banner alert alert-info" role="alert" style="position:fixed; top:10px; left:50%; transform:translateX(-50%); z-index:2000;">
-                            ${msg}
-                            <button type="button" class="btn btn-sm btn-outline-secondary ml-2" id="cancelManualMatch">Cancel</button>
-                        </div>
-                    `);
-                    $('body').append(banner);
-                    $('#cancelManualMatch').on('click', function () {
-                        window.manualMatchContext = null;
-                        $('.manual-match-banner').remove();
-                        if (typeof window.updateManualMatchButtonsUI === 'function') {
-                            window.updateManualMatchButtonsUI();
-                        }
-                    });
-                    if (typeof window.updateManualMatchButtonsUI === 'function') {
-                        window.updateManualMatchButtonsUI();
-                    }
-                    return;
-                }
-
-                // Attempt to finalize if clicking on opposite dataset
-                if ((current.from === 'atlas' && type === 'osm') || (current.from === 'osm' && type === 'atlas')) {
-                    const atlasId = current.from === 'atlas' ? current.stopId : stopId;
-                    const osmId = current.from === 'atlas' ? stopId : current.stopId;
-                    const makePersistent = (typeof ProblemsState !== 'undefined' && ProblemsState.getAutoPersistEnabled && ProblemsState.getAutoPersistEnabled()) || false;
-
-                    $.ajax({
-                        url: '/api/manual_match',
-                        method: 'POST',
-                        contentType: 'application/json',
-                        data: JSON.stringify({ atlas_stop_id: atlasId, osm_stop_id: osmId, make_persistent: makePersistent }),
-                    }).done(function (resp) {
-                        window.manualMatchContext = null;
-                        $('.manual-match-banner').remove();
-                        // Success notification
-                        if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
-                            window.ProblemsUI.showTemporaryMessage('Manual match saved' + (resp && resp.is_persistent ? ' (persistent)' : ''), 'success');
-                        }
-                        // Optional: refresh Problems view if present
-                        if (typeof ProblemsData !== 'undefined' && ProblemsData.fetchProblems && typeof ProblemsState !== 'undefined') {
-                            const idx = ProblemsState.getCurrentProblemIndex ? ProblemsState.getCurrentProblemIndex() : 0;
-                            ProblemsData.fetchProblems(ProblemsState.getCurrentPage ? ProblemsState.getCurrentPage() : 1);
-                            setTimeout(() => {
-                                if (window.ProblemsUI && window.ProblemsUI.displayProblem) {
-                                    window.ProblemsUI.displayProblem(idx);
-                                }
-                            }, 400);
-                        }
-                        if (typeof window.updateManualMatchButtonsUI === 'function') {
-                            window.updateManualMatchButtonsUI();
-                        }
-                    }).fail(function () {
-                        if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
-                            window.ProblemsUI.showTemporaryMessage('Failed to save manual match', 'error');
-                        }
-                    });
-                }
-            });
         } catch (err) { /* ignore */ }
     });
     mapInstance.on('popupclose', function (e) {
@@ -582,24 +532,6 @@ function attachPopupLineHandlersToMap(mapInstance) {
     return openPopups;
 }
 
-// Global helper to keep popup buttons in sync with current manual selection
-window.updateManualMatchButtonsUI = function () {
-    const ctx = window.manualMatchContext;
-    // For every visible popup, set appropriate button text
-    $('.leaflet-popup').each(function () {
-        const $root = $(this);
-        const $container = $root.find('.popup-content-container').first();
-        const type = $container.data('type');
-        const $btn = $root.find('button.manual-match-target');
-        if (!$btn.length) return;
-        if (ctx && ctx.from && ((ctx.from === 'atlas' && type === 'osm') || (ctx.from === 'osm' && type === 'atlas'))) {
-            $btn.text('Match to this entry');
-        } else {
-            $btn.text('Match to');
-        }
-    });
-};
-
 /**
  * Draws a problem case on the map, including markers and lines.
  * @param {L.Map} map - The Leaflet map instance.
@@ -615,7 +547,7 @@ function drawProblemOnMap(map, problemData, layers) {
 
     // Case: 'distance' or 'attributes' problem (a matched pair)
     if ((stop.problem === 'distance' || stop.problem === 'attributes') && stop.stop_type === 'matched' && stop.atlas_lat && stop.osm_lat) {
-        const atlasMarker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'green', stop.atlas_duplicate_sloid);
+        const atlasMarker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'green', stop.has_atlas_duplicate);
         const atlasPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'atlas'));
         atlasMarker.bindPopup(atlasPopup).addTo(layers.markersLayer);
 
@@ -635,13 +567,13 @@ function drawProblemOnMap(map, problemData, layers) {
     }
     // Case: 'unmatched' problem
     else if (stop.problem === 'unmatched') {
-        if (stop.stop_type === 'unmatched' && stop.atlas_lat) { // Isolated ATLAS
-            const marker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'red', stop.atlas_duplicate_sloid);
+        if (stop.stop_type === 'atlas_unmatched' && stop.atlas_lat) { // Isolated ATLAS
+            const marker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'red', stop.has_atlas_duplicate);
             popup = createPopupWithOptions(PopupRenderer.generateSingleAtlasBubbleHtml(stop, true));
             marker.bindPopup(popup).addTo(layers.markersLayer);
             map.setView([stop.atlas_lat, stop.atlas_lon], 16);
             marker.openPopup();
-        } else if (stop.stop_type === 'osm' && stop.osm_lat) { // Isolated OSM
+        } else if (stop.stop_type === 'osm_unmatched' && stop.osm_lat) { // Isolated OSM
             const marker = createOsmMarker(stop.osm_lat, stop.osm_lon, 'gray', stop.osm_node_type);
             popup = createPopupWithOptions(PopupRenderer.generateSingleOsmBubbleHtml(stop, true));
             marker.bindPopup(popup).addTo(layers.markersLayer);
@@ -662,17 +594,15 @@ function drawProblemOnMap(map, problemData, layers) {
             if (!isOsmGroup && member.atlas_lat != null && member.atlas_lon != null) {
                 // Use same color semantics as main map: green matched, red unmatched, orange stations
                 let atlasColor = 'green';
-                if (member.stop_type === 'unmatched') {
+                if (member.stop_type === 'atlas_unmatched') {
                     atlasColor = 'red';
-                } else if (member.stop_type === 'station') {
-                    atlasColor = 'orange';
                 }
                 markerDataArray.push({
                     lat: parseFloat(member.atlas_lat),
                     lon: parseFloat(member.atlas_lon),
                     type: 'atlas',
                     color: atlasColor,
-                    duplicateSloid: member.atlas_duplicate_sloid,
+                    hasAtlasDuplicate: member.has_atlas_duplicate,
                     originalLat: parseFloat(member.atlas_lat),
                     originalLon: parseFloat(member.atlas_lon),
                     stopData: member,
@@ -705,5 +635,3 @@ function drawProblemOnMap(map, problemData, layers) {
         createdMarkers.slice(0, 6).forEach(m => { try { m.openPopup(); } catch (e) { } });
     }
 }
-
-

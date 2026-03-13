@@ -7,7 +7,6 @@
    Container
    ------------------------------------------------------------------------- */
 .operator-dropdown-container {
-    position: relative;
     width: 100%;
 }
 
@@ -54,10 +53,6 @@
    Dropdown Menu
    ------------------------------------------------------------------------- */
 .operator-dropdown-menu {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
     z-index: var(--z-dropdown);
     background-color: var(--color-bg);
     border: var(--border-width) solid var(--color-border-emphasis);

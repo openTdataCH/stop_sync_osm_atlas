@@ -58,17 +58,6 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 
     This typically takes 20 minutes. Data and database state are cached across runs (`./data` directory and the `postgres_data` volume).
 
-    **Match-Only Mode (Skip Data Downloads):**
-    ```bash
-    MATCH_ONLY=true docker compose up --build
-    ```
-    Use this when you want to re-run only the matching and database import using previously downloaded data. This is much faster than the full pipeline.
-
-    **Development Mode (Skip Data Processing Entirely):**
-    ```bash
-    docker compose up app-dev
-    ```
-    Use this when the database is already populated and you want to iterate on the web application without re-running any data pipeline.
 
 4.  **Access the application**:
     - Web app: [http://localhost:5001](http://localhost:5001)
@@ -114,17 +103,29 @@ flowchart LR
 
 When the `app` container starts (and data import is not skipped), the entrypoint runs:
 
-- `Download_and_process_data/get_atlas_data.py`: downloads ATLAS data and GTFS, builds optimized route/stop artifacts
-- `Download_and_process_data/get_osm_data.py`: fetches OSM data via Overpass and processes it
+- `matching_and_import_db/downloader/get_atlas_data.py`: downloads ATLAS data and GTFS, builds optimized route/stop artifacts
+- `matching_and_import_db/downloader/get_osm_data.py`: fetches OSM data via Overpass and processes it
 
 Downloads are cached under `data/raw/` and processed artifacts under `data/processed/` — see [1. Download and process data](documentation/1.%20Download%20and%20process%20data.md) for details.
 
 
 ### Data Import
 
-After acquisition, `import_data_db.py` populates the Postgres databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
+After acquisition, `matching_and_import_db/database/importer.py` populates the Postgres databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
 
-Set `SKIP_DATA_IMPORT=true` (the `app-dev` service already does this) to bypass acquisition/import when you only want to run the web app against an existing database.
+Set `SKIP_DATA_IMPORT=true` to bypass acquisition/import when you only want to run the web app against an existing database.
+
+### Manual Import & Testing (VS Code Tasks)
+
+If you have VS Code installed, we have provided built-in tasks to quickly run commands inside the running database container without constantly restarting Docker:
+1. Open the VS Code Command Palette (`Cmd+Shift+P` on Mac).
+2. Select **`Tasks: Run Task`**.
+3. Choose one of the predefined tasks:
+   - **`Docker: Run All Tests`**: Executes the `pytest` suite.
+   - **`Docker: Run Matching & Import (Existing Data)`**: Manually runs the `matching_and_import_db/database/importer.py` matching script.
+   - **`Docker: Run Full Data Pipeline (Download & Match & Import)`**: Downloads new data and automatically runs the matcher.
+
+You can do this while the `app` container is running in the background.
 
 ## Running the Web Application
 

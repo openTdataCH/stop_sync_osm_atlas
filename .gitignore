@@ -39,7 +39,8 @@ env/
 ENV/
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 .idea/
 *.swp
 *.swo
@@ -80,3 +81,10 @@ coverage/
 *.snm
 *.vrb
 *.log
+
+# Generated documentation
+documentation/generated/
+
+latex_document
+
+!tests/data

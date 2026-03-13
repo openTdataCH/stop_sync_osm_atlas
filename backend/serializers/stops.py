@@ -1,15 +1,17 @@
-from backend.models import Stop, AtlasStop, OsmNode
+from backend.models import StopsMatched, AtlasStop, OsmNode
+from backend.services.routes import get_unified_routes_for_sloid, get_osm_routes_for_node
 
-def format_stop_data(stop: Stop, problem_type: str = None, include_routes: bool = True, include_notes: bool = True) -> dict:
+def format_stop_data(stop: StopsMatched, problem_type: str = None, include_routes: bool = True) -> dict:
     atlas_details = stop.atlas_stop_details
     osm_details = stop.osm_node_details
+    has_atlas_duplicate = bool(atlas_details and atlas_details.duplicate_group_sloids)
+    has_osm_duplicate = bool(osm_details and osm_details.duplicate_group_node_ids)
 
     result = {
         "id": stop.id,
         "sloid": stop.sloid,
         "stop_type": stop.stop_type,
         "match_type": stop.match_type,
-        "manual_is_persistent": getattr(stop, 'manual_is_persistent', False),
         "atlas_lat": stop.atlas_lat if stop.atlas_lat is not None else stop.osm_lat,
         "atlas_lon": stop.atlas_lon if stop.atlas_lon is not None else stop.osm_lon,
         "atlas_business_org_abbr": atlas_details.atlas_business_org_abbr if atlas_details else None,
@@ -26,6 +28,7 @@ def format_stop_data(stop: Stop, problem_type: str = None, include_routes: bool 
         "osm_amenity": osm_details.osm_amenity if osm_details else None,
         "osm_aerialway": osm_details.osm_aerialway if osm_details else None,
         "distance_m": stop.distance_m,
+        "matching_notes": stop.matching_notes,
         "atlas_designation": atlas_details.atlas_designation if atlas_details else None,
         "atlas_designation_official": atlas_details.atlas_designation_official if atlas_details else None,
         "uic_ref": atlas_details.uic_ref if atlas_details else None,
@@ -34,24 +37,18 @@ def format_stop_data(stop: Stop, problem_type: str = None, include_routes: bool 
         "osm_name": osm_details.osm_name if osm_details else None,
         "osm_uic_name": osm_details.osm_uic_name if osm_details else None,
         "osm_uic_ref": osm_details.osm_uic_ref if osm_details else None,
-        "atlas_duplicate_sloid": stop.atlas_duplicate_sloid,
+        "has_atlas_duplicate": has_atlas_duplicate,
+        "has_osm_duplicate": has_osm_duplicate,
+        "representative_sloid": atlas_details.representative_sloid if atlas_details else None,
+        "duplicate_group_sloids": atlas_details.duplicate_group_sloids if atlas_details else None,
+        "duplicate_group_node_ids": osm_details.duplicate_group_node_ids if osm_details else None,
         "osm_node_type": osm_details.osm_node_type if osm_details else None,
     }
 
     if include_routes:
         result.update({
-            "routes_unified": getattr(atlas_details, 'routes_unified', None) if atlas_details else None,
-            "routes_osm": osm_details.routes_osm if osm_details else None,
-        })
-
-    if include_notes:
-        result.update({
-            "atlas_note": atlas_details.atlas_note if atlas_details else None,
-            "osm_note": osm_details.osm_note if osm_details else None,
-            "atlas_note_is_persistent": atlas_details.atlas_note_is_persistent if atlas_details else False,
-            "osm_note_is_persistent": osm_details.osm_note_is_persistent if osm_details else False,
-            "atlas_note_author_email": atlas_details.atlas_note_user_email if atlas_details else None,
-            "osm_note_author_email": osm_details.osm_note_user_email if osm_details else None
+            "routes_unified": get_unified_routes_for_sloid(stop.sloid) if stop.sloid else [],
+            "routes_osm": get_osm_routes_for_node(stop.osm_node_id) if stop.osm_node_id else [],
         })
 
     if problem_type:

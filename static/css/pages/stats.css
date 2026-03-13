@@ -1,0 +1,243 @@
+/* ==========================================================================
+   STATS PAGE
+   Styles specific to the Pipeline Stats page.
+   ========================================================================== */
+
+/* -------------------------------------------------------------------------
+   Page Layout
+   ------------------------------------------------------------------------- */
+.stats-page {
+  background: var(--color-bg-subtle);
+  min-height: calc(100vh - 60px);
+  padding: var(--space-6) 0;
+}
+
+.stats-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+/* -------------------------------------------------------------------------
+   Page Header
+   ------------------------------------------------------------------------- */
+.stats-header {
+  margin-bottom: var(--space-6);
+}
+
+.stats-header h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-fg);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.stats-header p {
+  color: var(--color-fg-muted);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+/* -------------------------------------------------------------------------
+   Back Link
+   ------------------------------------------------------------------------- */
+.stats-page .back-link {
+  display: inline-block;
+  margin-bottom: var(--space-4);
+  color: var(--color-fg-muted);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.stats-page .back-link:hover {
+  color: var(--color-fg);
+}
+
+/* -------------------------------------------------------------------------
+   Stat Cards
+   ------------------------------------------------------------------------- */
+.stat-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  text-align: center;
+  height: 100%;
+}
+
+.stat-card--sm {
+  padding: var(--space-3);
+}
+
+.stat-card__value {
+  font-size: 1.75rem;
+  font-weight: var(--font-bold);
+  color: var(--color-fg);
+  line-height: 1.2;
+}
+
+.stat-card--sm .stat-card__value {
+  font-size: 1.4rem;
+}
+
+.stat-card__label {
+  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+  margin-top: var(--space-1);
+}
+
+/* Card accent colors */
+.stat-card--success {
+  border-left: 4px solid var(--color-success, #28a745);
+}
+
+.stat-card--success .stat-card__value {
+  color: var(--color-success, #28a745);
+}
+
+.stat-card--primary {
+  border-left: 4px solid var(--color-accent, #0366d6);
+}
+
+.stat-card--primary .stat-card__value {
+  color: var(--color-accent, #0366d6);
+}
+
+.stat-card--warning {
+  border-left: 4px solid #f0ad4e;
+}
+
+.stat-card--warning .stat-card__value {
+  color: #e08e0b;
+}
+
+.stat-card--danger {
+  border-left: 4px solid #dc3545;
+}
+
+.stat-card--danger .stat-card__value {
+  color: #dc3545;
+}
+
+/* -------------------------------------------------------------------------
+   Priority Accordion
+   ------------------------------------------------------------------------- */
+.priority-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.accordion-item {
+  border: 1px solid var(--color-border, #e1e4e8);
+  border-radius: var(--radius-md, 6px);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.accordion-item:hover {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+/* Severity left-border accents */
+.accordion-item--danger  { border-left: 4px solid #dc3545; }
+.accordion-item--warning { border-left: 4px solid #f0ad4e; }
+.accordion-item--minor   { border-left: 4px solid #6c757d; }
+
+/* Trigger button */
+.accordion-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 12px 16px;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: var(--text-sm, 0.875rem);
+  color: var(--color-fg, #24292e);
+  transition: background-color 0.15s ease;
+}
+
+.accordion-trigger:hover {
+  background: var(--color-bg-subtle, #f6f8fa);
+}
+
+.accordion-trigger__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.accordion-trigger__right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.accordion-trigger__label {
+  font-weight: var(--font-semibold, 600);
+}
+
+.accordion-trigger__count {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-bold, 700);
+  color: var(--color-fg-muted, #586069);
+  min-width: 48px;
+  text-align: right;
+}
+
+/* Chevron arrow (pure CSS) */
+.accordion-chevron {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--color-fg-muted, #586069);
+  border-bottom: 2px solid var(--color-fg-muted, #586069);
+  transform: rotate(-45deg);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.is-open .accordion-chevron {
+  transform: rotate(45deg);
+}
+
+/* Priority badges */
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #fff;
+  min-width: 28px;
+}
+
+.priority-badge--danger  { background: #dc3545; }
+.priority-badge--warning { background: #f0ad4e; color: #653a00; }
+.priority-badge--minor   { background: #6c757d; }
+
+/* Panel (collapsible area) */
+.accordion-panel {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.accordion-panel__inner {
+  padding: 0 16px 12px;
+}
+
+/* Type indicator dots */
+.type-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}

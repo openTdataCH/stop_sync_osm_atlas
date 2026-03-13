@@ -1,0 +1,1501 @@
+<?xml version='1.0' encoding='utf-8'?>
+<osm version="0.6" generator="sample_extractor">
+  <node id="34674546" lat="47.0415251" lon="9.0686979">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="489" />
+    <tag k="name" v="Stampf" />
+    <tag k="network" v="Ostwind" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Glarus, Stampf" />
+    <tag k="uic_ref" v="8580266" />
+  </node>
+  <node id="137729167" lat="46.1734804" lon="6.0414970">
+    <tag k="bus" v="yes" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Petite-Grave" />
+    <tag k="network" v="Unireso" />
+    <tag k="operator" v="TPG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Cartigny, Petite-Grave" />
+    <tag k="uic_ref" v="8587072" />
+  </node>
+  <node id="243717655" lat="47.3441451" lon="9.0783696">
+    <tag k="local_ref" v="1" />
+    <tag k="name" v="Dietfurt" />
+    <tag k="network" v="Ostwind" />
+    <tag k="operator" v="SBB" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="stop" />
+    <tag k="train" v="yes" />
+    <tag k="uic_name" v="Dietfurt" />
+    <tag k="uic_ref" v="8506202" />
+  </node>
+  <node id="268129352" lat="46.6854807" lon="7.7470872">
+    <tag k="ele" v="565" />
+    <tag k="funicular" v="yes" />
+    <tag k="name" v="Beatenbucht" />
+    <tag k="operator" v="NHB" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="source" v="Bundesamt für Verkehr (BAV), DIDOK 2015" />
+    <tag k="uic_name" v="Beatenbucht (Beatenbergbahn)" />
+    <tag k="uic_ref" v="8507190" />
+  </node>
+  <node id="310844900" lat="47.3526002" lon="8.3547530">
+    <tag k="light_rail" v="yes" />
+    <tag k="name" v="Zufikon" />
+    <tag k="network" v="A-Welle" />
+    <tag k="operator" v="AVA-bd" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="stop" />
+    <tag k="train" v="yes" />
+    <tag k="uic_name" v="Zufikon" />
+    <tag k="uic_ref" v="8502274" />
+  </node>
+  <node id="311627487" lat="47.5344452" lon="7.6010462">
+    <tag k="ele" v="318" />
+    <tag k="name" v="Hechtliacker" />
+    <tag k="network" v="TNW" />
+    <tag k="operator" v="BVB" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="tram_stop" />
+    <tag k="tram" v="yes" />
+    <tag k="uic_name" v="Basel, Hechtliacker" />
+    <tag k="uic_ref" v="8589322" />
+  </node>
+  <node id="314445314" lat="46.4935427" lon="6.3227155">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Le Pontet" />
+    <tag k="nat_name" v="Essertines-sur-Rolle, Le Pontet" />
+    <tag k="network" v="Mobilis" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Essertines-sur-Rolle,Le Pontet" />
+    <tag k="uic_ref" v="8579691" />
+  </node>
+  <node id="394574414" lat="46.9976717" lon="6.9310175">
+    <tag k="bench" v="no" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="533" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Vallon de l'Ermitage" />
+    <tag k="network" v="Onde Verte" />
+    <tag k="network:wikidata" v="Q30744145" />
+    <tag k="operator" v="TRN-tn" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="uic_name" v="Neuchâtel,Vallon de l'Ermitage" />
+    <tag k="uic_ref" v="8593590" />
+  </node>
+  <node id="486091468" lat="46.9981281" lon="6.9320578">
+    <tag k="bench" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="535" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Vallon de l'Ermitage" />
+    <tag k="network" v="Onde Verte" />
+    <tag k="network:wikidata" v="Q30744145" />
+    <tag k="operator" v="TRN-tn" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="yes" />
+    <tag k="uic_name" v="Neuchâtel,Vallon de l'Ermitage" />
+    <tag k="uic_ref" v="8593590" />
+  </node>
+  <node id="506671071" lat="47.0431682" lon="8.3145413">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="438" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Werkhofstrasse" />
+    <tag k="network" v="Passepartout" />
+    <tag k="network:short" v="TVLU" />
+    <tag k="network:wikidata" v="Q2394205" />
+    <tag k="operator" v="VBL" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="trolleybus" v="yes" />
+    <tag k="uic_name" v="Luzern, Werkhofstrasse" />
+    <tag k="uic_ref" v="8589847" />
+  </node>
+  <node id="506671368" lat="47.0435474" lon="8.3132029">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="438" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Werkhofstrasse" />
+    <tag k="network" v="Passepartout" />
+    <tag k="network:short" v="TVLU" />
+    <tag k="network:wikidata" v="Q2394205" />
+    <tag k="operator" v="VBL" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="trolleybus" v="yes" />
+    <tag k="uic_name" v="Luzern, Werkhofstrasse" />
+    <tag k="uic_ref" v="8589847" />
+  </node>
+  <node id="577971698" lat="47.4245532" lon="8.3040789">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="436" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Niederrohrdorf Gemeindezentrum" />
+    <tag k="nat_name" v="Niederrohrdorf, Gemeindezentrum" />
+    <tag k="network" v="A-Welle" />
+    <tag k="network:wikidata" v="Q105637491" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="tactile_paving" v="yes" />
+    <tag k="uic_name" v="Niederrohrdorf,Gemeindezentrum" />
+    <tag k="uic_ref" v="8502772" />
+  </node>
+  <node id="615320931" lat="47.3447521" lon="9.0782616">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Dietfurt Bahnhof" />
+    <tag k="network" v="Ostwind" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Dietfurt, Bahnhof" />
+    <tag k="uic_ref" v="8579686" />
+  </node>
+  <node id="632164048" lat="46.1732768" lon="6.1410986">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="418" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Chemin Vert" />
+    <tag k="operator" v="TPG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="uic_name" v="Vessy, Chemin Vert" />
+    <tag k="uic_ref" v="8593194" />
+  </node>
+  <node id="632164052" lat="46.1735668" lon="6.1407070">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="418" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Chemin Vert" />
+    <tag k="operator" v="TPG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="uic_name" v="Vessy, Chemin Vert" />
+    <tag k="uic_ref" v="8593194" />
+  </node>
+  <node id="873840852" lat="47.3605054" lon="8.5228098">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="420" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Sihlcity Nord" />
+    <tag k="network" v="ZVV" />
+    <tag k="network:wikidata" v="Q201977" />
+    <tag k="old_name" v="Utobrücke" />
+    <tag k="operator" v="VBZ" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="ref" v="2771" />
+    <tag k="tactile_paving" v="yes" />
+    <tag k="trolleybus" v="yes" />
+    <tag k="uic_name" v="Zürich, Sihlcity Nord" />
+    <tag k="uic_ref" v="8591366" />
+  </node>
+  <node id="873840857" lat="47.3602127" lon="8.5235276">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="420" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Sihlcity Nord" />
+    <tag k="network" v="ZVV" />
+    <tag k="old_name" v="Utobrücke" />
+    <tag k="operator" v="VBZ" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="ref" v="2771" />
+    <tag k="trolleybus" v="yes" />
+    <tag k="uic_name" v="Zürich, Sihlcity Nord" />
+    <tag k="uic_ref" v="8591366" />
+  </node>
+  <node id="924250179" lat="46.2038841" lon="6.1871605">
+    <tag k="ele" v="426" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Rigaud" />
+    <tag k="operator" v="TPG" />
+    <tag k="uic_name" v="Chêne-Bougeries, Rigaud" />
+    <tag k="uic_ref" v="8592703" />
+  </node>
+  <node id="924250181" lat="46.2042524" lon="6.1868155">
+    <tag k="ele" v="426" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Rigaud" />
+    <tag k="operator" v="TPG" />
+    <tag k="uic_name" v="Chêne-Bougeries, Rigaud" />
+    <tag k="uic_ref" v="8592703" />
+  </node>
+  <node id="983788374" lat="46.4935531" lon="6.3225524">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="695" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Le Pontet" />
+    <tag k="nat_name" v="Essertines-sur-Rolle, Le Pontet" />
+    <tag k="network" v="Mobilis" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="uic_name" v="Essertines-sur-Rolle,Le Pontet" />
+    <tag k="uic_ref" v="8579691" />
+  </node>
+  <node id="983835971" lat="46.4938927" lon="6.8524354">
+    <tag k="bus" v="yes" />
+    <tag k="departures_board" v="timetable" />
+    <tag k="ele" v="745" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Perrey" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:short" v="CTV" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="VMCV" />
+    <tag k="operator:wikidata" v="Q679651" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="uic_name" v="Attalens, Perrey" />
+    <tag k="uic_ref" v="8504957" />
+  </node>
+  <node id="983848979" lat="46.9356470" lon="7.1951120">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="500" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Ulmiz FR, Ausserdorf" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="source" v="Bundesamt für Verkehr (BAV), DIDOK 2009" />
+    <tag k="uic_name" v="Ulmiz FR, Ausserdorf" />
+    <tag k="uic_ref" v="8570544" />
+  </node>
+  <node id="983849388" lat="46.9348393" lon="7.1971326">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="500" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Ulmiz FR, Bauernhof" />
+    <tag k="operator" v="TPF" />
+    <tag k="public_transport" v="platform" />
+    <tag k="uic_name" v="Ulmiz FR, Bauernhof" />
+    <tag k="uic_ref" v="8587394" />
+  </node>
+  <node id="983850596" lat="46.8537910" lon="6.8617420">
+    <tag k="bench" v="yes" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="479" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Estavayer-le-Lac, La Corbière" />
+    <tag k="network" v="Frimobil" />
+    <tag k="network:wikidata" v="Q2394200" />
+    <tag k="operator" v="TPF" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Estavayer-le-Lac, La Corbière" />
+    <tag k="uic_ref" v="8577632" />
+  </node>
+  <node id="983967473" lat="47.4035227" lon="7.6055915">
+    <tag k="bench" v="no" />
+    <tag k="departures_board" v="timetable" />
+    <tag k="ele" v="590" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Engimühle" />
+    <tag k="network" v="TNW" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Nunningen, Engimühle" />
+    <tag k="uic_ref" v="8572126" />
+  </node>
+  <node id="983968825" lat="46.9815274" lon="7.9900338">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="1051" />
+    <tag k="name" v="Seebli/Luogmoos" />
+    <tag k="network" v="Passepartout" />
+    <tag k="network:wikidata" v="Q2394205" />
+    <tag k="operator" v="PAG" />
+    <tag k="operator:wikidata" v="Q666809" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Bramboden, Seebli/Luogmoos" />
+    <tag k="uic_ref" v="8572838" />
+  </node>
+  <node id="983974157" lat="46.4825538" lon="7.6652580">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="no" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="1192" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="mapillary" v="492686965479920" />
+    <tag k="name" v="Pfadizentrum" />
+    <tag k="operator" v="AFA" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="survey:date" v="2020-08-28" />
+    <tag k="uic_name" v="Kandersteg, Pfadizentrum" />
+    <tag k="uic_ref" v="8589517" />
+  </node>
+  <node id="983974721" lat="46.7740360" lon="7.5953600">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="554" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Uetendorf, Allmendstrasse" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="source" v="Bundesamt für Verkehr (BAV), DIDOK 2009" />
+    <tag k="uic_name" v="Uetendorf, Allmendstrasse" />
+    <tag k="uic_ref" v="8581790" />
+    <tag k="wheelchair" v="yes" />
+  </node>
+  <node id="983985240" lat="46.3250035" lon="7.9873949">
+    <tag k="bench" v="yes" />
+    <tag k="bin" v="no" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="680" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="alte Post" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="yes" />
+    <tag k="source" v="Bundesamt für Verkehr (BAV), DIDOK 2009" />
+    <tag k="uic_name" v="Naters, alte Post" />
+    <tag k="uic_ref" v="8578540" />
+  </node>
+  <node id="984013364" lat="46.9642452" lon="8.5774048">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="850" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Seeli" />
+    <tag k="network" v="Passepartout" />
+    <tag k="network:short" v="TVLU" />
+    <tag k="network:wikidata" v="Q2394205" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="yes" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Seelisberg, Seeli" />
+    <tag k="uic_ref" v="8572955" />
+    <tag k="wheelchair" v="yes" />
+  </node>
+  <node id="984706291" lat="46.1950748" lon="9.0248538">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="225" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="name" v="Via Henri Guisan" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="source" v="Bundesamt für Verkehr (BAV), DIDOK 2009" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Bellinzona, Via Henri Guisan" />
+    <tag k="uic_ref" v="8582702" />
+  </node>
+  <node id="984706647" lat="46.4466090" lon="8.9339952">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="735" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Corzoneso, Paese" />
+    <tag k="operator" v="ABl" />
+    <tag k="public_transport" v="platform" />
+    <tag k="uic_name" v="Corzoneso, Paese" />
+    <tag k="uic_ref" v="8578855" />
+  </node>
+  <node id="984708538" lat="46.1942919" lon="9.0253205">
+    <tag k="bench" v="yes" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="241" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="name" v="Via Pellandini" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="yes" />
+    <tag k="uic_name" v="Bellinzona, Via Pellandini" />
+    <tag k="uic_ref" v="8581551" />
+  </node>
+  <node id="984712674" lat="46.9307063" lon="9.5370967">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="565" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Untervaz, Giesacker" />
+    <tag k="operator" v="SBC" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="yes" />
+    <tag k="uic_name" v="Untervaz, Giesacker" />
+    <tag k="uic_ref" v="8574708" />
+  </node>
+  <node id="984725241" lat="47.1692795" lon="9.4749714">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="no" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="450" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="name" v="Wiedenstrasse" />
+    <tag k="network" v="Ostwind" />
+    <tag k="network:wikidata" v="Q2394207" />
+    <tag k="operator" v="BOS/rtb" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Buchs SG, Wiedenstrasse" />
+    <tag k="uic_ref" v="8591467" />
+  </node>
+  <node id="984732544" lat="47.0412931" lon="9.0688504">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="489" />
+    <tag k="name" v="Stampf" />
+    <tag k="network" v="Ostwind" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Glarus, Stampf" />
+    <tag k="uic_ref" v="8580266" />
+  </node>
+  <node id="984750049" lat="47.3447299" lon="9.0782377">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="no" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="611" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="name" v="Dietfurt Bahnhof" />
+    <tag k="network" v="Ostwind" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Dietfurt, Bahnhof" />
+    <tag k="uic_ref" v="8579686" />
+  </node>
+  <node id="1209237266" lat="46.4935136" lon="6.3227679">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="695" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Le Pontet" />
+    <tag k="nat_name" v="Essertines-sur-Rolle, Le Pontet" />
+    <tag k="network" v="Mobilis" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="uic_name" v="Essertines-sur-Rolle,Le Pontet" />
+    <tag k="uic_ref" v="8579691" />
+  </node>
+  <node id="1277064014" lat="46.1736633" lon="6.0407522">
+    <tag k="bus" v="yes" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Petite-Grave" />
+    <tag k="network" v="Unireso" />
+    <tag k="operator" v="TPG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Cartigny, Petite-Grave" />
+    <tag k="uic_ref" v="8587072" />
+  </node>
+  <node id="1542141902" lat="47.4424867" lon="9.1208476">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="departures_board" v="timetable" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Waldhof" />
+    <tag k="network" v="Ostwind" />
+    <tag k="network:wikidata" v="Q2394207" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Uzwil, Waldhof" />
+    <tag k="uic_ref" v="8583072" />
+  </node>
+  <node id="1618233484" lat="47.2226448" lon="8.6800263">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="439" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Meierhof-Rain" />
+    <tag k="network" v="ZVV" />
+    <tag k="operator" v="SZU Auto" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Wädenswil, Meierhof-Rain" />
+    <tag k="uic_ref" v="8590864" />
+  </node>
+  <node id="1788539907" lat="47.0411809" lon="9.0688081">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="no" />
+    <tag k="bus" v="yes" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Stampf" />
+    <tag k="network" v="Ostwind" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="uic_name" v="Glarus, Stampf" />
+    <tag k="uic_ref" v="8580266" />
+  </node>
+  <node id="1788539962" lat="47.0415893" lon="9.0687623">
+    <tag k="bench" v="no" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Stampf" />
+    <tag k="network" v="Ostwind" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="uic_name" v="Glarus, Stampf" />
+    <tag k="uic_ref" v="8580266" />
+  </node>
+  <node id="1811869993" lat="47.3761461" lon="8.5341935">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="409" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Sihlpost/HB" />
+    <tag k="network" v="ZVV" />
+    <tag k="network:wikidata" v="Q201977" />
+    <tag k="operator" v="VBZ" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="ref" v="1366" />
+    <tag k="trolleybus" v="yes" />
+    <tag k="uic_name" v="Zürich, Sihlpost/HB" />
+    <tag k="uic_ref" v="8591367" />
+  </node>
+  <node id="1811870002" lat="47.3762517" lon="8.5343577">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="409" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Sihlpost/HB" />
+    <tag k="network" v="ZVV" />
+    <tag k="network:wikidata" v="Q201977" />
+    <tag k="operator" v="VBZ" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="ref" v="1366" />
+    <tag k="trolleybus" v="yes" />
+    <tag k="uic_name" v="Zürich, Sihlpost/HB" />
+    <tag k="uic_ref" v="8591367" />
+  </node>
+  <node id="1811870009" lat="47.3760310" lon="8.5339807">
+    <tag k="ele" v="409" />
+    <tag k="name" v="Sihlpost/HB" />
+    <tag k="network" v="ZVV" />
+    <tag k="operator" v="VBZ" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="tram_stop" />
+    <tag k="ref" v="1366" />
+    <tag k="tram" v="yes" />
+    <tag k="uic_name" v="Zürich, Sihlpost/HB" />
+    <tag k="uic_ref" v="8591367" />
+  </node>
+  <node id="1825303888" lat="47.3445525" lon="9.0782963">
+    <tag k="ele" v="611" />
+    <tag k="name" v="Dietfurt" />
+    <tag k="operator" v="SBB" />
+    <tag k="public_transport" v="station" />
+    <tag k="railway" v="halt" />
+    <tag k="uic_name" v="Dietfurt" />
+    <tag k="uic_ref" v="8506202" />
+    <tag k="wikidata" v="Q31454180" />
+  </node>
+  <node id="2058775195" lat="47.5344323" lon="7.6021184">
+    <tag k="ele" v="318" />
+    <tag k="name" v="Hechtliacker" />
+    <tag k="network" v="TNW" />
+    <tag k="operator" v="BVB" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="tram_stop" />
+    <tag k="tram" v="yes" />
+    <tag k="uic_name" v="Basel, Hechtliacker" />
+    <tag k="uic_ref" v="8589322" />
+  </node>
+  <node id="2147941635" lat="46.1911545" lon="9.0283354">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="309" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="no" />
+    <tag k="name" v="Bellinzona, Cast. Montebello" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="source" v="Bundesamt für Verkehr (BAV), DIDOK 2012" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Bellinzona, Cast. Montebello" />
+    <tag k="uic_ref" v="8582998" />
+  </node>
+  <node id="2147941636" lat="46.1913049" lon="9.0283139">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="no" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="309" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="no" />
+    <tag k="name" v="Bellinzona, Cast. Montebello" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="source" v="Bundesamt für Verkehr (BAV), DIDOK 2012" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Bellinzona, Cast. Montebello" />
+    <tag k="uic_ref" v="8582998" />
+  </node>
+  <node id="2157835061" lat="46.1941876" lon="9.0252527">
+    <tag k="bench" v="yes" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="241" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="name" v="Via Pellandini" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="yes" />
+    <tag k="uic_name" v="Bellinzona, Via Pellandini" />
+    <tag k="uic_ref" v="8581551" />
+  </node>
+  <node id="2254698203" lat="45.9504774" lon="8.9646089">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="273" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Bissone, Paese" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="source" v="Bundesamt für Verkehr (BAV), DIDOK 2009" />
+    <tag k="uic_name" v="Bissone, Paese" />
+    <tag k="uic_ref" v="8575639" />
+  </node>
+  <node id="2267154349" lat="47.3763530" lon="8.5345504">
+    <tag k="ele" v="409" />
+    <tag k="name" v="Sihlpost/HB" />
+    <tag k="network" v="ZVV" />
+    <tag k="operator" v="VBZ" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="tram_stop" />
+    <tag k="ref" v="1366" />
+    <tag k="tram" v="yes" />
+    <tag k="uic_name" v="Zürich, Sihlpost/HB" />
+    <tag k="uic_ref" v="8591367" />
+  </node>
+  <node id="2387268438" lat="46.7474862" lon="7.6400183">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="550" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Seematte" />
+    <tag k="network" v="TVBeo" />
+    <tag k="operator" v="STI" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="shelter" v="yes" />
+    <tag k="uic_name" v="Hünibach, Seematte" />
+    <tag k="uic_ref" v="8576869" />
+    <tag k="wheelchair" v="yes" />
+  </node>
+  <node id="2387609884" lat="46.7481249" lon="7.6395047">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="550" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Seematte" />
+    <tag k="network" v="TVBeo" />
+    <tag k="operator" v="STI" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="shelter" v="yes" />
+    <tag k="uic_name" v="Hünibach, Seematte" />
+    <tag k="uic_ref" v="8576869" />
+    <tag k="wheelchair" v="limited" />
+  </node>
+  <node id="2456957719" lat="47.3599207" lon="8.5228083">
+    <tag k="ele" v="420" />
+    <tag k="name" v="Sihlcity Nord" />
+    <tag k="network" v="ZVV" />
+    <tag k="old_name" v="Utobrücke" />
+    <tag k="operator" v="VBZ" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="tram_stop" />
+    <tag k="ref" v="2771" />
+    <tag k="tram" v="yes" />
+    <tag k="uic_name" v="Zürich, Sihlcity Nord" />
+    <tag k="uic_ref" v="8591366" />
+  </node>
+  <node id="2508817032" lat="46.9672574" lon="8.3629866">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="no" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="443" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="no" />
+    <tag k="name" v="Sportanlage Eichli" />
+    <tag k="network" v="Passepartout" />
+    <tag k="network:short" v="TVLU" />
+    <tag k="network:wikidata" v="Q2394205" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="source" v="Bundesamt für Verkehr (BAV)" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Stans, Sportanlage Eichli" />
+    <tag k="uic_ref" v="8583493" />
+  </node>
+  <node id="2509179864" lat="46.9674697" lon="8.3632828">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="no" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="443" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Sportanlage Eichli" />
+    <tag k="network" v="Passepartout" />
+    <tag k="network:short" v="TVLU" />
+    <tag k="network:wikidata" v="Q2394205" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="source" v="Bundesamt für Verkehr (BAV)" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Stans, Sportanlage Eichli" />
+    <tag k="uic_ref" v="8583493" />
+  </node>
+  <node id="2520771154" lat="46.5432456" lon="6.6618810">
+    <tag k="bench" v="yes" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="local_ref" v="E" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="platform" />
+    <tag k="ref:sloid" v="ch:1:sloid:79239:0:1691" />
+    <tag k="shelter" v="no" />
+    <tag k="tactile_paving" v="yes" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="2580629744" lat="46.6409422" lon="8.0293078">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="1589" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Abzweigung Aellfluh" />
+    <tag k="network" v="OrtsBus Grindelwald" />
+    <tag k="operator" v="AVG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="source" v="Bundesamt für Verkehr (BAV), DIDOK 2015" />
+    <tag k="uic_name" v="Grindelwald, Abzw. Aellfluh" />
+    <tag k="uic_ref" v="8594332" />
+  </node>
+  <node id="2888950257" lat="46.1384553" lon="7.0383245">
+    <tag k="ele" v="452" />
+    <tag k="name" v="Vernayaz" />
+    <tag k="operator" v="SBB" />
+    <tag k="railway" v="halt" />
+    <tag k="uic_name" v="Vernayaz" />
+    <tag k="uic_ref" v="8501405" />
+    <tag k="wikidata" v="Q10952886" />
+  </node>
+  <node id="3219060209" lat="46.5428853" lon="6.6615113">
+    <tag k="ele" v="714" />
+    <tag k="level" v="-1" />
+    <tag k="name" v="Croisettes" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="station" />
+    <tag k="railway" v="halt" />
+    <tag k="station" v="subway" />
+    <tag k="subway" v="yes" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+    <tag k="wikidata" v="Q22343084" />
+  </node>
+  <node id="3219063437" lat="46.5429223" lon="6.6615778">
+    <tag k="ele" v="714" />
+    <tag k="layer" v="-1" />
+    <tag k="level" v="-1" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="stop" />
+    <tag k="subway" v="yes" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="3219063438" lat="46.5429371" lon="6.6615469">
+    <tag k="ele" v="714" />
+    <tag k="layer" v="-1" />
+    <tag k="level" v="-1" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="stop" />
+    <tag k="subway" v="yes" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="3220361520" lat="46.5430929" lon="6.6614849">
+    <tag k="bench" v="yes" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="local_ref" v="A" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="platform" />
+    <tag k="ref:sloid" v="ch:1:sloid:79239:0:512" />
+    <tag k="shelter" v="yes" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="3220361521" lat="46.5431448" lon="6.6615474">
+    <tag k="bench" v="yes" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="local_ref" v="B" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="platform" />
+    <tag k="ref:sloid" v="ch:1:sloid:79239:0:1692" />
+    <tag k="shelter" v="yes" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="3220361522" lat="46.5431940" lon="6.6616143">
+    <tag k="bench" v="yes" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="local_ref" v="C" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="platform" />
+    <tag k="ref:sloid" v="ch:1:sloid:79239:0:508" />
+    <tag k="shelter" v="yes" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="3220361523" lat="46.5432812" lon="6.6616604">
+    <tag k="bench" v="yes" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="local_ref" v="D" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="platform" />
+    <tag k="ref:sloid" v="ch:1:sloid:79239:0:510" />
+    <tag k="shelter" v="yes" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="3329987894" lat="47.3344685" lon="8.0543043">
+    <tag k="ele" v="428" />
+    <tag k="name" v="Mittelmuhen" />
+    <tag k="operator" v="AVA" />
+    <tag k="public_transport" v="station" />
+    <tag k="railway" v="halt" />
+    <tag k="railway:ref" v="MMUH" />
+    <tag k="uic_name" v="Mittelmuhen" />
+    <tag k="uic_ref" v="8502179" />
+    <tag k="wikidata" v="Q33452502" />
+  </node>
+  <node id="3339882668" lat="47.3526164" lon="8.3546467">
+    <tag k="ele" v="410" />
+    <tag k="name" v="Zufikon" />
+    <tag k="operator" v="AVA-bd" />
+    <tag k="public_transport" v="station" />
+    <tag k="railway" v="halt" />
+    <tag k="railway:ref" v="ZUFI" />
+    <tag k="uic_name" v="Zufikon" />
+    <tag k="uic_ref" v="8502274" />
+    <tag k="wikidata" v="Q33454300" />
+  </node>
+  <node id="3347599961" lat="47.3345238" lon="8.0542586">
+    <tag k="ele" v="428" />
+    <tag k="light_rail" v="yes" />
+    <tag k="local_ref" v="1" />
+    <tag k="name" v="Mittelmuhen" />
+    <tag k="network" v="A-Welle" />
+    <tag k="operator" v="AVA-wsb" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="stop" />
+    <tag k="train" v="yes" />
+    <tag k="uic_name" v="Mittelmuhen" />
+    <tag k="uic_ref" v="8502179" />
+  </node>
+  <node id="3659211870" lat="45.9497890" lon="8.9641943">
+    <tag k="amenity" v="ferry_terminal" />
+    <tag k="ele" v="274" />
+    <tag k="ferry" v="yes" />
+    <tag k="name" v="Bissone" />
+    <tag k="operator" v="SNL" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Bissone (lago)" />
+    <tag k="uic_ref" v="8505650" />
+  </node>
+  <node id="4227975916" lat="46.6862681" lon="7.7466016">
+    <tag k="bench" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Beatenbucht" />
+    <tag k="operator" v="Verkehrsbetriebe STI AG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="uic_name" v="Beatenbucht" />
+    <tag k="uic_ref" v="8507178" />
+    <tag k="wheelchair" v="yes" />
+  </node>
+  <node id="4227975917" lat="46.6861363" lon="7.7467237">
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Beatenbucht" />
+    <tag k="operator" v="Verkehrsbetriebe STI AG" />
+    <tag k="shelter" v="no" />
+    <tag k="uic_name" v="Beatenbucht" />
+    <tag k="uic_ref" v="8507178" />
+    <tag k="wheelchair" v="yes" />
+  </node>
+  <node id="4281762084" lat="47.4243779" lon="8.3044945">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="436" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Niederrohrdorf Gemeindezentrum" />
+    <tag k="nat_name" v="Niederrohrdorf, Gemeindezentrum" />
+    <tag k="network" v="A-Welle" />
+    <tag k="network:wikidata" v="Q105637491" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="tactile_paving" v="yes" />
+    <tag k="uic_name" v="Niederrohrdorf,Gemeindezentrum" />
+    <tag k="uic_ref" v="8502772" />
+  </node>
+  <node id="4885628632" lat="47.3596657" lon="8.5225223">
+    <tag k="ele" v="420" />
+    <tag k="name" v="Sihlcity Nord" />
+    <tag k="network" v="ZVV" />
+    <tag k="old_name" v="Utobrücke" />
+    <tag k="operator" v="VBZ" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="tram_stop" />
+    <tag k="ref" v="2771" />
+    <tag k="tram" v="yes" />
+    <tag k="uic_name" v="Zürich, Sihlcity Nord" />
+    <tag k="uic_ref" v="8591366" />
+  </node>
+  <node id="5103372691" lat="47.3596736" lon="8.5225475">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Sihlcity Nord" />
+    <tag k="network" v="ZVV" />
+    <tag k="note" v="Haltestelle Nachtbus" />
+    <tag k="old_name" v="Utobrücke" />
+    <tag k="operator" v="VBZ" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Zürich, Sihlcity Nord" />
+    <tag k="uic_ref" v="8591366" />
+  </node>
+  <node id="5103372694" lat="47.3599243" lon="8.5227828">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Sihlcity Nord" />
+    <tag k="network" v="ZVV" />
+    <tag k="note" v="Haltestelle Nachtbus" />
+    <tag k="old_name" v="Utobrücke" />
+    <tag k="operator" v="VBZ" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Zürich, Sihlcity Nord" />
+    <tag k="uic_ref" v="8591366" />
+  </node>
+  <node id="6074186311" lat="46.4466023" lon="8.9340837">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="735" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Corzoneso, Paese" />
+    <tag k="operator" v="ABl" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="uic_name" v="Corzoneso, Paese" />
+    <tag k="uic_ref" v="8578855" />
+  </node>
+  <node id="6181708603" lat="46.4825047" lon="7.6653336">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="1192" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Pfadizentrum" />
+    <tag k="operator" v="AFA" />
+    <tag k="public_transport" v="platform" />
+    <tag k="uic_name" v="Kandersteg, Pfadizentrum" />
+    <tag k="uic_ref" v="8589517" />
+  </node>
+  <node id="6358394227" lat="46.2039265" lon="6.1872110">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Rigaud" />
+    <tag k="public_transport" v="stop_position" />
+  </node>
+  <node id="6358394228" lat="46.2042160" lon="6.1867527">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Rigaud" />
+    <tag k="public_transport" v="stop_position" />
+  </node>
+  <node id="6398347987" lat="46.1660728" lon="6.0764589">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="423" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Bernex, Maison du Terroir" />
+    <tag k="operator" v="TPG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Bernex, Maison du Terroir" />
+    <tag k="uic_ref" v="8595014" />
+  </node>
+  <node id="6398347997" lat="46.1659743" lon="6.0762009">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="423" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Bernex, Maison du Terroir" />
+    <tag k="operator" v="TPG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Bernex, Maison du Terroir" />
+    <tag k="uic_ref" v="8595014" />
+  </node>
+  <node id="6403591288" lat="46.1733114" lon="6.1411408">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Chemin Vert" />
+    <tag k="public_transport" v="stop_position" />
+  </node>
+  <node id="6403591290" lat="46.1735283" lon="6.1406909">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Chemin Vert" />
+    <tag k="public_transport" v="stop_position" />
+  </node>
+  <node id="6939365208" lat="46.9982095" lon="6.9321633">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="no" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="535" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Vallon de l'Ermitage" />
+    <tag k="network" v="Onde Verte" />
+    <tag k="network:wikidata" v="Q30744145" />
+    <tag k="operator" v="TRN-tn" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="tactile_paving" v="yes" />
+    <tag k="uic_name" v="Neuchâtel,Vallon de l'Ermitage" />
+    <tag k="uic_ref" v="8593590" />
+  </node>
+  <node id="7133768408" lat="47.4424850" lon="9.1207584">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Waldhof" />
+    <tag k="network" v="Ostwind" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Uzwil, Waldhof" />
+    <tag k="uic_ref" v="8583072" />
+  </node>
+  <node id="7180141772" lat="47.4035521" lon="7.6056122">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Engimühle" />
+    <tag k="network" v="TNW" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Nunningen, Engimühle" />
+    <tag k="uic_ref" v="8572126" />
+  </node>
+  <node id="7180141773" lat="47.4035882" lon="7.6056376">
+    <tag k="bench" v="no" />
+    <tag k="departures_board" v="timetable" />
+    <tag k="ele" v="590" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Engimühle" />
+    <tag k="network" v="TNW" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Nunningen, Engimühle" />
+    <tag k="uic_ref" v="8572126" />
+  </node>
+  <node id="8210698033" lat="47.1692415" lon="9.4749605">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Wiedenstrasse" />
+    <tag k="network" v="Ostwind" />
+    <tag k="operator" v="BOS/rtb" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Buchs SG, Wiedenstrasse" />
+    <tag k="uic_ref" v="8591467" />
+  </node>
+  <node id="8210698034" lat="47.1692055" lon="9.4749502">
+    <tag k="bench" v="no" />
+    <tag k="bin" v="no" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="450" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="name" v="Wiedenstrasse" />
+    <tag k="network" v="Ostwind" />
+    <tag k="network:wikidata" v="Q2394207" />
+    <tag k="operator" v="BOS/rtb" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Buchs SG, Wiedenstrasse" />
+    <tag k="uic_ref" v="8591467" />
+  </node>
+  <node id="8430817552" lat="46.1736605" lon="6.0407161">
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+  </node>
+  <node id="8554741374" lat="46.4932167" lon="6.8523957">
+    <tag k="bus" v="yes" />
+    <tag k="departures_board" v="timetable" />
+    <tag k="ele" v="745" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Perrey" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:short" v="CTV" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="VMCV" />
+    <tag k="operator:wikidata" v="Q679651" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="no" />
+    <tag k="uic_name" v="Attalens, Perrey" />
+    <tag k="uic_ref" v="8504957" />
+  </node>
+  <node id="8560222428" lat="46.4932133" lon="6.8524456">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="745" />
+    <tag k="name" v="Perrey" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:short" v="CTV" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="VMCV" />
+    <tag k="operator:wikidata" v="Q679651" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Attalens, Perrey" />
+    <tag k="uic_ref" v="8504957" />
+  </node>
+  <node id="8560222429" lat="46.4938859" lon="6.8523912">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="745" />
+    <tag k="name" v="Perrey" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:short" v="CTV" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="VMCV" />
+    <tag k="operator:wikidata" v="Q679651" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Attalens, Perrey" />
+    <tag k="uic_ref" v="8504957" />
+  </node>
+  <node id="9459842251" lat="46.9975506" lon="6.9307744">
+    <tag k="bus" v="yes" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Vallon de l'Ermitage" />
+    <tag k="network" v="Onde Verte" />
+    <tag k="network:wikidata" v="Q30744145" />
+    <tag k="operator" v="TRN-tn" />
+    <tag k="public_transport" v="platform" />
+    <tag k="uic_name" v="Neuchâtel,Vallon de l'Ermitage" />
+    <tag k="uic_ref" v="8593590" />
+  </node>
+  <node id="9969649056" lat="46.5431623" lon="6.6621470">
+    <tag k="bench" v="yes" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="lit" v="yes" />
+    <tag k="local_ref" v="F" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="platform" />
+    <tag k="ref:sloid" v="ch:1:sloid:79239:0:2975" />
+    <tag k="shelter" v="no" />
+    <tag k="tactile_paving" v="yes" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="10658859501" lat="47.3346215" lon="8.0548428">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Mittelmuhen" />
+    <tag k="network" v="A-Welle" />
+    <tag k="note" v="Nachtbus-Haltestelle" />
+    <tag k="operator" v="BBA" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Mittelmuhen, Bahnhof" />
+    <tag k="uic_ref" v="8510273" />
+  </node>
+  <node id="10778124150" lat="47.1799024" lon="9.0490853">
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="429" />
+    <tag k="name" v="Rufi Zentrum" />
+    <tag k="network" v="Ostwind" />
+    <tag k="network:wikidata" v="Q2394207" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Rufi, Zentrum" />
+    <tag k="uic_ref" v="8585190" />
+  </node>
+  <node id="10778124151" lat="47.1798844" lon="9.0490409">
+    <tag k="bench" v="yes" />
+    <tag k="bin" v="yes" />
+    <tag k="bus" v="yes" />
+    <tag k="ele" v="429" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Rufi Zentrum" />
+    <tag k="network" v="Ostwind" />
+    <tag k="network:wikidata" v="Q2394207" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="yes" />
+    <tag k="uic_name" v="Rufi, Zentrum" />
+    <tag k="uic_ref" v="8585190" />
+  </node>
+  <node id="10890986997" lat="46.9672458" lon="8.3630294">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Sportanlage Eichli" />
+    <tag k="network" v="Passepartout" />
+    <tag k="network:short" v="TVLU" />
+    <tag k="network:wikidata" v="Q2394205" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Stans, Sportanlage Eichli" />
+    <tag k="uic_ref" v="8583493" />
+  </node>
+  <node id="10890986998" lat="46.9674802" lon="8.3632452">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Sportanlage Eichli" />
+    <tag k="network" v="Passepartout" />
+    <tag k="network:short" v="TVLU" />
+    <tag k="network:wikidata" v="Q2394205" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Stans, Sportanlage Eichli" />
+    <tag k="uic_ref" v="8583493" />
+  </node>
+  <node id="11491437685" lat="46.1385356" lon="7.0384735">
+    <tag k="ele" v="452" />
+    <tag k="name" v="Vernayaz" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="stop" />
+    <tag k="ref" v="1" />
+    <tag k="train" v="yes" />
+    <tag k="uic_name" v="Vernayaz" />
+    <tag k="uic_ref" v="8501405" />
+    <tag k="wikidata" v="Q10952886" />
+  </node>
+  <node id="11491437686" lat="46.1385565" lon="7.0385246">
+    <tag k="ele" v="452" />
+    <tag k="name" v="Vernayaz" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="railway" v="stop" />
+    <tag k="ref" v="2" />
+    <tag k="train" v="yes" />
+    <tag k="uic_name" v="Vernayaz" />
+    <tag k="uic_ref" v="8501405" />
+    <tag k="wikidata" v="Q10952886" />
+  </node>
+  <node id="11515709540" lat="47.3346131" lon="8.0547906">
+    <tag k="bus" v="yes" />
+    <tag k="departures_board" v="timetable" />
+    <tag k="name" v="Mittelmuhen" />
+    <tag k="network" v="A-Welle" />
+    <tag k="note" v="Nachtbus-Haltestelle" />
+    <tag k="operator" v="BBA" />
+    <tag k="public_transport" v="platform" />
+    <tag k="uic_name" v="Mittelmuhen, Bahnhof" />
+    <tag k="uic_ref" v="8510273" />
+  </node>
+  <node id="11515709541" lat="47.3348908" lon="8.0547787">
+    <tag k="bus" v="yes" />
+    <tag k="departures_board" v="timetable" />
+    <tag k="name" v="Mittelmuhen" />
+    <tag k="network" v="A-Welle" />
+    <tag k="note" v="Nachtbus-Haltestelle" />
+    <tag k="operator" v="BBA" />
+    <tag k="public_transport" v="platform" />
+    <tag k="uic_name" v="Mittelmuhen, Bahnhof" />
+    <tag k="uic_ref" v="8510273" />
+  </node>
+  <node id="11515709542" lat="47.3348784" lon="8.0547140">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Mittelmuhen" />
+    <tag k="network" v="A-Welle" />
+    <tag k="note" v="Nachtbus-Haltestelle" />
+    <tag k="operator" v="BBA" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Mittelmuhen, Bahnhof" />
+    <tag k="uic_ref" v="8510273" />
+  </node>
+  <node id="11552206970" lat="46.2251981" lon="7.0167840">
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Bex Vasselin" />
+  </node>
+  <node id="11866584265" lat="46.9641380" lon="8.5773719">
+    <tag k="bus" v="yes" />
+    <tag k="departures_board" v="timetable" />
+    <tag k="ele" v="850" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Seeli" />
+    <tag k="network" v="Passepartout" />
+    <tag k="network:short" v="TVLU" />
+    <tag k="network:wikidata" v="Q2394205" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="platform" />
+    <tag k="shelter" v="yes" />
+    <tag k="tactile_paving" v="no" />
+    <tag k="uic_name" v="Seelisberg, Seeli" />
+    <tag k="uic_ref" v="8572955" />
+    <tag k="wheelchair" v="yes" />
+  </node>
+  <node id="11866584266" lat="46.9642056" lon="8.5773833">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Seeli" />
+    <tag k="network" v="Passepartout" />
+    <tag k="network:wikidata" v="Q2394205" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Seelisberg, Seeli" />
+    <tag k="uic_ref" v="8572955" />
+  </node>
+  <node id="12083558756" lat="46.1942114" lon="9.0253269">
+    <tag k="bus" v="yes" />
+    <tag k="public_transport" v="stop_position" />
+  </node>
+  <node id="12083558757" lat="46.1942752" lon="9.0252272">
+    <tag k="bus" v="yes" />
+    <tag k="public_transport" v="stop_position" />
+  </node>
+  <node id="12110066179" lat="46.9815164" lon="7.9900849">
+    <tag k="bus" v="yes" />
+    <tag k="departures_board" v="timetable" />
+    <tag k="highway" v="bus_stop" />
+    <tag k="name" v="Seebli/Luogmoos" />
+    <tag k="network" v="Passepartout" />
+    <tag k="network:wikidata" v="Q2394205" />
+    <tag k="operator" v="PAG" />
+    <tag k="operator:wikidata" v="Q666809" />
+    <tag k="public_transport" v="platform" />
+    <tag k="uic_name" v="Bramboden, Seebli/Luogmoos" />
+    <tag k="uic_ref" v="8572838" />
+  </node>
+  <node id="12130887787" lat="46.5431024" lon="6.6615339">
+    <tag k="bus" v="yes" />
+    <tag k="local_ref" v="A" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="12130887788" lat="46.5431549" lon="6.6616111">
+    <tag k="bus" v="yes" />
+    <tag k="local_ref" v="B" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="12130887789" lat="46.5432882" lon="6.6615441">
+    <tag k="bus" v="yes" />
+    <tag k="local_ref" v="D" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="12130887790" lat="46.5432073" lon="6.6616836">
+    <tag k="bus" v="yes" />
+    <tag k="local_ref" v="C" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="12130887791" lat="46.5431872" lon="6.6620355">
+    <tag k="bus" v="yes" />
+    <tag k="local_ref" v="F" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="12130887792" lat="46.5431488" lon="6.6618922">
+    <tag k="bus" v="yes" />
+    <tag k="local_ref" v="E" />
+    <tag k="name" v="Croisettes" />
+    <tag k="network" v="Mobilis" />
+    <tag k="network:wikidata" v="Q2394222" />
+    <tag k="operator" v="TL" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Epalinges, Croisettes" />
+    <tag k="uic_ref" v="8579239" />
+  </node>
+  <node id="12133912352" lat="46.4935232" lon="6.3226257">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Le Pontet" />
+    <tag k="nat_name" v="Essertines-sur-Rolle, Le Pontet" />
+    <tag k="network" v="Mobilis" />
+    <tag k="operator" v="PAG" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Essertines-sur-Rolle,Le Pontet" />
+    <tag k="uic_ref" v="8579691" />
+  </node>
+  <node id="12170967611" lat="46.9975951" lon="6.9307990">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Vallon de l'Ermitage" />
+    <tag k="network" v="Onde Verte" />
+    <tag k="network:wikidata" v="Q30744145" />
+    <tag k="operator" v="TRN-tn" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Neuchâtel,Vallon de l'Ermitage" />
+    <tag k="uic_ref" v="8593590" />
+  </node>
+  <node id="12170967614" lat="46.9981598" lon="6.9320646">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Vallon de l'Ermitage" />
+    <tag k="network" v="Onde Verte" />
+    <tag k="network:wikidata" v="Q30744145" />
+    <tag k="operator" v="TRN-tn" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Neuchâtel,Vallon de l'Ermitage" />
+    <tag k="uic_ref" v="8593590" />
+  </node>
+  <node id="12170967615" lat="46.9981712" lon="6.9321231">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Vallon de l'Ermitage" />
+    <tag k="network" v="Onde Verte" />
+    <tag k="network:wikidata" v="Q30744145" />
+    <tag k="operator" v="TRN-tn" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Neuchâtel,Vallon de l'Ermitage" />
+    <tag k="uic_ref" v="8593590" />
+  </node>
+  <node id="12170967628" lat="46.9976266" lon="6.9309707">
+    <tag k="bus" v="yes" />
+    <tag k="name" v="Vallon de l'Ermitage" />
+    <tag k="network" v="Onde Verte" />
+    <tag k="network:wikidata" v="Q30744145" />
+    <tag k="operator" v="TRN-tn" />
+    <tag k="public_transport" v="stop_position" />
+    <tag k="uic_name" v="Neuchâtel,Vallon de l'Ermitage" />
+    <tag k="uic_ref" v="8593590" />
+  </node>
+</osm>

@@ -24,22 +24,9 @@
      */
     const LINE_STYLES = {
         // Standard automatic match (exact, name, distance, route matching)
-        default: { 
-            color: 'green', 
+        default: {
+            color: 'green',
             weight: 2,
-            opacity: 1
-        },
-        // Manual match that has been persisted to the database
-        manualPersistent: { 
-            color: 'purple', 
-            weight: 2,
-            opacity: 1
-        },
-        // Manual match that is temporary (not yet persisted)
-        manualTemporary: { 
-            color: 'purple', 
-            weight: 2, 
-            dashArray: '5,5',
             opacity: 1
         },
         // Context/background lines (used in problems view)
@@ -48,18 +35,19 @@
             weight: 2,
             opacity: 0.4
         },
-        // Context manual match lines
-        contextManual: {
-            color: 'purple',
+        // OSM group line (platform ↔ stop_position sibling pair)
+        osm_group: {
+            color: '#e6b800',
             weight: 2,
-            opacity: 0.6
+            opacity: 0.9,
+            dashArray: '6,4'
         },
-        // Context manual temporary lines
-        contextManualTemporary: {
-            color: 'purple',
+        // OSM trio connectors (middle to side nodes)
+        osm_trio: {
+            color: '#e67e22',
             weight: 2,
-            opacity: 0.6,
-            dashArray: '5,5'
+            opacity: 0.9,
+            dashArray: '4,4'
         }
     };
 
@@ -69,25 +57,13 @@
 
     /**
      * Get the appropriate line style for a match
-     * 
-     * @param {string} matchType - The type of match ('exact', 'name', 'manual', 'distance_matching_*', etc.)
-     * @param {boolean} isPersistent - Whether a manual match is persisted
+     *
+     * @param {string} matchType - The type of match ('exact', 'name', 'distance_matching_*', etc.)
      * @param {boolean} isContext - Whether this is a context/background line
      * @returns {Object} Leaflet polyline style options
      */
-    LineRenderer.getStyle = function(matchType, isPersistent, isContext) {
-        if (isContext) {
-            if (matchType === 'manual') {
-                return isPersistent ? LINE_STYLES.contextManual : LINE_STYLES.contextManualTemporary;
-            }
-            return LINE_STYLES.context;
-        }
-        
-        if (matchType === 'manual') {
-            return isPersistent ? LINE_STYLES.manualPersistent : LINE_STYLES.manualTemporary;
-        }
-        
-        return LINE_STYLES.default;
+    LineRenderer.getStyle = function(matchType, isContext) {
+        return isContext ? LINE_STYLES.context : LINE_STYLES.default;
     };
 
     /**
@@ -106,34 +82,78 @@
      */
     LineRenderer.drawAll = function(data, layer, options) {
         const { showAtlas, showOsm, minZoom, currentZoom, isContext } = options;
-        
+
         // Early exit conditions
         if (currentZoom < minZoom) {
             return 0;
         }
-        
-        if (!showAtlas || !showOsm) {
+
+        if (!showOsm) {
             return 0;
         }
-        
+
         if (!Array.isArray(data) || data.length === 0) {
             return 0;
         }
-        
+
         // Track drawn lines to prevent duplicates
         // Key format: "sloid-osm_node_id"
         const drawnKeys = new Set();
         let lineCount = 0;
-        
+
         data.forEach(function(stop) {
-            if (stop.stop_type !== 'matched') {
-                return;
+            if (stop.stop_type === 'matched' && showAtlas) {
+                // Draw green ATLAS→OSM line
+                const linesDrawn = LineRenderer._drawLinesForStop(stop, layer, drawnKeys, isContext);
+                lineCount += linesDrawn;
             }
-            
-            const linesDrawn = LineRenderer._drawLinesForStop(stop, layer, drawnKeys, isContext);
-            lineCount += linesDrawn;
+
+            // Draw yellow lines for OSM group partners (platform ↔ stop_position pairs)
+            if (stop.osm_group_partner && stop.osm_lat != null && stop.osm_lon != null) {
+                const partner = stop.osm_group_partner;
+                const partnerId = partner.partner_node_id;
+                // Build dedup key with both directions
+                const key = LineRenderer._buildLineKey(stop.osm_node_id, partnerId);
+                const reverseKey = LineRenderer._buildLineKey(partnerId, stop.osm_node_id);
+                if (!drawnKeys.has(key) && !drawnKeys.has(reverseKey)) {
+                    drawnKeys.add(key);
+                    // Use partner coordinates provided by the backend
+                    const partnerLat = partner.partner_osm_lat;
+                    const partnerLon = partner.partner_osm_lon;
+                    if (partnerLat != null && partnerLon != null) {
+                        layer.addLayer(L.polyline([
+                            [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)],
+                            [parseFloat(partnerLat), parseFloat(partnerLon)]
+                        ], LINE_STYLES.osm_group));
+                        lineCount++;
+                    }
+                }
+            }
+
+            // Draw orange lines for OSM trio links.
+            if (Array.isArray(stop.osm_trio_links) && stop.osm_lat != null && stop.osm_lon != null) {
+                stop.osm_trio_links.forEach(function(link) {
+                    const partnerId = link.partner_node_id;
+                    const key = LineRenderer._buildLineKey(stop.osm_node_id, partnerId);
+                    const reverseKey = LineRenderer._buildLineKey(partnerId, stop.osm_node_id);
+                    if (drawnKeys.has(key) || drawnKeys.has(reverseKey)) {
+                        return;
+                    }
+                    const partnerLat = link.partner_osm_lat;
+                    const partnerLon = link.partner_osm_lon;
+                    if (partnerLat == null || partnerLon == null) {
+                        return;
+                    }
+                    drawnKeys.add(key);
+                    layer.addLayer(L.polyline([
+                        [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)],
+                        [parseFloat(partnerLat), parseFloat(partnerLon)]
+                    ], LINE_STYLES.osm_trio));
+                    lineCount++;
+                });
+            }
         });
-        
+
         return lineCount;
     };
 
@@ -160,25 +180,18 @@
     };
 
     /**
-     * Clear all non-manual-match lines from a layer.
-     * Preserves lines marked with isManualMatch option for overlay persistence.
-     * 
+     * Clear all lines from a layer.
+     *
      * @param {L.LayerGroup} layer - Layer to clear
      */
     LineRenderer.clearLines = function(layer) {
         if (!layer) return;
-        
-        layer.eachLayer(function(line) {
-            // Preserve lines explicitly marked as manual match overlays
-            if (!line.options || !line.options.isManualMatch) {
-                layer.removeLayer(line);
-            }
-        });
+        layer.clearLayers();
     };
 
     /**
-     * Clear all lines from a layer (including manual match lines).
-     * 
+     * Clear all lines from a layer.
+     *
      * @param {L.LayerGroup} layer - Layer to clear
      */
     LineRenderer.clearAllLines = function(layer) {
@@ -229,12 +242,8 @@
             }
             drawnKeys.add(key);
             
-            // Determine match type - check osm-specific match_type first, then stop-level
-            const matchType = osm.match_type || stop.match_type;
-            const isPersistent = osm.manual_is_persistent || stop.manual_is_persistent;
-            
             // Get appropriate style
-            const style = LineRenderer.getStyle(matchType, isPersistent, isContext);
+            const style = LineRenderer.getStyle(stop.match_type, isContext);
             
             // Create and add the line
             const line = L.polyline([
@@ -269,8 +278,7 @@
                 osm_node_id: stop.osm_node_id,
                 osm_lat: stop.osm_lat,
                 osm_lon: stop.osm_lon,
-                match_type: stop.match_type,
-                manual_is_persistent: stop.manual_is_persistent
+                match_type: stop.match_type
             }];
         }
         

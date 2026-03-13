@@ -343,7 +343,7 @@
   color: var(--color-fg-muted);
   text-decoration: none;
   font-weight: var(--font-bold);
-  border-radius: 0 0 var(--radius-lg) 0;
+  border-radius: var(--radius-lg) 0 var(--radius-lg) 0;
   background-color: rgba(255, 255, 255, 0.8);
   z-index: 10001;
   transition: all var(--transition-fast);

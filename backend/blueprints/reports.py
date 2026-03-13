@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, render_template, current_app as app
-from backend.models import Stop, Problem, AtlasStop
+from backend.models import StopsMatched, Problem, AtlasStop
 from backend.extensions import db, limiter
 from sqlalchemy.orm import joinedload
 from backend.query_helpers import optimize_query_for_endpoint
@@ -135,7 +135,7 @@ def generate_report_data(params, task_id):
         def _apply_atlas_operator_filter(query):
             if not atlas_operators:
                 return query
-            return query.filter(Stop.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
+            return query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
 
         def _operator_order_columns(ascending=True):
             # Cross-DB NULL handling: order NULLs first to mimic previous behavior for ASC
@@ -153,16 +153,16 @@ def generate_report_data(params, task_id):
             valid_sources = {'atlas', 'osm'}
             sources = sources.intersection(valid_sources) or {'atlas', 'osm'}
 
-            query = Stop.query
+            query = StopsMatched.query
             if sources == {'atlas', 'osm'}:
-                query = query.filter(Stop.stop_type.in_(['unmatched', 'osm']))
+                query = query.filter(StopsMatched.stop_type.in_(['atlas_unmatched', 'osm_unmatched']))
             elif 'atlas' in sources:
-                query = query.filter(Stop.stop_type == 'unmatched')
+                query = query.filter(StopsMatched.stop_type == 'atlas_unmatched')
             else:
-                query = query.filter(Stop.stop_type == 'osm')
+                query = query.filter(StopsMatched.stop_type == 'osm_unmatched')
 
             query = _apply_atlas_operator_filter(query)
-            
+
         elif report_type == 'problems':
             problem_types_str = params.get('problem_types', '')
             selected_types = [t.strip() for t in problem_types_str.split(',') if t.strip()]
@@ -189,7 +189,7 @@ def generate_report_data(params, task_id):
             solution_status_str = params.get('solution_status', '')
             solution_status = set([s.strip().lower() for s in solution_status_str.split(',') if s.strip()])
 
-            query = db.session.query(Problem).join(Stop)
+            query = db.session.query(Problem).join(StopsMatched)
             if selected_types:
                 query = query.filter(Problem.problem_type.in_(selected_types))
             if selected_priorities:
@@ -199,16 +199,16 @@ def generate_report_data(params, task_id):
             elif solution_status == {'unsolved'}:
                 query = query.filter((Problem.solution.is_(None)) | (Problem.solution == ''))
             if atlas_operators:
-                query = query.filter(Stop.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
+                query = query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
                 
         else:  # distance
-            query = Stop.query.filter(Stop.stop_type == 'matched')
+            query = StopsMatched.query.filter(StopsMatched.stop_type == 'matched')
             query = _apply_atlas_operator_filter(query)
 
         # Apply any sort-specific filters prior to counting (e.g., exclude NULL distances)
         pre_count_query = query
         if report_type == 'distance' and sort_param in ('distance_asc','distance_desc'):
-            pre_count_query = pre_count_query.filter(Stop.distance_m != None)
+            pre_count_query = pre_count_query.filter(StopsMatched.distance_m != None)
 
         # Get total count
         total_count = pre_count_query.count()
@@ -216,7 +216,7 @@ def generate_report_data(params, task_id):
         
         # Apply sorting and eager loading
         if report_type == 'unmatched':
-            query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
+            query = query.outerjoin(AtlasStop, StopsMatched.sloid == AtlasStop.sloid)
             if sort_param == 'operator_desc':
                 query = query.order_by(*_operator_order_columns(ascending=False))
             else:
@@ -224,7 +224,7 @@ def generate_report_data(params, task_id):
             query = optimize_query_for_endpoint(query, 'data')
             
         elif report_type == 'problems':
-            query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
+            query = query.outerjoin(AtlasStop, StopsMatched.sloid == AtlasStop.sloid)
             if sort_param == 'priority_asc':
                 query = query.order_by(db.func.coalesce(Problem.priority, 999).asc(), Problem.stop_id, Problem.problem_type)
             elif sort_param == 'priority_desc':
@@ -234,16 +234,16 @@ def generate_report_data(params, task_id):
             else:
                 query = query.order_by(*_operator_order_columns(ascending=True), Problem.stop_id, Problem.problem_type)
             query = query.options(
-                joinedload(Problem.stop).joinedload(Stop.atlas_stop_details),
-                joinedload(Problem.stop).joinedload(Stop.osm_node_details)
+                joinedload(Problem.stop).joinedload(StopsMatched.atlas_stop_details),
+                joinedload(Problem.stop).joinedload(StopsMatched.osm_node_details)
             )
             
         else:  # distance
-            query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
+            query = query.outerjoin(AtlasStop, StopsMatched.sloid == AtlasStop.sloid)
             if sort_param == 'distance_asc':
-                query = query.filter(Stop.distance_m != None).order_by(Stop.distance_m.asc())
+                query = query.filter(StopsMatched.distance_m != None).order_by(StopsMatched.distance_m.asc())
             elif sort_param == 'distance_desc':
-                query = query.filter(Stop.distance_m != None).order_by(Stop.distance_m.desc())
+                query = query.filter(StopsMatched.distance_m != None).order_by(StopsMatched.distance_m.desc())
             elif sort_param == 'operator_desc':
                 query = query.order_by(*_operator_order_columns(ascending=False))
             else:
@@ -376,7 +376,7 @@ def background_report_generation(params, task_id, flask_app):
                             headers.extend(['OSM Lat', 'OSM Lon'])
                         writer.writerow(headers)
                         for stop in data_for_report:
-                            source = 'ATLAS' if stop.stop_type == 'unmatched' else 'OSM'
+                            source = 'ATLAS' if stop.stop_type == 'atlas_unmatched' else 'OSM'
                             atlas_details = getattr(stop, 'atlas_stop_details', None)
                             osm_details = getattr(stop, 'osm_node_details', None)
                             row = [
@@ -606,7 +606,7 @@ def generate_report():
         def _apply_atlas_operator_filter(query):
             if not atlas_operators:
                 return query
-            return query.filter(Stop.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
+            return query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
 
         # Normalize sort per report type
         def _normalize_sort(rt, s):
@@ -633,13 +633,13 @@ def generate_report():
             valid_sources = {'atlas', 'osm'}
             sources = sources.intersection(valid_sources) or {'atlas', 'osm'}
 
-            query = Stop.query
+            query = StopsMatched.query
             if sources == {'atlas', 'osm'}:
-                query = query.filter(Stop.stop_type.in_(['unmatched', 'osm']))
+                query = query.filter(StopsMatched.stop_type.in_(['atlas_unmatched', 'osm_unmatched']))
             elif 'atlas' in sources:
-                query = query.filter(Stop.stop_type == 'unmatched')
+                query = query.filter(StopsMatched.stop_type == 'atlas_unmatched')
             else:
-                query = query.filter(Stop.stop_type == 'osm')
+                query = query.filter(StopsMatched.stop_type == 'osm_unmatched')
 
             # Operator filter applies only where ATLAS data exists; .has() will naturally drop OSM-only
             query = _apply_atlas_operator_filter(query)
@@ -648,7 +648,7 @@ def generate_report():
             query = optimize_query_for_endpoint(query, 'data')
 
             # Join AtlasStop for operator sorting
-            query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
+            query = query.outerjoin(AtlasStop, StopsMatched.sloid == AtlasStop.sloid)
             if sort_param == 'operator_desc':
                 query = query.order_by(*_operator_order_columns(ascending=False))
             else:
@@ -685,7 +685,7 @@ def generate_report():
             solution_status = set([s.strip().lower() for s in solution_status_str.split(',') if s.strip()])
             # valid: 'solved', 'unsolved'; if none provided => include both
 
-            query = db.session.query(Problem).join(Stop)
+            query = db.session.query(Problem).join(StopsMatched)
             if selected_types:
                 query = query.filter(Problem.problem_type.in_(selected_types))
 
@@ -701,13 +701,13 @@ def generate_report():
                 # both or none selected => no filter
                 pass
 
-            # Operator filter (applies to Stop -> AtlasStop)
+            # Operator filter (applies to StopsMatched -> AtlasStop)
             if atlas_operators:
-                query = query.filter(Stop.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
+                query = query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
 
             # Sorting for problems
             # Join AtlasStop for operator sorts
-            query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
+            query = query.outerjoin(AtlasStop, StopsMatched.sloid == AtlasStop.sloid)
 
             if sort_param == 'priority_asc':
                 query = query.order_by(db.func.coalesce(Problem.priority, 999).asc(), Problem.stop_id, Problem.problem_type)
@@ -720,8 +720,8 @@ def generate_report():
 
             # Eager load stop + atlas/osm details when rendering template
             query = query.options(
-                joinedload(Problem.stop).joinedload(Stop.atlas_stop_details),
-                joinedload(Problem.stop).joinedload(Stop.osm_node_details)
+                joinedload(Problem.stop).joinedload(StopsMatched.atlas_stop_details),
+                joinedload(Problem.stop).joinedload(StopsMatched.osm_node_details)
             )
 
             data_for_report = (query.limit(limit).all() if isinstance(limit, int) else query.all())
@@ -729,19 +729,19 @@ def generate_report():
 
         else:
             # distance: Top distance matched pairs
-            query = Stop.query.filter(Stop.stop_type == 'matched')
+            query = StopsMatched.query.filter(StopsMatched.stop_type == 'matched')
 
             # Operator filter
             query = _apply_atlas_operator_filter(query)
 
             # Join AtlasStop for operator sorts
-            query = query.outerjoin(AtlasStop, Stop.sloid == AtlasStop.sloid)
+            query = query.outerjoin(AtlasStop, StopsMatched.sloid == AtlasStop.sloid)
 
             # Sorting
             if sort_param == 'distance_asc':
-                query = query.filter(Stop.distance_m != None).order_by(Stop.distance_m.asc())
+                query = query.filter(StopsMatched.distance_m != None).order_by(StopsMatched.distance_m.asc())
             elif sort_param == 'distance_desc':
-                query = query.filter(Stop.distance_m != None).order_by(Stop.distance_m.desc())
+                query = query.filter(StopsMatched.distance_m != None).order_by(StopsMatched.distance_m.desc())
             elif sort_param == 'operator_desc':
                 query = query.order_by(*_operator_order_columns(ascending=False))
             else:
@@ -771,7 +771,7 @@ def generate_report():
                     headers.extend(['OSM Lat', 'OSM Lon'])
                 cw.writerow(headers)
                 for stop in data_for_report:
-                    source = 'ATLAS' if stop.stop_type == 'unmatched' else 'OSM'
+                    source = 'ATLAS' if stop.stop_type == 'atlas_unmatched' else 'OSM'
                     atlas_details = getattr(stop, 'atlas_stop_details', None)
                     osm_details = getattr(stop, 'osm_node_details', None)
                     row = [

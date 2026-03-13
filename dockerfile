@@ -1,6 +1,6 @@
 # Use an official Python runtime as a parent image
 # Use Debian bookworm to keep wkhtmltopdf available in apt
-FROM python:3.9-slim-bookworm
+FROM python:3.11-slim-bookworm
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1

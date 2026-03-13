@@ -67,7 +67,7 @@
 
                         stops.forEach(function(stop) {
                             if (stop.atlas_lat && stop.atlas_lon) {
-                                createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'green', stop.atlas_duplicate_sloid).addTo(markersLayer);
+                                createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'green', stop.has_atlas_duplicate).addTo(markersLayer);
                                 allPoints.push([stop.atlas_lat, stop.atlas_lon]);
                             }
                             if (stop.osm_lat && stop.osm_lon) {

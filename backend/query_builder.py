@@ -5,9 +5,9 @@ This module consolidates common filtering patterns to reduce code duplication an
 
 from backend.services.routes import get_stops_for_route
 from backend.extensions import db
-from backend.models import Stop, AtlasStop, OsmNode
+from backend.models import StopsMatched, AtlasStop, OsmNode, OsmPair, OsmTrio
 from sqlalchemy.orm import joinedload
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 
 class FilterBuilder:
@@ -23,12 +23,12 @@ class FilterBuilder:
         
         # Define transport type mappings
         transport_mappings = {
-            'ferry_terminal': Stop.osm_node_details.has(OsmNode.osm_amenity == 'ferry_terminal'),
-            'tram_stop': Stop.osm_node_details.has(OsmNode.osm_railway == 'tram_stop'),
-            'station': Stop.osm_node_details.has(db.and_(OsmNode.osm_public_transport == 'station', OsmNode.osm_aerialway != 'station')),
-            'platform': Stop.osm_node_details.has(OsmNode.osm_public_transport == 'platform'),
-            'stop_position': Stop.osm_node_details.has(OsmNode.osm_public_transport == 'stop_position'),
-            'aerialway_station': Stop.osm_node_details.has(OsmNode.osm_aerialway == 'station')
+            'ferry_terminal': StopsMatched.osm_node_details.has(OsmNode.osm_amenity == 'ferry_terminal'),
+            'tram_stop': StopsMatched.osm_node_details.has(OsmNode.osm_railway == 'tram_stop'),
+            'station': StopsMatched.osm_node_details.has(OsmNode.osm_node_type == 'railway_station'),
+            'platform': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'platform'),
+            'stop_position': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'stop_position'),
+            'aerialway_station': StopsMatched.osm_node_details.has(OsmNode.osm_aerialway == 'station')
         }
         
         for transport_type in selected_transport_types:
@@ -45,9 +45,9 @@ class FilterBuilder:
         
         conditions = []
         if 'atlas' in node_types:
-            conditions.append(Stop.sloid.isnot(None))
+            conditions.append(StopsMatched.sloid.isnot(None))
         if 'osm' in node_types:
-            conditions.append(Stop.osm_node_id.isnot(None))
+            conditions.append(StopsMatched.osm_node_id.isnot(None))
         
         return conditions
     
@@ -57,7 +57,7 @@ class FilterBuilder:
         if not atlas_operators:
             return None
         
-        return Stop.atlas_stop_details.has(
+        return StopsMatched.atlas_stop_details.has(
             AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
         )
     
@@ -79,22 +79,22 @@ class FilterBuilder:
             direction = route_directions[i].strip()
             
             if filter_type == 'atlas':
-                conditions.append(Stop.sloid.like(f'%{value}%'))
+                conditions.append(StopsMatched.sloid.like(f'%{value}%'))
             elif filter_type == 'osm':
-                conditions.append(Stop.osm_node_id.like(f'%{value}%'))
+                conditions.append(StopsMatched.osm_node_id.like(f'%{value}%'))
             elif filter_type == 'route':
                 route_stops = route_query_func(value, direction if direction else None)
                 route_conditions = []
                 if route_stops['atlas_sloids']:
-                    route_conditions.append(Stop.sloid.in_(route_stops['atlas_sloids']))
+                    route_conditions.append(StopsMatched.sloid.in_(route_stops['atlas_sloids']))
                 if route_stops['osm_nodes']:
-                    route_conditions.append(Stop.osm_node_id.in_(route_stops['osm_nodes']))
+                    route_conditions.append(StopsMatched.osm_node_id.in_(route_stops['osm_nodes']))
                 if route_conditions:
                     conditions.append(db.or_(*route_conditions) if len(route_conditions) > 1 else route_conditions[0])
             elif filter_type == 'hrdf_route':
                 # Postgres JSONB: check if any routes_unified entry has a matching line_name.
                 conditions.append(
-                    Stop.atlas_stop_details.has(
+                    StopsMatched.atlas_stop_details.has(
                         func.jsonb_path_exists(
                             AtlasStop.routes_unified,
                             '$[*] ? (@.line_name == $line)',
@@ -104,11 +104,41 @@ class FilterBuilder:
                 )
             else:  # UIC ref — search both atlas and osm tables
                 conditions.append(db.or_(
-                    Stop.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),
-                    Stop.osm_node_details.has(OsmNode.osm_uic_ref.ilike(f'%{value}%'))
+                    StopsMatched.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),
+                    StopsMatched.osm_node_details.has(OsmNode.osm_uic_ref.ilike(f'%{value}%'))
                 ))
         
         return conditions
+
+    @staticmethod
+    def build_osm_group_members_query(osm_group_types=None):
+        include_pairs = True
+        include_trios = True
+        pair_types = []
+        if osm_group_types is not None:
+            include_pairs = False
+            include_trios = False
+            pair_types = [t for t in osm_group_types if t.startswith('osm_pair_')]
+            include_pairs = len(pair_types) > 0
+            include_trios = 'osm_trio' in osm_group_types
+
+        if include_pairs:
+            node_id_1_query = db.session.query(OsmPair.node_id_1)
+            node_id_2_query = db.session.query(OsmPair.node_id_2)
+            if pair_types:
+                node_id_1_query = node_id_1_query.filter(OsmPair.group_type.in_(pair_types))
+                node_id_2_query = node_id_2_query.filter(OsmPair.group_type.in_(pair_types))
+            query = node_id_1_query.union(node_id_2_query)
+        else:
+            query = db.session.query(OsmPair.node_id_1).filter(text('1=0'))
+
+        if include_trios:
+            trio_middle = db.session.query(OsmTrio.middle_node_id)
+            trio_side_1 = db.session.query(OsmTrio.side_node_id_1)
+            trio_side_2 = db.session.query(OsmTrio.side_node_id_2)
+            query = query.union(trio_middle).union(trio_side_1).union(trio_side_2)
+
+        return query
 
 
 class QueryBuilder:
@@ -151,13 +181,13 @@ class QueryBuilder:
         Returns:
             SQLAlchemy query object
         """
-        query = Stop.query
+        query = StopsMatched.query
         
         options = []
         if eager_load_atlas:
-            options.append(joinedload(Stop.atlas_stop_details))
+            options.append(joinedload(StopsMatched.atlas_stop_details))
         if eager_load_osm:
-            options.append(joinedload(Stop.osm_node_details))
+            options.append(joinedload(StopsMatched.osm_node_details))
         
         if options:
             query = query.options(*options)
@@ -176,6 +206,7 @@ class QueryBuilder:
             Filtered SQLAlchemy query object
         """
         conditions = []
+        osm_conditions = []
         
         # Transport type filter
         if filters.get('transport_types'):
@@ -183,7 +214,7 @@ class QueryBuilder:
                 filters['transport_types']
             )
             if transport_conditions:
-                conditions.append(db.or_(*transport_conditions))
+                osm_conditions.append(db.or_(*transport_conditions))
         
         # Node type filter
         if filters.get('node_types'):
@@ -214,6 +245,18 @@ class QueryBuilder:
                 conditions.append(db.or_(*station_conditions) if len(station_conditions) > 1 else station_conditions[0])
             else:
                 conditions.append(db.false())
+        
+        # OSM group filter
+        if 'osm_group_types' in filters:
+            osm_conditions.append(
+                StopsMatched.osm_node_id.in_(
+                    self.filter_builder.build_osm_group_members_query(filters.get('osm_group_types'))
+                )
+            )
+
+        if osm_conditions:
+            combined_osm_condition = db.and_(*osm_conditions)
+            conditions.append(combined_osm_condition)
         
         # Apply all conditions
         if conditions:

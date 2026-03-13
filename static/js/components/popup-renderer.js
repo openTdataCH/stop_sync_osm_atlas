@@ -46,7 +46,6 @@
 
         const rows = [];
         let routesSection = '';
-        let notesSection = '';
 
         if (isAtlas) {
             rows.push(['Sloid', unmatched ? data.sloid : link(data.sloid, 'atlas')]);
@@ -73,18 +72,14 @@
                     ? `${mtText} <a href="${docUrl}" class="matchtype-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs for this matching method"><i class="fas fa-info-circle"></i></a>`
                     : mtText;
                 rows.push(['Match Type', mtHtml]);
+                if (data.matching_notes) {
+                    rows.push(['Matching Rationale', `<span class="matching-notes-text">${data.matching_notes}</span>`]);
+                }
             }
             const unifiedRoutesHtml = PopupUtils.formatUnifiedRouteList(data.routes_unified);
             routesSection = `
                 <div class="route-section">
                     ${PopupUtils.createCollapsible('Routes', unifiedRoutesHtml, COLLAPSIBLE_DEFAULT_EXPANDED)}
-                </div>
-            `;
-            // Notes collapsible for ATLAS
-            const atlasNotesBody = `<div class="popup-notes" data-type="atlas" data-sloid="${data.sloid || ''}">Loading notes...</div>`;
-            notesSection = `
-                <div class="notes-section">
-                    ${PopupUtils.createCollapsible('Notes', atlasNotesBody, COLLAPSIBLE_DEFAULT_EXPANDED)}
                 </div>
             `;
         }
@@ -130,6 +125,9 @@
                     ? `${mtText} <a href="${docUrl}" class="matchtype-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs for this matching method"><i class="fas fa-info-circle"></i></a>`
                     : mtText;
                 rows.push(['Match Type', mtHtml]);
+                if (data.matching_notes) {
+                    rows.push(['Matching Rationale', `<span class="matching-notes-text">${data.matching_notes}</span>`]);
+                }
             } else {
                 if (data.uic_ref) rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
                 if (data.osm_uic_ref) rows.push(['OSM UIC Ref', data.osm_uic_ref]);
@@ -161,13 +159,6 @@
                 rows.push(['Local Ref', data.osm_local_ref || 'N/A']);
             }
             routesSection = `<div class="route-section">${routeHtml(data.routes_osm, isOsm)}</div>`;
-            // Notes collapsible for OSM
-            const osmNotesBody = `<div class="popup-notes" data-type="osm" data-osm-node-id="${data.osm_node_id || ''}">Loading notes...</div>`;
-            notesSection = `
-                <div class="notes-section">
-                    ${PopupUtils.createCollapsible('Notes', osmNotesBody, COLLAPSIBLE_DEFAULT_EXPANDED)}
-                </div>
-            `;
         }
 
         // Notes are shown via collapsible section; skip legacy inline note rows
@@ -192,15 +183,6 @@
         }
         const bubbleHeader = `<h5>${headerText}${linkHtml}</h5>`;
 
-        let extraBtns = '';
-        if (unmatched) {
-            if (isAtlas) {
-                extraBtns = `<button class="btn btn-sm btn-outline-secondary manual-match-target" type="button" data-stop-id="${data.id}" data-type="atlas">Match to</button>`;
-            } else if (isOsm) {
-                extraBtns = `<button class="btn btn-sm btn-outline-secondary manual-match-target" type="button" data-stop-id="${data.id}" data-type="osm">Match to</button>`;
-            }
-        }
-
         // Add OSM iD editor link for OSM popups
         let osmEditorLinkHtml = '';
         if (isOsm && data.osm_node_id) {
@@ -209,7 +191,6 @@
 
         if (hideRoutesAndNotes) {
             routesSection = '';
-            notesSection = '';
         }
 
         return `
@@ -217,8 +198,6 @@
                 ${bubbleHeader}
                 <table class="popup-table">${tableRowsHtml}</table>
                 ${routesSection}
-                ${notesSection}
-                ${extraBtns}
                 ${osmEditorLinkHtml}
             </div>`;
     }
@@ -238,7 +217,7 @@
     function generateInitialBubbleHtml(stop, initialViewType, options = {}) {
         let initialHtml = '';
         const isMatched = stop.stop_type === 'matched';
-        const isUnmatched = stop.stop_type === 'unmatched' || stop.stop_type === 'osm' || stop.stop_type === 'station';
+        const isUnmatched = stop.stop_type === 'atlas_unmatched' || stop.stop_type === 'osm_unmatched';
 
         if (initialViewType === 'atlas') {
             const atlasData = {
@@ -261,6 +240,9 @@
         } else if (initialViewType === 'osm') {
             let osmData;
             if (stop.is_osm_node) {
+                // For OSM nodes with multiple ATLAS matches, pull match_type
+                // and distance from the first atlas_match if available.
+                const firstAtlas = (Array.isArray(stop.atlas_matches) && stop.atlas_matches.length > 0) ? stop.atlas_matches[0] : null;
                 osmData = {
                     id: stop.id,
                     osm_node_id: stop.osm_node_id,
@@ -277,8 +259,9 @@
                     osm_railway: stop.osm_railway,
                     osm_lat: stop.osm_lat,
                     osm_lon: stop.osm_lon,
-                    distance_m: null,
-                    match_type: null,
+                    distance_m: firstAtlas ? firstAtlas.distance_m : null,
+                    match_type: stop.match_type || (firstAtlas ? firstAtlas.match_type : null),
+                    matching_notes: stop.matching_notes || (firstAtlas ? firstAtlas.matching_notes : null),
                     routes_osm: stop.routes_osm,
                     stop_type: stop.stop_type,
                     isOperatorMismatch: stop.isOperatorMismatch
