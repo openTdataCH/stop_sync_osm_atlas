@@ -151,6 +151,23 @@ def export_pipeline_stats(
     
     # No nearby OSM count
     no_nearby_osm_count = len(no_nearby_osm_sloids) if no_nearby_osm_sloids else 0
+
+    # Way-derived OSM stop visibility metrics
+    matched_way_osm_ids = {
+        str(getattr(r.osm_node, 'node_id', ''))
+        for r in matched_records
+        if getattr(getattr(r, 'osm_node', None), 'is_way', False)
+    }
+    unmatched_way_osm_ids = {
+        str(getattr(node, 'node_id', ''))
+        for node in unmatched_osm
+        if getattr(node, 'is_way', False)
+    }
+    total_way_osm_ids = matched_way_osm_ids | unmatched_way_osm_ids
+    way_match_rate = (
+        len(matched_way_osm_ids) / len(total_way_osm_ids) * 100
+        if total_way_osm_ids else 0.0
+    )
     
     # Duplicate counts
     total_duplicate_sloids = len(duplicate_sloid_map) if duplicate_sloid_map else 0
@@ -268,6 +285,13 @@ def export_pipeline_stats(
             "total_duplicate_sloids": total_duplicate_sloids,
             "matched_duplicates": matched_duplicate_items,
             "unmatched_duplicates": unmatched_duplicate_items,
+        },
+
+        "osm_way_stops": {
+            "total": len(total_way_osm_ids),
+            "matched": len(matched_way_osm_ids),
+            "unmatched": len(unmatched_way_osm_ids),
+            "match_rate_percent": round(way_match_rate, 1),
         },
         
         # Raw match type counts for debugging/advanced use

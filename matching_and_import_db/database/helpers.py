@@ -47,12 +47,13 @@ def get_osm_node_type(rec, is_osm_unmatched=False):
 
     if osm_public_transport == 'stop_position':
         return 'stop_position'
+    # Keep aerialway stations out of generic railway_station classification.
+    if osm_aerialway and osm_aerialway != '':
+        return 'aerialway'
     if (osm_public_transport == 'station' or osm_railway == 'station') and osm_public_transport != 'stop_position':
         return 'railway_station'
     if osm_amenity == 'ferry_terminal':
         return 'ferry_terminal'
-    if osm_aerialway and osm_aerialway != '':
-        return 'aerialway'
     if osm_public_transport == 'platform':
         return 'platform'
     return None
@@ -86,6 +87,12 @@ def ensure_schema_updated():
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_osm_trios_middle_node_id ON osm_trios(middle_node_id)"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_osm_trios_side_node_id_1 ON osm_trios(side_node_id_1)"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_osm_trios_side_node_id_2 ON osm_trios(side_node_id_2)"))
+
+            # Development bridge: ensure issue #37 provenance columns exist on osm_nodes
+            # for databases created before way-backed virtual stops were introduced.
+            db.session.execute(text("ALTER TABLE osm_nodes ADD COLUMN IF NOT EXISTS is_way BOOLEAN DEFAULT FALSE NOT NULL"))
+            db.session.execute(text("ALTER TABLE osm_nodes ADD COLUMN IF NOT EXISTS source_way_id VARCHAR(100)"))
+            db.session.execute(text("ALTER TABLE osm_nodes ADD COLUMN IF NOT EXISTS way_node_ids JSONB"))
             db.session.commit()
         print("Database schema migrated to latest revision.")
     except Exception as e:

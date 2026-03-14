@@ -37,6 +37,9 @@ class OsmNode:
     amenity: Optional[str]
     aerialway: Optional[str]
     tags: dict[str, str]
+    is_way: bool = False
+    source_way_id: Optional[str] = None
+    way_node_ids: Optional[list[str]] = None
 
     @property
     def is_station(self) -> bool:

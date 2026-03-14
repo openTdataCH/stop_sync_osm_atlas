@@ -61,6 +61,9 @@ def upgrade_():
         sa.Column('osm_amenity', sa.String(length=255), nullable=True),
         sa.Column('osm_aerialway', sa.String(length=255), nullable=True),
         sa.Column('osm_operator', sa.String(length=255), nullable=True),
+        sa.Column('is_way', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column('source_way_id', sa.String(length=100), nullable=True),
+        sa.Column('way_node_ids', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column('osm_node_type', sa.String(length=50), nullable=True),
         sa.Column('duplicate_group_node_ids', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.PrimaryKeyConstraint('osm_node_id')

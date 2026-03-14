@@ -98,6 +98,8 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
                 transport_sub_conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'stop_position'))
             if 'aerialway_station' in selected_transport_types:
                 transport_sub_conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_aerialway == 'station'))
+            if 'non_node_osm_stop' in selected_transport_types:
+                transport_sub_conditions.append(StopsMatched.osm_node_details.has(OsmNode.is_way.is_(True)))
             if transport_sub_conditions:
                 osm_filter_conditions.append(db.or_(*transport_sub_conditions))
 
