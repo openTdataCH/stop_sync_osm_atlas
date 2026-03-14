@@ -298,6 +298,107 @@ class TestStaleCandidateRegression:
 
 
 class TestOsmGroupingPolicy:
+    def test_uic_grouping_uses_perfect_count_branch_with_15m_reciprocal_pairs(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('s1', 'u_pc', '1', 'Stop PC', 47.0, 8.0),
+                _atlas_row('s2', 'u_pc', '2', 'Stop PC', 47.0001, 8.0001),
+                _atlas_row('s3', 'u_pc', '3', 'Stop PC', 47.0002, 8.0002),
+            ],
+            [
+                _osm_entry('platform_1', 47.0000000, 8.0000000, uic_ref='u_pc', public_transport='platform'),
+                _osm_entry('platform_2', 47.0005000, 8.0005000, uic_ref='u_pc', public_transport='platform'),
+                _osm_entry('platform_3', 47.0010000, 8.0010000, uic_ref='u_pc', public_transport='platform'),
+                _osm_entry('stop_1', 47.0000900, 8.0000900, uic_ref='u_pc', public_transport='stop_position'),
+                _osm_entry('stop_2', 47.0005900, 8.0005900, uic_ref='u_pc', public_transport='stop_position'),
+                _osm_entry('stop_3', 47.0010900, 8.0010900, uic_ref='u_pc', public_transport='stop_position'),
+            ],
+        )
+
+        ctx.osm.build_groups(atlas_uic_counts={'u_pc': 3})
+
+        assert len(ctx.osm._group_representative) == 3
+        assert all(
+            ctx.osm._group_siblings[rep_id][0] == 'osm_pair_uic_equal_15m'
+            for rep_id in ['platform_1', 'platform_2', 'platform_3']
+            if rep_id in ctx.osm._group_siblings
+        )
+
+    def test_uic_perfect_count_uses_filtered_atlas_count_only(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('s_near_1', 'u_filtered', '1', 'Filtered Stop', 47.0000000, 8.0000000),
+                _atlas_row('s_near_2', 'u_filtered', '2', 'Filtered Stop', 47.0001000, 8.0001000),
+                _atlas_row('s_far_1', 'u_filtered', '3', 'Filtered Stop', 47.0100000, 8.0100000),
+                _atlas_row('s_far_2', 'u_filtered', '4', 'Filtered Stop', 47.0110000, 8.0110000),
+            ],
+            [
+                _osm_entry('platform_a', 47.0000100, 8.0000100, uic_ref='u_filtered', public_transport='platform'),
+                _osm_entry('stop_a', 47.0000200, 8.0000200, uic_ref='u_filtered', public_transport='stop_position'),
+                _osm_entry('platform_b', 47.0001200, 8.0001200, uic_ref='u_filtered', public_transport='platform'),
+                _osm_entry('stop_b', 47.0001300, 8.0001300, uic_ref='u_filtered', public_transport='stop_position'),
+            ],
+        )
+
+        # Original atlas_count is 4, but only two ATLAS rows are close to same-UIC OSM.
+        ctx.osm.build_groups(
+            atlas_uic_counts={'u_filtered': 4},
+            atlas_uic_nearest_osm_distances={'u_filtered': [2.0, 3.0, 250.0, 270.0]},
+        )
+
+        assert len(ctx.osm._group_representative) == 2
+        assert all(
+            entry[0] == 'osm_pair_uic_equal_15m'
+            for entry in ctx.osm._group_siblings.values()
+        )
+
+    def test_name_grouping_uses_perfect_count_branch_with_15m_reciprocal_pairs(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('s1', 'u_name_pc', '1', 'Name PC', 47.0, 8.0),
+                _atlas_row('s2', 'u_name_pc', '2', 'Name PC', 47.0001, 8.0001),
+            ],
+            [
+                _osm_entry('platform_name_1', 47.1000000, 8.1000000, name='Name PC', uic_name='Name PC', public_transport='platform'),
+                _osm_entry('platform_name_2', 47.1006000, 8.1006000, name='Name PC', uic_name='Name PC', public_transport='platform'),
+                _osm_entry('stop_name_1', 47.1000800, 8.1000800, name='Name PC', uic_name='Name PC', public_transport='stop_position'),
+                _osm_entry('stop_name_2', 47.1006800, 8.1006800, name='Name PC', uic_name='Name PC', public_transport='stop_position'),
+            ],
+        )
+
+        ctx.osm.build_groups(
+            atlas_uic_counts={'u_name_pc': 2},
+            atlas_designation_to_uic={'Name PC': 'u_name_pc'},
+        )
+
+        assert len(ctx.osm._group_representative) == 2
+        assert all(
+            entry[0] == 'osm_pair_name_equal_15m'
+            for entry in ctx.osm._group_siblings.values()
+        )
+
+    def test_tram_grouping_uses_perfect_count_branch_with_15m_reciprocal_pairs(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('s1', 'u_tram_pc', '1', 'Tram PC', 47.0, 8.0),
+                _atlas_row('s2', 'u_tram_pc', '2', 'Tram PC', 47.0001, 8.0001),
+            ],
+            [
+                _osm_entry('tram_1', 47.2000000, 8.2000000, uic_ref='u_tram_pc', railway='tram_stop', public_transport=None),
+                _osm_entry('tram_2', 47.2007000, 8.2007000, uic_ref='u_tram_pc', railway='tram_stop', public_transport=None),
+                _osm_entry('stop_tram_1', 47.2000900, 8.2000900, uic_ref='u_tram_pc', public_transport='stop_position'),
+                _osm_entry('stop_tram_2', 47.2007900, 8.2007900, uic_ref='u_tram_pc', public_transport='stop_position'),
+            ],
+        )
+
+        ctx.osm.build_groups(atlas_uic_counts={'u_tram_pc': 2})
+
+        assert len(ctx.osm._group_representative) == 2
+        assert all(
+            entry[0] == 'osm_pair_tram_equal_15m'
+            for entry in ctx.osm._group_siblings.values()
+        )
+
     def test_uic_grouping_accepts_incomplete_relaxed_pairs(self):
         ctx = _build_ctx(
             [_atlas_row('s1', 'u1', '1', 'Stop', 47.0, 8.0)],
