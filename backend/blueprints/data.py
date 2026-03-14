@@ -114,6 +114,9 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
             'osm_group_uic': 'osm_pair_uic',
             'osm_group_name': 'osm_pair_name',
             'osm_group_tram': 'osm_pair_tram',
+            'osm_group_uic_equal': 'osm_pair_uic_equal_15m',
+            'osm_group_name_equal': 'osm_pair_name_equal_15m',
+            'osm_group_tram_equal': 'osm_pair_tram_equal_15m',
         }
         osm_group_types = [
             legacy_map.get(group_type.strip(), group_type.strip())

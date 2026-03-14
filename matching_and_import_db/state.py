@@ -16,8 +16,18 @@ from matching_and_import_db.models import OsmNode, OsmEntity
 logger = logging.getLogger(__name__)
 
 GROUP_MAX_DISTANCE_M = 12.0
+GROUP_PERFECT_COUNT_MAX_DISTANCE_M = 15.0
+ATLAS_NEARBY_OSM_MAX_DISTANCE_M = 30.0
 GROUP_RATIO_TEST_FACTOR_STRICT = 1.5
 GROUP_RATIO_TEST_FACTOR_RELAXED = 2.0
+
+OSM_PAIR_UIC = 'osm_pair_uic'
+OSM_PAIR_NAME = 'osm_pair_name'
+OSM_PAIR_TRAM = 'osm_pair_tram'
+
+OSM_PAIR_UIC_EQUAL_15M = 'osm_pair_uic_equal_15m'
+OSM_PAIR_NAME_EQUAL_15M = 'osm_pair_name_equal_15m'
+OSM_PAIR_TRAM_EQUAL_15M = 'osm_pair_tram_equal_15m'
 
 class AtlasState:
     """Manages the fully populated ATLAS dataset and provides unmatched records on demand."""
@@ -432,12 +442,25 @@ class OsmState:
         Path 1 (osm_pair_uic): UIC-scoped reciprocal nearest-neighbour pairing
         within 12m, with ratio test and count-match condition.
 
+        Path 1a (osm_pair_*_equal_15m): Perfect-count branch for UIC/name/tram
+        anchors where left_count == right_count == atlas_count. Uses reciprocal
+        nearest-neighbour pairing within 15m and bypasses ratio checks.
+
+        For perfect-count eligibility only, atlas_count is filtered to keep
+        ATLAS rows whose nearest same-UIC OSM node is within 30m. The strict/
+        relaxed fallback paths continue using the original unfiltered atlas_count.
+
         Path 2 (osm_pair_name): Name-scoped pairing for nodes sharing a ``name``
         tag where uic_ref values do not diverge (at least one lacks uic_ref).
         Same ratio test and count-match condition (anchored via UIC or uic_name).
         """
         atlas_designation_to_uic = atlas_designation_to_uic or {}
         atlas_uic_nearest_osm_distances = atlas_uic_nearest_osm_distances or {}
+
+        perfect_atlas_uic_counts = self._build_perfect_atlas_uic_counts(
+            atlas_uic_counts,
+            atlas_uic_nearest_osm_distances,
+        )
 
         # ------------------------------------------------------------------
         # Trio path: detect and reserve nodes before pair grouping
@@ -474,7 +497,8 @@ class OsmState:
         # Path 1: UIC-based pair grouping
         # ------------------------------------------------------------------
         uic_groups = 0
-        groups_by_uic: dict[str, list[tuple[dict, dict]]] = defaultdict(list)
+        uic_equal_groups = 0
+        groups_by_uic: dict[str, list[tuple[dict, dict, str]]] = defaultdict(list)
 
         for uic, entries in self._uic_ref_dict.items():
             if len(entries) < 2:
@@ -487,32 +511,29 @@ class OsmState:
             if not platforms or not stop_positions:
                 continue
 
-            pairs = self._select_group_pairs(
+            groups_by_uic[uic].extend(self._select_pairs_with_policy(
                 entries=filtered_entries,
                 left_nodes=platforms,
                 right_nodes=stop_positions,
                 atlas_count=atlas_uic_counts.get(uic, 0),
-            )
-            if pairs:
-                groups_by_uic[uic].extend(pairs)
+                perfect_atlas_count=perfect_atlas_uic_counts.get(uic, atlas_uic_counts.get(uic, 0)),
+                perfect_group_type=OSM_PAIR_UIC_EQUAL_15M,
+                fallback_group_type=OSM_PAIR_UIC,
+            ))
 
         # Representative selection for UIC path
-        for uic, pairs in groups_by_uic.items():
-            for plat, sp in pairs:
-                self._register_group(plat, sp, 'osm_pair_uic')
-                uic_groups += 1
+        uic_counts = self._register_selected_groups(groups_by_uic)
+        uic_groups = uic_counts.get(OSM_PAIR_UIC, 0)
+        uic_equal_groups = uic_counts.get(OSM_PAIR_UIC_EQUAL_15M, 0)
 
         # ------------------------------------------------------------------
         # Path 2: Name-based pair grouping
         # ------------------------------------------------------------------
         name_groups = 0
-        already_grouped = set(self._group_representative.keys())
-        for rep_id, (_, siblings) in self._group_siblings.items():
-            already_grouped.add(rep_id)
-            for sib in siblings:
-                already_grouped.add(sib.node_id)
+        name_equal_groups = 0
+        already_grouped = self._get_grouped_node_ids()
 
-        groups_by_name_uic: dict[str, list[tuple[dict, dict]]] = defaultdict(list)
+        groups_by_name_uic: dict[str, list[tuple[dict, dict, str]]] = defaultdict(list)
 
         for name, entries in self._name_index.items():
             # Skip nodes already grouped by path 1
@@ -525,6 +546,24 @@ class OsmState:
 
             if not platforms or not stop_positions:
                 continue
+
+            # Perfect-count branch per anchored UIC, bypassing ratio checks.
+            by_anchor = self._build_name_anchor_buckets(entries, atlas_designation_to_uic)
+
+            handled_anchors: set[str] = set()
+            for anchor_uic, anchor_nodes in by_anchor.items():
+                perfect_pairs = self._select_perfect_count_pairs(
+                    left_nodes=anchor_nodes['platform'],
+                    right_nodes=anchor_nodes['stop_position'],
+                    atlas_count=perfect_atlas_uic_counts.get(anchor_uic, atlas_uic_counts.get(anchor_uic, 0)),
+                    require_uic_non_divergence=True,
+                )
+                if perfect_pairs:
+                    groups_by_name_uic[anchor_uic].extend(
+                        (plat, sp, OSM_PAIR_NAME_EQUAL_15M)
+                        for plat, sp in perfect_pairs
+                    )
+                    handled_anchors.add(anchor_uic)
 
             strict_pairs = self._find_reciprocal_pairs(
                 platforms,
@@ -541,69 +580,38 @@ class OsmState:
                 require_uic_non_divergence=True,
             )
 
-            strict_pairs_by_uic: dict[str, list[tuple[dict, dict]]] = defaultdict(list)
-            relaxed_pairs_by_uic: dict[str, list[tuple[dict, dict]]] = defaultdict(list)
-
-            for plat, sp in strict_pairs:
-                anchor_uic = self._resolve_anchor_uic(plat, sp, atlas_designation_to_uic)
-                if anchor_uic:
-                    strict_pairs_by_uic[anchor_uic].append((plat, sp))
-
-            for plat, sp in relaxed_pairs:
-                anchor_uic = self._resolve_anchor_uic(plat, sp, atlas_designation_to_uic)
-                if anchor_uic:
-                    relaxed_pairs_by_uic[anchor_uic].append((plat, sp))
+            strict_pairs_by_uic = self._bucket_pairs_by_anchor(strict_pairs, atlas_designation_to_uic)
+            relaxed_pairs_by_uic = self._bucket_pairs_by_anchor(relaxed_pairs, atlas_designation_to_uic)
 
             for anchor_uic in set(strict_pairs_by_uic) | set(relaxed_pairs_by_uic):
+                if anchor_uic in handled_anchors:
+                    continue
                 strict_anchor_pairs = strict_pairs_by_uic.get(anchor_uic, [])
                 relaxed_anchor_pairs = relaxed_pairs_by_uic.get(anchor_uic, [])
-
-                all_uic_entries = self._uic_ref_dict.get(anchor_uic, [])
-                uic_node_ids = {e['node_id'] for e in all_uic_entries}
-                strict_pair_ids = {node['node_id'] for pair in strict_anchor_pairs for node in pair}
-                strict_all_involved_ids = uic_node_ids | strict_pair_ids
-                strict_grouped_by_path1 = strict_all_involved_ids & already_grouped
-                path1_group_count = sum(1 for nid in uic_node_ids if nid in self._group_siblings)
-                strict_ungrouped = strict_all_involved_ids - strict_grouped_by_path1 - strict_pair_ids
-
-                if strict_anchor_pairs and self._is_complete_grouping(
-                    atlas_count=atlas_uic_counts.get(anchor_uic, 0),
-                    logical_osm_count=path1_group_count + len(strict_anchor_pairs),
-                    ungrouped_count=len(strict_ungrouped),
-                ):
-                    groups_by_name_uic[anchor_uic].extend(strict_anchor_pairs)
-                    continue
-
-                relaxed_pair_ids = {node['node_id'] for pair in relaxed_anchor_pairs for node in pair}
-                relaxed_all_involved_ids = uic_node_ids | relaxed_pair_ids
-                relaxed_grouped_by_path1 = relaxed_all_involved_ids & already_grouped
-                relaxed_ungrouped = relaxed_all_involved_ids - relaxed_grouped_by_path1 - relaxed_pair_ids
-
-                if relaxed_anchor_pairs and atlas_uic_counts.get(anchor_uic, 0) > 0:
-                    groups_by_name_uic[anchor_uic].extend(relaxed_anchor_pairs)
+                groups_by_name_uic[anchor_uic].extend(
+                    self._select_name_fallback_pairs_for_anchor(
+                        anchor_uic=anchor_uic,
+                        strict_anchor_pairs=strict_anchor_pairs,
+                        relaxed_anchor_pairs=relaxed_anchor_pairs,
+                        already_grouped=already_grouped,
+                        atlas_uic_counts=atlas_uic_counts,
+                    )
+                )
 
         # Representative selection for name-based path (anchored by UIC)
-        for uic, pairs in groups_by_name_uic.items():
-            for plat, sp in pairs:
-                if plat['node_id'] in already_grouped or sp['node_id'] in already_grouped:
-                    continue
-                self._register_group(plat, sp, 'osm_pair_name')
-                already_grouped.add(plat['node_id'])
-                already_grouped.add(sp['node_id'])
-                name_groups += 1
+        name_counts = self._register_selected_groups(groups_by_name_uic, already_grouped)
+        name_groups = name_counts.get(OSM_PAIR_NAME, 0)
+        name_equal_groups = name_counts.get(OSM_PAIR_NAME_EQUAL_15M, 0)
 
         # ------------------------------------------------------------------
         # Path 3: Tram-based pair grouping (railway=tram_stop ↔ stop_position)
         # ------------------------------------------------------------------
         tram_groups = 0
+        tram_equal_groups = 0
         # Refresh already_grouped after path 2
-        already_grouped = set(self._group_representative.keys())
-        for rep_id, (_, siblings) in self._group_siblings.items():
-            already_grouped.add(rep_id)
-            for sib in siblings:
-                already_grouped.add(sib.node_id)
+        already_grouped = self._get_grouped_node_ids()
 
-        groups_by_tram_uic: dict[str, list[tuple[dict, dict]]] = defaultdict(list)
+        groups_by_tram_uic: dict[str, list[tuple[dict, dict, str]]] = defaultdict(list)
 
         for uic, entries in self._uic_ref_dict.items():
             # Skip nodes already grouped by path 1/2
@@ -619,29 +627,209 @@ class OsmState:
             if not tram_stops or not stop_positions:
                 continue
 
-            pairs = self._select_group_pairs(
+            groups_by_tram_uic[uic].extend(self._select_pairs_with_policy(
                 entries=entries,
                 left_nodes=tram_stops,
                 right_nodes=stop_positions,
                 atlas_count=atlas_uic_counts.get(uic, 0),
-            )
-            if pairs:
-                groups_by_tram_uic[uic].extend(pairs)
+                perfect_atlas_count=perfect_atlas_uic_counts.get(uic, atlas_uic_counts.get(uic, 0)),
+                perfect_group_type=OSM_PAIR_TRAM_EQUAL_15M,
+                fallback_group_type=OSM_PAIR_TRAM,
+            ))
 
         # Representative selection for tram path
-        for uic, pairs in groups_by_tram_uic.items():
-            for tram, sp in pairs:
-                if tram['node_id'] in already_grouped or sp['node_id'] in already_grouped:
-                    continue
-                self._register_group(tram, sp, 'osm_pair_tram')
-                already_grouped.add(tram['node_id'])
-                already_grouped.add(sp['node_id'])
-                tram_groups += 1
+        tram_counts = self._register_selected_groups(groups_by_tram_uic, already_grouped)
+        tram_groups = tram_counts.get(OSM_PAIR_TRAM, 0)
+        tram_equal_groups = tram_counts.get(OSM_PAIR_TRAM_EQUAL_15M, 0)
 
         logger.info(
-            f"OSM grouping: {trio_groups} trios + {uic_groups} UIC-based pairs + "
-            f"{name_groups} name-based pairs + {tram_groups} tram-based pairs"
+            f"OSM grouping: {trio_groups} trios + "
+            f"{uic_groups} UIC-based pairs + {uic_equal_groups} UIC perfect-count pairs + "
+            f"{name_groups} name-based pairs + {name_equal_groups} name perfect-count pairs + "
+            f"{tram_groups} tram-based pairs + {tram_equal_groups} tram perfect-count pairs"
         )
+
+    @staticmethod
+    def _is_perfect_count_grouping(
+        atlas_count: int,
+        left_count: int,
+        right_count: int,
+    ) -> bool:
+        """Return True when left/right/ATLAS counts are perfectly equal and non-zero."""
+        return atlas_count > 0 and left_count == right_count == atlas_count
+
+    def _select_perfect_count_pairs(
+        self,
+        left_nodes: list[dict],
+        right_nodes: list[dict],
+        atlas_count: int,
+        require_uic_non_divergence: bool = False,
+    ) -> list[tuple[dict, dict]]:
+        """Select reciprocal conflict-free pairs for perfect-count anchors within 15m.
+
+        This branch bypasses ratio checks and is only accepted when it yields
+        a full 1:1 pairing for all left/right nodes.
+        """
+        if not self._is_perfect_count_grouping(
+            atlas_count=atlas_count,
+            left_count=len(left_nodes),
+            right_count=len(right_nodes),
+        ):
+            return []
+
+        pairs = self._find_reciprocal_pairs(
+            left_nodes,
+            right_nodes,
+            GROUP_PERFECT_COUNT_MAX_DISTANCE_M,
+            0.0,
+            require_uic_non_divergence=require_uic_non_divergence,
+        )
+        if len(pairs) != atlas_count:
+            return []
+        return pairs
+
+    def _select_pairs_with_policy(
+        self,
+        entries: list[dict],
+        left_nodes: list[dict],
+        right_nodes: list[dict],
+        atlas_count: int,
+        perfect_atlas_count: int,
+        perfect_group_type: str,
+        fallback_group_type: str,
+        require_uic_non_divergence: bool = False,
+    ) -> list[tuple[dict, dict, str]]:
+        """Select pairs using perfect-count first, then strict/relaxed fallback."""
+        perfect_pairs = self._select_perfect_count_pairs(
+            left_nodes=left_nodes,
+            right_nodes=right_nodes,
+            atlas_count=perfect_atlas_count,
+            require_uic_non_divergence=require_uic_non_divergence,
+        )
+        if perfect_pairs:
+            return [(left, right, perfect_group_type) for left, right in perfect_pairs]
+
+        fallback_pairs = self._select_group_pairs(
+            entries=entries,
+            left_nodes=left_nodes,
+            right_nodes=right_nodes,
+            atlas_count=atlas_count,
+            require_uic_non_divergence=require_uic_non_divergence,
+        )
+        return [(left, right, fallback_group_type) for left, right in fallback_pairs]
+
+    def _build_perfect_atlas_uic_counts(
+        self,
+        atlas_uic_counts: dict[str, int],
+        atlas_uic_nearest_osm_distances: dict[str, list[float]],
+    ) -> dict[str, int]:
+        """Build per-UIC ATLAS counts used only by the perfect-count branch.
+
+        If nearest-distance evidence is available for a UIC, only ATLAS rows
+        with nearest same-UIC OSM distance <= ATLAS_NEARBY_OSM_MAX_DISTANCE_M are
+        counted. If evidence is missing, fall back to the original atlas count.
+        """
+        perfect_counts: dict[str, int] = {}
+        for uic, atlas_count in atlas_uic_counts.items():
+            distances = atlas_uic_nearest_osm_distances.get(uic)
+            if not distances:
+                perfect_counts[uic] = atlas_count
+                continue
+            perfect_counts[uic] = sum(1 for d in distances if d <= ATLAS_NEARBY_OSM_MAX_DISTANCE_M)
+        return perfect_counts
+
+    def _get_grouped_node_ids(self) -> set[str]:
+        """Return all OSM node IDs that are already part of a registered group."""
+        grouped = set(self._group_representative.keys())
+        for rep_id, (_, siblings) in self._group_siblings.items():
+            grouped.add(rep_id)
+            for sibling in siblings:
+                grouped.add(sibling.node_id)
+        return grouped
+
+    def _build_name_anchor_buckets(
+        self,
+        entries: list[dict],
+        atlas_designation_to_uic: dict[str, str],
+    ) -> dict[str, dict[str, list[dict]]]:
+        """Bucket name-index entries by anchor UIC and side (platform/stop_position)."""
+        by_anchor: dict[str, dict[str, list[dict]]] = defaultdict(lambda: {'platform': [], 'stop_position': []})
+        for entry in entries:
+            anchor_uic = self._resolve_entry_anchor_uic(entry, atlas_designation_to_uic)
+            if not anchor_uic:
+                continue
+            public_transport = entry['tags'].get('public_transport')
+            if public_transport == 'platform':
+                by_anchor[anchor_uic]['platform'].append(entry)
+            elif public_transport == 'stop_position':
+                by_anchor[anchor_uic]['stop_position'].append(entry)
+        return by_anchor
+
+    def _register_selected_groups(
+        self,
+        groups_by_anchor: dict[str, list[tuple[dict, dict, str]]],
+        already_grouped: set[str] | None = None,
+    ) -> dict[str, int]:
+        """Register selected pairs and return per-group_type counts.
+
+        If already_grouped is provided, nodes already present in that set are
+        skipped and newly registered node IDs are added to the same set.
+        """
+        counts: dict[str, int] = defaultdict(int)
+        for pairs in groups_by_anchor.values():
+            for left_node, right_node, group_type in pairs:
+                left_id = left_node['node_id']
+                right_id = right_node['node_id']
+                if already_grouped is not None and (left_id in already_grouped or right_id in already_grouped):
+                    continue
+                self._register_group(left_node, right_node, group_type)
+                counts[group_type] += 1
+                if already_grouped is not None:
+                    already_grouped.add(left_id)
+                    already_grouped.add(right_id)
+        return counts
+
+    def _bucket_pairs_by_anchor(
+        self,
+        pairs: list[tuple[dict, dict]],
+        atlas_designation_to_uic: dict[str, str],
+    ) -> dict[str, list[tuple[dict, dict]]]:
+        """Bucket pair tuples by anchor UIC, dropping pairs without an anchor."""
+        by_anchor: dict[str, list[tuple[dict, dict]]] = defaultdict(list)
+        for left_node, right_node in pairs:
+            anchor_uic = self._resolve_anchor_uic(left_node, right_node, atlas_designation_to_uic)
+            if anchor_uic:
+                by_anchor[anchor_uic].append((left_node, right_node))
+        return by_anchor
+
+    def _select_name_fallback_pairs_for_anchor(
+        self,
+        anchor_uic: str,
+        strict_anchor_pairs: list[tuple[dict, dict]],
+        relaxed_anchor_pairs: list[tuple[dict, dict]],
+        already_grouped: set[str],
+        atlas_uic_counts: dict[str, int],
+    ) -> list[tuple[dict, dict, str]]:
+        """Apply strict-complete then relaxed fallback for one name anchor UIC."""
+        if strict_anchor_pairs:
+            uic_node_ids = {entry['node_id'] for entry in self._uic_ref_dict.get(anchor_uic, [])}
+            strict_pair_ids = {node['node_id'] for pair in strict_anchor_pairs for node in pair}
+            strict_all_involved_ids = uic_node_ids | strict_pair_ids
+            strict_grouped_ids = strict_all_involved_ids & already_grouped
+            path1_group_count = sum(1 for node_id in uic_node_ids if node_id in self._group_siblings)
+            strict_ungrouped_count = len(strict_all_involved_ids - strict_grouped_ids - strict_pair_ids)
+
+            if self._is_complete_grouping(
+                atlas_count=atlas_uic_counts.get(anchor_uic, 0),
+                logical_osm_count=path1_group_count + len(strict_anchor_pairs),
+                ungrouped_count=strict_ungrouped_count,
+            ):
+                return [(plat, sp, OSM_PAIR_NAME) for plat, sp in strict_anchor_pairs]
+
+        if relaxed_anchor_pairs and atlas_uic_counts.get(anchor_uic, 0) > 0:
+            return [(plat, sp, OSM_PAIR_NAME) for plat, sp in relaxed_anchor_pairs]
+
+        return []
 
     @staticmethod
     def _is_complete_grouping(
@@ -838,6 +1026,17 @@ class OsmState:
             uic_name = entry['tags'].get('uic_name')
             if uic_name and uic_name in atlas_designation_to_uic:
                 return atlas_designation_to_uic[uic_name]
+        return None
+
+    @staticmethod
+    def _resolve_entry_anchor_uic(entry: dict, atlas_designation_to_uic: dict[str, str]) -> Optional[str]:
+        """Resolve a single entry to an anchor UIC via uic_ref or uic_name."""
+        entry_uic = entry['tags'].get('uic_ref')
+        if entry_uic:
+            return entry_uic
+        uic_name = entry['tags'].get('uic_name')
+        if uic_name and uic_name in atlas_designation_to_uic:
+            return atlas_designation_to_uic[uic_name]
         return None
 
     def get_siblings(self, node_id: str) -> list[OsmNode]:

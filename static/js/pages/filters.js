@@ -58,8 +58,11 @@ function areAllFilterSelectorsChecked(selectors) {
 function formatOsmGroupTypeLabel(groupType) {
     const labels = {
         osm_pair_uic: 'UIC-based pairs',
+        osm_pair_uic_equal_15m: 'UIC perfect-count pairs (15m)',
         osm_pair_name: 'Name-based pairs',
+        osm_pair_name_equal_15m: 'Name perfect-count pairs (15m)',
         osm_pair_tram: 'Tram pairs',
+        osm_pair_tram_equal_15m: 'Tram perfect-count pairs (15m)',
         osm_trio: 'OSM trio'
     };
 

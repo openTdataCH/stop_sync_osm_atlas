@@ -84,6 +84,18 @@ def test_parse_filter_params_normalizes_osm_group_all_selection():
     assert filters['osm_group_types'] == []
 
 
+def test_parse_filter_params_normalizes_perfect_count_group_aliases():
+    filters = parse_filter_params(
+        {'osm_group_types': 'osm_group_uic_equal,osm_group_name_equal,osm_group_tram_equal'}
+    )
+
+    assert filters['osm_group_types'] == [
+        'osm_pair_uic_equal_15m',
+        'osm_pair_name_equal_15m',
+        'osm_pair_tram_equal_15m',
+    ]
+
+
 def test_query_builder_osm_groups_apply_without_legacy_toggle():
     query_builder = QueryBuilder(None)
 
@@ -123,6 +135,22 @@ def test_query_builder_trio_only_filter_excludes_pair_type_predicate():
 
     assert 'stops_matched.osm_node_id IN' in sql
     assert 'osm_pairs.group_type IN' not in sql
+
+
+def test_query_builder_supports_perfect_count_pair_group_types():
+    query_builder = QueryBuilder(None)
+
+    with backend_app.app_context():
+        sql = _compile_expression(
+            query_builder.apply_common_filters(
+                StopsMatched.query,
+                {'osm_group_types': ['osm_pair_uic_equal_15m']}
+            ).statement
+        )
+
+    assert 'stops_matched.osm_node_id IN' in sql
+    assert 'osm_pairs.group_type IN' in sql
+    assert 'osm_pair_uic_equal_15m' in sql
 
 
 def test_scope_condition_matched_includes_trio_middle_effective_matches():
