@@ -240,9 +240,12 @@ class OsmState:
         uic_ref_dict: dict[str, list] = defaultdict(list)
         name_index: dict[str, list] = defaultdict(list)
 
-        # Also collect per-node name/UIC for direction extraction from relations
-        node_id_to_name: dict[str, str] = {}
-        node_id_to_uic: dict[str, str] = {}
+        # Collect element names/UICs for relation direction extraction
+        element_id_to_name: dict[str, str] = {}
+        element_id_to_uic: dict[str, str] = {}
+        # Needed for selective way inclusion (issue #37)
+        node_uic_refs: set[str] = set()
+        node_coord_by_id: dict[str, tuple[float, float]] = {}
 
         for node in root.iter("node"):
             node_id = node.get("id")
@@ -273,16 +276,98 @@ class OsmState:
                 'lat': lat,
                 'lon': lon,
                 'local_ref': local_ref,
+                'is_way': False,
+                'source_way_id': None,
+                'way_node_ids': None,
                 'tags': tags,
             }
             all_nodes[(lat, lon)] = entry
 
+            node_coord_by_id[node_id] = (lat, lon)
+
             if "uic_ref" in tags:
                 uic_ref_dict[tags["uic_ref"]].append(entry)
-                node_id_to_uic[node_id] = tags["uic_ref"]
+                element_id_to_uic[node_id] = tags["uic_ref"]
+                node_uic_refs.add(tags["uic_ref"])
 
             if "name" in tags:
-                node_id_to_name[node_id] = tags["name"]
+                element_id_to_name[node_id] = tags["name"]
+
+            for key in ('name', 'uic_name', 'gtfs:name'):
+                if key in tags:
+                    name_index[tags[key]].append(entry)
+
+        # Parse ways and keep only requested categories:
+        # 1) aerialway=station + public_transport=station
+        # 2) ways with uic_ref where no node has the same uic_ref
+        selected_way_count = 0
+        for way in root.iter("way"):
+            way_id = way.get("id")
+            if not way_id:
+                continue
+
+            tags: dict[str, str] = {}
+            local_ref = None
+            for tag in way.findall("tag"):
+                k, v = tag.get("k"), tag.get("v")
+                if k == "operator":
+                    original = v
+                    v, changed = standardize_operator(v)
+                    if changed:
+                        tags['original_operator'] = original
+                tags[k] = v
+                if k == "local_ref":
+                    local_ref = v
+                elif k == "ref" and not local_ref:
+                    local_ref = v
+
+            is_aerialway_station = (
+                tags.get("aerialway") == "station" and
+                tags.get("public_transport") == "station"
+            )
+            way_uic_ref = tags.get("uic_ref")
+            is_uic_without_node = bool(way_uic_ref) and way_uic_ref not in node_uic_refs
+            if not (is_aerialway_station or is_uic_without_node):
+                continue
+
+            center = way.find("center")
+            lat = lon = None
+            if center is not None:
+                try:
+                    lat = float(center.get("lat"))
+                    lon = float(center.get("lon"))
+                except (ValueError, TypeError):
+                    lat = lon = None
+
+            member_node_ids = [n.get("ref") for n in way.findall("nd") if n.get("ref")]
+            if lat is None or lon is None:
+                coords = [node_coord_by_id[nid] for nid in member_node_ids if nid in node_coord_by_id]
+                if not coords:
+                    continue
+                lat = sum(c[0] for c in coords) / len(coords)
+                lon = sum(c[1] for c in coords) / len(coords)
+
+            virtual_id = f"way_{way_id}"
+            entry = {
+                'node_id': virtual_id,
+                'lat': lat,
+                'lon': lon,
+                'local_ref': local_ref,
+                'is_way': True,
+                'source_way_id': str(way_id),
+                'way_node_ids': member_node_ids or None,
+                'tags': tags,
+            }
+
+            all_nodes[(lat, lon)] = entry
+            selected_way_count += 1
+
+            if way_uic_ref:
+                uic_ref_dict[way_uic_ref].append(entry)
+                element_id_to_uic[virtual_id] = way_uic_ref
+
+            if "name" in tags:
+                element_id_to_name[virtual_id] = tags["name"]
 
             for key in ('name', 'uic_name', 'gtfs:name'):
                 if key in tags:
@@ -334,7 +419,16 @@ class OsmState:
             if rel_tags.get('type') != 'route':
                 continue
 
-            members = [m.get('ref') for m in relation.findall("./member[@type='node']")]
+            members: list[str] = []
+            for member in relation.findall("./member"):
+                member_ref = member.get('ref')
+                if not member_ref:
+                    continue
+                member_type = member.get('type')
+                if member_type == 'node':
+                    members.append(member_ref)
+                elif member_type == 'way':
+                    members.append(f"way_{member_ref}")
             if not members:
                 continue
 
@@ -357,21 +451,22 @@ class OsmState:
             # --- direction strings (only if not loaded from CSV) ---
             if not loaded_dirs_from_csv and len(members) >= 2:
                 first, last = members[0], members[-1]
-                fn = node_id_to_name.get(first)
-                ln = node_id_to_name.get(last)
+                fn = element_id_to_name.get(first)
+                ln = element_id_to_name.get(last)
                 if fn and ln:
                     ds = f"{fn} → {ln}"
                     for nid in members:
                         name_dirs[nid].add(ds)
-                fu = node_id_to_uic.get(first)
-                lu = node_id_to_uic.get(last)
+                fu = element_id_to_uic.get(first)
+                lu = element_id_to_uic.get(last)
                 if fu and lu:
                     ds = f"{fu} → {lu}"
                     for nid in members:
                         uic_dirs[nid].add(ds)
 
         logger.info(
-            f"Parsed OSM XML: {len(all_nodes)} nodes, "
+            f"Parsed OSM XML: {len(all_nodes)} stop elements "
+            f"({selected_way_count} selected ways), "
             f"{len(uic_ref_dict)} uic_ref entries, "
             f"{len(name_dirs)} nodes with direction strings, "
             f"{len(node_routes)} nodes with route data"
@@ -399,6 +494,9 @@ class OsmState:
             railway=_str(tags.get('railway')),
             amenity=_str(tags.get('amenity')),
             aerialway=_str(tags.get('aerialway')),
+            is_way=bool(entry.get('is_way', False)),
+            source_way_id=_str(entry.get('source_way_id')),
+            way_node_ids=entry.get('way_node_ids'),
             tags=tags
         )
 
@@ -468,6 +566,7 @@ class OsmState:
         trio_groups = 0
         trio_node_ids: set[str] = set()
         for uic, entries in self._uic_ref_dict.items():
+            entries = [e for e in entries if not e.get('is_way', False)]
             if len(entries) != 3:
                 continue
             if atlas_uic_counts.get(uic, 0) != 2:
@@ -504,7 +603,10 @@ class OsmState:
             if len(entries) < 2:
                 continue
 
-            filtered_entries = [e for e in entries if str(e['node_id']) not in trio_node_ids]
+            filtered_entries = [
+                e for e in entries
+                if not e.get('is_way', False) and str(e['node_id']) not in trio_node_ids
+            ]
             platforms = [e for e in filtered_entries if e['tags'].get('public_transport') == 'platform']
             stop_positions = [e for e in filtered_entries if e['tags'].get('public_transport') == 'stop_position']
 
@@ -537,7 +639,12 @@ class OsmState:
 
         for name, entries in self._name_index.items():
             # Skip nodes already grouped by path 1
-            entries = [e for e in entries if e['node_id'] not in already_grouped and str(e['node_id']) not in trio_node_ids]
+            entries = [
+                e for e in entries
+                if not e.get('is_way', False)
+                and e['node_id'] not in already_grouped
+                and str(e['node_id']) not in trio_node_ids
+            ]
             if len(entries) < 2:
                 continue
 
@@ -615,7 +722,12 @@ class OsmState:
 
         for uic, entries in self._uic_ref_dict.items():
             # Skip nodes already grouped by path 1/2
-            entries = [e for e in entries if e['node_id'] not in already_grouped and str(e['node_id']) not in trio_node_ids]
+            entries = [
+                e for e in entries
+                if not e.get('is_way', False)
+                and e['node_id'] not in already_grouped
+                and str(e['node_id']) not in trio_node_ids
+            ]
             if len(entries) < 2:
                 continue
 

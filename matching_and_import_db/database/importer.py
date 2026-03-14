@@ -55,6 +55,9 @@ def _import_all_osm_nodes(session, all_osm_nodes, problem_ctx):
             osm_railway=node.railway,
             osm_amenity=node.amenity,
             osm_aerialway=node.aerialway,
+            is_way=bool(getattr(node, 'is_way', False)),
+            source_way_id=getattr(node, 'source_way_id', None),
+            way_node_ids=getattr(node, 'way_node_ids', None),
             osm_node_type=get_osm_node_type(node.tags, is_osm_unmatched=True) if node.tags else None,
             duplicate_group_node_ids=problem_ctx.duplicate_osm_group_map.get(str(node.node_id)),
         )

@@ -51,6 +51,44 @@
       </div>
     </div>
 
+    {# ── Section 1b: Non-node OSM Stops ── #}
+    {% if stats.osm_way_stops is defined and stats.osm_way_stops %}
+    {% set way_stats = stats.osm_way_stops %}
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">Non-node OSM Stops (Ways)</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm">
+              <div class="stat-card__value">{{ "{:,}".format(way_stats.total) }}</div>
+              <div class="stat-card__label">Total Way Stops</div>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm stat-card--success">
+              <div class="stat-card__value">{{ "{:,}".format(way_stats.matched) }}</div>
+              <div class="stat-card__label">Matched</div>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm stat-card--warning">
+              <div class="stat-card__value">{{ "{:,}".format(way_stats.unmatched) }}</div>
+              <div class="stat-card__label">Unmatched</div>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm stat-card--primary">
+              <div class="stat-card__value">{{ way_stats.match_rate_percent }}%</div>
+              <div class="stat-card__label">Match Rate</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     {# ── Section 2: Matching Stages ── #}
     <div class="card mb-4">
       <div class="card-header">

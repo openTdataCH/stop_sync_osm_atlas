@@ -28,7 +28,8 @@ class FilterBuilder:
             'station': StopsMatched.osm_node_details.has(OsmNode.osm_node_type == 'railway_station'),
             'platform': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'platform'),
             'stop_position': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'stop_position'),
-            'aerialway_station': StopsMatched.osm_node_details.has(OsmNode.osm_aerialway == 'station')
+            'aerialway_station': StopsMatched.osm_node_details.has(OsmNode.osm_aerialway == 'station'),
+            'non_node_osm_stop': StopsMatched.osm_node_details.has(OsmNode.is_way.is_(True)),
         }
         
         for transport_type in selected_transport_types:
@@ -115,7 +116,8 @@ class FilterBuilder:
         include_pairs = True
         include_trios = True
         pair_types = []
-        if osm_group_types is not None:
+        # None or [] means "all group types".
+        if osm_group_types:
             include_pairs = False
             include_trios = False
             pair_types = [t for t in osm_group_types if t.startswith('osm_pair_')]

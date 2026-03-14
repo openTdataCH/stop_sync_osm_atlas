@@ -69,6 +69,15 @@ function formatOsmGroupTypeLabel(groupType) {
     return labels[groupType] || groupType;
 }
 
+function formatTransportTypeLabel(filter) {
+    const labels = {
+        non_node_osm_stop: 'Non-node OSM stops'
+    };
+    return labels[filter] || filter.replace(/_/g, ' ').split(' ').map(function (word) {
+        return word.charAt(0).toUpperCase() + word.slice(1);
+    }).join(' ');
+}
+
 function getSelectedMatchedMethodFiltersFromState() {
     const selectedMethods = [];
 
@@ -571,7 +580,7 @@ function updateFiltersUI() {
 
     let transportTypeChips = [];
     activeFilters.transportTypes.forEach(function (filter) {
-        var dName = filter.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        var dName = formatTransportTypeLabel(filter);
         transportTypeChips.push(buildRemovableChip({ label: dName, badgeClass: 'badge-success', data: { type: 'transportType', filter: filter } }));
     });
     const transportTypeGroupHtml = buildOrGroup(transportTypeChips);

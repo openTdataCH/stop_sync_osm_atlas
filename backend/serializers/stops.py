@@ -43,6 +43,8 @@ def format_stop_data(stop: StopsMatched, problem_type: str = None, include_route
         "duplicate_group_sloids": atlas_details.duplicate_group_sloids if atlas_details else None,
         "duplicate_group_node_ids": osm_details.duplicate_group_node_ids if osm_details else None,
         "osm_node_type": osm_details.osm_node_type if osm_details else None,
+        "osm_is_way": bool(osm_details.is_way) if osm_details else False,
+        "osm_source_way_id": osm_details.source_way_id if osm_details else None,
     }
 
     if include_routes:

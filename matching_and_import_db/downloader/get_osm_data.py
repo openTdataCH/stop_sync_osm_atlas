@@ -16,24 +16,34 @@ def query_overpass():
     all routes that reference them. The result is saved to 'data/raw/osm_data.xml'.
     """
     query = """
-    [out:xml][timeout:180];
-    area["ISO3166-1"="CH"]->.searchArea;
-    (
-    node(area.searchArea)["public_transport"~"platform|stop_position|station|halt|stop"];
-    node(area.searchArea)["railway"="tram_stop"];
-    node(area.searchArea)["amenity"="ferry_terminal"];
-    node(area.searchArea)["amenity"="bus_station"];
-    node(area.searchArea)["highway"="bus_stop"];
-    node(area.searchArea)["railway"="halt"];
-    node(area.searchArea)["railway"="station"];
-    node(area.searchArea)["aerialway"="station"];
-    );
-    out;
-    (
-      relation(bn)[type=route];
-    );
-    out meta;
-    """
+        [out:xml][timeout:360];
+        area["ISO3166-1"="CH"]->.searchArea;
+
+        (
+            node(area.searchArea)["public_transport"~"platform|stop_position|station|halt|stop"];
+            node(area.searchArea)["railway"="tram_stop"];
+            node(area.searchArea)["amenity"="ferry_terminal"];
+            node(area.searchArea)["amenity"="bus_station"];
+            node(area.searchArea)["highway"="bus_stop"];
+            node(area.searchArea)["railway"="halt"];
+            node(area.searchArea)["railway"="station"];
+            node(area.searchArea)["aerialway"="station"];
+        )->.pt_nodes;
+
+        (
+            way(area.searchArea)["aerialway"="station"]["public_transport"="station"];
+            way(area.searchArea)["uic_ref"];
+        )->.candidate_ways;
+
+        .pt_nodes out body qt;
+        .candidate_ways out body center qt;
+
+        (
+            relation(bn.pt_nodes)[type=route];
+            relation(bw.candidate_ways)[type=route];
+        );
+        out meta;
+        """
     print("Querying OpenStreetMap data...")
     url = "http://overpass-api.de/api/interpreter"
     response = requests.post(url, data={'data': query})
@@ -62,12 +72,13 @@ def process_osm_data_to_csv(xml_data, output_file="data/processed/osm_nodes_with
     # Parse the XML
     root = ET.fromstring(xml_data)
     
-    # Create dictionaries to store nodes and routes
+    # Create dictionaries to store stop elements and routes
     nodes = {}
     routes = {}
     node_routes = defaultdict(list)
     node_directions_name = defaultdict(set)
     node_directions_uic = defaultdict(set)
+    node_uic_refs = set()
     
     # Extract all nodes
     for node in root.findall(".//node"):
@@ -89,6 +100,42 @@ def process_osm_data_to_csv(xml_data, output_file="data/processed/osm_nodes_with
             'type': node_type,
             'uic_ref': uic_ref,
             'name': node_name,
+        }
+        if uic_ref:
+            node_uic_refs.add(uic_ref)
+
+    # Extract selected candidate ways and map to stable virtual IDs.
+    # Keep this filter aligned with OsmState.from_xml_file to avoid route FK mismatches.
+    for way in root.findall(".//way"):
+        way_id = way.get('id')
+        virtual_id = f"way_{way_id}"
+        way_type = None
+        uic_ref = None
+        way_name = None
+        aerialway = None
+
+        for tag in way.findall("./tag"):
+            key = tag.get('k')
+            value = tag.get('v')
+            if key == 'public_transport':
+                way_type = value
+            elif key == 'uic_ref':
+                uic_ref = value
+            elif key == 'name':
+                way_name = value
+            elif key == 'aerialway':
+                aerialway = value
+
+        is_aerialway_station = aerialway == 'station' and way_type == 'station'
+        is_uic_without_node = bool(uic_ref) and uic_ref not in node_uic_refs
+        if not (is_aerialway_station or is_uic_without_node):
+            continue
+
+        nodes[virtual_id] = {
+            'id': virtual_id,
+            'type': way_type,
+            'uic_ref': uic_ref,
+            'name': way_name,
         }
     
     # Extract all relations that are routes
@@ -134,8 +181,16 @@ def process_osm_data_to_csv(xml_data, output_file="data/processed/osm_nodes_with
         
         routes[relation_id] = route_info
         
-        # Map each node in this route to the route
-        members = [member.get('ref') for member in relation.findall("./member[@type='node']")]
+        # Map each node/way in this route to the route
+        members = []
+        for member in relation.findall("./member"):
+            member_type = member.get('type')
+            member_ref = member.get('ref')
+            if member_type == 'node':
+                members.append(member_ref)
+            elif member_type == 'way':
+                members.append(f"way_{member_ref}")
+
         for node_ref in members:
             if node_ref in nodes:
                 node_routes[node_ref].append(relation_id)
@@ -244,14 +299,7 @@ def main():
     """
     Main function to run the script.
     """
-    # Try to read existing file first, if not available, fetch new data
-    try:
-        with open("data/raw/osm_data.xml", "r", encoding="utf-8") as f:
-            xml_data = f.read()
-        print("Using existing OSM data file")
-    except FileNotFoundError:
-        print("OSM data file not found, fetching from Overpass API...")
-        xml_data = query_overpass()
+    xml_data = query_overpass()
     
     if xml_data:
         # Process the data and output as CSV with direction information
