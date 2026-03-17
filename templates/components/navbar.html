@@ -19,7 +19,7 @@
       <!-- Main navigation links -->
       <ul class="navbar-nav mr-auto">
         <li class="nav-item {%- if request.endpoint == 'index' %} active{%- endif %}">
-          <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+          <a class="nav-link" href="{{ url_for('index') }}">Map</a>
         </li>
         <li class="nav-item {%- if request.endpoint == 'problems' %} active{%- endif %}">
           <a class="nav-link" href="{{ url_for('problems') }}">Problems</a>
@@ -28,8 +28,8 @@
         <li class="nav-item {%- if request.endpoint == 'reports_page' %} active{%- endif %}">
           <a class="nav-link" href="{{ url_for('reports_page') }}">Reports</a>
         </li>
-        <li class="nav-item {%- if request.endpoint == 'routes_page' %} active{%- endif %}">
-          <a class="nav-link" href="{{ url_for('routes_page') }}">Routes</a>
+        <li class="nav-item {%- if request.endpoint == 'routes.routes_page' %} active{%- endif %}">
+          <a class="nav-link" href="{{ url_for('routes.routes_page') }}">Routes</a>
         </li>
         <li class="nav-item {%- if request.endpoint == 'stats_page' %} active{%- endif %}">
           <a class="nav-link" href="{{ url_for('stats_page') }}">Stats</a>

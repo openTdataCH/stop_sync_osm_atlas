@@ -84,6 +84,9 @@ function _stableParamsKey(params, mode) {
 }
 
 function getAtlasMarkerIdentity(stopData) {
+    if (window.MapShared && typeof window.MapShared.getAtlasMarkerIdentity === 'function') {
+        return window.MapShared.getAtlasMarkerIdentity(stopData);
+    }
     if (!stopData) return null;
     if (stopData.sloid != null && stopData.sloid !== '') return String(stopData.sloid);
     if (stopData.representative_sloid != null && stopData.representative_sloid !== '') return String(stopData.representative_sloid);
@@ -121,19 +124,23 @@ function initMap() {
         }
     });
 
-    osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    var baseLayers = window.MapShared && typeof window.MapShared.createBaseTileLayers === 'function'
+        ? window.MapShared.createBaseTileLayers()
+        : null;
+
+    osmLayer = baseLayers ? baseLayers.osm : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: AppConstants.MAP.MAX_ZOOM,
         maxNativeZoom: AppConstants.MAP.MAX_NATIVE_ZOOM,
         attribution: '© OpenStreetMap'
     });
 
-    var transportLayer = L.tileLayer('https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png', {
+    var transportLayer = baseLayers ? baseLayers.transport : L.tileLayer('https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png', {
         maxZoom: AppConstants.MAP.MAX_ZOOM,
         maxNativeZoom: 18,
         attribution: 'Map <a href="https://memomaps.de/">memomaps.de</a> <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     });
 
-    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    var satelliteLayer = baseLayers ? baseLayers.satellite : L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: AppConstants.MAP.MAX_ZOOM,
         maxNativeZoom: 19,
         attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
@@ -241,18 +248,31 @@ function setZoomBannerShiftedByHint(shifted) {
 }
 
 function isMobileViewport() {
+    if (window.MobileFilters && typeof window.MobileFilters.isMobileViewport === 'function') {
+        return window.MobileFilters.isMobileViewport();
+    }
     return window.matchMedia('(max-width: 768px)').matches;
 }
 
 function setMobileFiltersOpen(open) {
     var overlay = document.querySelector('.top-filters-overlay');
-    var toggle = document.getElementById('mobileFiltersToggle');
     var banner = document.getElementById('zoomBannerInfo');
-    if (!overlay || !toggle) return;
+    if (!overlay) return;
 
     mobileFiltersOpen = !!open;
-    overlay.classList.toggle('is-mobile-open', mobileFiltersOpen);
-    toggle.setAttribute('aria-expanded', mobileFiltersOpen ? 'true' : 'false');
+    if (window.MobileFilters && typeof window.MobileFilters.setMobileFiltersOpen === 'function') {
+        window.MobileFilters.setMobileFiltersOpen({
+            overlaySelector: '.top-filters-overlay',
+            toggleId: 'mobileFiltersToggle',
+            isOpen: mobileFiltersOpen
+        });
+    } else {
+        var toggle = document.getElementById('mobileFiltersToggle');
+        overlay.classList.toggle('is-mobile-open', mobileFiltersOpen);
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', mobileFiltersOpen ? 'true' : 'false');
+        }
+    }
     if (banner) {
         banner.classList.toggle('zoom-banner--filters-open', mobileFiltersOpen);
     }

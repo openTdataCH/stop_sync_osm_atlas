@@ -1,6 +1,6 @@
 {% extends "layouts/base.html" %}
 
-{% from "components/_components.html" import header_chip with context %}
+{% from "components/_components.html" import stats_overlay, top_filters_overlay with context %}
 {% block title %}Problem Identification Tool{% endblock %}
 
 {% block head_css %}
@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <!-- Popup CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
+<!-- Shared filters/overlay CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/shared-filters.css') }}">
 <!-- Problems Page Specific CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/problems.css') }}">
 {% endblock %}
@@ -19,90 +21,126 @@
   <!-- Main Content Area -->
   <div class="main-content flex-grow-1">
 
-    <!-- Map and Problem Content -->
-    <div class="content-area" id="contentArea">
-      <!-- Collapsible Filter Panel -->
-      <div class="filter-panel c-filter-panel" id="filterPanel">
-        <button class="filter-toggle-btn c-filter-panel__toggle" id="filterToggleBtn" type="button"
-          title="Toggle filters">
-          <i class="fas fa-sliders-h"></i>
-          <i class="fas fa-chevron-left toggle-icon"></i>
-        </button>
+    <!-- Top Filters Overlay -->
+    {% call top_filters_overlay('mobileFiltersToggleProblems', 'mobileFiltersPanelProblems') %}
 
-        <div class="filter-content c-filter-panel__content" id="filterContent">
-          <div class="filter-header">
-            <strong><i class="fas fa-sliders-h"></i> Problem Filters</strong>
-          </div>
+            <!-- Priority -->
+            <div class="dropdown filter-item mx-1">
+              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm font-weight-bold"
+                type="button" id="priorityDropdownProblems" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                Priority
+              </button>
+              <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="priorityDropdownProblems">
+                <div class="d-flex align-items-center" id="priorityFilterProblems" style="gap: 8px;">
+                  <a class="priority-option" href="#" data-priority="all" title="All priorities"><span class="priority-circle pr-all selected"><span class="pc-text">All</span></span></a>
+                  <a class="priority-option" href="#" data-priority="1" title="Priority 1"><span class="priority-circle pr-1"><span class="pc-text">P1</span></span></a>
+                  <a class="priority-option" href="#" data-priority="2" title="Priority 2"><span class="priority-circle pr-2"><span class="pc-text">P2</span></span></a>
+                  <a class="priority-option" href="#" data-priority="3" title="Priority 3"><span class="priority-circle pr-3"><span class="pc-text">P3</span></span></a>
+                </div>
+              </div>
+            </div>
 
-          <div class="filter-body">
-            <div class="compact-group">
-              <label for="problemTypeFilter">Filter by Problem Type:</label>
-              <div>
-                <button class="btn btn-outline-secondary dropdown-toggle btn-block" type="button" id="problemTypeFilter"
-                  data-toggle="collapse" data-target="#problemTypeFilterCollapse" aria-expanded="false"
-                  aria-controls="problemTypeFilterCollapse">
-                  <i class="fas fa-filter"></i> All Problems <span class="caret"></span>
-                </button>
-                <div class="collapse" id="problemTypeFilterCollapse">
-                  <div class="problem-type-options-list" id="problemTypeFilterDropdown">
-                    <!-- Options will be dynamically populated by JavaScript -->
+            <!-- Type -->
+            <div class="dropdown filter-item mx-1">
+              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm font-weight-bold"
+                type="button" id="typeFilterButtonProblems" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                Type: All
+              </button>
+              <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="typeFilterButtonProblems" id="typeFilterMenuProblems"
+                style="width: 280px; max-height: 60vh; overflow-y: auto;">
+                <div class="form-group mb-0">
+                  <label class="font-weight-bold small text-uppercase text-muted">Problem Types</label>
+
+                  <div class="custom-control custom-checkbox mb-2 pb-2 border-bottom">
+                    <input type="checkbox" class="filter-problem-type custom-control-input" id="filterProblemTypeAll" value="all">
+                    <label class="custom-control-label font-weight-bold" for="filterProblemTypeAll">
+                      All
+                      <span class="badge badge-secondary ml-2" id="typeCountAll">0</span>
+                    </label>
+                  </div>
+
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-problem-type custom-control-input" id="filterProblemTypeAttributes" value="attributes">
+                    <label class="custom-control-label" for="filterProblemTypeAttributes">
+                      Attributes
+                      <span class="badge badge-secondary ml-2" id="typeCountAttributes">0</span>
+                    </label>
+                  </div>
+
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-problem-type custom-control-input" id="filterProblemTypeDistance" value="distance">
+                    <label class="custom-control-label" for="filterProblemTypeDistance">
+                      Distance
+                      <span class="badge badge-secondary ml-2" id="typeCountDistance">0</span>
+                    </label>
+                  </div>
+
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-problem-type custom-control-input" id="filterProblemTypeDuplicates" value="duplicates">
+                    <label class="custom-control-label" for="filterProblemTypeDuplicates">
+                      Duplicates
+                      <span class="badge badge-secondary ml-2" id="typeCountDuplicates">0</span>
+                    </label>
+                  </div>
+
+                  <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="filter-problem-type custom-control-input" id="filterProblemTypeUnmatched" value="unmatched">
+                    <label class="custom-control-label" for="filterProblemTypeUnmatched">
+                      Unmatched
+                      <span class="badge badge-secondary ml-2" id="typeCountUnmatched">0</span>
+                    </label>
                   </div>
                 </div>
               </div>
             </div>
 
-            <!-- Sorting Controls -->
-            <div class="compact-group" id="sortingControls" style="display: none;">
-              <label for="sortButton">Sort Distance Problems:</label>
-              <div class="dropdown">
-                <button class="btn btn-outline-info dropdown-toggle btn-block" type="button" id="sortButton"
-                  data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                  <i class="fas fa-sort"></i> Default Order
-                </button>
-                <div class="dropdown-menu w-100" aria-labelledby="sortButton">
-                  <a class="dropdown-item sort-option" href="#" data-sort-by="distance" data-sort-order="desc">
-                    <i class="fas fa-sort-numeric-up"></i> Largest distance
-                  </a>
-                  <a class="dropdown-item sort-option" href="#" data-sort-by="distance" data-sort-order="asc">
-                    <i class="fas fa-sort-numeric-down"></i> Smallest distance
-                  </a>
-                  <div class="dropdown-divider"></div>
-                  <a class="dropdown-item sort-option" href="#" data-sort-by="priority" data-sort-order="asc">
-                    <i class="fas fa-layer-group"></i> Sorted by priority
-                  </a>
+            <!-- Atlas Operator -->
+            <div class="dropdown filter-item mx-1">
+              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm font-weight-bold"
+                type="button" id="atlasDropdownProblems" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                Atlas Operator
+              </button>
+              <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="atlasDropdownProblems"
+                style="width: 320px; max-height: 60vh; overflow-y: auto;">
+                <div class="form-group mb-0">
+                  <label for="atlasOperatorFilterProblems" class="font-weight-bold small text-uppercase text-muted">ATLAS Operator</label>
+                  <div id="atlasOperatorFilterProblems"></div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Fixed bottom controls (always visible): from Atlas Operator down -->
-          <div class="filter-fixed-controls" id="filterFixedControls">
-            <div class="compact-group">
-              <label for="atlasOperatorFilterProblems">Atlas Operator:</label>
-              <div id="atlasOperatorFilterProblems"></div>
+            <div class="filter-item mx-1">
+              <button id="toggleContextBtn" class="btn bg-white text-dark btn-sm rounded-pill px-3 shadow-sm font-weight-bold" type="button">
+                <i class="fas fa-eye"></i> See other markers
+              </button>
             </div>
 
-            <!-- Active Filters inline row -->
-            <div class="compact-group active-filters-row d-flex align-items-center">
-              <div id="problemsActiveFilters" class="flex-grow-1">
-                <!-- Chips will be rendered here -->
-              </div>
+            <div id="problemsNavOverlay" class="d-flex align-items-center mx-1"
+              style="pointer-events: auto; gap: 0.5rem;">
+              <button id="prevProblemBtn" class="btn btn-light btn-sm shadow-sm rounded-pill px-3">
+                <i class="fas fa-chevron-left"></i> Prev
+              </button>
+              <button id="nextProblemBtn" class="btn btn-light btn-sm shadow-sm rounded-pill px-3">
+                Next <i class="fas fa-chevron-right"></i>
+              </button>
             </div>
 
+    {% endcall %}
 
-          </div>
+    <!-- Map and Problem Content -->
+    <div class="content-area" id="contentArea">
+      <div class="problems-map-overlays">
+        <!-- Active Filters Display (same placement pattern as index) -->
+        <div id="filterInfoContainer" class="d-flex flex-row align-items-center mt-2"
+          style="pointer-events: auto; gap: 0.5rem;">
+          {{ stats_overlay() }}
         </div>
+
       </div>
 
       <!-- Map Section -->
       <div class="map-section" id="mapSection">
         <div id="problemMap"></div>
-        <!-- Context toggle moved to map corner -->
-        <div class="map-context-toggle leaflet-control">
-          <button id="toggleContextBtn" class="btn btn-outline-secondary btn-sm" type="button">
-            <i class="fas fa-eye"></i> See other markers
-          </button>
-        </div>
       </div>
 
       <!-- Resizable Divider -->
@@ -114,28 +152,13 @@
 
       <!-- Problem Solving Section -->
       <div class="problem-section" id="problemSection">
-        <!-- Problem Info and Navigation Bar -->
-        <div class="problem-info-bar d-flex justify-content-between align-items-center">
-          <div class="d-flex align-items-center">
-            <button id="prevProblemBtn" class="btn btn-outline-secondary mr-2">
-              <i class="fas fa-chevron-left"></i> Prev
-            </button>
-          </div>
-          <button id="nextProblemBtn" class="btn btn-outline-secondary">
-            Next <i class="fas fa-chevron-right"></i>
-          </button>
+        <div class="problem-floating-meta">
+          <span id="problemTypeDisplay" class="problem-meta-chip">Loading...</span>
+          <span id="problemPriorityDisplay" class="problem-meta-chip d-none"></span>
         </div>
 
-        <div class="problem-content-header text-center">
-          <h5 id="problemTypeDisplay" class="mb-0">Loading...</h5>
-        </div>
-
-        <div class="problem-content" id="problemContent">
-          <div id="actionButtonsContent">
-            <!-- Problem-specific content will be dynamically inserted here -->
-          </div>
-
-
+        <div id="actionButtonsContent" class="problem-floating-content">
+          <!-- Problem-specific content will be dynamically inserted here -->
         </div>
       </div>
     </div>
@@ -157,6 +180,8 @@
 <!-- Shared constants and utilities (must load first) -->
 <script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/mobile-filters.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/map-shared.js') }}"></script>
 <!-- Shared filter chip utilities -->
 <script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>
 <!-- Shared popup and rendering utilities -->
@@ -171,7 +196,6 @@
 <script src="{{ url_for('static', filename='js/pages/problems-map.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/problems-data.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/problems-ui.js') }}"></script>
-<script src="{{ url_for('static', filename='js/pages/problems-solutions.js') }}"></script>
 
 <!-- Main problems page coordinator -->
 <script src="{{ url_for('static', filename='js/pages/problems.js') }}"></script>

@@ -2,6 +2,10 @@
 
 {% block title %}Reports{% endblock %}
 
+{% block head_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/reports.css') }}">
+{% endblock %}
+
 {% block content %}
 <!-- Loading overlay for report generation -->
 <div id="reportLoadingOverlay" class="loading-overlay" style="display: none;">
@@ -51,15 +55,15 @@
   </div>
 </div>
 
-<div class="reports-page">
-  <div class="reports-container">
+<div class="page-shell reports-page">
+  <div class="page-shell__container reports-container">
     <!-- Page Header -->
-    <a class="back-link" href="{{ url_for('index') }}">
+    <a class="page-shell__back-link back-link" href="{{ url_for('index') }}">
       <i class="fas fa-arrow-left"></i>
       Back to map
     </a>
     
-    <div class="reports-header">
+    <div class="page-shell__header reports-header">
       <h1>Generate Report</h1>
       <p>Export data from the OSM & ATLAS synchronization database in PDF or CSV format.</p>
     </div>

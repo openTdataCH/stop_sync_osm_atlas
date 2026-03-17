@@ -52,15 +52,11 @@
             if (data.uic_ref) {
                 rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
             }
-            if (!unmatched && data.osm_uic_ref) {
-                const diffLabel = (data.uic_ref && data.uic_ref !== data.osm_uic_ref) ? ' <span class="uic-mismatch">(differs)</span>' : '';
-                rows.push(['OSM UIC Ref', `${data.osm_uic_ref}${diffLabel}`]);
-            }
             rows.push(['Name', data.atlas_designation_official || 'N/A']);
-            rows.push(['Local Ref', data.atlas_designation || 'N/A']);
+            rows.push(['Designation', data.atlas_designation || 'N/A']);
             rows.push(['Business Org', (data.atlas_business_org_abbr || 'N/A') + (isAtlas && !unmatched ? mismatchText : '')]);
             if (data.atlas_lat && data.atlas_lon) {
-                rows.push(['Coordinates', `(${data.atlas_lat}, ${data.atlas_lon})`]);
+                rows.push(['Coord', `(${data.atlas_lat}, ${data.atlas_lon})`]);
             }
             if (!unmatched) {
                 if (data.distance_m) {
@@ -117,7 +113,7 @@
                     displayType = transportTypes.length > 0 ? transportTypes.join(', ') : null;
                 }
                 if (displayType) rows.push(['Type', displayType]);
-                if (data.osm_lat && data.osm_lon) rows.push(['Coordinates', `(${data.osm_lat}, ${data.osm_lon})`]);
+                if (data.osm_lat && data.osm_lon) rows.push(['Coord', `(${data.osm_lat}, ${data.osm_lon})`]);
                 if (data.distance_m) rows.push(['Distance', `${parseFloat(data.distance_m).toFixed(1)} m`]);
                 const mtText = data.match_type || 'N/A';
                 const docUrl = getMatchDocUrl(mtText);

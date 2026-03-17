@@ -10,6 +10,7 @@ Three predicates, each progressively looser:
 import numpy as np
 from collections import defaultdict
 import logging
+from scipy.optimize import linear_sum_assignment
 
 from matching_and_import_db.pipeline import MatchingContext
 from matching_and_import_db.predicates import BasePredicate
@@ -90,12 +91,67 @@ def bipartite_match(atlas_entries: list[AtlasNode], osm_nodes: list[OsmNode],
     return results
 
 
+def bipartite_match_max_cardinality(
+    atlas_entries: list[AtlasNode],
+    osm_nodes: list[OsmNode],
+    max_distance: float,
+) -> list[tuple[int, int, float]]:
+    """Compute a conflict-free maximum-cardinality assignment under distance cap.
+
+    Objective order:
+    1) maximize number of valid Atlas->OSM matches (distance <= max_distance)
+    2) minimize total matched distance among those maximum-cardinality solutions
+    """
+    n = len(atlas_entries)
+    m = len(osm_nodes)
+    if n == 0 or m == 0:
+        return []
+
+    a_coords = np.array([(a.lat, a.lon) for a in atlas_entries], dtype=float)
+    o_coords = np.array([(o.lat, o.lon) for o in osm_nodes], dtype=float)
+
+    lat1 = np.radians(a_coords[:, 0])[:, np.newaxis]
+    lon1 = np.radians(a_coords[:, 1])[:, np.newaxis]
+    lat2 = np.radians(o_coords[:, 0])[np.newaxis, :]
+    lon2 = np.radians(o_coords[:, 1])[np.newaxis, :]
+
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1.0 - a))
+    dist_matrix = 6371000.0 * c
+
+    valid = dist_matrix <= max_distance
+    if not np.any(valid):
+        return []
+
+    # Strong lexicographic objective: unmatched is always more expensive than
+    # any possible matched-distance tradeoff for this group.
+    unmatched_penalty = (n + 1) * max_distance + 1.0
+    invalid_penalty = unmatched_penalty * 1000.0
+
+    # Add one dummy column per ATLAS entry to allow explicit unmatched choices.
+    cost = np.full((n, m + n), unmatched_penalty, dtype=float)
+    real_cost = np.where(valid, dist_matrix, invalid_penalty)
+    cost[:, :m] = real_cost
+
+    row_ind, col_ind = linear_sum_assignment(cost)
+
+    results: list[tuple[int, int, float]] = []
+    for ai, oi in zip(row_ind, col_ind):
+        if oi < m and valid[ai, oi]:
+            results.append((int(ai), int(oi), float(dist_matrix[ai, oi])))
+
+    return results
+
+
 # ---------------------------------------------------------------------------
 # Predicate 1 – group proximity
 # ---------------------------------------------------------------------------
 
 class GroupProximityPredicate(BasePredicate):
-    """Conflict-free bipartite proximity matching within UIC / name groups."""
+    """Conflict-free maximum-cardinality proximity matching within UIC / name groups."""
 
     def run(self, ctx: MatchingContext) -> None:
         matched_here: set[str] = set()
@@ -132,7 +188,7 @@ class GroupProximityPredicate(BasePredicate):
 
                 avail = [n for n in osm_by[osm_key].get(group_val_str, [])
                          if not ctx.osm.is_used(n.node_id)]
-                pairs = bipartite_match(valid_atlas_entries, avail, ctx.max_distance)
+                pairs = bipartite_match_max_cardinality(valid_atlas_entries, avail, ctx.max_distance)
                 if not pairs:
                     continue
 
@@ -144,7 +200,7 @@ class GroupProximityPredicate(BasePredicate):
                         osm_node=osm,
                         match_type=f'distance_matching_1_{osm_key}',
                         distance_m=dist,
-                        notes=f"Conflict-free proximity match ({osm_key})",
+                        notes=f"Conflict-free max-cardinality proximity match ({osm_key})",
                     )
                     matched_here.add(entry.sloid)
 
@@ -200,7 +256,17 @@ class LocalRefDistancePredicate(BasePredicate):
 # ---------------------------------------------------------------------------
 
 class NearestDistancePredicate(BasePredicate):
-    """Single-candidate match or ratio-test match within *max_distance*."""
+    """Single-candidate or ratio-test nearest matching within *max_distance*."""
+
+    def __init__(self, mode: str = 'single', pass_label: str = 'first'):
+        if mode not in {'single', 'ratio'}:
+            raise ValueError("NearestDistancePredicate mode must be 'single' or 'ratio'")
+        if pass_label not in {'first', 'second'}:
+            raise ValueError("NearestDistancePredicate pass_label must be 'first' or 'second'")
+
+        super().__init__(name=f'NearestDistancePredicate[{mode}:{pass_label}]')
+        self.mode = mode
+        self.pass_label = pass_label
 
     def run(self, ctx: MatchingContext) -> None:
         unmatched = ctx.atlas.get_unmatched_records()
@@ -229,18 +295,24 @@ class NearestDistancePredicate(BasePredicate):
             candidates.sort(key=lambda x: x[1])
 
             # Case A: single candidate
-            if len(candidates) == 1:
+            if self.mode == 'single' and len(candidates) == 1:
                 node, d = candidates[0]
+                match_type = 'distance_matching_3a'
+                notes = 'Single candidate within max_distance'
+                if self.pass_label == 'second':
+                    match_type = 'distance_matching_3a_second_pass'
+                    notes = 'Single candidate within max_distance (second pass)'
+
                 ctx.commit(
                     atlas_node=entry,
                     osm_node=node,
-                    match_type='distance_matching_3a',
+                    match_type=match_type,
                     distance_m=d,
-                    notes="Single candidate within max_distance",
+                    notes=notes,
                 )
 
             # Case B: ratio test
-            elif len(candidates) > 1:
+            elif self.mode == 'ratio' and len(candidates) > 1:
                 d1 = candidates[0][1]
                 d2 = candidates[1][1]
                 if d2 >= RATIO_TEST_MIN_D2 and d2 / d1 >= RATIO_TEST_FACTOR:

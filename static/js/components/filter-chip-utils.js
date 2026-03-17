@@ -68,66 +68,60 @@
     return buildOrGroupHtml(chips);
   }
 
-  function generateProblemChips(problemType, solutionFilter, operators, priority) {
-    const chips = [];
-    const typeIsAll = (problemType === 'all');
+  function generateProblemChipGroups(problemTypes, operators, priorities) {
+    const groups = [];
+    const typeChips = [];
+    const priorityChips = [];
+    const selectedTypes = Array.isArray(problemTypes) ? problemTypes : [];
+    const selectedPriorities = Array.isArray(priorities) ? priorities : [];
     const hasOperators = Array.isArray(operators) && operators.length > 0;
-    const sol = (solutionFilter || 'all');
-    const prio = priority || 'all';
 
-    if (typeIsAll) {
-      if (sol === 'all') {
-        if (!hasOperators) {
-      chips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-secondary">All Problems</span>');
-        }
-      } else {
-        const solLabel = sol.replace(/\b\w/g, function(l){return l.toUpperCase();});
-        chips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-secondary">' + escapeHtml(solLabel) +
-                   ' <a href="#" class="text-dark clear-solution-chip">x</a></span>');
-      }
-    } else {
-      const displayType = (problemType || 'all').replace(/_/g, ' ').replace(/\b\w/g, function(l){return l.toUpperCase();});
-      chips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-primary">' + escapeHtml(displayType) +
-                 ' <a href="#" class="text-dark clear-problem-type-chip">x</a></span>');
-      if (sol !== 'all') {
-        const solLabel = sol.replace(/\b\w/g, function(l){return l.toUpperCase();});
-        chips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-secondary">' + escapeHtml(solLabel) +
-                   ' <a href="#" class="text-dark clear-solution-chip">x</a></span>');
-      }
+    selectedTypes.forEach(function(problemType) {
+      const displayType = String(problemType || '').replace(/_/g, ' ').replace(/\b\w/g, function(l){return l.toUpperCase();});
+      typeChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-primary">' + escapeHtml(displayType) +
+                 ' <a href="#" class="text-dark remove-type-chip" data-type="' + escapeHtml(problemType) + '">x</a></span>');
+    });
+
+    selectedPriorities.forEach(function(prio) {
+      priorityChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-light border">Priority P' + escapeHtml(prio) +
+                 ' <a href="#" class="text-dark remove-priority-chip" data-priority="' + escapeHtml(prio) + '">x</a></span>');
+    });
+
+    const typeGroup = buildOrGroupHtml(typeChips);
+    if (typeGroup) groups.push(typeGroup);
+
+    const priorityGroup = buildOrGroupHtml(priorityChips);
+    if (priorityGroup) groups.push(priorityGroup);
+
+    if (groups.length === 0 && !hasOperators) {
+      groups.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-secondary">All entries</span>');
     }
 
-    if (prio !== 'all') {
-      chips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-light border">Priority P' + escapeHtml(prio) +
-                 ' <a href="#" class="text-dark clear-priority-chip">x</a></span>');
-    }
-    return chips;
+    return groups;
   }
 
   function renderProblemChips(containerSelector, options = {}) {
     const container = $(containerSelector);
     if (container.length === 0) return;
-    const problemType = options.problemType || 'all';
-    const solutionFilter = options.solutionFilter || 'all';
+    const problemTypes = options.problemTypes || [];
     const operators = options.operators || [];
-    const priority = options.priority || 'all';
-    const chips = [];
-    const problemChips = generateProblemChips(problemType, solutionFilter, operators, priority);
-    problemChips.forEach(c => chips.push(c));
+    const priorities = options.priorities || [];
+    const groups = generateProblemChipGroups(problemTypes, operators, priorities);
     const operatorsGroup = generateOperatorChipsHtml(operators, { context: 'problems' });
-    if (operatorsGroup) chips.push(operatorsGroup);
-    if (chips.length === 0) {
-      container.html('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-secondary">All Problems</span>');
+    if (operatorsGroup) groups.push(operatorsGroup);
+    if (groups.length === 0) {
+      container.html('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-secondary">All entries</span>');
     } else {
-      container.html(chips.join(buildSeparatorChip('AND')));
+      container.html(joinWithAndHtml(groups));
     }
     container.off('click.filterchips');
-    container.on('click.filterchips', 'a.clear-problem-type-chip', function(e) { e.preventDefault(); if (typeof options.onClearProblemType === 'function') { options.onClearProblemType(); } });
-    container.on('click.filterchips', 'a.clear-solution-chip', function(e) { e.preventDefault(); if (typeof options.onClearSolution === 'function') { options.onClearSolution(); } });
-    container.on('click.filterchips', 'a.clear-priority-chip', function(e) { e.preventDefault(); if (typeof options.onClearPriority === 'function') { options.onClearPriority(); } });
+    container.on('click.filterchips', 'a.remove-type-chip', function(e) { e.preventDefault(); const type = $(this).data('type'); if (typeof options.onRemoveType === 'function') { options.onRemoveType(type); } });
+    container.on('click.filterchips', 'a.remove-priority-chip', function(e) { e.preventDefault(); const priority = $(this).data('priority'); if (typeof options.onRemovePriority === 'function') { options.onRemovePriority(String(priority)); } });
     container.on('click.filterchips', 'a.remove-operator-chip', function(e) { e.preventDefault(); const op = $(this).data('operator'); if (typeof options.onRemoveOperator === 'function') { options.onRemoveOperator(op); } });
+    container.on('click.filterchips', 'a.clear-all-problem-chips', function(e) { e.preventDefault(); if (typeof options.onClearAll === 'function') { options.onClearAll(); } });
   }
 
-  global.FilterChipUtils = { generateOperatorChipsHtml, generateProblemChips, renderProblemChips, buildOrGroupHtml, joinWithAndHtml, buildRemovableChip };
+  global.FilterChipUtils = { generateOperatorChipsHtml, generateProblemChipGroups, renderProblemChips, buildOrGroupHtml, joinWithAndHtml, buildRemovableChip };
 })(window);
 
 

@@ -4,41 +4,6 @@
    ========================================================================== */
 
 /* -------------------------------------------------------------------------
-   Page Layout
-   ------------------------------------------------------------------------- */
-.reports-page {
-  background: var(--color-bg-subtle);
-  min-height: calc(100vh - 60px);
-  padding: var(--space-6) 0;
-}
-
-.reports-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 var(--space-4);
-}
-
-/* -------------------------------------------------------------------------
-   Page Header
-   ------------------------------------------------------------------------- */
-.reports-header {
-  margin-bottom: var(--space-6);
-}
-
-.reports-header h1 {
-  font-size: var(--text-2xl);
-  font-weight: var(--font-semibold);
-  color: var(--color-fg);
-  margin: 0 0 var(--space-2) 0;
-}
-
-.reports-header p {
-  color: var(--color-fg-muted);
-  margin: 0;
-  font-size: var(--text-sm);
-}
-
-/* -------------------------------------------------------------------------
    Two Column Layout
    ------------------------------------------------------------------------- */
 .reports-layout {
@@ -126,18 +91,6 @@
 .option-group {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-}
-
-.option-group--horizontal {
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.option-group--grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: var(--space-2);
 }
 
@@ -243,32 +196,6 @@
 }
 
 /* -------------------------------------------------------------------------
-   Compact Checkbox Style for Inline Options
-   ------------------------------------------------------------------------- */
-.checkbox-inline {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background: var(--color-bg-subtle);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  font-size: var(--text-sm);
-}
-
-.checkbox-inline:hover {
-  background: var(--color-bg-muted);
-}
-
-.checkbox-inline:has(input:checked) {
-  background: var(--color-info-bg);
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-/* -------------------------------------------------------------------------
    Inline Chips for Multi-select
    ------------------------------------------------------------------------- */
 .chip-group {
@@ -305,21 +232,6 @@
   background: var(--color-primary);
   border-color: var(--color-primary);
   color: var(--color-white);
-}
-
-.chip-option__icon {
-  width: 14px;
-  height: 14px;
-  border: 2px solid currentColor;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-}
-
-.chip-option:has(input:checked) .chip-option__icon::after {
-  content: '✓';
 }
 
 /* -------------------------------------------------------------------------
@@ -427,12 +339,6 @@
   line-height: var(--leading-relaxed);
 }
 
-.summary-card__hint {
-  font-size: var(--text-xs);
-  color: var(--color-fg-muted);
-  margin-top: var(--space-2);
-}
-
 /* -------------------------------------------------------------------------
    Generate Button
    ------------------------------------------------------------------------- */
@@ -491,25 +397,6 @@
   font-size: var(--text-sm);
   color: var(--color-info-fg);
   line-height: var(--leading-normal);
-}
-
-/* -------------------------------------------------------------------------
-   Back Link
-   ------------------------------------------------------------------------- */
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-fg-muted);
-  text-decoration: none;
-  font-size: var(--text-sm);
-  margin-bottom: var(--space-4);
-  transition: color var(--transition-fast);
-}
-
-.back-link:hover {
-  color: var(--color-primary);
-  text-decoration: none;
 }
 
 /* -------------------------------------------------------------------------

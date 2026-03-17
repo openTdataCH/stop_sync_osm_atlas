@@ -4,56 +4,6 @@
    ========================================================================== */
 
 /* -------------------------------------------------------------------------
-   Page Layout
-   ------------------------------------------------------------------------- */
-.stats-page {
-  background: var(--color-bg-subtle);
-  min-height: calc(100vh - 60px);
-  padding: var(--space-6) 0;
-}
-
-.stats-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 var(--space-4);
-}
-
-/* -------------------------------------------------------------------------
-   Page Header
-   ------------------------------------------------------------------------- */
-.stats-header {
-  margin-bottom: var(--space-6);
-}
-
-.stats-header h1 {
-  font-size: var(--text-2xl);
-  font-weight: var(--font-semibold);
-  color: var(--color-fg);
-  margin: 0 0 var(--space-2) 0;
-}
-
-.stats-header p {
-  color: var(--color-fg-muted);
-  margin: 0;
-  font-size: var(--text-sm);
-}
-
-/* -------------------------------------------------------------------------
-   Back Link
-   ------------------------------------------------------------------------- */
-.stats-page .back-link {
-  display: inline-block;
-  margin-bottom: var(--space-4);
-  color: var(--color-fg-muted);
-  text-decoration: none;
-  font-size: var(--text-sm);
-}
-
-.stats-page .back-link:hover {
-  color: var(--color-fg);
-}
-
-/* -------------------------------------------------------------------------
    Stat Cards
    ------------------------------------------------------------------------- */
 .stat-card {
@@ -240,4 +190,28 @@
   border-radius: 50%;
   margin-right: 8px;
   vertical-align: middle;
+}
+
+/* -------------------------------------------------------------------------
+   Inline SVG diagrams
+   ------------------------------------------------------------------------- */
+.diagram-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border, #e1e4e8);
+  border-radius: var(--radius-md, 6px);
+  background: #fff;
+  padding: 8px;
+}
+
+.diagram-svg {
+  width: 100%;
+  min-width: 420px;
+  display: block;
+}
+
+.diagram-text {
+  fill: #3b4453;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }

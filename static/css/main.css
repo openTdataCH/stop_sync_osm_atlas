@@ -56,6 +56,7 @@
 @import url('src/06-components/c-marker-cluster.css');
 @import url('src/06-components/c-dropdown-zindex.css');
 @import url('src/06-components/c-pipeline-status.css');
+@import url('src/06-components/c-page-shell.css');
 
 /* 07-utilities - Helper Classes */
 @import url('src/07-utilities/u-spacing.css');
@@ -64,5 +65,4 @@
 @import url('src/07-utilities/u-text.css');
 
 /* 08-pages - Page-Specific Styles */
-@import url('pages/reports.css');
 

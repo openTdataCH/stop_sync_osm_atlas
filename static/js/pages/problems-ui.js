@@ -73,115 +73,65 @@ window.ProblemsUI = (function () {
      */
     function generateAttributeComparisonHtml(problem) {
         let html = '<div class="problem-section-item">';
-        html += '<h6><i class="fas fa-exchange-alt"></i> Attribute Comparison</h6>';
-        // Priority-aware concise info banner for attributes, shown above the popups
-        (function () {
-            const pr = Number(problem.priority);
-            let alertClass = 'alert-info';
-            let icon = 'info-circle';
-            let intent = '';
-            // Derive concrete mismatches from available fields
-            const mismatches = getMismatchedAttributes(problem) || [];
-            const labels = mismatches.map(m => m.label);
+        const mismatches = getMismatchedAttributes(problem) || [];
+        const labels = mismatches.map(m => m.label);
+        const pr = Number(problem.priority);
+        let alertClass = 'alert-info';
+        let icon = 'info-circle';
+        let intent = 'Attribute mismatch';
 
-            if (pr === 1) {
-                alertClass = 'alert-danger';
-                icon = 'exclamation-circle';
-                // Prefer explicit labels for critical category (UIC number or official name)
-                const criticalLabels = labels.filter(l => l === 'UIC Name');
-                if (criticalLabels.length > 0) {
-                    intent = `Critical attribute mismatch, ${criticalLabels.join(', ')}`;
-                } else {
-                    // Fallback if we cannot detect specific label on the frontend
-                    intent = 'Critical attribute mismatch';
-                }
-            } else if (pr === 2) {
-                alertClass = 'alert-warning';
-                icon = 'exclamation-triangle';
-                if (labels.includes('Local Reference')) {
-                    intent = 'Local reference differs between ATLAS and OSM';
-                } else {
-                    intent = 'Attribute mismatch';
-                }
-            } else {
-                alertClass = 'alert-info';
-                icon = 'info-circle';
-                if (labels.includes('Operator')) {
-                    intent = 'Operator differs between ATLAS and OSM';
-                } else {
-                    intent = 'Attribute mismatch';
-                }
-            }
-
-            html += `<div class="alert ${alertClass} problem-info-banner mb-3">
-                        <small><i class="fas fa-${icon}"></i> ${intent}.</small>
-                     </div>`;
-        })();
-        html += '<div class="row">';
-
-        // ATLAS column
-        html += '<div class="col-md-6">';
-        html += '<h6 class="text-info mb-3"><i class="fas fa-map-marker-alt"></i> ATLAS Entry</h6>';
-        if (typeof PopupRenderer !== 'undefined') {
-            // Create a temporary ATLAS data object
-            const atlasData = {
-                sloid: problem.sloid,
-                atlas_lat: problem.atlas_lat,
-                atlas_lon: problem.atlas_lon,
-                atlas_business_org_abbr: problem.atlas_business_org_abbr,
-                atlas_designation_official: problem.atlas_designation_official,
-                atlas_designation: problem.atlas_designation,
-                stop_type: problem.stop_type,
-                uic_ref: problem.uic_ref,
-                match_type: problem.match_type
-            };
-            // Add any other atlas_ prefixed properties from problem that might be needed
-            Object.keys(problem).forEach(key => {
-                if (key.startsWith('atlas_')) {
-                    if (!atlasData.hasOwnProperty(key)) {
-                        atlasData[key] = problem[key];
-                    }
-                }
-            });
-            html += PopupRenderer.generatePopupHtml(atlasData, 'atlas', { hideRoutesAndNotes: true });
-        } else {
-            html += '<div class="alert alert-warning">ATLAS info not available</div>';
+        if (pr === 1) {
+            alertClass = 'alert-danger';
+            icon = 'exclamation-circle';
+            const criticalLabels = labels.filter(l => l === 'UIC Name');
+            intent = criticalLabels.length > 0
+                ? `Critical attribute mismatch, ${criticalLabels.join(', ')}`
+                : 'Critical attribute mismatch';
+        } else if (pr === 2) {
+            alertClass = 'alert-warning';
+            icon = 'exclamation-triangle';
+            intent = labels.includes('Local Reference')
+                ? 'Attribute mismatch, Local Reference'
+                : 'Attribute mismatch';
+        } else if (labels.includes('Operator')) {
+            intent = 'Attribute mismatch, Operator';
         }
-        html += '</div>';
 
-        // OSM column
-        html += '<div class="col-md-6">';
-        html += '<h6 class="text-primary mb-3"><i class="fas fa-map"></i> OSM Entry</h6>';
+        html += `<div class="alert ${alertClass} problem-info-banner mb-3">
+                    <small><i class="fas fa-${icon}"></i> ${intent}.</small>
+                 </div>`;
 
-        if (typeof PopupRenderer !== 'undefined') {
-            // Create a temporary OSM data object
-            const osmData = {
-                osm_node_id: problem.osm_node_id,
-                osm_lat: problem.osm_lat,
-                osm_lon: problem.osm_lon,
-                osm_operator: problem.osm_operator,
-                osm_name: problem.osm_name,
-                osm_local_ref: problem.osm_local_ref,
-                osm_public_transport: problem.osm_public_transport,
-                stop_type: problem.stop_type,
-                uic_ref: problem.uic_ref,
-                match_type: problem.match_type
-            };
-            // Add all osm_ prefixed properties from problem
-            Object.keys(problem).forEach(key => {
-                if (key.startsWith('osm_')) {
-                    osmData[key] = problem[key];
-                }
+        const atlasRows = [
+            ['Sloid', problem.sloid || '-']
+        ];
+        const osmRows = [
+            ['Node ID', problem.osm_node_id || '-']
+        ];
+
+        if (mismatches.length > 0) {
+            mismatches.forEach(attr => {
+                atlasRows.push([attr.label, problem[attr.atlas] || '-']);
+                osmRows.push([attr.label, problem[attr.osm] || '-']);
             });
-            html += PopupRenderer.generatePopupHtml(osmData, 'osm', { hideRoutesAndNotes: true });
         } else {
-            html += '<div class="alert alert-warning">OSM info not available</div>';
+            atlasRows.push(['Mismatch', 'No details']);
+            osmRows.push(['Mismatch', 'No details']);
         }
+
+        const atlasRowsHtml = atlasRows.map(([k, v]) => `<tr><td>${k}:</td><td>${v}</td></tr>`).join('');
+        const osmRowsHtml = osmRows.map(([k, v]) => `<tr><td>${k}:</td><td>${v}</td></tr>`).join('');
+
+        html += '<div class="attribute-mini-popups">';
+        html += `<div class="atlas-match attribute-mini-popup">
+                    <h5>ATLAS</h5>
+                    <table class="popup-table mb-0">${atlasRowsHtml}</table>
+                 </div>`;
+        html += `<div class="osm-match attribute-mini-popup">
+                    <h5>OSM</h5>
+                    <table class="popup-table mb-0">${osmRowsHtml}</table>
+                 </div>`;
         html += '</div>';
-
-        html += '</div>'; // End row
-        html += '</div>'; // End problem-section-item
-
+        html += '</div>';
         return html;
     }
 
@@ -271,36 +221,39 @@ window.ProblemsUI = (function () {
             </div>`;
     }
 
+    function generateDistanceDetailsHtml(problem) {
+        const distance = problem.distance_m ? Math.round(problem.distance_m) : null;
+        const distanceText = distance != null ? `${distance}` : 'unknown';
+        return `<div class="problem-section-item"><div class="alert alert-info mb-0"><small><i class="fas fa-info-circle"></i> The matched ATLAS and OSM points are ${distanceText} m apart.</small></div></div>`;
+    }
+
+    function generateUnmatchedDetailsHtml(problem) {
+        const isAtlas = problem.stop_type === 'atlas_unmatched' || (!!problem.sloid && !problem.osm_node_id);
+        return `<div class="problem-section-item"><div class="alert alert-info mb-0"><small><i class="fas fa-info-circle"></i> This ${isAtlas ? 'ATLAS' : 'OSM'} entry has no counterpart under current matching rules.</small></div></div>`;
+    }
+
+    function updateFloatingPriority(problem) {
+        const badge = $('#problemPriorityDisplay');
+        badge.removeClass('d-none problem-meta-chip--p1 problem-meta-chip--p2 problem-meta-chip--p3');
+
+        const pr = Number(problem && problem.priority);
+        if (!pr || Number.isNaN(pr)) {
+            badge.addClass('d-none').text('');
+            return;
+        }
+
+        badge.text(`P${pr}`);
+        if (pr === 1) badge.addClass('problem-meta-chip--p1');
+        else if (pr === 2) badge.addClass('problem-meta-chip--p2');
+        else badge.addClass('problem-meta-chip--p3');
+    }
+
     /**
      * Render the UI for a single problem. Returns HTML string.
      */
     function renderSingleProblemUI(problem, entryIndex, issueIndex, totalIssues) {
-        const problemType = problem.problem ? problem.problem.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : "Unknown";
         const safeId = String(problem.id).replace(/[^a-zA-Z0-9_-]/g, '-');
         let html = `<div class="issue-container" id="issue-${safeId}" data-problem-id="${problem.id}" data-stop-id="${problem.stop_id}">`;
-
-        // Header for the issue
-        // Add priority circle if present - match filter design
-        let priorityBadge = '';
-        if (problem.priority && !isNaN(problem.priority)) {
-            const pr = String(problem.priority);
-            const prClass = pr === '1' ? 'pr-1' : pr === '2' ? 'pr-2' : pr === '3' ? 'pr-3' : '';
-            const selectedClass = '';
-            priorityBadge = ` <span class="priority-circle ${prClass} ${selectedClass}"><span class="pc-text">P${pr}</span></span>`;
-        }
-        let displayText = `${problemType}${priorityBadge}`;
-        if (totalIssues > 1) {
-            displayText += ` (Issue ${issueIndex + 1}/${totalIssues})`;
-        }
-
-        // Add distance indicator for distance problems
-        if (problem.problem === 'distance' && problem.distance_m) {
-            const distance = Math.round(problem.distance_m);
-            const distanceClass = distance > 100 ? 'high-distance' : '';
-            displayText += `<span class="distance-indicator ${distanceClass}">(${distance}m apart)</span>`;
-        }
-
-        html += `<h5 class="text-center mb-3">${displayText}</h5>`;
 
         // Generate action buttons and content based on problem type
         let actionButtonsHtml = '';
@@ -361,6 +314,10 @@ window.ProblemsUI = (function () {
             }
         } else if (problem.problem === 'attributes') {
             actionButtonsHtml += generateAttributeComparisonHtml(problem);
+        } else if (problem.problem === 'distance') {
+            actionButtonsHtml += generateDistanceDetailsHtml(problem);
+        } else if (problem.problem === 'unmatched') {
+            actionButtonsHtml += generateUnmatchedDetailsHtml(problem);
         }
         html += actionButtonsHtml;
 
@@ -377,7 +334,7 @@ window.ProblemsUI = (function () {
      */
     function setupIntersectionObserver() {
         const options = {
-            root: document.getElementById('problemContent'),
+            root: document.getElementById('actionButtonsContent'),
             rootMargin: '0px',
             threshold: 0.6, // Use a slightly lower threshold
         };
@@ -410,6 +367,7 @@ window.ProblemsUI = (function () {
                         // Update active highlight
                         $('.issue-container').removeClass('active');
                         $(entry.target).addClass('active');
+                        updateFloatingPriority(problem);
 
 
                     }
@@ -443,9 +401,9 @@ window.ProblemsUI = (function () {
         const firstProblemForHeader = currentEntryProblems[0];
         const isDuplicatesGroupHeader = firstProblemForHeader && firstProblemForHeader.problem === 'duplicates';
         if (isDuplicatesGroupHeader) {
-            $('#problemTypeDisplay').text(`Group ${index + 1} of ${totalProblems}`);
+            $('#problemTypeDisplay').text(`Group ${index + 1}/${totalProblems}`);
         } else {
-            $('#problemTypeDisplay').text(`Entry ${index + 1} of ${totalProblems} (${problemCount} ${problemText})`);
+            $('#problemTypeDisplay').text(`Entry ${index + 1}/${totalProblems} · ${problemCount} ${problemText}`);
         }
 
         // Clear previous content
@@ -486,6 +444,7 @@ window.ProblemsUI = (function () {
                     linesLayer: linesLayer
                 });
             }
+            updateFloatingPriority(firstProblem);
 
             // Load context if enabled
             const showContext = ProblemsState.getShowContext();
@@ -499,7 +458,7 @@ window.ProblemsUI = (function () {
             }
 
             // Add scroll indicator if needed
-            const problemContent = $('#problemContent');
+            const problemContent = $('#actionButtonsContent');
             let scrollIndicator = problemContent.find('.scroll-indicator');
             if (currentEntryProblems.length > 1) {
                 if (scrollIndicator.length === 0) {
@@ -548,6 +507,7 @@ window.ProblemsUI = (function () {
         hideKeyboardHint,
         generateAttributeComparisonHtml,
         getMismatchedAttributes,
+        updateFloatingPriority,
         renderSingleProblemUI,
         setupIntersectionObserver,
         displayProblem,

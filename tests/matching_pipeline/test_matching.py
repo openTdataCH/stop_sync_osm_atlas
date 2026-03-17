@@ -10,7 +10,12 @@ import pytest
 from matching_and_import_db.models import AtlasNode, OsmNode
 from matching_and_import_db.pipeline import MatchingContext, run_pipeline
 from matching_and_import_db.predicates import BasePredicate
-from matching_and_import_db.predicates.distance_matching import NearestDistancePredicate, bipartite_match
+from matching_and_import_db.predicates.distance_matching import (
+    NearestDistancePredicate,
+    bipartite_match,
+    bipartite_match_max_cardinality,
+    GroupProximityPredicate,
+)
 from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
 from matching_and_import_db.predicates.name_matching import NameMatchPredicate
 from matching_and_import_db.predicates.trio_distance_matching import TrioDistanceMatchingPredicate
@@ -54,6 +59,7 @@ def _osm_entry(
     local_ref: str | None = None,
     public_transport: str | None = 'stop_position',
     railway: str | None = None,
+    aerialway: str | None = None,
 ) -> dict:
     tags: dict[str, str | None] = {}
     if public_transport is not None:
@@ -66,6 +72,8 @@ def _osm_entry(
         tags['uic_ref'] = uic_ref
     if railway is not None:
         tags['railway'] = railway
+    if aerialway is not None:
+        tags['aerialway'] = aerialway
     return {
         'node_id': node_id,
         'lat': lat,
@@ -163,6 +171,20 @@ class TestBipartiteMatch:
 
         assert bipartite_match(atlas, osm, max_distance=100) == []
 
+    def test_max_cardinality_allows_partial_matching(self):
+        atlas = [
+            AtlasNode('a1', 47.0000, 8.0000, 'u1', '1', 'A', 'T'),
+            AtlasNode('a2', 47.0005, 8.0005, 'u1', '2', 'A', 'T'),
+            AtlasNode('a3', 47.0100, 8.0100, 'u1', '3', 'A', 'T'),
+        ]
+        osm = [
+            OsmNode('o1', 47.0001, 8.0001, None, 'A', None, 'u1', '', '', 'stop_position', None, None, None, {}),
+            OsmNode('o2', 47.0006, 8.0006, None, 'A', None, 'u1', '', '', 'stop_position', None, None, None, {}),
+        ]
+
+        pairs = bipartite_match_max_cardinality(atlas, osm, max_distance=100)
+        assert len(pairs) == 2
+
 
 class TestPipelineRunner:
     def test_empty_predicates_returns_all_unmatched(self):
@@ -257,6 +279,27 @@ class TestCurrentPredicates:
         assert ctx.all_matches[0].osm_node.node_id == 'osm_1'
         assert ctx.all_matches[0].match_type == 'route_unified_gtfs'
 
+    def test_group_proximity_partial_matching_leaves_far_outlier_unmatched(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('s1', 'u1', '1', 'Hub', 47.0000000, 8.0000000),
+                _atlas_row('s2', 'u1', '2', 'Hub', 47.0005000, 8.0005000),
+                _atlas_row('s3', 'u1', '3', 'Hub', 47.0050000, 8.0050000),
+            ],
+            [
+                _osm_entry('o1', 47.0000600, 8.0000600, uic_ref='u1', uic_name='Hub', name='Hub'),
+                _osm_entry('o2', 47.0005600, 8.0005600, uic_ref='u1', uic_name='Hub', name='Hub'),
+            ],
+        )
+
+        GroupProximityPredicate().run(ctx)
+
+        matched_sloids = {r.atlas_node.sloid for r in ctx.all_matches}
+        assert matched_sloids == {'s1', 's2'}
+        assert ctx.all_matches[0].match_type.startswith('distance_matching_1_')
+        assert ctx.all_matches[1].match_type.startswith('distance_matching_1_')
+        assert 's3' not in matched_sloids
+
 
 class TestStaleCandidateRegression:
     def test_nearest_distance_does_not_reuse_consumed_group_representative(self):
@@ -283,15 +326,23 @@ class TestStaleCandidateRegression:
             'rep_b': ('osm_pair_tram', [ctx.osm._to_osm_node(ctx.osm._all_nodes[(47.0002250, 8.0002250)])]),
         }
 
-        NearestDistancePredicate().run(ctx)
+        run_pipeline(
+            [
+                NearestDistancePredicate(mode='single', pass_label='first'),
+                NearestDistancePredicate(mode='ratio', pass_label='first'),
+                NearestDistancePredicate(mode='single', pass_label='second'),
+            ],
+            ctx,
+        )
 
         matched_pairs = [(record.atlas_node.sloid, record.osm_node.node_id, record.match_type) for record in ctx.all_matches]
 
         assert any(
-            sloid == 's2' and osm_node_id == 'rep_b' and match_type in {'distance_matching_3a', 'distance_matching_3b'}
+            sloid == 's2' and osm_node_id == 'rep_b' and match_type in {'distance_matching_3a', 'distance_matching_3b', 'distance_matching_3a_second_pass'}
             for sloid, osm_node_id, match_type in matched_pairs
         )
         assert ('s3', 'rep_b', 'distance_matching_3a') not in matched_pairs
+        assert ('s3', 'rep_b', 'distance_matching_3a_second_pass') not in matched_pairs
         assert 's3' not in {record.atlas_node.sloid for record in ctx.all_matches}
 
         assert haversine_distance(47.0003250, 8.0003250, 47.0002200, 8.0002200) < 50
@@ -449,6 +500,67 @@ class TestOsmGroupingPolicy:
 
         assert ctx.osm._group_representative == {'stop_tram_1': 'tram_1'}
         assert ctx.osm._group_siblings['tram_1'][0] == 'osm_pair_tram'
+
+    def test_grouped_lookup_inherits_uic_ref_from_sibling(self):
+        ctx = _build_ctx(
+            [_atlas_row('s1', 'u_anchor', '1', 'Anchor Name', 47.0, 8.0)],
+            [
+                _osm_entry('platform_anchor', 47.0000000, 8.0000000, name='Anchor Name', public_transport='platform'),
+                _osm_entry('stop_anchor', 47.0000100, 8.0000100, uic_ref='u_anchor', uic_name='Anchor Name', name='Anchor Name', public_transport='stop_position'),
+            ],
+        )
+
+        ctx.osm.build_groups(
+            atlas_uic_counts={'u_anchor': 1},
+            atlas_designation_to_uic={'Anchor Name': 'u_anchor'},
+        )
+
+        grouped = ctx.osm.get_all_unmatched_grouped('uic_ref')
+        assert 'u_anchor' in grouped
+        assert any(entity.node_id == 'platform_anchor' for entity in grouped['u_anchor'])
+
+
+class TestNearestDistanceMultiPass:
+    def test_second_single_pass_can_match_after_ratio_consumes_competitor(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('s_target', 'u_aerial', '', 'Aerial', 46.11343836621, 7.30420757178),
+                _atlas_row('s_competitor', 'u_aerial', '', 'Aerial', 46.1136200, 7.3044000),
+            ],
+            [
+                _osm_entry(
+                    'way_208449383',
+                    46.1133230,
+                    7.3042299,
+                    public_transport='station',
+                    aerialway='station',
+                ),
+                _osm_entry(
+                    'way_208449401',
+                    46.1136516,
+                    7.3044201,
+                    public_transport='station',
+                    aerialway='station',
+                ),
+            ],
+        )
+
+        run_pipeline(
+            [
+                NearestDistancePredicate(mode='single', pass_label='first'),
+                NearestDistancePredicate(mode='ratio', pass_label='first'),
+                NearestDistancePredicate(mode='single', pass_label='second'),
+            ],
+            ctx,
+        )
+
+        by_sloid = {record.atlas_node.sloid: record for record in ctx.all_matches}
+
+        assert by_sloid['s_competitor'].osm_node.node_id == 'way_208449401'
+        assert by_sloid['s_competitor'].match_type == 'distance_matching_3b'
+
+        assert by_sloid['s_target'].osm_node.node_id == 'way_208449383'
+        assert by_sloid['s_target'].match_type == 'distance_matching_3a_second_pass'
 
 
 class TestOsmTrioMatching:

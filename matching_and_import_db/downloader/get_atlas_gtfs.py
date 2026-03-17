@@ -290,14 +290,12 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
 # The normalize_route_id function is imported at module level when needed
 
 
-def match_gtfs_to_atlas(gtfs_data, traffic_points):
-    """Map stop_id GTFS → sloid ATLAS using a strict rule with fallbacks.
+def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
+    """Map stop_id GTFS → sloid ATLAS using strict + unique-number matching.
 
     Strict: (uic_number, normalized_local_ref) == (number, designation)
-    Fallbacks, applied only for stops not matched strictly:
-      1) If an ATLAS \"number\" has exactly one row, use that sloid
-      2) Else, if any candidate sloid (same number) has its last token equal to
-         normalized_local_ref, use that sloid
+    Fallback (applied only for stops not matched strictly):
+      1) If an ATLAS "number" has exactly one row, use that sloid
     """
     print("Mapping stop_id GTFS → sloid ATLAS…")
     
@@ -319,7 +317,7 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points):
     # Prepare ATLAS data
     atlas_data = traffic_points[['sloid', 'number', 'designation']].copy()
     atlas_data['number'] = atlas_data['number'].astype(str)
-    atlas_data['sloid_last_token'] = atlas_data['sloid'].astype(str).str.split(':').str[-1]
+    atlas_data = atlas_data.dropna(subset=['sloid', 'number'])
     
     # Strict: match on UIC number and designation
     strict_matches = pd.merge(
@@ -330,51 +328,90 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points):
         how='inner'
     )[['stop_id', 'sloid']]
 
-    # Fallbacks for remaining stops
+    # Fallback for remaining stops: unique ATLAS number only
     matched_stop_ids = set(strict_matches['stop_id'])
     remaining = gtfs_stops[~gtfs_stops['stop_id'].isin(matched_stop_ids)].copy()
-    if remaining.empty:
-        print(f"stop_id→sloid: strict assignments = {len(strict_matches):,}")
-        return strict_matches
 
-    # Group ATLAS by number for quick candidate access
-    atlas_by_number = {
-        num: sub[['sloid', 'designation', 'sloid_last_token']].copy()
-        for num, sub in atlas_data.groupby('number', sort=False)
+    atlas_counts = atlas_data.groupby('number', sort=False)['sloid'].nunique()
+    unique_numbers = set(atlas_counts[atlas_counts == 1].index.astype(str))
+
+    atlas_unique_lookup = (
+        atlas_data[atlas_data['number'].astype(str).isin(unique_numbers)][['number', 'sloid']]
+        .drop_duplicates(subset=['number'])
+    )
+
+    unique_fallback_matches = pd.DataFrame(columns=['stop_id', 'sloid'])
+    if not remaining.empty and not atlas_unique_lookup.empty:
+        unique_fallback_matches = (
+            remaining[['stop_id', 'uic_number']]
+            .merge(atlas_unique_lookup, left_on='uic_number', right_on='number', how='inner')
+            [['stop_id', 'sloid']]
+            .drop_duplicates()
+        )
+
+    combined = pd.concat([strict_matches, unique_fallback_matches], ignore_index=True).drop_duplicates()
+
+    # Derive mapping quality stats for docs/UI.
+    total_gtfs_stops = int(gtfs_stops['stop_id'].nunique())
+    total_atlas_sloids = int(traffic_points['sloid'].dropna().nunique()) if 'sloid' in traffic_points.columns else 0
+    matched_stop_ids_count = int(combined['stop_id'].nunique()) if not combined.empty else 0
+    unmatched_total = max(total_gtfs_stops - matched_stop_ids_count, 0)
+    touched_sloids = int(combined['sloid'].nunique()) if not combined.empty else 0
+
+    if not combined.empty:
+        stop_to_sloid = combined.groupby('stop_id', sort=False)['sloid'].nunique()
+        sloid_to_stop = combined.groupby('sloid', sort=False)['stop_id'].nunique()
+        stop_1_to_1 = int((stop_to_sloid == 1).sum())
+        stop_1_to_many = int((stop_to_sloid > 1).sum())
+        sloid_1_to_1 = int((sloid_to_stop == 1).sum())
+        sloid_many_to_1 = int((sloid_to_stop > 1).sum())
+    else:
+        stop_1_to_1 = 0
+        stop_1_to_many = 0
+        sloid_1_to_1 = 0
+        sloid_many_to_1 = 0
+
+    atlas_numbers = set(atlas_data['number'].astype(str).unique())
+    unmatched_candidates = gtfs_stops[~gtfs_stops['stop_id'].isin(set(combined['stop_id']))].copy()
+    if unmatched_candidates.empty:
+        unmatched_no_atlas_number = 0
+        unmatched_non_unique_after_strict = 0
+    else:
+        unmatched_no_atlas_number = int((~unmatched_candidates['uic_number'].isin(atlas_numbers)).sum())
+        unmatched_non_unique_after_strict = int(unmatched_total - unmatched_no_atlas_number)
+
+    mapping_stats = {
+        'algorithm_version': 'strict_plus_unique_number',
+        'total_gtfs_stop_ids': total_gtfs_stops,
+        'matched_gtfs_stop_ids': matched_stop_ids_count,
+        'unmatched_gtfs_stop_ids': unmatched_total,
+        'total_atlas_sloids': total_atlas_sloids,
+        'touched_atlas_sloids': touched_sloids,
+        'gtfs_coverage_percent': round((matched_stop_ids_count / total_gtfs_stops * 100), 2) if total_gtfs_stops else 0.0,
+        'atlas_coverage_percent': round((touched_sloids / total_atlas_sloids * 100), 2) if total_atlas_sloids else 0.0,
+        'strict_assignments': int(len(strict_matches)),
+        'unique_number_fallback_assignments': int(len(unique_fallback_matches)),
+        'total_assignments': int(len(combined)),
+        'stop_to_sloid': {
+            'one_to_one': stop_1_to_1,
+            'one_to_many': stop_1_to_many,
+        },
+        'sloid_to_stop': {
+            'one_to_one': sloid_1_to_1,
+            'many_to_one': sloid_many_to_1,
+        },
+        'unmatched_reasons': {
+            'no_atlas_candidate_for_uic_number': unmatched_no_atlas_number,
+            'non_unique_atlas_number_after_strict_miss': unmatched_non_unique_after_strict,
+        },
     }
 
-    fallback_rows = []  # (stop_id, sloid)
-    for r in remaining.itertuples(index=False):
-        uic = r.uic_number
-        nref = r.normalized_local_ref
-        stop_id = r.stop_id
-        candidates = atlas_by_number.get(uic)
-        if candidates is None or candidates.empty:
-            continue
-        
-        # Handling Parent Stations (nref is None)
-        # If we have a generic "Parent" GTFS ID (no platform), map it to ALL ATLAS platforms at that station.
-        # This checks if nref is None or empty.
-        if pd.isna(nref) or not nref:
-            # Broadcast to ALL candidates (1-to-many)
-            for sloid_cand in candidates['sloid']:
-                fallback_rows.append((stop_id, sloid_cand))
-            continue
+    if remaining.empty:
+        print(f"stop_id→sloid: strict assignments = {len(strict_matches):,}")
+        return (combined, mapping_stats) if return_stats else combined
 
-        # Fallback 1: unique entry by number
-        if len(candidates) == 1:
-            fallback_rows.append((stop_id, candidates.iloc[0]['sloid']))
-            continue
-        # Fallback 2: compare last sloid token with normalized_local_ref
-        token_matches = candidates[candidates['sloid_last_token'] == nref]
-        if not token_matches.empty:
-            fallback_rows.append((stop_id, token_matches.iloc[0]['sloid']))
-
-    if fallback_rows:
-        fb_df = pd.DataFrame(fallback_rows, columns=['stop_id', 'sloid']).drop_duplicates()
-        combined = pd.concat([strict_matches, fb_df], ignore_index=True).drop_duplicates()
-    else:
-        combined = strict_matches
-
-    print(f"stop_id→sloid: strict = {len(strict_matches):,}, fallback = {len(combined) - len(strict_matches):,}, total = {len(combined):,}")
-    return combined
+    print(
+        f"stop_id→sloid: strict = {len(strict_matches):,}, "
+        f"unique_fallback = {len(unique_fallback_matches):,}, total = {len(combined):,}"
+    )
+    return (combined, mapping_stats) if return_stats else combined

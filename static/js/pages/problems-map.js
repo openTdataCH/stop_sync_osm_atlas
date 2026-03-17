@@ -16,6 +16,9 @@ window.ProblemsMap = (function() {
     let currentContextRequest = null; // jqXHR of in-flight /api/data
 
     function getAtlasMarkerIdentity(stopData) {
+        if (window.MapShared && typeof window.MapShared.getAtlasMarkerIdentity === 'function') {
+            return window.MapShared.getAtlasMarkerIdentity(stopData);
+        }
         if (!stopData) return null;
         if (stopData.sloid != null && stopData.sloid !== '') return String(stopData.sloid);
         if (stopData.representative_sloid != null && stopData.representative_sloid !== '') return String(stopData.representative_sloid);
@@ -34,7 +37,7 @@ window.ProblemsMap = (function() {
             renderer: L.svg({ padding: 0.1 }),
             maxZoom: AppConstants.MAP.MAX_ZOOM,
             zoomControl: false
-        }).setView([47.3769, 8.5417], 13);
+        }).setView([47.3769, 8.5417], 12);
         
         // Increase SVG renderer padding at high zoom to prevent lines/markers
         // from disappearing when one end is off-screen
@@ -45,20 +48,23 @@ window.ProblemsMap = (function() {
             }
         });
 
-        // Use same tile layer as main page
-        const osmLayerProblems = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        const baseLayers = window.MapShared && typeof window.MapShared.createBaseTileLayers === 'function'
+            ? window.MapShared.createBaseTileLayers()
+            : null;
+
+        const osmLayerProblems = baseLayers ? baseLayers.osm : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
              maxZoom: AppConstants.MAP.MAX_ZOOM,
              maxNativeZoom: AppConstants.MAP.MAX_NATIVE_ZOOM,
              attribution: '© OpenStreetMap'
         });
 
-        const transportLayerProblems = L.tileLayer('https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png', {
+        const transportLayerProblems = baseLayers ? baseLayers.transport : L.tileLayer('https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png', {
             maxZoom: AppConstants.MAP.MAX_ZOOM,
             maxNativeZoom: 18,
             attribution: 'Map <a href="https://memomaps.de/">memomaps.de</a> <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         });
 
-        const satelliteLayerProblems = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        const satelliteLayerProblems = baseLayers ? baseLayers.satellite : L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             maxZoom: AppConstants.MAP.MAX_ZOOM,
             maxNativeZoom: 19,
             attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
@@ -81,9 +87,9 @@ window.ProblemsMap = (function() {
             "Connection Lines": problemLinesLayer
         };
 
-        // Put layer + zoom controls on the right (they will be offset under the context toggle)
-        L.control.zoom({ position: 'topright' }).addTo(problemMap);
-        L.control.layers(baseMaps, overlayMaps, { position: 'topright' }).addTo(problemMap);
+        // Mirror index page control placement: bottom-left
+        L.control.zoom({ position: 'bottomleft' }).addTo(problemMap);
+        L.control.layers(baseMaps, overlayMaps, { position: 'bottomleft' }).addTo(problemMap);
         
         // Attach standard popup-line handlers (shared)
         attachPopupLineHandlersToMap(problemMap);
@@ -107,25 +113,6 @@ window.ProblemsMap = (function() {
             contextMarkersLayer: contextMarkersLayer
         });
 
-        positionProblemsMapRightControls();
-        window.addEventListener('resize', positionProblemsMapRightControls);
-    }
-
-    function positionProblemsMapRightControls() {
-        const mapEl = document.getElementById('problemMap');
-        if (!mapEl) return;
-
-        const corner = mapEl.querySelector('.leaflet-top.leaflet-right');
-        if (!corner) return;
-
-        const toggle = document.querySelector('#mapSection .map-context-toggle');
-        if (!toggle) return;
-
-        // Move toggle into the corner container if it's not already there
-        // This puts it at the top of the right corner (above zoom and layers)
-        if (toggle.parentElement !== corner) {
-            corner.prepend(toggle);
-        }
     }
 
     /**
@@ -363,7 +350,7 @@ window.ProblemsMap = (function() {
         console.log("Toggle context called, showContext is now:", showContext);
         
         if (showContext) {
-            button.removeClass('btn-outline-secondary').addClass('btn-secondary');
+            button.removeClass('bg-white text-dark').addClass('btn-secondary');
             button.html('<i class="fas fa-eye-slash"></i> Hide other markers');
             const currentProblem = ProblemsState.getCurrentProblem();
             if (currentProblem) {
@@ -372,7 +359,7 @@ window.ProblemsMap = (function() {
                 console.warn("No current problem to load context for.");
             }
         } else {
-            button.removeClass('btn-secondary').addClass('btn-outline-secondary');
+            button.removeClass('btn-secondary').addClass('bg-white text-dark');
             button.html('<i class="fas fa-eye"></i> See other markers');
             const contextMarkersLayer = ProblemsState.getContextMarkersLayer();
             if (contextMarkersLayer) {
@@ -447,35 +434,11 @@ window.ProblemsMap = (function() {
         });
     }
 
-    /**
-     * Initialize filter panel toggle functionality
-     */
-    function initializeFilterToggle() {
-        const filterPanel = $('#filterPanel');
-        const filterToggleBtn = $('#filterToggleBtn');
-        
-        // Load saved state from localStorage
-        var savedState = localStorage.getItem('problemsFilterPanelCollapsed');
-        if (savedState === 'true') {
-            filterPanel.addClass('collapsed');
-        }
-        
-        filterToggleBtn.on('click', function() {
-            filterPanel.toggleClass('collapsed');
-            
-            // Save state to localStorage
-            var isCollapsed = filterPanel.hasClass('collapsed');
-            localStorage.setItem('problemsFilterPanelCollapsed', isCollapsed);
-            // No need to invalidate map size - panel now overlays the map
-        });
-    }
-
     // Public API
     return {
         initProblemMap,
         loadContextData,
         toggleContext,
-        initializeResize,
-        initializeFilterToggle
+        initializeResize
     };
 })();

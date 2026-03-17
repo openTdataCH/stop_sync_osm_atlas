@@ -26,23 +26,17 @@ window.ProblemsState = (function () {
     let currentProblem = null; // Store current problem for note saving
 
     // Filter and pagination state
-    let selectedProblemType = 'all'; // Current problem type filter
+    let selectedProblemTypes = []; // Current problem type filters
     let selectedAtlasOperators = []; // Current operator filter
-    let selectedPriority = 'all'; // Current priority filter (all | 1 | 2 | 3 | 4 | 5)
+    let selectedPriorities = []; // Current priority filters (1 | 2 | 3)
     let currentPage = 1;
     let totalProblems = 0;
     let isLoadingMore = false;
-    let currentSolutionFilter = 'all';
-    let currentSortBy = 'default';
-    let currentSortOrder = 'asc';
 
     // UI state
     let showContext = false; // Toggle state for showing context
     let keyboardHintShown = false;
     let keyboardHintTimeout = null;
-
-    // Auto-persistence state
-    let autoPersistEnabled = false;
 
     // Intersection observer for scroll navigation
     let observer = null;
@@ -91,14 +85,14 @@ window.ProblemsState = (function () {
         setCurrentProblem: (problem) => { currentProblem = problem; },
 
         // Filter and pagination getters/setters
-        getSelectedProblemType: () => selectedProblemType,
-        setSelectedProblemType: (type) => { selectedProblemType = type; },
+        getSelectedProblemTypes: () => selectedProblemTypes,
+        setSelectedProblemTypes: (types) => { selectedProblemTypes = Array.isArray(types) ? types : []; },
 
         getSelectedAtlasOperators: () => selectedAtlasOperators,
         setSelectedAtlasOperators: (operators) => { selectedAtlasOperators = operators; },
 
-        getSelectedPriority: () => selectedPriority,
-        setSelectedPriority: (priority) => { selectedPriority = priority; },
+        getSelectedPriorities: () => selectedPriorities,
+        setSelectedPriorities: (priorities) => { selectedPriorities = Array.isArray(priorities) ? priorities : []; },
 
         getCurrentPage: () => currentPage,
         setCurrentPage: (page) => { currentPage = page; },
@@ -109,15 +103,6 @@ window.ProblemsState = (function () {
         getIsLoadingMore: () => isLoadingMore,
         setIsLoadingMore: (loading) => { isLoadingMore = loading; },
 
-        getCurrentSolutionFilter: () => currentSolutionFilter,
-        setCurrentSolutionFilter: (filter) => { currentSolutionFilter = filter; },
-
-        getCurrentSortBy: () => currentSortBy,
-        setCurrentSortBy: (sortBy) => { currentSortBy = sortBy; },
-
-        getCurrentSortOrder: () => currentSortOrder,
-        setCurrentSortOrder: (sortOrder) => { currentSortOrder = sortOrder; },
-
         // UI state getters/setters
         getShowContext: () => showContext,
         setShowContext: (show) => { showContext = show; },
@@ -127,13 +112,6 @@ window.ProblemsState = (function () {
 
         getKeyboardHintTimeout: () => keyboardHintTimeout,
         setKeyboardHintTimeout: (timeout) => { keyboardHintTimeout = timeout; },
-
-        // Auto-persistence getters/setters
-        getAutoPersistEnabled: () => autoPersistEnabled,
-        setAutoPersistEnabled: (enabled) => {
-            autoPersistEnabled = enabled;
-            localStorage.setItem('autoPersistEnabled', enabled);
-        },
 
         // Observer getters/setters
         getObserver: () => observer,
@@ -154,8 +132,7 @@ window.ProblemsState = (function () {
         },
 
         initializeSettings: () => {
-            // Load auto-persist settings from localStorage
-            autoPersistEnabled = localStorage.getItem('autoPersistEnabled') === 'true';
+            // Reserved for future page-level settings
         },
 
         // Get state summary for debugging
@@ -163,11 +140,10 @@ window.ProblemsState = (function () {
             problemsCount: allProblems.length,
             currentProblemIndex,
             currentEntryProblemIndex,
-            selectedProblemType,
+            selectedProblemTypes,
             currentPage,
             totalProblems,
-            showContext,
-            autoPersistEnabled
+            showContext
         })
     };
 })();

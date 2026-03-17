@@ -15,7 +15,7 @@ import logging
 import math
 import os
 import statistics
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -63,6 +63,9 @@ def export_pipeline_stats(
     total_matched = len(matched_records)
     total_unmatched_atlas = len(unmatched_atlas)
     total_unmatched_osm = len(unmatched_osm)
+
+    uic_balance = _compute_uic_balance_metrics(matched_records, unmatched_atlas, unmatched_osm)
+    nearby_coverage = _compute_atlas_nearby_coverage_50m(matched_records, unmatched_atlas, unmatched_osm)
     
     # Calculate total ATLAS if not provided
     if total_atlas_platforms is None:
@@ -90,14 +93,23 @@ def export_pipeline_stats(
     osm_group_propagation_matches = match_type_counts.get('osm_group_propagation', 0)
     
     # Distance matching breakdown
+    distance_stage0_trio = match_type_counts.get('distance_matching_trio', 0)
     distance_stage1 = sum(
         v for k, v in match_type_counts.items() 
         if k.startswith('distance_matching_1_')
     )
     distance_stage2 = match_type_counts.get('distance_matching_2', 0)
-    distance_stage3a = match_type_counts.get('distance_matching_3a', 0)
+    distance_stage3a_pass1 = match_type_counts.get('distance_matching_3a', 0)
+    distance_stage3a_pass2 = match_type_counts.get('distance_matching_3a_second_pass', 0)
+    distance_stage3a = distance_stage3a_pass1 + distance_stage3a_pass2
     distance_stage3b = match_type_counts.get('distance_matching_3b', 0)
-    total_distance_matches = distance_stage1 + distance_stage2 + distance_stage3a + distance_stage3b
+    total_distance_matches = (
+        distance_stage0_trio
+        + distance_stage1
+        + distance_stage2
+        + distance_stage3a
+        + distance_stage3b
+    )
     
     # Route matching breakdown
     route_gtfs_matches = sum(
@@ -207,6 +219,7 @@ def export_pipeline_stats(
     stats = {
         "generated_at": datetime.utcnow().isoformat() + "Z",
         "version": "1.0",
+        "gtfs_mapping": {},
         
         # High-level summary (for overview)
         "summary": {
@@ -215,6 +228,8 @@ def export_pipeline_stats(
             "matched_pairs": total_matched,
             "distinct_matched_atlas": distinct_matched_atlas,
             "match_rate_percent": round(match_rate, 1),
+            "atlas_with_osm_within_50m": nearby_coverage["count"],
+            "atlas_with_osm_within_50m_percent": nearby_coverage["percent"],
             "unmatched_atlas": total_unmatched_atlas,
             "unmatched_osm": total_unmatched_osm,
         },
@@ -236,12 +251,21 @@ def export_pipeline_stats(
                 "mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching')),
                 "description": "Proximity-based spatial matching (≤50m)",
                 "breakdown": {
+                    "stage0_trio": distance_stage0_trio,
+                    "stage0_trio_mto": mto_pairs_by_type.get('distance_matching_trio', 0),
                     "stage1_group": distance_stage1,
                     "stage1_group_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching_1_')),
                     "stage2_local_ref": distance_stage2,
                     "stage2_local_ref_mto": mto_pairs_by_type.get('distance_matching_2', 0),
+                    "stage3a_single_pass1": distance_stage3a_pass1,
+                    "stage3a_single_pass1_mto": mto_pairs_by_type.get('distance_matching_3a', 0),
+                    "stage3a_single_pass2": distance_stage3a_pass2,
+                    "stage3a_single_pass2_mto": mto_pairs_by_type.get('distance_matching_3a_second_pass', 0),
                     "stage3a_single": distance_stage3a,
-                    "stage3a_single_mto": mto_pairs_by_type.get('distance_matching_3a', 0),
+                    "stage3a_single_mto": (
+                        mto_pairs_by_type.get('distance_matching_3a', 0)
+                        + mto_pairs_by_type.get('distance_matching_3a_second_pass', 0)
+                    ),
                     "stage3b_relative": distance_stage3b,
                     "stage3b_relative_mto": mto_pairs_by_type.get('distance_matching_3b', 0),
                 }
@@ -277,7 +301,8 @@ def export_pipeline_stats(
             "osm": {
                 "total": total_unmatched_osm,
                 "matrix": unmatched_osm_matrix,
-            }
+            },
+            "uic_exhaustion": uic_balance["unmatched_exhaustion"],
         },
         
         # Duplicate information
@@ -333,7 +358,7 @@ def _classify_match_type(match_type: str) -> str:
         return 'distance_stage1'
     if match_type == 'distance_matching_2':
         return 'distance_stage2'
-    if match_type == 'distance_matching_3a':
+    if match_type in ('distance_matching_3a', 'distance_matching_3a_second_pass'):
         return 'distance_stage3a'
     if match_type == 'distance_matching_3b':
         return 'distance_stage3b'
@@ -344,6 +369,230 @@ def _classify_match_type(match_type: str) -> str:
     if match_type in ('duplicate_propagation', 'osm_group_propagation', 'exact_postpass'):
         return 'post_processing'
     return 'post_processing'
+
+
+def _normalize_uic(value: Any) -> Optional[str]:
+    """Normalize UIC values for dictionary keys."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _compute_uic_balance_metrics(
+    matched_records: list,
+    unmatched_atlas: list,
+    unmatched_osm: list,
+) -> Dict[str, Any]:
+    """Compute UIC-level balance and exhaustion metrics for unmatched and MTO analysis."""
+    atlas_total_sets: Dict[str, set[str]] = defaultdict(set)
+    osm_total_sets: Dict[str, set[str]] = defaultdict(set)
+    matched_atlas_sets: Dict[str, set[str]] = defaultdict(set)
+    matched_osm_sets: Dict[str, set[str]] = defaultdict(set)
+    unmatched_atlas_sets: Dict[str, set[str]] = defaultdict(set)
+    unmatched_osm_sets: Dict[str, set[str]] = defaultdict(set)
+
+    synthetic_atlas = 0
+    synthetic_osm = 0
+
+    for rec in matched_records:
+        atlas_id = getattr(getattr(rec, 'atlas_node', None), 'sloid', None)
+        osm_id = getattr(getattr(rec, 'osm_node', None), 'node_id', None)
+        atlas_id = str(atlas_id) if atlas_id else f"matched_atlas:{synthetic_atlas}"
+        osm_id = str(osm_id) if osm_id else f"matched_osm:{synthetic_osm}"
+        if 'matched_atlas:' in atlas_id:
+            synthetic_atlas += 1
+        if 'matched_osm:' in osm_id:
+            synthetic_osm += 1
+
+        atlas_uic = _normalize_uic(getattr(getattr(rec, 'atlas_node', None), 'uic_ref', None))
+        osm_uic = _normalize_uic(getattr(getattr(rec, 'osm_node', None), 'uic_ref', None))
+        if atlas_uic:
+            atlas_total_sets[atlas_uic].add(atlas_id)
+            matched_atlas_sets[atlas_uic].add(atlas_id)
+        if osm_uic:
+            osm_total_sets[osm_uic].add(osm_id)
+            matched_osm_sets[osm_uic].add(osm_id)
+
+    for atlas_node in unmatched_atlas:
+        atlas_id = getattr(atlas_node, 'sloid', None)
+        atlas_id = str(atlas_id) if atlas_id else f"unmatched_atlas:{synthetic_atlas}"
+        if 'unmatched_atlas:' in atlas_id:
+            synthetic_atlas += 1
+
+        atlas_uic = _normalize_uic(getattr(atlas_node, 'uic_ref', None))
+        if atlas_uic:
+            atlas_total_sets[atlas_uic].add(atlas_id)
+            unmatched_atlas_sets[atlas_uic].add(atlas_id)
+
+    for osm_node in unmatched_osm:
+        osm_id = getattr(osm_node, 'node_id', None)
+        osm_id = str(osm_id) if osm_id else f"unmatched_osm:{synthetic_osm}"
+        if 'unmatched_osm:' in osm_id:
+            synthetic_osm += 1
+
+        osm_uic = _normalize_uic(getattr(osm_node, 'uic_ref', None))
+        if osm_uic:
+            osm_total_sets[osm_uic].add(osm_id)
+            unmatched_osm_sets[osm_uic].add(osm_id)
+
+    atlas_total_by_uic = Counter({uic: len(ids) for uic, ids in atlas_total_sets.items()})
+    osm_total_by_uic = Counter({uic: len(ids) for uic, ids in osm_total_sets.items()})
+    matched_atlas_by_uic = Counter({uic: len(ids) for uic, ids in matched_atlas_sets.items()})
+    matched_osm_by_uic = Counter({uic: len(ids) for uic, ids in matched_osm_sets.items()})
+    unmatched_atlas_by_uic = Counter({uic: len(ids) for uic, ids in unmatched_atlas_sets.items()})
+    unmatched_osm_by_uic = Counter({uic: len(ids) for uic, ids in unmatched_osm_sets.items()})
+
+    all_uics = set(atlas_total_by_uic) | set(osm_total_by_uic)
+    atlas_exhausted_uics = {
+        uic
+        for uic in all_uics
+        if atlas_total_by_uic.get(uic, 0) > osm_total_by_uic.get(uic, 0)
+        and unmatched_atlas_by_uic.get(uic, 0) > 0
+        and matched_osm_by_uic.get(uic, 0) >= osm_total_by_uic.get(uic, 0)
+        and osm_total_by_uic.get(uic, 0) > 0
+    }
+    osm_exhausted_uics = {
+        uic
+        for uic in all_uics
+        if osm_total_by_uic.get(uic, 0) > atlas_total_by_uic.get(uic, 0)
+        and unmatched_osm_by_uic.get(uic, 0) > 0
+        and matched_atlas_by_uic.get(uic, 0) >= atlas_total_by_uic.get(uic, 0)
+        and atlas_total_by_uic.get(uic, 0) > 0
+    }
+
+    def _top_uics(uics: set[str], side: str) -> List[Dict[str, Any]]:
+        rows: List[Dict[str, Any]] = []
+        for uic in uics:
+            rows.append({
+                "uic_ref": uic,
+                "atlas_total": atlas_total_by_uic.get(uic, 0),
+                "osm_total": osm_total_by_uic.get(uic, 0),
+                "matched_atlas": matched_atlas_by_uic.get(uic, 0),
+                "matched_osm": matched_osm_by_uic.get(uic, 0),
+                "unmatched_atlas": unmatched_atlas_by_uic.get(uic, 0),
+                "unmatched_osm": unmatched_osm_by_uic.get(uic, 0),
+            })
+
+        if side == 'atlas':
+            rows.sort(key=lambda r: (r["unmatched_atlas"], r["atlas_total"] - r["osm_total"]), reverse=True)
+        else:
+            rows.sort(key=lambda r: (r["unmatched_osm"], r["osm_total"] - r["atlas_total"]), reverse=True)
+        return rows[:12]
+
+    unmatched_exhaustion = {
+        "atlas_side_exhausted": {
+            "affected_uics": len(atlas_exhausted_uics),
+            "unmatched_entries": sum(unmatched_atlas_by_uic.get(uic, 0) for uic in atlas_exhausted_uics),
+            "matched_pairs_on_opposite_side": sum(matched_osm_by_uic.get(uic, 0) for uic in atlas_exhausted_uics),
+            "opposite_capacity": sum(osm_total_by_uic.get(uic, 0) for uic in atlas_exhausted_uics),
+            "examples": _top_uics(atlas_exhausted_uics, side='atlas'),
+        },
+        "osm_side_exhausted": {
+            "affected_uics": len(osm_exhausted_uics),
+            "unmatched_entries": sum(unmatched_osm_by_uic.get(uic, 0) for uic in osm_exhausted_uics),
+            "matched_pairs_on_opposite_side": sum(matched_atlas_by_uic.get(uic, 0) for uic in osm_exhausted_uics),
+            "opposite_capacity": sum(atlas_total_by_uic.get(uic, 0) for uic in osm_exhausted_uics),
+            "examples": _top_uics(osm_exhausted_uics, side='osm'),
+        },
+    }
+
+    return {
+        "atlas_total_by_uic": atlas_total_by_uic,
+        "osm_total_by_uic": osm_total_by_uic,
+        "matched_atlas_by_uic": matched_atlas_by_uic,
+        "matched_osm_by_uic": matched_osm_by_uic,
+        "unmatched_exhaustion": unmatched_exhaustion,
+        "atlas_exhausted_uics": atlas_exhausted_uics,
+        "osm_exhausted_uics": osm_exhausted_uics,
+    }
+
+
+def _compute_atlas_nearby_coverage_50m(
+    matched_records: list,
+    unmatched_atlas: list,
+    unmatched_osm: list,
+) -> Dict[str, Any]:
+    """Count distinct ATLAS platforms having at least one effective OSM node within 50m."""
+    from scipy.spatial import KDTree
+    from matching_and_import_db.utils.spatial_index import batch_to_xyz, meters_to_unit_chord_radius, to_xyz
+
+    atlas_points: List[Tuple[str, float, float]] = []
+    seen_sloids: set[str] = set()
+    synthetic_idx = 0
+
+    for rec in matched_records:
+        atlas_node = getattr(rec, 'atlas_node', None)
+        if atlas_node is None:
+            continue
+        sloid = _normalize_uic(getattr(atlas_node, 'sloid', None))
+        lat = getattr(atlas_node, 'lat', None)
+        lon = getattr(atlas_node, 'lon', None)
+        if lat is None or lon is None:
+            continue
+        key = sloid or f"matched:{synthetic_idx}"
+        if sloid and key in seen_sloids:
+            continue
+        if sloid:
+            seen_sloids.add(key)
+        else:
+            synthetic_idx += 1
+        atlas_points.append((key, float(lat), float(lon)))
+
+    for atlas_node in unmatched_atlas:
+        sloid = _normalize_uic(getattr(atlas_node, 'sloid', None))
+        lat = getattr(atlas_node, 'lat', None)
+        lon = getattr(atlas_node, 'lon', None)
+        if lat is None or lon is None:
+            continue
+        key = sloid or f"unmatched:{synthetic_idx}"
+        if sloid and key in seen_sloids:
+            continue
+        if sloid:
+            seen_sloids.add(key)
+        else:
+            synthetic_idx += 1
+        atlas_points.append((key, float(lat), float(lon)))
+
+    osm_points: List[Tuple[float, float]] = []
+    seen_osm: set[str] = set()
+    for rec in matched_records:
+        osm_node = getattr(rec, 'osm_node', None)
+        if osm_node is None:
+            continue
+        node_id = str(getattr(osm_node, 'node_id', ''))
+        lat = getattr(osm_node, 'lat', None)
+        lon = getattr(osm_node, 'lon', None)
+        if not node_id or node_id in seen_osm or lat is None or lon is None:
+            continue
+        seen_osm.add(node_id)
+        osm_points.append((float(lat), float(lon)))
+
+    for osm_node in unmatched_osm:
+        node_id = str(getattr(osm_node, 'node_id', ''))
+        lat = getattr(osm_node, 'lat', None)
+        lon = getattr(osm_node, 'lon', None)
+        if not node_id or node_id in seen_osm or lat is None or lon is None:
+            continue
+        seen_osm.add(node_id)
+        osm_points.append((float(lat), float(lon)))
+
+    if not atlas_points:
+        return {"count": 0, "percent": 0.0}
+    if not osm_points:
+        return {"count": 0, "percent": 0.0}
+
+    tree = KDTree(batch_to_xyz(osm_points))
+    radius_50m = meters_to_unit_chord_radius(50.0)
+    within_50m = 0
+    for _, lat, lon in atlas_points:
+        query_point = to_xyz(lat, lon)
+        nearest = tree.query(query_point, k=1)[0]
+        if float(nearest) <= radius_50m:
+            within_50m += 1
+
+    pct = round(within_50m / len(atlas_points) * 100, 1) if atlas_points else 0.0
+    return {"count": within_50m, "percent": pct}
 
 
 def _distance_stats(distances: List[float]) -> Dict[str, Any]:
@@ -363,6 +612,8 @@ def _distance_stats(distances: List[float]) -> Dict[str, Any]:
 def compute_quality_metrics(
     matched_records: list,
     all_osm_nodes: list,
+    unmatched_atlas: list | None = None,
+    unmatched_osm: list | None = None,
     osm_pairs: List[Tuple[str, str, str]] | None = None,
     osm_trios: List[Tuple[str, str, str]] | None = None,
 ) -> Dict[str, Any]:
@@ -461,15 +712,104 @@ def compute_quality_metrics(
     atlas_multi = {s: ids for s, ids in atlas_to_osm.items() if len(ids) > 1}
     osm_multi = {n: ids for n, ids in osm_to_atlas.items() if len(ids) > 1}
 
+    atlas_to_one_distribution = Counter(len(ids) for ids in osm_multi.values())
+    osm_to_one_distribution = Counter(len(ids) for ids in atlas_multi.values())
+
     many_to_one = {
         "atlas_to_multiple_osm": {
             "count": len(atlas_multi),
             "max_per_atlas": max((len(v) for v in atlas_multi.values()), default=0),
+            "distribution": [
+                {"ratio": f"1A:{k}O", "count": atlas_to_one_distribution[k]}
+                for k in sorted(atlas_to_one_distribution)
+                if k > 1
+            ],
         },
         "osm_to_multiple_atlas": {
             "count": len(osm_multi),
             "max_per_osm": max((len(v) for v in osm_multi.values()), default=0),
+            "distribution": [
+                {"ratio": f"{k}A:1O", "count": osm_to_one_distribution[k]}
+                for k in sorted(osm_to_one_distribution)
+                if k > 1
+            ],
         },
+    }
+
+    # How much many-to-one behavior overlaps with UIC-side exhaustion
+    uic_balance = _compute_uic_balance_metrics(
+        matched_records,
+        unmatched_atlas or [],
+        unmatched_osm or [],
+    )
+    atlas_exhausted_uics = uic_balance["atlas_exhausted_uics"]
+    osm_exhausted_uics = uic_balance["osm_exhausted_uics"]
+
+    mto_pairs_total = 0
+    mto_pairs_atlas_exhausted = 0
+    mto_pairs_osm_exhausted = 0
+    mto_pairs_both_exhausted = 0
+    mto_pairs_either_exhausted = 0
+    for rec in matched_records:
+        sloid = getattr(getattr(rec, 'atlas_node', None), 'sloid', None)
+        osm_id = getattr(getattr(rec, 'osm_node', None), 'node_id', None)
+        if not sloid or not osm_id:
+            continue
+        if str(sloid) not in atlas_multi and str(osm_id) not in osm_multi:
+            continue
+
+        mto_pairs_total += 1
+        atlas_uic = _normalize_uic(getattr(getattr(rec, 'atlas_node', None), 'uic_ref', None))
+        osm_uic = _normalize_uic(getattr(getattr(rec, 'osm_node', None), 'uic_ref', None))
+
+        atlas_exhausted = bool(atlas_uic and atlas_uic in atlas_exhausted_uics)
+        osm_exhausted = bool(osm_uic and osm_uic in osm_exhausted_uics)
+
+        if atlas_exhausted:
+            mto_pairs_atlas_exhausted += 1
+        if osm_exhausted:
+            mto_pairs_osm_exhausted += 1
+        if atlas_exhausted and osm_exhausted:
+            mto_pairs_both_exhausted += 1
+        if atlas_exhausted or osm_exhausted:
+            mto_pairs_either_exhausted += 1
+
+    atlas_only_exhausted = max(0, mto_pairs_atlas_exhausted - mto_pairs_both_exhausted)
+    osm_only_exhausted = max(0, mto_pairs_osm_exhausted - mto_pairs_both_exhausted)
+    neutral_pairs = max(0, mto_pairs_total - mto_pairs_either_exhausted)
+    if mto_pairs_total > 0:
+        atlas_exhausted_pct = round(mto_pairs_atlas_exhausted / mto_pairs_total * 100, 1)
+        osm_exhausted_pct = round(mto_pairs_osm_exhausted / mto_pairs_total * 100, 1)
+        both_exhausted_pct = round(mto_pairs_both_exhausted / mto_pairs_total * 100, 1)
+        atlas_only_exhausted_pct = round(atlas_only_exhausted / mto_pairs_total * 100, 1)
+        osm_only_exhausted_pct = round(osm_only_exhausted / mto_pairs_total * 100, 1)
+        either_exhausted_pct = round(mto_pairs_either_exhausted / mto_pairs_total * 100, 1)
+        neutral_pct = round(neutral_pairs / mto_pairs_total * 100, 1)
+    else:
+        atlas_exhausted_pct = 0.0
+        osm_exhausted_pct = 0.0
+        both_exhausted_pct = 0.0
+        atlas_only_exhausted_pct = 0.0
+        osm_only_exhausted_pct = 0.0
+        either_exhausted_pct = 0.0
+        neutral_pct = 0.0
+
+    many_to_one["uic_exhaustion_overlap"] = {
+        "mto_pairs_total": mto_pairs_total,
+        "atlas_side_exhausted_pairs": mto_pairs_atlas_exhausted,
+        "osm_side_exhausted_pairs": mto_pairs_osm_exhausted,
+        "both_sides_exhausted_pairs": mto_pairs_both_exhausted,
+        "atlas_only_exhausted_pairs": atlas_only_exhausted,
+        "osm_only_exhausted_pairs": osm_only_exhausted,
+        "neither_side_exhausted_pairs": neutral_pairs,
+        "either_side_exhausted_pairs": mto_pairs_either_exhausted,
+        "atlas_side_exhausted_percent": atlas_exhausted_pct,
+        "osm_side_exhausted_percent": osm_exhausted_pct,
+        "both_sides_exhausted_percent": both_exhausted_pct,
+        "atlas_only_exhausted_percent": atlas_only_exhausted_pct,
+        "osm_only_exhausted_percent": osm_only_exhausted_pct,
+        "neither_side_exhausted_percent": neutral_pct,
+        "either_side_exhausted_percent": either_exhausted_pct,
     }
 
     # ------------------------------------------------------------------
