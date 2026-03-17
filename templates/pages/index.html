@@ -1,6 +1,6 @@
 {% extends "layouts/base.html" %}
 
-{% from "components/_components.html" import stats_overlay with context %}
+{% from "components/_components.html" import stats_overlay, top_filters_overlay with context %}
 {% block title %}OSM & ATLAS Matching Tool{% endblock %}
 
 {% block head_css %}
@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <!-- Popup CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
+<!-- Shared filters/overlay CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/shared-filters.css') }}">
 <!-- Index page styles (moved out of template for maintainability) -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/index.css') }}">
 {% endblock %}
@@ -17,17 +19,7 @@
 
   <div class="d-flex flex-row flex-grow-1" style="overflow: hidden;">
     <!-- Top Filters Overlay -->
-    <div class="top-filters-overlay position-absolute w-100 mt-2"
-      style="z-index: 1000; top: 10px; left: 0; pointer-events: none;">
-      <div class="d-flex flex-column align-items-start pl-3 w-100">
-        <button type="button" id="mobileFiltersToggle" class="btn btn-light btn-sm shadow-sm mobile-filters-toggle"
-          aria-expanded="false" aria-controls="mobileFiltersPanel">
-          <i class="fas fa-sliders-h" aria-hidden="true"></i>
-          <span>Filters</span>
-        </button>
-
-        <div id="mobileFiltersPanel" class="mobile-filters-panel">
-          <div class="top-filters-bar d-flex align-items-center position-relative" style="pointer-events: auto;">
+    {% call top_filters_overlay('mobileFiltersToggle', 'mobileFiltersPanel') %}
 
           <!-- Search -->
           <div class="filter-item mx-1 position-relative mobile-filter-item--search">
@@ -330,18 +322,18 @@
             </div>
           </div>
 
-          </div> <!-- /.top-filters-bar -->
-        </div> <!-- /#mobileFiltersPanel -->
+    {% endcall %}
 
+    <div class="position-absolute w-100" style="z-index: 1000; top: 6px; left: 0; pointer-events: none;">
+      <div class="d-flex flex-column align-items-end pr-3 w-100">
         <!-- Active Filters Display -->
-        <div id="filterInfoContainer" class="d-flex flex-row align-items-center mt-2 w-100"
-          style="pointer-events: auto; max-width: 1200px; gap: 0.5rem;">
+        <div id="filterInfoContainer" class="d-flex flex-row align-items-center"
+          style="pointer-events: auto; margin-left: auto; width: auto; max-width: none; gap: 0.5rem;">
           {{ stats_overlay() }}
         </div>
 
         <!-- Zoom Banner (centered overlay) -->
         <div id="zoomBannerInfo" class="zoom-banner d-none"></div>
-
       </div>
     </div>
     <!-- Map Container -->
@@ -435,6 +427,8 @@
 <!-- Shared constants and utilities (must load first) -->
 <script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/mobile-filters.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/map-shared.js') }}"></script>
 <!-- Custom scripts -->
 <script src="{{ url_for('static', filename='js/components/popup-utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/popup-renderer.js') }}"></script>

@@ -6,6 +6,7 @@ from typing import List, Tuple, Dict, Optional
 
 from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify
 from werkzeug.utils import safe_join
+from backend.services.docs_stats import replace_stats_placeholders
 
 try:
     import mistune  # type: ignore
@@ -317,7 +318,7 @@ def _convert_markdown_to_html(markdown_text: str) -> str:
     markdown_text = _convert_github_alerts_to_html(markdown_text)
     
     # Replace stats placeholders with actual values from stats.json
-    markdown_text = _replace_stats_placeholders(markdown_text)
+    markdown_text = replace_stats_placeholders(markdown_text)
 
     # Rewrite repo-relative image/asset paths to the docs assets route
     # Example: ![...](images/foo.png) -> ![...](/docs/assets/images/foo.png)
@@ -369,82 +370,6 @@ def _convert_markdown_to_html(markdown_text: str) -> str:
     sanitized = bleach.clean(html, tags=allowed_tags, attributes=allowed_attrs)
     sanitized = bleach.linkify(sanitized)
     return sanitized
-
-
-def _load_stats_for_docs() -> Optional[Dict]:
-    """Load stats from data/stats.json for documentation rendering."""
-    try:
-        stats_file_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'data', 'stats.json'
-        )
-        if os.path.exists(stats_file_path):
-            with open(stats_file_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return None
-
-
-def _get_nested_stat_value(stats: Dict, key_path: str):
-    """Get a nested value from stats dictionary using dot notation."""
-    if not stats:
-        return None
-    keys = key_path.split('.')
-    value = stats
-    for key in keys:
-        if isinstance(value, dict) and key in value:
-            value = value[key]
-        else:
-            return None
-    return value
-
-
-def _format_stat_value(value) -> str:
-    """Format a stat value for display."""
-    if value is None:
-        return "—"
-    if isinstance(value, bool):
-        return "Yes" if value else "No"
-    if isinstance(value, float):
-        # Format percentages nicely
-        if value < 1 and value > 0:
-            return f"{value:.1%}"
-        return f"{value:,.1f}"
-    if isinstance(value, int):
-        return f"{value:,}"
-    return str(value)
-
-
-def _replace_stats_placeholders(markdown_text: str) -> str:
-    """
-    Replace {{stat:key.path}} placeholders in markdown with actual stat values.
-    
-    Supports:
-    - {{stat:summary.matched_pairs}} -> formatted value
-    - {{stat:summary.match_rate_percent}}% -> formatted value with %
-    
-    Values are wrapped in <span> tags with data attributes for potential
-    client-side updates and styling.
-    """
-    stats = _load_stats_for_docs()
-    
-    # Pattern matches {{stat:key.path}} including optional formatting
-    pattern = r'\{\{stat:([a-zA-Z0-9_.]+)\}\}'
-    
-    def replace_match(match):
-        key_path = match.group(1)
-        value = _get_nested_stat_value(stats, key_path)
-        formatted = _format_stat_value(value)
-        
-        # Wrap in span for styling and potential JS updates
-        css_class = "dynamic-stat"
-        if value is None:
-            css_class += " stat-unavailable"
-        
-        return f'<span class="{css_class}" data-stat-key="{key_path}" title="Auto-updated from pipeline stats">{formatted}</span>'
-    
-    return re.sub(pattern, replace_match, markdown_text)
 
 
 @docs_bp.route('/docs')

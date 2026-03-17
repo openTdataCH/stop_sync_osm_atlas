@@ -7,11 +7,11 @@
 {% endblock %}
 
 {% block content %}
-<div class="stats-page">
-  <div class="stats-container">
-    <a class="back-link" href="{{ url_for('index') }}">← Back to Map</a>
+<div class="page-shell stats-page">
+  <div class="page-shell__container stats-container">
+    <a class="page-shell__back-link back-link" href="{{ url_for('index') }}">← Back to Map</a>
 
-    <div class="stats-header">
+    <div class="page-shell__header stats-header">
       <h1>Pipeline Statistics</h1>
       <p class="text-muted">Quality metrics from the last matching pipeline run.</p>
       {% if stats %}
@@ -25,31 +25,103 @@
 
     {# ── Section 1: Summary Cards ── #}
     <div class="row mb-4">
-      <div class="col-md-3 col-sm-6 mb-3">
+      <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
         <div class="stat-card">
           <div class="stat-card__value">{{ "{:,}".format(stats.summary.atlas_platforms) }}</div>
           <div class="stat-card__label">ATLAS Platforms</div>
         </div>
       </div>
-      <div class="col-md-3 col-sm-6 mb-3">
+      <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
         <div class="stat-card">
           <div class="stat-card__value">{{ "{:,}".format(stats.summary.osm_nodes) }}</div>
           <div class="stat-card__label">OSM Nodes</div>
         </div>
       </div>
-      <div class="col-md-3 col-sm-6 mb-3">
+      <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
         <div class="stat-card stat-card--success">
           <div class="stat-card__value">{{ "{:,}".format(stats.summary.matched_pairs) }}</div>
           <div class="stat-card__label">Matched Pairs</div>
         </div>
       </div>
-      <div class="col-md-3 col-sm-6 mb-3">
+      <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
         <div class="stat-card stat-card--primary">
           <div class="stat-card__value">{{ stats.summary.match_rate_percent }}%</div>
           <div class="stat-card__label">Match Rate</div>
         </div>
       </div>
+      <div class="col-lg-2 col-md-6 col-sm-6 mb-3">
+        <div class="stat-card stat-card--success">
+          <div class="stat-card__value">{{ "{:,}".format(stats.summary.atlas_with_osm_within_50m|default(0)) }}</div>
+          <div class="stat-card__label">ATLAS with OSM ≤ 50m</div>
+        </div>
+      </div>
+      <div class="col-lg-2 col-md-6 col-sm-6 mb-3">
+        <div class="stat-card stat-card--primary">
+          <div class="stat-card__value">{{ stats.summary.atlas_with_osm_within_50m_percent|default(0) }}%</div>
+          <div class="stat-card__label">Nearby OSM Coverage</div>
+        </div>
+      </div>
     </div>
+
+    {# ── Section 1c: GTFS stop_id → ATLAS sloid mapping ── #}
+    {% if gtfs_mapping_stats %}
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">GTFS stop_id → ATLAS sloid Mapping</h5>
+      </div>
+      <div class="card-body">
+        <div class="row mb-3">
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm">
+              <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.total_gtfs_stop_ids|default(0)) }}</div>
+              <div class="stat-card__label">Total GTFS stop_ids</div>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm stat-card--success">
+              <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.matched_gtfs_stop_ids|default(0)) }}</div>
+              <div class="stat-card__label">Matched GTFS stop_ids</div>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm stat-card--warning">
+              <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.unmatched_gtfs_stop_ids|default(0)) }}</div>
+              <div class="stat-card__label">Unmatched GTFS stop_ids</div>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm stat-card--primary">
+              <div class="stat-card__value">{{ gtfs_mapping_stats.gtfs_coverage_percent|default(0) }}%</div>
+              <div class="stat-card__label">GTFS Coverage</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-4 col-sm-6 mb-2"><strong>Algorithm:</strong> {{ gtfs_mapping_stats.algorithm_version|default('n/a') }}</div>
+          <div class="col-md-4 col-sm-6 mb-2"><strong>Strict assignments:</strong> {{ "{:,}".format(gtfs_mapping_stats.strict_assignments|default(0)) }}</div>
+          <div class="col-md-4 col-sm-12 mb-2"><strong>Unique-number fallback assignments:</strong> {{ "{:,}".format(gtfs_mapping_stats.unique_number_fallback_assignments|default(0)) }}</div>
+        </div>
+
+        <div class="row">
+          <div class="col-lg-6 mb-3">
+            <h6 class="mb-2">Cardinality (GTFS stop_id side)</h6>
+            <ul class="mb-0">
+              <li>1-to-1: {{ "{:,}".format(gtfs_mapping_stats.stop_to_sloid.one_to_one|default(0)) }}</li>
+              <li>1-to-many: {{ "{:,}".format(gtfs_mapping_stats.stop_to_sloid.one_to_many|default(0)) }}</li>
+            </ul>
+          </div>
+          <div class="col-lg-6 mb-3">
+            <h6 class="mb-2">Cardinality (ATLAS sloid side)</h6>
+            <ul class="mb-0">
+              <li>1-to-1: {{ "{:,}".format(gtfs_mapping_stats.sloid_to_stop.one_to_one|default(0)) }}</li>
+              <li>many-to-1: {{ "{:,}".format(gtfs_mapping_stats.sloid_to_stop.many_to_one|default(0)) }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     {# ── Section 1b: Non-node OSM Stops ── #}
     {% if stats.osm_way_stops is defined and stats.osm_way_stops %}
@@ -132,6 +204,13 @@
             </tr>
             {% set db = stages.distance.breakdown %}
             <tr class="text-muted">
+              <td class="pl-4">Stage 0: Trio side matching</td>
+              <td class="text-right">{{ "{:,}".format(db.stage0_trio|default(0)) }}</td>
+              <td class="text-right">{{ "%.1f"|format((db.stage0_trio|default(0)) / total * 100) }}%</td>
+              <td class="text-right">{{ "{:,}".format(db.stage0_trio_mto|default(0)) }}</td>
+              <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('distance_trio', 0)) }}</td>
+            </tr>
+            <tr class="text-muted">
               <td class="pl-4">Stage 1: Group proximity</td>
               <td class="text-right">{{ "{:,}".format(db.stage1_group) }}</td>
               <td class="text-right">{{ "%.1f"|format(db.stage1_group / total * 100) }}%</td>
@@ -151,6 +230,20 @@
               <td class="text-right">{{ "%.1f"|format(db.stage3a_single / total * 100) }}%</td>
               <td class="text-right">{{ "{:,}".format(db.stage3a_single_mto|default(0)) }}</td>
               <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a', 0)) }}</td>
+            </tr>
+            <tr class="text-muted">
+              <td class="pl-5">3a pass 1</td>
+              <td class="text-right">{{ "{:,}".format(db.stage3a_single_pass1|default(0)) }}</td>
+              <td class="text-right">{{ "%.1f"|format((db.stage3a_single_pass1|default(0)) / total * 100) }}%</td>
+              <td class="text-right">{{ "{:,}".format(db.stage3a_single_pass1_mto|default(0)) }}</td>
+              <td class="text-right">-</td>
+            </tr>
+            <tr class="text-muted">
+              <td class="pl-5">3a pass 2</td>
+              <td class="text-right">{{ "{:,}".format(db.stage3a_single_pass2|default(0)) }}</td>
+              <td class="text-right">{{ "%.1f"|format((db.stage3a_single_pass2|default(0)) / total * 100) }}%</td>
+              <td class="text-right">{{ "{:,}".format(db.stage3a_single_pass2_mto|default(0)) }}</td>
+              <td class="text-right">-</td>
             </tr>
             <tr class="text-muted">
               <td class="pl-4">Stage 3b: Ratio test</td>
@@ -340,6 +433,79 @@
               <small class="text-muted">Max: {{ mto.osm_to_multiple_atlas.max_per_osm }} ATLAS per OSM</small>
               {% endif %}
             </div>
+          </div>
+        </div>
+
+        {% set overlap = mto.uic_exhaustion_overlap if mto.uic_exhaustion_overlap is defined else {} %}
+        {% if overlap and overlap.mto_pairs_total > 0 %}
+        <h6 class="mt-4">Many-to-One vs UIC Exhaustion</h6>
+        <p class="text-muted mb-2">Many-to-one pairs grouped by whether their UIC group is already capacity-limited on ATLAS, OSM, both, or neither side.</p>
+        {% set total_pairs = overlap.mto_pairs_total %}
+        {% set atlas_only = overlap.atlas_only_exhausted_pairs|default(0) %}
+        {% set both_exh = overlap.both_sides_exhausted_pairs|default(0) %}
+        {% set osm_only = overlap.osm_only_exhausted_pairs|default(0) %}
+        {% set neutral = overlap.neither_side_exhausted_pairs|default(0) %}
+        <div class="diagram-wrap mb-3">
+          <svg class="diagram-svg" viewBox="0 0 760 112" role="img" aria-label="Many to one overlap with UIC exhaustion">
+            <rect x="0" y="16" width="760" height="28" rx="8" fill="#edf2f7"></rect>
+            <rect x="0" y="16" width="{{ (atlas_only / total_pairs * 760)|round(0, 'floor')|int }}" height="28" rx="8" fill="#d9544f"></rect>
+            <rect x="{{ (atlas_only / total_pairs * 760)|round(0, 'floor')|int }}" y="16" width="{{ (both_exh / total_pairs * 760)|round(0, 'floor')|int }}" height="28" fill="#8b4b9e"></rect>
+            <rect x="{{ ((atlas_only + both_exh) / total_pairs * 760)|round(0, 'floor')|int }}" y="16" width="{{ (osm_only / total_pairs * 760)|round(0, 'floor')|int }}" height="28" fill="#f0ad4e"></rect>
+            <rect x="{{ ((atlas_only + both_exh + osm_only) / total_pairs * 760)|round(0, 'floor')|int }}" y="16" width="{{ (neutral / total_pairs * 760)|round(0, 'floor')|int }}" height="28" fill="#5f6c80"></rect>
+
+            <text x="0" y="68" class="diagram-text">Total many-to-one pairs: {{ "{:,}".format(total_pairs) }}</text>
+            <text x="0" y="86" class="diagram-text">ATLAS-only exhausted: {{ "{:,}".format(atlas_only) }} ({{ overlap.atlas_only_exhausted_percent|default(0) }}%)</text>
+            <text x="280" y="86" class="diagram-text">Both exhausted: {{ "{:,}".format(both_exh) }} ({{ overlap.both_sides_exhausted_percent|default(0) }}%)</text>
+            <text x="520" y="86" class="diagram-text">OSM-only exhausted: {{ "{:,}".format(osm_only) }} ({{ overlap.osm_only_exhausted_percent|default(0) }}%)</text>
+            <text x="0" y="104" class="diagram-text">Neither exhausted: {{ "{:,}".format(neutral) }} ({{ overlap.neither_side_exhausted_percent|default(0) }}%)</text>
+          </svg>
+        </div>
+        <p class="text-muted small mb-0">
+          ATLAS exhausted means a UIC group has more ATLAS entries than OSM entries and OSM capacity is fully consumed by matches.
+          OSM exhausted is the symmetric case. "Both" means the pair satisfies both conditions.
+        </p>
+        {% endif %}
+
+        <div class="row mt-3">
+          <div class="col-md-6">
+            <h6 class="mb-2">Distribution: 1 ATLAS to N OSM</h6>
+            <p class="text-muted small mb-2">Ratio key: <strong>1A:2O</strong> = one ATLAS stop matched to two OSM nodes.</p>
+            {% set d1 = mto.atlas_to_multiple_osm.distribution if mto.atlas_to_multiple_osm.distribution is defined else [] %}
+            {% if d1 %}
+            {% set max_d1 = (d1|max(attribute='count')).count %}
+            <div class="diagram-wrap">
+              <svg class="diagram-svg" viewBox="0 0 520 {{ (d1|length) * 34 + 18 }}" role="img" aria-label="Distribution of one atlas to many osm">
+                {% for row in d1 %}
+                {% set y = loop.index0 * 34 + 4 %}
+                <text x="2" y="{{ y + 16 }}" class="diagram-text">{{ row.ratio }}</text>
+                <rect x="110" y="{{ y + 2 }}" width="{{ (row.count / max_d1 * 280)|round(0, 'floor')|int }}" height="18" rx="4" fill="#1f78b4"></rect>
+                <text x="405" y="{{ y + 16 }}" class="diagram-text">{{ "{:,}".format(row.count) }}</text>
+                {% endfor %}
+              </svg>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">No one-atlas-to-many-OSM cases.</p>
+            {% endif %}
+          </div>
+          <div class="col-md-6">
+            <h6 class="mb-2">Distribution: N ATLAS to 1 OSM</h6>
+            <p class="text-muted small mb-2">Ratio key: <strong>2A:1O</strong> = two ATLAS stops matched to one OSM node.</p>
+            {% set d2 = mto.osm_to_multiple_atlas.distribution if mto.osm_to_multiple_atlas.distribution is defined else [] %}
+            {% if d2 %}
+            {% set max_d2 = (d2|max(attribute='count')).count %}
+            <div class="diagram-wrap">
+              <svg class="diagram-svg" viewBox="0 0 520 {{ (d2|length) * 34 + 18 }}" role="img" aria-label="Distribution of many atlas to one osm">
+                {% for row in d2 %}
+                {% set y = loop.index0 * 34 + 4 %}
+                <text x="2" y="{{ y + 16 }}" class="diagram-text">{{ row.ratio }}</text>
+                <rect x="110" y="{{ y + 2 }}" width="{{ (row.count / max_d2 * 280)|round(0, 'floor')|int }}" height="18" rx="4" fill="#0f9960"></rect>
+                <text x="405" y="{{ y + 16 }}" class="diagram-text">{{ "{:,}".format(row.count) }}</text>
+                {% endfor %}
+              </svg>
+            </div>
+            {% else %}
+            <p class="text-muted mb-0">No many-ATLAS-to-one-OSM cases.</p>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -556,6 +722,90 @@
             </table>
           </div>
         </div>
+
+        {% if ua.uic_exhaustion is defined and ua.uic_exhaustion %}
+        {% set uex = ua.uic_exhaustion %}
+        <hr>
+        <h6 class="mb-2">UIC Exhaustion in Unmatched Cases</h6>
+        <p class="text-muted">These are cases where one side has more entries for the same UIC and the opposite side is fully consumed by matches.</p>
+        <div class="row mb-3">
+          <div class="col-md-6 mb-2">
+            <div class="stat-card stat-card--sm stat-card--warning">
+              <div class="stat-card__value">{{ "{:,}".format(uex.atlas_side_exhausted.unmatched_entries|default(0)) }}</div>
+              <div class="stat-card__label">Unmatched ATLAS due to OSM-side exhaustion</div>
+              <small class="text-muted">
+                {{ "{:,}".format(uex.atlas_side_exhausted.affected_uics|default(0)) }} UIC groups,
+                opposite capacity {{ "{:,}".format(uex.atlas_side_exhausted.opposite_capacity|default(0)) }}
+              </small>
+            </div>
+          </div>
+          <div class="col-md-6 mb-2">
+            <div class="stat-card stat-card--sm stat-card--warning">
+              <div class="stat-card__value">{{ "{:,}".format(uex.osm_side_exhausted.unmatched_entries|default(0)) }}</div>
+              <div class="stat-card__label">Unmatched OSM due to ATLAS-side exhaustion</div>
+              <small class="text-muted">
+                {{ "{:,}".format(uex.osm_side_exhausted.affected_uics|default(0)) }} UIC groups,
+                opposite capacity {{ "{:,}".format(uex.osm_side_exhausted.opposite_capacity|default(0)) }}
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6">
+            <h6 class="mb-2">Top ATLAS-extra UIC groups</h6>
+            {% set exa = uex.atlas_side_exhausted.examples if uex.atlas_side_exhausted.examples is defined else [] %}
+            <table class="table table-sm table-hover">
+              <thead class="thead-light">
+                <tr>
+                  <th>UIC</th>
+                  <th class="text-right">ATLAS</th>
+                  <th class="text-right">OSM</th>
+                  <th class="text-right">Unmatched A</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in exa[:8] %}
+                <tr>
+                  <td>{{ row.uic_ref }}</td>
+                  <td class="text-right">{{ row.atlas_total }}</td>
+                  <td class="text-right">{{ row.osm_total }}</td>
+                  <td class="text-right">{{ row.unmatched_atlas }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="text-muted text-center">No UIC exhaustion cases</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="col-md-6">
+            <h6 class="mb-2">Top OSM-extra UIC groups</h6>
+            {% set exo = uex.osm_side_exhausted.examples if uex.osm_side_exhausted.examples is defined else [] %}
+            <table class="table table-sm table-hover">
+              <thead class="thead-light">
+                <tr>
+                  <th>UIC</th>
+                  <th class="text-right">ATLAS</th>
+                  <th class="text-right">OSM</th>
+                  <th class="text-right">Unmatched O</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in exo[:8] %}
+                <tr>
+                  <td>{{ row.uic_ref }}</td>
+                  <td class="text-right">{{ row.atlas_total }}</td>
+                  <td class="text-right">{{ row.osm_total }}</td>
+                  <td class="text-right">{{ row.unmatched_osm }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="text-muted text-center">No UIC exhaustion cases</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
       </div>
     </div>
 

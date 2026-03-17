@@ -8,6 +8,28 @@ from sqlalchemy.sql import func
 problems_bp = Blueprint('problems', __name__)
 
 
+def parse_csv_values(raw_value):
+    if not raw_value:
+        return []
+    return [item.strip() for item in str(raw_value).split(',') if item.strip()]
+
+
+def map_problem_type(problem_type):
+    return 'unmatched' if problem_type == 'isolated' else problem_type
+
+
+def parse_priority_values(raw_priority):
+    values = []
+    for item in parse_csv_values(raw_priority):
+        if item == 'all':
+            continue
+        try:
+            values.append(int(item))
+        except ValueError:
+            continue
+    return values
+
+
 
 def apply_atlas_operator_filter(query, atlas_operator_filter):
     if atlas_operator_filter:
@@ -40,28 +62,27 @@ def get_problems():
         sort_by = request.args.get('sort_by', 'default')
         sort_order = request.args.get('sort_order', 'asc')
         priority_filter = request.args.get('priority', None)
-        query = Problem.query.join(StopsMatched)
-        if problem_type_filter != 'all':
-            mapped_type = 'unmatched' if problem_type_filter == 'isolated' else problem_type_filter
-            query = query.filter(Problem.problem_type == mapped_type)
-        query = apply_atlas_operator_filter(query, atlas_operator_filter)
-        if priority_filter and priority_filter != 'all':
-            try:
-                priority_value = int(priority_filter)
-                query = query.filter(Problem.priority == priority_value)
-            except ValueError:
-                pass
 
-        if problem_type_filter == 'duplicates':
+        selected_problem_types = []
+        if problem_type_filter and problem_type_filter != 'all':
+            selected_problem_types = [map_problem_type(t) for t in parse_csv_values(problem_type_filter)]
+
+        selected_priorities = parse_priority_values(priority_filter)
+
+        query = Problem.query.join(StopsMatched)
+        if selected_problem_types:
+            query = query.filter(Problem.problem_type.in_(selected_problem_types))
+        query = apply_atlas_operator_filter(query, atlas_operator_filter)
+        if selected_priorities:
+            query = query.filter(Problem.priority.in_(selected_priorities))
+
+        duplicates_only_mode = len(selected_problem_types) == 1 and selected_problem_types[0] == 'duplicates'
+
+        if duplicates_only_mode:
             dup_query = Problem.query.join(StopsMatched).filter(Problem.problem_type == 'duplicates')
             dup_query = apply_atlas_operator_filter(dup_query, atlas_operator_filter)
-            # Apply priority filter for duplicates as well
-            if priority_filter and priority_filter != 'all':
-                try:
-                    priority_value = int(priority_filter)
-                    dup_query = dup_query.filter(Problem.priority == priority_value)
-                except ValueError:
-                    pass
+            if selected_priorities:
+                dup_query = dup_query.filter(Problem.priority.in_(selected_priorities))
             dup_query = dup_query.options(
                 joinedload(Problem.stop).subqueryload(StopsMatched.atlas_stop_details),
                 joinedload(Problem.stop).subqueryload(StopsMatched.osm_node_details)
@@ -219,7 +240,9 @@ def get_problems():
             })
         distinct_stop_ids_subquery = query.with_entities(Problem.stop_id).distinct().subquery()
         total_problems = db.session.query(func.count()).select_from(distinct_stop_ids_subquery).scalar()
-        if sort_by == 'distance' and problem_type_filter == 'distance':
+        distance_only_mode = len(selected_problem_types) == 1 and selected_problem_types[0] == 'distance'
+
+        if sort_by == 'distance' and distance_only_mode:
             if sort_order == 'desc':
                 query = query.order_by(func.coalesce(StopsMatched.distance_m, -1).desc(), Problem.stop_id, Problem.problem_type)
             else:
@@ -231,17 +254,13 @@ def get_problems():
                 query = query.order_by(func.coalesce(Problem.priority, 999).asc(), Problem.stop_id, Problem.problem_type)
         else:
             query = query.order_by(Problem.stop_id, Problem.problem_type)
-        if sort_by == 'distance' and problem_type_filter == 'distance':
+        if sort_by == 'distance' and distance_only_mode:
             stop_distance_query = db.session.query(StopsMatched.id, StopsMatched.distance_m).join(Problem).filter(
-                Problem.problem_type == problem_type_filter if problem_type_filter != 'all' else True
+                Problem.problem_type.in_(selected_problem_types) if selected_problem_types else True
             )
             stop_distance_query = apply_atlas_operator_filter(stop_distance_query, atlas_operator_filter)
-            if priority_filter and priority_filter != 'all':
-                try:
-                    priority_value = int(priority_filter)
-                    stop_distance_query = stop_distance_query.filter(Problem.priority == priority_value)
-                except ValueError:
-                    pass
+            if selected_priorities:
+                stop_distance_query = stop_distance_query.filter(Problem.priority.in_(selected_priorities))
             if sort_order == 'desc':
                 stop_distance_query = stop_distance_query.distinct().order_by(func.coalesce(StopsMatched.distance_m, -1).desc(), StopsMatched.id)
             else:
@@ -250,16 +269,11 @@ def get_problems():
             paged_stop_ids = [stop[0] for stop in paged_stops]
         elif sort_by == 'priority':
             stop_ids_query = db.session.query(Problem.stop_id, func.min(Problem.priority)).join(StopsMatched)
-            if problem_type_filter != 'all':
-                mapped_type = 'unmatched' if problem_type_filter == 'isolated' else problem_type_filter
-                stop_ids_query = stop_ids_query.filter(Problem.problem_type == mapped_type)
+            if selected_problem_types:
+                stop_ids_query = stop_ids_query.filter(Problem.problem_type.in_(selected_problem_types))
                 stop_ids_query = apply_atlas_operator_filter(stop_ids_query, atlas_operator_filter)
-            if priority_filter and priority_filter != 'all':
-                try:
-                    priority_value = int(priority_filter)
-                    stop_ids_query = stop_ids_query.filter(Problem.priority == priority_value)
-                except ValueError:
-                    pass
+            if selected_priorities:
+                stop_ids_query = stop_ids_query.filter(Problem.priority.in_(selected_priorities))
             stop_ids_query = stop_ids_query.group_by(Problem.stop_id)
             if sort_order == 'desc':
                 stop_ids_query = stop_ids_query.order_by(func.coalesce(func.min(Problem.priority), 999).desc(), Problem.stop_id)
@@ -269,17 +283,11 @@ def get_problems():
             paged_stop_ids = [row[0] for row in paged_stops]
         else:
             stop_ids_query = db.session.query(Problem.stop_id).join(StopsMatched)
-            if problem_type_filter != 'all':
-                mapped_type = 'unmatched' if problem_type_filter == 'isolated' else problem_type_filter
-                stop_ids_query = stop_ids_query.filter(Problem.problem_type == mapped_type)
+            if selected_problem_types:
+                stop_ids_query = stop_ids_query.filter(Problem.problem_type.in_(selected_problem_types))
                 stop_ids_query = apply_atlas_operator_filter(stop_ids_query, atlas_operator_filter)
-            # Apply priority filter in the default path as well for consistency
-            if priority_filter and priority_filter != 'all':
-                try:
-                    priority_value = int(priority_filter)
-                    stop_ids_query = stop_ids_query.filter(Problem.priority == priority_value)
-                except ValueError:
-                    pass
+            if selected_priorities:
+                stop_ids_query = stop_ids_query.filter(Problem.priority.in_(selected_priorities))
             paged_stop_ids = [item[0] for item in stop_ids_query.distinct().order_by(Problem.stop_id).offset(offset).limit(limit).all()]
         if not paged_stop_ids:
             final_problems = []
@@ -288,18 +296,12 @@ def get_problems():
                 joinedload(Problem.stop).subqueryload(StopsMatched.atlas_stop_details),
                 joinedload(Problem.stop).subqueryload(StopsMatched.osm_node_details)
             ).filter(Problem.stop_id.in_(paged_stop_ids))
-            # Ensure we filter by the selected problem type at the final fetch as well
-            if problem_type_filter != 'all':
-                mapped_type = 'unmatched' if problem_type_filter == 'isolated' else problem_type_filter
-                final_query = final_query.filter(Problem.problem_type == mapped_type)
+            if selected_problem_types:
+                final_query = final_query.filter(Problem.problem_type.in_(selected_problem_types))
                 final_query = apply_atlas_operator_filter(final_query, atlas_operator_filter)
-            if priority_filter and priority_filter != 'all':
-                try:
-                    priority_value = int(priority_filter)
-                    final_query = final_query.filter(Problem.priority == priority_value)
-                except ValueError:
-                    pass
-            if sort_by == 'distance' and problem_type_filter == 'distance':
+            if selected_priorities:
+                final_query = final_query.filter(Problem.priority.in_(selected_priorities))
+            if sort_by == 'distance' and distance_only_mode:
                 if sort_order == 'desc':
                     final_query = final_query.join(StopsMatched).order_by(func.coalesce(StopsMatched.distance_m, -1).desc(), Problem.stop_id, Problem.problem_type)
                 else:
@@ -348,17 +350,14 @@ def get_problem_stats():
             'attributes': {'all': 0, 'solved': 0, 'unsolved': 0},
             'duplicates': {'all': 0, 'solved': 0, 'unsolved': 0}
         }
-        selected_priority = request.args.get('priority')
+        selected_priorities = parse_priority_values(request.args.get('priority'))
 
         problem_types = ['distance', 'unmatched', 'attributes', 'duplicates']
         for ptype in problem_types:
             q = Problem.query.join(StopsMatched).filter(Problem.problem_type == ptype)
             q = apply_atlas_operator_filter(q, atlas_operator_filter)
-            if selected_priority and selected_priority != 'all':
-                try:
-                    q = q.filter(Problem.priority == int(selected_priority))
-                except ValueError:
-                    pass
+            if selected_priorities:
+                q = q.filter(Problem.priority.in_(selected_priorities))
             count = q.with_entities(Problem.stop_id).distinct().count()
             stats[ptype]['all'] = count
             stats[ptype]['unsolved'] = count

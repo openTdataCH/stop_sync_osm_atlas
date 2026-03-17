@@ -1,0 +1,99 @@
+/* Shared top-filter overlay and dropdown styles for map pages */
+.top-filters-overlay {
+  z-index: 1000;
+}
+
+.mobile-filters-toggle {
+  display: none;
+}
+
+.mobile-filters-panel {
+  display: block;
+}
+
+.filter-item .dropdown-toggle {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  color: #1e293b;
+  transition: all 0.2s ease;
+}
+
+.filter-item .dropdown-toggle:hover {
+  background: #f8fafc;
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.filter-item .dropdown-menu {
+  border-radius: var(--radius-lg);
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+@media (max-width: 768px) {
+  .top-filters-overlay {
+    top: 6px !important;
+    left: 0;
+    padding-right: var(--space-2);
+  }
+
+  .top-filters-overlay > .d-flex {
+    padding-left: var(--space-2) !important;
+    padding-right: var(--space-2);
+    align-items: stretch !important;
+  }
+
+  .mobile-filters-toggle {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    gap: var(--space-1);
+    pointer-events: auto;
+    border-radius: var(--radius-full);
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    color: var(--color-fg);
+    font-weight: var(--font-semibold);
+    width: auto;
+    max-width: max-content;
+    padding: 0.2rem 0.55rem;
+    line-height: 1.1;
+    font-size: 0.78rem;
+  }
+
+  .mobile-filters-panel {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    width: 100%;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: max-height 220ms ease, opacity 180ms ease, transform 180ms ease;
+  }
+
+  .top-filters-overlay.is-mobile-open .mobile-filters-panel {
+    max-height: 72vh;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+    margin-top: var(--space-2);
+  }
+
+  .top-filters-bar {
+    flex-wrap: wrap;
+    align-items: flex-start !important;
+    width: 100%;
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: var(--shadow-md);
+    overflow-y: auto;
+  }
+
+  .filter-item .dropdown-toggle {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .filter-item .dropdown-menu {
+    width: min(360px, calc(100vw - 2rem)) !important;
+    max-width: calc(100vw - 2rem);
+  }
+}

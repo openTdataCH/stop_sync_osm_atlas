@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import html
-import json
 import re
 import ssl
 import subprocess
@@ -13,6 +12,8 @@ from pathlib import Path
 from urllib.parse import unquote
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
+
+from backend.services.docs_stats import load_stats_for_docs, replace_stats_placeholders
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -103,60 +104,6 @@ def _rewrite_repo_links(content: str) -> str:
             return match.group(0)
 
         return f'[{label}]({GITHUB_BLOB_BASE}{normalized.replace(" ", "%20")})'
-
-    return pattern.sub(replace, content)
-
-
-def _load_stats_for_docs() -> dict | None:
-    stats_path = REPO_ROOT / 'data' / 'stats.json'
-    if not stats_path.exists():
-        return None
-    try:
-        return json.loads(stats_path.read_text(encoding='utf-8'))
-    except Exception:
-        return None
-
-
-def _get_nested_stat_value(stats: dict | None, key_path: str):
-    if not stats:
-        return None
-    value = stats
-    for key in key_path.split('.'):
-        if isinstance(value, dict) and key in value:
-            value = value[key]
-        else:
-            return None
-    return value
-
-
-def _format_stat_value(value) -> str:
-    if value is None:
-        return '---'
-    if isinstance(value, bool):
-        return 'Yes' if value else 'No'
-    if isinstance(value, float):
-        if 0 < value < 1:
-            return f'{value:.1%}'
-        return f'{value:,.1f}'
-    if isinstance(value, int):
-        return f'{value:,}'
-    return str(value)
-
-
-def _replace_stats_placeholders(content: str, stats: dict | None) -> str:
-    pattern = re.compile(r'\{\{stat:([a-zA-Z0-9_.]+)\}\}')
-
-    def replace(match: re.Match[str]) -> str:
-        key_path = match.group(1)
-        value = _get_nested_stat_value(stats, key_path)
-        formatted = _format_stat_value(value)
-        css_class = 'dynamic-stat'
-        if value is None:
-            css_class += ' stat-unavailable'
-        return (
-            f'<span class="{css_class}" data-stat-key="{escape(key_path)}" '
-            f'title="Auto-updated from pipeline stats">{escape(formatted)}</span>'
-        )
 
     return pattern.sub(replace, content)
 
@@ -336,7 +283,7 @@ def _process_markdown_headers(content: str, filename: str) -> str:
 def _prepare_document(doc_paths: list[Path]) -> str:
     anchor_map = _doc_anchor_map(doc_paths)
     generated_at = datetime.now().strftime('%Y-%m-%d %H:%M')
-    stats = _load_stats_for_docs()
+    stats = load_stats_for_docs()
 
     parts = [
         '---',
@@ -363,7 +310,7 @@ def _prepare_document(doc_paths: list[Path]) -> str:
         ])
 
         content = doc_path.read_text(encoding='utf-8')
-        content = _replace_stats_placeholders(content, stats)
+        content = replace_stats_placeholders(content, stats, html_escape=True)
         content = _rewrite_internal_doc_links(content, anchor_map)
         content = _rewrite_repo_links(content)
         content = _rewrite_mermaid_blocks(content)

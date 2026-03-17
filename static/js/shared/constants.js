@@ -105,7 +105,7 @@
      */
     AppConstants.POPUP = {
         // Minimum width in pixels
-        MIN_WIDTH: 150,
+        MIN_WIDTH: 130,
         
         // Minimum height in pixels
         MIN_HEIGHT: 100,
@@ -119,8 +119,8 @@
         // Margin in pixels for resize handle detection
         RESIZE_MARGIN: 10,
         
-        // Factor for single bubble maximum width expansion
-        SINGLE_BUBBLE_MAX_WIDTH_FACTOR: 1.5,
+        // Hard max width for single bubble popups
+        SINGLE_BUBBLE_MAX_WIDTH_PX: 380,
         
         // Optimal width per bubble for multi-bubble layouts
         MULTI_BUBBLE_OPTIMAL_WIDTH: 250,

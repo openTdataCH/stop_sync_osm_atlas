@@ -33,11 +33,36 @@ from matching_and_import_db.database.helpers import (
     apply_problem_results,
 )
 from matching_and_import_db.database.route_loader import load_all_route_data
+from matching_and_import_db.downloader.geo_utils import filter_points_in_switzerland
+from matching_and_import_db.downloader.get_atlas_gtfs import match_gtfs_to_atlas
 from matching_and_import_db.utils.route_id import normalize_route_id
 
 # --- External models --------------------------------------------------------
 from backend.models import StopsMatched, AtlasStop, OsmNode, OsmPair, OsmTrio, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem
 from backend.services.stats_export import export_pipeline_stats, save_stats_to_file, compute_db_stats
+
+
+def _build_gtfs_mapping_stats() -> dict:
+    """Compute GTFS stop_id -> ATLAS sloid mapping stats from source files."""
+    gtfs_stops_path = "data/raw/gtfs/stops.txt"
+    atlas_stops_path = "data/raw/stops_ATLAS.csv"
+
+    if not (os.path.exists(gtfs_stops_path) and os.path.exists(atlas_stops_path)):
+        return {}
+
+    gtfs_stops = pd.read_csv(
+        gtfs_stops_path,
+        usecols=['stop_id', 'stop_name', 'stop_lat', 'stop_lon'],
+        dtype={'stop_id': str, 'stop_name': str, 'stop_lat': float, 'stop_lon': float},
+        low_memory=False,
+    )
+    gtfs_stops = gtfs_stops[gtfs_stops['stop_id'].astype(str).str.startswith('85')].copy()
+    gtfs_stops = filter_points_in_switzerland(gtfs_stops, lat_col='stop_lat', lon_col='stop_lon')
+
+    atlas_df = pd.read_csv(atlas_stops_path, sep=';', low_memory=False)
+
+    _, mapping_stats = match_gtfs_to_atlas({'stops': gtfs_stops}, atlas_df, return_stats=True)
+    return mapping_stats
 
 
 def _import_all_osm_nodes(session, all_osm_nodes, problem_ctx):
@@ -472,12 +497,21 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
             osm_nodes_with_routes=nodes_with_routes if 'nodes_with_routes' in locals() else set()
         )
 
+        # Add GTFS stop_id -> ATLAS sloid mapping stats in the same unified payload.
+        try:
+            stats['gtfs_mapping'] = _build_gtfs_mapping_stats()
+        except Exception as e:
+            print(f"Warning: Could not compute GTFS mapping stats: {e}")
+            stats['gtfs_mapping'] = {}
+
         # Compute quality metrics (distance quality, many-to-one, cross-predicate, OSM groups)
         try:
             from backend.services.stats_export import compute_quality_metrics
             quality = compute_quality_metrics(
                 matched_records=matched_records,
                 all_osm_nodes=getattr(base_data, 'all_osm_nodes', []),
+                unmatched_atlas=unmatched_atlas,
+                unmatched_osm=unmatched_osm,
                 osm_pairs=getattr(base_data, 'osm_pairs', []),
                 osm_trios=getattr(base_data, 'osm_trios', []),
             )

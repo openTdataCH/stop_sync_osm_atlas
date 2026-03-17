@@ -1,0 +1,49 @@
+/* ==========================================================================
+   C-PAGE-SHELL COMPONENT
+   Shared structure for non-map tool pages (reports, stats, docs-like screens).
+   ========================================================================== */
+
+.page-shell {
+  background: var(--color-bg-subtle);
+  min-height: calc(100vh - 60px);
+  padding: var(--space-6) 0;
+}
+
+.page-shell__container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+.page-shell__back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  color: var(--color-fg-muted);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  transition: color var(--transition-fast);
+}
+
+.page-shell__back-link:hover {
+  color: var(--color-fg);
+  text-decoration: none;
+}
+
+.page-shell__header {
+  margin-bottom: var(--space-6);
+}
+
+.page-shell__header h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-fg);
+  margin: 0 0 var(--space-2) 0;
+}
+
+.page-shell__header p {
+  color: var(--color-fg-muted);
+  margin: 0;
+  font-size: var(--text-sm);
+}

@@ -1244,12 +1244,28 @@ class OsmState:
             if self._to_osm_node(node_dict).is_station:
                 continue
 
-            tags = node_dict.get('tags', {})
-            val = tags.get(key)
-            if not val:
+            # Index representatives under their own key values and sibling key values,
+            # so grouping keeps anchor visibility even when representative tags differ.
+            values: set[str] = set()
+            tags = node_dict.get('tags', {}) or {}
+            own_val = tags.get(key)
+            if own_val:
+                values.add(str(own_val))
+
+            sibling_entry = self._group_siblings.get(node_dict['node_id'])
+            if sibling_entry is not None:
+                _, siblings = sibling_entry
+                for sibling in siblings:
+                    sib_val = (sibling.tags or {}).get(key)
+                    if sib_val:
+                        values.add(str(sib_val))
+
+            if not values:
                 continue
 
-            result[val].append(self._wrap_entity(node_dict))
+            entity = self._wrap_entity(node_dict)
+            for val in values:
+                result[val].append(entity)
 
         return dict(result)
 

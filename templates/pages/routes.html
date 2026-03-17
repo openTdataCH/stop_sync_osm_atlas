@@ -15,7 +15,7 @@
     </header>
 
     <section class="routes-toolbar" aria-label="Routes filters">
-      <form method="get" action="{{ url_for('routes_page') }}" class="routes-toolbar__form">
+      <form method="get" action="{{ url_for('routes.routes_page') }}" class="routes-toolbar__form">
         <div class="routes-toolbar__field routes-toolbar__field--search">
           <label for="routesSearchInput">Search route ID</label>
           <input
@@ -40,7 +40,7 @@
         <div class="routes-toolbar__actions">
           <button type="submit" class="btn btn-primary">Apply</button>
           {% if q or per_page != 20 %}
-          <a class="btn btn-outline-secondary" href="{{ url_for('routes_page') }}">Reset</a>
+          <a class="btn btn-outline-secondary" href="{{ url_for('routes.routes_page') }}">Reset</a>
           {% endif %}
         </div>
       </form>
@@ -122,7 +122,7 @@
     <nav class="routes-pagination" aria-label="Routes pagination">
       <ul class="pagination justify-content-center">
         <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('routes_page', q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
+          <a class="page-link" href="{{ url_for('routes.routes_page', q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
             <span aria-hidden="true">&laquo;</span>
           </a>
         </li>
@@ -130,7 +130,7 @@
         {% for page_num in pagination.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
           {% if page_num %}
           <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-            <a class="page-link" href="{{ url_for('routes_page', q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
+            <a class="page-link" href="{{ url_for('routes.routes_page', q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
           </li>
           {% else %}
           <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
@@ -138,7 +138,7 @@
         {% endfor %}
 
         <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('routes_page', q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
+          <a class="page-link" href="{{ url_for('routes.routes_page', q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
             <span aria-hidden="true">&raquo;</span>
           </a>
         </li>
@@ -149,7 +149,7 @@
       <h2>No matched routes to display</h2>
       <p>Try broadening your search, or verify that route matching data has been imported.</p>
       {% if q %}
-      <a class="btn btn-outline-primary" href="{{ url_for('routes_page', per_page=per_page) }}">Clear search</a>
+      <a class="btn btn-outline-primary" href="{{ url_for('routes.routes_page', per_page=per_page) }}">Clear search</a>
       {% endif %}
     </section>
     {% endif %}

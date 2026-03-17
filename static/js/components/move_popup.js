@@ -14,7 +14,7 @@
             className: 'customPopup permanent-popup',
             // Professional width control settings
             fitBubblesSingleRow: true,
-            singleBubbleMaxWidthFactor: AppConstants.POPUP.SINGLE_BUBBLE_MAX_WIDTH_FACTOR,
+            singleBubbleMaxWidthPx: AppConstants.POPUP.SINGLE_BUBBLE_MAX_WIDTH_PX,
             multiBubbleOptimalWidth: AppConstants.POPUP.MULTI_BUBBLE_OPTIMAL_WIDTH,
             bubbleExpansionBuffer: AppConstants.POPUP.BUBBLE_EXPANSION_BUFFER,
             strictWidthControl: true // enable strict width limits
@@ -38,7 +38,6 @@
             this._optimalSingleRowWidth = null;
             this._singleRowWidthLocked = false;
             this._interactionsInitialized = false;
-            this._initialCalculatedWidth = null;
             this._bubbleCount = 0;
             this._isSingleBubbleMode = true;
             this.on('contentupdate', this._onContentUpdate, this);
@@ -176,22 +175,17 @@
             const naturalWidth = bubble.offsetWidth;
             bubble.style.width = originalStyle;
             
-            // Add padding and margins from container
-            const containerPadding = 20; // popup padding
-            const bufferSpace = 30; // small buffer for comfortable viewing
-            
+            // Keep single-bubble sizing simple and predictable.
+            const containerPadding = 16;
+            const bufferSpace = 12;
             const optimalWidth = naturalWidth + containerPadding + bufferSpace;
-            
-            // Store initial width for max calculation
-            if (!this._initialCalculatedWidth) {
-                this._initialCalculatedWidth = optimalWidth;
-            }
-            
-            // Apply single bubble max width limit
-            const maxWidth = this._initialCalculatedWidth * this.options.singleBubbleMaxWidthFactor;
-            const finalWidth = Math.min(optimalWidth, maxWidth);
-            
-            this._currentWidth = Math.max(this.options.minWidth, finalWidth);
+
+            const viewportCap = this._map
+                ? Math.max(this.options.minWidth, Math.floor(this._map.getSize().x * 0.55))
+                : this.options.singleBubbleMaxWidthPx;
+            const maxWidth = Math.min(this.options.singleBubbleMaxWidthPx, viewportCap);
+
+            this._currentWidth = Math.max(this.options.minWidth, Math.min(optimalWidth, maxWidth));
             this._applyDimensions();
             this._updatePosition();
         },
@@ -387,9 +381,8 @@
             this._analyzeBubbleLayout();
             
             if (this._isSingleBubbleMode) {
-                // Single bubble: limit to 2x initial width
-                const initialWidth = this._initialCalculatedWidth || this._currentWidth || this.options.minWidth;
-                this._maxContentWidth = initialWidth * this.options.singleBubbleMaxWidthFactor;
+                // Single bubble: keep resize cap aligned with simplified width logic.
+                this._maxContentWidth = this.options.singleBubbleMaxWidthPx;
             } else {
                 // Multiple bubbles: allow width until all bubbles fit in single row + small buffer
                 if (this._optimalSingleRowWidth && this._singleRowWidthLocked) {

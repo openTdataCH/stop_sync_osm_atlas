@@ -33,4 +33,23 @@
 </div>
 {% endmacro %}
 
+{% macro top_filters_overlay(toggle_id, panel_id, top_offset='10px', left_offset='0') %}
+<div class="top-filters-overlay position-absolute w-100 mt-2"
+  style="z-index: 1000; top: {{ top_offset }}; left: {{ left_offset }}; pointer-events: none;">
+  <div class="d-flex flex-column align-items-start pl-3 w-100">
+    <button type="button" id="{{ toggle_id }}" class="btn btn-light btn-sm shadow-sm mobile-filters-toggle"
+      aria-expanded="false" aria-controls="{{ panel_id }}">
+      <i class="fas fa-sliders-h" aria-hidden="true"></i>
+      <span>Filters</span>
+    </button>
+
+    <div id="{{ panel_id }}" class="mobile-filters-panel">
+      <div class="top-filters-bar d-flex align-items-center position-relative" style="pointer-events: auto;">
+        {{ caller() }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
 

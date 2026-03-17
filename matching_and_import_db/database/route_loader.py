@@ -94,20 +94,13 @@ def _build_osm_route_dir_to_nodes(osm_routes_df: pd.DataFrame, route_name_to_id:
     df = df[df['resolved_route_id'].notna()].copy()
     df['resolved_route_id'] = df['resolved_route_id'].astype(str).str.strip()
     df['dir_clean'] = df['direction_id'].apply(_safe_direction_id)
-    # Expand rows without direction to both 0 and 1
-    has_dir = df[df['dir_clean'].notna()].copy()
-    no_dir = df[df['dir_clean'].isna()].copy()
-    expanded = []
-    if not has_dir.empty:
-        expanded.append(has_dir[['node_id', 'resolved_route_id', 'dir_clean', 'route_name']].copy())
-    if not no_dir.empty:
-        for d in ['0', '1']:
-            part = no_dir[['node_id', 'resolved_route_id', 'route_name']].copy()
-            part['dir_clean'] = d
-            expanded.append(part)
-    if not expanded:
+    # Keep missing directions as unspecified instead of cloning to both directions,
+    # which creates synthetic mirrored route stop lists in the UI.
+    df['dir_clean'] = df['dir_clean'].fillna('')
+    all_rows = df[['node_id', 'resolved_route_id', 'dir_clean', 'route_name']].copy()
+    if all_rows.empty:
         return {}
-    all_rows = pd.concat(expanded, ignore_index=True)
+
     result = {}
     for (route_id, direction_id), grp in all_rows.groupby(['resolved_route_id', 'dir_clean'], sort=False):
         result[(route_id, direction_id)] = {
