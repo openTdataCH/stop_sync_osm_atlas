@@ -22,6 +22,7 @@ var currentGlobalStatsRequest = null; // jqXHR of in-flight /api/global_stats
 var currentGlobalStatsSeq = 0;  // sequence id to ignore stale global stats responses
 var loadViewportTimer = null;   // debounce timer id
 var zoomBannerTimeout = null;   // debounce timer for the zoom warning banner
+var zoomBannerDesiredVisible = false; // logical banner state from zoom/data rules
 var suppressViewportReloadCount = 0; // skip this many reloads after programmatic center
 var headerSummaryFiltersExpanded = false;
 var headerSummaryCollapsed = false;
@@ -210,16 +211,50 @@ function ensureZoomBannerExists() {
     // Rely on the existing #zoomBannerInfo element which is in the DOM
 }
 
+function isBlockingFilterDropdownOpen() {
+    var overlay = document.querySelector('.top-filters-overlay');
+    if (!overlay) return false;
+
+    return !!overlay.querySelector(
+        '.dropdown-menu.show[aria-labelledby="atlasDropdown"], ' +
+        '.dropdown-menu.show[aria-labelledby="osmDropdown"], ' +
+        '.dropdown-menu.show[aria-labelledby="matchedDropdown"], ' +
+        '.dropdown-menu.show[aria-labelledby="unmatchedDropdown"]'
+    );
+}
+
+function isBlockingFilterDropdownEvent(eventTarget) {
+    if (!eventTarget) return false;
+
+    var trigger = eventTarget.querySelector('.dropdown-toggle');
+    if (!trigger || !trigger.id) return false;
+
+    return (
+        trigger.id === 'atlasDropdown' ||
+        trigger.id === 'osmDropdown' ||
+        trigger.id === 'matchedDropdown' ||
+        trigger.id === 'unmatchedDropdown'
+    );
+}
+
 function showZoomBanner(show, delayMs = 0) {
     var banner = document.getElementById('zoomBannerInfo');
     if (!banner) return;
+
+    zoomBannerDesiredVisible = !!show;
 
     if (zoomBannerTimeout) {
         clearTimeout(zoomBannerTimeout);
         zoomBannerTimeout = null;
     }
 
-    if (show) {
+    // Hide while blocking filter dropdowns are open to prevent overlap.
+    if (!zoomBannerDesiredVisible || isBlockingFilterDropdownOpen()) {
+        banner.classList.add('d-none');
+        return;
+    }
+
+    if (zoomBannerDesiredVisible) {
         if (!banner.classList.contains('d-none')) return;
 
         if (delayMs > 0) {
@@ -557,7 +592,10 @@ function loadDataForViewport() {
             }
         }
     }
-    showZoomBanner(shouldShowBanner, 150);
+    // Avoid transient flash at mid zoom (e.g. z13) with no active filters:
+    // defer showing until we know whether results are actually capped.
+    var preRequestShouldShowBanner = shouldShowBanner && (hasAnyActiveFilter || isLowZoom);
+    showZoomBanner(preRequestShouldShowBanner, preRequestShouldShowBanner ? 150 : 0);
     var viewportBounds = map.getBounds();
     var params = {
         min_lat: viewportBounds.getSouth(),
@@ -732,8 +770,10 @@ function loadDataForViewport() {
                 // If we are not capped, we are showing all markers, so we can hide the "Zoom in" warning.
                 if (!capped) {
                     showZoomBanner(false);
+                } else {
+                    // If capped, show the default guidance text set before the request.
+                    showZoomBanner(true);
                 }
-                // If capped, the default text "Zoom in a bit more..." set before the request is still valid.
             }
         }
 
@@ -1364,6 +1404,11 @@ $(document).ready(function () {
 
     window.addEventListener('resize', function () {
         applyMobileLayoutState();
+    });
+
+    $(document).on('shown.bs.dropdown hidden.bs.dropdown', '.dropdown', function (event) {
+        if (!isBlockingFilterDropdownEvent(event.target)) return;
+        showZoomBanner(zoomBannerDesiredVisible);
     });
 
     var randomStopBtn = document.getElementById('randomStopBtn');

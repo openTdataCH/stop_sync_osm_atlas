@@ -2,7 +2,7 @@
 
 Welcome! This project provides a systematic pipeline to identify, analyze, and resolve discrepancies between public transport stop data from **ATLAS** (Swiss official data) and **OpenStreetMap (OSM)**.
 
-It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exact/distance-based/route-based matching, and serves an interactive web app for inspecting matches, problems, and manual fixes.
+It automates data download and processing (ATLAS, OSM, GTFS), performs exact/distance-based/route-based matching, and serves an interactive web app for inspecting matches, problems, and manual fixes.
 
 ![Geneva stops](documentation/images/Geneve.png)
 
@@ -26,7 +26,7 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 ## Prerequisites
 
 - **Docker Desktop** with Compose v2 (required)
-- Internet connection to download datasets (ATLAS, OSM, GTFS, HRDF)
+- Internet connection to download datasets (ATLAS, OSM, GTFS)
 
 
 ## Installation & Setup (with Docker)
@@ -53,7 +53,7 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
     - Start the web app container
     - Start the scheduler container (daily pipeline at 2:00 Europe/Zurich)
     - Download ATLAS data from OpenTransportData.swiss
-    - Download GTFS and HRDF data for route matching
+    - Download GTFS data for route matching
     - Download OSM data via the Overpass API
     - Process and match all data
     - Import everything into the database

@@ -176,5 +176,8 @@ class RoutesMatched(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     atlas_route_id = db.Column(db.String(100), index=True)
+    atlas_route_short_name = db.Column(db.String(255))
+    atlas_route_long_name = db.Column(db.String(255))
     osm_route_id = db.Column(db.String(100), index=True)
+    osm_route_name = db.Column(db.String(255))
     match_type = db.Column(db.String(50))

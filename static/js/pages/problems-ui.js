@@ -457,24 +457,27 @@ window.ProblemsUI = (function () {
                 }
             }
 
-            // Add scroll indicator if needed
+            // Add scroll indicator only if the container actually overflows
             const problemContent = $('#actionButtonsContent');
             let scrollIndicator = problemContent.find('.scroll-indicator');
-            if (currentEntryProblems.length > 1) {
-                if (scrollIndicator.length === 0) {
-                    scrollIndicator = $('<div class="scroll-indicator"><i class="fas fa-chevron-down"></i></div>');
-                    problemContent.append(scrollIndicator);
-                }
-                setTimeout(() => scrollIndicator.addClass('visible'), 100);
-
-                // Hide indicator on scroll
-                problemContent.off('scroll.indicator').on('scroll.indicator', () => {
-                    scrollIndicator.removeClass('visible');
-                });
-
-            } else {
-                scrollIndicator.remove();
+            if (scrollIndicator.length === 0) {
+                scrollIndicator = $('<div class="scroll-indicator"><i class="fas fa-chevron-down"></i></div>');
+                problemContent.append(scrollIndicator);
             }
+
+            setTimeout(() => {
+                const el = problemContent[0];
+                if (el && el.scrollHeight > el.clientHeight) {
+                    scrollIndicator.addClass('visible');
+                } else {
+                    scrollIndicator.removeClass('visible');
+                }
+            }, 100);
+
+            // Hide indicator on scroll
+            problemContent.off('scroll.indicator').on('scroll.indicator', () => {
+                scrollIndicator.removeClass('visible');
+            });
         }
     }
 

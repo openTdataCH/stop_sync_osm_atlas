@@ -65,7 +65,7 @@ class AtlasState:
             except Exception:
                 return None
 
-        by_sloid: dict[str, dict[str, list]] = defaultdict(lambda: {'gtfs': [], 'hrdf': []})
+        by_sloid: dict[str, dict[str, list]] = defaultdict(lambda: {'gtfs': []})
         if not os.path.exists(path):
             logger.warning(f"Routes CSV not found at {path!r}; route matching will be skipped.")
             return {}
@@ -90,8 +90,6 @@ class AtlasState:
             }
             if src == 'gtfs':
                 by_sloid[sloid]['gtfs'].append(entry)
-            elif src == 'hrdf':
-                by_sloid[sloid]['hrdf'].append(entry)
         return dict(by_sloid)
 
     def __init__(self, atlas_df: pd.DataFrame, duplicate_sloid_map: dict,
@@ -115,8 +113,8 @@ class AtlasState:
         self.matched_ids.add(sloid)
 
     def get_routes(self, sloid: str) -> dict[str, list]:
-        """Returns {'gtfs': [...], 'hrdf': [...]} route entries for the given sloid."""
-        return self._routes_by_sloid.get(sloid, {'gtfs': [], 'hrdf': []})
+        """Returns {'gtfs': [...]} route entries for the given sloid."""
+        return self._routes_by_sloid.get(sloid, {'gtfs': []})
 
     def _to_atlas_node(self, row: pd.Series) -> AtlasNode:
         """Safely convert a pandas row into our strong Domain Entity."""

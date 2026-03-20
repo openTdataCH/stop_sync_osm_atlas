@@ -27,6 +27,9 @@
         // Below this zoom level, connection lines between matches are not rendered
         ZOOM_LINE_THRESHOLD: 13,
 
+        // OSM group/trio connector lines are deferred to a higher zoom for performance
+        ZOOM_OSM_GROUP_LINE_THRESHOLD: 17,
+
         // At or above this zoom level, markers may switch to labeled DOM icons (D/P/S)
         LABEL_ICON_MIN_ZOOM: 18,
         
@@ -61,7 +64,7 @@
         LOW_ZOOM_SMALLSET_LIMIT: 550,
         
         // Data cap for all zoom levels below the uncapped threshold
-        GENERAL_LIMIT: 2000,
+        GENERAL_LIMIT: 1800,
         
         // Debounce delay (ms) for map pan/zoom events to prevent excessive API calls
         VIEW_DEBOUNCE_MS: 150

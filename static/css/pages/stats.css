@@ -215,3 +215,17 @@
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
+
+/* -------------------------------------------------------------------------
+   Section titles (Stops / Problems / Routes)
+   ------------------------------------------------------------------------- */
+.stats-section-title {
+  font-size: 1.1rem;
+  font-weight: var(--font-bold, 700);
+  color: var(--color-fg-muted, #586069);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 2rem 0 1rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 2px solid var(--color-border, #e1e4e8);
+}

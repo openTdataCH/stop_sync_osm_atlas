@@ -2,7 +2,7 @@
 Route data loaders for the database import pipeline.
 
 Loads and builds all route mappings (ATLAS unified routes, OSM routes,
-GTFS / HRDF direction groupings) needed by ``import_to_database``.
+GTFS direction groupings) needed by ``import_to_database``.
 """
 import os
 
@@ -115,14 +115,13 @@ def _build_osm_route_dir_to_nodes(osm_routes_df: pd.DataFrame, route_name_to_id:
 # ---------------------------------------------------------------------------
 
 def _build_atlas_route_dir_mappings(unified_df: pd.DataFrame):
-    """Build GTFS and HRDF route-direction groupings from unified DataFrame.
+    """Build GTFS route-direction groupings from unified DataFrame.
 
-    Returns (atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids).
+    Returns atlas_route_dir_to_sloids.
     """
     atlas_route_dir_to_sloids = {}
-    atlas_line_diruic_to_sloids = {}
     if unified_df.empty:
-        return atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids
+        return atlas_route_dir_to_sloids
 
     df = unified_df.dropna(subset=['sloid']).copy()
     df['direction_id_clean'] = df['direction_id'].apply(_safe_direction_id)
@@ -138,16 +137,7 @@ def _build_atlas_route_dir_mappings(unified_df: pd.DataFrame):
             'route_id_normalized': _nan_to_none(first.get('route_id_normalized')),
         }
 
-    # HRDF routes
-    hrdf = df[(df['source'] == 'hrdf') & df['line_name'].notna() & df['direction_uic'].notna()]
-    for (line_name, direction_uic), grp in hrdf.groupby(['line_name', 'direction_uic'], sort=False):
-        first = grp.iloc[0]
-        atlas_line_diruic_to_sloids[(str(line_name), str(direction_uic))] = {
-            'sloids': grp['sloid'].astype(str).tolist(),
-            'direction_name': _nan_to_none(first.get('direction_name')),
-        }
-
-    return atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids
+    return atlas_route_dir_to_sloids
 
 
 # ---------------------------------------------------------------------------
@@ -160,13 +150,11 @@ def load_all_route_data(osm_routes_df: pd.DataFrame = None):
     Returns a dict with all route mappings needed for the import:
       - osm_route_dir_to_nodes: (route_id, dir) -> {nodes, route_name}
       - atlas_route_dir_to_sloids: (route_id, dir) -> {sloids, ...}
-      - atlas_line_diruic_to_sloids: (line_name, dir_uic) -> {sloids, ...}
     """
     # 1. Read atlas_routes_unified.csv ONCE
     unified_df = _load_unified_routes_df()
-    atlas_route_dir_to_sloids, atlas_line_diruic_to_sloids = _build_atlas_route_dir_mappings(unified_df)
+    atlas_route_dir_to_sloids = _build_atlas_route_dir_mappings(unified_df)
     print(f"Built GTFS route+direction to sloids mapping for {len(atlas_route_dir_to_sloids)} ATLAS routes")
-    print(f"Built HRDF line+direction_uic to sloids mapping for {len(atlas_line_diruic_to_sloids)} ATLAS routes")
 
     # 2. Read osm_nodes_with_routes.csv ONCE
     if osm_routes_df is None:
@@ -182,5 +170,4 @@ def load_all_route_data(osm_routes_df: pd.DataFrame = None):
     return {
         'osm_route_dir_to_nodes': osm_route_dir_to_nodes,
         'atlas_route_dir_to_sloids': atlas_route_dir_to_sloids,
-        'atlas_line_diruic_to_sloids': atlas_line_diruic_to_sloids,
     }

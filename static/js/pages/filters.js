@@ -13,7 +13,7 @@ var activeFilters = {
         allSelected: true,
         methods: { exact: false, name: false },
         distanceMatching: { allSelected: false, stage1: false, stage2: false, stage3a: false, stage3b: false },
-        routeMatching: { allSelected: false, gtfs: false, hrdf: false }
+        routeMatching: { allSelected: false, gtfs: false }
     },
     unmatchedOptions: {
         allSelected: true,
@@ -34,8 +34,7 @@ const MATCHED_METHOD_CHECKBOX_SELECTORS = [
     '#distanceMethodStage2',
     '#distanceMethodStage3a',
     '#distanceMethodStage3b',
-    '#routeMethodGtfs',
-    '#routeMethodHrdf'
+    '#routeMethodGtfs'
 ];
 const DISTANCE_METHOD_CHECKBOX_SELECTORS = [
     '#distanceMethodTrio',
@@ -45,8 +44,7 @@ const DISTANCE_METHOD_CHECKBOX_SELECTORS = [
     '#distanceMethodStage3b'
 ];
 const ROUTE_METHOD_CHECKBOX_SELECTORS = [
-    '#routeMethodGtfs',
-    '#routeMethodHrdf'
+    '#routeMethodGtfs'
 ];
 
 function areAllFilterSelectorsChecked(selectors) {
@@ -99,9 +97,6 @@ function getSelectedMatchedMethodFiltersFromState() {
 
     if (activeFilters.matchedOptions.routeMatching.gtfs) {
         selectedMethods.push('route_gtfs');
-    }
-    if (activeFilters.matchedOptions.routeMatching.hrdf) {
-        selectedMethods.push('route_hrdf');
     }
 
     return selectedMethods;
@@ -157,7 +152,6 @@ function getActiveFilterCount() {
                 count += 1;
             } else {
                 if (activeFilters.matchedOptions.routeMatching.gtfs) count += 1;
-                if (activeFilters.matchedOptions.routeMatching.hrdf) count += 1;
             }
         }
     }
@@ -376,38 +370,6 @@ function filterByRoute(routeId, directions) {
     updateHeaderSummary();
 }
 
-// Function to add an HRDF route filter programmatically
-function filterByHrdfRoute(lineName) {
-    if (!lineName) return;
-
-    const filterType = 'hrdf_route';
-
-    // Check for duplicates
-    var isDuplicate = false;
-    for (var i = 0; i < activeFilters.station.length; i++) {
-        if (activeFilters.stationTypes[i] === filterType &&
-            activeFilters.station[i] === lineName) {
-            isDuplicate = true;
-            break;
-        }
-    }
-
-    if (isDuplicate) {
-        alert("This HRDF route filter is already applied: " + lineName);
-        return;
-    }
-
-    // Add the filter
-    activeFilters.station.push(lineName);
-    activeFilters.stationTypes.push(filterType);
-    activeFilters.routeDirections.push(''); // No direction for HRDF routes for now
-
-    updateFiltersUI();
-    if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
-    loadDataForViewport();
-    updateHeaderSummary();
-}
-
 // Add a custom filter programmatically
 function addCustomFilter(value, filterType) {
     if (!value) return;
@@ -505,9 +467,6 @@ function updateFiltersUI() {
                 if (activeFilters.matchedOptions.routeMatching.gtfs) {
                     routeStageChips.push(buildRemovableChip({ label: 'Route: GTFS', badgeClass: 'badge-secondary', data: { type: 'specificRoute', target: '#routeMethodGtfs' } }));
                 }
-                if (activeFilters.matchedOptions.routeMatching.hrdf) {
-                    routeStageChips.push(buildRemovableChip({ label: 'Route: HRDF', badgeClass: 'badge-secondary', data: { type: 'specificRoute', target: '#routeMethodHrdf' } }));
-                }
                 const rGrp = buildOrGroup(routeStageChips);
                 if (rGrp) matchedSubConditionStrings.push(rGrp);
             }
@@ -553,7 +512,6 @@ function updateFiltersUI() {
         switch (filterType) {
             case 'atlas': labelText = 'ATLAS SloidID: '; badgeClass = 'badge-dark'; badgeHtmlContent = labelText + filter; break;
             case 'osm': labelText = 'OSM Node ID: '; badgeClass = 'badge-dark'; badgeHtmlContent = labelText + filter; break;
-            case 'hrdf_route': labelText = 'HRDF Route: '; badgeClass = 'badge-info'; badgeHtmlContent = labelText + filter; break;
             case 'route':
                 var direction = activeFilters.routeDirections[index] || '';
                 var normalizedRoute = normalizeRouteIdForDisplay(filter);
@@ -748,8 +706,7 @@ function updateActiveFilters() {
         },
         routeMatching: {
             allSelected: allRouteMethodsSelected,
-            gtfs: $('#routeMethodGtfs').is(':checked'),
-            hrdf: $('#routeMethodHrdf').is(':checked')
+            gtfs: $('#routeMethodGtfs').is(':checked')
         }
     };
 

@@ -13,6 +13,7 @@
     'use strict';
 
     const LineRenderer = {};
+    const OSM_GROUP_LINE_MIN_ZOOM = (typeof AppConstants !== 'undefined' && AppConstants.MAP && AppConstants.MAP.ZOOM_OSM_GROUP_LINE_THRESHOLD) || 17;
 
     // ==========================================
     // LINE STYLE CONFIGURATION
@@ -82,6 +83,7 @@
      */
     LineRenderer.drawAll = function(data, layer, options) {
         const { showAtlas, showOsm, minZoom, currentZoom, isContext } = options;
+        const canDrawOsmGroupLines = currentZoom >= OSM_GROUP_LINE_MIN_ZOOM;
 
         // Early exit conditions
         if (currentZoom < minZoom) {
@@ -109,7 +111,7 @@
             }
 
             // Draw yellow lines for OSM group partners (platform ↔ stop_position pairs)
-            if (stop.osm_group_partner && stop.osm_lat != null && stop.osm_lon != null) {
+            if (canDrawOsmGroupLines && stop.osm_group_partner && stop.osm_lat != null && stop.osm_lon != null) {
                 const partner = stop.osm_group_partner;
                 const partnerId = partner.partner_node_id;
                 // Build dedup key with both directions
@@ -131,7 +133,7 @@
             }
 
             // Draw orange lines for OSM trio links.
-            if (Array.isArray(stop.osm_trio_links) && stop.osm_lat != null && stop.osm_lon != null) {
+            if (canDrawOsmGroupLines && Array.isArray(stop.osm_trio_links) && stop.osm_lat != null && stop.osm_lon != null) {
                 stop.osm_trio_links.forEach(function(link) {
                     const partnerId = link.partner_node_id;
                     const key = LineRenderer._buildLineKey(stop.osm_node_id, partnerId);

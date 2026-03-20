@@ -23,7 +23,12 @@
     <div class="alert alert-warning">No stats available. Run the pipeline first.</div>
     {% else %}
 
-    {# ── Section 1: Summary Cards ── #}
+    {# ══════════════════════════════════════════
+       SECTION 1 — STOPS
+       ══════════════════════════════════════════ #}
+    <h2 class="stats-section-title">Stops</h2>
+
+    {# Summary Cards #}
     <div class="row mb-4">
       <div class="col-lg-2 col-md-4 col-sm-6 mb-3">
         <div class="stat-card">
@@ -63,67 +68,7 @@
       </div>
     </div>
 
-    {# ── Section 1c: GTFS stop_id → ATLAS sloid mapping ── #}
-    {% if gtfs_mapping_stats %}
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="mb-0">GTFS stop_id → ATLAS sloid Mapping</h5>
-      </div>
-      <div class="card-body">
-        <div class="row mb-3">
-          <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stat-card stat-card--sm">
-              <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.total_gtfs_stop_ids|default(0)) }}</div>
-              <div class="stat-card__label">Total GTFS stop_ids</div>
-            </div>
-          </div>
-          <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stat-card stat-card--sm stat-card--success">
-              <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.matched_gtfs_stop_ids|default(0)) }}</div>
-              <div class="stat-card__label">Matched GTFS stop_ids</div>
-            </div>
-          </div>
-          <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stat-card stat-card--sm stat-card--warning">
-              <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.unmatched_gtfs_stop_ids|default(0)) }}</div>
-              <div class="stat-card__label">Unmatched GTFS stop_ids</div>
-            </div>
-          </div>
-          <div class="col-md-3 col-sm-6 mb-3">
-            <div class="stat-card stat-card--sm stat-card--primary">
-              <div class="stat-card__value">{{ gtfs_mapping_stats.gtfs_coverage_percent|default(0) }}%</div>
-              <div class="stat-card__label">GTFS Coverage</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="row mb-3">
-          <div class="col-md-4 col-sm-6 mb-2"><strong>Algorithm:</strong> {{ gtfs_mapping_stats.algorithm_version|default('n/a') }}</div>
-          <div class="col-md-4 col-sm-6 mb-2"><strong>Strict assignments:</strong> {{ "{:,}".format(gtfs_mapping_stats.strict_assignments|default(0)) }}</div>
-          <div class="col-md-4 col-sm-12 mb-2"><strong>Unique-number fallback assignments:</strong> {{ "{:,}".format(gtfs_mapping_stats.unique_number_fallback_assignments|default(0)) }}</div>
-        </div>
-
-        <div class="row">
-          <div class="col-lg-6 mb-3">
-            <h6 class="mb-2">Cardinality (GTFS stop_id side)</h6>
-            <ul class="mb-0">
-              <li>1-to-1: {{ "{:,}".format(gtfs_mapping_stats.stop_to_sloid.one_to_one|default(0)) }}</li>
-              <li>1-to-many: {{ "{:,}".format(gtfs_mapping_stats.stop_to_sloid.one_to_many|default(0)) }}</li>
-            </ul>
-          </div>
-          <div class="col-lg-6 mb-3">
-            <h6 class="mb-2">Cardinality (ATLAS sloid side)</h6>
-            <ul class="mb-0">
-              <li>1-to-1: {{ "{:,}".format(gtfs_mapping_stats.sloid_to_stop.one_to_one|default(0)) }}</li>
-              <li>many-to-1: {{ "{:,}".format(gtfs_mapping_stats.sloid_to_stop.many_to_one|default(0)) }}</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    {# ── Section 1b: Non-node OSM Stops ── #}
+    {# Non-node OSM Stops (Ways) #}
     {% if stats.osm_way_stops is defined and stats.osm_way_stops %}
     {% set way_stats = stats.osm_way_stops %}
     <div class="card mb-4">
@@ -161,7 +106,7 @@
     </div>
     {% endif %}
 
-    {# ── Section 2: Matching Stages ── #}
+    {# Matching Stages #}
     <div class="card mb-4">
       <div class="card-header">
         <h5 class="mb-0">Matching Stages</h5>
@@ -267,13 +212,6 @@
               <td class="text-right">{{ "{:,}".format(rb.gtfs_mto|default(0)) }}</td>
               <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
             </tr>
-            <tr class="text-muted">
-              <td class="pl-4">HRDF</td>
-              <td class="text-right">{{ "{:,}".format(rb.hrdf) }}</td>
-              <td class="text-right">{{ "%.1f"|format(rb.hrdf / total * 100) }}%</td>
-              <td class="text-right">{{ "{:,}".format(rb.hrdf_mto|default(0)) }}</td>
-              <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('route_hrdf', 0)) }}</td>
-            </tr>
             <tr>
               <td>Post-processing: Unique by UIC</td>
               <td class="text-right">{{ "{:,}".format(stages.post_processing.unique_by_uic) }}</td>
@@ -304,7 +242,7 @@
       </div>
     </div>
 
-    {# ── Section 3: Quality Metrics (only if computed) ── #}
+    {# Quality Metrics #}
     {% if stats.quality_metrics is defined and stats.quality_metrics %}
     {% set qm = stats.quality_metrics %}
 
@@ -338,7 +276,6 @@
         </div>
         {% endif %}
 
-        {# Per-stage distance table #}
         {% if dq.by_stage %}
         <h6 class="mt-3 mb-2">Distance by Matching Stage</h6>
         <table class="table table-sm table-hover">
@@ -365,7 +302,6 @@
         </table>
         {% endif %}
 
-        {# Not matched to closest #}
         {% if dq.not_matched_to_closest %}
         {% set nmc = dq.not_matched_to_closest %}
         <div class="alert alert-info mt-3 mb-0">
@@ -562,110 +498,7 @@
 
     {% endif %}{# end quality_metrics #}
 
-    {# ── Section 4: Problem Statistics ── #}
-    {% if stats.problems is defined and stats.problems %}
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="mb-0">Problem Detection Statistics</h5>
-      </div>
-      <div class="card-body">
-        {% set probs = stats.problems %}
-        <div class="row mb-4">
-          <div class="col-md-4">
-            <div class="stat-card stat-card--sm stat-card--success">
-              <div class="stat-card__value">{{ "{:,}".format(probs.clean_entries) }}</div>
-              <div class="stat-card__label">Clean Entries (No Problems)</div>
-              <small class="text-muted">{{ "%.1f"|format(probs.clean_entries / probs.total_stops * 100) }}% of total {{ "{:,}".format(probs.total_stops) }}</small>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="stat-card stat-card--sm stat-card--danger">
-              <div class="stat-card__value">{{ "{:,}".format(probs.stops_with_problems) }}</div>
-              <div class="stat-card__label">Entries with Problems</div>
-              <small class="text-muted">{{ "%.1f"|format(probs.stops_with_problems / probs.total_stops * 100) }}% of total {{ "{:,}".format(probs.total_stops) }}</small>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="stat-card stat-card--sm stat-card--warning">
-              <div class="stat-card__value">{{ "{:,}".format(probs.multiple_problems) }}</div>
-              <div class="stat-card__label">Multiple Problems Output</div>
-              <small class="text-muted">Entries with &gt;1 problem types</small>
-            </div>
-          </div>
-        </div>
-
-        {# Priority accordion #}
-        <div class="priority-accordion">
-          {% set priority_meta = [
-            (1, 'Critical', 'p1', 'danger'),
-            (2, 'Significant', 'p2', 'warning'),
-            (3, 'Minor', 'p3', 'minor'),
-          ] %}
-          {% set type_labels = {
-            'distance':   'Distance — Too far from OSM node',
-            'unmatched':  'Unmatched — Isolated ATLAS / OSM node',
-            'attributes': 'Attributes — Missing or mismatched data',
-            'duplicates': 'Duplicates — OSM or ATLAS side collisions',
-          } %}
-          {% set type_dots = {
-            'distance':   '#e08e0b',
-            'unmatched':  '#dc3545',
-            'attributes': '#17a2b8',
-            'duplicates': '#0366d6',
-          } %}
-          {% for prio, label, css_id, severity in priority_meta %}
-          {% set prio_data = problem_breakdown.get(prio, {}) %}
-          {% set prio_total = prio_data.values()|sum if prio_data else 0 %}
-          <div class="accordion-item accordion-item--{{ severity }}" id="accordion-{{ css_id }}">
-            <button class="accordion-trigger" onclick="toggleAccordion('{{ css_id }}')" aria-expanded="false" aria-controls="panel-{{ css_id }}">
-              <span class="accordion-trigger__left">
-                <span class="priority-badge priority-badge--{{ severity }}">P{{ prio }}</span>
-                <span class="accordion-trigger__label">{{ label }}</span>
-              </span>
-              <span class="accordion-trigger__right">
-                <span class="accordion-trigger__count">{{ "{:,}".format(prio_total) }}</span>
-                <span class="accordion-chevron"></span>
-              </span>
-            </button>
-            <div class="accordion-panel" id="panel-{{ css_id }}">
-              <div class="accordion-panel__inner">
-                <table class="table table-sm mb-0">
-                  <thead class="thead-light">
-                    <tr>
-                      <th>Problem Type</th>
-                      <th class="text-right">Count</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {% for ptype in ['distance', 'unmatched', 'attributes', 'duplicates'] %}
-                    {% set cnt = prio_data.get(ptype, 0) %}
-                    {% if cnt > 0 %}
-                    <tr>
-                      <td>
-                        <span class="type-dot" style="background:{{ type_dots[ptype] }}"></span>
-                        {{ type_labels[ptype] }}
-                      </td>
-                      <td class="text-right">{{ "{:,}".format(cnt) }}</td>
-                    </tr>
-                    {% endif %}
-                    {% endfor %}
-                    {% if prio_total == 0 %}
-                    <tr><td colspan="2" class="text-muted text-center">No problems at this priority</td></tr>
-                    {% endif %}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-
-      </div>
-    </div>
-    {% endif %}{# end problem stats #}
-
-
-    {# ── Section 4: Unmatched Analysis ── #}
+    {# Unmatched Analysis #}
     <div class="card mb-4">
       <div class="card-header">
         <h5 class="mb-0">Unmatched Analysis</h5>
@@ -809,41 +642,7 @@
       </div>
     </div>
 
-    {# ── Section 5: Route Coverage ── #}
-    {% if stats.routes is defined and stats.routes %}
-    <div class="card mb-4">
-      <div class="card-header">
-        <h5 class="mb-0">Route Coverage</h5>
-      </div>
-      <div class="card-body">
-        {% set rt = stats.routes %}
-        <table class="table table-sm table-hover">
-          <tr>
-            <td>ATLAS stops with routes</td>
-            <td class="text-right">{{ "{:,}".format(rt.atlas_with_routes|default(0)) }}</td>
-            <td class="text-right">{{ rt.atlas_with_routes_percent|default(0) }}%</td>
-          </tr>
-          <tr>
-            <td>ATLAS GTFS coverage</td>
-            <td class="text-right">{{ "{:,}".format(rt.atlas_gtfs_matches|default(0)) }}</td>
-            <td class="text-right">{{ rt.gtfs_coverage_percent|default(0) }}%</td>
-          </tr>
-          <tr>
-            <td>ATLAS HRDF coverage</td>
-            <td class="text-right">{{ "{:,}".format(rt.atlas_hrdf_matches|default(0)) }}</td>
-            <td class="text-right">{{ rt.hrdf_coverage_percent|default(0) }}%</td>
-          </tr>
-          <tr>
-            <td>OSM nodes with routes coverage</td>
-            <td class="text-right">{{ "{:,}".format(rt.osm_with_routes|default(0)) }}</td>
-            <td class="text-right">{{ rt.osm_with_routes_percent|default(0) }}%</td>
-          </tr>
-        </table>
-      </div>
-    </div>
-    {% endif %}
-
-    {# ── Section 6: Duplicates ── #}
+    {# ATLAS Duplicates #}
     <div class="card mb-4">
       <div class="card-header">
         <h5 class="mb-0">ATLAS Duplicates</h5>
@@ -866,6 +665,208 @@
         </table>
       </div>
     </div>
+
+    {# ══════════════════════════════════════════
+       SECTION 2 — PROBLEMS
+       ══════════════════════════════════════════ #}
+    <h2 class="stats-section-title">Problems</h2>
+
+    {% if stats.problems is defined and stats.problems %}
+    {% set probs = stats.problems %}
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">Problem Detection Statistics</h5>
+      </div>
+      <div class="card-body">
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <div class="stat-card stat-card--sm stat-card--success">
+              <div class="stat-card__value">{{ "{:,}".format(probs.clean_entries) }}</div>
+              <div class="stat-card__label">Clean Entries (No Problems)</div>
+              <small class="text-muted">{{ "%.1f"|format(probs.clean_entries / probs.total_stops * 100) }}% of total {{ "{:,}".format(probs.total_stops) }}</small>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="stat-card stat-card--sm stat-card--danger">
+              <div class="stat-card__value">{{ "{:,}".format(probs.stops_with_problems) }}</div>
+              <div class="stat-card__label">Entries with Problems</div>
+              <small class="text-muted">{{ "%.1f"|format(probs.stops_with_problems / probs.total_stops * 100) }}% of total {{ "{:,}".format(probs.total_stops) }}</small>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="stat-card stat-card--sm stat-card--warning">
+              <div class="stat-card__value">{{ "{:,}".format(probs.multiple_problems) }}</div>
+              <div class="stat-card__label">Multiple Problems Output</div>
+              <small class="text-muted">Entries with &gt;1 problem types</small>
+            </div>
+          </div>
+        </div>
+
+        {# Priority accordion #}
+        <div class="priority-accordion">
+          {% set priority_meta = [
+            (1, 'Critical', 'p1', 'danger'),
+            (2, 'Significant', 'p2', 'warning'),
+            (3, 'Minor', 'p3', 'minor'),
+          ] %}
+          {% set type_labels = {
+            'distance':   'Distance — Too far from OSM node',
+            'unmatched':  'Unmatched — Isolated ATLAS / OSM node',
+            'attributes': 'Attributes — Missing or mismatched data',
+            'duplicates': 'Duplicates — OSM or ATLAS side collisions',
+          } %}
+          {% set type_dots = {
+            'distance':   '#e08e0b',
+            'unmatched':  '#dc3545',
+            'attributes': '#17a2b8',
+            'duplicates': '#0366d6',
+          } %}
+          {% for prio, label, css_id, severity in priority_meta %}
+          {% set prio_data = problem_breakdown.get(prio, {}) %}
+          {% set prio_total = prio_data.values()|sum if prio_data else 0 %}
+          <div class="accordion-item accordion-item--{{ severity }}" id="accordion-{{ css_id }}">
+            <button class="accordion-trigger" onclick="toggleAccordion('{{ css_id }}')" aria-expanded="false" aria-controls="panel-{{ css_id }}">
+              <span class="accordion-trigger__left">
+                <span class="priority-badge priority-badge--{{ severity }}">P{{ prio }}</span>
+                <span class="accordion-trigger__label">{{ label }}</span>
+              </span>
+              <span class="accordion-trigger__right">
+                <span class="accordion-trigger__count">{{ "{:,}".format(prio_total) }}</span>
+                <span class="accordion-chevron"></span>
+              </span>
+            </button>
+            <div class="accordion-panel" id="panel-{{ css_id }}">
+              <div class="accordion-panel__inner">
+                <table class="table table-sm mb-0">
+                  <thead class="thead-light">
+                    <tr>
+                      <th>Problem Type</th>
+                      <th class="text-right">Count</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for ptype in ['distance', 'unmatched', 'attributes', 'duplicates'] %}
+                    {% set cnt = prio_data.get(ptype, 0) %}
+                    {% if cnt > 0 %}
+                    <tr>
+                      <td>
+                        <span class="type-dot" style="background:{{ type_dots[ptype] }}"></span>
+                        {{ type_labels[ptype] }}
+                      </td>
+                      <td class="text-right">{{ "{:,}".format(cnt) }}</td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                    {% if prio_total == 0 %}
+                    <tr><td colspan="2" class="text-muted text-center">No problems at this priority</td></tr>
+                    {% endif %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">No problem statistics available.</div>
+    {% endif %}{# end problem stats #}
+
+    {# ══════════════════════════════════════════
+       SECTION 3 — ROUTES
+       ══════════════════════════════════════════ #}
+    <h2 class="stats-section-title">Routes</h2>
+
+    {# Route Coverage #}
+    {% if stats.routes is defined and stats.routes %}
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">Route Coverage</h5>
+      </div>
+      <div class="card-body">
+        {% set rt = stats.routes %}
+        <table class="table table-sm table-hover">
+          <tr>
+            <td>ATLAS stops with routes</td>
+            <td class="text-right">{{ "{:,}".format(rt.atlas_with_routes|default(0)) }}</td>
+            <td class="text-right">{{ rt.atlas_with_routes_percent|default(0) }}%</td>
+          </tr>
+          <tr>
+            <td>ATLAS GTFS coverage</td>
+            <td class="text-right">{{ "{:,}".format(rt.atlas_gtfs_matches|default(0)) }}</td>
+            <td class="text-right">{{ rt.gtfs_coverage_percent|default(0) }}%</td>
+          </tr>
+          <tr>
+            <td>OSM nodes with routes coverage</td>
+            <td class="text-right">{{ "{:,}".format(rt.osm_with_routes|default(0)) }}</td>
+            <td class="text-right">{{ rt.osm_with_routes_percent|default(0) }}%</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {# GTFS stop_id → ATLAS sloid Mapping #}
+    {% if gtfs_mapping_stats %}
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">GTFS stop_id → ATLAS sloid Mapping</h5>
+      </div>
+      <div class="card-body">
+        <div class="row mb-3">
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm">
+              <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.total_gtfs_stop_ids|default(0)) }}</div>
+              <div class="stat-card__label">Total GTFS stop_ids</div>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm stat-card--success">
+              <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.matched_gtfs_stop_ids|default(0)) }}</div>
+              <div class="stat-card__label">Matched GTFS stop_ids</div>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm stat-card--warning">
+              <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.unmatched_gtfs_stop_ids|default(0)) }}</div>
+              <div class="stat-card__label">Unmatched GTFS stop_ids</div>
+            </div>
+          </div>
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="stat-card stat-card--sm stat-card--primary">
+              <div class="stat-card__value">{{ gtfs_mapping_stats.gtfs_coverage_percent|default(0) }}%</div>
+              <div class="stat-card__label">GTFS Coverage</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row mb-3">
+          <div class="col-md-4 col-sm-6 mb-2"><strong>Algorithm:</strong> {{ gtfs_mapping_stats.algorithm_version|default('n/a') }}</div>
+          <div class="col-md-4 col-sm-6 mb-2"><strong>Strict assignments:</strong> {{ "{:,}".format(gtfs_mapping_stats.strict_assignments|default(0)) }}</div>
+          <div class="col-md-4 col-sm-12 mb-2"><strong>Unique-number fallback assignments:</strong> {{ "{:,}".format(gtfs_mapping_stats.unique_number_fallback_assignments|default(0)) }}</div>
+        </div>
+
+        <div class="row">
+          <div class="col-lg-6 mb-3">
+            <h6 class="mb-2">Cardinality (GTFS stop_id side)</h6>
+            <ul class="mb-0">
+              <li>1-to-1: {{ "{:,}".format(gtfs_mapping_stats.stop_to_sloid.one_to_one|default(0)) }}</li>
+              <li>1-to-many: {{ "{:,}".format(gtfs_mapping_stats.stop_to_sloid.one_to_many|default(0)) }}</li>
+            </ul>
+          </div>
+          <div class="col-lg-6 mb-3">
+            <h6 class="mb-2">Cardinality (ATLAS sloid side)</h6>
+            <ul class="mb-0">
+              <li>1-to-1: {{ "{:,}".format(gtfs_mapping_stats.sloid_to_stop.one_to_one|default(0)) }}</li>
+              <li>many-to-1: {{ "{:,}".format(gtfs_mapping_stats.sloid_to_stop.many_to_one|default(0)) }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     {% endif %}{# end stats #}
   </div>
