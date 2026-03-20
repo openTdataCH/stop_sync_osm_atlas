@@ -1,7 +1,7 @@
 """
 Route-based matching predicate.
 
-Matches ATLAS stops to OSM nodes by comparing GTFS / HRDF route tokens.
+Matches ATLAS stops to OSM nodes by comparing GTFS route tokens.
 Route data is provided by AtlasState (atlas_routes_unified.csv) and OsmState
 (derived from the OSM XML relation pass) — no file I/O happens here.
 """
@@ -19,7 +19,6 @@ class RouteMatchPredicate(BasePredicate):
 
     def run(self, ctx: MatchingContext) -> None:
         name_dirs = ctx.osm.name_dirs
-        uic_dirs = ctx.osm.uic_dirs
 
         unmatched = ctx.atlas.get_unmatched_records()
         if not unmatched:
@@ -34,7 +33,7 @@ class RouteMatchPredicate(BasePredicate):
                 continue
 
             atlas_routes_data = ctx.atlas.get_routes(sloid)
-            if not atlas_routes_data['gtfs'] and not atlas_routes_data['hrdf']:
+            if not atlas_routes_data['gtfs']:
                 continue
 
             # Find OSM candidates within max_distance (route matching explicitly ALLOWS station mappings)
@@ -58,11 +57,6 @@ class RouteMatchPredicate(BasePredicate):
                 if e.get('route_id_normalized') and e.get('direction_id'):
                     gtfs_tokens.add((e['route_id_normalized'], e['direction_id']))
 
-            hrdf_tokens: set[tuple[str, str]] = set()
-            for e in atlas_routes_data['hrdf']:
-                if e.get('line_name') and e.get('direction_uic'):
-                    hrdf_tokens.add((e['line_name'], e['direction_uic']))
-
             matched_node = None
             matched_dist = None
             match_source = None
@@ -85,22 +79,10 @@ class RouteMatchPredicate(BasePredicate):
                         match_source, match_evidence = 'gtfs', 'gtfs_tokens'
                         break
 
-            # P2: HRDF UIC direction
-            if matched_node is None and hrdf_tokens:
-                for node, dist, _ in candidate_list:
-                    nid = str(node.node_id)
-                    for _, dir_uic in hrdf_tokens:
-                        if dir_uic in uic_dirs.get(nid, set()):
-                            matched_node, matched_dist = node, dist
-                            match_source, match_evidence = 'hrdf', 'hrdf_uic'
-                            break
-                    if matched_node:
-                        break
-
-            # P3: name-based direction fallback
+            # P2: name-based direction fallback
             if matched_node is None:
                 dir_names: set[str] = set()
-                for e in atlas_routes_data['hrdf'] + atlas_routes_data['gtfs']:
+                for e in atlas_routes_data['gtfs']:
                     dn = e.get('direction_name')
                     if dn:
                         dir_names.add(dn)
@@ -109,11 +91,7 @@ class RouteMatchPredicate(BasePredicate):
                         nid = str(node.node_id)
                         if any(dn in name_dirs.get(nid, set()) for dn in dir_names):
                             matched_node, matched_dist = node, dist
-                            src = 'hrdf' if any(
-                                e.get('direction_name') in dir_names
-                                for e in atlas_routes_data['hrdf']
-                            ) else 'gtfs'
-                            match_source, match_evidence = src, 'direction_name'
+                            match_source, match_evidence = 'gtfs', 'direction_name'
                             break
 
             if matched_node is not None:

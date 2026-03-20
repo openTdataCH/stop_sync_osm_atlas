@@ -1,11 +1,46 @@
 from flask import Blueprint, render_template, request
 from sqlalchemy import or_
+from collections import Counter
 
 from backend.extensions import db
 from backend.models import AtlasStop, OsmNode, RouteAtlasStops, RouteOsmStops, RoutesMatched
 
 
 routes_bp = Blueprint('routes', __name__)
+
+
+def _group_stops_by_uic(direction_stops):
+    """Group ordered stops by UIC for two-level rendering in the routes view."""
+    if not direction_stops:
+        return []
+
+    grouped_by_uic = {}
+    order = []
+
+    for idx, stop in enumerate(direction_stops):
+        uic = stop.get("uic_ref") or ""
+        if uic not in grouped_by_uic:
+            grouped_by_uic[uic] = {
+                "uic_ref": uic,
+                "stop_label": stop.get("stop_label") or '-',
+                "members": [],
+                "first_idx": idx,
+            }
+            order.append(uic)
+
+        grouped_by_uic[uic]["members"].append(
+            {
+                "stop_id": stop.get("stop_id"),
+                "stop_label": stop.get("stop_label") or '-',
+                "stop_sequence": stop.get("stop_sequence"),
+            }
+        )
+
+    groups = [grouped_by_uic[uic] for uic in order]
+    for group in groups:
+        group["member_count"] = len(group["members"])
+
+    return groups
 
 
 def _direction_sort_key(direction_id):
@@ -47,6 +82,7 @@ def _load_atlas_route_stops(atlas_route_ids):
             RouteAtlasStops.direction_id,
             RouteAtlasStops.sloid,
             RouteAtlasStops.stop_sequence,
+            AtlasStop.uic_ref,
             AtlasStop.atlas_designation_official,
             AtlasStop.atlas_designation,
         )
@@ -72,9 +108,22 @@ def _load_atlas_route_stops(atlas_route_ids):
             {
                 "stop_id": row.sloid,
                 "stop_label": stop_label,
+                "uic_ref": row.uic_ref,
+                "shared_uic_count": 0,
                 "stop_sequence": row.stop_sequence,
             }
         )
+
+    for route_bucket in grouped.values():
+        for direction_bucket in route_bucket.values():
+            uic_counts = Counter(
+                stop.get("uic_ref")
+                for stop in direction_bucket
+                if stop.get("uic_ref")
+            )
+            for stop in direction_bucket:
+                uic = stop.get("uic_ref")
+                stop["shared_uic_count"] = uic_counts.get(uic, 0) if uic else 0
 
     return grouped
 
@@ -91,6 +140,7 @@ def _load_osm_route_stops(osm_route_ids):
             RouteOsmStops.stop_sequence,
             OsmNode.osm_name,
             OsmNode.osm_uic_name,
+            OsmNode.osm_uic_ref,
             OsmNode.osm_local_ref,
         )
         .outerjoin(OsmNode, RouteOsmStops.osm_node_id == OsmNode.osm_node_id)
@@ -115,9 +165,22 @@ def _load_osm_route_stops(osm_route_ids):
             {
                 "stop_id": row.osm_node_id,
                 "stop_label": stop_label,
+                "uic_ref": row.osm_uic_ref,
+                "shared_uic_count": 0,
                 "stop_sequence": row.stop_sequence,
             }
         )
+
+    for route_bucket in grouped.values():
+        for direction_bucket in route_bucket.values():
+            uic_counts = Counter(
+                stop.get("uic_ref")
+                for stop in direction_bucket
+                if stop.get("uic_ref")
+            )
+            for stop in direction_bucket:
+                uic = stop.get("uic_ref")
+                stop["shared_uic_count"] = uic_counts.get(uic, 0) if uic else 0
 
     return grouped
 
@@ -134,7 +197,10 @@ def routes_page():
         matched_routes_query = matched_routes_query.filter(
             or_(
                 RoutesMatched.atlas_route_id.ilike(like_pattern),
+                RoutesMatched.atlas_route_short_name.ilike(like_pattern),
+                RoutesMatched.atlas_route_long_name.ilike(like_pattern),
                 RoutesMatched.osm_route_id.ilike(like_pattern),
+                RoutesMatched.osm_route_name.ilike(like_pattern),
             )
         )
 
@@ -158,20 +224,35 @@ def routes_page():
         all_directions = set(atlas_directions.keys()) | set(osm_directions.keys())
         direction_groups = []
         for direction_id in sorted(all_directions, key=_direction_sort_key):
+            atlas_stops = atlas_directions.get(direction_id, [])
+            osm_stops = osm_directions.get(direction_id, [])
             direction_groups.append(
                 {
                     "direction_id": direction_id,
-                    "atlas_stops": atlas_directions.get(direction_id, []),
-                    "osm_stops": osm_directions.get(direction_id, []),
+                    "atlas_stops": atlas_stops,
+                    "osm_stops": osm_stops,
+                    "atlas_uic_groups": _group_stops_by_uic(atlas_stops),
+                    "osm_uic_groups": _group_stops_by_uic(osm_stops),
                 }
             )
+
+        direction_labels = [
+            group["direction_id"] if group["direction_id"] else "Unspecified"
+            for group in direction_groups
+        ]
+        direction_summary = ", ".join(direction_labels[:4])
+        if len(direction_labels) > 4:
+            direction_summary += f" (+{len(direction_labels) - 4} more)"
 
         route_rows.append(
             {
                 "atlas_route_id": matched.atlas_route_id,
-                "atlas_route_name": matched.atlas_route_id,
+                "atlas_route_short_name": matched.atlas_route_short_name,
+                "atlas_route_long_name": matched.atlas_route_long_name,
+                "atlas_route_name": matched.atlas_route_short_name or matched.atlas_route_long_name or matched.atlas_route_id,
                 "osm_route_id": matched.osm_route_id,
-                "osm_route_name": matched.osm_route_id,
+                "osm_route_name": matched.osm_route_name or matched.osm_route_id,
+                "direction_summary": direction_summary,
                 "direction_groups": direction_groups,
             }
         )

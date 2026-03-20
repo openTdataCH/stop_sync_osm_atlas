@@ -7,7 +7,7 @@ from backend.services.routes import get_stops_for_route
 from backend.extensions import db
 from backend.models import StopsMatched, AtlasStop, OsmNode, OsmPair, OsmTrio
 from sqlalchemy.orm import joinedload
-from sqlalchemy import func, text
+from sqlalchemy import text
 
 
 class FilterBuilder:
@@ -92,17 +92,6 @@ class FilterBuilder:
                     route_conditions.append(StopsMatched.osm_node_id.in_(route_stops['osm_nodes']))
                 if route_conditions:
                     conditions.append(db.or_(*route_conditions) if len(route_conditions) > 1 else route_conditions[0])
-            elif filter_type == 'hrdf_route':
-                # Postgres JSONB: check if any routes_unified entry has a matching line_name.
-                conditions.append(
-                    StopsMatched.atlas_stop_details.has(
-                        func.jsonb_path_exists(
-                            AtlasStop.routes_unified,
-                            '$[*] ? (@.line_name == $line)',
-                            func.jsonb_build_object('line', value)
-                        )
-                    )
-                )
             else:  # UIC ref — search both atlas and osm tables
                 conditions.append(db.or_(
                     StopsMatched.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),

@@ -269,7 +269,6 @@ class TestCurrentPredicates:
                         'direction_name': 'Heuried -> Hirzenbach',
                     },
                 ],
-                'hrdf': [],
             }
         }
 

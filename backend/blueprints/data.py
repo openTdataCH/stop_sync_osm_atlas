@@ -177,7 +177,7 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
                     station_id_sub_conditions.append(StopsMatched.sloid.like(f'%{value}%'))
                 elif filter_type == 'osm':
                     station_id_sub_conditions.append(StopsMatched.osm_node_id.like(f'%{value}%'))
-                elif filter_type in ['hrdf_route', 'route']:
+                elif filter_type == 'route':
                     route_stops = get_stops_for_route(value, direction if direction else None)
                     route_specific_conditions = []
                     if route_stops['atlas_sloids']:

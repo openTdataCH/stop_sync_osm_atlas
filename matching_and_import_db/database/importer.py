@@ -272,10 +272,15 @@ def _import_unmatched_osm(session, unmatched_osm_records, problem_ctx, processed
 def _import_routes(session, all_route_data, known_sloids):
     matched_routes = 0
     routes_to_insert = []
+
+    def _clean_text(value):
+        if value is None:
+            return None
+        text_value = str(value).strip()
+        return text_value if text_value else None
     
     atlas_route_dir_to_sloids = all_route_data.get('atlas_route_dir_to_sloids', {})
     osm_route_dir_to_nodes = all_route_data.get('osm_route_dir_to_nodes', {})
-    atlas_line_diruic_to_sloids = all_route_data.get('atlas_line_diruic_to_sloids', {})
 
     # Pre-build normalized index for ATLAS routes
     atlas_normalized_to_original = {}
@@ -309,9 +314,17 @@ def _import_routes(session, all_route_data, known_sloids):
 
         if atlas_matched_route_id and (atlas_matched_route_id, osm_route_id) not in seen_route_matches:
             seen_route_matches.add((atlas_matched_route_id, osm_route_id))
+
+            atlas_route_short_name = _clean_text(atlas_data.get('route_short_name')) if atlas_data else None
+            atlas_route_long_name = _clean_text(atlas_data.get('route_long_name')) if atlas_data else None
+            osm_route_name = _clean_text(osm_data.get('route_name'))
+
             routes_to_insert.append(RoutesMatched(
                 atlas_route_id=atlas_matched_route_id,
+                atlas_route_short_name=atlas_route_short_name,
+                atlas_route_long_name=atlas_route_long_name,
                 osm_route_id=osm_route_id,
+                osm_route_name=osm_route_name,
                 match_type='matched'
             ))
             matched_routes += 1
@@ -324,15 +337,6 @@ def _import_routes(session, all_route_data, known_sloids):
                 continue
             routes_to_insert.append(RouteAtlasStops(
                 atlas_route_id=atlas_route_id, direction_id=direction_id, sloid=sloid, stop_sequence=i
-            ))
-
-    for (line_name, direction_uic), atlas_data in atlas_line_diruic_to_sloids.items():
-        for i, sloid in enumerate(atlas_data['sloids']):
-            if sloid not in known_sloids:
-                skipped_sloids += 1
-                continue
-            routes_to_insert.append(RouteAtlasStops(
-                atlas_route_id=line_name, direction_id=direction_uic, sloid=sloid, stop_sequence=i
             ))
 
     if skipped_sloids:
@@ -468,13 +472,11 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
             if os.path.exists(unified_path):
                 df_unified = pd.read_csv(unified_path, dtype=str)
                 gtfs_matches = df_unified[df_unified['source'] == 'gtfs']['sloid'].nunique()
-                hrdf_matches = df_unified[df_unified['source'] == 'hrdf']['sloid'].nunique()
                 any_route = df_unified['sloid'].nunique()
                 
                 atlas_route_stats = {
                     'atlas_total': total_atlas if total_atlas else 0, # Passed earlier
                     'atlas_gtfs_matches': gtfs_matches,
-                    'atlas_hrdf_matches': hrdf_matches,
                     'atlas_with_routes': any_route
                 }
         except Exception as e:

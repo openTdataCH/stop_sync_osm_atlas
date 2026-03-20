@@ -116,11 +116,7 @@ def export_pipeline_stats(
         v for k, v in match_type_counts.items() 
         if k.startswith('route_gtfs') or k.startswith('route_unified_gtfs')
     )
-    route_hrdf_matches = sum(
-        v for k, v in match_type_counts.items() 
-        if k.startswith('route_hrdf') or k.startswith('route_unified_hrdf')
-    )
-    total_route_matches = route_gtfs_matches + route_hrdf_matches
+    total_route_matches = route_gtfs_matches
     
     # Unmatched OSM analysis matrix
     unmatched_osm_matrix = {
@@ -277,8 +273,6 @@ def export_pipeline_stats(
                 "breakdown": {
                     "gtfs": route_gtfs_matches,
                     "gtfs_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('route_gtfs') or k.startswith('route_unified_gtfs')),
-                    "hrdf": route_hrdf_matches,
-                    "hrdf_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('route_hrdf') or k.startswith('route_unified_hrdf')),
                 }
             },
             "post_processing": {
@@ -332,10 +326,8 @@ def export_pipeline_stats(
             if total_atlas_platforms and total_atlas_platforms > 0:
                 any_route = atlas_route_stats.get('atlas_with_routes', 0)
                 gtfs_matches = atlas_route_stats.get('atlas_gtfs_matches', 0)
-                hrdf_matches = atlas_route_stats.get('atlas_hrdf_matches', 0)
                 stats['routes']['atlas_with_routes_percent'] = round((any_route / total_atlas_platforms * 100), 1)
                 stats['routes']['gtfs_coverage_percent'] = round((gtfs_matches / total_atlas_platforms * 100), 1)
-                stats['routes']['hrdf_coverage_percent'] = round((hrdf_matches / total_atlas_platforms * 100), 1)
                 
         if osm_route_stats:
             stats['routes'].update(osm_route_stats)
@@ -364,8 +356,6 @@ def _classify_match_type(match_type: str) -> str:
         return 'distance_stage3b'
     if 'gtfs' in match_type:
         return 'route_gtfs'
-    if 'hrdf' in match_type:
-        return 'route_hrdf'
     if match_type in ('duplicate_propagation', 'osm_group_propagation', 'exact_postpass'):
         return 'post_processing'
     return 'post_processing'

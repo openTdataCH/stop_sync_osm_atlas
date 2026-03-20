@@ -62,6 +62,9 @@
           <div class="route-meta route-meta--atlas">
             <span class="route-meta__title">ATLAS</span>
             <div class="route-meta__name">{{ route.atlas_route_name or 'Unknown route' }}</div>
+            {% if route.atlas_route_short_name and route.atlas_route_long_name and route.atlas_route_short_name != route.atlas_route_long_name %}
+            <div class="route-meta__detail">{{ route.atlas_route_long_name }}</div>
+            {% endif %}
             <div class="route-meta__id">ID: {{ route.atlas_route_id or '-' }}</div>
           </div>
           <div class="route-meta route-meta--osm">
@@ -71,6 +74,10 @@
           </div>
         </header>
 
+        {% if route.direction_summary %}
+        <p class="route-card__summary">Directions: {{ route.direction_summary }}</p>
+        {% endif %}
+
         <div class="route-card__body">
           {% if route.direction_groups %}
           {% for direction in route.direction_groups %}
@@ -79,12 +86,19 @@
             <div class="direction-block__columns">
               <div class="stops-column">
                 <h4>ATLAS Stops</h4>
-                {% if direction.atlas_stops %}
+                {% if direction.atlas_uic_groups %}
                 <ol class="stops-list">
-                  {% for stop in direction.atlas_stops %}
+                  {% for group in direction.atlas_uic_groups %}
                   <li>
-                    <span class="stop-label">{{ stop.stop_label or '-' }}</span>
-                    <span class="stop-id">({{ stop.stop_id }})</span>
+                    <div class="stop-primary">
+                      <span class="stop-label">{{ group.stop_label or '-' }}</span>
+                      <span class="stop-uic">UIC: {{ group.uic_ref if group.uic_ref else '-' }}{% if group.member_count > 1 %} {{ group.member_count }} stops{% endif %}</span>
+                    </div>
+                    <ul class="stops-list stops-list--nested">
+                      {% for member in group.members %}
+                      <li><div class="stop-id stop-id--secondary">SLOID: {{ member.stop_id }}</div></li>
+                      {% endfor %}
+                    </ul>
                   </li>
                   {% endfor %}
                 </ol>
@@ -95,12 +109,19 @@
 
               <div class="stops-column">
                 <h4>OSM Stops</h4>
-                {% if direction.osm_stops %}
+                {% if direction.osm_uic_groups %}
                 <ol class="stops-list">
-                  {% for stop in direction.osm_stops %}
+                  {% for group in direction.osm_uic_groups %}
                   <li>
-                    <span class="stop-label">{{ stop.stop_label or '-' }}</span>
-                    <span class="stop-id">({{ stop.stop_id }})</span>
+                    <div class="stop-primary">
+                      <span class="stop-label">{{ group.stop_label or '-' }}</span>
+                      <span class="stop-uic">UIC: {{ group.uic_ref if group.uic_ref else '-' }}{% if group.member_count > 1 %} {{ group.member_count }} nodes{% endif %}</span>
+                    </div>
+                    <ul class="stops-list stops-list--nested">
+                      {% for member in group.members %}
+                      <li><div class="stop-id stop-id--secondary">Node: {{ member.stop_id }}</div></li>
+                      {% endfor %}
+                    </ul>
                   </li>
                   {% endfor %}
                 </ol>
