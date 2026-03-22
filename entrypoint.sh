@@ -4,6 +4,15 @@ set -e
 # Add current directory to PYTHONPATH
 export PYTHONPATH=$PYTHONPATH:/app
 
+MODE="${1:-app}"
+
+if [ "$MODE" = "scheduler" ]; then
+    echo "Starting scheduler mode..."
+    echo "Waiting for Postgres database..."
+    python matching_and_import_db/database/init.py
+    exec python -m matching_and_import_db.scheduler.service
+fi
+
 
 echo "Waiting for Postgres database..."
 python matching_and_import_db/database/init.py
@@ -27,6 +36,7 @@ else
     flask db upgrade
 fi
 
+<<<<<<< Updated upstream
 # Check if data import should be skipped
 if [ "$SKIP_DATA_IMPORT" != "true" ]; then
 
@@ -45,6 +55,11 @@ if [ "$SKIP_DATA_IMPORT" != "true" ]; then
         echo "All data scripts executed successfully."
 else
     echo "SKIP_DATA_IMPORT is set to true. Skipping data import."
+=======
+if [ "${RUN_STARTUP_PIPELINE:-false}" = "true" ]; then
+    echo "RUN_STARTUP_PIPELINE=true -> running one full pipeline before app start"
+    python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual
+>>>>>>> Stashed changes
 fi
 
 echo "Starting Flask application on port 5001..."

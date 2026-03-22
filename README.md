@@ -13,6 +13,7 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
 - [Prerequisites](#prerequisites)
 - [Installation & Setup (with Docker)](#installation--setup-with-docker)
 - [Pipeline](#pipeline)
+- [Background Scheduler & Microservices](#background-scheduler--microservices)
 - [Running the Web Application](#running-the-web-application)
 - [Environment & Secrets](#environment--secrets)
 - [Admin Management CLI](#admin-management-cli)
@@ -49,14 +50,20 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
     **On the first run**, Docker will automatically:
     - Build the application image
     - Download and start Postgres (PostGIS) database
+<<<<<<< Updated upstream
     - Download ATLAS data from OpenTransportData.swiss
     - Download GTFS and HRDF data for route matching
     - Download OSM data via the Overpass API
     - Process and match all data
     - Import everything into the database
+=======
+    - Start the web app container
+    - Start the scheduler container (daily pipeline at 2:00 Europe/Zurich)
+>>>>>>> Stashed changes
     - Start the Flask web application
 
-    This typically takes 20 minutes. Data and database state are cached across runs (`./data` directory and the `postgres_data` volume).
+    Data and database state are cached across runs (`./data` directory and the `postgres_data` volume).
+    The full pipeline now runs in the dedicated scheduler service, not during web app startup.
 
 
 4.  **Access the application**:
@@ -101,10 +108,12 @@ flowchart LR
     I --> DB
 ```
 
-When the `app` container starts (and data import is not skipped), the entrypoint runs:
+When the daily scheduled job runs (or when manually triggered), the pipeline executes:
 
 - `matching_and_import_db/downloader/get_atlas_data.py`: downloads ATLAS data and GTFS, builds optimized route/stop artifacts
 - `matching_and_import_db/downloader/get_osm_data.py`: fetches OSM data via Overpass and processes it
+- `matching_and_import_db/orchestrator.py`: runs the matching pipeline
+- `matching_and_import_db/database/importer.py`: imports refreshed data into the import database
 
 Downloads are cached under `data/raw/` and processed artifacts under `data/processed/` — see [1. Download and process data](documentation/1.%20Download%20and%20process%20data.md) for details.
 
@@ -113,7 +122,27 @@ Downloads are cached under `data/raw/` and processed artifacts under `data/proce
 
 After acquisition, `matching_and_import_db/database/importer.py` populates the Postgres databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
 
-Set `SKIP_DATA_IMPORT=true` to bypass acquisition/import when you only want to run the web app against an existing database.
+During import, the UI shows a global maintenance popup. Downloading and matching stages run in the background without blocking normal browsing.
+
+## Background Scheduler & Microservices
+
+Docker Compose now runs four services:
+
+- `app`: Flask web app and API.
+- `scheduler`: Dedicated background worker that runs the daily pipeline at 2:00 (`PIPELINE_TIMEZONE`, default `Europe/Zurich`).
+- `db`: Postgres + PostGIS import database.
+- `redis`: Shared cache/rate-limit and pipeline status/lock storage.
+
+Scheduler behavior:
+
+- Uses APScheduler cron trigger (`PIPELINE_SCHEDULE_HOUR`, `PIPELINE_SCHEDULE_MINUTE`).
+- Publishes run status to `/api/system/pipeline_status`.
+- Sets maintenance mode only for the import phase so the UI can show "Data update in progress" with elapsed/ETA.
+- Uses a distributed lock to prevent concurrent runs.
+
+Optional one-shot startup run:
+
+- Set `RUN_STARTUP_PIPELINE=true` to run one full pipeline before Flask starts.
 
 ### Manual Import & Testing (VS Code Tasks)
 
@@ -122,8 +151,9 @@ If you have VS Code installed, we have provided built-in tasks to quickly run co
 2. Select **`Tasks: Run Task`**.
 3. Choose one of the predefined tasks:
    - **`Docker: Run All Tests`**: Executes the `pytest` suite.
-   - **`Docker: Run Matching & Import (Existing Data)`**: Manually runs the `matching_and_import_db/database/importer.py` matching script.
-   - **`Docker: Run Full Data Pipeline (Download & Match & Import)`**: Downloads new data and automatically runs the matcher.
+    - **`Docker: Run Matching & Import (Existing Data)`**: Runs matching + import on already downloaded files through the scheduler runner.
+    - **`Docker: Run Full Data Pipeline (Download & Match & Import)`**: Runs full download + matching + import through the scheduler runner.
+    - **`Docker: Trigger Scheduled Pipeline Now`**: Fires a full manual run equivalent to the scheduled daily run.
 
 You can do this while the `app` container is running in the background.
 

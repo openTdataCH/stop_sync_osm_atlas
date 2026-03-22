@@ -35,12 +35,41 @@
     {% block content %}{% endblock %}
   </main>
 
+  <div id="pipelineMaintenanceOverlay" aria-live="polite" aria-atomic="true" role="status">
+    <div class="pipeline-maintenance-card">
+      <div class="pipeline-maintenance-card__header">
+        <i class="fas fa-sync-alt fa-spin"></i>
+        <span id="pipelineMaintenanceTitle">Data update in progress</span>
+      </div>
+      <div class="pipeline-maintenance-card__body">
+        <div id="pipelineMaintenanceStatus" class="pipeline-maintenance-card__status">
+          Importing latest data. The app will be available again shortly.
+        </div>
+        <div class="pipeline-maintenance-card__timers">
+          <span class="pipeline-maintenance-chip">
+            <i class="far fa-clock"></i>
+            Elapsed: <strong id="pipelineElapsed">--</strong>
+          </span>
+          <span class="pipeline-maintenance-chip">
+            <i class="fas fa-hourglass-half"></i>
+            ETA: <strong id="pipelineEta">--</strong>
+          </span>
+          <span class="pipeline-maintenance-chip">
+            <i class="fas fa-cogs"></i>
+            Phase: <strong id="pipelinePhase">idle</strong>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- jQuery -->
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <!-- Popper.js (required for Bootstrap dropdowns) -->
   <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
   <!-- Bootstrap JS -->
   <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  <script src="{{ url_for('static', filename='js/shared/pipeline-status.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 
