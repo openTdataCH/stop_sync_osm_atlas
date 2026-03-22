@@ -36,30 +36,9 @@ else
     flask db upgrade
 fi
 
-<<<<<<< Updated upstream
-# Check if data import should be skipped
-if [ "$SKIP_DATA_IMPORT" != "true" ]; then
-
-
-        echo "Downloading ATLAS and GTFS/HRDF data..."
-        python -m matching_and_import_db.downloader.get_atlas_data
-
-        echo "Downloading OSM data..."
-        python matching_and_import_db/downloader/get_osm_data.py
-
-        # Run the complete matching pipeline and import to database
-        echo "Running matching pipeline and importing to database..."
-        python matching_and_import_db/database/importer.py
-        echo "Finished importer.py"
-
-        echo "All data scripts executed successfully."
-else
-    echo "SKIP_DATA_IMPORT is set to true. Skipping data import."
-=======
 if [ "${RUN_STARTUP_PIPELINE:-false}" = "true" ]; then
     echo "RUN_STARTUP_PIPELINE=true -> running one full pipeline before app start"
     python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual
->>>>>>> Stashed changes
 fi
 
 echo "Starting Flask application on port 5001..."

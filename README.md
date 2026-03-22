@@ -50,16 +50,13 @@ It automates data download and processing (ATLAS, OSM, GTFS, HRDF), performs exa
     **On the first run**, Docker will automatically:
     - Build the application image
     - Download and start Postgres (PostGIS) database
-<<<<<<< Updated upstream
+    - Start the web app container
+    - Start the scheduler container (daily pipeline at 2:00 Europe/Zurich)
     - Download ATLAS data from OpenTransportData.swiss
     - Download GTFS and HRDF data for route matching
     - Download OSM data via the Overpass API
     - Process and match all data
     - Import everything into the database
-=======
-    - Start the web app container
-    - Start the scheduler container (daily pipeline at 2:00 Europe/Zurich)
->>>>>>> Stashed changes
     - Start the Flask web application
 
     Data and database state are cached across runs (`./data` directory and the `postgres_data` volume).
