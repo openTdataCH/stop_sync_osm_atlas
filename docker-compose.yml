@@ -62,10 +62,39 @@ services:
       SESSION_COOKIE_SECURE: "false"
       AUTO_MIGRATE: "true"
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
-      SKIP_DATA_IMPORT: "${SKIP_DATA_IMPORT:-false}" # Skip data import on startup if true
+      RUN_STARTUP_PIPELINE: "${RUN_STARTUP_PIPELINE:-false}" # Optional one-shot run on app boot
     cpu_shares: 2048 # Higher CPU priority during contention
-    mem_limit: 4g # Increase to avoid OOM issues
+    mem_limit: 2g # Web app stays lighter, pipeline runs in scheduler service
     # mem_reservation: 1g # Optional: guarantee 1g
+
+  scheduler:
+    build:
+      context: .
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    container_name: stop_sync_osm_atlas_scheduler
+    restart: "no"
+    command: ["scheduler"]
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
+      USER_INPUT_DATABASE_URI: ${USER_INPUT_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/user_input_db}
+      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
+      PIPELINE_TIMEZONE: ${PIPELINE_TIMEZONE:-Europe/Zurich}
+      PIPELINE_SCHEDULE_HOUR: ${PIPELINE_SCHEDULE_HOUR:-2}
+      PIPELINE_SCHEDULE_MINUTE: ${PIPELINE_SCHEDULE_MINUTE:-0}
+      PIPELINE_IMPORT_ETA_SECONDS: ${PIPELINE_IMPORT_ETA_SECONDS:-900}
+      AUTO_MIGRATE: "false"
+    cpu_shares: 2048
+    mem_limit: 4g
 
 volumes:
   postgres_data: # Persists Postgres data

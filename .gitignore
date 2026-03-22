@@ -85,6 +85,8 @@ coverage/
 # Generated documentation
 documentation/generated/
 
-latex_document
+latex_document_routes
+
+latex_document_non_nodes
 
 !tests/data

@@ -11,6 +11,7 @@ from backend.blueprints.search import search_bp
 from backend.blueprints.stats import stats_bp
 from backend.blueprints.problems import problems_bp
 from backend.blueprints.docs import docs_bp
+<<<<<<< Updated upstream
 
 
 def _direction_sort_key(direction_id):
@@ -40,6 +41,10 @@ def _bounded_int(value, default, minimum=None, maximum=None):
         parsed = maximum
 
     return parsed
+=======
+from backend.blueprints.routes import routes_bp
+from backend.blueprints.system import system_bp
+>>>>>>> Stashed changes
 
 def create_app():
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
@@ -62,6 +67,11 @@ def create_app():
     app.register_blueprint(stats_bp)
     app.register_blueprint(problems_bp)
     app.register_blueprint(docs_bp)
+<<<<<<< Updated upstream
+=======
+    app.register_blueprint(routes_bp)
+    app.register_blueprint(system_bp)
+>>>>>>> Stashed changes
 
     @app.route('/')
     def index():

@@ -1,0 +1,62 @@
+#pipelineMaintenanceOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(1px);
+  padding: 1rem;
+}
+
+#pipelineMaintenanceOverlay.is-visible {
+  display: flex;
+}
+
+.pipeline-maintenance-card {
+  width: min(540px, 100%);
+  background: #ffffff;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.25);
+  overflow: hidden;
+}
+
+.pipeline-maintenance-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.9rem 1.1rem;
+  font-weight: 700;
+  color: #7a2e0e;
+  background: #fff7ed;
+  border-bottom: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.pipeline-maintenance-card__body {
+  padding: 1rem 1.1rem 1.2rem;
+}
+
+.pipeline-maintenance-card__status {
+  margin-bottom: 0.65rem;
+  color: #334155;
+}
+
+.pipeline-maintenance-card__timers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pipeline-maintenance-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  color: #1e293b;
+  font-size: 0.85rem;
+}
