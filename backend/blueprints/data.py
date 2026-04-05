@@ -4,6 +4,7 @@ from sqlalchemy.orm import joinedload, load_only
 from collections import defaultdict
 from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
 from backend.extensions import db, limiter
+from backend.db_errors import is_missing_table_error
 from backend.serializers.stops import format_stop_data
 from backend.services.routes import get_stops_for_route, get_osm_routes_for_node, get_unified_routes_for_sloid
 from backend.query_helpers import resolve_stop_type_match_filters, build_stop_scope_condition
@@ -233,6 +234,10 @@ def get_operators():
         operator_list = [op[0] for op in operators if op[0]]
         return jsonify({"operators": operator_list, "total": len(operator_list)})
     except Exception as e:
+        if is_missing_table_error(e):
+            db.session.rollback()
+            app.logger.warning("Operators unavailable: atlas tables are not initialized yet.")
+            return jsonify({"operators": [], "total": 0}), 200
         app.logger.error(f"Error fetching operators: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
@@ -460,6 +465,22 @@ def get_data():
 
         return jsonify(regular_stops)
     except Exception as e:
+        if is_missing_table_error(e):
+            db.session.rollback()
+            include_meta_raw = request.args.get('include_meta', '')
+            include_meta = str(include_meta_raw).strip().lower() in ('1', 'true', 'yes', 'y')
+            app.logger.warning("Map data unavailable: matching tables are not initialized yet.")
+            if include_meta:
+                return jsonify({
+                    "stops": [],
+                    "meta": {
+                        "offset": 0,
+                        "limit": None,
+                        "returned": 0,
+                        "has_more": False
+                    }
+                }), 200
+            return jsonify([]), 200
         return jsonify({"error": str(e)}), 500
 
 

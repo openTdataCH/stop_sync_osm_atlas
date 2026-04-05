@@ -53,7 +53,14 @@ def _shutdown(*_args) -> None:
 
 
 def main() -> None:
-    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
+    # Force root logger configuration so INFO logs are visible even if another
+    # module configured logging before scheduler startup.
+    logging.basicConfig(
+        level=LOG_LEVEL,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+        force=True,
+    )
 
     set_status(
         status="idle",

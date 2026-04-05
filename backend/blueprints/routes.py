@@ -2,11 +2,27 @@ from flask import Blueprint, render_template, request
 from sqlalchemy import or_
 from collections import Counter
 
+from backend.db_errors import is_missing_table_error
 from backend.extensions import db
 from backend.models import AtlasStop, OsmNode, RouteAtlasStops, RouteOsmStops, RoutesMatched
 
 
 routes_bp = Blueprint('routes', __name__)
+
+
+class _EmptyPagination:
+    def __init__(self, page, per_page):
+        self.page = page
+        self.per_page = per_page
+        self.total = 0
+        self.pages = 0
+        self.has_prev = False
+        self.has_next = False
+        self.prev_num = 1
+        self.next_num = 1
+
+    def iter_pages(self, **_kwargs):
+        return []
 
 
 def _group_stops_by_uic(direction_stops):
@@ -191,85 +207,100 @@ def routes_page():
     page = _bounded_int(request.args.get('page'), default=1, minimum=1)
     per_page = _bounded_int(request.args.get('per_page'), default=20, minimum=5, maximum=100)
 
-    matched_routes_query = RoutesMatched.query
-    if q:
-        like_pattern = f"%{q}%"
-        matched_routes_query = matched_routes_query.filter(
-            or_(
-                RoutesMatched.atlas_route_id.ilike(like_pattern),
-                RoutesMatched.atlas_route_short_name.ilike(like_pattern),
-                RoutesMatched.atlas_route_long_name.ilike(like_pattern),
-                RoutesMatched.osm_route_id.ilike(like_pattern),
-                RoutesMatched.osm_route_name.ilike(like_pattern),
+    try:
+        matched_routes_query = RoutesMatched.query
+        if q:
+            like_pattern = f"%{q}%"
+            matched_routes_query = matched_routes_query.filter(
+                or_(
+                    RoutesMatched.atlas_route_id.ilike(like_pattern),
+                    RoutesMatched.atlas_route_short_name.ilike(like_pattern),
+                    RoutesMatched.atlas_route_long_name.ilike(like_pattern),
+                    RoutesMatched.osm_route_id.ilike(like_pattern),
+                    RoutesMatched.osm_route_name.ilike(like_pattern),
+                )
             )
+
+        matched_routes_page = (
+            matched_routes_query
+            .order_by(RoutesMatched.atlas_route_id.asc(), RoutesMatched.osm_route_id.asc())
+            .paginate(page=page, per_page=per_page, error_out=False)
         )
 
-    matched_routes_page = (
-        matched_routes_query
-        .order_by(RoutesMatched.atlas_route_id.asc(), RoutesMatched.osm_route_id.asc())
-        .paginate(page=page, per_page=per_page, error_out=False)
-    )
+        atlas_route_ids = sorted({item.atlas_route_id for item in matched_routes_page.items if item.atlas_route_id})
+        osm_route_ids = sorted({item.osm_route_id for item in matched_routes_page.items if item.osm_route_id})
 
-    atlas_route_ids = sorted({item.atlas_route_id for item in matched_routes_page.items if item.atlas_route_id})
-    osm_route_ids = sorted({item.osm_route_id for item in matched_routes_page.items if item.osm_route_id})
+        atlas_stops_by_route = _load_atlas_route_stops(atlas_route_ids)
+        osm_stops_by_route = _load_osm_route_stops(osm_route_ids)
 
-    atlas_stops_by_route = _load_atlas_route_stops(atlas_route_ids)
-    osm_stops_by_route = _load_osm_route_stops(osm_route_ids)
+        route_rows = []
+        for matched in matched_routes_page.items:
+            atlas_directions = atlas_stops_by_route.get(matched.atlas_route_id, {})
+            osm_directions = osm_stops_by_route.get(matched.osm_route_id, {})
 
-    route_rows = []
-    for matched in matched_routes_page.items:
-        atlas_directions = atlas_stops_by_route.get(matched.atlas_route_id, {})
-        osm_directions = osm_stops_by_route.get(matched.osm_route_id, {})
+            all_directions = set(atlas_directions.keys()) | set(osm_directions.keys())
+            direction_groups = []
+            for direction_id in sorted(all_directions, key=_direction_sort_key):
+                atlas_stops = atlas_directions.get(direction_id, [])
+                osm_stops = osm_directions.get(direction_id, [])
+                direction_groups.append(
+                    {
+                        "direction_id": direction_id,
+                        "atlas_stops": atlas_stops,
+                        "osm_stops": osm_stops,
+                        "atlas_uic_groups": _group_stops_by_uic(atlas_stops),
+                        "osm_uic_groups": _group_stops_by_uic(osm_stops),
+                    }
+                )
 
-        all_directions = set(atlas_directions.keys()) | set(osm_directions.keys())
-        direction_groups = []
-        for direction_id in sorted(all_directions, key=_direction_sort_key):
-            atlas_stops = atlas_directions.get(direction_id, [])
-            osm_stops = osm_directions.get(direction_id, [])
-            direction_groups.append(
+            direction_labels = [
+                group["direction_id"] if group["direction_id"] else "Unspecified"
+                for group in direction_groups
+            ]
+            direction_summary = ", ".join(direction_labels[:4])
+            if len(direction_labels) > 4:
+                direction_summary += f" (+{len(direction_labels) - 4} more)"
+
+            route_rows.append(
                 {
-                    "direction_id": direction_id,
-                    "atlas_stops": atlas_stops,
-                    "osm_stops": osm_stops,
-                    "atlas_uic_groups": _group_stops_by_uic(atlas_stops),
-                    "osm_uic_groups": _group_stops_by_uic(osm_stops),
+                    "atlas_route_id": matched.atlas_route_id,
+                    "atlas_route_short_name": matched.atlas_route_short_name,
+                    "atlas_route_long_name": matched.atlas_route_long_name,
+                    "atlas_route_name": matched.atlas_route_short_name or matched.atlas_route_long_name or matched.atlas_route_id,
+                    "osm_route_id": matched.osm_route_id,
+                    "osm_route_name": matched.osm_route_name or matched.osm_route_id,
+                    "direction_summary": direction_summary,
+                    "direction_groups": direction_groups,
                 }
             )
 
-        direction_labels = [
-            group["direction_id"] if group["direction_id"] else "Unspecified"
-            for group in direction_groups
-        ]
-        direction_summary = ", ".join(direction_labels[:4])
-        if len(direction_labels) > 4:
-            direction_summary += f" (+{len(direction_labels) - 4} more)"
+        if matched_routes_page.total > 0:
+            range_start = ((matched_routes_page.page - 1) * matched_routes_page.per_page) + 1
+            range_end = range_start + len(matched_routes_page.items) - 1
+        else:
+            range_start = 0
+            range_end = 0
 
-        route_rows.append(
-            {
-                "atlas_route_id": matched.atlas_route_id,
-                "atlas_route_short_name": matched.atlas_route_short_name,
-                "atlas_route_long_name": matched.atlas_route_long_name,
-                "atlas_route_name": matched.atlas_route_short_name or matched.atlas_route_long_name or matched.atlas_route_id,
-                "osm_route_id": matched.osm_route_id,
-                "osm_route_name": matched.osm_route_name or matched.osm_route_id,
-                "direction_summary": direction_summary,
-                "direction_groups": direction_groups,
-            }
+        return render_template(
+            'pages/routes.html',
+            route_rows=route_rows,
+            pagination=matched_routes_page,
+            q=q,
+            per_page=per_page,
+            range_start=range_start,
+            range_end=range_end,
         )
-
-    if matched_routes_page.total > 0:
-        range_start = ((matched_routes_page.page - 1) * matched_routes_page.per_page) + 1
-        range_end = range_start + len(matched_routes_page.items) - 1
-    else:
-        range_start = 0
-        range_end = 0
-
-    return render_template(
-        'pages/routes.html',
-        route_rows=route_rows,
-        pagination=matched_routes_page,
-        q=q,
-        per_page=per_page,
-        range_start=range_start,
-        range_end=range_end,
-    )
+    except Exception as e:
+        if is_missing_table_error(e):
+            db.session.rollback()
+            empty_pagination = _EmptyPagination(page=page, per_page=per_page)
+            return render_template(
+                'pages/routes.html',
+                route_rows=[],
+                pagination=empty_pagination,
+                q=q,
+                per_page=per_page,
+                range_start=0,
+                range_end=0,
+            )
+        raise
