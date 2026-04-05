@@ -96,21 +96,27 @@ def build_trio_middle_with_matched_side_condition(stop_model):
     treated as matched for filtering/statistics semantics.
     """
     from sqlalchemy.orm import aliased
-    from backend.models import StopsMatched, OsmTrio
+    from backend.models import StopsMatched, OsmStop, OsmStopMember
 
     matched_side = aliased(StopsMatched)
+    trio_middle = aliased(OsmStopMember)
+    trio_side = aliased(OsmStopMember)
 
-    matched_side_exists = db.select(1).select_from(matched_side).where(
+    trio_middle_exists = db.select(1).select_from(trio_middle).join(
+        OsmStop,
+        trio_middle.osm_stop_id == OsmStop.id,
+    ).join(
+        trio_side,
+        trio_side.osm_stop_id == trio_middle.osm_stop_id,
+    ).join(
+        matched_side,
+        matched_side.osm_node_id == trio_side.node_id,
+    ).where(
+        OsmStop.stop_kind == 'trio',
+        trio_middle.member_role == 'trio_middle',
+        trio_side.member_role == 'trio_side',
+        trio_middle.node_id == stop_model.osm_node_id,
         matched_side.stop_type == 'matched',
-        db.or_(
-            matched_side.osm_node_id == OsmTrio.side_node_id_1,
-            matched_side.osm_node_id == OsmTrio.side_node_id_2,
-        )
-    ).exists()
-
-    trio_middle_exists = db.select(1).select_from(OsmTrio).where(
-        OsmTrio.middle_node_id == stop_model.osm_node_id,
-        matched_side_exists,
     ).exists()
 
     return db.and_(

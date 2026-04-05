@@ -37,9 +37,6 @@ class OsmNode:
     amenity: Optional[str]
     aerialway: Optional[str]
     tags: dict[str, str]
-    is_way: bool = False
-    source_way_id: Optional[str] = None
-    way_node_ids: Optional[list[str]] = None
 
     @property
     def is_station(self) -> bool:
@@ -136,6 +133,20 @@ class PipelineResult:
     unmatched_osm: list[OsmNode]
 
 
+@dataclass(frozen=True)
+class OsmStopMemberRecord:
+    node_id: str
+    member_role: str
+
+
+@dataclass
+class OsmStopUnitRecord:
+    stop_kind: str
+    group_kind: Optional[str]
+    representative_node_id: str
+    members: list[OsmStopMemberRecord] = field(default_factory=list)
+
+
 @dataclass
 class MatchingOutput:
     """Full output of run_matching(): pipeline results + pre-pipeline state."""
@@ -143,6 +154,5 @@ class MatchingOutput:
     unmatched_atlas: list[AtlasNode]
     unmatched_osm: list[OsmNode]
     duplicate_sloid_map: dict[str, list[str]]
-    osm_pairs: list[tuple[str, str, str]] = field(default_factory=list)  # [(node_id_1, node_id_2, pair_type), ...]
-    osm_trios: list[tuple[str, str, str]] = field(default_factory=list)  # [(middle_node_id, side_node_id_1, side_node_id_2), ...]
+    osm_stop_units: list[OsmStopUnitRecord] = field(default_factory=list)
     all_osm_nodes: list[OsmNode] = field(default_factory=list)

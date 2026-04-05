@@ -116,33 +116,69 @@ class OsmNode(db.Model):
     osm_amenity = db.Column(db.String(255))
     osm_aerialway = db.Column(db.String(255))
     osm_operator = db.Column(db.String(255))
-    is_way = db.Column(db.Boolean, nullable=False, server_default=db.text('false'))
-    source_way_id = db.Column(db.String(100), nullable=True)
-    way_node_ids = db.Column(JSONB)
     osm_node_type = db.Column(db.String(50))
     # JSONB array of all OSM node IDs in the duplicate group (e.g. ["123", "456"])
     duplicate_group_node_ids = db.Column(JSONB)
 
 
+class OsmStop(db.Model):
+    """Canonical OSM stop unit used for counting/filtering semantics."""
+    __tablename__ = 'osm_stops'
 
-class OsmPair(db.Model):
-    """Two-node OSM pair identified by the pre-matching grouping pass."""
-    __tablename__ = 'osm_pairs'
+    __table_args__ = (
+        db.Index('idx_osm_stops_stop_kind', 'stop_kind'),
+        db.Index('idx_osm_stops_group_kind', 'group_kind'),
+        db.Index('idx_osm_stops_representative_node_id', 'representative_node_id'),
+        db.CheckConstraint(
+            "stop_kind IN ('single', 'pair', 'trio')",
+            name='ck_osm_stops_stop_kind'
+        ),
+        db.CheckConstraint(
+            "group_kind IS NULL OR group_kind IN ('osm_pair_uic', 'osm_pair_name', 'osm_pair_tram', "
+            "'osm_pair_uic_equal_15m', 'osm_pair_name_equal_15m', 'osm_pair_tram_equal_15m', 'osm_trio')",
+            name='ck_osm_stops_group_kind'
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    node_id_1 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
-    node_id_2 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
-    group_type = db.Column(db.String(50), nullable=False)
+    stop_kind = db.Column(db.String(20), nullable=False)
+    group_kind = db.Column(db.String(50), nullable=True)
+    representative_node_id = db.Column(
+        db.String(100),
+        db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'),
+        nullable=False,
+    )
+
+    representative_node = db.relationship('OsmNode', foreign_keys=[representative_node_id], lazy='select')
+    members = db.relationship('OsmStopMember', back_populates='osm_stop', cascade="all, delete-orphan")
 
 
-class OsmTrio(db.Model):
-    """Three-node OSM trio with one middle node and two side nodes."""
-    __tablename__ = 'osm_trios'
+class OsmStopMember(db.Model):
+    """Membership rows mapping raw OSM nodes to stop units with role semantics."""
+    __tablename__ = 'osm_stop_members'
 
-    id = db.Column(db.Integer, primary_key=True)
-    middle_node_id = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
-    side_node_id_1 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
-    side_node_id_2 = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), nullable=False, index=True)
+    __table_args__ = (
+        db.CheckConstraint(
+            "member_role IN ('single', 'pair_a', 'pair_b', 'trio_middle', 'trio_side')",
+            name='ck_osm_stop_members_member_role'
+        ),
+        db.UniqueConstraint('node_id', name='uq_osm_stop_members_node_id'),
+    )
+
+    osm_stop_id = db.Column(
+        db.Integer,
+        db.ForeignKey('osm_stops.id', ondelete='CASCADE'),
+        primary_key=True,
+    )
+    node_id = db.Column(
+        db.String(100),
+        db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'),
+        primary_key=True,
+    )
+    member_role = db.Column(db.String(20), nullable=False)
+
+    osm_stop = db.relationship('OsmStop', back_populates='members', lazy='select')
+    osm_node = db.relationship('OsmNode', lazy='select')
 
 
 class RouteAtlasStops(db.Model):
@@ -176,8 +212,5 @@ class RoutesMatched(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     atlas_route_id = db.Column(db.String(100), index=True)
-    atlas_route_short_name = db.Column(db.String(255))
-    atlas_route_long_name = db.Column(db.String(255))
     osm_route_id = db.Column(db.String(100), index=True)
-    osm_route_name = db.Column(db.String(255))
     match_type = db.Column(db.String(50))

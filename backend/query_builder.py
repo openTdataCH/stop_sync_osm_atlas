@@ -5,9 +5,9 @@ This module consolidates common filtering patterns to reduce code duplication an
 
 from backend.services.routes import get_stops_for_route
 from backend.extensions import db
-from backend.models import StopsMatched, AtlasStop, OsmNode, OsmPair, OsmTrio
+from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
 from sqlalchemy.orm import joinedload
-from sqlalchemy import text
+from sqlalchemy import func
 
 
 class FilterBuilder:
@@ -28,8 +28,7 @@ class FilterBuilder:
             'station': StopsMatched.osm_node_details.has(OsmNode.osm_node_type == 'railway_station'),
             'platform': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'platform'),
             'stop_position': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'stop_position'),
-            'aerialway_station': StopsMatched.osm_node_details.has(OsmNode.osm_aerialway == 'station'),
-            'non_node_osm_stop': StopsMatched.osm_node_details.has(OsmNode.is_way.is_(True)),
+            'aerialway_station': StopsMatched.osm_node_details.has(OsmNode.osm_aerialway == 'station')
         }
         
         for transport_type in selected_transport_types:
@@ -92,6 +91,17 @@ class FilterBuilder:
                     route_conditions.append(StopsMatched.osm_node_id.in_(route_stops['osm_nodes']))
                 if route_conditions:
                     conditions.append(db.or_(*route_conditions) if len(route_conditions) > 1 else route_conditions[0])
+            elif filter_type == 'hrdf_route':
+                # Postgres JSONB: check if any routes_unified entry has a matching line_name.
+                conditions.append(
+                    StopsMatched.atlas_stop_details.has(
+                        func.jsonb_path_exists(
+                            AtlasStop.routes_unified,
+                            '$[*] ? (@.line_name == $line)',
+                            func.jsonb_build_object('line', value)
+                        )
+                    )
+                )
             else:  # UIC ref — search both atlas and osm tables
                 conditions.append(db.or_(
                     StopsMatched.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),
@@ -102,34 +112,38 @@ class FilterBuilder:
 
     @staticmethod
     def build_osm_group_members_query(osm_group_types=None):
-        include_pairs = True
-        include_trios = True
-        pair_types = []
-        # None or [] means "all group types".
-        if osm_group_types:
-            include_pairs = False
-            include_trios = False
-            pair_types = [t for t in osm_group_types if t.startswith('osm_pair_')]
-            include_pairs = len(pair_types) > 0
-            include_trios = 'osm_trio' in osm_group_types
+        query = db.session.query(OsmStopMember.node_id).join(
+            OsmStop,
+            OsmStopMember.osm_stop_id == OsmStop.id,
+        )
 
-        if include_pairs:
-            node_id_1_query = db.session.query(OsmPair.node_id_1)
-            node_id_2_query = db.session.query(OsmPair.node_id_2)
-            if pair_types:
-                node_id_1_query = node_id_1_query.filter(OsmPair.group_type.in_(pair_types))
-                node_id_2_query = node_id_2_query.filter(OsmPair.group_type.in_(pair_types))
-            query = node_id_1_query.union(node_id_2_query)
-        else:
-            query = db.session.query(OsmPair.node_id_1).filter(text('1=0'))
+        # Default: all grouped OSM members.
+        if osm_group_types is None or len(osm_group_types) == 0:
+            return query.filter(OsmStop.stop_kind.in_(['pair', 'trio']))
 
-        if include_trios:
-            trio_middle = db.session.query(OsmTrio.middle_node_id)
-            trio_side_1 = db.session.query(OsmTrio.side_node_id_1)
-            trio_side_2 = db.session.query(OsmTrio.side_node_id_2)
-            query = query.union(trio_middle).union(trio_side_1).union(trio_side_2)
+        pair_types = [group_type for group_type in osm_group_types if group_type.startswith('osm_pair_')]
+        include_trio = 'osm_trio' in osm_group_types
 
-        return query
+        conditions = []
+        if pair_types:
+            conditions.append(
+                db.and_(
+                    OsmStop.stop_kind == 'pair',
+                    OsmStop.group_kind.in_(pair_types),
+                )
+            )
+        if include_trio:
+            conditions.append(
+                db.and_(
+                    OsmStop.stop_kind == 'trio',
+                    OsmStop.group_kind == 'osm_trio',
+                )
+            )
+
+        if not conditions:
+            return query.filter(db.false())
+
+        return query.filter(db.or_(*conditions))
 
 
 class QueryBuilder:

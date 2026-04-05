@@ -22,7 +22,6 @@ var currentGlobalStatsRequest = null; // jqXHR of in-flight /api/global_stats
 var currentGlobalStatsSeq = 0;  // sequence id to ignore stale global stats responses
 var loadViewportTimer = null;   // debounce timer id
 var zoomBannerTimeout = null;   // debounce timer for the zoom warning banner
-var zoomBannerDesiredVisible = false; // logical banner state from zoom/data rules
 var suppressViewportReloadCount = 0; // skip this many reloads after programmatic center
 var headerSummaryFiltersExpanded = false;
 var headerSummaryCollapsed = false;
@@ -85,9 +84,6 @@ function _stableParamsKey(params, mode) {
 }
 
 function getAtlasMarkerIdentity(stopData) {
-    if (window.MapShared && typeof window.MapShared.getAtlasMarkerIdentity === 'function') {
-        return window.MapShared.getAtlasMarkerIdentity(stopData);
-    }
     if (!stopData) return null;
     if (stopData.sloid != null && stopData.sloid !== '') return String(stopData.sloid);
     if (stopData.representative_sloid != null && stopData.representative_sloid !== '') return String(stopData.representative_sloid);
@@ -125,23 +121,19 @@ function initMap() {
         }
     });
 
-    var baseLayers = window.MapShared && typeof window.MapShared.createBaseTileLayers === 'function'
-        ? window.MapShared.createBaseTileLayers()
-        : null;
-
-    osmLayer = baseLayers ? baseLayers.osm : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: AppConstants.MAP.MAX_ZOOM,
         maxNativeZoom: AppConstants.MAP.MAX_NATIVE_ZOOM,
         attribution: '© OpenStreetMap'
     });
 
-    var transportLayer = baseLayers ? baseLayers.transport : L.tileLayer('https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png', {
+    var transportLayer = L.tileLayer('https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png', {
         maxZoom: AppConstants.MAP.MAX_ZOOM,
         maxNativeZoom: 18,
         attribution: 'Map <a href="https://memomaps.de/">memomaps.de</a> <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     });
 
-    var satelliteLayer = baseLayers ? baseLayers.satellite : L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: AppConstants.MAP.MAX_ZOOM,
         maxNativeZoom: 19,
         attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
@@ -211,50 +203,16 @@ function ensureZoomBannerExists() {
     // Rely on the existing #zoomBannerInfo element which is in the DOM
 }
 
-function isBlockingFilterDropdownOpen() {
-    var overlay = document.querySelector('.top-filters-overlay');
-    if (!overlay) return false;
-
-    return !!overlay.querySelector(
-        '.dropdown-menu.show[aria-labelledby="atlasDropdown"], ' +
-        '.dropdown-menu.show[aria-labelledby="osmDropdown"], ' +
-        '.dropdown-menu.show[aria-labelledby="matchedDropdown"], ' +
-        '.dropdown-menu.show[aria-labelledby="unmatchedDropdown"]'
-    );
-}
-
-function isBlockingFilterDropdownEvent(eventTarget) {
-    if (!eventTarget) return false;
-
-    var trigger = eventTarget.querySelector('.dropdown-toggle');
-    if (!trigger || !trigger.id) return false;
-
-    return (
-        trigger.id === 'atlasDropdown' ||
-        trigger.id === 'osmDropdown' ||
-        trigger.id === 'matchedDropdown' ||
-        trigger.id === 'unmatchedDropdown'
-    );
-}
-
 function showZoomBanner(show, delayMs = 0) {
     var banner = document.getElementById('zoomBannerInfo');
     if (!banner) return;
-
-    zoomBannerDesiredVisible = !!show;
 
     if (zoomBannerTimeout) {
         clearTimeout(zoomBannerTimeout);
         zoomBannerTimeout = null;
     }
 
-    // Hide while blocking filter dropdowns are open to prevent overlap.
-    if (!zoomBannerDesiredVisible || isBlockingFilterDropdownOpen()) {
-        banner.classList.add('d-none');
-        return;
-    }
-
-    if (zoomBannerDesiredVisible) {
+    if (show) {
         if (!banner.classList.contains('d-none')) return;
 
         if (delayMs > 0) {
@@ -283,31 +241,18 @@ function setZoomBannerShiftedByHint(shifted) {
 }
 
 function isMobileViewport() {
-    if (window.MobileFilters && typeof window.MobileFilters.isMobileViewport === 'function') {
-        return window.MobileFilters.isMobileViewport();
-    }
     return window.matchMedia('(max-width: 768px)').matches;
 }
 
 function setMobileFiltersOpen(open) {
     var overlay = document.querySelector('.top-filters-overlay');
+    var toggle = document.getElementById('mobileFiltersToggle');
     var banner = document.getElementById('zoomBannerInfo');
-    if (!overlay) return;
+    if (!overlay || !toggle) return;
 
     mobileFiltersOpen = !!open;
-    if (window.MobileFilters && typeof window.MobileFilters.setMobileFiltersOpen === 'function') {
-        window.MobileFilters.setMobileFiltersOpen({
-            overlaySelector: '.top-filters-overlay',
-            toggleId: 'mobileFiltersToggle',
-            isOpen: mobileFiltersOpen
-        });
-    } else {
-        var toggle = document.getElementById('mobileFiltersToggle');
-        overlay.classList.toggle('is-mobile-open', mobileFiltersOpen);
-        if (toggle) {
-            toggle.setAttribute('aria-expanded', mobileFiltersOpen ? 'true' : 'false');
-        }
-    }
+    overlay.classList.toggle('is-mobile-open', mobileFiltersOpen);
+    toggle.setAttribute('aria-expanded', mobileFiltersOpen ? 'true' : 'false');
     if (banner) {
         banner.classList.toggle('zoom-banner--filters-open', mobileFiltersOpen);
     }
@@ -592,10 +537,7 @@ function loadDataForViewport() {
             }
         }
     }
-    // Avoid transient flash at mid zoom (e.g. z13) with no active filters:
-    // defer showing until we know whether results are actually capped.
-    var preRequestShouldShowBanner = shouldShowBanner && (hasAnyActiveFilter || isLowZoom);
-    showZoomBanner(preRequestShouldShowBanner, preRequestShouldShowBanner ? 150 : 0);
+    showZoomBanner(shouldShowBanner, 150);
     var viewportBounds = map.getBounds();
     var params = {
         min_lat: viewportBounds.getSouth(),
@@ -770,10 +712,8 @@ function loadDataForViewport() {
                 // If we are not capped, we are showing all markers, so we can hide the "Zoom in" warning.
                 if (!capped) {
                     showZoomBanner(false);
-                } else {
-                    // If capped, show the default guidance text set before the request.
-                    showZoomBanner(true);
                 }
+                // If capped, the default text "Zoom in a bit more..." set before the request is still valid.
             }
         }
 
@@ -1406,11 +1346,6 @@ $(document).ready(function () {
         applyMobileLayoutState();
     });
 
-    $(document).on('shown.bs.dropdown hidden.bs.dropdown', '.dropdown', function (event) {
-        if (!isBlockingFilterDropdownEvent(event.target)) return;
-        showZoomBanner(zoomBannerDesiredVisible);
-    });
-
     var randomStopBtn = document.getElementById('randomStopBtn');
     var randomStopHint = document.getElementById('randomStopHint');
     if (randomStopBtn && randomStopHint) {
@@ -1594,8 +1529,8 @@ function updateHeaderSummary() {
 
         let summaryHtml = '';
 
-        const totalOSM = data.total_osm_nodes || 0;
-        const matchedOSM = data.matched_osm_nodes || 0;
+        const totalOSM = data.total_osm_stops || data.total_osm_nodes || 0;
+        const matchedOSM = data.matched_osm_stops || data.matched_osm_nodes || 0;
         const totalATLAS = data.total_atlas_stops || 0;
         const matchedATLAS = data.matched_atlas_stops || 0;
         // const matchedPairs = data.matched_pairs_count || 0;
@@ -1606,7 +1541,7 @@ function updateHeaderSummary() {
 
         // Always show both lines if data is available, colorize percentages
         if (totalOSM > 0) {
-            summaryHtml += `<div><i class="fas fa-map-marker-alt"></i> ${totalOSM} OSM nodes, <span style="color: #007bff; font-weight: bold;">${osmPercentage}% matched</span></div>`;
+            summaryHtml += `<div><i class="fas fa-map-marker-alt"></i> ${totalOSM} OSM stops, <span style="color: #007bff; font-weight: bold;">${osmPercentage}% matched</span></div>`;
         }
         if (totalATLAS > 0) {
             summaryHtml += `<div><i class="fas fa-atlas"></i> ${totalATLAS} ATLAS stops, <span style="color: #28a745; font-weight: bold;">${atlasPercentage}% matched</span></div>`;
