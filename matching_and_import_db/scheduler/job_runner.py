@@ -26,7 +26,11 @@ IMPORT_ETA_SECONDS = int(os.getenv("PIPELINE_IMPORT_ETA_SECONDS", "400"))
 def _run_subprocess(command: list[str], phase: str, message: str, maintenance: bool = False) -> None:
     set_phase(phase=phase, message=message, maintenance=maintenance)
     LOGGER.info("Running command: %s", " ".join(command))
-    completed = subprocess.run(command, check=False)
+    env = os.environ.copy()
+    # Keep child Python processes unbuffered so their progress logs appear in
+    # Docker logs in real time.
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    completed = subprocess.run(command, check=False, env=env)
     if completed.returncode != 0:
         raise RuntimeError(f"Command failed ({completed.returncode}): {' '.join(command)}")
 
@@ -103,7 +107,14 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
 
 
 def main() -> None:
-    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
+    # Force root logger configuration so INFO logs are visible when invoked via
+    # docker exec or imported from scheduler service.
+    logging.basicConfig(
+        level=LOG_LEVEL,
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+        stream=sys.stdout,
+        force=True,
+    )
 
     parser = argparse.ArgumentParser(description="Run data pipeline with status + lock integration.")
     parser.add_argument(

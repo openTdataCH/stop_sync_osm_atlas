@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy.orm import joinedload, subqueryload
 from backend.models import StopsMatched, AtlasStop, OsmNode, Problem
 from backend.extensions import db, limiter
+from backend.db_errors import is_missing_table_error
 from backend.serializers.stops import format_stop_data
 from sqlalchemy.sql import func
 
@@ -332,6 +333,17 @@ def get_problems():
             "sort_order": sort_order
         })
     except Exception as e:
+        if is_missing_table_error(e):
+            db.session.rollback()
+            app.logger.warning("Problems unavailable: matching tables are not initialized yet.")
+            return jsonify({
+                "problems": [],
+                "total": 0,
+                "page": 1,
+                "limit": 100,
+                "sort_by": request.args.get('sort_by', 'default'),
+                "sort_order": request.args.get('sort_order', 'asc')
+            }), 200
         app.logger.error(f"Error fetching problems: {str(e)}")
         import traceback
         app.logger.error(traceback.format_exc())
@@ -367,5 +379,15 @@ def get_problem_stats():
 
         return jsonify(stats)
     except Exception as e:
+        if is_missing_table_error(e):
+            db.session.rollback()
+            app.logger.warning("Problem stats unavailable: matching tables are not initialized yet.")
+            return jsonify({
+                'all': {'all': 0, 'solved': 0, 'unsolved': 0},
+                'distance': {'all': 0, 'solved': 0, 'unsolved': 0},
+                'unmatched': {'all': 0, 'solved': 0, 'unsolved': 0},
+                'attributes': {'all': 0, 'solved': 0, 'unsolved': 0},
+                'duplicates': {'all': 0, 'solved': 0, 'unsolved': 0}
+            }), 200
         app.logger.error(f"Error fetching problem stats: {str(e)}")
         return jsonify({"error": str(e)}), 500

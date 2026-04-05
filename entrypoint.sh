@@ -10,7 +10,7 @@ if [ "$MODE" = "scheduler" ]; then
     echo "Starting scheduler mode..."
     echo "Waiting for Postgres database..."
     python matching_and_import_db/database/init.py
-    exec python -m matching_and_import_db.scheduler.service
+    exec python -u -m matching_and_import_db.scheduler.service
 fi
 
 
