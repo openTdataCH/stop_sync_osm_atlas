@@ -16,7 +16,7 @@ import pandas as pd
 # Pipeline framework
 from matching_and_import_db.pipeline import MatchingContext, run_pipeline
 from matching_and_import_db.state import AtlasState, OsmState
-from matching_and_import_db.models import MatchingOutput
+from matching_and_import_db.models import MatchingOutput, OsmStopUnitRecord, OsmStopMemberRecord
 from matching_and_import_db.utils.common import haversine_distance
 
 from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
@@ -32,9 +32,7 @@ DEFAULT_PIPELINE = [
     NameMatchPredicate(),
     GroupProximityPredicate(),
     LocalRefDistancePredicate(),
-    NearestDistancePredicate(mode='single', pass_label='first'),
-    NearestDistancePredicate(mode='ratio', pass_label='first'),
-    NearestDistancePredicate(mode='single', pass_label='second'),
+    NearestDistancePredicate(),
     RouteMatchPredicate(),
     PostpassUniqueUicPredicate(),
 ]
@@ -181,28 +179,68 @@ def run_matching() -> MatchingOutput:
 
     pipeline_result = run_pipeline(pipeline, ctx)
 
-    # Build flat list of OSM pairs and trios from pre-grouping state.
-    osm_pairs = []
-    for rep_id, (group_type, siblings) in osm_index._group_siblings.items():
-        if group_type.startswith('osm_pair_') and siblings:
-            osm_pairs.append((rep_id, siblings[0].node_id, group_type))
+    # Build canonical OSM stop units (single / pair / trio).
+    all_osm_nodes = osm_index.get_all_nodes()
+    stop_units: list[OsmStopUnitRecord] = []
+    grouped_node_ids: set[str] = set()
 
-    osm_trios = []
-    for rep_id in osm_index.get_trio_representatives():
-        trio = osm_index.get_trio_for_representative(rep_id)
-        if trio is None:
+    for rep_id, (group_type, siblings) in osm_index._group_siblings.items():
+        rep_node_id = str(rep_id)
+
+        if group_type.startswith('osm_pair_'):
+            if not siblings:
+                continue
+            partner_id = str(siblings[0].node_id)
+            stop_units.append(OsmStopUnitRecord(
+                stop_kind='pair',
+                group_kind=group_type,
+                representative_node_id=rep_node_id,
+                members=[
+                    OsmStopMemberRecord(node_id=rep_node_id, member_role='pair_a'),
+                    OsmStopMemberRecord(node_id=partner_id, member_role='pair_b'),
+                ],
+            ))
+            grouped_node_ids.update([rep_node_id, partner_id])
             continue
-        middle_node_id, side_node_id_1, side_node_id_2 = trio
-        osm_trios.append((middle_node_id, side_node_id_1, side_node_id_2))
+
+        if group_type == 'osm_trio':
+            trio = osm_index.get_trio_for_representative(rep_node_id)
+            if trio is None:
+                continue
+            middle_node_id, side_node_id_1, side_node_id_2 = trio
+            middle_node_id = str(middle_node_id)
+            side_node_id_1 = str(side_node_id_1)
+            side_node_id_2 = str(side_node_id_2)
+            stop_units.append(OsmStopUnitRecord(
+                stop_kind='trio',
+                group_kind='osm_trio',
+                representative_node_id=rep_node_id,
+                members=[
+                    OsmStopMemberRecord(node_id=middle_node_id, member_role='trio_middle'),
+                    OsmStopMemberRecord(node_id=side_node_id_1, member_role='trio_side'),
+                    OsmStopMemberRecord(node_id=side_node_id_2, member_role='trio_side'),
+                ],
+            ))
+            grouped_node_ids.update([middle_node_id, side_node_id_1, side_node_id_2])
+
+    for node in all_osm_nodes:
+        node_id = str(node.node_id)
+        if node_id in grouped_node_ids:
+            continue
+        stop_units.append(OsmStopUnitRecord(
+            stop_kind='single',
+            group_kind=None,
+            representative_node_id=node_id,
+            members=[OsmStopMemberRecord(node_id=node_id, member_role='single')],
+        ))
 
     output = MatchingOutput(
         matched=pipeline_result.matched,
         unmatched_atlas=pipeline_result.unmatched_atlas,
         unmatched_osm=pipeline_result.unmatched_osm,
         duplicate_sloid_map=atlas_state.duplicate_sloid_map,
-        osm_pairs=osm_pairs,
-        osm_trios=osm_trios,
-        all_osm_nodes=osm_index.get_all_nodes(),
+        osm_stop_units=stop_units,
+        all_osm_nodes=all_osm_nodes,
     )
 
     # ── Summary ──────────────────────────────────────────────────────────

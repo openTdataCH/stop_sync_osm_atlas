@@ -105,7 +105,7 @@ def test_query_builder_osm_groups_apply_without_legacy_toggle():
         )
 
     assert 'stops_matched.osm_node_id IN' in sql
-    assert 'osm_pairs.group_type IN' in sql
+    assert 'osm_stops.group_kind IN' in sql
     assert "stops_matched.stop_type != 'matched'" not in sql
 
 
@@ -134,7 +134,8 @@ def test_query_builder_trio_only_filter_excludes_pair_type_predicate():
         )
 
     assert 'stops_matched.osm_node_id IN' in sql
-    assert 'osm_pairs.group_type IN' not in sql
+    assert "osm_stops.stop_kind = 'pair'" not in sql
+    assert "osm_stops.stop_kind = 'trio'" in sql
 
 
 def test_query_builder_supports_perfect_count_pair_group_types():
@@ -149,7 +150,7 @@ def test_query_builder_supports_perfect_count_pair_group_types():
         )
 
     assert 'stops_matched.osm_node_id IN' in sql
-    assert 'osm_pairs.group_type IN' in sql
+    assert 'osm_stops.group_kind IN' in sql
     assert 'osm_pair_uic_equal_15m' in sql
 
 
@@ -159,7 +160,8 @@ def test_scope_condition_matched_includes_trio_middle_effective_matches():
     sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
 
     assert "stop_type = 'matched'" in sql
-    assert 'osm_trios.middle_node_id = stops_matched.osm_node_id' in sql
+    assert 'trio_middle' in sql
+    assert 'trio_side' in sql
     assert "stop_type = 'osm_unmatched'" in sql
 
 
@@ -170,4 +172,5 @@ def test_scope_condition_osm_unmatched_excludes_trio_middle_effective_matches():
 
     assert "stop_type = 'osm_unmatched'" in sql
     assert 'NOT' in sql
-    assert 'osm_trios.middle_node_id = stops_matched.osm_node_id' in sql
+    assert 'trio_middle' in sql
+    assert 'trio_side' in sql

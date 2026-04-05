@@ -19,7 +19,7 @@
       <!-- Main navigation links -->
       <ul class="navbar-nav mr-auto">
         <li class="nav-item {%- if request.endpoint == 'index' %} active{%- endif %}">
-          <a class="nav-link" href="{{ url_for('index') }}">Map</a>
+          <a class="nav-link" href="{{ url_for('index') }}">Home</a>
         </li>
         <li class="nav-item {%- if request.endpoint == 'problems' %} active{%- endif %}">
           <a class="nav-link" href="{{ url_for('problems') }}">Problems</a>
@@ -28,19 +28,14 @@
         <li class="nav-item {%- if request.endpoint == 'reports_page' %} active{%- endif %}">
           <a class="nav-link" href="{{ url_for('reports_page') }}">Reports</a>
         </li>
-        <li class="nav-item {%- if request.endpoint == 'routes.routes_page' %} active{%- endif %}">
-          <a class="nav-link" href="{{ url_for('routes.routes_page') }}">Routes</a>
+        <li class="nav-item {%- if request.endpoint == 'routes_page' %} active{%- endif %}">
+          <a class="nav-link" href="{{ url_for('routes_page') }}">Routes</a>
         </li>
         <li class="nav-item {%- if request.endpoint == 'stats_page' %} active{%- endif %}">
           <a class="nav-link" href="{{ url_for('stats_page') }}">Stats</a>
         </li>
         <li class="nav-item {%- if request.endpoint and request.endpoint.startswith('docs.') %} active{%- endif %}">
           <a class="nav-link" href="{{ url_for('docs.docs_page') }}">Docs</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link" href="https://github.com/openTdataCH/stop_sync_osm_atlas" target="_blank">
-            <i class="fas fa-code-branch"></i> Repo
-          </a>
         </li>
       </ul>
 

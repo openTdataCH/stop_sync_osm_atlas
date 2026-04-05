@@ -61,43 +61,45 @@ def upgrade_():
         sa.Column('osm_amenity', sa.String(length=255), nullable=True),
         sa.Column('osm_aerialway', sa.String(length=255), nullable=True),
         sa.Column('osm_operator', sa.String(length=255), nullable=True),
-        sa.Column('is_way', sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column('source_way_id', sa.String(length=100), nullable=True),
-        sa.Column('way_node_ids', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column('osm_node_type', sa.String(length=50), nullable=True),
         sa.Column('duplicate_group_node_ids', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.PrimaryKeyConstraint('osm_node_id')
     )
 
-    # osm_pairs (two-node pair groups from pre-matching grouping)
-    op.create_table('osm_pairs',
+    # osm_stops (canonical OSM stop units)
+    op.create_table('osm_stops',
         sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('node_id_1', sa.String(length=100), nullable=False),
-        sa.Column('node_id_2', sa.String(length=100), nullable=False),
-        sa.Column('group_type', sa.String(length=50), nullable=False),
-        sa.ForeignKeyConstraint(['node_id_1'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['node_id_2'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
+        sa.Column('stop_kind', sa.String(length=20), nullable=False),
+        sa.Column('group_kind', sa.String(length=50), nullable=True),
+        sa.Column('representative_node_id', sa.String(length=100), nullable=False),
+        sa.CheckConstraint("stop_kind IN ('single', 'pair', 'trio')", name='ck_osm_stops_stop_kind'),
+        sa.CheckConstraint(
+            "group_kind IS NULL OR group_kind IN ('osm_pair_uic', 'osm_pair_name', 'osm_pair_tram', "
+            "'osm_pair_uic_equal_15m', 'osm_pair_name_equal_15m', 'osm_pair_tram_equal_15m', 'osm_trio')",
+            name='ck_osm_stops_group_kind'
+        ),
+        sa.ForeignKeyConstraint(['representative_node_id'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
-    with op.batch_alter_table('osm_pairs') as batch_op:
-        batch_op.create_index(batch_op.f('ix_osm_pairs_node_id_1'), ['node_id_1'], unique=False)
-        batch_op.create_index(batch_op.f('ix_osm_pairs_node_id_2'), ['node_id_2'], unique=False)
+    with op.batch_alter_table('osm_stops') as batch_op:
+        batch_op.create_index('idx_osm_stops_stop_kind', ['stop_kind'], unique=False)
+        batch_op.create_index('idx_osm_stops_group_kind', ['group_kind'], unique=False)
+        batch_op.create_index('idx_osm_stops_representative_node_id', ['representative_node_id'], unique=False)
 
-    # osm_trios (middle stop_position + two side nodes)
-    op.create_table('osm_trios',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('middle_node_id', sa.String(length=100), nullable=False),
-        sa.Column('side_node_id_1', sa.String(length=100), nullable=False),
-        sa.Column('side_node_id_2', sa.String(length=100), nullable=False),
-        sa.ForeignKeyConstraint(['middle_node_id'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['side_node_id_1'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
-        sa.ForeignKeyConstraint(['side_node_id_2'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id')
+    # osm_stop_members (node -> stop membership with role semantics)
+    op.create_table('osm_stop_members',
+        sa.Column('osm_stop_id', sa.Integer(), nullable=False),
+        sa.Column('node_id', sa.String(length=100), nullable=False),
+        sa.Column('member_role', sa.String(length=20), nullable=False),
+        sa.CheckConstraint(
+            "member_role IN ('single', 'pair_a', 'pair_b', 'trio_middle', 'trio_side')",
+            name='ck_osm_stop_members_member_role'
+        ),
+        sa.ForeignKeyConstraint(['osm_stop_id'], ['osm_stops.id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['node_id'], ['osm_nodes.osm_node_id'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('osm_stop_id', 'node_id'),
+        sa.UniqueConstraint('node_id', name='uq_osm_stop_members_node_id')
     )
-    with op.batch_alter_table('osm_trios') as batch_op:
-        batch_op.create_index(batch_op.f('ix_osm_trios_middle_node_id'), ['middle_node_id'], unique=False)
-        batch_op.create_index(batch_op.f('ix_osm_trios_side_node_id_1'), ['side_node_id_1'], unique=False)
-        batch_op.create_index(batch_op.f('ix_osm_trios_side_node_id_2'), ['side_node_id_2'], unique=False)
 
     # route_atlas_stops
     op.create_table('route_atlas_stops',

@@ -11,8 +11,13 @@
 
 {% block content %}
 <div class="container-fluid docs-container">
-  <div class="mb-3">
-    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Map</a>
+  <div class="mb-4 d-flex align-items-center">
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary mr-2 shadow-sm">
+      <i class="fas fa-arrow-left"></i> Back to Map
+    </a>
+    <a href="https://github.com/openTdataCH/stop_sync_osm_atlas" target="_blank" class="btn btn-outline-primary repo-btn shadow-sm">
+      <i class="fas fa-code-branch mr-1"></i> Repo
+    </a>
   </div>
   <div class="row">
     <div class="col-md-3 docs-sidebar pr-0">

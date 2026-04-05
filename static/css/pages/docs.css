@@ -99,6 +99,26 @@
 }
 
 /* -------------------------------------------------------------------------
+   Repo Button (Next to 'Back to Map')
+   ------------------------------------------------------------------------- */
+.repo-btn {
+  border-radius: var(--radius-md, 8px);
+  font-weight: var(--font-semibold, 600);
+  padding: .375rem .75rem;
+  transition: all var(--transition-fast);
+}
+
+.repo-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1)) !important;
+}
+
+.repo-btn i {
+  color: inherit !important;
+}
+
+
+/* -------------------------------------------------------------------------
    Content Area
    ------------------------------------------------------------------------- */
 .docs-content img {

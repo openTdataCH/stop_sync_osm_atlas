@@ -102,15 +102,13 @@ class ProblemContext:
         # -- UIC counts -------------------------------------------------------
         ctx._build_uic_counts(matched, unmatched_atlas, unmatched_osm)
 
-        # -- Build set of OSM node IDs that are members of pre-grouped pairs/trios --
+        # -- Build set of OSM node IDs that are members of pre-grouped stop units --
         grouped_osm_node_ids: set[str] = set()
-        for n1, n2, _ in output.osm_pairs:
-            grouped_osm_node_ids.add(str(n1))
-            grouped_osm_node_ids.add(str(n2))
-        for middle, side_1, side_2 in output.osm_trios:
-            grouped_osm_node_ids.add(str(middle))
-            grouped_osm_node_ids.add(str(side_1))
-            grouped_osm_node_ids.add(str(side_2))
+        for stop_unit in getattr(output, 'osm_stop_units', []):
+            if getattr(stop_unit, 'stop_kind', 'single') == 'single':
+                continue
+            for member in getattr(stop_unit, 'members', []):
+                grouped_osm_node_ids.add(str(member.node_id))
 
         # -- OSM duplicate groups (excludes pre-grouped nodes) ----------------
         ctx._build_osm_duplicate_map(matched, unmatched_osm, grouped_osm_node_ids)

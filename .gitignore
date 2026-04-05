@@ -85,7 +85,12 @@ coverage/
 # Generated documentation
 documentation/generated/
 
-latex_document_non_nodes/
-latex_document_routes/
+latex_document_routes
+
+latex_document_non_nodes
 
 !tests/data
+
+# Root markdown files except README.md
+/*.md
+!/README.md
