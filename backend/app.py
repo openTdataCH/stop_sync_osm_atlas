@@ -65,7 +65,6 @@ def create_app():
     app.register_blueprint(docs_bp)
     app.register_blueprint(system_bp)
     app.register_blueprint(routes_bp)
-    app.register_blueprint(system_bp)
 
     @app.route('/')
     def index():
