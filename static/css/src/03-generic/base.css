@@ -28,6 +28,13 @@ body {
   overflow-y: auto;
 }
 
+@media print {
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
 body {
   font-family: var(--font-sans);
   font-size: var(--text-base);

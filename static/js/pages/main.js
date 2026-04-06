@@ -22,6 +22,7 @@ var currentGlobalStatsRequest = null; // jqXHR of in-flight /api/global_stats
 var currentGlobalStatsSeq = 0;  // sequence id to ignore stale global stats responses
 var loadViewportTimer = null;   // debounce timer id
 var zoomBannerTimeout = null;   // debounce timer for the zoom warning banner
+var zoomBannerTransientHiddenReasons = Object.create(null); // temporary hide reasons (e.g. hover/tooltips)
 var suppressViewportReloadCount = 0; // skip this many reloads after programmatic center
 var headerSummaryFiltersExpanded = false;
 var headerSummaryCollapsed = false;
@@ -234,10 +235,18 @@ function setZoomBannerText(text) {
     banner.textContent = text;
 }
 
-function setZoomBannerShiftedByHint(shifted) {
+function setZoomBannerTransientHidden(reasonKey, hidden) {
     var banner = document.getElementById('zoomBannerInfo');
     if (!banner) return;
-    banner.classList.toggle('zoom-banner--shifted', !!shifted);
+
+    if (!reasonKey) return;
+    zoomBannerTransientHiddenReasons[String(reasonKey)] = !!hidden;
+
+    var shouldHide = Object.keys(zoomBannerTransientHiddenReasons).some(function (k) {
+        return zoomBannerTransientHiddenReasons[k];
+    });
+
+    banner.classList.toggle('zoom-banner--faded', shouldHide);
 }
 
 function isMobileViewport() {
@@ -1373,7 +1382,7 @@ $(document).ready(function () {
             }
             randomHintShowTimer = setTimeout(function () {
                 randomStopHint.classList.remove('d-none');
-                setZoomBannerShiftedByHint(true);
+                setZoomBannerTransientHidden('random-hint', true);
                 randomHintShowTimer = null;
             }, 70);
         };
@@ -1385,7 +1394,7 @@ $(document).ready(function () {
             }
             randomHintHideTimer = setTimeout(function () {
                 randomStopHint.classList.add('d-none');
-                setZoomBannerShiftedByHint(false);
+                setZoomBannerTransientHidden('random-hint', false);
                 randomHintHideTimer = null;
             }, 120);
         };
@@ -1395,7 +1404,21 @@ $(document).ready(function () {
         randomStopBtn.addEventListener('focus', showRandomStopHint);
         randomStopBtn.addEventListener('blur', hideRandomStopHint);
         randomStopBtn.addEventListener('click', hideRandomStopHint);
-        window.addEventListener('beforeunload', cancelRandomHintTimers);
+        window.addEventListener('beforeunload', function () {
+            cancelRandomHintTimers();
+            setZoomBannerTransientHidden('random-hint', false);
+        });
+    }
+
+    // Hide zoom banner while desktop filter popups are open to avoid overlap.
+    var topFiltersOverlay = document.querySelector('.top-filters-overlay');
+    if (topFiltersOverlay) {
+        $(topFiltersOverlay).on('shown.bs.dropdown', '.dropdown', function () {
+            setZoomBannerTransientHidden('filters-dropdown', true);
+        });
+        $(topFiltersOverlay).on('hidden.bs.dropdown', '.dropdown', function () {
+            setZoomBannerTransientHidden('filters-dropdown', false);
+        });
     }
 
     // Fix race condition: flexbox layout may not be fully computed when Leaflet initializes

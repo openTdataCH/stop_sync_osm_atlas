@@ -459,6 +459,12 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
         # Calculate OSM stop counts from canonical stop units
         osm_stop_units = getattr(base_data, 'osm_stop_units', [])
         total_osm_stops = len(osm_stop_units)
+        
+        # Calculate raw OSM nodes count
+        all_osm_nodes = getattr(base_data, 'all_osm_nodes', [])
+        total_osm_nodes = len(all_osm_nodes)
+        total_osm_stations = sum(1 for node in all_osm_nodes if getattr(node, 'is_station', False))
+
         node_to_stop_id = {}
         for stop_idx, stop_unit in enumerate(osm_stop_units):
             for member in stop_unit.members:
@@ -516,8 +522,11 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
             unmatched_osm=unmatched_osm,
             duplicate_sloid_map=duplicate_sloid_map,
             no_nearby_osm_sloids=no_nearby_sloids,
+            osm_stop_units=osm_stop_units,
             total_atlas_platforms=total_atlas,
             total_osm_stops=total_osm_stops,
+            total_osm_nodes=total_osm_nodes,
+            total_osm_stations=total_osm_stations,
             total_matched_osm_stops=matched_osm_stops,
             total_unmatched_osm_stops=unmatched_osm_stops,
             atlas_route_stats=atlas_route_stats,
@@ -547,6 +556,29 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
         filepath = save_stats_to_file(stats)
         print(f"\n==== STATISTICS EXPORTED ====")
         print(f"Stats saved to: {filepath}")
+        
+        # 5. Generate PDF summary report
+        try:
+            import importlib.util
+
+            if importlib.util.find_spec('weasyprint') is None:
+                print("Skipping PDF summary report: WeasyPrint is not installed in this environment.")
+            else:
+                from backend.services.stats_export import generate_stats_summary_pdf
+                from backend.app import create_app
+                # Ensure root dir in path for flask app
+                import sys
+                root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                if root_dir not in sys.path:
+                    sys.path.append(root_dir)
+
+                app = create_app()
+                with app.app_context():
+                    pdf_path = generate_stats_summary_pdf(stats)
+                    print(f"PDF report generated at: {pdf_path}")
+        except Exception as e:
+            print(f"Warning: Could not generate PDF report: {e}")
+
         print(f"Generated at: {stats['generated_at']}")
         print(f"Summary: {stats['summary']['matched_pairs']} matched pairs ({stats['summary']['match_rate_percent']}%)")
         

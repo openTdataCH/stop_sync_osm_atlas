@@ -10,6 +10,7 @@ from backend.blueprints.search import search_bp
 from backend.blueprints.stats import stats_bp
 from backend.blueprints.problems import problems_bp
 from backend.blueprints.docs import docs_bp
+from backend.blueprints.docs import ensure_docs_pdf_generated
 from backend.blueprints.system import system_bp
 from backend.blueprints.routes import routes_bp
 
@@ -78,12 +79,8 @@ def create_app():
     def problems():
         return render_template('pages/problems.html')
 
-    @app.route('/reports')
-    def reports_page():
-        return render_template('pages/reports.html')
-
-    @app.route('/stats')
-    def stats_page():
+    @app.route('/insights')
+    def insights_page():
         from backend.services.stats_export import load_stats_from_file
         stats = load_stats_from_file()
         gtfs_mapping_stats = stats.get('gtfs_mapping') if stats else None
@@ -96,7 +93,7 @@ def create_app():
             problem_breakdown = {int(k): v for k, v in raw.items()}
 
         return render_template(
-            'pages/stats.html',
+            'pages/insights.html',
             stats=stats,
             problem_breakdown=problem_breakdown,
             gtfs_mapping_stats=gtfs_mapping_stats,
@@ -109,6 +106,12 @@ def create_app():
     @app.errorhandler(500)
     def server_error(e):
         return render_template('errors/500.html'), 500
+
+    # Best effort: keep docs PDF pre-generated for fast download.
+    try:
+        ensure_docs_pdf_generated()
+    except Exception:
+        app.logger.warning('Docs PDF pre-generation failed during startup.', exc_info=True)
 
     return app
 

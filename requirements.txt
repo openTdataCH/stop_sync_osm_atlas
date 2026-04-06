@@ -18,7 +18,7 @@ Werkzeug==3.0.3
 requests==2.31.0
 
 # PDF generation (for reports)
-pdfkit==1.0.0
+weasyprint>=68.1
 
 # Data processing (for data pipeline scripts only)
 # These are needed for: get_atlas_data.py, import_data_db.py, matching_process/

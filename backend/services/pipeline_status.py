@@ -28,12 +28,14 @@ def _base_status() -> Dict[str, Any]:
         "phase": "idle",
         "message": "No update running",
         "maintenance": False,
+        "blocking_maintenance": False,
         "processed": None,
         "total": None,
         "eta_seconds": None,
         "run_id": None,
         "trigger": None,
         "started_at": None,
+        "maintenance_started_at": None,
         "updated_at": _now_iso(),
         "finished_at": None,
         "last_success_at": None,
@@ -89,6 +91,24 @@ def get_status() -> Dict[str, Any]:
 
 def set_status(**fields: Any) -> Dict[str, Any]:
     current = get_status()
+
+    current_blocking = bool(current.get("blocking_maintenance", current.get("maintenance", False)))
+    incoming_blocking = fields.get("blocking_maintenance")
+    if incoming_blocking is None:
+        incoming_blocking = fields.get("maintenance", current_blocking)
+    incoming_blocking = bool(incoming_blocking)
+
+    # Keep both keys aligned for backward compatibility.
+    fields["blocking_maintenance"] = incoming_blocking
+    fields["maintenance"] = incoming_blocking
+
+    # If starting blocking maintenance mode, record the start time for UI counters.
+    if incoming_blocking and not current_blocking:
+        fields["maintenance_started_at"] = _now_iso()
+    # If leaving blocking maintenance mode, clear the start time.
+    elif not incoming_blocking and current_blocking:
+        fields["maintenance_started_at"] = None
+
     current.update(fields)
     current["updated_at"] = _now_iso()
     _write_raw_status(current)
@@ -102,6 +122,7 @@ def start_run(trigger: str, run_id: Optional[str] = None) -> str:
         phase="initializing",
         message="Initializing pipeline run",
         maintenance=False,
+        blocking_maintenance=False,
         processed=None,
         total=None,
         eta_seconds=None,
@@ -119,15 +140,18 @@ def set_phase(
     message: str,
     *,
     maintenance: bool = False,
+    blocking_maintenance: Optional[bool] = None,
     processed: Optional[int] = None,
     total: Optional[int] = None,
     eta_seconds: Optional[int] = None,
 ) -> Dict[str, Any]:
+    effective_blocking = maintenance if blocking_maintenance is None else blocking_maintenance
     return set_status(
         status="running",
         phase=phase,
         message=message,
-        maintenance=maintenance,
+        maintenance=effective_blocking,
+        blocking_maintenance=effective_blocking,
         processed=processed,
         total=total,
         eta_seconds=eta_seconds,
@@ -141,6 +165,7 @@ def finish_success(message: str = "Pipeline update completed") -> Dict[str, Any]
         phase="idle",
         message=message,
         maintenance=False,
+        blocking_maintenance=False,
         processed=None,
         total=None,
         eta_seconds=None,
@@ -157,6 +182,7 @@ def finish_failure(error_message: str) -> Dict[str, Any]:
         phase="failed",
         message="Pipeline update failed",
         maintenance=False,
+        blocking_maintenance=False,
         finished_at=ts,
         last_error=error_message,
     )

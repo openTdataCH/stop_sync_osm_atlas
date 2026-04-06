@@ -60,13 +60,26 @@ def get_osm_node_type(rec, is_osm_unmatched=False):
 def ensure_schema_updated():
     """Run Alembic migrations to ensure the DB schema is up to date."""
     try:
+        import os
+        from flask import Flask
         from flask_migrate import upgrade
-        from backend.app import app
-        from backend.extensions import db
+        from backend.extensions import db, migrate
+        import backend.models  # noqa: F401 - Ensure models are registered for Alembic
         from sqlalchemy import text
+
+        app = Flask(__name__)
+        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
+            'DATABASE_URI',
+            'postgresql+psycopg://stops_user:1234@localhost:5432/import_db',
+        )
+        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+        db.init_app(app)
+        migrate.init_app(app, db)
 
         known_revisions = {
             'b5fa82492b15',
+            '0fd9b8d7a1c4',
+            '34cb04acd397',
             '647fb683a8d3',
         }
 
@@ -75,6 +88,8 @@ def ensure_schema_updated():
             try:
                 current_revision = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar()
             except Exception:
+                # A failed probe can leave the session transaction aborted.
+                db.session.rollback()
                 return
 
             if current_revision and current_revision not in known_revisions:
@@ -109,6 +124,9 @@ def ensure_schema_updated():
 
         with app.app_context():
             _upgrade_with_recovery()
+            # Ensure cleanup statements run in a fresh transaction even if previous
+            # revision-probe logic encountered and handled SQL errors.
+            db.session.rollback()
             # Development cleanup: remove deprecated duplicate flags from stops_matched
             # while keeping a single migration history file.
             db.session.execute(text("ALTER TABLE stops_matched DROP COLUMN IF EXISTS has_atlas_duplicate"))

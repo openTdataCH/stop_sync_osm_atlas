@@ -35,6 +35,20 @@
     {% block content %}{% endblock %}
   </main>
 
+  <div id="pipelineRunNotice" class="pipeline-run-notice" aria-live="polite" aria-atomic="true" role="status">
+    <div class="pipeline-run-notice__content">
+      <div class="pipeline-run-notice__title">
+        <i class="fas fa-sync-alt fa-spin"></i>
+        <span>Data update running in background</span>
+      </div>
+      <div class="pipeline-run-notice__meta">
+        <span id="pipelineRunNoticeStatus">Preparing update...</span>
+        <span class="pipeline-run-notice__separator">|</span>
+        <span>Phase: <strong id="pipelineRunNoticePhase">initializing</strong></span>
+      </div>
+    </div>
+  </div>
+
   <div id="pipelineMaintenanceOverlay" aria-live="polite" aria-atomic="true" role="status">
     <div class="pipeline-maintenance-card">
       <div class="pipeline-maintenance-card__header">
@@ -43,7 +57,7 @@
       </div>
       <div class="pipeline-maintenance-card__body">
         <div id="pipelineMaintenanceStatus" class="pipeline-maintenance-card__status">
-          Importing latest data. The app will be available again shortly.
+          Importing into database (maintenance window), you can take advantage to <a href="{{ url_for('docs.docs_page') }}" class="font-weight-bold">visit the doc</a>...
         </div>
         <div class="pipeline-maintenance-card__timers">
           <span class="pipeline-maintenance-chip">

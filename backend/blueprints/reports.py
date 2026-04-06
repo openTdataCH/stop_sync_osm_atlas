@@ -4,7 +4,6 @@ from backend.extensions import db, limiter
 from sqlalchemy.orm import joinedload
 from backend.query_helpers import optimize_query_for_endpoint
 from datetime import datetime
-import pdfkit
 import csv
 from io import StringIO
 import threading
@@ -131,6 +130,19 @@ def generate_report_data(params, task_id):
             return s
 
         sort_param = _normalize_sort(report_type, sort_param)
+        
+        if report_type == 'summary':
+            # Summary report doesn't use standard data queries, it uses the pre-calculated stats
+            from backend.services.stats_export import get_pipeline_stats
+            from backend.extensions import db
+            from backend.services.stats_export import compute_db_stats
+            
+            stats = get_pipeline_stats()
+            # Also get real-time problem stats from DB
+            problem_stats = compute_db_stats(db.session)
+            
+            update_progress(task_id, 100, 100, start_time)
+            return {'stats': stats, 'problem_stats': problem_stats}, 'summary'
 
         def _apply_atlas_operator_filter(query):
             if not atlas_operators:
@@ -467,23 +479,38 @@ def background_report_generation(params, task_id, flask_app):
                 report_title_map = {
                     'distance': 'Top Distance Matched Pairs',
                     'unmatched': 'Unmatched Entries Report', 
-                    'problems': 'Problems Report'
+                    'problems': 'Problems Report',
+                    'summary': 'Statistics Summary Report'
                 }
                 report_title = report_title_map.get(report_type, 'OSM & ATLAS Report')
                 
-                report_html = render_template(
-                    'reports/report.html',
-                    report_items=data_for_report,
-                    generated_at=datetime.now(),
-                    sort_order=params.get('sort', 'operator_asc'),
-                    report_title=report_title,
-                    report_type=report_type,
-                    include_fields=include_fields
-                )
-                pdf = pdfkit.from_string(report_html, False)
-                
-                with open(filepath, 'wb') as f:
-                    f.write(pdf)
+                if report_type == 'summary':
+                    template = 'reports/stats_summary.html'
+                    kwargs = {
+                        'stats': data_for_report['stats'],
+                        'problem_breakdown': data_for_report['problem_stats'].get('by_priority', {}),
+                        'probs': data_for_report['problem_stats'],
+                        'generated_at': datetime.now()
+                    }
+                else:
+                    template = 'reports/report.html'
+                    kwargs = {
+                        'report_items': data_for_report,
+                        'generated_at': datetime.now(),
+                        'sort_order': params.get('sort', 'operator_asc'),
+                        'report_title': report_title,
+                        'report_type': report_type,
+                        'include_fields': include_fields
+                    }
+
+                report_html = render_template(template, **kwargs)
+                try:
+                    from weasyprint import HTML
+                except ModuleNotFoundError as exc:
+                    raise RuntimeError(
+                        "WeasyPrint is required to generate PDF reports. Install web dependencies."
+                    ) from exc
+                HTML(string=report_html).write_pdf(filepath)
             
             # Store completed report
             with _state_lock:
