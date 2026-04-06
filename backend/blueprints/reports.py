@@ -906,7 +906,14 @@ def generate_report():
             report_type=report_type,
             include_fields=include_fields
         )
-        pdf = pdfkit.from_string(report_html, False)
+        try:
+            from weasyprint import HTML
+        except ModuleNotFoundError as exc:
+            raise RuntimeError(
+                "WeasyPrint is required to generate PDF reports. Install web dependencies."
+            ) from exc
+
+        pdf = HTML(string=report_html).write_pdf()
         response = app.response_class(pdf, mimetype='application/pdf')
         response.headers["Content-Disposition"] = f"attachment; filename={pdf_filename_stem}.pdf"
         return response
