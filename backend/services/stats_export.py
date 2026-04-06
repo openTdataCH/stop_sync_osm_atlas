@@ -34,8 +34,11 @@ def export_pipeline_stats(
     unmatched_osm: list,
     duplicate_sloid_map: dict,
     no_nearby_osm_sloids: set,
+    osm_stop_units: list | None = None,
     total_atlas_platforms: int = None,
     total_osm_stops: int = None,
+    total_osm_nodes: int = None,
+    total_osm_stations: int = None,
     total_matched_osm_stops: int = None,
     total_unmatched_osm_stops: int = None,
     atlas_route_stats: Dict[str, int] = None,
@@ -54,8 +57,11 @@ def export_pipeline_stats(
         unmatched_osm: List of unmatched OSM nodes
         duplicate_sloid_map: Map of duplicate ATLAS sloids
         no_nearby_osm_sloids: Set of ATLAS sloids with no OSM within 50m
+        osm_stop_units: Canonical OSM stop units (optional, used for stop-level many-to-one)
         total_atlas_platforms: Total ATLAS platforms (optional, calculated if not provided)
         total_osm_stops: Total OSM stop units processed (optional)
+        total_osm_nodes: Total raw OSM nodes processed (optional)
+        total_osm_stations: Total OSM stations (optional)
         total_matched_osm_stops: Matched OSM stop units (optional)
         total_unmatched_osm_stops: Unmatched OSM stop units (optional)
     
@@ -91,6 +97,12 @@ def export_pipeline_stats(
             unmatched_osm_stop_count = max(0, total_osm_stops - matched_osm_stop_count)
         else:
             unmatched_osm_stop_count = total_unmatched_osm
+
+    # OSM node counts
+    total_osm_nodes_count = total_osm_nodes
+    if total_osm_nodes_count is None:
+        # Fallback to sum of lengths if not provided
+        total_osm_nodes_count = total_matched + total_unmatched_osm
     
     # Match rate calculation
     match_rate = (distinct_matched_atlas / total_atlas_platforms * 100) if total_atlas_platforms > 0 else 0
@@ -109,14 +121,20 @@ def export_pipeline_stats(
     osm_group_propagation_matches = match_type_counts.get('osm_group_propagation', 0)
     
     # Distance matching breakdown
+    distance_stage0 = match_type_counts.get('distance_matching_trio', 0)
     distance_stage1 = sum(
         v for k, v in match_type_counts.items() 
         if k.startswith('distance_matching_1_')
     )
+    distance_stage1_uic_ref = match_type_counts.get('distance_matching_1_uic_ref', 0)
+    distance_stage1_uic_name = match_type_counts.get('distance_matching_1_uic_name', 0)
+    distance_stage1_name = match_type_counts.get('distance_matching_1_name', 0)
     distance_stage2 = match_type_counts.get('distance_matching_2', 0)
-    distance_stage3a = match_type_counts.get('distance_matching_3a', 0)
+    distance_stage3a_pass1 = match_type_counts.get('distance_matching_3a', 0)
+    distance_stage3a_pass2 = match_type_counts.get('distance_matching_3a_second_pass', 0)
+    distance_stage3a = distance_stage3a_pass1 + distance_stage3a_pass2
     distance_stage3b = match_type_counts.get('distance_matching_3b', 0)
-    total_distance_matches = distance_stage1 + distance_stage2 + distance_stage3a + distance_stage3b
+    total_distance_matches = distance_stage0 + distance_stage1 + distance_stage2 + distance_stage3a + distance_stage3b
     
     # Route matching breakdown
     route_gtfs_matches = sum(
@@ -170,6 +188,11 @@ def export_pipeline_stats(
     
     # No nearby OSM count
     no_nearby_osm_count = len(no_nearby_osm_sloids) if no_nearby_osm_sloids else 0
+    atlas_with_osm_within_50m = max(0, total_atlas_platforms - no_nearby_osm_count)
+    matched_atlas_with_osm_within_50m_percent = (
+        round((distinct_matched_atlas / atlas_with_osm_within_50m * 100), 1)
+        if atlas_with_osm_within_50m > 0 else 0
+    )
     
     # Duplicate counts
     total_duplicate_sloids = len(duplicate_sloid_map) if duplicate_sloid_map else 0
@@ -184,14 +207,23 @@ def export_pipeline_stats(
     
     # Calculate Many-to-One metrics per stage
     mto_pairs_by_type = defaultdict(int)
+    osm_stop_units = osm_stop_units or []
+    node_to_stop_id: Dict[str, str] = {}
+    for stop_idx, stop_unit in enumerate(osm_stop_units):
+        for member in getattr(stop_unit, 'members', []) or []:
+            node_id = getattr(member, 'node_id', None)
+            if node_id:
+                node_to_stop_id[str(node_id)] = str(stop_idx)
+
     atlas_to_osm = defaultdict(set)
     osm_to_atlas = defaultdict(set)
     for record in matched_records:
         sloid = getattr(getattr(record, 'atlas_node', None), 'sloid', None)
         osm_id = getattr(getattr(record, 'osm_node', None), 'node_id', None)
         if sloid and osm_id:
-            atlas_to_osm[str(sloid)].add(str(osm_id))
-            osm_to_atlas[str(osm_id)].add(str(sloid))
+            canonical_osm_stop = node_to_stop_id.get(str(osm_id), f"node:{osm_id}")
+            atlas_to_osm[str(sloid)].add(canonical_osm_stop)
+            osm_to_atlas[canonical_osm_stop].add(str(sloid))
 
     atlas_multi = {s for s, ids in atlas_to_osm.items() if len(ids) > 1}
     osm_multi = {n for n, ids in osm_to_atlas.items() if len(ids) > 1}
@@ -200,9 +232,47 @@ def export_pipeline_stats(
         sloid = getattr(getattr(record, 'atlas_node', None), 'sloid', None)
         osm_id = getattr(getattr(record, 'osm_node', None), 'node_id', None)
         if sloid and osm_id:
-            if str(sloid) in atlas_multi or str(osm_id) in osm_multi:
+            canonical_osm_stop = node_to_stop_id.get(str(osm_id), f"node:{osm_id}")
+            if str(sloid) in atlas_multi or canonical_osm_stop in osm_multi:
                 mt = getattr(record, 'match_type', 'unknown') or 'unknown'
                 mto_pairs_by_type[mt] += 1
+
+    route_method_counts = {
+        'gtfs_tokens': 0,
+        'direction_name': 0,
+        'other': 0,
+    }
+    for record in matched_records:
+        mt = getattr(record, 'match_type', '') or ''
+        if not mt.startswith('route_'):
+            continue
+        evidence = (getattr(record, 'notes', '') or '').strip()
+        if evidence == 'gtfs_tokens':
+            route_method_counts['gtfs_tokens'] += 1
+        elif evidence == 'direction_name':
+            route_method_counts['direction_name'] += 1
+        else:
+            route_method_counts['other'] += 1
+
+    # Way-based OSM stops analysis
+    matched_ways = {
+        str(r.osm_node.node_id)
+        for r in matched_records
+        if getattr(r.osm_node, 'is_way', False) and getattr(r, 'osm_node', None)
+    }
+    unmatched_ways = {
+        str(n.node_id)
+        for n in unmatched_osm
+        if getattr(n, 'is_way', False)
+    }
+    total_way_stops = len(matched_ways | unmatched_ways)
+    way_match_rate = (len(matched_ways) / total_way_stops * 100) if total_way_stops > 0 else 0
+    osm_way_stops = {
+        "total": total_way_stops,
+        "matched": len(matched_ways),
+        "unmatched": len(unmatched_ways),
+        "match_rate_percent": round(way_match_rate, 1)
+    }
 
     
     # Build the stats object
@@ -213,15 +283,19 @@ def export_pipeline_stats(
         # High-level summary (for overview)
         "summary": {
             "atlas_platforms": total_atlas_platforms,
-            "osm_stops": total_osm_stops or (total_matched + total_unmatched_osm),
-            # Backward-compatible alias; carries stop semantics now.
-            "osm_nodes": total_osm_stops or (total_matched + total_unmatched_osm),
+            "osm_stops": total_osm_stops if total_osm_stops is not None else (total_matched + total_unmatched_osm),
+            "osm_nodes": total_osm_nodes_count,
+            "osm_stations": total_osm_stations if total_osm_stations is not None else 0,
             "matched_osm_stops": matched_osm_stop_count,
             "matched_pairs": total_matched,
             "distinct_matched_atlas": distinct_matched_atlas,
             "match_rate_percent": round(match_rate, 1),
             "unmatched_atlas": total_unmatched_atlas,
             "unmatched_osm": unmatched_osm_stop_count,
+            # Nearby OSM coverage (ATLAS with at least one OSM within 50m)
+            "atlas_with_osm_within_50m": atlas_with_osm_within_50m,
+            "atlas_with_osm_within_50m_percent": round((atlas_with_osm_within_50m / total_atlas_platforms * 100), 1) if total_atlas_platforms > 0 else 0,
+            "matched_atlas_with_osm_within_50m_percent": matched_atlas_with_osm_within_50m_percent,
         },
         
         # Matching stage breakdown
@@ -241,12 +315,32 @@ def export_pipeline_stats(
                 "mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching')),
                 "description": "Proximity-based spatial matching (≤50m)",
                 "breakdown": {
+                    "stage0_trio": distance_stage0,
+                    "stage0_trio_mto": mto_pairs_by_type.get('distance_matching_trio', 0),
                     "stage1_group": distance_stage1,
                     "stage1_group_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching_1_')),
+                    "stage1_group_by_key": {
+                        "uic_ref": {
+                            "count": distance_stage1_uic_ref,
+                            "mto": mto_pairs_by_type.get('distance_matching_1_uic_ref', 0),
+                        },
+                        "uic_name": {
+                            "count": distance_stage1_uic_name,
+                            "mto": mto_pairs_by_type.get('distance_matching_1_uic_name', 0),
+                        },
+                        "name": {
+                            "count": distance_stage1_name,
+                            "mto": mto_pairs_by_type.get('distance_matching_1_name', 0),
+                        },
+                    },
                     "stage2_local_ref": distance_stage2,
                     "stage2_local_ref_mto": mto_pairs_by_type.get('distance_matching_2', 0),
                     "stage3a_single": distance_stage3a,
-                    "stage3a_single_mto": mto_pairs_by_type.get('distance_matching_3a', 0),
+                    "stage3a_single_mto": mto_pairs_by_type.get('distance_matching_3a', 0) + mto_pairs_by_type.get('distance_matching_3a_second_pass', 0),
+                    "stage3a_single_pass1": distance_stage3a_pass1,
+                    "stage3a_single_pass1_mto": mto_pairs_by_type.get('distance_matching_3a', 0),
+                    "stage3a_single_pass2": distance_stage3a_pass2,
+                    "stage3a_single_pass2_mto": mto_pairs_by_type.get('distance_matching_3a_second_pass', 0),
                     "stage3b_relative": distance_stage3b,
                     "stage3b_relative_mto": mto_pairs_by_type.get('distance_matching_3b', 0),
                 }
@@ -292,8 +386,25 @@ def export_pipeline_stats(
             "unmatched_duplicates": unmatched_duplicate_items,
         },
         
+        # Non-node OSM stops (Ways)
+        "osm_way_stops": osm_way_stops,
+        
         # Raw match type counts for debugging/advanced use
         "match_type_counts": match_type_counts,
+
+        # Route matching details for analytics table
+        "route_matching": {
+            "total": total_route_matches,
+            "by_source": {
+                "gtfs": route_gtfs_matches,
+                "hrdf": route_hrdf_matches,
+            },
+            "by_method": {
+                "gtfs_tokens": route_method_counts['gtfs_tokens'],
+                "direction_name_fallback": route_method_counts['direction_name'],
+                "other_or_legacy": route_method_counts['other'],
+            },
+        },
     }
     
     # Add detailed route stats if provided
@@ -332,6 +443,8 @@ def _classify_match_type(match_type: str) -> str:
     if match_type == 'distance_matching_2':
         return 'distance_stage2'
     if match_type == 'distance_matching_3a':
+        return 'distance_stage3a'
+    if match_type == 'distance_matching_3a_second_pass':
         return 'distance_stage3a'
     if match_type == 'distance_matching_3b':
         return 'distance_stage3b'
@@ -445,6 +558,13 @@ def compute_quality_metrics(
     # ------------------------------------------------------------------
     # 2. Many-to-one analysis
     # ------------------------------------------------------------------
+    node_to_stop_id: Dict[str, str] = {}
+    for stop_idx, stop_unit in enumerate(osm_stop_units):
+        for member in getattr(stop_unit, 'members', []) or []:
+            node_id = getattr(member, 'node_id', None)
+            if node_id:
+                node_to_stop_id[str(node_id)] = str(stop_idx)
+
     atlas_to_osm: Dict[str, set] = defaultdict(set)
     osm_to_atlas: Dict[str, set] = defaultdict(set)
 
@@ -452,8 +572,9 @@ def compute_quality_metrics(
         sloid = getattr(getattr(rec, 'atlas_node', None), 'sloid', None)
         osm_id = getattr(getattr(rec, 'osm_node', None), 'node_id', None)
         if sloid and osm_id:
-            atlas_to_osm[str(sloid)].add(str(osm_id))
-            osm_to_atlas[str(osm_id)].add(str(sloid))
+            canonical_osm_stop = node_to_stop_id.get(str(osm_id), f"node:{osm_id}")
+            atlas_to_osm[str(sloid)].add(canonical_osm_stop)
+            osm_to_atlas[canonical_osm_stop].add(str(sloid))
 
     atlas_multi = {s: ids for s, ids in atlas_to_osm.items() if len(ids) > 1}
     osm_multi = {n: ids for n, ids in osm_to_atlas.items() if len(ids) > 1}
@@ -621,6 +742,67 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
     }
 
 
+def compute_summary_from_db(db_session) -> Dict[str, Any]:
+    """Compute only the summary part of the stats by directly querying the database.
+
+    This identifies totals for ATLAS, OSM (Stops/Nodes), matches, and proximity coverage.
+    """
+    from backend.models import StopsMatched, OsmStop, OsmNode, AtlasStop
+    from sqlalchemy import func
+
+    # ATLAS platforms (distinct SLOIDs)
+    atlas_platforms = db_session.query(func.count(func.distinct(StopsMatched.sloid))).filter(StopsMatched.sloid.isnot(None)).scalar() or 0
+    
+    # OSM units (stops and nodes)
+    total_osm_stops = db_session.query(func.count(OsmStop.id)).scalar() or 0
+    total_osm_nodes = db_session.query(func.count(OsmNode.osm_node_id)).scalar() or 0
+    osm_stations = db_session.query(func.count(OsmNode.osm_node_id)).filter(
+        (OsmNode.osm_public_transport == 'station') | (OsmNode.osm_railway == 'station')
+    ).scalar() or 0
+    
+    # Matches
+    matched_pairs = db_session.query(func.count(StopsMatched.id)).filter(StopsMatched.stop_type == 'matched').scalar() or 0
+    distinct_matched_atlas = db_session.query(func.count(func.distinct(StopsMatched.sloid))).filter(StopsMatched.stop_type == 'matched').scalar() or 0
+    
+    # Matched OSM stops (units with at least one member matched)
+    from backend.models import OsmStopMember
+    matched_osm_stops = db_session.query(func.count(func.distinct(OsmStopMember.osm_stop_id))).join(
+        StopsMatched, OsmStopMember.node_id == StopsMatched.osm_node_id
+    ).filter(StopsMatched.stop_type == 'matched').scalar() or 0
+
+    # Unmatched
+    unmatched_atlas = db_session.query(func.count(StopsMatched.id)).filter(StopsMatched.stop_type == 'atlas_unmatched').scalar() or 0
+    unmatched_osm_stops = max(0, total_osm_stops - matched_osm_stops)
+    
+    # Isolated Atlas (no OSM within 50m)
+    no_nearby_osm_count = db_session.query(func.count(StopsMatched.id)).filter(
+        StopsMatched.stop_type == 'atlas_unmatched',
+        StopsMatched.match_type == 'no_nearby_counterpart'
+    ).scalar() or 0
+
+    atlas_with_osm_within_50m = max(0, atlas_platforms - no_nearby_osm_count)
+    matched_atlas_with_osm_within_50m_percent = (
+        round((distinct_matched_atlas / atlas_with_osm_within_50m * 100), 1)
+        if atlas_with_osm_within_50m > 0 else 0
+    )
+
+    return {
+        "atlas_platforms": atlas_platforms,
+        "osm_stops": total_osm_stops,
+        "osm_nodes": total_osm_nodes,
+        "osm_stations": osm_stations,
+        "matched_osm_stops": matched_osm_stops,
+        "matched_pairs": matched_pairs,
+        "distinct_matched_atlas": distinct_matched_atlas,
+        "match_rate_percent": round((distinct_matched_atlas / atlas_platforms * 100), 1) if atlas_platforms > 0 else 0,
+        "unmatched_atlas": unmatched_atlas,
+        "unmatched_osm": unmatched_osm_stops,
+        "atlas_with_osm_within_50m": atlas_with_osm_within_50m,
+        "atlas_with_osm_within_50m_percent": round((atlas_with_osm_within_50m / atlas_platforms * 100), 1) if atlas_platforms > 0 else 0,
+        "matched_atlas_with_osm_within_50m_percent": matched_atlas_with_osm_within_50m_percent,
+    }
+
+
 def get_pipeline_stats() -> Optional[Dict[str, Any]]:
     """
     Get the most recent pipeline statistics.
@@ -631,3 +813,72 @@ def get_pipeline_stats() -> Optional[Dict[str, Any]]:
         Statistics dictionary or None if not available
     """
     return load_stats_from_file()
+
+
+def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -> str:
+    """
+    Generate a PDF summary report from the stats and save it.
+    
+    This function should be called within a Flask application context.
+    
+    Args:
+        stats: Statistics dictionary
+        output_path: Optional custom path (defaults to documentation/generated/stats_summary.pdf)
+        
+    Returns:
+        Path where PDF was saved
+    """
+    if output_path is None:
+        output_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            'documentation', 'generated', 'stats_summary.pdf'
+        )
+    
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    # Import PDF/web rendering dependencies lazily so pipeline-only environments
+    # (e.g. scheduler image) can still import this module.
+    from flask import render_template
+    try:
+        from weasyprint import HTML
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "WeasyPrint is required for PDF export. Install web dependencies to generate reports."
+        ) from exc
+    
+    from backend.extensions import db
+    problem_stats = compute_db_stats(db.session)
+    
+    kwargs = {
+        'stats': stats,
+        'problem_breakdown': problem_stats.get('by_priority', {}),
+        'probs': problem_stats,
+        'generated_at': datetime.now(),
+        'css_content': ''
+    }
+    
+    # Read CSS files
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    css_content = ""
+    # Injected core styles first for variables and resets
+    core_css_files = [
+        'static/css/src/01-settings/tokens.css',
+        'static/css/pages/stats.css',
+        'static/css/pages/reports.css'
+    ]
+    for css_file in core_css_files:
+        try:
+            with open(os.path.join(base_dir, css_file), 'r') as f:
+                css_content += f.read() + "\n"
+        except Exception as e:
+            logger.warning(f"Could not load CSS file {css_file} for PDF generation: {e}")
+            
+    kwargs['css_content'] = css_content
+    
+    report_html = render_template('reports/stats_summary.html', **kwargs)
+    
+    # Render PDF using WeasyPrint
+    HTML(string=report_html, base_url=base_dir).write_pdf(output_path)
+    
+    return output_path

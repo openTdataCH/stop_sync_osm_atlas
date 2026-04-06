@@ -147,7 +147,7 @@ def get_global_stats():
         ).one()
 
         osm_res = db.session.query(
-            func.count(func.distinct(filtered_osm_stops.c.osm_stop_id)).label('total_osm'),
+            func.count(func.distinct(filtered_osm_stops.c.osm_stop_id)).label('total_osm_stops'),
             func.count(
                 func.distinct(
                     case(
@@ -155,18 +155,18 @@ def get_global_stats():
                         else_=None,
                     )
                 )
-            ).label('matched_osm'),
+            ).label('matched_osm_stops'),
+            func.count(func.distinct(filtered_osm.c.osm_node_id)).label('total_osm_nodes'),
         ).one()
 
-        unmatched_osm_stops = max(0, (osm_res.total_osm or 0) - (osm_res.matched_osm or 0))
+        unmatched_osm_stops = max(0, (osm_res.total_osm_stops or 0) - (osm_res.matched_osm_stops or 0))
         response_payload = {
             "total_atlas_stops": atlas_res.total_atlas,
             "matched_atlas_stops": atlas_res.matched_atlas,
-            "total_osm_stops": osm_res.total_osm,
-            "matched_osm_stops": osm_res.matched_osm,
-            # Backward-compatible aliases for existing clients.
-            "total_osm_nodes": osm_res.total_osm,
-            "matched_osm_nodes": osm_res.matched_osm,
+            "total_osm_stops": osm_res.total_osm_stops,
+            "matched_osm_stops": osm_res.matched_osm_stops,
+            "total_osm_nodes": osm_res.total_osm_nodes,
+            "matched_osm_nodes": int(atlas_res.matched_pairs or 0),
             "matched_pairs_count": int(atlas_res.matched_pairs or 0),
             "unmatched_entities_count": (atlas_res.unmatched_atlas or 0) + unmatched_osm_stops,
         }
@@ -192,5 +192,27 @@ def get_global_stats():
             }), 200
         app.logger.error(f"Error in global_stats: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+@stats_bp.route('/api/download_stats_summary_pdf', methods=['GET'])
+def download_stats_summary_pdf():
+    """Download the pregenerated statistics summary report."""
+    import os
+    from flask import send_file
+    
+    pdf_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        'documentation', 'generated', 'stats_summary.pdf'
+    )
+    
+    if not os.path.exists(pdf_path):
+        return jsonify({"error": "Stats summary report has not been generated yet."}), 404
+        
+    return send_file(
+        pdf_path,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name='stats_summary.pdf'
+    )
 
 

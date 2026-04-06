@@ -118,6 +118,20 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+			"label": "Docker: Regenerate Dashboard Stats from DB",
+			"type": "shell",
+			"command": "docker exec stop_sync_osm_atlas_app python scripts/regenerate_stats.py",
+			"problemMatcher": [],
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			}
 		}
 	]
 }

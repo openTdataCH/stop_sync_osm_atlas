@@ -1,3 +1,77 @@
+#pipelineRunNotice {
+  position: fixed;
+  left: 50%;
+  top: 0.9rem;
+  transform: translateX(-50%) translateY(-10px);
+  z-index: 4900;
+  display: none;
+  width: min(780px, calc(100% - 1.5rem));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+#pipelineRunNotice.is-visible {
+  display: block;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.pipeline-run-notice__content {
+  border: 1px solid rgba(14, 116, 144, 0.25);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ecfeff 0%, #f0f9ff 100%);
+  color: #0f172a;
+  box-shadow: 0 10px 26px rgba(14, 116, 144, 0.16);
+  padding: 0.5rem 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.86rem;
+}
+
+.pipeline-run-notice__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 700;
+  color: #0c4a6e;
+}
+
+.pipeline-run-notice__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #0f172a;
+  min-width: 0;
+}
+
+#pipelineRunNoticeStatus {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-run-notice__separator {
+  color: #64748b;
+}
+
+@media (max-width: 768px) {
+  .pipeline-run-notice__content {
+    border-radius: 0.75rem;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.55rem 0.75rem;
+  }
+
+  .pipeline-run-notice__meta {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
 #pipelineMaintenanceOverlay {
   position: fixed;
   inset: 0;

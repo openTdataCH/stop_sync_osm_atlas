@@ -20,7 +20,7 @@ from matching_and_import_db.orchestrator import run_matching
 
 LOGGER = logging.getLogger(__name__)
 LOG_LEVEL = os.getenv("PIPELINE_LOG_LEVEL", "INFO").upper()
-IMPORT_ETA_SECONDS = int(os.getenv("PIPELINE_IMPORT_ETA_SECONDS", "400"))
+IMPORT_ETA_SECONDS = int(os.getenv("PIPELINE_IMPORT_ETA_SECONDS", "280"))
 
 
 def _run_subprocess(command: list[str], phase: str, message: str, maintenance: bool = False) -> None:

@@ -2,9 +2,12 @@ import os
 import re
 import json
 import csv
+import sys
+import subprocess
+import logging
 from typing import List, Tuple, Dict, Optional
 
-from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify
+from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file
 from werkzeug.utils import safe_join
 from backend.services.docs_stats import replace_stats_placeholders
 
@@ -20,6 +23,49 @@ except Exception:  # pragma: no cover
 
 
 docs_bp = Blueprint('docs', __name__)
+logger = logging.getLogger(__name__)
+
+
+def _repo_root() -> str:
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+
+def _docs_pdf_path() -> str:
+    return os.path.join(_repo_root(), 'documentation', 'generated', 'stop_sync_osm_atlas_documentation_bw.pdf')
+
+
+def ensure_docs_pdf_generated() -> bool:
+    """Ensure the docs PDF exists, generating it via the existing script if needed."""
+    pdf_path = _docs_pdf_path()
+    if os.path.exists(pdf_path):
+        return True
+
+    generator_script = os.path.join(_repo_root(), 'documentation', 'pdf_generator', 'build_docs_pdf.py')
+    if not os.path.exists(generator_script):
+        logger.error("Docs PDF generator script not found at %s", generator_script)
+        return False
+
+    try:
+        result = subprocess.run(
+            [sys.executable, generator_script],
+            cwd=_repo_root(),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception as exc:
+        logger.exception("Failed to execute docs PDF generator: %s", exc)
+        return False
+
+    if result.returncode != 0:
+        logger.error(
+            "Docs PDF generation failed (exit %s). stderr: %s",
+            result.returncode,
+            (result.stderr or '').strip()[-1000:],
+        )
+        return False
+
+    return os.path.exists(pdf_path)
 
 
 def _github_blob_base() -> str:
@@ -438,6 +484,22 @@ def docs_page(page: str = ''):
 def docs_asset(filename: str):
     docs_dir = _get_docs_dir()
     return send_from_directory(docs_dir, filename)
+
+
+@docs_bp.route('/api/docs/download_pdf', methods=['GET'])
+def download_docs_pdf():
+    """Download the generated documentation PDF (generate it if missing)."""
+    if not ensure_docs_pdf_generated():
+        return jsonify({
+            "error": "Could not generate documentation PDF. Run the 'Docs: Build PDF' task and check logs.",
+        }), 500
+
+    return send_file(
+        _docs_pdf_path(),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name='stop_sync_osm_atlas_documentation.pdf',
+    )
 
 
 @docs_bp.route('/docs/data/operator-normalizations')

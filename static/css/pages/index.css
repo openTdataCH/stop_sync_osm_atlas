@@ -183,11 +183,13 @@ main {
   white-space: nowrap;
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  transition: top 180ms ease;
+  opacity: 1;
+  transition: top 180ms ease, opacity 160ms ease;
 }
 
-.zoom-banner.zoom-banner--shifted {
-  top: calc(var(--navbar-height) + 120px);
+.zoom-banner.zoom-banner--faded {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .zoom-banner.zoom-banner--filters-open {
@@ -265,10 +267,6 @@ main {
     white-space: normal;
     text-align: center;
     line-height: 1.2;
-  }
-
-  .zoom-banner.zoom-banner--shifted {
-    top: calc(var(--navbar-height) + 132px);
   }
 
   .zoom-banner.zoom-banner--filters-open {

@@ -33,6 +33,7 @@ services:
   app:
     build:
       context: .
+      target: app-stage
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
@@ -70,6 +71,7 @@ services:
   scheduler:
     build:
       context: .
+      target: scheduler-stage
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
@@ -91,7 +93,7 @@ services:
       PIPELINE_TIMEZONE: ${PIPELINE_TIMEZONE:-Europe/Zurich}
       PIPELINE_SCHEDULE_HOUR: ${PIPELINE_SCHEDULE_HOUR:-2}
       PIPELINE_SCHEDULE_MINUTE: ${PIPELINE_SCHEDULE_MINUTE:-0}
-      PIPELINE_IMPORT_ETA_SECONDS: ${PIPELINE_IMPORT_ETA_SECONDS:-900}
+      PIPELINE_IMPORT_ETA_SECONDS: ${PIPELINE_IMPORT_ETA_SECONDS:-280}
       AUTO_MIGRATE: "false"
     cpu_shares: 2048
     mem_limit: 4g
