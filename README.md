@@ -123,12 +123,15 @@ During import, the UI shows a global maintenance popup. Downloading and matching
 
 ## Background Scheduler & Microservices
 
-Docker Compose now runs four services:
+Docker Compose now runs five primary services:
 
 - `app`: Flask web app and API.
 - `scheduler`: Dedicated background worker that runs the daily pipeline at 2:00 (`PIPELINE_TIMEZONE`, default `Europe/Zurich`).
 - `db`: Postgres + PostGIS import database.
 - `redis`: Shared cache/rate-limit and pipeline status/lock storage.
+- `migrator`: One-shot startup service that runs `flask db upgrade` before `app` and `scheduler`.
+
+For local test execution, there is also a dedicated `test` service/image with both app and pipeline dependencies.
 
 Scheduler behavior:
 

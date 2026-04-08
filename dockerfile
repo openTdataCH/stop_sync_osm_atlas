@@ -63,6 +63,29 @@ EXPOSE 5001
 ENTRYPOINT ["/bin/bash", "/app/entrypoint.sh"]
 
 # ==========================================
+# TEST STAGE
+# ==========================================
+FROM app-stage AS test-stage
+
+USER root
+
+# Include scheduler geospatial stack so pipeline tests can run in one image.
+ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
+ENV C_INCLUDE_PATH=/usr/include/gdal
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gdal-bin libgdal-dev libgeos-dev libproj-dev \
+    proj-data proj-bin libspatialindex-dev \
+    libspatialindex6 build-essential \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-scheduler.txt /app/
+COPY requirements-test.txt /app/
+RUN pip install --no-cache-dir -r requirements-scheduler.txt -r requirements-test.txt
+
+USER app
+
+# ==========================================
 # SCHEDULER STAGE
 # ==========================================
 FROM base AS scheduler-stage

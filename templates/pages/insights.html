@@ -6,11 +6,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/stats.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/reports.css') }}">
 <style>
-  /* Adjustments for merged context */
-  .stats-page {
-    padding-top: 0.5rem;
-  }
-
   .reports-card {
     height: 100%;
   }
@@ -68,25 +63,22 @@
 </div>
 
 
-<div class="page-shell stats-page">
-  <div class="page-shell__container stats-container"
-    style="max-width: 1400px; margin: 0 auto; padding: 1rem 2rem 2rem;">
+<div class="stats-page">
+  <div class="stats-container">
 
-    <div class="d-flex align-items-center justify-content-between mb-3">
-      <a class="page-shell__back-link back-link d-inline-block" href="{{ url_for('index') }}">
-        <i class="fas fa-arrow-left"></i> Back to map
-      </a>
-      {% if stats %}
-      <span class="badge badge-light shadow-sm py-1 px-3 text-muted small">
-        <i class="far fa-clock mr-1"></i> Data updated: {{ stats.generated_at[:10] }} {{ stats.generated_at[11:16] }}
-      </span>
-      {% endif %}
-    </div>
-
-    <div class="page-shell__header stats-header text-center mb-3">
-      <h1 class="h2 mb-0">Insights</h1>
-      <p class="text-muted small">Analyze synchronization quality and export reports.</p>
-    </div>
+    <header class="stats-header">
+      <div class="d-flex justify-content-between align-items-baseline">
+        <div>
+          <h1>Insights</h1>
+          <p class="text-muted">Analyze synchronization quality and export reports.</p>
+        </div>
+        {% if stats %}
+        <div class="text-muted small">
+          <i class="far fa-clock mr-1"></i> Data updated: {{ stats.generated_at[:10] }} {{ stats.generated_at[11:16] }}
+        </div>
+        {% endif %}
+      </div>
+    </header>
 
     <!-- Toggle -->
     <div class="d-flex justify-content-center mb-4">

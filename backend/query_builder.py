@@ -268,3 +268,65 @@ class QueryBuilder:
             query = query.filter(db.and_(*conditions))
         
         return query
+
+    def apply_bucket_filters(self, query, filters):
+        """
+        Apply filter conditions to a GlobalStatsBucket query.
+        
+        Args:
+            query: SQLAlchemy query object (for GlobalStatsBucket)
+            filters: Dictionary containing filter parameters
+        
+        Returns:
+            Filtered SQLAlchemy query object
+        """
+        from backend.models import GlobalStatsBucket
+        conditions = []
+        
+        # Transport type filter
+        if filters.get('transport_types'):
+            transport_conditions = []
+            for t_type in filters['transport_types']:
+                col_name = f"is_{t_type}"
+                if hasattr(GlobalStatsBucket, col_name):
+                    transport_conditions.append(getattr(GlobalStatsBucket, col_name) == True)
+            if transport_conditions:
+                conditions.append(db.or_(*transport_conditions))
+        
+        # Node type filter
+        if filters.get('node_types'):
+            node_conditions = []
+            if 'atlas' in filters['node_types']:
+                node_conditions.append(GlobalStatsBucket.total_atlas > 0)
+            if 'osm' in filters['node_types']:
+                node_conditions.append(GlobalStatsBucket.total_osm_nodes > 0)
+            if node_conditions:
+                conditions.append(db.or_(*node_conditions))
+                
+        # Atlas operator filter
+        if filters.get('atlas_operators'):
+            conditions.append(GlobalStatsBucket.atlas_operator.in_(filters['atlas_operators']))
+            
+        # OSM group filter
+        if 'osm_group_types' in filters:
+            osm_group_types = filters.get('osm_group_types')
+            if not osm_group_types:
+                # Any pair or trio
+                conditions.append(GlobalStatsBucket.osm_group_kind.isnot(None))
+            else:
+                group_conditions = []
+                pair_types = [g for g in osm_group_types if g.startswith('osm_pair_')]
+                include_trio = 'osm_trio' in osm_group_types
+                if pair_types:
+                    group_conditions.append(GlobalStatsBucket.osm_group_kind.in_(pair_types))
+                if include_trio:
+                    group_conditions.append(GlobalStatsBucket.osm_group_kind == 'osm_trio')
+                if group_conditions:
+                    conditions.append(db.or_(*group_conditions))
+                else:
+                    conditions.append(db.false())
+                    
+        if conditions:
+            query = query.filter(db.and_(*conditions))
+            
+        return query

@@ -19,7 +19,7 @@ class StopsMatched(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     sloid = db.Column(db.String(100), index=True)
-    # Valid values: 'matched', 'atlas_unmatched', 'osm_unmatched'
+    # Valid values: 'matched', 'effectively_matched', 'atlas_unmatched', 'osm_unmatched'
     stop_type = db.Column(db.String(50))
     match_type = db.Column(db.String(50))
     # Core location and linking attributes
@@ -214,3 +214,38 @@ class RoutesMatched(db.Model):
     atlas_route_id = db.Column(db.String(100), index=True)
     osm_route_id = db.Column(db.String(100), index=True)
     match_type = db.Column(db.String(50))
+
+
+class GlobalStatsBucket(db.Model):
+    __tablename__ = 'global_stats_buckets'
+    __table_args__ = (
+        db.Index('idx_gsb_scope_effective', 'scope', 'effective_stop_type'),
+        db.Index('idx_gsb_match_type', 'match_type'),
+        db.Index('idx_gsb_group_kind', 'osm_group_kind'),
+        db.Index('idx_gsb_atlas_duplicate', 'atlas_duplicate'),
+    )
+    
+    id = db.Column(db.Integer, primary_key=True)
+    scope = db.Column(db.String(20), nullable=False) # 'atlas+osm', 'atlas_only', 'osm_only'
+    atlas_operator = db.Column(db.String(100), nullable=True, index=True)
+    atlas_duplicate = db.Column(db.Boolean, nullable=False, default=False)
+    osm_group_kind = db.Column(db.String(50), nullable=True)
+    effective_stop_type = db.Column(db.String(50), nullable=True) # matched, effectively_matched, atlas_unmatched, osm_unmatched
+    match_type = db.Column(db.String(50), nullable=True)
+    
+    # Transport dimension flags for easy boolean querying
+    is_ferry_terminal = db.Column(db.Boolean, nullable=False, default=False)
+    is_tram_stop = db.Column(db.Boolean, nullable=False, default=False)
+    is_station = db.Column(db.Boolean, nullable=False, default=False)
+    is_platform = db.Column(db.Boolean, nullable=False, default=False)
+    is_stop_position = db.Column(db.Boolean, nullable=False, default=False)
+    is_aerialway_station = db.Column(db.Boolean, nullable=False, default=False)
+    
+    # Aggregated counters
+    total_atlas = db.Column(db.Integer, nullable=False, default=0)
+    matched_atlas = db.Column(db.Integer, nullable=False, default=0)
+    unmatched_atlas = db.Column(db.Integer, nullable=False, default=0)
+    matched_pairs = db.Column(db.Integer, nullable=False, default=0)
+    total_osm_stops = db.Column(db.Integer, nullable=False, default=0)
+    matched_osm_stops = db.Column(db.Integer, nullable=False, default=0)
+    total_osm_nodes = db.Column(db.Integer, nullable=False, default=0)

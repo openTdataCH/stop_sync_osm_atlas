@@ -10,7 +10,6 @@ from backend.blueprints.search import search_bp
 from backend.blueprints.stats import stats_bp
 from backend.blueprints.problems import problems_bp
 from backend.blueprints.docs import docs_bp
-from backend.blueprints.docs import ensure_docs_pdf_generated
 from backend.blueprints.system import system_bp
 from backend.blueprints.routes import routes_bp
 
@@ -71,10 +70,6 @@ def create_app():
     def index():
         return render_template('pages/index.html')
 
-    @app.route('/map_snapshot')
-    def map_snapshot():
-        return render_template('pages/map_snapshot.html')
-
     @app.route('/problems')
     def problems():
         return render_template('pages/problems.html')
@@ -106,12 +101,6 @@ def create_app():
     @app.errorhandler(500)
     def server_error(e):
         return render_template('errors/500.html'), 500
-
-    # Best effort: keep docs PDF pre-generated for fast download.
-    try:
-        ensure_docs_pdf_generated()
-    except Exception:
-        app.logger.warning('Docs PDF pre-generation failed during startup.', exc_info=True)
 
     return app
 

@@ -90,39 +90,12 @@ def build_match_method_conditions(stop_model, matched_methods):
 
 
 def build_trio_middle_with_matched_side_condition(stop_model):
-    """Return condition for trio middle nodes whose trio has at least one matched side node.
+    """Return condition for trio middle nodes whose trio has both sides matched.
 
-    These rows are stored as ``osm_unmatched`` in ``stops_matched``, but should be
-    treated as matched for filtering/statistics semantics.
+    These rows are stored as ``effectively_matched`` in ``stops_matched`` and 
+    should be treated as matched for filtering/statistics semantics.
     """
-    from sqlalchemy.orm import aliased
-    from backend.models import StopsMatched, OsmStop, OsmStopMember
-
-    matched_side = aliased(StopsMatched)
-    trio_middle = aliased(OsmStopMember)
-    trio_side = aliased(OsmStopMember)
-
-    trio_middle_exists = db.select(1).select_from(trio_middle).join(
-        OsmStop,
-        trio_middle.osm_stop_id == OsmStop.id,
-    ).join(
-        trio_side,
-        trio_side.osm_stop_id == trio_middle.osm_stop_id,
-    ).join(
-        matched_side,
-        matched_side.osm_node_id == trio_side.node_id,
-    ).where(
-        OsmStop.stop_kind == 'trio',
-        trio_middle.member_role == 'trio_middle',
-        trio_side.member_role == 'trio_side',
-        trio_middle.node_id == stop_model.osm_node_id,
-        matched_side.stop_type == 'matched',
-    ).exists()
-
-    return db.and_(
-        stop_model.stop_type == 'osm_unmatched',
-        trio_middle_exists,
-    )
+    return stop_model.stop_type == 'effectively_matched'
 
 
 def build_atlas_unmatched_condition(stop_model, unmatched_reason_filters):
@@ -142,6 +115,29 @@ def build_atlas_unmatched_condition(stop_model, unmatched_reason_filters):
         )
 
     return stop_model.stop_type == 'atlas_unmatched'
+
+
+def build_atlas_duplicate_membership_condition():
+    """Return AtlasStop condition for true duplicate-group membership.
+
+    Duplicate ATLAS membership is defined structurally:
+    - non-representative members have ``representative_sloid`` set
+    - representative members are referenced by at least one sibling row
+
+    This avoids relying on JSONB null semantics from ``duplicate_group_sloids``.
+    """
+    from sqlalchemy.orm import aliased
+    from backend.models import AtlasStop
+
+    sibling = aliased(AtlasStop)
+    is_representative_with_siblings = db.select(1).select_from(sibling).where(
+        sibling.representative_sloid == AtlasStop.sloid
+    ).exists()
+
+    return db.or_(
+        AtlasStop.representative_sloid.isnot(None),
+        is_representative_with_siblings,
+    )
 
 
 def build_stop_scope_condition(stop_model, resolved_filters):
@@ -164,12 +160,7 @@ def build_stop_scope_condition(stop_model, resolved_filters):
         )
 
     if resolved_filters['include_osm_unmatched']:
-        scope_conditions.append(
-            db.and_(
-                stop_model.stop_type == 'osm_unmatched',
-                db.not_(trio_middle_matched_condition),
-            )
-        )
+        scope_conditions.append(stop_model.stop_type == 'osm_unmatched')
 
     if scope_conditions:
         return db.or_(*scope_conditions) if len(scope_conditions) > 1 else scope_conditions[0]
