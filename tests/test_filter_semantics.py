@@ -160,9 +160,7 @@ def test_scope_condition_matched_includes_trio_middle_effective_matches():
     sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
 
     assert "stop_type = 'matched'" in sql
-    assert 'trio_middle' in sql
-    assert 'trio_side' in sql
-    assert "stop_type = 'osm_unmatched'" in sql
+    assert "stop_type = 'effectively_matched'" in sql
 
 
 def test_scope_condition_osm_unmatched_excludes_trio_middle_effective_matches():
@@ -171,6 +169,4 @@ def test_scope_condition_osm_unmatched_excludes_trio_middle_effective_matches():
     sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
 
     assert "stop_type = 'osm_unmatched'" in sql
-    assert 'NOT' in sql
-    assert 'trio_middle' in sql
-    assert 'trio_side' in sql
+    assert "stop_type = 'effectively_matched'" not in sql

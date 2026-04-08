@@ -30,6 +30,29 @@ services:
       timeout: 5s
       retries: 2
 
+  migrator:
+    build:
+      context: .
+      target: app-stage
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    container_name: stop_sync_osm_atlas_migrator
+    restart: "no"
+    entrypoint: ["/bin/bash", "-lc"]
+    command: "python matching_and_import_db/database/init.py && flask db upgrade"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      FLASK_APP: backend/app.py
+      DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
+      USER_INPUT_DATABASE_URI: ${USER_INPUT_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/user_input_db}
+      RATELIMIT_STORAGE_URI: memory://
+
   app:
     build:
       context: .
@@ -50,6 +73,8 @@ services:
         condition: service_healthy # Waits for db to be healthy before starting app
       redis:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     environment:
       # Flask environment variables (some are also in Dockerfile for explicitness)
       FLASK_APP: backend/app.py
@@ -61,12 +86,29 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
-      AUTO_MIGRATE: "true"
+      AUTO_MIGRATE: "false"
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
       RUN_STARTUP_PIPELINE: "${RUN_STARTUP_PIPELINE:-false}" # Optional one-shot run on app boot
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 2g # Web app stays lighter, pipeline runs in scheduler service
     # mem_reservation: 1g # Optional: guarantee 1g
+
+  test:
+    build:
+      context: .
+      target: test-stage
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    container_name: stop_sync_osm_atlas_test
+    restart: "no"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    environment:
+      DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
+      USER_INPUT_DATABASE_URI: ${USER_INPUT_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/user_input_db}
+      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
 
   scheduler:
     build:
@@ -86,6 +128,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     environment:
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
       USER_INPUT_DATABASE_URI: ${USER_INPUT_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/user_input_db}

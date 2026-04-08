@@ -4,7 +4,7 @@
 		{
 			"label": "Docker: Run All Tests",
 			"type": "shell",
-			"command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// app python -m pytest tests/",
+			"command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// test python -m pytest tests/",
 			"problemMatcher": [],
 			"group": {
 				"kind": "test",
@@ -21,7 +21,7 @@
 		},
 		{
 			"label": "Docker: Run Small Pipeline Test",
-			"command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// app python -m pytest tests/matching_pipeline/test_small_pipeline.py -v",
+			"command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// test python -m pytest tests/matching_pipeline/test_small_pipeline.py -v",
 			"problemMatcher": [],
 			"group": "test",
 			"presentation": {

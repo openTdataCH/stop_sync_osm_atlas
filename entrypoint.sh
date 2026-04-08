@@ -33,7 +33,7 @@ if [ "${AUTO_MIGRATE:-false}" = "true" ]; then
         echo "WARN: flask db upgrade failed; skipping flask db migrate"
     fi
 else
-    flask db upgrade
+    echo "AUTO_MIGRATE=false -> skipping migrations in app container"
 fi
 
 if [ "${RUN_STARTUP_PIPELINE:-false}" = "true" ]; then

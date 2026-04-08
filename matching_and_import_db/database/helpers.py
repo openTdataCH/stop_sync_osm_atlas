@@ -57,127 +57,13 @@ def get_osm_node_type(rec, is_osm_unmatched=False):
         return 'platform'
     return None
 
+
 def ensure_schema_updated():
-    """Run Alembic migrations to ensure the DB schema is up to date."""
-    try:
-        import os
-        from flask import Flask
-        from flask_migrate import upgrade
-        from backend.extensions import db, migrate
-        import backend.models  # noqa: F401 - Ensure models are registered for Alembic
-        from sqlalchemy import text
+    """Deprecated no-op kept for backward compatibility.
 
-        app = Flask(__name__)
-        app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv(
-            'DATABASE_URI',
-            'postgresql+psycopg://stops_user:1234@localhost:5432/import_db',
-        )
-        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-        db.init_app(app)
-        migrate.init_app(app, db)
-
-        known_revisions = {
-            'b5fa82492b15',
-            '0fd9b8d7a1c4',
-            '34cb04acd397',
-            '647fb683a8d3',
-        }
-
-        def _repair_unknown_revision_if_needed() -> None:
-            """Reset stale local Alembic revision metadata when history was rewritten."""
-            try:
-                current_revision = db.session.execute(text("SELECT version_num FROM alembic_version")).scalar()
-            except Exception:
-                # A failed probe can leave the session transaction aborted.
-                db.session.rollback()
-                return
-
-            if current_revision and current_revision not in known_revisions:
-                print(
-                    "Warning: Unknown Alembic revision "
-                    f"'{current_revision}' detected. Resetting to current head."
-                )
-                db.session.execute(text("DROP TABLE IF EXISTS alembic_version"))
-                db.session.commit()
-                from flask_migrate import stamp
-                stamp(revision='head')
-
-        def _upgrade_with_recovery():
-            """Upgrade schema and recover from stale local Alembic revision references.
-
-            Development setups may contain an alembic_version pointing to a removed
-            revision after migration history cleanup. In that case, reset version
-            metadata and stamp the current head before continuing.
-            """
-            _repair_unknown_revision_if_needed()
-            try:
-                upgrade()
-            except BaseException as exc:
-                message = str(exc)
-                if "Can't locate revision identified by" not in message:
-                    raise
-                print(f"Warning: Alembic revision drift detected ({message}). Resetting alembic_version to head.")
-                db.session.execute(text("DROP TABLE IF EXISTS alembic_version"))
-                db.session.commit()
-                from flask_migrate import stamp
-                stamp(revision='head')
-
-        with app.app_context():
-            _upgrade_with_recovery()
-            # Ensure cleanup statements run in a fresh transaction even if previous
-            # revision-probe logic encountered and handled SQL errors.
-            db.session.rollback()
-            # Development cleanup: remove deprecated duplicate flags from stops_matched
-            # while keeping a single migration history file.
-            db.session.execute(text("ALTER TABLE stops_matched DROP COLUMN IF EXISTS has_atlas_duplicate"))
-            db.session.execute(text("ALTER TABLE stops_matched DROP COLUMN IF EXISTS has_osm_duplicate"))
-
-            # Ensure stop-unit tables exist for local databases with older revisions.
-            db.session.execute(text(
-                """
-                CREATE TABLE IF NOT EXISTS osm_stops (
-                    id SERIAL PRIMARY KEY,
-                    stop_kind VARCHAR(20) NOT NULL,
-                    group_kind VARCHAR(50),
-                    representative_node_id VARCHAR(100) NOT NULL REFERENCES osm_nodes(osm_node_id) ON DELETE CASCADE,
-                    CONSTRAINT ck_osm_stops_stop_kind CHECK (stop_kind IN ('single', 'pair', 'trio')),
-                    CONSTRAINT ck_osm_stops_group_kind CHECK (
-                        group_kind IS NULL OR group_kind IN (
-                            'osm_pair_uic',
-                            'osm_pair_name',
-                            'osm_pair_tram',
-                            'osm_pair_uic_equal_15m',
-                            'osm_pair_name_equal_15m',
-                            'osm_pair_tram_equal_15m',
-                            'osm_trio'
-                        )
-                    )
-                )
-                """
-            ))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS idx_osm_stops_stop_kind ON osm_stops(stop_kind)"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS idx_osm_stops_group_kind ON osm_stops(group_kind)"))
-            db.session.execute(text("CREATE INDEX IF NOT EXISTS idx_osm_stops_representative_node_id ON osm_stops(representative_node_id)"))
-
-            db.session.execute(text(
-                """
-                CREATE TABLE IF NOT EXISTS osm_stop_members (
-                    osm_stop_id INTEGER NOT NULL REFERENCES osm_stops(id) ON DELETE CASCADE,
-                    node_id VARCHAR(100) NOT NULL REFERENCES osm_nodes(osm_node_id) ON DELETE CASCADE,
-                    member_role VARCHAR(20) NOT NULL,
-                    PRIMARY KEY (osm_stop_id, node_id),
-                    CONSTRAINT uq_osm_stop_members_node_id UNIQUE (node_id),
-                    CONSTRAINT ck_osm_stop_members_member_role CHECK (
-                        member_role IN ('single', 'pair_a', 'pair_b', 'trio_middle', 'trio_side')
-                    )
-                )
-                """
-            ))
-            db.session.commit()
-        print("Database schema migrated to latest revision.")
-    except Exception as e:
-        print(f"Error running migrations: {e}")
-        raise
+    Schema migration is now handled by the dedicated migrator service/container.
+    """
+    return None
 
 def validate_coordinates(rec, lat_key, lon_key, id_key, id_value, record_type):
     """Validate and extract coordinates from a record."""

@@ -15,6 +15,7 @@ import logging
 import math
 import os
 import statistics
+import time
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
@@ -25,6 +26,11 @@ logger = logging.getLogger(__name__)
 STATS_FILE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
     'data', 'stats.json'
+)
+
+STATS_SUMMARY_PDF_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    'documentation', 'generated', 'stats_summary.pdf'
 )
 
 
@@ -742,39 +748,153 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
     }
 
 
-def compute_summary_from_db(db_session) -> Dict[str, Any]:
-    """Compute only the summary part of the stats by directly querying the database.
-
-    This identifies totals for ATLAS, OSM (Stops/Nodes), matches, and proximity coverage.
+def populate_global_stats_buckets(db_session):
+    """Truncate and repopulate the global_stats_buckets materialized table.
+    Groups matching data by scope, operator, duplicate state, transport features,
+    group kind and match types to build a lightning fast summary cube.
     """
-    from backend.models import StopsMatched, OsmStop, OsmNode, AtlasStop
+    from backend.models import GlobalStatsBucket, StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
+    from backend.query_helpers import build_atlas_duplicate_membership_condition
+    from sqlalchemy import func, case, text, insert
+    
+    logger.info("Populating GlobalStatsBucket table...")
+    
+    # Fast truncate to clean previous data
+    db_session.execute(text("TRUNCATE TABLE global_stats_buckets"))
+    
+    effective_stop_type = case(
+        (
+            (StopsMatched.stop_type == 'matched') | (StopsMatched.stop_type == 'effectively_matched'),
+            'matched',
+        ),
+        else_=StopsMatched.stop_type,
+    ).label('effective_stop_type')
+
+    scope = case(
+        (StopsMatched.sloid.isnot(None) & StopsMatched.osm_node_id.isnot(None), 'atlas+osm'),
+        (StopsMatched.sloid.isnot(None), 'atlas_only'),
+        else_='osm_only'
+    ).label('scope')
+
+    # Keep duplicate semantics aligned with API filtering logic.
+    atlas_duplicate = case(
+        (build_atlas_duplicate_membership_condition(), True),
+        else_=False,
+    ).label('atlas_duplicate')
+
+    grouping_cols = [
+        scope,
+        AtlasStop.atlas_business_org_abbr.label('atlas_operator'),
+        atlas_duplicate,
+        OsmStop.group_kind.label('osm_group_kind'),
+        effective_stop_type,
+        StopsMatched.match_type.label('match_type'),
+        func.coalesce(OsmNode.osm_amenity == 'ferry_terminal', False).label('is_ferry_terminal'),
+        func.coalesce(OsmNode.osm_railway == 'tram_stop', False).label('is_tram_stop'),
+        func.coalesce(OsmNode.osm_node_type == 'railway_station', False).label('is_station'),
+        func.coalesce(OsmNode.osm_public_transport == 'platform', False).label('is_platform'),
+        func.coalesce(OsmNode.osm_public_transport == 'stop_position', False).label('is_stop_position'),
+        func.coalesce(OsmNode.osm_aerialway == 'station', False).label('is_aerialway_station'),
+    ]
+
+    base_query = db_session.query(
+        StopsMatched.sloid, StopsMatched.osm_node_id, OsmStopMember.osm_stop_id, *grouping_cols
+    ).outerjoin(AtlasStop, StopsMatched.sloid == AtlasStop.sloid) \
+     .outerjoin(OsmNode, StopsMatched.osm_node_id == OsmNode.osm_node_id) \
+     .outerjoin(OsmStopMember, StopsMatched.osm_node_id == OsmStopMember.node_id) \
+     .outerjoin(OsmStop, OsmStopMember.osm_stop_id == OsmStop.id) \
+     .subquery('f')
+
+    insert_stmt = db_session.query(
+        base_query.c.scope,
+        base_query.c.atlas_operator,
+        base_query.c.atlas_duplicate,
+        base_query.c.osm_group_kind,
+        base_query.c.effective_stop_type,
+        base_query.c.match_type,
+        base_query.c.is_ferry_terminal,
+        base_query.c.is_tram_stop,
+        base_query.c.is_station,
+        base_query.c.is_platform,
+        base_query.c.is_stop_position,
+        base_query.c.is_aerialway_station,
+        func.count(func.distinct(base_query.c.sloid)).label('total_atlas'),
+        func.count(func.distinct(case((base_query.c.effective_stop_type == 'matched', base_query.c.sloid), else_=None))).label('matched_atlas'),
+        func.count(func.distinct(case((base_query.c.effective_stop_type == 'atlas_unmatched', base_query.c.sloid), else_=None))).label('unmatched_atlas'),
+        func.count(case((base_query.c.effective_stop_type == 'matched', 1), else_=None)).label('matched_pairs'),
+        func.count(func.distinct(base_query.c.osm_stop_id)).label('total_osm_stops'),
+        func.count(func.distinct(case((base_query.c.effective_stop_type == 'matched', base_query.c.osm_stop_id), else_=None))).label('matched_osm_stops'),
+        func.count(func.distinct(base_query.c.osm_node_id)).label('total_osm_nodes'),
+    ).group_by(
+        base_query.c.scope,
+        base_query.c.atlas_operator,
+        base_query.c.atlas_duplicate,
+        base_query.c.osm_group_kind,
+        base_query.c.effective_stop_type,
+        base_query.c.match_type,
+        base_query.c.is_ferry_terminal,
+        base_query.c.is_tram_stop,
+        base_query.c.is_station,
+        base_query.c.is_platform,
+        base_query.c.is_stop_position,
+        base_query.c.is_aerialway_station,
+    )
+
+    columns = [
+        GlobalStatsBucket.scope, GlobalStatsBucket.atlas_operator, GlobalStatsBucket.atlas_duplicate,
+        GlobalStatsBucket.osm_group_kind, GlobalStatsBucket.effective_stop_type, GlobalStatsBucket.match_type,
+        GlobalStatsBucket.is_ferry_terminal, GlobalStatsBucket.is_tram_stop, GlobalStatsBucket.is_station,
+        GlobalStatsBucket.is_platform, GlobalStatsBucket.is_stop_position, GlobalStatsBucket.is_aerialway_station,
+        GlobalStatsBucket.total_atlas, GlobalStatsBucket.matched_atlas, GlobalStatsBucket.unmatched_atlas,
+        GlobalStatsBucket.matched_pairs, GlobalStatsBucket.total_osm_stops, GlobalStatsBucket.matched_osm_stops,
+        GlobalStatsBucket.total_osm_nodes
+    ]
+    ins = insert(GlobalStatsBucket).from_select(columns, insert_stmt)
+    db_session.execute(ins)
+    db_session.commit()
+    logger.info("GlobalStatsBucket table populated successfully.")
+
+
+def compute_summary_from_db(db_session) -> Dict[str, Any]:
+    """Compute summary stats directly from source tables.
+
+    This path remains exact and does not depend on bucket-table additive assumptions.
+    """
+    from backend.models import StopsMatched, OsmStop, OsmNode, OsmStopMember
     from sqlalchemy import func
 
-    # ATLAS platforms (distinct SLOIDs)
-    atlas_platforms = db_session.query(func.count(func.distinct(StopsMatched.sloid))).filter(StopsMatched.sloid.isnot(None)).scalar() or 0
-    
-    # OSM units (stops and nodes)
+    atlas_platforms = db_session.query(
+        func.count(func.distinct(StopsMatched.sloid))
+    ).filter(StopsMatched.sloid.isnot(None)).scalar() or 0
+
     total_osm_stops = db_session.query(func.count(OsmStop.id)).scalar() or 0
     total_osm_nodes = db_session.query(func.count(OsmNode.osm_node_id)).scalar() or 0
     osm_stations = db_session.query(func.count(OsmNode.osm_node_id)).filter(
         (OsmNode.osm_public_transport == 'station') | (OsmNode.osm_railway == 'station')
     ).scalar() or 0
-    
-    # Matches
-    matched_pairs = db_session.query(func.count(StopsMatched.id)).filter(StopsMatched.stop_type == 'matched').scalar() or 0
-    distinct_matched_atlas = db_session.query(func.count(func.distinct(StopsMatched.sloid))).filter(StopsMatched.stop_type == 'matched').scalar() or 0
-    
-    # Matched OSM stops (units with at least one member matched)
-    from backend.models import OsmStopMember
-    matched_osm_stops = db_session.query(func.count(func.distinct(OsmStopMember.osm_stop_id))).join(
-        StopsMatched, OsmStopMember.node_id == StopsMatched.osm_node_id
-    ).filter(StopsMatched.stop_type == 'matched').scalar() or 0
 
-    # Unmatched
-    unmatched_atlas = db_session.query(func.count(StopsMatched.id)).filter(StopsMatched.stop_type == 'atlas_unmatched').scalar() or 0
+    matched_type_condition = StopsMatched.stop_type.in_(['matched', 'effectively_matched'])
+    matched_pairs = db_session.query(func.count(StopsMatched.id)).filter(
+        matched_type_condition
+    ).scalar() or 0
+    distinct_matched_atlas = db_session.query(
+        func.count(func.distinct(StopsMatched.sloid))
+    ).filter(matched_type_condition).scalar() or 0
+
+    matched_osm_stops = db_session.query(
+        func.count(func.distinct(OsmStopMember.osm_stop_id))
+    ).join(
+        StopsMatched,
+        OsmStopMember.node_id == StopsMatched.osm_node_id,
+    ).filter(
+        matched_type_condition
+    ).scalar() or 0
+
+    unmatched_atlas = db_session.query(func.count(StopsMatched.id)).filter(
+        StopsMatched.stop_type == 'atlas_unmatched'
+    ).scalar() or 0
     unmatched_osm_stops = max(0, total_osm_stops - matched_osm_stops)
-    
-    # Isolated Atlas (no OSM within 50m)
+
     no_nearby_osm_count = db_session.query(func.count(StopsMatched.id)).filter(
         StopsMatched.stop_type == 'atlas_unmatched',
         StopsMatched.match_type == 'no_nearby_counterpart'
@@ -815,6 +935,31 @@ def get_pipeline_stats() -> Optional[Dict[str, Any]]:
     return load_stats_from_file()
 
 
+def ensure_stats_summary_pdf_generated(force: bool = False, max_age_seconds: Optional[int] = None) -> str:
+    """Ensure the stats summary PDF exists and is up to date with stats.json.
+
+    Must be called inside a Flask app context.
+    """
+    stats = load_stats_from_file()
+    if not stats:
+        raise RuntimeError("Statistics file does not exist yet. Run a pipeline import first.")
+
+    output_path = STATS_SUMMARY_PDF_PATH
+    stats_mtime = os.path.getmtime(STATS_FILE_PATH) if os.path.exists(STATS_FILE_PATH) else None
+
+    is_fresh = os.path.exists(output_path)
+    if is_fresh and stats_mtime is not None:
+        is_fresh = os.path.getmtime(output_path) >= stats_mtime
+
+    if is_fresh and max_age_seconds is not None:
+        is_fresh = (time.time() - os.path.getmtime(output_path)) <= max_age_seconds
+
+    if force or not is_fresh:
+        generate_stats_summary_pdf(stats, output_path=output_path)
+
+    return output_path
+
+
 def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -> str:
     """
     Generate a PDF summary report from the stats and save it.
@@ -829,10 +974,7 @@ def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -
         Path where PDF was saved
     """
     if output_path is None:
-        output_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            'documentation', 'generated', 'stats_summary.pdf'
-        )
+        output_path = STATS_SUMMARY_PDF_PATH
     
     # Ensure directory exists
     os.makedirs(os.path.dirname(output_path), exist_ok=True)

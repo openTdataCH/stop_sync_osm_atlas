@@ -1,7 +1,32 @@
-/* ==========================================================================
-   STATS PAGE
-   Styles specific to the Pipeline Stats page.
-   ========================================================================== */
+/* -------------------------------------------------------------------------
+   Page Layout & Header
+   ------------------------------------------------------------------------- */
+.stats-page {
+  padding: var(--space-6) 0;
+}
+
+.stats-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+.stats-header {
+  margin-bottom: var(--space-4);
+}
+
+.stats-header h1 {
+  margin: 0;
+  color: var(--color-fg);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+}
+
+.stats-header p {
+  margin: var(--space-1) 0 0 0;
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+}
 
 /* -------------------------------------------------------------------------
    Stat Cards

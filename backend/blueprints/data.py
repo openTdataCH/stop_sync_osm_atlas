@@ -7,7 +7,11 @@ from backend.extensions import db, limiter
 from backend.db_errors import is_missing_table_error
 from backend.serializers.stops import format_stop_data
 from backend.services.routes import get_stops_for_route, get_osm_routes_for_node, get_unified_routes_for_sloid
-from backend.query_helpers import resolve_stop_type_match_filters, build_stop_scope_condition
+from backend.query_helpers import (
+    build_atlas_duplicate_membership_condition,
+    build_stop_scope_condition,
+    resolve_stop_type_match_filters,
+)
 import json
 from geoalchemy2.functions import ST_Intersects, ST_MakeEnvelope
 
@@ -50,6 +54,7 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
     node_type_filter_str = args.get('node_type', None)
     atlas_operator_filter_str = args.get('atlas_operator', None)
     osm_group_types_filter_str = args.get('osm_group_types', None)
+    show_duplicates_only = args.get('show_duplicates_only', 'false').lower() == 'true'
 
     query = StopsMatched.query
     all_category_conditions = []
@@ -213,6 +218,12 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
     if scope_condition is not None:
         all_category_conditions.append(scope_condition)
 
+    if show_duplicates_only:
+        duplicate_condition = build_atlas_duplicate_membership_condition()
+        all_category_conditions.append(
+            StopsMatched.atlas_stop_details.has(duplicate_condition)
+        )
+
     if all_category_conditions:
         query = query.filter(db.and_(*all_category_conditions))
 
@@ -285,7 +296,8 @@ def get_data():
             stop_type_rank = case(
                 (StopsMatched.stop_type == 'atlas_unmatched', 0),
                 (StopsMatched.stop_type == 'osm_unmatched', 1),
-                (StopsMatched.stop_type == 'matched', 2),
+                (StopsMatched.stop_type == 'effectively_matched', 2),
+                (StopsMatched.stop_type == 'matched', 3),
                 else_=9,
             )
             query = query.order_by(stop_type_rank.asc(), StopsMatched.id.asc())
@@ -395,14 +407,7 @@ def get_data():
                         member['node_id'] for member in stop_members if member['member_role'] == 'trio_side'
                     ])
 
-            matched_side_ids = set()
-            if trio_side_ids:
-                matched_side_ids = {
-                    row.osm_node_id for row in db.session.query(StopsMatched.osm_node_id).filter(
-                        StopsMatched.osm_node_id.in_(trio_side_ids),
-                        StopsMatched.stop_type == 'matched',
-                    ).all()
-                }
+            # matched_side_ids block removed; trio match state is handled by effectively_matched db value
 
             for stop_entry in regular_stops:
                 node_id = stop_entry['osm_node_id']
@@ -447,9 +452,8 @@ def get_data():
                     if links:
                         stop_entry['osm_trio_links'] = links
 
-                    side_node_ids = [member['node_id'] for member in stop_members if member['member_role'] == 'trio_side']
                     stop_entry['is_trio_middle_matched'] = (
-                        node_id == middle_node_id and any(side_id in matched_side_ids for side_id in side_node_ids)
+                        node_id == middle_node_id and stop_entry['stop_type'] == 'effectively_matched'
                     )
 
         if include_meta:

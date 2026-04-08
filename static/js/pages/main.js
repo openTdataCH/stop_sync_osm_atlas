@@ -574,7 +574,7 @@ function loadDataForViewport() {
         }
     } else {
         // Normal or filtered mode: build standard filters
-        appendCurrentFilterParams(params);
+        appendCurrentFilterParams(params, { includeShowDuplicates: true });
     }
 
     // Viewport cache: if we already fetched a buffered area covering the current view
@@ -726,16 +726,6 @@ function loadDataForViewport() {
             }
         }
 
-        // If low zoom with no active filters: we are showing unmatched atlas markers.
-        if (isLowZoom && !hasAnyActiveFilter) {
-            // Apply client-side duplicates filter before counting
-            let probeData = rawStops;
-            if (activeFilters.showDuplicatesOnly) {
-                probeData = probeData.filter(stop => stop.has_atlas_duplicate);
-            }
-            rawStops = probeData;
-        }
-
         // Store cached data for potential future use
         viewportDataCache.data = rawStops;
 
@@ -745,12 +735,7 @@ function loadDataForViewport() {
         // Clear existing connection lines
         LineRenderer.clearLines(linesLayer);
 
-        // --- Client-side Filtering for Show Duplicates Only --- 
         let data = rawStops;
-        if (activeFilters.showDuplicatesOnly) {
-            // Apply this filter after the operator mismatch filter
-            data = data.filter(stop => stop.has_atlas_duplicate);
-        }
 
         // Node type visibility flags
         var showAtlasNodes, showOSMNodes;

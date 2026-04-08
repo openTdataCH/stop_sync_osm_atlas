@@ -27,7 +27,6 @@ from matching_and_import_db.database.helpers import (
     make_point_geom,
     safe_value,
     get_osm_node_type,
-    ensure_schema_updated,
     validate_coordinates,
     get_from_tags,
     apply_problem_results,
@@ -217,7 +216,23 @@ def _import_unmatched_atlas(session, unmatched_records, problem_ctx, duplicate_s
     session.commit()
     return no_nearby_osm_sloids
 
-def _import_unmatched_osm(session, unmatched_osm_records, problem_ctx, processed_osm_node_ids):
+def _import_unmatched_osm(session, unmatched_osm_records, problem_ctx, processed_osm_node_ids, base_data):
+    # Pre-calculate middle nodes where both sides are matched
+    trio_middles_effectively_matched = set()
+    matched_osm_nodes = {str(r.osm_node.node_id) for r in getattr(base_data, 'matched', []) if getattr(r, 'osm_node', None)}
+    for stop_unit in getattr(base_data, 'osm_stop_units', []):
+        if stop_unit.stop_kind == 'trio':
+            middle_id = None
+            side_ids = []
+            for m in stop_unit.members:
+                if m.member_role == 'trio_middle':
+                    middle_id = str(m.node_id)
+                elif m.member_role == 'trio_side':
+                    side_ids.append(str(m.node_id))
+            if middle_id and len(side_ids) == 2:
+                if all(s in matched_osm_nodes for s in side_ids):
+                    trio_middles_effectively_matched.add(middle_id)
+
     for osm_node in unmatched_osm_records:
         osm_lat, osm_lon = osm_node.lat, osm_node.lon
 
@@ -226,9 +241,16 @@ def _import_unmatched_osm(session, unmatched_osm_records, problem_ctx, processed
 
         osm_node_id = str(osm_node.node_id)
 
+        stop_type = 'osm_unmatched'
+        match_type = None
+        if osm_node_id in trio_middles_effectively_matched:
+            stop_type = 'effectively_matched'
+            match_type = 'distance_matching_trio'
+
         stop_record = StopsMatched(
-            stop_type='osm_unmatched',
+            stop_type=stop_type,
             osm_node_id=osm_node_id,
+            match_type=match_type,
             osm_lat=osm_lat,
             osm_lon=osm_lon,
             geom=make_point_geom(osm_lat, osm_lon),
@@ -371,8 +393,6 @@ def import_to_database(base_data: MatchingOutput):
     """
     Fully refresh the database "Import DB" .
     """
-    ensure_schema_updated()
-
     print("Truncating all database tables...")
     session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, osm_stops, osm_stop_members, route_atlas_stops, route_osm_stops CASCADE"))
     session.execute(text("TRUNCATE TABLE routes_matched CASCADE"))
@@ -429,12 +449,16 @@ def import_to_database(base_data: MatchingOutput):
     no_nearby_osm_sloids = _import_unmatched_atlas(session, base_data.unmatched_atlas, problem_ctx, duplicate_sloid_map, processed_sloids)
 
     # 3. Import Unmatched OSM
-    _import_unmatched_osm(session, base_data.unmatched_osm, problem_ctx, processed_osm_node_ids)
+    _import_unmatched_osm(session, base_data.unmatched_osm, problem_ctx, processed_osm_node_ids, base_data)
 
     # 4. Import Routes
     _import_routes(session, all_route_data, processed_sloids)
 
     _print_problem_summary(session)
+
+    print("Populating Global Stats Buckets...")
+    from backend.services.stats_export import populate_global_stats_buckets
+    populate_global_stats_buckets(session)
 
     session.close()
     print("Data import complete!")
@@ -556,28 +580,6 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
         filepath = save_stats_to_file(stats)
         print(f"\n==== STATISTICS EXPORTED ====")
         print(f"Stats saved to: {filepath}")
-        
-        # 5. Generate PDF summary report
-        try:
-            import importlib.util
-
-            if importlib.util.find_spec('weasyprint') is None:
-                print("Skipping PDF summary report: WeasyPrint is not installed in this environment.")
-            else:
-                from backend.services.stats_export import generate_stats_summary_pdf
-                from backend.app import create_app
-                # Ensure root dir in path for flask app
-                import sys
-                root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                if root_dir not in sys.path:
-                    sys.path.append(root_dir)
-
-                app = create_app()
-                with app.app_context():
-                    pdf_path = generate_stats_summary_pdf(stats)
-                    print(f"PDF report generated at: {pdf_path}")
-        except Exception as e:
-            print(f"Warning: Could not generate PDF report: {e}")
 
         print(f"Generated at: {stats['generated_at']}")
         print(f"Summary: {stats['summary']['matched_pairs']} matched pairs ({stats['summary']['match_rate_percent']}%)")

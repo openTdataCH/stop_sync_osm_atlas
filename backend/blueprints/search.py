@@ -5,6 +5,7 @@ from backend.models import StopsMatched, AtlasStop, OsmNode
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
 from backend.query_helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint, resolve_stop_type_match_filters, build_stop_scope_condition, build_match_method_conditions
+from backend.query_helpers import build_atlas_duplicate_membership_condition
 
 search_bp = Blueprint('search', __name__)
 
@@ -107,7 +108,8 @@ def get_top_matches():
         query = query.filter(StopsMatched.stop_type == 'matched', StopsMatched.distance_m.isnot(None))
         query = query_builder.apply_common_filters(query, filters)
         if show_duplicates_only:
-            query = query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.duplicate_group_sloids.isnot(None)))
+            duplicate_condition = build_atlas_duplicate_membership_condition()
+            query = query.filter(StopsMatched.atlas_stop_details.has(duplicate_condition))
         if match_method_str:
             specific_methods = [m.strip() for m in match_method_str.split(',') if m.strip()]
             if specific_methods:
@@ -144,7 +146,8 @@ def get_random_stop():
             query = query.filter(scope_condition)
 
         if show_duplicates_only:
-            query = query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.duplicate_group_sloids.isnot(None)))
+            duplicate_condition = build_atlas_duplicate_membership_condition()
+            query = query.filter(StopsMatched.atlas_stop_details.has(duplicate_condition))
 
         # If Top-N mode is active, pick randomly from the (small) top-N set.
         n_val = None
