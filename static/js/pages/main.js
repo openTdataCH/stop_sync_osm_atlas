@@ -14,6 +14,13 @@ var LABEL_ICON_MIN_ZOOM = AppConstants.MAP.LABEL_ICON_MIN_ZOOM;
 var VIEW_DEBOUNCE_MS = AppConstants.DATA_LOADING.VIEW_DEBOUNCE_MS;
 var LOW_ZOOM_SMALLSET_LIMIT = AppConstants.DATA_LOADING.LOW_ZOOM_SMALLSET_LIMIT;
 var ADDITIONAL_BANNER_ZOOM_LEVELS = AppConstants.MAP.ADDITIONAL_BANNER_ZOOM_LEVELS;
+var MAIN_PAGE_COLORS = AppConstants.COLORS || {};
+var MAIN_COLOR_ATLAS_MATCHED = MAIN_PAGE_COLORS.ATLAS_MATCHED || '#174092';
+var MAIN_COLOR_OSM_MATCHED = MAIN_PAGE_COLORS.OSM_MATCHED || '#4CAF50';
+var MAIN_COLOR_ATLAS_UNMATCHED = MAIN_PAGE_COLORS.ATLAS_UNMATCHED || '#DC3545';
+var MAIN_COLOR_OSM_UNMATCHED = MAIN_PAGE_COLORS.OSM_UNMATCHED || '#6C757D';
+var MAIN_COLOR_LINE_ATLAS_OSM = MAIN_PAGE_COLORS.LINE_ATLAS_OSM || MAIN_COLOR_ATLAS_MATCHED;
+var MAIN_COLOR_TEMP_MARKER = MAIN_PAGE_COLORS.TEMP_MARKER || MAIN_COLOR_ATLAS_MATCHED;
 
 // Request management
 var currentDataRequest = null;  // jqXHR of in-flight /api/data
@@ -470,7 +477,7 @@ function loadTopNMatches() {
                                 lat: parseFloat(stop.atlas_lat),
                                 lon: parseFloat(stop.atlas_lon),
                                 type: 'atlas',
-                                color: 'green',
+                                color: MAIN_COLOR_ATLAS_MATCHED,
                                 hasAtlasDuplicate: stop.has_atlas_duplicate,
                                 originalLat: parseFloat(stop.atlas_lat),
                                 originalLon: parseFloat(stop.atlas_lon),
@@ -485,7 +492,7 @@ function loadTopNMatches() {
                                 lat: parseFloat(stop.osm_lat),
                                 lon: parseFloat(stop.osm_lon),
                                 type: 'osm',
-                                color: 'blue',
+                                color: MAIN_COLOR_OSM_MATCHED,
                                 osmNodeType: stop.osm_node_type,
                                 originalLat: parseFloat(stop.osm_lat),
                                 originalLon: parseFloat(stop.osm_lon),
@@ -498,7 +505,7 @@ function loadTopNMatches() {
                             var line = L.polyline([
                                 [parseFloat(stop.atlas_lat), parseFloat(stop.atlas_lon)],
                                 [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)]
-                            ], { color: 'green' });
+                            ], { color: MAIN_COLOR_LINE_ATLAS_OSM });
                             topNLayer.addLayer(line);
                         }
                     }
@@ -852,7 +859,7 @@ function loadDataForViewport() {
                             lat: atlasLat,
                             lon: atlasLon,
                             type: 'atlas',
-                            color: 'green',
+                            color: MAIN_COLOR_ATLAS_MATCHED,
                             hasAtlasDuplicate: stop.has_atlas_duplicate,
                             originalLat: atlasLat,
                             originalLon: atlasLon,
@@ -885,7 +892,7 @@ function loadDataForViewport() {
                                     lat: osmLat,
                                     lon: osmLon,
                                     type: 'osm',
-                                    color: 'blue',
+                                    color: MAIN_COLOR_OSM_MATCHED,
                                     osmNodeType: osm_match.osm_node_type,
                                     originalLat: osmLat,
                                     originalLon: osmLon,
@@ -907,7 +914,7 @@ function loadDataForViewport() {
                             lat: atlasLat,
                             lon: atlasLon,
                             type: 'atlas',
-                            color: 'green',
+                            color: MAIN_COLOR_ATLAS_MATCHED,
                             hasAtlasDuplicate: stop.has_atlas_duplicate,
                             originalLat: atlasLat,
                             originalLon: atlasLon,
@@ -925,7 +932,7 @@ function loadDataForViewport() {
                             lat: osmLat,
                             lon: osmLon,
                             type: 'osm',
-                            color: 'blue',
+                            color: MAIN_COLOR_OSM_MATCHED,
                             osmNodeType: stop.osm_node_type,
                             originalLat: osmLat,
                             originalLon: osmLon,
@@ -945,7 +952,7 @@ function loadDataForViewport() {
                         lat: atlasLat,
                         lon: atlasLon,
                         type: 'atlas',
-                        color: 'red',
+                        color: MAIN_COLOR_ATLAS_UNMATCHED,
                         hasAtlasDuplicate: stop.has_atlas_duplicate,
                         originalLat: atlasLat,
                         originalLon: atlasLon,
@@ -967,7 +974,7 @@ function loadDataForViewport() {
                         lat: osmLat,
                         lon: osmLon,
                         type: 'osm',
-                        color: isTrioMiddleMatched ? 'blue' : 'gray',
+                        color: isTrioMiddleMatched ? MAIN_COLOR_OSM_MATCHED : MAIN_COLOR_OSM_UNMATCHED,
                         osmNodeType: stop.osm_node_type,
                         originalLat: osmLat,
                         originalLon: osmLon,
@@ -1152,7 +1159,7 @@ function loadDataForViewport() {
                             lat: parseFloat(osmWithMatches.osm_lat),
                             lon: parseFloat(osmWithMatches.osm_lon),
                             type: 'osm',
-                            color: 'blue',
+                            color: MAIN_COLOR_OSM_MATCHED,
                             osmNodeType: osmWithMatches.osm_node_type,
                             originalLat: parseFloat(osmWithMatches.osm_lat),
                             originalLon: parseFloat(osmWithMatches.osm_lon),
@@ -1195,13 +1202,13 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
         const popup = createPopupWithOptions(popupHtml).setLatLng([centerLat, centerLon]);
 
         // Add a temporary marker
-        let tempMarkerColor = 'purple'; // Default color
+        let tempMarkerColor = MAIN_COLOR_TEMP_MARKER;
         if (stopData.stop_type === 'matched') {
-            tempMarkerColor = (popupViewType === 'atlas') ? 'green' : 'blue';
+            tempMarkerColor = (popupViewType === 'atlas') ? MAIN_COLOR_ATLAS_MATCHED : MAIN_COLOR_OSM_MATCHED;
         } else if (stopData.stop_type === 'atlas_unmatched') {
-            tempMarkerColor = (popupViewType === 'atlas') ? 'red' : 'gray'; // Red for ATLAS unmatched, Gray for OSM unmatched if popupViewType is 'osm'
+            tempMarkerColor = (popupViewType === 'atlas') ? MAIN_COLOR_ATLAS_UNMATCHED : MAIN_COLOR_OSM_UNMATCHED;
         } else if (stopData.stop_type === 'osm_unmatched') { // Pure OSM nodes
-            tempMarkerColor = stopData.is_trio_middle_matched ? 'blue' : 'gray';
+            tempMarkerColor = stopData.is_trio_middle_matched ? MAIN_COLOR_OSM_MATCHED : MAIN_COLOR_OSM_UNMATCHED;
         }
 
 
@@ -1549,10 +1556,10 @@ function updateHeaderSummary() {
 
         // Always show both lines if data is available, colorize percentages
         if (totalOSM > 0) {
-            summaryHtml += `<div><i class="fas fa-map-marker-alt"></i> ${totalOSM} OSM stops, <span style="color: #007bff; font-weight: bold;">${osmPercentage}% matched</span></div>`;
+            summaryHtml += `<div><i class="fas fa-map-marker-alt"></i> ${totalOSM} OSM stops, <span style="color: ${MAIN_COLOR_OSM_MATCHED}; font-weight: bold;">${osmPercentage}% matched</span></div>`;
         }
         if (totalATLAS > 0) {
-            summaryHtml += `<div><i class="fas fa-atlas"></i> ${totalATLAS} ATLAS stops, <span style="color: #28a745; font-weight: bold;">${atlasPercentage}% matched</span></div>`;
+            summaryHtml += `<div><i class="fas fa-atlas"></i> ${totalATLAS} ATLAS stops, <span style="color: ${MAIN_COLOR_ATLAS_MATCHED}; font-weight: bold;">${atlasPercentage}% matched</span></div>`;
         }
 
         if (!summaryHtml) { // Fallback if both counts are zero for some reason based on filters

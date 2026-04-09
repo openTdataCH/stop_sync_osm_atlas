@@ -43,10 +43,11 @@ global.L = {
 // ==========================================
 
 const LineRenderer = {};
+const COLOR_LINE_ATLAS_OSM = '#174092';
 
 const LINE_STYLES = {
-    default: { color: 'green', weight: 2, opacity: 1 },
-    context: { color: 'green', weight: 2, opacity: 0.4 }
+    default: { color: COLOR_LINE_ATLAS_OSM, weight: 2, opacity: 1 },
+    context: { color: COLOR_LINE_ATLAS_OSM, weight: 2, opacity: 0.4 }
 };
 
 LineRenderer.getStyle = function(matchType, isContext) {
@@ -137,25 +138,25 @@ describe('LineRenderer', () => {
     // getStyle Tests
     // -----------------------------------------
     describe('getStyle', () => {
-        test('returns green style for standard exact match', () => {
+        test('returns ATLAS-OSM line style for standard exact match', () => {
             const style = LineRenderer.getStyle('exact', false);
-            expect(style.color).toBe('green');
+            expect(style.color).toBe(COLOR_LINE_ATLAS_OSM);
             expect(style.weight).toBe(2);
         });
 
-        test('returns green style for distance matching', () => {
+        test('returns ATLAS-OSM line style for distance matching', () => {
             const style = LineRenderer.getStyle('distance_matching_50', false);
-            expect(style.color).toBe('green');
+            expect(style.color).toBe(COLOR_LINE_ATLAS_OSM);
         });
 
-        test('returns green style for name matching', () => {
+        test('returns ATLAS-OSM line style for name matching', () => {
             const style = LineRenderer.getStyle('name', false);
-            expect(style.color).toBe('green');
+            expect(style.color).toBe(COLOR_LINE_ATLAS_OSM);
         });
 
         test('returns context style with lower opacity', () => {
             const style = LineRenderer.getStyle('exact', true);
-            expect(style.color).toBe('green');
+            expect(style.color).toBe(COLOR_LINE_ATLAS_OSM);
             expect(style.opacity).toBe(0.4);
         });
     });
@@ -294,7 +295,7 @@ describe('LineRenderer', () => {
             expect(mockLayer.addLayer).toHaveBeenCalledTimes(1);
             expect(polylineCalls).toHaveLength(1);
             expect(polylineCalls[0].coords).toEqual([[47.0, 8.0], [47.001, 8.001]]);
-            expect(polylineCalls[0].options.color).toBe('green');
+            expect(polylineCalls[0].options.color).toBe(COLOR_LINE_ATLAS_OSM);
         });
 
         test('draws multiple lines for 1:N match (1 ATLAS to multiple OSM)', () => {
@@ -577,9 +578,9 @@ describe('LineRenderer Integration Scenarios', () => {
             isContext: false
         });
 
-        // All match types use the same green style
-        expect(polylineCalls[0].options.color).toBe('green');
-        expect(polylineCalls[1].options.color).toBe('green');
-        expect(polylineCalls[2].options.color).toBe('green');
+        // All match types use the same ATLAS-OSM line style
+        expect(polylineCalls[0].options.color).toBe(COLOR_LINE_ATLAS_OSM);
+        expect(polylineCalls[1].options.color).toBe(COLOR_LINE_ATLAS_OSM);
+        expect(polylineCalls[2].options.color).toBe(COLOR_LINE_ATLAS_OSM);
     });
 });

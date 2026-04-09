@@ -6,8 +6,9 @@ import sys
 import subprocess
 import logging
 from typing import List, Tuple, Dict, Optional
+from urllib.parse import unquote
 
-from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file
+from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file, redirect
 from werkzeug.utils import safe_join
 from backend.services.docs_stats import replace_stats_placeholders
 
@@ -150,14 +151,12 @@ def _rewrite_repo_links_to_github(markdown_text: str) -> str:
     return pattern.sub(repl, markdown_text)
 
 
-def _rewrite_internal_doc_links_to_routes(markdown_text: str) -> str:
+def _rewrite_internal_doc_links_to_routes(markdown_text: str, file_to_slug: Dict[str, str]) -> str:
     """Rewrite relative .md links to internal /docs/ Flask routes.
 
     Transforms links like [Text](1.%20Download%20and%20process%20data.md)
-    into [Text](/docs/1. Download and process data) for proper routing.
+    into [Text](/docs/download_and_process_data) for canonical routing.
     """
-    from urllib.parse import unquote
-
     # Match [text](file.md) or [text](file.md#anchor)
     # Negative lookbehind avoids matching images: ![alt](...)
     pattern = re.compile(r'(?<!!)\[([^\]]+)\]\(([^)]+\.md(?:#[^)]*)?)\)')
@@ -178,13 +177,19 @@ def _rewrite_internal_doc_links_to_routes(markdown_text: str) -> str:
             path_part = href
             anchor = ''
 
-        # Decode URL encoding and remove .md extension
-        clean_name = unquote(path_part)
-        if clean_name.lower().endswith('.md'):
-            clean_name = clean_name[:-3]
+        clean_path = unquote(path_part).strip()
+        clean_path = clean_path.lstrip('./')
+        candidate_file = os.path.basename(clean_path)
+        if not candidate_file.lower().endswith('.md'):
+            candidate_file = f"{candidate_file}.md"
+
+        slug = file_to_slug.get(candidate_file)
+        if slug is None:
+            # Keep unresolved links unchanged to avoid generating broken routes.
+            return match.group(0)
 
         # Build Flask route URL
-        new_href = url_for('docs.docs_page', page=clean_name) + anchor
+        new_href = url_for('docs.docs_page', page=slug) + anchor
         return f'[{link_text}]({new_href})'
 
     return pattern.sub(repl, markdown_text)
@@ -199,6 +204,38 @@ def _list_markdown_files() -> List[str]:
     files = [f for f in os.listdir(docs_dir) if f.lower().endswith('.md')]
     files.sort(key=lambda x: x.lower())
     return files
+
+
+def _remove_numeric_prefix(stem: str) -> str:
+    """Remove a leading numeric docs prefix like '2.1 ' or '5.3.2 '."""
+    return re.sub(r'^\d+(?:\.\d+)*\.?\s*', '', stem).strip()
+
+
+def _slugify_doc_stem(stem: str) -> str:
+    """Create a URL-safe docs slug from a filename stem."""
+    base = _remove_numeric_prefix(stem).lower()
+    slug = re.sub(r'[^a-z0-9]+', '_', base).strip('_')
+    return slug or 'doc'
+
+
+def _build_doc_slug_maps(files: List[str]) -> Tuple[Dict[str, str], Dict[str, str]]:
+    """Build deterministic filename<->slug maps for all docs files."""
+    file_to_slug: Dict[str, str] = {}
+    slug_to_file: Dict[str, str] = {}
+
+    for filename in files:
+        stem = os.path.splitext(filename)[0]
+        base_slug = _slugify_doc_stem(stem)
+        slug = base_slug
+        counter = 2
+        while slug in slug_to_file and slug_to_file[slug] != filename:
+            slug = f"{base_slug}_{counter}"
+            counter += 1
+
+        file_to_slug[filename] = slug
+        slug_to_file[slug] = filename
+
+    return file_to_slug, slug_to_file
 
 
 def _derive_title(filename: str) -> str:
@@ -243,7 +280,7 @@ def _top_level_section_key(filename: str) -> Optional[str]:
     return top
 
 
-def _group_files_by_section(files: List[str]) -> List[Dict]:
+def _group_files_by_section(files: List[str], file_to_slug: Dict[str, str]) -> List[Dict]:
     """Group markdown files by their top-level numeric section.
 
     Returns a list of sections sorted by numeric key. Each section is a dict:
@@ -264,15 +301,18 @@ def _group_files_by_section(files: List[str]) -> List[Dict]:
                 'key': key,
                 'number': int(key),
                 'root_file': None,
+                'root_slug': None,
                 'root_title': None,
                 'items': []
             }
         if level <= 1:
             sections_map[key]['root_file'] = f
             sections_map[key]['root_title'] = title
+            sections_map[key]['root_slug'] = file_to_slug.get(f, '')
         else:
             sections_map[key]['items'].append({
                 'file': f,
+                'slug': file_to_slug.get(f, ''),
                 'title': title,
                 'level': level,
             })
@@ -354,11 +394,11 @@ def _convert_github_alerts_to_html(markdown_text: str) -> str:
     return re.sub(pattern, replace_alert, markdown_text, flags=re.IGNORECASE)
 
 
-def _convert_markdown_to_html(markdown_text: str) -> str:
+def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) -> str:
     markdown_text = _rewrite_repo_links_to_github(markdown_text)
     
     # Rewrite internal .md links to Flask /docs/ routes
-    markdown_text = _rewrite_internal_doc_links_to_routes(markdown_text)
+    markdown_text = _rewrite_internal_doc_links_to_routes(markdown_text, file_to_slug)
     
     # Convert GitHub-style alerts to HTML before markdown processing
     markdown_text = _convert_github_alerts_to_html(markdown_text)
@@ -421,39 +461,69 @@ def _convert_markdown_to_html(markdown_text: str) -> str:
 @docs_bp.route('/docs')
 @docs_bp.route('/docs/<path:page>')
 def docs_page(page: str = ''):
-    from urllib.parse import unquote
-    
     files = _list_markdown_files()
     if not files:
         abort(404)
 
-    # If no page specified, default to the first doc
-    active_file = None
-    if page:
-        # Decode URL-encoded characters (e.g., %20 -> space)
-        decoded_page = unquote(page)
-        # Accept either with or without .md
+    file_to_slug, slug_to_file = _build_doc_slug_maps(files)
+
+    def resolve_active_file(requested_page: str) -> Optional[str]:
+        if not requested_page:
+            return None
+
+        decoded_page = unquote(requested_page).strip('/')
+        if not decoded_page:
+            return None
+
+        # Canonical slug lookup.
+        by_slug = slug_to_file.get(decoded_page)
+        if by_slug:
+            return by_slug
+
+        # Legacy filename lookup (with or without .md extension).
         candidate = decoded_page if decoded_page.lower().endswith('.md') else f"{decoded_page}.md"
-        if candidate in files:
-            active_file = candidate
+        if candidate in file_to_slug:
+            return candidate
+
+        # Fallback for loosely formatted legacy links.
+        fallback_slug = _slugify_doc_stem(os.path.splitext(decoded_page)[0])
+        return slug_to_file.get(fallback_slug)
+
+    is_partial = request.headers.get('X-Docs-Partial') == '1' or request.args.get('partial') == '1'
+
+    # If no page specified, default to the first doc
+    active_file = resolve_active_file(page)
+    if not page:
+        active_file = files[0]
+    elif active_file is None:
+        abort(404)
+
+    active_slug = file_to_slug.get(active_file, '')
+
+    # Redirect legacy/non-canonical URLs to canonical slugs for clean URLs.
+    if page and unquote(page).strip('/') != active_slug and not is_partial:
+        return redirect(url_for('docs.docs_page', page=active_slug), code=301)
+
     if active_file is None:
         active_file = files[0]
 
     raw_markdown = _read_markdown(active_file)
-    html_content = _convert_markdown_to_html(raw_markdown)
+    html_content = _convert_markdown_to_html(raw_markdown, file_to_slug)
 
-    sections = _group_files_by_section(files)
+    sections = _group_files_by_section(files, file_to_slug)
     # Build an ordered flat list for prev/next navigation
     ordered_pages: List[Dict[str, str]] = []
     for sec in sections:
         if sec.get('root_file'):
             ordered_pages.append({
                 'file': sec['root_file'],
+                'slug': file_to_slug.get(sec['root_file'], ''),
                 'title': sec.get('root_title') or _derive_title(sec['root_file']),
             })
         for item in sec['items']:
             ordered_pages.append({
                 'file': item['file'],
+                'slug': item.get('slug', ''),
                 'title': item['title'],
             })
 
@@ -468,11 +538,38 @@ def docs_page(page: str = ''):
     except StopIteration:
         prev_page = None
         next_page = None
+
+    if prev_page:
+        prev_page = {
+            'file': prev_page['file'],
+            'slug': prev_page.get('slug', file_to_slug.get(prev_page['file'], '')),
+            'title': prev_page['title'],
+        }
+    if next_page:
+        next_page = {
+            'file': next_page['file'],
+            'slug': next_page.get('slug', file_to_slug.get(next_page['file'], '')),
+            'title': next_page['title'],
+        }
+
     active_section = _top_level_section_key(active_file)
+
+    if is_partial:
+        return jsonify({
+            'content_html': html_content,
+            'active_file': active_file,
+            'active_slug': active_slug,
+            'active_section': active_section,
+            'prev_page': prev_page,
+            'next_page': next_page,
+            'canonical_url': url_for('docs.docs_page', page=active_slug),
+        })
+
     return render_template(
         'pages/docs.html',
         sections=sections,
         active_file=active_file,
+        active_slug=active_slug,
         active_section=active_section,
         content_html=html_content,
         prev_page=prev_page,

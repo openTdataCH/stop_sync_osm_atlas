@@ -3,10 +3,10 @@
 {% block title %}Documentation{% endblock %}
 
 {% block head_css %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/docs.css') }}">
-  <!-- Mermaid.js for diagrams -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-  <script src="{{ url_for('static', filename='js/shared/mermaid-config.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/docs.css') }}">
+<!-- Mermaid.js for diagrams -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="{{ url_for('static', filename='js/shared/mermaid-config.js') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -15,10 +15,12 @@
     <a href="{{ url_for('index') }}" class="btn btn-outline-secondary mr-2 shadow-sm">
       <i class="fas fa-arrow-left"></i> Back to Map
     </a>
-    <a href="{{ url_for('docs.download_docs_pdf') }}" class="btn btn-outline-danger mr-2 shadow-sm" title="Download documentation as PDF">
+    <a href="{{ url_for('docs.download_docs_pdf') }}" class="btn btn-outline-danger mr-2 shadow-sm"
+      title="Download documentation as PDF">
       Download doc<i class="fas fa-file-pdf ml-1"></i>
     </a>
-    <a href="https://github.com/openTdataCH/stop_sync_osm_atlas" target="_blank" class="btn btn-outline-primary repo-btn shadow-sm">
+    <a href="https://github.com/openTdataCH/stop_sync_osm_atlas" target="_blank"
+      class="btn btn-outline-primary repo-btn shadow-sm">
       <i class="fas fa-code-branch mr-1"></i> Repo
     </a>
   </div>
@@ -27,35 +29,41 @@
       <div class="list-group list-group-flush" id="docs-sections">
         {% for sec in sections %}
         <div class="docs-section" data-section="{{ sec.key }}">
-          <div class="list-group-item d-flex align-items-center justify-content-between docs-section-header shadow-sm mb-2{% if active_section == sec.key %} active{% endif %}"
-               {% if sec.root_file %} data-root-href="{{ url_for('docs.docs_page', page=sec.root_file[:-3]) }}"{% endif %}>
+          <div
+            class="list-group-item d-flex align-items-center justify-content-between docs-section-header shadow-sm mb-2{% if active_section == sec.key %} active{% endif %}"
+            {% if sec.root_slug %} data-root-href="{{ url_for('docs.docs_page', page=sec.root_slug) }}" {% endif
+            %}>
             <div class="d-flex align-items-center">
               {% if sec['items']|length > 0 %}
-                <button class="btn btn-sm btn-link p-0 mr-2 docs-toggle" type="button" data-section="{{ sec.key }}" aria-expanded="false" aria-controls="sec-{{ sec.key }}-items">
-                  <i class="fas fa-chevron-right chevron"></i>
-                </button>
+              <button class="btn btn-sm btn-link p-0 mr-2 docs-toggle" type="button" data-section="{{ sec.key }}"
+                aria-expanded="false" aria-controls="sec-{{ sec.key }}-items">
+                <i class="fas fa-chevron-right chevron"></i>
+              </button>
               {% else %}
-                <span class="mr-2" style="display:inline-block;width:1rem;"></span>
+              <span class="mr-2" style="display:inline-block;width:1rem;"></span>
               {% endif %}
               {% if sec.root_title %}
-                {% if sec.root_file %}
-                  <a class="docs-section-link" href="{{ url_for('docs.docs_page', page=sec.root_file[:-3]) }}" data-section-link="{{ sec.key }}">{{ sec.root_title }}</a>
-                {% else %}
-                  <span class="docs-section-link" data-section-link="{{ sec.key }}">{{ sec.root_title }}</span>
-                {% endif %}
+              {% if sec.root_slug %}
+              <a class="docs-section-link" href="{{ url_for('docs.docs_page', page=sec.root_slug) }}"
+                data-section-link="{{ sec.key }}" data-doc-slug="{{ sec.root_slug }}">{{ sec.root_title }}</a>
               {% else %}
-                {% if sec.root_file %}
-                  <a class="docs-section-link" href="{{ url_for('docs.docs_page', page=sec.root_file[:-3]) }}" data-section-link="{{ sec.key }}">Section {{ sec.key }}</a>
-                {% else %}
-                  <span class="docs-section-link" data-section-link="{{ sec.key }}">Section {{ sec.key }}</span>
-                {% endif %}
+              <span class="docs-section-link" data-section-link="{{ sec.key }}">{{ sec.root_title }}</span>
+              {% endif %}
+              {% else %}
+              {% if sec.root_slug %}
+              <a class="docs-section-link" href="{{ url_for('docs.docs_page', page=sec.root_slug) }}"
+                data-section-link="{{ sec.key }}" data-doc-slug="{{ sec.root_slug }}">Section {{ sec.key }}</a>
+              {% else %}
+              <span class="docs-section-link" data-section-link="{{ sec.key }}">Section {{ sec.key }}</span>
+              {% endif %}
               {% endif %}
             </div>
           </div>
           <div id="sec-{{ sec.key }}-items" class="docs-subitems collapse" data-subitems="{{ sec.key }}">
             <div class="list-group list-group-flush">
               {% for item in sec['items'] %}
-                <a class="list-group-item list-group-item-action level-{{ item.level }}{% if item.file == active_file %} active{% endif %}" href="{{ url_for('docs.docs_page', page=item.file[:-3]) }}">{{ item.title }}</a>
+              <a class="list-group-item list-group-item-action level-{{ item.level }}{% if item.slug == active_slug %} active{% endif %}"
+                href="{{ url_for('docs.docs_page', page=item.slug) }}" data-doc-slug="{{ item.slug }}">{{ item.title }}</a>
               {% endfor %}
             </div>
           </div>
@@ -65,13 +73,14 @@
     </div>
     <div class="col-md-9 docs-content">
       <div class="card">
-        <div class="card-body">
+        <div class="card-body" id="docs-content-html">
           {{ content_html | safe }}
         </div>
       </div>
-      <div class="d-flex justify-content-between align-items-stretch mt-3 docs-nav">
+      <div class="d-flex justify-content-between align-items-stretch mt-3 docs-nav" id="docs-nav">
         {% if prev_page %}
-        <a id="docs-prev" href="{{ url_for('docs.docs_page', page=prev_page['file'][:-3]) }}" class="docs-nav-btn d-flex align-items-center shadow-sm">
+        <a id="docs-prev" href="{{ url_for('docs.docs_page', page=prev_page['slug']) }}"
+          class="docs-nav-btn d-flex align-items-center shadow-sm">
           <i class="fas fa-arrow-left mr-2"></i>
           <span class="text-left">
             <div class="nav-label">Previous</div>
@@ -82,7 +91,8 @@
         <span></span>
         {% endif %}
         {% if next_page %}
-        <a id="docs-next" href="{{ url_for('docs.docs_page', page=next_page['file'][:-3]) }}" class="docs-nav-btn d-flex align-items-center shadow-sm">
+        <a id="docs-next" href="{{ url_for('docs.docs_page', page=next_page['slug']) }}"
+          class="docs-nav-btn d-flex align-items-center shadow-sm">
           <span class="text-right mr-2">
             <div class="nav-label">Next</div>
             <div class="nav-title">{{ next_page['title'] }}</div>
@@ -100,13 +110,15 @@
 
 {% block scripts %}
 <script>
-  (function() {
+  (function () {
     var STORAGE_KEY = 'docsSidebarExpanded';
+    var DOCS_ROOT_PATH = '{{ url_for("docs.docs_page") }}';
+
     function getExpanded() {
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { return []; }
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; }
     }
     function setExpanded(arr) {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); } catch(e) {}
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); } catch (e) { }
     }
     function isExpanded(arr, key) { return arr.indexOf(key) !== -1; }
     function addExpanded(arr, key) { if (!isExpanded(arr, key)) arr.push(key); }
@@ -124,21 +136,200 @@
       }
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
+    function applyExpandedState() {
+      var expanded = getExpanded();
+      document.querySelectorAll('.docs-section').forEach(function (sec) {
+        var key = sec.getAttribute('data-section');
+        updateSectionVisual(sec, isExpanded(expanded, key));
+      });
+    }
+
+    function markActiveDoc(activeSlug, activeSection) {
+      document.querySelectorAll('.docs-subitems .list-group-item.active').forEach(function (el) {
+        el.classList.remove('active');
+      });
+      document.querySelectorAll('.docs-section-header.active').forEach(function (el) {
+        el.classList.remove('active');
+      });
+
+      if (activeSlug) {
+        document.querySelectorAll('.docs-subitems .list-group-item[data-doc-slug]').forEach(function (el) {
+          if (el.getAttribute('data-doc-slug') === activeSlug) {
+            el.classList.add('active');
+          }
+        });
+      }
+
+      if (activeSection) {
+        var sectionEl = document.querySelector('.docs-section[data-section="' + activeSection + '"]');
+        if (sectionEl) {
+          var header = sectionEl.querySelector('.docs-section-header');
+          if (header) {
+            header.classList.add('active');
+          }
+        }
+
+        var expanded = getExpanded();
+        addExpanded(expanded, activeSection);
+        setExpanded(expanded);
+      }
+
+      applyExpandedState();
+    }
+
+    function createNavButton(id, page, direction) {
+      if (!page || !page.slug) return null;
+
+      var anchor = document.createElement('a');
+      anchor.id = id;
+      anchor.href = DOCS_ROOT_PATH + '/' + page.slug;
+      anchor.className = 'docs-nav-btn d-flex align-items-center shadow-sm';
+
+      if (direction === 'prev') {
+        var leftIcon = document.createElement('i');
+        leftIcon.className = 'fas fa-arrow-left mr-2';
+        anchor.appendChild(leftIcon);
+
+        var leftText = document.createElement('span');
+        leftText.className = 'text-left';
+        var prevLabel = document.createElement('div');
+        prevLabel.className = 'nav-label';
+        prevLabel.textContent = 'Previous';
+        var prevTitle = document.createElement('div');
+        prevTitle.className = 'nav-title';
+        prevTitle.textContent = page.title || '';
+        leftText.appendChild(prevLabel);
+        leftText.appendChild(prevTitle);
+        anchor.appendChild(leftText);
+        return anchor;
+      }
+
+      var rightText = document.createElement('span');
+      rightText.className = 'text-right mr-2';
+      var nextLabel = document.createElement('div');
+      nextLabel.className = 'nav-label';
+      nextLabel.textContent = 'Next';
+      var nextTitle = document.createElement('div');
+      nextTitle.className = 'nav-title';
+      nextTitle.textContent = page.title || '';
+      rightText.appendChild(nextLabel);
+      rightText.appendChild(nextTitle);
+      anchor.appendChild(rightText);
+
+      var rightIcon = document.createElement('i');
+      rightIcon.className = 'fas fa-arrow-right';
+      anchor.appendChild(rightIcon);
+      return anchor;
+    }
+
+    function renderNav(prevPage, nextPage) {
+      var nav = document.getElementById('docs-nav');
+      if (!nav) return;
+
+      nav.innerHTML = '';
+
+      var prevEl = createNavButton('docs-prev', prevPage, 'prev');
+      if (prevEl) {
+        nav.appendChild(prevEl);
+      } else {
+        nav.appendChild(document.createElement('span'));
+      }
+
+      var nextEl = createNavButton('docs-next', nextPage, 'next');
+      if (nextEl) {
+        nav.appendChild(nextEl);
+      }
+    }
+
+    function renderMermaid() {
+      if (!window.mermaid || typeof window.mermaid.run !== 'function') {
+        return;
+      }
+
+      var nodes = document.querySelectorAll('#docs-content-html .mermaid');
+      if (!nodes.length) {
+        return;
+      }
+
+      try {
+        window.mermaid.run({ nodes: nodes });
+      } catch (err) {
+        console.warn('Mermaid render failed:', err);
+      }
+    }
+
+    function isDocsPagePath(pathname) {
+      return pathname === DOCS_ROOT_PATH || pathname.indexOf(DOCS_ROOT_PATH + '/') === 0;
+    }
+
+    function isRoutableDocsPath(pathname) {
+      if (!isDocsPagePath(pathname)) return false;
+      if (pathname.indexOf(DOCS_ROOT_PATH + '/assets/') === 0) return false;
+      if (pathname.indexOf(DOCS_ROOT_PATH + '/data/') === 0) return false;
+      return true;
+    }
+
+    function fetchDocsPage(urlObj, pushState) {
+      return fetch(urlObj.pathname + urlObj.search, {
+        headers: {
+          'X-Docs-Partial': '1'
+        }
+      })
+        .then(function (response) {
+          if (!response.ok) throw new Error('Failed to load documentation page');
+          return response.json();
+        })
+        .then(function (payload) {
+          if (!payload || typeof payload.content_html !== 'string') {
+            throw new Error('Invalid documentation payload');
+          }
+
+          var content = document.getElementById('docs-content-html');
+          if (!content) throw new Error('Documentation content element not found');
+          content.innerHTML = payload.content_html;
+
+          markActiveDoc(payload.active_slug || '', payload.active_section || '');
+          renderNav(payload.prev_page, payload.next_page);
+          renderMermaid();
+
+          var canonicalUrl = payload.canonical_url || (urlObj.pathname + urlObj.search);
+          if (urlObj.hash) {
+            canonicalUrl += urlObj.hash;
+          }
+          if (pushState) {
+            history.pushState({ docs: true }, '', canonicalUrl);
+          }
+
+          if (urlObj.hash) {
+            var target = document.getElementById(urlObj.hash.slice(1));
+            if (target) {
+              target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              return;
+            }
+          }
+
+          window.scrollTo({ top: 0, behavior: 'auto' });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
       var expanded = getExpanded();
       var activeSection = '{{ active_section or '' }}';
+      var activeSlug = '{{ active_slug or '' }}';
       if (activeSection) {
         addExpanded(expanded, activeSection);
         setExpanded(expanded);
       }
 
-      document.querySelectorAll('.docs-section').forEach(function(sec) {
-        var key = sec.getAttribute('data-section');
-        updateSectionVisual(sec, isExpanded(expanded, key));
-      });
+      applyExpandedState();
+      markActiveDoc(activeSlug, activeSection);
 
-      document.querySelectorAll('.docs-toggle').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
+      if (!history.state || !history.state.docs) {
+        history.replaceState({ docs: true }, '', window.location.href);
+      }
+
+      document.querySelectorAll('.docs-toggle').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
           e.preventDefault();
           e.stopPropagation();
           var key = btn.getAttribute('data-section');
@@ -155,18 +346,23 @@
       });
 
       // Make the entire header clickable to navigate to the root page
-      document.querySelectorAll('.docs-section-header').forEach(function(header){
-        header.addEventListener('click', function(e){
+      document.querySelectorAll('.docs-section-header').forEach(function (header) {
+        header.addEventListener('click', function (e) {
           // Ignore if the toggle button itself was clicked
           if (e.target.closest('.docs-toggle')) return;
           var href = header.getAttribute('data-root-href');
-          if (href) { window.location.href = href; }
+          if (!href) return;
+
+          var url = new URL(href, window.location.href);
+          fetchDocsPage(url, true).catch(function () {
+            window.location.href = href;
+          });
         });
       });
 
-      // Clicking the main number should also expand before navigating (if same page)
-      document.querySelectorAll('[data-section-link]').forEach(function(a) {
-        a.addEventListener('click', function() {
+      // Clicking the main section link should keep the section expanded.
+      document.querySelectorAll('[data-section-link]').forEach(function (a) {
+        a.addEventListener('click', function () {
           var key = a.getAttribute('data-section-link');
           var sections = getExpanded();
           addExpanded(sections, key);
@@ -174,28 +370,45 @@
         });
       });
 
-      // Smooth scroll hint on prev/next clicks
-      function smoothNavigate(id, direction) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('click', function(e) {
-          // Let the link navigate, but add a subtle scroll animation first
-          // Only if same origin navigation
-          try {
-            var url = new URL(el.href, window.location.href);
-            if (url.origin === window.location.origin) {
-              e.preventDefault();
-              var distance = Math.min(300, Math.max(150, window.innerHeight * 0.4));
-              var start = window.scrollY;
-              var target = direction === 'down' ? start + distance : Math.max(0, start - distance);
-              window.scrollTo({ top: target, behavior: 'smooth' });
-              setTimeout(function() { window.location.href = el.href; }, 180);
-            }
-          } catch(_) { /* ignore */ }
+      document.addEventListener('click', function (e) {
+        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+          return;
+        }
+
+        var link = e.target.closest('a[href]');
+        if (!link) return;
+        if (link.target && link.target !== '_self') return;
+
+        var url;
+        try {
+          url = new URL(link.href, window.location.href);
+        } catch (_) {
+          return;
+        }
+
+        if (url.origin !== window.location.origin) return;
+        if (!isRoutableDocsPath(url.pathname)) return;
+
+        // Keep same-page hash navigation native for heading jumps.
+        if (url.pathname === window.location.pathname && url.hash) {
+          return;
+        }
+
+        e.preventDefault();
+        fetchDocsPage(url, true).catch(function () {
+          window.location.href = url.pathname + url.search + url.hash;
         });
-      }
-      smoothNavigate('docs-prev', 'up');
-      smoothNavigate('docs-next', 'down');
+      });
+
+      window.addEventListener('popstate', function () {
+        var url = new URL(window.location.href);
+        if (!isRoutableDocsPath(url.pathname)) {
+          return;
+        }
+        fetchDocsPage(url, false).catch(function () {
+          window.location.reload();
+        });
+      });
     });
   })();
 </script>

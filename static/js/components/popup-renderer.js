@@ -314,7 +314,7 @@
         }
 
         if (isMatched && (stop.atlas_matches || stop.osm_matches || (stop.atlas_lat && stop.osm_lat))) {
-            initialHtml += `<div class="popup-actions"><button class="btn btn-sm btn-secondary" onclick='PopupRenderer.showMatches(this, ${stop.id})'>See Matches</button></div>`;
+            initialHtml += `<div class="popup-actions"><button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.showMatches(this, ${stop.id})'>See Matches</button></div>`;
         }
 
         return initialHtml;
@@ -396,7 +396,7 @@
         unifiedHtml += '</div>';
 
         if (hasMatches) {
-            unifiedHtml += `<div class="popup-actions"><button class="btn btn-sm btn-secondary" onclick='PopupRenderer.hideMatches(this, ${stop.id}, "${initialViewType}")'>Close Matches</button></div>`;
+            unifiedHtml += `<div class="popup-actions"><button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.hideMatches(this, ${stop.id}, "${initialViewType}")'>Close Matches</button></div>`;
         } else {
             return '<!-- No matches to display -->';
         }

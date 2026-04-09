@@ -11,6 +11,11 @@ window.ProblemsMap = (function() {
     const PROBLEM_LINE_ZOOM_THRESHOLD = AppConstants.MAP.ZOOM_LINE_THRESHOLD;   // draw context lines only at high zoom
     const CONTEXT_LIMIT_LOW_ZOOM = AppConstants.CONTEXT_MARKERS.LOW_ZOOM_LIMIT;
     const CONTEXT_LIMIT_HIGH_ZOOM = AppConstants.CONTEXT_MARKERS.HIGH_ZOOM_LIMIT;
+    const MAP_COLORS = AppConstants.COLORS || {};
+    const COLOR_ATLAS_MATCHED = MAP_COLORS.ATLAS_MATCHED || '#174092';
+    const COLOR_OSM_MATCHED = MAP_COLORS.OSM_MATCHED || '#4CAF50';
+    const COLOR_ATLAS_UNMATCHED = MAP_COLORS.ATLAS_UNMATCHED || '#DC3545';
+    const COLOR_OSM_UNMATCHED = MAP_COLORS.OSM_UNMATCHED || '#6C757D';
 
     // Request management for context loading
     let currentContextRequest = null; // jqXHR of in-flight /api/data
@@ -246,9 +251,9 @@ window.ProblemsMap = (function() {
                 // Handle ATLAS markers
                 const atlasMarkerKey = getAtlasMarkerIdentity(stop);
                 if (stop.sloid && stop.atlas_lat != null && stop.atlas_lon != null && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
-                    let atlasColor = 'gray';
-                    if (stop.stop_type === 'matched') atlasColor = 'green';
-                    else if (stop.stop_type === 'atlas_unmatched') atlasColor = 'red';
+                    let atlasColor = COLOR_OSM_UNMATCHED;
+                    if (stop.stop_type === 'matched') atlasColor = COLOR_ATLAS_MATCHED;
+                    else if (stop.stop_type === 'atlas_unmatched') atlasColor = COLOR_ATLAS_UNMATCHED;
                     
                     contextMarkerData.push({
                         lat: parseFloat(stop.atlas_lat),
@@ -294,9 +299,9 @@ window.ProblemsMap = (function() {
                 
                 // Create markers for all OSM nodes
                 osmNodesToProcess.forEach(osmData => {
-                    let osmColor = 'gray';
-                    if (osmData.stop_type === 'matched') osmColor = 'blue';
-                    else if (osmData.stop_type === 'osm_unmatched') osmColor = 'gray';
+                    let osmColor = COLOR_OSM_UNMATCHED;
+                    if (osmData.stop_type === 'matched') osmColor = COLOR_OSM_MATCHED;
+                    else if (osmData.stop_type === 'osm_unmatched') osmColor = COLOR_OSM_UNMATCHED;
                     
                     contextMarkerData.push({
                         lat: parseFloat(osmData.osm_lat),

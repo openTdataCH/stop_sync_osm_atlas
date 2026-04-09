@@ -74,11 +74,15 @@ def create_app():
     def problems():
         return render_template('pages/problems.html')
 
-    @app.route('/insights')
-    def insights_page():
+    @app.route('/analytics', endpoint='analytics_stats')
+    @app.route('/analytics/reports', endpoint='analytics_reports')
+    def analytics_page():
         from backend.services.stats_export import load_stats_from_file
         stats = load_stats_from_file()
         gtfs_mapping_stats = stats.get('gtfs_mapping') if stats else None
+
+        # Determine which view to show based on the URL
+        active_view = 'reports' if request.path.endswith('/reports') else 'stats'
 
         # Read priority breakdown from stats.json (populated by pipeline)
         problem_breakdown = {}
@@ -88,10 +92,11 @@ def create_app():
             problem_breakdown = {int(k): v for k, v in raw.items()}
 
         return render_template(
-            'pages/insights.html',
+            'pages/analytics.html',
             stats=stats,
             problem_breakdown=problem_breakdown,
             gtfs_mapping_stats=gtfs_mapping_stats,
+            active_view=active_view
         )
 
     @app.errorhandler(404)
