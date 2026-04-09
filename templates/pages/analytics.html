@@ -62,7 +62,7 @@
 <div class="stats-page">
   <div class="stats-container">
 
-    <header class="mb-5">
+    <header class="mb-2">
       <nav class="c-analytics-tabs" role="tablist">
         <a href="{{ url_for('analytics_stats') }}" 
            class="c-analytics-tabs__tab {{ 'is-active' if active_view == 'stats' }}"
@@ -78,20 +78,31 @@
         </a>
       </nav>
       
-      <div class="d-flex justify-content-between align-items-baseline mt-3">
-        <p class="c-analytics-tabs__description mb-0">
-          {% if active_view == 'reports' %}
+      <div class="d-flex justify-content-between align-items-center mt-2">
+        {% if active_view == 'reports' %}
+          <p class="c-analytics-tabs__description mb-0">
             Export detailed reports of synchronization quality and problems.
-          {% else %}
-            Analyze synchronization quality and quality metrics.
-          {% endif %}
-        </p>
-        
-        {% if stats %}
-        <div class="text-muted small">
-          <i class="far fa-clock mr-1"></i> Data updated: {{ stats.generated_at[:10] }} {{ stats.generated_at[11:16] }}
-        </div>
+          </p>
+        {% else %}
+          <div></div>{# Spacer to keep alignment #}
         {% endif %}
+        
+        <div class="d-flex align-items-center">
+          {% if active_view == 'stats' and stats and not is_pdf %}
+            <a href="{{ url_for('stats.download_stats_summary_pdf') }}" 
+               class="btn btn-sm btn-outline-primary shadow-sm font-weight-bold mr-4"
+               title="Download stats as PDF"
+               style="height: fit-content; line-height: 1.2;">
+              <i class="fas fa-file-pdf mr-1"></i> Download Summary PDF
+            </a>
+          {% endif %}
+          
+          {% if stats %}
+          <div class="text-muted small">
+            <i class="far fa-clock mr-1"></i> Data updated: {{ stats.generated_at[:10] }} {{ stats.generated_at[11:16] }}
+          </div>
+          {% endif %}
+        </div>
       </div>
     </header>
 
@@ -204,19 +215,6 @@
                   </div>
                 </div>
 
-                <div class="filter-subsection">
-                  <label class="filter-subsection__label"><i class="fas fa-check-circle"></i> Status</label>
-                  <div class="chip-group">
-                    <label class="chip-option">
-                      <input type="checkbox" id="statusSolved" value="solved" checked>
-                      <span>Solved</span>
-                    </label>
-                    <label class="chip-option">
-                      <input type="checkbox" id="statusUnsolved" value="unsolved" checked>
-                      <span>Unsolved</span>
-                    </label>
-                  </div>
-                </div>
               </div>
 
               <div class="section-divider"></div>

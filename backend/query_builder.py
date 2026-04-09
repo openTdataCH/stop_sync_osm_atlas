@@ -6,8 +6,6 @@ This module consolidates common filtering patterns to reduce code duplication an
 from backend.services.routes import get_stops_for_route
 from backend.extensions import db
 from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
-from sqlalchemy.orm import joinedload
-from sqlalchemy import func
 
 
 class FilterBuilder:
@@ -82,7 +80,7 @@ class FilterBuilder:
                 conditions.append(StopsMatched.sloid.like(f'%{value}%'))
             elif filter_type == 'osm':
                 conditions.append(StopsMatched.osm_node_id.like(f'%{value}%'))
-            elif filter_type == 'route':
+            elif filter_type in ['route', 'hrdf_route']:
                 route_stops = route_query_func(value, direction if direction else None)
                 route_conditions = []
                 if route_stops['atlas_sloids']:
@@ -91,17 +89,6 @@ class FilterBuilder:
                     route_conditions.append(StopsMatched.osm_node_id.in_(route_stops['osm_nodes']))
                 if route_conditions:
                     conditions.append(db.or_(*route_conditions) if len(route_conditions) > 1 else route_conditions[0])
-            elif filter_type == 'hrdf_route':
-                # Postgres JSONB: check if any routes_unified entry has a matching line_name.
-                conditions.append(
-                    StopsMatched.atlas_stop_details.has(
-                        func.jsonb_path_exists(
-                            AtlasStop.routes_unified,
-                            '$[*] ? (@.line_name == $line)',
-                            func.jsonb_build_object('line', value)
-                        )
-                    )
-                )
             else:  # UIC ref — search both atlas and osm tables
                 conditions.append(db.or_(
                     StopsMatched.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),
@@ -175,30 +162,6 @@ class QueryBuilder:
         """
         return get_stops_for_route(route_id, direction)
     
-    def build_base_query(self, eager_load_atlas=True, eager_load_osm=True):
-        """
-        Build a base query with optional eager loading for performance.
-        
-        Args:
-            eager_load_atlas: Whether to eager load Atlas stop details
-            eager_load_osm: Whether to eager load OSM node details
-        
-        Returns:
-            SQLAlchemy query object
-        """
-        query = StopsMatched.query
-        
-        options = []
-        if eager_load_atlas:
-            options.append(joinedload(StopsMatched.atlas_stop_details))
-        if eager_load_osm:
-            options.append(joinedload(StopsMatched.osm_node_details))
-        
-        if options:
-            query = query.options(*options)
-        
-        return query
-    
     def apply_common_filters(self, query, filters):
         """
         Apply common filtering patterns to a query.
@@ -269,64 +232,3 @@ class QueryBuilder:
         
         return query
 
-    def apply_bucket_filters(self, query, filters):
-        """
-        Apply filter conditions to a GlobalStatsBucket query.
-        
-        Args:
-            query: SQLAlchemy query object (for GlobalStatsBucket)
-            filters: Dictionary containing filter parameters
-        
-        Returns:
-            Filtered SQLAlchemy query object
-        """
-        from backend.models import GlobalStatsBucket
-        conditions = []
-        
-        # Transport type filter
-        if filters.get('transport_types'):
-            transport_conditions = []
-            for t_type in filters['transport_types']:
-                col_name = f"is_{t_type}"
-                if hasattr(GlobalStatsBucket, col_name):
-                    transport_conditions.append(getattr(GlobalStatsBucket, col_name) == True)
-            if transport_conditions:
-                conditions.append(db.or_(*transport_conditions))
-        
-        # Node type filter
-        if filters.get('node_types'):
-            node_conditions = []
-            if 'atlas' in filters['node_types']:
-                node_conditions.append(GlobalStatsBucket.total_atlas > 0)
-            if 'osm' in filters['node_types']:
-                node_conditions.append(GlobalStatsBucket.total_osm_nodes > 0)
-            if node_conditions:
-                conditions.append(db.or_(*node_conditions))
-                
-        # Atlas operator filter
-        if filters.get('atlas_operators'):
-            conditions.append(GlobalStatsBucket.atlas_operator.in_(filters['atlas_operators']))
-            
-        # OSM group filter
-        if 'osm_group_types' in filters:
-            osm_group_types = filters.get('osm_group_types')
-            if not osm_group_types:
-                # Any pair or trio
-                conditions.append(GlobalStatsBucket.osm_group_kind.isnot(None))
-            else:
-                group_conditions = []
-                pair_types = [g for g in osm_group_types if g.startswith('osm_pair_')]
-                include_trio = 'osm_trio' in osm_group_types
-                if pair_types:
-                    group_conditions.append(GlobalStatsBucket.osm_group_kind.in_(pair_types))
-                if include_trio:
-                    group_conditions.append(GlobalStatsBucket.osm_group_kind == 'osm_trio')
-                if group_conditions:
-                    conditions.append(db.or_(*group_conditions))
-                else:
-                    conditions.append(db.false())
-                    
-        if conditions:
-            query = query.filter(db.and_(*conditions))
-            
-        return query

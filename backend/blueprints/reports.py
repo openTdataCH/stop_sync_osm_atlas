@@ -198,18 +198,11 @@ def generate_report_data(params, task_id):
                     except Exception:
                         continue
 
-            solution_status_str = params.get('solution_status', '')
-            solution_status = set([s.strip().lower() for s in solution_status_str.split(',') if s.strip()])
-
             query = db.session.query(Problem).join(StopsMatched)
             if selected_types:
                 query = query.filter(Problem.problem_type.in_(selected_types))
             if selected_priorities:
                 query = query.filter(Problem.priority.in_(selected_priorities))
-            if solution_status == {'solved'}:
-                query = query.filter(Problem.solution.isnot(None), Problem.solution != '')
-            elif solution_status == {'unsolved'}:
-                query = query.filter((Problem.solution.is_(None)) | (Problem.solution == ''))
             if atlas_operators:
                 query = query.filter(StopsMatched.atlas_stop_details.has(AtlasStop.atlas_business_org_abbr.in_(atlas_operators)))
                 
@@ -413,7 +406,7 @@ def background_report_generation(params, task_id, flask_app):
                                 ])
                             writer.writerow(row)
                     elif report_type == 'problems':
-                        headers = ['Problem Type', 'Priority', 'Solved', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method', 'Solution']
+                        headers = ['Problem Type', 'Priority', 'ATLAS Sloid', 'Official Designation', 'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method']
                         if 'atlas_coords' in include_fields:
                             headers.extend(['Atlas Lat', 'Atlas Lon'])
                         if 'osm_coords' in include_fields:
@@ -425,14 +418,12 @@ def background_report_generation(params, task_id, flask_app):
                             row = [
                                 pr.problem_type,
                                 pr.priority if pr.priority is not None else 'N/A',
-                                'Yes' if pr.solution and str(pr.solution).strip() != '' else 'No',
                                 st.sloid if st and st.sloid else 'N/A',
                                 (atlas_details.atlas_designation_official if atlas_details and atlas_details.atlas_designation_official else 'N/A'),
                                 (atlas_details.atlas_business_org_abbr if atlas_details and atlas_details.atlas_business_org_abbr else 'N/A'),
                                 st.osm_node_id if st and st.osm_node_id else 'N/A',
                                 ('{:.1f}'.format(st.distance_m) if st and st.distance_m is not None else 'N/A'),
                                 st.match_type if st and st.match_type else 'N/A',
-                                (pr.solution or '').strip()
                             ]
                             if 'atlas_coords' in include_fields:
                                 row.extend([
@@ -685,7 +676,7 @@ def generate_report():
             report_title = "Unmatched Entries Report"
 
         elif report_type == 'problems':
-            # Filters: problem_types, priorities, solution_status
+            # Filters: problem_types and priorities
             problem_types_str = request.args.get('problem_types', '')
             selected_types = [t.strip() for t in problem_types_str.split(',') if t.strip()]
             valid_problem_types = {'distance', 'unmatched', 'attributes', 'duplicates'}
@@ -708,25 +699,12 @@ def generate_report():
                     except Exception:
                         continue
 
-            solution_status_str = request.args.get('solution_status', '')
-            solution_status = set([s.strip().lower() for s in solution_status_str.split(',') if s.strip()])
-            # valid: 'solved', 'unsolved'; if none provided => include both
-
             query = db.session.query(Problem).join(StopsMatched)
             if selected_types:
                 query = query.filter(Problem.problem_type.in_(selected_types))
 
             if selected_priorities:
                 query = query.filter(Problem.priority.in_(selected_priorities))
-
-            # Solution status filter
-            if solution_status == {'solved'}:
-                query = query.filter(Problem.solution.isnot(None), Problem.solution != '')
-            elif solution_status == {'unsolved'}:
-                query = query.filter((Problem.solution.is_(None)) | (Problem.solution == ''))
-            else:
-                # both or none selected => no filter
-                pass
 
             # Operator filter (applies to StopsMatched -> AtlasStop)
             if atlas_operators:
@@ -825,8 +803,8 @@ def generate_report():
 
             elif report_type == 'problems':
                 headers = [
-                    'Problem Type', 'Priority', 'Solved', 'ATLAS Sloid', 'Official Designation',
-                    'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method', 'Solution'
+                    'Problem Type', 'Priority', 'ATLAS Sloid', 'Official Designation',
+                    'ATLAS Operator', 'OSM Node ID', 'Distance (m)', 'Matching Method'
                 ]
                 if 'atlas_coords' in include_fields:
                     headers.extend(['Atlas Lat', 'Atlas Lon'])
@@ -839,14 +817,12 @@ def generate_report():
                     row = [
                         pr.problem_type,
                         pr.priority if pr.priority is not None else 'N/A',
-                        'Yes' if pr.solution and str(pr.solution).strip() != '' else 'No',
                         st.sloid if st and st.sloid else 'N/A',
                         (atlas_details.atlas_designation_official if atlas_details and atlas_details.atlas_designation_official else 'N/A'),
                         (atlas_details.atlas_business_org_abbr if atlas_details and atlas_details.atlas_business_org_abbr else 'N/A'),
                         st.osm_node_id if st and st.osm_node_id else 'N/A',
                         ('{:.1f}'.format(st.distance_m) if st and st.distance_m is not None else 'N/A'),
                         st.match_type if st and st.match_type else 'N/A',
-                        (pr.solution or '').strip()
                     ]
                     if 'atlas_coords' in include_fields:
                         row.extend([

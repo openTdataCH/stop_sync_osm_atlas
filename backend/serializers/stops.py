@@ -1,7 +1,7 @@
 from backend.models import StopsMatched, AtlasStop, OsmNode
 from backend.services.routes import get_unified_routes_for_sloid, get_osm_routes_for_node
 
-def format_stop_data(stop: StopsMatched, problem_type: str = None, include_routes: bool = True) -> dict:
+def format_stop_data(stop: StopsMatched, problem_type: str = None, include_routes: bool = False) -> dict:
     atlas_details = stop.atlas_stop_details
     osm_details = stop.osm_node_details
     has_atlas_duplicate = bool(atlas_details and atlas_details.duplicate_group_sloids)
@@ -43,9 +43,6 @@ def format_stop_data(stop: StopsMatched, problem_type: str = None, include_route
         "duplicate_group_sloids": atlas_details.duplicate_group_sloids if atlas_details else None,
         "duplicate_group_node_ids": osm_details.duplicate_group_node_ids if osm_details else None,
         "osm_node_type": osm_details.osm_node_type if osm_details else None,
-        # Keep API stable across schema revisions where these columns may be absent.
-        "osm_is_way": bool(getattr(osm_details, 'is_way', False)) if osm_details else False,
-        "osm_source_way_id": getattr(osm_details, 'source_way_id', None) if osm_details else None,
     }
 
     if include_routes:

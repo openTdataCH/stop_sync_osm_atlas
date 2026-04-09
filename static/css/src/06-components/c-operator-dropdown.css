@@ -25,7 +25,7 @@
     background-position: right var(--space-3) center;
     background-size: 16px 12px;
     border: var(--border-width) solid var(--color-border-emphasis);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-md);
     transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
     cursor: pointer;
     text-align: left;
@@ -56,8 +56,8 @@
     z-index: var(--z-dropdown);
     background-color: var(--color-bg);
     border: var(--border-width) solid var(--color-border-emphasis);
-    border-top: none;
-    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    border-radius: var(--radius-md);
+    margin-top: var(--space-1);
     box-shadow: var(--shadow-lg);
     max-height: 200px;
     overflow-y: auto;

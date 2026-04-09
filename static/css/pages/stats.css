@@ -2,7 +2,34 @@
    Page Layout & Header
    ------------------------------------------------------------------------- */
 .stats-page {
-  padding: var(--space-6) 0;
+  padding: var(--space-2) 0;
+}
+
+.card {
+  overflow: hidden; /* Fixes corner issues with headers/tables */
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-header {
+  background-color: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-3) var(--space-4);
+}
+
+.card-header h5 {
+  font-weight: var(--font-semibold);
+  color: var(--color-fg);
+  font-size: var(--text-base);
+}
+
+/* Alerts using brand blue */
+.stats-page .alert-info {
+  background-color: var(--color-primary-subtle);
+  border-color: var(--color-primary-muted);
+  color: var(--color-primary);
+  border-radius: var(--radius-md);
 }
 
 .stats-container {
@@ -28,6 +55,39 @@
   font-size: var(--text-sm);
 }
 
+/* Internal tables with rounded corners */
+.stats-page .table {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  margin-bottom: var(--space-4);
+}
+
+.stats-page .table thead th {
+  border-top: none;
+  background-color: var(--color-bg-subtle);
+  border-bottom: 1px solid var(--color-border);
+  font-weight: var(--font-semibold);
+  color: var(--color-fg);
+}
+
+.stats-page .table td {
+  border-top: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.stats-page .table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Fix for card-body p-0 tables to not have double borders */
+.card-body.p-0 > .table {
+  border: none;
+  border-radius: 0;
+  margin-bottom: 0;
+}
 /* -------------------------------------------------------------------------
    Stat Cards
    ------------------------------------------------------------------------- */
@@ -256,7 +316,7 @@
   color: var(--color-fg-muted, #586069);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin: 2rem 0 1rem;
-  padding-bottom: 0.45rem;
+  margin: 1.25rem 0 0.5rem;
+  padding-bottom: 0.35rem;
   border-bottom: 2px solid var(--color-border, #e1e4e8);
 }

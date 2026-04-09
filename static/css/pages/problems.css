@@ -7,9 +7,23 @@
    Page Layout (moved from inline styles)
    ------------------------------------------------------------------------- */
 .problems-page-root {
-  height: calc(100vh - 36px); /* account for header */
+  height: calc(100vh - 36px);
   padding: 0;
   overflow: hidden;
+}
+
+/* Info banner using brand blue */
+.problems-page-root .problem-info-banner.alert-info,
+.problems-page-root .alert-info {
+  background-color: var(--color-primary-subtle, #eef3fb) !important;
+  border-color: var(--color-primary-muted, rgba(23, 64, 146, 0.2)) !important;
+  color: var(--color-primary, #174092) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Reduced spacing for top filters */
+.problems-page-root .top-filters-overlay {
+  margin-top: 2px !important; /* Reduced from 4px */
 }
 
 /* -------------------------------------------------------------------------
@@ -110,7 +124,7 @@
 
 .problems-map-overlays {
   position: absolute;
-  top: 8px;
+  top: 4px; /* Reduced from 8px */
   left: 12px;
   right: 12px;
   z-index: 1005;
@@ -238,15 +252,16 @@
 }
 
 .problem-meta-chip--p1 {
-  background: rgba(185, 28, 28, 0.82);
+  background: rgba(220, 53, 69, 0.9); /* #dc3545 */
 }
 
 .problem-meta-chip--p2 {
-  background: rgba(217, 119, 6, 0.82);
+  background: rgba(240, 173, 78, 0.9); /* #f0ad4e */
+  color: #653a00;
 }
 
 .problem-meta-chip--p3 {
-  background: rgba(3, 105, 161, 0.82);
+  background: rgba(108, 117, 125, 0.9); /* #6c757d */
 }
 
 .problem-floating-content {
@@ -559,15 +574,15 @@
 }
 
 .priority-circle.pr-1 {
-  color: var(--color-danger);
+  color: #dc3545;
 }
 
 .priority-circle.pr-2 {
-  color: var(--color-orange);
+  color: #f0ad4e;
 }
 
 .priority-circle.pr-3 {
-  color: var(--color-info);
+  color: #6c757d;
 }
 
 .priority-circle .pc-text {
@@ -590,18 +605,18 @@
 
 /* Hover states */
 .priority-circle.pr-1:hover {
-  border-color: var(--color-danger);
+  border-color: #dc3545;
   background-color: rgba(220, 53, 69, 0.08);
 }
 
 .priority-circle.pr-2:hover {
-  border-color: var(--color-orange);
-  background-color: rgba(253, 126, 20, 0.1);
+  border-color: #f0ad4e;
+  background-color: rgba(240, 173, 78, 0.1);
 }
 
 .priority-circle.pr-3:hover {
-  border-color: var(--color-info);
-  background-color: rgba(23, 162, 184, 0.1);
+  border-color: #6c757d;
+  background-color: rgba(108, 117, 125, 0.1);
 }
 
 .priority-circle.pr-all:hover {
@@ -633,19 +648,19 @@
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-1,
 .problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-1,
 .problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-1 {
-  color: var(--color-danger) !important;
+  color: #dc3545 !important;
 }
 
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-2,
 .problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-2,
 .problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-2 {
-  color: var(--color-orange) !important;
+  color: #f0ad4e !important;
 }
 
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-3,
 .problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-3,
 .problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-3 {
-  color: var(--color-info) !important;
+  color: #6c757d !important;
 }
 
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-all,

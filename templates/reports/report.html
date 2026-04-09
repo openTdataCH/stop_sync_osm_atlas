@@ -8,10 +8,10 @@
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         th, td { border: 1px solid #333; padding: 6px; text-align: left; }
         th { background-color: #f2f2f2; }
-        h2 { color: #333366; }
+        h2 { color: #174092; }
         .report-header { margin-bottom: 20px; }
-        .report-info { color: #666; font-size: 11px; }
-        .no-matches { color: #cc0000; font-style: italic; }
+        .report-info { color: #6c757d; font-size: 11px; }
+        .no-matches { color: #DC3545; font-style: italic; }
         
         /* Column sizing */
         .col-distance { width: 80px; }
@@ -21,7 +21,6 @@
         .col-osm-id { width: 120px; }
         .col-source { width: 80px; }
         .col-priority { width: 60px; }
-        .col-solved { width: 60px; }
         .col-problem-type { width: 100px; }
     </style>
 </head>
@@ -61,14 +60,12 @@
             <tr>
                 <th class="col-problem-type">Problem Type</th>
                 <th class="col-priority">Priority</th>
-                <th class="col-solved">Solved</th>
                 <th class="col-sloid">ATLAS Sloid</th>
                 <th>Official Designation</th>
                 <th class="col-operator">ATLAS Operator</th>
                 <th class="col-osm-id">OSM Node ID</th>
                 <th class="col-distance">Distance (m)</th>
                 <th class="col-method">Matching Method</th>
-                <th>Solution</th>
                 {% if include_fields and 'atlas_coords' in include_fields %}
                 <th>Atlas Lat</th>
                 <th>Atlas Lon</th>
@@ -122,7 +119,6 @@
                 {# item is Problem #}
                 <td class="col-problem-type">{{ item.problem_type }}</td>
                 <td class="col-priority">{{ item.priority if item.priority is not none else 'N/A' }}</td>
-                <td class="col-solved">{{ 'Yes' if item.solution and item.solution|trim != '' else 'No' }}</td>
                 <td class="col-sloid">{{ item.stop.sloid if item.stop and item.stop.sloid else 'N/A' }}</td>
                 <td>{{ item.stop.atlas_stop_details.atlas_designation_official if item.stop and item.stop.atlas_stop_details and item.stop.atlas_stop_details.atlas_designation_official else 'N/A' }}</td>
                 <td class="col-operator">{{ item.stop.atlas_stop_details.atlas_business_org_abbr if item.stop and item.stop.atlas_stop_details and item.stop.atlas_stop_details.atlas_business_org_abbr else 'N/A' }}</td>
@@ -135,7 +131,6 @@
                     {% endif %}
                 </td>
                 <td class="col-method">{{ item.stop.match_type if item.stop and item.stop.match_type else 'N/A' }}</td>
-                <td>{{ item.solution if item.solution else '' }}</td>
                 {% if include_fields and 'atlas_coords' in include_fields %}
                 <td>{{ ('%.6f'|format(item.stop.atlas_lat)) if item.stop and item.stop.atlas_lat is not none else 'N/A' }}</td>
                 <td>{{ ('%.6f'|format(item.stop.atlas_lon)) if item.stop and item.stop.atlas_lon is not none else 'N/A' }}</td>
