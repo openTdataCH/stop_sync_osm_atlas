@@ -5,6 +5,12 @@
 // Cache for reusing identical L.divIcon instances
 const DivIconCache = new Map();
 const MAP_RENDERER_LABEL_ICON_MIN_ZOOM = (typeof AppConstants !== 'undefined' && AppConstants.MAP && AppConstants.MAP.LABEL_ICON_MIN_ZOOM) || 18;
+const MAP_RENDERER_COLORS = (typeof AppConstants !== 'undefined' && AppConstants.COLORS) || {};
+const COLOR_ATLAS_MATCHED = MAP_RENDERER_COLORS.ATLAS_MATCHED || '#174092';
+const COLOR_OSM_MATCHED = MAP_RENDERER_COLORS.OSM_MATCHED || '#4CAF50';
+const COLOR_ATLAS_UNMATCHED = MAP_RENDERER_COLORS.ATLAS_UNMATCHED || '#DC3545';
+const COLOR_OSM_UNMATCHED = MAP_RENDERER_COLORS.OSM_UNMATCHED || '#6C757D';
+const COLOR_LINE_ATLAS_OSM = MAP_RENDERER_COLORS.LINE_ATLAS_OSM || '#174092';
 const OSM_LABEL_BY_NODE_TYPE = Object.freeze({
     platform: 'P',
     railway_station: 'S'
@@ -547,17 +553,17 @@ function drawProblemOnMap(map, problemData, layers) {
 
     // Case: 'distance' or 'attributes' problem (a matched pair)
     if ((stop.problem === 'distance' || stop.problem === 'attributes') && stop.stop_type === 'matched' && stop.atlas_lat && stop.osm_lat) {
-        const atlasMarker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'green', stop.has_atlas_duplicate);
+        const atlasMarker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, COLOR_ATLAS_MATCHED, stop.has_atlas_duplicate);
         const atlasPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'atlas'));
         atlasMarker.bindPopup(atlasPopup).addTo(layers.markersLayer);
 
-        const osmMarker = createOsmMarker(stop.osm_lat, stop.osm_lon, 'blue', stop.osm_node_type);
+        const osmMarker = createOsmMarker(stop.osm_lat, stop.osm_lon, COLOR_OSM_MATCHED, stop.osm_node_type);
         const osmPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'osm'));
         osmMarker.bindPopup(osmPopup).addTo(layers.markersLayer);
 
         // Use same line styling as main page for consistency
         const line = L.polyline([[stop.atlas_lat, stop.atlas_lon], [stop.osm_lat, stop.osm_lon]], {
-            color: 'green',
+            color: COLOR_LINE_ATLAS_OSM,
             weight: 2
         });
         line.addTo(layers.linesLayer);
@@ -568,13 +574,13 @@ function drawProblemOnMap(map, problemData, layers) {
     // Case: 'unmatched' problem
     else if (stop.problem === 'unmatched') {
         if (stop.stop_type === 'atlas_unmatched' && stop.atlas_lat) { // Isolated ATLAS
-            const marker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, 'red', stop.has_atlas_duplicate);
+            const marker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, COLOR_ATLAS_UNMATCHED, stop.has_atlas_duplicate);
             popup = createPopupWithOptions(PopupRenderer.generateSingleAtlasBubbleHtml(stop, true));
             marker.bindPopup(popup).addTo(layers.markersLayer);
             map.setView([stop.atlas_lat, stop.atlas_lon], 16);
             marker.openPopup();
         } else if (stop.stop_type === 'osm_unmatched' && stop.osm_lat) { // Isolated OSM
-            const marker = createOsmMarker(stop.osm_lat, stop.osm_lon, 'gray', stop.osm_node_type);
+            const marker = createOsmMarker(stop.osm_lat, stop.osm_lon, COLOR_OSM_UNMATCHED, stop.osm_node_type);
             popup = createPopupWithOptions(PopupRenderer.generateSingleOsmBubbleHtml(stop, true));
             marker.bindPopup(popup).addTo(layers.markersLayer);
             map.setView([stop.osm_lat, stop.osm_lon], 16);
@@ -592,10 +598,9 @@ function drawProblemOnMap(map, problemData, layers) {
         members.forEach(member => {
             // Show ATLAS side only if not an OSM-duplicates group
             if (!isOsmGroup && member.atlas_lat != null && member.atlas_lon != null) {
-                // Use same color semantics as main map: green matched, red unmatched, orange stations
-                let atlasColor = 'green';
+                let atlasColor = COLOR_ATLAS_MATCHED;
                 if (member.stop_type === 'atlas_unmatched') {
-                    atlasColor = 'red';
+                    atlasColor = COLOR_ATLAS_UNMATCHED;
                 }
                 markerDataArray.push({
                     lat: parseFloat(member.atlas_lat),
@@ -616,7 +621,7 @@ function drawProblemOnMap(map, problemData, layers) {
                     lat: parseFloat(member.osm_lat),
                     lon: parseFloat(member.osm_lon),
                     type: 'osm',
-                    color: 'blue',
+                    color: COLOR_OSM_MATCHED,
                     osmNodeType: member.osm_node_type,
                     originalLat: parseFloat(member.osm_lat),
                     originalLon: parseFloat(member.osm_lon),

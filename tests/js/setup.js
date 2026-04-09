@@ -77,9 +77,9 @@ global.AppConstants = {
     ZOOM_LINE_THRESHOLD: 13,
     ZOOM_MARKER_THRESHOLD: 13,
     LINE_STYLES: {
-        MATCHED: { color: '#28a745', weight: 2, opacity: 0.8 },
+        MATCHED: { color: '#174092', weight: 2, opacity: 0.8 },
         SUSPICIOUS: { color: '#ffc107', weight: 2, opacity: 0.8, dashArray: '5, 5' },
-        MANUAL: { color: '#007bff', weight: 2, opacity: 0.8 },
+        MANUAL: { color: '#174092', weight: 2, opacity: 0.8 },
         DEFAULT: { color: '#6c757d', weight: 2, opacity: 0.6 }
     }
 };

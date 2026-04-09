@@ -14,6 +14,11 @@
 
     const LineRenderer = {};
     const OSM_GROUP_LINE_MIN_ZOOM = (typeof AppConstants !== 'undefined' && AppConstants.MAP && AppConstants.MAP.ZOOM_OSM_GROUP_LINE_THRESHOLD) || 17;
+    const MAP_COLORS = (typeof AppConstants !== 'undefined' && AppConstants.COLORS) || {};
+    const COLOR_LINE_ATLAS_OSM = MAP_COLORS.LINE_ATLAS_OSM || '#174092';
+    const COLOR_LINE_OSM_GROUP = MAP_COLORS.LINE_OSM_GROUP || '#4CAF50';
+    const OSM_GROUP_DASH = MAP_COLORS.LINE_OSM_GROUP_DASH || '6,4';
+    const OSM_GROUP_DASH_ALT = MAP_COLORS.LINE_OSM_GROUP_DASH_ALT || '4,4';
 
     // ==========================================
     // LINE STYLE CONFIGURATION
@@ -26,29 +31,29 @@
     const LINE_STYLES = {
         // Standard automatic match (exact, name, distance, route matching)
         default: {
-            color: 'green',
+            color: COLOR_LINE_ATLAS_OSM,
             weight: 2,
             opacity: 1
         },
         // Context/background lines (used in problems view)
         context: {
-            color: 'green',
+            color: COLOR_LINE_ATLAS_OSM,
             weight: 2,
             opacity: 0.4
         },
         // OSM group line (platform ↔ stop_position sibling pair)
         osm_group: {
-            color: '#e6b800',
+            color: COLOR_LINE_OSM_GROUP,
             weight: 2,
             opacity: 0.9,
-            dashArray: '6,4'
+            dashArray: OSM_GROUP_DASH
         },
         // OSM trio connectors (middle to side nodes)
         osm_trio: {
-            color: '#e67e22',
+            color: COLOR_LINE_OSM_GROUP,
             weight: 2,
             opacity: 0.9,
-            dashArray: '4,4'
+            dashArray: OSM_GROUP_DASH_ALT
         }
     };
 
@@ -105,12 +110,12 @@
 
         data.forEach(function(stop) {
             if (stop.stop_type === 'matched' && showAtlas) {
-                // Draw green ATLAS→OSM line
+                // Draw ATLAS→OSM semantic line
                 const linesDrawn = LineRenderer._drawLinesForStop(stop, layer, drawnKeys, isContext);
                 lineCount += linesDrawn;
             }
 
-            // Draw yellow lines for OSM group partners (platform ↔ stop_position pairs)
+            // Draw dashed OSM-group lines for sibling pairs (platform ↔ stop_position)
             if (canDrawOsmGroupLines && stop.osm_group_partner && stop.osm_lat != null && stop.osm_lon != null) {
                 const partner = stop.osm_group_partner;
                 const partnerId = partner.partner_node_id;
@@ -132,7 +137,7 @@
                 }
             }
 
-            // Draw orange lines for OSM trio links.
+            // Draw dashed OSM-group lines for trio links.
             if (canDrawOsmGroupLines && Array.isArray(stop.osm_trio_links) && stop.osm_lat != null && stop.osm_lon != null) {
                 stop.osm_trio_links.forEach(function(link) {
                     const partnerId = link.partner_node_id;

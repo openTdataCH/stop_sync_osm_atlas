@@ -1,15 +1,12 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}Insights{% endblock %}
+{% block title %}
+  {% if active_view == 'reports' %}Reports{% else %}Analytics{% endif %}
+{% endblock %}
 
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/stats.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/reports.css') }}">
-<style>
-  .reports-card {
-    height: 100%;
-  }
-</style>
 {% endblock %}
 
 {% block content %}
@@ -62,16 +59,34 @@
   </div>
 </div>
 
-
 <div class="stats-page">
   <div class="stats-container">
 
-    <header class="stats-header">
-      <div class="d-flex justify-content-between align-items-baseline">
-        <div>
-          <h1>Insights</h1>
-          <p class="text-muted">Analyze synchronization quality and export reports.</p>
-        </div>
+    <header class="mb-5">
+      <nav class="c-analytics-tabs" role="tablist">
+        <a href="{{ url_for('analytics_stats') }}" 
+           class="c-analytics-tabs__tab {{ 'is-active' if active_view == 'stats' }}"
+           role="tab" 
+           aria-selected="{{ 'true' if active_view == 'stats' else 'false' }}">
+          Analytics
+        </a>
+        <a href="{{ url_for('analytics_reports') }}" 
+           class="c-analytics-tabs__tab {{ 'is-active' if active_view == 'reports' }}"
+           role="tab" 
+           aria-selected="{{ 'true' if active_view == 'reports' else 'false' }}">
+          Reports
+        </a>
+      </nav>
+      
+      <div class="d-flex justify-content-between align-items-baseline mt-3">
+        <p class="c-analytics-tabs__description mb-0">
+          {% if active_view == 'reports' %}
+            Export detailed reports of synchronization quality and problems.
+          {% else %}
+            Analyze synchronization quality and quality metrics.
+          {% endif %}
+        </p>
+        
         {% if stats %}
         <div class="text-muted small">
           <i class="far fa-clock mr-1"></i> Data updated: {{ stats.generated_at[:10] }} {{ stats.generated_at[11:16] }}
@@ -80,27 +95,12 @@
       </div>
     </header>
 
-    <!-- Toggle -->
-    <div class="d-flex justify-content-center mb-4">
-      <div class="bg-light p-1 rounded-pill shadow-sm" style="display: inline-flex;">
-        <button id="btn-tab-analytics" class="btn btn-primary rounded-pill px-4 py-1 font-weight-bold"
-          onclick="switchInsightsTab('analytics')">
-          <i class="fas fa-chart-line mr-1"></i> Analytics
-        </button>
-        <button id="btn-tab-export"
-          class="btn btn-link text-decoration-none rounded-pill px-4 py-1 text-muted font-weight-bold"
-          onclick="switchInsightsTab('export')">
-          <i class="fas fa-file-export mr-1"></i> Download reports
-        </button>
-      </div>
-    </div>
-
-
+    {% if active_view == 'stats' %}
     <div id="insights-analytics-tab">
       {% include "components/stats_analytics.html" %}
     </div>
-
-    <div id="insights-export-tab" style="display: none;">
+    {% else %}
+    <div id="insights-export-tab">
       <!-- Info Banner -->
       <div class="info-banner mb-4">
         <i class="fas fa-info-circle info-banner__icon"></i>
@@ -329,6 +329,7 @@
         </div>
       </form>
     </div>
+    {% endif %}
 
   </div>
 </div>
@@ -356,52 +357,19 @@
       if (params.get('format')) document.getElementById('reportFormatModal').value = params.get('format');
       if (params.get('limit')) document.getElementById('reportLimitModal').value = params.get('limit');
       if (params.get('sort')) document.getElementById('sortOrderModal').value = params.get('sort');
-      document.getElementById('reportForm').dispatchEvent(new Event('submit'));
+      const reportForm = document.getElementById('reportForm');
+      if (reportForm) reportForm.dispatchEvent(new Event('submit'));
     }
   })();
 </script>
 
 <script>
-  function switchInsightsTab(tab) {
-    const analyticsTab = document.getElementById('insights-analytics-tab');
-    const exportTab = document.getElementById('insights-export-tab');
-    const btnAnalytics = document.getElementById('btn-tab-analytics');
-    const btnExport = document.getElementById('btn-tab-export');
-
-    // Update URL without reloading
-    if (window.history.replaceState) {
-      const url = new URL(window.location);
-      url.searchParams.set('tab', tab);
-      window.history.replaceState(null, '', url);
-    }
-
-    if (tab === 'analytics') {
-      analyticsTab.style.display = 'block';
-      exportTab.style.display = 'none';
-
-      // Update buttons
-      btnAnalytics.classList.remove('btn-link', 'text-muted');
-      btnAnalytics.classList.add('btn-primary');
-
-      btnExport.classList.remove('btn-primary');
-      btnExport.classList.add('btn-link', 'text-muted');
-    } else {
-      analyticsTab.style.display = 'none';
-      exportTab.style.display = 'block';
-
-      // Update buttons
-      btnExport.classList.remove('btn-link', 'text-muted');
-      btnExport.classList.add('btn-primary');
-
-      btnAnalytics.classList.remove('btn-primary');
-      btnAnalytics.classList.add('btn-link', 'text-muted');
-    }
-  }
-
   // Original Stats Accordion Toggle
   function toggleAccordion(id) {
     const item = document.getElementById('accordion-' + id);
     const panel = document.getElementById('panel-' + id);
+    if (!item || !panel) return;
+    
     const trigger = item.querySelector('.accordion-trigger');
     const isOpen = item.classList.contains('is-open');
 
@@ -420,16 +388,5 @@
       });
     }
   }
-
-
-  // On document load, check if the URL specifies a tab
-  document.addEventListener('DOMContentLoaded', function () {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('tab') === 'export') {
-      switchInsightsTab('export');
-    } else {
-      switchInsightsTab('analytics');
-    }
-  });
 </script>
 {% endblock %}

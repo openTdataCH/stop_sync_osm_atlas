@@ -14,20 +14,35 @@
    Sidebar Navigation
    ------------------------------------------------------------------------- */
 .docs-sidebar {
+  align-self: flex-start;
   border-right: 0;
   max-width: 320px;
+  height: auto;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  box-shadow: var(--shadow-xs);
 }
 
 .docs-sidebar .docs-section-header {
   cursor: pointer;
   user-select: none;
   border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .docs-sidebar .docs-section-header.active {
-  background-color: var(--color-bg-subtle);
+  background: linear-gradient(135deg, rgba(23, 64, 146, 0.1), rgba(23, 64, 146, 0.04));
+  border-color: rgba(23, 64, 146, 0.26);
   color: var(--color-fg);
   font-weight: var(--font-semibold);
+}
+
+.docs-sidebar .docs-section-header:hover {
+  background-color: var(--color-bg-subtle);
+  border-color: var(--color-border);
 }
 
 .docs-sidebar .docs-section-link {
@@ -67,11 +82,14 @@
 .docs-sidebar .docs-subitems .list-group-item {
   padding: var(--space-2) var(--space-4) var(--space-2) var(--space-6);
   font-size: var(--text-sm);
+  border: 0;
+  border-radius: var(--radius-sm);
+  margin-bottom: 2px;
 }
 
 .docs-sidebar .docs-subitems .list-group-item.active {
-  background-color: var(--color-primary-subtle);
-  color: var(--color-dark);
+  background: linear-gradient(135deg, rgba(23, 64, 146, 0.13), rgba(23, 64, 146, 0.06));
+  color: var(--color-primary);
   font-weight: var(--font-semibold);
 }
 
@@ -357,12 +375,12 @@
 
 /* Note - Blue/Info */
 .github-alert.alert-note {
-  background-color: rgba(56, 139, 253, 0.1);
-  border-left-color: #388bfd;
+  background-color: rgba(23, 64, 146, 0.1);
+  border-left-color: var(--color-primary);
 }
 
 .github-alert.alert-note .alert-title {
-  color: #388bfd;
+  color: var(--color-primary);
 }
 
 /* Tip - Green */

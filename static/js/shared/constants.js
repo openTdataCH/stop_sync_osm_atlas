@@ -213,30 +213,35 @@
     /**
      * Standard colors used throughout the application
      */
-    AppConstants.COLORS = {
-        // Matched stops
-        MATCHED: '#4CAF50',
-        MATCHED_LIGHT: '#81C784',
-        
-        // Unmatched stops
-        UNMATCHED: '#FF5252',
+    AppConstants.COLORS = Object.freeze({
+        // Brand anchors
+        NAVY_PRIMARY: '#174092',
+        NAVY_PRIMARY_HOVER: '#123D90',
+
+        // Map semantics
+        ATLAS_MATCHED: '#174092',
+        OSM_MATCHED: '#4CAF50',
+        ATLAS_UNMATCHED: '#DC3545',
+        OSM_UNMATCHED: '#6C757D',
+        LINE_ATLAS_OSM: '#174092',
+        LINE_OSM_GROUP: '#4CAF50',
+        LINE_OSM_GROUP_DASH: '6,4',
+        LINE_OSM_GROUP_DASH_ALT: '4,4',
+        TEMP_MARKER: '#174092',
+
+        // Compatibility aliases for legacy callers
+        MATCHED: '#174092',
+        MATCHED_LIGHT: '#4F8FEF',
+        UNMATCHED: '#DC3545',
         UNMATCHED_LIGHT: '#FF8A80',
-        
-        // OSM-specific
-        OSM_BLUE: '#3388ff',
-        
-        // ATLAS-specific
-        ATLAS_RED: '#e74c3c',
-        
-        // Duplicate stops
+        OSM_BLUE: '#174092',
+        ATLAS_RED: '#DC3545',
+
+        // Other semantic markers
         DUPLICATE: '#FF9800',
-        
-        // Distance issues
         DISTANCE_WARNING: '#FFC107',
-        
-        // Operator mismatch
         OPERATOR_MISMATCH: '#9C27B0'
-    };
+    });
 
     // ==========================================
     // API & NETWORKING

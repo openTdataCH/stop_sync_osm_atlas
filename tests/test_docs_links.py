@@ -132,6 +132,49 @@ def test_documentation_links_in_rendered_html():
             pytest.fail("\n".join(message))
 
 
+def test_docs_canonical_slug_urls_and_legacy_redirects():
+    """Ensure docs use canonical slug URLs and old filename URLs redirect."""
+    try:
+        import sys
+        from pathlib import Path
+
+        repo_root = Path(__file__).parent.parent
+        sys.path.insert(0, str(repo_root))
+
+        from backend.app import create_app
+        from bs4 import BeautifulSoup
+    except ImportError as e:
+        pytest.skip(f"Flask app or dependencies not available: {e}")
+
+    app = create_app()
+    app.config['TESTING'] = True
+
+    with app.test_client() as client:
+        # Canonical slug route must resolve.
+        canonical = client.get('/docs/exact_matching')
+        assert canonical.status_code == 200
+
+        # Legacy filename-style route should redirect to canonical slug route.
+        legacy = client.get('/docs/2.1%20Exact%20matching', follow_redirects=False)
+        assert legacy.status_code in (301, 302)
+        location = legacy.headers.get('Location', '')
+        assert location.endswith('/docs/exact_matching')
+
+        # Sidebar and docs navigation links should be slug-based.
+        root = client.get('/docs')
+        assert root.status_code == 200
+        soup = BeautifulSoup(root.data.decode('utf-8'), 'html.parser')
+
+        docs_hrefs = {
+            a['href']
+            for a in soup.find_all('a', href=True)
+            if a['href'].startswith('/docs/') and '/docs/assets/' not in a['href'] and '/docs/data/' not in a['href']
+        }
+
+        assert '/docs/exact_matching' in docs_hrefs
+        assert '/docs/2.1%20Exact%20matching' not in docs_hrefs
+
+
 if __name__ == "__main__":
     # Allow running directly with python for debugging
     try:

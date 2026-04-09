@@ -1,0 +1,68 @@
+/* ==========================================================================
+   ANALYTICS TABS COMPONENT
+   
+   A premium "Tabs as Title" system where the main page titles also serve
+   as navigation between sub-views.
+   ========================================================================== */
+
+.c-analytics-tabs {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    margin-bottom: var(--space-1);
+    border-bottom: 2px solid var(--color-border-subtle, #f0f0f0);
+}
+
+.c-analytics-tabs__tab {
+    display: inline-block;
+    padding: var(--space-4) 0;
+    font-size: var(--text-3xl, 2rem);
+    font-weight: var(--font-bold, 700);
+    color: var(--color-fg-muted);
+    text-decoration: none;
+    position: relative;
+    transition: color var(--transition-base), transform var(--transition-fast);
+    cursor: pointer;
+    border: none;
+    background: none;
+}
+
+.c-analytics-tabs__tab:hover {
+    color: var(--color-fg);
+    text-decoration: none;
+    transform: translateY(-2px);
+}
+
+.c-analytics-tabs__tab.is-active {
+    color: var(--color-fg);
+}
+
+.c-analytics-tabs__tab.is-active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-hover));
+    border-radius: var(--radius-full);
+}
+
+.c-analytics-tabs__description {
+    margin-top: var(--space-3);
+    color: var(--color-fg-muted);
+    font-size: var(--text-base);
+    line-height: var(--leading-relaxed);
+}
+
+@media (max-width: 768px) {
+    .c-analytics-tabs {
+        gap: var(--space-4);
+        flex-wrap: wrap;
+    }
+    
+    .c-analytics-tabs__tab {
+        font-size: var(--text-xl, 1.25rem);
+        padding: var(--space-2) 0;
+    }
+}

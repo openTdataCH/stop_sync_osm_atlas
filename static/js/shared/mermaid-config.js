@@ -8,12 +8,12 @@ if (window.mermaid) {
   const style = getComputedStyle(document.documentElement);
   
   // Extract design tokens
-  const primary = style.getPropertyValue('--color-primary').trim() || '#007bff';
-  const primarySubtle = style.getPropertyValue('--color-primary-subtle').trim() || '#f0f7ff';
+  const primary = style.getPropertyValue('--color-primary').trim() || '#174092';
+  const primarySubtle = style.getPropertyValue('--color-primary-subtle').trim() || '#eef3fb';
   const fg = style.getPropertyValue('--color-fg').trim() || '#111111';
   const fgMuted = style.getPropertyValue('--color-fg-muted').trim() || '#6c757d';
-  const success = style.getPropertyValue('--color-success').trim() || '#28a745';
-  const successSubtle = style.getPropertyValue('--color-success-subtle').trim() || '#d4edda';
+  const success = style.getPropertyValue('--color-success').trim() || '#4caf50';
+  const successSubtle = style.getPropertyValue('--color-success-subtle').trim() || '#eaf4ec';
   const warning = style.getPropertyValue('--color-warning').trim() || '#ffc107';
   const warningSubtle = style.getPropertyValue('--color-warning-subtle').trim() || '#fff3cd';
   const info = style.getPropertyValue('--color-info').trim() || '#17a2b8';

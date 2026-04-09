@@ -4,8 +4,8 @@
 
 .routes-page {
   background:
-    radial-gradient(1200px 500px at 10% -20%, #e5f0ff 0%, rgba(229, 240, 255, 0) 70%),
-    radial-gradient(900px 420px at 90% -10%, #fff2de 0%, rgba(255, 242, 222, 0) 68%),
+    radial-gradient(1200px 500px at 10% -20%, var(--color-surface-accent-navy) 0%, rgba(23, 64, 146, 0) 70%),
+    radial-gradient(900px 420px at 90% -10%, var(--color-surface-accent-osm) 0%, rgba(76, 175, 80, 0) 68%),
     var(--color-bg-subtle);
   min-height: calc(100vh - 60px);
   padding: var(--space-6) 0;
@@ -107,11 +107,11 @@
 }
 
 .route-meta--atlas {
-  background: linear-gradient(135deg, #f4f9ff 0%, #eef6ff 100%);
+  background: linear-gradient(135deg, var(--color-surface-atlas) 0%, var(--color-primary-subtle) 100%);
 }
 
 .route-meta--osm {
-  background: linear-gradient(135deg, #fdf8ef 0%, #fff4e4 100%);
+  background: linear-gradient(135deg, var(--color-surface-osm) 0%, var(--color-success-subtle) 100%);
 }
 
 .route-meta__title {

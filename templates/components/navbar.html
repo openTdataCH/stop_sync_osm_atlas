@@ -28,8 +28,8 @@
         <li class="nav-item {%- if request.endpoint == 'routes.routes_page' %} active{%- endif %}">
           <a class="nav-link" href="{{ url_for('routes.routes_page') }}">Routes</a>
         </li>
-        <li class="nav-item {%- if request.endpoint == 'insights_page' %} active{%- endif %}">
-          <a class="nav-link" href="{{ url_for('insights_page') }}">Insights</a>
+        <li class="nav-item {%- if request.endpoint == 'analytics_stats' or request.endpoint == 'analytics_reports' %} active{%- endif %}">
+          <a class="nav-link" href="{{ url_for('analytics_stats') }}">Analytics</a>
         </li>
         <li class="nav-item {%- if request.endpoint and request.endpoint.startswith('docs.') %} active{%- endif %}">
           <a class="nav-link" href="{{ url_for('docs.docs_page') }}">Docs</a>

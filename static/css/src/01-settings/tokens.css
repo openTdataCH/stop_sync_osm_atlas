@@ -24,22 +24,22 @@
   --color-fg-subtle: #adb5bd;
   
   /* Brand colors */
-  --color-primary: #007bff;
-  --color-primary-hover: #0056b3;
-  --color-primary-subtle: #f0f7ff;
-  --color-primary-muted: #b6d4fe;
+   --color-primary: #174092;
+   --color-primary-hover: #123d90;
+   --color-primary-subtle: #eef3fb;
+   --color-primary-muted: #bbd3e6;
   
   --color-secondary: #6c757d;
   --color-secondary-hover: #5a6268;
   --color-secondary-subtle: #f8f9fa;
   
   /* Semantic colors */
-  --color-success: #28a745;
-  --color-success-hover: #218838;
-  --color-success-subtle: #d4edda;
-  --color-success-bg: rgba(235, 248, 235, 0.95);
-  --color-success-fg: #155724;
-  --color-success-border: #c3e6cb;
+   --color-success: #4caf50;
+   --color-success-hover: #2ea043;
+   --color-success-subtle: #eaf4ec;
+   --color-success-bg: rgba(234, 244, 236, 0.95);
+   --color-success-fg: #1f5e22;
+   --color-success-border: #cde8cc;
   
   --color-warning: #ffc107;
   --color-warning-hover: #e0a800;
@@ -70,6 +70,21 @@
   --color-orange: #fd7e14;
   --color-dark: #343a40;
   --color-light: #f8f9fa;
+
+   /* Map semantics */
+   --color-map-atlas-matched: #174092;
+   --color-map-osm-matched: #4caf50;
+   --color-map-atlas-unmatched: #dc3545;
+   --color-map-osm-unmatched: #6c757d;
+   --color-map-line-atlas-osm: #174092;
+   --color-map-line-osm-group: #4caf50;
+   --color-map-temp-marker: #174092;
+
+   /* Surface accents */
+   --color-surface-atlas: #eef3fb;
+   --color-surface-osm: #ecf8ed;
+   --color-surface-accent-navy: rgba(23, 64, 146, 0.14);
+   --color-surface-accent-osm: rgba(76, 175, 80, 0.12);
   
   /* Border colors */
   --color-border: #e5e7eb;
@@ -77,8 +92,8 @@
   --color-border-emphasis: #ced4da;
   
   /* Focus colors */
-  --color-focus-ring: rgba(0, 123, 255, 0.25);
-  --color-focus-border: #80bdff;
+   --color-focus-ring: rgba(23, 64, 146, 0.25);
+   --color-focus-border: #4f8fef;
   
   /* -------------------------------------------------------------------------
      SPACING - Consistent spacing scale (based on 0.25rem = 4px)
@@ -147,8 +162,8 @@
   --shadow-xl: 0 10px 25px rgba(0, 0, 0, 0.2);
   
   /* Colored shadows */
-  --shadow-primary: 0 4px 12px rgba(0, 123, 255, 0.25);
-  --shadow-success: 0 4px 12px rgba(40, 167, 69, 0.25);
+   --shadow-primary: 0 4px 12px rgba(23, 64, 146, 0.25);
+   --shadow-success: 0 4px 12px rgba(76, 175, 80, 0.25);
   --shadow-danger: 0 4px 12px rgba(220, 53, 69, 0.25);
   
   /* -------------------------------------------------------------------------
