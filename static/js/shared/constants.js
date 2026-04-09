@@ -238,9 +238,9 @@
         ATLAS_RED: '#DC3545',
 
         // Other semantic markers
-        DUPLICATE: '#FF9800',
-        DISTANCE_WARNING: '#FFC107',
-        OPERATOR_MISMATCH: '#9C27B0'
+        DUPLICATE: '#F0AD4E',
+        DISTANCE_WARNING: '#F0AD4E',
+        OPERATOR_MISMATCH: '#6C757D'
     });
 
     // ==========================================

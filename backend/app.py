@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, request
+from flask import Flask, render_template, request
 import logging
 import os
 
@@ -13,34 +13,6 @@ from backend.blueprints.docs import docs_bp
 from backend.blueprints.system import system_bp
 from backend.blueprints.routes import routes_bp
 
-
-def _direction_sort_key(direction_id):
-    """Sort directions: numeric first, then text, empty last."""
-    if direction_id is None:
-        return (2, "")
-
-    direction_text = str(direction_id).strip()
-    if direction_text == "":
-        return (2, "")
-
-    if direction_text.lstrip('-').isdigit():
-        return (0, int(direction_text))
-
-    return (1, direction_text.lower())
-
-
-def _bounded_int(value, default, minimum=None, maximum=None):
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        parsed = default
-
-    if minimum is not None and parsed < minimum:
-        parsed = minimum
-    if maximum is not None and parsed > maximum:
-        parsed = maximum
-
-    return parsed
 
 def create_app():
     app = Flask(__name__, template_folder='../templates', static_folder='../static')

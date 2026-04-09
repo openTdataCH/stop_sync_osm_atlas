@@ -19,8 +19,13 @@ except Exception:  # pragma: no cover - optional at import time, ensured via req
 
 try:
     import bleach  # type: ignore
+    try:
+        from bleach.css_sanitizer import CSSSanitizer
+    except ImportError:
+        CSSSanitizer = None
 except Exception:  # pragma: no cover
     bleach = None
+    CSSSanitizer = None
 
 
 docs_bp = Blueprint('docs', __name__)
@@ -394,6 +399,42 @@ def _convert_github_alerts_to_html(markdown_text: str) -> str:
     return re.sub(pattern, replace_alert, markdown_text, flags=re.IGNORECASE)
 
 
+def _get_canonical_palette_html() -> str:
+    """Generate a beautiful grid of the canonical brand palette."""
+    palette = [
+        # Brand & Semantic
+        {"name": "Primary Navy", "hex": "#174092", "desc": "Brand primary color, used for ATLAS markers and UI accents.", "token": "--color-primary"},
+        {"name": "OSM Matched Green", "hex": "#4CAF50", "desc": "Success color, used for matched OSM markers.", "token": "--color-success"},
+        {"name": "ATLAS Unmatched Red", "hex": "#DC3545", "desc": "Danger color, used for unmatched ATLAS markers.", "token": "--color-danger"},
+        {"name": "Priority P2 Orange", "hex": "#F0AD4E", "desc": "Warning color, used for significant problems.", "token": "--color-warning"},
+        {"name": "OSM Unmatched Gray", "hex": "#6C757D", "desc": "Muted color, used for unmatched OSM markers.", "token": "--color-secondary"},
+        
+        # Neutral Scale
+        {"name": "Neutral Dark", "hex": "#343a40", "desc": "Heading and primary text accent.", "token": "--color-dark"},
+        {"name": "Neutral Muted", "hex": "#6C757D", "desc": "Secondary text and low-priority elements.", "token": "--color-fg-muted"},
+        {"name": "System Border", "hex": "#E5E7EB", "desc": "Standard card and container borders.", "token": "--color-border"},
+        {"name": "Subtle Surface", "hex": "#F8F9FA", "desc": "Subtle background for list headers and sections.", "token": "--color-bg-subtle"},
+        {"name": "Primary Subtle", "hex": "#eef3fb", "desc": "Subtle background for info banners.", "token": "--color-primary-subtle"},
+    ]
+    
+    html = '<div class="palette-grid mt-4 mb-5">'
+    for color in palette:
+        html += f'''
+        <div class="palette-card">
+            <div class="palette-swatch" style="background-color: {color['hex']}"></div>
+            <div class="palette-details">
+                <div class="palette-name">{color['name']}</div>
+                <div class="palette-meta">
+                    <code class="palette-hex">{color['hex']}</code>
+                    <code class="palette-token">{color['token']}</code>
+                </div>
+                <div class="palette-desc">{color['desc']}</div>
+            </div>
+        </div>'''
+    html += '</div>'
+    return html
+
+
 def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) -> str:
     markdown_text = _rewrite_repo_links_to_github(markdown_text)
     
@@ -405,6 +446,16 @@ def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) 
     
     # Replace stats placeholders with actual values from stats.json
     markdown_text = replace_stats_placeholders(markdown_text)
+
+    # Inject canonical palette grid if placeholder is present
+    if '[[canonical_palette]]' in markdown_text:
+        palette_html = _get_canonical_palette_html()
+        markdown_text = markdown_text.replace('[[canonical_palette]]', palette_html)
+
+    # Inject operator normalizations table if placeholder is present
+    if '[[operator_normalizations_table]]' in markdown_text:
+        table_html = _get_operator_normalizations_table_html()
+        markdown_text = markdown_text.replace('[[operator_normalizations_table]]', table_html)
 
     # Rewrite repo-relative image/asset paths to the docs assets route
     # Example: ![...](images/foo.png) -> ![...](/docs/assets/images/foo.png)
@@ -443,17 +494,24 @@ def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) 
         return html
 
     allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + [
-        'p', 'pre', 'code', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'span', 'div', 'i'
+        'p', 'pre', 'code', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'span', 'div', 'i',
+        'details', 'summary'
     ]
     allowed_attrs = {
         **bleach.sanitizer.ALLOWED_ATTRIBUTES,
         'img': ['src', 'alt', 'title'],
         'a': ['href', 'title', 'name', 'target', 'rel'],
-        'span': ['class', 'data-stat-key', 'title'],
-        'div': ['class'],
-        'i': ['class']
+        'span': ['class', 'data-stat-key', 'title', 'style'],
+        'div': ['class', 'style'],
+        'i': ['class'],
+        'details': ['class', 'open'],
+        'summary': ['class']
     }
-    sanitized = bleach.clean(html, tags=allowed_tags, attributes=allowed_attrs)
+    css_sanitizer = None
+    if CSSSanitizer:
+        css_sanitizer = CSSSanitizer(allowed_css_properties=['background-color'])
+    
+    sanitized = bleach.clean(html, tags=allowed_tags, attributes=allowed_attrs, css_sanitizer=css_sanitizer)
     sanitized = bleach.linkify(sanitized)
     return sanitized
 
@@ -599,26 +657,39 @@ def download_docs_pdf():
     )
 
 
-@docs_bp.route('/docs/data/operator-normalizations')
-def operator_normalizations_view():
-    """Display the operator normalizations CSV as an HTML table."""
+def _get_operator_normalizations_table_html() -> str:
+    """Read the CSV and return a styled HTML table for embedding."""
     csv_path = os.path.abspath(os.path.join(
-        os.path.dirname(__file__), '..', '..', 'matching_process', 'operator_normalizations.csv'
+        os.path.dirname(__file__), '..', '..', 'matching_and_import_db', 'utils', 'operator_normalizations.csv'
     ))
     
     if not os.path.isfile(csv_path):
-        abort(404)
+        return '<p class="text-muted"><em>Mappings file not found.</em></p>'
     
-    rows = []
-    with open(csv_path, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        rows = list(reader)
-    
-    return render_template(
-        'pages/operator_normalizations.html',
-        rows=rows,
-        total_count=len(rows)
-    )
+    try:
+        rows = []
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            
+        if not rows:
+            return '<p class="text-muted"><em>No active mappings found.</em></p>'
+
+        html = '<details class="doc-expandable-section mb-4">'
+        html += '<summary class="doc-expandable-summary">View current normalization mappings (' + str(len(rows)) + ')</summary>'
+        html += '<div class="doc-expandable-content">'
+        html += '<table class="table table-sm table-hover">'
+        html += '<thead><tr><th>Alias</th><th>Normalized Name</th></tr></thead>'
+        html += '<tbody>'
+        for row in rows:
+            html += f'<tr><td><code>{row.get("alias", "")}</code></td><td><strong>{row.get("standard_name", "")}</strong></td></tr>'
+        html += '</tbody></table>'
+        html += '<div class="small text-muted mt-2"><i class="fas fa-file-csv"></i> Source: <code>matching_and_import_db/utils/operator_normalizations.csv</code></div>'
+        html += '</div></details>'
+        return html
+    except Exception as e:
+        logger.error("Error generating operator normalizations table: %s", e)
+        return f'<p class="text-danger"><small>Error loading mappings: {str(e)}</small></p>'
 
 
 @docs_bp.route('/api/docs/stats')
@@ -628,7 +699,7 @@ def get_documentation_stats():
     
     Returns a combination of:
     1. Pipeline stats from data/stats.json (generated during import)
-    2. Real-time stats from database (problem resolutions, user activity)
+    2. Real-time stats from database (problem counts and stop health)
     
     This endpoint is used to dynamically populate statistics in documentation pages.
     """
@@ -661,9 +732,9 @@ def get_documentation_stats():
 def _get_realtime_db_stats() -> Dict:
     """
     Get real-time statistics from the database.
-    
-    These stats reflect current state including user problem resolutions,
-    and should not be cached in the static stats.json file.
+
+    These stats reflect current DB state and should not be cached
+    in the static stats.json file.
     """
     try:
         from backend.extensions import db
@@ -690,12 +761,9 @@ def _get_realtime_db_stats() -> Dict:
             .all()
         )
         
-        # Solved vs unsolved problems
-        solved_problems = db.session.query(func.count(Problem.id)).filter(
-            Problem.solution.isnot(None),
-            Problem.solution != ''
-        ).scalar() or 0
-        unsolved_problems = total_problems - solved_problems
+        # Problem resolution state is not persisted in the current schema.
+        solved_problems = 0
+        unsolved_problems = total_problems
         
         # Stops with problems vs clean stops
         stops_with_problems = db.session.query(
@@ -703,8 +771,7 @@ def _get_realtime_db_stats() -> Dict:
         ).scalar() or 0
         clean_stops = total_stops - stops_with_problems
         
-        # Calculate resolution rate
-        resolution_rate = (solved_problems / total_problems * 100) if total_problems > 0 else 0
+        resolution_rate = 0.0
         
         return {
             "total_stops": total_stops,

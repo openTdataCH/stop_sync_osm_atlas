@@ -45,20 +45,20 @@
 /* -------------------------------------------------------------------------
    Cluster Count Colors
    ------------------------------------------------------------------------- */
-.cluster-indicator[title*="2 markers"] { background-color: #4ecdc4; }
-.cluster-indicator[title*="3 markers"] { background-color: #45b7d1; }
-.cluster-indicator[title*="4 markers"] { background-color: #96ceb4; }
-.cluster-indicator[title*="5 markers"] { background-color: #ffeaa7; }
+.cluster-indicator[title*="2 markers"] { background-color: var(--color-primary, #174092); }
+.cluster-indicator[title*="3 markers"] { background-color: var(--color-primary, #174092); }
+.cluster-indicator[title*="4 markers"] { background-color: var(--color-primary, #174092); }
+.cluster-indicator[title*="5 markers"] { background-color: var(--color-primary, #174092); }
 
 .cluster-indicator[title*="6 markers"],
 .cluster-indicator[title*="7 markers"],
 .cluster-indicator[title*="8 markers"],
 .cluster-indicator[title*="9 markers"] { 
-  background-color: #fd79a8; 
+  background-color: var(--color-primary, #174092); 
 }
 
 .cluster-indicator:not([title*="2 markers"]):not([title*="3 markers"]):not([title*="4 markers"]):not([title*="5 markers"]):not([title*="6 markers"]):not([title*="7 markers"]):not([title*="8 markers"]):not([title*="9 markers"]) { 
-  background-color: #e17055; 
+  background-color: var(--color-primary, #174092); 
 }
 
 /* -------------------------------------------------------------------------

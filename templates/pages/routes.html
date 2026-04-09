@@ -62,9 +62,6 @@
           <div class="route-meta route-meta--atlas">
             <span class="route-meta__title">ATLAS</span>
             <div class="route-meta__name">{{ route.atlas_route_name or 'Unknown route' }}</div>
-            {% if route.atlas_route_short_name and route.atlas_route_long_name and route.atlas_route_short_name != route.atlas_route_long_name %}
-            <div class="route-meta__detail">{{ route.atlas_route_long_name }}</div>
-            {% endif %}
             <div class="route-meta__id">ID: {{ route.atlas_route_id or '-' }}</div>
           </div>
           <div class="route-meta route-meta--osm">

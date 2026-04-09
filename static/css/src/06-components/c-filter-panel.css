@@ -78,7 +78,7 @@
   background: var(--color-bg-subtle);
   color: var(--color-primary);
   border-color: var(--color-primary);
-  box-shadow: 0 3px 12px rgba(0, 123, 255, 0.15);
+  box-shadow: 0 3px 12px rgba(23, 64, 146, 0.15);
 }
 
 .c-filter-panel__toggle:active {
@@ -151,7 +151,7 @@
   line-height: 1;
   background-color: var(--color-bg);
   border: 1.5px solid var(--color-fg-muted);
-  color: #374151;
+  color: var(--color-dark, #343a40);
   cursor: pointer;
   margin: 0;
   transition: opacity var(--transition-fast);
@@ -160,6 +160,7 @@
 #activeFilters .badge:hover,
 #problemsActiveFilters .badge:hover {
   opacity: 0.8;
+  border-color: var(--color-primary);
 }
 
 /* Badge color variants — dark grey text, colored borders */

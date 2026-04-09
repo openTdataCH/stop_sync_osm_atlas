@@ -24,50 +24,46 @@
   --color-fg-subtle: #adb5bd;
   
   /* Brand colors */
-   --color-primary: #174092;
-   --color-primary-hover: #123d90;
-   --color-primary-subtle: #eef3fb;
-   --color-primary-muted: #bbd3e6;
+  --color-primary: #174092;
+  --color-primary-hover: #123d90;
+  --color-primary-subtle: #eef3fb;
+  --color-primary-muted: rgba(23, 64, 146, 0.4);
   
   --color-secondary: #6c757d;
   --color-secondary-hover: #5a6268;
   --color-secondary-subtle: #f8f9fa;
   
   /* Semantic colors */
-   --color-success: #4caf50;
-   --color-success-hover: #2ea043;
-   --color-success-subtle: #eaf4ec;
-   --color-success-bg: rgba(234, 244, 236, 0.95);
-   --color-success-fg: #1f5e22;
-   --color-success-border: #cde8cc;
+  --color-success: #4caf50;
+  --color-success-hover: #2ea043;
+  --color-success-subtle: #eaf4ec;
+  --color-success-bg: rgba(76, 175, 80, 0.1);
+  --color-success-fg: #1f5e22;
+  --color-success-border: rgba(76, 175, 80, 0.2);
   
-  --color-warning: #ffc107;
-  --color-warning-hover: #e0a800;
-  --color-warning-subtle: #fff3cd;
-  --color-warning-bg: rgba(255, 243, 205, 0.95);
-  --color-warning-fg: #856404;
-  --color-warning-border: #ffeeba;
-  --color-warning-text: #856404;
+  --color-warning: #f0ad4e;
+  --color-warning-hover: #e08e0b;
+  --color-warning-subtle: #fdf8ef;
+  --color-warning-bg: rgba(240, 173, 78, 0.12);
+  --color-warning-fg: #653a00;
+  --color-warning-border: rgba(240, 173, 78, 0.2);
   
   --color-danger: #dc3545;
   --color-danger-hover: #c82333;
   --color-danger-subtle: #f8d7da;
-  --color-danger-bg: rgba(248, 215, 218, 0.95);
+  --color-danger-bg: rgba(220, 53, 69, 0.1);
   --color-danger-fg: #721c24;
-  --color-danger-border: #f5c6cb;
-  --color-danger-text: #721c24;
+  --color-danger-border: rgba(220, 53, 69, 0.2);
   
-  --color-info: #17a2b8;
-  --color-info-hover: #138496;
-  --color-info-subtle: #d1ecf1;
-  --color-info-bg: rgba(235, 241, 255, 0.95);
-  --color-info-fg: #0c5460;
-  --color-info-border: #bee5eb;
-  --color-info-text: #0c5460;
+  --color-info: #174092; /* Using primary for info by default */
+  --color-info-hover: #123d90;
+  --color-info-subtle: #eef3fb;
+  --color-info-bg: rgba(23, 64, 146, 0.08);
+  --color-info-fg: #174092;
+  --color-info-border: rgba(23, 64, 146, 0.15);
   
   /* Additional semantic colors */
-  --color-cyan: #0dcaf0;
-  --color-orange: #fd7e14;
+  --color-orange: #f0ad4e;
   --color-dark: #343a40;
   --color-light: #f8f9fa;
 
@@ -93,7 +89,7 @@
   
   /* Focus colors */
    --color-focus-ring: rgba(23, 64, 146, 0.25);
-   --color-focus-border: #4f8fef;
+   --color-focus-border: #174092;
   
   /* -------------------------------------------------------------------------
      SPACING - Consistent spacing scale (based on 0.25rem = 4px)

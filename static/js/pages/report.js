@@ -258,12 +258,6 @@ function initReportGeneration() {
             if ($('#priority2').is(':checked')) pris.push('2');
             if ($('#priority3').is(':checked')) pris.push('3');
             if (pris.length > 0) params.priorities = pris.join(',');
-
-            // Status
-            var statuses = [];
-            if ($('#statusSolved').is(':checked')) statuses.push('solved');
-            if ($('#statusUnsolved').is(':checked')) statuses.push('unsolved');
-            if (statuses.length > 0) params.solution_status = statuses.join(',');
         }
 
         // Start async report generation

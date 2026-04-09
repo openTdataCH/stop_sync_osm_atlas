@@ -39,29 +39,7 @@ def search():
         )
         matched_stops = matched_query.all()
         for stop in matched_stops:
-            results['atlas'].append({
-                "sloid": stop.sloid,
-                "stop_type": stop.stop_type,
-                "atlas_lat": stop.atlas_lat,
-                "atlas_lon": stop.atlas_lon,
-                "atlas_business_org_abbr": (stop.atlas_stop_details.atlas_business_org_abbr if stop.atlas_stop_details else None),
-                "osm_lat": stop.osm_lat,
-                "osm_lon": stop.osm_lon,
-                "osm_network": (stop.osm_node_details.osm_network if stop.osm_node_details else None),
-                "osm_operator": (stop.osm_node_details.osm_operator if stop.osm_node_details else None),
-                "osm_public_transport": (stop.osm_node_details.osm_public_transport if stop.osm_node_details else None),
-                "osm_railway": (stop.osm_node_details.osm_railway if stop.osm_node_details else None),
-                "osm_amenity": (stop.osm_node_details.osm_amenity if stop.osm_node_details else None),
-                "osm_aerialway": (stop.osm_node_details.osm_aerialway if stop.osm_node_details else None),
-                "match_type": stop.match_type,
-                "atlas_designation": stop.atlas_stop_details.atlas_designation if stop.atlas_stop_details else None,
-                "atlas_designation_official": stop.atlas_stop_details.atlas_designation_official if stop.atlas_stop_details else None,
-                "uic_ref": (stop.atlas_stop_details.uic_ref if stop.atlas_stop_details else None),
-                "osm_node_id": stop.osm_node_id,
-                "osm_local_ref": stop.osm_node_details.osm_local_ref if stop.osm_node_details else None,
-                "osm_uic_name": stop.osm_node_details.osm_uic_name if stop.osm_node_details else None,
-                "osm_uic_ref": stop.osm_node_details.osm_uic_ref if stop.osm_node_details else None
-            })
+            results['atlas'].append(format_stop_data(stop, include_routes=False))
         unmatched_query = optimize_query_for_endpoint(StopsMatched.query, 'search').outerjoin(
             AtlasStop, StopsMatched.sloid == AtlasStop.sloid
         ).filter(StopsMatched.stop_type == 'atlas_unmatched').filter(
@@ -74,20 +52,7 @@ def search():
         )
         unmatched_stops = unmatched_query.all()
         for stop in unmatched_stops:
-            results['atlas'].append({
-                "sloid": stop.sloid,
-                "stop_type": stop.stop_type,
-                "atlas_lat": stop.atlas_lat,
-                "atlas_lon": stop.atlas_lon,
-                "atlas_business_org_abbr": (stop.atlas_stop_details.atlas_business_org_abbr if stop.atlas_stop_details else None),
-                "match_type": stop.match_type,
-                "atlas_designation": stop.atlas_stop_details.atlas_designation if stop.atlas_stop_details else None,
-                "atlas_designation_official": stop.atlas_stop_details.atlas_designation_official if stop.atlas_stop_details else None,
-                "uic_ref": (stop.atlas_stop_details.uic_ref if stop.atlas_stop_details else None),
-                "osm_railway": (stop.osm_node_details.osm_railway if stop.osm_node_details else None),
-                "osm_amenity": (stop.osm_node_details.osm_amenity if stop.osm_node_details else None),
-                "osm_aerialway": (stop.osm_node_details.osm_aerialway if stop.osm_node_details else None),
-            })
+            results['atlas'].append(format_stop_data(stop, include_routes=False))
     return jsonify(results)
 
 
@@ -256,7 +221,7 @@ def get_stop_by_id():
         else:
             return jsonify({"error": "Invalid identifier_type"}), 400
         if stop:
-            stop_data = format_stop_data(stop)
+            stop_data = format_stop_data(stop, include_routes=True)
             center_lat = getattr(stop, lat_col_name, None)
             center_lon = getattr(stop, lon_col_name, None)
             if center_lat is None or center_lon is None:

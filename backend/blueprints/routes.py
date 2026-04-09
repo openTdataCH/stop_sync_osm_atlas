@@ -216,16 +216,6 @@ def routes_page():
                 RoutesMatched.osm_route_id.ilike(like_pattern),
             ]
 
-            optional_columns = (
-                'atlas_route_short_name',
-                'atlas_route_long_name',
-                'osm_route_name',
-            )
-            for column_name in optional_columns:
-                column = getattr(RoutesMatched, column_name, None)
-                if column is not None:
-                    filters.append(column.ilike(like_pattern))
-
             matched_routes_query = matched_routes_query.filter(or_(*filters))
 
         matched_routes_page = (
@@ -242,10 +232,6 @@ def routes_page():
 
         route_rows = []
         for matched in matched_routes_page.items:
-            atlas_route_short_name = getattr(matched, 'atlas_route_short_name', None)
-            atlas_route_long_name = getattr(matched, 'atlas_route_long_name', None)
-            osm_route_name = getattr(matched, 'osm_route_name', None)
-
             atlas_directions = atlas_stops_by_route.get(matched.atlas_route_id, {})
             osm_directions = osm_stops_by_route.get(matched.osm_route_id, {})
 
@@ -275,11 +261,9 @@ def routes_page():
             route_rows.append(
                 {
                     "atlas_route_id": matched.atlas_route_id,
-                    "atlas_route_short_name": atlas_route_short_name,
-                    "atlas_route_long_name": atlas_route_long_name,
-                    "atlas_route_name": atlas_route_short_name or atlas_route_long_name or matched.atlas_route_id,
+                    "atlas_route_name": matched.atlas_route_id,
                     "osm_route_id": matched.osm_route_id,
-                    "osm_route_name": osm_route_name or matched.osm_route_id,
+                    "osm_route_name": matched.osm_route_id,
                     "direction_summary": direction_summary,
                     "direction_groups": direction_groups,
                 }
