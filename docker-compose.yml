@@ -22,8 +22,6 @@ services:
       - "5432:5432" # Exposes Postgres to your host machine on port 5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # Create user_input_db on first init
-      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} -h localhost -p 5432" ]
       interval: 10s
@@ -50,7 +48,6 @@ services:
     environment:
       FLASK_APP: backend/app.py
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
-      USER_INPUT_DATABASE_URI: ${USER_INPUT_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/user_input_db}
       RATELIMIT_STORAGE_URI: memory://
 
   app:
@@ -82,7 +79,6 @@ services:
       FLASK_DEBUG: 1 # Enables Flask debugger
       # Database URI for SQLAlchemy, now configurable via .env
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
-      USER_INPUT_DATABASE_URI: ${USER_INPUT_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/user_input_db}
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
@@ -107,7 +103,6 @@ services:
       - ./data:/app/data
     environment:
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
-      USER_INPUT_DATABASE_URI: ${USER_INPUT_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/user_input_db}
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
 
   scheduler:
@@ -132,7 +127,6 @@ services:
         condition: service_completed_successfully
     environment:
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
-      USER_INPUT_DATABASE_URI: ${USER_INPUT_DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/user_input_db}
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
       PIPELINE_TIMEZONE: ${PIPELINE_TIMEZONE:-Europe/Zurich}
       PIPELINE_SCHEDULE_HOUR: ${PIPELINE_SCHEDULE_HOUR:-2}

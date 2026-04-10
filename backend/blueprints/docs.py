@@ -1,8 +1,10 @@
 import os
+import time
 import re
 import json
 import csv
 import sys
+import importlib
 import subprocess
 import logging
 from typing import List, Tuple, Dict, Optional
@@ -20,7 +22,7 @@ except Exception:  # pragma: no cover - optional at import time, ensured via req
 try:
     import bleach  # type: ignore
     try:
-        from bleach.css_sanitizer import CSSSanitizer
+        CSSSanitizer = getattr(importlib.import_module('bleach.css_sanitizer'), 'CSSSanitizer', None)
     except ImportError:
         CSSSanitizer = None
 except Exception:  # pragma: no cover
@@ -41,9 +43,35 @@ def _docs_pdf_path() -> str:
 
 
 def ensure_docs_pdf_generated() -> bool:
-    """Ensure the docs PDF exists, generating it via the existing script if needed."""
+    """Ensure the docs PDF exists and is fresh relative to its sources."""
     pdf_path = _docs_pdf_path()
-    if os.path.exists(pdf_path):
+    docs_dir = _get_docs_dir()
+    stats_path = os.path.normpath(os.path.join(_repo_root(), 'data', 'stats.json'))
+    
+    is_fresh = os.path.exists(pdf_path)
+    if is_fresh:
+        pdf_mtime = os.path.getmtime(pdf_path)
+        
+        # 1. Check if stats.json is newer (stats injected in placeholders)
+        if os.path.exists(stats_path) and os.path.getmtime(stats_path) > pdf_mtime:
+            is_fresh = False
+            
+        # 2. Check if any markdown source file is newer
+        if is_fresh:
+            for f in os.listdir(docs_dir):
+                if f.lower().endswith('.md'):
+                    src_path = os.path.join(docs_dir, f)
+                    if os.path.getmtime(src_path) > pdf_mtime:
+                        is_fresh = False
+                        break
+        
+        # 3. Check if the print CSS template is newer
+        if is_fresh:
+            css_path = os.path.normpath(os.path.join(docs_dir, 'pdf_generator', 'docs_print.css'))
+            if os.path.exists(css_path) and os.path.getmtime(css_path) > pdf_mtime:
+                is_fresh = False
+
+    if is_fresh:
         return True
 
     generator_script = os.path.join(_repo_root(), 'documentation', 'pdf_generator', 'build_docs_pdf.py')
@@ -510,8 +538,20 @@ def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) 
     css_sanitizer = None
     if CSSSanitizer:
         css_sanitizer = CSSSanitizer(allowed_css_properties=['background-color'])
-    
-    sanitized = bleach.clean(html, tags=allowed_tags, attributes=allowed_attrs, css_sanitizer=css_sanitizer)
+
+    clean_kwargs = {
+        'tags': allowed_tags,
+        'attributes': allowed_attrs,
+    }
+    if css_sanitizer is not None:
+        clean_kwargs['css_sanitizer'] = css_sanitizer
+
+    try:
+        sanitized = bleach.clean(html, **clean_kwargs)
+    except TypeError:
+        # Older Bleach versions don't support css_sanitizer.
+        clean_kwargs.pop('css_sanitizer', None)
+        sanitized = bleach.clean(html, **clean_kwargs)
     sanitized = bleach.linkify(sanitized)
     return sanitized
 

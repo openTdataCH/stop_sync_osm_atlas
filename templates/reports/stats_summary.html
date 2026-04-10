@@ -1,120 +1,34 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>Statistics Summary Report</title>
-    <!-- Bootstrap CSS for UI elements -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <style>
-        /* Scale everything down by setting a smaller base font size.
-           WeasyPrint doesn't support zoom/transform, so this is the correct way to shrink content.
-           11px ≈ ~69% of the default 16px, fitting a typical dashboard layout onto A4. */
-        html { font-size: 11px; }
-        body { 
-            background: white !important; 
-            padding: 0; 
-            font-size: 11px;
-            line-height: 1.4;
-            overflow: visible;             /* avoid clipping when print CSS forces wider intrinsic widths */
-            -webkit-print-color-adjust: exact !important; 
-            print-color-adjust: exact !important;
-        }
-        *, *::before, *::after { box-sizing: border-box; }
-        html, body {
-            min-width: 0 !important;
-            max-width: 100% !important;
-            width: auto !important;
-        }
+{% extends "layouts/printable.html" %}
 
-        /* Bootstrap 4 print rules force desktop min-width (e.g. 992px) for body/container.
-           Neutralize that for WeasyPrint on A4 to prevent right-edge clipping. */
-        .container,
-        .container-fluid,
-        .row {
-            min-width: 0 !important;
-            max-width: 100% !important;
-            width: auto !important;
-        }
-        .page-shell { background: white !important; min-height: auto; padding: 0; }
-        .page-shell__container { padding: 0; max-width: none; }
-        
-        .header { border-bottom: 2px solid #174092; padding-bottom: 6px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-end; }
-        .header h1 { margin: 0; color: #174092; font-size: 18px; }
-        .header p { margin: 0; color: #6c757d; font-size: 10px; }
-        .header .meta { text-align: right; color: #6c757d; font-size: 9px; }
-        .footer { margin-top: 12px; text-align: center; color: #94a3b8; font-size: 8px; border-top: 1px solid #f1f5f9; padding-top: 6px; }
-        
-        /* Inject local CSS to resolve CSS custom properties (variables) */
-        {{ css_content|safe }}
+{% block title %}Statistics Summary Report{% endblock %}
 
-        /* PDF-specific layout overrides – applied after injected CSS so they win */
-        @page { size: A4; margin: 0.6cm; }
-
-        /* Tighten card spacing */
-        .card { border: 1px solid #e1e4e8 !important; break-inside: avoid; margin-bottom: 0.6rem !important; }
-        .card-body, .card .card-body { padding: 0.5rem !important; }
-
-        /* Section titles */
-        h2.stats-section-title { page-break-after: avoid; border-bottom: 1px solid #e1e4e8; margin-top: 0.8rem; margin-bottom: 0.4rem; padding-bottom: 0.25rem; font-size: 1rem; }
-
-        /* Bootstrap grid ported for WeasyPrint (no media queries respected)
-           IMPORTANT: We use margin:0 on .row instead of Bootstrap's negative-margin
-           trick, because the container has padding:0 and negative margins would
-           overflow the A4 page to the right. Column gaps use padding instead.  */
-        .row { display: flex; flex-wrap: wrap; margin-right: 0; margin-left: 0; gap: 0; page-break-inside: avoid; }
-        [class*="col-"] { box-sizing: border-box; padding-right: 6px; padding-left: 6px; }
-        .col-md-3, .col-lg-3, .col-sm-6 { flex: 0 0 25%; max-width: 25%; }
-        .col-md-4, .col-lg-4             { flex: 0 0 33.3333%; max-width: 33.3333%; }
-        .col-md-6, .col-lg-6             { flex: 0 0 50%; max-width: 50%; }
-        .col-md-12, .col-lg-12           { flex: 0 0 100%; max-width: 100%; }
-
-        /* Trim excessive internal padding from stat kpi cards */
-        .stats-kpi-card, .stats-kpi { padding: 0.4rem 0.5rem !important; }
-        .stats-kpi__value { font-size: 1.4rem !important; }
-        .stats-kpi__label { font-size: 0.7rem !important; }
-
-        /* ── SVG / diagram overflow fix ────────────────────────────────────
-           WeasyPrint does NOT support overflow-x:auto, so any SVG wider than
-           the page content area (≈771px at A4 96dpi) bleeds off the right
-           edge. We clamp every SVG and its wrapper to the available width and
-           let the SVG scale down via preserveAspectRatio (default xMidYMid).
-        ------------------------------------------------------------------- */
-        .diagram-wrap {
-            overflow: hidden !important;   /* clip, not scroll */
-            max-width: 100% !important;
-        }
-        .diagram-svg,
-        svg {
-            width: 100% !important;
-            min-width: 0 !important;       /* cancel the 420px floor */
-            max-width: 100% !important;
-            height: auto !important;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div>
-            <h1>Insights Report</h1>
-            <p class="mb-0">Synchronization Statistics Summary</p>
-        </div>
-        <div class="meta">
-            <div>Generated: {{ generated_at.strftime('%Y-%m-%d %H:%M') }}</div>
-            <div>Data Updated: {{ stats.generated_at[:10] }} {{ stats.generated_at[11:16] }}</div>
-        </div>
+{% block header %}
+    <div>
+        <h1>Insights Report</h1>
+        <p class="mb-0">Synchronization Statistics Summary</p>
     </div>
-
-    <div class="page-shell stats-page">
-        <div class="page-shell__container stats-container">
-            {% set is_pdf = True %}
-            {% include "components/stats_analytics.html" %}
-        </div>
+    <div class="meta">
+        <div>Generated: {{ generated_at.strftime('%Y-%m-%d %H:%M') }}</div>
+        <div>Data Updated: {{ stats.generated_at[:10] }} {{ stats.generated_at[11:16] }}</div>
     </div>
+{% endblock %}
 
-    <div class="footer">
-        © {{ generated_at.year }} Stop Sync OSM Atlas. This report was automatically generated.
+{% block content %}
+<div class="page-shell stats-page">
+    <div class="page-shell__container stats-container">
+        {% set is_pdf = True %}
+        {% include "components/stats_analytics.html" %}
     </div>
-</body>
-</html>
+</div>
+{% endblock %}
+
+{% block footer %}
+    © {{ generated_at.year }} Stop Sync OSM Atlas. This report was automatically generated.
+{% endblock %}
+
+{% block extra_css %}
+/* Any stats-specific PDF overrides that aren't in core yet */
+.stats-kpi-card, .stats-kpi { padding: 0.4rem 0.5rem !important; }
+.stats-kpi__value { font-size: 1.4rem !important; }
+.stats-kpi__label { font-size: 0.7rem !important; }
+{% endblock %}

@@ -1,4 +1,5 @@
 import os
+import importlib
 import pytest
 from backend.models import StopsMatched, AtlasStop, OsmNode, Problem
 
@@ -12,10 +13,17 @@ def setup_test_env_and_db():
     # Point to the sample subset dataset
     os.environ['ATLAS_STOPS_CSV'] = 'tests/data/sample_atlas.csv'
     os.environ['OSM_XML_FILE'] = 'tests/data/sample_osm.xml'
+    # Ensure both DBs use SQLite for this test regardless of outer environment.
+    os.environ['DATABASE_URI'] = 'sqlite://'
+    os.environ['USER_INPUT_DATABASE_URI'] = 'sqlite://'
     
     # Initialize DB Schema for the test
     from backend.extensions import db
-    from matching_and_import_db.database.session import engine, session, user_input_engine
+    import matching_and_import_db.database.session as session_module
+    session_module = importlib.reload(session_module)
+    engine = session_module.engine
+    session = session_module.session
+    user_input_engine = session_module.user_input_engine
     from sqlalchemy.ext.compiler import compiles
     from sqlalchemy.dialects.postgresql import JSONB
 

@@ -234,6 +234,8 @@ class TestCurrentPredicates:
         assert [(record.atlas_node.sloid, record.osm_node.node_id, record.match_type) for record in ctx.all_matches] == [
             ('s1', 'osm_1', 'exact')
         ]
+        expected_dist = haversine_distance(47.3769, 8.5417, 47.3770, 8.5418)
+        assert ctx.all_matches[0].distance_m == pytest.approx(expected_dist, abs=0.001)
 
     def test_name_match_predicate_refines_by_local_ref(self):
         ctx = _build_ctx(

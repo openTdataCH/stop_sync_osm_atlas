@@ -141,7 +141,8 @@ window.ProblemsData = (function () {
         const params = {
             page: page,
             limit: 100,
-            problem_type: getProblemTypeParamValue()
+            problem_type: getProblemTypeParamValue(),
+            include_routes: 1
         };
 
         const selectedOperators = ProblemsState.getSelectedAtlasOperators();

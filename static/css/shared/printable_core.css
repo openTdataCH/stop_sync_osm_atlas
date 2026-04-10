@@ -1,0 +1,118 @@
+/* -------------------------------------------------------------------------
+   PRINTABLE CORE STYLES
+   Optimized for WeasyPrint PDF generation on A4 paper.
+   ------------------------------------------------------------------------- */
+
+/* Global scaling for A4 */
+html { font-size: 11px; }
+body { 
+    background: white !important; 
+    padding: 0; 
+    font-size: 11px;
+    line-height: 1.4;
+    overflow: visible;
+    -webkit-print-color-adjust: exact !important; 
+    print-color-adjust: exact !important;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Bootstrap 4 print normalization for WeasyPrint */
+.container,
+.container-fluid,
+.row {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: auto !important;
+}
+
+.page-shell { background: white !important; min-height: auto; padding: 0; }
+.page-shell__container { padding: 0; max-width: none; }
+
+/* Section titles */
+h2.stats-section-title { 
+    page-break-after: avoid; 
+    border-bottom: 1px solid #e1e4e8; 
+    margin-top: 0.8rem; 
+    margin-bottom: 0.4rem; 
+    padding-bottom: 0.25rem; 
+    font-size: 1rem; 
+}
+
+/* Bootstrap grid ported for WeasyPrint (no media queries respected)
+   Neutralizes negative margins to prevent right-edge clipping on A4. */
+.row { 
+    display: flex; 
+    flex-wrap: wrap; 
+    margin-right: 0; 
+    margin-left: 0; 
+    gap: 0; 
+    page-break-inside: avoid; 
+}
+
+[class*="col-"] { box-sizing: border-box; padding-right: 6px; padding-left: 6px; }
+.col-md-3, .col-lg-3, .col-sm-6 { flex: 0 0 25%; max-width: 25%; }
+.col-md-4, .col-lg-4             { flex: 0 0 33.3333%; max-width: 33.3333%; }
+.col-md-6, .col-lg-6             { flex: 0 0 50%; max-width: 50%; }
+.col-md-12, .col-lg-12           { flex: 0 0 100%; max-width: 100%; }
+
+/* Card spacing and break prevention */
+.card { 
+    border: 1px solid #e1e4e8 !important; 
+    break-inside: avoid; 
+    margin-bottom: 0.6rem !important; 
+}
+.card-body, .card .card-body { padding: 0.5rem !important; }
+
+/* SVG / diagram containment */
+.diagram-wrap {
+    overflow: hidden !important;
+    max-width: 100% !important;
+}
+.diagram-svg, svg {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: auto !important;
+}
+
+/* -------------------------------------------------------------------------
+   Report Layout Elements
+   ------------------------------------------------------------------------- */
+@page { size: A4; margin: 0.6cm; }
+
+.report-header { 
+    border-bottom: 2px solid #174092; 
+    padding-bottom: 6px; 
+    margin-bottom: 12px; 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: flex-end; 
+}
+
+.report-header h1, .report-header h2 { 
+    margin: 0; 
+    color: #174092; 
+    font-size: 18px; 
+}
+
+.report-header p { 
+    margin: 0; 
+    color: #6c757d; 
+    font-size: 10px; 
+}
+
+.report-header .meta { 
+    text-align: right; 
+    color: #6c757d; 
+    font-size: 9px; 
+}
+
+.report-footer { 
+    margin-top: 12px; 
+    text-align: center; 
+    color: #94a3b8; 
+    font-size: 8px; 
+    border-top: 1px solid #f1f5f9; 
+    padding-top: 6px; 
+}

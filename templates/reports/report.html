@@ -1,42 +1,24 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>OSM & ATLAS Matching Report</title>
-    <style>
-        body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #333; padding: 6px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        h2 { color: #174092; }
-        .report-header { margin-bottom: 20px; }
-        .report-info { color: #6c757d; font-size: 11px; }
-        .no-matches { color: #DC3545; font-style: italic; }
-        
-        /* Column sizing */
-        .col-distance { width: 80px; }
-        .col-method { width: 100px; }
-        .col-operator { width: 120px; }
-        .col-sloid { width: 140px; }
-        .col-osm-id { width: 120px; }
-        .col-source { width: 80px; }
-        .col-priority { width: 60px; }
-        .col-problem-type { width: 100px; }
-    </style>
-</head>
-<body>
-    <div class="report-header">
+{% extends "layouts/printable.html" %}
+
+{% block title %}OSM & ATLAS Matching Report{% endblock %}
+
+{% block header %}
+    <div>
         <h2>{{ report_title }}</h2>
         <p class="report-info">Report generated at: {{ generated_at.strftime('%Y-%m-%d %H:%M:%S') }}</p>
-        <p class="report-info">Sort Order: {{ sort_order }}</p>
-        <p class="report-info">Number of entries: {{ report_items|length }}</p>
     </div>
-    
+    <div class="meta">
+        <div>Sort Order: {{ sort_order }}</div>
+        <div>Entries: {{ report_items|length }}</div>
+    </div>
+{% endblock %}
+
+{% block content %}
     {% if report_items|length == 0 %}
-    <p class="no-matches">No items found for this report criteria.</p>
+    <p class="no-matches alert alert-warning">No items found for this report criteria.</p>
     {% else %}
-    <table>
-        <thead>
+    <table class="table table-sm table-bordered">
+        <thead class="thead-light">
             {% if report_type == 'unmatched' %}
             <tr>
                 <th class="col-source">Source</th>
@@ -155,7 +137,7 @@
                 <td class="col-method">{{ item.match_type if item.match_type else 'N/A' }}</td>
                 {% if include_fields and 'atlas_coords' in include_fields %}
                 <td>{{ ('%.6f'|format(item.atlas_lat)) if item.atlas_lat is not none else 'N/A' }}</td>
-                <td>{{ ('%.6f'|format(item.atlas_lon)) if item.atlas_lon is not none else 'N/A' }}</td>
+                <td>{{ ('%.6f'|format(item.atlas_lon)) if item.atlas_lon is not none else 'N/at' }}</td>
                 {% endif %}
                 {% if include_fields and 'osm_coords' in include_fields %}
                 <td>{{ ('%.6f'|format(item.osm_lat)) if item.osm_lat is not none else 'N/A' }}</td>
@@ -167,5 +149,19 @@
         </tbody>
     </table>
     {% endif %}
-</body>
-</html>
+{% endblock %}
+
+{% block extra_css %}
+/* Column sizing specific to data tables */
+.col-distance { width: 80px; }
+.col-method { width: 100px; }
+.col-operator { width: 120px; }
+.col-sloid { width: 140px; }
+.col-osm-id { width: 120px; }
+.col-source { width: 80px; }
+.col-priority { width: 60px; }
+.col-problem-type { width: 100px; }
+
+/* Use Bootstrap table classes and fix borders for PDF */
+.table th { background-color: var(--color-bg-subtle) !important; }
+{% endblock %}

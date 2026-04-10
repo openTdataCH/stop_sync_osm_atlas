@@ -11,21 +11,18 @@
 
 {% block content %}
 <div class="container-fluid docs-container">
-  <div class="mb-4 d-flex align-items-center">
-    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary mr-2 shadow-sm">
-      <i class="fas fa-arrow-left"></i> Back to Map
-    </a>
-    <a href="{{ url_for('docs.download_docs_pdf') }}" class="btn btn-outline-danger mr-2 shadow-sm"
-      title="Download documentation as PDF">
-      Download doc<i class="fas fa-file-pdf ml-1"></i>
-    </a>
-    <a href="https://github.com/openTdataCH/stop_sync_osm_atlas" target="_blank"
-      class="btn btn-outline-primary repo-btn shadow-sm">
-      <i class="fas fa-code-branch mr-1"></i> Repo
-    </a>
-  </div>
   <div class="row">
     <div class="col-md-3 docs-sidebar pr-0">
+      <div class="d-flex mb-3 pr-3">
+        <a href="{{ url_for('docs.download_docs_pdf') }}" class="btn btn-sm btn-outline-danger mr-2 shadow-sm font-weight-bold"
+          title="Download documentation as PDF" style="height: fit-content; line-height: 1.2;">
+          <i class="fas fa-file-pdf mr-1"></i> Download doc
+        </a>
+        <a href="https://github.com/openTdataCH/stop_sync_osm_atlas" target="_blank"
+          class="btn btn-sm btn-outline-primary repo-btn shadow-sm font-weight-bold" style="height: fit-content; line-height: 1.2;">
+          <i class="fas fa-code-branch mr-1"></i> Repo
+        </a>
+      </div>
       <div class="list-group list-group-flush" id="docs-sections">
         {% for sec in sections %}
         <div class="docs-section" data-section="{{ sec.key }}">

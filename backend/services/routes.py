@@ -1,4 +1,3 @@
-import json
 from flask import current_app as app
 from backend.extensions import db
 from sqlalchemy import text
@@ -37,40 +36,40 @@ def get_osm_routes_for_node(osm_node_id):
 
 def get_stops_for_route(route_id, direction=None):
     try:
-        # Atlas queries
+        # Exact route-id lookup first for correctness and index-friendly execution.
         atlas_query = """
             SELECT sloid FROM route_atlas_stops 
-            WHERE atlas_route_id LIKE :route_id
+            WHERE atlas_route_id = :route_id
         """
-        atlas_params = {"route_id": f'%{route_id}%'}
+        atlas_params = {"route_id": route_id}
         if direction:
             atlas_query += " AND direction_id = :direction"
             atlas_params["direction"] = direction
             
         atlas_rows = db.session.execute(text(atlas_query), atlas_params).fetchall()
         
-        # OSM queries
+        # OSM exact route-id lookup.
         osm_query = """
             SELECT osm_node_id FROM route_osm_stops 
-            WHERE osm_route_id LIKE :route_id
+            WHERE osm_route_id = :route_id
         """
-        osm_params = {"route_id": f'%{route_id}%'}
+        osm_params = {"route_id": route_id}
         if direction:
             osm_query += " AND direction_id = :direction"
             osm_params["direction"] = direction
             
         osm_rows = db.session.execute(text(osm_query), osm_params).fetchall()
         
-        # Fallback to normalized route id if no exact matches found
+        # Fallback to normalized route-id matching when suffix variants exist.
         if not atlas_rows and not osm_rows:
             app.logger.info(f"No exact matches for {route_id}, trying normalized matching")
             normalized_input = normalize_route_id(route_id)
             if normalized_input and normalized_input != route_id:
                 atlas_query_norm = """
                     SELECT sloid FROM route_atlas_stops 
-                    WHERE REGEXP_REPLACE(atlas_route_id, '-j[0-9]+', '-jXX') LIKE :normalized_route_id
+                    WHERE REGEXP_REPLACE(atlas_route_id, '-j[0-9]+', '-jXX') = :normalized_route_id
                 """
-                atlas_params_norm = {"normalized_route_id": f'%{normalized_input}%'}
+                atlas_params_norm = {"normalized_route_id": normalized_input}
                 if direction:
                     atlas_query_norm += " AND direction_id = :direction"
                     atlas_params_norm["direction"] = direction
@@ -78,9 +77,9 @@ def get_stops_for_route(route_id, direction=None):
                 
                 osm_query_norm = """
                     SELECT osm_node_id FROM route_osm_stops 
-                    WHERE REGEXP_REPLACE(osm_route_id, '-j[0-9]+', '-jXX') LIKE :normalized_route_id
+                    WHERE REGEXP_REPLACE(osm_route_id, '-j[0-9]+', '-jXX') = :normalized_route_id
                 """
-                osm_params_norm = {"normalized_route_id": f'%{normalized_input}%'}
+                osm_params_norm = {"normalized_route_id": normalized_input}
                 if direction:
                     osm_query_norm += " AND direction_id = :direction"
                     osm_params_norm["direction"] = direction

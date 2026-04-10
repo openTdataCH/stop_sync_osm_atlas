@@ -19,7 +19,7 @@
       <!-- Main navigation links -->
       <ul class="navbar-nav mr-auto">
         <li class="nav-item {%- if request.endpoint == 'index' %} active{%- endif %}">
-          <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+          <a class="nav-link" href="{{ url_for('index') }}">Map</a>
         </li>
         <li class="nav-item {%- if request.endpoint == 'problems' %} active{%- endif %}">
           <a class="nav-link" href="{{ url_for('problems') }}">Problems</a>

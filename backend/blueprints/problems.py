@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy.orm import joinedload, subqueryload
-from backend.models import StopsMatched, AtlasStop, OsmNode, Problem
+from backend.models import StopsMatched, AtlasStop, Problem
 from backend.extensions import db, limiter
 from backend.db_errors import is_missing_table_error
 from backend.serializers.stops import format_stop_data
@@ -69,6 +69,7 @@ def get_problems():
             selected_problem_types = [map_problem_type(t) for t in parse_csv_values(problem_type_filter)]
 
         selected_priorities = parse_priority_values(priority_filter)
+        include_routes = str(request.args.get('include_routes', '0')).strip().lower() in ('1', 'true', 'yes', 'on')
 
         query = Problem.query.join(StopsMatched)
         if selected_problem_types:
@@ -127,7 +128,7 @@ def get_problems():
                 priorities = []
                 for pr in members.values():
                     st = pr.stop
-                    formatted = format_stop_data(st, problem_type='duplicates')
+                    formatted = format_stop_data(st, problem_type='duplicates', include_routes=include_routes)
                     formatted.update({
                         'priority': pr.priority,
                         'solution': '',
@@ -182,7 +183,7 @@ def get_problems():
                 priorities = []
                 for pr in members.values():
                     st = pr.stop
-                    formatted = format_stop_data(st, problem_type='duplicates')
+                    formatted = format_stop_data(st, problem_type='duplicates', include_routes=include_routes)
                     formatted.update({
                         'priority': pr.priority,
                         'solution': '',
@@ -272,7 +273,7 @@ def get_problems():
             stop_ids_query = db.session.query(Problem.stop_id, func.min(Problem.priority)).join(StopsMatched)
             if selected_problem_types:
                 stop_ids_query = stop_ids_query.filter(Problem.problem_type.in_(selected_problem_types))
-                stop_ids_query = apply_atlas_operator_filter(stop_ids_query, atlas_operator_filter)
+            stop_ids_query = apply_atlas_operator_filter(stop_ids_query, atlas_operator_filter)
             if selected_priorities:
                 stop_ids_query = stop_ids_query.filter(Problem.priority.in_(selected_priorities))
             stop_ids_query = stop_ids_query.group_by(Problem.stop_id)
@@ -286,7 +287,7 @@ def get_problems():
             stop_ids_query = db.session.query(Problem.stop_id).join(StopsMatched)
             if selected_problem_types:
                 stop_ids_query = stop_ids_query.filter(Problem.problem_type.in_(selected_problem_types))
-                stop_ids_query = apply_atlas_operator_filter(stop_ids_query, atlas_operator_filter)
+            stop_ids_query = apply_atlas_operator_filter(stop_ids_query, atlas_operator_filter)
             if selected_priorities:
                 stop_ids_query = stop_ids_query.filter(Problem.priority.in_(selected_priorities))
             paged_stop_ids = [item[0] for item in stop_ids_query.distinct().order_by(Problem.stop_id).offset(offset).limit(limit).all()]
@@ -299,7 +300,7 @@ def get_problems():
             ).filter(Problem.stop_id.in_(paged_stop_ids))
             if selected_problem_types:
                 final_query = final_query.filter(Problem.problem_type.in_(selected_problem_types))
-                final_query = apply_atlas_operator_filter(final_query, atlas_operator_filter)
+            final_query = apply_atlas_operator_filter(final_query, atlas_operator_filter)
             if selected_priorities:
                 final_query = final_query.filter(Problem.priority.in_(selected_priorities))
             if sort_by == 'distance' and distance_only_mode:
@@ -317,7 +318,7 @@ def get_problems():
             final_problems = final_query.all()
         problems = []
         for problem in final_problems:
-            formatted_stop = format_stop_data(problem.stop, problem_type=problem.problem_type)
+            formatted_stop = format_stop_data(problem.stop, problem_type=problem.problem_type, include_routes=include_routes)
             st = problem.stop
             formatted_stop['priority'] = problem.priority
             formatted_stop['solution'] = ''

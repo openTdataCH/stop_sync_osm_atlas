@@ -216,36 +216,47 @@ class RoutesMatched(db.Model):
     match_type = db.Column(db.String(50))
 
 
-class GlobalStatsBucket(db.Model):
-    __tablename__ = 'global_stats_buckets'
+class GlobalStatsFilterRow(db.Model):
+    """Materialized filter row used by `/api/global_stats` for broad filter requests.
+
+    One row corresponds to one `stops_matched` row enriched with pre-joined dimensions
+    needed by global stats filtering. This allows exact DISTINCT aggregations without
+    re-joining large tables on each request.
+    """
+
+    __tablename__ = 'global_stats_filter_rows'
     __table_args__ = (
-        db.Index('idx_gsb_scope_effective', 'scope', 'effective_stop_type'),
-        db.Index('idx_gsb_match_type', 'match_type'),
-        db.Index('idx_gsb_group_kind', 'osm_group_kind'),
-        db.Index('idx_gsb_atlas_duplicate', 'atlas_duplicate'),
+        db.Index('idx_gsfr_scope_effective', 'scope', 'effective_stop_type'),
+        db.Index('idx_gsfr_match_type', 'match_type'),
+        db.Index('idx_gsfr_group_kind', 'osm_group_kind'),
+        db.Index('idx_gsfr_atlas_duplicate', 'atlas_duplicate'),
+        db.Index('idx_gsfr_sloid', 'sloid'),
+        db.Index('idx_gsfr_osm_node_id', 'osm_node_id'),
+        db.Index('idx_gsfr_osm_stop_id', 'osm_stop_id'),
+        db.Index('idx_gsfr_stop_type', 'stop_type'),
     )
-    
+
     id = db.Column(db.Integer, primary_key=True)
-    scope = db.Column(db.String(20), nullable=False) # 'atlas+osm', 'atlas_only', 'osm_only'
+
+    # Identity columns used for exact DISTINCT aggregation.
+    sloid = db.Column(db.String(100), nullable=True)
+    osm_node_id = db.Column(db.String(100), nullable=True)
+    osm_stop_id = db.Column(db.Integer, nullable=True)
+
+    # Filter dimensions.
+    scope = db.Column(db.String(20), nullable=False)  # atlas+osm, atlas_only, osm_only
     atlas_operator = db.Column(db.String(100), nullable=True, index=True)
     atlas_duplicate = db.Column(db.Boolean, nullable=False, default=False)
+    stop_kind = db.Column(db.String(20), nullable=True)
     osm_group_kind = db.Column(db.String(50), nullable=True)
-    effective_stop_type = db.Column(db.String(50), nullable=True) # matched, effectively_matched, atlas_unmatched, osm_unmatched
+    stop_type = db.Column(db.String(50), nullable=True)
+    effective_stop_type = db.Column(db.String(50), nullable=True)
     match_type = db.Column(db.String(50), nullable=True)
-    
-    # Transport dimension flags for easy boolean querying
+
+    # Transport dimension flags for OR-combined transport filtering.
     is_ferry_terminal = db.Column(db.Boolean, nullable=False, default=False)
     is_tram_stop = db.Column(db.Boolean, nullable=False, default=False)
     is_station = db.Column(db.Boolean, nullable=False, default=False)
     is_platform = db.Column(db.Boolean, nullable=False, default=False)
     is_stop_position = db.Column(db.Boolean, nullable=False, default=False)
     is_aerialway_station = db.Column(db.Boolean, nullable=False, default=False)
-    
-    # Aggregated counters
-    total_atlas = db.Column(db.Integer, nullable=False, default=0)
-    matched_atlas = db.Column(db.Integer, nullable=False, default=0)
-    unmatched_atlas = db.Column(db.Integer, nullable=False, default=0)
-    matched_pairs = db.Column(db.Integer, nullable=False, default=0)
-    total_osm_stops = db.Column(db.Integer, nullable=False, default=0)
-    matched_osm_stops = db.Column(db.Integer, nullable=False, default=0)
-    total_osm_nodes = db.Column(db.Integer, nullable=False, default=0)
