@@ -411,13 +411,17 @@ function createMarkersWithOverlapHandling(markerDataArray, layer, options = {}) 
  * @returns {L.Popup} A Leaflet popup instance.
  */
 function createPopupWithOptions(content) {
+    const defaultMaxWidth = (AppConstants.POPUP && AppConstants.POPUP.MULTI_BUBBLE_RESIZE_MAX_WIDTH_PX)
+        ? AppConstants.POPUP.MULTI_BUBBLE_RESIZE_MAX_WIDTH_PX
+        : 900;
+
     // move_popup.js provides L.draggablePopup
     if (L.draggablePopup) {
         return L.draggablePopup({
             autoClose: false,
             closeOnClick: false,
             autoPan: false,
-            maxWidth: 2000,
+            maxWidth: defaultMaxWidth,
             closeButton: true,
             className: 'customPopup permanent-popup'
         }).setContent(content);
@@ -427,7 +431,7 @@ function createPopupWithOptions(content) {
         autoClose: false,
         closeOnClick: false,
         autoPan: false,
-        maxWidth: 2000,
+        maxWidth: defaultMaxWidth,
         closeButton: true,
         className: 'customPopup permanent-popup'
     }).setContent(content);
@@ -549,16 +553,21 @@ function drawProblemOnMap(map, problemData, layers) {
     layers.linesLayer.clearLayers();
 
     const stop = problemData;
+    const popupRenderer = window.PopupRenderer;
+    if (!popupRenderer) {
+        console.error('PopupRenderer is not defined. Check popup-renderer.js load/parse errors.');
+        return;
+    }
     let popup;
 
     // Case: 'distance' or 'attributes' problem (a matched pair)
     if ((stop.problem === 'distance' || stop.problem === 'attributes') && stop.stop_type === 'matched' && stop.atlas_lat && stop.osm_lat) {
         const atlasMarker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, COLOR_ATLAS_MATCHED, stop.has_atlas_duplicate);
-        const atlasPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'atlas'));
+        const atlasPopup = createPopupWithOptions(popupRenderer.generatePopupHtml(stop, 'atlas'));
         atlasMarker.bindPopup(atlasPopup).addTo(layers.markersLayer);
 
         const osmMarker = createOsmMarker(stop.osm_lat, stop.osm_lon, COLOR_OSM_MATCHED, stop.osm_node_type);
-        const osmPopup = createPopupWithOptions(PopupRenderer.generatePopupHtml(stop, 'osm'));
+        const osmPopup = createPopupWithOptions(popupRenderer.generatePopupHtml(stop, 'osm'));
         osmMarker.bindPopup(osmPopup).addTo(layers.markersLayer);
 
         // Use same line styling as main page for consistency
@@ -575,13 +584,13 @@ function drawProblemOnMap(map, problemData, layers) {
     else if (stop.problem === 'unmatched') {
         if (stop.stop_type === 'atlas_unmatched' && stop.atlas_lat) { // Isolated ATLAS
             const marker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, COLOR_ATLAS_UNMATCHED, stop.has_atlas_duplicate);
-            popup = createPopupWithOptions(PopupRenderer.generateSingleAtlasBubbleHtml(stop, true));
+            popup = createPopupWithOptions(popupRenderer.generateSingleAtlasBubbleHtml(stop, true));
             marker.bindPopup(popup).addTo(layers.markersLayer);
             map.setView([stop.atlas_lat, stop.atlas_lon], 16);
             marker.openPopup();
         } else if (stop.stop_type === 'osm_unmatched' && stop.osm_lat) { // Isolated OSM
             const marker = createOsmMarker(stop.osm_lat, stop.osm_lon, COLOR_OSM_UNMATCHED, stop.osm_node_type);
-            popup = createPopupWithOptions(PopupRenderer.generateSingleOsmBubbleHtml(stop, true));
+            popup = createPopupWithOptions(popupRenderer.generateSingleOsmBubbleHtml(stop, true));
             marker.bindPopup(popup).addTo(layers.markersLayer);
             map.setView([stop.osm_lat, stop.osm_lon], 16);
             marker.openPopup();
@@ -611,7 +620,7 @@ function drawProblemOnMap(map, problemData, layers) {
                     originalLat: parseFloat(member.atlas_lat),
                     originalLon: parseFloat(member.atlas_lon),
                     stopData: member,
-                    popup: createPopupWithOptions(PopupRenderer.generatePopupHtml(member, 'atlas'))
+                    popup: createPopupWithOptions(popupRenderer.generatePopupHtml(member, 'atlas'))
                 });
                 points.push([member.atlas_lat, member.atlas_lon]);
             }
@@ -626,7 +635,7 @@ function drawProblemOnMap(map, problemData, layers) {
                     originalLat: parseFloat(member.osm_lat),
                     originalLon: parseFloat(member.osm_lon),
                     stopData: member,
-                    popup: createPopupWithOptions(PopupRenderer.generatePopupHtml(member, 'osm'))
+                    popup: createPopupWithOptions(popupRenderer.generatePopupHtml(member, 'osm'))
                 });
                 points.push([member.osm_lat, member.osm_lon]);
             }

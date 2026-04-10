@@ -3,6 +3,12 @@
 
     const PopupUtils = {};
 
+    function escapeInlineJsString(value) {
+        return String(value)
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'");
+    }
+
     function normalizeRoutes(routes) {
         if (!routes) { return []; }
         if (typeof routes === 'string') {
@@ -35,8 +41,10 @@
         const itemsHtml = Object.values(routeGroups).map(group => {
             const directions = group.directions.slice().sort();
             const directionsStr = directions.length > 0 ? `Dir:${directions.join(',')}` : '';
+            const safeRouteId = escapeInlineJsString(group.routeId);
+            const safeDirections = escapeInlineJsString(directions.join(','));
             const routeIdLink = group.routeId !== 'unknown'
-                ? `(ID: <a href="#" onclick="filterByRoute('${group.routeId}', '${directions.join(',')}'); return false;">${group.routeId}</a>)`
+                ? `(ID: <a href="#" onclick="filterByRoute('${safeRouteId}', '${safeDirections}'); return false;">${group.routeId}</a>)`
                 : '';
             return `<li>${group.name} ${routeIdLink} ${directionsStr}</li>`;
         }).join('');
@@ -60,7 +68,9 @@
             if (route.route_id) {
                 // Pass simple direction code if available, or empty string
                 const dirId = route.direction_id || '';
-                routeFilterLink = ` <a href="#" onclick="filterByRoute('${route.route_id}', '${dirId}'); return false;" title="Filter by this route"><i class="fas fa-filter text-muted small"></i></a>`;
+                const safeRouteId = escapeInlineJsString(route.route_id);
+                const safeDirectionId = escapeInlineJsString(dirId);
+                routeFilterLink = ` <a href="#" onclick="filterByRoute('${safeRouteId}', '${safeDirectionId}'); return false;" title="Filter by this route"><i class="fas fa-filter text-muted small"></i></a>`;
             }
 
             return `<li>${sourceChip} ${displayName} ${routeFilterLink} ${dirStr} ${right ? `<small>(${right})</small>` : ''}</li>`;
@@ -97,33 +107,25 @@
 
     function createCollapsible(title, content, isExpanded = false) {
         if (content === "<i>No route information available</i>") {
-            return content + "<br>";
+            return { buttonHtml: '', panelHtml: content + "<br>" };
         }
         const id = 'collapse-' + Math.random().toString(36).substring(2, 9);
-        return `
-            <div class="collapsible">
-                <button type="button" class="btn btn-sm btn-outline-secondary" 
-                        onclick="PopupUtils.toggleCollapsible('${id}')">
-                    ${title} <span id="${id}-arrow">${isExpanded ? '▲' : '▼'}</span>
-                </button>
-                <div id="${id}" class="collapsible-content" 
-                    style="display: ${isExpanded ? 'block' : 'none'}; 
-                          margin-top: 5px; 
-                          border-left: 3px solid #ccc; 
-                          padding-left: 8px;
-                          max-height: 150px;
-                          overflow-y: auto;
-                          scrollbar-width: thin;
-                          scrollbar-color: #6c757d #e9ecef;">
-                    ${content}
-                </div>
-            </div>
-        `;
+        const buttonHtml = `<button type="button" class="btn btn-sm popup-action-btn popup-routes-btn"
+                    onclick="PopupUtils.toggleCollapsible('${id}')">
+                <span class="btn-collapsible-title">${title}</span>
+                <span id="${id}-arrow" class="btn-collapsible-arrow">${isExpanded ? '▲' : '▼'}</span>
+            </button>`;
+        const panelHtml = `<div id="${id}" class="collapsible-content shadow-inner"
+                    style="display: ${isExpanded ? 'block' : 'none'};">
+                ${content}
+            </div>`;
+        return { buttonHtml, panelHtml };
     }
 
     function toggleCollapsible(id) {
         const element = document.getElementById(id);
         const arrow = document.getElementById(id + '-arrow');
+        if (!element || !arrow) return;
         if (element.style.display === 'none') {
             element.style.display = 'block';
             arrow.textContent = '▲';
@@ -156,7 +158,9 @@
     function createFilterLink(value, type, displayText) {
         if (!value) return 'N/A';
         const text = displayText || value;
-        return `<a href="#" onclick="addCustomFilter('${value}', '${type}'); return false;">${text}</a>`;
+        const safeValue = escapeInlineJsString(value);
+        const safeType = escapeInlineJsString(type);
+        return `<a href="#" onclick="addCustomFilter('${safeValue}', '${safeType}'); return false;">${text}</a>`;
     }
 
     PopupUtils.normalizeRoutes = normalizeRoutes;

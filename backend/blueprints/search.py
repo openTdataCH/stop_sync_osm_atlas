@@ -4,8 +4,8 @@ from sqlalchemy import func
 from backend.models import StopsMatched, AtlasStop, OsmNode
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
-from backend.query_helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint, resolve_stop_type_match_filters, build_stop_scope_condition, build_match_method_conditions
-from backend.query_helpers import build_atlas_duplicate_membership_condition
+from backend.queries.helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint, resolve_stop_type_match_filters, build_stop_scope_condition, build_match_method_conditions
+from backend.queries.helpers import build_atlas_duplicate_membership_condition
 
 search_bp = Blueprint('search', __name__)
 

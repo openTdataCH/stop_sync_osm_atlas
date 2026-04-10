@@ -64,6 +64,10 @@ class FilterBuilder:
         """Build station/route ID filter conditions."""
         if not filter_values:
             return []
+
+        # Work on local copies so callers can safely reuse their input dicts/lists.
+        filter_types = list(filter_types or [])
+        route_directions = list(route_directions or [])
         
         # Ensure arrays are same length
         while len(filter_types) < len(filter_values):

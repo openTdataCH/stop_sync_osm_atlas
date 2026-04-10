@@ -2,6 +2,8 @@ from backend.extensions import db
 from backend.query_builder import QueryBuilder
 
 
+# Backward-compatibility aliases for older frontend filter parameter names.
+# TODO: Remove after all clients have migrated to `osm_pair_*` names.
 LEGACY_OSM_GROUP_TYPE_MAP = {
     'osm_group_uic': 'osm_pair_uic',
     'osm_group_name': 'osm_pair_name',

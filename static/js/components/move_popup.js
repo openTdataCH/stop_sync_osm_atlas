@@ -16,6 +16,9 @@
             fitBubblesSingleRow: true,
             singleBubbleMaxWidthPx: AppConstants.POPUP.SINGLE_BUBBLE_MAX_WIDTH_PX,
             multiBubbleOptimalWidth: AppConstants.POPUP.MULTI_BUBBLE_OPTIMAL_WIDTH,
+            multiBubbleMaxWidthPx: AppConstants.POPUP.MULTI_BUBBLE_MAX_WIDTH_PX || 420,
+            multiBubbleResizeMaxWidthPx: AppConstants.POPUP.MULTI_BUBBLE_RESIZE_MAX_WIDTH_PX || 900,
+            multiBubbleMaxColumns: AppConstants.POPUP.MULTI_BUBBLE_MAX_COLUMNS || 2,
             bubbleExpansionBuffer: AppConstants.POPUP.BUBBLE_EXPANSION_BUFFER,
             strictWidthControl: true // enable strict width limits
         },
@@ -24,20 +27,18 @@
             L.Popup.prototype.initialize.call(this, options);
             this._marker = null;
             this._line = null;
+            this._lineLayer = null;
             this._isDragging = false;
             this._isResizing = false;
             this._resizeMode = null;
             this._startPos = { x: 0, y: 0 };
-            this._startSize = { width: 0, height: 0 };
+            this._startSize = { width: 0 };
             this._popupStartPos = { left: 0, top: 0 };
-            this._boundMouseMove = this._onMouseMove.bind(this);
-            this._boundMouseUp = this._onMouseUp.bind(this);
             this._currentWidth = null;
-            this._currentHeight = null;
             this._maxContentWidth = null;
-            this._optimalSingleRowWidth = null;
-            this._singleRowWidthLocked = false;
             this._interactionsInitialized = false;
+            this._mapEventHandlersBound = false;
+            this._boundMapUpdate = null;
             this._bubbleCount = 0;
             this._isSingleBubbleMode = true;
             this.on('contentupdate', this._onContentUpdate, this);
@@ -49,36 +50,20 @@
             setTimeout(() => {
                 this._initInteractions();
                 this._createLine();
+                this._bindMapEventHandlers();
                 this._ensureDragHandleAtTop();
                 this._repositionCloseButton();
-                this._makePersistent();
             }, 100);
             return this;
         },
         onRemove: function(map) {
             this.off('contentupdate', this._onContentUpdate, this);
             this._removeLine();
+            this._unbindMapEventHandlers();
             this._removeInteractionListeners();
             L.Popup.prototype.onRemove.call(this, map);
         },
-        _makePersistent: function() {
-            if (!this._map) return;
-            if (!this._map._persistentPopups) {
-                this._map._persistentPopups = [];
-                const originalMoveEnd = this._map._moveEnd;
-                this._map._moveEnd = function(e) {
-                    originalMoveEnd.call(this, e);
-                    if (window.updateAllPopupLines) { window.updateAllPopupLines(); }
-                };
-            }
-            if (this._map._persistentPopups.indexOf(this) === -1) {
-                this._map._persistentPopups.push(this);
-            }
-        },
         _onContentUpdate: function() {
-            // Reset width control state when content changes
-            this._optimalSingleRowWidth = null;
-            this._singleRowWidthLocked = false;
             this._bubbleCount = 0;
             this._isSingleBubbleMode = true;
             
@@ -88,8 +73,21 @@
                     this._ensureDragHandleAtTop();
                     this._analyzeBubbleLayout();
                     this._applyOptimalWidth();
+                    this._updateLine();
                 }
             }, 10);
+        },
+        _bindMapEventHandlers: function() {
+            if (!this._map || this._mapEventHandlersBound) return;
+            this._boundMapUpdate = this._updateLine.bind(this);
+            this._map.on('move zoom resize', this._boundMapUpdate);
+            this._mapEventHandlersBound = true;
+        },
+        _unbindMapEventHandlers: function() {
+            if (!this._map || !this._mapEventHandlersBound || !this._boundMapUpdate) return;
+            this._map.off('move zoom resize', this._boundMapUpdate);
+            this._boundMapUpdate = null;
+            this._mapEventHandlersBound = false;
         },
         _repositionCloseButton: function() {
             if (!this._container) return;
@@ -106,15 +104,10 @@
             const contentNode = this._contentNode;
             if (!contentNode) return;
             let appliedWidth = this._currentWidth || this.options.initialWidth;
-            let appliedHeight = this._currentHeight || this.options.initialHeight;
             if (appliedWidth) {
                 contentNode.style.width = typeof appliedWidth === 'number' ? `${appliedWidth}px` : appliedWidth;
             }
-            if (appliedHeight && appliedHeight !== 'auto') {
-                contentNode.style.height = typeof appliedHeight === 'number' ? `${appliedHeight}px` : appliedHeight;
-            } else {
-                contentNode.style.height = 'auto';
-            }
+            contentNode.style.height = 'auto';
             contentNode.style.overflow = 'auto';
         },
         _analyzeBubbleLayout: function() {
@@ -141,6 +134,12 @@
                 const singleBubble = initialView.querySelector('.atlas-match, .osm-match');
                 if (singleBubble) {
                     bubbleElements = [singleBubble];
+                }
+            } else {
+                // Standalone popup content (no initial/unified wrappers).
+                const directBubble = contentNode.querySelector('.atlas-match, .osm-match');
+                if (directBubble) {
+                    bubbleElements = [directBubble];
                 }
             }
             
@@ -174,14 +173,18 @@
             bubble.offsetHeight; // Force reflow
             const naturalWidth = bubble.offsetWidth;
             bubble.style.width = originalStyle;
+
+            const buttonRow = bubble.querySelector('.bubble-btn-row');
+            const buttonRowWidth = buttonRow ? buttonRow.scrollWidth : 0;
+            const requiredContentWidth = Math.max(naturalWidth, buttonRowWidth + 6);
             
             // Keep single-bubble sizing simple and predictable.
             const containerPadding = 16;
             const bufferSpace = 12;
-            const optimalWidth = naturalWidth + containerPadding + bufferSpace;
+            const optimalWidth = requiredContentWidth + containerPadding + bufferSpace;
 
             const viewportCap = this._map
-                ? Math.max(this.options.minWidth, Math.floor(this._map.getSize().x * 0.55))
+                ? Math.max(this.options.minWidth, Math.floor(this._map.getSize().x * 0.6))
                 : this.options.singleBubbleMaxWidthPx;
             const maxWidth = Math.min(this.options.singleBubbleMaxWidthPx, viewportCap);
 
@@ -193,108 +196,31 @@
             if (!this._currentMatchesContainer || !this._currentBubbleElements || this._currentBubbleElements.length === 0) {
                 return;
             }
-            
-            const matchesContainer = this._currentMatchesContainer;
-            const bubbleElements = this._currentBubbleElements;
-            
-            // Calculate optimal width for single-row layout
-            const optimalWidth = this._calculateOptimalMultiBubbleWidth();
-            
-            // Test if bubbles fit in single row at this width
-            this._currentWidth = optimalWidth;
+
+            this._currentWidth = this._calculateMultiBubbleWidth();
             this._applyDimensions();
             this._updatePosition();
-            
-            // Force reflow and check layout
-            matchesContainer.offsetHeight;
-            const allOnSingleRow = this._areAllBubblesOnSingleRow(bubbleElements);
-            
-            if (allOnSingleRow) {
-                // Perfect! Lock this width and allow slight expansion for bubble filling
-                this._optimalSingleRowWidth = optimalWidth;
-                this._singleRowWidthLocked = true;
-                this._adjustBubblesToFillWidth();
-            } else {
-                // If they don't fit, try a slightly larger width, but don't go overboard
-                const maxAttemptWidth = optimalWidth * 1.2; // 20% larger at most
-                this._currentWidth = maxAttemptWidth;
-                this._applyDimensions();
-                this._updatePosition();
-                
-                matchesContainer.offsetHeight;
-                const fitsAtMaxWidth = this._areAllBubblesOnSingleRow(bubbleElements);
-                
-                if (fitsAtMaxWidth) {
-                    this._optimalSingleRowWidth = maxAttemptWidth;
-                    this._singleRowWidthLocked = true;
-                    this._adjustBubblesToFillWidth();
-                } else {
-                    // Give up on single row, use optimal width and let them stack
-                    this._currentWidth = optimalWidth;
-                    this._applyDimensions();
-                    this._updatePosition();
-                }
-            }
         },
-        _calculateOptimalMultiBubbleWidth: function() {
-            if (!this._currentBubbleElements) return this.options.minWidth;
-            
-            const bubbleElements = this._currentBubbleElements;
-            const numBubbles = bubbleElements.length;
-            
-            // Calculate natural widths
-            let totalNaturalWidth = 0;
-            bubbleElements.forEach(bubble => {
-                const originalStyle = bubble.style.width;
-                bubble.style.width = 'auto';
-                bubble.offsetHeight; // Force reflow
-                const naturalWidth = Math.max(200, bubble.offsetWidth); // CSS min-width of 200px
-                totalNaturalWidth += naturalWidth;
-                bubble.style.width = originalStyle;
-            });
-            
-            // Add container styling
-            const gap = 8; // from CSS .matches-container gap
-            const containerPadding = 16; // .matches-container padding
-            const outerPadding = 20; // popup content padding
-            
-            const totalGaps = gap * Math.max(0, numBubbles - 1);
-            const optimalWidth = totalNaturalWidth + totalGaps + containerPadding + outerPadding + this.options.bubbleExpansionBuffer;
-            
-            return Math.max(this.options.minWidth, optimalWidth);
+        _calculateMultiBubbleWidth: function() {
+            const bubbleCount = this._currentBubbleElements ? this._currentBubbleElements.length : 1;
+            const viewportWidth = this._map ? this._map.getSize().x : this.options.singleBubbleMaxWidthPx;
+            const compactColumns = viewportWidth <= 900 ? 1 : this.options.multiBubbleMaxColumns;
+            const columns = Math.max(1, Math.min(compactColumns, bubbleCount));
+
+            const gap = 6;
+            const containerPadding = 10;
+            const outerPadding = 14;
+            const perBubbleWidth = this.options.multiBubbleOptimalWidth;
+            const desiredWidth = (columns * perBubbleWidth) + (Math.max(0, columns - 1) * gap) + containerPadding + outerPadding + this.options.bubbleExpansionBuffer;
+
+            const viewportCap = Math.max(this.options.minWidth, Math.floor(viewportWidth * 0.9));
+            const hardCap = this.options.multiBubbleMaxWidthPx;
+            return Math.max(this.options.minWidth, Math.min(desiredWidth, viewportCap, hardCap));
         },
-        _areAllBubblesOnSingleRow: function(bubbleElements) {
-            if (bubbleElements.length <= 1) return true;
-            
-            const positions = bubbleElements.map(el => {
-                const rect = el.getBoundingClientRect();
-                return Math.round(rect.top);
-            });
-            
-            const minY = Math.min(...positions);
-            const maxY = Math.max(...positions);
-            return (maxY - minY) <= 2; // 2px tolerance for sub-pixel rendering
-        },
-        _adjustBubblesToFillWidth: function() {
-            if (!this._currentMatchesContainer || !this._currentBubbleElements) return;
-            
-            const container = this._currentMatchesContainer;
-            const bubbles = this._currentBubbleElements;
-            
-            // Calculate available space
-            const containerWidth = container.offsetWidth;
-            const gap = 8;
-            const availableWidth = containerWidth - (gap * Math.max(0, bubbles.length - 1));
-            const targetBubbleWidth = Math.floor(availableWidth / bubbles.length);
-            
-            // Only expand bubbles if they're smaller than target
-            bubbles.forEach(bubble => {
-                const currentWidth = bubble.offsetWidth;
-                if (currentWidth < targetBubbleWidth) {
-                    bubble.style.flex = `1 1 ${targetBubbleWidth}px`;
-                    bubble.style.maxWidth = `${targetBubbleWidth}px`;
-                }
-            });
+        _calculateResizeMaxWidth: function() {
+            const viewportWidth = this._map ? this._map.getSize().x : this.options.multiBubbleResizeMaxWidthPx;
+            const viewportCap = Math.max(this.options.minWidth, Math.floor(viewportWidth * 0.95));
+            return Math.max(this.options.minWidth, Math.min(this.options.multiBubbleResizeMaxWidthPx, viewportCap));
         },
         _ensureDragHandleAtTop: function() {
             if (!this._container || !this._contentNode) return;
@@ -337,10 +263,6 @@
             if (this._container._leaflet_popup_instance === this) {
                 delete this._container._leaflet_popup_instance;
             }
-            if (this._map && this._map._persistentPopups) {
-                const index = this._map._persistentPopups.indexOf(this);
-                if (index !== -1) { this._map._persistentPopups.splice(index, 1); }
-            }
             this._interactionsInitialized = false;
         },
         _onMouseDown: function(e) {
@@ -374,7 +296,7 @@
             this._startPos = { x: e.clientX, y: e.clientY };
             const contentNode = this._contentNode;
             if (!contentNode) { this._isResizing = false; return; }
-            this._startSize = { width: contentNode.offsetWidth, height: contentNode.offsetHeight };
+            this._startSize = { width: contentNode.offsetWidth };
             this._popupStartPos = { left: this._container.offsetLeft, top: this._container.offsetTop };
 
             // Calculate professional width limits based on content
@@ -384,14 +306,8 @@
                 // Single bubble: keep resize cap aligned with simplified width logic.
                 this._maxContentWidth = this.options.singleBubbleMaxWidthPx;
             } else {
-                // Multiple bubbles: allow width until all bubbles fit in single row + small buffer
-                if (this._optimalSingleRowWidth && this._singleRowWidthLocked) {
-                    this._maxContentWidth = this._optimalSingleRowWidth + this.options.bubbleExpansionBuffer;
-                } else {
-                    // Calculate on-the-fly
-                    const optimalWidth = this._calculateOptimalMultiBubbleWidth();
-                    this._maxContentWidth = optimalWidth * 1.1; // 10% buffer
-                }
+                // Multiple bubbles: allow wider manual resize than auto layout width.
+                this._maxContentWidth = this._calculateResizeMaxWidth();
             }
             
             if (this._maxContentWidth >= this.options.minWidth) {
@@ -418,12 +334,9 @@
         },
         _onResizing: function(e) {
             const dx = e.clientX - this._startPos.x;
-            const dy = e.clientY - this._startPos.y;
             const contentNode = this._contentNode;
             let newWidth = this._startSize.width;
-            let newHeight = this._startSize.height;
             let newLeft = this._popupStartPos.left;
-            let newTop = this._popupStartPos.top;
             
             if (this._resizeMode.includes('e')) { newWidth = this._startSize.width + dx; }
             if (this._resizeMode.includes('w')) { newWidth = this._startSize.width - dx; }
@@ -436,25 +349,12 @@
             if (newWidth < minW) { newWidth = minW; }
             
             if (this._resizeMode.includes('w')) { newLeft = this._popupStartPos.left + (this._startSize.width - newWidth); }
-            if (this._resizeMode.includes('s')) { newHeight = this._startSize.height + dy; }
-            if (this._resizeMode.includes('n')) { newHeight = this._startSize.height - dy; }
-            
-            const minH = this.options.minHeight;
-            if (newHeight < minH) { newHeight = minH; }
-            if (this._resizeMode.includes('n')) { newTop = this._popupStartPos.top + (this._startSize.height - newHeight); }
             
             contentNode.style.width = `${newWidth}px`;
-            contentNode.style.height = `${newHeight}px`;
             contentNode.style.overflow = 'auto';
             
-            if (this._resizeMode.includes('n') || this._resizeMode.includes('w')) {
+            if (this._resizeMode.includes('w')) {
                 this._container.style.left = `${newLeft}px`;
-                this._container.style.top = `${newTop}px`;
-            }
-            
-            // If in multi-bubble mode and width changed, check if we should adjust bubble layout
-            if (!this._isSingleBubbleMode && this._resizeMode.includes('e') || this._resizeMode.includes('w')) {
-                setTimeout(() => this._adjustBubblesToFillWidth(), 0);
             }
             
             this._updatePosition();
@@ -471,7 +371,6 @@
                 if (this._contentNode) {
                     this._currentWidth = this._contentNode.offsetWidth;
                     this._contentNode.style.width = `${this._currentWidth}px`;
-                    this._contentNode.style.height = 'auto';
                 }
                 this._maxContentWidth = null;
             }
@@ -487,17 +386,16 @@
         _getResizeMode: function(e) {
             const container = this._container;
             const contentNode = this._contentNode;
-            if (!container || !contentNode || e.target === container.querySelector('.popup-drag-handle') || container.querySelector('.popup-drag-handle').contains(e.target)) {
+            const dragHandle = container && container.querySelector('.popup-drag-handle');
+            if (!container || !contentNode || !dragHandle || e.target === dragHandle || dragHandle.contains(e.target)) {
                 return null;
             }
-            // Use the outer popup container to detect edges, so the resize cursor appears at the border
+
+            // Horizontal-only resize to keep popup height stable.
             const outerRect = container.getBoundingClientRect();
             const margin = this.options.resizeMargin;
             const x = e.clientX;
-            const y = e.clientY;
             let mode = '';
-            if (y >= outerRect.top && y <= outerRect.top + margin) mode += 'n';
-            else if (y <= outerRect.bottom && y >= outerRect.bottom - margin) mode += 's';
             if (x >= outerRect.left && x <= outerRect.left + margin) mode += 'w';
             else if (x <= outerRect.right && x >= outerRect.right - margin) mode += 'e';
             return mode || null;
@@ -507,44 +405,56 @@
             if (!container) return;
             let cursor = 'auto';
             switch (mode) {
-                case 'n': cursor = 'ns-resize'; break;
-                case 's': cursor = 'ns-resize'; break;
                 case 'e': cursor = 'ew-resize'; break;
                 case 'w': cursor = 'ew-resize'; break;
-                case 'ne': cursor = 'nesw-resize'; break;
-                case 'sw': cursor = 'nesw-resize'; break;
-                case 'nw': cursor = 'nwse-resize'; break;
-                case 'se': cursor = 'nwse-resize'; break;
                 default: cursor = 'auto';
             }
             if (container.style.cursor !== cursor) { container.style.cursor = cursor; }
             const dragHandle = container.querySelector('.popup-drag-handle');
             if (dragHandle) { dragHandle.style.cursor = this._isDragging ? 'grabbing' : 'grab'; }
         },
+        _getOrCreateLineLayer: function() {
+            if (!this._map) return null;
+            if (this._map._popupConnectionSvg && this._map._popupConnectionSvg.isConnected) {
+                this._lineLayer = this._map._popupConnectionSvg;
+                return this._lineLayer;
+            }
+
+            const mapContainer = this._map.getContainer();
+            let svg = mapContainer.querySelector('.popup-connection-layer');
+            if (!svg) {
+                svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('class', 'popup-connection-layer');
+                mapContainer.appendChild(svg);
+            }
+
+            this._map._popupConnectionSvg = svg;
+            this._lineLayer = svg;
+            return svg;
+        },
         _createLine: function() {
             if (!this._map || !this._marker) return;
-            let svg = this._map._pathRoot || (this._map._renderer && this._map._renderer._container);
+            let svg = this._getOrCreateLineLayer();
             if (!svg) return;
-            if (svg.nodeName.toLowerCase() !== 'svg') { svg = svg.querySelector('svg'); }
-            if (!svg) return;
-            this._line = L.SVG.create('line');
+
+            this._line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
             this._line.setAttribute('class', 'popup-connection-line');
             svg.appendChild(this._line);
             this._updateLine();
         },
         _updateLine: function() {
             if (!this._line || !this._marker || !this._map || !this._container) return;
-            const markerPoint = this._map.latLngToLayerPoint(this._marker.getLatLng());
+            const markerPoint = this._map.latLngToContainerPoint(this._marker.getLatLng());
             const popupTipPoint = this._getPopupTipPoint(); 
-            const popupPoint = this._map.layerPointToContainerPoint(popupTipPoint);
-            const svgPopupPoint = this._map.containerPointToLayerPoint(popupPoint);
+            if (!popupTipPoint) return;
+
             this._line.setAttribute('x1', markerPoint.x);
             this._line.setAttribute('y1', markerPoint.y);
-            this._line.setAttribute('x2', svgPopupPoint.x);
-            this._line.setAttribute('y2', svgPopupPoint.y);
+            this._line.setAttribute('x2', popupTipPoint.x);
+            this._line.setAttribute('y2', popupTipPoint.y);
         },
         _getPopupTipPoint: function() {
-            if (!this._container || !this._map) return [0, 0];
+            if (!this._container || !this._map) return null;
             const popupRect = this._container.getBoundingClientRect();
             const mapRect = this._map.getContainer().getBoundingClientRect();
             const tipContainer = this._container.querySelector('.leaflet-popup-tip-container');
@@ -561,7 +471,7 @@
                     popupRect.bottom - mapRect.top
                 );
             }
-            return this._map.containerPointToLayerPoint(tipPoint);
+            return tipPoint;
         },
         _removeLine: function() {
             if (this._line) {

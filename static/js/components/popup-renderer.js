@@ -2,374 +2,245 @@
     'use strict';
 
     const PopupRenderer = {};
-
     const COLLAPSIBLE_DEFAULT_EXPANDED = false;
+    const OSM_NODE_TYPE_MAP = {
+        railway_station: 'Railway Station',
+        ferry_terminal: 'Ferry Terminal',
+        aerialway: 'Aerialway',
+        platform: 'Platform',
+        stop_position: 'Stop Position'
+    };
 
-    // Map a match_type string to the corresponding docs URL
+    function hasValue(value) {
+        return value !== undefined && value !== null && value !== '';
+    }
+
+    function formatDistanceMeters(distanceM) {
+        if (!hasValue(distanceM)) return null;
+        const parsed = parseFloat(distanceM);
+        if (Number.isNaN(parsed)) return null;
+        return `${parsed.toFixed(1)} m`;
+    }
+
+    function formatCoords(lat, lon) {
+        if (!hasValue(lat) || !hasValue(lon)) return null;
+        return `(${lat}, ${lon})`;
+    }
+
     function getMatchDocUrl(matchType) {
         if (!matchType) return null;
         const mt = String(matchType).toLowerCase();
-        // Exact
-        if (mt.startsWith('exact')) {
-            return '/docs/2.1%20Exact%20matching.md';
-        }
-        // Name-based
-        if (mt.includes('name')) {
-            return '/docs/2.2%20Name%20matching.md';
-        }
-        // Distance-based (handles distance_matching_1_*, 2, 3a, 3b, etc.)
-        if (mt.includes('distance')) {
-            return '/docs/2.3%20Distance%20matching.md';
-        }
-        // Route-based (handles route_unified_* etc.)
-        if (mt.startsWith('route')) {
-            return '/docs/2.4%20Route%20Matching.md';
-        }
+        if (mt.startsWith('exact')) return '/docs/2.1%20Exact%20matching.md';
+        if (mt.includes('name')) return '/docs/2.2%20Name%20matching.md';
+        if (mt.includes('distance')) return '/docs/2.3%20Distance%20matching.md';
+        if (mt.startsWith('route')) return '/docs/2.4%20Route%20Matching.md';
         return null;
     }
 
-    function renderBubble(data, opts) {
-        const { type, unmatched = false, hideRoutesAndNotes = false } = opts;
-        if (!type) throw new Error('PopupRenderer.renderBubble – type is required');
+    function buildMatchTypeHtml(matchType) {
+        const text = matchType || 'N/A';
+        const docUrl = getMatchDocUrl(text);
+        if (!docUrl) return text;
+        return `${text} <a href="${docUrl}" class="matchtype-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs for this matching method"><i class="fas fa-info-circle"></i></a>`;
+    }
 
-        const isAtlas = type === 'atlas';
-        const isOsm = type === 'osm';
-
-        const link = PopupUtils.createFilterLink;
-        const routeHtml = (routesArr, isOsmNodeFlag = false) => {
-            const formatted = PopupUtils.formatRouteList(routesArr);
-            return PopupUtils.createCollapsible('Routes', formatted, COLLAPSIBLE_DEFAULT_EXPANDED);
-        };
-
-        const isMismatch = data.isOperatorMismatch === true;
-        const mismatchText = isMismatch ? ' <span class="operator-mismatch">(!Operator Mismatch!)</span>' : '';
-
-        const rows = [];
-        let routesSection = '';
-
-        if (isAtlas) {
-            rows.push(['Sloid', unmatched ? data.sloid : link(data.sloid, 'atlas')]);
-            if (data.uic_ref) {
-                rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
-            }
-            rows.push(['Name', data.atlas_designation_official || 'N/A']);
-            rows.push(['Designation', data.atlas_designation || 'N/A']);
-            rows.push(['Business Org', (data.atlas_business_org_abbr || 'N/A') + (isAtlas && !unmatched ? mismatchText : '')]);
-            if (data.atlas_lat && data.atlas_lon) {
-                rows.push(['Coord', `(${data.atlas_lat}, ${data.atlas_lon})`]);
-            }
-            if (!unmatched) {
-                if (data.distance_m) {
-                    rows.push(['Distance', `${parseFloat(data.distance_m).toFixed(1)} m`]);
-                }
-                const mtText = data.match_type || 'N/A';
-                const docUrl = getMatchDocUrl(mtText);
-                const mtHtml = docUrl
-                    ? `${mtText} <a href="${docUrl}" class="matchtype-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs for this matching method"><i class="fas fa-info-circle"></i></a>`
-                    : mtText;
-                rows.push(['Match Type', mtHtml]);
-                if (data.matching_notes) {
-                    rows.push(['Matching Rationale', `<span class="matching-notes-text">${data.matching_notes}</span>`]);
-                }
-            }
-            const unifiedRoutesHtml = PopupUtils.formatUnifiedRouteList(data.routes_unified);
-            routesSection = `
-                <div class="route-section">
-                    ${PopupUtils.createCollapsible('Routes', unifiedRoutesHtml, COLLAPSIBLE_DEFAULT_EXPANDED)}
-                </div>
-            `;
-        }
-        if (isOsm) {
-            rows.push(['Node ID', unmatched ? data.osm_node_id : link(data.osm_node_id, 'osm')]);
-            if (!unmatched) {
-                if (data.uic_ref) rows.push(['UIC Ref (ATLAS)', link(data.uic_ref, 'station')]);
-                if (data.osm_uic_ref) {
-                    const diffLabel = (data.uic_ref && data.uic_ref !== data.osm_uic_ref) ? ' <span class="uic-mismatch">(differs)</span>' : '';
-                    rows.push(['OSM UIC Ref', `${data.osm_uic_ref}${diffLabel}`]);
-                }
-                rows.push(['Name', data.osm_name || 'N/A']);
-                if (data.osm_uic_name) rows.push(['UIC Name', data.osm_uic_name]);
-                if (data.osm_local_ref) rows.push(['Local Ref', data.osm_local_ref]);
-                if (data.osm_network) rows.push(['Network', data.osm_network]);
-                if (data.osm_operator) rows.push(['Operator', data.osm_operator + (isOsm && !unmatched ? mismatchText : '')]);
-                const typeMap = {
-                    'railway_station': 'Railway Station',
-                    'ferry_terminal': 'Ferry Terminal',
-                    'aerialway': 'Aerialway',
-                    'platform': 'Platform',
-                    'stop_position': 'Stop Position'
-                };
-                let displayType = null;
-                if (data.osm_node_type && typeMap[data.osm_node_type]) {
-                    displayType = typeMap[data.osm_node_type];
-                } else {
-                    let transportTypes = [];
-                    if (data.osm_amenity === 'ferry_terminal') transportTypes.push('Ferry Terminal');
-                    if (data.osm_aerialway === 'station') transportTypes.push('Aerialway Station');
-                    if (data.osm_railway === 'tram_stop') transportTypes.push('Tram Stop');
-                    if (data.osm_public_transport === 'station') transportTypes.push('Station');
-                    if (data.osm_public_transport === 'platform') transportTypes.push('Platform');
-                    if (data.osm_public_transport === 'stop_position') transportTypes.push('Stop Position');
-                    displayType = transportTypes.length > 0 ? transportTypes.join(', ') : null;
-                }
-                if (displayType) rows.push(['Type', displayType]);
-                if (data.osm_lat && data.osm_lon) rows.push(['Coord', `(${data.osm_lat}, ${data.osm_lon})`]);
-                if (data.distance_m) rows.push(['Distance', `${parseFloat(data.distance_m).toFixed(1)} m`]);
-                const mtText = data.match_type || 'N/A';
-                const docUrl = getMatchDocUrl(mtText);
-                const mtHtml = docUrl
-                    ? `${mtText} <a href="${docUrl}" class="matchtype-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs for this matching method"><i class="fas fa-info-circle"></i></a>`
-                    : mtText;
-                rows.push(['Match Type', mtHtml]);
-                if (data.matching_notes) {
-                    rows.push(['Matching Rationale', `<span class="matching-notes-text">${data.matching_notes}</span>`]);
-                }
-            } else {
-                if (data.uic_ref) rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
-                if (data.osm_uic_ref) rows.push(['OSM UIC Ref', data.osm_uic_ref]);
-                rows.push(['Name', data.osm_name || 'N/A']);
-                rows.push(['UIC Name', data.osm_uic_name || 'N/A']);
-                rows.push(['Network', data.osm_network || 'N/A']);
-                rows.push(['Operator', data.osm_operator || 'N/A']);
-                const typeMap = {
-                    'railway_station': 'Railway Station',
-                    'ferry_terminal': 'Ferry Terminal',
-                    'aerialway': 'Aerialway',
-                    'platform': 'Platform',
-                    'stop_position': 'Stop Position'
-                };
-                let displayType = 'N/A';
-                if (data.osm_node_type && typeMap[data.osm_node_type]) {
-                    displayType = typeMap[data.osm_node_type];
-                } else {
-                    let transportTypes = [];
-                    if (data.osm_amenity === 'ferry_terminal') transportTypes.push('Ferry Terminal');
-                    if (data.osm_aerialway === 'station') transportTypes.push('Aerialway Station');
-                    if (data.osm_railway === 'tram_stop') transportTypes.push('Tram Stop');
-                    if (data.osm_public_transport === 'station') transportTypes.push('Station');
-                    if (data.osm_public_transport === 'platform') transportTypes.push('Platform');
-                    if (data.osm_public_transport === 'stop_position') transportTypes.push('Stop Position');
-                    displayType = transportTypes.length > 0 ? transportTypes.join(', ') : 'N/A';
-                }
-                rows.push(['Type', displayType]);
-                rows.push(['Local Ref', data.osm_local_ref || 'N/A']);
-            }
-            routesSection = `<div class="route-section">${routeHtml(data.routes_osm, isOsm)}</div>`;
+    function getOsmTypeDisplay(data, withFallback) {
+        if (hasValue(data.osm_node_type) && OSM_NODE_TYPE_MAP[data.osm_node_type]) {
+            return OSM_NODE_TYPE_MAP[data.osm_node_type];
         }
 
-        // Notes are shown via collapsible section; skip legacy inline note rows
+        const transportTypes = [];
+        if (data.osm_amenity === 'ferry_terminal') transportTypes.push('Ferry Terminal');
+        if (data.osm_aerialway === 'station') transportTypes.push('Aerialway Station');
+        if (data.osm_railway === 'tram_stop') transportTypes.push('Tram Stop');
+        if (data.osm_public_transport === 'station') transportTypes.push('Station');
+        if (data.osm_public_transport === 'platform') transportTypes.push('Platform');
+        if (data.osm_public_transport === 'stop_position') transportTypes.push('Stop Position');
 
-        const tableRowsHtml = rows.map(([k, v]) => `<tr><td>${k}:</td><td>${v}</td></tr>`).join('');
+        if (transportTypes.length > 0) return transportTypes.join(', ');
+        return withFallback ? 'N/A' : null;
+    }
 
-        const bubbleClass = isAtlas ? 'atlas-match' : 'osm-match';
-        const unmatchedClass = unmatched ? ' unmatched' : '';
+    function stopHasMatches(stop) {
+        if (!stop || stop.stop_type !== 'matched') return false;
+        if (Array.isArray(stop.atlas_matches) && stop.atlas_matches.length > 0) return true;
+        if (Array.isArray(stop.osm_matches) && stop.osm_matches.length > 0) return true;
+        return hasValue(stop.atlas_lat) && hasValue(stop.osm_lat);
+    }
 
+    function buildBubbleHeader(data, type, unmatched) {
         let headerText = unmatched ? 'Unmatched ' : '';
         let linkHtml = '';
-        if (isAtlas) {
+
+        if (type === 'atlas') {
             headerText += 'ATLAS Stop';
-            if (data.uic_ref) {
+            if (hasValue(data.uic_ref)) {
                 linkHtml = ` <a href="https://atlas.app.sbb.ch/service-point-directory/service-points/${data.uic_ref}/traffic-point-elements" target="_blank" title="View on SBB ATLAS">(view on ATLAS)</a>`;
             }
-        } else if (isOsm) {
+        } else {
             headerText += 'OSM Node';
-            if (data.osm_node_id) {
+            if (hasValue(data.osm_node_id)) {
                 linkHtml = ` <a href="https://www.openstreetmap.org/node/${data.osm_node_id}" target="_blank" title="View on OpenStreetMap">(view on OSM)</a>`;
             }
         }
-        const bubbleHeader = `<h5>${headerText}${linkHtml}</h5>`;
 
-        // Add OSM iD editor link for OSM popups
-        let osmEditorLinkHtml = '';
-        if (isOsm && data.osm_node_id) {
-            osmEditorLinkHtml = `<div class="osm-editor-link-container mt-2"><a href="https://www.openstreetmap.org/edit?node=${data.osm_node_id}" class="osm-editor-link" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Edit in OSM iD Editor</a></div>`;
+        return `<h5>${headerText}${linkHtml}</h5>`;
+    }
+
+    function buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml) {
+        if (unmatched || hideRoutesAndNotes) {
+            return actionButtonHtml ? `<div class="bubble-footer"><div class="bubble-btn-row">${actionButtonHtml}</div></div>` : '';
         }
 
-        if (hideRoutesAndNotes) {
-            routesSection = '';
-        }
+        const routes = type === 'atlas' ? data.routes_unified : data.routes_osm;
+        const formattedRoutes = type === 'atlas'
+            ? PopupUtils.formatUnifiedRouteList(routes)
+            : PopupUtils.formatRouteList(routes);
+        const collapsible = PopupUtils.createCollapsible('Routes', formattedRoutes, COLLAPSIBLE_DEFAULT_EXPANDED);
+        const buttons = `${collapsible.buttonHtml || ''}${actionButtonHtml || ''}`;
+
+        if (!buttons && !collapsible.panelHtml) return '';
 
         return `
-            <div class="${bubbleClass}${unmatchedClass}">
-                ${bubbleHeader}
-                <table class="popup-table">${tableRowsHtml}</table>
-                ${routesSection}
-                ${osmEditorLinkHtml}
+            <div class="bubble-footer">
+                ${buttons ? `<div class="bubble-btn-row">${buttons}</div>` : ''}
+                ${collapsible.panelHtml || ''}
             </div>`;
     }
 
-    function generateSingleAtlasBubbleHtml(data, isUnmatched = false, options = {}) {
-        const inner = renderBubble(data, { type: 'atlas', unmatched: isUnmatched, ...options });
-        const stopId = data && (data.id || data.stop_id || '');
-        return `<div class="popup-content-container" data-stop-id="${stopId}" data-type="atlas">${inner}</div>`;
-    }
+    function buildAtlasRows(data, unmatched) {
+        const rows = [];
+        const link = PopupUtils.createFilterLink;
+        const mismatchText = data.isOperatorMismatch && !unmatched
+            ? ' <span class="operator-mismatch">(!Operator Mismatch!)</span>'
+            : '';
 
-    function generateSingleOsmBubbleHtml(data, isUnmatched = false, options = {}) {
-        const inner = renderBubble(data, { type: 'osm', unmatched: isUnmatched, ...options });
-        const stopId = data && (data.id || data.stop_id || '');
-        return `<div class="popup-content-container" data-stop-id="${stopId}" data-type="osm">${inner}</div>`;
-    }
+        rows.push(['Sloid', unmatched ? data.sloid : link(data.sloid, 'atlas')]);
+        if (hasValue(data.uic_ref)) rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
+        rows.push(['Name', data.atlas_designation_official || 'N/A']);
+        rows.push(['Designation', data.atlas_designation || 'N/A']);
+        rows.push(['Business Org', `${data.atlas_business_org_abbr || 'N/A'}${mismatchText}`]);
 
-    function generateInitialBubbleHtml(stop, initialViewType, options = {}) {
-        let initialHtml = '';
-        const isMatched = stop.stop_type === 'matched';
-        const isUnmatched = stop.stop_type === 'atlas_unmatched' || stop.stop_type === 'osm_unmatched';
+        const coords = formatCoords(data.atlas_lat, data.atlas_lon);
+        if (coords) rows.push(['Coord', coords]);
 
-        if (initialViewType === 'atlas') {
-            const atlasData = {
-                id: stop.id,
-                sloid: stop.sloid,
-                uic_ref: stop.uic_ref,
-                osm_uic_ref: stop.osm_uic_ref,
-                atlas_designation: stop.atlas_designation,
-                atlas_designation_official: stop.atlas_designation_official,
-                atlas_business_org_abbr: stop.atlas_business_org_abbr,
-                atlas_lat: stop.atlas_lat,
-                atlas_lon: stop.atlas_lon,
-                distance_m: stop.distance_m,
-                match_type: stop.match_type,
-                routes_unified: stop.routes_unified,
-                stop_type: stop.stop_type,
-                isOperatorMismatch: stop.isOperatorMismatch
-            };
-            initialHtml = generateSingleAtlasBubbleHtml(atlasData, isUnmatched, options);
-        } else if (initialViewType === 'osm') {
-            let osmData;
-            if (stop.is_osm_node) {
-                // For OSM nodes with multiple ATLAS matches, pull match_type
-                // and distance from the first atlas_match if available.
-                const firstAtlas = (Array.isArray(stop.atlas_matches) && stop.atlas_matches.length > 0) ? stop.atlas_matches[0] : null;
-                osmData = {
-                    id: stop.id,
-                    osm_node_id: stop.osm_node_id,
-                    uic_ref: stop.uic_ref,
-                    osm_name: stop.osm_name,
-                    osm_uic_name: stop.osm_uic_name,
-                    osm_uic_ref: stop.osm_uic_ref,
-                    osm_local_ref: stop.osm_local_ref,
-                    osm_network: stop.osm_network,
-                    osm_operator: stop.osm_operator,
-                    osm_public_transport: stop.osm_public_transport,
-                    osm_amenity: stop.osm_amenity,
-                    osm_aerialway: stop.osm_aerialway,
-                    osm_railway: stop.osm_railway,
-                    osm_lat: stop.osm_lat,
-                    osm_lon: stop.osm_lon,
-                    distance_m: firstAtlas ? firstAtlas.distance_m : null,
-                    match_type: stop.match_type || (firstAtlas ? firstAtlas.match_type : null),
-                    matching_notes: stop.matching_notes || (firstAtlas ? firstAtlas.matching_notes : null),
-                    routes_osm: stop.routes_osm,
-                    stop_type: stop.stop_type,
-                    isOperatorMismatch: stop.isOperatorMismatch
-                };
-            } else if (Array.isArray(stop.osm_matches)) {
-                const representativeOsm = stop.osm_matches[0] || {};
-                osmData = {
-                    id: representativeOsm.osm_id || stop.id,
-                    osm_node_id: representativeOsm.osm_node_id,
-                    uic_ref: stop.uic_ref,
-                    osm_name: representativeOsm.osm_name || stop.osm_name,
-                    osm_uic_name: representativeOsm.osm_uic_name || stop.osm_uic_name,
-                    osm_uic_ref: representativeOsm.osm_uic_ref || stop.osm_uic_ref,
-                    osm_local_ref: representativeOsm.osm_local_ref || stop.osm_local_ref,
-                    osm_network: representativeOsm.osm_network || stop.osm_network,
-                    osm_operator: representativeOsm.osm_operator || stop.osm_operator,
-                    osm_public_transport: representativeOsm.osm_public_transport || stop.osm_public_transport,
-                    osm_amenity: representativeOsm.osm_amenity || stop.osm_amenity,
-                    osm_aerialway: representativeOsm.osm_aerialway || stop.osm_aerialway,
-                    osm_railway: representativeOsm.osm_railway || stop.osm_railway,
-                    osm_lat: representativeOsm.osm_lat || stop.osm_lat,
-                    osm_lon: representativeOsm.osm_lon || stop.osm_lon,
-                    distance_m: representativeOsm.distance_m || stop.distance_m,
-                    match_type: representativeOsm.match_type || stop.match_type,
-                    routes_osm: representativeOsm.routes_osm || stop.routes_osm,
-                    stop_type: stop.stop_type,
-                    isOperatorMismatch: stop.isOperatorMismatch
-                };
-            } else {
-                osmData = {
-                    id: stop.id,
-                    osm_node_id: stop.osm_node_id,
-                    uic_ref: stop.uic_ref,
-                    osm_name: stop.osm_name,
-                    osm_uic_name: stop.osm_uic_name,
-                    osm_uic_ref: stop.osm_uic_ref,
-                    osm_local_ref: stop.osm_local_ref,
-                    osm_network: stop.osm_network,
-                    osm_operator: stop.osm_operator,
-                    osm_public_transport: stop.osm_public_transport,
-                    osm_amenity: stop.osm_amenity,
-                    osm_aerialway: stop.osm_aerialway,
-                    osm_railway: stop.osm_railway,
-                    osm_lat: stop.osm_lat,
-                    osm_lon: stop.osm_lon,
-                    distance_m: stop.distance_m,
-                    match_type: stop.match_type,
-                    routes_osm: stop.routes_osm,
-                    stop_type: stop.stop_type,
-                    isOperatorMismatch: stop.isOperatorMismatch
-                };
+        if (!unmatched) {
+            const distance = formatDistanceMeters(data.distance_m);
+            if (distance) rows.push(['Distance', distance]);
+            rows.push(['Match Type', buildMatchTypeHtml(data.match_type)]);
+            if (hasValue(data.matching_notes)) {
+                rows.push(['Matching Rationale', `<span class="matching-notes-text">${data.matching_notes}</span>`]);
             }
-            initialHtml = generateSingleOsmBubbleHtml(osmData, isUnmatched, options);
         }
 
-        if (isMatched && (stop.atlas_matches || stop.osm_matches || (stop.atlas_lat && stop.osm_lat))) {
-            initialHtml += `<div class="popup-actions"><button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.showMatches(this, ${stop.id})'>See Matches</button></div>`;
-        }
-
-        return initialHtml;
+        return rows;
     }
 
-    function generateUnifiedBubbleHtml(stop, initialViewType, options = {}) {
-        let unifiedHtml = '<div class="matches-container">';
-        let hasMatches = false;
+    function buildOsmRows(data, unmatched) {
+        const rows = [];
+        const link = PopupUtils.createFilterLink;
+        const mismatchText = data.isOperatorMismatch && !unmatched
+            ? ' <span class="operator-mismatch">(!Operator Mismatch!)</span>'
+            : '';
 
-        if (stop.stop_type === 'matched' && stop.is_osm_node && Array.isArray(stop.atlas_matches)) {
-            hasMatches = true;
-            const osmData = { ...stop, uic_ref: stop.uic_ref };
-            unifiedHtml += generateSingleOsmBubbleHtml(osmData, false, options);
-            stop.atlas_matches.forEach((atlasMatch, index) => {
-                const atlasData = {
-                    ...atlasMatch,
-                    id: stop.id,
-                    uic_ref: atlasMatch.uic_ref
-                };
-                unifiedHtml += generateSingleAtlasBubbleHtml(atlasData, false, options);
-            });
-        }
-        else if (stop.stop_type === 'matched' && Array.isArray(stop.osm_matches)) {
-            hasMatches = true;
-            const atlasData = { ...stop };
-            unifiedHtml += generateSingleAtlasBubbleHtml(atlasData, false, options);
-            stop.osm_matches.forEach((osmMatch, index) => {
-                const osmData = {
-                    ...osmMatch,
-                    id: osmMatch.osm_id || stop.id,
-                    uic_ref: stop.uic_ref
-                };
-                unifiedHtml += generateSingleOsmBubbleHtml(osmData, false, options);
-            });
-        }
-        else if (stop.stop_type === 'matched' && stop.atlas_lat && stop.osm_lat) {
-            hasMatches = true;
-            const atlasData = {
-                id: stop.id,
-                sloid: stop.sloid,
-                uic_ref: stop.uic_ref,
-                osm_uic_ref: stop.osm_uic_ref,
-                atlas_designation: stop.atlas_designation,
-                atlas_designation_official: stop.atlas_designation_official,
-                atlas_business_org_abbr: stop.atlas_business_org_abbr,
-                atlas_lat: stop.atlas_lat,
-                atlas_lon: stop.atlas_lon,
-                distance_m: stop.distance_m,
-                match_type: stop.match_type,
-                routes_unified: stop.routes_unified,
-                isOperatorMismatch: stop.isOperatorMismatch
-            };
-            unifiedHtml += generateSingleAtlasBubbleHtml(atlasData, false, options);
+        rows.push(['Node ID', unmatched ? data.osm_node_id : link(data.osm_node_id, 'osm')]);
 
-            const osmData = {
+        if (unmatched) {
+            if (hasValue(data.uic_ref)) rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
+            if (hasValue(data.osm_uic_ref)) rows.push(['OSM UIC Ref', data.osm_uic_ref]);
+            rows.push(['Name', data.osm_name || 'N/A']);
+            rows.push(['UIC Name', data.osm_uic_name || 'N/A']);
+            rows.push(['Network', data.osm_network || 'N/A']);
+            rows.push(['Operator', data.osm_operator || 'N/A']);
+            rows.push(['Type', getOsmTypeDisplay(data, true)]);
+            rows.push(['Local Ref', data.osm_local_ref || 'N/A']);
+            return rows;
+        }
+
+        if (hasValue(data.osm_uic_ref)) {
+            const diffLabel = hasValue(data.uic_ref) && data.uic_ref !== data.osm_uic_ref
+                ? ' <span class="uic-mismatch">(differs)</span>'
+                : '';
+            rows.push(['OSM UIC Ref', `${data.osm_uic_ref}${diffLabel}`]);
+        }
+        rows.push(['Name', data.osm_name || 'N/A']);
+        if (hasValue(data.osm_uic_name)) rows.push(['UIC Name', data.osm_uic_name]);
+        if (hasValue(data.osm_local_ref)) rows.push(['Local Ref', data.osm_local_ref]);
+        if (hasValue(data.osm_network)) rows.push(['Network', data.osm_network]);
+        if (hasValue(data.osm_operator)) rows.push(['Operator', `${data.osm_operator}${mismatchText}`]);
+
+        const osmType = getOsmTypeDisplay(data, false);
+        if (osmType) rows.push(['Type', osmType]);
+
+        const coords = formatCoords(data.osm_lat, data.osm_lon);
+        if (coords) rows.push(['Coord', coords]);
+
+        const distance = formatDistanceMeters(data.distance_m);
+        if (distance) rows.push(['Distance', distance]);
+
+        rows.push(['Match Type', buildMatchTypeHtml(data.match_type)]);
+        if (hasValue(data.matching_notes)) {
+            rows.push(['Matching Rationale', `<span class="matching-notes-text">${data.matching_notes}</span>`]);
+        }
+        return rows;
+    }
+
+    function renderBubble(data, opts) {
+        const { type, unmatched = false, hideRoutesAndNotes = false, actionButtonHtml = '' } = opts;
+        if (!type) throw new Error('PopupRenderer.renderBubble - type is required');
+
+        const rows = type === 'atlas' ? buildAtlasRows(data, unmatched) : buildOsmRows(data, unmatched);
+        const tableRowsHtml = rows.map(([label, value]) => `<tr><td>${label}:</td><td>${value}</td></tr>`).join('');
+        const bubbleClass = type === 'atlas' ? 'atlas-match' : 'osm-match';
+        const unmatchedClass = unmatched ? ' unmatched' : '';
+        const bubbleHeader = buildBubbleHeader(data, type, unmatched);
+
+        const osmEditorLinkHtml = type === 'osm' && hasValue(data.osm_node_id)
+            ? `<div class="osm-editor-link-container mt-2"><a href="https://www.openstreetmap.org/edit?node=${data.osm_node_id}" class="osm-editor-link" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Edit in OSM iD Editor</a></div>`
+            : '';
+        const footerHtml = buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml);
+
+        return `
+            <div class="${bubbleClass}${unmatchedClass}">
+                <div class="bubble-body">
+                    ${bubbleHeader}
+                    <table class="popup-table">${tableRowsHtml}</table>
+                    ${osmEditorLinkHtml}
+                    ${footerHtml}
+                </div>
+            </div>`;
+    }
+
+    function wrapSingleBubble(innerHtml, type, stopId) {
+        return `<div class="popup-content-container" data-stop-id="${stopId}" data-type="${type}">${innerHtml}</div>`;
+    }
+
+    function buildAtlasDataFromStop(stop) {
+        return {
+            id: stop.id,
+            sloid: stop.sloid,
+            uic_ref: stop.uic_ref,
+            osm_uic_ref: stop.osm_uic_ref,
+            atlas_designation: stop.atlas_designation,
+            atlas_designation_official: stop.atlas_designation_official,
+            atlas_business_org_abbr: stop.atlas_business_org_abbr,
+            atlas_lat: stop.atlas_lat,
+            atlas_lon: stop.atlas_lon,
+            distance_m: stop.distance_m,
+            match_type: stop.match_type,
+            matching_notes: stop.matching_notes,
+            routes_unified: stop.routes_unified,
+            stop_type: stop.stop_type,
+            isOperatorMismatch: stop.isOperatorMismatch
+        };
+    }
+
+    function buildOsmDataFromStop(stop) {
+        if (stop.is_osm_node) {
+            const firstAtlas = Array.isArray(stop.atlas_matches) && stop.atlas_matches.length > 0
+                ? stop.atlas_matches[0]
+                : null;
+            return {
                 id: stop.id,
                 osm_node_id: stop.osm_node_id,
                 uic_ref: stop.uic_ref,
@@ -385,109 +256,218 @@
                 osm_railway: stop.osm_railway,
                 osm_lat: stop.osm_lat,
                 osm_lon: stop.osm_lon,
-                distance_m: stop.distance_m,
-                match_type: stop.match_type,
+                distance_m: firstAtlas ? firstAtlas.distance_m : stop.distance_m,
+                match_type: stop.match_type || (firstAtlas ? firstAtlas.match_type : null),
+                matching_notes: stop.matching_notes || (firstAtlas ? firstAtlas.matching_notes : null),
                 routes_osm: stop.routes_osm,
+                stop_type: stop.stop_type,
                 isOperatorMismatch: stop.isOperatorMismatch
             };
-            unifiedHtml += generateSingleOsmBubbleHtml(osmData, false, options);
         }
 
-        unifiedHtml += '</div>';
-
-        if (hasMatches) {
-            unifiedHtml += `<div class="popup-actions"><button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.hideMatches(this, ${stop.id}, "${initialViewType}")'>Close Matches</button></div>`;
-        } else {
-            return '<!-- No matches to display -->';
+        if (Array.isArray(stop.osm_matches) && stop.osm_matches.length > 0) {
+            const representative = stop.osm_matches[0] || {};
+            return {
+                id: representative.osm_id || stop.id,
+                osm_node_id: representative.osm_node_id,
+                uic_ref: stop.uic_ref,
+                osm_name: representative.osm_name || stop.osm_name,
+                osm_uic_name: representative.osm_uic_name || stop.osm_uic_name,
+                osm_uic_ref: representative.osm_uic_ref || stop.osm_uic_ref,
+                osm_local_ref: representative.osm_local_ref || stop.osm_local_ref,
+                osm_network: representative.osm_network || stop.osm_network,
+                osm_operator: representative.osm_operator || stop.osm_operator,
+                osm_public_transport: representative.osm_public_transport || stop.osm_public_transport,
+                osm_amenity: representative.osm_amenity || stop.osm_amenity,
+                osm_aerialway: representative.osm_aerialway || stop.osm_aerialway,
+                osm_railway: representative.osm_railway || stop.osm_railway,
+                osm_lat: representative.osm_lat || stop.osm_lat,
+                osm_lon: representative.osm_lon || stop.osm_lon,
+                distance_m: representative.distance_m || stop.distance_m,
+                match_type: representative.match_type || stop.match_type,
+                matching_notes: representative.matching_notes || stop.matching_notes,
+                routes_osm: representative.routes_osm || stop.routes_osm,
+                stop_type: stop.stop_type,
+                isOperatorMismatch: stop.isOperatorMismatch
+            };
         }
 
-        return unifiedHtml;
+        return {
+            id: stop.id,
+            osm_node_id: stop.osm_node_id,
+            uic_ref: stop.uic_ref,
+            osm_name: stop.osm_name,
+            osm_uic_name: stop.osm_uic_name,
+            osm_uic_ref: stop.osm_uic_ref,
+            osm_local_ref: stop.osm_local_ref,
+            osm_network: stop.osm_network,
+            osm_operator: stop.osm_operator,
+            osm_public_transport: stop.osm_public_transport,
+            osm_amenity: stop.osm_amenity,
+            osm_aerialway: stop.osm_aerialway,
+            osm_railway: stop.osm_railway,
+            osm_lat: stop.osm_lat,
+            osm_lon: stop.osm_lon,
+            distance_m: stop.distance_m,
+            match_type: stop.match_type,
+            matching_notes: stop.matching_notes,
+            routes_osm: stop.routes_osm,
+            stop_type: stop.stop_type,
+            isOperatorMismatch: stop.isOperatorMismatch
+        };
+    }
+
+    function buildUnifiedBubbleSpecs(stop) {
+        if (!stop || stop.stop_type !== 'matched') return [];
+
+        const specs = [];
+        if (stop.is_osm_node && Array.isArray(stop.atlas_matches) && stop.atlas_matches.length > 0) {
+            specs.push({ type: 'osm', data: buildOsmDataFromStop(stop) });
+            stop.atlas_matches.forEach(atlasMatch => {
+                specs.push({
+                    type: 'atlas',
+                    data: {
+                        ...atlasMatch,
+                        id: stop.id,
+                        uic_ref: atlasMatch.uic_ref,
+                        isOperatorMismatch: stop.isOperatorMismatch
+                    }
+                });
+            });
+            return specs;
+        }
+
+        if (Array.isArray(stop.osm_matches) && stop.osm_matches.length > 0) {
+            specs.push({ type: 'atlas', data: buildAtlasDataFromStop(stop) });
+            stop.osm_matches.forEach(osmMatch => {
+                specs.push({
+                    type: 'osm',
+                    data: {
+                        ...osmMatch,
+                        id: osmMatch.osm_id || stop.id,
+                        uic_ref: stop.uic_ref,
+                        isOperatorMismatch: stop.isOperatorMismatch
+                    }
+                });
+            });
+            return specs;
+        }
+
+        if (hasValue(stop.atlas_lat) && hasValue(stop.osm_lat)) {
+            specs.push({ type: 'atlas', data: buildAtlasDataFromStop(stop) });
+            specs.push({ type: 'osm', data: buildOsmDataFromStop(stop) });
+        }
+        return specs;
+    }
+
+    function generateSingleAtlasBubbleHtml(data, isUnmatched = false, options = {}) {
+        const inner = renderBubble(data, { type: 'atlas', unmatched: isUnmatched, ...options });
+        const stopId = data && (data.id || data.stop_id || '');
+        return wrapSingleBubble(inner, 'atlas', stopId);
+    }
+
+    function generateSingleOsmBubbleHtml(data, isUnmatched = false, options = {}) {
+        const inner = renderBubble(data, { type: 'osm', unmatched: isUnmatched, ...options });
+        const stopId = data && (data.id || data.stop_id || '');
+        return wrapSingleBubble(inner, 'osm', stopId);
+    }
+
+    function generateInitialBubbleHtml(stop, initialViewType, options = {}) {
+        const isUnmatched = stop.stop_type === 'atlas_unmatched' || stop.stop_type === 'osm_unmatched';
+        const actionButtonHtml = stopHasMatches(stop)
+            ? `<button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.showMatches(this, ${stop.id})'>See Matches</button>`
+            : '';
+
+        if (initialViewType === 'atlas') {
+            return renderBubble(buildAtlasDataFromStop(stop), {
+                type: 'atlas',
+                unmatched: isUnmatched,
+                actionButtonHtml,
+                ...options
+            });
+        }
+
+        if (initialViewType === 'osm') {
+            return renderBubble(buildOsmDataFromStop(stop), {
+                type: 'osm',
+                unmatched: isUnmatched,
+                actionButtonHtml,
+                ...options
+            });
+        }
+
+        return '';
+    }
+
+    function generateUnifiedBubbleHtml(stop, initialViewType, options = {}) {
+        const specs = buildUnifiedBubbleSpecs(stop);
+        if (specs.length === 0) return '<!-- No matches to display -->';
+
+        const cardsHtml = specs.map(spec => {
+            const bubble = renderBubble(spec.data, { type: spec.type, ...options, actionButtonHtml: '' });
+            return `<div class="popup-match-item">${bubble}</div>`;
+        }).join('');
+
+        const closeButtonHtml = `<button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.hideMatches(this, ${stop.id}, "${initialViewType}")'>Close Matches</button>`;
+        return `
+            <div class="matches-container">${cardsHtml}</div>
+            <div class="popup-actions mt-2">${closeButtonHtml}</div>`;
     }
 
     function generatePopupHtml(stop, initialViewType, options = {}) {
         const initialContent = generateInitialBubbleHtml(stop, initialViewType, options);
-        let unifiedContent = '';
-        if (stop.stop_type === 'matched' && (stop.atlas_matches || stop.osm_matches || (stop.atlas_lat && stop.osm_lat))) {
-            unifiedContent = generateUnifiedBubbleHtml(stop, initialViewType, options);
-        }
-        const fullHtml = `
-            <div class="popup-content-container" data-stop-id="${stop.id}" data-type="${initialViewType}">
+        const unifiedContent = stopHasMatches(stop)
+            ? generateUnifiedBubbleHtml(stop, initialViewType, options)
+            : '';
+
+        return `
+            <div class="popup-content-container popup-outer-wrapper" data-stop-id="${stop.id}" data-type="${initialViewType}">
                 <div class="popup-initial-view" style="display: block;">
                     ${initialContent}
                 </div>
                 <div class="popup-unified-view" style="display: none;">
                     ${unifiedContent}
                 </div>
-            </div>
-        `;
-        return fullHtml;
+            </div>`;
     }
 
-    function showMatches(buttonElement, stopId) {
-        const container = buttonElement.closest('.popup-content-container');
+    function toggleMatchesView(buttonElement, showUnified) {
+        const container = buttonElement.closest('.popup-outer-wrapper');
         if (!container) return;
 
         const initialView = container.querySelector('.popup-initial-view');
         const unifiedView = container.querySelector('.popup-unified-view');
-
-        if (initialView) initialView.style.display = 'none';
-        if (unifiedView) unifiedView.style.display = 'block';
+        if (initialView) initialView.style.display = showUnified ? 'none' : 'block';
+        if (unifiedView) unifiedView.style.display = showUnified ? 'block' : 'none';
+        container.setAttribute('data-view-mode', showUnified ? 'unified' : 'initial');
 
         const popupElement = container.closest('.leaflet-popup');
         const popupInstance = popupElement && popupElement._leaflet_popup_instance;
+        if (!popupInstance) return;
 
-        if (popupInstance) {
-            // Trigger content update to recalculate width for multiple bubbles
-            if (typeof popupInstance._onContentUpdate === 'function') {
-                popupInstance._onContentUpdate();
-            }
+        if (typeof popupInstance._onContentUpdate === 'function') {
+            popupInstance._onContentUpdate();
+        }
+
+        setTimeout(() => {
             if (typeof popupInstance._updateLayout === 'function') {
                 popupInstance._updateLayout();
             }
             if (typeof popupInstance._updatePosition === 'function') {
-                setTimeout(() => {
-                    if (typeof popupInstance._updateLayout === 'function') {
-                        popupInstance._updateLayout();
-                    }
-                    popupInstance._updatePosition();
-                    if (typeof popupInstance._ensureDragHandleAtTop === 'function') {
-                        popupInstance._ensureDragHandleAtTop();
-                    }
-                }, 0);
+                popupInstance._updatePosition();
             }
-        }
+            if (typeof popupInstance._ensureDragHandleAtTop === 'function') {
+                popupInstance._ensureDragHandleAtTop();
+            }
+        }, 0);
+    }
+
+    function showMatches(buttonElement, stopId) {
+        toggleMatchesView(buttonElement, true);
     }
 
     function hideMatches(buttonElement, stopId, initialViewType) {
-        const container = buttonElement.closest('.popup-content-container');
-        if (!container) return;
-
-        const initialView = container.querySelector('.popup-initial-view');
-        const unifiedView = container.querySelector('.popup-unified-view');
-
-        if (unifiedView) unifiedView.style.display = 'none';
-        if (initialView) initialView.style.display = 'block';
-
-        const popupElement = container.closest('.leaflet-popup');
-        const popupInstance = popupElement && popupElement._leaflet_popup_instance;
-
-        if (popupInstance) {
-            // Trigger content update to recalculate width for single bubble view
-            if (typeof popupInstance._onContentUpdate === 'function') {
-                popupInstance._onContentUpdate();
-            }
-            if (typeof popupInstance._updatePosition === 'function') {
-                setTimeout(() => {
-                    if (typeof popupInstance._updateLayout === 'function') {
-                        popupInstance._updateLayout();
-                    }
-                    popupInstance._updatePosition();
-                    if (typeof popupInstance._ensureDragHandleAtTop === 'function') {
-                        popupInstance._ensureDragHandleAtTop();
-                    }
-                }, 0);
-            }
-        }
+        toggleMatchesView(buttonElement, false);
     }
 
     PopupRenderer.renderBubble = renderBubble;
@@ -499,7 +479,6 @@
     PopupRenderer.showMatches = showMatches;
     PopupRenderer.hideMatches = hideMatches;
     global.PopupRenderer = PopupRenderer;
-
 })(window);
 
 

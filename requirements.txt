@@ -30,9 +30,6 @@ scipy==1.11.4
 geopandas==0.14.1
 shapely==2.0.2
 
-# Progress bars (for data pipeline scripts)
-tqdm==4.66.1
-
 # Markdown rendering for in-app documentation
 mistune==3.0.2
 bleach==6.1.0
@@ -40,7 +37,6 @@ bleach==6.1.0
 # Testing
 pytest==7.4.3
 pytest-flask==1.3.0
-pytest-mock==3.12.0
 
 # Scheduling
 APScheduler==3.10.4

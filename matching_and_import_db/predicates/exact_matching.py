@@ -10,11 +10,16 @@ from typing import List
 from matching_and_import_db.pipeline import MatchingContext
 from matching_and_import_db.predicates import BasePredicate
 from matching_and_import_db.models import AtlasNode, OsmNode
+from matching_and_import_db.utils.common import haversine_distance
 
 class ExactUicPredicate(BasePredicate):
     """Match by ATLAS number == OSM uic_ref, refine by designation == local_ref."""
 
     def run(self, ctx: MatchingContext) -> None:
+        def _dist_m(atlas_entry, osm_entry) -> float:
+            dist = haversine_distance(atlas_entry.lat, atlas_entry.lon, osm_entry.lat, osm_entry.lon)
+            return 0.0 if dist is None else dist
+
         # Group ATLAS entries by UIC number
         atlas_by_uic: dict[str, list[AtlasNode]] = defaultdict(list)
         for node in ctx.atlas.get_unmatched_records():
@@ -34,8 +39,7 @@ class ExactUicPredicate(BasePredicate):
                         atlas_node=entry,
                         osm_node=osm,
                         match_type='exact',
-                        distance_m=0.0, # Handled via haversine internally in commit or via problem heuristic later. Actually wait, problem ctx calculates distance if we leave it 0? Wait, the original `make_match` calculated haversine explicitly.
-                        # Wait, I omitted haversine from ctx.commit! Let's calculate it here.
+                        distance_m=_dist_m(entry, osm),
                         notes="Single OSM node for this UIC reference",
                     )
                 # ctx.commit already locks it immediately.
@@ -48,7 +52,7 @@ class ExactUicPredicate(BasePredicate):
                         atlas_node=entries[0],
                         osm_node=osm,
                         match_type='exact',
-                        distance_m=0.0,
+                        distance_m=_dist_m(entries[0], osm),
                         notes="Single ATLAS entry matched to multiple OSM nodes",
                     )
                 continue
@@ -71,7 +75,7 @@ class ExactUicPredicate(BasePredicate):
                         atlas_node=entry,
                         osm_node=osm,
                         match_type='exact',
-                        distance_m=0.0,
+                        distance_m=_dist_m(entry, osm),
                         notes="Exact local_ref/designation match",
                     )
                     break  # one match per ATLAS entry
