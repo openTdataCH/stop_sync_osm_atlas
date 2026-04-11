@@ -26,7 +26,7 @@ DEFAULT_SUMMARY_PATH = ROOT / "documentation" / "generated" / "filter_bucket_ana
 DEFAULT_OUTPUT_PATH = ROOT / "documentation" / "images" / "filter_scope_overlap_map.svg"
 
 
-# Canonical project palette (documentation/5.6 Colours and styles.md)
+# Canonical project palette (documentation/6.7 Colours and styles.md)
 COLOR_PRIMARY = "#174092"          # ATLAS matched / primary navy
 COLOR_SUCCESS = "#4CAF50"          # OSM matched green
 COLOR_DANGER = "#DC3545"           # ATLAS unmatched red
