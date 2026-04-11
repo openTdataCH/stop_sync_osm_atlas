@@ -123,8 +123,16 @@ def write_unified_routes_csv_direct(
     integrated_gtfs_data: Optional[pd.DataFrame] = None,
     unified_out_path: str = "data/processed/atlas_routes_unified.csv"
 ):
-    """Create unified routes CSV from GTFS source data without intermediate files."""
+    """Create GTFS route mapping CSV from source data without intermediate files."""
     unified_rows = []
+
+    def _safe_direction_id(val):
+        try:
+            if pd.isna(val):
+                return None
+            return str(int(float(val)))
+        except (TypeError, ValueError):
+            return None
 
     # Process GTFS data - determine which integrated data to use
     integrated_data = None
@@ -150,21 +158,17 @@ def write_unified_routes_csv_direct(
             if pd.notna(sloid):  # Only include rows with valid sloid mapping
                 unified_rows.append({
                     'sloid': str(sloid),
-                    'source': 'gtfs',
-                    'evidence': 'gtfs_first_last',
                     'route_id': None if pd.isna(route_id) else str(route_id),
                     'route_id_normalized': _normalize_route_id_for_matching(None if pd.isna(route_id) else str(route_id)),
                     'route_name_short': None if pd.isna(route_short) else str(route_short),
                     'route_name_long': None if pd.isna(route_long) else str(route_long),
-                    'line_name': None,
-                    'direction_id': None if pd.isna(direction_id) else str(int(float(direction_id))),
+                    'direction_id': _safe_direction_id(direction_id),
                     'direction_name': None if pd.isna(direction) else str(direction),
-                    'direction_uic': None,
                 })
 
     if unified_rows:
         unified_df = pd.DataFrame(unified_rows, columns=[
-            'sloid','source','evidence','route_id','route_id_normalized','route_name_short','route_name_long','line_name','direction_id','direction_name','direction_uic'
+            'sloid', 'route_id', 'route_id_normalized', 'route_name_short', 'route_name_long', 'direction_id', 'direction_name'
         ])
         unified_df.to_csv(unified_out_path, index=False)
         print(f"Unified routes: wrote {len(unified_df):,} rows to {unified_out_path}")

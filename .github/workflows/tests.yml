@@ -15,17 +15,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          pip install pytest
-
       - name: Check documentation links
-        run: pytest tests/test_docs_links.py
+        run: |
+          docker compose run --rm --no-deps --entrypoint '' \
+            -e DATABASE_URI=sqlite:// \
+            -e USER_INPUT_DATABASE_URI=sqlite:// \
+            test python -m pytest tests/test_docs_links.py -v
 
   javascript-tests:
     name: JavaScript Tests
@@ -94,26 +89,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install pytest pytest-cov
-
       - name: Run Python tests
         run: |
-          pytest tests/ --cov=matching_process --cov=backend --cov-report=xml --cov-report=html -v
-        env:
-          FLASK_ENV: testing
-          TESTING: 'true'
-          DATABASE_URI: 'sqlite:///:memory:'
-          USER_INPUT_DATABASE_URI: 'sqlite:///:memory:'
-          SECRET_KEY: 'test-secret-key'
+          docker compose run --rm --no-deps --entrypoint '' \
+            -e FLASK_ENV=testing \
+            -e TESTING=true \
+            -e DATABASE_URI=sqlite:// \
+            -e USER_INPUT_DATABASE_URI=sqlite:// \
+            -e SECRET_KEY=test-secret-key \
+            test python -m pytest tests/ --cov=matching_process --cov=backend --cov-report=xml --cov-report=html -v
 
       - name: Upload Python coverage report
         uses: actions/upload-artifact@v4

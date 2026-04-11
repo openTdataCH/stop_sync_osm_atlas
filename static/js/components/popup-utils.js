@@ -56,11 +56,9 @@
         if (routes.length === 0) { return '<i>No route information available</i>'; }
         const itemsHtml = routes.map(route => {
             if (!route) return '';
-            const source = (route.source || '').toUpperCase();
-            const displayName = route.route_name_short || route.route_name_long || route.line_name || route.route_id || 'Unnamed Route';
-            const direction = route.direction_name || route.direction_uic || route.direction_id || '';
-            const right = [route.route_id || '', route.line_name || ''].filter(Boolean).join(' / ');
-            const sourceChip = source ? `<span class="chip">${source}</span>` : '';
+            const displayName = route.route_name_short || route.route_name_long || route.route_id || 'Unnamed Route';
+            const direction = route.direction_name || route.direction_id || '';
+            const right = (route.route_id && route.route_id !== displayName) ? route.route_id : '';
             const dirStr = direction ? `<small>${direction}</small>` : '';
 
             // Add filter link if route_id exists
@@ -73,7 +71,7 @@
                 routeFilterLink = ` <a href="#" onclick="filterByRoute('${safeRouteId}', '${safeDirectionId}'); return false;" title="Filter by this route"><i class="fas fa-filter text-muted small"></i></a>`;
             }
 
-            return `<li>${sourceChip} ${displayName} ${routeFilterLink} ${dirStr} ${right ? `<small>(${right})</small>` : ''}</li>`;
+            return `<li>${displayName} ${routeFilterLink} ${dirStr} ${right ? `<small>(${right})</small>` : ''}</li>`;
         }).join('');
         return `<ul class="route-list" style="margin-top: 5px; padding-left: 15px;">${itemsHtml}</ul>`;
     }

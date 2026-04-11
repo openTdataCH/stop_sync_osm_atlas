@@ -308,7 +308,6 @@ def _import_routes(session, all_route_data, known_sloids):
     
     atlas_route_dir_to_sloids = all_route_data.get('atlas_route_dir_to_sloids', {})
     osm_route_dir_to_nodes = all_route_data.get('osm_route_dir_to_nodes', {})
-    atlas_line_diruic_to_sloids = all_route_data.get('atlas_line_diruic_to_sloids', {})
 
     # Pre-build normalized index for ATLAS routes
     atlas_normalized_to_original = {}
@@ -357,15 +356,6 @@ def _import_routes(session, all_route_data, known_sloids):
                 continue
             routes_to_insert.append(RouteAtlasStops(
                 atlas_route_id=atlas_route_id, direction_id=direction_id, sloid=sloid, stop_sequence=i
-            ))
-
-    for (line_name, direction_uic), atlas_data in atlas_line_diruic_to_sloids.items():
-        for i, sloid in enumerate(atlas_data['sloids']):
-            if sloid not in known_sloids:
-                skipped_sloids += 1
-                continue
-            routes_to_insert.append(RouteAtlasStops(
-                atlas_route_id=line_name, direction_id=direction_uic, sloid=sloid, stop_sequence=i
             ))
 
     if skipped_sloids:
@@ -523,14 +513,17 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
             unified_path = "data/processed/atlas_routes_unified.csv"
             if os.path.exists(unified_path):
                 df_unified = pd.read_csv(unified_path, dtype=str)
-                gtfs_matches = df_unified[df_unified['source'] == 'gtfs']['sloid'].nunique()
-                hrdf_matches = df_unified[df_unified['source'] == 'hrdf']['sloid'].nunique()
-                any_route = df_unified['sloid'].nunique()
+                gtfs_rows = df_unified.copy()
+                if 'source' in gtfs_rows.columns:
+                    gtfs_rows = gtfs_rows[gtfs_rows['source'].fillna('gtfs').astype(str).str.lower() == 'gtfs']
+                gtfs_rows = gtfs_rows[gtfs_rows['route_id'].notna()] if 'route_id' in gtfs_rows.columns else gtfs_rows
+
+                gtfs_matches = gtfs_rows['sloid'].nunique() if 'sloid' in gtfs_rows.columns else 0
+                any_route = gtfs_matches
                 
                 atlas_route_stats = {
                     'atlas_total': total_atlas if total_atlas else 0, # Passed earlier
                     'atlas_gtfs_matches': gtfs_matches,
-                    'atlas_hrdf_matches': hrdf_matches,
                     'atlas_with_routes': any_route
                 }
         except Exception as e:

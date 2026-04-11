@@ -167,7 +167,7 @@ Access it at [http://localhost:5001/](http://localhost:5001/).
 
 - **Map View**: Browse stops by type (`matched`, `unmatched`, `osm`) and match method.
 - **Filters & Search**: Filter by ATLAS SLOID, OSM Node ID, UIC reference, or route.
-- **Problems**: On the problems page you can solve the problems. See [3. Problems](documentation/3.%20Problems.md).
+- **Problems**: On the problems page you can solve the problems. See [4. Problems](documentation/4.%20Problems.md).
 - **Manage Data**: See [4.2 Persistent Data](documentation/4.2%20Persistent%20Data.md).
 - **Generating Reports:** The web app can generate CSV and PDF reports. See [5.3 Generate Reports](documentation/5.3%20Generate%20Reports.md).
 

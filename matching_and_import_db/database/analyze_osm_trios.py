@@ -145,7 +145,7 @@ def bucket_from_status(stop_type: str | None, match_type: str | None) -> str:
         return "unmatched_trio_partner"
     if stop_type == "osm_unmatched":
         return "unmatched"
-    if match_type in {"route_unified_gtfs", "route_unified_hrdf"}:
+    if match_type and match_type.startswith("route_"):
         return "matched_by_route"
     if match_type == "osm_group_propagation":
         return "matched_by_osm_group_propagation"
