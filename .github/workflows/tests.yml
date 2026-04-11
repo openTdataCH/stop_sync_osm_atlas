@@ -17,7 +17,7 @@ jobs:
 
       - name: Check documentation links
         run: |
-          docker compose run --rm --no-deps --entrypoint '' \
+          docker compose run --rm --no-deps --user "$(id -u):$(id -g)" --entrypoint '' \
             -e DATABASE_URI=sqlite:// \
             -e USER_INPUT_DATABASE_URI=sqlite:// \
             test python -m pytest tests/test_docs_links.py -v
@@ -91,7 +91,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-          docker compose run --rm --no-deps --entrypoint '' \
+          docker compose run --rm --no-deps --user "$(id -u):$(id -g)" --entrypoint '' \
             -e FLASK_ENV=testing \
             -e TESTING=true \
             -e DATABASE_URI=sqlite:// \
