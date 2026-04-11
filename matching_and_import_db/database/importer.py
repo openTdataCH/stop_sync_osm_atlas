@@ -22,7 +22,7 @@ from matching_and_import_db.models import MatchingOutput
 from matching_and_import_db.problem_detection.context import ProblemContext
 from matching_and_import_db.problem_detection.pipeline import run_problem_pipeline, STOP_PROBLEM_PIPELINE
 from matching_and_import_db.problem_detection.result import ProblemResult
-from matching_and_import_db.database.session import session
+from matching_and_import_db.database.session import session, user_input_session
 from matching_and_import_db.database.helpers import (
     make_point_geom,
     safe_value,
@@ -394,7 +394,7 @@ def import_to_database(base_data: MatchingOutput):
     Fully refresh the database "Import DB" .
     """
     print("Truncating all database tables...")
-    session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, osm_stops, osm_stop_members, route_atlas_stops, route_osm_stops, global_stats_filter_rows CASCADE"))
+    session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, osm_stops, osm_stop_members, route_atlas_stops, route_osm_stops CASCADE"))
     session.execute(text("TRUNCATE TABLE routes_matched CASCADE"))
     session.execute(text("TRUNCATE TABLE problems, stops_matched CASCADE"))
     session.commit()
@@ -456,9 +456,9 @@ def import_to_database(base_data: MatchingOutput):
 
     _print_problem_summary(session)
 
-    print("Populating Global Stats Filter Rows...")
-    from backend.services.stats_export import populate_global_stats_filter_rows
-    populate_global_stats_filter_rows(session)
+    print("Populating Global Stats Buckets...")
+    from backend.services.stats_export import populate_global_stats_buckets
+    populate_global_stats_buckets(session)
 
     session.close()
     print("Data import complete!")

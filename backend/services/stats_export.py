@@ -748,21 +748,20 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
     }
 
 
-def populate_global_stats_filter_rows(db_session):
-    """Truncate and repopulate `global_stats_filter_rows` from source tables.
-
-    The table materializes one enriched row per `stops_matched` row and keeps
-    enough dimensions to apply broad filters directly and still compute exact
-    DISTINCT metrics for global stats.
+def populate_global_stats_buckets(db_session):
+    """Truncate and repopulate the global_stats_buckets materialized table.
+    Groups matching data by scope, operator, duplicate state, transport features,
+    group kind and match types to build a lightning fast summary cube.
     """
-    from backend.models import GlobalStatsFilterRow, StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
+    from backend.models import GlobalStatsBucket, StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
     from backend.queries.helpers import build_atlas_duplicate_membership_condition
-    from sqlalchemy import case, text, insert
-
-    logger.info("Populating GlobalStatsFilterRow table...")
-
-    db_session.execute(text("TRUNCATE TABLE global_stats_filter_rows"))
-
+    from sqlalchemy import func, case, text, insert
+    
+    logger.info("Populating GlobalStatsBucket table...")
+    
+    # Fast truncate to clean previous data
+    db_session.execute(text("TRUNCATE TABLE global_stats_buckets"))
+    
     effective_stop_type = case(
         (
             (StopsMatched.stop_type == 'matched') | (StopsMatched.stop_type == 'effectively_matched'),
@@ -774,76 +773,86 @@ def populate_global_stats_filter_rows(db_session):
     scope = case(
         (StopsMatched.sloid.isnot(None) & StopsMatched.osm_node_id.isnot(None), 'atlas+osm'),
         (StopsMatched.sloid.isnot(None), 'atlas_only'),
-        else_='osm_only',
+        else_='osm_only'
     ).label('scope')
 
+    # Keep duplicate semantics aligned with API filtering logic.
     atlas_duplicate = case(
         (build_atlas_duplicate_membership_condition(), True),
         else_=False,
     ).label('atlas_duplicate')
 
-    insert_stmt = db_session.query(
-        StopsMatched.sloid.label('sloid'),
-        StopsMatched.osm_node_id.label('osm_node_id'),
-        OsmStopMember.osm_stop_id.label('osm_stop_id'),
+    grouping_cols = [
         scope,
         AtlasStop.atlas_business_org_abbr.label('atlas_operator'),
         atlas_duplicate,
-        OsmStop.stop_kind.label('stop_kind'),
         OsmStop.group_kind.label('osm_group_kind'),
-        StopsMatched.stop_type.label('stop_type'),
         effective_stop_type,
         StopsMatched.match_type.label('match_type'),
-        case((OsmNode.osm_amenity == 'ferry_terminal', True), else_=False).label('is_ferry_terminal'),
-        case((OsmNode.osm_railway == 'tram_stop', True), else_=False).label('is_tram_stop'),
-        case((OsmNode.osm_node_type == 'railway_station', True), else_=False).label('is_station'),
-        case((OsmNode.osm_public_transport == 'platform', True), else_=False).label('is_platform'),
-        case((OsmNode.osm_public_transport == 'stop_position', True), else_=False).label('is_stop_position'),
-        case((OsmNode.osm_aerialway == 'station', True), else_=False).label('is_aerialway_station'),
-    ).outerjoin(
-        AtlasStop,
-        StopsMatched.sloid == AtlasStop.sloid,
-    ).outerjoin(
-        OsmNode,
-        StopsMatched.osm_node_id == OsmNode.osm_node_id,
-    ).outerjoin(
-        OsmStopMember,
-        StopsMatched.osm_node_id == OsmStopMember.node_id,
-    ).outerjoin(
-        OsmStop,
-        OsmStopMember.osm_stop_id == OsmStop.id,
-    ).distinct(
-        StopsMatched.id,
-        OsmStopMember.osm_stop_id,
+        func.coalesce(OsmNode.osm_amenity == 'ferry_terminal', False).label('is_ferry_terminal'),
+        func.coalesce(OsmNode.osm_railway == 'tram_stop', False).label('is_tram_stop'),
+        func.coalesce(OsmNode.osm_node_type == 'railway_station', False).label('is_station'),
+        func.coalesce(OsmNode.osm_public_transport == 'platform', False).label('is_platform'),
+        func.coalesce(OsmNode.osm_public_transport == 'stop_position', False).label('is_stop_position'),
+        func.coalesce(OsmNode.osm_aerialway == 'station', False).label('is_aerialway_station'),
+    ]
+
+    base_query = db_session.query(
+        StopsMatched.sloid, StopsMatched.osm_node_id, OsmStopMember.osm_stop_id, *grouping_cols
+    ).outerjoin(AtlasStop, StopsMatched.sloid == AtlasStop.sloid) \
+     .outerjoin(OsmNode, StopsMatched.osm_node_id == OsmNode.osm_node_id) \
+     .outerjoin(OsmStopMember, StopsMatched.osm_node_id == OsmStopMember.node_id) \
+     .outerjoin(OsmStop, OsmStopMember.osm_stop_id == OsmStop.id) \
+     .subquery('f')
+
+    insert_stmt = db_session.query(
+        base_query.c.scope,
+        base_query.c.atlas_operator,
+        base_query.c.atlas_duplicate,
+        base_query.c.osm_group_kind,
+        base_query.c.effective_stop_type,
+        base_query.c.match_type,
+        base_query.c.is_ferry_terminal,
+        base_query.c.is_tram_stop,
+        base_query.c.is_station,
+        base_query.c.is_platform,
+        base_query.c.is_stop_position,
+        base_query.c.is_aerialway_station,
+        func.count(func.distinct(base_query.c.sloid)).label('total_atlas'),
+        func.count(func.distinct(case((base_query.c.effective_stop_type == 'matched', base_query.c.sloid), else_=None))).label('matched_atlas'),
+        func.count(func.distinct(case((base_query.c.effective_stop_type == 'atlas_unmatched', base_query.c.sloid), else_=None))).label('unmatched_atlas'),
+        func.count(case((base_query.c.effective_stop_type == 'matched', 1), else_=None)).label('matched_pairs'),
+        func.count(func.distinct(base_query.c.osm_stop_id)).label('total_osm_stops'),
+        func.count(func.distinct(case((base_query.c.effective_stop_type == 'matched', base_query.c.osm_stop_id), else_=None))).label('matched_osm_stops'),
+        func.count(func.distinct(base_query.c.osm_node_id)).label('total_osm_nodes'),
+    ).group_by(
+        base_query.c.scope,
+        base_query.c.atlas_operator,
+        base_query.c.atlas_duplicate,
+        base_query.c.osm_group_kind,
+        base_query.c.effective_stop_type,
+        base_query.c.match_type,
+        base_query.c.is_ferry_terminal,
+        base_query.c.is_tram_stop,
+        base_query.c.is_station,
+        base_query.c.is_platform,
+        base_query.c.is_stop_position,
+        base_query.c.is_aerialway_station,
     )
 
     columns = [
-        GlobalStatsFilterRow.sloid,
-        GlobalStatsFilterRow.osm_node_id,
-        GlobalStatsFilterRow.osm_stop_id,
-        GlobalStatsFilterRow.scope,
-        GlobalStatsFilterRow.atlas_operator,
-        GlobalStatsFilterRow.atlas_duplicate,
-        GlobalStatsFilterRow.stop_kind,
-        GlobalStatsFilterRow.osm_group_kind,
-        GlobalStatsFilterRow.stop_type,
-        GlobalStatsFilterRow.effective_stop_type,
-        GlobalStatsFilterRow.match_type,
-        GlobalStatsFilterRow.is_ferry_terminal,
-        GlobalStatsFilterRow.is_tram_stop,
-        GlobalStatsFilterRow.is_station,
-        GlobalStatsFilterRow.is_platform,
-        GlobalStatsFilterRow.is_stop_position,
-        GlobalStatsFilterRow.is_aerialway_station,
+        GlobalStatsBucket.scope, GlobalStatsBucket.atlas_operator, GlobalStatsBucket.atlas_duplicate,
+        GlobalStatsBucket.osm_group_kind, GlobalStatsBucket.effective_stop_type, GlobalStatsBucket.match_type,
+        GlobalStatsBucket.is_ferry_terminal, GlobalStatsBucket.is_tram_stop, GlobalStatsBucket.is_station,
+        GlobalStatsBucket.is_platform, GlobalStatsBucket.is_stop_position, GlobalStatsBucket.is_aerialway_station,
+        GlobalStatsBucket.total_atlas, GlobalStatsBucket.matched_atlas, GlobalStatsBucket.unmatched_atlas,
+        GlobalStatsBucket.matched_pairs, GlobalStatsBucket.total_osm_stops, GlobalStatsBucket.matched_osm_stops,
+        GlobalStatsBucket.total_osm_nodes
     ]
-    db_session.execute(insert(GlobalStatsFilterRow).from_select(columns, insert_stmt))
+    ins = insert(GlobalStatsBucket).from_select(columns, insert_stmt)
+    db_session.execute(ins)
     db_session.commit()
-    logger.info("GlobalStatsFilterRow table populated successfully.")
-
-
-def populate_global_stats_buckets(db_session):
-    """Backward-compatible wrapper for older call sites."""
-    populate_global_stats_filter_rows(db_session)
+    logger.info("GlobalStatsBucket table populated successfully.")
 
 
 def compute_summary_from_db(db_session) -> Dict[str, Any]:
@@ -951,33 +960,6 @@ def ensure_stats_summary_pdf_generated(force: bool = False, max_age_seconds: Opt
     return output_path
 
 
-def get_report_css_content(extra_files: List[str] = None) -> str:
-    """
-    Load CSS content for PDF report generation.
-    Always includes tokens and printable_core.
-    """
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    css_content = ""
-    
-    css_files = [
-        'static/css/src/01-settings/tokens.css',
-        'static/css/shared/printable_core.css'
-    ]
-    if extra_files:
-        css_files.extend(extra_files)
-        
-    for css_file in css_files:
-        try:
-            full_path = os.path.join(base_dir, css_file)
-            if os.path.exists(full_path):
-                with open(full_path, 'r', encoding='utf-8') as f:
-                    css_content += f.read() + "\n"
-        except Exception as e:
-            logger.warning(f"Could not load CSS file {css_file} for PDF generation: {e}")
-            
-    return css_content
-
-
 def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -> str:
     """
     Generate a PDF summary report from the stats and save it.
@@ -1010,23 +992,35 @@ def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -
     from backend.extensions import db
     problem_stats = compute_db_stats(db.session)
     
-    css_content = get_report_css_content([
-        'static/css/pages/stats.css',
-        'static/css/pages/reports.css'
-    ])
-    
     kwargs = {
         'stats': stats,
         'problem_breakdown': problem_stats.get('by_priority', {}),
         'probs': problem_stats,
         'generated_at': datetime.now(),
-        'css_content': css_content
+        'css_content': ''
     }
+    
+    # Read CSS files
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    css_content = ""
+    # Injected core styles first for variables and resets
+    core_css_files = [
+        'static/css/src/01-settings/tokens.css',
+        'static/css/pages/stats.css',
+        'static/css/pages/reports.css'
+    ]
+    for css_file in core_css_files:
+        try:
+            with open(os.path.join(base_dir, css_file), 'r') as f:
+                css_content += f.read() + "\n"
+        except Exception as e:
+            logger.warning(f"Could not load CSS file {css_file} for PDF generation: {e}")
+            
+    kwargs['css_content'] = css_content
     
     report_html = render_template('reports/stats_summary.html', **kwargs)
     
     # Render PDF using WeasyPrint
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     HTML(string=report_html, base_url=base_dir).write_pdf(output_path)
     
     return output_path
