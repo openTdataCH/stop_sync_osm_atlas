@@ -42,9 +42,21 @@ def _docs_pdf_path() -> str:
     return os.path.join(_repo_root(), 'documentation', 'generated', 'stop_sync_osm_atlas_documentation_bw.pdf')
 
 
+def _docs_pdf_legacy_path() -> str:
+    return os.path.join(_repo_root(), 'documentation', 'generated', 'doc_to_print.pdf')
+
+
+def _first_existing_docs_pdf() -> Optional[str]:
+    for path in (_docs_pdf_path(), _docs_pdf_legacy_path()):
+        if os.path.exists(path):
+            return path
+    return None
+
+
 def ensure_docs_pdf_generated() -> bool:
     """Ensure the docs PDF exists and is fresh relative to its sources."""
     pdf_path = _docs_pdf_path()
+    fallback_pdf = _first_existing_docs_pdf()
     docs_dir = _get_docs_dir()
     stats_path = os.path.normpath(os.path.join(_repo_root(), 'data', 'stats.json'))
     
@@ -97,9 +109,20 @@ def ensure_docs_pdf_generated() -> bool:
             result.returncode,
             (result.stderr or '').strip()[-1000:],
         )
+        if fallback_pdf:
+            logger.warning("Using existing docs PDF at %s", fallback_pdf)
+            return True
         return False
 
-    return os.path.exists(pdf_path)
+    if os.path.exists(pdf_path):
+        return True
+
+    fallback_pdf = _first_existing_docs_pdf()
+    if fallback_pdf:
+        logger.warning("Using fallback docs PDF at %s", fallback_pdf)
+        return True
+
+    return False
 
 
 def _github_blob_base() -> str:
@@ -699,8 +722,14 @@ def download_docs_pdf():
             "error": "Could not generate documentation PDF. Run the 'Docs: Build PDF' task and check logs.",
         }), 500
 
+    pdf_path = _first_existing_docs_pdf()
+    if not pdf_path:
+        return jsonify({
+            "error": "Could not find a generated documentation PDF after generation attempt.",
+        }), 500
+
     return send_file(
-        _docs_pdf_path(),
+        pdf_path,
         mimetype='application/pdf',
         as_attachment=True,
         download_name='stop_sync_osm_atlas_documentation.pdf',

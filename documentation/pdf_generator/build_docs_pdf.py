@@ -13,10 +13,13 @@ from urllib.parse import unquote
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from backend.services.docs_stats import load_stats_for_docs, replace_stats_placeholders
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCS_DIR = REPO_ROOT / 'documentation'
 OUTPUT_DIR = DOCS_DIR / 'generated'
 DIAGRAMS_DIR = OUTPUT_DIR / 'diagrams'

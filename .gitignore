@@ -98,3 +98,6 @@ latex_document_non_nodes
 # Root markdown files except README.md
 /*.md
 !/README.md
+
+coverage.xml
+.coverage
