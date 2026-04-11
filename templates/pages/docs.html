@@ -7,6 +7,21 @@
 <!-- Mermaid.js for diagrams -->
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script src="{{ url_for('static', filename='js/shared/mermaid-config.js') }}"></script>
+<!-- MathJax for LaTeX -->
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['$', '$'], ['\\(', '\\)']],
+      displayMath: [['$$', '$$'], ['\\[', '\\]']],
+      processEscapes: true
+    },
+    options: {
+      ignoreHtmlClass: 'tex2jax_ignore',
+      processHtmlClass: 'tex2jax_process'
+    }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -255,6 +270,14 @@
       }
     }
 
+    function renderMath() {
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise([document.getElementById('docs-content-html')]).catch(function (err) {
+          console.warn('MathJax typeset failed:', err);
+        });
+      }
+    }
+
     function isDocsPagePath(pathname) {
       return pathname === DOCS_ROOT_PATH || pathname.indexOf(DOCS_ROOT_PATH + '/') === 0;
     }
@@ -288,6 +311,7 @@
           markActiveDoc(payload.active_slug || '', payload.active_section || '');
           renderNav(payload.prev_page, payload.next_page);
           renderMermaid();
+          renderMath();
 
           var canonicalUrl = payload.canonical_url || (urlObj.pathname + urlObj.search);
           if (urlObj.hash) {
@@ -320,6 +344,7 @@
 
       applyExpandedState();
       markActiveDoc(activeSlug, activeSection);
+      renderMath();
 
       if (!history.state || !history.state.docs) {
         history.replaceState({ docs: true }, '', window.location.href);
