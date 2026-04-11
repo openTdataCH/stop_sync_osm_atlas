@@ -73,7 +73,17 @@ class TestUnifiedRoutesIntegration:
         
         # Check assertions
         assert len(result_df) == 2, f"Expected 2 rows, got {len(result_df)}"
-        assert all(result_df['source'] == 'gtfs'), "Source should be 'gtfs'"
+        expected_cols = {
+            'sloid',
+            'route_id',
+            'route_id_normalized',
+            'route_name_short',
+            'route_name_long',
+            'direction_id',
+            'direction_name',
+        }
+        assert expected_cols.issubset(set(result_df.columns)), "GTFS-only columns are missing"
+        assert 'source' not in result_df.columns, "Legacy source column should not be written"
         assert 'gtfs-route-1' in result_df['route_id'].values
         assert 'gtfs-route-2' in result_df['route_id'].values
         
@@ -104,9 +114,6 @@ class TestUnifiedRoutesIntegration:
         # Verify
         result = pd.read_csv(output_file)
         assert len(result) == 1
-        
-        gtfs_rows = result[result['source'] == 'gtfs']
-
-        assert len(gtfs_rows) == 1
-        assert gtfs_rows.iloc[0]['sloid'] == 'ch:1:sloid:1'
+        assert result.iloc[0]['sloid'] == 'ch:1:sloid:1'
+        assert 'source' not in result.columns
 

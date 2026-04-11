@@ -84,7 +84,7 @@ class FilterBuilder:
                 conditions.append(StopsMatched.sloid.like(f'%{value}%'))
             elif filter_type == 'osm':
                 conditions.append(StopsMatched.osm_node_id.like(f'%{value}%'))
-            elif filter_type in ['route', 'hrdf_route']:
+            elif filter_type == 'route':
                 route_stops = route_query_func(value, direction if direction else None)
                 route_conditions = []
                 if route_stops['atlas_sloids']:

@@ -195,15 +195,6 @@ SECTION 1 — MATCHING PROCESS
           <td class="text-right">{{ "{:,}".format(rb.gtfs_mto|default(0)) }}</td>
           <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
         </tr>
-        {% if (rb.hrdf|default(0)) > 0 %}
-        <tr class="text-muted">
-          <td class="pl-4">HRDF</td>
-          <td class="text-right">{{ "{:,}".format(rb.hrdf|default(0)) }}</td>
-          <td class="text-right">{{ "%.1f"|format((rb.hrdf|default(0)) / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(rb.hrdf_mto|default(0)) }}</td>
-          <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('route_hrdf', 0)) }}</td>
-        </tr>
-        {% endif %}
         <tr>
           <td>Post-processing: Unique by UIC</td>
           <td class="text-right">{{ "{:,}".format(stages.post_processing.unique_by_uic) }}</td>
@@ -277,7 +268,7 @@ SECTION 1 — MATCHING PROCESS
     {% if dq.by_stage %}
     <h6 class="mt-3 mb-2">Distance by Matching Stage</h6>
     {% set stage_order = ['exact', 'name', 'distance_trio', 'distance_stage1', 'distance_stage2', 'distance_stage3a',
-    'distance_stage3b', 'route_gtfs', 'route_hrdf', 'post_processing'] %}
+    'distance_stage3b', 'route_gtfs', 'post_processing'] %}
     {% set stage_labels = {
     'exact': 'Exact (UIC ref)',
     'name': 'Name matching',
@@ -287,7 +278,6 @@ SECTION 1 — MATCHING PROCESS
     'distance_stage3a': 'Distance Stage 3a (single candidate)',
     'distance_stage3b': 'Distance Stage 3b (ratio test)',
     'route_gtfs': 'Route matching (GTFS)',
-    'route_hrdf': 'Route matching (HRDF)',
     'post_processing': 'Post-processing',
     } %}
     <table class="table table-sm table-hover">
@@ -968,10 +958,6 @@ SECTION 6 — ROUTES
         <tr>
           <td>GTFS-backed route match</td>
           <td class="text-right">{{ "{:,}".format(rm.by_source.gtfs|default(0)) }}</td>
-        </tr>
-        <tr>
-          <td>HRDF-backed route match</td>
-          <td class="text-right">{{ "{:,}".format(rm.by_source.hrdf|default(0)) }}</td>
         </tr>
         <tr class="font-weight-bold">
           <td>Total route matches</td>

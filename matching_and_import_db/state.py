@@ -56,7 +56,7 @@ class AtlasState:
 
     @staticmethod
     def _load_routes(path: str) -> dict:
-        """Load atlas_routes_unified.csv into a per-sloid dict keyed by source."""
+        """Load atlas_routes_unified.csv into a per-sloid GTFS route mapping."""
         def _norm_dir(val):
             try:
                 if pd.isna(val):
@@ -79,14 +79,14 @@ class AtlasState:
             sloid = str(row['sloid']) if row.get('sloid') is not None else None
             if not sloid:
                 continue
-            src = str(row.get('source', ''))
+            src = str(row.get('source', 'gtfs') or 'gtfs').lower()
             entry = {
                 'route_id': row.get('route_id'),
                 'route_id_normalized': row.get('route_id_normalized'),
-                'line_name': row.get('line_name'),
+                'route_name_short': row.get('route_name_short'),
+                'route_name_long': row.get('route_name_long'),
                 'direction_id': _norm_dir(row.get('direction_id')),
                 'direction_name': row.get('direction_name'),
-                'direction_uic': row.get('direction_uic'),
             }
             if src == 'gtfs':
                 by_sloid[sloid]['gtfs'].append(entry)

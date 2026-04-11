@@ -23,7 +23,10 @@ def setup_test_env_and_db():
     session_module = importlib.reload(session_module)
     engine = session_module.engine
     session = session_module.session
-    user_input_engine = session_module.user_input_engine
+    # Importer still imports user_input_session from the session module.
+    # In tests, we map user-input DB aliases to the same in-memory engine/session.
+    session_module.user_input_engine = engine
+    session_module.user_input_session = session
     from sqlalchemy.ext.compiler import compiles
     from sqlalchemy.dialects.postgresql import JSONB
 
@@ -84,7 +87,6 @@ def setup_test_env_and_db():
         importer_mod.apply_persistent_solutions_service = lambda *args, **kwargs: None
     
     db.Model.metadata.create_all(engine)
-    db.Model.metadata.create_all(user_input_engine)
 
     yield
 
@@ -92,10 +94,6 @@ def setup_test_env_and_db():
     # Drop tables while mocks are still active (spatial DDL needs the mock)
     try:
         db.Model.metadata.drop_all(engine)
-    except Exception:
-        pass
-    try:
-        db.Model.metadata.drop_all(user_input_engine)
     except Exception:
         pass
     # Now restore all mocks

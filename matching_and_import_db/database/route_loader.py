@@ -8,8 +8,6 @@ import os
 
 import pandas as pd
 
-from matching_and_import_db.utils.route_id import normalize_route_id
-
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -30,6 +28,16 @@ def _nan_to_none(val):
     if pd.isna(val):
         return None
     return val
+
+
+def _filter_gtfs_rows(df: pd.DataFrame) -> pd.DataFrame:
+    """Return GTFS rows, treating missing legacy source markers as GTFS."""
+    if df is None or df.empty:
+        return pd.DataFrame()
+    if 'source' not in df.columns:
+        return df.copy()
+    source = df['source'].fillna('gtfs').astype(str).str.lower()
+    return df[source == 'gtfs'].copy()
 
 
 # ---------------------------------------------------------------------------
@@ -64,8 +72,7 @@ def _build_route_name_to_id(unified_df: pd.DataFrame) -> dict:
     
     mapping = {}
     try:
-        # Filter for GTFS routes
-        df = unified_df[unified_df['source'] == 'gtfs'].copy()
+        df = _filter_gtfs_rows(unified_df)
         
         for col in ('route_name_short', 'route_name_long'):
             if col in df.columns:
@@ -123,11 +130,12 @@ def _build_atlas_route_dir_mappings(unified_df: pd.DataFrame):
     if unified_df.empty:
         return atlas_route_dir_to_sloids
 
-    df = unified_df.dropna(subset=['sloid']).copy()
+    df = _filter_gtfs_rows(unified_df).dropna(subset=['sloid']).copy()
+    if df.empty:
+        return atlas_route_dir_to_sloids
     df['direction_id_clean'] = df['direction_id'].apply(_safe_direction_id)
 
-    # GTFS routes
-    gtfs = df[(df['source'] == 'gtfs') & df['route_id'].notna() & df['direction_id_clean'].notna()]
+    gtfs = df[df['route_id'].notna() & df['direction_id_clean'].notna()]
     for (route_id, direction_id), grp in gtfs.groupby(['route_id', 'direction_id_clean'], sort=False):
         first = grp.iloc[0]
         atlas_route_dir_to_sloids[(str(route_id), str(direction_id))] = {
