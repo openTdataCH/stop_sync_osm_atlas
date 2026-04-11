@@ -1,0 +1,7 @@
+Flask-Limiter==3.5.0
+Flask-Talisman==1.1.0
+Flask-Migrate==4.0.5
+Werkzeug==3.0.3
+weasyprint>=68.1
+mistune==3.0.2
+bleach==6.1.0
