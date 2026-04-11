@@ -25,9 +25,21 @@
 {% endblock %}
 
 {% block content %}
+<div id="docsSidebarBackdrop" class="docs-sidebar-backdrop"></div>
+
+<button type="button" id="mobileSidebarToggle" class="btn mobile-sidebar-toggle shadow-lg d-md-none" aria-label="Toggle documentation menu">
+  <i class="fas fa-list-ul"></i>
+</button>
+
 <div class="container-fluid docs-container">
   <div class="row">
-    <div class="col-md-3 docs-sidebar pr-0">
+    <div class="col-md-3 docs-sidebar pr-0" id="docsSidebar">
+      <div class="mobile-sidebar-header d-none">
+        <h5>Documentation</h5>
+        <button type="button" class="btn btn-link p-0 text-dark" id="closeMobileSidebar">
+          <i class="fas fa-times fa-lg"></i>
+        </button>
+      </div>
       <div class="list-group list-group-flush" id="docs-sections">
         {% for sec in sections %}
         <div class="docs-section" data-section="{{ sec.key }}">
@@ -434,6 +446,52 @@
         fetchDocsPage(url, false).catch(function () {
           window.location.reload();
         });
+      });
+
+      // Mobile Sidebar Toggle Logic
+      var sidebar = document.getElementById('docsSidebar');
+      var toggle = document.getElementById('mobileSidebarToggle');
+      var closeBtn = document.getElementById('closeMobileSidebar');
+      var backdrop = document.getElementById('docsSidebarBackdrop');
+
+      function toggleSidebar(show) {
+        if (typeof show === 'undefined') {
+          show = !sidebar.classList.contains('mobile-expanded');
+        }
+        sidebar.classList.toggle('mobile-expanded', show);
+        backdrop.classList.toggle('active', show);
+        document.body.style.overflow = show ? 'hidden' : '';
+      }
+
+      if (toggle) {
+        toggle.addEventListener('click', function() {
+          toggleSidebar(true);
+        });
+      }
+
+      if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+          toggleSidebar(false);
+        });
+      }
+
+      if (backdrop) {
+        backdrop.addEventListener('click', function() {
+          toggleSidebar(false);
+        });
+      }
+
+      // Close sidebar when a link is clicked on mobile
+      document.addEventListener('click', function(e) {
+        if (window.innerWidth >= 768) return;
+        
+        var link = e.target.closest('.docs-sidebar a');
+        if (link) {
+          // Small delay to allow the fetch to start before closing
+          setTimeout(function() {
+            toggleSidebar(false);
+          }, 150);
+        }
       });
     });
   })();
