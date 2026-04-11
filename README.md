@@ -4,7 +4,7 @@ Welcome! This project provides a systematic pipeline to identify, analyze, and r
 
 It automates data download and processing (ATLAS, OSM, GTFS), performs exact/distance-based/route-based matching, and serves an interactive web app for inspecting matches, problems, and manual fixes.
 
-![Geneva stops](documentation/images/Geneve.png)
+![Geneva stops](documentation/images/image.png)
 
 ---
 

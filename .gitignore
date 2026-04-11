@@ -3,9 +3,13 @@ data/
 
 memoire/
 
-# Text files (except requirements.txt)
+# Text files (except requirements variants)
 *.txt
 !requirements.txt
+!requirements-base.txt
+!requirements-web.txt
+!requirements-scheduler.txt
+!requirements-test.txt
 
 requirements.txt.backup
 
