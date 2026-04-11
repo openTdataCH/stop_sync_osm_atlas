@@ -54,15 +54,20 @@
     const context = options.context || 'index';
     const chips = [];
     (operators || []).forEach(function(operator) {
-      const safeOp = escapeHtml(operator);
       if (context === 'index') {
-        const chip = '<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-info">Operator: ' + safeOp +
-          ' <a href="#" class="text-dark remove-filter" data-type="atlasOperator" data-filter="' + safeOp + '">x</a></span>';
-        chips.push(chip);
+        chips.push(buildRemovableChip({
+          label: 'Operator: ' + operator,
+          badgeClass: 'badge-info',
+          removeClass: 'remove-filter',
+          data: { type: 'atlasOperator', filter: operator }
+        }));
       } else {
-        const chip = '<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-info">Operator: ' + safeOp +
-          ' <a href="#" class="text-dark remove-operator-chip" data-operator="' + safeOp + '">x</a></span>';
-        chips.push(chip);
+        chips.push(buildRemovableChip({
+          label: 'Operator: ' + operator,
+          badgeClass: 'badge-info',
+          removeClass: 'remove-operator-chip',
+          data: { operator: operator }
+        }));
       }
     });
     return buildOrGroupHtml(chips);
