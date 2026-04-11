@@ -135,9 +135,6 @@ class OperatorDropdown {
         }
         this.container.empty();
     }
-    refresh() { this.loadOperators(); }
-    disable() { this.button.prop('disabled', true).addClass('disabled'); }
-    enable() { this.button.prop('disabled', false).removeClass('disabled'); }
 }
 window.OperatorDropdown = OperatorDropdown;
 
