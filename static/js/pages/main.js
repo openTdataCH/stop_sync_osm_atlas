@@ -173,10 +173,6 @@ function initMap() {
     linesLayer.addTo(map);
     topNLayer.addTo(map);
 
-    // Place right-side Leaflet controls under the stats overlay (#headerSummary)
-    positionIndexMapRightControls();
-    window.addEventListener('resize', positionIndexMapRightControls);
-
     // Attach standard popup-line handlers
     attachPopupLineHandlersToMap(map);
 
@@ -191,26 +187,6 @@ function initMap() {
             loadDataForViewport();
         }, VIEW_DEBOUNCE_MS);
     });
-}
-
-function positionIndexMapRightControls() {
-    // Legacy function, no longer needed since headerSummary is outside the map
-}
-
-
-
-
-
-
-
-
-
-
-
-
-// Use zoomBannerInfo inside active filter container
-function ensureZoomBannerExists() {
-    // Rely on the existing #zoomBannerInfo element which is in the DOM
 }
 
 function showZoomBanner(show, delayMs = 0) {
@@ -1553,7 +1529,6 @@ function updateHeaderSummary() {
         if (data.error) {
             statsContainer.html(`<div><small>Error loading summary.</small></div>`);
             console.error("Error loading global stats:", data.error);
-            positionIndexMapRightControls();
             return;
         }
 
@@ -1583,13 +1558,11 @@ function updateHeaderSummary() {
 
         statsContainer.html(summaryHtml);
         syncHeaderSummaryFilterToggle();
-        positionIndexMapRightControls();
     }).fail(function () {
         if (mySeq !== currentGlobalStatsSeq) return;
         
         statsContainer.html(`<div><small>Failed to load summary.</small></div>`);
         console.error("Failed to fetch global stats from server.");
         syncHeaderSummaryFilterToggle();
-        positionIndexMapRightControls();
     });
 }

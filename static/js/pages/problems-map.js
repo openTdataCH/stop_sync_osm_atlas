@@ -20,13 +20,6 @@ window.ProblemsMap = (function() {
     // Request management for context loading
     let currentContextRequest = null; // jqXHR of in-flight /api/data
 
-    function getAtlasMarkerIdentity(stopData) {
-        if (window.MapShared && typeof window.MapShared.getAtlasMarkerIdentity === 'function') {
-            return window.MapShared.getAtlasMarkerIdentity(stopData);
-        }
-        return null;
-    }
-
     /**
      * Initialize the map on the problems page with same style as main page
      */
@@ -214,7 +207,9 @@ window.ProblemsMap = (function() {
             // Process both ATLAS and OSM markers for each stop
             filteredData.forEach(function(stop) {
                 // Handle ATLAS markers
-                const atlasMarkerKey = getAtlasMarkerIdentity(stop);
+                const atlasMarkerKey = window.MapShared && typeof window.MapShared.getAtlasMarkerIdentity === 'function'
+                    ? window.MapShared.getAtlasMarkerIdentity(stop)
+                    : null;
                 if (stop.sloid && stop.atlas_lat != null && stop.atlas_lon != null && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
                     let atlasColor = COLOR_OSM_UNMATCHED;
                     if (stop.stop_type === 'matched') atlasColor = COLOR_ATLAS_MATCHED;

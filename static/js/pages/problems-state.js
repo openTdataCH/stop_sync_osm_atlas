@@ -125,17 +125,6 @@ window.ProblemsState = (function () {
             currentProblemIndex = -1;
             currentEntryProblemIndex = 0;
             currentProblem = null;
-        },
-
-        // Get state summary for debugging
-        getStateSnapshot: () => ({
-            problemsCount: allProblems.length,
-            currentProblemIndex,
-            currentEntryProblemIndex,
-            selectedProblemTypes,
-            currentPage,
-            totalProblems,
-            showContext
-        })
+        }
     };
 })();
