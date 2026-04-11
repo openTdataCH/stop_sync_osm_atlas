@@ -24,10 +24,6 @@ window.ProblemsMap = (function() {
         if (window.MapShared && typeof window.MapShared.getAtlasMarkerIdentity === 'function') {
             return window.MapShared.getAtlasMarkerIdentity(stopData);
         }
-        if (!stopData) return null;
-        if (stopData.sloid != null && stopData.sloid !== '') return String(stopData.sloid);
-        if (stopData.representative_sloid != null && stopData.representative_sloid !== '') return String(stopData.representative_sloid);
-        if (stopData.id != null && stopData.id !== '') return String(stopData.id);
         return null;
     }
 
@@ -112,12 +108,6 @@ window.ProblemsMap = (function() {
 
         // Manual match popup interactions are handled globally in map-renderer.js via attachPopupLineHandlersToMap
         
-        console.log("Problem map initialized with layers:", {
-            problemMarkersLayer: problemMarkersLayer,
-            problemLinesLayer: problemLinesLayer,
-            contextMarkersLayer: contextMarkersLayer
-        });
-
     }
 
     /**
@@ -125,8 +115,6 @@ window.ProblemsMap = (function() {
      */
     function loadContextData(problem) {
         if (!ProblemsState.getShowContext() || !problem) {
-            console.log("Context loading skipped:", !ProblemsState.getShowContext() ? "showContext false" : "no problem");
-            console.log("showContext:", ProblemsState.getShowContext(), "problem:", problem);
             return;
         }
         
@@ -134,10 +122,7 @@ window.ProblemsMap = (function() {
         const lat = problem.atlas_lat || problem.osm_lat;
         const lon = problem.atlas_lon || problem.osm_lon;
         
-        console.log("Problem coordinates:", lat, lon);
-        
         if (!lat || !lon) {
-            console.log("No coordinates found for problem");
             return;
         }
         
@@ -162,25 +147,17 @@ window.ProblemsMap = (function() {
             zoom: zoom
         };
         
-        console.log("Fetching context data with params:", params);
-        
         // Cancel previous context request if still in flight
         if (currentContextRequest && currentContextRequest.readyState !== 4) {
             try { currentContextRequest.abort(); } catch(e) {}
         }
         currentContextRequest = $.getJSON("/api/data", params, function(data) {
-            console.log("Received context data:", data.length, "entries");
-            
             if (data.length === 0) {
-                console.warn("No context data received from API");
                 return;
             }
             
             const contextMarkersLayer = ProblemsState.getContextMarkersLayer();
             contextMarkersLayer.clearLayers();
-            
-            // Log a sample of the received data to understand structure
-            console.log("Sample context data entry:", data[0]);
             
             // Filter out the current problem from context data
             let filteredData = data.filter(stop => {
@@ -199,16 +176,7 @@ window.ProblemsMap = (function() {
                 return !isCurrentProblem;
             });
             
-            console.log("Filtered context data:", filteredData.length, "entries after removing current problem");
-            console.log("Current problem details:", {
-                id: problem.id,
-                sloid: problem.sloid, 
-                osm_node_id: problem.osm_node_id,
-                problem_type: problem.problem
-            });
-            
             if (filteredData.length === 0) {
-                console.warn("All context data was filtered out - trying with less strict filtering");
                 // Try with simpler filtering as fallback
                 const simplefilteredData = data.filter(stop => {
                     // Only filter out exact matches by coordinates
@@ -233,14 +201,11 @@ window.ProblemsMap = (function() {
                 });
                 
                 if (simplefilteredData.length === 0) {
-                    console.warn("Even simple filtering removed all entries - showing all nearby data");
                     filteredData = data; // Show everything as last resort
                 } else {
                     filteredData = simplefilteredData;
                 }
             }
-            
-            console.log("Final context data to display:", filteredData.length, "entries");
             
             // Collect marker data for cluster handling
             var contextMarkerData = [];
@@ -338,7 +303,6 @@ window.ProblemsMap = (function() {
                 }
             });
             
-            console.log("Added", contextMarkersLayer.getLayers().length, "context elements to map");
         }).fail(function(jqXHR, textStatus, errorThrown) {
             console.error("Failed to load context data:", textStatus, errorThrown);
         });
@@ -352,16 +316,12 @@ window.ProblemsMap = (function() {
         ProblemsState.setShowContext(showContext);
         const button = $('#toggleContextBtn');
         
-        console.log("Toggle context called, showContext is now:", showContext);
-        
         if (showContext) {
             button.removeClass('bg-white text-dark').addClass('btn-secondary');
             button.html('<i class="fas fa-eye-slash"></i> Hide other markers');
             const currentProblem = ProblemsState.getCurrentProblem();
             if (currentProblem) {
                 loadContextData(currentProblem);
-            } else {
-                console.warn("No current problem to load context for.");
             }
         } else {
             button.removeClass('btn-secondary').addClass('bg-white text-dark');
@@ -370,7 +330,6 @@ window.ProblemsMap = (function() {
             if (contextMarkersLayer) {
                 contextMarkersLayer.clearLayers();
             }
-            console.log("Context markers cleared");
         }
     }
 
@@ -381,7 +340,6 @@ window.ProblemsMap = (function() {
         const mapSection = $('#mapSection');
         const problemSection = $('#problemSection');
         const resizeDivider = $('#resizeDivider');
-        const contentArea = $('#contentArea'); // The flex container
 
         let isResizing = false;
         let startX = 0;

@@ -90,6 +90,12 @@ window.ProblemsData = (function () {
         });
     }
 
+    function reloadProblemsWithUpdatedFilters() {
+        ProblemsState.resetPaginationState();
+        fetchProblems();
+        initializeProblemTypeFilter();
+    }
+
     function updateProblemTypeFilter(newType, isChecked) {
         const current = getSelectedTypes();
         let next = [];
@@ -105,10 +111,8 @@ window.ProblemsData = (function () {
         }
 
         ProblemsState.setSelectedProblemTypes(next);
-        ProblemsState.resetPaginationState();
         updateTypeButtonDisplay();
-        fetchProblems();
-        initializeProblemTypeFilter();
+        reloadProblemsWithUpdatedFilters();
     }
 
     function updatePriorityFilter(priority = 'all') {
@@ -127,10 +131,8 @@ window.ProblemsData = (function () {
         }
 
         ProblemsState.setSelectedPriorities(next);
-        ProblemsState.resetPaginationState();
         syncPrioritySelectionUi();
-        fetchProblems();
-        initializeProblemTypeFilter();
+        reloadProblemsWithUpdatedFilters();
     }
 
     function fetchProblems(page = 1) {

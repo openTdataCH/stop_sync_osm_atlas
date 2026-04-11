@@ -196,16 +196,6 @@
         layer.clearLayers();
     };
 
-    /**
-     * Clear all lines from a layer.
-     *
-     * @param {L.LayerGroup} layer - Layer to clear
-     */
-    LineRenderer.clearAllLines = function(layer) {
-        if (!layer) return;
-        layer.clearLayers();
-    };
-
     // ==========================================
     // PRIVATE METHODS
     // ==========================================

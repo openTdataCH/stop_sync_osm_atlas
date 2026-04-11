@@ -16,7 +16,6 @@ window.ProblemsState = (function () {
 
     // Problem data state
     let allProblems = [];
-    let filteredProblems = []; // This will now hold only the currently loaded problems
     let problemsByEntry = {}; // Group problems by entry ID
     let currentEntryProblems = []; // Current entry's problems
 
@@ -64,9 +63,6 @@ window.ProblemsState = (function () {
         setAllProblems: (problems) => { allProblems = problems; },
         addProblems: (problems) => { allProblems = allProblems.concat(problems); },
         clearAllProblems: () => { allProblems = []; },
-
-        getFilteredProblems: () => filteredProblems,
-        setFilteredProblems: (problems) => { filteredProblems = problems; },
 
         getProblemsByEntry: () => problemsByEntry,
         setProblemsByEntry: (grouped) => { problemsByEntry = grouped; },
@@ -129,10 +125,6 @@ window.ProblemsState = (function () {
             currentProblemIndex = -1;
             currentEntryProblemIndex = 0;
             currentProblem = null;
-        },
-
-        initializeSettings: () => {
-            // Reserved for future page-level settings
         },
 
         // Get state summary for debugging

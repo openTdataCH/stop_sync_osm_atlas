@@ -75,6 +75,16 @@ $(document).ready(function () {
         }
     }
 
+    function refreshProblemsAfterFilterChange(options = {}) {
+        if (options.syncOperatorDropdown && window.operatorDropdownProblems && window.operatorDropdownProblems.setSelection) {
+            window.operatorDropdownProblems.setSelection(ProblemsState.getSelectedAtlasOperators() || []);
+        }
+        ProblemsState.resetPaginationState();
+        ProblemsData.initializeProblemTypeFilter();
+        ProblemsData.fetchProblems();
+        renderFiltersSummary();
+    }
+
     function clearAllProblemFilters() {
         ProblemsState.setSelectedProblemTypes([]);
         ProblemsState.setSelectedPriorities([]);
@@ -84,10 +94,7 @@ $(document).ready(function () {
             window.operatorDropdownProblems.setSelection([]);
         }
 
-        ProblemsState.resetPaginationState();
-        ProblemsData.initializeProblemTypeFilter();
-        ProblemsData.fetchProblems();
-        renderFiltersSummary();
+        refreshProblemsAfterFilterChange();
     }
 
     function renderFiltersSummary() {
@@ -99,29 +106,17 @@ $(document).ready(function () {
             onRemoveType: function (type) {
                 const next = (ProblemsState.getSelectedProblemTypes() || []).filter(t => t !== type);
                 ProblemsState.setSelectedProblemTypes(next);
-                ProblemsState.resetPaginationState();
-                ProblemsData.initializeProblemTypeFilter();
-                ProblemsData.fetchProblems();
-                renderFiltersSummary();
+                refreshProblemsAfterFilterChange();
             },
             onRemovePriority: function (priority) {
                 const next = (ProblemsState.getSelectedPriorities() || []).filter(p => p !== String(priority));
                 ProblemsState.setSelectedPriorities(next);
-                ProblemsState.resetPaginationState();
-                ProblemsData.initializeProblemTypeFilter();
-                ProblemsData.fetchProblems();
-                renderFiltersSummary();
+                refreshProblemsAfterFilterChange();
             },
             onRemoveOperator: function (op) {
                 const next = (ProblemsState.getSelectedAtlasOperators() || []).filter(o => o !== op);
                 ProblemsState.setSelectedAtlasOperators(next);
-                if (window.operatorDropdownProblems && window.operatorDropdownProblems.setSelection) {
-                    window.operatorDropdownProblems.setSelection(next);
-                }
-                ProblemsState.resetPaginationState();
-                ProblemsData.initializeProblemTypeFilter();
-                ProblemsData.fetchProblems();
-                renderFiltersSummary();
+                refreshProblemsAfterFilterChange({ syncOperatorDropdown: true });
             }
         });
         updateSummaryStats();
@@ -182,7 +177,6 @@ $(document).ready(function () {
 
     }
 
-    ProblemsState.initializeSettings();
     ProblemsMap.initProblemMap();
     ProblemsUI.setupIntersectionObserver();
 
@@ -191,10 +185,7 @@ $(document).ready(function () {
         multiple: true,
         onSelectionChange: function (selectedOperators) {
             ProblemsState.setSelectedAtlasOperators(selectedOperators);
-            ProblemsState.resetPaginationState();
-            ProblemsData.initializeProblemTypeFilter();
-            ProblemsData.fetchProblems();
-            renderFiltersSummary();
+            refreshProblemsAfterFilterChange();
         }
     });
 
