@@ -142,7 +142,6 @@ Scheduler behavior:
 
 Optional one-shot startup run:
 
-- Set `RUN_STARTUP_PIPELINE=true` to run one full pipeline before Flask starts.
 
 ### Manual Import & Testing (VS Code Tasks)
 

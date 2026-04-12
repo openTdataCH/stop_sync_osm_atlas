@@ -17,29 +17,12 @@ fi
 echo "Waiting for Postgres database..."
 python matching_and_import_db/database/init.py
 
-# Run database migrations
-echo "Running database migrations..."
-if [ "${AUTO_MIGRATE:-false}" = "true" ]; then
-    if [ ! -d "migrations" ]; then
-        flask db init || true
-    fi
-    # Ensure DB is at current head before trying to autogenerate migrations.
-    # If upgrade fails (transient DB/network), skip migrate to avoid confusing
-    # "Target database is not up to date" errors.
-    if flask db upgrade; then
-        # Autogenerate migration scripts from models (safe in dev)
-        flask db migrate -m "Auto migration" || true
-    else
-        echo "WARN: flask db upgrade failed; skipping flask db migrate"
-    fi
-else
-    echo "AUTO_MIGRATE=false -> skipping migrations in app container"
-fi
+# Run database migrations are now handled by the 'migrator' container in docker-compose.
+# We no longer run migrations in the app container.
 
-if [ "${RUN_STARTUP_PIPELINE:-false}" = "true" ]; then
-    echo "RUN_STARTUP_PIPELINE=true -> running one full pipeline before app start"
-    python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual
-fi
+
+# Background tasks like the data pipeline are handled by the 'scheduler' service.
+
 
 echo "Starting Flask application on port 5001..."
 # Start the Flask application
