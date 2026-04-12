@@ -1,15 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="738" viewBox="0 0 900 738">
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="786" viewBox="0 0 900 786">
   <rect width="100%" height="100%" fill="#ffffff"/>
   <text x="40" y="50" font-size="24" font-family="sans-serif" font-weight="bold" fill="#1e293b">Dependency Stage Overlap Matrix</text>
   <text x="40" y="75" font-size="14" font-family="sans-serif" fill="#64748b">Visualizing which libraries are included in each Docker build stage</text>
   <text x="290.0" y="110" text-anchor="middle" font-size="12" font-family="sans-serif" font-weight="bold" fill="#334155">Base Stage</text>
-  <line x1="290.0" y1="115" x2="290.0" y2="658" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4"/>
+  <line x1="290.0" y1="115" x2="290.0" y2="706" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4"/>
   <text x="430.0" y="110" text-anchor="middle" font-size="12" font-family="sans-serif" font-weight="bold" fill="#334155">Scheduler Stage</text>
-  <line x1="430.0" y1="115" x2="430.0" y2="658" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4"/>
+  <line x1="430.0" y1="115" x2="430.0" y2="706" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4"/>
   <text x="570.0" y="110" text-anchor="middle" font-size="12" font-family="sans-serif" font-weight="bold" fill="#334155">App Stage</text>
-  <line x1="570.0" y1="115" x2="570.0" y2="658" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4"/>
+  <line x1="570.0" y1="115" x2="570.0" y2="706" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4"/>
   <text x="710.0" y="110" text-anchor="middle" font-size="12" font-family="sans-serif" font-weight="bold" fill="#334155">Test Stage</text>
-  <line x1="710.0" y1="115" x2="710.0" y2="658" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4"/>
+  <line x1="710.0" y1="115" x2="710.0" y2="706" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="4"/>
   <rect x="40" y="118.0" width="820" height="24" fill="#f8fafc"/>
   <text x="200" y="135" text-anchor="end" font-size="12" font-family="monospace" fill="#1e293b">Flask</text>
   <circle cx="290.0" cy="130" r="6" fill="#6C757D" />
@@ -88,24 +88,30 @@
   <circle cx="570.0" cy="538" r="6" fill="#174092" />
   <circle cx="710.0" cy="538" r="6" fill="#4CAF50" />
   <rect x="40" y="550.0" width="820" height="24" fill="#f8fafc"/>
-  <text x="200" y="567" text-anchor="end" font-size="12" font-family="monospace" fill="#1e293b">mistune</text>
+  <text x="200" y="567" text-anchor="end" font-size="12" font-family="monospace" fill="#1e293b">gunicorn</text>
   <circle cx="570.0" cy="562" r="6" fill="#174092" />
   <circle cx="710.0" cy="562" r="6" fill="#4CAF50" />
-  <text x="200" y="591" text-anchor="end" font-size="12" font-family="monospace" fill="#1e293b">weasyprint</text>
+  <text x="200" y="591" text-anchor="end" font-size="12" font-family="monospace" fill="#1e293b">mistune</text>
   <circle cx="570.0" cy="586" r="6" fill="#174092" />
   <circle cx="710.0" cy="586" r="6" fill="#4CAF50" />
   <rect x="40" y="598.0" width="820" height="24" fill="#f8fafc"/>
-  <text x="200" y="615" text-anchor="end" font-size="12" font-family="monospace" fill="#1e293b">pytest</text>
+  <text x="200" y="615" text-anchor="end" font-size="12" font-family="monospace" fill="#1e293b">weasyprint</text>
+  <circle cx="570.0" cy="610" r="6" fill="#174092" />
   <circle cx="710.0" cy="610" r="6" fill="#4CAF50" />
-  <text x="200" y="639" text-anchor="end" font-size="12" font-family="monospace" fill="#1e293b">pytest-flask</text>
+  <text x="200" y="639" text-anchor="end" font-size="12" font-family="monospace" fill="#1e293b">pytest</text>
   <circle cx="710.0" cy="634" r="6" fill="#4CAF50" />
-  <text x="40" y="688" font-size="12" font-family="sans-serif" font-weight="bold">Legend (Primary Sources):</text>
-  <circle cx="200" cy="684" r="6" fill="#6C757D" />
-  <text x="215" y="688" font-size="12" font-family="sans-serif" fill="#64748b">Base</text>
-  <circle cx="320" cy="684" r="6" fill="#174092" />
-  <text x="335" y="688" font-size="12" font-family="sans-serif" fill="#64748b">App/Web</text>
-  <circle cx="440" cy="684" r="6" fill="#F0AD4E" />
-  <text x="455" y="688" font-size="12" font-family="sans-serif" fill="#64748b">Scheduler</text>
-  <circle cx="560" cy="684" r="6" fill="#4CAF50" />
-  <text x="575" y="688" font-size="12" font-family="sans-serif" fill="#64748b">Test</text>
+  <rect x="40" y="646.0" width="820" height="24" fill="#f8fafc"/>
+  <text x="200" y="663" text-anchor="end" font-size="12" font-family="monospace" fill="#1e293b">pytest-cov</text>
+  <circle cx="710.0" cy="658" r="6" fill="#4CAF50" />
+  <text x="200" y="687" text-anchor="end" font-size="12" font-family="monospace" fill="#1e293b">pytest-flask</text>
+  <circle cx="710.0" cy="682" r="6" fill="#4CAF50" />
+  <text x="40" y="736" font-size="12" font-family="sans-serif" font-weight="bold">Legend (Primary Sources):</text>
+  <circle cx="200" cy="732" r="6" fill="#6C757D" />
+  <text x="215" y="736" font-size="12" font-family="sans-serif" fill="#64748b">Base</text>
+  <circle cx="320" cy="732" r="6" fill="#174092" />
+  <text x="335" y="736" font-size="12" font-family="sans-serif" fill="#64748b">App/Web</text>
+  <circle cx="440" cy="732" r="6" fill="#F0AD4E" />
+  <text x="455" y="736" font-size="12" font-family="sans-serif" fill="#64748b">Scheduler</text>
+  <circle cx="560" cy="732" r="6" fill="#4CAF50" />
+  <text x="575" y="736" font-size="12" font-family="sans-serif" fill="#64748b">Test</text>
 </svg>
