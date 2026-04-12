@@ -29,18 +29,12 @@ services:
       retries: 2
 
   migrator:
-    build:
-      context: .
-      target: app-stage
-      args:
-        APP_UID: ${APP_UID:-1000}
-        APP_GID: ${APP_GID:-1000}
+    image: ghcr.io/opentdatach/stop_sync_osm_atlas-migrator:latest
     container_name: stop_sync_osm_atlas_migrator
     restart: "no"
     entrypoint: ["/bin/bash", "-lc"]
     command: "python matching_and_import_db/database/init.py && flask db upgrade"
     volumes:
-      - .:/app
       - ./data:/app/data
     depends_on:
       db:
@@ -51,18 +45,12 @@ services:
       RATELIMIT_STORAGE_URI: memory://
 
   app:
-    build:
-      context: .
-      target: app-stage
-      args:
-        APP_UID: ${APP_UID:-1000}
-        APP_GID: ${APP_GID:-1000}
+    image: ghcr.io/opentdatach/stop_sync_osm_atlas-app:latest
     container_name: stop_sync_osm_atlas_app
     restart: "no"
     ports:
       - "5001:5001"
     volumes:
-      - .:/app # Mounts your project directory into the container for live code changes
       # Mount data directory for persistence
       - ./data:/app/data
     depends_on:
@@ -88,33 +76,21 @@ services:
     # mem_reservation: 1g # Optional: guarantee 1g
 
   test:
-    build:
-      context: .
-      target: test-stage
-      args:
-        APP_UID: ${APP_UID:-1000}
-        APP_GID: ${APP_GID:-1000}
+    image: ghcr.io/opentdatach/stop_sync_osm_atlas-test:latest
     container_name: stop_sync_osm_atlas_test
     restart: "no"
     volumes:
-      - .:/app
       - ./data:/app/data
     environment:
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
 
   scheduler:
-    build:
-      context: .
-      target: scheduler-stage
-      args:
-        APP_UID: ${APP_UID:-1000}
-        APP_GID: ${APP_GID:-1000}
+    image: ghcr.io/opentdatach/stop_sync_osm_atlas-scheduler:latest
     container_name: stop_sync_osm_atlas_scheduler
     restart: "no"
     command: ["scheduler"]
     volumes:
-      - .:/app
       - ./data:/app/data
     depends_on:
       db:

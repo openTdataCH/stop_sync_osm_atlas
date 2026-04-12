@@ -26,4 +26,8 @@ python matching_and_import_db/database/init.py
 
 echo "Starting Flask application on port 5001..."
 # Start the Flask application
-exec python backend/app.py
+if [ "$FLASK_DEBUG" = "1" ]; then
+    exec python backend/app.py
+else
+    exec gunicorn -w 2 -b 0.0.0.0:5001 backend.app:app
+fi

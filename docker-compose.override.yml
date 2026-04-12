@@ -1,0 +1,40 @@
+services:
+  migrator:
+    build:
+      context: .
+      target: app-stage
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    volumes:
+      - .:/app
+      
+  app:
+    build:
+      context: .
+      target: app-stage
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    volumes:
+      - .:/app
+      
+  test:
+    build:
+      context: .
+      target: test-stage
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    volumes:
+      - .:/app
+      
+  scheduler:
+    build:
+      context: .
+      target: scheduler-stage
+      args:
+        APP_UID: ${APP_UID:-1000}
+        APP_GID: ${APP_GID:-1000}
+    volumes:
+      - .:/app
