@@ -103,7 +103,6 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "docs(deps): auto-update dependency overlap matrix & text"
-          file_pattern: "documentation/7.1 Dependency Management & Build Strategy.md documentation/images/dependency_overlap.svg"
 
       - name: Run Python tests
         run: |
