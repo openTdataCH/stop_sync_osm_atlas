@@ -82,9 +82,7 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
-      AUTO_MIGRATE: "false"
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
-      RUN_STARTUP_PIPELINE: "${RUN_STARTUP_PIPELINE:-false}" # Optional one-shot run on app boot
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 2g # Web app stays lighter, pipeline runs in scheduler service
     # mem_reservation: 1g # Optional: guarantee 1g
@@ -132,7 +130,6 @@ services:
       PIPELINE_SCHEDULE_HOUR: ${PIPELINE_SCHEDULE_HOUR:-2}
       PIPELINE_SCHEDULE_MINUTE: ${PIPELINE_SCHEDULE_MINUTE:-0}
       PIPELINE_IMPORT_ETA_SECONDS: ${PIPELINE_IMPORT_ETA_SECONDS:-280}
-      AUTO_MIGRATE: "false"
     cpu_shares: 2048
     mem_limit: 4g
 
