@@ -27,7 +27,8 @@
 {% block content %}
 <div id="docsSidebarBackdrop" class="docs-sidebar-backdrop"></div>
 
-<button type="button" id="mobileSidebarToggle" class="btn mobile-sidebar-toggle shadow-lg d-md-none" aria-label="Toggle documentation menu">
+<button type="button" id="mobileSidebarToggle" class="btn mobile-sidebar-toggle shadow-lg d-md-none"
+  aria-label="Toggle documentation menu">
   <i class="fas fa-list-ul"></i>
 </button>
 
@@ -45,8 +46,7 @@
         <div class="docs-section" data-section="{{ sec.key }}">
           <div
             class="list-group-item d-flex align-items-center justify-content-between docs-section-header shadow-sm mb-2{% if active_section == sec.key %} active{% endif %}"
-            {% if sec.root_slug %} data-root-href="{{ url_for('docs.docs_page', page=sec.root_slug) }}" {% endif
-            %}>
+            {% if sec.root_slug %} data-root-href="{{ url_for('docs.docs_page', page=sec.root_slug) }}" {% endif %}>
             <div class="d-flex align-items-center">
               {% if sec['items']|length > 0 %}
               <button class="btn btn-sm btn-link p-0 mr-2 docs-toggle" type="button" data-section="{{ sec.key }}"
@@ -77,23 +77,24 @@
             <div class="list-group list-group-flush">
               {% for item in sec['items'] %}
               <a class="list-group-item list-group-item-action level-{{ item.level }}{% if item.slug == active_slug %} active{% endif %}"
-                href="{{ url_for('docs.docs_page', page=item.slug) }}" data-doc-slug="{{ item.slug }}">{{ item.title }}</a>
+                href="{{ url_for('docs.docs_page', page=item.slug) }}" data-doc-slug="{{ item.slug }}">{{ item.title
+                }}</a>
               {% endfor %}
             </div>
           </div>
         </div>
         {% endfor %}
       </div>
-      <div class="mt-4 pt-3 border-top text-center px-2">
-        <div class="mb-3">
+      <div class="docs-sidebar-footer mt-auto pt-3 border-top px-2">
+        <div class="d-flex justify-content-center align-items-center pb-2">
           <a href="https://github.com/openTdataCH/stop_sync_osm_atlas" target="_blank"
-            class="btn btn-sm btn-outline-primary repo-btn shadow-sm font-weight-bold py-2 px-3" style="height: fit-content; line-height: 1.2; min-width: 140px;">
+            class="btn btn-sm btn-outline-primary repo-btn shadow-sm font-weight-bold py-2 px-2 mr-1 flex-grow-1 text-nowrap"
+            style="height: fit-content; line-height: 1.2;">
             <i class="fas fa-code-branch mr-1"></i> Repo
           </a>
-        </div>
-        <div class="mb-2">
-          <a href="{{ url_for('docs.download_docs_pdf') }}" class="btn btn-sm btn-outline-danger shadow-sm font-weight-bold py-2 px-3"
-            title="Download documentation as PDF" style="height: fit-content; line-height: 1.2; min-width: 140px;">
+          <a href="{{ url_for('docs.download_docs_pdf') }}"
+            class="btn btn-sm btn-outline-danger download-btn shadow-sm font-weight-bold py-2 px-2 ml-1 flex-grow-1 text-nowrap"
+            title="Download documentation as PDF" style="height: fit-content; line-height: 1.2;">
             <i class="fas fa-file-pdf mr-1"></i> Download doc
           </a>
         </div>
@@ -464,31 +465,31 @@
       }
 
       if (toggle) {
-        toggle.addEventListener('click', function() {
+        toggle.addEventListener('click', function () {
           toggleSidebar(true);
         });
       }
 
       if (closeBtn) {
-        closeBtn.addEventListener('click', function() {
+        closeBtn.addEventListener('click', function () {
           toggleSidebar(false);
         });
       }
 
       if (backdrop) {
-        backdrop.addEventListener('click', function() {
+        backdrop.addEventListener('click', function () {
           toggleSidebar(false);
         });
       }
 
       // Close sidebar when a link is clicked on mobile
-      document.addEventListener('click', function(e) {
+      document.addEventListener('click', function (e) {
         if (window.innerWidth >= 768) return;
-        
+
         var link = e.target.closest('.docs-sidebar a');
         if (link) {
           // Small delay to allow the fetch to start before closing
-          setTimeout(function() {
+          setTimeout(function () {
             toggleSidebar(false);
           }, 150);
         }

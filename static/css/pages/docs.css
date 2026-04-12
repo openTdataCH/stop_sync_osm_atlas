@@ -17,13 +17,40 @@
   align-self: flex-start;
   border-right: 0;
   max-width: 320px;
-  height: auto;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: var(--space-2);
   box-shadow: var(--shadow-xs);
+  display: flex;
+  flex-direction: column;
 }
+
+#docs-sections {
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+  padding-right: var(--space-1);
+}
+
+#docs-sections::-webkit-scrollbar {
+  width: 4px;
+}
+
+#docs-sections::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#docs-sections::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+#docs-sections::-webkit-scrollbar-thumb:hover {
+  background: var(--color-fg-subtle);
+}
+
 
 .docs-sidebar .docs-section-header {
   cursor: pointer;
@@ -119,18 +146,21 @@
 /* -------------------------------------------------------------------------
    Repo Button (Next to 'Back to Map')
    ------------------------------------------------------------------------- */
-.repo-btn {
-  border-radius: var(--radius-md, 8px);
+.repo-btn,
+.download-btn {
+  border-radius: var(--radius-sm) !important;
   font-weight: var(--font-semibold, 600);
   transition: all var(--transition-fast);
 }
 
-.repo-btn:hover {
+.repo-btn:hover,
+.download-btn:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-md, 0 4px 6px -1px rgba(0, 0, 0, 0.1)) !important;
 }
 
-.repo-btn i {
+.repo-btn i,
+.download-btn i {
   color: inherit !important;
 }
 
@@ -666,6 +696,14 @@
 }
 
 @media (min-width: 768px) {
+  /* Sticky behavior only on desktop */
+  .docs-sidebar {
+    position: sticky;
+    top: calc(var(--navbar-height) + var(--space-4));
+    height: calc(100vh - var(--navbar-height) - var(--space-8));
+    overflow: hidden; /* prevents sidebar itself from scrolling, child #docs-sections will scroll */
+  }
+
   .mobile-sidebar-toggle,
   .mobile-sidebar-header,
   .docs-sidebar-backdrop {
