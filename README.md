@@ -16,8 +16,6 @@ It automates data download and processing (ATLAS, OSM, GTFS), performs exact/dis
 - [Background Scheduler & Microservices](#background-scheduler--microservices)
 - [Running the Web Application](#running-the-web-application)
 - [Environment & Secrets](#environment--secrets)
-- [Admin Management CLI](#admin-management-cli)
-- [Authentication](#authentication)
 - [CI & Tests](#ci--tests)
 - [Contributing and Project Status](#contributing-and-project-status)
 
@@ -48,7 +46,7 @@ It automates data download and processing (ATLAS, OSM, GTFS), performs exact/dis
     ```
     
     **On the first run**, Docker will automatically:
-    - Build the application image
+    - Build the application images
     - Download and start Postgres (PostGIS) database
     - Start the web app container
     - Start the scheduler container (daily pipeline at 2:00 Europe/Zurich)
@@ -140,12 +138,9 @@ Scheduler behavior:
 - Sets maintenance mode only for the import phase so the UI can show "Data update in progress" with elapsed/ETA.
 - Uses a distributed lock to prevent concurrent runs.
 
-Optional one-shot startup run:
-
-
 ### Manual Import & Testing (VS Code Tasks)
 
-If you have VS Code installed, we have provided built-in tasks to quickly run commands inside the running database container without constantly restarting Docker:
+If you have VS Code installed, we have provided built-in tasks to quickly run commands inside the running Docker containers without constantly restarting Docker:
 1. Open the VS Code Command Palette (`Cmd+Shift+P` on Mac).
 2. Select **`Tasks: Run Task`**.
 3. Choose one of the predefined tasks:
@@ -176,7 +171,7 @@ Access it at [http://localhost:5001/](http://localhost:5001/).
 This repository uses **GitHub Actions** for continuous integration.
 
 - Workflow: [tests.yml](.github/workflows/tests.yml)
-- CI documentation: [CI and Tests](documentation/8.%20GITHUB_ACTIONS_AND_TESTS.md)
+- CI documentation: [CI and Tests](documentation/8.%20Test.md)
 
 
 ## Contributing and project Status

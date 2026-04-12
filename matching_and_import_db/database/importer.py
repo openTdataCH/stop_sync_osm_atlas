@@ -22,7 +22,7 @@ from matching_and_import_db.models import MatchingOutput
 from matching_and_import_db.problem_detection.context import ProblemContext
 from matching_and_import_db.problem_detection.pipeline import run_problem_pipeline, STOP_PROBLEM_PIPELINE
 from matching_and_import_db.problem_detection.result import ProblemResult
-from matching_and_import_db.database.session import session, user_input_session
+from matching_and_import_db.database.session import session
 from matching_and_import_db.database.helpers import (
     make_point_geom,
     safe_value,
@@ -446,9 +446,6 @@ def import_to_database(base_data: MatchingOutput):
 
     _print_problem_summary(session)
 
-    print("Populating Global Stats Buckets...")
-    from backend.services.stats_export import populate_global_stats_buckets
-    populate_global_stats_buckets(session)
 
     session.close()
     print("Data import complete!")
