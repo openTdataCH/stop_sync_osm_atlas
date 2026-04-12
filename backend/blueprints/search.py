@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app as app
 import random
-from sqlalchemy import func
+from sqlalchemy import func, text
 from backend.models import StopsMatched, AtlasStop, OsmNode
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
@@ -9,48 +9,87 @@ from backend.queries.helpers import build_atlas_duplicate_membership_condition
 
 search_bp = Blueprint('search', __name__)
 
+SEARCH_MIN_QUERY_LENGTH = 3
+SEARCH_MAX_QUERY_LENGTH = 50
+SEARCH_MAX_RESULTS_PER_QUERY = 200
+SEARCH_STATEMENT_TIMEOUT_MS = 1500
+
+
+def _normalize_search_query(raw_query):
+    if raw_query is None:
+        return ''
+    # Normalize repeated whitespace to avoid expensive no-op variations.
+    return ' '.join(str(raw_query).strip().split()).lower()
+
+
+def _escape_like_literal(value):
+    # Escape wildcard metacharacters so user input is treated as literal text.
+    return value.replace('\\', '\\\\').replace('%', r'\%').replace('_', r'\_')
+
+
+def _ilike_literal(column, pattern):
+    return column.ilike(pattern, escape='\\')
+
 
 @search_bp.route('/api/search', methods=['GET'])
 @limiter.limit("60/minute")
 def search():
-    query_str = request.args.get('q', '').lower()
+    query_str = _normalize_search_query(request.args.get('q', ''))
     results = {"osm": [], "atlas": []}
+    if not query_str:
+        return jsonify(results)
+
+    if len(query_str) < SEARCH_MIN_QUERY_LENGTH:
+        # Ignore very short queries to avoid high-cardinality scans.
+        return jsonify(results)
+
+    if len(query_str) > SEARCH_MAX_QUERY_LENGTH:
+        return jsonify({
+            "error": f"Search query too long (max {SEARCH_MAX_QUERY_LENGTH} characters)."
+        }), 400
+
+    escaped_query = _escape_like_literal(query_str)
+    search_pattern = f"%{escaped_query}%"
+
+    # Keep expensive text scans bounded on PostgreSQL workers.
+    if db.engine.dialect.name == 'postgresql':
+        db.session.execute(text(f"SET LOCAL statement_timeout = {SEARCH_STATEMENT_TIMEOUT_MS}"))
+
     if query_str:
-        search_pattern = f"%{query_str}%"
         matched_query = optimize_query_for_endpoint(StopsMatched.query, 'search').outerjoin(
             AtlasStop, StopsMatched.sloid == AtlasStop.sloid
         ).outerjoin(
             OsmNode, StopsMatched.osm_node_id == OsmNode.osm_node_id
         ).filter(StopsMatched.stop_type == 'matched').filter(
             db.or_(
-                AtlasStop.atlas_designation.ilike(search_pattern),
-                AtlasStop.atlas_designation_official.ilike(search_pattern),
-                AtlasStop.uic_ref.ilike(search_pattern),
-                AtlasStop.atlas_business_org_abbr.ilike(search_pattern),
-                OsmNode.osm_name.ilike(search_pattern),
-                OsmNode.osm_local_ref.ilike(search_pattern),
-                OsmNode.osm_network.ilike(search_pattern),
-                OsmNode.osm_operator.ilike(search_pattern),
-                OsmNode.osm_uic_name.ilike(search_pattern),
-                OsmNode.osm_railway.ilike(search_pattern),
-                OsmNode.osm_amenity.ilike(search_pattern),
-                OsmNode.osm_aerialway.ilike(search_pattern)
+                _ilike_literal(AtlasStop.atlas_designation, search_pattern),
+                _ilike_literal(AtlasStop.atlas_designation_official, search_pattern),
+                _ilike_literal(AtlasStop.uic_ref, search_pattern),
+                _ilike_literal(AtlasStop.atlas_business_org_abbr, search_pattern),
+                _ilike_literal(OsmNode.osm_name, search_pattern),
+                _ilike_literal(OsmNode.osm_local_ref, search_pattern),
+                _ilike_literal(OsmNode.osm_network, search_pattern),
+                _ilike_literal(OsmNode.osm_operator, search_pattern),
+                _ilike_literal(OsmNode.osm_uic_name, search_pattern),
+                _ilike_literal(OsmNode.osm_railway, search_pattern),
+                _ilike_literal(OsmNode.osm_amenity, search_pattern),
+                _ilike_literal(OsmNode.osm_aerialway, search_pattern)
             )
         )
-        matched_stops = matched_query.all()
+        matched_stops = matched_query.limit(SEARCH_MAX_RESULTS_PER_QUERY).all()
         for stop in matched_stops:
             results['atlas'].append(format_stop_data(stop, include_routes=False))
         unmatched_query = optimize_query_for_endpoint(StopsMatched.query, 'search').outerjoin(
             AtlasStop, StopsMatched.sloid == AtlasStop.sloid
         ).filter(StopsMatched.stop_type == 'atlas_unmatched').filter(
             db.or_(
-                AtlasStop.atlas_designation.ilike(search_pattern),
-                AtlasStop.atlas_designation_official.ilike(search_pattern),
-                AtlasStop.atlas_business_org_abbr.ilike(search_pattern),
-                AtlasStop.uic_ref.ilike(search_pattern)
+                _ilike_literal(AtlasStop.atlas_designation, search_pattern),
+                _ilike_literal(AtlasStop.atlas_designation_official, search_pattern),
+                _ilike_literal(AtlasStop.atlas_business_org_abbr, search_pattern),
+                _ilike_literal(AtlasStop.uic_ref, search_pattern)
             )
         )
-        unmatched_stops = unmatched_query.all()
+        unmatched_stops = unmatched_query.limit(SEARCH_MAX_RESULTS_PER_QUERY).all()
         for stop in unmatched_stops:
             results['atlas'].append(format_stop_data(stop, include_routes=False))
     return jsonify(results)
