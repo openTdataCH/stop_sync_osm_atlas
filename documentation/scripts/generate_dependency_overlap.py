@@ -108,7 +108,52 @@ def generate_svg():
     
     IMAGES_DIR.mkdir(parents=True, exist_ok=True)
     (IMAGES_DIR / "dependency_overlap.svg").write_text("\n".join(svg))
-    print(f"Generated: documentation/images/dependency_overlap.svg")
+    print("Generated: documentation/images/dependency_overlap.svg")
+
+
+def update_markdown():
+    doc_path = ROOT / "documentation" / "7.1 Dependency Management & Build Strategy.md"
+    if not doc_path.exists():
+        return
+        
+    doc_content = doc_path.read_text()
+    
+    # Format the lists exactly how the test expects 
+    def format_libs(libs):
+        return ", ".join(f"`{lib}`" for lib in sorted(libs))
+
+    descriptions = {
+        "requirements-base.txt": "Shared core backend foundations requested by all containers",
+        "requirements-web.txt": "Web-only stack for the API and UI",
+        "requirements-scheduler.txt": "Heavy geospatial stack required for the data pipeline",
+        "requirements-test.txt": "Testing frameworks"
+    }
+
+    new_lines = []
+    new_lines.append("<!-- DEPENDENCIES_START -->")
+    new_lines.append(f"- `requirements-base.txt`: {descriptions['requirements-base.txt']} ({format_libs(BASE_LIBS)}).")
+    new_lines.append(f"- `requirements-web.txt`: {descriptions['requirements-web.txt']} ({format_libs(WEB_LIBS)}).")
+    new_lines.append(f"- `requirements-scheduler.txt`: {descriptions['requirements-scheduler.txt']} ({format_libs(SCHED_LIBS)}).")
+    new_lines.append(f"- `requirements-test.txt`: {descriptions['requirements-test.txt']} ({format_libs(TEST_LIBS)}).")
+    new_lines.append("<!-- DEPENDENCIES_END -->")
+    
+    import re
+    # Replace anything between the blocks
+    pattern = re.compile(r"<!-- DEPENDENCIES_START -->.*?<!-- DEPENDENCIES_END -->", re.DOTALL)
+    
+    if pattern.search(doc_content):
+        new_content = pattern.sub("\n".join(new_lines), doc_content)
+    else:
+        # Fallback: find the bullet points and replace them if markers aren't there
+        pattern = re.compile(r"- `requirements-base\.txt`:.*?- `requirements-test\.txt`:[^\n]*\n", re.DOTALL)
+        new_content = pattern.sub("\n".join(new_lines) + "\n", doc_content)
+        
+    if new_content != doc_content:
+        doc_path.write_text(new_content)
+        print("Updated: 7.1 Dependency Management & Build Strategy.md")
+
 
 if __name__ == "__main__":
     generate_svg()
+    update_markdown()
+
