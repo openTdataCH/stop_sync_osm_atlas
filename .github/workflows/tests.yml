@@ -84,10 +84,26 @@ jobs:
   python-tests:
     name: Python Tests
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: write
+      
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Auto-update documentation text and plot
+        run: python documentation/scripts/generate_dependency_overlap.py
+
+      - name: Commit documentation changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs(deps): auto-update dependency overlap matrix & text"
+          file_pattern: "documentation/7.1 Dependency Management & Build Strategy.md documentation/images/dependency_overlap.svg"
 
       - name: Run Python tests
         run: |
