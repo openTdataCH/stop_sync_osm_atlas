@@ -19,9 +19,12 @@ from .get_atlas_gtfs import (
 from matching_and_import_db.utils.route_id import normalize_route_id as _normalize_route_id_for_matching
 from backend.services.stats_export import load_stats_from_file, save_stats_to_file
 
-# Create data directories
-os.makedirs("data/raw", exist_ok=True)
-os.makedirs("data/processed", exist_ok=True)
+
+def _ensure_parent_dir(path: str) -> None:
+    """Create the output parent directory if needed."""
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
 
 def get_atlas_stops(output_path, download_url):
@@ -89,6 +92,7 @@ def get_atlas_stops(output_path, download_url):
             after_type = len(df)
 
             # ── Save processed data ─────────────────────────────────────────
+            _ensure_parent_dir(output_path)
             df.to_csv(output_path, sep=";", index=False)
             print(f"ATLAS: total BOARDING_PLATFORM rows kept = {after_type:,}")
             print(f"ATLAS: processed CSV saved to: {output_path}")
@@ -170,6 +174,7 @@ def write_unified_routes_csv_direct(
         unified_df = pd.DataFrame(unified_rows, columns=[
             'sloid', 'route_id', 'route_id_normalized', 'route_name_short', 'route_name_long', 'direction_id', 'direction_name'
         ])
+        _ensure_parent_dir(unified_out_path)
         unified_df.to_csv(unified_out_path, index=False)
         print(f"Unified routes: wrote {len(unified_df):,} rows to {unified_out_path}")
     else:
