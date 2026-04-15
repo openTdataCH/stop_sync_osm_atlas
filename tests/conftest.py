@@ -14,6 +14,9 @@ import pytest
 # Ensure project root is in path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Ensure tests are independent from external Redis availability.
+os.environ['RATELIMIT_STORAGE_URI'] = 'memory://'
+
 
 # =============================================================================
 # Matching Pipeline Fixtures
