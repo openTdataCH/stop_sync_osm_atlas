@@ -1,0 +1,49 @@
+<!-- Loading overlay for asynchronous PDF Generation -->
+<div id="reportLoadingOverlay" class="loading-overlay" style="display: none;">
+  <div class="loading-content">
+    <h4 class="mb-3"><i class="fas fa-file-alt me-2"></i><span id="overlayTitle">Generating Report</span></h4>
+
+    <!-- Progress bar -->
+    <div class="progress mb-3">
+      <div id="reportProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+        style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+      </div>
+    </div>
+
+    <!-- Status text -->
+    <div id="progressStatus" class="mb-3">
+      <div class="mb-1"><strong id="progressText">Starting...</strong></div>
+      <div id="progressCounters" class="text-muted small">
+        <span id="entriesProcessed">0</span> of <span id="totalEntries">0</span> entries processed
+      </div>
+      <div id="etaText" class="text-muted small" style="display: none;">
+        Estimated time remaining: <span id="etaValue">-</span>
+      </div>
+    </div>
+
+    <!-- Download button (hidden initially) -->
+    <div id="downloadSection" style="display: none;">
+      <div class="alert alert-success mb-3">
+        <i class="fas fa-check-circle me-2"></i>File generated successfully!
+        <div class="text-muted small mt-1">Download available for up to 1 week.</div>
+      </div>
+      <button type="button" class="btn btn-success btn-lg" id="downloadReportBtn">
+        <i class="fas fa-download me-2"></i>Download File
+      </button>
+    </div>
+
+    <!-- Error section (hidden initially) -->
+    <div id="errorSection" style="display: none;">
+      <div class="alert alert-danger">
+        <i class="fas fa-exclamation-circle me-2"></i><span id="errorMessage"></span>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div id="progressControls" class="mt-4">
+      <button type="button" class="btn btn-outline-secondary" id="cancelReportBtn">
+        <i class="fas fa-times me-1"></i>Cancel
+      </button>
+    </div>
+  </div>
+</div>

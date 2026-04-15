@@ -57,14 +57,14 @@
       if (context === 'index') {
         chips.push(buildRemovableChip({
           label: 'Operator: ' + operator,
-          badgeClass: 'text-bg-info',
+          badgeClass: 'filter-chip-operator',
           removeClass: 'remove-filter',
           data: { type: 'atlasOperator', filter: operator }
         }));
       } else {
         chips.push(buildRemovableChip({
           label: 'Operator: ' + operator,
-          badgeClass: 'text-bg-info',
+          badgeClass: 'filter-chip-operator',
           removeClass: 'remove-operator-chip',
           data: { operator: operator }
         }));
@@ -83,7 +83,7 @@
 
     selectedTypes.forEach(function(problemType) {
       const displayType = String(problemType || '').replace(/_/g, ' ').replace(/\b\w/g, function(l){return l.toUpperCase();});
-      typeChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' text-bg-primary">' + escapeHtml(displayType) +
+      typeChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' filter-chip-problem-type">' + escapeHtml(displayType) +
                  ' <a href="#" class="text-dark remove-type-chip" data-type="' + escapeHtml(problemType) + '">x</a></span>');
     });
 
@@ -99,7 +99,7 @@
     if (priorityGroup) groups.push(priorityGroup);
 
     if (groups.length === 0 && !hasOperators) {
-      groups.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' text-bg-secondary">All entries</span>');
+      groups.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' filter-chip-secondary">All entries</span>');
     }
 
     return groups;
@@ -115,7 +115,7 @@
     const operatorsGroup = generateOperatorChipsHtml(operators, { context: 'problems' });
     if (operatorsGroup) groups.push(operatorsGroup);
     if (groups.length === 0) {
-      container.html('<span class="' + FILTER_CHIP_BADGE_CLASS + ' text-bg-secondary">All entries</span>');
+      container.html('<span class="' + FILTER_CHIP_BADGE_CLASS + ' filter-chip-secondary">All entries</span>');
     } else {
       container.html(joinWithAndHtml(groups));
     }

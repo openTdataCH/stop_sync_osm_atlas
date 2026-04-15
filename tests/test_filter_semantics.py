@@ -64,11 +64,11 @@ def test_scope_condition_for_master_matched_without_methods_is_not_narrowed():
     assert "route_gtfs" not in sql
 
 
-def test_route_match_condition_includes_unified_route_variants():
+def test_route_match_condition_targets_gtfs_prefix():
     sql = _compile_expression(build_match_method_conditions(StopsMatched, ['route_gtfs']))
 
     assert "route_gtfs%" in sql
-    assert "route_unified_gtfs%" in sql
+    assert "route_unified_gtfs%" not in sql
 
 
 def test_parse_filter_params_uses_osm_group_types_without_gate():

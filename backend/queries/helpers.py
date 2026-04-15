@@ -86,9 +86,6 @@ def build_match_method_conditions(stop_model, matched_methods):
     for method in matched_methods:
         if method.startswith('route_'):
             method_conditions.append(stop_model.match_type.like(f'{method}%'))
-            if not method.startswith('route_unified_'):
-                suffix = method[len('route_'):]
-                method_conditions.append(stop_model.match_type.like(f'route_unified_{suffix}%'))
         elif method.startswith('distance_matching_'):
             method_conditions.append(stop_model.match_type.like(f'{method}%'))
         else:

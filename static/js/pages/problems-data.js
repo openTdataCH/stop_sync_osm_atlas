@@ -33,10 +33,23 @@ window.ProblemsData = (function () {
         const selectedTypes = getSelectedTypes();
 
         problems.forEach(problem => {
+            let entryKey;
             const isGroup = problem.problem === 'duplicates' && typeof problem.id === 'string';
-            const entryKey = isGroup
-                ? `group_${problem.id}`
-                : `${problem.stop_id || problem.id}_${problem.atlas_lat || problem.osm_lat}_${problem.atlas_lon || problem.osm_lon}`;
+            
+            if (isGroup) {
+                entryKey = `group_${problem.id}`;
+            } else if (problem.problem === 'duplicates') {
+                // For individual duplicate problems, use the group ID as the key to group them together
+                const groupKey = problem.duplicate_group_sloids || problem.duplicate_group_node_ids;
+                if (groupKey) {
+                    entryKey = `group_auto_${groupKey}`;
+                } else {
+                    entryKey = `dup_stop_${problem.stop_id || problem.id}`;
+                }
+            } else {
+                entryKey = `${problem.stop_id || problem.id}_${problem.atlas_lat || problem.osm_lat}_${problem.atlas_lon || problem.osm_lon}`;
+            }
+
             if (!grouped[entryKey]) grouped[entryKey] = [];
             grouped[entryKey].push(problem);
         });

@@ -30,7 +30,7 @@ window.ProblemsUI = (function () {
     function getMemberDisplayInfo(member, groupType) {
         const isOsm = groupType === 'osm' ? true : (groupType === 'atlas' ? false : !!member.osm_node_id);
         return {
-            badge: `<span class="badge text-bg-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`,
+            badge: `<span class="badge-pill-outline ${isOsm ? 'badge-pill-outline--osm' : 'badge-pill-outline--atlas'}">${isOsm ? 'OSM' : 'ATLAS'}</span>`,
             ident: isOsm ? (member.osm_node_id || '-') : (member.sloid || '-'),
             name: isOsm ? (member.osm_name || member.osm_uic_name || '-')
                 : (member.atlas_designation_official || member.atlas_designation || '-'),
@@ -263,7 +263,7 @@ window.ProblemsUI = (function () {
             if (!Array.isArray(problem.members) || problem.members.length === 0) {
                 // Individual duplicate entry (shown in "All Problems" view)
                 const isOsm = !!problem.has_osm_duplicate;
-                const badge = `<span class="badge text-bg-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
+                const badge = `<span class="badge-pill-outline ${isOsm ? 'badge-pill-outline--osm' : 'badge-pill-outline--atlas'}">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
                 const ident = isOsm ? (problem.osm_node_id || '-') : (problem.sloid || '-');
                 const name = isOsm ? (problem.osm_name || problem.osm_uic_name || '-')
                     : (problem.atlas_designation_official || problem.atlas_designation || '-');
@@ -271,11 +271,11 @@ window.ProblemsUI = (function () {
                     ? (problem.osm_lat && problem.osm_lon ? `${Math.round(problem.osm_lat * 1e5) / 1e5}, ${Math.round(problem.osm_lon * 1e5) / 1e5}` : '-')
                     : (problem.atlas_lat && problem.atlas_lon ? `${Math.round(problem.atlas_lat * 1e5) / 1e5}, ${Math.round(problem.atlas_lon * 1e5) / 1e5}` : '-');
 
-                let infoHtml = '<table class="table table-sm mb-2"><thead><tr>' +
+                let infoHtml = '<table class="problem-table mb-2"><thead><tr>' +
                     '<th>Source</th><th>Identifier</th><th>Name</th><th>Coords</th></tr></thead><tbody>';
                 infoHtml += `<tr><td>${badge}</td><td>${ident}</td><td>${name}</td><td>${coords}</td></tr>`;
                 infoHtml += '</tbody></table>';
-                infoHtml += '<small class="text-muted"><i class="fas fa-info-circle"></i> Part of a duplicates group</small>';
+                infoHtml += '<div class="mt-2 text-muted" style="font-size: 0.65rem;"><i class="fas fa-info-circle"></i> Part of a duplicates group</div>';
 
                 actionButtonsHtml += wrapInSection(
                     '<i class="fas fa-clone"></i> Duplicate Entry',
@@ -287,13 +287,13 @@ window.ProblemsUI = (function () {
                 html += '<h6><i class="fas fa-clone"></i> Duplicates</h6>';
 
                 // Table of members
-                html += '<table class="table table-sm"><thead><tr>' +
+                html += '<table class="problem-table"><thead><tr>' +
                     '<th>Source</th><th>Identifier</th><th>Name</th><th>Coords</th></tr></thead><tbody>';
 
                 (problem.members || []).forEach(member => {
                     const isOsmGroup = problem.group_type === 'osm';
                     const isOsm = isOsmGroup ? true : (problem.group_type === 'atlas' ? false : !!member.osm_node_id);
-                    const badge = `<span class="badge text-bg-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
+                    const badge = `<span class="badge-pill-outline ${isOsm ? 'badge-pill-outline--osm' : 'badge-pill-outline--atlas'}">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
                     const ident = isOsm ? (member.osm_node_id || '-') : (member.sloid || '-');
                     const name = isOsm ? (member.osm_name || member.osm_uic_name || '-')
                         : (member.atlas_designation_official || member.atlas_designation || '-');
@@ -303,9 +303,9 @@ window.ProblemsUI = (function () {
 
                     html += `<tr>
                         <td>${badge}</td>
-                        <td>${ident}</td>
+                        <td><code>${ident}</code></td>
                         <td>${name || '-'}</td>
-                        <td>${coords}</td>
+                        <td><span class="text-muted" style="font-size: 0.65rem">${coords}</span></td>
                     </tr>`;
                 });
 

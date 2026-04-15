@@ -10,9 +10,25 @@ import logging
 from typing import List, Tuple, Dict, Optional
 from urllib.parse import unquote
 
-from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file, redirect
+from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file, redirect, current_app
 from werkzeug.utils import safe_join
 from backend.services.docs_stats import replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html
+import uuid
+import threading
+import tempfile
+import shutil
+
+from backend.services.async_export import (
+    start_cleanup_thread,
+    cleanup_stale_tasks,
+    init_task,
+    update_progress as ae_update_progress,
+    set_task_status,
+    complete_task,
+    get_progress,
+    get_completed_file,
+    cancel_task as ae_cancel_task,
+)
 
 try:
     import mistune  # type: ignore
@@ -32,6 +48,75 @@ except Exception:  # pragma: no cover
 
 docs_bp = Blueprint('docs', __name__)
 logger = logging.getLogger(__name__)
+
+
+def _read_request_payload() -> dict:
+    """Read request payload without raising 415 for non-JSON content types."""
+    data = request.get_json(silent=True)
+    if isinstance(data, dict):
+        return data
+    if request.form:
+        return request.form.to_dict(flat=True)
+    return {}
+
+
+def _to_bool(value, default: bool = True) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+
+    normalized = str(value).strip().lower()
+    if normalized in {'1', 'true', 'yes', 'on'}:
+        return True
+    if normalized in {'0', 'false', 'no', 'off'}:
+        return False
+    return default
+
+
+def _normalize_section_key(value) -> Optional[str]:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+
+    text = text.rstrip('.')
+    if not text:
+        return None
+
+    head = text.split('.', 1)[0].strip()
+    if head.isdigit():
+        return head
+    return None
+
+
+def _to_sections_list(value) -> Optional[List[str]]:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        sections = [_normalize_section_key(item) for item in value]
+        sections = [item for item in sections if item is not None]
+        return sections or None
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        if stripped.startswith('['):
+            try:
+                parsed = json.loads(stripped)
+                if isinstance(parsed, list):
+                    sections = [_normalize_section_key(item) for item in parsed]
+                    sections = [item for item in sections if item is not None]
+                    return sections or None
+            except Exception:
+                pass
+        sections = [_normalize_section_key(item) for item in stripped.split(',')]
+        sections = [item for item in sections if item is not None]
+        return sections or None
+    return None
 
 
 def _repo_root() -> str:
@@ -637,26 +722,124 @@ def docs_asset(filename: str):
     return send_from_directory(docs_dir, filename)
 
 
-@docs_bp.route('/api/docs/download_pdf', methods=['GET'])
-def download_docs_pdf():
-    """Download the generated documentation PDF (generate it if missing)."""
-    if not ensure_docs_pdf_generated():
-        return jsonify({
-            "error": "Could not generate documentation PDF. Run the 'Docs: Build PDF' task and check logs.",
-        }), 500
+@docs_bp.route('/api/docs/generate_pdf_async', methods=['POST'])
+def generate_docs_pdf_async():
+    start_cleanup_thread()
+    cleanup_stale_tasks()
+    
+    data = _read_request_payload()
+    included_sections = _to_sections_list(data.get('included_sections'))  # None means all
+    include_cover = _to_bool(data.get('include_cover'), default=True)
+    selected_only = _to_bool(data.get('selected_only'), default=False)
 
-    pdf_path = _first_existing_docs_pdf()
-    if not pdf_path:
-        return jsonify({
-            "error": "Could not find a generated documentation PDF after generation attempt.",
-        }), 500
-
-    return send_file(
-        pdf_path,
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name='stop_sync_osm_atlas_documentation.pdf',
+    if selected_only and not included_sections:
+        return jsonify({"error": "No sections selected for partial documentation export."}), 400
+    
+    task_id = str(uuid.uuid4())
+    init_task(task_id)
+    
+    app_obj = current_app._get_current_object()
+    
+    thread = threading.Thread(
+        target=_background_docs_pdf,
+        args=(app_obj, task_id, included_sections, include_cover)
     )
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({"task_id": task_id})
+
+
+def _background_docs_pdf(flask_app, task_id, included_sections, include_cover):
+    import os
+    import shutil
+    import tempfile
+    from pathlib import Path
+    
+    with flask_app.app_context():
+        try:
+            if get_progress(task_id) is None:
+                return
+            set_task_status(task_id, 'processing')
+            
+            # Caching check if "All sections" are selected
+            if not included_sections:
+                if ensure_docs_pdf_generated():
+                    cached_path = _first_existing_docs_pdf()
+                    if cached_path:
+                        filename = f"docs_manual_{task_id[:8]}.pdf"
+                        temp_dir = tempfile.gettempdir()
+                        dest_path = os.path.join(temp_dir, filename)
+                        shutil.copy2(cached_path, dest_path)
+                        complete_task(task_id, dest_path, filename)
+                        ae_update_progress(task_id, 1, 1)
+                        return
+                        
+            from documentation.pdf_generator.build_docs_pdf import _build_pdf
+            filename = f"docs_custom_{task_id[:8]}.pdf"
+            temp_dir = tempfile.gettempdir()
+            dest_path = os.path.join(temp_dir, filename)
+            
+            _build_pdf(
+                included_sections=included_sections, 
+                include_cover=include_cover, 
+                output_path=Path(dest_path)
+            )
+            
+            complete_task(task_id, dest_path, filename)
+            ae_update_progress(task_id, 1, 1)
+        except Exception as e:
+            set_task_status(task_id, 'error', str(e))
+            flask_app.logger.error(f"Background docs PDF error: {e}")
+
+
+@docs_bp.route('/api/docs/pdf_progress/<task_id>', methods=['GET'])
+def get_docs_pdf_progress(task_id):
+    progress = get_progress(task_id)
+    if not progress:
+        return jsonify({"error": "Task not found"}), 404
+    return jsonify(progress)
+
+
+@docs_bp.route('/api/docs/download_pdf/<task_id>', methods=['GET'])
+def download_docs_pdf_async(task_id):
+    task_info = get_completed_file(task_id)
+    if not task_info:
+        return jsonify({"error": "PDF not found"}), 404
+    
+    filepath = task_info['file_path']
+    filename = task_info['filename']
+    
+    if not os.path.exists(filepath):
+        return jsonify({"error": "PDF file not found"}), 404
+    
+    try:
+        response = send_file(
+            filepath,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename,
+        )
+
+        @response.call_on_close
+        def remove_file():
+            try:
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+            except Exception as e:
+                pass
+            finally:
+                ae_cancel_task(task_id)
+
+        return response
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@docs_bp.route('/api/docs/cancel_pdf/<task_id>', methods=['POST'])
+def cancel_docs_pdf(task_id):
+    ae_cancel_task(task_id)
+    return jsonify({"status": "cancelled"})
 
 
 def _get_operator_normalizations_table_html() -> str:

@@ -121,14 +121,14 @@ def get_atlas_stops(output_path, download_url):
             }
 
 
-def write_unified_routes_csv_direct(
+def write_atlas_routes_gtfs_csv(
     gtfs_data,
     traffic_points: pd.DataFrame,
     integrated_gtfs_data: Optional[pd.DataFrame] = None,
-    unified_out_path: str = "data/processed/atlas_routes_unified.csv"
+    gtfs_out_path: str = "data/processed/atlas_routes_gtfs.csv"
 ):
     """Create GTFS route mapping CSV from source data without intermediate files."""
-    unified_rows = []
+    gtfs_rows = []
 
     def _safe_direction_id(val):
         try:
@@ -142,10 +142,10 @@ def write_unified_routes_csv_direct(
     integrated_data = None
     
     if integrated_gtfs_data is not None:
-        print("Processing GTFS data for unified routes (reusing precomputed integration)...")
+        print("Processing GTFS data for GTFS routes (reusing precomputed integration)...")
         integrated_data = integrated_gtfs_data
     elif gtfs_data and 'stop_route_unique' in gtfs_data and 'routes' in gtfs_data and 'route_directions' in gtfs_data:
-        print("Processing GTFS data for unified routes...")
+        print("Processing GTFS data for GTFS routes...")
         # Build integrated GTFS data (per-stop, per-route with a representative direction)
         integrated_data = build_integrated_gtfs_data_streaming(gtfs_data, traffic_points)
     
@@ -160,7 +160,7 @@ def write_unified_routes_csv_direct(
             route_long = getattr(r, 'route_long_name', None)
             
             if pd.notna(sloid):  # Only include rows with valid sloid mapping
-                unified_rows.append({
+                gtfs_rows.append({
                     'sloid': str(sloid),
                     'route_id': None if pd.isna(route_id) else str(route_id),
                     'route_id_normalized': _normalize_route_id_for_matching(None if pd.isna(route_id) else str(route_id)),
@@ -170,15 +170,15 @@ def write_unified_routes_csv_direct(
                     'direction_name': None if pd.isna(direction) else str(direction),
                 })
 
-    if unified_rows:
-        unified_df = pd.DataFrame(unified_rows, columns=[
+    if gtfs_rows:
+        gtfs_df = pd.DataFrame(gtfs_rows, columns=[
             'sloid', 'route_id', 'route_id_normalized', 'route_name_short', 'route_name_long', 'direction_id', 'direction_name'
         ])
-        _ensure_parent_dir(unified_out_path)
-        unified_df.to_csv(unified_out_path, index=False)
-        print(f"Unified routes: wrote {len(unified_df):,} rows to {unified_out_path}")
+        _ensure_parent_dir(gtfs_out_path)
+        gtfs_df.to_csv(gtfs_out_path, index=False)
+        print(f"GTFS routes: wrote {len(gtfs_df):,} rows to {gtfs_out_path}")
     else:
-        print("No route data to write to unified file")
+        print("No route data to write to GTFS file")
 
 
 if __name__ == "__main__":
@@ -226,16 +226,16 @@ if __name__ == "__main__":
         print(f"Error processing GTFS data: {e}")
         gtfs_stream = None
 
-    # Build unified routes file directly from source data
+    # Build GTFS routes file directly from source data
     try:
-        write_unified_routes_csv_direct(
+        write_atlas_routes_gtfs_csv(
             gtfs_data=gtfs_stream,
             traffic_points=stops_data,
             integrated_gtfs_data=integrated_data,
-            unified_out_path="data/processed/atlas_routes_unified.csv"
+            gtfs_out_path="data/processed/atlas_routes_gtfs.csv"
         )
     except Exception as e:
-        print(f"Error writing unified routes CSV: {e}")
+        print(f"Error writing GTFS routes CSV: {e}")
 
     print("Done!")
 

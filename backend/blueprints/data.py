@@ -6,7 +6,7 @@ from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMem
 from backend.extensions import db, limiter
 from backend.db_errors import is_missing_table_error
 from backend.serializers.stops import format_stop_data
-from backend.services.routes import get_stops_for_route, get_osm_routes_for_node, get_unified_routes_for_sloid
+from backend.services.routes import get_stops_for_route, get_osm_routes_for_node, get_atlas_routes_for_sloid
 from backend.queries.helpers import (
     build_atlas_duplicate_membership_condition,
     build_stop_scope_condition,
@@ -515,7 +515,7 @@ def get_stop_popup():
                         "atlas_lon": r.atlas_lon,
                         "distance_m": r.distance_m,
                         "match_type": r.match_type,
-                        "routes_unified": get_unified_routes_for_sloid(r.sloid) if r.sloid else [],
+                        "routes_atlas": get_atlas_routes_for_sloid(r.sloid) if r.sloid else [],
                     })
                 return jsonify({"stop": osm_centric})
         return jsonify({"stop": enriched})

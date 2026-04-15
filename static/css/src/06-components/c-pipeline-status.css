@@ -117,13 +117,7 @@
   color: var(--color-dark, #343a40);
 }
 
-.pipeline-maintenance-card__actions {
-  margin-bottom: 0.75rem;
-}
 
-#pipelineDocsCta {
-  font-weight: 600;
-}
 
 .pipeline-maintenance-card__timers {
   display: flex;

@@ -92,9 +92,9 @@
             return actionButtonHtml ? `<div class="bubble-footer"><div class="bubble-btn-row">${actionButtonHtml}</div></div>` : '';
         }
 
-        const routes = type === 'atlas' ? data.routes_unified : data.routes_osm;
+        const routes = type === 'atlas' ? data.routes_atlas : data.routes_osm;
         const formattedRoutes = type === 'atlas'
-            ? PopupUtils.formatUnifiedRouteList(routes)
+            ? PopupUtils.formatAtlasRouteList(routes)
             : PopupUtils.formatRouteList(routes);
         const collapsible = PopupUtils.createCollapsible('Routes', formattedRoutes, COLLAPSIBLE_DEFAULT_EXPANDED);
         const buttons = `${collapsible.buttonHtml || ''}${actionButtonHtml || ''}`;
@@ -222,7 +222,7 @@
             atlas_lon: stop.atlas_lon,
             distance_m: stop.distance_m,
             match_type: stop.match_type,
-            routes_unified: stop.routes_unified,
+            routes_atlas: stop.routes_atlas,
             stop_type: stop.stop_type,
             isOperatorMismatch: stop.isOperatorMismatch
         };

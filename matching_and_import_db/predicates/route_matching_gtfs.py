@@ -2,7 +2,7 @@
 Route-based matching predicate.
 
 Matches ATLAS stops to OSM nodes by comparing GTFS route tokens.
-Route data is provided by AtlasState (atlas_routes_unified.csv) and OsmState
+Route data is provided by AtlasState (atlas_routes_gtfs.csv) and OsmState
 (derived from the OSM XML relation pass) — no file I/O happens here.
 """
 import logging
@@ -98,7 +98,7 @@ class RouteMatchPredicate(BasePredicate):
                 ctx.commit(
                     atlas_node=entry,
                     osm_node=matched_node,
-                    match_type=f"route_unified_{match_source}",
+                    match_type=f"route_gtfs_{match_source}",
                     distance_m=matched_dist,
                     notes=match_evidence,
                 )

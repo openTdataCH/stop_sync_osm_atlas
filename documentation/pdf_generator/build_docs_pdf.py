@@ -45,11 +45,46 @@ def _slugify(text: str) -> str:
     return slug.strip('-')
 
 
-def _sorted_docs() -> list[Path]:
-    return sorted(
+def _top_level_section_key(filename: str) -> str | None:
+    stem = Path(filename).stem
+    token = stem.split(' ', 1)[0]
+    token = token.rstrip('.')
+    if not token:
+        return None
+    head = token.split('.', 1)[0]
+    return head if head.isdigit() else None
+
+
+def _normalize_section_key(value: str) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip().rstrip('.')
+    if not text:
+        return None
+    head = text.split('.', 1)[0]
+    return head if head.isdigit() else None
+
+
+def _sorted_docs(included_sections: list[str] = None) -> list[Path]:
+    docs = sorted(
         [path for path in DOCS_DIR.glob('*.md') if path.is_file()],
         key=lambda path: path.name.lower(),
     )
+    if included_sections is not None:
+        normalized_sections = {
+            key for key in (_normalize_section_key(section) for section in included_sections)
+            if key is not None
+        }
+        if not normalized_sections:
+            return []
+
+        filtered_docs = []
+        for doc in docs:
+            top_key = _top_level_section_key(doc.name)
+            if top_key and top_key in normalized_sections:
+                filtered_docs.append(doc)
+        return filtered_docs
+    return docs
 
 
 def _doc_anchor_map(doc_paths: list[Path]) -> dict[str, str]:
@@ -277,20 +312,23 @@ def _process_markdown_headers(content: str, filename: str) -> str:
     return '\n'.join(processed_lines)
 
 
-def _prepare_document(doc_paths: list[Path]) -> str:
+def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
     anchor_map = _doc_anchor_map(doc_paths)
     generated_at = datetime.now().strftime('%Y-%m-%d %H:%M')
     stats = load_stats_for_docs()
 
-    parts = [
-        '<div class="title-page">',
-        '<div class="title-page__eyebrow">Stop Sync OSM Atlas</div>',
-        '<div class="title-page__title">Documentation Bundle</div>',
-        f'<div class="title-page__deck">A print-oriented export of the repository documentation. &nbsp; <small>({generated_at})</small></div>',
-        '</div>',
-        '<div class="page-break"></div>',
-        '',
-    ]
+    parts = []
+    
+    if include_cover:
+        parts.extend([
+            '<div class="title-page">',
+            '<div class="title-page__eyebrow">Stop Sync OSM Atlas</div>',
+            '<div class="title-page__title">Documentation Bundle</div>',
+            f'<div class="title-page__deck">A print-oriented export of the repository documentation. &nbsp; <small>({generated_at})</small></div>',
+            '</div>',
+            '<div class="page-break"></div>',
+            '',
+        ])
 
     for doc_path in doc_paths:
         parts.extend([
@@ -333,16 +371,19 @@ def _protect_math(match: re.Match[str]) -> str:
     return match.group(0).replace('\\', '\\\\')
 
 
-def _build_pdf() -> None:
+def _build_pdf(included_sections: list[str] = None, include_cover: bool = True, output_path: Path = None) -> Path:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     DIAGRAMS_DIR.mkdir(parents=True, exist_ok=True)
-    doc_paths = _sorted_docs()
+    doc_paths = _sorted_docs(included_sections)
     if not doc_paths:
-        raise RuntimeError('No documentation markdown files found.')
+        raise RuntimeError('No documentation markdown files found for the given selection.')
+
+    if output_path is None:
+        output_path = OUTPUT_PDF_PATH
 
     # 1. Prepare and combine markdown
     print('Preparing combined markdown...')
-    combined_md = _prepare_document(doc_paths)
+    combined_md = _prepare_document(doc_paths, include_cover)
     COMBINED_MD_PATH.write_text(combined_md, encoding='utf-8')
 
     # 2. Convert markdown to HTML using mistune
@@ -372,7 +413,8 @@ def _build_pdf() -> None:
     print('Printing to PDF using WeasyPrint...')
     html_doc = HTML(string=full_html, base_url=str(DOCS_DIR.absolute()))
     css_doc = CSS(filename=str(STYLE_PATH.absolute()))
-    html_doc.write_pdf(target=str(OUTPUT_PDF_PATH.absolute()), stylesheets=[css_doc])
+    html_doc.write_pdf(target=str(output_path.absolute()), stylesheets=[css_doc])
+    return output_path
 
 
 if __name__ == '__main__':

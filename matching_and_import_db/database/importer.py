@@ -14,7 +14,7 @@ import argparse
 from collections import Counter
 
 import pandas as pd
-from sqlalchemy import func, text, inspect
+from sqlalchemy import func, text, inspect, insert
 
 # --- Internal modules -------------------------------------------------------
 from matching_and_import_db.orchestrator import run_matching
@@ -140,51 +140,120 @@ def precompute_route_artifacts(base_data: MatchingOutput, all_route_data: dict |
     }
 
 
-def _import_all_osm_nodes(session, all_osm_nodes, problem_ctx):
-    """Insert ALL OSM nodes upfront so FK constraints from route_osm_stops are always satisfied."""
-    for node in all_osm_nodes:
-        record = OsmNode(
-            osm_node_id=str(node.node_id),
-            osm_local_ref=node.local_ref,
-            osm_name=node.name,
-            osm_uic_name=node.uic_name,
-            osm_uic_ref=node.uic_ref,
-            osm_network=node.network,
-            osm_operator=node.operator,
-            osm_public_transport=node.public_transport,
-            osm_railway=node.railway,
-            osm_amenity=node.amenity,
-            osm_aerialway=node.aerialway,
-            osm_node_type=get_osm_node_type(node.tags, is_osm_unmatched=True) if node.tags else None,
-            duplicate_group_node_ids=problem_ctx.duplicate_osm_group_map.get(str(node.node_id)),
-        )
-        session.add(record)
-    session.commit()
-    print(f"Imported {len(all_osm_nodes)} OSM nodes")
+# ---------------------------------------------------------------------------
+# WKT geometry helper (no SQLAlchemy server-side expressions)
+# ---------------------------------------------------------------------------
+
+def _make_point_wkt(lat, lon):
+    """Create a WKT POINT string, or None if coordinates are missing."""
+    if lat is None or lon is None:
+        return None
+    try:
+        lat_f = float(lat)
+        lon_f = float(lon)
+    except Exception:
+        return None
+    return f"SRID=4326;POINT({lon_f} {lat_f})"
 
 
-def _import_matched_stops(
-    session,
-    matched_records,
-    problem_ctx,
-    duplicate_sloid_map,
-    processed_sloids,
-    processed_osm_node_ids,
-    precomputed_problem_map=None,
-):
-    print("\nImporting matched records and attaching problem flags...")
+# ---------------------------------------------------------------------------
+# Payload builder — runs OUTSIDE the blocking maintenance window
+# ---------------------------------------------------------------------------
 
-    BATCH_SIZE = int(os.getenv('DB_IMPORT_BATCH_SIZE', '5000'))
-    _t0 = time.time()
-    inserted = 0
+def build_fast_insert_payloads(
+    base_data: MatchingOutput,
+    problem_artifacts: dict,
+    route_artifacts: dict | None = None,
+) -> dict:
+    """Transform the full MatchingOutput into plain dicts ready for bulk DB insert.
 
-    total = len(matched_records)
-    for idx, current_match in enumerate(matched_records):
-        atlas_lat, atlas_lon = current_match.atlas_node.lat, current_match.atlas_node.lon
-        osm_lat, osm_lon = current_match.osm_node.lat, current_match.osm_node.lon
+    This function performs ALL CPU-bound work (coordinate formatting, duplicate
+    group resolution, problem result attachment, trio-middle detection) so that
+    the subsequent ``import_to_database`` call is pure I/O.
 
-        if precomputed_problem_map is not None and id(current_match) in precomputed_problem_map:
-            problems = precomputed_problem_map[id(current_match)]
+    Returns a dict of lists-of-dicts keyed by table name.
+    """
+    problem_ctx = problem_artifacts.get('problem_ctx') or ProblemContext.build(base_data)
+    matched_problem_map = problem_artifacts.get('matched_problem_map', {})
+    unmatched_atlas_problem_map = problem_artifacts.get('unmatched_atlas_problem_map', {})
+    unmatched_osm_problem_map = problem_artifacts.get('unmatched_osm_problem_map', {})
+
+    duplicate_sloid_map = base_data.duplicate_sloid_map
+
+    # ---- Counters for the console summary ----
+    all_sloids = []
+    for rec in base_data.matched:
+        sloid = safe_value(rec.atlas_node.sloid)
+        if sloid:
+            all_sloids.append(sloid)
+    for rec in base_data.unmatched_atlas:
+        sloid = safe_value(rec.sloid)
+        if sloid:
+            all_sloids.append(sloid)
+    counts = Counter(all_sloids)
+    duplicate_sloids = {s for s, c in counts.items() if c > 1}
+    if duplicate_sloids:
+        print(f"{len(duplicate_sloids)} sloids are matched to more than one OSM node")
+
+    # ---- 0. OSM nodes ----
+    osm_node_dicts = []
+    for node in base_data.all_osm_nodes:
+        osm_node_dicts.append({
+            'osm_node_id': str(node.node_id),
+            'osm_local_ref': node.local_ref,
+            'osm_name': node.name,
+            'osm_uic_name': node.uic_name,
+            'osm_uic_ref': node.uic_ref,
+            'osm_network': node.network,
+            'osm_operator': node.operator,
+            'osm_public_transport': node.public_transport,
+            'osm_railway': node.railway,
+            'osm_amenity': node.amenity,
+            'osm_aerialway': node.aerialway,
+            'osm_node_type': get_osm_node_type(node.tags, is_osm_unmatched=True) if node.tags else None,
+            'duplicate_group_node_ids': problem_ctx.duplicate_osm_group_map.get(str(node.node_id)),
+        })
+
+    # ---- 0a. OSM stop units + members (assign sequential IDs in memory) ----
+    osm_stop_dicts = []
+    osm_stop_member_dicts = []
+    next_stop_id = 1
+    for stop_unit in base_data.osm_stop_units:
+        stop_id = next_stop_id
+        next_stop_id += 1
+        osm_stop_dicts.append({
+            'id': stop_id,
+            'stop_kind': stop_unit.stop_kind,
+            'group_kind': stop_unit.group_kind,
+            'representative_node_id': stop_unit.representative_node_id,
+        })
+        for member in stop_unit.members:
+            osm_stop_member_dicts.append({
+                'osm_stop_id': stop_id,
+                'node_id': member.node_id,
+                'member_role': member.member_role,
+            })
+
+    # ---- Track processed sloids/osm_node_ids ----
+    processed_sloids = set()
+    processed_osm_node_ids = set()
+
+    # ---- 1. Matched stops ----
+    stops_matched_dicts = []
+    atlas_stop_dicts = []
+    # problems_dicts will be keyed by a temporary stop sequence number.
+    # We use a list of (stop_sequence, problem_dicts) to pair them up later.
+    problem_rows = []  # list of (temp_stop_idx, problem_type, priority)
+    stop_idx = 0  # running index used as temporary PK for problems
+
+    for current_match in base_data.matched:
+        atlas_lat = current_match.atlas_node.lat
+        atlas_lon = current_match.atlas_node.lon
+        osm_lat = current_match.osm_node.lat
+        osm_lon = current_match.osm_node.lon
+
+        if id(current_match) in matched_problem_map:
+            problems = matched_problem_map[id(current_match)]
         else:
             current_match.evaluate_problems(problem_ctx, STOP_PROBLEM_PIPELINE)
             problems = current_match.problems
@@ -193,108 +262,56 @@ def _import_matched_stops(
         osm_node_id = current_match.osm_node.node_id
         distance_m = current_match.distance_m
 
-        geom = make_point_geom(atlas_lat, atlas_lon) if atlas_lat is not None and atlas_lon is not None else make_point_geom(osm_lat, osm_lon)
+        geom_wkt = _make_point_wkt(atlas_lat, atlas_lon) if atlas_lat is not None and atlas_lon is not None else _make_point_wkt(osm_lat, osm_lon)
 
-        stop_record = StopsMatched(
-            sloid=sloid,
-            stop_type='matched',
-            match_type=current_match.match_type,
-            atlas_lat=atlas_lat,
-            atlas_lon=atlas_lon,
-            osm_node_id=osm_node_id,
-            osm_lat=osm_lat,
-            osm_lon=osm_lon,
-            distance_m=distance_m,
-            matching_notes=current_match.notes,
-            geom=geom,
-        )
-        apply_problem_results(stop_record, problems)
-        session.add(stop_record)
+        stops_matched_dicts.append({
+            '_idx': stop_idx,
+            'sloid': sloid,
+            'stop_type': 'matched',
+            'match_type': current_match.match_type,
+            'atlas_lat': atlas_lat,
+            'atlas_lon': atlas_lon,
+            'osm_node_id': osm_node_id,
+            'osm_lat': osm_lat,
+            'osm_lon': osm_lon,
+            'distance_m': distance_m,
+            'matching_notes': current_match.notes,
+            'geom': geom_wkt,
+        })
+
+        for p in problems:
+            problem_rows.append((stop_idx, p.problem_type, p.priority))
 
         if sloid and sloid not in processed_sloids:
-            # Derive representative_sloid: first sorted SLOID in group, NULL if this IS the rep
             dup_group = duplicate_sloid_map.get(str(sloid))
             rep_sloid = None
             if dup_group and str(sloid) != dup_group[0]:
                 rep_sloid = dup_group[0]
-            atlas_record = AtlasStop(
-                sloid=sloid,
-                uic_ref=current_match.atlas_node.uic_ref,
-                atlas_designation=current_match.atlas_node.designation,
-                atlas_designation_official=current_match.atlas_node.designation_official,
-                atlas_business_org_abbr=current_match.atlas_node.business_org_abbr,
-                representative_sloid=rep_sloid,
-                duplicate_group_sloids=dup_group,
-            )
-            session.add(atlas_record)
+            atlas_stop_dicts.append({
+                'sloid': sloid,
+                'uic_ref': current_match.atlas_node.uic_ref,
+                'atlas_designation': current_match.atlas_node.designation,
+                'atlas_designation_official': current_match.atlas_node.designation_official,
+                'atlas_business_org_abbr': current_match.atlas_node.business_org_abbr,
+                'representative_sloid': rep_sloid,
+                'duplicate_group_sloids': dup_group,
+            })
             processed_sloids.add(sloid)
 
         if osm_node_id:
             processed_osm_node_ids.add(osm_node_id)
 
-        inserted += 1
-        if BATCH_SIZE > 0 and (inserted % BATCH_SIZE) == 0:
-            session.commit()
-            session.expunge_all()
-            elapsed = max(0.001, time.time() - _t0)
-            progress = idx + 1
-            rate = progress / elapsed
-            pct = (progress / total) * 100.0
-            eta_s = int((total - progress) / max(rate, 1e-9))
-            print(f"  Committed batch: {progress:,}/{total:,} ({pct:.1f}%) | {rate:.1f}/s | ETA {eta_s}s")
+        stop_idx += 1
 
-    session.commit()
-    session.expunge_all()
-    print(f"Imported {len(matched_records)} matched records")
-
-
-def _import_osm_stop_units(session, osm_stop_units):
-    """Import canonical OSM stop units and their members."""
-    imported_units = 0
-    imported_members = 0
-
-    for stop_unit in osm_stop_units:
-        stop_row = OsmStop(
-            stop_kind=stop_unit.stop_kind,
-            group_kind=stop_unit.group_kind,
-            representative_node_id=stop_unit.representative_node_id,
-        )
-        session.add(stop_row)
-        session.flush()
-
-        for member in stop_unit.members:
-            session.add(OsmStopMember(
-                osm_stop_id=stop_row.id,
-                node_id=member.node_id,
-                member_role=member.member_role,
-            ))
-            imported_members += 1
-
-        imported_units += 1
-
-    session.commit()
-    print(f"Imported {imported_units} OSM stop units and {imported_members} stop members")
-
-def _import_unmatched_atlas(
-    session,
-    unmatched_records,
-    problem_ctx,
-    duplicate_sloid_map,
-    processed_sloids,
-    precomputed_unmatched_atlas_map=None,
-):
+    # ---- 2. Unmatched ATLAS ----
     no_nearby_osm_sloids = set()
-    for atlas_node in unmatched_records:
+    for atlas_node in base_data.unmatched_atlas:
         atlas_lat, atlas_lon = atlas_node.lat, atlas_node.lon
-
         if atlas_lat == 0.0 and atlas_lon == 0.0:
             continue
 
         sloid = atlas_node.sloid
-
-        precomputed_entry = None
-        if precomputed_unmatched_atlas_map is not None:
-            precomputed_entry = precomputed_unmatched_atlas_map.get(id(atlas_node))
+        precomputed_entry = unmatched_atlas_problem_map.get(id(atlas_node))
 
         if precomputed_entry is not None:
             is_isolated = bool(precomputed_entry.get('is_isolated', False))
@@ -307,53 +324,51 @@ def _import_unmatched_atlas(
             problems = run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, atlas_node)
 
         if is_isolated and sloid:
-             no_nearby_osm_sloids.add(sloid)
+            no_nearby_osm_sloids.add(sloid)
 
-        stop_record = StopsMatched(
-            sloid=sloid,
-            stop_type='atlas_unmatched',
-            match_type=match_type_for_unmatched,
-            atlas_lat=atlas_lat,
-            atlas_lon=atlas_lon,
-            geom=make_point_geom(atlas_lat, atlas_lon),
-        )
+        geom_wkt = _make_point_wkt(atlas_lat, atlas_lon)
 
-        apply_problem_results(stop_record, problems)
+        stops_matched_dicts.append({
+            '_idx': stop_idx,
+            'sloid': sloid,
+            'stop_type': 'atlas_unmatched',
+            'match_type': match_type_for_unmatched,
+            'atlas_lat': atlas_lat,
+            'atlas_lon': atlas_lon,
+            'osm_node_id': None,
+            'osm_lat': None,
+            'osm_lon': None,
+            'distance_m': None,
+            'matching_notes': None,
+            'geom': geom_wkt,
+        })
 
-        session.add(stop_record)
+        for p in problems:
+            problem_rows.append((stop_idx, p.problem_type, p.priority))
 
         if sloid and sloid not in processed_sloids:
             dup_group = duplicate_sloid_map.get(str(sloid))
             rep_sloid = None
             if dup_group and str(sloid) != dup_group[0]:
                 rep_sloid = dup_group[0]
-            atlas_record = AtlasStop(
-                sloid=sloid,
-                uic_ref=atlas_node.uic_ref,
-                atlas_designation=atlas_node.designation,
-                atlas_designation_official=atlas_node.designation_official,
-                atlas_business_org_abbr=atlas_node.business_org_abbr,
-                representative_sloid=rep_sloid,
-                duplicate_group_sloids=dup_group,
-            )
-            session.add(atlas_record)
+            atlas_stop_dicts.append({
+                'sloid': sloid,
+                'uic_ref': atlas_node.uic_ref,
+                'atlas_designation': atlas_node.designation,
+                'atlas_designation_official': atlas_node.designation_official,
+                'atlas_business_org_abbr': atlas_node.business_org_abbr,
+                'representative_sloid': rep_sloid,
+                'duplicate_group_sloids': dup_group,
+            })
             processed_sloids.add(sloid)
 
-    session.commit()
-    return no_nearby_osm_sloids
+        stop_idx += 1
 
-def _import_unmatched_osm(
-    session,
-    unmatched_osm_records,
-    problem_ctx,
-    processed_osm_node_ids,
-    base_data,
-    precomputed_unmatched_osm_map=None,
-):
+    # ---- 3. Unmatched OSM ----
     # Pre-calculate middle nodes where both sides are matched
+    matched_osm_nodes = {str(r.osm_node.node_id) for r in base_data.matched if getattr(r, 'osm_node', None)}
     trio_middles_effectively_matched = set()
-    matched_osm_nodes = {str(r.osm_node.node_id) for r in getattr(base_data, 'matched', []) if getattr(r, 'osm_node', None)}
-    for stop_unit in getattr(base_data, 'osm_stop_units', []):
+    for stop_unit in base_data.osm_stop_units:
         if stop_unit.stop_kind == 'trio':
             middle_id = None
             side_ids = []
@@ -366,50 +381,60 @@ def _import_unmatched_osm(
                 if all(s in matched_osm_nodes for s in side_ids):
                     trio_middles_effectively_matched.add(middle_id)
 
-    for osm_node in unmatched_osm_records:
+    for osm_node in base_data.unmatched_osm:
         osm_lat, osm_lon = osm_node.lat, osm_node.lon
-
         if osm_lat == 0.0 and osm_lon == 0.0 and 'lat' not in osm_node.tags:
-             continue
+            continue
 
         osm_node_id = str(osm_node.node_id)
-
         stop_type = 'osm_unmatched'
         match_type = None
         if osm_node_id in trio_middles_effectively_matched:
             stop_type = 'effectively_matched'
             match_type = 'distance_matching_trio'
 
-        stop_record = StopsMatched(
-            stop_type=stop_type,
-            osm_node_id=osm_node_id,
-            match_type=match_type,
-            osm_lat=osm_lat,
-            osm_lon=osm_lon,
-            geom=make_point_geom(osm_lat, osm_lon),
-        )
-
-        if precomputed_unmatched_osm_map is not None and id(osm_node) in precomputed_unmatched_osm_map:
-            problems = precomputed_unmatched_osm_map[id(osm_node)]
+        if id(osm_node) in unmatched_osm_problem_map:
+            problems = unmatched_osm_problem_map[id(osm_node)]
         else:
             problems = run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, osm_node)
-        apply_problem_results(stop_record, problems)
 
-        session.add(stop_record)
+        geom_wkt = _make_point_wkt(osm_lat, osm_lon)
+
+        stops_matched_dicts.append({
+            '_idx': stop_idx,
+            'sloid': None,
+            'stop_type': stop_type,
+            'match_type': match_type,
+            'atlas_lat': None,
+            'atlas_lon': None,
+            'osm_node_id': osm_node_id,
+            'osm_lat': osm_lat,
+            'osm_lon': osm_lon,
+            'distance_m': None,
+            'matching_notes': None,
+            'geom': geom_wkt,
+        })
+
+        for p in problems:
+            problem_rows.append((stop_idx, p.problem_type, p.priority))
 
         if osm_node_id:
             processed_osm_node_ids.add(osm_node_id)
 
-    session.commit()
+        stop_idx += 1
 
+    # ---- 4. Route placeholder OSM nodes ----
+    route_artifacts = route_artifacts or {}
+    all_route_data = route_artifacts.get('all_route_data')
+    if all_route_data is None:
+        try:
+            _preloaded_osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv", low_memory=False)
+        except Exception:
+            _preloaded_osm_routes_df = None
+        all_route_data = load_all_route_data(osm_routes_df=_preloaded_osm_routes_df)
 
-def _ensure_route_osm_nodes(session, all_route_data, known_osm_node_ids):
-    """Ensure every route_osm_stops node ID has a backing osm_nodes row.
+    known_osm_node_ids = {d['osm_node_id'] for d in osm_node_dicts}
 
-    Some route member IDs can appear in route extracts as synthetic/way-derived
-    identifiers (for example ``way_...``) that are not part of the parsed node
-    list used by ``_import_all_osm_nodes``.
-    """
     osm_route_dir_to_nodes = all_route_data.get('osm_route_dir_to_nodes', {})
     route_node_ids = {
         str(node_id)
@@ -417,68 +442,193 @@ def _ensure_route_osm_nodes(session, all_route_data, known_osm_node_ids):
         for node_id in osm_data.get('nodes', [])
         if node_id
     }
-    missing_node_ids = route_node_ids - known_osm_node_ids
-    if not missing_node_ids:
-        return
+    placeholder_ids = sorted(route_node_ids - known_osm_node_ids)
+    if placeholder_ids:
+        for node_id in placeholder_ids:
+            osm_node_dicts.append({'osm_node_id': node_id})
+        print(f"Prepared {len(placeholder_ids)} placeholder OSM nodes referenced by routes")
 
-    # Avoid duplicate inserts if some IDs already exist in DB from prior runs.
-    existing_ids = {
-        row[0]
-        for row in session.query(OsmNode.osm_node_id)
-        .filter(OsmNode.osm_node_id.in_(missing_node_ids))
-        .all()
-    }
-    placeholder_ids = sorted(missing_node_ids - existing_ids)
-    if not placeholder_ids:
-        return
+    # ---- 5. Route rows ----
+    route_write_payload = route_artifacts.get('route_write_payload')
+    if route_write_payload is None:
+        importable_sloids = {d['sloid'] for d in atlas_stop_dicts}
+        route_write_payload = build_route_write_payload(all_route_data, importable_sloids)
 
-    session.bulk_save_objects([OsmNode(osm_node_id=node_id) for node_id in placeholder_ids])
-    session.commit()
-    known_osm_node_ids.update(placeholder_ids)
-    print(f"Inserted {len(placeholder_ids)} placeholder OSM nodes referenced by routes")
-
-def _import_routes(session, route_write_payload):
     route_osm_rows = route_write_payload.get('route_osm_rows', [])
     route_atlas_rows = route_write_payload.get('route_atlas_rows', [])
     routes_matched_rows = route_write_payload.get('routes_matched_rows', [])
     skipped_sloids = int(route_write_payload.get('skipped_sloids', 0) or 0)
     matched_routes = int(route_write_payload.get('matched_routes', 0) or 0)
 
-    routes_to_insert = []
-    routes_to_insert.extend([
-        RouteOsmStops(
-            osm_route_id=osm_route_id,
-            direction_id=direction_id,
-            osm_node_id=osm_node_id,
-            stop_sequence=stop_sequence,
-        )
-        for osm_route_id, direction_id, osm_node_id, stop_sequence in route_osm_rows
-    ])
-    routes_to_insert.extend([
-        RouteAtlasStops(
-            atlas_route_id=atlas_route_id,
-            direction_id=direction_id,
-            sloid=sloid,
-            stop_sequence=stop_sequence,
-        )
-        for atlas_route_id, direction_id, sloid, stop_sequence in route_atlas_rows
-    ])
-    routes_to_insert.extend([
-        RoutesMatched(
-            atlas_route_id=atlas_route_id,
-            osm_route_id=osm_route_id,
-            match_type=match_type,
-        )
-        for atlas_route_id, osm_route_id, match_type in routes_matched_rows
-    ])
+    route_osm_dicts = [
+        {'osm_route_id': r[0], 'direction_id': r[1], 'osm_node_id': r[2], 'stop_sequence': r[3]}
+        for r in route_osm_rows
+    ]
+    route_atlas_dicts = [
+        {'atlas_route_id': r[0], 'direction_id': r[1], 'sloid': r[2], 'stop_sequence': r[3]}
+        for r in route_atlas_rows
+    ]
+    routes_matched_dicts = [
+        {'atlas_route_id': r[0], 'osm_route_id': r[1], 'match_type': r[2]}
+        for r in routes_matched_rows
+    ]
 
     if skipped_sloids:
         print(f"  Skipped {skipped_sloids} route-atlas entries (SLOID not in atlas_stops)")
 
-    if routes_to_insert:
-        session.bulk_save_objects(routes_to_insert)
+    # ---- Summary ----
+    total_matched = sum(1 for d in stops_matched_dicts if d['stop_type'] == 'matched')
+    print(f"Payload precompute complete: {len(stops_matched_dicts)} stop rows, "
+          f"{len(osm_node_dicts)} OSM nodes, {len(atlas_stop_dicts)} ATLAS stops, "
+          f"{len(problem_rows)} problem rows, {len(route_osm_dicts)} route-OSM rows")
+
+    return {
+        'osm_nodes': osm_node_dicts,
+        'osm_stops': osm_stop_dicts,
+        'osm_stop_members': osm_stop_member_dicts,
+        'stops_matched': stops_matched_dicts,
+        'atlas_stops': atlas_stop_dicts,
+        'problem_rows': problem_rows,
+        'route_osm_stops': route_osm_dicts,
+        'route_atlas_stops': route_atlas_dicts,
+        'routes_matched': routes_matched_dicts,
+        'matched_routes': matched_routes,
+        'no_nearby_osm_sloids': no_nearby_osm_sloids,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Fast DB writer — runs INSIDE the blocking maintenance window
+# ---------------------------------------------------------------------------
+
+_BULK_BATCH = int(os.getenv('DB_IMPORT_BATCH_SIZE', '10000'))
+
+
+def import_to_database(
+    base_data: MatchingOutput | None = None,
+    problem_artifacts: dict | None = None,
+    route_artifacts: dict | None = None,
+    *,
+    db_payloads: dict | None = None,
+):
+    """Fully refresh the database "Import DB".
+
+    When *db_payloads* is provided (the fast path from ``job_runner``), the
+    function performs only TRUNCATE + bulk INSERT with zero Python logic.
+
+    The legacy call-signature (passing ``base_data`` / ``problem_artifacts`` /
+    ``route_artifacts``) is still supported for backwards compatibility (e.g.
+    the ``if __name__ == '__main__'`` entry point) — it will build the payloads
+    inline before writing.
+    """
+    _ensure_import_schema_exists(session)
+
+    # ---- Legacy path: build payloads inline if not provided ----
+    if db_payloads is None:
+        if base_data is None:
+            raise ValueError("Either db_payloads or base_data must be provided")
+        problem_artifacts = problem_artifacts or precompute_problem_artifacts(base_data)
+        route_artifacts = route_artifacts or precompute_route_artifacts(base_data)
+        db_payloads = build_fast_insert_payloads(base_data, problem_artifacts, route_artifacts)
+
+    # ---- TRUNCATE all tables ----
+    print("Truncating all database tables...")
+    session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, osm_stops, osm_stop_members, route_atlas_stops, route_osm_stops CASCADE"))
+    session.execute(text("TRUNCATE TABLE routes_matched CASCADE"))
+    session.execute(text("TRUNCATE TABLE problems, stops_matched CASCADE"))
     session.commit()
+
+    # ---- Bulk insert: OSM nodes ----
+    osm_node_rows = db_payloads['osm_nodes']
+    if osm_node_rows:
+        for i in range(0, len(osm_node_rows), _BULK_BATCH):
+            session.execute(insert(OsmNode), osm_node_rows[i:i + _BULK_BATCH])
+        session.commit()
+        print(f"Imported {len(osm_node_rows)} OSM nodes")
+
+    # ---- Bulk insert: OSM stop units ----
+    osm_stop_rows = db_payloads['osm_stops']
+    if osm_stop_rows:
+        for i in range(0, len(osm_stop_rows), _BULK_BATCH):
+            session.execute(insert(OsmStop), osm_stop_rows[i:i + _BULK_BATCH])
+        session.commit()
+        print(f"Imported {len(osm_stop_rows)} OSM stop units")
+
+    # ---- Bulk insert: OSM stop members ----
+    osm_member_rows = db_payloads['osm_stop_members']
+    if osm_member_rows:
+        for i in range(0, len(osm_member_rows), _BULK_BATCH):
+            session.execute(insert(OsmStopMember), osm_member_rows[i:i + _BULK_BATCH])
+        session.commit()
+        print(f"Imported {len(osm_member_rows)} OSM stop members")
+
+    # ---- Bulk insert: stops_matched (strip internal _idx before insert) ----
+    stops_rows = db_payloads['stops_matched']
+    if stops_rows:
+        # Insert in batches and collect auto-generated IDs to link problems
+        stop_idx_to_db_id = {}
+        for i in range(0, len(stops_rows), _BULK_BATCH):
+            batch = stops_rows[i:i + _BULK_BATCH]
+            clean_batch = [{k: v for k, v in d.items() if k != '_idx'} for d in batch]
+            result = session.execute(
+                insert(StopsMatched).returning(StopsMatched.id),
+                clean_batch,
+            )
+            db_ids = [row[0] for row in result]
+            for d, db_id in zip(batch, db_ids):
+                stop_idx_to_db_id[d['_idx']] = db_id
+        session.commit()
+        print(f"Imported {len(stops_rows)} stops_matched rows")
+
+        # ---- Bulk insert: problems ----
+        problem_raw = db_payloads['problem_rows']
+        if problem_raw:
+            problem_dicts = [
+                {'stop_id': stop_idx_to_db_id[idx], 'problem_type': ptype, 'priority': prio}
+                for idx, ptype, prio in problem_raw
+                if idx in stop_idx_to_db_id
+            ]
+            if problem_dicts:
+                for i in range(0, len(problem_dicts), _BULK_BATCH):
+                    session.execute(insert(Problem), problem_dicts[i:i + _BULK_BATCH])
+                session.commit()
+                print(f"Imported {len(problem_dicts)} problem rows")
+
+    # ---- Bulk insert: atlas_stops ----
+    atlas_rows = db_payloads['atlas_stops']
+    if atlas_rows:
+        for i in range(0, len(atlas_rows), _BULK_BATCH):
+            session.execute(insert(AtlasStop), atlas_rows[i:i + _BULK_BATCH])
+        session.commit()
+        print(f"Imported {len(atlas_rows)} ATLAS stops")
+
+    # ---- Bulk insert: route tables ----
+    route_osm = db_payloads.get('route_osm_stops', [])
+    if route_osm:
+        for i in range(0, len(route_osm), _BULK_BATCH):
+            session.execute(insert(RouteOsmStops), route_osm[i:i + _BULK_BATCH])
+        session.commit()
+
+    route_atlas = db_payloads.get('route_atlas_stops', [])
+    if route_atlas:
+        for i in range(0, len(route_atlas), _BULK_BATCH):
+            session.execute(insert(RouteAtlasStops), route_atlas[i:i + _BULK_BATCH])
+        session.commit()
+
+    routes_matched = db_payloads.get('routes_matched', [])
+    if routes_matched:
+        for i in range(0, len(routes_matched), _BULK_BATCH):
+            session.execute(insert(RoutesMatched), routes_matched[i:i + _BULK_BATCH])
+        session.commit()
+
+    matched_routes = db_payloads.get('matched_routes', 0)
     print(f"Route import completed: {matched_routes} ATLAS↔OSM route pairs linked")
+
+    session.close()
+    print("Data import complete!")
+
+    return db_payloads.get('no_nearby_osm_sloids', set())
+
 
 def _print_problem_summary(session):
     ps = compute_db_stats(session)
@@ -499,118 +649,6 @@ def print_problem_summary():
 # --------------------------
 # Data Import Function
 # --------------------------
-def import_to_database(
-    base_data: MatchingOutput,
-    problem_artifacts: dict | None = None,
-    route_artifacts: dict | None = None,
-):
-    """
-    Fully refresh the database "Import DB" .
-    """
-    _ensure_import_schema_exists(session)
-
-    print("Truncating all database tables...")
-    session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, osm_stops, osm_stop_members, route_atlas_stops, route_osm_stops CASCADE"))
-    session.execute(text("TRUNCATE TABLE routes_matched CASCADE"))
-    session.execute(text("TRUNCATE TABLE problems, stops_matched CASCADE"))
-    session.commit()
-
-    route_artifacts = route_artifacts or {}
-    problem_artifacts = problem_artifacts or {}
-
-    all_route_data = route_artifacts.get('all_route_data')
-    if all_route_data is None:
-        try:
-            _preloaded_osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv", low_memory=False)
-        except Exception:
-            _preloaded_osm_routes_df = None
-        all_route_data = load_all_route_data(osm_routes_df=_preloaded_osm_routes_df)
-
-    processed_sloids = set()
-    processed_osm_node_ids = set()
-
-    all_sloids = []
-    for rec in base_data.matched:
-        sloid = safe_value(rec.atlas_node.sloid)
-        if sloid:
-            all_sloids.append(sloid)
-    for rec in base_data.unmatched_atlas:
-        sloid = safe_value(rec.sloid)
-        if sloid:
-            all_sloids.append(sloid)
-    counts = Counter(all_sloids)
-    duplicate_sloids = {s for s, c in counts.items() if c > 1}
-    if duplicate_sloids:
-        print(f"{len(duplicate_sloids)} sloids are matched to more than one OSM node")
-
-    problem_ctx = problem_artifacts.get('problem_ctx') or ProblemContext.build(base_data)
-    matched_problem_map = problem_artifacts.get('matched_problem_map')
-    unmatched_atlas_problem_map = problem_artifacts.get('unmatched_atlas_problem_map')
-    unmatched_osm_problem_map = problem_artifacts.get('unmatched_osm_problem_map')
-
-    duplicate_sloid_map = base_data.duplicate_sloid_map
-
-    known_osm_node_ids = {
-        str(node.node_id)
-        for node in getattr(base_data, 'all_osm_nodes', [])
-        if getattr(node, 'node_id', None)
-    }
-
-    # 0. Import ALL OSM nodes upfront (satisfies route_osm_stops FK by construction)
-    _import_all_osm_nodes(session, base_data.all_osm_nodes, problem_ctx)
-
-    # 0a. Ensure route-linked synthetic IDs (for example way_*) also exist in osm_nodes.
-    _ensure_route_osm_nodes(session, all_route_data, known_osm_node_ids)
-
-    # 0b. Import canonical OSM stop units
-    _import_osm_stop_units(session, base_data.osm_stop_units)
-
-    # 1. Import Matched (osm_group_propagation records from commit() include pair siblings)
-    _import_matched_stops(
-        session,
-        base_data.matched,
-        problem_ctx,
-        duplicate_sloid_map,
-        processed_sloids,
-        processed_osm_node_ids,
-        precomputed_problem_map=matched_problem_map,
-    )
-
-    # 2. Import Unmatched Atlas
-    no_nearby_osm_sloids = _import_unmatched_atlas(
-        session,
-        base_data.unmatched_atlas,
-        problem_ctx,
-        duplicate_sloid_map,
-        processed_sloids,
-        precomputed_unmatched_atlas_map=unmatched_atlas_problem_map,
-    )
-
-    # 3. Import Unmatched OSM
-    _import_unmatched_osm(
-        session,
-        base_data.unmatched_osm,
-        problem_ctx,
-        processed_osm_node_ids,
-        base_data,
-        precomputed_unmatched_osm_map=unmatched_osm_problem_map,
-    )
-
-    # 4. Import Routes (precomputed payload preferred)
-    route_write_payload = route_artifacts.get('route_write_payload')
-    if route_write_payload is None:
-        route_write_payload = build_route_write_payload(all_route_data, processed_sloids)
-    route_write_started = time.perf_counter()
-    _import_routes(session, route_write_payload)
-    print(f"Route-route write phase completed in {time.perf_counter() - route_write_started:.2f}s")
-
-
-    session.close()
-    print("Data import complete!")
-
-    return no_nearby_osm_sloids
-
-
 def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
     """
     Export pipeline statistics to data/stats.json after import completes.
@@ -665,12 +703,10 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
         # Calculate ATLAS route stats
         atlas_route_stats = {}
         try:
-            unified_path = "data/processed/atlas_routes_unified.csv"
-            if os.path.exists(unified_path):
-                df_unified = pd.read_csv(unified_path, dtype=str)
-                gtfs_rows = df_unified.copy()
-                if 'source' in gtfs_rows.columns:
-                    gtfs_rows = gtfs_rows[gtfs_rows['source'].fillna('gtfs').astype(str).str.lower() == 'gtfs']
+            gtfs_path = "data/processed/atlas_routes_gtfs.csv"
+            if os.path.exists(gtfs_path):
+                df_gtfs = pd.read_csv(gtfs_path, dtype=str)
+                gtfs_rows = df_gtfs.copy()
                 gtfs_rows = gtfs_rows[gtfs_rows['route_id'].notna()] if 'route_id' in gtfs_rows.columns else gtfs_rows
 
                 gtfs_matches = gtfs_rows['sloid'].nunique() if 'sloid' in gtfs_rows.columns else 0

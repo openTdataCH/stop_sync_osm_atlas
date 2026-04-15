@@ -418,7 +418,7 @@ function updateFiltersUI() {
         if (activeFilters.matchedOptions.allSelected) {
             matchedDisplayString = buildRemovableChip({
                 label: 'Matched Stops',
-                badgeClass: 'text-bg-primary',
+                badgeClass: 'filter-chip-matched',
                 data: { type: 'masterMatched', target: '#masterMatchedCheckbox' }
             });
         } else {
@@ -428,7 +428,7 @@ function updateFiltersUI() {
                 if (activeFilters.matchedOptions.methods[method]) {
                     var dName = method.charAt(0).toUpperCase() + method.slice(1);
                     specificMethodChips.push(buildRemovableChip({
-                        label: 'Match: ' + dName, badgeClass: 'text-bg-primary',
+                        label: 'Match: ' + dName, badgeClass: 'filter-chip-matched',
                         data: { type: 'specificMatch', target: '#filter' + dName }
                     }));
                 }
@@ -437,7 +437,7 @@ function updateFiltersUI() {
             if (smGrp) matchedSubConditionStrings.push(smGrp);
 
             if (activeFilters.matchedOptions.distanceMatching.allSelected) {
-                matchedSubConditionStrings.push(buildRemovableChip({ label: 'Distance Match: All Stages', badgeClass: 'text-bg-info', data: { type: 'masterDistance', target: '#masterDistanceMatchingCheckbox' } }));
+                matchedSubConditionStrings.push(buildRemovableChip({ label: 'Distance Match: All Stages', badgeClass: 'filter-chip-matched', data: { type: 'masterDistance', target: '#masterDistanceMatchingCheckbox' } }));
             } else {
                 let distanceStageChips = [];
                 for (const stage in activeFilters.matchedOptions.distanceMatching) {
@@ -454,7 +454,7 @@ function updateFiltersUI() {
                         if (stage === 'stage3a') dLabel = 'Dist: Single Candidate';
                         if (stage === 'stage3b') dLabel = 'Dist: Relative Distance';
                         distanceStageChips.push(buildRemovableChip({
-                            label: dLabel, badgeClass: 'text-bg-info', data: { type: 'specificDistance', target: target }
+                            label: dLabel, badgeClass: 'filter-chip-matched', data: { type: 'specificDistance', target: target }
                         }));
                     }
                 }
@@ -463,11 +463,11 @@ function updateFiltersUI() {
             }
 
             if (activeFilters.matchedOptions.routeMatching.allSelected) {
-                matchedSubConditionStrings.push(buildRemovableChip({ label: 'Route Match: All', badgeClass: 'text-bg-secondary', data: { type: 'masterRoute', target: '#masterRouteMatchingCheckbox' } }));
+                matchedSubConditionStrings.push(buildRemovableChip({ label: 'Route Match: All', badgeClass: 'filter-chip-matched', data: { type: 'masterRoute', target: '#masterRouteMatchingCheckbox' } }));
             } else {
                 let routeStageChips = [];
                 if (activeFilters.matchedOptions.routeMatching.gtfs) {
-                    routeStageChips.push(buildRemovableChip({ label: 'Route: GTFS', badgeClass: 'text-bg-secondary', data: { type: 'specificRoute', target: '#routeMethodGtfs' } }));
+                    routeStageChips.push(buildRemovableChip({ label: 'Route: GTFS', badgeClass: 'filter-chip-matched', data: { type: 'specificRoute', target: '#routeMethodGtfs' } }));
                 }
                 const rGrp = buildOrGroup(routeStageChips);
                 if (rGrp) matchedSubConditionStrings.push(rGrp);
@@ -483,14 +483,14 @@ function updateFiltersUI() {
     let unmatchedAtlasString = '';
     if (activeFilters.unmatchedOptions && showUnmatchedAtlasFilters) {
         if (activeFilters.unmatchedOptions.allSelected) {
-            unmatchedAtlasString = buildRemovableChip({ label: 'Unmatched ATLAS', badgeClass: 'text-bg-warning', data: { type: 'masterUnmatchedAtlas', target: '#masterUnmatchedAtlasCheckbox' } });
+            unmatchedAtlasString = buildRemovableChip({ label: 'Unmatched ATLAS', badgeClass: 'filter-chip-unmatched', data: { type: 'masterUnmatchedAtlas', target: '#masterUnmatchedAtlasCheckbox' } });
         } else {
             let reasonChips = [];
             if (activeFilters.unmatchedOptions.reasons.noNearbyOSM) {
-                reasonChips.push(buildRemovableChip({ label: 'Unmatched ATLAS: No OSM < 50m', badgeClass: 'text-bg-warning', data: { type: 'specificUnmatched', target: '#filterNoNearbyOSM' } }));
+                reasonChips.push(buildRemovableChip({ label: 'Unmatched ATLAS: No OSM < 50m', badgeClass: 'filter-chip-unmatched', data: { type: 'specificUnmatched', target: '#filterNoNearbyOSM' } }));
             }
             if (activeFilters.unmatchedOptions.reasons.osmNearby) {
-                reasonChips.push(buildRemovableChip({ label: 'Unmatched ATLAS: OSM < 50m', badgeClass: 'text-bg-warning', data: { type: 'specificUnmatched', target: '#filterOSMNearby' } }));
+                reasonChips.push(buildRemovableChip({ label: 'Unmatched ATLAS: OSM < 50m', badgeClass: 'filter-chip-unmatched', data: { type: 'specificUnmatched', target: '#filterOSMNearby' } }));
             }
             unmatchedAtlasString = buildOrGroup(reasonChips);
         }
@@ -498,7 +498,7 @@ function updateFiltersUI() {
 
     let unmatchedOsmString = '';
     if (activeFilters.stopType.includes('osm_unmatched')) {
-        unmatchedOsmString = buildRemovableChip({ label: 'Unmatched OSM', badgeClass: 'text-bg-warning', data: { type: 'masterUnmatchedOsm', target: '#masterUnmatchedOsmCheckbox' } });
+        unmatchedOsmString = buildRemovableChip({ label: 'Unmatched OSM', badgeClass: 'filter-chip-unmatched', data: { type: 'masterUnmatchedOsm', target: '#masterUnmatchedOsmCheckbox' } });
     }
 
     let visibilityChips = [];
@@ -510,18 +510,18 @@ function updateFiltersUI() {
     let stationIdChips = [];
     activeFilters.station.forEach(function (filter, index) {
         var filterType = activeFilters.stationTypes[index];
+        var direction = activeFilters.routeDirections[index] || '';
         var labelText = '', badgeClass = '', badgeHtmlContent = '';
         switch (filterType) {
-            case 'atlas': labelText = 'ATLAS SloidID: '; badgeClass = 'text-bg-dark'; badgeHtmlContent = labelText + filter; break;
-            case 'osm': labelText = 'OSM Node ID: '; badgeClass = 'text-bg-dark'; badgeHtmlContent = labelText + filter; break;
+            case 'atlas': labelText = 'ATLAS SloidID: '; badgeClass = 'filter-chip-atlas'; badgeHtmlContent = labelText + filter; break;
+            case 'osm': labelText = 'OSM Node ID: '; badgeClass = 'filter-chip-osm'; badgeHtmlContent = labelText + filter; break;
             case 'route':
-                var direction = activeFilters.routeDirections[index] || '';
                 var normalizedRoute = normalizeRouteIdForDisplay(filter);
                 var directionDisplay = formatDirectionDisplay(direction);
-                labelText = 'Route: '; badgeClass = 'text-bg-danger'; badgeHtmlContent = labelText + normalizedRoute + ', ' + directionDisplay;
+                labelText = 'Route: '; badgeClass = 'filter-chip-secondary'; badgeHtmlContent = labelText + normalizedRoute + ', ' + directionDisplay;
                 break;
             case 'station':
-            default: labelText = 'UIC: '; badgeClass = 'text-bg-dark'; badgeHtmlContent = labelText + filter; break;
+            default: labelText = 'UIC: '; badgeClass = 'filter-chip-secondary'; badgeHtmlContent = labelText + filter; break;
         }
         var badgeHtml;
         if (filterType === 'route') {
@@ -529,7 +529,7 @@ function updateFiltersUI() {
             var directionDropdownHtml = '<span class="direction-dropdown" data-index="' + index + '" data-current="' + currentDirection + '">' +
                 '<span class="direction-current">' + directionDisplay + '</span><i class="fas fa-chevron-down direction-arrow"></i>' +
                 '<div class="direction-options" style="display: none;"><div class="direction-option" data-direction="">Both</div><div class="direction-option" data-direction="0">Dir: 0</div><div class="direction-option" data-direction="1">Dir: 1</div></div></span>';
-            badgeHtml = '<span class="badge ' + badgeClass + ' me-1 mb-1">' + labelText + normalizedRoute + ' ' + directionDropdownHtml + ' <a href="#" class="text-dark remove-filter" data-type="station" data-index="' + index + '">×</a></span>';
+            badgeHtml = '<span class="badge filter-chip-badge ' + badgeClass + ' me-1 mb-1">' + labelText + normalizedRoute + ' ' + directionDropdownHtml + ' <a href="#" class="remove-filter" data-type="station" data-index="' + index + '">×</a></span>';
         } else {
             badgeHtml = buildRemovableChip({ label: badgeHtmlContent, badgeClass: badgeClass, data: { type: 'station', index: index }, closeChar: '×' });
         }
@@ -541,7 +541,7 @@ function updateFiltersUI() {
     let transportTypeChips = [];
     activeFilters.transportTypes.forEach(function (filter) {
         var dName = formatTransportTypeLabel(filter);
-        transportTypeChips.push(buildRemovableChip({ label: dName, badgeClass: 'text-bg-success', data: { type: 'transportType', filter: filter } }));
+        transportTypeChips.push(buildRemovableChip({ label: dName, badgeClass: 'filter-chip-osm', data: { type: 'transportType', filter: filter } }));
     });
     const transportTypeGroupHtml = buildOrGroup(transportTypeChips);
     if (transportTypeGroupHtml) finalGroupStrings.push(transportTypeGroupHtml);
@@ -551,19 +551,19 @@ function updateFiltersUI() {
 
     if (activeFilters.osmGroups && activeFilters.osmGroups.length > 0) {
         if (activeFilters.osmGroups.includes('all')) {
-            finalGroupStrings.push(buildRemovableChip({ label: 'OSM Groups: All', badgeClass: 'text-bg-warning', data: { type: 'osmGroup', target: '#filterOsmGroup' } }));
+            finalGroupStrings.push(buildRemovableChip({ label: 'OSM Groups: All', badgeClass: 'filter-chip-osm', data: { type: 'osmGroup', target: '#filterOsmGroup' } }));
         } else {
             let groupChips = [];
             activeFilters.osmGroups.forEach(function (g) {
-                groupChips.push(buildRemovableChip({ label: 'OSM Group: ' + formatOsmGroupTypeLabel(g), badgeClass: 'text-bg-warning', data: { type: 'specificOsmGroup', filter: g } }));
+                groupChips.push(buildRemovableChip({ label: 'OSM Group: ' + formatOsmGroupTypeLabel(g), badgeClass: 'filter-chip-osm', data: { type: 'specificOsmGroup', filter: g } }));
             });
             const grpHtml = buildOrGroup(groupChips);
             if (grpHtml) finalGroupStrings.push(grpHtml);
         }
     }
 
-    if (activeFilters.topN) finalGroupStrings.push(buildRemovableChip({ label: 'Top N Distances (' + activeFilters.topN + ')', badgeClass: 'text-bg-info', data: { type: 'topN', filter: 'topN' } }));
-    if (activeFilters.showDuplicatesOnly) finalGroupStrings.push(buildRemovableChip({ label: 'Duplicate ATLAS', badgeClass: 'text-bg-secondary', data: { type: 'showDuplicatesOnly' } }));
+    if (activeFilters.topN) finalGroupStrings.push(buildRemovableChip({ label: 'Top N Distances (' + activeFilters.topN + ')', badgeClass: 'filter-chip-secondary', data: { type: 'topN', filter: 'topN' } }));
+    if (activeFilters.showDuplicatesOnly) finalGroupStrings.push(buildRemovableChip({ label: 'Duplicate ATLAS', badgeClass: 'filter-chip-atlas', data: { type: 'showDuplicatesOnly' } }));
 
     if (finalGroupStrings.length > 0) {
         if (getActiveFilterCount() === 1) {
@@ -572,7 +572,7 @@ function updateFiltersUI() {
             container.html(joinWithAnd(finalGroupStrings));
         }
     }
-    else container.html('<span class="badge text-bg-secondary me-1 mb-1">All entries</span>');
+    else container.html('<span class="badge filter-chip-badge filter-chip-secondary me-1 mb-1">All entries</span>');
 
     container.attr('data-active-filter-count', String(getActiveFilterCount()));
 }
