@@ -38,27 +38,26 @@ It automates data download and processing (ATLAS, OSM, GTFS), performs exact/dis
     ```
 
 2.  **Configure environment** (optional):
-    - Copy `env.example` to `.env` and adjust values (DB users/passwords, URIs, flags)
+    - The application works out-of-the-box locally without a `.env` file. If you need to customize settings (DB users/passwords, URIs, flags, pipeline timezone), copy `env.example` to `.env` and adjust the values.
 
-3.  **Build and Run with Docker Compose** (no .env required for local):
+3.  **Build and Run with Docker Compose**:
     ```bash
     docker compose up --build
     ```
     
-    **On the first run**, Docker will automatically:
+    Docker will automatically:
     - Build the application images
     - Download and start Postgres (PostGIS) database
+    - Start the redis container
     - Start the web app container
     - Start the scheduler container (daily pipeline at 2:00 Europe/Zurich)
-    - Download ATLAS data from OpenTransportData.swiss
-    - Download GTFS data for route matching
-    - Download OSM data via the Overpass API
-    - Process and match all data
-    - Import everything into the database
-    - Start the Flask web application
+
+    *Note: The data pipeline (downloading and matching ATLAS/OSM/GTFS data) does not run automatically on startup.* It runs in the dedicated scheduler service at the configured time. To run it immediately, use the VS Code Task "Docker: Trigger Scheduled Pipeline Now" (see below), or run:
+    ```bash
+    docker exec stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual
+    ```
 
     Data and database state are cached across runs (`./data` directory and the `postgres_data` volume).
-    The full pipeline now runs in the dedicated scheduler service, not during web app startup.
 
 
 4.  **Access the application**:
@@ -72,9 +71,6 @@ It automates data download and processing (ATLAS, OSM, GTFS), performs exact/dis
     To remove all data: `docker compose down -v`
 
 ## Pipeline
-
-> [!NOTE] 
-> For the best experience viewing the documentation diagrams, we recommend reading the documentation within the running web application. GitHub's Mermaid renderer may fail to render complex diagrams.
 
 ```mermaid
 flowchart LR
