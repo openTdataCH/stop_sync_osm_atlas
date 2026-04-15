@@ -6,7 +6,7 @@ used throughout the matching pipeline, eliminating duplicate match
 dictionary construction code across multiple files.
 
 Usage:
-    from matching_process.match_record import create_match_record, extract_atlas_fields
+    from matching_and_import_db.utils.match_record import create_match_record, extract_atlas_fields
     
     match = create_match_record(
         sloid=atlas_entry['sloid'],

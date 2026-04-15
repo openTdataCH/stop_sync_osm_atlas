@@ -15,7 +15,6 @@ def setup_test_env_and_db():
     os.environ['OSM_XML_FILE'] = 'tests/data/sample_osm.xml'
     # Ensure both DBs use SQLite for this test regardless of outer environment.
     os.environ['DATABASE_URI'] = 'sqlite://'
-    os.environ['USER_INPUT_DATABASE_URI'] = 'sqlite://'
     
     # Initialize DB Schema for the test
     from backend.extensions import db
@@ -23,10 +22,15 @@ def setup_test_env_and_db():
     session_module = importlib.reload(session_module)
     engine = session_module.engine
     session = session_module.session
-    # Importer still imports user_input_session from the session module.
-    # In tests, we map user-input DB aliases to the same in-memory engine/session.
-    session_module.user_input_engine = engine
-    session_module.user_input_session = session
+
+    # Reload orchestrator and importer to ensure they pick up the new session and mocks
+    import matching_and_import_db.orchestrator as orchestrator_mod
+    importlib.reload(orchestrator_mod)
+    import matching_and_import_db.database.importer as importer_mod
+    importlib.reload(importer_mod)
+    import matching_and_import_db.database.helpers as db_helpers
+    importlib.reload(db_helpers)
+
     from sqlalchemy.ext.compiler import compiles
     from sqlalchemy.dialects.postgresql import JSONB
 
@@ -34,51 +38,45 @@ def setup_test_env_and_db():
     def compile_jsonb_sqlite(type_, compiler, **kw):
         return 'JSON'
     
-    
     # Mock SpatiaLite functions since they crash vanilla SQLite
     import sqlalchemy.dialects.sqlite.base as sqlite_base
     orig_do_execute = sqlite_base.SQLiteDialect.do_execute
     
+    import re
     def mock_do_execute(self, cursor, statement, parameters=None, context=None):
-        spatial_cmds = ["RecoverGeometryColumn", "AddGeometryColumn", "CreateSpatialIndex",
+        spatial_cmds = ["RecoverGeometryColumn", "CreateSpatialIndex",
                        "CheckSpatialMetaData", "InitSpatialMetaData", "CheckSpatialIndex"]
         if any(cmd in statement for cmd in spatial_cmds) or statement.startswith("TRUNCATE TABLE"):
             return
-        # Strip PostGIS function calls so INSERTs work on vanilla SQLite.
-        # GeomFromEWKT(?) consumes 1 param; ST_SetSRID(ST_MakePoint(?, ?), ?) consumes 3.
-        import re
-        if parameters is not None:
-            params = list(parameters)
-        else:
-            params = None
-        # Count ? placeholders before the spatial expr to find the param index to remove
-        for pattern, n_params in [
-            (r'GeomFromEWKT\(\?\)', 1),
-            (r'ST_SetSRID\(ST_MakePoint\(\?,\s*\?\),\s*\?\)', 3),
-        ]:
-            m = re.search(pattern, statement)
-            if m and params is not None:
-                # Count how many ? appear before this match
-                before = statement[:m.start()].count('?')
-                for _ in range(n_params):
-                    if before < len(params):
-                        params.pop(before)
-                statement = statement[:m.start()] + 'NULL' + statement[m.end():]
-        orig_do_execute(self, cursor, statement, params, context)
+        
+        # Intercept AddGeometryColumn and turn it into a regular ALTER TABLE ADD COLUMN
+        if "AddGeometryColumn" in statement:
+            m = re.search(r"AddGeometryColumn\s*\('(\w+)',\s*'(\w+)'", statement)
+            if m:
+                table, col = m.groups()
+                # Run a plain ALTER TABLE to create the column as TEXT so INSERTs work
+                try:
+                    orig_do_execute(self, cursor, f"ALTER TABLE {table} ADD COLUMN {col} TEXT", None, context)
+                except Exception:
+                    pass # Table might already have it or other issue
+            return
+
+        orig_do_execute(self, cursor, statement, parameters, context)
         
     sqlite_base.SQLiteDialect.do_execute = mock_do_execute
+
     
     # Mock Alembic schema updater
-    import matching_and_import_db.database.helpers as db_helpers
     orig_ensure_schema_updated = db_helpers.ensure_schema_updated
     db_helpers.ensure_schema_updated = lambda: None
 
-    # Mock PostGIS make_point_geom since SQLite has no ST_MakePoint/ST_SetSRID
-    import matching_and_import_db.database.importer as importer_mod
+    # Mock PostGIS/EWKT geometry generation in the importer
+    orig_make_point_wkt = getattr(importer_mod, '_make_point_wkt', None)
+    importer_mod._make_point_wkt = lambda lat, lon: None
+
+    # Mock PostGIS make_point_geom (legacy/helpers)
     orig_make_point_geom = db_helpers.make_point_geom
-    noop_geom = lambda lat, lon: None
-    db_helpers.make_point_geom = noop_geom
-    importer_mod.make_point_geom = noop_geom
+    db_helpers.make_point_geom = lambda lat, lon: None
 
     # Older tests mocked a user-input persistence hook here. Keep the fixture
     # tolerant if that optional integration is absent in the current importer.
@@ -100,9 +98,11 @@ def setup_test_env_and_db():
     sqlite_base.SQLiteDialect.do_execute = orig_do_execute
     db_helpers.ensure_schema_updated = orig_ensure_schema_updated
     db_helpers.make_point_geom = orig_make_point_geom
-    importer_mod.make_point_geom = orig_make_point_geom
+    if orig_make_point_wkt is not None:
+        importer_mod._make_point_wkt = orig_make_point_wkt
     if orig_apply_persistent is not None:
         importer_mod.apply_persistent_solutions_service = orig_apply_persistent
+
 
 
 def test_small_pipeline_end_to_end():

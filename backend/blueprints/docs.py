@@ -56,7 +56,20 @@ def _read_request_payload() -> dict:
     if isinstance(data, dict):
         return data
     if request.form:
-        return request.form.to_dict(flat=True)
+        d = request.form.to_dict(flat=False)
+        flat_d = {}
+        for k, v in d.items():
+            key = k.replace('[]', '')
+            if len(v) == 1:
+                flat_d[key] = v[0]
+            else:
+                flat_d[key] = v
+        return flat_d
+    try:
+        import json
+        return json.loads(request.get_data(as_text=True))
+    except Exception:
+        pass
     return {}
 
 
@@ -97,7 +110,7 @@ def _to_sections_list(value) -> Optional[List[str]]:
     if value is None:
         return None
     if isinstance(value, list):
-        sections = [_normalize_section_key(item) for item in value]
+        sections = [_normalize_section_key(str(item)) for item in value]
         sections = [item for item in sections if item is not None]
         return sections or None
     if isinstance(value, str):
@@ -108,7 +121,7 @@ def _to_sections_list(value) -> Optional[List[str]]:
             try:
                 parsed = json.loads(stripped)
                 if isinstance(parsed, list):
-                    sections = [_normalize_section_key(item) for item in parsed]
+                    sections = [_normalize_section_key(str(item)) for item in parsed]
                     sections = [item for item in sections if item is not None]
                     return sections or None
             except Exception:
@@ -820,16 +833,6 @@ def download_docs_pdf_async(task_id):
             as_attachment=True,
             download_name=filename,
         )
-
-        @response.call_on_close
-        def remove_file():
-            try:
-                if os.path.exists(filepath):
-                    os.remove(filepath)
-            except Exception as e:
-                pass
-            finally:
-                ae_cancel_task(task_id)
 
         return response
     except Exception as e:

@@ -2,6 +2,37 @@
 
 {% block title %}OSM & ATLAS Matching Report{% endblock %}
 
+{% block extra_css %}
+    @page { 
+        size: A4 landscape; 
+        margin: 1cm; 
+    }
+    body { 
+        font-size: 7.7px; /* 70% of 11px */ 
+    }
+    .table { 
+        table-layout: auto; 
+        width: 100%; 
+    }
+    .table th, .table td { 
+        word-wrap: break-word; 
+        white-space: normal; 
+    }
+
+    /* Column sizing specific to data tables */
+    .col-distance { width: 80px; }
+    .col-method { width: 100px; }
+    .col-operator { width: 120px; }
+    .col-sloid { width: 140px; }
+    .col-osm-id { width: 120px; }
+    .col-source { width: 80px; }
+    .col-priority { width: 60px; }
+    .col-problem-type { width: 100px; }
+
+    /* Use Bootstrap table classes and fix borders for PDF */
+    .table th { background-color: var(--color-bg-subtle) !important; }
+{% endblock %}
+
 {% block header %}
     <div>
         <h2>{{ report_title }}</h2>
@@ -137,7 +168,7 @@
                 <td class="col-method">{{ item.match_type if item.match_type else 'N/A' }}</td>
                 {% if include_fields and 'atlas_coords' in include_fields %}
                 <td>{{ ('%.6f'|format(item.atlas_lat)) if item.atlas_lat is not none else 'N/A' }}</td>
-                <td>{{ ('%.6f'|format(item.atlas_lon)) if item.atlas_lon is not none else 'N/at' }}</td>
+                <td>{{ ('%.6f'|format(item.atlas_lon)) if item.atlas_lon is not none else 'N/A' }}</td>
                 {% endif %}
                 {% if include_fields and 'osm_coords' in include_fields %}
                 <td>{{ ('%.6f'|format(item.osm_lat)) if item.osm_lat is not none else 'N/A' }}</td>
@@ -149,19 +180,4 @@
         </tbody>
     </table>
     {% endif %}
-{% endblock %}
-
-{% block extra_css %}
-/* Column sizing specific to data tables */
-.col-distance { width: 80px; }
-.col-method { width: 100px; }
-.col-operator { width: 120px; }
-.col-sloid { width: 140px; }
-.col-osm-id { width: 120px; }
-.col-source { width: 80px; }
-.col-priority { width: 60px; }
-.col-problem-type { width: 100px; }
-
-/* Use Bootstrap table classes and fix borders for PDF */
-.table th { background-color: var(--color-bg-subtle) !important; }
 {% endblock %}

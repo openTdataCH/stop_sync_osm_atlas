@@ -16,10 +16,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check documentation links
-        run: |
           docker compose run --rm --no-deps --user "$(id -u):$(id -g)" --entrypoint '' \
             -e DATABASE_URI=sqlite:// \
-            -e USER_INPUT_DATABASE_URI=sqlite:// \
             test python -m pytest tests/test_docs_links.py -v
 
   javascript-tests:
@@ -115,9 +113,8 @@ jobs:
             -e FLASK_ENV=testing \
             -e TESTING=true \
             -e DATABASE_URI=sqlite:// \
-            -e USER_INPUT_DATABASE_URI=sqlite:// \
             -e SECRET_KEY=test-secret-key \
-            test python -m pytest tests/ --cov=matching_process --cov=backend --cov-report=xml --cov-report=html -v
+            test python -m pytest tests/ --cov=matching_and_import_db --cov=backend --cov-report=xml --cov-report=html -v
 
       - name: Upload Python coverage report
         uses: actions/upload-artifact@v4

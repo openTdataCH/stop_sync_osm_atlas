@@ -52,6 +52,9 @@ function startAsyncTask(options) {
         }
     }
     
+    // Store current params for progress bar logic (e.g., pdf timing adjustments)
+    window.currentReportParams = params;
+    
     $.ajax({
         url: config.generateUrl,
         method: 'POST',
@@ -68,7 +71,9 @@ function startAsyncTask(options) {
         },
         error: function(xhr) {
             var error = 'Unknown error';
-            if (window.SharedUtils && typeof window.SharedUtils.buildErrorMessage === 'function') {
+            if (xhr.status === 429) {
+                error = 'Rate limit exceeded. Please wait a while before requesting another report.';
+            } else if (window.SharedUtils && typeof window.SharedUtils.buildErrorMessage === 'function') {
                 error = window.SharedUtils.buildErrorMessage(xhr, error, 'bulk');
             } else if (xhr && xhr.responseJSON && (xhr.responseJSON.error || xhr.responseJSON.message)) {
                 error = xhr.responseJSON.error || xhr.responseJSON.message;
@@ -141,6 +146,11 @@ function buildReportRequestParams() {
 function startProgressPolling() {
     if (window.progressInterval) {
         clearInterval(window.progressInterval);
+        window.progressInterval = null;
+    }
+    if (window.pdfFakeProgressInterval) {
+        clearInterval(window.pdfFakeProgressInterval);
+        window.pdfFakeProgressInterval = null;
     }
     
     window.progressInterval = setInterval(function() {
@@ -179,36 +189,66 @@ function updateProgress(progress) {
     $('#entriesProcessed').text(processed.toLocaleString());
     $('#totalEntries').text(total.toLocaleString());
     
-    // Update progress bar
-    var percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
-    $('#reportProgressBar').css('width', percentage + '%').attr('aria-valuenow', percentage);
-    
+    var isPdf = window.currentReportParams && window.currentReportParams.format === 'pdf';
+    var dataPercentage = total > 0 ? Math.round((processed / total) * 100) : 0;
+    var displayPercentage = isPdf ? Math.round(dataPercentage / 3) : dataPercentage;
+
+    // We defer setting width directly here if we are in PDF finalize state so we don't jump backwards
+    if (!(isPdf && status === 'finalizing')) {
+        $('#reportProgressBar').css('width', displayPercentage + '%').attr('aria-valuenow', displayPercentage);
+    }
     
     if (status === 'starting') {
         $('#progressText').text('Starting...');
     } else if (status === 'finalizing') {
-        $('#progressText').text('Finalizing file...');
-        $('#reportProgressBar').css('width', '100%').addClass('progress-bar-striped progress-bar-animated');
+        if (isPdf) {
+            $('#progressText').text('Rendering PDF... this might take a moment');
+            if (!window.pdfFakeProgressInterval) {
+                // Determine starting value for the fake progress
+                window.pdfFakeProgressValue = Math.max(33, displayPercentage);
+                $('#reportProgressBar').css('width', window.pdfFakeProgressValue + '%');
+                $('#reportProgressBar').addClass('progress-bar-striped progress-bar-animated');
+                
+                window.pdfFakeProgressInterval = setInterval(function() {
+                    if (window.pdfFakeProgressValue < 95) {
+                        window.pdfFakeProgressValue += 1;
+                        $('#reportProgressBar').css('width', window.pdfFakeProgressValue + '%').attr('aria-valuenow', window.pdfFakeProgressValue);
+                        $('#progressText').text('Rendering PDF... ' + window.pdfFakeProgressValue + '%');
+                    }
+                }, 1500); // Slower interval for PDF generation
+            }
+        } else {
+            $('#progressText').text('Finalizing file...');
+            $('#reportProgressBar').css('width', '100%').addClass('progress-bar-striped progress-bar-animated');
+        }
         $('#progressCounters').show();
         $('#etaText').hide();
     } else if (status === 'processing') {
         if (total > 0) {
             if (processed >= total) {
-                // Data query is done; backend may still be writing/rendering the file.
-                $('#progressText').text('Finalizing file...');
-                $('#reportProgressBar').css('width', '100%').addClass('progress-bar-striped progress-bar-animated');
+                // If it hits 100% data, backend might still be formatting before setting to finalizing
+                if (isPdf) {
+                    $('#progressText').text('Query complete, compiling data...');
+                } else {
+                    $('#progressText').text('Finalizing file...');
+                    $('#reportProgressBar').css('width', '100%').addClass('progress-bar-striped progress-bar-animated');
+                }
                 $('#progressCounters').show();
                 $('#etaText').hide();
                 return;
             }
 
             // Determinate progress
-            $('#progressText').text(percentage + '% complete');
+            if (isPdf) {
+                $('#progressText').text('Querying data: ' + displayPercentage + '%');
+            } else {
+                $('#progressText').text(displayPercentage + '% complete');
+            }
             $('#reportProgressBar').removeClass('progress-bar-striped progress-bar-animated');
             $('#progressCounters').show();
             // Show ETA if available
             if (progress.eta && progress.eta > 0) {
-                var eta = Math.round(progress.eta);
+                var eta = Math.round(isPdf ? progress.eta * 3 : progress.eta); // Roughly scale up ETA for PDF
                 var etaText = eta < 60 ? eta + 's' : Math.round(eta/60) + 'm ' + (eta%60) + 's';
                 $('#etaValue').text(etaText);
                 $('#etaText').show();
@@ -235,15 +275,15 @@ function showDownloadButton() {
     $('#progressControls').hide();
     $('#downloadSection').show();
     
-    $('#downloadReportBtn').off('click').on('click', function() {
-        if (window.currentTaskId) {
+    if (window.currentTaskId) {
+        // Automatically trigger the download
+        setTimeout(function() {
             window.location.href = window.currentDownloadUrl + window.currentTaskId;
-            // Hide overlay after download starts
             setTimeout(function() {
-                cancelReportGeneration();
-            }, 1000);
-        }
-    });
+                $('#reportLoadingOverlay').hide();
+            }, 1500);
+        }, 500);
+    }
 }
 
 function showError(message) {
@@ -372,12 +412,14 @@ function initReportGeneration() {
     // Update helper text and summary reflecting the current selection
     function updateSortHelpAndSummary() {
         var cat = $('input[name="reportCategory"]:checked').val();
-        var sort = $('#sortOrderModal').val();
+        var sort = $('#sortOrderModal').val() || '';
         var mode = $('input[name="limitMode"]:checked').val();
         var limit = $('#reportLimitModal').val();
         var $limitLabel = $('#limitModeLabelUpto');
         var $sortHelp = $('#sortHelp');
         var $summary = $('#selectionSummary');
+
+        if (!cat || !sort) return; // Prevent crashes if elements don't exist
 
         // Label: "Top" when sorting by distance/priority desc, else "First"
         var isTop = (sort === 'distance_desc') || (sort === 'priority_desc');
@@ -416,9 +458,34 @@ function initReportGeneration() {
         if ($summary.length) { $summary.text(summary); }
     }
 
+    function updateFormatConstraints() {
+        var format = $('#reportFormatModal').val();
+        var $limitInput = $('#reportLimitModal');
+        var $limitHelp = $('#limitHelpText');
+        var $pdfWarning = $('#pdfLimitWarning');
+        
+        if (format === 'pdf') {
+            $limitInput.attr('max', 2000);
+            if ($limitHelp.length) $limitHelp.text('entries (max 2,000)');
+            if ($pdfWarning.length) $pdfWarning.show();
+            
+            var currentVal = parseInt($limitInput.val(), 10);
+            if (currentVal > 2000) {
+                $limitInput.val(2000);
+            }
+        } else {
+            $limitInput.attr('max', 10000);
+            if ($limitHelp.length) $limitHelp.text('entries (max 10,000)');
+            if ($pdfWarning.length) $pdfWarning.hide();
+        }
+    }
+
     // React on sort, limit, category changes
     $(document).on('change', '#sortOrderModal, #reportLimitModal, input[name="reportCategory"]', updateSortHelpAndSummary);
+    $(document).on('change', '#reportFormatModal', updateFormatConstraints);
+    
     // Initial render
+    updateFormatConstraints();
     updateSortHelpAndSummary();
 }
 
