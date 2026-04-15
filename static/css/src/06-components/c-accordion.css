@@ -143,7 +143,7 @@
    ------------------------------------------------------------------------- */
 .nested-accordion-content {
   padding: var(--space-3) var(--space-4) var(--space-3) var(--space-6);
-  border-left: 2px solid var(--color-bg-muted);
+  border-start: 2px solid var(--color-bg-muted);
   margin-left: var(--space-3);
   background-color: var(--color-bg);
 }
@@ -218,7 +218,7 @@ input[type="checkbox"].master-filter-checkbox:focus {
 .matching-subcategory-content {
   padding-left: var(--space-5);
   margin-left: var(--space-2);
-  border-left: 2px solid var(--color-bg-muted);
+  border-start: 2px solid var(--color-bg-muted);
   padding-top: var(--space-2);
   padding-bottom: var(--space-2);
 }

@@ -6,9 +6,9 @@
 /* -------------------------------------------------------------------------
    Text Alignment
    ------------------------------------------------------------------------- */
-.u-text-left { text-align: left !important; }
+.u-text-start { text-align: left !important; }
 .u-text-center { text-align: center !important; }
-.u-text-right { text-align: right !important; }
+.u-text-end { text-align: right !important; }
 .u-text-justify { text-align: justify !important; }
 
 /* -------------------------------------------------------------------------

@@ -81,27 +81,27 @@
    Card with Accent Border
    ------------------------------------------------------------------------- */
 .c-card--accent-left {
-  border-left-width: 4px;
+  border-start-width: 4px;
 }
 
 .c-card--primary {
-  border-left-color: var(--color-primary);
+  border-start-color: var(--color-primary);
 }
 
 .c-card--success {
-  border-left-color: var(--color-success);
+  border-start-color: var(--color-success);
 }
 
 .c-card--warning {
-  border-left-color: var(--color-warning);
+  border-start-color: var(--color-warning);
 }
 
 .c-card--danger {
-  border-left-color: var(--color-danger);
+  border-start-color: var(--color-danger);
 }
 
 .c-card--info {
-  border-left-color: var(--color-info);
+  border-start-color: var(--color-info);
 }
 
 /* -------------------------------------------------------------------------

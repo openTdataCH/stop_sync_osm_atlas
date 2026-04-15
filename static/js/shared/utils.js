@@ -35,15 +35,32 @@
                     type === 'error' ? 'fas fa-exclamation-circle' : 
                     type === 'warning' ? 'fas fa-exclamation-triangle' : 'fas fa-info-circle';
         
-        const messageContainer = $('<div class="temporary-message"></div>');
-        messageContainer.addClass('alert ' + alertClass);
-        messageContainer.html('<i class="' + icon + '"></i> ' + message);
-        
-        $('body').append(messageContainer);
-        
-        messageContainer.fadeIn(200).delay(duration).fadeOut(500, function() {
-            $(this).remove();
+        const messageContainer = document.createElement('div');
+        messageContainer.className = 'temporary-message alert ' + alertClass;
+        messageContainer.innerHTML = '<i class="' + icon + '"></i> ' + message;
+
+        document.body.appendChild(messageContainer);
+
+        // Align with existing toast CSS: show first, then animate out and remove.
+        requestAnimationFrame(function () {
+            messageContainer.classList.add('show');
         });
+
+        setTimeout(function () {
+            let removed = false;
+            const remove = function () {
+                if (removed) return;
+                removed = true;
+                if (messageContainer.parentNode) {
+                    messageContainer.parentNode.removeChild(messageContainer);
+                }
+            };
+
+            messageContainer.style.animation = 'toastSlideOut var(--transition-slow) ease-in forwards';
+            messageContainer.addEventListener('animationend', remove, { once: true });
+            // Fallback if animation is unavailable.
+            setTimeout(remove, 500);
+        }, duration);
     };
 
     /**
@@ -52,9 +69,13 @@
      */
     SharedUtils.setupCSRFToken = function() {
         const csrfToken = (document.cookie.match(/\bcsrf_token=([^;]+)/) || [])[1];
-        if (csrfToken && typeof $ !== 'undefined' && $.ajaxSetup) {
-            $.ajaxSetup({
-                headers: { 'X-CSRFToken': csrfToken }
+        if (!csrfToken) return;
+
+        if (global.$ && typeof global.$.ajaxSetup === 'function') {
+            global.$.ajaxSetup({
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
             });
         }
     };

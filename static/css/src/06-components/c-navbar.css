@@ -78,6 +78,35 @@
   color: var(--color-primary);
 }
 
+.navbar .nav-link.active {
+  color: var(--color-primary);
+  font-weight: var(--font-bold);
+  position: relative;
+}
+
+.navbar .nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -4px; /* Align closer to the bottom border of the navbar */
+  left: 0;
+  right: 0;
+  height: 3px;
+  background-color: var(--color-primary);
+  border-radius: var(--radius-full);
+  animation: navbar-indicator-slide-in var(--transition-base);
+}
+
+@keyframes navbar-indicator-slide-in {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+
 /* -------------------------------------------------------------------------
    Navbar Badges
    Consistent chip-style badges in the navbar.
@@ -93,43 +122,43 @@
   color: var(--color-fg-muted);
 }
 
-.navbar .badge-primary {
+.navbar .text-bg-primary {
   color: var(--color-primary);
   border-color: var(--color-primary);
   background-color: var(--color-bg);
 }
 
-.navbar .badge-secondary {
+.navbar .text-bg-secondary {
   color: var(--color-secondary);
   border-color: var(--color-secondary);
   background-color: var(--color-bg);
 }
 
-.navbar .badge-success {
+.navbar .text-bg-success {
   color: var(--color-success);
   border-color: var(--color-success);
   background-color: var(--color-bg);
 }
 
-.navbar .badge-warning {
+.navbar .text-bg-warning {
   color: var(--color-warning);
   border-color: var(--color-warning);
   background-color: var(--color-bg);
 }
 
-.navbar .badge-danger {
+.navbar .text-bg-danger {
   color: var(--color-danger);
   border-color: var(--color-danger);
   background-color: var(--color-bg);
 }
 
-.navbar .badge-info {
+.navbar .text-bg-info {
   color: var(--color-info);
   border-color: var(--color-info);
   background-color: var(--color-bg);
 }
 
-.navbar .badge-dark {
+.navbar .text-bg-dark {
   color: var(--color-dark);
   border-color: var(--color-dark);
   background-color: var(--color-bg);

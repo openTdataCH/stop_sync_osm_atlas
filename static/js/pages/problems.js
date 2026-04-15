@@ -142,10 +142,6 @@ $(document).ready(function () {
             }
         });
 
-        $(document).on('click', '#typeFilterMenuProblems .custom-control', function (e) {
-            e.stopPropagation();
-        });
-
         $(document).on('change', '.filter-problem-type', function () {
             const type = String($(this).val() || '');
             const isChecked = $(this).is(':checked');

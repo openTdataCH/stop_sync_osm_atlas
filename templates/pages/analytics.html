@@ -13,7 +13,7 @@
 <!-- Loading overlay for report generation -->
 <div id="reportLoadingOverlay" class="loading-overlay" style="display: none;">
   <div class="loading-content">
-    <h4 class="mb-3"><i class="fas fa-file-alt mr-2"></i>Generating Report</h4>
+    <h4 class="mb-3"><i class="fas fa-file-alt me-2"></i>Generating Report</h4>
 
     <!-- Progress bar -->
     <div class="progress mb-3">
@@ -35,25 +35,25 @@
     <!-- Download button (hidden initially) -->
     <div id="downloadSection" style="display: none;">
       <div class="alert alert-success mb-3">
-        <i class="fas fa-check-circle mr-2"></i>Report generated successfully!
+        <i class="fas fa-check-circle me-2"></i>Report generated successfully!
         <div class="text-muted small mt-1">Download available for up to 1 week.</div>
       </div>
       <button type="button" class="btn btn-success btn-lg" id="downloadReportBtn">
-        <i class="fas fa-download mr-2"></i>Download Report
+        <i class="fas fa-download me-2"></i>Download Report
       </button>
     </div>
 
     <!-- Error section (hidden initially) -->
     <div id="errorSection" style="display: none;">
       <div class="alert alert-danger">
-        <i class="fas fa-exclamation-circle mr-2"></i><span id="errorMessage"></span>
+        <i class="fas fa-exclamation-circle me-2"></i><span id="errorMessage"></span>
       </div>
     </div>
 
     <!-- Controls -->
     <div id="progressControls" class="mt-4">
       <button type="button" class="btn btn-outline-secondary" onclick="cancelReportGeneration()">
-        <i class="fas fa-times mr-1"></i>Cancel
+        <i class="fas fa-times me-1"></i>Cancel
       </button>
     </div>
   </div>
@@ -90,16 +90,16 @@
         <div class="d-flex align-items-center">
           {% if active_view == 'stats' and stats and not is_pdf %}
             <a href="{{ url_for('stats.download_stats_summary_pdf') }}" 
-               class="btn btn-sm btn-outline-primary shadow-sm font-weight-bold mr-4"
+               class="btn btn-sm btn-outline-primary shadow-sm fw-bold me-4"
                title="Download stats as PDF"
                style="height: fit-content; line-height: 1.2;">
-              <i class="fas fa-file-pdf mr-1"></i> Download Summary PDF
+              <i class="fas fa-file-pdf me-1"></i> Download Summary PDF
             </a>
           {% endif %}
           
           {% if stats %}
           <div class="text-muted small">
-            <i class="far fa-clock mr-1"></i> Data updated: {{ stats.generated_at[:10] }} {{ stats.generated_at[11:16] }}
+            <i class="far fa-clock me-1"></i> Data updated: {{ stats.generated_at[:10] }} {{ stats.generated_at[11:16] }}
           </div>
           {% endif %}
         </div>

@@ -92,6 +92,8 @@ select.form-control {
 
 .form-check-input {
   flex-shrink: 0;
+  float: none;
+  margin-left: 0;
   width: 1rem;
   height: 1rem;
   margin-top: 0.25rem;
@@ -104,6 +106,12 @@ select.form-control {
     background-color var(--transition-fast),
     border-color var(--transition-fast),
     box-shadow var(--transition-fast);
+}
+
+/* Override Bootstrap's `.form-check .form-check-input` offset rule. */
+.form-check .form-check-input {
+  float: none;
+  margin-left: 0;
 }
 
 .form-check-input[type="checkbox"] {
@@ -178,11 +186,6 @@ select.form-control {
 .input-group .btn {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
-}
-
-.input-group-prepend,
-.input-group-append {
-  display: flex;
 }
 
 .input-group-text {

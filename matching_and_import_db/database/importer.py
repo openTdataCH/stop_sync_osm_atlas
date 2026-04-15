@@ -14,7 +14,7 @@ import argparse
 from collections import Counter
 
 import pandas as pd
-from sqlalchemy import func, text
+from sqlalchemy import func, text, inspect
 
 # --- Internal modules -------------------------------------------------------
 from matching_and_import_db.orchestrator import run_matching
@@ -31,12 +31,113 @@ from matching_and_import_db.database.helpers import (
     get_from_tags,
     apply_problem_results,
 )
-from matching_and_import_db.database.route_loader import load_all_route_data
-from matching_and_import_db.utils.route_id import normalize_route_id
+from matching_and_import_db.database.route_loader import load_all_route_data, build_route_write_payload
 
 # --- External models --------------------------------------------------------
 from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem
 from backend.services.stats_export import export_pipeline_stats, save_stats_to_file, compute_db_stats
+
+
+def _ensure_import_schema_exists(db_session) -> None:
+    """Fail fast with actionable guidance if import tables are missing."""
+    required_tables = [
+        'atlas_stops',
+        'osm_nodes',
+        'osm_stops',
+        'osm_stop_members',
+        'route_atlas_stops',
+        'route_osm_stops',
+        'routes_matched',
+        'problems',
+        'stops_matched',
+    ]
+
+    inspector = inspect(db_session.get_bind())
+    missing = [table for table in required_tables if not inspector.has_table(table)]
+    if not missing:
+        return
+
+    missing_str = ', '.join(sorted(missing))
+    raise RuntimeError(
+        "Import DB schema is not initialized. Missing tables: "
+        f"{missing_str}. Run DB migrations first (for Docker: task 'Docker: Run Flask DB Upgrade')."
+    )
+
+
+def _collect_importable_sloids(base_data: MatchingOutput) -> set[str]:
+    """Collect the SLOIDs that will actually exist in atlas_stops after import."""
+    importable = set()
+
+    for rec in getattr(base_data, 'matched', []):
+        sloid = safe_value(getattr(getattr(rec, 'atlas_node', None), 'sloid', None))
+        if sloid:
+            importable.add(str(sloid))
+
+    for atlas_node in getattr(base_data, 'unmatched_atlas', []):
+        atlas_lat, atlas_lon = atlas_node.lat, atlas_node.lon
+        if atlas_lat == 0.0 and atlas_lon == 0.0:
+            continue
+        sloid = safe_value(getattr(atlas_node, 'sloid', None))
+        if sloid:
+            importable.add(str(sloid))
+
+    return importable
+
+
+def precompute_problem_artifacts(base_data: MatchingOutput) -> dict:
+    """Precompute problem detection so maintenance phase only writes to DB."""
+    problem_ctx = ProblemContext.build(base_data)
+
+    matched_problem_map = {}
+    for current_match in getattr(base_data, 'matched', []):
+        current_match.evaluate_problems(problem_ctx, STOP_PROBLEM_PIPELINE)
+        matched_problem_map[id(current_match)] = list(current_match.problems)
+
+    unmatched_atlas_problem_map = {}
+    no_nearby_osm_sloids = set()
+    for atlas_node in getattr(base_data, 'unmatched_atlas', []):
+        atlas_lat, atlas_lon = atlas_node.lat, atlas_node.lon
+        if atlas_lat == 0.0 and atlas_lon == 0.0:
+            continue
+
+        nearest_d = problem_ctx.nearest_osm_distance(atlas_lat, atlas_lon)
+        is_isolated = True if nearest_d is None or nearest_d > 50 else False
+        sloid = safe_value(getattr(atlas_node, 'sloid', None))
+        if is_isolated and sloid:
+            no_nearby_osm_sloids.add(str(sloid))
+
+        unmatched_atlas_problem_map[id(atlas_node)] = {
+            'match_type': 'no_nearby_counterpart' if is_isolated else None,
+            'is_isolated': is_isolated,
+            'problems': run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, atlas_node),
+        }
+
+    unmatched_osm_problem_map = {}
+    for osm_node in getattr(base_data, 'unmatched_osm', []):
+        osm_lat, osm_lon = osm_node.lat, osm_node.lon
+        if osm_lat == 0.0 and osm_lon == 0.0 and 'lat' not in osm_node.tags:
+            continue
+        unmatched_osm_problem_map[id(osm_node)] = run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, osm_node)
+
+    return {
+        'problem_ctx': problem_ctx,
+        'matched_problem_map': matched_problem_map,
+        'unmatched_atlas_problem_map': unmatched_atlas_problem_map,
+        'unmatched_osm_problem_map': unmatched_osm_problem_map,
+        'no_nearby_osm_sloids': no_nearby_osm_sloids,
+    }
+
+
+def precompute_route_artifacts(base_data: MatchingOutput, all_route_data: dict | None = None) -> dict:
+    """Prepare route-route write payload before maintenance begins."""
+    route_data = all_route_data or load_all_route_data()
+    importable_sloids = _collect_importable_sloids(base_data)
+    route_write_payload = build_route_write_payload(route_data, importable_sloids)
+    return {
+        'all_route_data': route_data,
+        'route_write_payload': route_write_payload,
+        'known_sloids': importable_sloids,
+    }
 
 
 def _import_all_osm_nodes(session, all_osm_nodes, problem_ctx):
@@ -62,9 +163,16 @@ def _import_all_osm_nodes(session, all_osm_nodes, problem_ctx):
     print(f"Imported {len(all_osm_nodes)} OSM nodes")
 
 
-def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids):
-    print("\nDetecting problems and importing matched records...")
-    print("  Checks: distance, attributes, duplicates")
+def _import_matched_stops(
+    session,
+    matched_records,
+    problem_ctx,
+    duplicate_sloid_map,
+    processed_sloids,
+    processed_osm_node_ids,
+    precomputed_problem_map=None,
+):
+    print("\nImporting matched records and attaching problem flags...")
 
     BATCH_SIZE = int(os.getenv('DB_IMPORT_BATCH_SIZE', '5000'))
     _t0 = time.time()
@@ -75,8 +183,11 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
         atlas_lat, atlas_lon = current_match.atlas_node.lat, current_match.atlas_node.lon
         osm_lat, osm_lon = current_match.osm_node.lat, current_match.osm_node.lon
 
-        # Natively evaluate problems using domain components
-        current_match.evaluate_problems(problem_ctx, STOP_PROBLEM_PIPELINE)
+        if precomputed_problem_map is not None and id(current_match) in precomputed_problem_map:
+            problems = precomputed_problem_map[id(current_match)]
+        else:
+            current_match.evaluate_problems(problem_ctx, STOP_PROBLEM_PIPELINE)
+            problems = current_match.problems
 
         sloid = current_match.atlas_node.sloid
         osm_node_id = current_match.osm_node.node_id
@@ -97,7 +208,7 @@ def _import_matched_stops(session, matched_records, problem_ctx, duplicate_sloid
             matching_notes=current_match.notes,
             geom=geom,
         )
-        apply_problem_results(stop_record, current_match.problems)
+        apply_problem_results(stop_record, problems)
         session.add(stop_record)
 
         if sloid and sloid not in processed_sloids:
@@ -164,7 +275,14 @@ def _import_osm_stop_units(session, osm_stop_units):
     session.commit()
     print(f"Imported {imported_units} OSM stop units and {imported_members} stop members")
 
-def _import_unmatched_atlas(session, unmatched_records, problem_ctx, duplicate_sloid_map, processed_sloids):
+def _import_unmatched_atlas(
+    session,
+    unmatched_records,
+    problem_ctx,
+    duplicate_sloid_map,
+    processed_sloids,
+    precomputed_unmatched_atlas_map=None,
+):
     no_nearby_osm_sloids = set()
     for atlas_node in unmatched_records:
         atlas_lat, atlas_lon = atlas_node.lat, atlas_node.lon
@@ -174,12 +292,22 @@ def _import_unmatched_atlas(session, unmatched_records, problem_ctx, duplicate_s
 
         sloid = atlas_node.sloid
 
-        nearest_d = problem_ctx.nearest_osm_distance(atlas_lat, atlas_lon)
-        is_isolated = True if nearest_d is None or nearest_d > 50 else False
+        precomputed_entry = None
+        if precomputed_unmatched_atlas_map is not None:
+            precomputed_entry = precomputed_unmatched_atlas_map.get(id(atlas_node))
+
+        if precomputed_entry is not None:
+            is_isolated = bool(precomputed_entry.get('is_isolated', False))
+            match_type_for_unmatched = precomputed_entry.get('match_type')
+            problems = precomputed_entry.get('problems', [])
+        else:
+            nearest_d = problem_ctx.nearest_osm_distance(atlas_lat, atlas_lon)
+            is_isolated = True if nearest_d is None or nearest_d > 50 else False
+            match_type_for_unmatched = 'no_nearby_counterpart' if is_isolated else None
+            problems = run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, atlas_node)
+
         if is_isolated and sloid:
              no_nearby_osm_sloids.add(sloid)
-
-        match_type_for_unmatched = 'no_nearby_counterpart' if is_isolated else None
 
         stop_record = StopsMatched(
             sloid=sloid,
@@ -190,8 +318,6 @@ def _import_unmatched_atlas(session, unmatched_records, problem_ctx, duplicate_s
             geom=make_point_geom(atlas_lat, atlas_lon),
         )
 
-        # Natively evaluate problems for the purely unmatched Atlas node
-        problems = run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, atlas_node)
         apply_problem_results(stop_record, problems)
 
         session.add(stop_record)
@@ -216,7 +342,14 @@ def _import_unmatched_atlas(session, unmatched_records, problem_ctx, duplicate_s
     session.commit()
     return no_nearby_osm_sloids
 
-def _import_unmatched_osm(session, unmatched_osm_records, problem_ctx, processed_osm_node_ids, base_data):
+def _import_unmatched_osm(
+    session,
+    unmatched_osm_records,
+    problem_ctx,
+    processed_osm_node_ids,
+    base_data,
+    precomputed_unmatched_osm_map=None,
+):
     # Pre-calculate middle nodes where both sides are matched
     trio_middles_effectively_matched = set()
     matched_osm_nodes = {str(r.osm_node.node_id) for r in getattr(base_data, 'matched', []) if getattr(r, 'osm_node', None)}
@@ -256,8 +389,10 @@ def _import_unmatched_osm(session, unmatched_osm_records, problem_ctx, processed
             geom=make_point_geom(osm_lat, osm_lon),
         )
 
-        # Natively evaluate problems for the purely unmatched Osm node
-        problems = run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, osm_node)
+        if precomputed_unmatched_osm_map is not None and id(osm_node) in precomputed_unmatched_osm_map:
+            problems = precomputed_unmatched_osm_map[id(osm_node)]
+        else:
+            problems = run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, osm_node)
         apply_problem_results(stop_record, problems)
 
         session.add(stop_record)
@@ -302,66 +437,46 @@ def _ensure_route_osm_nodes(session, all_route_data, known_osm_node_ids):
     known_osm_node_ids.update(placeholder_ids)
     print(f"Inserted {len(placeholder_ids)} placeholder OSM nodes referenced by routes")
 
-def _import_routes(session, all_route_data, known_sloids):
-    matched_routes = 0
+def _import_routes(session, route_write_payload):
+    route_osm_rows = route_write_payload.get('route_osm_rows', [])
+    route_atlas_rows = route_write_payload.get('route_atlas_rows', [])
+    routes_matched_rows = route_write_payload.get('routes_matched_rows', [])
+    skipped_sloids = int(route_write_payload.get('skipped_sloids', 0) or 0)
+    matched_routes = int(route_write_payload.get('matched_routes', 0) or 0)
+
     routes_to_insert = []
-    
-    atlas_route_dir_to_sloids = all_route_data.get('atlas_route_dir_to_sloids', {})
-    osm_route_dir_to_nodes = all_route_data.get('osm_route_dir_to_nodes', {})
-
-    # Pre-build normalized index for ATLAS routes
-    atlas_normalized_to_original = {}
-    for (atlas_route_id, atlas_direction_id), atlas_info in atlas_route_dir_to_sloids.items():
-        norm_id = normalize_route_id(atlas_route_id)
-        if norm_id:
-            atlas_normalized_to_original.setdefault((norm_id, atlas_direction_id), []).append(
-                (atlas_route_id, atlas_info)
-            )
-
-    # Track distinct matches to avoid duplicate RoutesMatched records
-    seen_route_matches = set()
-
-    for (osm_route_id, direction_id), osm_data in osm_route_dir_to_nodes.items():
-        for i, node_id in enumerate(osm_data['nodes']):
-            routes_to_insert.append(RouteOsmStops(
-                osm_route_id=osm_route_id, direction_id=direction_id, osm_node_id=node_id, stop_sequence=i
-            ))
-            
-        atlas_data = atlas_route_dir_to_sloids.get((osm_route_id, direction_id))
-        atlas_matched_route_id = None
-
-        if atlas_data:
-            atlas_matched_route_id = osm_route_id
-        else:
-            osm_route_normalized = normalize_route_id(osm_route_id)
-            if osm_route_normalized:
-                matches = atlas_normalized_to_original.get((osm_route_normalized, direction_id))
-                if matches:
-                    atlas_matched_route_id, atlas_data = matches[0]
-
-        if atlas_matched_route_id and (atlas_matched_route_id, osm_route_id) not in seen_route_matches:
-            seen_route_matches.add((atlas_matched_route_id, osm_route_id))
-            routes_to_insert.append(RoutesMatched(
-                atlas_route_id=atlas_matched_route_id,
-                osm_route_id=osm_route_id,
-                match_type='matched'
-            ))
-            matched_routes += 1
-            
-    skipped_sloids = 0
-    for (atlas_route_id, direction_id), atlas_data in atlas_route_dir_to_sloids.items():
-        for i, sloid in enumerate(atlas_data['sloids']):
-            if sloid not in known_sloids:
-                skipped_sloids += 1
-                continue
-            routes_to_insert.append(RouteAtlasStops(
-                atlas_route_id=atlas_route_id, direction_id=direction_id, sloid=sloid, stop_sequence=i
-            ))
+    routes_to_insert.extend([
+        RouteOsmStops(
+            osm_route_id=osm_route_id,
+            direction_id=direction_id,
+            osm_node_id=osm_node_id,
+            stop_sequence=stop_sequence,
+        )
+        for osm_route_id, direction_id, osm_node_id, stop_sequence in route_osm_rows
+    ])
+    routes_to_insert.extend([
+        RouteAtlasStops(
+            atlas_route_id=atlas_route_id,
+            direction_id=direction_id,
+            sloid=sloid,
+            stop_sequence=stop_sequence,
+        )
+        for atlas_route_id, direction_id, sloid, stop_sequence in route_atlas_rows
+    ])
+    routes_to_insert.extend([
+        RoutesMatched(
+            atlas_route_id=atlas_route_id,
+            osm_route_id=osm_route_id,
+            match_type=match_type,
+        )
+        for atlas_route_id, osm_route_id, match_type in routes_matched_rows
+    ])
 
     if skipped_sloids:
         print(f"  Skipped {skipped_sloids} route-atlas entries (SLOID not in atlas_stops)")
-    
-    session.bulk_save_objects(routes_to_insert)
+
+    if routes_to_insert:
+        session.bulk_save_objects(routes_to_insert)
     session.commit()
     print(f"Route import completed: {matched_routes} ATLAS↔OSM route pairs linked")
 
@@ -376,25 +491,40 @@ def _print_problem_summary(session):
     print(f"Entries with multiple problems: {ps['multiple_problems']}")
     print(f"Clean entries (no problems): {ps['clean_entries']}")
 
+
+def print_problem_summary():
+    """Print database problem summary, typically after blocking maintenance ends."""
+    _print_problem_summary(session)
+
 # --------------------------
 # Data Import Function
 # --------------------------
-def import_to_database(base_data: MatchingOutput):
+def import_to_database(
+    base_data: MatchingOutput,
+    problem_artifacts: dict | None = None,
+    route_artifacts: dict | None = None,
+):
     """
     Fully refresh the database "Import DB" .
     """
+    _ensure_import_schema_exists(session)
+
     print("Truncating all database tables...")
     session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, osm_stops, osm_stop_members, route_atlas_stops, route_osm_stops CASCADE"))
     session.execute(text("TRUNCATE TABLE routes_matched CASCADE"))
     session.execute(text("TRUNCATE TABLE problems, stops_matched CASCADE"))
     session.commit()
 
-    try:
-        _preloaded_osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv")
-    except Exception:
-        _preloaded_osm_routes_df = None
+    route_artifacts = route_artifacts or {}
+    problem_artifacts = problem_artifacts or {}
 
-    all_route_data = load_all_route_data(osm_routes_df=_preloaded_osm_routes_df)
+    all_route_data = route_artifacts.get('all_route_data')
+    if all_route_data is None:
+        try:
+            _preloaded_osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv", low_memory=False)
+        except Exception:
+            _preloaded_osm_routes_df = None
+        all_route_data = load_all_route_data(osm_routes_df=_preloaded_osm_routes_df)
 
     processed_sloids = set()
     processed_osm_node_ids = set()
@@ -413,7 +543,10 @@ def import_to_database(base_data: MatchingOutput):
     if duplicate_sloids:
         print(f"{len(duplicate_sloids)} sloids are matched to more than one OSM node")
 
-    problem_ctx = ProblemContext.build(base_data)
+    problem_ctx = problem_artifacts.get('problem_ctx') or ProblemContext.build(base_data)
+    matched_problem_map = problem_artifacts.get('matched_problem_map')
+    unmatched_atlas_problem_map = problem_artifacts.get('unmatched_atlas_problem_map')
+    unmatched_osm_problem_map = problem_artifacts.get('unmatched_osm_problem_map')
 
     duplicate_sloid_map = base_data.duplicate_sloid_map
 
@@ -433,18 +566,43 @@ def import_to_database(base_data: MatchingOutput):
     _import_osm_stop_units(session, base_data.osm_stop_units)
 
     # 1. Import Matched (osm_group_propagation records from commit() include pair siblings)
-    _import_matched_stops(session, base_data.matched, problem_ctx, duplicate_sloid_map, processed_sloids, processed_osm_node_ids)
+    _import_matched_stops(
+        session,
+        base_data.matched,
+        problem_ctx,
+        duplicate_sloid_map,
+        processed_sloids,
+        processed_osm_node_ids,
+        precomputed_problem_map=matched_problem_map,
+    )
 
     # 2. Import Unmatched Atlas
-    no_nearby_osm_sloids = _import_unmatched_atlas(session, base_data.unmatched_atlas, problem_ctx, duplicate_sloid_map, processed_sloids)
+    no_nearby_osm_sloids = _import_unmatched_atlas(
+        session,
+        base_data.unmatched_atlas,
+        problem_ctx,
+        duplicate_sloid_map,
+        processed_sloids,
+        precomputed_unmatched_atlas_map=unmatched_atlas_problem_map,
+    )
 
     # 3. Import Unmatched OSM
-    _import_unmatched_osm(session, base_data.unmatched_osm, problem_ctx, processed_osm_node_ids, base_data)
+    _import_unmatched_osm(
+        session,
+        base_data.unmatched_osm,
+        problem_ctx,
+        processed_osm_node_ids,
+        base_data,
+        precomputed_unmatched_osm_map=unmatched_osm_problem_map,
+    )
 
-    # 4. Import Routes
-    _import_routes(session, all_route_data, processed_sloids)
-
-    _print_problem_summary(session)
+    # 4. Import Routes (precomputed payload preferred)
+    route_write_payload = route_artifacts.get('route_write_payload')
+    if route_write_payload is None:
+        route_write_payload = build_route_write_payload(all_route_data, processed_sloids)
+    route_write_started = time.perf_counter()
+    _import_routes(session, route_write_payload)
+    print(f"Route-route write phase completed in {time.perf_counter() - route_write_started:.2f}s")
 
 
     session.close()
@@ -566,6 +724,13 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
             stats['problems'] = compute_db_stats(session)
         except Exception as e:
             print(f"Warning: Could not compute problem statistics: {e}")
+
+        # Preserve independent stats generated by other pipeline stages (like atlas_filtering)
+        from backend.services.stats_export import load_stats_from_file
+        existing_stats = load_stats_from_file() or {}
+        for k, v in existing_stats.items():
+            if k not in stats:
+                stats[k] = v
 
         filepath = save_stats_to_file(stats)
         print(f"\n==== STATISTICS EXPORTED ====")

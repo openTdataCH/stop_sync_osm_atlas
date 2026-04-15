@@ -8,6 +8,8 @@ import os
 
 import pandas as pd
 
+from matching_and_import_db.utils.route_id import normalize_route_id
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -178,4 +180,67 @@ def load_all_route_data(osm_routes_df: pd.DataFrame = None):
     return {
         'osm_route_dir_to_nodes': osm_route_dir_to_nodes,
         'atlas_route_dir_to_sloids': atlas_route_dir_to_sloids,
+    }
+
+
+def build_route_write_payload(all_route_data: dict, known_sloids: set[str]) -> dict:
+    """Prepare route table rows for later bulk DB insert.
+
+    This is intentionally DB-free so it can run in a non-blocking scheduler
+    phase before the maintenance window starts.
+    """
+    atlas_route_dir_to_sloids = all_route_data.get('atlas_route_dir_to_sloids', {})
+    osm_route_dir_to_nodes = all_route_data.get('osm_route_dir_to_nodes', {})
+
+    atlas_normalized_to_original = {}
+    for (atlas_route_id, atlas_direction_id), atlas_info in atlas_route_dir_to_sloids.items():
+        norm_id = normalize_route_id(atlas_route_id)
+        if norm_id:
+            atlas_normalized_to_original.setdefault((norm_id, atlas_direction_id), []).append(
+                (atlas_route_id, atlas_info)
+            )
+
+    route_osm_rows: list[tuple[str, str, str, int]] = []
+    route_atlas_rows: list[tuple[str, str, str, int]] = []
+    routes_matched_rows: list[tuple[str, str, str]] = []
+
+    seen_route_matches = set()
+    matched_routes = 0
+
+    for (osm_route_id, direction_id), osm_data in osm_route_dir_to_nodes.items():
+        for i, node_id in enumerate(osm_data.get('nodes', [])):
+            route_osm_rows.append((str(osm_route_id), str(direction_id), str(node_id), i))
+
+        atlas_data = atlas_route_dir_to_sloids.get((osm_route_id, direction_id))
+        atlas_matched_route_id = None
+
+        if atlas_data:
+            atlas_matched_route_id = osm_route_id
+        else:
+            osm_route_normalized = normalize_route_id(osm_route_id)
+            if osm_route_normalized:
+                matches = atlas_normalized_to_original.get((osm_route_normalized, direction_id))
+                if matches:
+                    atlas_matched_route_id, atlas_data = matches[0]
+
+        if atlas_matched_route_id and (atlas_matched_route_id, osm_route_id) not in seen_route_matches:
+            seen_route_matches.add((atlas_matched_route_id, osm_route_id))
+            routes_matched_rows.append((str(atlas_matched_route_id), str(osm_route_id), 'matched'))
+            matched_routes += 1
+
+    skipped_sloids = 0
+    for (atlas_route_id, direction_id), atlas_data in atlas_route_dir_to_sloids.items():
+        for i, sloid in enumerate(atlas_data.get('sloids', [])):
+            sloid_str = str(sloid)
+            if sloid_str not in known_sloids:
+                skipped_sloids += 1
+                continue
+            route_atlas_rows.append((str(atlas_route_id), str(direction_id), sloid_str, i))
+
+    return {
+        'route_osm_rows': route_osm_rows,
+        'route_atlas_rows': route_atlas_rows,
+        'routes_matched_rows': routes_matched_rows,
+        'matched_routes': matched_routes,
+        'skipped_sloids': skipped_sloids,
     }

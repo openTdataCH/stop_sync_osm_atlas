@@ -191,43 +191,43 @@
   white-space: nowrap;
 }
 
-.badge-primary {
+.text-bg-primary {
   color: var(--color-primary);
   border-color: var(--color-primary-muted);
   background-color: var(--color-primary-subtle);
 }
 
-.badge-secondary {
+.text-bg-secondary {
   color: var(--color-secondary);
   border-color: var(--color-border);
   background-color: var(--color-secondary-subtle);
 }
 
-.badge-success {
+.text-bg-success {
   color: var(--color-success);
   border-color: var(--color-success-border);
   background-color: var(--color-success-subtle);
 }
 
-.badge-warning {
+.text-bg-warning {
   color: var(--color-warning-text);
   border-color: var(--color-warning-border);
   background-color: var(--color-warning-subtle);
 }
 
-.badge-danger {
+.text-bg-danger {
   color: var(--color-danger);
   border-color: var(--color-danger-border);
   background-color: var(--color-danger-subtle);
 }
 
-.badge-info {
+.text-bg-info {
   color: var(--color-info);
   border-color: var(--color-info-border);
   background-color: var(--color-info-subtle);
 }
 
-.badge-dark {
+.text-bg-dark {
   color: var(--color-dark);
   border-color: var(--color-border-emphasis);
 }

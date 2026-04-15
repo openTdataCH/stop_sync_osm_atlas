@@ -25,7 +25,7 @@
    * Build a removable filter chip with a consistent style
    * @param {object} options
    *  - label: string visible text inside the chip
-   *  - badgeClass: additional badge classes (e.g., 'badge-primary')
+   *  - badgeClass: additional badge classes (e.g., 'text-bg-primary')
    *  - removeClass: anchor class to hook removal handler (default: 'remove-filter')
    *  - data: object of data-* attributes for the anchor (e.g., { type: 'nodeType', filter: 'atlas' })
    *  - closeChar: character for the close button (default: 'x')
@@ -57,14 +57,14 @@
       if (context === 'index') {
         chips.push(buildRemovableChip({
           label: 'Operator: ' + operator,
-          badgeClass: 'badge-info',
+          badgeClass: 'text-bg-info',
           removeClass: 'remove-filter',
           data: { type: 'atlasOperator', filter: operator }
         }));
       } else {
         chips.push(buildRemovableChip({
           label: 'Operator: ' + operator,
-          badgeClass: 'badge-info',
+          badgeClass: 'text-bg-info',
           removeClass: 'remove-operator-chip',
           data: { operator: operator }
         }));
@@ -83,12 +83,12 @@
 
     selectedTypes.forEach(function(problemType) {
       const displayType = String(problemType || '').replace(/_/g, ' ').replace(/\b\w/g, function(l){return l.toUpperCase();});
-      typeChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-primary">' + escapeHtml(displayType) +
+      typeChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' text-bg-primary">' + escapeHtml(displayType) +
                  ' <a href="#" class="text-dark remove-type-chip" data-type="' + escapeHtml(problemType) + '">x</a></span>');
     });
 
     selectedPriorities.forEach(function(prio) {
-      priorityChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-light border">Priority P' + escapeHtml(prio) +
+      priorityChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' text-bg-light border">Priority P' + escapeHtml(prio) +
                  ' <a href="#" class="text-dark remove-priority-chip" data-priority="' + escapeHtml(prio) + '">x</a></span>');
     });
 
@@ -99,7 +99,7 @@
     if (priorityGroup) groups.push(priorityGroup);
 
     if (groups.length === 0 && !hasOperators) {
-      groups.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-secondary">All entries</span>');
+      groups.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' text-bg-secondary">All entries</span>');
     }
 
     return groups;
@@ -115,7 +115,7 @@
     const operatorsGroup = generateOperatorChipsHtml(operators, { context: 'problems' });
     if (operatorsGroup) groups.push(operatorsGroup);
     if (groups.length === 0) {
-      container.html('<span class="' + FILTER_CHIP_BADGE_CLASS + ' badge-secondary">All entries</span>');
+      container.html('<span class="' + FILTER_CHIP_BADGE_CLASS + ' text-bg-secondary">All entries</span>');
     } else {
       container.html(joinWithAndHtml(groups));
     }

@@ -2,7 +2,7 @@
  * Jest Test Setup
  * 
  * This file runs before each test file and sets up the global environment
- * to simulate the browser environment with Leaflet.js and jQuery mocks.
+ * to simulate the browser environment with Leaflet.js and app-level globals.
  */
 
 // Mock Leaflet.js
@@ -43,34 +43,6 @@ global.L = {
     icon: jest.fn(() => ({})),
     divIcon: jest.fn(() => ({}))
 };
-
-// Mock jQuery ($)
-global.$ = jest.fn(() => ({
-    val: jest.fn().mockReturnValue(''),
-    text: jest.fn(),
-    html: jest.fn(),
-    on: jest.fn(),
-    off: jest.fn(),
-    click: jest.fn(),
-    show: jest.fn(),
-    hide: jest.fn(),
-    addClass: jest.fn(),
-    removeClass: jest.fn(),
-    toggleClass: jest.fn(),
-    hasClass: jest.fn().mockReturnValue(false),
-    prop: jest.fn(),
-    attr: jest.fn(),
-    css: jest.fn(),
-    find: jest.fn().mockReturnThis(),
-    each: jest.fn(),
-    append: jest.fn(),
-    remove: jest.fn(),
-    empty: jest.fn()
-}));
-
-global.$.ajax = jest.fn();
-global.$.get = jest.fn();
-global.$.post = jest.fn();
 
 // Mock window.AppConstants
 global.AppConstants = {

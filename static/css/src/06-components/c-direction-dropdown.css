@@ -96,26 +96,26 @@
 /* -------------------------------------------------------------------------
    Badge Context Styling
    ------------------------------------------------------------------------- */
-.badge-danger .direction-dropdown {
+.text-bg-danger .direction-dropdown {
     background-color: rgba(255, 255, 255, 0.15);
     border-color: rgba(255, 255, 255, 0.25);
     color: var(--color-white);
 }
 
-.badge-danger .direction-dropdown:hover,
-.badge-danger .direction-dropdown.open {
+.text-bg-danger .direction-dropdown:hover,
+.text-bg-danger .direction-dropdown.open {
     background-color: rgba(255, 255, 255, 0.25);
     border-color: rgba(255, 255, 255, 0.4);
 }
 
-.badge-dark .direction-dropdown {
+.text-bg-dark .direction-dropdown {
     background-color: rgba(255, 255, 255, 0.15);
     border-color: rgba(255, 255, 255, 0.25);
     color: var(--color-white);
 }
 
-.badge-dark .direction-dropdown:hover,
-.badge-dark .direction-dropdown.open {
+.text-bg-dark .direction-dropdown:hover,
+.text-bg-dark .direction-dropdown.open {
     background-color: rgba(255, 255, 255, 0.25);
     border-color: rgba(255, 255, 255, 0.4);
 }

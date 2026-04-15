@@ -12,7 +12,7 @@ from urllib.parse import unquote
 
 from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file, redirect
 from werkzeug.utils import safe_join
-from backend.services.docs_stats import replace_stats_placeholders
+from backend.services.docs_stats import replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html
 
 try:
     import mistune  # type: ignore
@@ -39,7 +39,7 @@ def _repo_root() -> str:
 
 
 def _docs_pdf_path() -> str:
-    return os.path.join(_repo_root(), 'documentation', 'generated', 'stop_sync_osm_atlas_documentation_bw.pdf')
+    return os.path.join(_repo_root(), 'documentation', 'generated', 'stop_sync_osm_atlas_documentation.pdf')
 
 
 def _docs_pdf_legacy_path() -> str:
@@ -389,101 +389,8 @@ def _read_markdown(filename: str) -> str:
         return f.read()
 
 
-def _convert_github_alerts_to_html(markdown_text: str) -> str:
-    """
-    Convert GitHub-style alerts/admonitions to styled HTML.
-    
-    Handles patterns like:
-    > [!NOTE]
-    > Content here
-    
-    Converts to styled divs with appropriate icons.
-    """
-    alert_types = {
-        'NOTE': ('info-circle', 'alert-note'),
-        'TIP': ('lightbulb', 'alert-tip'),
-        'IMPORTANT': ('exclamation-circle', 'alert-important'),
-        'WARNING': ('exclamation-triangle', 'alert-warning'),
-        'CAUTION': ('radiation', 'alert-caution'),
-    }
-    
-    # Pattern matches > [!TYPE] followed by > lines until end of block
-    # This handles multi-line alerts
-    def replace_alert(match):
-        alert_type = match.group(1).upper()
-        content = match.group(2)
-        
-        if alert_type not in alert_types:
-            return match.group(0)
-        
-        icon, css_class = alert_types[alert_type]
-        
-        # Clean up the content - remove leading > from each line
-        lines = content.strip().split('\n')
-        cleaned_lines = []
-        for line in lines:
-            # Remove leading > and optional space
-            if line.startswith('> '):
-                cleaned_lines.append(line[2:])
-            elif line.startswith('>'):
-                cleaned_lines.append(line[1:])
-            else:
-                cleaned_lines.append(line)
-        
-        cleaned_content = '\n'.join(cleaned_lines).strip()
-        
-        return f'''<div class="github-alert {css_class}">
-<div class="alert-title"><i class="fas fa-{icon}"></i> {alert_type.title()}</div>
-<div class="alert-content">
-
-{cleaned_content}
-
-</div>
-</div>
-
-'''
-    
-    # Match > [!TYPE]\n> content pattern (multi-line)
-    # This regex captures the alert type and all subsequent > lines
-    pattern = r'>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*\n((?:>.*(?:\n|$))+)'
-    
-    return re.sub(pattern, replace_alert, markdown_text, flags=re.IGNORECASE)
 
 
-def _get_canonical_palette_html() -> str:
-    """Generate a beautiful grid of the canonical brand palette."""
-    palette = [
-        # Brand & Semantic
-        {"name": "Primary Navy", "hex": "#174092", "desc": "Brand primary color, used for ATLAS markers and UI accents.", "token": "--color-primary"},
-        {"name": "OSM Matched Green", "hex": "#4CAF50", "desc": "Success color, used for matched OSM markers.", "token": "--color-success"},
-        {"name": "ATLAS Unmatched Red", "hex": "#DC3545", "desc": "Danger color, used for unmatched ATLAS markers.", "token": "--color-danger"},
-        {"name": "Priority P2 Orange", "hex": "#F0AD4E", "desc": "Warning color, used for significant problems.", "token": "--color-warning"},
-        {"name": "OSM Unmatched Gray", "hex": "#6C757D", "desc": "Muted color, used for unmatched OSM markers.", "token": "--color-secondary"},
-        
-        # Neutral Scale
-        {"name": "Neutral Dark", "hex": "#343a40", "desc": "Heading and primary text accent.", "token": "--color-dark"},
-        {"name": "Neutral Muted", "hex": "#6C757D", "desc": "Secondary text and low-priority elements.", "token": "--color-fg-muted"},
-        {"name": "System Border", "hex": "#E5E7EB", "desc": "Standard card and container borders.", "token": "--color-border"},
-        {"name": "Subtle Surface", "hex": "#F8F9FA", "desc": "Subtle background for list headers and sections.", "token": "--color-bg-subtle"},
-        {"name": "Primary Subtle", "hex": "#eef3fb", "desc": "Subtle background for info banners.", "token": "--color-primary-subtle"},
-    ]
-    
-    html = '<div class="palette-grid mt-4 mb-5">'
-    for color in palette:
-        html += f'''
-        <div class="palette-card">
-            <div class="palette-swatch" style="background-color: {color['hex']}"></div>
-            <div class="palette-details">
-                <div class="palette-name">{color['name']}</div>
-                <div class="palette-meta">
-                    <code class="palette-hex">{color['hex']}</code>
-                    <code class="palette-token">{color['token']}</code>
-                </div>
-                <div class="palette-desc">{color['desc']}</div>
-            </div>
-        </div>'''
-    html += '</div>'
-    return html
 
 
 def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) -> str:
@@ -493,14 +400,30 @@ def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) 
     markdown_text = _rewrite_internal_doc_links_to_routes(markdown_text, file_to_slug)
     
     # Convert GitHub-style alerts to HTML before markdown processing
-    markdown_text = _convert_github_alerts_to_html(markdown_text)
-    
+    markdown_text = convert_github_alerts_to_html(markdown_text)
+
+    # Protect mermaid blocks from stats replacement spans
+    mermaid_blocks = []
+    def save_mermaid(match: re.Match) -> str:
+        mermaid_blocks.append(match.group(0))
+        return f"<!--MERMAID_BLOCK_{len(mermaid_blocks)-1}-->"
+
+    markdown_text = re.sub(r'```mermaid.*?```', save_mermaid, markdown_text, flags=re.DOTALL)
+
     # Replace stats placeholders with actual values from stats.json
     markdown_text = replace_stats_placeholders(markdown_text)
 
+    # Restore mermaid blocks and replace stats inside them without spans
+    def restore_mermaid(match: re.Match) -> str:
+        idx = int(match.group(1))
+        block = mermaid_blocks[idx]
+        return replace_stats_placeholders(block, no_span=True)
+
+    markdown_text = re.sub(r'<!--MERMAID_BLOCK_(\d+)-->', restore_mermaid, markdown_text)
+
     # Inject canonical palette grid if placeholder is present
     if '[[canonical_palette]]' in markdown_text:
-        palette_html = _get_canonical_palette_html()
+        palette_html = get_canonical_palette_html()
         markdown_text = markdown_text.replace('[[canonical_palette]]', palette_html)
 
     # Inject operator normalizations table if placeholder is present

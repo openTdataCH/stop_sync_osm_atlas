@@ -8,7 +8,7 @@
    ------------------------------------------------------------------------- */
 .solution-card {
   margin-bottom: var(--space-4);
-  border-left: 5px solid var(--color-success);
+  border-start: 5px solid var(--color-success);
   transition: all var(--transition-fast);
 }
 
@@ -17,23 +17,23 @@
 }
 
 .solution-card.distance {
-  border-left-color: var(--color-danger);
+  border-start-color: var(--color-danger);
 }
 
 .solution-card.unmatched {
-  border-left-color: var(--color-warning);
+  border-start-color: var(--color-warning);
 }
 
 .solution-card.attributes {
-  border-left-color: var(--color-info);
+  border-start-color: var(--color-info);
 }
 
 .solution-card.atlas_note {
-  border-left-color: var(--color-cyan);
+  border-start-color: var(--color-cyan);
 }
 
 .solution-card.osm_note {
-  border-left-color: var(--color-primary);
+  border-start-color: var(--color-primary);
 }
 
 .solution-header {
@@ -117,7 +117,7 @@
   border-radius: var(--radius-md);
 }
 
-.alert-dismissible .close {
+.alert-dismissible .btn-close {
   padding: var(--space-3) var(--space-4);
 }
 
@@ -145,32 +145,32 @@
   border-radius: var(--radius-md);
 }
 
-.manage-data-page .badge-success {
+.manage-data-page .text-bg-success {
   color: var(--color-white);
   background-color: var(--color-success);
 }
 
-.manage-data-page .badge-info {
+.manage-data-page .text-bg-info {
   color: var(--color-white);
   background-color: var(--color-info);
 }
 
-.manage-data-page .badge-primary {
+.manage-data-page .text-bg-primary {
   color: var(--color-white);
   background-color: var(--color-primary);
 }
 
-.manage-data-page .badge-warning {
+.manage-data-page .text-bg-warning {
   color: var(--color-dark);
   background-color: var(--color-warning);
 }
 
-.manage-data-page .badge-danger {
+.manage-data-page .text-bg-danger {
   color: var(--color-white);
   background-color: var(--color-danger);
 }
 
-.manage-data-page .badge-secondary {
+.manage-data-page .text-bg-secondary {
   color: var(--color-white);
   background-color: var(--color-secondary);
 }

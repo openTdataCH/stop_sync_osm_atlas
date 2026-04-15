@@ -164,33 +164,33 @@
 }
 
 /* Badge color variants — dark grey text, colored borders */
-#activeFilters .badge-primary,
-#problemsActiveFilters .badge-primary {
+#activeFilters .text-bg-primary,
+#problemsActiveFilters .text-bg-primary {
   border-color: var(--color-primary);
 }
 
-#activeFilters .badge-secondary,
-#problemsActiveFilters .badge-secondary {
+#activeFilters .text-bg-secondary,
+#problemsActiveFilters .text-bg-secondary {
   border-color: var(--color-secondary);
 }
 
-#activeFilters .badge-success,
-#problemsActiveFilters .badge-success {
+#activeFilters .text-bg-success,
+#problemsActiveFilters .text-bg-success {
   border-color: var(--color-success);
 }
 
-#activeFilters .badge-warning,
-#problemsActiveFilters .badge-warning {
+#activeFilters .text-bg-warning,
+#problemsActiveFilters .text-bg-warning {
   border-color: var(--color-warning);
 }
 
-#activeFilters .badge-info,
-#problemsActiveFilters .badge-info {
+#activeFilters .text-bg-info,
+#problemsActiveFilters .text-bg-info {
   border-color: var(--color-info);
 }
 
-#activeFilters .badge-danger,
-#problemsActiveFilters .badge-danger {
+#activeFilters .text-bg-danger,
+#problemsActiveFilters .text-bg-danger {
   border-color: var(--color-danger);
 }
 

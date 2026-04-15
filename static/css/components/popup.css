@@ -217,7 +217,7 @@
   padding: var(--space-2);
   background: rgba(255, 255, 255, 0.5);
   border-radius: var(--radius-md);
-  border-left: 3px solid var(--bubble-border);
+  border-start: 3px solid var(--bubble-border);
   font-size: var(--text-xs);
 }
 
@@ -317,15 +317,6 @@
   background: var(--color-bg-muted);
   border-color: var(--color-fg-subtle);
   color: var(--color-black);
-}
-
-/* Save note button */
-.leaflet-popup-content .save-popup-note {
-  color: var(--color-dark) !important;
-}
-
-.leaflet-popup-content .save-popup-note:hover {
-  color: var(--color-black) !important;
 }
 
 /* -------------------------------------------------------------------------

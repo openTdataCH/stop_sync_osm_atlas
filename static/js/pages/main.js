@@ -1397,10 +1397,14 @@ $(document).ready(function () {
     var topFiltersOverlay = document.querySelector('.top-filters-overlay');
     if (topFiltersOverlay) {
         $(topFiltersOverlay).on('shown.bs.dropdown', '.dropdown', function () {
-            setZoomBannerTransientHidden('filters-dropdown', true);
+            var toggle = this.querySelector('.dropdown-toggle');
+            var id = toggle ? toggle.id : Math.random().toString();
+            this.dataset.dropdownInstanceId = id; // Save it to ensure consistent removal
+            setZoomBannerTransientHidden('filters-dropdown-' + id, true);
         });
         $(topFiltersOverlay).on('hidden.bs.dropdown', '.dropdown', function () {
-            setZoomBannerTransientHidden('filters-dropdown', false);
+            var id = this.dataset.dropdownInstanceId || 'unknown';
+            setZoomBannerTransientHidden('filters-dropdown-' + id, false);
         });
     }
 

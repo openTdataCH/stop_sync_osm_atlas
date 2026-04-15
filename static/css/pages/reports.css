@@ -208,7 +208,7 @@
   width: 5px;
   height: 8px;
   background: transparent;
-  border-right: 2px solid var(--color-white);
+  border-end: 2px solid var(--color-white);
   border-bottom: 2px solid var(--color-white);
   border-radius: 0;
   transform: rotate(45deg) scale(0);

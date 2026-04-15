@@ -62,10 +62,10 @@ SECTION 1 — MATCHING PROCESS
       <thead class="thead-light">
         <tr>
           <th>Stage</th>
-          <th class="text-right">Count</th>
-          <th class="text-right">% of Total</th>
-          <th class="text-right">Many-to-One</th>
-          <th class="text-right" title="Not matched to closest OSM node">Not Closest</th>
+          <th class="text-end">Count</th>
+          <th class="text-end">% of Total</th>
+          <th class="text-end">Many-to-One</th>
+          <th class="text-end" title="Not matched to closest OSM node">Not Closest</th>
         </tr>
       </thead>
       <tbody>
@@ -77,149 +77,149 @@ SECTION 1 — MATCHING PROCESS
         stats.quality_metrics.distance_quality.not_matched_to_closest_by_stage is defined else {} %}
         <tr>
           <td>Exact (UIC ref)</td>
-          <td class="text-right">{{ "{:,}".format(stages.exact.count) }}</td>
-          <td class="text-right">{{ "%.1f"|format(stages.exact.count / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(stages.exact.mto|default(0)) }}</td>
-          <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('exact', 0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(stages.exact.count) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stages.exact.count / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stages.exact.mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('exact', 0)) }}</td>
         </tr>
         <tr>
           <td>Name matching</td>
-          <td class="text-right">{{ "{:,}".format(stages.name.count) }}</td>
-          <td class="text-right">{{ "%.1f"|format(stages.name.count / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(stages.name.mto|default(0)) }}</td>
-          <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('name', 0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(stages.name.count) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stages.name.count / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stages.name.mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('name', 0)) }}</td>
         </tr>
-        <tr class="font-weight-bold">
+        <tr class="fw-bold">
           <td>Distance (total)</td>
-          <td class="text-right">{{ "{:,}".format(stages.distance.count) }}</td>
-          <td class="text-right">{{ "%.1f"|format(stages.distance.count / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(stages.distance.mto|default(0)) }}</td>
-          <td class="text-right">-</td>
+          <td class="text-end">{{ "{:,}".format(stages.distance.count) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stages.distance.count / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stages.distance.mto|default(0)) }}</td>
+          <td class="text-end">-</td>
         </tr>
         {% set db = stages.distance.breakdown %}
         <tr class="text-muted">
-          <td class="pl-4">Stage 0: Trio side matching</td>
-          <td class="text-right">{{ "{:,}".format(db.stage0_trio|default(0)) }}</td>
-          <td class="text-right">{{ "%.1f"|format((db.stage0_trio|default(0)) / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(db.stage0_trio_mto|default(0)) }}</td>
-          <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('distance_trio', 0)) }}</td>
+          <td class="ps-4">Stage 0: Trio side matching</td>
+          <td class="text-end">{{ "{:,}".format(db.stage0_trio|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format((db.stage0_trio|default(0)) / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(db.stage0_trio_mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_trio', 0)) }}</td>
         </tr>
         <tr class="text-muted">
-          <td class="pl-4">Stage 1: Group proximity</td>
-          <td class="text-right">{{ "{:,}".format(db.stage1_group) }}</td>
-          <td class="text-right">{{ "%.1f"|format(db.stage1_group / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(db.stage1_group_mto|default(0)) }}</td>
-          <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('distance_stage1', 0)) }}</td>
+          <td class="ps-4">Stage 1: Group proximity</td>
+          <td class="text-end">{{ "{:,}".format(db.stage1_group) }}</td>
+          <td class="text-end">{{ "%.1f"|format(db.stage1_group / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(db.stage1_group_mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1', 0)) }}</td>
         </tr>
         {% set stage1k = db.stage1_group_by_key if db.stage1_group_by_key is defined else {} %}
         {% if stage1k.uic_ref is defined and stage1k.uic_ref.count > 0 %}
         <tr class="text-muted">
-          <td class="pl-5">Stage 1a: UIC ref</td>
-          <td class="text-right">{{ "{:,}".format(stage1k.uic_ref.count) }}</td>
-          <td class="text-right">{{ "%.1f"|format(stage1k.uic_ref.count / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(stage1k.uic_ref.mto|default(0)) }}</td>
-          <td class="text-right">-</td>
+          <td class="ps-5">Stage 1a: UIC ref</td>
+          <td class="text-end">{{ "{:,}".format(stage1k.uic_ref.count) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stage1k.uic_ref.count / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stage1k.uic_ref.mto|default(0)) }}</td>
+          <td class="text-end">-</td>
         </tr>
         {% endif %}
         {% if stage1k.uic_name is defined and stage1k.uic_name.count > 0 %}
         <tr class="text-muted">
-          <td class="pl-5">Stage 1b: UIC name</td>
-          <td class="text-right">{{ "{:,}".format(stage1k.uic_name.count) }}</td>
-          <td class="text-right">{{ "%.1f"|format(stage1k.uic_name.count / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(stage1k.uic_name.mto|default(0)) }}</td>
-          <td class="text-right">-</td>
+          <td class="ps-5">Stage 1b: UIC name</td>
+          <td class="text-end">{{ "{:,}".format(stage1k.uic_name.count) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stage1k.uic_name.count / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stage1k.uic_name.mto|default(0)) }}</td>
+          <td class="text-end">-</td>
         </tr>
         {% endif %}
         {% if stage1k.name is defined and stage1k.name.count > 0 %}
         <tr class="text-muted">
-          <td class="pl-5">Stage 1c: Name</td>
-          <td class="text-right">{{ "{:,}".format(stage1k.name.count) }}</td>
-          <td class="text-right">{{ "%.1f"|format(stage1k.name.count / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(stage1k.name.mto|default(0)) }}</td>
-          <td class="text-right">-</td>
+          <td class="ps-5">Stage 1c: Name</td>
+          <td class="text-end">{{ "{:,}".format(stage1k.name.count) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stage1k.name.count / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stage1k.name.mto|default(0)) }}</td>
+          <td class="text-end">-</td>
         </tr>
         {% endif %}
         <tr class="text-muted">
-          <td class="pl-4">Stage 2: Local ref</td>
-          <td class="text-right">{{ "{:,}".format(db.stage2_local_ref) }}</td>
-          <td class="text-right">{{ "%.1f"|format(db.stage2_local_ref / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(db.stage2_local_ref_mto|default(0)) }}</td>
-          <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('distance_stage2', 0)) }}</td>
+          <td class="ps-4">Stage 2: Local ref</td>
+          <td class="text-end">{{ "{:,}".format(db.stage2_local_ref) }}</td>
+          <td class="text-end">{{ "%.1f"|format(db.stage2_local_ref / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(db.stage2_local_ref_mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage2', 0)) }}</td>
         </tr>
         <tr class="text-muted">
-          <td class="pl-4">Stage 3a: Single candidate</td>
-          <td class="text-right">{{ "{:,}".format(db.stage3a_single) }}</td>
-          <td class="text-right">{{ "%.1f"|format(db.stage3a_single / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(db.stage3a_single_mto|default(0)) }}</td>
-          <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a', 0)) }}</td>
+          <td class="ps-4">Stage 3a: Single candidate</td>
+          <td class="text-end">{{ "{:,}".format(db.stage3a_single) }}</td>
+          <td class="text-end">{{ "%.1f"|format(db.stage3a_single / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(db.stage3a_single_mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a', 0)) }}</td>
         </tr>
         {% if (db.stage3a_single_pass1|default(0)) > 0 %}
         <tr class="text-muted">
-          <td class="pl-5">3a pass 1</td>
-          <td class="text-right">{{ "{:,}".format(db.stage3a_single_pass1|default(0)) }}</td>
-          <td class="text-right">{{ "%.1f"|format((db.stage3a_single_pass1|default(0)) / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(db.stage3a_single_pass1_mto|default(0)) }}</td>
-          <td class="text-right">-</td>
+          <td class="ps-5">3a pass 1</td>
+          <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass1|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format((db.stage3a_single_pass1|default(0)) / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass1_mto|default(0)) }}</td>
+          <td class="text-end">-</td>
         </tr>
         {% endif %}
         {% if (db.stage3a_single_pass2|default(0)) > 0 %}
         <tr class="text-muted">
-          <td class="pl-5">3a pass 2</td>
-          <td class="text-right">{{ "{:,}".format(db.stage3a_single_pass2|default(0)) }}</td>
-          <td class="text-right">{{ "%.1f"|format((db.stage3a_single_pass2|default(0)) / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(db.stage3a_single_pass2_mto|default(0)) }}</td>
-          <td class="text-right">-</td>
+          <td class="ps-5">3a pass 2</td>
+          <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass2|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format((db.stage3a_single_pass2|default(0)) / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass2_mto|default(0)) }}</td>
+          <td class="text-end">-</td>
         </tr>
         {% endif %}
         {% if (db.stage3b_relative|default(0)) > 0 %}
         <tr class="text-muted">
-          <td class="pl-4">Stage 3b: Ratio test</td>
-          <td class="text-right">{{ "{:,}".format(db.stage3b_relative) }}</td>
-          <td class="text-right">{{ "%.1f"|format(db.stage3b_relative / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(db.stage3b_relative_mto|default(0)) }}</td>
-          <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('distance_stage3b', 0)) }}</td>
+          <td class="ps-4">Stage 3b: Ratio test</td>
+          <td class="text-end">{{ "{:,}".format(db.stage3b_relative) }}</td>
+          <td class="text-end">{{ "%.1f"|format(db.stage3b_relative / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(db.stage3b_relative_mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3b', 0)) }}</td>
         </tr>
         {% endif %}
-        <tr class="font-weight-bold">
+        <tr class="fw-bold">
           <td>Route matching (total)</td>
-          <td class="text-right">{{ "{:,}".format(stages.route.count) }}</td>
-          <td class="text-right">{{ "%.1f"|format(stages.route.count / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(stages.route.mto|default(0)) }}</td>
-          <td class="text-right">-</td>
+          <td class="text-end">{{ "{:,}".format(stages.route.count) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stages.route.count / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stages.route.mto|default(0)) }}</td>
+          <td class="text-end">-</td>
         </tr>
         {% set rb = stages.route.breakdown %}
         <tr class="text-muted">
-          <td class="pl-4">GTFS</td>
-          <td class="text-right">{{ "{:,}".format(rb.gtfs) }}</td>
-          <td class="text-right">{{ "%.1f"|format(rb.gtfs / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(rb.gtfs_mto|default(0)) }}</td>
-          <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
+          <td class="ps-4">GTFS</td>
+          <td class="text-end">{{ "{:,}".format(rb.gtfs) }}</td>
+          <td class="text-end">{{ "%.1f"|format(rb.gtfs / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(rb.gtfs_mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
         </tr>
         <tr>
           <td>Post-processing: Unique by UIC</td>
-          <td class="text-right">{{ "{:,}".format(stages.post_processing.unique_by_uic) }}</td>
-          <td class="text-right">{{ "%.1f"|format(stages.post_processing.unique_by_uic / total_denom * 100) }}%</td>
-          <td class="text-right">{{ "{:,}".format(stages.post_processing.unique_by_uic_mto|default(0)) }}</td>
-          <td class="text-right">{{ "{:,}".format(nmc_by_stage.get('post_processing', 0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(stages.post_processing.unique_by_uic) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stages.post_processing.unique_by_uic / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stages.post_processing.unique_by_uic_mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('post_processing', 0)) }}</td>
         </tr>
         <tr>
           <td>Post-processing: ATLAS Duplicate propagation</td>
-          <td class="text-right">{{ "{:,}".format(stages.post_processing.duplicate_propagation) }}</td>
-          <td class="text-right">{{ "%.1f"|format(stages.post_processing.duplicate_propagation / total_denom * 100) }}%
+          <td class="text-end">{{ "{:,}".format(stages.post_processing.duplicate_propagation) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stages.post_processing.duplicate_propagation / total_denom * 100) }}%
           </td>
-          <td class="text-right">{{ "{:,}".format(stages.post_processing.duplicate_propagation_mto|default(0)) }}
+          <td class="text-end">{{ "{:,}".format(stages.post_processing.duplicate_propagation_mto|default(0)) }}
           </td>
-          <td class="text-right">-</td>
+          <td class="text-end">-</td>
         </tr>
         <tr>
           <td>Post-processing: OSM stop partner propagation</td>
-          <td class="text-right">{{ "{:,}".format(stages.post_processing.osm_group_propagation|default(0)) }}</td>
-          <td class="text-right">{{ "%.1f"|format((stages.post_processing.osm_group_propagation|default(0)) /
+          <td class="text-end">{{ "{:,}".format(stages.post_processing.osm_group_propagation|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format((stages.post_processing.osm_group_propagation|default(0)) /
             total_denom * 100) }}%
           </td>
-          <td class="text-right">{{ "{:,}".format(stages.post_processing.osm_group_propagation_mto|default(0)) }}
+          <td class="text-end">{{ "{:,}".format(stages.post_processing.osm_group_propagation_mto|default(0)) }}
           </td>
-          <td class="text-right">-</td>
+          <td class="text-end">-</td>
         </tr>
       </tbody>
     </table>
@@ -284,10 +284,10 @@ SECTION 1 — MATCHING PROCESS
       <thead class="thead-light">
         <tr>
           <th>Stage</th>
-          <th class="text-right">Count</th>
-          <th class="text-right">Mean (m)</th>
-          <th class="text-right">Median (m)</th>
-          <th class="text-right">P95 (m)</th>
+          <th class="text-end">Count</th>
+          <th class="text-end">Mean (m)</th>
+          <th class="text-end">Median (m)</th>
+          <th class="text-end">P95 (m)</th>
         </tr>
       </thead>
       <tbody>
@@ -296,20 +296,20 @@ SECTION 1 — MATCHING PROCESS
         {% set sd = dq.by_stage.get(stage) %}
         <tr>
           <td>{{ stage_labels.get(stage, stage) }}</td>
-          <td class="text-right">{{ "{:,}".format(sd.count) }}</td>
-          <td class="text-right">{{ sd.mean_m if sd.mean_m is not none else '-' }}</td>
-          <td class="text-right">{{ sd.median_m if sd.median_m is not none else '-' }}</td>
-          <td class="text-right">{{ sd.p95_m if sd.p95_m is not none else '-' }}</td>
+          <td class="text-end">{{ "{:,}".format(sd.count) }}</td>
+          <td class="text-end">{{ sd.mean_m if sd.mean_m is not none else '-' }}</td>
+          <td class="text-end">{{ sd.median_m if sd.median_m is not none else '-' }}</td>
+          <td class="text-end">{{ sd.p95_m if sd.p95_m is not none else '-' }}</td>
         </tr>
         {% endif %}
         {% endfor %}
         {% for stage, sd in dq.by_stage.items() if stage not in stage_order %}
         <tr>
           <td>{{ stage }}</td>
-          <td class="text-right">{{ "{:,}".format(sd.count) }}</td>
-          <td class="text-right">{{ sd.mean_m if sd.mean_m is not none else '-' }}</td>
-          <td class="text-right">{{ sd.median_m if sd.median_m is not none else '-' }}</td>
-          <td class="text-right">{{ sd.p95_m if sd.p95_m is not none else '-' }}</td>
+          <td class="text-end">{{ "{:,}".format(sd.count) }}</td>
+          <td class="text-end">{{ sd.mean_m if sd.mean_m is not none else '-' }}</td>
+          <td class="text-end">{{ sd.median_m if sd.median_m is not none else '-' }}</td>
+          <td class="text-end">{{ sd.p95_m if sd.p95_m is not none else '-' }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -595,14 +595,14 @@ SECTION 2 — OSM STOPS
       <thead class="thead-light">
         <tr>
           <th>Group Type</th>
-          <th class="text-right">Count</th>
+          <th class="text-end">Count</th>
         </tr>
       </thead>
       <tbody>
         {% for gtype, gcount in og.by_type.items() %}
         <tr>
           <td>{{ gtype }}</td>
-          <td class="text-right">{{ "{:,}".format(gcount) }}</td>
+          <td class="text-end">{{ "{:,}".format(gcount) }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -630,11 +630,11 @@ SECTION 3 — UNMATCHED
         <table class="table table-sm">
           <tr>
             <td>No OSM within 50m</td>
-            <td class="text-right">{{ "{:,}".format(ua.atlas.no_osm_within_50m) }}</td>
+            <td class="text-end">{{ "{:,}".format(ua.atlas.no_osm_within_50m) }}</td>
           </tr>
           <tr>
             <td>Has nearby OSM</td>
-            <td class="text-right">{{ "{:,}".format(ua.atlas.has_nearby_osm) }}</td>
+            <td class="text-end">{{ "{:,}".format(ua.atlas.has_nearby_osm) }}</td>
           </tr>
         </table>
       </div>
@@ -652,23 +652,23 @@ SECTION 3 — UNMATCHED
           <tbody>
             <tr>
               <th>UIC + Local Ref</th>
-              <td class="text-right">{{ "{:,}".format(mat.all_three|default(0)) }}</td>
-              <td class="text-right">{{ "{:,}".format(mat.uic_and_local|default(0)) }}</td>
+              <td class="text-end">{{ "{:,}".format(mat.all_three|default(0)) }}</td>
+              <td class="text-end">{{ "{:,}".format(mat.uic_and_local|default(0)) }}</td>
             </tr>
             <tr>
               <th>UIC Only</th>
-              <td class="text-right">{{ "{:,}".format(mat.uic_and_routes|default(0)) }}</td>
-              <td class="text-right">{{ "{:,}".format(mat.uic_only|default(0)) }}</td>
+              <td class="text-end">{{ "{:,}".format(mat.uic_and_routes|default(0)) }}</td>
+              <td class="text-end">{{ "{:,}".format(mat.uic_only|default(0)) }}</td>
             </tr>
             <tr>
               <th>Local Ref Only</th>
-              <td class="text-right">{{ "{:,}".format(mat.local_and_routes|default(0)) }}</td>
-              <td class="text-right">{{ "{:,}".format(mat.local_ref_only|default(0)) }}</td>
+              <td class="text-end">{{ "{:,}".format(mat.local_and_routes|default(0)) }}</td>
+              <td class="text-end">{{ "{:,}".format(mat.local_ref_only|default(0)) }}</td>
             </tr>
             <tr>
               <th>Neither</th>
-              <td class="text-right">{{ "{:,}".format(mat.routes_only|default(0)) }}</td>
-              <td class="text-right">{{ "{:,}".format(mat.none|default(0)) }}</td>
+              <td class="text-end">{{ "{:,}".format(mat.routes_only|default(0)) }}</td>
+              <td class="text-end">{{ "{:,}".format(mat.none|default(0)) }}</td>
             </tr>
           </tbody>
         </table>
@@ -714,18 +714,18 @@ SECTION 3 — UNMATCHED
           <thead class="thead-light">
             <tr>
               <th>UIC</th>
-              <th class="text-right">ATLAS</th>
-              <th class="text-right">OSM</th>
-              <th class="text-right">Unmatched A</th>
+              <th class="text-end">ATLAS</th>
+              <th class="text-end">OSM</th>
+              <th class="text-end">Unmatched A</th>
             </tr>
           </thead>
           <tbody>
             {% for row in exa[:8] %}
             <tr>
               <td>{{ row.uic_ref }}</td>
-              <td class="text-right">{{ row.atlas_total }}</td>
-              <td class="text-right">{{ row.osm_total }}</td>
-              <td class="text-right">{{ row.unmatched_atlas }}</td>
+              <td class="text-end">{{ row.atlas_total }}</td>
+              <td class="text-end">{{ row.osm_total }}</td>
+              <td class="text-end">{{ row.unmatched_atlas }}</td>
             </tr>
             {% else %}
             <tr>
@@ -742,18 +742,18 @@ SECTION 3 — UNMATCHED
           <thead class="thead-light">
             <tr>
               <th>UIC</th>
-              <th class="text-right">ATLAS</th>
-              <th class="text-right">OSM</th>
-              <th class="text-right">Unmatched O</th>
+              <th class="text-end">ATLAS</th>
+              <th class="text-end">OSM</th>
+              <th class="text-end">Unmatched O</th>
             </tr>
           </thead>
           <tbody>
             {% for row in exo[:8] %}
             <tr>
               <td>{{ row.uic_ref }}</td>
-              <td class="text-right">{{ row.atlas_total }}</td>
-              <td class="text-right">{{ row.osm_total }}</td>
-              <td class="text-right">{{ row.unmatched_osm }}</td>
+              <td class="text-end">{{ row.atlas_total }}</td>
+              <td class="text-end">{{ row.osm_total }}</td>
+              <td class="text-end">{{ row.unmatched_osm }}</td>
             </tr>
             {% else %}
             <tr>
@@ -783,15 +783,15 @@ SECTION 4 — ATLAS
     <table class="table table-sm table-hover mb-0">
       <tr>
         <td>Total duplicate SLOIDs</td>
-        <td class="text-right">{{ "{:,}".format(dup.total_duplicate_sloids) }}</td>
+        <td class="text-end">{{ "{:,}".format(dup.total_duplicate_sloids) }}</td>
       </tr>
       <tr>
         <td>Matched duplicates</td>
-        <td class="text-right">{{ "{:,}".format(dup.matched_duplicates) }}</td>
+        <td class="text-end">{{ "{:,}".format(dup.matched_duplicates) }}</td>
       </tr>
       <tr>
         <td>Unmatched duplicates</td>
-        <td class="text-right">{{ "{:,}".format(dup.unmatched_duplicates) }}</td>
+        <td class="text-end">{{ "{:,}".format(dup.unmatched_duplicates) }}</td>
       </tr>
     </table>
   </div>
@@ -876,7 +876,7 @@ SECTION 5 — PROBLEMS
               <thead class="thead-light">
                 <tr>
                   <th>Problem Type</th>
-                  <th class="text-right">Count</th>
+                  <th class="text-end">Count</th>
                 </tr>
               </thead>
               <tbody>
@@ -888,7 +888,7 @@ SECTION 5 — PROBLEMS
                     <span class="type-dot" style="background:{{ type_dots[ptype] }}"></span>
                     {{ type_labels[ptype] }}
                   </td>
-                  <td class="text-right">{{ "{:,}".format(cnt) }}</td>
+                  <td class="text-end">{{ "{:,}".format(cnt) }}</td>
                 </tr>
                 {% endif %}
                 {% endfor %}
@@ -927,13 +927,13 @@ SECTION 6 — ROUTES
     <table class="table table-sm table-hover">
       <tr>
         <td>ATLAS GTFS coverage</td>
-        <td class="text-right">{{ "{:,}".format(rt.atlas_gtfs_matches|default(0)) }}</td>
-        <td class="text-right">{{ rt.gtfs_coverage_percent|default(0) }}%</td>
+        <td class="text-end">{{ "{:,}".format(rt.atlas_gtfs_matches|default(0)) }}</td>
+        <td class="text-end">{{ rt.gtfs_coverage_percent|default(0) }}%</td>
       </tr>
       <tr>
         <td>OSM stops with routes coverage</td>
-        <td class="text-right">{{ "{:,}".format(rt.osm_with_routes|default(0)) }}</td>
-        <td class="text-right">{{ rt.osm_with_routes_percent|default(0) }}%</td>
+        <td class="text-end">{{ "{:,}".format(rt.osm_with_routes|default(0)) }}</td>
+        <td class="text-end">{{ rt.osm_with_routes_percent|default(0) }}%</td>
       </tr>
     </table>
   </div>
@@ -951,17 +951,17 @@ SECTION 6 — ROUTES
       <thead class="thead-light">
         <tr>
           <th>Route Match Source</th>
-          <th class="text-right">Count</th>
+          <th class="text-end">Count</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td>GTFS-backed route match</td>
-          <td class="text-right">{{ "{:,}".format(rm.by_source.gtfs|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(rm.by_source.gtfs|default(0)) }}</td>
         </tr>
-        <tr class="font-weight-bold">
+        <tr class="fw-bold">
           <td>Total route matches</td>
-          <td class="text-right">{{ "{:,}".format(rm.total|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(rm.total|default(0)) }}</td>
         </tr>
       </tbody>
     </table>
@@ -970,21 +970,21 @@ SECTION 6 — ROUTES
       <thead class="thead-light">
         <tr>
           <th>Matching Method</th>
-          <th class="text-right">Count</th>
+          <th class="text-end">Count</th>
         </tr>
       </thead>
       <tbody>
         <tr>
           <td>Shared GTFS route token</td>
-          <td class="text-right">{{ "{:,}".format(rm.by_method.gtfs_tokens|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(rm.by_method.gtfs_tokens|default(0)) }}</td>
         </tr>
         <tr>
           <td>Direction-name fallback</td>
-          <td class="text-right">{{ "{:,}".format(rm.by_method.direction_name_fallback|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(rm.by_method.direction_name_fallback|default(0)) }}</td>
         </tr>
         <tr>
           <td>Other / legacy evidence</td>
-          <td class="text-right">{{ "{:,}".format(rm.by_method.other_or_legacy|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(rm.by_method.other_or_legacy|default(0)) }}</td>
         </tr>
       </tbody>
     </table>
