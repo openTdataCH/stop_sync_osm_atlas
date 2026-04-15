@@ -11,10 +11,10 @@ from unittest.mock import MagicMock, patch
 # Ensure project root is in path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from matching_and_import_db.downloader.get_atlas_data import write_unified_routes_csv_direct
+from matching_and_import_db.downloader.get_atlas_data import write_atlas_routes_gtfs_csv
 
-class TestUnifiedRoutesIntegration:
-    """Tests for the Unified Routes CSV generation."""
+class TestGtfsRoutesIntegration:
+    """Tests for the GTFS Routes CSV generation."""
 
     def test_gtfs_precomputed_integration_is_used(self, tmp_path):
         """
@@ -27,7 +27,7 @@ class TestUnifiedRoutesIntegration:
         # 1. Setup Mock Data
         
         # Output file path
-        output_file = tmp_path / "unified_routes_test.csv"
+        output_file = tmp_path / "gtfs_routes_test.csv"
         
         # Traffic points (needed by input signature, but not used if integrated keys are present)
         traffic_points = pd.DataFrame({'sloid': []})
@@ -57,11 +57,11 @@ class TestUnifiedRoutesIntegration:
         ])
         
         # 2. Execute Function
-        write_unified_routes_csv_direct(
+        write_atlas_routes_gtfs_csv(
             gtfs_data=gtfs_stream,
             traffic_points=traffic_points,
             integrated_gtfs_data=integrated_gtfs_data,
-            unified_out_path=str(output_file)
+            gtfs_out_path=str(output_file)
         )
         
         # 3. Verify Output
@@ -90,8 +90,8 @@ class TestUnifiedRoutesIntegration:
         print(f"\n✅ Regression test passed: {len(result_df)} GTFS rows successfully written from precomputed data.")
 
     def test_gtfs_only_integration(self, tmp_path):
-        """Test that unified routes output contains GTFS entries only."""
-        output_file = tmp_path / "unified_gtfs_only.csv"
+        """Test that GTFS routes output contains GTFS entries only."""
+        output_file = tmp_path / "gtfs_only.csv"
         traffic_points = pd.DataFrame({'sloid': []})
         gtfs_stream = {}
         
@@ -104,11 +104,11 @@ class TestUnifiedRoutesIntegration:
         }])
         
         # Execute
-        write_unified_routes_csv_direct(
+        write_atlas_routes_gtfs_csv(
             gtfs_data=gtfs_stream,
             traffic_points=traffic_points,
             integrated_gtfs_data=integrated_gtfs,
-            unified_out_path=str(output_file)
+            gtfs_out_path=str(output_file)
         )
         
         # Verify

@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 from matching_and_import_db.utils.route_id import normalize_route_id
 
-def get_unified_routes_for_sloid(sloid):
+def get_atlas_routes_for_sloid(sloid):
     """Return all ATLAS routes that contain this SLOID."""
     if not sloid:
         return []

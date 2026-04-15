@@ -4,6 +4,7 @@
 
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/docs.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/reports.css') }}">
 <!-- Mermaid.js for diagrams -->
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <script src="{{ url_for('static', filename='js/shared/mermaid-config.js') }}"></script>
@@ -25,6 +26,8 @@
 {% endblock %}
 
 {% block content %}
+{% include "components/export_overlay.html" %}
+
 <div id="docsSidebarBackdrop" class="docs-sidebar-backdrop"></div>
 
 <button type="button" id="mobileSidebarToggle" class="btn mobile-sidebar-toggle shadow-lg d-md-none"
@@ -92,12 +95,11 @@
             style="height: fit-content; line-height: 1.2;">
             <i class="fas fa-code-branch me-1"></i> Repo
           </a>
-          <a href="{{ url_for('docs.download_docs_pdf') }}"
-            target="_blank" download="documentation.pdf"
-            class="btn btn-sm btn-outline-danger download-btn shadow-sm fw-bold py-2 px-2 ms-1 flex-grow-1 text-nowrap"
+          <button type="button" data-bs-toggle="modal" data-bs-target="#docsPdfModal"
+            class="btn btn-sm btn-outline-danger shadow-sm fw-bold py-2 px-2 ms-1 flex-grow-1 text-nowrap"
             title="Download documentation as PDF" style="height: fit-content; line-height: 1.2;">
             <i class="fas fa-file-pdf me-1"></i> Download doc
-          </a>
+          </button>
         </div>
       </div>
     </div>
@@ -134,11 +136,46 @@
     </div>
   </div>
 </div>
+
+<!-- Documentation PDF Modal -->
+<div class="modal fade" id="docsPdfModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-file-pdf me-2 text-danger"></i>Download Documentation</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Select which sections to include in the PDF export. If you select specific sections only, the cover page will be omitted.</p>
+        <div class="form-check mb-3 border-bottom pb-2">
+          <input class="form-check-input" type="checkbox" id="selectAllDocsBtn" checked>
+          <label class="form-check-label fw-bold" for="selectAllDocsBtn">All Sections</label>
+        </div>
+        <div id="docsSectionCheckboxes">
+          {% for sec in sections %}
+            <div class="form-check">
+              <input class="form-check-input doc-section-checkbox" type="checkbox" value="{{ sec.key }}" id="docSec{{ sec.key }}" checked>
+              <label class="form-check-label" for="docSec{{ sec.key }}">{{ sec.root_title or 'Section ' + sec.key|string }}</label>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="startDocsPdfBtn">
+          <i class="fas fa-download me-1"></i> Generate PDF
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 
 
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/pages/report.js') }}"></script>
 <script>
   (function () {
     var STORAGE_KEY = 'docsSidebarExpanded';
@@ -495,6 +532,75 @@
           }, 150);
         }
       });
+      
+      // PDF Modal logic
+      const selectAllCb = document.getElementById('selectAllDocsBtn');
+      const sectionCbs = document.querySelectorAll('.doc-section-checkbox');
+      
+      if (selectAllCb) {
+        selectAllCb.addEventListener('change', function() {
+          sectionCbs.forEach(function(cb) {
+             cb.checked = selectAllCb.checked;
+          });
+        });
+        
+        sectionCbs.forEach(function(cb) {
+           cb.addEventListener('change', function() {
+              const allChecked = Array.from(sectionCbs).every(function(c) { return c.checked; });
+              selectAllCb.checked = allChecked;
+           });
+        });
+      }
+      
+      const startDocsBtn = document.getElementById('startDocsPdfBtn');
+      if (startDocsBtn) {
+        startDocsBtn.addEventListener('click', function() {
+           const selectedCbs = Array.from(sectionCbs).filter(function(cb) { return cb.checked; });
+           const totalSections = sectionCbs.length;
+           const allChecked = totalSections > 0 && selectedCbs.length === totalSections;
+           let included_sections = null;
+           let include_cover = true;
+           let selected_only = false;
+           
+           if (!allChecked) {
+             included_sections = selectedCbs
+                                      .map(function(cb) {
+                                        var value = (cb.value || '').trim();
+                                        if (!value) return '';
+                                        return value;
+                                      })
+                                      .filter(function(value) { return value !== ''; });
+             include_cover = false;
+             selected_only = true;
+             
+             if (included_sections.length === 0) {
+               alert("Please select at least one section");
+               return;
+             }
+           }
+           
+           // Hide Modal
+           try {
+               var docsModalEl = document.getElementById('docsPdfModal');
+               if (docsModalEl && window.bootstrap && window.bootstrap.Modal) {
+                   var modalInstance = window.bootstrap.Modal.getInstance(docsModalEl) || new window.bootstrap.Modal(docsModalEl);
+                   modalInstance.hide();
+               }
+           } catch (e) {}
+           
+           if (window.resetProgressOverlay) { window.resetProgressOverlay('Generating Documentation PDF'); }
+           document.getElementById('reportLoadingOverlay').style.display = 'flex';
+           if (window.startAsyncTask) {
+             window.startAsyncTask({
+               generateUrl: '/api/docs/generate_pdf_async',
+               checkUrl: '/api/docs/pdf_progress/',
+               downloadUrl: '/api/docs/download_pdf/',
+               cancelUrl: '/api/docs/cancel_pdf/',
+               params: { included_sections: included_sections, include_cover: include_cover, selected_only: selected_only }
+             });
+           }
+        });
+      }
     });
   })();
 </script>

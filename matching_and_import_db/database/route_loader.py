@@ -1,7 +1,7 @@
 """
 Route data loaders for the database import pipeline.
 
-Loads and builds all route mappings (ATLAS unified routes, OSM routes,
+Loads and builds all route mappings (GTFS routes, OSM routes,
 GTFS direction groupings) needed by ``import_to_database``.
 """
 import os
@@ -32,30 +32,20 @@ def _nan_to_none(val):
     return val
 
 
-def _filter_gtfs_rows(df: pd.DataFrame) -> pd.DataFrame:
-    """Return GTFS rows, treating missing legacy source markers as GTFS."""
-    if df is None or df.empty:
-        return pd.DataFrame()
-    if 'source' not in df.columns:
-        return df.copy()
-    source = df['source'].fillna('gtfs').astype(str).str.lower()
-    return df[source == 'gtfs'].copy()
-
-
 # ---------------------------------------------------------------------------
-# Unified ATLAS routes
+# GTFS ATLAS routes
 # ---------------------------------------------------------------------------
 
-def _load_unified_routes_df():
-    """Read atlas_routes_unified.csv once and return the DataFrame (or empty)."""
-    unified_path = "data/processed/atlas_routes_unified.csv"
+def _load_gtfs_routes_df():
+    """Read atlas_routes_gtfs.csv once and return the DataFrame (or empty)."""
+    gtfs_path = "data/processed/atlas_routes_gtfs.csv"
     try:
-        return pd.read_csv(unified_path, low_memory=False, dtype=str)
+        return pd.read_csv(gtfs_path, low_memory=False, dtype=str)
     except FileNotFoundError:
-        print("INFO: Unified routes file (atlas_routes_unified.csv) not found.")
+        print("INFO: GTFS routes file (atlas_routes_gtfs.csv) not found.")
         return pd.DataFrame()
     except Exception as e:
-        print(f"Error loading unified routes: {e}")
+        print(f"Error loading GTFS routes: {e}")
         return pd.DataFrame()
 
 
@@ -67,14 +57,14 @@ def _load_unified_routes_df():
 # GTFS helpers
 # ---------------------------------------------------------------------------
 
-def _build_route_name_to_id(unified_df: pd.DataFrame) -> dict:
-    """Build fallback mapping from route names to route_id using unified route data."""
-    if unified_df is None or unified_df.empty:
+def _build_route_name_to_id(gtfs_df: pd.DataFrame) -> dict:
+    """Build fallback mapping from route names to route_id using GTFS route data."""
+    if gtfs_df is None or gtfs_df.empty:
         return {}
     
     mapping = {}
     try:
-        df = _filter_gtfs_rows(unified_df)
+        df = gtfs_df.copy()
         
         for col in ('route_name_short', 'route_name_long'):
             if col in df.columns:
@@ -85,7 +75,7 @@ def _build_route_name_to_id(unified_df: pd.DataFrame) -> dict:
                         
         return mapping
     except Exception as e:
-        print(f"Warning: Failed to build route name mapping from unified data: {e}")
+        print(f"Warning: Failed to build route name mapping from GTFS data: {e}")
         return {}
 
 
@@ -123,16 +113,16 @@ def _build_osm_route_dir_to_nodes(osm_routes_df: pd.DataFrame, route_name_to_id:
 # ATLAS direction groupings
 # ---------------------------------------------------------------------------
 
-def _build_atlas_route_dir_mappings(unified_df: pd.DataFrame):
-    """Build GTFS route-direction groupings from unified DataFrame.
+def _build_atlas_route_dir_mappings(gtfs_df: pd.DataFrame):
+    """Build GTFS route-direction groupings from GTFS DataFrame.
 
     Returns atlas_route_dir_to_sloids.
     """
     atlas_route_dir_to_sloids = {}
-    if unified_df.empty:
+    if gtfs_df.empty:
         return atlas_route_dir_to_sloids
 
-    df = _filter_gtfs_rows(unified_df).dropna(subset=['sloid']).copy()
+    df = gtfs_df.dropna(subset=['sloid']).copy()
     if df.empty:
         return atlas_route_dir_to_sloids
     df['direction_id_clean'] = df['direction_id'].apply(_safe_direction_id)
@@ -161,9 +151,9 @@ def load_all_route_data(osm_routes_df: pd.DataFrame = None):
       - osm_route_dir_to_nodes: (route_id, dir) -> {nodes, route_name}
       - atlas_route_dir_to_sloids: (route_id, dir) -> {sloids, ...}
     """
-    # 1. Read atlas_routes_unified.csv ONCE
-    unified_df = _load_unified_routes_df()
-    atlas_route_dir_to_sloids = _build_atlas_route_dir_mappings(unified_df)
+    # 1. Read atlas_routes_gtfs.csv ONCE
+    gtfs_df = _load_gtfs_routes_df()
+    atlas_route_dir_to_sloids = _build_atlas_route_dir_mappings(gtfs_df)
     print(f"Built GTFS route+direction to sloids mapping for {len(atlas_route_dir_to_sloids)} ATLAS routes")
 
     # 2. Read osm_nodes_with_routes.csv ONCE
@@ -173,7 +163,7 @@ def load_all_route_data(osm_routes_df: pd.DataFrame = None):
         except Exception:
             osm_routes_df = pd.DataFrame()
 
-    route_name_to_id = _build_route_name_to_id(unified_df)
+    route_name_to_id = _build_route_name_to_id(gtfs_df)
     osm_route_dir_to_nodes = _build_osm_route_dir_to_nodes(osm_routes_df, route_name_to_id)
     print(f"Built route+direction to nodes mapping for {len(osm_route_dir_to_nodes)} OSM routes")
 

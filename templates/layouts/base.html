@@ -55,12 +55,7 @@
       </div>
       <div class="pipeline-maintenance-card__body">
         <div id="pipelineMaintenanceStatus" class="pipeline-maintenance-card__status">
-          Core data is being refreshed. Use this time to read the documentation.
-        </div>
-        <div class="pipeline-maintenance-card__actions">
-          <a href="{{ url_for('docs.docs_page') }}" class="btn btn-sm btn-outline-primary" id="pipelineDocsCta">
-            Open documentation
-          </a>
+          Core data is being refreshed. Use this time to <a href="{{ url_for('docs.docs_page') }}" class="fw-bold" id="pipelineDocsLink">read the documentation</a>.
         </div>
         <div class="pipeline-maintenance-card__timers">
           <span class="pipeline-maintenance-chip">

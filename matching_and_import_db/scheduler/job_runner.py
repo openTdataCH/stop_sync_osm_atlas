@@ -19,6 +19,7 @@ from backend.services.pipeline_status import (
     start_run,
 )
 from matching_and_import_db.database.importer import (
+    build_fast_insert_payloads,
     export_stats_after_import,
     import_to_database,
     print_problem_summary,
@@ -112,6 +113,23 @@ def _run_matching_and_import(lock_token: str) -> None:
         route_artifacts = precompute_route_artifacts(matching_output)
     refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
 
+    # Build all row dictionaries BEFORE entering the blocking maintenance window.
+    # This moves all CPU-bound work (coordinate formatting, duplicate resolution,
+    # problem attachment, trio-middle detection) out of the blocking phase.
+    set_phase(
+        phase="payload_precompute",
+        message="Preparing database write payloads",
+        maintenance=False,
+    )
+    with _timed_step("payload_precompute"):
+        db_payloads = build_fast_insert_payloads(
+            matching_output,
+            problem_artifacts,
+            route_artifacts,
+        )
+    refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
+
+    # Blocking maintenance: only TRUNCATE + bulk INSERT, zero Python logic.
     set_phase(
         phase="import",
         message="Importing into database (maintenance window)",
@@ -119,11 +137,7 @@ def _run_matching_and_import(lock_token: str) -> None:
         eta_seconds=IMPORT_ETA_SECONDS,
     )
     with _timed_step("import"):
-        no_nearby_sloids = import_to_database(
-            matching_output,
-            problem_artifacts=problem_artifacts,
-            route_artifacts=route_artifacts,
-        )
+        no_nearby_sloids = import_to_database(db_payloads=db_payloads)
     refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
 
     set_phase(

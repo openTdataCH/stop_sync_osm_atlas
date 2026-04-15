@@ -23,7 +23,7 @@ from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
 from matching_and_import_db.predicates.name_matching import NameMatchPredicate
 from matching_and_import_db.predicates.trio_distance_matching import TrioDistanceMatchingPredicate
 from matching_and_import_db.predicates.distance_matching import GroupProximityPredicate, LocalRefDistancePredicate, NearestDistancePredicate
-from matching_and_import_db.predicates.route_matching_unified import RouteMatchPredicate
+from matching_and_import_db.predicates.route_matching_gtfs import RouteMatchPredicate
 from matching_and_import_db.predicates.postpass_matching import PostpassUniqueUicPredicate
 
 DEFAULT_PIPELINE = [
@@ -146,7 +146,7 @@ def run_matching() -> MatchingOutput:
     # ── Identify ATLAS duplicate groups & init State ─────────────────────
     atlas_state = AtlasState.from_dataframe(
         atlas_df,
-        routes_csv_path='data/processed/atlas_routes_unified.csv',
+        routes_csv_path='data/processed/atlas_routes_gtfs.csv',
     )
 
     # ── Pre-group platform ↔ stop_position pairs ─────────────────────────

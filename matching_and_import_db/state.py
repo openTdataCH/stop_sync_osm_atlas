@@ -34,10 +34,10 @@ class AtlasState:
     
     @classmethod
     def from_dataframe(cls, atlas_df: pd.DataFrame,
-                       routes_csv_path: str = 'data/processed/atlas_routes_unified.csv') -> 'AtlasState':
+                       routes_csv_path: str = 'data/processed/atlas_routes_gtfs.csv') -> 'AtlasState':
         """
         Builds AtlasState directly from a DataFrame, computing duplicate sets automatically.
-        Also loads the unified routes CSV if available.
+        Also loads the GTFS routes CSV if available.
         """
         dup_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
         non_empty = atlas_df['designation'].notna() & (atlas_df['designation'].astype(str).str.strip() != '')
@@ -56,7 +56,7 @@ class AtlasState:
 
     @staticmethod
     def _load_routes(path: str) -> dict:
-        """Load atlas_routes_unified.csv into a per-sloid GTFS route mapping."""
+        """Load atlas_routes_gtfs.csv into a per-sloid GTFS route mapping."""
         def _norm_dir(val):
             try:
                 if pd.isna(val):
@@ -79,7 +79,6 @@ class AtlasState:
             sloid = str(row['sloid']) if row.get('sloid') is not None else None
             if not sloid:
                 continue
-            src = str(row.get('source', 'gtfs') or 'gtfs').lower()
             entry = {
                 'route_id': row.get('route_id'),
                 'route_id_normalized': row.get('route_id_normalized'),
@@ -88,8 +87,7 @@ class AtlasState:
                 'direction_id': _norm_dir(row.get('direction_id')),
                 'direction_name': row.get('direction_name'),
             }
-            if src == 'gtfs':
-                by_sloid[sloid]['gtfs'].append(entry)
+            by_sloid[sloid]['gtfs'].append(entry)
         return dict(by_sloid)
 
     def __init__(self, atlas_df: pd.DataFrame, duplicate_sloid_map: dict,

@@ -92,7 +92,17 @@
         if (statusText) {
             if (blocking) {
                 var message = latestStatus.message || 'Core data is being refreshed.';
-                statusText.textContent = message + ' Use this time to read the documentation.';
+                var docsLink = document.getElementById('pipelineDocsLink');
+                var docsUrl = docsLink ? docsLink.getAttribute('href') : '/docs';
+                
+                statusText.textContent = message + ' Use this time to ';
+                var a = document.createElement('a');
+                a.href = docsUrl;
+                a.id = 'pipelineDocsLink';
+                a.className = 'fw-bold';
+                a.textContent = 'read the documentation';
+                statusText.appendChild(a);
+                statusText.appendChild(document.createTextNode('.'));
             } else {
                 statusText.textContent = latestStatus.message || 'Waiting for status';
             }

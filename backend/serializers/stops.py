@@ -1,5 +1,5 @@
 from backend.models import StopsMatched, AtlasStop, OsmNode
-from backend.services.routes import get_unified_routes_for_sloid, get_osm_routes_for_node
+from backend.services.routes import get_atlas_routes_for_sloid, get_osm_routes_for_node
 
 def format_stop_data(stop: StopsMatched, problem_type: str = None, include_routes: bool = False) -> dict:
     atlas_details = stop.atlas_stop_details
@@ -46,7 +46,7 @@ def format_stop_data(stop: StopsMatched, problem_type: str = None, include_route
 
     if include_routes:
         result.update({
-            "routes_unified": get_unified_routes_for_sloid(stop.sloid) if stop.sloid else [],
+            "routes_atlas": get_atlas_routes_for_sloid(stop.sloid) if stop.sloid else [],
             "routes_osm": get_osm_routes_for_node(stop.osm_node_id) if stop.osm_node_id else [],
         })
 

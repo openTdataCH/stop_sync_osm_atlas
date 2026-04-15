@@ -34,6 +34,19 @@ STATS_SUMMARY_PDF_PATH = os.path.join(
 )
 
 
+def get_report_css_content(css_files: List[str]) -> str:
+    """Load and concatenate CSS files relative to repository root."""
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    css_content = ""
+    for css_file in css_files:
+        try:
+            with open(os.path.join(base_dir, css_file), 'r', encoding='utf-8') as f:
+                css_content += f.read() + "\n"
+        except Exception as e:
+            logger.warning(f"Could not load CSS file {css_file} for PDF generation: {e}")
+    return css_content
+
+
 def export_pipeline_stats(
     matched_records: list,
     unmatched_atlas: list,
@@ -884,23 +897,13 @@ def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -
         'css_content': ''
     }
     
-    # Read CSS files
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    css_content = ""
-    # Injected core styles first for variables and resets
     core_css_files = [
         'static/css/src/01-settings/tokens.css',
         'static/css/pages/stats.css',
         'static/css/pages/reports.css'
     ]
-    for css_file in core_css_files:
-        try:
-            with open(os.path.join(base_dir, css_file), 'r') as f:
-                css_content += f.read() + "\n"
-        except Exception as e:
-            logger.warning(f"Could not load CSS file {css_file} for PDF generation: {e}")
-            
-    kwargs['css_content'] = css_content
+    kwargs['css_content'] = get_report_css_content(core_css_files)
     
     report_html = render_template('reports/stats_summary.html', **kwargs)
     

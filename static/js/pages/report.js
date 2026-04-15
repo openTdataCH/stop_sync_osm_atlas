@@ -3,21 +3,57 @@
 // Global variables for progress tracking
 window.currentTaskId = null;
 window.progressInterval = null;
+window.currentDownloadUrl = '/api/download_report/';
+window.currentCancelUrl = '/api/cancel_report/';
+window.currentCheckUrl = '/api/report_progress/';
+// Keep polling under the 60/min endpoint limiter.
+var PROGRESS_POLL_INTERVAL_MS = 1500;
 
-function resetProgressOverlay() {
-    $('#reportProgressBar').css('width', '0%').attr('aria-valuenow', 0);
+function resetProgressOverlay(title) {
+    if (title) {
+        $('#overlayTitle').text(title);
+    } else {
+        $('#overlayTitle').text('Generating Report');
+    }
+    $('#reportProgressBar').css('width', '0%').attr('aria-valuenow', 0).removeClass('progress-bar-striped progress-bar-animated');
     $('#progressText').text('Starting...');
     $('#entriesProcessed').text('0');
     $('#totalEntries').text('0');
+    $('#progressCounters').show();
     $('#etaText').hide();
     $('#downloadSection').hide();
     $('#errorSection').hide();
     $('#progressControls').show();
 }
 
-function startAsyncReportGeneration(params) {
+function startAsyncTask(options) {
+    var config = options || {};
+    if (!config.generateUrl) {
+        showError('Task endpoint is not configured.');
+        return;
+    }
+
+    window.currentCheckUrl = config.checkUrl || '/api/report_progress/';
+    window.currentDownloadUrl = config.downloadUrl || '/api/download_report/';
+    window.currentCancelUrl = config.cancelUrl || '/api/cancel_report/';
+    var params = config.params;
+    if (!params || typeof params !== 'object' || Array.isArray(params)) {
+        params = {};
+    }
+
+    // Defensive fallback: never send an empty report payload.
+    if (config.generateUrl === '/api/generate_report_async' && Object.keys(params).length === 0) {
+        var hasReportForm = !!document.getElementById('reportForm');
+        var hasStatsSummaryButton = !!document.getElementById('downloadStatsSummaryBtn');
+        if (hasReportForm) {
+            params = buildReportRequestParams();
+        } else if (hasStatsSummaryButton) {
+            params = { report_type: 'summary', format: 'pdf' };
+        }
+    }
+    
     $.ajax({
-        url: '/api/generate_report_async',
+        url: config.generateUrl,
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(params),
@@ -27,7 +63,7 @@ function startAsyncReportGeneration(params) {
                 window.currentTaskId = response.task_id;
                 startProgressPolling();
             } else {
-                showError('Failed to start report generation');
+                showError('Failed to start task');
             }
         },
         error: function(xhr) {
@@ -37,9 +73,69 @@ function startAsyncReportGeneration(params) {
             } else if (xhr && xhr.responseJSON && (xhr.responseJSON.error || xhr.responseJSON.message)) {
                 error = xhr.responseJSON.error || xhr.responseJSON.message;
             }
-            showError('Error starting report: ' + error);
+            showError('Error starting task: ' + error);
         }
     });
+}
+
+function startAsyncReportGeneration(params) {
+    startAsyncTask({
+        generateUrl: '/api/generate_report_async',
+        params: params,
+    });
+}
+
+function buildReportRequestParams() {
+    var category = $('input[name="reportCategory"]:checked').val() || 'distance';
+    var limitMode = $('input[name="limitMode"]:checked').val() || 'all';
+    var selectedSort = $('#sortOrderModal').val() || (category === 'distance' ? 'distance_desc' : 'operator_asc');
+    var selectedFormat = $('#reportFormatModal').val() || 'pdf';
+
+    var params = {
+        limit: (limitMode === 'all') ? 'all' : ($('#reportLimitModal').val() || '50'),
+        sort: selectedSort,
+        report_type: category,
+        format: selectedFormat
+    };
+
+    // Operator filter
+    if (window.operatorDropdownReports) {
+        var ops = window.operatorDropdownReports.getSelection();
+        if (ops && ops.length > 0) { params.atlas_operator = ops.join(','); }
+    }
+
+    // Include fields
+    var includeFields = [];
+    if ($('#includeAtlasCoords').is(':checked')) includeFields.push('atlas_coords');
+    if ($('#includeOsmCoords').is(':checked')) includeFields.push('osm_coords');
+    if (includeFields.length > 0) params.include_fields = includeFields.join(',');
+
+    if (category === 'unmatched') {
+        var includeAtlas = $('#sourceAtlas').is(':checked');
+        var includeOsm = $('#sourceOsm').is(':checked');
+        var sources = [];
+        if (includeAtlas) sources.push('atlas');
+        if (includeOsm) sources.push('osm');
+        if (sources.length === 0) { sources = ['atlas', 'osm']; }
+        params.sources = sources.join(',');
+    } else if (category === 'problems') {
+        // Problem types
+        var ptypes = [];
+        if ($('#ptypeDistance').is(':checked')) ptypes.push('distance');
+        if ($('#ptypeUnmatched').is(':checked')) ptypes.push('unmatched');
+        if ($('#ptypeAttributes').is(':checked')) ptypes.push('attributes');
+        if ($('#ptypeDuplicates').is(':checked')) ptypes.push('duplicates');
+        if (ptypes.length > 0) params.problem_types = ptypes.join(',');
+
+        // Priorities
+        var pris = [];
+        if ($('#priority1').is(':checked')) pris.push('1');
+        if ($('#priority2').is(':checked')) pris.push('2');
+        if ($('#priority3').is(':checked')) pris.push('3');
+        if (pris.length > 0) params.priorities = pris.join(',');
+    }
+
+    return params;
 }
 
 function startProgressPolling() {
@@ -50,7 +146,7 @@ function startProgressPolling() {
     window.progressInterval = setInterval(function() {
         if (!window.currentTaskId) return;
         $.ajax({
-            url: '/api/report_progress/' + window.currentTaskId,
+            url: window.currentCheckUrl + window.currentTaskId,
             method: 'GET',
             dataType: 'json',
             cache: false,
@@ -58,14 +154,18 @@ function startProgressPolling() {
             success: function(progress) {
                 updateProgress(progress);
             },
-            error: function() {
+            error: function(xhr) {
                 // Continue polling unless specifically cancelled.
                 if (window.currentTaskId) {
-                    console.log('Progress polling error, continuing...');
+                    if (xhr && xhr.status === 429) {
+                        console.log('Progress polling rate-limited; retrying...');
+                    } else {
+                        console.log('Progress polling error, continuing...');
+                    }
                 }
             }
         });
-    }, 500);
+    }, PROGRESS_POLL_INTERVAL_MS);
 }
 
 function updateProgress(progress) {
@@ -83,21 +183,46 @@ function updateProgress(progress) {
     var percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
     $('#reportProgressBar').css('width', percentage + '%').attr('aria-valuenow', percentage);
     
+    
     if (status === 'starting') {
         $('#progressText').text('Starting...');
+    } else if (status === 'finalizing') {
+        $('#progressText').text('Finalizing file...');
+        $('#reportProgressBar').css('width', '100%').addClass('progress-bar-striped progress-bar-animated');
+        $('#progressCounters').show();
+        $('#etaText').hide();
     } else if (status === 'processing') {
-        $('#progressText').text(percentage + '% complete');
-        
-        // Show ETA if available
-        if (progress.eta && progress.eta > 0) {
-            var eta = Math.round(progress.eta);
-            var etaText = eta < 60 ? eta + 's' : Math.round(eta/60) + 'm ' + (eta%60) + 's';
-            $('#etaValue').text(etaText);
-            $('#etaText').show();
+        if (total > 0) {
+            if (processed >= total) {
+                // Data query is done; backend may still be writing/rendering the file.
+                $('#progressText').text('Finalizing file...');
+                $('#reportProgressBar').css('width', '100%').addClass('progress-bar-striped progress-bar-animated');
+                $('#progressCounters').show();
+                $('#etaText').hide();
+                return;
+            }
+
+            // Determinate progress
+            $('#progressText').text(percentage + '% complete');
+            $('#reportProgressBar').removeClass('progress-bar-striped progress-bar-animated');
+            $('#progressCounters').show();
+            // Show ETA if available
+            if (progress.eta && progress.eta > 0) {
+                var eta = Math.round(progress.eta);
+                var etaText = eta < 60 ? eta + 's' : Math.round(eta/60) + 'm ' + (eta%60) + 's';
+                $('#etaValue').text(etaText);
+                $('#etaText').show();
+            }
+        } else {
+            // Indeterminate progress
+            $('#progressText').text('Processing... this may take a moment.');
+            $('#reportProgressBar').css('width', '100%').addClass('progress-bar-striped progress-bar-animated');
+            $('#progressCounters').hide();
+            $('#etaText').hide();
         }
     } else if (status === 'completed') {
         $('#progressText').text('Complete!');
-        $('#reportProgressBar').css('width', '100%').attr('aria-valuenow', 100);
+        $('#reportProgressBar').css('width', '100%').removeClass('progress-bar-striped progress-bar-animated');
         stopProgressPolling();
         showDownloadButton();
     } else if (status === 'error') {
@@ -112,7 +237,7 @@ function showDownloadButton() {
     
     $('#downloadReportBtn').off('click').on('click', function() {
         if (window.currentTaskId) {
-            window.location.href = '/api/download_report/' + window.currentTaskId;
+            window.location.href = window.currentDownloadUrl + window.currentTaskId;
             // Hide overlay after download starts
             setTimeout(function() {
                 cancelReportGeneration();
@@ -141,13 +266,12 @@ function cancelReportGeneration() {
     // Cancel on backend if task is running
     if (window.currentTaskId) {
         $.ajax({
-            url: '/api/cancel_report/' + window.currentTaskId,
+            url: window.currentCancelUrl + window.currentTaskId,
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({}),
             timeout: 5000,
             complete: function() {
-                // Even if cancel endpoint fails, frontend should still reset local state.
                 window.currentTaskId = null;
             }
         });
@@ -222,51 +346,7 @@ function initReportGeneration() {
         resetProgressOverlay();
         $('#reportLoadingOverlay').show();
         
-        // Build params from form
-        var category = $('input[name="reportCategory"]:checked').val();
-        var params = {
-            limit: ($('input[name="limitMode"]:checked').val() === 'all') ? 'all' : ($('#reportLimitModal').val() || 'all'),
-            sort: $('#sortOrderModal').val(),
-            report_type: category,
-            format: $('#reportFormatModal').val()
-        };
-
-        // Operator filter
-        if (window.operatorDropdownReports) {
-            var ops = window.operatorDropdownReports.getSelection();
-            if (ops && ops.length > 0) { params.atlas_operator = ops.join(','); }
-        }
-
-        // Include fields
-        var includeFields = [];
-        if ($('#includeAtlasCoords').is(':checked')) includeFields.push('atlas_coords');
-        if ($('#includeOsmCoords').is(':checked')) includeFields.push('osm_coords');
-        if (includeFields.length > 0) params.include_fields = includeFields.join(',');
-
-        if (category === 'unmatched') {
-            var includeAtlas = $('#sourceAtlas').is(':checked');
-            var includeOsm = $('#sourceOsm').is(':checked');
-            var sources = [];
-            if (includeAtlas) sources.push('atlas');
-            if (includeOsm) sources.push('osm');
-            if (sources.length === 0) { sources = ['atlas','osm']; }
-            params.sources = sources.join(',');
-        } else if (category === 'problems') {
-            // Problem types
-            var ptypes = [];
-            if ($('#ptypeDistance').is(':checked')) ptypes.push('distance');
-            if ($('#ptypeUnmatched').is(':checked')) ptypes.push('unmatched');
-            if ($('#ptypeAttributes').is(':checked')) ptypes.push('attributes');
-            if ($('#ptypeDuplicates').is(':checked')) ptypes.push('duplicates');
-            if (ptypes.length > 0) params.problem_types = ptypes.join(',');
-
-            // Priorities
-            var pris = [];
-            if ($('#priority1').is(':checked')) pris.push('1');
-            if ($('#priority2').is(':checked')) pris.push('2');
-            if ($('#priority3').is(':checked')) pris.push('3');
-            if (pris.length > 0) params.priorities = pris.join(',');
-        }
+        var params = buildReportRequestParams();
 
         // Start async report generation
         startAsyncReportGeneration(params);
@@ -347,8 +427,15 @@ window.initReportGeneration = initReportGeneration;
 window.cancelReportGeneration = cancelReportGeneration;
 window.resetProgressOverlay = resetProgressOverlay;
 window.startAsyncReportGeneration = startAsyncReportGeneration;
+window.startAsyncTask = startAsyncTask;
 window.startProgressPolling = startProgressPolling;
 window.updateProgress = updateProgress;
 window.showError = showError;
 window.showDownloadButton = showDownloadButton;
 window.stopProgressPolling = stopProgressPolling;
+
+$(document).ready(function() {
+    $('#cancelReportBtn').on('click', function() {
+        cancelReportGeneration();
+    });
+});

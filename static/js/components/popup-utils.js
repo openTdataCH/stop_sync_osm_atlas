@@ -51,7 +51,7 @@
         return `<ul class="route-list" style="margin-top: 5px; padding-left: 15px;">${itemsHtml}</ul>`;
     }
 
-    function formatUnifiedRouteList(routes) {
+    function formatAtlasRouteList(routes) {
         routes = normalizeRoutes(routes);
         if (routes.length === 0) { return '<i>No route information available</i>'; }
         const itemsHtml = routes.map(route => {
@@ -164,7 +164,7 @@
     PopupUtils.normalizeRoutes = normalizeRoutes;
     PopupUtils.groupRoutes = groupRoutes;
     PopupUtils.formatRouteList = formatRouteList;
-    PopupUtils.formatUnifiedRouteList = formatUnifiedRouteList;
+    PopupUtils.formatAtlasRouteList = formatAtlasRouteList;
     PopupUtils.categorizeRoutes = categorizeRoutes;
     PopupUtils.createFilterLink = createFilterLink;
     PopupUtils.createCollapsible = createCollapsible;

@@ -19,7 +19,7 @@ from matching_and_import_db.predicates.distance_matching import (
 from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
 from matching_and_import_db.predicates.name_matching import NameMatchPredicate
 from matching_and_import_db.predicates.trio_distance_matching import TrioDistanceMatchingPredicate
-from matching_and_import_db.predicates.route_matching_unified import RouteMatchPredicate
+from matching_and_import_db.predicates.route_matching_gtfs import RouteMatchPredicate
 from matching_and_import_db.state import AtlasState, OsmState
 from matching_and_import_db.utils.common import haversine_distance
 from matching_and_import_db.utils.route_id import normalize_route_id
@@ -278,7 +278,7 @@ class TestCurrentPredicates:
 
         assert len(ctx.all_matches) == 1
         assert ctx.all_matches[0].osm_node.node_id == 'osm_1'
-        assert ctx.all_matches[0].match_type == 'route_unified_gtfs'
+        assert ctx.all_matches[0].match_type == 'route_gtfs_gtfs'
 
     def test_group_proximity_partial_matching_leaves_far_outlier_unmatched(self):
         ctx = _build_ctx(

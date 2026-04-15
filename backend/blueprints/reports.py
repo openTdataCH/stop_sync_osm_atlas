@@ -11,21 +11,46 @@ import time
 import uuid
 import os
 import tempfile
+import json
 from sqlalchemy import case
+
+from backend.services.async_export import (
+    start_cleanup_thread,
+    cleanup_stale_tasks,
+    init_task,
+    update_progress as ae_update_progress,
+    set_task_status,
+    complete_task,
+    get_progress,
+    get_completed_file,
+    cancel_task as ae_cancel_task,
+)
 
 reports_bp = Blueprint('reports', __name__)
 
-# Global storage for report progress and completed reports
-# In production, consider using Redis or database storage
-report_progress = {}  # task_id -> {status, processed, total, eta, error, created_at}
-completed_reports = {}  # task_id -> {file_path, filename, created_at}
-_state_lock = threading.Lock()
 
-# Cleanup configuration
-REPORT_MAX_AGE_SECONDS = 604800    # 1 week
-CLEANUP_INTERVAL_SECONDS = 3600    # 1 hour
+def _read_request_payload() -> dict:
+    """Read request payload without raising 415 for non-JSON content types."""
+    data = request.get_json(silent=True)
+    if isinstance(data, dict):
+        return data
 
-_cleanup_thread = None
+    raw_body = request.get_data(cache=True, as_text=True)
+    if raw_body:
+        try:
+            parsed = json.loads(raw_body)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+
+    if request.form:
+        return request.form.to_dict(flat=True)
+
+    if request.args:
+        return request.args.to_dict(flat=True)
+
+    return {}
 
 
 def _normalize_report_type(report_type):
@@ -209,80 +234,12 @@ def _write_report_file(filepath, data_for_report, report_type, report_format, in
         f.write(pdf_bytes)
 
 
-def _ensure_cleanup_thread_started():
-    global _cleanup_thread
-    if _cleanup_thread and _cleanup_thread.is_alive():
-        return
-    _cleanup_thread = threading.Thread(target=_periodic_cleanup, daemon=True)
-    _cleanup_thread.start()
-
-
-def _cleanup_stale_reports():
-    """Remove report files and state entries older than REPORT_MAX_AGE_SECONDS."""
-    now = datetime.now()
-    stale_task_ids = []
-
-    with _state_lock:
-        # Find stale completed reports
-        for task_id, info in list(completed_reports.items()):
-            age = (now - info['created_at']).total_seconds()
-            if age > REPORT_MAX_AGE_SECONDS:
-                stale_task_ids.append(task_id)
-
-        # Find stale/abandoned progress entries (no completed report)
-        for task_id, info in list(report_progress.items()):
-            if task_id in stale_task_ids:
-                continue
-            if task_id not in completed_reports:
-                created_at = info.get('created_at')
-                if created_at and (now - created_at).total_seconds() > REPORT_MAX_AGE_SECONDS:
-                    stale_task_ids.append(task_id)
-
-        # Remove stale entries and their files
-        for task_id in stale_task_ids:
-            report_info = completed_reports.pop(task_id, None)
-            report_progress.pop(task_id, None)
-            if report_info:
-                filepath = report_info.get('file_path')
-                if filepath:
-                    try:
-                        if os.path.exists(filepath):
-                            os.remove(filepath)
-                    except OSError:
-                        pass
-
-    return len(stale_task_ids)
-
-
-def _periodic_cleanup():
-    """Background thread that periodically cleans up stale reports."""
-    while True:
-        time.sleep(CLEANUP_INTERVAL_SECONDS)
-        try:
-            count = _cleanup_stale_reports()
-            if count > 0:
-                print(f"Report cleanup: removed {count} stale report(s)")
-        except Exception:
-            pass
+# Removed local threading/cleanup logic in favor of async_export service
 
 
 def update_progress(task_id, processed, total, start_time=None):
     """Update progress for a report generation task"""
-    with _state_lock:
-        if task_id not in report_progress:
-            return
-
-        report_progress[task_id]['processed'] = processed
-        report_progress[task_id]['total'] = total
-
-        # Calculate ETA
-        if start_time and processed > 0:
-            elapsed = time.time() - start_time
-            rate = processed / elapsed
-            remaining = total - processed
-            eta = remaining / rate if rate > 0 else None
-            report_progress[task_id]['eta'] = eta
-
+    ae_update_progress(task_id, processed, total, start_time)
     print(f"Progress {task_id}: {processed}/{total}")
 
 
@@ -301,18 +258,13 @@ def generate_report_data(params, task_id=None):
         atlas_operators = [op.strip() for op in atlas_operator_str.split(',') if op and op.strip()]
 
         if report_type == 'summary':
-            # Summary report doesn't use standard data queries, it uses the pre-calculated stats
-            from backend.services.stats_export import get_pipeline_stats
-            from backend.extensions import db
-            from backend.services.stats_export import compute_db_stats
-            
-            stats = get_pipeline_stats()
-            # Also get real-time problem stats from DB
-            problem_stats = compute_db_stats(db.session)
-            
-            if task_id is not None:
-                update_progress(task_id, 100, 100, start_time)
-            return {'stats': stats, 'problem_stats': problem_stats}, 'summary'
+            # Summary report uses pre-calculated stats and is cached via ensure_stats_summary_pdf_generated
+            import os
+            from backend.services.stats_export import ensure_stats_summary_pdf_generated
+            # Use the intelligent caching built into stats_export
+            # We don't render HTML directly here anymore, we just return to the background thread
+            # which will use ensure_stats_summary_pdf_generated directly.
+            pass  # handled in caller
 
         def _apply_atlas_operator_filter(query):
             if not atlas_operators:
@@ -433,10 +385,9 @@ def generate_report_data(params, task_id=None):
         
         while True:
             if task_id is not None:
-                with _state_lock:
-                    cancelled = task_id not in report_progress
-                if cancelled:  # Check if cancelled
-                    return None
+                current_prog = get_progress(task_id)
+                if current_prog is None:
+                    return None  # cancelled
                 
             chunk_query = query.offset(offset).limit(chunk_size)
             if isinstance(limit, int) and offset >= limit:
@@ -466,10 +417,7 @@ def generate_report_data(params, task_id=None):
         
     except Exception as e:
         if task_id is not None:
-            with _state_lock:
-                if task_id in report_progress:
-                    report_progress[task_id]['status'] = 'error'
-                    report_progress[task_id]['error'] = str(e)
+            set_task_status(task_id, 'error', str(e))
         print(f"Error in generate_report_data: {e}")
         return None
 
@@ -479,26 +427,19 @@ def generate_report_data(params, task_id=None):
 def generate_report_async():
     """Start async report generation"""
     try:
-        _ensure_cleanup_thread_started()
-        # Lazy cleanup of stale reports on each new request
-        _cleanup_stale_reports()
+        start_cleanup_thread()
+        cleanup_stale_tasks()
 
-        data = request.get_json()
+        data = _read_request_payload()
         if not data:
             return jsonify({"error": "No data provided"}), 400
 
-        task_id = str(uuid.uuid4())
+        report_type = _normalize_report_type(data.get('report_type', 'distance'))
+        if report_type not in {'distance', 'unmatched', 'problems', 'summary'}:
+            return jsonify({"error": "Invalid report_type provided"}), 400
 
-        # Initialize progress tracking
-        with _state_lock:
-            report_progress[task_id] = {
-                'status': 'starting',
-                'processed': 0,
-                'total': 0,
-                'eta': None,
-                'error': None,
-                'created_at': datetime.now()
-            }
+        task_id = str(uuid.uuid4())
+        init_task(task_id)
         
         # Get the actual app instance for the background thread
         flask_app = app._get_current_object()
@@ -522,17 +463,34 @@ def background_report_generation(params, task_id, flask_app):
     """Background function to generate report"""
     with flask_app.app_context():
         try:
-            with _state_lock:
-                if task_id not in report_progress:
-                    return
-                report_progress[task_id]['status'] = 'processing'
+            if get_progress(task_id) is None:
+                return
+            set_task_status(task_id, 'processing')
+            
+            report_type = _normalize_report_type(params.get('report_type', 'distance'))
+            report_format = params.get('format', 'pdf').lower()
+            sort_param = _normalize_sort(report_type, params.get('sort', 'operator_asc'))
+            
+            # Smart cache handling for summary report
+            if report_type == 'summary' and report_format == 'pdf':
+                from backend.services.stats_export import ensure_stats_summary_pdf_generated
+                filepath = ensure_stats_summary_pdf_generated(force=False)
+                filename = f"stats_summary_{task_id[:8]}.pdf"
+                import shutil
+                temp_dir = tempfile.gettempdir()
+                dest_path = os.path.join(temp_dir, filename)
+                shutil.copy2(filepath, dest_path)
+                complete_task(task_id, dest_path, filename)
+                # Ensure UI instantly recognizes 100%
+                ae_update_progress(task_id, 1, 1)
+                return
 
-            # Generate report data
+            # Proceed normally for customized reports
             result = generate_report_data(params, task_id)
             if result is None:
                 return  # Cancelled or error
                 
-            data_for_report, report_type = result
+            data_for_report, returned_report_type = result
             report_format = params.get('format', 'pdf').lower()
             include_fields = _parse_include_fields(params.get('include_fields', ''))
             sort_param = _normalize_sort(report_type, params.get('sort', 'operator_asc'))
@@ -544,6 +502,9 @@ def background_report_generation(params, task_id, flask_app):
             filename = f"{filename_stem}.{extension}"
             filepath = os.path.join(temp_dir, filename)
 
+            # Data collection is complete; file rendering/writing may still take time.
+            set_task_status(task_id, 'finalizing')
+
             _write_report_file(
                 filepath,
                 data_for_report,
@@ -554,31 +515,21 @@ def background_report_generation(params, task_id, flask_app):
             )
             
             # Store completed report
-            with _state_lock:
-                completed_reports[task_id] = {
-                    'file_path': filepath,
-                    'filename': filename,
-                    'created_at': datetime.now()
-                }
-                if task_id in report_progress:
-                    report_progress[task_id]['status'] = 'completed'
+            complete_task(task_id, filepath, filename)
 
         except Exception as e:
-            with _state_lock:
-                if task_id in report_progress:
-                    report_progress[task_id]['status'] = 'error'
-                    report_progress[task_id]['error'] = str(e)
+            set_task_status(task_id, 'error', str(e))
             flask_app.logger.error(f"Background report generation error: {str(e)}")
 
 
 @reports_bp.route('/api/report_progress/<task_id>', methods=['GET'])
-@limiter.limit("60/minute")
+# Keep this higher so older clients polling at 500ms don't stall on 429.
+@limiter.limit("240/minute")
 def get_report_progress(task_id):
     """Get progress of report generation"""
-    with _state_lock:
-        if task_id not in report_progress:
-            return jsonify({"error": "Task not found"}), 404
-        progress = report_progress[task_id].copy()
+    progress = get_progress(task_id)
+    if not progress:
+        return jsonify({"error": "Task not found"}), 404
     return jsonify(progress)
 
 
@@ -586,12 +537,12 @@ def get_report_progress(task_id):
 @limiter.limit("20/minute")  
 def download_report(task_id):
     """Download completed report"""
-    with _state_lock:
-        if task_id not in completed_reports:
-            return jsonify({"error": "Report not found"}), 404
-        report_info = completed_reports[task_id]
-        filepath = report_info['file_path']
-        filename = report_info['filename']
+    task_info = get_completed_file(task_id)
+    if not task_info:
+        return jsonify({"error": "Report not found"}), 404
+    
+    filepath = task_info['file_path']
+    filename = task_info['filename']
     
     if not os.path.exists(filepath):
         return jsonify({"error": "Report file not found"}), 404
@@ -614,9 +565,7 @@ def download_report(task_id):
                 # Non-critical cleanup failure - log for debugging
                 app.logger.debug(f"Cleanup failed for report {task_id} (non-critical): {e}")
             finally:
-                with _state_lock:
-                    completed_reports.pop(task_id, None)
-                    report_progress.pop(task_id, None)
+                ae_cancel_task(task_id)
 
         return response
         
@@ -629,18 +578,7 @@ def download_report(task_id):
 @limiter.limit("60/minute")
 def cancel_report(task_id):
     """Cancel report generation"""
-    with _state_lock:
-        report_progress.pop(task_id, None)
-        report_info = completed_reports.pop(task_id, None)
-    if report_info:
-        try:
-            filepath = report_info['file_path']
-            if os.path.exists(filepath):
-                os.remove(filepath)
-        except Exception as e:
-            # Non-critical cleanup failure - log for debugging
-            app.logger.debug(f"Failed to clean up report file (non-critical): {e}")
-
+    ae_cancel_task(task_id)
     return jsonify({"status": "cancelled"})
 
 
