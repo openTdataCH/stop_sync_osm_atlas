@@ -249,9 +249,10 @@ def generate_report_data(params, task_id=None):
         start_time = time.time()
         
         # Parse parameters (similar to existing function)
-        limit_raw = (params.get('limit', '10') or '10').strip().lower()
+        limit_raw = str(params.get('limit', '10') or '10').strip().lower()
         limit = None if limit_raw == 'all' else int(limit_raw)
         report_type = _normalize_report_type(params.get('report_type', 'distance'))
+        report_format = str(params.get('format', 'pdf')).strip().lower()
         sort_param = _normalize_sort(report_type, params.get('sort', 'operator_asc'))
         
         atlas_operator_str = params.get('atlas_operator', '')
@@ -339,8 +340,13 @@ def generate_report_data(params, task_id=None):
 
         # Get total count
         total_count = pre_count_query.count()
+        actual_total = min(limit, total_count) if limit is not None else total_count
+
+        if report_format == 'pdf' and report_type != 'summary' and actual_total > 2000:
+            raise ValueError(f"Cannot generate a PDF with {actual_total} entries due to memory constraints. Please reduce your limit or export as CSV instead.")
+
         if task_id is not None:
-            update_progress(task_id, 0, total_count, start_time)
+            update_progress(task_id, 0, actual_total, start_time)
         
         # Apply sorting and eager loading
         if report_type == 'unmatched':
@@ -406,13 +412,13 @@ def generate_report_data(params, task_id=None):
                 break
                 
             if task_id is not None:
-                update_progress(task_id, min(offset, total_count), total_count, start_time)
+                update_progress(task_id, min(offset, actual_total), actual_total, start_time)
             
             # Small delay to allow cancellation
             time.sleep(0.01)
         
         if task_id is not None:
-            update_progress(task_id, len(all_data), total_count, start_time)
+            update_progress(task_id, len(all_data), actual_total, start_time)
         return all_data, report_type
         
     except Exception as e:
@@ -555,17 +561,6 @@ def download_report(task_id):
             as_attachment=True,
             download_name=filename,
         )
-
-        @response.call_on_close
-        def remove_file():
-            try:
-                if os.path.exists(filepath):
-                    os.remove(filepath)
-            except Exception as e:
-                # Non-critical cleanup failure - log for debugging
-                app.logger.debug(f"Cleanup failed for report {task_id} (non-critical): {e}")
-            finally:
-                ae_cancel_task(task_id)
 
         return response
         

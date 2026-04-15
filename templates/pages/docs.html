@@ -554,7 +554,8 @@
       
       const startDocsBtn = document.getElementById('startDocsPdfBtn');
       if (startDocsBtn) {
-        startDocsBtn.addEventListener('click', function() {
+        startDocsBtn.addEventListener('click', function(e) {
+           if (e) e.preventDefault();
            const selectedCbs = Array.from(sectionCbs).filter(function(cb) { return cb.checked; });
            const totalSections = sectionCbs.length;
            const allChecked = totalSections > 0 && selectedCbs.length === totalSections;

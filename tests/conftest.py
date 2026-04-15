@@ -140,7 +140,6 @@ def app():
     
     # Use in-memory SQLite for testing (no PostGIS needed for unit tests)
     os.environ['DATABASE_URI'] = 'sqlite:///:memory:'
-    os.environ['USER_INPUT_DATABASE_URI'] = 'sqlite:///:memory:'
     os.environ['SECRET_KEY'] = 'test-secret-key'
     
     from backend.app import create_app

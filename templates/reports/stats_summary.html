@@ -27,8 +27,79 @@
 {% endblock %}
 
 {% block extra_css %}
-/* Any stats-specific PDF overrides that aren't in core yet */
-.stats-kpi-card, .stats-kpi { padding: 0.4rem 0.5rem !important; }
-.stats-kpi__value { font-size: 1.4rem !important; }
-.stats-kpi__label { font-size: 0.7rem !important; }
+/* Force compact grid for PDF (ignore breakpoints) */
+.stats-container .row > div[class*="col-"] {
+    margin-bottom: 0.4rem !important;
+}
+.stats-container .row > .col-lg-4, 
+.stats-container .row > .col-md-4 { 
+    flex: 0 0 auto !important; width: 33.333% !important; 
+}
+.stats-container .row > .col-md-6, 
+.stats-container .row > .col-sm-6 { 
+    flex: 0 0 auto !important; width: 50% !important; 
+}
+.stats-container .row > .col-md-3 { 
+    flex: 0 0 auto !important; width: 25% !important; 
+}
+
+/* Tighten general spacing */
+.stats-page { padding-top: 0 !important; }
+.stats-container { max-width: 100% !important; padding: 0 !important; }
+
+.stats-section-title {
+    margin: 0.6rem 0 0.3rem !important;
+    font-size: 0.85rem !important;
+    border-bottom-width: 1px !important;
+    padding-bottom: 2px !important;
+}
+
+.mb-3, .mb-4 { margin-bottom: 0.4rem !important; }
+.mt-3, .mt-4 { margin-top: 0.4rem !important; }
+
+/* Stat Cards tightening */
+.stat-card {
+    padding: 0.4rem 0.6rem !important;
+    margin-bottom: 0 !important;
+    border-radius: 6px !important;
+    height: auto !important;
+    min-height: 0 !important;
+}
+.stat-card__value { 
+    font-size: 1.2rem !important; 
+    line-height: 1.1 !important;
+}
+.stat-card__label { 
+    font-size: 0.65rem !important; 
+    margin-top: 2px !important;
+    line-height: 1.1 !important;
+}
+
+/* Compact Tables */
+.table { margin-bottom: 0.5rem !important; }
+.table-sm th, .table-sm td {
+    padding: 3px 6px !important;
+    font-size: 0.72rem !important;
+}
+.table thead th { font-size: 0.65rem !important; text-transform: uppercase; letter-spacing: 0.02em; }
+
+/* Diagrams (SVGs) */
+.diagram-wrap { padding: 4px !important; margin-bottom: 0.5rem !important; border-radius: 6px !important; }
+.diagram-svg { height: auto !important; max-height: 110px !important; }
+.diagram-text { font-size: 10px !important; }
+
+/* General Cards (Containers) */
+.card { margin-bottom: 0.5rem !important; border-radius: 6px !important; border-color: #eee !important; }
+.card-header { padding: 5px 10px !important; background-color: #fcfcfc !important; }
+.card-header h5 { font-size: 0.75rem !important; font-weight: 700 !important; color: #444 !important; }
+.card-body { padding: 6px 10px !important; }
+.card-body.p-0 { padding: 0 !important; }
+
+/* Alerts and Info boxes */
+.alert { 
+    padding: 6px 10px !important; 
+    margin-bottom: 0.5rem !important; 
+    font-size: 0.7rem !important; 
+    border-radius: 6px !important; 
+}
 {% endblock %}
