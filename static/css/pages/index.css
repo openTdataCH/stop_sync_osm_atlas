@@ -52,11 +52,11 @@ main {
 }
 
 .osm-group-subfilters {
-  border-left: 2px solid rgba(59, 130, 246, 0.2);
+  border-start: 2px solid rgba(59, 130, 246, 0.2);
   margin-top: var(--space-2);
 }
 
-.osm-group-subfilters .custom-checkbox {
+.osm-group-subfilters .form-check {
   margin-bottom: var(--space-1);
 }
 
@@ -100,8 +100,8 @@ main {
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
+  border-start: 6px solid transparent;
+  border-end: 6px solid transparent;
   border-bottom: 6px solid rgba(255, 255, 255, 0.97);
   filter: drop-shadow(0 -1px 0 var(--color-border));
 }

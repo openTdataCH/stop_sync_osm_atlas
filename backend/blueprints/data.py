@@ -138,12 +138,10 @@ def get_data():
                     limit = None
 
         query = _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, request.args)
-        # Eager-load only osm_node_type from osm_nodes to avoid N+1 queries
-        # and defer matching_notes to keep the viewport query light.
+        # Eager-load only required details to avoid N+1 queries.
         query = query.options(
             joinedload(StopsMatched.osm_node_details).load_only(OsmNode.osm_node_type),
-            joinedload(StopsMatched.atlas_stop_details).load_only(AtlasStop.duplicate_group_sloids),
-            db.defer(StopsMatched.matching_notes)
+            joinedload(StopsMatched.atlas_stop_details).load_only(AtlasStop.duplicate_group_sloids)
         )
 
         # If a limit is applied (mid/low zoom caps), ensure results are stable across requests
@@ -405,7 +403,6 @@ def get_stop_popup():
                         "osm_lon": r.osm_lon,
                         "distance_m": r.distance_m,
                         "match_type": r.match_type,
-                        "matching_notes": r.matching_notes,
                         "has_osm_duplicate": bool(osm_details and osm_details.duplicate_group_node_ids),
                         "osm_node_type": osm_details.osm_node_type if osm_details else None,
                         "routes_osm": get_osm_routes_for_node(r.osm_node_id),
@@ -487,7 +484,6 @@ def get_stop_popup():
                     "stop_type": 'matched',
                     "is_osm_node": True,
                     "match_type": stop.match_type,
-                    "matching_notes": stop.matching_notes,
                     "osm_node_id": stop.osm_node_id,
                     "osm_name": osm_details.osm_name if osm_details else None,
                     "osm_uic_name": osm_details.osm_uic_name if osm_details else None,
@@ -519,7 +515,6 @@ def get_stop_popup():
                         "atlas_lon": r.atlas_lon,
                         "distance_m": r.distance_m,
                         "match_type": r.match_type,
-                        "matching_notes": r.matching_notes,
                         "routes_unified": get_unified_routes_for_sloid(r.sloid) if r.sloid else [],
                     })
                 return jsonify({"stop": osm_centric})

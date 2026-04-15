@@ -34,7 +34,7 @@
 
 <div class="container-fluid docs-container">
   <div class="row">
-    <div class="col-md-3 docs-sidebar pr-0" id="docsSidebar">
+    <div class="col-md-3 docs-sidebar pe-0" id="docsSidebar">
       <div class="mobile-sidebar-header d-none">
         <h5>Documentation</h5>
         <button type="button" class="btn btn-link p-0 text-dark" id="closeMobileSidebar">
@@ -49,12 +49,12 @@
             {% if sec.root_slug %} data-root-href="{{ url_for('docs.docs_page', page=sec.root_slug) }}" {% endif %}>
             <div class="d-flex align-items-center">
               {% if sec['items']|length > 0 %}
-              <button class="btn btn-sm btn-link p-0 mr-2 docs-toggle" type="button" data-section="{{ sec.key }}"
+              <button class="btn btn-sm btn-link p-0 me-2 docs-toggle" type="button" data-section="{{ sec.key }}"
                 aria-expanded="false" aria-controls="sec-{{ sec.key }}-items">
                 <i class="fas fa-chevron-right chevron"></i>
               </button>
               {% else %}
-              <span class="mr-2" style="display:inline-block;width:1rem;"></span>
+              <span class="me-2" style="display:inline-block;width:1rem;"></span>
               {% endif %}
               {% if sec.root_title %}
               {% if sec.root_slug %}
@@ -88,14 +88,15 @@
       <div class="docs-sidebar-footer mt-auto pt-3 border-top px-2">
         <div class="d-flex justify-content-center align-items-center pb-2">
           <a href="https://github.com/openTdataCH/stop_sync_osm_atlas" target="_blank"
-            class="btn btn-sm btn-outline-primary repo-btn shadow-sm font-weight-bold py-2 px-2 mr-1 flex-grow-1 text-nowrap"
+            class="btn btn-sm btn-outline-primary repo-btn shadow-sm fw-bold py-2 px-2 me-1 flex-grow-1 text-nowrap"
             style="height: fit-content; line-height: 1.2;">
-            <i class="fas fa-code-branch mr-1"></i> Repo
+            <i class="fas fa-code-branch me-1"></i> Repo
           </a>
           <a href="{{ url_for('docs.download_docs_pdf') }}"
-            class="btn btn-sm btn-outline-danger download-btn shadow-sm font-weight-bold py-2 px-2 ml-1 flex-grow-1 text-nowrap"
+            target="_blank" download="documentation.pdf"
+            class="btn btn-sm btn-outline-danger download-btn shadow-sm fw-bold py-2 px-2 ms-1 flex-grow-1 text-nowrap"
             title="Download documentation as PDF" style="height: fit-content; line-height: 1.2;">
-            <i class="fas fa-file-pdf mr-1"></i> Download doc
+            <i class="fas fa-file-pdf me-1"></i> Download doc
           </a>
         </div>
       </div>
@@ -110,8 +111,8 @@
         {% if prev_page %}
         <a id="docs-prev" href="{{ url_for('docs.docs_page', page=prev_page['slug']) }}"
           class="docs-nav-btn d-flex align-items-center shadow-sm">
-          <i class="fas fa-arrow-left mr-2"></i>
-          <span class="text-left">
+          <i class="fas fa-arrow-left me-2"></i>
+          <span class="text-start">
             <div class="nav-label">Previous</div>
             <div class="nav-title">{{ prev_page['title'] }}</div>
           </span>
@@ -122,7 +123,7 @@
         {% if next_page %}
         <a id="docs-next" href="{{ url_for('docs.docs_page', page=next_page['slug']) }}"
           class="docs-nav-btn d-flex align-items-center shadow-sm">
-          <span class="text-right mr-2">
+          <span class="text-end me-2">
             <div class="nav-label">Next</div>
             <div class="nav-title">{{ next_page['title'] }}</div>
           </span>
@@ -216,11 +217,11 @@
 
       if (direction === 'prev') {
         var leftIcon = document.createElement('i');
-        leftIcon.className = 'fas fa-arrow-left mr-2';
+        leftIcon.className = 'fas fa-arrow-left me-2';
         anchor.appendChild(leftIcon);
 
         var leftText = document.createElement('span');
-        leftText.className = 'text-left';
+        leftText.className = 'text-start';
         var prevLabel = document.createElement('div');
         prevLabel.className = 'nav-label';
         prevLabel.textContent = 'Previous';
@@ -234,7 +235,7 @@
       }
 
       var rightText = document.createElement('span');
-      rightText.className = 'text-right mr-2';
+      rightText.className = 'text-end me-2';
       var nextLabel = document.createElement('div');
       nextLabel.className = 'nav-label';
       nextLabel.textContent = 'Next';

@@ -15,7 +15,7 @@
    ------------------------------------------------------------------------- */
 .docs-sidebar {
   align-self: flex-start;
-  border-right: 0;
+  border-end: 0;
   max-width: 320px;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
@@ -356,7 +356,7 @@
 
 .info-box {
   background-color: var(--color-primary-subtle);
-  border-left: 4px solid var(--color-primary);
+  border-start: 4px solid var(--color-primary);
   padding: var(--space-4);
   margin-bottom: var(--space-4);
   border-radius: var(--radius-sm);
@@ -375,7 +375,7 @@
   margin: var(--space-4) 0;
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
-  border-left: 4px solid;
+  border-start: 4px solid;
 }
 
 .github-alert .alert-title {
@@ -405,7 +405,7 @@
 /* Note - Blue/Info */
 .github-alert.alert-note {
   background-color: rgba(23, 64, 146, 0.1);
-  border-left-color: var(--color-primary);
+  border-start-color: var(--color-primary);
 }
 
 .github-alert.alert-note .alert-title {
@@ -415,7 +415,7 @@
 /* Tip - Green */
 .github-alert.alert-tip {
   background-color: rgba(76, 175, 80, 0.1);
-  border-left-color: var(--color-success, #4caf50);
+  border-start-color: var(--color-success, #4caf50);
 }
 
 .github-alert.alert-tip .alert-title {
@@ -425,7 +425,7 @@
 /* Important - Red (matches app danger color) */
 .github-alert.alert-important {
   background-color: var(--color-danger-subtle, rgba(220, 53, 69, 0.1));
-  border-left-color: var(--color-danger, #dc3545);
+  border-start-color: var(--color-danger, #dc3545);
 }
 
 .github-alert.alert-important .alert-title {
@@ -435,7 +435,7 @@
 /* Warning - Yellow/Orange */
 .github-alert.alert-warning {
   background-color: rgba(240, 173, 78, 0.1);
-  border-left-color: var(--color-warning, #f0ad4e);
+  border-start-color: var(--color-warning, #f0ad4e);
 }
 
 .github-alert.alert-warning .alert-title {
@@ -445,7 +445,7 @@
 /* Caution - Red */
 .github-alert.alert-caution {
   background-color: var(--color-danger-subtle, rgba(220, 53, 69, 0.1));
-  border-left-color: var(--color-danger, #dc3545);
+  border-start-color: var(--color-danger, #dc3545);
 }
 
 .github-alert.alert-caution .alert-title {
@@ -630,7 +630,7 @@
     transition: transform var(--transition-base);
     border-radius: 0;
     border: none;
-    border-right: 1px solid var(--color-border);
+    border-end: 1px solid var(--color-border);
     box-shadow: var(--shadow-xl);
     overflow-y: auto;
     background: var(--color-bg);
@@ -644,7 +644,7 @@
   }
 
   /* Content area adjustments */
-  .docs-sidebar.pr-0 {
+  .docs-sidebar.pe-0 {
     padding-right: var(--space-2) !important;
   }
 

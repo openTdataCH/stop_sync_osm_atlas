@@ -21,6 +21,7 @@ function startAsyncReportGeneration(params) {
         method: 'POST',
         contentType: 'application/json',
         data: JSON.stringify(params),
+        timeout: 10000,
         success: function(response) {
             if (response.task_id) {
                 window.currentTaskId = response.task_id;
@@ -31,10 +32,11 @@ function startAsyncReportGeneration(params) {
         },
         error: function(xhr) {
             var error = 'Unknown error';
-            try {
-                var response = JSON.parse(xhr.responseText);
-                error = response.error || error;
-            } catch (e) {}
+            if (window.SharedUtils && typeof window.SharedUtils.buildErrorMessage === 'function') {
+                error = window.SharedUtils.buildErrorMessage(xhr, error, 'bulk');
+            } else if (xhr && xhr.responseJSON && (xhr.responseJSON.error || xhr.responseJSON.message)) {
+                error = xhr.responseJSON.error || xhr.responseJSON.message;
+            }
             showError('Error starting report: ' + error);
         }
     });
@@ -47,15 +49,17 @@ function startProgressPolling() {
     
     window.progressInterval = setInterval(function() {
         if (!window.currentTaskId) return;
-        
         $.ajax({
             url: '/api/report_progress/' + window.currentTaskId,
             method: 'GET',
+            dataType: 'json',
+            cache: false,
+            timeout: 8000,
             success: function(progress) {
                 updateProgress(progress);
             },
             error: function() {
-                // Continue polling unless specifically cancelled
+                // Continue polling unless specifically cancelled.
                 if (window.currentTaskId) {
                     console.log('Progress polling error, continuing...');
                 }
@@ -139,7 +143,11 @@ function cancelReportGeneration() {
         $.ajax({
             url: '/api/cancel_report/' + window.currentTaskId,
             method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({}),
+            timeout: 5000,
             complete: function() {
+                // Even if cancel endpoint fails, frontend should still reset local state.
                 window.currentTaskId = null;
             }
         });
@@ -264,7 +272,13 @@ function initReportGeneration() {
         startAsyncReportGeneration(params);
         
         // Hide the modal
-        try { $('#reportModal').modal('hide'); } catch (e) {}
+        try {
+            var reportModalEl = document.getElementById('reportModal');
+            if (reportModalEl && window.bootstrap && window.bootstrap.Modal) {
+                var modalInstance = window.bootstrap.Modal.getInstance(reportModalEl) || new window.bootstrap.Modal(reportModalEl);
+                modalInstance.hide();
+            }
+        } catch (e) {}
     });
 
     // Enable/disable limit input based on mode

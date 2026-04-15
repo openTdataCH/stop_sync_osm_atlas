@@ -26,8 +26,8 @@
 
             <!-- Priority -->
             <div class="dropdown filter-item mx-1">
-              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm font-weight-bold"
-                type="button" id="priorityDropdownProblems" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+                type="button" id="priorityDropdownProblems" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
                 Priority
               </button>
               <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="priorityDropdownProblems">
@@ -42,52 +42,52 @@
 
             <!-- Type -->
             <div class="dropdown filter-item mx-1">
-              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm font-weight-bold"
-                type="button" id="typeFilterButtonProblems" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+                type="button" id="typeFilterButtonProblems" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
                 Type: All
               </button>
               <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="typeFilterButtonProblems" id="typeFilterMenuProblems"
                 style="width: 280px; max-height: 60vh; overflow-y: auto;">
                 <div class="form-group mb-0">
-                  <label class="font-weight-bold small text-uppercase text-muted">Problem Types</label>
+                  <label class="fw-bold small text-uppercase text-muted">Problem Types</label>
 
-                  <div class="custom-control custom-checkbox mb-2 pb-2 border-bottom">
-                    <input type="checkbox" class="filter-problem-type custom-control-input" id="filterProblemTypeAll" value="all">
-                    <label class="custom-control-label font-weight-bold" for="filterProblemTypeAll">
+                  <div class="form-check mb-2 pb-2 border-bottom">
+                    <input type="checkbox" class="filter-problem-type form-check-input" id="filterProblemTypeAll" value="all">
+                    <label class="form-check-label fw-bold" for="filterProblemTypeAll">
                       All
-                      <span class="badge badge-secondary ml-2" id="typeCountAll">0</span>
+                      <span class="badge text-bg-secondary ms-2" id="typeCountAll">0</span>
                     </label>
                   </div>
 
-                  <div class="custom-control custom-checkbox">
-                    <input type="checkbox" class="filter-problem-type custom-control-input" id="filterProblemTypeAttributes" value="attributes">
-                    <label class="custom-control-label" for="filterProblemTypeAttributes">
+                  <div class="form-check">
+                    <input type="checkbox" class="filter-problem-type form-check-input" id="filterProblemTypeAttributes" value="attributes">
+                    <label class="form-check-label" for="filterProblemTypeAttributes">
                       Attributes
-                      <span class="badge badge-secondary ml-2" id="typeCountAttributes">0</span>
+                      <span class="badge text-bg-secondary ms-2" id="typeCountAttributes">0</span>
                     </label>
                   </div>
 
-                  <div class="custom-control custom-checkbox">
-                    <input type="checkbox" class="filter-problem-type custom-control-input" id="filterProblemTypeDistance" value="distance">
-                    <label class="custom-control-label" for="filterProblemTypeDistance">
+                  <div class="form-check">
+                    <input type="checkbox" class="filter-problem-type form-check-input" id="filterProblemTypeDistance" value="distance">
+                    <label class="form-check-label" for="filterProblemTypeDistance">
                       Distance
-                      <span class="badge badge-secondary ml-2" id="typeCountDistance">0</span>
+                      <span class="badge text-bg-secondary ms-2" id="typeCountDistance">0</span>
                     </label>
                   </div>
 
-                  <div class="custom-control custom-checkbox">
-                    <input type="checkbox" class="filter-problem-type custom-control-input" id="filterProblemTypeDuplicates" value="duplicates">
-                    <label class="custom-control-label" for="filterProblemTypeDuplicates">
+                  <div class="form-check">
+                    <input type="checkbox" class="filter-problem-type form-check-input" id="filterProblemTypeDuplicates" value="duplicates">
+                    <label class="form-check-label" for="filterProblemTypeDuplicates">
                       Duplicates
-                      <span class="badge badge-secondary ml-2" id="typeCountDuplicates">0</span>
+                      <span class="badge text-bg-secondary ms-2" id="typeCountDuplicates">0</span>
                     </label>
                   </div>
 
-                  <div class="custom-control custom-checkbox">
-                    <input type="checkbox" class="filter-problem-type custom-control-input" id="filterProblemTypeUnmatched" value="unmatched">
-                    <label class="custom-control-label" for="filterProblemTypeUnmatched">
+                  <div class="form-check">
+                    <input type="checkbox" class="filter-problem-type form-check-input" id="filterProblemTypeUnmatched" value="unmatched">
+                    <label class="form-check-label" for="filterProblemTypeUnmatched">
                       Unmatched
-                      <span class="badge badge-secondary ml-2" id="typeCountUnmatched">0</span>
+                      <span class="badge text-bg-secondary ms-2" id="typeCountUnmatched">0</span>
                     </label>
                   </div>
                 </div>
@@ -96,21 +96,21 @@
 
             <!-- Atlas Operator -->
             <div class="dropdown filter-item mx-1">
-              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm font-weight-bold"
-                type="button" id="atlasDropdownProblems" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+                type="button" id="atlasDropdownProblems" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
                 Atlas Operator
               </button>
               <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="atlasDropdownProblems"
                 style="width: 320px; max-height: 60vh; overflow-y: auto;">
                 <div class="form-group mb-0">
-                  <label for="atlasOperatorFilterProblems" class="font-weight-bold small text-uppercase text-muted">ATLAS Operator</label>
+                  <label for="atlasOperatorFilterProblems" class="fw-bold small text-uppercase text-muted">ATLAS Operator</label>
                   <div id="atlasOperatorFilterProblems"></div>
                 </div>
               </div>
             </div>
 
             <div class="filter-item mx-1">
-              <button id="toggleContextBtn" class="btn bg-white text-dark btn-sm rounded-pill px-3 shadow-sm font-weight-bold" type="button">
+              <button id="toggleContextBtn" class="btn bg-white text-dark btn-sm rounded-pill px-3 shadow-sm fw-bold" type="button">
                 <i class="fas fa-eye"></i> See other markers
               </button>
             </div>
@@ -176,7 +176,7 @@
 
 {% block scripts %}
 <!-- Leaflet scripts -->
-<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- Shared constants and utilities (must load first) -->
 <script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>

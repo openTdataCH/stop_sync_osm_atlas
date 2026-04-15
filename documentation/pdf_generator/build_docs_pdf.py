@@ -13,11 +13,14 @@ from urllib.parse import unquote
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
+import mistune
+from weasyprint import HTML, CSS
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from backend.services.docs_stats import load_stats_for_docs, replace_stats_placeholders
+from backend.services.docs_stats import load_stats_for_docs, replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html
 
 
 DOCS_DIR = REPO_ROOT / 'documentation'
@@ -26,20 +29,11 @@ DIAGRAMS_DIR = OUTPUT_DIR / 'diagrams'
 STYLE_PATH = DOCS_DIR / 'pdf_generator' / 'docs_print.css'
 COMBINED_MD_PATH = OUTPUT_DIR / 'stop_sync_osm_atlas_docs_bundle.md'
 OUTPUT_HTML_PATH = OUTPUT_DIR / 'stop_sync_osm_atlas_docs_bundle.html'
-OUTPUT_PDF_PATH = OUTPUT_DIR / 'stop_sync_osm_atlas_documentation_bw.pdf'
+OUTPUT_PDF_PATH = OUTPUT_DIR / 'stop_sync_osm_atlas_documentation.pdf'
 GITHUB_BLOB_BASE = 'https://github.com/openTdataCH/stop_sync_osm_atlas/blob/main/'
 KROKI_MERMAID_ENDPOINT = 'https://kroki.io/mermaid/svg'
 SVG_NS = 'http://www.w3.org/2000/svg'
 XHTML_NS = 'http://www.w3.org/1999/xhtml'
-
-CHROME_CANDIDATES = [
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    '/Applications/Chromium.app/Contents/MacOS/Chromium',
-    'google-chrome',
-    'google-chrome-stable',
-    'chromium-browser',
-    'chromium',
-]
 
 ET.register_namespace('', SVG_NS)
 
@@ -289,19 +283,11 @@ def _prepare_document(doc_paths: list[Path]) -> str:
     stats = load_stats_for_docs()
 
     parts = [
-        '---',
-        'title: Stop Sync OSM Atlas Documentation',
-        'subtitle: Black-and-White Reference Edition',
-        f'date: {generated_at}',
-        'lang: en',
-        '---',
-        '',
         '<div class="title-page">',
         '<div class="title-page__eyebrow">Stop Sync OSM Atlas</div>',
         '<div class="title-page__title">Documentation Bundle</div>',
-        '<div class="title-page__deck">A print-oriented export of the repository documentation, styled for grayscale readability and long-form reference use.</div>',
+        f'<div class="title-page__deck">A print-oriented export of the repository documentation. &nbsp; <small>({generated_at})</small></div>',
         '</div>',
-        '',
         '<div class="page-break"></div>',
         '',
     ]
@@ -313,9 +299,28 @@ def _prepare_document(doc_paths: list[Path]) -> str:
         ])
 
         content = doc_path.read_text(encoding='utf-8')
+        
+        mermaid_blocks = []
+        def save_mermaid(match: re.Match[str]) -> str:
+            mermaid_blocks.append(match.group(0))
+            return f"<!--MERMAID_BLOCK_{len(mermaid_blocks)-1}-->"
+
+        content = re.sub(r'```mermaid.*?```', save_mermaid, content, flags=re.DOTALL)
+        
         content = replace_stats_placeholders(content, stats, html_escape=True)
         content = _rewrite_internal_doc_links(content, anchor_map)
         content = _rewrite_repo_links(content)
+        content = convert_github_alerts_to_html(content)
+        if '[[canonical_palette]]' in content:
+            content = content.replace('[[canonical_palette]]', get_canonical_palette_html())
+            
+        def restore_mermaid(match: re.Match[str]) -> str:
+            idx = int(match.group(1))
+            block = mermaid_blocks[idx]
+            return replace_stats_placeholders(block, stats, html_escape=True, no_span=True)
+            
+        content = re.sub(r'<!--MERMAID_BLOCK_(\d+)-->', restore_mermaid, content)
+        
         content = _rewrite_mermaid_blocks(content)
         content = _process_markdown_headers(content, doc_path.name)
         parts.append(content.strip())
@@ -324,19 +329,8 @@ def _prepare_document(doc_paths: list[Path]) -> str:
     return '\n'.join(parts)
 
 
-def _find_chrome() -> str | None:
-    import shutil
-    for candidate in CHROME_CANDIDATES:
-        path = shutil.which(candidate)
-        if path:
-            return path
-        
-        # Check absolute path if it's a Mac app bundle
-        candidate_path = Path(candidate)
-        if candidate_path.is_absolute() and candidate_path.is_file():
-            return candidate
-            
-    return None
+def _protect_math(match: re.Match[str]) -> str:
+    return match.group(0).replace('\\', '\\\\')
 
 
 def _build_pdf() -> None:
@@ -347,58 +341,44 @@ def _build_pdf() -> None:
         raise RuntimeError('No documentation markdown files found.')
 
     # 1. Prepare and combine markdown
-    COMBINED_MD_PATH.write_text(_prepare_document(doc_paths), encoding='utf-8')
+    print('Preparing combined markdown...')
+    combined_md = _prepare_document(doc_paths)
+    COMBINED_MD_PATH.write_text(combined_md, encoding='utf-8')
 
-    # 2. Build standalone HTML using Pandoc
-    pandoc_command = [
-        'pandoc',
-        str(COMBINED_MD_PATH),
-        '--from=gfm+pipe_tables+raw_html',
-        '--to=html5',
-        '--standalone',
-        f'--css={STYLE_PATH.absolute()}',
-        '--resource-path',
-        f'{DOCS_DIR}:{REPO_ROOT}',
-        '-o',
-        str(OUTPUT_HTML_PATH),
-    ]
+    # 2. Convert markdown to HTML using mistune
+    print('Converting markdown to HTML using mistune...')
+    # Protect math blocks from escaping
+    combined_md = re.sub(r'\$\$.*?\$\$', _protect_math, combined_md, flags=re.DOTALL)
+    combined_md = re.sub(r'(?<!\$)\$[^\s$](?:.*?[^\s$])?\$(?!\$)', _protect_math, combined_md)
     
-    # Enable embed-resources so images are embedded (helps Chrome)
-    pandoc_command.append('--embed-resources')
+    md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table', 'url'])
+    body_html = md(combined_md)
     
-    print('Generating intermediate HTML with pandoc...')
-    subprocess.run(pandoc_command, check=True, cwd=REPO_ROOT)
+    # Wrap in standard HTML template
+    full_html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Stop Sync OSM Atlas Documentation</title>
+</head>
+<body>
+{body_html}
+</body>
+</html>
+'''
+    OUTPUT_HTML_PATH.write_text(full_html, encoding='utf-8')
     
-    # 3. Print to PDF using Headless Chrome
-    chrome_path = _find_chrome()
-    if not chrome_path:
-        raise RuntimeError("Could not find Google Chrome or Chromium executable. Cannot generate PDF.")
-        
-    print(f'Printing to PDF using {chrome_path}...')
-    
-    # Make sure we use an absolute URI for Chrome
-    html_uri = OUTPUT_HTML_PATH.absolute().as_uri()
-    
-    chrome_command = [
-        chrome_path,
-        '--headless',
-        '--disable-gpu',
-        '--no-pdf-header-footer',
-        '--print-to-pdf-no-header',
-        f'--print-to-pdf={OUTPUT_PDF_PATH.absolute()}',
-        html_uri,
-    ]
-    
-    subprocess.run(chrome_command, check=True)
+    # 3. Print to PDF using WeasyPrint
+    print('Printing to PDF using WeasyPrint...')
+    html_doc = HTML(string=full_html, base_url=str(DOCS_DIR.absolute()))
+    css_doc = CSS(filename=str(STYLE_PATH.absolute()))
+    html_doc.write_pdf(target=str(OUTPUT_PDF_PATH.absolute()), stylesheets=[css_doc])
 
 
 if __name__ == '__main__':
     try:
         _build_pdf()
         print(f'PDF successfully generated at {OUTPUT_PDF_PATH}')
-    except subprocess.CalledProcessError as error:
-        print(f'PDF generation failed with exit code {error.returncode}', file=sys.stderr)
-        sys.exit(error.returncode)
     except Exception as error:
         print(f'PDF generation failed: {error}', file=sys.stderr)
         sys.exit(1)

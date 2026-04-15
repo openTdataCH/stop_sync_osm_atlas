@@ -128,9 +128,6 @@
             const distance = formatDistanceMeters(data.distance_m);
             if (distance) rows.push(['Distance', distance]);
             rows.push(['Match Type', buildMatchTypeHtml(data.match_type)]);
-            if (hasValue(data.matching_notes)) {
-                rows.push(['Matching Rationale', `<span class="matching-notes-text">${data.matching_notes}</span>`]);
-            }
         }
 
         return rows;
@@ -179,9 +176,6 @@
         if (distance) rows.push(['Distance', distance]);
 
         rows.push(['Match Type', buildMatchTypeHtml(data.match_type)]);
-        if (hasValue(data.matching_notes)) {
-            rows.push(['Matching Rationale', `<span class="matching-notes-text">${data.matching_notes}</span>`]);
-        }
         return rows;
     }
 
@@ -228,7 +222,6 @@
             atlas_lon: stop.atlas_lon,
             distance_m: stop.distance_m,
             match_type: stop.match_type,
-            matching_notes: stop.matching_notes,
             routes_unified: stop.routes_unified,
             stop_type: stop.stop_type,
             isOperatorMismatch: stop.isOperatorMismatch
@@ -258,7 +251,6 @@
                 osm_lon: stop.osm_lon,
                 distance_m: firstAtlas ? firstAtlas.distance_m : stop.distance_m,
                 match_type: stop.match_type || (firstAtlas ? firstAtlas.match_type : null),
-                matching_notes: stop.matching_notes || (firstAtlas ? firstAtlas.matching_notes : null),
                 routes_osm: stop.routes_osm,
                 stop_type: stop.stop_type,
                 isOperatorMismatch: stop.isOperatorMismatch
@@ -285,7 +277,6 @@
                 osm_lon: representative.osm_lon || stop.osm_lon,
                 distance_m: representative.distance_m || stop.distance_m,
                 match_type: representative.match_type || stop.match_type,
-                matching_notes: representative.matching_notes || stop.matching_notes,
                 routes_osm: representative.routes_osm || stop.routes_osm,
                 stop_type: stop.stop_type,
                 isOperatorMismatch: stop.isOperatorMismatch
@@ -310,7 +301,6 @@
             osm_lon: stop.osm_lon,
             distance_m: stop.distance_m,
             match_type: stop.match_type,
-            matching_notes: stop.matching_notes,
             routes_osm: stop.routes_osm,
             stop_type: stop.stop_type,
             isOperatorMismatch: stop.isOperatorMismatch

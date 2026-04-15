@@ -60,8 +60,8 @@
 }
 
 /* Toggle text (hidden by default) */
-.apple-toggle-text-left,
-.apple-toggle-text-right {
+.apple-toggle-text-start,
+.apple-toggle-text-end {
   display: none;
 }
 

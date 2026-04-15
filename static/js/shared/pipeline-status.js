@@ -90,7 +90,12 @@
             phaseText.textContent = latestStatus.phase || 'idle';
         }
         if (statusText) {
-            statusText.textContent = latestStatus.message || 'Waiting for status';
+            if (blocking) {
+                var message = latestStatus.message || 'Core data is being refreshed.';
+                statusText.textContent = message + ' Use this time to read the documentation.';
+            } else {
+                statusText.textContent = latestStatus.message || 'Waiting for status';
+            }
         }
         if (noticeStatusText) {
             noticeStatusText.textContent = latestStatus.message || 'Data update in progress';
@@ -101,7 +106,8 @@
 
         updateTimerFields();
         setOverlayVisible(blocking);
-        setRunNoticeVisible(running && !blocking);
+        // Keep background phases silent in UI; only blocking maintenance should interrupt users.
+        setRunNoticeVisible(false);
     }
 
     function scheduleNextTick() {
@@ -113,15 +119,23 @@
     }
 
     function fetchStatus() {
-        $.ajax({
+        if (!window.$ || typeof window.$.ajax !== 'function') {
+            scheduleNextTick();
+            return;
+        }
+
+        window.$.ajax({
             url: '/api/system/pipeline_status',
             method: 'GET',
+            dataType: 'json',
             cache: false,
-            timeout: 5000
-        }).done(function (status) {
-            applyStatus(status);
-        }).always(function () {
-            scheduleNextTick();
+            timeout: 5000,
+            success: function (status) {
+                applyStatus(status);
+            },
+            complete: function () {
+                scheduleNextTick();
+            }
         });
     }
 

@@ -23,7 +23,7 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   border: none;
-  border-left: 4px solid;
+  border-start: 4px solid;
   animation: toastSlideIn var(--transition-slow) ease-out;
 }
 
@@ -39,28 +39,28 @@
 .c-toast--success {
   background: linear-gradient(135deg, var(--color-success-subtle, #eaf4ec) 0%, #ffffff 100%);
   color: var(--color-success-fg, #1f5e22);
-  border-left-color: var(--color-success, #4caf50);
+  border-start-color: var(--color-success, #4caf50);
 }
 
 .temporary-message.alert-error,
 .c-toast--error {
   background: linear-gradient(135deg, var(--color-danger-subtle, #f8d7da) 0%, #ffffff 100%);
   color: var(--color-danger-fg, #721c24);
-  border-left-color: var(--color-danger, #dc3545);
+  border-start-color: var(--color-danger, #dc3545);
 }
 
 .temporary-message.alert-warning,
 .c-toast--warning {
   background: linear-gradient(135deg, var(--color-warning-subtle, #fdf8ef) 0%, #ffffff 100%);
   color: var(--color-warning-fg, #653a00);
-  border-left-color: var(--color-warning, #f0ad4e);
+  border-start-color: var(--color-warning, #f0ad4e);
 }
 
 .temporary-message.alert-info,
 .c-toast--info {
   background: linear-gradient(135deg, var(--color-info-subtle, #eef3fb) 0%, #ffffff 100%);
   color: var(--color-info-fg, #174092);
-  border-left-color: var(--color-info, #174092);
+  border-start-color: var(--color-info, #174092);
 }
 
 /* -------------------------------------------------------------------------

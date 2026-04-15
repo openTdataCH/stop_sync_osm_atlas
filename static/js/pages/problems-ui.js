@@ -30,7 +30,7 @@ window.ProblemsUI = (function () {
     function getMemberDisplayInfo(member, groupType) {
         const isOsm = groupType === 'osm' ? true : (groupType === 'atlas' ? false : !!member.osm_node_id);
         return {
-            badge: `<span class="badge badge-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`,
+            badge: `<span class="badge text-bg-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`,
             ident: isOsm ? (member.osm_node_id || '-') : (member.sloid || '-'),
             name: isOsm ? (member.osm_name || member.osm_uic_name || '-')
                 : (member.atlas_designation_official || member.atlas_designation || '-'),
@@ -263,7 +263,7 @@ window.ProblemsUI = (function () {
             if (!Array.isArray(problem.members) || problem.members.length === 0) {
                 // Individual duplicate entry (shown in "All Problems" view)
                 const isOsm = !!problem.has_osm_duplicate;
-                const badge = `<span class="badge badge-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
+                const badge = `<span class="badge text-bg-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
                 const ident = isOsm ? (problem.osm_node_id || '-') : (problem.sloid || '-');
                 const name = isOsm ? (problem.osm_name || problem.osm_uic_name || '-')
                     : (problem.atlas_designation_official || problem.atlas_designation || '-');
@@ -293,7 +293,7 @@ window.ProblemsUI = (function () {
                 (problem.members || []).forEach(member => {
                     const isOsmGroup = problem.group_type === 'osm';
                     const isOsm = isOsmGroup ? true : (problem.group_type === 'atlas' ? false : !!member.osm_node_id);
-                    const badge = `<span class="badge badge-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
+                    const badge = `<span class="badge text-bg-secondary">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
                     const ident = isOsm ? (member.osm_node_id || '-') : (member.sloid || '-');
                     const name = isOsm ? (member.osm_name || member.osm_uic_name || '-')
                         : (member.atlas_designation_official || member.atlas_designation || '-');

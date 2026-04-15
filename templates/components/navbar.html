@@ -4,12 +4,12 @@
     <a class="navbar-brand d-flex align-items-center text-nowrap" href="{{ url_for('index') }}"
       title="OSM &amp; ATLAS Synchronization">
       <img src="{{ url_for('static', filename='header/header.svg') }}" alt="OSM &amp; ATLAS"
-        class="d-inline-block align-top mr-2">
-      <span class="font-weight-bold navbar-brand-text">OSM &amp; ATLAS Synchronization</span>
+        class="d-inline-block align-top me-2">
+      <span class="fw-bold navbar-brand-text">OSM &amp; ATLAS Synchronization</span>
     </a>
 
     <!-- Mobile toggle button -->
-    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarMain"
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain"
       aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
@@ -17,22 +17,22 @@
     <!-- Navigation items -->
     <div class="collapse navbar-collapse" id="navbarMain">
       <!-- Main navigation links -->
-      <ul class="navbar-nav mr-auto">
-        <li class="nav-item {%- if request.endpoint == 'index' %} active{%- endif %}">
-          <a class="nav-link" href="{{ url_for('index') }}">Map</a>
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item">
+          <a class="nav-link {%- if request.endpoint == 'index' %} active{%- endif %}" href="{{ url_for('index') }}">Map</a>
         </li>
-        <li class="nav-item {%- if request.endpoint == 'problems' %} active{%- endif %}">
-          <a class="nav-link" href="{{ url_for('problems') }}">Problems</a>
+        <li class="nav-item">
+          <a class="nav-link {%- if request.endpoint == 'problems' %} active{%- endif %}" href="{{ url_for('problems') }}">Problems</a>
         </li>
 
-        <li class="nav-item {%- if request.endpoint == 'routes.routes_page' %} active{%- endif %}">
-          <a class="nav-link" href="{{ url_for('routes.routes_page') }}">Routes</a>
+        <li class="nav-item">
+          <a class="nav-link {%- if request.endpoint == 'routes.routes_page' %} active{%- endif %}" href="{{ url_for('routes.routes_page') }}">Routes</a>
         </li>
-        <li class="nav-item {%- if request.endpoint == 'analytics_stats' or request.endpoint == 'analytics_reports' %} active{%- endif %}">
-          <a class="nav-link" href="{{ url_for('analytics_stats') }}">Analytics</a>
+        <li class="nav-item">
+          <a class="nav-link {%- if request.endpoint == 'analytics_stats' or request.endpoint == 'analytics_reports' %} active{%- endif %}" href="{{ url_for('analytics_stats') }}">Analytics</a>
         </li>
-        <li class="nav-item {%- if request.endpoint and request.endpoint.startswith('docs.') %} active{%- endif %}">
-          <a class="nav-link" href="{{ url_for('docs.docs_page') }}">Docs</a>
+        <li class="nav-item">
+          <a class="nav-link {%- if request.endpoint and request.endpoint.startswith('docs.') %} active{%- endif %}" href="{{ url_for('docs.docs_page') }}">Docs</a>
         </li>
       </ul>
 

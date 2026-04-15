@@ -249,35 +249,38 @@ class MarkerClusterManager {
                             return;
                         }
                         marker._popupLoading = true;
-                        if (typeof $ !== 'undefined' && $.getJSON) {
-                            $.getJSON('/api/stop_popup', { stop_id: markerData.stopData.id, view_type: markerData.type })
-                                .done(function (resp) {
-                                    try {
-                                        const enriched = resp && (resp.stop || resp);
-                                        let content = '';
-                                        if (enriched && enriched.stop_type === 'atlas_unmatched') {
-                                            content = markerData.type === 'atlas'
-                                                ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
-                                                : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
-                                        } else {
-                                            content = PopupRenderer.generatePopupHtml(enriched, markerData.type);
-                                        }
-                                        const popup = createPopupWithOptions(content);
-                                        marker.bindPopup(popup);
-                                        marker._popupLoaded = true;
-                                        marker.openPopup();
-                                    } catch (e) {
-                                        console.error('Failed to render popup:', e);
-                                    } finally {
-                                        marker._popupLoading = false;
+                        $.ajax({
+                            url: '/api/stop_popup',
+                            method: 'GET',
+                            dataType: 'json',
+                            data: { stop_id: markerData.stopData.id, view_type: markerData.type },
+                            cache: false,
+                            timeout: 8000,
+                            success: function (resp) {
+                                try {
+                                    const enriched = resp && (resp.stop || resp);
+                                    let content = '';
+                                    if (enriched && enriched.stop_type === 'atlas_unmatched') {
+                                        content = markerData.type === 'atlas'
+                                            ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
+                                            : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
+                                    } else {
+                                        content = PopupRenderer.generatePopupHtml(enriched, markerData.type);
                                     }
-                                })
-                                .fail(function () {
+                                    const popup = createPopupWithOptions(content);
+                                    marker.bindPopup(popup);
+                                    marker._popupLoaded = true;
+                                    marker.openPopup();
+                                } catch (e) {
+                                    console.error('Failed to render popup:', e);
+                                } finally {
                                     marker._popupLoading = false;
-                                });
-                        } else {
-                            marker._popupLoading = false;
-                        }
+                                }
+                            },
+                            error: function () {
+                                marker._popupLoading = false;
+                            }
+                        });
                     });
                 }
 
@@ -448,81 +451,6 @@ function attachPopupLineHandlersToMap(mapInstance) {
     const openPopups = [];
     mapInstance.on('popupopen', function (e) {
         openPopups.push(e.popup);
-        try {
-            // Always work with the actual popup DOM element
-            const contentEl = e.popup.getElement();
-            if (!contentEl) return;
-            const $root = $(contentEl);
-            const $container = $root.find('.popup-content-container').first();
-            const stopId = $container.data('stop-id');
-            const type = $container.data('type'); // 'atlas' or 'osm'
-            if (!(stopId && type)) return;
-
-            // Load popup notes content when the collapsible is present
-            const $notes = $root.find('.popup-notes');
-            if ($notes.length) {
-                $notes.each(function () {
-                    const $el = $(this);
-                    const type = $el.data('type');
-                    const sloid = $el.data('sloid');
-                    const osmNodeId = $el.data('osm-node-id');
-                    const params = type === 'atlas' ? { sloid: sloid } : { osm_node_id: osmNodeId };
-                    $.getJSON('/api/notes', params, function (resp) {
-                        const your = resp && resp.your ? resp.your : null;
-                        const others = resp && Array.isArray(resp.others) ? resp.others : [];
-                        const yourVal = (your && your.note) ? your.note : '';
-                        const isPersistent = !!(your && your.is_persistent);
-                        const idPrefix = type === 'atlas' ? 'popupAtlas' : 'popupOsm';
-                        const editorHtml = `
-                            <div class="popup-note-editor">
-                                <textarea class="form-control form-control-sm mb-1" id="${idPrefix}Note" placeholder="Add a note..."></textarea>
-                                <div class="d-flex align-items-center">
-                                    <button class="btn btn-sm btn-primary mr-2 save-popup-note" data-type="${type}">${'Save note'}</button>
-                                    <label class="form-check form-check-inline align-middle ml-1 mb-0 small">
-                                        <input class="form-check-input popup-note-persist" type="checkbox" ${isPersistent ? 'checked' : ''}> <span class="form-check-label"> Make persistent</span>
-                                    </label>
-                                </div>
-                                <div class="small text-muted mt-2">Other user notes</div>
-                                <div class="popup-others-notes"></div>
-                            </div>`;
-                        $el.html(editorHtml);
-                        $el.find(`#${idPrefix}Note`).val(yourVal);
-                        const othersHtml = others.length ? others.map(o => {
-                            const ts = o.updated_at ? new Date(o.updated_at).toLocaleString() : '';
-                            return `<div class="card card-body py-1 px-2 mb-1"><div class="small"><strong>${o.author_email || 'Unknown user'}</strong> · <span class="text-muted">${ts}</span></div><div>${SharedUtils.escapeHtml(o.note || '')}</div></div>`;
-                        }).join('') : '<div class="text-muted small"><em>No other persistent notes.</em></div>';
-                        $el.find('.popup-others-notes').html(othersHtml);
-                    });
-                });
-
-                // Delegate save handler inside popup
-                $root.off('click.savePopupNote').on('click.savePopupNote', '.save-popup-note', function () {
-                    const $editor = $(this).closest('.popup-note-editor');
-                    const isAtlas = $(this).data('type') === 'atlas';
-                    const note = $editor.find('textarea').val();
-                    const makePersistent = $editor.find('.popup-note-persist').is(':checked');
-                    const payload = { note: note, make_persistent: makePersistent };
-                    if (isAtlas) payload.sloid = $notes.data('sloid'); else payload.osm_node_id = $notes.data('osm-node-id');
-                    const url = isAtlas ? '/api/save_note/atlas' : '/api/save_note/osm';
-                    const btn = $(this);
-                    const original = btn.html();
-                    btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
-                    $.ajax({ url: url, method: 'POST', contentType: 'application/json', data: JSON.stringify(payload) })
-                        .done(function (resp) {
-                            if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
-                                window.ProblemsUI.showTemporaryMessage('Note saved' + (resp && resp.is_persistent ? ' (persistent)' : ''), 'success');
-                            }
-                        })
-                        .fail(function (xhr) {
-                            if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
-                                window.ProblemsUI.showTemporaryMessage('Error saving note', 'error');
-                            }
-                        })
-                        .always(function () { btn.prop('disabled', false).html(original); });
-                });
-            }
-
-        } catch (err) { /* ignore */ }
     });
     mapInstance.on('popupclose', function (e) {
         const idx = openPopups.indexOf(e.popup);
