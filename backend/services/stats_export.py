@@ -752,6 +752,76 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
     }
 
 
+def compute_route_route_stats(db_session) -> Dict[str, Any]:
+    """Compute route-route linking statistics from route tables in the import DB."""
+    from backend.models import RouteAtlasStops, RouteOsmStops, RoutesMatched
+
+    total_links = db_session.query(RoutesMatched).count()
+
+    atlas_routes_linked = (
+        db_session.query(RoutesMatched.atlas_route_id)
+        .filter(RoutesMatched.atlas_route_id.isnot(None))
+        .distinct()
+        .count()
+    )
+    osm_routes_linked = (
+        db_session.query(RoutesMatched.osm_route_id)
+        .filter(RoutesMatched.osm_route_id.isnot(None))
+        .distinct()
+        .count()
+    )
+
+    atlas_route_ids_total = (
+        db_session.query(RouteAtlasStops.atlas_route_id)
+        .filter(RouteAtlasStops.atlas_route_id.isnot(None))
+        .distinct()
+        .count()
+    )
+    osm_route_ids_total = (
+        db_session.query(RouteOsmStops.osm_route_id)
+        .filter(RouteOsmStops.osm_route_id.isnot(None))
+        .distinct()
+        .count()
+    )
+
+    atlas_route_directions_total = (
+        db_session.query(RouteAtlasStops.atlas_route_id, RouteAtlasStops.direction_id)
+        .distinct()
+        .count()
+    )
+    osm_route_directions_total = (
+        db_session.query(RouteOsmStops.osm_route_id, RouteOsmStops.direction_id)
+        .distinct()
+        .count()
+    )
+
+    atlas_routes_without_link = max(atlas_route_ids_total - atlas_routes_linked, 0)
+    osm_routes_without_link = max(osm_route_ids_total - osm_routes_linked, 0)
+
+    atlas_link_coverage_percent = (
+        round((atlas_routes_linked / atlas_route_ids_total) * 100, 1)
+        if atlas_route_ids_total > 0 else 0.0
+    )
+    osm_link_coverage_percent = (
+        round((osm_routes_linked / osm_route_ids_total) * 100, 1)
+        if osm_route_ids_total > 0 else 0.0
+    )
+
+    return {
+        'total_links': total_links,
+        'atlas_routes_linked': atlas_routes_linked,
+        'osm_routes_linked': osm_routes_linked,
+        'atlas_route_ids_total': atlas_route_ids_total,
+        'osm_route_ids_total': osm_route_ids_total,
+        'atlas_route_directions_total': atlas_route_directions_total,
+        'osm_route_directions_total': osm_route_directions_total,
+        'atlas_routes_without_link': atlas_routes_without_link,
+        'osm_routes_without_link': osm_routes_without_link,
+        'atlas_link_coverage_percent': atlas_link_coverage_percent,
+        'osm_link_coverage_percent': osm_link_coverage_percent,
+    }
+
+
 def compute_summary_from_db(db_session) -> Dict[str, Any]:
     """Compute summary stats directly from source tables.
 

@@ -7,4 +7,10 @@ def is_missing_table_error(exc):
         orig = getattr(exc, "orig", None)
         if getattr(orig, "sqlstate", None) == "42P01":
             return True
-    return "does not exist" in str(exc).lower()
+
+    message = str(exc).lower()
+    if "does not exist" in message:
+        return True
+    if "no such table" in message:
+        return True
+    return False

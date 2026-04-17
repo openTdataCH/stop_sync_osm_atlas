@@ -3,10 +3,10 @@
 {% else %}
 
 {# ══════════════════════════════════════════
-SECTION 1 — MATCHING PROCESS
+SECTION 1 — STOPS MATCHING
 ══════════════════════════════════════════ #}
 <div class="mb-3">
-  <h2 class="stats-section-title mb-0">Matching Process</h2>
+  <h2 class="stats-section-title mb-0">Stops matching</h2>
 </div>
 
 {# Summary Cards #}
@@ -940,28 +940,32 @@ SECTION 6 — ROUTES
 </div>
 {% endif %}
 
-{% if stats.route_matching is defined and stats.route_matching %}
-{% set rm = stats.route_matching %}
+{% if stats.route_route_matching is defined and stats.route_route_matching %}
+{% set rr = stats.route_route_matching %}
 <div class="card mb-4">
   <div class="card-header">
-    <h5 class="mb-0">How Route Matches Are Determined</h5>
+    <h5 class="mb-0">Route-Route Matching</h5>
   </div>
   <div class="card-body">
     <table class="table table-sm table-hover mb-3">
       <thead class="thead-light">
         <tr>
-          <th>Route Match Source</th>
+          <th>Metric</th>
           <th class="text-end">Count</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td>GTFS-backed route match</td>
-          <td class="text-end">{{ "{:,}".format(rm.by_source.gtfs|default(0)) }}</td>
+          <td>Route-route links (ATLAS ↔ OSM)</td>
+          <td class="text-end">{{ "{:,}".format(rr.total_links|default(0)) }}</td>
         </tr>
-        <tr class="fw-bold">
-          <td>Total route matches</td>
-          <td class="text-end">{{ "{:,}".format(rm.total|default(0)) }}</td>
+        <tr>
+          <td>Linked ATLAS route IDs</td>
+          <td class="text-end">{{ "{:,}".format(rr.atlas_routes_linked|default(0)) }}</td>
+        </tr>
+        <tr>
+          <td>Linked OSM route IDs</td>
+          <td class="text-end">{{ "{:,}".format(rr.osm_routes_linked|default(0)) }}</td>
         </tr>
       </tbody>
     </table>
@@ -969,25 +973,37 @@ SECTION 6 — ROUTES
     <table class="table table-sm table-hover mb-0">
       <thead class="thead-light">
         <tr>
-          <th>Matching Method</th>
+          <th>Coverage</th>
           <th class="text-end">Count</th>
+          <th class="text-end">Percent</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td>Shared GTFS route token</td>
-          <td class="text-end">{{ "{:,}".format(rm.by_method.gtfs_tokens|default(0)) }}</td>
+          <td>ATLAS route IDs with link</td>
+          <td class="text-end">{{ "{:,}".format(rr.atlas_routes_linked|default(0)) }} / {{ "{:,}".format(rr.atlas_route_ids_total|default(0)) }}</td>
+          <td class="text-end">{{ rr.atlas_link_coverage_percent|default(0) }}%</td>
         </tr>
         <tr>
-          <td>Direction-name fallback</td>
-          <td class="text-end">{{ "{:,}".format(rm.by_method.direction_name_fallback|default(0)) }}</td>
+          <td>OSM route IDs with link</td>
+          <td class="text-end">{{ "{:,}".format(rr.osm_routes_linked|default(0)) }} / {{ "{:,}".format(rr.osm_route_ids_total|default(0)) }}</td>
+          <td class="text-end">{{ rr.osm_link_coverage_percent|default(0) }}%</td>
         </tr>
         <tr>
-          <td>Other / legacy evidence</td>
-          <td class="text-end">{{ "{:,}".format(rm.by_method.other_or_legacy|default(0)) }}</td>
+          <td>ATLAS route directions (total)</td>
+          <td class="text-end">{{ "{:,}".format(rr.atlas_route_directions_total|default(0)) }}</td>
+          <td class="text-end">-</td>
+        </tr>
+        <tr>
+          <td>OSM route directions (total)</td>
+          <td class="text-end">{{ "{:,}".format(rr.osm_route_directions_total|default(0)) }}</td>
+          <td class="text-end">-</td>
         </tr>
       </tbody>
     </table>
+    <div class="text-muted small mt-2">
+      This section reports route-route links from import DB route tables, not stop-level predicate matches.
+    </div>
   </div>
 </div>
 {% endif %}
