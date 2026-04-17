@@ -3,15 +3,21 @@ Tests for data integration and processing pipelines.
 Verifies the correct flow of data through the various processing stages.
 """
 import os
+import re
 import sys
 import pytest
 import pandas as pd
+from datetime import date
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 # Ensure project root is in path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from matching_and_import_db.downloader.get_atlas_data import write_atlas_routes_gtfs_csv
+from matching_and_import_db.downloader.get_atlas_data import (
+    get_current_gtfs_permalink,
+    write_atlas_routes_gtfs_csv,
+)
 
 class TestGtfsRoutesIntegration:
     """Tests for the GTFS Routes CSV generation."""
@@ -116,4 +122,33 @@ class TestGtfsRoutesIntegration:
         assert len(result) == 1
         assert result.iloc[0]['sloid'] == 'ch:1:sloid:1'
         assert 'source' not in result.columns
+
+
+def test_gtfs_permalink_uses_current_year_and_en_locale():
+    current_year = date.today().year
+    permalink = get_current_gtfs_permalink()
+
+    assert f"timetable-{current_year}-gtfs2020" in permalink
+    assert "/en/dataset/" in permalink
+
+
+def test_gtfs_permalink_links_do_not_contain_stale_years():
+    current_year = str(date.today().year)
+    link_pattern = re.compile(r"timetable-(\d{4})-gtfs2020")
+
+    repo_root = Path(__file__).resolve().parents[2]
+    checked_files = [
+        repo_root / "matching_and_import_db/downloader/get_atlas_data.py",
+        repo_root / "documentation/1. Download and process data.md",
+    ]
+
+    stale_hits = []
+    for file_path in checked_files:
+        content = file_path.read_text(encoding='utf-8')
+        for match in link_pattern.finditer(content):
+            found_year = match.group(1)
+            if found_year != current_year:
+                stale_hits.append((str(file_path), found_year, match.group(0)))
+
+    assert not stale_hits, f"Found stale GTFS timetable years: {stale_hits}"
 

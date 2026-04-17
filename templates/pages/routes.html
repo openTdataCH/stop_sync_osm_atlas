@@ -10,12 +10,37 @@
 <div class="routes-page">
   <div class="routes-container">
     <header class="routes-header">
-      <h1>Matched Routes</h1>
-      <p>Explore matched ATLAS and OSM routes with ordered stop lists grouped by direction.</p>
+      <nav class="c-analytics-tabs routes-tabs" role="tablist" aria-label="Route data views">
+        <a href="{{ url_for('routes.routes_page', tab='matched', q=q, per_page=per_page) }}"
+           class="c-analytics-tabs__tab {{ 'is-active' if active_tab == 'matched' }}"
+           role="tab"
+           aria-selected="{{ 'true' if active_tab == 'matched' else 'false' }}">
+          Matched routes
+        </a>
+        <a href="{{ url_for('routes.routes_page', tab='atlas', q=q, per_page=per_page) }}"
+           class="c-analytics-tabs__tab {{ 'is-active' if active_tab == 'atlas' }}"
+           role="tab"
+           aria-selected="{{ 'true' if active_tab == 'atlas' else 'false' }}">
+          ATLAS routes
+        </a>
+        <a href="{{ url_for('routes.routes_page', tab='osm', q=q, per_page=per_page) }}"
+           class="c-analytics-tabs__tab {{ 'is-active' if active_tab == 'osm' }}"
+           role="tab"
+           aria-selected="{{ 'true' if active_tab == 'osm' else 'false' }}">
+          OSM routes
+        </a>
+      </nav>
+    </header>
+
+    <header class="routes-header">
+      <h1>{{ route_view.title }}</h1>
+      <p>{{ route_view.description }}</p>
     </header>
 
     <section class="routes-toolbar" aria-label="Routes filters">
       <form method="get" action="{{ url_for('routes.routes_page') }}" class="routes-toolbar__form">
+        <input type="hidden" name="tab" value="{{ active_tab }}">
+
         <div class="routes-toolbar__field routes-toolbar__field--search">
           <label for="routesSearchInput">Search route ID</label>
           <input
@@ -23,7 +48,7 @@
             name="q"
             type="search"
             class="form-control"
-            placeholder="Search ATLAS or OSM route ID"
+            placeholder="{{ route_view.search_placeholder }}"
             value="{{ q }}"
           >
         </div>
@@ -31,7 +56,7 @@
         <div class="routes-toolbar__field routes-toolbar__field--per-page">
           <label for="routesPerPageSelect">Per page</label>
           <select id="routesPerPageSelect" name="per_page" class="form-control">
-            {% for option in [5, 10, 20, 50, 100] %}
+            {% for option in per_page_options %}
             <option value="{{ option }}" {% if per_page == option %}selected{% endif %}>{{ option }}</option>
             {% endfor %}
           </select>
@@ -40,7 +65,7 @@
         <div class="routes-toolbar__actions">
           <button type="submit" class="btn btn-primary">Apply</button>
           {% if q or per_page != 20 %}
-          <a class="btn btn-outline-secondary" href="{{ url_for('routes.routes_page') }}">Reset</a>
+          <a class="btn btn-outline-secondary" href="{{ url_for('routes.routes_page', tab=active_tab) }}">Reset</a>
           {% endif %}
         </div>
       </form>
@@ -48,14 +73,15 @@
 
     <section class="routes-summary" aria-live="polite">
       {% if pagination.total > 0 %}
-      Showing {{ range_start }}-{{ range_end }} of {{ pagination.total }} matched routes.
+      Showing {{ range_start }}-{{ range_end }} of {{ pagination.total }} {{ route_view.summary_label }}.
       {% else %}
-      No matched routes found.
+      No {{ route_view.summary_label }} found.
       {% endif %}
     </section>
 
     {% if route_rows %}
-    <section class="routes-list" aria-label="Matched routes list">
+    <section class="routes-list" aria-label="Routes list">
+      {% if active_tab == 'matched' %}
       {% for route in route_rows %}
       <article class="route-card">
         <header class="route-card__header">
@@ -135,12 +161,117 @@
         </div>
       </article>
       {% endfor %}
+      {% elif active_tab == 'atlas' %}
+      {% for route in route_rows %}
+      <article class="route-card">
+        <header class="route-card__header route-card__header--single">
+          <div class="route-meta route-meta--atlas">
+            <span class="route-meta__title">ATLAS</span>
+            <div class="route-meta__name">{{ route.route_name or route.route_id or 'Unknown route' }}</div>
+            <div class="route-meta__id">ID: {{ route.route_id or '-' }}</div>
+          </div>
+        </header>
+
+        {% if route.direction_summary %}
+        <p class="route-card__summary">Directions: {{ route.direction_summary }}</p>
+        {% endif %}
+
+        <div class="route-card__body">
+          {% if route.direction_groups %}
+          {% for direction in route.direction_groups %}
+          <section class="direction-block">
+            <h3 class="direction-block__title">Direction: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}</h3>
+            <div class="direction-block__columns direction-block__columns--single">
+              <div class="stops-column">
+                <h4>ATLAS Stops</h4>
+                {% if direction.atlas_uic_groups %}
+                <ol class="stops-list">
+                  {% for group in direction.atlas_uic_groups %}
+                  <li>
+                    <div class="stop-primary">
+                      <span class="stop-label">{{ group.stop_label or '-' }}</span>
+                      <span class="stop-uic">UIC: {{ group.uic_ref if group.uic_ref else '-' }}{% if group.member_count > 1 %} {{ group.member_count }} stops{% endif %}</span>
+                    </div>
+                    <ul class="stops-list stops-list--nested">
+                      {% for member in group.members %}
+                      <li><div class="stop-id stop-id--secondary">SLOID: {{ member.stop_id }}</div></li>
+                      {% endfor %}
+                    </ul>
+                  </li>
+                  {% endfor %}
+                </ol>
+                {% else %}
+                <p class="stops-empty">No ATLAS stops in this direction.</p>
+                {% endif %}
+              </div>
+            </div>
+          </section>
+          {% endfor %}
+          {% else %}
+          <p class="stops-empty">No stop details available for this ATLAS route.</p>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+      {% else %}
+      {% for route in route_rows %}
+      <article class="route-card">
+        <header class="route-card__header route-card__header--single">
+          <div class="route-meta route-meta--osm">
+            <span class="route-meta__title">OSM</span>
+            <div class="route-meta__name">{{ route.route_name or route.route_id or 'Unknown route' }}</div>
+            <div class="route-meta__id">ID: {{ route.route_id or '-' }}</div>
+          </div>
+        </header>
+
+        {% if route.direction_summary %}
+        <p class="route-card__summary">Directions: {{ route.direction_summary }}</p>
+        {% endif %}
+
+        <div class="route-card__body">
+          {% if route.direction_groups %}
+          {% for direction in route.direction_groups %}
+          <section class="direction-block">
+            <h3 class="direction-block__title">Direction: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}</h3>
+            <div class="direction-block__columns direction-block__columns--single">
+              <div class="stops-column">
+                <h4>OSM Stops</h4>
+                {% if direction.osm_uic_groups %}
+                <ol class="stops-list">
+                  {% for group in direction.osm_uic_groups %}
+                  <li>
+                    <div class="stop-primary">
+                      <span class="stop-label">{{ group.stop_label or '-' }}</span>
+                      <span class="stop-uic">UIC: {{ group.uic_ref if group.uic_ref else '-' }}{% if group.member_count > 1 %} {{ group.member_count }} nodes{% endif %}</span>
+                    </div>
+                    <ul class="stops-list stops-list--nested">
+                      {% for member in group.members %}
+                      <li><div class="stop-id stop-id--secondary">Node: {{ member.stop_id }}</div></li>
+                      {% endfor %}
+                    </ul>
+                  </li>
+                  {% endfor %}
+                </ol>
+                {% else %}
+                <p class="stops-empty">No OSM stops in this direction.</p>
+                {% endif %}
+              </div>
+            </div>
+          </section>
+          {% endfor %}
+          {% else %}
+          <p class="stops-empty">No stop details available for this OSM route.</p>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+      {% endif %}
     </section>
 
     <nav class="routes-pagination" aria-label="Routes pagination">
       <ul class="pagination justify-content-center">
         <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('routes.routes_page', q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
+          <a class="page-link" href="{{ url_for('routes.routes_page', tab=active_tab, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
             <span aria-hidden="true">&laquo;</span>
           </a>
         </li>
@@ -148,7 +279,7 @@
         {% for page_num in pagination.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
           {% if page_num %}
           <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-            <a class="page-link" href="{{ url_for('routes.routes_page', q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
+            <a class="page-link" href="{{ url_for('routes.routes_page', tab=active_tab, q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
           </li>
           {% else %}
           <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
@@ -156,7 +287,7 @@
         {% endfor %}
 
         <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('routes.routes_page', q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
+          <a class="page-link" href="{{ url_for('routes.routes_page', tab=active_tab, q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
             <span aria-hidden="true">&raquo;</span>
           </a>
         </li>
@@ -164,10 +295,10 @@
     </nav>
     {% else %}
     <section class="routes-empty-state" aria-live="polite">
-      <h2>No matched routes to display</h2>
-      <p>Try broadening your search, or verify that route matching data has been imported.</p>
+      <h2>{{ route_view.empty_title }}</h2>
+      <p>{{ route_view.empty_body }}</p>
       {% if q %}
-      <a class="btn btn-outline-primary" href="{{ url_for('routes.routes_page', per_page=per_page) }}">Clear search</a>
+      <a class="btn btn-outline-primary" href="{{ url_for('routes.routes_page', tab=active_tab, per_page=per_page) }}">Clear search</a>
       {% endif %}
     </section>
     {% endif %}

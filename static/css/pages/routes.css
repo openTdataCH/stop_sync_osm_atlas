@@ -21,6 +21,10 @@
   margin-bottom: var(--space-4);
 }
 
+.routes-tabs {
+  margin-bottom: var(--space-3);
+}
+
 .routes-header h1 {
   margin: 0;
   color: var(--color-fg);
@@ -100,6 +104,10 @@
   background: linear-gradient(180deg, #ffffff 0%, var(--color-bg-subtle) 100%);
 }
 
+.route-card__header--single {
+  grid-template-columns: 1fr;
+}
+
 .route-meta {
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
@@ -176,6 +184,10 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-3);
+}
+
+.direction-block__columns--single {
+  grid-template-columns: 1fr;
 }
 
 .stops-column {

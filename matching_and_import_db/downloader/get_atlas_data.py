@@ -27,6 +27,12 @@ def _ensure_parent_dir(path: str) -> None:
         os.makedirs(parent, exist_ok=True)
 
 
+def get_current_gtfs_permalink(year: Optional[int] = None, locale: str = "en") -> str:
+    """Return the OpenTransportData GTFS permalink for the active timetable year."""
+    target_year = int(year) if year is not None else datetime.date.today().year
+    return f"https://data.opentransportdata.swiss/{locale}/dataset/timetable-{target_year}-gtfs2020/permalink"
+
+
 def get_atlas_stops(output_path, download_url):
     """Download and process ATLAS stops data.
 
@@ -200,7 +206,7 @@ if __name__ == "__main__":
 
     # Process GTFS data
     print("\n=== GTFS Integration (stop_id → sloid) ===")
-    gtfs_url = "https://data.opentransportdata.swiss/de/dataset/timetable-2025-gtfs2020/permalink"
+    gtfs_url = get_current_gtfs_permalink()
 
     gtfs_stream = None
     integrated_data = None

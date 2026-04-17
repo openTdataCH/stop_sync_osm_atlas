@@ -40,13 +40,20 @@
         const routeGroups = groupRoutes(routes);
         const itemsHtml = Object.values(routeGroups).map(group => {
             const directions = group.directions.slice().sort();
-            const directionsStr = directions.length > 0 ? `Dir:${directions.join(',')}` : '';
+            const directionsStr = directions.length > 0 ? `Dir: ${directions.join(',')}` : '';
             const safeRouteId = escapeInlineJsString(group.routeId);
             const safeDirections = escapeInlineJsString(directions.join(','));
             const routeIdLink = group.routeId !== 'unknown'
-                ? `(ID: <a href="#" onclick="filterByRoute('${safeRouteId}', '${safeDirections}'); return false;">${group.routeId}</a>)`
+                ? `<a href="#" onclick="filterByRoute('${safeRouteId}', '${safeDirections}'); return false;">${group.routeId}</a>`
+                : group.routeId;
+
+            const hasDistinctName = Boolean(group.name) && group.name !== group.routeId;
+            const primaryText = hasDistinctName ? group.name : routeIdLink;
+            const idSuffix = (group.routeId !== 'unknown' && hasDistinctName)
+                ? `(ID: ${routeIdLink})`
                 : '';
-            return `<li>${group.name} ${routeIdLink} ${directionsStr}</li>`;
+
+            return `<li>${primaryText} ${idSuffix} ${directionsStr}</li>`;
         }).join('');
         return `<ul class="route-list" style="margin-top: 5px; padding-left: 15px;">${itemsHtml}</ul>`;
     }
@@ -54,26 +61,16 @@
     function formatAtlasRouteList(routes) {
         routes = normalizeRoutes(routes);
         if (routes.length === 0) { return '<i>No route information available</i>'; }
-        const itemsHtml = routes.map(route => {
-            if (!route) return '';
-            const displayName = route.route_name_short || route.route_name_long || route.route_id || 'Unnamed Route';
-            const direction = route.direction_name || route.direction_id || '';
-            const right = (route.route_id && route.route_id !== displayName) ? route.route_id : '';
-            const dirStr = direction ? `<small>${direction}</small>` : '';
 
-            // Add filter link if route_id exists
-            let routeFilterLink = '';
-            if (route.route_id) {
-                // Pass simple direction code if available, or empty string
-                const dirId = route.direction_id || '';
-                const safeRouteId = escapeInlineJsString(route.route_id);
-                const safeDirectionId = escapeInlineJsString(dirId);
-                routeFilterLink = ` <a href="#" onclick="filterByRoute('${safeRouteId}', '${safeDirectionId}'); return false;" title="Filter by this route"><i class="fas fa-filter text-muted small"></i></a>`;
-            }
+        const normalized = routes
+            .filter(Boolean)
+            .map(route => ({
+                route_id: route.route_id,
+                route_name: route.route_name_short || route.route_name_long || route.route_id || 'Unnamed Route',
+                direction_id: route.direction_id,
+            }));
 
-            return `<li>${displayName} ${routeFilterLink} ${dirStr} ${right ? `<small>(${right})</small>` : ''}</li>`;
-        }).join('');
-        return `<ul class="route-list" style="margin-top: 5px; padding-left: 15px;">${itemsHtml}</ul>`;
+        return formatRouteList(normalized);
     }
 
     function categorizeRoutes(atlasRoutes, osmRoutes) {
