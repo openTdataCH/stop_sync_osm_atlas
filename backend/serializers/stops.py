@@ -1,5 +1,5 @@
-from backend.models import StopsMatched, AtlasStop, OsmNode
-from backend.services.routes import get_atlas_routes_for_sloid, get_osm_routes_for_node
+from backend.models import StopsMatched
+from backend.services.transport_routes import get_atlas_routes_for_sloid, get_osm_routes_for_node
 
 def format_stop_data(stop: StopsMatched, problem_type: str = None, include_routes: bool = False) -> dict:
     atlas_details = stop.atlas_stop_details

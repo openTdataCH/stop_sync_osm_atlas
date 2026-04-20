@@ -273,12 +273,12 @@ def export_pipeline_stats(
     matched_ways = {
         str(r.osm_node.node_id)
         for r in matched_records
-        if getattr(r.osm_node, 'is_way', False) and getattr(r, 'osm_node', None)
+        if getattr(r, 'osm_node', None) and str(r.osm_node.node_id).startswith('way_')
     }
     unmatched_ways = {
         str(n.node_id)
         for n in unmatched_osm
-        if getattr(n, 'is_way', False)
+        if str(n.node_id).startswith('way_')
     }
     total_way_stops = len(matched_ways | unmatched_ways)
     way_match_rate = (len(matched_ways) / total_way_stops * 100) if total_way_stops > 0 else 0
@@ -589,14 +589,33 @@ def compute_quality_metrics(
     atlas_multi = {s: ids for s, ids in atlas_to_osm.items() if len(ids) > 1}
     osm_multi = {n: ids for n, ids in osm_to_atlas.items() if len(ids) > 1}
 
+    # Calculate distributions for many-to-one matches
+    atlas_dist_counts = defaultdict(int)
+    for ids in atlas_multi.values():
+        atlas_dist_counts[len(ids)] += 1
+    atlas_distribution = [
+        {"ratio": f"1A:{n}O", "count": count}
+        for n, count in sorted(atlas_dist_counts.items())
+    ]
+
+    osm_dist_counts = defaultdict(int)
+    for ids in osm_multi.values():
+        osm_dist_counts[len(ids)] += 1
+    osm_distribution = [
+        {"ratio": f"{n}A:1O", "count": count}
+        for n, count in sorted(osm_dist_counts.items())
+    ]
+
     many_to_one = {
         "atlas_to_multiple_osm": {
             "count": len(atlas_multi),
             "max_per_atlas": max((len(v) for v in atlas_multi.values()), default=0),
+            "distribution": atlas_distribution,
         },
         "osm_to_multiple_atlas": {
             "count": len(osm_multi),
             "max_per_osm": max((len(v) for v in osm_multi.values()), default=0),
+            "distribution": osm_distribution,
         },
     }
 

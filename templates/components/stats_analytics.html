@@ -316,14 +316,7 @@ SECTION 1 — STOPS MATCHING
     </table>
     {% endif %}
 
-    {% if dq.not_matched_to_closest %}
-    {% set nmc = dq.not_matched_to_closest %}
-    <div class="alert alert-info mt-3 mb-0">
-      <strong>Not matched to closest OSM node:</strong>
-      {{ "{:,}".format(nmc.count) }} of {{ "{:,}".format(nmc.total_evaluated) }} pairs
-      ({{ nmc.percent }}%)
-    </div>
-    {% endif %}
+
   </div>
 </div>
 

@@ -88,7 +88,7 @@
     }
 
     function buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml) {
-        if (unmatched || hideRoutesAndNotes) {
+        if (hideRoutesAndNotes) {
             return actionButtonHtml ? `<div class="bubble-footer"><div class="bubble-btn-row">${actionButtonHtml}</div></div>` : '';
         }
 

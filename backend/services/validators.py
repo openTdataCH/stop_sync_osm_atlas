@@ -8,10 +8,20 @@ Provides centralized validation for:
 """
 
 import bleach
+import re
 
 # Allowed HTML tags for notes (basic formatting only)
 ALLOWED_TAGS = ['b', 'i', 'em', 'strong', 'br', 'p', 'ul', 'ol', 'li', 'a']
 ALLOWED_ATTRIBUTES = {'a': ['href', 'title']}
+
+_SCRIPT_TAG_RE = re.compile(r'<script[^>]*>.*?</script>', flags=re.IGNORECASE | re.DOTALL)
+_STYLE_TAG_RE = re.compile(r'<style[^>]*>.*?</style>', flags=re.IGNORECASE | re.DOTALL)
+_HTML_CLEANER = bleach.Cleaner(
+    tags=ALLOWED_TAGS,
+    attributes=ALLOWED_ATTRIBUTES,
+    strip=True,
+    strip_comments=True,
+)
 
 
 def validate_pagination(page, limit, max_limit=1000, default_limit=100):
@@ -101,23 +111,12 @@ def sanitize_html(text):
     """
     if text is None:
         return ''
-    
-    # Use Cleaner to strip content from dangerous tags (script, style, etc.)
-    cleaner = bleach.Cleaner(
-        tags=ALLOWED_TAGS,
-        attributes=ALLOWED_ATTRIBUTES,
-        strip=True,
-        strip_comments=True
-    )
-    
+
     # First pass: remove script/style tags and their content using regex
-    import re
     text_str = str(text)
-    # Remove script tags and their content
-    text_str = re.sub(r'<script[^>]*>.*?</script>', '', text_str, flags=re.IGNORECASE | re.DOTALL)
-    # Remove style tags and their content
-    text_str = re.sub(r'<style[^>]*>.*?</style>', '', text_str, flags=re.IGNORECASE | re.DOTALL)
-    
+    text_str = _SCRIPT_TAG_RE.sub('', text_str)
+    text_str = _STYLE_TAG_RE.sub('', text_str)
+
     # Second pass: use bleach to clean remaining HTML
-    return cleaner.clean(text_str)
+    return _HTML_CLEANER.clean(text_str)
 

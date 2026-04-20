@@ -3,7 +3,7 @@ Enhanced QueryBuilder class for handling complex database queries with shared fi
 This module consolidates common filtering patterns to reduce code duplication and improve performance.
 """
 
-from backend.services.routes import get_stops_for_route
+from backend.services.transport_routes import get_stops_for_route
 from backend.extensions import db
 from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
 
@@ -225,6 +225,14 @@ class QueryBuilder:
                     self.filter_builder.build_osm_group_members_query(filters.get('osm_group_types'))
                 )
             )
+
+        # OSM entity type filter
+        if filters.get('osm_entity_types'):
+            entity_conditions = []
+            if 'way' in filters['osm_entity_types']:
+                entity_conditions.append(StopsMatched.osm_node_id.like('way_%'))
+            if entity_conditions:
+                osm_conditions.append(db.or_(*entity_conditions) if len(entity_conditions) > 1 else entity_conditions[0])
 
         if osm_conditions:
             combined_osm_condition = db.and_(*osm_conditions)

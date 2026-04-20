@@ -14,7 +14,7 @@ def _iter_candidate_paths(relative_path: str):
     rel = Path(relative_path)
     yield rel
     yield Path('/app') / rel
-    # backend/services/routes.py -> repo root is two parents up.
+    # backend/services/transport_routes.py -> repo root is two parents up.
     yield Path(__file__).resolve().parents[2] / rel
 
 

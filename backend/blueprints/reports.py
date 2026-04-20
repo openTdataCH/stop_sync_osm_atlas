@@ -3,6 +3,7 @@ from backend.models import StopsMatched, Problem, AtlasStop
 from backend.extensions import db, limiter
 from sqlalchemy.orm import joinedload
 from backend.queries.helpers import optimize_query_for_endpoint
+from backend.services.request_payload import read_request_payload
 from datetime import datetime
 import csv
 from io import StringIO
@@ -11,7 +12,6 @@ import time
 import uuid
 import os
 import tempfile
-import json
 from sqlalchemy import case
 
 from backend.services.async_export import (
@@ -27,30 +27,6 @@ from backend.services.async_export import (
 )
 
 reports_bp = Blueprint('reports', __name__)
-
-
-def _read_request_payload() -> dict:
-    """Read request payload without raising 415 for non-JSON content types."""
-    data = request.get_json(silent=True)
-    if isinstance(data, dict):
-        return data
-
-    raw_body = request.get_data(cache=True, as_text=True)
-    if raw_body:
-        try:
-            parsed = json.loads(raw_body)
-            if isinstance(parsed, dict):
-                return parsed
-        except Exception:
-            pass
-
-    if request.form:
-        return request.form.to_dict(flat=True)
-
-    if request.args:
-        return request.args.to_dict(flat=True)
-
-    return {}
 
 
 def _normalize_report_type(report_type):
@@ -436,7 +412,7 @@ def generate_report_async():
         start_cleanup_thread()
         cleanup_stale_tasks()
 
-        data = _read_request_payload()
+        data = read_request_payload(request)
         if not data:
             return jsonify({"error": "No data provided"}), 400
 

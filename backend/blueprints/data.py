@@ -6,7 +6,7 @@ from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMem
 from backend.extensions import db, limiter
 from backend.db_errors import is_missing_table_error
 from backend.serializers.stops import format_stop_data
-from backend.services.routes import get_stops_for_route, get_osm_routes_for_node, get_atlas_routes_for_sloid
+from backend.services.transport_routes import get_stops_for_route, get_osm_routes_for_node, get_atlas_routes_for_sloid
 from backend.queries.helpers import (
     build_atlas_duplicate_membership_condition,
     build_stop_scope_condition,

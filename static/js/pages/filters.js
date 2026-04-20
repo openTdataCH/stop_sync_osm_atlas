@@ -20,6 +20,7 @@ var activeFilters = {
         reasons: { noNearbyOSM: false, osmNearby: false }
     },
     transportTypes: [],
+    osmEntityTypes: [],
     topN: null,
     showDuplicatesOnly: false,
     osmGroups: []
@@ -71,7 +72,7 @@ function formatOsmGroupTypeLabel(groupType) {
 
 function formatTransportTypeLabel(filter) {
     const labels = {
-        non_node_osm_stop: 'Non-node OSM stops'
+        osm_way: 'Osm ways'
     };
     return labels[filter] || filter.replace(/_/g, ' ').split(' ').map(function (word) {
         return word.charAt(0).toUpperCase() + word.slice(1);
@@ -526,10 +527,12 @@ function updateFiltersUI() {
         var badgeHtml;
         if (filterType === 'route') {
             var currentDirection = activeFilters.routeDirections[index] || '';
-            var directionDropdownHtml = '<span class="direction-dropdown" data-index="' + index + '" data-current="' + currentDirection + '">' +
-                '<span class="direction-current">' + directionDisplay + '</span><i class="fas fa-chevron-down direction-arrow"></i>' +
-                '<div class="direction-options" style="display: none;"><div class="direction-option" data-direction="">Both</div><div class="direction-option" data-direction="0">Dir: 0</div><div class="direction-option" data-direction="1">Dir: 1</div></div></span>';
-            badgeHtml = '<span class="badge filter-chip-badge ' + badgeClass + ' me-1 mb-1">' + labelText + normalizedRoute + ' ' + directionDropdownHtml + ' <a href="#" class="remove-filter" data-type="station" data-index="' + index + '">×</a></span>';
+            badgeHtml = window.FilterChipUtils.buildDirectionDropdownHtml({
+                direction: currentDirection,
+                mapIndex: index,
+                routeLabel: labelText + normalizedRoute,
+                showClose: true
+            });
         } else {
             badgeHtml = buildRemovableChip({ label: badgeHtmlContent, badgeClass: badgeClass, data: { type: 'station', index: index }, closeChar: '×' });
         }
@@ -545,6 +548,13 @@ function updateFiltersUI() {
     });
     const transportTypeGroupHtml = buildOrGroup(transportTypeChips);
     if (transportTypeGroupHtml) finalGroupStrings.push(transportTypeGroupHtml);
+    
+    let entityTypeChips = [];
+    activeFilters.osmEntityTypes.forEach(function (filter) {
+        entityTypeChips.push(buildRemovableChip({ label: 'OSM: ' + (filter === 'way' ? 'Ways' : filter), badgeClass: 'filter-chip-osm', data: { type: 'osmEntityType', filter: filter } }));
+    });
+    const entityTypeGroupHtml = buildOrGroup(entityTypeChips);
+    if (entityTypeGroupHtml) finalGroupStrings.push(entityTypeGroupHtml);
 
     const operatorGroupHtml = window.FilterChipUtils.generateOperatorChipsHtml(activeFilters.atlasOperators, { context: 'index' });
     if (operatorGroupHtml) finalGroupStrings.push(operatorGroupHtml);
@@ -587,6 +597,7 @@ function clearAllFilters() {
     $('#masterDistanceMatchingCheckbox, #masterRouteMatchingCheckbox').prop('checked', false);
     $('.filter-unmatched-method').prop('checked', false);
     $('.filter-transport-type').prop('checked', false);
+    $('.filter-osm-entity-type').prop('checked', false);
     $('.filter-osm-group, .filter-osm-group-type').prop('checked', false);
 
     // Clear array-based filters
@@ -671,6 +682,7 @@ function updateActiveFilters() {
 
     activeFilters.showDuplicatesOnly = $('#filterDuplicatesOnly').is(':checked');
     activeFilters.transportTypes = $('.filter-transport-type:checked').map(function () { return this.value; }).get();
+    activeFilters.osmEntityTypes = $('.filter-osm-entity-type:checked').map(function () { return this.value; }).get();
 
     activeFilters.osmGroups = [];
     var osmGroupMasterChecked = $('#filterOsmGroup').is(':checked');
@@ -851,6 +863,9 @@ function initFilterEventHandlers() {
                 case 'transportType':
                     $('.filter-transport-type[value="' + filterValue + '"]').prop('checked', false).trigger('change');
                     break;
+                case 'osmEntityType':
+                    $('.filter-osm-entity-type[value="' + filterValue + '"]').prop('checked', false).trigger('change');
+                    break;
                 case 'atlasOperator':
                     // Remove from activeFilters.atlasOperators array
                     const operatorIndex = activeFilters.atlasOperators.indexOf(filterValue);
@@ -960,7 +975,7 @@ function initFilterEventHandlers() {
     setupMasterCheckbox('#masterMatchedCheckbox', '.filter-match-method, .filter-distance-method, .filter-route-method');
 
     // Attach change handlers to filter checkboxes and input elements.
-    $('.master-filter-checkbox, .visibility-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-group, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox').on('change', function () {
+    $('.master-filter-checkbox, .visibility-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-entity-type, .filter-osm-group, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox').on('change', function () {
         if (isBulkCheckboxSyncInProgress) {
             return;
         }

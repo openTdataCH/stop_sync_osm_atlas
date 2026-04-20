@@ -38,6 +38,21 @@ def test_generate_report_async_accepts_raw_json_body(client, monkeypatch):
     assert 'task_id' in payload
 
 
+def test_generate_report_async_ignores_non_dict_raw_json(client, monkeypatch):
+    _patch_async_helpers(monkeypatch, reports_blueprint)
+
+    response = client.post(
+        '/api/generate_report_async',
+        data='["not", "an", "object"]',
+        content_type='text/plain',
+    )
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload
+    assert payload.get('error') == 'No data provided'
+
+
 def test_generate_report_async_empty_payload_returns_400(client, monkeypatch):
     _patch_async_helpers(monkeypatch, reports_blueprint)
 
@@ -91,6 +106,22 @@ def test_generate_docs_pdf_async_selected_only_requires_sections(client, monkeyp
     payload = response.get_json()
     assert payload
     assert payload.get('error') == 'No sections selected for partial documentation export.'
+
+
+def test_generate_docs_pdf_async_ignores_non_dict_raw_json(client, monkeypatch):
+    _patch_async_helpers(monkeypatch, docs_blueprint)
+    monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', lambda *args, **kwargs: None)
+
+    response = client.post(
+        '/api/docs/generate_pdf_async',
+        data='["not", "an", "object"]',
+        content_type='text/plain',
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload
+    assert 'task_id' in payload
 
 
 def test_docs_payload_parsing_helpers():

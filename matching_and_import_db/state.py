@@ -272,9 +272,6 @@ class OsmState:
                 'lat': lat,
                 'lon': lon,
                 'local_ref': local_ref,
-                'is_way': False,
-                'source_way_id': None,
-                'way_node_ids': None,
                 'tags': tags,
             }
             all_nodes[(lat, lon)] = entry
@@ -349,9 +346,6 @@ class OsmState:
                 'lat': lat,
                 'lon': lon,
                 'local_ref': local_ref,
-                'is_way': True,
-                'source_way_id': str(way_id),
-                'way_node_ids': member_node_ids or None,
                 'tags': tags,
             }
 
@@ -490,9 +484,6 @@ class OsmState:
             railway=_str(tags.get('railway')),
             amenity=_str(tags.get('amenity')),
             aerialway=_str(tags.get('aerialway')),
-            is_way=bool(entry.get('is_way', False)),
-            source_way_id=_str(entry.get('source_way_id')),
-            way_node_ids=entry.get('way_node_ids'),
             tags=tags
         )
 
@@ -562,7 +553,7 @@ class OsmState:
         trio_groups = 0
         trio_node_ids: set[str] = set()
         for uic, entries in self._uic_ref_dict.items():
-            entries = [e for e in entries if not e.get('is_way', False)]
+            entries = [e for e in entries if not str(e['node_id']).startswith('way_')]
             if len(entries) != 3:
                 continue
             if atlas_uic_counts.get(uic, 0) != 2:
@@ -601,7 +592,7 @@ class OsmState:
 
             filtered_entries = [
                 e for e in entries
-                if not e.get('is_way', False) and str(e['node_id']) not in trio_node_ids
+                if not str(e['node_id']).startswith('way_') and str(e['node_id']) not in trio_node_ids
             ]
             platforms = [e for e in filtered_entries if e['tags'].get('public_transport') == 'platform']
             stop_positions = [e for e in filtered_entries if e['tags'].get('public_transport') == 'stop_position']
@@ -637,7 +628,7 @@ class OsmState:
             # Skip nodes already grouped by path 1
             entries = [
                 e for e in entries
-                if not e.get('is_way', False)
+                if not str(e['node_id']).startswith('way_')
                 and e['node_id'] not in already_grouped
                 and str(e['node_id']) not in trio_node_ids
             ]
@@ -720,7 +711,7 @@ class OsmState:
             # Skip nodes already grouped by path 1/2
             entries = [
                 e for e in entries
-                if not e.get('is_way', False)
+                if not str(e['node_id']).startswith('way_')
                 and e['node_id'] not in already_grouped
                 and str(e['node_id']) not in trio_node_ids
             ]

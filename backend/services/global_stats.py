@@ -106,8 +106,5 @@ def _compute_global_stats_sql(args, db_session) -> dict:
 
 
 def compute_global_stats_payload(args, db_session) -> dict:
-    """Return global stats using the canonical SQL path.
-
-    We keep this path as the source of truth while bucket parity work is completed.
-    """
+    """Return global stats using the canonical SQL path."""
     return _compute_global_stats_sql(args, db_session)

@@ -390,6 +390,9 @@ function appendCurrentFilterParams(params, options) {
     if (activeFilters.transportTypes.length > 0) {
         params.transport_types = activeFilters.transportTypes.join(',');
     }
+    if (activeFilters.osmEntityTypes.length > 0) {
+        params.osm_entity_types = activeFilters.osmEntityTypes.join(',');
+    }
     if (activeFilters.atlasOperators.length > 0) {
         params.atlas_operator = activeFilters.atlasOperators.join(',');
     }
