@@ -21,7 +21,7 @@
 }
 
 html {
-  font-size: 11pt;
+  font-size: 10.5pt;
 }
 
 body {
@@ -59,33 +59,33 @@ h6 {
 }
 
 h1 {
-  margin: 0 0 0.9rem;
-  padding-top: 0.4rem;
+  margin: 0 0 0.65rem;
+  padding-top: 0.3rem;
   border-top: 3px solid var(--color-primary);
-  font-size: 2.2rem;
+  font-size: 1.65rem;
   letter-spacing: -0.01em;
 }
 
 h2 {
-  margin: 2.2rem 0 0.8rem;
-  padding-top: 0.4rem;
+  margin: 1.35rem 0 0.55rem;
+  padding-top: 0.3rem;
   border-top: 1px solid var(--line);
-  font-size: 1.5rem;
+  font-size: 1.2rem;
 }
 
 h3 {
-  margin: 1.6rem 0 0.65rem;
-  font-size: 1.1rem;
+  margin: 1rem 0 0.45rem;
+  font-size: 0.98rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.03em;
   color: var(--muted);
 }
 
 h4,
 h5,
 h6 {
-  margin: 1.2rem 0 0.5rem;
-  font-size: 1rem;
+  margin: 0.85rem 0 0.35rem;
+  font-size: 0.9rem;
 }
 
 .title-page {

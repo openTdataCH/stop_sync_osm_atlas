@@ -49,6 +49,7 @@ def _build_single_markdown_pdf(input_markdown: Path, output_pdf: Path, title: st
 
     markdown_parser = mistune.create_markdown(escape=False, plugins=["strikethrough", "table", "url"])
     body_html = markdown_parser(markdown_content)
+    body_html = docs_builder._rewrite_svg_img_tags_in_html(body_html, source_dir=input_markdown.parent)
 
     html_title = title or input_markdown.stem.replace("_", " ")
     full_html = f"""<!DOCTYPE html>

@@ -197,34 +197,5 @@ def upgrade_():
         batch_op.create_index('idx_problem_stop_id', ['stop_id'], unique=False)
         batch_op.create_index('idx_problem_type', ['problem_type'], unique=False)
 
-    op.create_table(
-        'global_stats_buckets',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('scope', sa.String(length=20), nullable=False),
-        sa.Column('atlas_operator', sa.String(length=100), nullable=True),
-        sa.Column('atlas_duplicate', sa.Boolean(), server_default=sa.text('false'), nullable=False),
-        sa.Column('osm_group_kind', sa.String(length=50), nullable=True),
-        sa.Column('effective_stop_type', sa.String(length=50), nullable=True),
-        sa.Column('match_type', sa.String(length=50), nullable=True),
-        sa.Column('is_ferry_terminal', sa.Boolean(), server_default=sa.text('false'), nullable=False),
-        sa.Column('is_tram_stop', sa.Boolean(), server_default=sa.text('false'), nullable=False),
-        sa.Column('is_station', sa.Boolean(), server_default=sa.text('false'), nullable=False),
-        sa.Column('is_platform', sa.Boolean(), server_default=sa.text('false'), nullable=False),
-        sa.Column('is_stop_position', sa.Boolean(), server_default=sa.text('false'), nullable=False),
-        sa.Column('is_aerialway_station', sa.Boolean(), server_default=sa.text('false'), nullable=False),
-        sa.Column('total_atlas', sa.Integer(), server_default=sa.text('0'), nullable=False),
-        sa.Column('matched_atlas', sa.Integer(), server_default=sa.text('0'), nullable=False),
-        sa.Column('unmatched_atlas', sa.Integer(), server_default=sa.text('0'), nullable=False),
-        sa.Column('matched_pairs', sa.Integer(), server_default=sa.text('0'), nullable=False),
-        sa.Column('total_osm_stops', sa.Integer(), server_default=sa.text('0'), nullable=False),
-        sa.Column('matched_osm_stops', sa.Integer(), server_default=sa.text('0'), nullable=False),
-        sa.Column('total_osm_nodes', sa.Integer(), server_default=sa.text('0'), nullable=False),
-        sa.PrimaryKeyConstraint('id'),
-    )
-    with op.batch_alter_table('global_stats_buckets') as batch_op:
-        batch_op.create_index(batch_op.f('ix_global_stats_buckets_atlas_operator'), ['atlas_operator'], unique=False)
-        batch_op.create_index('idx_gsb_scope_effective', ['scope', 'effective_stop_type'], unique=False)
-        batch_op.create_index('idx_gsb_match_type', ['match_type'], unique=False)
-        batch_op.create_index('idx_gsb_group_kind', ['osm_group_kind'], unique=False)
-        batch_op.create_index('idx_gsb_atlas_duplicate', ['atlas_duplicate'], unique=False)
+    # Table 'global_stats_buckets' removed as requested.
 

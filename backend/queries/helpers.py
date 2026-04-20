@@ -184,6 +184,9 @@ def parse_filter_params(request_args):
     transport_types_str = request_args.get('transport_types')
     if transport_types_str:
         filters['transport_types'] = [t.strip() for t in transport_types_str.split(',') if t.strip()]
+    osm_entity_types_str = request_args.get('osm_entity_types')
+    if osm_entity_types_str:
+        filters['osm_entity_types'] = [t.strip() for t in osm_entity_types_str.split(',') if t.strip()]
     node_type_str = request_args.get('node_type')
     if node_type_str and node_type_str.lower() != 'all':
         filters['node_types'] = [nt.strip() for nt in node_type_str.split(',') if nt.strip()]
@@ -206,7 +209,6 @@ def parse_filter_params(request_args):
             filters['osm_group_types'] = []
         elif normalized_group_types:
             filters['osm_group_types'] = normalized_group_types
-
     return filters
 
 

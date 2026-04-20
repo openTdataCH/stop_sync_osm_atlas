@@ -345,9 +345,7 @@ def get_problems():
                 "sort_by": request.args.get('sort_by', 'default'),
                 "sort_order": request.args.get('sort_order', 'asc')
             }), 200
-        app.logger.error(f"Error fetching problems: {str(e)}")
-        import traceback
-        app.logger.error(traceback.format_exc())
+        app.logger.exception(f"Error fetching problems: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 

@@ -38,6 +38,21 @@ XHTML_NS = 'http://www.w3.org/1999/xhtml'
 ET.register_namespace('', SVG_NS)
 
 
+def _parse_svg_number(value: str | None) -> float:
+    if value is None:
+        return 0.0
+    text = str(value).strip()
+    if not text:
+        return 0.0
+    text = re.sub(r'[^0-9+\-.eE]', '', text)
+    if not text:
+        return 0.0
+    try:
+        return float(text)
+    except ValueError:
+        return 0.0
+
+
 def _slugify(text: str) -> str:
     slug = text.lower()
     slug = re.sub(r'\.md$', '', slug)
@@ -201,20 +216,23 @@ def _convert_foreign_objects_to_svg_text(svg: str) -> str:
             if child.tag != f'{{{SVG_NS}}}foreignObject':
                 continue
 
-            width = float(child.attrib.get('width', '0') or 0)
-            height = float(child.attrib.get('height', '0') or 0)
+            x = _parse_svg_number(child.attrib.get('x'))
+            y = _parse_svg_number(child.attrib.get('y'))
+            width = _parse_svg_number(child.attrib.get('width'))
+            height = _parse_svg_number(child.attrib.get('height'))
             lines = _extract_foreign_object_lines(child)
             if not lines:
                 parent.remove(child)
                 continue
 
             text_elem = ET.Element(f'{{{SVG_NS}}}text', {
-                'x': f'{width / 2:.3f}',
-                'y': f'{height / 2:.3f}',
+                'x': f'{x + (width / 2):.3f}',
+                'y': f'{y + (height / 2):.3f}',
                 'text-anchor': 'middle',
                 'dominant-baseline': 'middle',
-                'font-family': 'Trebuchet MS,Verdana,Arial,sans-serif',
+                'font-family': 'DejaVu Sans,Trebuchet MS,Verdana,Arial,sans-serif',
                 'font-size': '15',
+                'fill': '#1a1a1a',
             })
 
             line_count = len(lines)
@@ -223,7 +241,7 @@ def _convert_foreign_objects_to_svg_text(svg: str) -> str:
             else:
                 for line_index, line in enumerate(lines):
                     tspan = ET.SubElement(text_elem, f'{{{SVG_NS}}}tspan', {
-                        'x': f'{width / 2:.3f}',
+                        'x': f'{x + (width / 2):.3f}',
                     })
                     if line_index == 0:
                         baseline_offset = -0.6 * (line_count - 1)
@@ -236,6 +254,79 @@ def _convert_foreign_objects_to_svg_text(svg: str) -> str:
             parent.insert(index, text_elem)
 
     return ET.tostring(root, encoding='unicode')
+
+
+def _ensure_svg_text_visibility(svg: str) -> str:
+    root = ET.fromstring(svg)
+
+    for elem in root.iter():
+        local_name = elem.tag.rsplit('}', 1)[-1]
+        if local_name != 'text':
+            continue
+
+        if 'fill' in elem.attrib:
+            continue
+
+        style = elem.attrib.get('style', '')
+        if 'fill:' in style:
+            continue
+
+        elem.set('fill', '#1a1a1a')
+
+    return ET.tostring(root, encoding='unicode')
+
+
+def _prepare_svg_asset_for_pdf(source_path: Path) -> Path:
+    raw_svg = source_path.read_text(encoding='utf-8')
+    converted_svg = _convert_foreign_objects_to_svg_text(raw_svg)
+    converted_svg = _ensure_svg_text_visibility(converted_svg)
+
+    digest = hashlib.sha256(converted_svg.encode('utf-8')).hexdigest()[:16]
+    output_path = DIAGRAMS_DIR / f'asset-{digest}.svg'
+    if not output_path.exists():
+        output_path.write_text(converted_svg, encoding='utf-8')
+    return output_path
+
+
+def _resolve_local_asset_path(asset_ref: str, source_dir: Path | None = None) -> Path | None:
+    decoded = unquote(asset_ref)
+
+    candidates: list[Path] = []
+    if source_dir is not None:
+        candidates.append((source_dir / decoded).resolve())
+    candidates.append((DOCS_DIR / decoded).resolve())
+    candidates.append((REPO_ROOT / decoded).resolve())
+
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_file():
+            return candidate
+    return None
+
+
+def _rewrite_svg_img_tags_in_html(html_content: str, source_dir: Path | None = None) -> str:
+    pattern = re.compile(r'(<img\b[^>]*?\bsrc=["\'])([^"\']+)(["\'])', flags=re.IGNORECASE)
+
+    def replace(match: re.Match[str]) -> str:
+        src = match.group(2)
+        if src.startswith(('http://', 'https://', 'data:', 'file:', '/')):
+            return match.group(0)
+
+        base_src = src.split('#', 1)[0].split('?', 1)[0]
+        if not base_src.lower().endswith('.svg'):
+            return match.group(0)
+
+        resolved = _resolve_local_asset_path(base_src, source_dir=source_dir)
+        if resolved is None:
+            return match.group(0)
+
+        try:
+            svg_path = _prepare_svg_asset_for_pdf(resolved)
+        except Exception:
+            return match.group(0)
+
+        return f'{match.group(1)}{svg_path.as_uri()}{match.group(3)}'
+
+    return pattern.sub(replace, html_content)
 
 
 def _render_mermaid_to_local_svg(diagram_source: str) -> Path:
@@ -253,6 +344,7 @@ def _render_mermaid_to_local_svg(diagram_source: str) -> Path:
 
     svg = _fetch_mermaid_svg(normalized_source)
     svg = _convert_foreign_objects_to_svg_text(svg)
+    svg = _ensure_svg_text_visibility(svg)
     output_path.write_text(svg, encoding='utf-8')
     return output_path
 
@@ -394,6 +486,7 @@ def _build_pdf(included_sections: list[str] = None, include_cover: bool = True, 
     
     md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table', 'url'])
     body_html = md(combined_md)
+    body_html = _rewrite_svg_img_tags_in_html(body_html, source_dir=DOCS_DIR)
     
     # Wrap in standard HTML template
     full_html = f'''<!DOCTYPE html>

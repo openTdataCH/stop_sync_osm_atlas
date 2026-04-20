@@ -126,7 +126,90 @@
     container.on('click.filterchips', 'a.clear-all-problem-chips', function(e) { e.preventDefault(); if (typeof options.onClearAll === 'function') { options.onClearAll(); } });
   }
 
-  global.FilterChipUtils = { generateOperatorChipsHtml, generateProblemChipGroups, renderProblemChips, buildOrGroupHtml, joinWithAndHtml, buildRemovableChip };
+  function buildDirectionDropdownHtml(options) {
+    let direction = options.direction || '';
+    // Handle comma-separated directions (common in matched routes where multiple IDs are filtered together)
+    if (typeof direction === 'string' && direction.indexOf(',') !== -1) {
+      const parts = direction.split(',').map(function(s) { return s.trim(); });
+      direction = parts.find(function(p) { return p !== ''; }) || '';
+    }
+    const mapIndex = options.mapIndex || '';
+    const routeLabel = options.routeLabel || '';
+    const showClose = options.showClose || false;
+    const directionDisplay = direction === '' ? 'Both' : 'Dir: ' + direction;
+    
+    const dropdownHtml = '<span class="direction-dropdown" data-index="' + escapeHtml(String(mapIndex)) + '" data-current="' + escapeHtml(direction) + '">' +
+        '<span class="direction-current">' + escapeHtml(directionDisplay) + '</span><i class="fas fa-chevron-down direction-arrow"></i>' +
+        '<div class="direction-options" style="display: none;">' +
+        '<div class="direction-option" data-direction="">Both</div>' +
+        '<div class="direction-option" data-direction="0">Dir: 0</div>' +
+        '<div class="direction-option" data-direction="1">Dir: 1</div>' +
+        '</div></span>';
+    
+    let chipContent = (routeLabel ? escapeHtml(routeLabel) + ' ' : '') + dropdownHtml;
+    if (showClose) {
+        chipContent += ' <a href="#" class="remove-filter text-dark text-decoration-none ms-1" data-type="station" data-index="' + escapeHtml(String(mapIndex)) + '">×</a>';
+    }
+        
+    return '<span class="' + FILTER_CHIP_BADGE_CLASS + ' filter-chip-secondary shadow-sm" style="pointer-events: auto;">' + chipContent + '</span>';
+  }
+
+  function bindDirectionDropdownEvents(onChangeCallback) {
+    $(document).off('click.directionDropdownToggle').on('click.directionDropdownToggle', '.direction-dropdown', function (e) {
+        if ($(e.target).closest('.direction-option').length) return;
+        var dropdown = $(this);
+        var options = dropdown.find('.direction-options');
+        var arrow = dropdown.find('.direction-arrow');
+        
+        $('.direction-dropdown.open').not(dropdown).each(function () {
+            $(this).find('.direction-options').slideUp(200);
+            $(this).find('.direction-arrow').removeClass('rotated');
+            $(this).removeClass('open');
+        });
+        
+        if (dropdown.hasClass('open')) {
+            options.slideUp(200);
+            arrow.removeClass('rotated');
+            dropdown.removeClass('open');
+        } else {
+            options.slideDown(200);
+            arrow.addClass('rotated');
+            dropdown.addClass('open');
+        }
+    });
+
+    $(document).off('click.directionDropdownOption').on('click.directionDropdownOption', '.direction-option', function (e) {
+        e.stopPropagation();
+        var option = $(this);
+        var direction = option.data('direction');
+        var dropdown = option.closest('.direction-dropdown');
+        var mapIndex = dropdown.data('index');
+        
+        dropdown.attr('data-current', direction);
+        var display = direction === '' ? 'Both' : 'Dir: ' + direction;
+        dropdown.find('.direction-current').text(display);
+        
+        dropdown.find('.direction-options').slideUp(200);
+        dropdown.find('.direction-arrow').removeClass('rotated');
+        dropdown.removeClass('open');
+        
+        if (typeof onChangeCallback === 'function') {
+            onChangeCallback(mapIndex, String(direction));
+        }
+    });
+
+    $(document).off('click.directionDropdownOutside').on('click.directionDropdownOutside', function (e) {
+        if (!$(e.target).closest('.direction-dropdown').length) {
+            $('.direction-dropdown.open').each(function () {
+                $(this).find('.direction-options').slideUp(200);
+                $(this).find('.direction-arrow').removeClass('rotated');
+                $(this).removeClass('open');
+            });
+        }
+    });
+  }
+
+  global.FilterChipUtils = { generateOperatorChipsHtml, generateProblemChipGroups, renderProblemChips, buildOrGroupHtml, joinWithAndHtml, buildRemovableChip, buildDirectionDropdownHtml, bindDirectionDropdownEvents };
 })(window);
 
 

@@ -1,5 +1,4 @@
 import os
-import time
 import re
 import json
 import csv
@@ -13,6 +12,7 @@ from urllib.parse import unquote
 from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file, redirect, current_app
 from werkzeug.utils import safe_join
 from backend.services.docs_stats import replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html
+from backend.services.request_payload import read_request_payload
 import uuid
 import threading
 import tempfile
@@ -48,29 +48,6 @@ except Exception:  # pragma: no cover
 
 docs_bp = Blueprint('docs', __name__)
 logger = logging.getLogger(__name__)
-
-
-def _read_request_payload() -> dict:
-    """Read request payload without raising 415 for non-JSON content types."""
-    data = request.get_json(silent=True)
-    if isinstance(data, dict):
-        return data
-    if request.form:
-        d = request.form.to_dict(flat=False)
-        flat_d = {}
-        for k, v in d.items():
-            key = k.replace('[]', '')
-            if len(v) == 1:
-                flat_d[key] = v[0]
-            else:
-                flat_d[key] = v
-        return flat_d
-    try:
-        import json
-        return json.loads(request.get_data(as_text=True))
-    except Exception:
-        pass
-    return {}
 
 
 def _to_bool(value, default: bool = True) -> bool:
@@ -740,7 +717,7 @@ def generate_docs_pdf_async():
     start_cleanup_thread()
     cleanup_stale_tasks()
     
-    data = _read_request_payload()
+    data = read_request_payload(request, include_query_args=False)
     included_sections = _to_sections_list(data.get('included_sections'))  # None means all
     include_cover = _to_bool(data.get('include_cover'), default=True)
     selected_only = _to_bool(data.get('selected_only'), default=False)
@@ -764,9 +741,6 @@ def generate_docs_pdf_async():
 
 
 def _background_docs_pdf(flask_app, task_id, included_sections, include_cover):
-    import os
-    import shutil
-    import tempfile
     from pathlib import Path
     
     with flask_app.app_context():
