@@ -58,252 +58,125 @@ def query_overpass():
         print("Error fetching OSM data:", response.status_code)
         return None
 
-def process_osm_data_to_csv(xml_data, output_file="data/processed/osm_nodes_with_routes.csv"):
-    """
-    Process the OSM XML data and output a CSV file with nodes and their routes.
-    Each node-route pair gets its own row. Includes direction_id parsed from ref_trips H/R suffix.
-    H = outbound (direction_id = 0), R = return/inbound (direction_id = 1)
-    """
-    print("Processing OSM data to CSV...")
+def process_osm_routes_data(xml_data, out_dir="data/processed/"):
+    import datetime
+    run_id = datetime.date.today().isoformat()
 
-    # Direction will be parsed from ref_trips H/R suffix
-    print("Will parse direction from ref_trips H/R suffix (H=0, R=1)")
-    
-    # Parse the XML
+    print("Processing OSM data to new route entity CSVs...")
     root = ET.fromstring(xml_data)
-    
-    # Create dictionaries to store stop elements and routes
+
     nodes = {}
-    routes = {}
-    node_routes = defaultdict(list)
-    node_directions_name = defaultdict(set)
-    node_directions_uic = defaultdict(set)
     node_uic_refs = set()
-    
-    # Extract all nodes
+
     for node in root.findall(".//node"):
         node_id = node.get('id')
-        node_type = None
-        uic_ref = None
-        node_name = None
-        
-        for tag in node.findall("./tag"):
-            if tag.get('k') == 'public_transport':
-                node_type = tag.get('v')
-            elif tag.get('k') == 'uic_ref':
-                uic_ref = tag.get('v')
-            elif tag.get('k') == 'name':
-                node_name = tag.get('v')
-        
-        nodes[node_id] = {
-            'id': node_id,
-            'type': node_type,
-            'uic_ref': uic_ref,
-            'name': node_name,
-        }
+        uic_ref = next((tag.get('v') for tag in node.findall("./tag") if tag.get('k') == 'uic_ref'), None)
+        nodes[node_id] = node_id
         if uic_ref:
             node_uic_refs.add(uic_ref)
 
-    # Extract selected candidate ways and map to stable virtual IDs.
-    # Keep this filter aligned with OsmState.from_xml_file to avoid route FK mismatches.
     for way in root.findall(".//way"):
         way_id = way.get('id')
         virtual_id = f"way_{way_id}"
-        way_type = None
         uic_ref = None
-        way_name = None
+        way_type = None
         aerialway = None
-
         for tag in way.findall("./tag"):
-            key = tag.get('k')
-            value = tag.get('v')
-            if key == 'public_transport':
-                way_type = value
-            elif key == 'uic_ref':
-                uic_ref = value
-            elif key == 'name':
-                way_name = value
-            elif key == 'aerialway':
-                aerialway = value
-
+            if tag.get('k') == 'uic_ref': uic_ref = tag.get('v')
+            if tag.get('k') == 'public_transport': way_type = tag.get('v')
+            if tag.get('k') == 'aerialway': aerialway = tag.get('v')
+        
         is_aerialway_station = aerialway == 'station' and way_type == 'station'
         is_uic_without_node = bool(uic_ref) and uic_ref not in node_uic_refs
-        if not (is_aerialway_station or is_uic_without_node):
+        if is_aerialway_station or is_uic_without_node:
+            nodes[virtual_id] = virtual_id
+
+    def parse_direction_from_ref_trips(ref_trips_value):
+        if not ref_trips_value: return None
+        for tid in [t.strip() for t in ref_trips_value.split(',')]:
+            if tid.endswith('.H'): return '0'
+            elif tid.endswith('.R'): return '1'
+        return None
+
+    routes_rows = []
+    tags_rows = []
+    members_rows = []
+
+    for relation in root.findall(".//relation"):
+        tags = {tag.get('k'): tag.get('v') for tag in relation.findall("./tag")}
+        if tags.get('type') != 'route':
             continue
 
-        nodes[virtual_id] = {
-            'id': virtual_id,
-            'type': way_type,
-            'uic_ref': uic_ref,
-            'name': way_name,
-        }
-    
-    # Extract all relations that are routes
-    for relation in root.findall(".//relation"):
-        # Check if this relation is a route
-        is_route = False
         relation_id = relation.get('id')
         
-        route_name = None
-        route_ref = None
-        route_type = None
-        route_gtfs_id = None
-        route_gtfs_trip_id = None
-        
-        for tag in relation.findall("./tag"):
-            if tag.get('k') == 'type' and tag.get('v') == 'route':
-                is_route = True
-            elif tag.get('k') == 'name':
-                route_name = tag.get('v')
-            elif tag.get('k') == 'ref':
-                route_ref = tag.get('v')
-            elif tag.get('k') == 'route':
-                route_type = tag.get('v')
-            elif tag.get('k') == 'gtfs:route_id':
-                route_gtfs_id = tag.get('v')
-            # Only look for ref_trips tag since it's the only effective one
-            elif tag.get('k') == 'ref_trips':
-                route_gtfs_trip_id = tag.get('v')
-        
-        # Skip if not a route
-        if not is_route:
-            continue
-        
-        # Use only the name tag as requested
-        route_text = route_name if route_name else f"Unnamed route {relation_id}"
-        
-        route_info = {
-            'id': relation_id,
-            'name': route_text,
-            'gtfs_route_id': route_gtfs_id,
-            'gtfs_trip_id': route_gtfs_trip_id
-        }
-        
-        routes[relation_id] = route_info
-        
-        # Map each node/way in this route to the route
-        members = []
+        routes_rows.append({
+            'run_id': run_id,
+            'relation_id': relation_id,
+            'relation_version': relation.get('version', ''),
+            'route': tags.get('route', ''),
+            'name': tags.get('name', ''),
+            'ref': tags.get('ref', ''),
+            'operator': tags.get('operator', ''),
+            'network': tags.get('network', ''),
+            'from_node': tags.get('from', ''),
+            'to_node': tags.get('to', ''),
+            'via': tags.get('via', ''),
+            'public_transport_version': tags.get('public_transport:version', ''),
+            'colour': tags.get('colour', ''),
+            'gtfs_route_id': tags.get('gtfs:route_id', ''),
+            'gtfs_feed': tags.get('gtfs:feed', ''),
+            'ref_trips': tags.get('ref_trips', ''),
+            'source_query_hash': ''
+        })
+
+        for k, v in tags.items():
+            tags_rows.append({'run_id': run_id, 'relation_id': relation_id, 'tag_key': k, 'tag_value': v})
+
+        direction_id_derived = parse_direction_from_ref_trips(tags.get('ref_trips'))
+
+        seq = 0
         for member in relation.findall("./member"):
             member_type = member.get('type')
             member_ref = member.get('ref')
+            member_role = member.get('role', '')
+            resolved_node_id = None
             if member_type == 'node':
-                members.append(member_ref)
+                resolved_node_id = member_ref if member_ref in nodes else None
             elif member_type == 'way':
-                members.append(f"way_{member_ref}")
+                virtual = f"way_{member_ref}"
+                resolved_node_id = virtual if virtual in nodes else None
 
-        for node_ref in members:
-            if node_ref in nodes:
-                node_routes[node_ref].append(relation_id)
+            members_rows.append({
+                'run_id': run_id,
+                'relation_id': relation_id,
+                'member_type': member_type,
+                'member_ref': member_ref,
+                'member_role': member_role,
+                'member_sequence': seq,
+                'resolved_node_id': resolved_node_id,
+                'direction_id_derived': direction_id_derived
+            })
+            seq += 1
 
-        # Extract direction strings based on first and last nodes of the relation
-        if len(members) >= 2:
-            first, last = members[0], members[-1]
-            first_node = nodes.get(first, {})
-            last_node = nodes.get(last, {})
-            
-            fn = first_node.get('name')
-            ln = last_node.get('name')
-            if fn and ln:
-                ds = f"{fn} → {ln}"
-                for nid in members:
-                    node_directions_name[nid].add(ds)
-                    
-            fu = first_node.get('uic_ref')
-            lu = last_node.get('uic_ref')
-            if fu and lu:
-                ds = f"{fu} → {lu}"
-                for nid in members:
-                    node_directions_uic[nid].add(ds)
-    
-    print(f"Found {len(nodes)} nodes and {len(routes)} routes")
+    import csv
+    def write_csv(path, rows, fieldnames):
+        if not rows:
+            print(f"No data for {path}")
+            return
+        with open(path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        print(f"Wrote {len(rows)} rows to {path}")
 
-    # Parse direction from ref_trips H/R suffix
-    print("Parsing direction from ref_trips H/R suffix")
-    
-    def parse_direction_from_ref_trips(ref_trips_value):
-        """
-        Parse direction from ref_trips value based on H/R suffix.
-        H = outbound (direction_id = 0)
-        R = return/inbound (direction_id = 1)
-        """
-        if not ref_trips_value:
-            return None
-        
-        # Handle multiple trip IDs separated by commas
-        trip_ids = [tid.strip() for tid in ref_trips_value.split(',')]
-        
-        for trip_id in trip_ids:
-            if trip_id.endswith('.H'):
-                return '0'  # Outbound
-            elif trip_id.endswith('.R'):
-                return '1'  # Return/Inbound
-        
-        return None
-    
-    # Write data to CSV - one row per node-route pair
-    total_rows = 0
-    rows_with_direction = 0
-    
-    with open(output_file, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow(['node_id', 'node_type', 'route_name', 'gtfs_route_id', 'direction_id', 'uic_ref'])
-        
-        for node_id, node_data in nodes.items():
-            for route_id in node_routes[node_id]:
-                route_data = routes[route_id]
-                
-                # Get direction_id by parsing the H/R suffix from ref_trips
-                direction_id = parse_direction_from_ref_trips(route_data['gtfs_trip_id'])
-                
-                # Write row with direction if found, otherwise without
-                if direction_id is not None:
-                    writer.writerow([
-                        node_data['id'],
-                        node_data['type'] or '',
-                        route_data['name'] or '',
-                        route_data['gtfs_route_id'] or '',
-                        direction_id,
-                        node_data['uic_ref'] or ''
-                    ])
-                    rows_with_direction += 1
-                else:
-                    writer.writerow([
-                        node_data['id'],
-                        node_data['type'] or '',
-                        route_data['name'] or '',
-                        route_data['gtfs_route_id'] or '',
-                        '',
-                        node_data['uic_ref'] or ''
-                    ])
-                
-                total_rows += 1
-                
-    
-    print(f"CSV data saved to {output_file} with {total_rows} node-route pairs")
-    print(f"Successfully matched direction_id for {rows_with_direction} node-route pairs")
-    
-    # Write directions CSV
-    directions_output = "data/processed/osm_directions.csv"
-    with open(directions_output, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow(['node_id', 'dir_type', 'direction_string'])
-        for nid, dirs in node_directions_name.items():
-            for d in dirs:
-                writer.writerow([nid, 'name', d])
-        for nid, dirs in node_directions_uic.items():
-            for d in dirs:
-                writer.writerow([nid, 'uic', d])
-    print(f"Directions data saved to {directions_output}")
-    
+    write_csv(os.path.join(out_dir, "osm_routes.csv"), routes_rows, list(routes_rows[0].keys()) if routes_rows else [])
+    write_csv(os.path.join(out_dir, "osm_route_tags.csv"), tags_rows, ['run_id', 'relation_id', 'tag_key', 'tag_value'])
+    write_csv(os.path.join(out_dir, "osm_route_members.csv"), members_rows, ['run_id', 'relation_id', 'member_type', 'member_ref', 'member_role', 'member_sequence', 'resolved_node_id', 'direction_id_derived'])
+
 def main():
-    """
-    Main function to run the script.
-    """
     xml_data = query_overpass()
-    
     if xml_data:
-        # Process the data and output as CSV with direction information
-        process_osm_data_to_csv(xml_data, "data/processed/osm_nodes_with_routes.csv")
+        process_osm_routes_data(xml_data, "data/processed/")
 
 if __name__ == "__main__":
     main()

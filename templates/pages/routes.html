@@ -4,7 +4,7 @@
 {% block title %}Routes{% endblock %}
 
 {% block head_css %}
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
 <!-- Shared filters/overlay CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/shared-filters.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/routes.css') }}">
@@ -320,7 +320,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-shared.js') }}"></script>

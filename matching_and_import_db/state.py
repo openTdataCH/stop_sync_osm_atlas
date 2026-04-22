@@ -431,6 +431,7 @@ class OsmState:
             direction_ids = [direction_id] if direction_id is not None else ['0', '1']
             for did in direction_ids:
                 route_entry = {
+                    'relation_id': relation.get('id'),
                     'gtfs_route_id': gtfs_route_id,
                     'direction_id': did,
                     'route_name': route_name,

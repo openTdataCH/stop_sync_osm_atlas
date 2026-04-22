@@ -8,23 +8,36 @@ IMAGES_DIR = ROOT / "documentation" / "images"
 
 import re
 
-def get_requirements(filename: str) -> list[str]:
+def get_requirements(filename: str) -> list[dict[str, str]]:
     req_file = ROOT / filename
     if not req_file.exists():
         return []
-    libs = []
+    libs: list[dict[str, str]] = []
     for line in req_file.read_text().splitlines():
         line = line.strip()
         if not line or line.startswith('#'): continue
-        match = re.match(r'^([^=<>\[]+)', line)
+        match = re.match(r'^([A-Za-z0-9_.-]+)', line)
         if match:
-            libs.append(match.group(1).strip())
+            libs.append({
+                "name": match.group(1).strip(),
+                "spec": line,
+            })
     return libs
 
-BASE_LIBS = get_requirements("requirements-base.txt")
-WEB_LIBS = get_requirements("requirements-web.txt")
-SCHED_LIBS = get_requirements("requirements-scheduler.txt")
-TEST_LIBS = get_requirements("requirements-test.txt")
+BASE_REQS = get_requirements("requirements-base.txt")
+WEB_REQS = get_requirements("requirements-web.txt")
+SCHED_REQS = get_requirements("requirements-scheduler.txt")
+TEST_REQS = get_requirements("requirements-test.txt")
+
+BASE_LIBS = [item["name"] for item in BASE_REQS]
+WEB_LIBS = [item["name"] for item in WEB_REQS]
+SCHED_LIBS = [item["name"] for item in SCHED_REQS]
+TEST_LIBS = [item["name"] for item in TEST_REQS]
+
+BASE_SPECS = [item["spec"] for item in BASE_REQS]
+WEB_SPECS = [item["spec"] for item in WEB_REQS]
+SCHED_SPECS = [item["spec"] for item in SCHED_REQS]
+TEST_SPECS = [item["spec"] for item in TEST_REQS]
 
 def generate_svg():
     width = 900
@@ -119,8 +132,8 @@ def update_markdown():
     doc_content = doc_path.read_text()
     
     # Format the lists exactly how the test expects 
-    def format_libs(libs):
-        return ", ".join(f"`{lib}`" for lib in sorted(libs))
+    def format_libs(specs):
+        return ", ".join(f"`{spec}`" for spec in sorted(specs, key=str.lower))
 
     descriptions = {
         "requirements-base.txt": "Shared core backend foundations requested by all containers",
@@ -131,10 +144,10 @@ def update_markdown():
 
     new_lines = []
     new_lines.append("<!-- DEPENDENCIES_START -->")
-    new_lines.append(f"- `requirements-base.txt`: {descriptions['requirements-base.txt']} ({format_libs(BASE_LIBS)}).")
-    new_lines.append(f"- `requirements-web.txt`: {descriptions['requirements-web.txt']} ({format_libs(WEB_LIBS)}).")
-    new_lines.append(f"- `requirements-scheduler.txt`: {descriptions['requirements-scheduler.txt']} ({format_libs(SCHED_LIBS)}).")
-    new_lines.append(f"- `requirements-test.txt`: {descriptions['requirements-test.txt']} ({format_libs(TEST_LIBS)}).")
+    new_lines.append(f"- `requirements-base.txt`: {descriptions['requirements-base.txt']} ({format_libs(BASE_SPECS)}).")
+    new_lines.append(f"- `requirements-web.txt`: {descriptions['requirements-web.txt']} ({format_libs(WEB_SPECS)}).")
+    new_lines.append(f"- `requirements-scheduler.txt`: {descriptions['requirements-scheduler.txt']} ({format_libs(SCHED_SPECS)}).")
+    new_lines.append(f"- `requirements-test.txt`: {descriptions['requirements-test.txt']} ({format_libs(TEST_SPECS)}).")
     new_lines.append("<!-- DEPENDENCIES_END -->")
     
     import re

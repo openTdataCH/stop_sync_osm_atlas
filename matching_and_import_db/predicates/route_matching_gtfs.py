@@ -9,7 +9,7 @@ import logging
 
 from matching_and_import_db.pipeline import MatchingContext
 from matching_and_import_db.predicates import BasePredicate
-from matching_and_import_db.utils.route_id import normalize_route_id
+from matching_and_import_db.route_state import RouteState
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class RouteMatchPredicate(BasePredicate):
             return
 
         coords = [(e.lat, e.lon) for e in unmatched]
-        batch_candidates = ctx.osm.batch_query_radius(coords, ctx.max_distance, include_stations=True)
+        batch_candidates = ctx.osm.batch_query_radius(coords, ctx.max_distance, include_stations=False)
 
         for i, entry in enumerate(unmatched):
             sloid = entry.sloid
@@ -36,7 +36,7 @@ class RouteMatchPredicate(BasePredicate):
             if not atlas_routes_data['gtfs']:
                 continue
 
-            # Find OSM candidates within max_distance (route matching explicitly ALLOWS station mappings)
+            # Find OSM candidates within max_distance
             candidates = [
                 (node, dist)
                 for node, dist in batch_candidates[i]
@@ -64,16 +64,24 @@ class RouteMatchPredicate(BasePredicate):
 
             # P1: GTFS tokens
             if gtfs_tokens:
+                route_state = RouteState.get_instance()
                 for node, dist, node_routes in candidate_list:
                     node_tokens: set[tuple[str, str]] = set()
                     for r in node_routes:
-                        rid = r.get('gtfs_route_id')
+                        osm_rel_id = r.get('relation_id')
                         did = r.get('direction_id', '0')
-                        if rid:
-                            node_tokens.add((rid, did))
-                            norm = normalize_route_id(rid)
-                            if norm:
-                                node_tokens.add((norm, did))
+                        
+                        if osm_rel_id:
+                            atlas_rid = route_state.get_atlas_route(osm_rel_id)
+                            if atlas_rid:
+                                # Match using the mapped atlas route ID
+                                node_tokens.add((atlas_rid, did))
+                                # Also add normalized version for flexibility
+                                from matching_and_import_db.utils.route_id import normalize_route_id
+                                norm = normalize_route_id(atlas_rid)
+                                if norm:
+                                    node_tokens.add((norm, did))
+
                     if gtfs_tokens & node_tokens:
                         matched_node, matched_dist = node, dist
                         match_source, match_evidence = 'gtfs', 'gtfs_tokens'

@@ -173,7 +173,8 @@ def _render_report_pdf_bytes(data_for_report, report_type, include_fields, sort_
             problem_breakdown=data_for_report['problem_stats'].get('by_priority', {}),
             probs=data_for_report['problem_stats'],
             generated_at=datetime.now(),
-            css_content=css_content
+            css_content=css_content,
+            pdf_assets_prefix='static/vendor/'
         )
     else:
         report_html = render_template(
@@ -184,7 +185,8 @@ def _render_report_pdf_bytes(data_for_report, report_type, include_fields, sort_
             report_title=report_title,
             report_type=report_type,
             include_fields=include_fields,
-            css_content=css_content
+            css_content=css_content,
+            pdf_assets_prefix='static/vendor/'
         )
 
     try:

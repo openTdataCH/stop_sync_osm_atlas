@@ -171,6 +171,18 @@
 .docs-content img {
   max-width: 100%;
   height: auto;
+  margin: var(--space-4) 0;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.docs-content p {
+  margin-bottom: 1.25rem;
+  line-height: var(--leading-relaxed, 1.6);
+}
+
+.docs-content p:last-child {
+  margin-bottom: 0;
 }
 
 .docs-content pre {

@@ -181,6 +181,44 @@ class OsmStopMember(db.Model):
     osm_node = db.relationship('OsmNode', lazy='select')
 
 
+class AtlasRoute(db.Model):
+    __tablename__ = 'atlas_routes'
+    route_id = db.Column(db.String(100), primary_key=True)
+    route_id_normalized = db.Column(db.String(100))
+    agency_id = db.Column(db.String(100))
+    route_short_name = db.Column(db.String(255))
+    route_long_name = db.Column(db.String(255))
+    route_desc = db.Column(db.Text)
+    route_type = db.Column(db.String(50))
+    run_id = db.Column(db.String(100))
+
+class AtlasRouteDirection(db.Model):
+    __tablename__ = 'atlas_route_directions'
+    id = db.Column(db.Integer, primary_key=True)
+    route_id = db.Column(db.String(100), db.ForeignKey('atlas_routes.route_id', ondelete='CASCADE'))
+    direction_id = db.Column(db.String(20))
+    representative_headsign = db.Column(db.String(255))
+    direction_label = db.Column(db.String(255))
+    trip_count = db.Column(db.Integer)
+
+class OsmRoute(db.Model):
+    __tablename__ = 'osm_routes'
+    relation_id = db.Column(db.String(100), primary_key=True)
+    route = db.Column(db.String(100))
+    name = db.Column(db.String(255))
+    ref = db.Column(db.String(100))
+    operator = db.Column(db.String(255))
+    network = db.Column(db.String(255))
+    gtfs_route_id = db.Column(db.String(255))
+    run_id = db.Column(db.String(100))
+
+class OsmRouteTag(db.Model):
+    __tablename__ = 'osm_route_tags'
+    id = db.Column(db.Integer, primary_key=True)
+    relation_id = db.Column(db.String(100), db.ForeignKey('osm_routes.relation_id', ondelete='CASCADE'))
+    tag_key = db.Column(db.String(255))
+    tag_value = db.Column(db.Text)
+
 class RouteAtlasStops(db.Model):
     __tablename__ = 'route_atlas_stops'
 
@@ -192,6 +230,7 @@ class RouteAtlasStops(db.Model):
 
     __table_args__ = (
         db.Index('idx_atlas_route_dir_seq', 'atlas_route_id', 'direction_id', 'stop_sequence'),
+        db.UniqueConstraint('atlas_route_id', 'direction_id', 'sloid', 'stop_sequence', name='uq_route_atlas_stops_seq'),
     )
 
 class RouteOsmStops(db.Model):
@@ -205,6 +244,7 @@ class RouteOsmStops(db.Model):
 
     __table_args__ = (
         db.Index('idx_osm_route_dir_seq', 'osm_route_id', 'direction_id', 'stop_sequence'),
+        db.UniqueConstraint('osm_route_id', 'direction_id', 'osm_node_id', 'stop_sequence', name='uq_route_osm_stops_seq'),
     )
 
 class RoutesMatched(db.Model):
@@ -214,4 +254,16 @@ class RoutesMatched(db.Model):
     atlas_route_id = db.Column(db.String(100), index=True)
     osm_route_id = db.Column(db.String(100), index=True)
     match_type = db.Column(db.String(50))
+    match_confidence = db.Column(db.Float)
+    match_reason = db.Column(db.String(255))
+    match_version = db.Column(db.String(50))
 
+class RouteProblem(db.Model):
+    __tablename__ = 'route_problems'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    problem_type = db.Column(db.String(50))
+    priority = db.Column(db.Integer)
+    atlas_route_id = db.Column(db.String(100))
+    osm_route_id = db.Column(db.String(100))
+    details = db.Column(JSONB)
