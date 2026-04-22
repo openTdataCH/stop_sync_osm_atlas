@@ -3,7 +3,7 @@ import re
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DOC_PATH = REPO_ROOT / "documentation" / "7.1 Dependency Management & Build Strategy.md"
+DOC_PATH = REPO_ROOT / "documentation" / "6.1 Dependency Management & Build Strategy.md"
 
 REQUIREMENT_FILES = [
     "requirements-base.txt",
