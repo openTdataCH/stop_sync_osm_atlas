@@ -22,10 +22,12 @@
         const groups = {};
         routes.forEach(route => {
             if (!route) return;
-            const routeId = route.route_id || 'unknown';
-            const routeName = route.route_short_name || route.route_name || route.route_id || 'Unnamed Route';
+            const internalRouteId = route.internal_route_id || route.route_id || null;
+            const displayRouteId = route.display_route_id || route.route_id || null;
+            const routeId = displayRouteId || internalRouteId || 'unknown';
+            const routeName = route.route_short_name || route.route_name || displayRouteId || 'Unnamed Route';
             if (!groups[routeId]) {
-                groups[routeId] = { name: routeName, directions: [], routeId };
+                groups[routeId] = { name: routeName, directions: [], routeId, internalRouteId, displayRouteId };
             }
             if (route.direction_id !== undefined && !groups[routeId].directions.includes(route.direction_id)) {
                 groups[routeId].directions.push(route.direction_id);
@@ -41,15 +43,17 @@
         const itemsHtml = Object.values(routeGroups).map(group => {
             const directions = group.directions.slice().sort();
             const directionsStr = directions.length > 0 ? `Dir: ${directions.join(',')}` : '';
-            const safeRouteId = escapeInlineJsString(group.routeId);
+            const filterRouteId = group.internalRouteId || group.routeId;
+            const safeRouteId = escapeInlineJsString(filterRouteId);
             const safeDirections = escapeInlineJsString(directions.join(','));
-            const routeIdLink = group.routeId !== 'unknown'
-                ? `<a href="#" onclick="filterByRoute('${safeRouteId}', '${safeDirections}'); return false;">${group.routeId}</a>`
-                : group.routeId;
+            const routeIdText = group.displayRouteId || group.routeId;
+            const routeIdLink = filterRouteId && routeIdText !== 'unknown'
+                ? `<a href="#" onclick="filterByRoute('${safeRouteId}', '${safeDirections}'); return false;">${routeIdText}</a>`
+                : routeIdText;
 
-            const hasDistinctName = Boolean(group.name) && group.name !== group.routeId;
+            const hasDistinctName = Boolean(group.name) && group.name !== routeIdText;
             const primaryText = hasDistinctName ? group.name : routeIdLink;
-            const idSuffix = (group.routeId !== 'unknown' && hasDistinctName)
+            const idSuffix = (routeIdText !== 'unknown' && hasDistinctName)
                 ? `(ID: ${routeIdLink})`
                 : '';
 

@@ -89,17 +89,7 @@
     var buildRemovableChip = window.FilterChipUtils.buildRemovableChip;
     var joinWithAnd = window.FilterChipUtils.joinWithAndHtml;
 
-    // Dataset chip (only if not default atlas_gtfs)
-    if (config.dataset && config.dataset !== 'atlas_gtfs') {
-      var datasetLabel = (config.datasetLabels && config.datasetLabels[config.dataset]) || config.dataset;
-      chips.push(buildRemovableChip({
-        label: 'Dataset: ' + datasetLabel,
-        badgeClass: 'filter-chip-secondary',
-        data: { type: 'dataset', value: config.dataset }
-      }));
-    }
-
-    // Matched chip (only if not default all)
+    // Status chip (only if not default all)
     if (config.matchedFilter && config.matchedFilter !== 'all') {
       var matchLabel = (config.matchFilterLabels && config.matchFilterLabels[config.matchedFilter]) || config.matchedFilter;
       chips.push(buildRemovableChip({
@@ -158,9 +148,7 @@
       var url = new URL(window.location.href);
       var params = url.searchParams;
 
-      if (type === 'dataset') {
-        params.delete('dataset');
-      } else if (type === 'matched') {
+      if (type === 'matched') {
         params.delete('matched');
       } else if (type === 'q') {
         params.delete('q');

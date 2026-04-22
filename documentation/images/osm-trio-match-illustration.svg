@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 400" width="100%" height="400" role="img" aria-labelledby="title desc">
+  <title id="title">OSM trio matched to two ATLAS stops</title>
+  <desc id="desc">Schematic showing an OSM trio with two side nodes matched to two ATLAS stops using solid blue lines, and the middle stop_position connected to both sides using dashed green lines.</desc>
+  <style>
+    .bg { fill: #f7f8fb; }
+    .rail { stroke: #d9dde5; stroke-width: 28; stroke-linecap: round; }
+    .caption { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; fill: #475467; }
+    .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 22px; font-weight: 700; fill: #101828; }
+    .label { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 600; fill: #344054; }
+    .legend { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; fill: #344054; }
+    .blue-line { stroke: #174092; stroke-width: 5; stroke-linecap: round; }
+    .green-line { stroke: #4CAF50; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 12 12; }
+    .atlas-node { fill: #ffffff; stroke: #174092; stroke-width: 5; }
+    .osm-side { fill: #d9f2dd; stroke: #4CAF50; stroke-width: 5; }
+    .osm-middle { fill: #d9f2dd; stroke: #4CAF50; stroke-width: 5; }
+    .badge { fill: #4CAF50; stroke: #ffffff; stroke-width: 2; }
+    .badge-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 700; fill: #ffffff; text-anchor: middle; dominant-baseline: middle; }
+    .note { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; fill: #667085; }
+  </style>
+
+  <rect x="0" y="0" width="860" height="400" rx="20" class="bg"/>
+
+  <text x="430" y="54" text-anchor="middle" class="title">OSM trio: 2 ATLAS matches + 1 effectively matched middle</text>
+  <text x="430" y="88" text-anchor="middle" class="caption">Solid blue lines are ATLAS-OSM matches. Dashed green lines are OSM-OSM trio links shown on the map.</text>
+
+  <line x1="190" y1="170" x2="690" y2="250" class="rail"/>
+
+  <line x1="315" y1="190" x2="430" y2="208" class="green-line"/>
+  <line x1="430" y1="208" x2="590" y2="235" class="green-line"/>
+
+  <line x1="250" y1="128" x2="315" y2="190" class="blue-line"/>
+  <line x1="650" y1="300" x2="590" y2="235" class="blue-line"/>
+
+  <circle cx="250" cy="128" r="16" class="atlas-node"/>
+  <circle cx="650" cy="300" r="16" class="atlas-node"/>
+
+  <circle cx="315" cy="190" r="17" class="osm-side"/>
+  <circle cx="430" cy="208" r="12" class="osm-middle"/>
+  <circle cx="590" cy="235" r="17" class="osm-side"/>
+
+  <circle cx="315" cy="190" r="12" class="badge"/>
+  <text x="315" y="190" class="badge-text">P</text>
+  <circle cx="590" cy="235" r="12" class="badge"/>
+  <text x="590" y="235" class="badge-text">P</text>
+
+  <text x="155" y="170" class="label">ATLAS stop A</text>
+  <text x="624" y="334" class="label">ATLAS stop B</text>
+  <text x="250" y="176" class="label">OSM side node</text>
+  <text x="390" y="184" class="label">OSM middle</text>
+  <text x="540" y="221" class="label">OSM side node</text>
+
+  <rect x="72" y="338" width="716" height="42" rx="12" fill="#ffffff" stroke="#eaecf0"/>
+  <line x1="96" y1="359" x2="144" y2="359" class="blue-line"/>
+  <text x="156" y="364" class="legend">ATLAS-OSM matched edge</text>
+  <line x1="348" y1="359" x2="396" y2="359" class="green-line"/>
+  <text x="408" y="364" class="legend">OSM trio link</text>
+  <circle cx="566" cy="359" r="10" class="osm-middle"/>
+  <text x="584" y="364" class="legend">Middle node effectively matched</text>
+</svg>

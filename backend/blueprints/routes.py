@@ -1,37 +1,37 @@
 from collections import Counter
 
 from flask import Blueprint, render_template, request
+from sqlalchemy import func, literal, or_
 
 from backend.db_errors import is_missing_table_error
 from backend.extensions import db
-from backend.models import AtlasStop, OsmNode, RouteAtlasStops, RouteOsmStops, RoutesMatched, StopsMatched
+from backend.models import AtlasRoute, AtlasRouteDirection, AtlasStop, OsmNode, OsmRoute, RouteAtlasStops, RouteOsmStops, RoutesMatched, StopsMatched
 from backend.services.transport_routes import get_atlas_route_display_name, get_osm_route_display_name
 
 
 routes_bp = Blueprint('routes', __name__)
 
-ROUTE_DATASET_ATLAS = 'atlas_gtfs'
-ROUTE_DATASET_OSM = 'osm'
-ROUTE_DATASETS = {ROUTE_DATASET_ATLAS, ROUTE_DATASET_OSM}
-
 ROUTE_MATCH_ALL = 'all'
 ROUTE_MATCHED = 'matched'
 ROUTE_UNMATCHED = 'unmatched'
-ROUTE_MATCH_FILTERS = {ROUTE_MATCH_ALL, ROUTE_MATCHED, ROUTE_UNMATCHED}
+ROUTE_UNMATCHED_ATLAS = 'unmatched_atlas'
+ROUTE_UNMATCHED_OSM = 'unmatched_osm'
+ROUTE_MATCH_FILTERS = {
+    ROUTE_MATCH_ALL,
+    ROUTE_MATCHED,
+    ROUTE_UNMATCHED,
+    ROUTE_UNMATCHED_ATLAS,
+    ROUTE_UNMATCHED_OSM,
+}
 
 ROUTES_PER_PAGE_OPTIONS = [5, 10, 20, 50, 100]
 
-
-DATASET_LABELS = {
-    ROUTE_DATASET_ATLAS: 'Atlas GTFS',
-    ROUTE_DATASET_OSM: 'OSM',
-}
-
-
 MATCH_FILTER_LABELS = {
     ROUTE_MATCH_ALL: 'All',
-    ROUTE_MATCHED: 'Matched only',
-    ROUTE_UNMATCHED: 'Unmatched only',
+    ROUTE_MATCHED: 'Matched',
+    ROUTE_UNMATCHED: 'Unmatched',
+    ROUTE_UNMATCHED_ATLAS: 'Unmatched ATLAS',
+    ROUTE_UNMATCHED_OSM: 'Unmatched OSM',
 }
 
 
@@ -48,11 +48,6 @@ class _EmptyPagination:
 
     def iter_pages(self, **_kwargs):
         return []
-
-
-def _normalize_route_dataset(value: str | None) -> str:
-    dataset = (value or '').strip().lower()
-    return dataset if dataset in ROUTE_DATASETS else ROUTE_DATASET_ATLAS
 
 
 def _normalize_route_match_filter(value: str | None) -> str:
@@ -80,16 +75,13 @@ def _serialize_atlas_operator_filter(atlas_operators: list[str]) -> str:
     return ','.join(sorted(set(atlas_operators)))
 
 
-def _search_placeholder_for_dataset(dataset: str) -> str:
-    if dataset == ROUTE_DATASET_OSM:
-        return 'Search OSM route ID'
-    return 'Search Atlas GTFS route ID'
+def _search_placeholder() -> str:
+    return 'Search Atlas or OSM GTFS route ID'
 
 
-def _filters_summary_text(dataset: str, matched_filter: str) -> str:
-    dataset_label = DATASET_LABELS.get(dataset, DATASET_LABELS[ROUTE_DATASET_ATLAS])
+def _filters_summary_text(matched_filter: str) -> str:
     matched_label = MATCH_FILTER_LABELS.get(matched_filter, MATCH_FILTER_LABELS[ROUTE_MATCH_ALL])
-    return f'Dataset: {dataset_label} | Matched: {matched_label}'
+    return f'Status: {matched_label}'
 
 
 def _load_available_atlas_operators() -> list[str]:
@@ -128,6 +120,13 @@ def _extract_scalar_id(row, key):
         return row[0]
     except Exception:
         return None
+
+
+def _clean_text(value):
+    if value is None:
+        return None
+    cleaned = str(value).strip()
+    return cleaned or None
 
 
 def _group_stops_by_uic(direction_stops):
@@ -404,6 +403,52 @@ def _load_atlas_route_operators(atlas_route_ids):
     return grouped
 
 
+def _load_atlas_route_metadata(atlas_route_ids):
+    if not atlas_route_ids:
+        return {}
+
+    rows = (
+        db.session.query(AtlasRoute.route_id, AtlasRoute.route_short_name, AtlasRoute.route_long_name)
+        .filter(AtlasRoute.route_id.in_(atlas_route_ids))
+        .all()
+    )
+
+    metadata = {}
+    for row in rows:
+        metadata[row.route_id] = {
+            'route_short_name': _clean_text(row.route_short_name),
+            'route_long_name': _clean_text(row.route_long_name),
+        }
+    return metadata
+
+
+def _load_atlas_direction_metadata(atlas_route_ids):
+    if not atlas_route_ids:
+        return {}
+
+    rows = (
+        db.session.query(
+            AtlasRouteDirection.route_id,
+            AtlasRouteDirection.direction_id,
+            AtlasRouteDirection.representative_headsign,
+            AtlasRouteDirection.direction_label,
+        )
+        .filter(AtlasRouteDirection.route_id.in_(atlas_route_ids))
+        .order_by(AtlasRouteDirection.route_id.asc(), AtlasRouteDirection.direction_id.asc(), AtlasRouteDirection.id.asc())
+        .all()
+    )
+
+    metadata = {}
+    for row in rows:
+        route_bucket = metadata.setdefault(row.route_id, {})
+        direction_key = '' if row.direction_id is None else str(row.direction_id)
+        route_bucket[direction_key] = {
+            'representative_headsign': _clean_text(row.representative_headsign),
+            'direction_label': _clean_text(row.direction_label),
+        }
+    return metadata
+
+
 def _load_atlas_to_osm_map(atlas_route_ids):
     if not atlas_route_ids:
         return {}
@@ -442,15 +487,38 @@ def _load_osm_to_atlas_map(osm_route_ids):
     return mapping
 
 
-def _build_direction_groups(atlas_directions, osm_directions):
+def _load_osm_route_metadata(osm_route_ids):
+    if not osm_route_ids:
+        return {}
+
+    rows = (
+        db.session.query(OsmRoute.relation_id, OsmRoute.gtfs_route_id, OsmRoute.name, OsmRoute.ref, OsmRoute.operator)
+        .filter(OsmRoute.relation_id.in_(osm_route_ids))
+        .all()
+    )
+
+    metadata = {}
+    for row in rows:
+        metadata[row.relation_id] = {
+            'gtfs_route_id': _clean_text(row.gtfs_route_id),
+            'display_name': _clean_text(row.name) or _clean_text(row.ref) or _clean_text(row.gtfs_route_id),
+            'operator': _clean_text(row.operator),
+        }
+    return metadata
+
+
+def _build_direction_groups(atlas_directions, osm_directions, atlas_direction_metadata):
     all_directions = set(atlas_directions.keys()) | set(osm_directions.keys())
     direction_groups = []
     for direction_id in sorted(all_directions, key=_direction_sort_key):
         atlas_stops = atlas_directions.get(direction_id, [])
         osm_stops = osm_directions.get(direction_id, [])
+        direction_metadata = atlas_direction_metadata.get(direction_id, {}) if atlas_direction_metadata else {}
         direction_groups.append(
             {
                 'direction_id': direction_id,
+                'direction_label': direction_metadata.get('direction_label'),
+                'representative_headsign': direction_metadata.get('representative_headsign'),
                 'atlas_uic_groups': _group_stops_by_uic(atlas_stops),
                 'osm_uic_groups': _group_stops_by_uic(osm_stops),
             }
@@ -508,19 +576,53 @@ def _route_display_mode(atlas_route_id, osm_route_id):
     return 'unmatched'
 
 
-def _atlas_routes_query(matched_filter, atlas_operators, q):
-    query = db.session.query(RouteAtlasStops.atlas_route_id.label('route_id'))
-    query = query.filter(RouteAtlasStops.atlas_route_id.isnot(None))
+def _matched_routes_query(atlas_operators, q):
+    query = (
+        db.session.query(
+            literal('matched').label('entry_type'),
+            RouteAtlasStops.atlas_route_id.label('atlas_route_id'),
+            func.min(RoutesMatched.osm_route_id).label('osm_route_id'),
+            func.coalesce(AtlasRoute.route_id, OsmRoute.gtfs_route_id, RouteAtlasStops.atlas_route_id).label('sort_route_id'),
+        )
+        .join(RoutesMatched, RouteAtlasStops.atlas_route_id == RoutesMatched.atlas_route_id)
+        .outerjoin(AtlasRoute, RouteAtlasStops.atlas_route_id == AtlasRoute.route_id)
+        .outerjoin(OsmRoute, RoutesMatched.osm_route_id == OsmRoute.relation_id)
+        .filter(RouteAtlasStops.atlas_route_id.isnot(None))
+        .filter(RoutesMatched.osm_route_id.isnot(None))
+    )
 
+    if atlas_operators:
+        query = query.join(AtlasStop, RouteAtlasStops.sloid == AtlasStop.sloid)
+        query = query.filter(AtlasStop.atlas_business_org_abbr.in_(atlas_operators))
+
+    if q:
+        query = query.filter(
+            or_(
+                RouteAtlasStops.atlas_route_id.ilike(f'%{q}%'),
+                OsmRoute.gtfs_route_id.ilike(f'%{q}%'),
+            )
+        )
+
+    return query.group_by(RouteAtlasStops.atlas_route_id, AtlasRoute.route_id, OsmRoute.gtfs_route_id)
+
+
+def _unmatched_atlas_routes_query(atlas_operators, q):
     matched_atlas_subquery = (
         db.session.query(RoutesMatched.atlas_route_id)
         .filter(RoutesMatched.atlas_route_id.isnot(None))
     )
 
-    if matched_filter == ROUTE_MATCHED:
-        query = query.filter(RouteAtlasStops.atlas_route_id.in_(matched_atlas_subquery))
-    elif matched_filter == ROUTE_UNMATCHED:
-        query = query.filter(~RouteAtlasStops.atlas_route_id.in_(matched_atlas_subquery))
+    query = (
+        db.session.query(
+            literal('atlas_only').label('entry_type'),
+            RouteAtlasStops.atlas_route_id.label('atlas_route_id'),
+            literal(None).label('osm_route_id'),
+            func.coalesce(AtlasRoute.route_id, RouteAtlasStops.atlas_route_id).label('sort_route_id'),
+        )
+        .outerjoin(AtlasRoute, RouteAtlasStops.atlas_route_id == AtlasRoute.route_id)
+        .filter(RouteAtlasStops.atlas_route_id.isnot(None))
+        .filter(~RouteAtlasStops.atlas_route_id.in_(matched_atlas_subquery))
+    )
 
     if atlas_operators:
         query = query.join(AtlasStop, RouteAtlasStops.sloid == AtlasStop.sloid)
@@ -529,71 +631,104 @@ def _atlas_routes_query(matched_filter, atlas_operators, q):
     if q:
         query = query.filter(RouteAtlasStops.atlas_route_id.ilike(f'%{q}%'))
 
-    return query
+    return query.group_by(RouteAtlasStops.atlas_route_id, AtlasRoute.route_id)
 
-
-def _osm_routes_query(matched_filter, atlas_operators, q):
-    query = db.session.query(RouteOsmStops.osm_route_id.label('route_id'))
-    query = query.filter(RouteOsmStops.osm_route_id.isnot(None))
-
+def _unmatched_osm_routes_query(atlas_operators, q):
     matched_osm_subquery = (
         db.session.query(RoutesMatched.osm_route_id)
         .filter(RoutesMatched.osm_route_id.isnot(None))
     )
 
-    if matched_filter == ROUTE_MATCHED:
-        query = query.filter(RouteOsmStops.osm_route_id.in_(matched_osm_subquery))
-    elif matched_filter == ROUTE_UNMATCHED:
-        query = query.filter(~RouteOsmStops.osm_route_id.in_(matched_osm_subquery))
+    query = (
+        db.session.query(
+            literal('osm_only').label('entry_type'),
+            literal(None).label('atlas_route_id'),
+            RouteOsmStops.osm_route_id.label('osm_route_id'),
+            func.coalesce(OsmRoute.gtfs_route_id, RouteOsmStops.osm_route_id).label('sort_route_id'),
+        )
+        .outerjoin(OsmRoute, RouteOsmStops.osm_route_id == OsmRoute.relation_id)
+        .filter(RouteOsmStops.osm_route_id.isnot(None))
+        .filter(~RouteOsmStops.osm_route_id.in_(matched_osm_subquery))
+    )
 
     if atlas_operators:
-        osm_routes_for_operator_subquery = (
-            db.session.query(RoutesMatched.osm_route_id)
-            .join(RouteAtlasStops, RoutesMatched.atlas_route_id == RouteAtlasStops.atlas_route_id)
-            .join(AtlasStop, RouteAtlasStops.sloid == AtlasStop.sloid)
-            .filter(RoutesMatched.osm_route_id.isnot(None))
-            .filter(AtlasStop.atlas_business_org_abbr.in_(atlas_operators))
-            .distinct()
-        )
-        query = query.filter(RouteOsmStops.osm_route_id.in_(osm_routes_for_operator_subquery))
+        query = query.filter(literal(False))
 
     if q:
-        query = query.filter(RouteOsmStops.osm_route_id.ilike(f'%{q}%'))
+        query = query.filter(OsmRoute.gtfs_route_id.ilike(f'%{q}%'))
 
-    return query
+    return query.group_by(RouteOsmStops.osm_route_id, OsmRoute.gtfs_route_id)
 
+def _load_primary_route_page(matched_filter, atlas_operators, q, page, per_page):
+    queries = []
+    if matched_filter in {ROUTE_MATCH_ALL, ROUTE_MATCHED}:
+        queries.append(_matched_routes_query(atlas_operators, q))
+    if matched_filter in {ROUTE_MATCH_ALL, ROUTE_UNMATCHED, ROUTE_UNMATCHED_ATLAS}:
+        queries.append(_unmatched_atlas_routes_query(atlas_operators, q))
+    if matched_filter in {ROUTE_MATCH_ALL, ROUTE_UNMATCHED, ROUTE_UNMATCHED_OSM}:
+        queries.append(_unmatched_osm_routes_query(atlas_operators, q))
 
-def _load_primary_route_page(dataset, matched_filter, atlas_operators, q, page, per_page):
-    if dataset == ROUTE_DATASET_OSM:
-        query = _osm_routes_query(matched_filter, atlas_operators, q)
-        pagination = (
-            query
-            .distinct()
-            .order_by(RouteOsmStops.osm_route_id.asc())
-            .paginate(page=page, per_page=per_page, error_out=False)
+    if not queries:
+        return [], _EmptyPagination(page=page, per_page=per_page)
+
+    combined_query = queries[0]
+    for query in queries[1:]:
+        combined_query = combined_query.union_all(query)
+
+    raw_combined_subquery = combined_query.subquery()
+    raw_columns = list(raw_combined_subquery.c)
+    combined_subquery = (
+        db.session.query(
+            raw_columns[0].label('entry_type'),
+            raw_columns[1].label('atlas_route_id'),
+            raw_columns[2].label('osm_route_id'),
+            raw_columns[3].label('sort_route_id'),
         )
-    else:
-        query = _atlas_routes_query(matched_filter, atlas_operators, q)
-        pagination = (
-            query
-            .distinct()
-            .order_by(RouteAtlasStops.atlas_route_id.asc())
-            .paginate(page=page, per_page=per_page, error_out=False)
+        .subquery()
+    )
+    pagination = (
+        db.session.query(combined_subquery)
+        .order_by(
+            combined_subquery.c.sort_route_id.asc().nulls_last(),
+            combined_subquery.c.atlas_route_id.asc().nulls_last(),
+            combined_subquery.c.osm_route_id.asc().nulls_last(),
         )
+        .paginate(page=page, per_page=per_page, error_out=False)
+    )
 
-    route_ids = [
-        _extract_scalar_id(row, 'route_id')
-        for row in pagination.items
-    ]
-    route_ids = [route_id for route_id in route_ids if route_id]
-    return route_ids, pagination
+    return pagination.items, pagination
 
 
-def _build_route_row(dataset, primary_route_id, atlas_route_id, osm_route_id, atlas_stops_by_route, osm_stops_by_route, atlas_operators_by_route):
+def _atlas_direction_context(direction_groups):
+    labels = []
+    context_label = None
+    for direction in direction_groups:
+        if direction.get('representative_headsign'):
+            label = direction['representative_headsign']
+            context_label = context_label or 'Headsign'
+        else:
+            label = direction.get('direction_label')
+            context_label = context_label or ('Direction' if label else None)
+        if label and label not in labels:
+            labels.append(label)
+
+    if not labels:
+        return None, None
+
+    summary = ', '.join(labels[:3])
+    if len(labels) > 3:
+        summary += f' (+{len(labels) - 3} more)'
+    return summary, context_label
+
+
+def _build_route_row(primary_route_id, atlas_route_id, osm_route_id, atlas_stops_by_route, osm_stops_by_route, atlas_operators_by_route, osm_route_metadata_by_id, atlas_route_metadata_by_id, atlas_direction_metadata_by_route):
     atlas_directions = atlas_stops_by_route.get(atlas_route_id, {}) if atlas_route_id else {}
     osm_directions = osm_stops_by_route.get(osm_route_id, {}) if osm_route_id else {}
+    osm_metadata = osm_route_metadata_by_id.get(osm_route_id, {}) if osm_route_id else {}
+    atlas_route_metadata = atlas_route_metadata_by_id.get(atlas_route_id, {}) if atlas_route_id else {}
+    atlas_direction_metadata = atlas_direction_metadata_by_route.get(atlas_route_id, {}) if atlas_route_id else {}
 
-    direction_groups = _build_direction_groups(atlas_directions, osm_directions)
+    direction_groups = _build_direction_groups(atlas_directions, osm_directions, atlas_direction_metadata)
     is_matched = bool(atlas_route_id and osm_route_id)
 
     atlas_operators = atlas_operators_by_route.get(atlas_route_id, []) if atlas_route_id else []
@@ -603,18 +738,35 @@ def _build_route_row(dataset, primary_route_id, atlas_route_id, osm_route_id, at
 
     map_filter = _build_route_map_filter(atlas_route_id, osm_route_id)
     display_mode = _route_display_mode(atlas_route_id, osm_route_id)
+    atlas_direction_context, atlas_direction_context_label = _atlas_direction_context(direction_groups)
+    atlas_route_short_name = atlas_route_metadata.get('route_short_name') or (get_atlas_route_display_name(atlas_route_id) if atlas_route_id else None)
+    atlas_route_long_name = atlas_route_metadata.get('route_long_name')
+
+    if display_mode == 'matched':
+        match_label = 'Matched'
+    elif display_mode == 'atlas_only':
+        match_label = 'Unmatched ATLAS'
+    elif display_mode == 'osm_only':
+        match_label = 'Unmatched OSM'
+    else:
+        match_label = 'Unmatched'
 
     return {
-        'route_key': f'{dataset}:{primary_route_id}',
-        'dataset': dataset,
+        'route_key': f'{display_mode}:{primary_route_id}',
         'primary_route_id': primary_route_id,
         'is_matched': is_matched,
         'display_mode': display_mode,
-        'match_label': 'Matched' if is_matched else 'Unmatched',
+        'match_label': match_label,
         'atlas_route_id': atlas_route_id,
         'atlas_route_name': get_atlas_route_display_name(atlas_route_id) if atlas_route_id else None,
+        'atlas_route_short_name': atlas_route_short_name,
+        'atlas_route_long_name': atlas_route_long_name,
+        'atlas_direction_context': atlas_direction_context,
+        'atlas_direction_context_label': atlas_direction_context_label or ('Long name' if atlas_route_long_name else None),
         'osm_route_id': osm_route_id,
-        'osm_route_name': get_osm_route_display_name(osm_route_id) if osm_route_id else None,
+        'osm_route_display_id': osm_metadata.get('gtfs_route_id'),
+        'osm_route_name': osm_metadata.get('display_name') or (get_osm_route_display_name(osm_route_id) if osm_route_id else None),
+        'osm_operator': osm_metadata.get('operator'),
         'atlas_operators': atlas_operators,
         'atlas_operators_summary': atlas_operators_summary,
         'direction_summary': _direction_summary(direction_groups),
@@ -624,9 +776,8 @@ def _build_route_row(dataset, primary_route_id, atlas_route_id, osm_route_id, at
     }
 
 
-def _load_routes_view(dataset, matched_filter, atlas_operators, q, page, per_page):
-    primary_route_ids, pagination = _load_primary_route_page(
-        dataset=dataset,
+def _load_routes_view(matched_filter, atlas_operators, q, page, per_page):
+    primary_entries, pagination = _load_primary_route_page(
         matched_filter=matched_filter,
         atlas_operators=atlas_operators,
         q=q,
@@ -634,58 +785,43 @@ def _load_routes_view(dataset, matched_filter, atlas_operators, q, page, per_pag
         per_page=per_page,
     )
 
-    if not primary_route_ids:
+    if not primary_entries:
         return [], pagination
 
-    if dataset == ROUTE_DATASET_OSM:
-        osm_route_ids = primary_route_ids
-        osm_to_atlas = _load_osm_to_atlas_map(osm_route_ids)
-        atlas_route_ids = sorted({atlas_id for atlas_id in osm_to_atlas.values() if atlas_id})
-    else:
-        atlas_route_ids = primary_route_ids
-        atlas_to_osm = _load_atlas_to_osm_map(atlas_route_ids)
-        osm_route_ids = sorted({osm_id for osm_id in atlas_to_osm.values() if osm_id})
+    atlas_route_ids = sorted({row.atlas_route_id for row in primary_entries if getattr(row, 'atlas_route_id', None)})
+    osm_route_ids = sorted({row.osm_route_id for row in primary_entries if getattr(row, 'osm_route_id', None)})
 
     atlas_stops_by_route = _load_atlas_route_stops(atlas_route_ids)
     osm_stops_by_route = _load_osm_route_stops(osm_route_ids)
     atlas_operators_by_route = _load_atlas_route_operators(atlas_route_ids)
+    atlas_route_metadata_by_id = _load_atlas_route_metadata(atlas_route_ids)
+    atlas_direction_metadata_by_route = _load_atlas_direction_metadata(atlas_route_ids)
+    osm_route_metadata_by_id = _load_osm_route_metadata(osm_route_ids)
 
     route_rows = []
-    if dataset == ROUTE_DATASET_OSM:
-        for osm_route_id in osm_route_ids:
-            atlas_route_id = osm_to_atlas.get(osm_route_id)
-            route_rows.append(
-                _build_route_row(
-                    dataset=dataset,
-                    primary_route_id=osm_route_id,
-                    atlas_route_id=atlas_route_id,
-                    osm_route_id=osm_route_id,
-                    atlas_stops_by_route=atlas_stops_by_route,
-                    osm_stops_by_route=osm_stops_by_route,
-                    atlas_operators_by_route=atlas_operators_by_route,
-                )
+    for row in primary_entries:
+        atlas_route_id = getattr(row, 'atlas_route_id', None)
+        osm_route_id = getattr(row, 'osm_route_id', None)
+        primary_route_id = atlas_route_id or osm_route_id
+        route_rows.append(
+            _build_route_row(
+                primary_route_id=primary_route_id,
+                atlas_route_id=atlas_route_id,
+                osm_route_id=osm_route_id,
+                atlas_stops_by_route=atlas_stops_by_route,
+                osm_stops_by_route=osm_stops_by_route,
+                atlas_operators_by_route=atlas_operators_by_route,
+                osm_route_metadata_by_id=osm_route_metadata_by_id,
+                atlas_route_metadata_by_id=atlas_route_metadata_by_id,
+                atlas_direction_metadata_by_route=atlas_direction_metadata_by_route,
             )
-    else:
-        for atlas_route_id in atlas_route_ids:
-            osm_route_id = atlas_to_osm.get(atlas_route_id)
-            route_rows.append(
-                _build_route_row(
-                    dataset=dataset,
-                    primary_route_id=atlas_route_id,
-                    atlas_route_id=atlas_route_id,
-                    osm_route_id=osm_route_id,
-                    atlas_stops_by_route=atlas_stops_by_route,
-                    osm_stops_by_route=osm_stops_by_route,
-                    atlas_operators_by_route=atlas_operators_by_route,
-                )
-            )
+        )
 
     return route_rows, pagination
 
 
 @routes_bp.route('/routes')
 def routes_page():
-    dataset = _normalize_route_dataset(request.args.get('dataset'))
     matched_filter = _normalize_route_match_filter(request.args.get('matched'))
     selected_atlas_operators = _parse_atlas_operator_filter()
     atlas_operator_query = _serialize_atlas_operator_filter(selected_atlas_operators)
@@ -698,7 +834,6 @@ def routes_page():
     try:
         available_atlas_operators = _load_available_atlas_operators()
         route_rows, pagination = _load_routes_view(
-            dataset=dataset,
             matched_filter=matched_filter,
             atlas_operators=selected_atlas_operators,
             q=q,
@@ -712,16 +847,14 @@ def routes_page():
             'pages/routes.html',
             route_rows=route_rows,
             pagination=pagination,
-            dataset=dataset,
             matched_filter=matched_filter,
             available_atlas_operators=available_atlas_operators,
             selected_atlas_operators=selected_atlas_operators,
             atlas_operator_query=atlas_operator_query,
             per_page_options=ROUTES_PER_PAGE_OPTIONS,
-            dataset_labels=DATASET_LABELS,
             match_filter_labels=MATCH_FILTER_LABELS,
-            filters_summary=_filters_summary_text(dataset, matched_filter),
-            search_placeholder=_search_placeholder_for_dataset(dataset),
+            filters_summary=_filters_summary_text(matched_filter),
+            search_placeholder=_search_placeholder(),
             q=q,
             per_page=per_page,
             range_start=range_start,
@@ -735,16 +868,14 @@ def routes_page():
                 'pages/routes.html',
                 route_rows=[],
                 pagination=empty_pagination,
-                dataset=dataset,
                 matched_filter=matched_filter,
                 available_atlas_operators=available_atlas_operators,
                 selected_atlas_operators=selected_atlas_operators,
                 atlas_operator_query=atlas_operator_query,
                 per_page_options=ROUTES_PER_PAGE_OPTIONS,
-                dataset_labels=DATASET_LABELS,
                 match_filter_labels=MATCH_FILTER_LABELS,
-                filters_summary=_filters_summary_text(dataset, matched_filter),
-                search_placeholder=_search_placeholder_for_dataset(dataset),
+                filters_summary=_filters_summary_text(matched_filter),
+                search_placeholder=_search_placeholder(),
                 q=q,
                 per_page=per_page,
                 range_start=0,

@@ -100,6 +100,16 @@ function getAtlasMarkerIdentity(stopData) {
     return null;
 }
 
+function isStandaloneOsmStopType(stopType) {
+    return stopType === 'osm_unmatched' || stopType === 'effectively_matched';
+}
+
+function getStandaloneOsmMarkerColor(stopData) {
+    return stopData && stopData.stop_type === 'effectively_matched'
+        ? MAIN_COLOR_OSM_MATCHED
+        : MAIN_COLOR_OSM_UNMATCHED;
+}
+
 // Note: popup HTML generation functions are provided by popup-renderer.js
 // Note: createAtlasMarker and createOsmMarker functions are now provided by map-renderer.js
 
@@ -957,18 +967,17 @@ function loadDataForViewport() {
                     }
                 }
             }
-            // --- Handle Unmatched OSM Nodes (standalone) ---
-            else if (stop.stop_type === 'osm_unmatched') {
+            // --- Handle Standalone OSM Nodes (unmatched + trio effectively matched) ---
+            else if (isStandaloneOsmStopType(stop.stop_type)) {
                 const osmNodeIdKey = `osm-${stop.osm_node_id}`;
                 if (showOSMNodes && !createdOsmMarkers.has(osmNodeIdKey)) { // Check if not already created as part of a match
                     const osmLat = +stop.osm_lat;
                     const osmLon = +stop.osm_lon;
-                    const isTrioMiddleMatched = !!stop.is_trio_middle_matched;
                     allMarkerData.push({
                         lat: osmLat,
                         lon: osmLon,
                         type: 'osm',
-                        color: isTrioMiddleMatched ? MAIN_COLOR_OSM_MATCHED : MAIN_COLOR_OSM_UNMATCHED,
+                        color: getStandaloneOsmMarkerColor(stop),
                         osmNodeType: stop.osm_node_type,
                         originalLat: osmLat,
                         originalLon: osmLon,
@@ -1201,8 +1210,8 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
             tempMarkerColor = (popupViewType === 'atlas') ? MAIN_COLOR_ATLAS_MATCHED : MAIN_COLOR_OSM_MATCHED;
         } else if (stopData.stop_type === 'atlas_unmatched') {
             tempMarkerColor = (popupViewType === 'atlas') ? MAIN_COLOR_ATLAS_UNMATCHED : MAIN_COLOR_OSM_UNMATCHED;
-        } else if (stopData.stop_type === 'osm_unmatched') { // Pure OSM nodes
-            tempMarkerColor = stopData.is_trio_middle_matched ? MAIN_COLOR_OSM_MATCHED : MAIN_COLOR_OSM_UNMATCHED;
+        } else if (isStandaloneOsmStopType(stopData.stop_type)) {
+            tempMarkerColor = getStandaloneOsmMarkerColor(stopData);
         }
 
 
