@@ -537,7 +537,7 @@ def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) 
     # and not preceded or followed by other dollars. Supports single char like $B$.
     markdown_text = re.sub(r'(?<!\$)\$[^\s$](?:.*?[^\s$])?\$(?!\$)', _protect_math, markdown_text)
 
-    md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table', 'url'])
+    md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table', 'url'], hard_wrap=True)
     html = md(markdown_text)
     
     # Convert mermaid code blocks to mermaid divs for client-side rendering
@@ -554,7 +554,7 @@ def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) 
 
     allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + [
         'p', 'pre', 'code', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'span', 'div', 'i',
-        'details', 'summary'
+        'details', 'summary', 'br'
     ]
     allowed_attrs = {
         **bleach.sanitizer.ALLOWED_ATTRIBUTES,

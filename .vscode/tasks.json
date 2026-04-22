@@ -132,6 +132,21 @@
 				"showReuseMessage": true,
 				"clear": false
 			}
+		},
+		{
+			"label": "Assets: Sync Local Vendor Libraries",
+			"type": "shell",
+			"command": "npm run vendor:sync",
+			"problemMatcher": [],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			}
 		}
 	]
 }

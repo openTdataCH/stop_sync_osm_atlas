@@ -437,6 +437,24 @@ def export_pipeline_stats(
                 osm_with_routes = osm_route_stats.get('osm_with_routes', 0)
                 stats['routes']['osm_with_routes_percent'] = round((osm_with_routes / total_osm_stops * 100), 1)
 
+    # Load GTFS mapping stats if available
+    gtfs_mapping_stats_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        'data', 'gtfs_mapping_stats.json'
+    )
+    if os.path.exists(gtfs_mapping_stats_path):
+        try:
+            with open(gtfs_mapping_stats_path, 'r', encoding='utf-8') as f:
+                stats['gtfs_mapping'] = json.load(f)
+        except Exception as e:
+            logger.warning(f"Could not load gtfs_mapping_stats.json: {e}")
+
+    if db_session:
+        from backend.models import StopsMatched, Problem
+        # Reuse existing compute_db_stats helper
+        stats['problems'] = compute_db_stats(db_session)
+        stats['route_problems'] = compute_route_problem_stats(db_session)
+
     return stats
 
 
@@ -770,6 +788,37 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
         'by_priority': by_priority,
     }
 
+def compute_route_problem_stats(db_session) -> Dict[str, Any]:
+    """Compute route problem statistics by querying the database after import."""
+    from backend.models import RoutesMatched, RouteProblem
+    from sqlalchemy import func
+
+    total_routes_matched = db_session.query(RoutesMatched).count()
+
+    type_counts = dict(
+        db_session.query(RouteProblem.problem_type, func.count(RouteProblem.id))
+        .group_by(RouteProblem.problem_type).all()
+    )
+
+    # Priority × type breakdown
+    by_priority: Dict[int, Dict[str, int]] = {}
+    rows = (
+        db_session.query(RouteProblem.priority, RouteProblem.problem_type, func.count(RouteProblem.id))
+        .group_by(RouteProblem.priority, RouteProblem.problem_type).all()
+    )
+    for priority, ptype, cnt in rows:
+        by_priority.setdefault(priority, {})[ptype] = cnt
+        
+    total_problems = db_session.query(RouteProblem).count()
+
+    return {
+        'total_routes_matched': total_routes_matched,
+        'total_problems': total_problems,
+        'by_type': type_counts,
+        'by_priority': by_priority,
+    }
+
+
 
 def compute_route_route_stats(db_session) -> Dict[str, Any]:
     """Compute route-route linking statistics from route tables in the import DB."""
@@ -977,13 +1026,17 @@ def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -
     
     from backend.extensions import db
     problem_stats = compute_db_stats(db.session)
+    route_problem_stats = compute_route_problem_stats(db.session)
     
     kwargs = {
         'stats': stats,
         'problem_breakdown': problem_stats.get('by_priority', {}),
+        'route_problem_breakdown': route_problem_stats.get('by_priority', {}),
         'probs': problem_stats,
+        'route_probs': route_problem_stats,
         'generated_at': datetime.now(),
-        'css_content': ''
+        'css_content': '',
+        'pdf_assets_prefix': 'static/vendor/'
     }
     
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

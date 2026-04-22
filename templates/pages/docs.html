@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/docs.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/reports.css') }}">
 <!-- Mermaid.js for diagrams -->
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/mermaid/mermaid.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/mermaid-config.js') }}"></script>
 <!-- MathJax for LaTeX -->
 <script>
@@ -22,7 +22,7 @@
     }
   };
 </script>
-<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<script id="MathJax-script" async src="{{ url_for('static', filename='vendor/mathjax/es5/tex-mml-chtml.js') }}"></script>
 {% endblock %}
 
 {% block content %}

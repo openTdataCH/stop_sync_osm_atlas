@@ -228,13 +228,13 @@ def load_gtfs_data_streaming(gtfs_folder: str):
     if relevant_route_ids:
         all_routes = pd.read_csv(
             routes_path,
-            usecols=['route_id', 'route_short_name', 'route_long_name'],
-            dtype={'route_id': str, 'route_short_name': str, 'route_long_name': str},
+            usecols=['route_id', 'agency_id', 'route_short_name', 'route_long_name', 'route_desc', 'route_type'],
+            dtype={'route_id': str, 'agency_id': str, 'route_short_name': str, 'route_long_name': str, 'route_desc': str, 'route_type': str},
             low_memory=False,
         )
         swiss_routes = all_routes[all_routes['route_id'].astype(str).isin(relevant_route_ids)].copy()
     else:
-        swiss_routes = pd.DataFrame(columns=['route_id', 'route_short_name', 'route_long_name'])
+        swiss_routes = pd.DataFrame(columns=['route_id', 'agency_id', 'route_short_name', 'route_long_name', 'route_desc', 'route_type'])
     print(f"GTFS: loaded {len(swiss_routes):,} routes (filtered to referenced routes)")
 
     return {
@@ -254,9 +254,9 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
     """
     # stop_id, route_id, direction_id
     stop_route_unique = gtfs_data_streaming['stop_route_unique']
-    # add route names
+    # add route metadata
     route_enriched = stop_route_unique.merge(
-        gtfs_data_streaming['routes'][['route_id', 'route_short_name', 'route_long_name']],
+        gtfs_data_streaming['routes'][['route_id', 'agency_id', 'route_short_name', 'route_long_name', 'route_desc', 'route_type']],
         on='route_id', how='left'
     )
     # direction strings by route (reduce to a single representative direction per route)
@@ -272,7 +272,17 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
         route_directions_unique = route_directions
 
     # match GTFS stops to ATLAS sloids
-    matches = match_gtfs_to_atlas({'stops': gtfs_data_streaming['stops']}, traffic_points)
+    matches, mapping_stats = match_gtfs_to_atlas({'stops': gtfs_data_streaming['stops']}, traffic_points, return_stats=True)
+    
+    import json
+    import os
+    stats_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        'data', 'gtfs_mapping_stats.json'
+    )
+    os.makedirs(os.path.dirname(stats_path), exist_ok=True)
+    with open(stats_path, 'w', encoding='utf-8') as f:
+        json.dump(mapping_stats, f, indent=2)
 
     # integrate
     linked_stops = gtfs_data_streaming['stops'].merge(matches, on='stop_id', how='left')
@@ -282,7 +292,7 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
     # Remove any multiplicative duplicates that could have slipped through
     integrated = integrated.drop_duplicates(subset=['stop_id', 'sloid', 'route_id', 'direction_id'])
 
-    cols = ['stop_id', 'sloid', 'route_id', 'route_short_name', 'route_long_name', 'direction_id', 'direction']
+    cols = ['stop_id', 'sloid', 'route_id', 'agency_id', 'route_short_name', 'route_long_name', 'route_desc', 'route_type', 'direction_id', 'direction']
     integrated = integrated[cols].sort_values(by='sloid')
     return integrated
 

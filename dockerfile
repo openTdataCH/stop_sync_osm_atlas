@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Use an official Python runtime as a parent image
-FROM python:3.11-slim-bookworm AS base
+FROM python:3.13-slim-bookworm AS base
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \

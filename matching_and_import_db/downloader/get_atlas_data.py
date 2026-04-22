@@ -127,14 +127,14 @@ def get_atlas_stops(output_path, download_url):
             }
 
 
-def write_atlas_routes_gtfs_csv(
+def write_atlas_route_csvs(
     gtfs_data,
     traffic_points: pd.DataFrame,
     integrated_gtfs_data: Optional[pd.DataFrame] = None,
-    gtfs_out_path: str = "data/processed/atlas_routes_gtfs.csv"
+    out_dir: str = "data/processed/"
 ):
-    """Create GTFS route mapping CSV from source data without intermediate files."""
-    gtfs_rows = []
+    """Create new entity-first GTFS route mappings without intermediate files."""
+    _ensure_parent_dir(os.path.join(out_dir, "dummy"))
 
     def _safe_direction_id(val):
         try:
@@ -144,47 +144,45 @@ def write_atlas_routes_gtfs_csv(
         except (TypeError, ValueError):
             return None
 
-    # Process GTFS data - determine which integrated data to use
     integrated_data = None
-    
     if integrated_gtfs_data is not None:
         print("Processing GTFS data for GTFS routes (reusing precomputed integration)...")
         integrated_data = integrated_gtfs_data
     elif gtfs_data and 'stop_route_unique' in gtfs_data and 'routes' in gtfs_data and 'route_directions' in gtfs_data:
         print("Processing GTFS data for GTFS routes...")
-        # Build integrated GTFS data (per-stop, per-route with a representative direction)
         integrated_data = build_integrated_gtfs_data_streaming(gtfs_data, traffic_points)
     
-    # Process integrated GTFS data (common path for both branches above)
-    if integrated_data is not None and not integrated_data.empty:
-        for r in integrated_data.itertuples(index=False):
-            sloid = getattr(r, 'sloid', None)
-            route_id = getattr(r, 'route_id', None)
-            direction = getattr(r, 'direction', None)
-            direction_id = getattr(r, 'direction_id', None)
-            route_short = getattr(r, 'route_short_name', None)
-            route_long = getattr(r, 'route_long_name', None)
-            
-            if pd.notna(sloid):  # Only include rows with valid sloid mapping
-                gtfs_rows.append({
-                    'sloid': str(sloid),
-                    'route_id': None if pd.isna(route_id) else str(route_id),
-                    'route_id_normalized': _normalize_route_id_for_matching(None if pd.isna(route_id) else str(route_id)),
-                    'route_name_short': None if pd.isna(route_short) else str(route_short),
-                    'route_name_long': None if pd.isna(route_long) else str(route_long),
-                    'direction_id': _safe_direction_id(direction_id),
-                    'direction_name': None if pd.isna(direction) else str(direction),
-                })
+    if integrated_data is None or integrated_data.empty:
+        print("No route data to write to GTFS files")
+        return
 
-    if gtfs_rows:
-        gtfs_df = pd.DataFrame(gtfs_rows, columns=[
-            'sloid', 'route_id', 'route_id_normalized', 'route_name_short', 'route_name_long', 'direction_id', 'direction_name'
-        ])
-        _ensure_parent_dir(gtfs_out_path)
-        gtfs_df.to_csv(gtfs_out_path, index=False)
-        print(f"GTFS routes: wrote {len(gtfs_df):,} rows to {gtfs_out_path}")
-    else:
-        print("No route data to write to GTFS file")
+    # Extract distinct routes
+    routes_df = integrated_data[['route_id', 'agency_id', 'route_short_name', 'route_long_name', 'route_desc', 'route_type']].drop_duplicates(subset=['route_id'])
+    routes_df['route_id_normalized'] = routes_df['route_id'].apply(lambda x: _normalize_route_id_for_matching(str(x)) if pd.notna(x) else None)
+    # Add dummy run_id
+    routes_df['run_id'] = datetime.date.today().isoformat()
+    routes_out = os.path.join(out_dir, "atlas_routes.csv")
+    routes_df.to_csv(routes_out, index=False)
+    print(f"GTFS routes: wrote {len(routes_df):,} rows to {routes_out}")
+
+    # Extract distinct route directions
+    directions_df = integrated_data[['route_id', 'direction_id', 'direction']].drop_duplicates(subset=['route_id', 'direction_id'])
+    directions_df['direction_id'] = directions_df['direction_id'].apply(_safe_direction_id)
+    directions_df['representative_headsign'] = None
+    directions_df['direction_label'] = directions_df['direction']
+    directions_df['trip_count'] = 0
+    directions_out = os.path.join(out_dir, "atlas_route_directions.csv")
+    directions_df[['route_id', 'direction_id', 'representative_headsign', 'direction_label', 'trip_count']].to_csv(directions_out, index=False)
+    print(f"GTFS directions: wrote {len(directions_df):,} rows to {directions_out}")
+
+    # Extract ordered stops per route-direction (we don't have stop_sequence from integrated_data, so we assign 0 or synthetic sequence)
+    stops_df = integrated_data[['route_id', 'direction_id', 'sloid', 'stop_id']].copy()
+    stops_df['direction_id'] = stops_df['direction_id'].apply(_safe_direction_id)
+    stops_df['stop_sequence'] = stops_df.groupby(['route_id', 'direction_id']).cumcount()
+    stops_df['mapping_method'] = 'fallback' # Placeholder
+    stops_out = os.path.join(out_dir, "atlas_route_stops.csv")
+    stops_df.to_csv(stops_out, index=False)
+    print(f"GTFS route stops: wrote {len(stops_df):,} rows to {stops_out}")
 
 
 if __name__ == "__main__":
@@ -234,11 +232,11 @@ if __name__ == "__main__":
 
     # Build GTFS routes file directly from source data
     try:
-        write_atlas_routes_gtfs_csv(
+        write_atlas_route_csvs(
             gtfs_data=gtfs_stream,
             traffic_points=stops_data,
             integrated_gtfs_data=integrated_data,
-            gtfs_out_path="data/processed/atlas_routes_gtfs.csv"
+            out_dir="data/processed/"
         )
     except Exception as e:
         print(f"Error writing GTFS routes CSV: {e}")

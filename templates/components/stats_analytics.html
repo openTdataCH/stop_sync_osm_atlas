@@ -902,7 +902,97 @@ SECTION 5 — PROBLEMS
 </div>
 {% else %}
 <div class="alert alert-secondary">No problem statistics available.</div>
-{% endif %}{# end problem stats #}
+{% endif %}
+{% if stats.route_problems is defined and stats.route_problems %}
+{% set rprobs = stats.route_problems %}
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0">Route Problem Detection Statistics</h5>
+  </div>
+  <div class="card-body">
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <div class="stat-card stat-card--sm stat-card--primary">
+          <div class="stat-card__value">{{ "{:,}".format(rprobs.total_routes_matched) }}</div>
+          <div class="stat-card__label">Total Routes Matched</div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="stat-card stat-card--sm stat-card--danger">
+          <div class="stat-card__value">{{ "{:,}".format(rprobs.total_problems) }}</div>
+          <div class="stat-card__label">Route Problems Detected</div>
+        </div>
+      </div>
+    </div>
+
+    {# Route Priority accordion #}
+    <div class="priority-accordion">
+      {% set rpriority_meta = [
+      (1, 'Critical', 'rp1', 'danger'),
+      (2, 'Significant', 'rp2', 'warning'),
+      (3, 'Minor', 'rp3', 'minor'),
+      ] %}
+      {% set rtype_labels = {
+      'route_metadata_mismatch': 'Metadata Mismatch — Mode or Name discrepancy',
+      } %}
+      {% set rtype_dots = {
+      'route_metadata_mismatch': '#DC3545',
+      } %}
+      {% for prio, label, css_id, severity in rpriority_meta %}
+      {% set rprio_data = route_problem_breakdown.get(prio, {}) %}
+      {% set rprio_total = rprio_data.values()|sum if rprio_data else 0 %}
+      <div class="accordion-item accordion-item--{{ severity }} {% if is_pdf %}is-open{% endif %}"
+        id="accordion-{{ css_id }}">
+        <button class="accordion-trigger" onclick="toggleAccordion('{{ css_id }}')"
+          aria-expanded="{% if is_pdf %}true{% else %}false{% endif %}" aria-controls="panel-{{ css_id }}">
+          <span class="accordion-trigger__left">
+            <span class="priority-badge priority-badge--{{ severity }}">P{{ prio }}</span>
+            <span class="accordion-trigger__label">{{ label }}</span>
+          </span>
+          <span class="accordion-trigger__right">
+            <span class="accordion-trigger__count">{{ "{:,}".format(rprio_total) }}</span>
+            <span class="accordion-chevron"></span>
+          </span>
+        </button>
+        <div class="accordion-panel" id="panel-{{ css_id }}" {% if is_pdf %}style="max-height: none;" {% endif %}>
+          <div class="accordion-panel__inner">
+            <table class="table table-sm mb-0">
+              <thead class="thead-light">
+                <tr>
+                  <th>Problem Type</th>
+                  <th class="text-end">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ptype, plabel in rtype_labels.items() %}
+                {% set cnt = rprio_data.get(ptype, 0) %}
+                {% if cnt > 0 %}
+                <tr>
+                  <td>
+                    <span class="type-dot" style="background:{{ rtype_dots[ptype] }}"></span>
+                    {{ plabel }}
+                  </td>
+                  <td class="text-end">{{ "{:,}".format(cnt) }}</td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+                {% if rprio_total == 0 %}
+                <tr>
+                  <td colspan="2" class="text-muted text-center">No route problems at this priority</td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+  </div>
+</div>
+{% endif %}{# end route problem stats #}
+
 
 {# ══════════════════════════════════════════
 SECTION 6 — ROUTES
