@@ -27,6 +27,27 @@ def _ensure_parent_dir(path: str) -> None:
         os.makedirs(parent, exist_ok=True)
 
 
+def _safe_direction_id(val):
+    try:
+        if pd.isna(val):
+            return None
+        return str(int(float(val)))
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_integrated_gtfs_data(
+    gtfs_data,
+    traffic_points: pd.DataFrame,
+    integrated_gtfs_data: Optional[pd.DataFrame] = None,
+) -> Optional[pd.DataFrame]:
+    if integrated_gtfs_data is not None:
+        return integrated_gtfs_data
+    if gtfs_data and 'stop_route_unique' in gtfs_data and 'routes' in gtfs_data and 'route_directions' in gtfs_data:
+        return build_integrated_gtfs_data_streaming(gtfs_data, traffic_points)
+    return None
+
+
 def get_current_gtfs_permalink(year: Optional[int] = None, locale: str = "en") -> str:
     """Return the OpenTransportData GTFS permalink for the active timetable year."""
     target_year = int(year) if year is not None else datetime.date.today().year
@@ -135,22 +156,11 @@ def write_atlas_route_csvs(
 ):
     """Create new entity-first GTFS route mappings without intermediate files."""
     _ensure_parent_dir(os.path.join(out_dir, "dummy"))
-
-    def _safe_direction_id(val):
-        try:
-            if pd.isna(val):
-                return None
-            return str(int(float(val)))
-        except (TypeError, ValueError):
-            return None
-
-    integrated_data = None
+    integrated_data = _resolve_integrated_gtfs_data(gtfs_data, traffic_points, integrated_gtfs_data)
     if integrated_gtfs_data is not None:
         print("Processing GTFS data for GTFS routes (reusing precomputed integration)...")
-        integrated_data = integrated_gtfs_data
-    elif gtfs_data and 'stop_route_unique' in gtfs_data and 'routes' in gtfs_data and 'route_directions' in gtfs_data:
+    elif integrated_data is not None:
         print("Processing GTFS data for GTFS routes...")
-        integrated_data = build_integrated_gtfs_data_streaming(gtfs_data, traffic_points)
     
     if integrated_data is None or integrated_data.empty:
         print("No route data to write to GTFS files")
