@@ -16,11 +16,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from matching_and_import_db.downloader.get_atlas_data import (
     get_current_gtfs_permalink,
-    write_atlas_routes_gtfs_csv,
+    write_atlas_route_csvs,
 )
 
 class TestGtfsRoutesIntegration:
-    """Tests for the GTFS Routes CSV generation."""
+    """Tests for the entity-first GTFS route CSV generation."""
 
     def test_gtfs_precomputed_integration_is_used(self, tmp_path):
         """
@@ -31,9 +31,6 @@ class TestGtfsRoutesIntegration:
         or ignored.
         """
         # 1. Setup Mock Data
-        
-        # Output file path
-        output_file = tmp_path / "gtfs_routes_test.csv"
         
         # Traffic points (needed by input signature, but not used if integrated keys are present)
         traffic_points = pd.DataFrame({'sloid': []})
@@ -46,82 +43,126 @@ class TestGtfsRoutesIntegration:
         integrated_gtfs_data = pd.DataFrame([
             {
                 'sloid': 'ch:1:sloid:1',
+                'stop_id': 'stop-1',
                 'route_id': 'gtfs-route-1',
+                'agency_id': 'agency-1',
                 'route_short_name': 'R1',
                 'route_long_name': 'Route 1',
+                'route_desc': 'Desc 1',
+                'route_type': '3',
                 'direction_id': 0,
                 'direction': 'A -> B'
             },
             {
                 'sloid': 'ch:1:sloid:2',
+                'stop_id': 'stop-2',
                 'route_id': 'gtfs-route-2',
+                'agency_id': 'agency-2',
                 'route_short_name': 'R2',
                 'route_long_name': 'Route 2',
+                'route_desc': 'Desc 2',
+                'route_type': '3',
                 'direction_id': 1,
                 'direction': 'B -> A'
             }
         ])
         
         # 2. Execute Function
-        write_atlas_routes_gtfs_csv(
+        write_atlas_route_csvs(
             gtfs_data=gtfs_stream,
             traffic_points=traffic_points,
             integrated_gtfs_data=integrated_gtfs_data,
-            gtfs_out_path=str(output_file)
+            out_dir=str(tmp_path)
         )
         
         # 3. Verify Output
-        
-        assert output_file.exists(), "Output CSV was not created"
-        
-        # Read result
-        result_df = pd.read_csv(output_file)
-        
-        # Check assertions
-        assert len(result_df) == 2, f"Expected 2 rows, got {len(result_df)}"
-        expected_cols = {
-            'sloid',
+        routes_file = tmp_path / "atlas_routes.csv"
+        directions_file = tmp_path / "atlas_route_directions.csv"
+        stops_file = tmp_path / "atlas_route_stops.csv"
+
+        assert routes_file.exists(), "Routes CSV was not created"
+        assert directions_file.exists(), "Route directions CSV was not created"
+        assert stops_file.exists(), "Route stops CSV was not created"
+
+        routes_df = pd.read_csv(routes_file)
+        directions_df = pd.read_csv(directions_file)
+        stops_df = pd.read_csv(stops_file)
+
+        assert len(routes_df) == 2, f"Expected 2 route rows, got {len(routes_df)}"
+        expected_route_cols = {
             'route_id',
+            'agency_id',
             'route_id_normalized',
-            'route_name_short',
-            'route_name_long',
-            'direction_id',
-            'direction_name',
+            'route_short_name',
+            'route_long_name',
+            'route_desc',
+            'route_type',
+            'run_id',
         }
-        assert expected_cols.issubset(set(result_df.columns)), "GTFS-only columns are missing"
-        assert 'source' not in result_df.columns, "Legacy source column should not be written"
-        assert 'gtfs-route-1' in result_df['route_id'].values
-        assert 'gtfs-route-2' in result_df['route_id'].values
-        
-        print(f"\n✅ Regression test passed: {len(result_df)} GTFS rows successfully written from precomputed data.")
+        assert expected_route_cols.issubset(set(routes_df.columns)), "Route columns are missing"
+        assert 'gtfs-route-1' in routes_df['route_id'].values
+        assert 'gtfs-route-2' in routes_df['route_id'].values
+
+        assert len(directions_df) == 2, f"Expected 2 direction rows, got {len(directions_df)}"
+        expected_direction_cols = {
+            'route_id',
+            'direction_id',
+            'representative_headsign',
+            'direction_label',
+            'trip_count',
+        }
+        assert expected_direction_cols.issubset(set(directions_df.columns)), "Direction columns are missing"
+        assert set(directions_df['direction_label']) == {'A -> B', 'B -> A'}
+
+        assert len(stops_df) == 2, f"Expected 2 route-stop rows, got {len(stops_df)}"
+        expected_stop_cols = {
+            'route_id',
+            'direction_id',
+            'sloid',
+            'stop_id',
+            'stop_sequence',
+            'mapping_method',
+        }
+        assert expected_stop_cols.issubset(set(stops_df.columns)), "Route-stop columns are missing"
+        assert set(stops_df['sloid']) == {'ch:1:sloid:1', 'ch:1:sloid:2'}
+        assert set(stops_df['mapping_method']) == {'fallback'}
 
     def test_gtfs_only_integration(self, tmp_path):
-        """Test that GTFS routes output contains GTFS entries only."""
-        output_file = tmp_path / "gtfs_only.csv"
+        """Test that GTFS routes output writes entity-first GTFS files only."""
         traffic_points = pd.DataFrame({'sloid': []})
         gtfs_stream = {}
         
         # GTFS Input
         integrated_gtfs = pd.DataFrame([{
             'sloid': 'ch:1:sloid:1',
+            'stop_id': 'stop-1',
             'route_id': 'r1',
+            'agency_id': 'agency-1',
+            'route_short_name': 'R1',
+            'route_long_name': 'Route 1',
+            'route_desc': 'Desc 1',
+            'route_type': '3',
             'direction_id': 0,
             'direction': 'dir1'
         }])
         
         # Execute
-        write_atlas_routes_gtfs_csv(
+        write_atlas_route_csvs(
             gtfs_data=gtfs_stream,
             traffic_points=traffic_points,
             integrated_gtfs_data=integrated_gtfs,
-            gtfs_out_path=str(output_file)
+            out_dir=str(tmp_path)
         )
         
         # Verify
-        result = pd.read_csv(output_file)
-        assert len(result) == 1
-        assert result.iloc[0]['sloid'] == 'ch:1:sloid:1'
-        assert 'source' not in result.columns
+        routes = pd.read_csv(tmp_path / "atlas_routes.csv")
+        directions = pd.read_csv(tmp_path / "atlas_route_directions.csv")
+        stops = pd.read_csv(tmp_path / "atlas_route_stops.csv")
+        assert len(routes) == 1
+        assert len(directions) == 1
+        assert len(stops) == 1
+        assert stops.iloc[0]['sloid'] == 'ch:1:sloid:1'
+        assert stops.iloc[0]['mapping_method'] == 'fallback'
 
 
 def test_gtfs_permalink_uses_current_year_and_en_locale():
