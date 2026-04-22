@@ -15,7 +15,7 @@
   <div class="routes-container">
     <header class="routes-header">
       <h1>Routes</h1>
-      <p>Filter Atlas GTFS and OSM routes, then unfold each card to inspect stops or preview route position on the map.</p>
+      <p>Filter matched and unmatched routes, then unfold each card to inspect stops or preview route position on the map.</p>
     </header>
 
     <section class="routes-toolbar" aria-label="Routes filters and search">
@@ -41,41 +41,19 @@
             </div>
             <div id="routesSearchHint" class="smart-search-hint d-none">
               <div class="smart-search-hint__title">Route search</div>
-              <div class="smart-search-hint__item">Use Atlas or OSM route IDs, for example <kbd>11-T-j25-1</kbd>.</div>
+              <div class="smart-search-hint__item">Use Atlas route IDs or OSM GTFS route IDs, for example <kbd>11-T-j25-1</kbd>.</div>
             </div>
           </div>
 
           <!-- ATLAS dropdown -->
           <div class="dropdown routes-toolbar__inline-item">
             <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="routesAtlasDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
-              ATLAS
+              Operator
             </button>
             <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="routesAtlasDropdown" style="width: 280px; max-height: 60vh; overflow-y: auto;">
               <div class="form-group mb-0">
-                <label for="atlasOperatorFilterRoutes" class="fw-bold small text-uppercase text-muted">ATLAS Operator</label>
+                <label for="atlasOperatorFilterRoutes" class="fw-bold small text-uppercase text-muted">Operator</label>
                 <div id="atlasOperatorFilterRoutes"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Dataset dropdown -->
-          <div class="dropdown routes-toolbar__inline-item">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="datasetDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
-              Dataset: {{ dataset_labels[dataset] }}
-            </button>
-            <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="datasetDropdown" style="width: 200px;">
-              <div class="form-group mb-0">
-                <label class="fw-bold small text-uppercase text-muted">Select Dataset</label>
-                <div class="routes-filter-options">
-                  <div class="form-check">
-                    <input type="radio" class="form-check-input filter-auto-submit" id="datasetAtlas" name="dataset" value="atlas_gtfs" {% if dataset == 'atlas_gtfs' %}checked{% endif %}>
-                    <label class="form-check-label" for="datasetAtlas">Atlas GTFS</label>
-                  </div>
-                  <div class="form-check">
-                    <input type="radio" class="form-check-input filter-auto-submit" id="datasetOsm" name="dataset" value="osm" {% if dataset == 'osm' %}checked{% endif %}>
-                    <label class="form-check-label" for="datasetOsm">OSM</label>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -100,6 +78,14 @@
                   <div class="form-check">
                     <input type="radio" class="form-check-input filter-auto-submit" id="unmatchedOnly" name="matched" value="unmatched" {% if matched_filter == 'unmatched' %}checked{% endif %}>
                     <label class="form-check-label" for="unmatchedOnly">Unmatched</label>
+                  </div>
+                  <div class="form-check ms-2">
+                    <input type="radio" class="form-check-input filter-auto-submit" id="unmatchedAtlasOnly" name="matched" value="unmatched_atlas" {% if matched_filter == 'unmatched_atlas' %}checked{% endif %}>
+                    <label class="form-check-label" for="unmatchedAtlasOnly">Unmatched ATLAS</label>
+                  </div>
+                  <div class="form-check ms-2">
+                    <input type="radio" class="form-check-input filter-auto-submit" id="unmatchedOsmOnly" name="matched" value="unmatched_osm" {% if matched_filter == 'unmatched_osm' %}checked{% endif %}>
+                    <label class="form-check-label" for="unmatchedOsmOnly">Unmatched OSM</label>
                   </div>
                 </div>
               </div>
@@ -144,48 +130,59 @@
         <header class="route-card__header route-card__header--{{ route.display_mode }}">
           {% if route.display_mode == 'matched' %}
           <div class="route-meta route-meta--atlas">
-            <div class="route-meta__line">
+            <div class="route-meta__topline">
               <span class="route-meta__title">ATLAS</span>
-              <div class="route-meta__name route-meta__name--inline">{{ route.atlas_route_name }}</div>
               {% if route.atlas_operators_summary %}
-              <div class="route-meta__detail route-meta__detail--inline">Operator: {{ route.atlas_operators_summary }}</div>
+              <div class="route-meta__operator">{{ route.atlas_operators_summary }}</div>
               {% endif %}
             </div>
+            <div class="route-meta__name">{{ route.atlas_route_short_name or route.atlas_route_name }}</div>
+            {% if route.atlas_route_long_name and route.atlas_route_long_name != (route.atlas_route_short_name or route.atlas_route_name) %}
+            <div class="route-meta__detail">{{ route.atlas_route_long_name }}</div>
+            {% endif %}
             <div class="route-meta__id">ID: {{ route.atlas_route_id }}</div>
           </div>
           <div class="route-meta route-meta--osm">
-            <div class="route-meta__line">
+            <div class="route-meta__topline">
               <span class="route-meta__title">OSM</span>
-              <div class="route-meta__name route-meta__name--inline">{{ route.osm_route_name }}</div>
+              {% if route.osm_operator %}
+              <div class="route-meta__operator">{{ route.osm_operator }}</div>
+              {% endif %}
             </div>
-            <div class="route-meta__id">ID: {{ route.osm_route_id }}</div>
+            <div class="route-meta__name">{{ route.osm_route_name }}</div>
+            <div class="route-meta__id">ID: {{ route.osm_route_display_id or '-' }}</div>
           </div>
           {% elif route.display_mode == 'atlas_only' %}
           <div class="route-meta route-meta--atlas route-meta--solo">
-            <div class="route-meta__line">
+            <div class="route-meta__topline">
               <span class="route-meta__title">ATLAS</span>
-              <div class="route-meta__name route-meta__name--inline">{{ route.atlas_route_name or 'Atlas route' }}</div>
               {% if route.atlas_operators_summary %}
-              <div class="route-meta__detail route-meta__detail--inline">Operator: {{ route.atlas_operators_summary }}</div>
+              <div class="route-meta__operator">{{ route.atlas_operators_summary }}</div>
               {% endif %}
             </div>
+            <div class="route-meta__name">{{ route.atlas_route_short_name or route.atlas_route_name or 'Atlas route' }}</div>
+            {% if route.atlas_route_long_name and route.atlas_route_long_name != (route.atlas_route_short_name or route.atlas_route_name) %}
+            <div class="route-meta__detail">{{ route.atlas_route_long_name }}</div>
+            {% endif %}
             <div class="route-meta__id">ID: {{ route.atlas_route_id or '-' }}</div>
             <div class="route-meta__detail">No matched OSM route.</div>
           </div>
           {% elif route.display_mode == 'osm_only' %}
           <div class="route-meta route-meta--osm route-meta--solo">
-            <div class="route-meta__line">
+            <div class="route-meta__topline">
               <span class="route-meta__title">OSM</span>
-              <div class="route-meta__name route-meta__name--inline">{{ route.osm_route_name or 'OSM route' }}</div>
+              {% if route.osm_operator %}
+              <div class="route-meta__operator">{{ route.osm_operator }}</div>
+              {% endif %}
             </div>
-            <div class="route-meta__id">ID: {{ route.osm_route_id or '-' }}</div>
+            <div class="route-meta__name">{{ route.osm_route_name or 'OSM route' }}</div>
+            <div class="route-meta__id">ID: {{ route.osm_route_display_id or '-' }}</div>
             <div class="route-meta__detail">No matched Atlas route.</div>
           </div>
           {% endif %}
         </header>
 
         <div class="route-card__badges">
-          <span class="route-card__badge route-card__badge--dataset">{{ dataset_labels[route.dataset] }}</span>
           <span class="route-card__badge {{ 'route-card__badge--matched' if route.is_matched else 'route-card__badge--unmatched' }}">{{ route.match_label }}</span>
         </div>
 
@@ -200,6 +197,13 @@
             {% for direction in route.direction_groups %}
             <section class="direction-block">
               <h3 class="direction-block__title">Direction: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}</h3>
+              {% if direction.direction_label or direction.representative_headsign %}
+              <p class="route-card__summary">
+                {% if direction.direction_label %}Label: {{ direction.direction_label }}{% endif %}
+                {% if direction.direction_label and direction.representative_headsign %} | {% endif %}
+                {% if direction.representative_headsign %}Headsign: {{ direction.representative_headsign }}{% endif %}
+              </p>
+              {% endif %}
               <div class="direction-block__columns">
                 <div class="stops-column">
                   <h4>ATLAS Stops</h4>
@@ -286,7 +290,7 @@
     <nav class="routes-pagination" aria-label="Routes pagination">
       <ul class="pagination justify-content-center">
         <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('routes.routes_page', dataset=dataset, matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
+          <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
             <span aria-hidden="true">&laquo;</span>
           </a>
         </li>
@@ -294,7 +298,7 @@
         {% for page_num in pagination.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
           {% if page_num %}
           <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-            <a class="page-link" href="{{ url_for('routes.routes_page', dataset=dataset, matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
+            <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
           </li>
           {% else %}
           <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
@@ -302,7 +306,7 @@
         {% endfor %}
 
         <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('routes.routes_page', dataset=dataset, matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
+          <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
             <span aria-hidden="true">&raquo;</span>
           </a>
         </li>
@@ -311,7 +315,7 @@
     {% else %}
     <section class="routes-empty-state" aria-live="polite">
       <h2>No routes found</h2>
-      <p>Try broadening filters, clearing Atlas Operator selections, or switching dataset.</p>
+      <p>Try broadening filters or clearing Operator selections.</p>
       <a class="btn btn-outline-primary" href="{{ url_for('routes.routes_page') }}">Clear all filters</a>
     </section>
     {% endif %}
@@ -330,9 +334,7 @@
 <script>
 window.routesPageConfig = {
   selectedAtlasOperators: {{ selected_atlas_operators | tojson }},
-  dataset: {{ dataset | tojson }},
   matchedFilter: {{ matched_filter | tojson }},
-  datasetLabels: {{ dataset_labels | tojson }},
   matchFilterLabels: {{ match_filter_labels | tojson }},
   q: {{ q | tojson }},
   baseUrl: {{ url_for('routes.routes_page') | tojson }}

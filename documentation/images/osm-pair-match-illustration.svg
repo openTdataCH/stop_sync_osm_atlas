@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 380" width="100%" height="380" role="img" aria-labelledby="title desc">
+  <title id="title">OSM pair matched to one ATLAS stop</title>
+  <desc id="desc">Schematic showing an OSM pair with one ATLAS stop linked to both OSM nodes using solid blue lines, plus a dashed green OSM-OSM pair link.</desc>
+  <style>
+    .bg { fill: #f7f8fb; }
+    .rail { stroke: #d9dde5; stroke-width: 28; stroke-linecap: round; }
+    .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 22px; font-weight: 700; fill: #101828; }
+    .caption { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; fill: #475467; }
+    .label { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 600; fill: #344054; }
+    .legend { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; fill: #344054; }
+    .blue-line { stroke: #174092; stroke-width: 5; stroke-linecap: round; }
+    .green-line { stroke: #4CAF50; stroke-width: 5; stroke-linecap: round; stroke-dasharray: 12 12; }
+    .atlas-node { fill: #ffffff; stroke: #174092; stroke-width: 5; }
+    .osm-node { fill: #d9f2dd; stroke: #4CAF50; stroke-width: 5; }
+    .badge { fill: #4CAF50; stroke: #ffffff; stroke-width: 2; }
+    .badge-text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 700; fill: #ffffff; text-anchor: middle; dominant-baseline: middle; }
+  </style>
+
+  <rect x="0" y="0" width="860" height="380" rx="20" class="bg"/>
+
+  <text x="430" y="54" text-anchor="middle" class="title">OSM pair: 1 ATLAS stop + 2 grouped OSM nodes</text>
+  <text x="430" y="88" text-anchor="middle" class="caption">The representative matches first; the sibling is then materialized as an OSM-group propagation row, so both blue links can appear on the map.</text>
+
+  <line x1="225" y1="235" x2="640" y2="150" class="rail"/>
+
+  <line x1="245" y1="150" x2="405" y2="245" class="blue-line"/>
+  <line x1="245" y1="150" x2="560" y2="180" class="blue-line"/>
+  <line x1="405" y1="245" x2="560" y2="180" class="green-line"/>
+
+  <circle cx="245" cy="150" r="16" class="atlas-node"/>
+  <circle cx="405" cy="245" r="17" class="osm-node"/>
+  <circle cx="560" cy="180" r="17" class="osm-node"/>
+
+  <circle cx="405" cy="245" r="12" class="badge"/>
+  <text x="405" y="245" class="badge-text">P</text>
+  <circle cx="560" cy="180" r="12" class="badge"/>
+  <text x="560" y="180" class="badge-text">P</text>
+
+  <text x="165" y="196" class="label">ATLAS stop</text>
+  <text x="342" y="278" class="label">OSM representative</text>
+  <text x="592" y="168" class="label">OSM sibling</text>
+
+  <rect x="90" y="320" width="680" height="42" rx="12" fill="#ffffff" stroke="#eaecf0"/>
+  <line x1="114" y1="341" x2="162" y2="341" class="blue-line"/>
+  <text x="174" y="346" class="legend">ATLAS-OSM matched / propagated edges</text>
+  <line x1="458" y1="341" x2="506" y2="341" class="green-line"/>
+  <text x="518" y="346" class="legend">OSM pair link</text>
+</svg>

@@ -372,9 +372,10 @@
   text-transform: uppercase;
 }
 
-.route-meta__line {
+.route-meta__topline {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 0.4rem;
   flex-wrap: nowrap;
   min-width: 0;
@@ -386,16 +387,6 @@
   font-size: var(--text-base);
   font-weight: var(--font-semibold);
   word-break: break-word;
-}
-
-.route-meta__name--inline {
-  margin-top: 0;
-  font-size: var(--text-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex: 1 1 auto;
-  min-width: 0;
 }
 
 .route-meta__id {
@@ -412,8 +403,12 @@
   word-break: break-word;
 }
 
-.route-meta__detail--inline {
+.route-meta__operator {
   margin-top: 0;
+  margin-left: auto;
+  text-align: right;
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

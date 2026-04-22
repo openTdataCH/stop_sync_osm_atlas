@@ -18,7 +18,6 @@
     const COLOR_LINE_ATLAS_OSM = MAP_COLORS.LINE_ATLAS_OSM || '#174092';
     const COLOR_LINE_OSM_GROUP = MAP_COLORS.LINE_OSM_GROUP || '#4CAF50';
     const OSM_GROUP_DASH = MAP_COLORS.LINE_OSM_GROUP_DASH || '6,4';
-    const OSM_GROUP_DASH_ALT = MAP_COLORS.LINE_OSM_GROUP_DASH_ALT || '4,4';
 
     // ==========================================
     // LINE STYLE CONFIGURATION
@@ -53,7 +52,7 @@
             color: COLOR_LINE_OSM_GROUP,
             weight: 2,
             opacity: 0.9,
-            dashArray: OSM_GROUP_DASH_ALT
+            dashArray: OSM_GROUP_DASH
         }
     };
 
