@@ -63,6 +63,7 @@ def export_pipeline_stats(
     atlas_route_stats: Dict[str, int] = None,
     osm_route_stats: Dict[str, int] = None,
     osm_nodes_with_routes: set = None,
+    db_session=None,
 ) -> Dict[str, Any]:
     """
     Export comprehensive pipeline statistics after matching.
@@ -83,6 +84,7 @@ def export_pipeline_stats(
         total_osm_stations: Total OSM stations (optional)
         total_matched_osm_stops: Matched OSM stop units (optional)
         total_unmatched_osm_stops: Unmatched OSM stop units (optional)
+        db_session: Optional database session for live problem statistics
     
     Returns:
         Dictionary containing all computed statistics
@@ -450,7 +452,6 @@ def export_pipeline_stats(
             logger.warning(f"Could not load gtfs_mapping_stats.json: {e}")
 
     if db_session:
-        from backend.models import StopsMatched, Problem
         # Reuse existing compute_db_stats helper
         stats['problems'] = compute_db_stats(db_session)
         stats['route_problems'] = compute_route_problem_stats(db_session)
