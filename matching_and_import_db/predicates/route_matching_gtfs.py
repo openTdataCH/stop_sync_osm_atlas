@@ -81,6 +81,14 @@ class RouteMatchPredicate(BasePredicate):
                                 norm = normalize_route_id(atlas_rid)
                                 if norm:
                                     node_tokens.add((norm, did))
+                        
+                        gtfs_rid = r.get('gtfs_route_id')
+                        if gtfs_rid:
+                            node_tokens.add((gtfs_rid, did))
+                            from matching_and_import_db.utils.route_id import normalize_route_id
+                            norm = normalize_route_id(gtfs_rid)
+                            if norm:
+                                node_tokens.add((norm, did))
 
                     if gtfs_tokens & node_tokens:
                         matched_node, matched_dist = node, dist

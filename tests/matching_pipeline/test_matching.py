@@ -20,6 +20,7 @@ from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
 from matching_and_import_db.predicates.name_matching import NameMatchPredicate
 from matching_and_import_db.predicates.trio_distance_matching import TrioDistanceMatchingPredicate
 from matching_and_import_db.predicates.route_matching_gtfs import RouteMatchPredicate
+from matching_and_import_db.orchestrator import DEFAULT_PIPELINE
 from matching_and_import_db.state import AtlasState, OsmState
 from matching_and_import_db.utils.common import haversine_distance
 from matching_and_import_db.utils.route_id import normalize_route_id
@@ -146,6 +147,23 @@ class TestUtils:
         assert OsmNode('n1', 47.0, 8.0, None, None, None, None, '', '', 'station', None, None, None, {}).is_station is True
         assert OsmNode('n2', 47.0, 8.0, None, None, None, None, '', '', 'stop_position', None, None, None, {}).is_station is False
         assert OsmNode('n3', 47.0, 8.0, None, None, None, None, '', '', None, None, None, 'station', {}).is_station is False
+
+
+class TestDefaultPipeline:
+    def test_default_pipeline_runs_full_nearest_distance_sequence(self):
+        nearest_predicates = [
+            predicate for predicate in DEFAULT_PIPELINE
+            if isinstance(predicate, NearestDistancePredicate)
+        ]
+
+        assert [
+            (predicate.mode, predicate.pass_label)
+            for predicate in nearest_predicates
+        ] == [
+            ('single', 'first'),
+            ('ratio', 'first'),
+            ('single', 'second'),
+        ]
 
 
 class TestBipartiteMatch:

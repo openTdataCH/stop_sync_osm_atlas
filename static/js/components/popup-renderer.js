@@ -27,6 +27,29 @@
         return `(${lat}, ${lon})`;
     }
 
+    function parseOsmElementRef(osmId) {
+        if (!hasValue(osmId)) return null;
+
+        const value = String(osmId);
+        if (value.startsWith('way_')) {
+            return { type: 'way', id: value.slice(4) };
+        }
+
+        return { type: 'node', id: value };
+    }
+
+    function buildOsmBrowseUrl(osmId) {
+        const ref = parseOsmElementRef(osmId);
+        if (!ref) return null;
+        return `https://www.openstreetmap.org/${ref.type}/${ref.id}`;
+    }
+
+    function buildOsmEditorUrl(osmId) {
+        const ref = parseOsmElementRef(osmId);
+        if (!ref) return null;
+        return `https://www.openstreetmap.org/edit?${ref.type}=${ref.id}`;
+    }
+
     function getMatchDocUrl(matchType) {
         if (!matchType) return null;
         const mt = String(matchType).toLowerCase();
@@ -80,7 +103,10 @@
         } else {
             headerText += 'OSM Node';
             if (hasValue(data.osm_node_id)) {
-                linkHtml = ` <a href="https://www.openstreetmap.org/node/${data.osm_node_id}" target="_blank" title="View on OpenStreetMap">(view on OSM)</a>`;
+                const browseUrl = buildOsmBrowseUrl(data.osm_node_id);
+                if (browseUrl) {
+                    linkHtml = ` <a href="${browseUrl}" target="_blank" title="View on OpenStreetMap">(view on OSM)</a>`;
+                }
             }
         }
 
@@ -189,8 +215,9 @@
         const unmatchedClass = unmatched ? ' unmatched' : '';
         const bubbleHeader = buildBubbleHeader(data, type, unmatched);
 
-        const osmEditorLinkHtml = type === 'osm' && hasValue(data.osm_node_id)
-            ? `<div class="osm-editor-link-container mt-2"><a href="https://www.openstreetmap.org/edit?node=${data.osm_node_id}" class="osm-editor-link" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Edit in OSM iD Editor</a></div>`
+        const osmEditorUrl = type === 'osm' ? buildOsmEditorUrl(data.osm_node_id) : null;
+        const osmEditorLinkHtml = osmEditorUrl
+            ? `<div class="osm-editor-link-container mt-2"><a href="${osmEditorUrl}" class="osm-editor-link" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Edit in OSM iD Editor</a></div>`
             : '';
         const footerHtml = buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml);
 

@@ -8,7 +8,7 @@ Provides ``run_problem_pipeline`` and ``STOP_PROBLEM_PIPELINE`` used by
 
 import logging
 
-from matching_and_import_db.problem_detection.predicates import (
+from matching_and_import_db.problem_detection.stop_predicates import (
     distance_problem,
     attributes_problem,
     unmatched_problem,
