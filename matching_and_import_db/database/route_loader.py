@@ -171,7 +171,7 @@ def build_route_write_payload(all_route_data: Dict[str, pd.DataFrame], known_slo
         })
         matched_routes += 1
 
-    from matching_and_import_db.database.route_problems import detect_route_problems
+    from matching_and_import_db.problem_detection.route_predicates.route_problems import detect_route_problems
     route_problems = detect_route_problems(atlas_route_rows, osm_route_rows, routes_matched_rows)
 
     return {

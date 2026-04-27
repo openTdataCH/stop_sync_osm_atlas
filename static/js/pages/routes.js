@@ -55,6 +55,62 @@
     }
   }
 
+  function initStatusFilter() {
+    var form = document.getElementById('routesToolbarForm');
+    var hiddenInput = document.getElementById('routesMatchedInput');
+    var checkboxes = Array.prototype.slice.call(document.querySelectorAll('.routes-status-checkbox'));
+    var statusAll = document.getElementById('matchedAll');
+    var statusMatched = document.getElementById('matchedOnly');
+    var statusUnmatched = document.getElementById('unmatchedOnly');
+    var statusUnmatchedAtlas = document.getElementById('unmatchedAtlasOnly');
+    var statusUnmatchedOsm = document.getElementById('unmatchedOsmOnly');
+
+    if (!form || !hiddenInput || checkboxes.length === 0 || !statusAll || !statusMatched || !statusUnmatched || !statusUnmatchedAtlas || !statusUnmatchedOsm) {
+      return;
+    }
+
+    function syncSelection(value) {
+      var normalizedValue = value || 'all';
+      hiddenInput.value = normalizedValue;
+      statusAll.checked = normalizedValue === 'all';
+      statusMatched.checked = normalizedValue === 'matched';
+      statusUnmatched.checked = normalizedValue === 'unmatched';
+      statusUnmatchedAtlas.checked = normalizedValue === 'unmatched' || normalizedValue === 'unmatched_atlas';
+      statusUnmatchedOsm.checked = normalizedValue === 'unmatched' || normalizedValue === 'unmatched_osm';
+    }
+
+    syncSelection(hiddenInput.value);
+
+    checkboxes.forEach(function (checkbox) {
+      checkbox.addEventListener('change', function () {
+        var nextValue = hiddenInput.value || 'all';
+
+        if (checkbox === statusAll) {
+          nextValue = 'all';
+        } else if (checkbox === statusMatched) {
+          nextValue = checkbox.checked ? 'matched' : 'all';
+        } else if (checkbox === statusUnmatched) {
+          nextValue = checkbox.checked ? 'unmatched' : 'all';
+        } else if (checkbox === statusUnmatchedAtlas) {
+          if (checkbox.checked) {
+            nextValue = statusUnmatchedOsm.checked ? 'unmatched' : 'unmatched_atlas';
+          } else {
+            nextValue = statusUnmatchedOsm.checked ? 'unmatched_osm' : 'all';
+          }
+        } else if (checkbox === statusUnmatchedOsm) {
+          if (checkbox.checked) {
+            nextValue = statusUnmatchedAtlas.checked ? 'unmatched' : 'unmatched_osm';
+          } else {
+            nextValue = statusUnmatchedAtlas.checked ? 'unmatched_atlas' : 'all';
+          }
+        }
+
+        syncSelection(nextValue);
+        form.submit();
+      });
+    });
+  }
+
   function bindAutoSubmit() {
     var form = document.getElementById('routesToolbarForm');
     if (!form) return;
@@ -103,7 +159,7 @@
     if (config.selectedAtlasOperators && config.selectedAtlasOperators.length > 0) {
       config.selectedAtlasOperators.forEach(function (op) {
         chips.push(buildRemovableChip({
-          label: 'Operator: ' + op,
+          label: 'ATLAS Operator: ' + op,
           badgeClass: 'filter-chip-operator',
           data: { type: 'operator', value: op }
         }));
@@ -559,6 +615,7 @@
   function init() {
     bindSearchHint();
     initOperatorDropdown();
+    initStatusFilter();
     bindAutoSubmit();
     updateActiveFiltersUI();
     handleChipRemoval();

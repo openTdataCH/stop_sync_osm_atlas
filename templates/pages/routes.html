@@ -21,6 +21,7 @@
     <section class="routes-toolbar" aria-label="Routes filters and search">
       <form method="get" action="{{ url_for('routes.routes_page') }}" class="routes-toolbar__form" id="routesToolbarForm">
         <input type="hidden" name="atlas_operator" id="routesAtlasOperatorInput" value="{{ atlas_operator_query }}">
+        <input type="hidden" name="matched" id="routesMatchedInput" value="{{ matched_filter }}">
 
         <div class="routes-toolbar__inline d-flex align-items-center flex-wrap gap-2">
           <!-- Search -->
@@ -52,7 +53,7 @@
             </button>
             <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="routesAtlasDropdown" style="width: 280px; max-height: 60vh; overflow-y: auto;">
               <div class="form-group mb-0">
-                <label for="atlasOperatorFilterRoutes" class="fw-bold small text-uppercase text-muted">Operator</label>
+                <label for="atlasOperatorFilterRoutes" class="fw-bold small text-uppercase text-muted">ATLAS Operator</label>
                 <div id="atlasOperatorFilterRoutes"></div>
               </div>
             </div>
@@ -63,28 +64,29 @@
             <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="matchedDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
               Status: {{ match_filter_labels[matched_filter] }}
             </button>
-            <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="matchedDropdown" style="width: 200px;">
+            <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="matchedDropdown" style="width: 260px;">
+              <div class="form-check mb-3 border-bottom pb-2">
+                <input type="checkbox" class="form-check-input routes-status-checkbox" id="matchedAll" data-value="all" {% if matched_filter == 'all' %}checked{% endif %}>
+                <label class="form-check-label fw-bold text-primary" for="matchedAll">All routes</label>
+              </div>
+
               <div class="form-group mb-0">
-                <label class="fw-bold small text-uppercase text-muted">Matched Status</label>
-                <div class="routes-filter-options">
+                <label class="fw-bold small text-uppercase text-muted">Status</label>
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input routes-status-checkbox" id="matchedOnly" data-value="matched" {% if matched_filter == 'matched' %}checked{% endif %}>
+                  <label class="form-check-label" for="matchedOnly">Matched</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input routes-status-checkbox" id="unmatchedOnly" data-value="unmatched" {% if matched_filter == 'unmatched' %}checked{% endif %}>
+                  <label class="form-check-label" for="unmatchedOnly">Unmatched</label>
+                </div>
+                <div class="ps-3 border-start mt-2">
                   <div class="form-check">
-                    <input type="radio" class="form-check-input filter-auto-submit" id="matchedAll" name="matched" value="all" {% if matched_filter == 'all' %}checked{% endif %}>
-                    <label class="form-check-label" for="matchedAll">All</label>
-                  </div>
-                  <div class="form-check">
-                    <input type="radio" class="form-check-input filter-auto-submit" id="matchedOnly" name="matched" value="matched" {% if matched_filter == 'matched' %}checked{% endif %}>
-                    <label class="form-check-label" for="matchedOnly">Matched</label>
-                  </div>
-                  <div class="form-check">
-                    <input type="radio" class="form-check-input filter-auto-submit" id="unmatchedOnly" name="matched" value="unmatched" {% if matched_filter == 'unmatched' %}checked{% endif %}>
-                    <label class="form-check-label" for="unmatchedOnly">Unmatched</label>
-                  </div>
-                  <div class="form-check ms-2">
-                    <input type="radio" class="form-check-input filter-auto-submit" id="unmatchedAtlasOnly" name="matched" value="unmatched_atlas" {% if matched_filter == 'unmatched_atlas' %}checked{% endif %}>
+                    <input type="checkbox" class="form-check-input routes-status-checkbox" id="unmatchedAtlasOnly" data-value="unmatched_atlas" {% if matched_filter == 'unmatched_atlas' %}checked{% endif %}>
                     <label class="form-check-label" for="unmatchedAtlasOnly">Unmatched ATLAS</label>
                   </div>
-                  <div class="form-check ms-2">
-                    <input type="radio" class="form-check-input filter-auto-submit" id="unmatchedOsmOnly" name="matched" value="unmatched_osm" {% if matched_filter == 'unmatched_osm' %}checked{% endif %}>
+                  <div class="form-check">
+                    <input type="checkbox" class="form-check-input routes-status-checkbox" id="unmatchedOsmOnly" data-value="unmatched_osm" {% if matched_filter == 'unmatched_osm' %}checked{% endif %}>
                     <label class="form-check-label" for="unmatchedOsmOnly">Unmatched OSM</label>
                   </div>
                 </div>
@@ -150,7 +152,10 @@
               {% endif %}
             </div>
             <div class="route-meta__name">{{ route.osm_route_name }}</div>
-            <div class="route-meta__id">ID: {{ route.osm_route_display_id or '-' }}</div>
+            <div class="route-meta__id">GTFS ID: {{ route.osm_route_display_id or '-' }}</div>
+            {% if route.osm_route_id %}
+            <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View relation {{ route.osm_route_id }} on OSM</a>
+            {% endif %}
           </div>
           {% elif route.display_mode == 'atlas_only' %}
           <div class="route-meta route-meta--atlas route-meta--solo">
@@ -176,7 +181,10 @@
               {% endif %}
             </div>
             <div class="route-meta__name">{{ route.osm_route_name or 'OSM route' }}</div>
-            <div class="route-meta__id">ID: {{ route.osm_route_display_id or '-' }}</div>
+            <div class="route-meta__id">GTFS ID: {{ route.osm_route_display_id or '-' }}</div>
+            {% if route.osm_route_id %}
+            <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View relation {{ route.osm_route_id }} on OSM</a>
+            {% endif %}
             <div class="route-meta__detail">No matched Atlas route.</div>
           </div>
           {% endif %}
@@ -315,7 +323,7 @@
     {% else %}
     <section class="routes-empty-state" aria-live="polite">
       <h2>No routes found</h2>
-      <p>Try broadening filters or clearing Operator selections.</p>
+      <p>Try broadening filters or clearing ATLAS Operator selections.</p>
       <a class="btn btn-outline-primary" href="{{ url_for('routes.routes_page') }}">Clear all filters</a>
     </section>
     {% endif %}

@@ -32,7 +32,9 @@ DEFAULT_PIPELINE = [
     NameMatchPredicate(),
     GroupProximityPredicate(),
     LocalRefDistancePredicate(),
-    NearestDistancePredicate(),
+    NearestDistancePredicate(mode='single', pass_label='first'),
+    NearestDistancePredicate(mode='ratio', pass_label='first'),
+    NearestDistancePredicate(mode='single', pass_label='second'),
     RouteMatchPredicate(),
     PostpassUniqueUicPredicate(),
 ]

@@ -396,6 +396,22 @@
   word-break: break-word;
 }
 
+.route-meta__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  text-decoration: none;
+}
+
+.route-meta__link:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
 .route-meta__detail {
   margin-top: 0.15rem;
   color: var(--color-fg-muted);
