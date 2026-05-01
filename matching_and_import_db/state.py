@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 GROUP_MAX_DISTANCE_M = 12.0
 GROUP_PERFECT_COUNT_MAX_DISTANCE_M = 15.0
+TRIO_MAX_MIDDLE_DISTANCE_M = 15.0
 ATLAS_NEARBY_OSM_MAX_DISTANCE_M = 30.0
 GROUP_RATIO_TEST_FACTOR_STRICT = 1.5
 GROUP_RATIO_TEST_FACTOR_RELAXED = 2.0
@@ -523,7 +524,8 @@ class OsmState:
 
         Trio path (osm_trio): UIC-scoped fixed-cardinality grouping with exactly
         three OSM nodes (one stop_position + two side nodes) and exactly two
-        ATLAS rows for the same UIC.
+        ATLAS rows for the same UIC. Both side nodes must also be within 15m
+        of the middle stop_position before the trio is registered.
 
         Path 1 (osm_pair_uic): UIC-scoped reciprocal nearest-neighbour pairing
         within 12m, with ratio test and count-match condition.
@@ -568,10 +570,13 @@ class OsmState:
             if len(side_nodes) != 2:
                 continue
 
+            middle = stop_positions[0]
+            if not self._is_spatially_local_trio(side_nodes, middle):
+                continue
+
             sorted_sides = sorted(side_nodes, key=lambda n: str(n['node_id']))
             representative = sorted_sides[0]
             side_partner = sorted_sides[1]
-            middle = stop_positions[0]
             self._register_trio(representative, side_partner, middle)
             trio_node_ids.update({
                 str(representative['node_id']),
@@ -1001,6 +1006,20 @@ class OsmState:
         self._group_siblings[rep_id] = ('osm_trio', [side_partner_node, middle_node])
         self._trio_middle_by_rep[rep_id] = middle_id
         self._trio_sides_by_rep[rep_id] = (rep_id, side_partner_id)
+
+    @staticmethod
+    def _is_spatially_local_trio(side_nodes: list[dict], middle: dict) -> bool:
+        """Return True when both trio side nodes are within 15m of the middle node."""
+        for side_node in side_nodes:
+            distance = haversine_distance(
+                side_node['lat'],
+                side_node['lon'],
+                middle['lat'],
+                middle['lon'],
+            )
+            if distance is None or distance > TRIO_MAX_MIDDLE_DISTANCE_M:
+                return False
+        return True
 
     @staticmethod
     def _find_reciprocal_pairs(

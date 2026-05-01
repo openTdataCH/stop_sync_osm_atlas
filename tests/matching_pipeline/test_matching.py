@@ -613,9 +613,9 @@ class TestOsmTrioMatching:
                 _atlas_row('a2', 'u_trio', '2', 'Trio Stop', 47.4003000, 8.4003000),
             ],
             [
-                _osm_entry('side_1', 47.4000100, 8.4000100, uic_ref='u_trio', public_transport='platform'),
+                _osm_entry('side_1', 47.4001000, 8.4001000, uic_ref='u_trio', public_transport='platform'),
                 _osm_entry('middle', 47.4001500, 8.4001500, uic_ref='u_trio', public_transport='stop_position'),
-                _osm_entry('side_2', 47.4002900, 8.4002900, uic_ref='u_trio', public_transport='platform'),
+                _osm_entry('side_2', 47.4002000, 8.4002000, uic_ref='u_trio', public_transport='platform'),
             ],
         )
         ctx.osm.build_groups(atlas_uic_counts={'u_trio': 2})
@@ -629,3 +629,23 @@ class TestOsmTrioMatching:
         assert matched_osm_ids == {'side_1', 'side_2'}
         assert ctx.osm.is_used('middle') is False
         assert 'middle' in {n.node_id for n in ctx.osm.get_unmatched_nodes()}
+
+    def test_non_local_trio_is_not_registered_and_can_fall_back_to_pair_grouping(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('a1', 'u_trio', '1', 'Trio Stop', 47.5000000, 8.5000000),
+                _atlas_row('a2', 'u_trio', '2', 'Trio Stop', 47.5003000, 8.5003000),
+            ],
+            [
+                _osm_entry('side_near', 47.5001100, 8.5001100, uic_ref='u_trio', public_transport='platform'),
+                _osm_entry('middle', 47.5001000, 8.5001000, uic_ref='u_trio', public_transport='stop_position'),
+                _osm_entry('side_far', 47.5015000, 8.5015000, uic_ref='u_trio', public_transport='platform'),
+            ],
+        )
+
+        ctx.osm.build_groups(atlas_uic_counts={'u_trio': 2})
+
+        assert ctx.osm.get_trio_representatives() == []
+        assert ctx.osm._group_representative == {'middle': 'side_near'}
+        assert ctx.osm._group_siblings['side_near'][0] == 'osm_pair_uic'
+        assert {entity.node_id for entity in ctx.osm.get_by_uic('u_trio')} == {'side_near', 'side_far'}

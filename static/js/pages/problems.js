@@ -1,6 +1,9 @@
 // problems.js - Main JavaScript for the Problem Identification Page
 
 $(document).ready(function () {
+    var headerSummaryFiltersExpanded = false;
+    var headerSummaryCollapsed = false;
+
     function setMainLayoutHeights() {
         const root = $('.problems-page-root');
         if (root.length === 0) return;
@@ -24,14 +27,11 @@ $(document).ready(function () {
             + (ProblemsState.getSelectedAtlasOperators() || []).length;
     }
 
-    function syncInlineClearAllVisibility() {
-        const clearBtn = $('#clearAllFilters');
-        if (!clearBtn.length) return;
-        if (getActiveProblemsFilterCount() > 0) {
-            clearBtn.removeClass('d-none');
-        } else {
-            clearBtn.addClass('d-none');
+    function isMobileViewport() {
+        if (window.MobileFilters && typeof window.MobileFilters.isMobileViewport === 'function') {
+            return window.MobileFilters.isMobileViewport();
         }
+        return window.matchMedia('(max-width: 768px)').matches;
     }
 
     function updateSummaryStats() {
@@ -45,33 +45,10 @@ $(document).ready(function () {
         );
     }
 
-    function updateSummaryFilterLabel() {
-        const count = getActiveProblemsFilterCount();
-        const label = $('#headerSummaryFiltersLabel');
-        const toggle = $('#headerSummaryFiltersToggle');
-        const panel = $('#headerSummaryFiltersPanel');
-        const row = $('#headerSummaryFiltersRow');
-        const icon = toggle.find('.header-summary__filters-toggle-icon');
-
-        if (!label.length || !toggle.length) return;
-
-        if (count === 1) {
-            row.removeClass('d-none');
-            label.text('Filters: 1 active');
-            toggle.prop('disabled', true);
-            icon.addClass('d-none');
-            panel.removeClass('d-none');
-        } else if (count > 1) {
-            row.removeClass('d-none');
-            label.text('Filters: ' + count + ' active');
-            toggle.prop('disabled', false);
-            icon.removeClass('d-none');
-        } else {
-            row.removeClass('d-none');
-            label.text('Filters: None (All entries)');
-            toggle.prop('disabled', true);
-            icon.addClass('d-none');
-            panel.addClass('d-none');
+    function applyHeaderSummaryLayoutState() {
+        headerSummaryCollapsed = isMobileViewport();
+        if (window.HeaderSummary && typeof window.HeaderSummary.setCollapsed === 'function') {
+            window.HeaderSummary.setCollapsed(headerSummaryCollapsed);
         }
     }
 
@@ -120,8 +97,12 @@ $(document).ready(function () {
             }
         });
         updateSummaryStats();
-        updateSummaryFilterLabel();
-        syncInlineClearAllVisibility();
+        if (window.HeaderSummary && typeof window.HeaderSummary.syncFilters === 'function') {
+            window.HeaderSummary.syncFilters({
+                activeFilterCount: getActiveProblemsFilterCount(),
+                expanded: headerSummaryFiltersExpanded
+            });
+        }
     }
 
     window.ProblemsPage = {
@@ -139,6 +120,10 @@ $(document).ready(function () {
                     toggleId: 'mobileFiltersToggleProblems',
                     isOpen: nextOpen
                 });
+            }
+            if (nextOpen && window.HeaderSummary && typeof window.HeaderSummary.setCollapsed === 'function') {
+                headerSummaryCollapsed = true;
+                window.HeaderSummary.setCollapsed(true);
             }
         });
 
@@ -163,14 +148,26 @@ $(document).ready(function () {
 
         $(document).on('click', '#headerSummaryFiltersToggle', function (e) {
             e.preventDefault();
-            const panel = $('#headerSummaryFiltersPanel');
-            if (!panel.length || $(this).prop('disabled')) return;
-
-            const nextExpanded = panel.hasClass('d-none');
-            panel.toggleClass('d-none', !nextExpanded);
-            $(this).attr('aria-expanded', nextExpanded ? 'true' : 'false');
+            if ($(this).prop('disabled')) return;
+            headerSummaryFiltersExpanded = !headerSummaryFiltersExpanded;
+            renderFiltersSummary();
         });
 
+        $(document).on('click', '#headerSummaryMobileToggle', function (e) {
+            e.preventDefault();
+            if (!isMobileViewport()) return;
+            if (window.MobileFilters && typeof window.MobileFilters.setMobileFiltersOpen === 'function') {
+                window.MobileFilters.setMobileFiltersOpen({
+                    overlaySelector: '.top-filters-overlay',
+                    toggleId: 'mobileFiltersToggleProblems',
+                    isOpen: false
+                });
+            }
+            headerSummaryCollapsed = !headerSummaryCollapsed;
+            if (window.HeaderSummary && typeof window.HeaderSummary.setCollapsed === 'function') {
+                window.HeaderSummary.setCollapsed(headerSummaryCollapsed);
+            }
+        });
     }
 
     ProblemsMap.initProblemMap();
@@ -186,6 +183,7 @@ $(document).ready(function () {
     });
 
     bindFilterEvents();
+    applyHeaderSummaryLayoutState();
 
     ProblemsData.initializeProblemTypeFilter();
     ProblemsData.fetchProblems();
@@ -199,6 +197,7 @@ $(document).ready(function () {
 
     $(window).on('resize', function () {
         setMainLayoutHeights();
+        applyHeaderSummaryLayoutState();
     });
 
     setTimeout(function () {
