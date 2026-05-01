@@ -319,7 +319,7 @@ function setHeaderSummaryFiltersExpanded(expanded) {
     if (!toggle.length || !panel.length) return;
 
     toggle.attr('aria-expanded', headerSummaryFiltersExpanded ? 'true' : 'false');
-    
+
     const activeFilterCount = getSharedActiveFilterCount();
     if (activeFilterCount === 1) {
         panel.removeClass('d-none');
@@ -619,7 +619,7 @@ function loadDataForViewport() {
                     var cachedStops = viewportDataCache.data || [];
                     var limit = params.limit;
                     var capped = (limit && cachedStops.length >= limit);
-                    
+
                     if (!hasAnyActiveFilter && !isLowZoom) {
                         if (!capped) {
                             showZoomBanner(false);
@@ -1562,10 +1562,10 @@ function updateHeaderSummary() {
 
         // Always show both lines if data is available, colorize percentages
         if (totalOSM > 0) {
-            summaryHtml += `<div><i class="fas fa-map-marker-alt"></i> ${totalOSM} OSM stops, <span style="color: ${MAIN_COLOR_OSM_MATCHED}; font-weight: bold;">${osmPercentage}% matched</span></div>`;
+            summaryHtml += `<div class="header-summary__stat"><img class="header-summary__stat-icon" src="/static/osm.svg" alt="OSM icon">${totalOSM} OSM stops, <span style="color: ${MAIN_COLOR_OSM_MATCHED}; font-weight: bold;">${osmPercentage}% matched</span></div>`;
         }
         if (totalATLAS > 0) {
-            summaryHtml += `<div><i class="fas fa-atlas"></i> ${totalATLAS} ATLAS stops, <span style="color: ${MAIN_COLOR_ATLAS_MATCHED}; font-weight: bold;">${atlasPercentage}% matched</span></div>`;
+            summaryHtml += `<div class="header-summary__stat"><img class="header-summary__stat-icon" src="/static/atlas.svg" alt="ATLAS icon">${totalATLAS} ATLAS stops, <span style="color: ${MAIN_COLOR_ATLAS_MATCHED}; font-weight: bold;">${atlasPercentage}% matched</span></div>`;
         }
 
         if (!summaryHtml) { // Fallback if both counts are zero for some reason based on filters
@@ -1576,7 +1576,7 @@ function updateHeaderSummary() {
         syncHeaderSummaryFilterToggle();
     }).fail(function () {
         if (mySeq !== currentGlobalStatsSeq) return;
-        
+
         statsContainer.html(`<div><small>Failed to load summary.</small></div>`);
         console.error("Failed to fetch global stats from server.");
         syncHeaderSummaryFilterToggle();
