@@ -107,6 +107,23 @@
   width: 100%;
 }
 
+.header-summary__stat {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.header-summary__stat+.header-summary__stat {
+  margin-top: var(--space-1);
+}
+
+.header-summary__stat-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  object-fit: contain;
+}
+
 .header-summary__mobile-title {
   font-size: var(--text-xs);
   font-weight: var(--font-semibold);
@@ -238,5 +255,3 @@
     flex-wrap: wrap;
   }
 }
-
-
