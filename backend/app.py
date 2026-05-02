@@ -37,6 +37,19 @@ def create_app():
     app.register_blueprint(docs_bp)
     app.register_blueprint(system_bp)
     app.register_blueprint(routes_bp)
+ 
+    @app.context_processor
+    def inject_stats_metadata():
+        from backend.services.stats_export import load_stats_from_file
+        from backend.services.pipeline_status import get_status
+
+        stats = load_stats_from_file() or {}
+        pipeline_status = get_status()
+        return {
+            'data_updated_at': pipeline_status.get('data_updated_at') or stats.get('data_updated_at'),
+            'stats_computed_at': stats.get('stats_computed_at') or stats.get('generated_at'),
+            'pipeline_next_run_at': pipeline_status.get('next_run_at'),
+        }
 
     @app.route('/')
     def index():

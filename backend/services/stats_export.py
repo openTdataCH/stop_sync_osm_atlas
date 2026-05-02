@@ -20,6 +20,8 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
+from backend.services.time_utils import get_zurich_now, format_zurich_timestamp
+ 
 logger = logging.getLogger(__name__)
 
 
@@ -31,6 +33,11 @@ STATS_FILE_PATH = os.path.join(
 STATS_SUMMARY_PDF_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
     'documentation', 'generated', 'stats_summary.pdf'
+)
+ 
+DATA_META_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    'data', 'data_meta.json'
 )
 
 
@@ -45,6 +52,56 @@ def get_report_css_content(css_files: List[str]) -> str:
         except Exception as e:
             logger.warning(f"Could not load CSS file {css_file} for PDF generation: {e}")
     return css_content
+
+
+def _compute_no_nearby_atlas_count(
+    matched_records: list,
+    unmatched_atlas: list,
+    unmatched_osm: list,
+    radius_m: float = 50.0,
+) -> int:
+    """Count unmatched OSM nodes with no ATLAS node within *radius_m* metres.
+
+    Builds a temporary KDTree of all ATLAS positions (matched + unmatched)
+    and queries each unmatched OSM node against it.
+    """
+    try:
+        from scipy.spatial import KDTree
+        from matching_and_import_db.utils.spatial_index import batch_to_xyz, to_xyz
+    except Exception:
+        return 0
+
+    atlas_coords = []
+    for rec in matched_records:
+        a = getattr(rec, 'atlas_node', None)
+        if a and getattr(a, 'lat', None) is not None:
+            atlas_coords.append((float(a.lat), float(a.lon)))
+    for node in unmatched_atlas:
+        lat, lon = getattr(node, 'lat', None), getattr(node, 'lon', None)
+        if lat is not None and lon is not None and not (lat == 0.0 and lon == 0.0):
+            atlas_coords.append((float(lat), float(lon)))
+
+    if not atlas_coords:
+        return len(unmatched_osm)
+
+    atlas_xyz = batch_to_xyz(atlas_coords)
+    tree = KDTree(atlas_xyz)
+
+    # Convert radius to unit-sphere chord distance
+    chord_r = 2 * math.sin(radius_m / (2 * 6_371_000))
+
+    no_nearby_count = 0
+    for node in unmatched_osm:
+        lat, lon = getattr(node, 'lat', None), getattr(node, 'lon', None)
+        if lat is None or lon is None:
+            no_nearby_count += 1
+            continue
+        xyz = to_xyz(float(lat), float(lon))
+        dist, _ = tree.query(xyz, k=1)
+        if dist > chord_r:
+            no_nearby_count += 1
+
+    return no_nearby_count
 
 
 def export_pipeline_stats(
@@ -63,6 +120,7 @@ def export_pipeline_stats(
     atlas_route_stats: Dict[str, int] = None,
     osm_route_stats: Dict[str, int] = None,
     osm_nodes_with_routes: set = None,
+    no_nearby_atlas_osm_ids: set = None,
     db_session=None,
 ) -> Dict[str, Any]:
     """
@@ -164,6 +222,16 @@ def export_pipeline_stats(
     )
     total_route_matches = route_gtfs_matches
     
+    # Compute "no ATLAS within 50m" for unmatched OSM nodes
+    if no_nearby_atlas_osm_ids is not None:
+        no_nearby_atlas_count = len(no_nearby_atlas_osm_ids)
+    else:
+        # Compute from scratch using a KDTree of all ATLAS positions
+        no_nearby_atlas_count = _compute_no_nearby_atlas_count(
+            matched_records, unmatched_atlas, unmatched_osm
+        )
+    osm_has_nearby_atlas = max(0, len(unmatched_osm) - no_nearby_atlas_count)
+
     # Unmatched OSM analysis matrix
     unmatched_osm_matrix = {
         "uic_only": 0,
@@ -292,10 +360,25 @@ def export_pipeline_stats(
     }
 
     
+    # Load data meta if available to get the actual data source update time
+    data_updated_at = None
+    if os.path.exists(DATA_META_PATH):
+        try:
+            with open(DATA_META_PATH, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+                data_updated_at = meta.get('data_updated_at')
+        except Exception as e:
+            logger.warning(f"Could not load data_meta.json: {e}")
+ 
+    zurich_now = get_zurich_now()
+    stats_computed_at = format_zurich_timestamp(zurich_now)
+ 
     # Build the stats object
     stats = {
-        "generated_at": datetime.utcnow().isoformat() + "Z",
-        "version": "1.0",
+        "generated_at": stats_computed_at,
+        "stats_computed_at": stats_computed_at,
+        "data_updated_at": data_updated_at,
+        "version": "1.1",
         
         # High-level summary (for overview)
         "summary": {
@@ -390,6 +473,8 @@ def export_pipeline_stats(
             },
             "osm": {
                 "total": total_unmatched_osm,
+                "no_atlas_within_50m": no_nearby_atlas_count,
+                "has_nearby_atlas": osm_has_nearby_atlas,
                 "matrix": unmatched_osm_matrix,
             }
         },
@@ -467,23 +552,33 @@ def _classify_match_type(match_type: str) -> str:
         return 'name'
     if match_type == 'distance_matching_trio':
         return 'distance_trio'
+    if match_type == 'distance_matching_1_uic_ref':
+        return 'distance_stage1_uic_ref'
+    if match_type == 'distance_matching_1_uic_name':
+        return 'distance_stage1_uic_name'
+    if match_type == 'distance_matching_1_name':
+        return 'distance_stage1_name'
     if match_type.startswith('distance_matching_1_'):
         return 'distance_stage1'
     if match_type == 'distance_matching_2':
         return 'distance_stage2'
     if match_type == 'distance_matching_3a':
-        return 'distance_stage3a'
+        return 'distance_stage3a_pass1'
     if match_type == 'distance_matching_3a_second_pass':
-        return 'distance_stage3a'
+        return 'distance_stage3a_pass2'
     if match_type == 'distance_matching_3b':
         return 'distance_stage3b'
     if 'gtfs' in match_type:
         return 'route_gtfs'
     if match_type.startswith('route_'):
         return 'route_gtfs'
-    if match_type in ('duplicate_propagation', 'osm_group_propagation', 'exact_postpass'):
-        return 'post_processing'
-    return 'post_processing'
+    if match_type == 'exact_postpass':
+        return 'post_unique_by_uic'
+    if match_type == 'duplicate_propagation':
+        return 'post_duplicate_propagation'
+    if match_type == 'osm_group_propagation':
+        return 'post_osm_group_propagation'
+    return 'other'
 
 
 def _distance_stats(distances: List[float]) -> Dict[str, Any]:

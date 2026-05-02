@@ -60,6 +60,16 @@ main {
   margin-bottom: var(--space-1);
 }
 
+.osm-pair-subfilters {
+  border-start: 2px solid rgba(59, 130, 246, 0.15);
+  margin-top: var(--space-1);
+  margin-bottom: var(--space-1);
+}
+
+.osm-pair-subfilters .form-check {
+  margin-bottom: var(--space-1);
+}
+
 /* -------------------------------------------------------------------------
    Smart Search Hint Tooltip
    ------------------------------------------------------------------------- */

@@ -428,15 +428,11 @@ def build_fast_insert_payloads(
 
         stop_idx += 1
 
-    # ---- 4. Route placeholder OSM nodes ----
+    # ---- 4. Synthetic OSM nodes referenced by route members ----
     route_artifacts = route_artifacts or {}
     all_route_data = route_artifacts.get('all_route_data')
     if all_route_data is None:
-        try:
-            _preloaded_osm_routes_df = pd.read_csv("data/processed/osm_nodes_with_routes.csv", low_memory=False)
-        except Exception:
-            _preloaded_osm_routes_df = None
-        all_route_data = load_all_route_data(osm_routes_df=_preloaded_osm_routes_df)
+        all_route_data = load_all_route_data()
 
     known_osm_node_ids = {d['osm_node_id'] for d in osm_node_dicts}
 
@@ -447,11 +443,11 @@ def build_fast_insert_payloads(
         for node_id in osm_data.get('nodes', [])
         if node_id
     }
-    placeholder_ids = sorted(route_node_ids - known_osm_node_ids)
-    if placeholder_ids:
-        for node_id in placeholder_ids:
+    synthetic_node_ids = sorted(route_node_ids - known_osm_node_ids)
+    if synthetic_node_ids:
+        for node_id in synthetic_node_ids:
             osm_node_dicts.append({'osm_node_id': node_id})
-        print(f"Prepared {len(placeholder_ids)} placeholder OSM nodes referenced by routes")
+        print(f"Prepared {len(synthetic_node_ids)} synthetic OSM nodes referenced by routes")
 
     # ---- 5. Route rows ----
     route_write_payload = route_artifacts.get('route_write_payload')
@@ -522,31 +518,17 @@ _BULK_BATCH = int(os.getenv('DB_IMPORT_BATCH_SIZE', '10000'))
 
 
 def import_to_database(
-    base_data: MatchingOutput | None = None,
-    problem_artifacts: dict | None = None,
-    route_artifacts: dict | None = None,
-    *,
     db_payloads: dict | None = None,
 ):
     """Fully refresh the database "Import DB".
 
-    When *db_payloads* is provided (the fast path from ``job_runner``), the
-    function performs only TRUNCATE + bulk INSERT with zero Python logic.
-
-    The legacy call-signature (passing ``base_data`` / ``problem_artifacts`` /
-    ``route_artifacts``) is still supported for backwards compatibility (e.g.
-    the ``if __name__ == '__main__'`` entry point) — it will build the payloads
-    inline before writing.
+    Expects precomputed payloads so the write phase stays focused on TRUNCATE
+    plus bulk INSERT work.
     """
     _ensure_import_schema_exists(session)
 
-    # ---- Legacy path: build payloads inline if not provided ----
     if db_payloads is None:
-        if base_data is None:
-            raise ValueError("Either db_payloads or base_data must be provided")
-        problem_artifacts = problem_artifacts or precompute_problem_artifacts(base_data)
-        route_artifacts = route_artifacts or precompute_route_artifacts(base_data)
-        db_payloads = build_fast_insert_payloads(base_data, problem_artifacts, route_artifacts)
+        raise ValueError("db_payloads must be provided")
 
     # ---- TRUNCATE all tables ----
     print("Truncating all database tables...")
@@ -843,9 +825,12 @@ if __name__ == "__main__":
 
     print("Running the final pipeline to obtain base data...")
     result = run_matching()
+    problem_artifacts = precompute_problem_artifacts(result)
+    route_artifacts = precompute_route_artifacts(result)
+    db_payloads = build_fast_insert_payloads(result, problem_artifacts, route_artifacts)
     
     print("Importing data into the database...")
-    no_nearby_sloids = import_to_database(result)
+    no_nearby_sloids = import_to_database(db_payloads=db_payloads)
 
     export_stats_after_import(result, result.duplicate_sloid_map, no_nearby_sloids)
     print("Process completed successfully!")

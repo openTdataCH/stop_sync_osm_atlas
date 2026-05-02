@@ -94,7 +94,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(stages.distance.count) }}</td>
           <td class="text-end">{{ "%.1f"|format(stages.distance.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stages.distance.mto|default(0)) }}</td>
-          <td class="text-end">-</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_trio', 0) + nmc_by_stage.get('distance_stage1_uic_ref', 0) + nmc_by_stage.get('distance_stage1_uic_name', 0) + nmc_by_stage.get('distance_stage1_name', 0) + nmc_by_stage.get('distance_stage1', 0) + nmc_by_stage.get('distance_stage2', 0) + nmc_by_stage.get('distance_stage3a_pass1', 0) + nmc_by_stage.get('distance_stage3a_pass2', 0) + nmc_by_stage.get('distance_stage3b', 0)) }}</td>
         </tr>
         {% set db = stages.distance.breakdown %}
         <tr class="text-muted">
@@ -109,7 +109,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(db.stage1_group) }}</td>
           <td class="text-end">{{ "%.1f"|format(db.stage1_group / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage1_group_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1', 0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_uic_ref', 0) + nmc_by_stage.get('distance_stage1_uic_name', 0) + nmc_by_stage.get('distance_stage1_name', 0) + nmc_by_stage.get('distance_stage1', 0)) }}</td>
         </tr>
         {% set stage1k = db.stage1_group_by_key if db.stage1_group_by_key is defined else {} %}
         {% if stage1k.uic_ref is defined and stage1k.uic_ref.count > 0 %}
@@ -118,7 +118,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(stage1k.uic_ref.count) }}</td>
           <td class="text-end">{{ "%.1f"|format(stage1k.uic_ref.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stage1k.uic_ref.mto|default(0)) }}</td>
-          <td class="text-end">-</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_uic_ref', 0)) }}</td>
         </tr>
         {% endif %}
         {% if stage1k.uic_name is defined and stage1k.uic_name.count > 0 %}
@@ -127,7 +127,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(stage1k.uic_name.count) }}</td>
           <td class="text-end">{{ "%.1f"|format(stage1k.uic_name.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stage1k.uic_name.mto|default(0)) }}</td>
-          <td class="text-end">-</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_uic_name', 0)) }}</td>
         </tr>
         {% endif %}
         {% if stage1k.name is defined and stage1k.name.count > 0 %}
@@ -136,7 +136,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(stage1k.name.count) }}</td>
           <td class="text-end">{{ "%.1f"|format(stage1k.name.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stage1k.name.mto|default(0)) }}</td>
-          <td class="text-end">-</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_name', 0)) }}</td>
         </tr>
         {% endif %}
         <tr class="text-muted">
@@ -151,7 +151,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(db.stage3a_single) }}</td>
           <td class="text-end">{{ "%.1f"|format(db.stage3a_single / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage3a_single_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a', 0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a_pass1', 0) + nmc_by_stage.get('distance_stage3a_pass2', 0)) }}</td>
         </tr>
         {% if (db.stage3a_single_pass1|default(0)) > 0 %}
         <tr class="text-muted">
@@ -159,7 +159,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass1|default(0)) }}</td>
           <td class="text-end">{{ "%.1f"|format((db.stage3a_single_pass1|default(0)) / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass1_mto|default(0)) }}</td>
-          <td class="text-end">-</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a_pass1', 0)) }}</td>
         </tr>
         {% endif %}
         {% if (db.stage3a_single_pass2|default(0)) > 0 %}
@@ -168,7 +168,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass2|default(0)) }}</td>
           <td class="text-end">{{ "%.1f"|format((db.stage3a_single_pass2|default(0)) / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass2_mto|default(0)) }}</td>
-          <td class="text-end">-</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a_pass2', 0)) }}</td>
         </tr>
         {% endif %}
         {% if (db.stage3b_relative|default(0)) > 0 %}
@@ -185,7 +185,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(stages.route.count) }}</td>
           <td class="text-end">{{ "%.1f"|format(stages.route.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stages.route.mto|default(0)) }}</td>
-          <td class="text-end">-</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
         </tr>
         {% set rb = stages.route.breakdown %}
         <tr class="text-muted">
@@ -200,7 +200,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(stages.post_processing.unique_by_uic) }}</td>
           <td class="text-end">{{ "%.1f"|format(stages.post_processing.unique_by_uic / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stages.post_processing.unique_by_uic_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('post_processing', 0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('post_unique_by_uic', 0)) }}</td>
         </tr>
         <tr>
           <td>Post-processing: ATLAS Duplicate propagation</td>
@@ -209,7 +209,7 @@ SECTION 1 — STOPS MATCHING
           </td>
           <td class="text-end">{{ "{:,}".format(stages.post_processing.duplicate_propagation_mto|default(0)) }}
           </td>
-          <td class="text-end">-</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('post_duplicate_propagation', 0)) }}</td>
         </tr>
         <tr>
           <td>Post-processing: OSM stop partner propagation</td>
@@ -219,7 +219,7 @@ SECTION 1 — STOPS MATCHING
           </td>
           <td class="text-end">{{ "{:,}".format(stages.post_processing.osm_group_propagation_mto|default(0)) }}
           </td>
-          <td class="text-end">-</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('post_osm_group_propagation', 0)) }}</td>
         </tr>
       </tbody>
     </table>
@@ -267,18 +267,26 @@ SECTION 1 — STOPS MATCHING
 
     {% if dq.by_stage %}
     <h6 class="mt-3 mb-2">Distance by Matching Stage</h6>
-    {% set stage_order = ['exact', 'name', 'distance_trio', 'distance_stage1', 'distance_stage2', 'distance_stage3a',
-    'distance_stage3b', 'route_gtfs', 'post_processing'] %}
+    {% set stage_order = ['exact', 'name', 'distance_trio', 'distance_stage1_uic_ref',
+    'distance_stage1_uic_name', 'distance_stage1_name', 'distance_stage1', 'distance_stage2',
+    'distance_stage3a_pass1', 'distance_stage3a_pass2', 'distance_stage3b', 'route_gtfs',
+    'post_unique_by_uic', 'post_duplicate_propagation', 'post_osm_group_propagation'] %}
     {% set stage_labels = {
     'exact': 'Exact (UIC ref)',
     'name': 'Name matching',
     'distance_trio': 'Distance Stage 0 (trio side)',
-    'distance_stage1': 'Distance Stage 1 (group proximity)',
+    'distance_stage1_uic_ref': 'Distance Stage 1a (UIC ref)',
+    'distance_stage1_uic_name': 'Distance Stage 1b (UIC name)',
+    'distance_stage1_name': 'Distance Stage 1c (Name)',
+    'distance_stage1': 'Distance Stage 1 (other)',
     'distance_stage2': 'Distance Stage 2 (local ref)',
-    'distance_stage3a': 'Distance Stage 3a (single candidate)',
+    'distance_stage3a_pass1': 'Distance Stage 3a pass 1 (single candidate)',
+    'distance_stage3a_pass2': 'Distance Stage 3a pass 2 (single candidate)',
     'distance_stage3b': 'Distance Stage 3b (ratio test)',
     'route_gtfs': 'Route matching (GTFS)',
-    'post_processing': 'Post-processing',
+    'post_unique_by_uic': 'Post: Unique by UIC',
+    'post_duplicate_propagation': 'Post: Duplicate propagation',
+    'post_osm_group_propagation': 'Post: OSM group propagation',
     } %}
     <table class="table table-sm table-hover">
       <thead class="thead-light">
@@ -633,38 +641,76 @@ SECTION 3 — UNMATCHED
       </div>
       <div class="col-md-6">
         <h6>Unmatched OSM ({{ "{:,}".format(ua.osm.total) }})</h6>
-        {% set mat = ua.osm.matrix if ua.osm.matrix is defined else {} %}
-        <table class="table table-sm table-bordered mt-2">
-          <thead class="thead-light">
-            <tr>
-              <th></th>
-              <th class="text-center">Has Routes</th>
-              <th class="text-center">No Routes</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th>UIC + Local Ref</th>
-              <td class="text-end">{{ "{:,}".format(mat.all_three|default(0)) }}</td>
-              <td class="text-end">{{ "{:,}".format(mat.uic_and_local|default(0)) }}</td>
-            </tr>
-            <tr>
-              <th>UIC Only</th>
-              <td class="text-end">{{ "{:,}".format(mat.uic_and_routes|default(0)) }}</td>
-              <td class="text-end">{{ "{:,}".format(mat.uic_only|default(0)) }}</td>
-            </tr>
-            <tr>
-              <th>Local Ref Only</th>
-              <td class="text-end">{{ "{:,}".format(mat.local_and_routes|default(0)) }}</td>
-              <td class="text-end">{{ "{:,}".format(mat.local_ref_only|default(0)) }}</td>
-            </tr>
-            <tr>
-              <th>Neither</th>
-              <td class="text-end">{{ "{:,}".format(mat.routes_only|default(0)) }}</td>
-              <td class="text-end">{{ "{:,}".format(mat.none|default(0)) }}</td>
-            </tr>
-          </tbody>
+        <table class="table table-sm">
+          <tr>
+            <td>No ATLAS within 50m</td>
+            <td class="text-end">{{ "{:,}".format(ua.osm.no_atlas_within_50m|default(0)) }}</td>
+          </tr>
+          <tr>
+            <td>Has nearby ATLAS</td>
+            <td class="text-end">{{ "{:,}".format(ua.osm.has_nearby_atlas|default(0)) }}</td>
+          </tr>
         </table>
+        {% set mat = ua.osm.matrix if ua.osm.matrix is defined else {} %}
+        <div class="accordion-item {% if is_pdf %}is-open{% endif %}" id="accordion-osm-attrs">
+          <button class="accordion-trigger" onclick="toggleAccordion('osm-attrs')"
+            aria-expanded="{% if is_pdf %}true{% else %}false{% endif %}" aria-controls="panel-osm-attrs">
+            <span class="accordion-trigger__left">
+              <span class="accordion-trigger__label">Attributes Analysis</span>
+            </span>
+            <span class="accordion-trigger__right">
+              <span class="accordion-chevron">
+                <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+              </span>
+            </span>
+          </button>
+          <div class="accordion-panel" id="panel-osm-attrs" {% if is_pdf %}style="max-height: none;"{% endif %}>
+            <div class="accordion-panel__inner">
+              <table class="table table-sm table-hover mb-0">
+                <thead class="thead-light">
+                  <tr>
+                    <th>Has Attributes</th>
+                    <th class="text-end">Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>UIC & Local Ref & Routes</td>
+                    <td class="text-end">{{ "{:,}".format(mat.all_three|default(0)) }}</td>
+                  </tr>
+                  <tr>
+                    <td>UIC & Local Ref</td>
+                    <td class="text-end">{{ "{:,}".format(mat.uic_and_local|default(0)) }}</td>
+                  </tr>
+                  <tr>
+                    <td>UIC & Routes</td>
+                    <td class="text-end">{{ "{:,}".format(mat.uic_and_routes|default(0)) }}</td>
+                  </tr>
+                  <tr>
+                    <td>Local Ref & Routes</td>
+                    <td class="text-end">{{ "{:,}".format(mat.local_and_routes|default(0)) }}</td>
+                  </tr>
+                  <tr>
+                    <td>UIC only</td>
+                    <td class="text-end">{{ "{:,}".format(mat.uic_only|default(0)) }}</td>
+                  </tr>
+                  <tr>
+                    <td>Local Ref only</td>
+                    <td class="text-end">{{ "{:,}".format(mat.local_ref_only|default(0)) }}</td>
+                  </tr>
+                  <tr>
+                    <td>Routes only</td>
+                    <td class="text-end">{{ "{:,}".format(mat.routes_only|default(0)) }}</td>
+                  </tr>
+                  <tr>
+                    <td>None</td>
+                    <td class="text-end">{{ "{:,}".format(mat.none|default(0)) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -860,7 +906,9 @@ SECTION 5 — PROBLEMS
           </span>
           <span class="accordion-trigger__right">
             <span class="accordion-trigger__count">{{ "{:,}".format(prio_total) }}</span>
-            <span class="accordion-chevron"></span>
+            <span class="accordion-chevron">
+              <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+            </span>
           </span>
         </button>
         <div class="accordion-panel" id="panel-{{ css_id }}" {% if is_pdf %}style="max-height: none;" {% endif %}>
@@ -951,7 +999,9 @@ SECTION 5 — PROBLEMS
           </span>
           <span class="accordion-trigger__right">
             <span class="accordion-trigger__count">{{ "{:,}".format(rprio_total) }}</span>
-            <span class="accordion-chevron"></span>
+            <span class="accordion-chevron">
+              <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+            </span>
           </span>
         </button>
         <div class="accordion-panel" id="panel-{{ css_id }}" {% if is_pdf %}style="max-height: none;" {% endif %}>
@@ -1093,66 +1143,182 @@ SECTION 6 — ROUTES
 
 {# GTFS stop_id → ATLAS sloid Mapping #}
 {% if gtfs_mapping_stats %}
+{% set gm = gtfs_mapping_stats %}
 <div class="card mb-4">
   <div class="card-header">
     <h5 class="mb-0">GTFS stop_id → ATLAS sloid Mapping</h5>
   </div>
   <div class="card-body">
+
+    {# ── Overview ── #}
     <div class="row mb-3">
       <div class="col-md-3 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.total_gtfs_stop_ids|default(0)) }}
-          </div>
+          <div class="stat-card__value">{{ "{:,}".format(gm.total_gtfs_stop_ids|default(0)) }}</div>
           <div class="stat-card__label">Total GTFS stop_ids</div>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm stat-card--success">
-          <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.matched_gtfs_stop_ids|default(0)) }}
-          </div>
-          <div class="stat-card__label">Matched GTFS stop_ids</div>
+          <div class="stat-card__value">{{ "{:,}".format(gm.matched_gtfs_stop_ids|default(0)) }}</div>
+          <div class="stat-card__label">Matched stop_ids</div>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm stat-card--warning">
-          <div class="stat-card__value">{{ "{:,}".format(gtfs_mapping_stats.unmatched_gtfs_stop_ids|default(0)) }}
-          </div>
-          <div class="stat-card__label">Unmatched GTFS stop_ids</div>
+          <div class="stat-card__value">{{ "{:,}".format(gm.unmatched_gtfs_stop_ids|default(0)) }}</div>
+          <div class="stat-card__label">Unmatched stop_ids</div>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm stat-card--primary">
-          <div class="stat-card__value">{{ gtfs_mapping_stats.gtfs_coverage_percent|default(0) }}%</div>
+          <div class="stat-card__value">{{ gm.gtfs_coverage_percent|default(0) }}%</div>
           <div class="stat-card__label">GTFS Coverage</div>
         </div>
       </div>
     </div>
 
-    <div class="row mb-3">
-      <div class="col-md-4 col-sm-6 mb-2"><strong>Algorithm:</strong> {{
-        gtfs_mapping_stats.algorithm_version|default('n/a') }}</div>
-      <div class="col-md-4 col-sm-6 mb-2"><strong>Strict assignments:</strong> {{
-        "{:,}".format(gtfs_mapping_stats.strict_assignments|default(0)) }}</div>
-      <div class="col-md-4 col-sm-12 mb-2"><strong>Unique-number fallback assignments:</strong> {{
-        "{:,}".format(gtfs_mapping_stats.unique_number_fallback_assignments|default(0)) }}</div>
+    <div class="row mb-4">
+      <div class="col-md-4 col-sm-6 mb-3">
+        <div class="stat-card stat-card--sm">
+          <div class="stat-card__value">{{ "{:,}".format(gm.total_atlas_sloids|default(0)) }}</div>
+          <div class="stat-card__label">Total ATLAS sloids</div>
+        </div>
+      </div>
+      <div class="col-md-4 col-sm-6 mb-3">
+        <div class="stat-card stat-card--sm stat-card--success">
+          <div class="stat-card__value">{{ "{:,}".format(gm.touched_atlas_sloids|default(0)) }}</div>
+          <div class="stat-card__label">Touched ATLAS sloids</div>
+        </div>
+      </div>
+      <div class="col-md-4 col-sm-6 mb-3">
+        <div class="stat-card stat-card--sm stat-card--primary">
+          <div class="stat-card__value">{{ gm.atlas_coverage_percent|default(0) }}%</div>
+          <div class="stat-card__label">ATLAS Coverage</div>
+        </div>
+      </div>
     </div>
 
-    <div class="row">
+    <hr>
+
+    {# ── Matching Paths ── #}
+    <h6 class="mb-3">Matching Paths</h6>
+    <p class="text-muted small mb-3">
+      GTFS stops are matched to ATLAS sloids in two successive passes.
+      The second path only considers stops not matched by the first.
+    </p>
+    <div class="row mb-4">
+      {# Path 1: Strict #}
       <div class="col-lg-6 mb-3">
-        <h6 class="mb-2">Cardinality (GTFS stop_id side)</h6>
-        <ul class="mb-0">
-          <li>1-to-1: {{ "{:,}".format(gtfs_mapping_stats.stop_to_sloid.one_to_one|default(0)) }}</li>
-          <li>1-to-many: {{ "{:,}".format(gtfs_mapping_stats.stop_to_sloid.one_to_many|default(0)) }}</li>
-        </ul>
+        <div class="card h-100">
+          <div class="card-header py-2">
+            <h6 class="mb-0">① Strict matching</h6>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small mb-2">
+              Matches on <code>(UIC number, local ref)</code> = <code>(number, designation)</code> in ATLAS.
+            </p>
+            <div class="stat-card stat-card--sm stat-card--success">
+              <div class="stat-card__value">{{ "{:,}".format(gm.strict_assignments|default(0)) }}</div>
+              <div class="stat-card__label">Assignments</div>
+            </div>
+          </div>
+        </div>
       </div>
+      {# Path 2: Unique-number fallback #}
       <div class="col-lg-6 mb-3">
-        <h6 class="mb-2">Cardinality (ATLAS sloid side)</h6>
-        <ul class="mb-0">
-          <li>1-to-1: {{ "{:,}".format(gtfs_mapping_stats.sloid_to_stop.one_to_one|default(0)) }}</li>
-          <li>many-to-1: {{ "{:,}".format(gtfs_mapping_stats.sloid_to_stop.many_to_one|default(0)) }}</li>
-        </ul>
+        <div class="card h-100">
+          <div class="card-header py-2">
+            <h6 class="mb-0">② Unique-number fallback</h6>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small mb-2">
+              For remaining stops: if a UIC number maps to exactly one ATLAS row, use that sloid.
+            </p>
+            <div class="stat-card stat-card--sm stat-card--success">
+              <div class="stat-card__value">{{ "{:,}".format(gm.unique_number_fallback_assignments|default(0)) }}</div>
+              <div class="stat-card__label">Assignments</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="stat-card stat-card--sm">
+          <div class="stat-card__value">{{ "{:,}".format(gm.total_assignments|default(0)) }}</div>
+          <div class="stat-card__label">Total assignments (both paths combined)</div>
+        </div>
+      </div>
+    </div>
+
+    <hr>
+
+    {# ── Cardinality ── #}
+    <h6 class="mb-3">Cardinality</h6>
+    <div class="row mb-4">
+      <div class="col-lg-6 mb-3">
+        <h6 class="text-muted small mb-2">GTFS stop_id side</h6>
+        <div class="row">
+          <div class="col-6">
+            <div class="stat-card stat-card--sm">
+              <div class="stat-card__value">{{ "{:,}".format(gm.stop_to_sloid.one_to_one|default(0)) }}</div>
+              <div class="stat-card__label">1 → 1</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="stat-card stat-card--sm stat-card--warning">
+              <div class="stat-card__value">{{ "{:,}".format(gm.stop_to_sloid.one_to_many|default(0)) }}</div>
+              <div class="stat-card__label">1 → many</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6 mb-3">
+        <h6 class="text-muted small mb-2">ATLAS sloid side</h6>
+        <div class="row">
+          <div class="col-6">
+            <div class="stat-card stat-card--sm">
+              <div class="stat-card__value">{{ "{:,}".format(gm.sloid_to_stop.one_to_one|default(0)) }}</div>
+              <div class="stat-card__label">1 → 1</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="stat-card stat-card--sm stat-card--warning">
+              <div class="stat-card__value">{{ "{:,}".format(gm.sloid_to_stop.many_to_one|default(0)) }}</div>
+              <div class="stat-card__label">many → 1</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Unmatched Reasons ── #}
+    {% if gm.unmatched_reasons is defined and gm.unmatched_reasons %}
+    {% set ur = gm.unmatched_reasons %}
+    <hr>
+    <h6 class="mb-3">Unmatched Reasons</h6>
+    <table class="table table-sm table-hover mb-0">
+      <thead class="thead-light">
+        <tr>
+          <th>Reason</th>
+          <th class="text-end">Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>No ATLAS candidate for this UIC number</td>
+          <td class="text-end">{{ "{:,}".format(ur.no_atlas_candidate_for_uic_number|default(0)) }}</td>
+        </tr>
+        <tr>
+          <td>Non-unique ATLAS number (strict miss, fallback not applicable)</td>
+          <td class="text-end">{{ "{:,}".format(ur.non_unique_atlas_number_after_strict_miss|default(0)) }}</td>
+        </tr>
+      </tbody>
+    </table>
+    {% endif %}
+
   </div>
 </div>
 {% endif %}

@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 import csv
 import os
+from typing import Optional
 
 
 # Create data directories
@@ -10,7 +11,27 @@ os.makedirs("data/raw", exist_ok=True)
 os.makedirs("data/processed", exist_ok=True)
 os.makedirs("data/debug", exist_ok=True)
 
-def query_overpass():
+OVERPASS_URL = os.getenv("OVERPASS_API_URL", "https://overpass-api.de/api/interpreter")
+OVERPASS_USER_AGENT = os.getenv(
+    "OVERPASS_USER_AGENT",
+    "stop-sync-osm-atlas/1.0 (+https://github.com/openTdataCH/stop_sync_osm_atlas)",
+)
+OVERPASS_HEADERS = {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Accept": "application/osm3s+xml, text/xml, application/xml;q=0.9, */*;q=0.1",
+    "User-Agent": OVERPASS_USER_AGENT,
+}
+
+
+def _raise_overpass_error(response: requests.Response) -> None:
+    preview = response.text[:400].replace("\n", " ").strip()
+    raise RuntimeError(
+        f"Overpass request failed ({response.status_code}) at {response.url}. "
+        f"Response preview: {preview}"
+    )
+
+
+def query_overpass(session: Optional[requests.Session] = None):
     """
     Queries the Overpass API for public transport nodes in Switzerland and 
     all routes that reference them. The result is saved to 'data/raw/osm_data.xml'.
@@ -45,24 +66,30 @@ def query_overpass():
         out meta;
         """
     print("Querying OpenStreetMap data...")
-    url = "http://overpass-api.de/api/interpreter"
-    response = requests.post(url, data={'data': query})
-    if response.status_code == 200:
-        response.encoding = 'utf-8'
-        # Save to organized data directory
-        with open("data/raw/osm_data.xml", "w", encoding="utf-8") as f:
-            f.write(response.text)
-        print("Raw OSM data saved to data/raw/osm_data.xml")
-        return response.text
-    else:
-        print("Error fetching OSM data:", response.status_code)
-        return None
+    client = session or requests
+    request_body = query.strip().encode("utf-8")
+    response = client.post(
+        OVERPASS_URL,
+        data=request_body,
+        headers=OVERPASS_HEADERS,
+        timeout=(30, 600),
+    )
+    if response.status_code != 200:
+        _raise_overpass_error(response)
+
+    response.encoding = 'utf-8'
+    # Save to organized data directory
+    os.makedirs("data/raw", exist_ok=True)
+    with open("data/raw/osm_data.xml", "w", encoding="utf-8") as f:
+        f.write(response.text)
+    print("Raw OSM data saved to data/raw/osm_data.xml")
+    return response.text
 
 def process_osm_routes_data(xml_data, out_dir="data/processed/"):
     import datetime
     run_id = datetime.date.today().isoformat()
 
-    print("Processing OSM data to new route entity CSVs...")
+    print("Processing OSM data to route entity CSVs...")
     root = ET.fromstring(xml_data)
 
     nodes = {}
@@ -175,8 +202,7 @@ def process_osm_routes_data(xml_data, out_dir="data/processed/"):
 
 def main():
     xml_data = query_overpass()
-    if xml_data:
-        process_osm_routes_data(xml_data, "data/processed/")
+    process_osm_routes_data(xml_data, "data/processed/")
 
 if __name__ == "__main__":
     main()

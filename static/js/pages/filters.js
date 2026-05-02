@@ -48,7 +48,7 @@ const ROUTE_METHOD_CHECKBOX_SELECTORS = [
     '#routeMethodGtfs'
 ];
 
-let isBulkCheckboxSyncInProgress = false;
+let isBulkCheckboxSyncDepth = 0;
 
 function areAllFilterSelectorsChecked(selectors) {
     return selectors.length > 0 && selectors.every(function (selector) {
@@ -598,7 +598,7 @@ function clearAllFilters() {
     $('.filter-unmatched-method').prop('checked', false);
     $('.filter-transport-type').prop('checked', false);
     $('.filter-osm-entity-type').prop('checked', false);
-    $('.filter-osm-group, .filter-osm-group-type').prop('checked', false);
+    $('.filter-osm-group, .filter-osm-pair-master, .filter-osm-group-type').prop('checked', false);
 
     // Clear array-based filters
     activeFilters.station = [];
@@ -771,11 +771,11 @@ function setupMasterCheckbox(masterCheckboxSelector, childCheckboxSelector) {
 
     // Master controls children
     masterCheckbox.on('change', function () {
-        isBulkCheckboxSyncInProgress = true;
+        isBulkCheckboxSyncDepth++;
         try {
             childCheckboxes.prop('checked', $(this).is(':checked')).trigger('change'); // Trigger child listeners while suppressing expensive bulk reloads
         } finally {
-            isBulkCheckboxSyncInProgress = false;
+            isBulkCheckboxSyncDepth--;
         }
     });
 
@@ -970,13 +970,14 @@ function initFilterEventHandlers() {
     setupMasterCheckbox('#masterUnmatchedAtlasCheckbox', '.filter-unmatched-method');
     setupMasterCheckbox('#masterDistanceMatchingCheckbox', '.filter-distance-method');
     setupMasterCheckbox('#masterRouteMatchingCheckbox', '.filter-route-method');
-    setupMasterCheckbox('#filterOsmGroup', '.filter-osm-group-type');
+    setupMasterCheckbox('#filterOsmPairMaster', '.filter-osm-pair-type');
+    setupMasterCheckbox('#filterOsmGroup', '.filter-osm-group-type, #filterOsmPairMaster');
     // "All Matched" controls all matched method checkboxes (Exact, Name, Distance stages, Route methods)
     setupMasterCheckbox('#masterMatchedCheckbox', '.filter-match-method, .filter-distance-method, .filter-route-method');
 
     // Attach change handlers to filter checkboxes and input elements.
-    $('.master-filter-checkbox, .visibility-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-entity-type, .filter-osm-group, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox').on('change', function () {
-        if (isBulkCheckboxSyncInProgress) {
+    $('.master-filter-checkbox, .visibility-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-entity-type, .filter-osm-group, .filter-osm-pair-master, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox').on('change', function () {
+        if (isBulkCheckboxSyncDepth > 0) {
             return;
         }
         updateActiveFilters();

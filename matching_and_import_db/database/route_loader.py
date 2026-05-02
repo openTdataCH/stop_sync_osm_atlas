@@ -31,7 +31,7 @@ def _to_int(value: Any, default: int = 0) -> int:
     except (TypeError, ValueError):
         return default
 
-def load_all_route_data(osm_routes_df: pd.DataFrame = None) -> Dict[str, pd.DataFrame]:
+def load_all_route_data() -> Dict[str, pd.DataFrame]:
     """Load the entity-first route CSVs."""
     data = {}
     try:
@@ -167,7 +167,7 @@ def build_route_write_payload(all_route_data: Dict[str, pd.DataFrame], known_slo
             'osm_route_id': osm_rel_id,
             'match_type': 'matched',
             'match_confidence': 1.0,
-            'match_reason': 'RouteState equivalency'
+            'match_reason': 'RouteState match'
         })
         matched_routes += 1
 

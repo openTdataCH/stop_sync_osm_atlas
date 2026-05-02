@@ -117,21 +117,15 @@ def _docs_pdf_path() -> str:
     return os.path.join(_repo_root(), 'documentation', 'generated', 'stop_sync_osm_atlas_documentation.pdf')
 
 
-def _docs_pdf_legacy_path() -> str:
-    return os.path.join(_repo_root(), 'documentation', 'generated', 'doc_to_print.pdf')
-
-
-def _first_existing_docs_pdf() -> Optional[str]:
-    for path in (_docs_pdf_path(), _docs_pdf_legacy_path()):
-        if os.path.exists(path):
-            return path
-    return None
+def _existing_docs_pdf_path() -> Optional[str]:
+    path = _docs_pdf_path()
+    return path if os.path.exists(path) else None
 
 
 def ensure_docs_pdf_generated() -> bool:
     """Ensure the docs PDF exists and is fresh relative to its sources."""
     pdf_path = _docs_pdf_path()
-    fallback_pdf = _first_existing_docs_pdf()
+    existing_pdf = _existing_docs_pdf_path()
     docs_dir = _get_docs_dir()
     stats_path = os.path.normpath(os.path.join(_repo_root(), 'data', 'stats.json'))
     
@@ -184,17 +178,12 @@ def ensure_docs_pdf_generated() -> bool:
             result.returncode,
             (result.stderr or '').strip()[-1000:],
         )
-        if fallback_pdf:
-            logger.warning("Using existing docs PDF at %s", fallback_pdf)
+        if existing_pdf:
+            logger.warning("Using existing docs PDF at %s", existing_pdf)
             return True
         return False
 
     if os.path.exists(pdf_path):
-        return True
-
-    fallback_pdf = _first_existing_docs_pdf()
-    if fallback_pdf:
-        logger.warning("Using fallback docs PDF at %s", fallback_pdf)
         return True
 
     return False
@@ -752,7 +741,7 @@ def _background_docs_pdf(flask_app, task_id, included_sections, include_cover):
             # Caching check if "All sections" are selected
             if not included_sections:
                 if ensure_docs_pdf_generated():
-                    cached_path = _first_existing_docs_pdf()
+                    cached_path = _existing_docs_pdf_path()
                     if cached_path:
                         filename = f"docs_manual_{task_id[:8]}.pdf"
                         temp_dir = tempfile.gettempdir()

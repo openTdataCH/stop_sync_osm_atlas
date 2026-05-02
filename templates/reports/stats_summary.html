@@ -8,8 +8,11 @@
         <p class="mb-0">Synchronization Statistics Summary</p>
     </div>
     <div class="meta">
-        <div>Generated: {{ generated_at.strftime('%Y-%m-%d %H:%M') }}</div>
-        <div>Data Updated: {{ stats.generated_at[:10] }} {{ stats.generated_at[11:16] }}</div>
+        <div>Report Generated: {{ generated_at.strftime('%Y-%m-%d %H:%M') }}</div>
+        {% if stats.data_updated_at %}
+        <div>Data Source Updated: {{ stats.data_updated_at[:10] }} {{ stats.data_updated_at[11:16] }}</div>
+        {% endif %}
+        <div>Stats Computed: {{ stats.stats_computed_at[:10] }} {{ stats.stats_computed_at[11:16] }}</div>
     </div>
 {% endblock %}
 
