@@ -1,18 +1,6 @@
 from backend.extensions import db
 from backend.query_builder import QueryBuilder
 
-
-# Backward-compatibility aliases for older frontend filter parameter names.
-# TODO: Remove after all clients have migrated to `osm_pair_*` names.
-LEGACY_OSM_GROUP_TYPE_MAP = {
-    'osm_group_uic': 'osm_pair_uic',
-    'osm_group_name': 'osm_pair_name',
-    'osm_group_tram': 'osm_pair_tram',
-    'osm_group_uic_equal': 'osm_pair_uic_equal_15m',
-    'osm_group_name_equal': 'osm_pair_name_equal_15m',
-    'osm_group_tram_equal': 'osm_pair_tram_equal_15m',
-}
-
 _query_builder_instance = None
 
 
@@ -202,9 +190,11 @@ def parse_filter_params(request_args):
         filters['route_directions'] = [rd.strip() for rd in route_directions_str.split(',') if rd.strip()] if route_directions_str else []
     osm_group_types_str = request_args.get('osm_group_types')
     if osm_group_types_str is not None:
-        normalized_group_types = []
-        for group_type in [group_type.strip() for group_type in osm_group_types_str.split(',') if group_type.strip()]:
-            normalized_group_types.append(LEGACY_OSM_GROUP_TYPE_MAP.get(group_type, group_type))
+        normalized_group_types = [
+            group_type.strip()
+            for group_type in osm_group_types_str.split(',')
+            if group_type.strip()
+        ]
         if 'all' in normalized_group_types:
             filters['osm_group_types'] = []
         elif normalized_group_types:

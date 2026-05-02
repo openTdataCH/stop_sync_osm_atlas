@@ -57,14 +57,6 @@ def get_osm_node_type(rec, is_osm_unmatched=False):
         return 'platform'
     return None
 
-
-def ensure_schema_updated():
-    """Deprecated no-op kept for backward compatibility.
-
-    Schema migration is now handled by the dedicated migrator service/container.
-    """
-    return None
-
 def validate_coordinates(rec, lat_key, lon_key, id_key, id_value, record_type):
     """Validate and extract coordinates from a record."""
     try:

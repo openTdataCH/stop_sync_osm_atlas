@@ -120,7 +120,7 @@ During import, the UI shows a global maintenance popup. Downloading and matching
 Docker Compose now runs five primary services:
 
 - `app`: Flask web app and API.
-- `scheduler`: Dedicated background worker that runs the daily pipeline at 2:00 (`PIPELINE_TIMEZONE`, default `Europe/Zurich`).
+- `scheduler`: Dedicated background worker that runs the recurring pipeline on a configurable hour interval (`PIPELINE_TIMEZONE`, default `Europe/Zurich`).
 - `db`: Postgres + PostGIS import database.
 - `redis`: Shared cache/rate-limit and pipeline status/lock storage.
 - `migrator`: One-shot startup service that runs `flask db upgrade` before `app` and `scheduler`.
@@ -129,7 +129,7 @@ For local test execution, there is also a dedicated `test` service/image with bo
 
 Scheduler behavior:
 
-- Uses APScheduler cron trigger (`PIPELINE_SCHEDULE_HOUR`, `PIPELINE_SCHEDULE_MINUTE`).
+- Uses APScheduler interval trigger (`PIPELINE_SCHEDULE_INTERVAL_HOURS`).
 - Publishes run status to `/api/system/pipeline_status`.
 - Sets maintenance mode only for the import phase so the UI can show "Data update in progress" with elapsed/ETA.
 - Uses a distributed lock to prevent concurrent runs.
@@ -143,7 +143,7 @@ If you have VS Code installed, we have provided built-in tasks to quickly run co
    - **`Docker: Run All Tests`**: Executes the `pytest` suite.
     - **`Docker: Run Matching & Import (Existing Data)`**: Runs matching + import on already downloaded files through the scheduler runner.
     - **`Docker: Run Full Data Pipeline (Download & Match & Import)`**: Runs full download + matching + import through the scheduler runner.
-    - **`Docker: Trigger Scheduled Pipeline Now`**: Fires a full manual run equivalent to the scheduled daily run.
+    - **`Docker: Trigger Scheduled Pipeline Now`**: Fires a full manual run equivalent to the recurring scheduled run.
 
 You can do this while the `app` container is running in the background.
 

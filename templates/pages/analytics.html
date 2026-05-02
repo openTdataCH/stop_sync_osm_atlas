@@ -52,7 +52,7 @@
           
           {% if stats %}
           <div class="text-muted small">
-            <i class="far fa-clock me-1"></i> Data updated: {{ stats.generated_at[:10] }} {{ stats.generated_at[11:16] }}
+            <i class="far fa-clock me-1"></i> Stats computed: {{ stats.stats_computed_at[:10] }} {{ stats.stats_computed_at[11:16] }}
           </div>
           {% endif %}
         </div>

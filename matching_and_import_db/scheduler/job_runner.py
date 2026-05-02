@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+import json
 import logging
 import os
 import subprocess
@@ -15,9 +16,11 @@ from backend.services.pipeline_status import (
     finish_success,
     refresh_run_lock,
     release_run_lock,
+    set_data_updated,
     set_phase,
     start_run,
 )
+from backend.services.time_utils import format_zurich_timestamp, get_zurich_now
 from matching_and_import_db.database.importer import (
     build_fast_insert_payloads,
     export_stats_after_import,
@@ -35,6 +38,7 @@ LOCK_TTL_SECONDS = int(os.getenv("PIPELINE_LOCK_TTL_SECONDS", "14400"))
 LOCK_HEARTBEAT_SECONDS = int(
     os.getenv("PIPELINE_LOCK_HEARTBEAT_SECONDS", str(max(5, min(60, LOCK_TTL_SECONDS // 4))))
 )
+DATA_META_PATH = os.path.join("data", "data_meta.json")
 
 
 @contextlib.contextmanager
@@ -83,6 +87,16 @@ def _run_subprocess(command: list[str], phase: str, message: str, maintenance: b
         completed = subprocess.run(command, check=False, env=env)
     if completed.returncode != 0:
         raise RuntimeError(f"Command failed ({completed.returncode}): {' '.join(command)}")
+
+
+def _record_data_updated_timestamp() -> str:
+    data_updated_at = format_zurich_timestamp(get_zurich_now())
+    os.makedirs(os.path.dirname(DATA_META_PATH), exist_ok=True)
+    with open(DATA_META_PATH, "w", encoding="utf-8") as handle:
+        json.dump({"data_updated_at": data_updated_at}, handle)
+    set_data_updated(data_updated_at)
+    LOGGER.info("Data update timestamp saved: %s", data_updated_at)
+    return data_updated_at
 
 
 def _run_matching_and_import(lock_token: str) -> None:
@@ -138,6 +152,9 @@ def _run_matching_and_import(lock_token: str) -> None:
     )
     with _timed_step("import"):
         no_nearby_sloids = import_to_database(db_payloads=db_payloads)
+    refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
+
+    _record_data_updated_timestamp()
     refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
 
     set_phase(

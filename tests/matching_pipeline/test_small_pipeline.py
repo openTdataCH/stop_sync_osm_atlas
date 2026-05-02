@@ -66,10 +66,6 @@ def setup_test_env_and_db():
     sqlite_base.SQLiteDialect.do_execute = mock_do_execute
 
     
-    # Mock Alembic schema updater
-    orig_ensure_schema_updated = db_helpers.ensure_schema_updated
-    db_helpers.ensure_schema_updated = lambda: None
-
     # Mock PostGIS/EWKT geometry generation in the importer
     orig_make_point_wkt = getattr(importer_mod, '_make_point_wkt', None)
     importer_mod._make_point_wkt = lambda lat, lon: None
@@ -96,7 +92,6 @@ def setup_test_env_and_db():
         pass
     # Now restore all mocks
     sqlite_base.SQLiteDialect.do_execute = orig_do_execute
-    db_helpers.ensure_schema_updated = orig_ensure_schema_updated
     db_helpers.make_point_geom = orig_make_point_geom
     if orig_make_point_wkt is not None:
         importer_mod._make_point_wkt = orig_make_point_wkt
@@ -120,7 +115,12 @@ def test_small_pipeline_end_to_end():
     - Database Hydration (importer.py)
     """
     from matching_and_import_db.orchestrator import run_matching
-    from matching_and_import_db.database.importer import import_to_database
+    from matching_and_import_db.database.importer import (
+        build_fast_insert_payloads,
+        import_to_database,
+        precompute_problem_artifacts,
+        precompute_route_artifacts,
+    )
     from matching_and_import_db.database.session import session
     
     # 1. Run the heuristics engine on the sample data
@@ -139,8 +139,11 @@ def test_small_pipeline_end_to_end():
     assert match_rate >= 0.50, f"Match rate too low: {match_rate:.0%}"
     assert match_rate <= 1.00, f"Match rate too high: {match_rate:.0%}"
 
-    # 2. Database Insertion (Execute the data-first importer)
-    no_nearby_sloids = import_to_database(result)
+    # 2. Database Insertion (Execute the payload-first importer)
+    problem_artifacts = precompute_problem_artifacts(result)
+    route_artifacts = precompute_route_artifacts(result)
+    db_payloads = build_fast_insert_payloads(result, problem_artifacts, route_artifacts)
+    no_nearby_sloids = import_to_database(db_payloads=db_payloads)
     
     # 3. Verify Database State
     matched_db_count = session.query(StopsMatched).filter(StopsMatched.stop_type == 'matched').count()

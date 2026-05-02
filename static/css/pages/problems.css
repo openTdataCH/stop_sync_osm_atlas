@@ -250,7 +250,9 @@
   height: 24px;
   padding: 0 0.75rem;
   border-radius: var(--radius-full, 999px);
-  background: var(--color-white, #ffffff);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   color: var(--color-fg, #1e293b);
   border: 1px solid rgba(15, 23, 42, 0.12);
   font-size: 0.7rem;
@@ -289,10 +291,29 @@
 .problem-section-item {
   margin-bottom: var(--space-4);
   padding: var(--space-3);
-  background: var(--color-white);
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-radius: var(--radius-lg);
-  border: 1px solid rgba(15, 23, 42, 0.05);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow: var(--shadow-sm);
+}
+
+.problem-section-item .alert {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.problem-section-item .alert-info {
+  background-color: rgba(238, 243, 251, 0.6) !important;
+}
+
+.problem-section-item .alert-danger {
+  background-color: rgba(254, 242, 242, 0.6) !important;
+}
+
+.problem-section-item .alert-warning {
+  background-color: rgba(255, 251, 235, 0.6) !important;
 }
 
 .problem-section-item h6 {

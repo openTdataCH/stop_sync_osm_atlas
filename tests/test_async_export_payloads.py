@@ -133,3 +133,12 @@ def test_docs_payload_parsing_helpers():
     assert docs_blueprint._to_bool('false') is False
     assert docs_blueprint._to_bool('true') is True
     assert docs_blueprint._to_bool(None, default=True) is True
+
+
+def test_existing_docs_pdf_path_uses_canonical_output(monkeypatch):
+    canonical_path = '/tmp/stop_sync_osm_atlas_documentation.pdf'
+
+    monkeypatch.setattr(docs_blueprint, '_docs_pdf_path', lambda: canonical_path)
+    monkeypatch.setattr(docs_blueprint.os.path, 'exists', lambda path: path == canonical_path)
+
+    assert docs_blueprint._existing_docs_pdf_path() == canonical_path

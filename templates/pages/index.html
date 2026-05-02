@@ -133,39 +133,45 @@
                 </div>
                 <div class="osm-group-subfilters mt-2 ps-3 border-start">
                   <div class="form-check">
-                    <input type="checkbox" class="filter-osm-group-type form-check-input" id="filterOsmGroupUic"
-                        value="osm_pair_uic">
-                      <label class="form-check-label" for="filterOsmGroupUic">UIC-based pairs</label>
-                  </div>
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-osm-group-type form-check-input" id="filterOsmGroupUicEqual"
-                        value="osm_pair_uic_equal_15m">
-                      <label class="form-check-label" for="filterOsmGroupUicEqual">UIC perfect-count pairs (15m)</label>
-                  </div>
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-osm-group-type form-check-input" id="filterOsmGroupName"
-                        value="osm_pair_name">
-                      <label class="form-check-label" for="filterOsmGroupName">Name-based pairs</label>
-                  </div>
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-osm-group-type form-check-input" id="filterOsmGroupNameEqual"
-                        value="osm_pair_name_equal_15m">
-                      <label class="form-check-label" for="filterOsmGroupNameEqual">Name perfect-count pairs (15m)</label>
-                  </div>
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-osm-group-type form-check-input" id="filterOsmGroupTram"
-                        value="osm_pair_tram">
-                      <label class="form-check-label" for="filterOsmGroupTram">Tram pairs</label>
-                    </div>
-                    <div class="form-check">
-                      <input type="checkbox" class="filter-osm-group-type form-check-input" id="filterOsmGroupTramEqual"
-                        value="osm_pair_tram_equal_15m">
-                      <label class="form-check-label" for="filterOsmGroupTramEqual">Tram perfect-count pairs (15m)</label>
-                    </div>
-                    <div class="form-check">
-                      <input type="checkbox" class="filter-osm-group-type form-check-input" id="filterOsmTrio"
+                    <input type="checkbox" class="filter-osm-group-type form-check-input" id="filterOsmTrio"
                         value="osm_trio">
-                      <label class="form-check-label" for="filterOsmTrio">OSM Trio</label>
+                    <label class="form-check-label" for="filterOsmTrio">OSM Trios</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" class="filter-osm-pair-master form-check-input" id="filterOsmPairMaster">
+                    <label class="form-check-label fw-semibold" for="filterOsmPairMaster">OSM Pairs</label>
+                  </div>
+                  <div class="osm-pair-subfilters ps-3 border-start">
+                    <div class="form-check">
+                      <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupUic"
+                          value="osm_pair_uic">
+                      <label class="form-check-label" for="filterOsmGroupUic">UIC-based</label>
+                    </div>
+                    <div class="form-check">
+                      <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupUicEqual"
+                          value="osm_pair_uic_equal_15m">
+                      <label class="form-check-label" for="filterOsmGroupUicEqual">UIC perfect-count (15m)</label>
+                    </div>
+                    <div class="form-check">
+                      <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupName"
+                          value="osm_pair_name">
+                      <label class="form-check-label" for="filterOsmGroupName">Name-based</label>
+                    </div>
+                    <div class="form-check">
+                      <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupNameEqual"
+                          value="osm_pair_name_equal_15m">
+                      <label class="form-check-label" for="filterOsmGroupNameEqual">Name perfect-count (15m)</label>
+                    </div>
+                    <div class="form-check">
+                      <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupTram"
+                          value="osm_pair_tram">
+                      <label class="form-check-label" for="filterOsmGroupTram">Tram-based</label>
+                    </div>
+                    <div class="form-check">
+                      <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupTramEqual"
+                          value="osm_pair_tram_equal_15m">
+                      <label class="form-check-label" for="filterOsmGroupTramEqual">Tram perfect-count (15m)</label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -359,7 +365,7 @@
     </div>
   </div>
 
-  <!-- New Report Configuration Modal -->
+  <!-- Report Configuration Modal -->
   <div class="modal fade" id="reportModal" tabindex="-1" role="dialog" aria-labelledby="reportModalLabel"
     aria-hidden="true">
     <div class="modal-dialog" role="document">

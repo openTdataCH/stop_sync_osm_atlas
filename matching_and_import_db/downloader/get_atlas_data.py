@@ -154,7 +154,7 @@ def write_atlas_route_csvs(
     integrated_gtfs_data: Optional[pd.DataFrame] = None,
     out_dir: str = "data/processed/"
 ):
-    """Create new entity-first GTFS route mappings without intermediate files."""
+    """Create entity-first GTFS route mappings without intermediate files."""
     _ensure_parent_dir(os.path.join(out_dir, "dummy"))
     integrated_data = _resolve_integrated_gtfs_data(gtfs_data, traffic_points, integrated_gtfs_data)
     if integrated_gtfs_data is not None:
@@ -169,7 +169,7 @@ def write_atlas_route_csvs(
     # Extract distinct routes
     routes_df = integrated_data[['route_id', 'agency_id', 'route_short_name', 'route_long_name', 'route_desc', 'route_type']].drop_duplicates(subset=['route_id'])
     routes_df['route_id_normalized'] = routes_df['route_id'].apply(lambda x: _normalize_route_id_for_matching(str(x)) if pd.notna(x) else None)
-    # Add dummy run_id
+    # Record the pipeline run date on each emitted route row.
     routes_df['run_id'] = datetime.date.today().isoformat()
     routes_out = os.path.join(out_dir, "atlas_routes.csv")
     routes_df.to_csv(routes_out, index=False)
@@ -185,11 +185,11 @@ def write_atlas_route_csvs(
     directions_df[['route_id', 'direction_id', 'representative_headsign', 'direction_label', 'trip_count']].to_csv(directions_out, index=False)
     print(f"GTFS directions: wrote {len(directions_df):,} rows to {directions_out}")
 
-    # Extract ordered stops per route-direction (we don't have stop_sequence from integrated_data, so we assign 0 or synthetic sequence)
+    # Extract ordered stops per route-direction using the integrated row order.
     stops_df = integrated_data[['route_id', 'direction_id', 'sloid', 'stop_id']].copy()
     stops_df['direction_id'] = stops_df['direction_id'].apply(_safe_direction_id)
     stops_df['stop_sequence'] = stops_df.groupby(['route_id', 'direction_id']).cumcount()
-    stops_df['mapping_method'] = 'fallback' # Placeholder
+    stops_df['mapping_method'] = 'integrated_order'
     stops_out = os.path.join(out_dir, "atlas_route_stops.csv")
     stops_df.to_csv(stops_out, index=False)
     print(f"GTFS route stops: wrote {len(stops_df):,} rows to {stops_out}")

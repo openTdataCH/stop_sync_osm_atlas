@@ -37,7 +37,32 @@
       </ul>
 
       <!-- Right side items -->
-      <ul class="navbar-nav">
+      <ul class="navbar-nav align-items-center">
+        {% if data_updated_at %}
+        <li class="nav-item">
+          <span
+            id="navbarDataUpdated"
+            class="navbar-text text-muted small me-3"
+            data-pipeline-next-run-at="{{ pipeline_next_run_at or '' }}"
+            data-data-updated-at="{{ data_updated_at or '' }}"
+            data-default-label="Data updated: {{ data_updated_at[:10] }} {{ data_updated_at[11:16] }}"
+            data-running-label="Pipeline running in the background"
+            tabindex="0">
+            <button
+              type="button"
+              id="navbarNextRunInfo"
+              class="btn btn-link btn-sm text-muted text-decoration-none p-0 border-0 me-1 align-baseline"
+              aria-label="Next pipeline run information"
+              data-bs-toggle="tooltip"
+              data-bs-trigger="hover focus"
+              data-bs-placement="bottom"
+              {% if pipeline_next_run_at %}title="Next pipeline run: {{ pipeline_next_run_at[:10] }} {{ pipeline_next_run_at[11:16] }}"{% else %}hidden{% endif %}>
+              <i class="fas fa-info-circle"></i>
+            </button>
+            <span id="navbarDataUpdatedText">Data updated: {{ data_updated_at[:10] }} {{ data_updated_at[11:16] }}</span>
+          </span>
+        </li>
+        {% endif %}
       </ul>
     </div>
   </div>

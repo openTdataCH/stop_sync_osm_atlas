@@ -3,9 +3,11 @@ import os
 import signal
 import sys
 from datetime import timezone
+from typing import Optional
 
+from apscheduler.events import EVENT_SCHEDULER_STARTED
 from apscheduler.schedulers.blocking import BlockingScheduler
-from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from backend.services.pipeline_status import set_next_run, set_status
 from matching_and_import_db.scheduler.job_runner import run_pipeline
@@ -13,10 +15,25 @@ from matching_and_import_db.scheduler.job_runner import run_pipeline
 LOGGER = logging.getLogger(__name__)
 LOG_LEVEL = os.getenv("PIPELINE_LOG_LEVEL", "INFO").upper()
 PIPELINE_TIMEZONE = os.getenv("PIPELINE_TIMEZONE", "Europe/Zurich")
-PIPELINE_SCHEDULE_HOUR = int(os.getenv("PIPELINE_SCHEDULE_HOUR", "2"))
-PIPELINE_SCHEDULE_MINUTE = int(os.getenv("PIPELINE_SCHEDULE_MINUTE", "0"))
+
+
+def _load_schedule_interval_hours() -> int:
+    interval_hours = int(os.getenv("PIPELINE_SCHEDULE_INTERVAL_HOURS", "24"))
+    if interval_hours < 1:
+        raise ValueError("PIPELINE_SCHEDULE_INTERVAL_HOURS must be >= 1")
+    return interval_hours
+
+
+PIPELINE_SCHEDULE_INTERVAL_HOURS = _load_schedule_interval_hours()
 
 scheduler = BlockingScheduler(timezone=PIPELINE_TIMEZONE)
+
+
+def _create_interval_trigger(interval_hours: Optional[int] = None) -> IntervalTrigger:
+    return IntervalTrigger(
+        hours=interval_hours or PIPELINE_SCHEDULE_INTERVAL_HOURS,
+        timezone=PIPELINE_TIMEZONE,
+    )
 
 
 def _update_next_run_timestamp() -> None:
@@ -40,6 +57,10 @@ def _update_next_run_timestamp() -> None:
 def _scheduled_job() -> None:
     _update_next_run_timestamp()
     run_pipeline(mode="full", trigger="scheduled")
+    _update_next_run_timestamp()
+
+
+def _handle_scheduler_started(_event=None) -> None:
     _update_next_run_timestamp()
 
 
@@ -76,22 +97,22 @@ def main() -> None:
         eta_seconds=None,
     )
 
-    trigger = CronTrigger(hour=PIPELINE_SCHEDULE_HOUR, minute=PIPELINE_SCHEDULE_MINUTE, timezone=PIPELINE_TIMEZONE)
+    trigger = _create_interval_trigger()
     scheduler.add_job(
         _scheduled_job,
         trigger=trigger,
         id="daily_pipeline_update",
-        name="Daily data pipeline update",
+        name="Recurring data pipeline update",
         max_instances=1,
         coalesce=True,
         replace_existing=True,
     )
+    scheduler.add_listener(_handle_scheduler_started, EVENT_SCHEDULER_STARTED)
 
     _update_next_run_timestamp()
     LOGGER.info(
-        "Scheduler started: daily pipeline at %02d:%02d (%s)",
-        PIPELINE_SCHEDULE_HOUR,
-        PIPELINE_SCHEDULE_MINUTE,
+        "Scheduler started: pipeline every %d hour(s) (%s)",
+        PIPELINE_SCHEDULE_INTERVAL_HOURS,
         PIPELINE_TIMEZONE,
     )
 

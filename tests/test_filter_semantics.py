@@ -72,7 +72,7 @@ def test_route_match_condition_targets_gtfs_prefix():
 
 
 def test_parse_filter_params_uses_osm_group_types_without_gate():
-    filters = parse_filter_params({'osm_group_types': 'osm_group_uic,osm_group_name'})
+    filters = parse_filter_params({'osm_group_types': 'osm_pair_uic,osm_pair_name'})
 
     assert filters['osm_group_types'] == ['osm_pair_uic', 'osm_pair_name']
 
@@ -84,9 +84,9 @@ def test_parse_filter_params_normalizes_osm_group_all_selection():
     assert filters['osm_group_types'] == []
 
 
-def test_parse_filter_params_normalizes_perfect_count_group_aliases():
+def test_parse_filter_params_keeps_perfect_count_pair_group_types():
     filters = parse_filter_params(
-        {'osm_group_types': 'osm_group_uic_equal,osm_group_name_equal,osm_group_tram_equal'}
+        {'osm_group_types': 'osm_pair_uic_equal_15m,osm_pair_name_equal_15m,osm_pair_tram_equal_15m'}
     )
 
     assert filters['osm_group_types'] == [

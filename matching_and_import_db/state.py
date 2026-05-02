@@ -428,7 +428,7 @@ class OsmState:
             route_name = rel_tags.get('name')
             direction_id = _parse_direction_from_ref_trips(rel_tags.get('ref_trips', ''))
             # If direction is unknown, create entries for both directions so the
-            # predicate can still match on route_id alone (preserves old CSV behaviour).
+            # matcher can still fall back to route_id-only matching.
             direction_ids = [direction_id] if direction_id is not None else ['0', '1']
             for did in direction_ids:
                 route_entry = {
