@@ -76,7 +76,7 @@ def get_osm_route_metadata(route_id: str | None) -> dict[str, str | None]:
 
 @lru_cache(maxsize=1)
 def _atlas_route_name_map() -> dict[str, dict[str, str | None]]:
-    path = _resolve_existing_path('data/processed/atlas_routes_gtfs.csv')
+    path = _resolve_existing_path('data/processed/atlas_routes.csv')
     if path is None:
         return {}
 
@@ -89,8 +89,8 @@ def _atlas_route_name_map() -> dict[str, dict[str, str | None]]:
                 if not route_id:
                     continue
 
-                short_name = _clean_text(row.get('route_name_short'))
-                long_name = _clean_text(row.get('route_name_long'))
+                short_name = _clean_text(row.get('route_short_name'))
+                long_name = _clean_text(row.get('route_long_name'))
                 existing = mapping.get(route_id)
 
                 if existing is None:
@@ -113,7 +113,7 @@ def _atlas_route_name_map() -> dict[str, dict[str, str | None]]:
 
 @lru_cache(maxsize=1)
 def _osm_route_name_map() -> dict[str, str]:
-    path = _resolve_existing_path('data/processed/osm_nodes_with_routes.csv')
+    path = _resolve_existing_path('data/processed/osm_routes.csv')
     if path is None:
         return {}
 
@@ -123,7 +123,7 @@ def _osm_route_name_map() -> dict[str, str]:
             reader = csv.DictReader(handle)
             for row in reader:
                 route_id = _clean_text(row.get('gtfs_route_id'))
-                route_name = _clean_text(row.get('route_name'))
+                route_name = _clean_text(row.get('name'))
                 if route_id and route_name:
                     counters[route_id][route_name] += 1
     except Exception as exc:

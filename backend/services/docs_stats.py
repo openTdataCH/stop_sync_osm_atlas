@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import os
 import re
 from html import escape
 from typing import Any, Optional
+
+from backend.services.stats_export import load_stats_from_file
 
 
 _STATS_PATTERN = re.compile(r'\{\{stat:([a-zA-Z0-9_.]+)\}\}')
@@ -21,8 +22,7 @@ def load_stats_for_docs() -> Optional[dict]:
             'stats.json',
         )
         if os.path.exists(stats_file_path):
-            with open(stats_file_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+            return load_stats_from_file(stats_file_path)
     except Exception:
         return None
     return None

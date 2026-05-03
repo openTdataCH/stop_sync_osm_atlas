@@ -175,6 +175,60 @@ def test_docs_canonical_slug_urls_and_legacy_redirects():
         assert '/docs/2.1%20Exact%20matching' not in docs_hrefs
 
 
+def test_auto_linking_of_repo_files():
+    """Verify that Python files mentioned in docs are automatically linked to GitHub."""
+    try:
+        import sys
+        from pathlib import Path
+        repo_root = Path(__file__).parent.parent
+        sys.path.insert(0, str(repo_root))
+        from backend.app import create_app
+        from bs4 import BeautifulSoup
+    except ImportError as e:
+        pytest.skip(f"Flask app or dependencies not available: {e}")
+
+    app = create_app()
+    app.config['TESTING'] = True
+
+    with app.test_client() as client:
+        # Check a page with plain-text code file mentions outside Mermaid.
+        response = client.get('/docs/documentation_page_delivery')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        soup = BeautifulSoup(html, 'html.parser')
+
+        # 1. Check plain text/code links
+        github_links = [a for a in soup.find_all('a', href=True) if 'github.com' in a['href']]
+        assert len(github_links) > 0, "No GitHub links found in rendered HTML"
+
+        docs_py_link = next((a for a in github_links if a['href'].endswith('/backend/blueprints/docs.py')), None)
+        assert docs_py_link is not None, "docs.py was not automatically linked"
+
+        repo_scanner_link = next((a for a in github_links if a['href'].endswith('/backend/services/repo_scanner.py')), None)
+        assert repo_scanner_link is not None, "repo_scanner.py was not automatically linked"
+
+        # 2. Check Mermaid diagram links
+        response = client.get('/docs/download_and_process_data')
+        assert response.status_code == 200
+        html = response.data.decode('utf-8')
+        soup = BeautifulSoup(html, 'html.parser')
+
+        mermaid_divs = soup.find_all('div', class_='mermaid')
+        assert len(mermaid_divs) > 0, "No Mermaid diagrams found"
+        
+        found_click = False
+        for div in mermaid_divs:
+            content = div.get_text()
+            assert '[get_atlas_gtfs.py](' not in content
+            assert '<a ' not in div.decode_contents()
+            if 'click SG' in content and 'get_atlas_gtfs.py' in content:
+                assert 'SG[get_atlas_gtfs.py]' in content
+                found_click = True
+                break
+        
+        assert found_click, "Mermaid diagram missing 'click' command for auto-linked file"
+
+
 if __name__ == "__main__":
     # Allow running directly with python for debugging
     try:
