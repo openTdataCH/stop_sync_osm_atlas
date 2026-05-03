@@ -134,8 +134,12 @@
         var blocking = isBlockingMaintenance(latestStatus);
         var running = isPipelineRunning(latestStatus);
 
-        if (running && !blocking) {
-            textElement.textContent = element.getAttribute('data-running-label') || 'Pipeline running in the background';
+        if (running) {
+            if (blocking) {
+                textElement.textContent = element.getAttribute('data-blocking-label') || 'Pipeline running';
+            } else {
+                textElement.textContent = element.getAttribute('data-running-label') || 'Pipeline running in the background';
+            }
             return;
         }
 

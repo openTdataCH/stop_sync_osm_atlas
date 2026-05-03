@@ -17,10 +17,10 @@ LOG_LEVEL = os.getenv("PIPELINE_LOG_LEVEL", "INFO").upper()
 PIPELINE_TIMEZONE = os.getenv("PIPELINE_TIMEZONE", "Europe/Zurich")
 
 
-def _load_schedule_interval_hours() -> int:
-    interval_hours = int(os.getenv("PIPELINE_SCHEDULE_INTERVAL_HOURS", "24"))
-    if interval_hours < 1:
-        raise ValueError("PIPELINE_SCHEDULE_INTERVAL_HOURS must be >= 1")
+def _load_schedule_interval_hours() -> float:
+    interval_hours = float(os.getenv("PIPELINE_SCHEDULE_INTERVAL_HOURS", "24"))
+    if interval_hours <= 0:
+        raise ValueError("PIPELINE_SCHEDULE_INTERVAL_HOURS must be > 0")
     return interval_hours
 
 
@@ -29,9 +29,10 @@ PIPELINE_SCHEDULE_INTERVAL_HOURS = _load_schedule_interval_hours()
 scheduler = BlockingScheduler(timezone=PIPELINE_TIMEZONE)
 
 
-def _create_interval_trigger(interval_hours: Optional[int] = None) -> IntervalTrigger:
+def _create_interval_trigger(interval_hours: Optional[float] = None) -> IntervalTrigger:
+    hours = interval_hours or PIPELINE_SCHEDULE_INTERVAL_HOURS
     return IntervalTrigger(
-        hours=interval_hours or PIPELINE_SCHEDULE_INTERVAL_HOURS,
+        minutes=round(hours * 60),
         timezone=PIPELINE_TIMEZONE,
     )
 
@@ -111,8 +112,9 @@ def main() -> None:
 
     _update_next_run_timestamp()
     LOGGER.info(
-        "Scheduler started: pipeline every %d hour(s) (%s)",
+        "Scheduler started: pipeline every %g hour(s) / %d min (%s)",
         PIPELINE_SCHEDULE_INTERVAL_HOURS,
+        round(PIPELINE_SCHEDULE_INTERVAL_HOURS * 60),
         PIPELINE_TIMEZONE,
     )
 

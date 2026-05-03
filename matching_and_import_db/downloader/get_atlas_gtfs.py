@@ -9,6 +9,39 @@ from typing import Dict, Set
 from .geo_utils import filter_points_in_switzerland
 
 
+def _build_gtfs_atlas_stats(mapping_stats: Dict[str, object]) -> Dict[str, object]:
+    atlas_total = int(mapping_stats.get('total_atlas_sloids') or 0)
+    atlas_touched = int(mapping_stats.get('touched_atlas_sloids') or 0)
+    gtfs_total = int(mapping_stats.get('total_gtfs_stop_ids') or 0)
+    gtfs_matched = int(mapping_stats.get('matched_gtfs_stop_ids') or 0)
+    gtfs_unmatched = int(mapping_stats.get('unmatched_gtfs_stop_ids') or 0)
+
+    return {
+        'algorithm_version': mapping_stats.get('algorithm_version'),
+        'atlas': {
+            'total': atlas_total,
+            'touched_by_gtfs_routes': atlas_touched,
+            'coverage_percent': round((atlas_touched / atlas_total) * 100, 1) if atlas_total > 0 else 0.0,
+        },
+        'gtfs_stop_ids': {
+            'total': gtfs_total,
+            'matched_to_atlas': gtfs_matched,
+            'unmatched': gtfs_unmatched,
+            'coverage_percent': round((gtfs_matched / gtfs_total) * 100, 2) if gtfs_total > 0 else 0.0,
+        },
+        'assignments': {
+            'strict': int(mapping_stats.get('strict_assignments') or 0),
+            'unique_number_fallback': int(mapping_stats.get('unique_number_fallback_assignments') or 0),
+            'total': int(mapping_stats.get('total_assignments') or 0),
+        },
+        'cardinality': {
+            'stop_to_sloid': mapping_stats.get('stop_to_sloid') or {},
+            'sloid_to_stop': mapping_stats.get('sloid_to_stop') or {},
+        },
+        'unmatched_reasons': mapping_stats.get('unmatched_reasons') or {},
+    }
+
+
 def download_and_extract_gtfs(gtfs_url):
     """Download and extract GTFS data to a clean folder.
 
@@ -273,16 +306,15 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
 
     # match GTFS stops to ATLAS sloids
     matches, mapping_stats = match_gtfs_to_atlas({'stops': gtfs_data_streaming['stops']}, traffic_points, return_stats=True)
-    
+
     import json
-    import os
     stats_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        'data', 'gtfs_mapping_stats.json'
+        'data', 'gtfs_atlas_stats.json'
     )
     os.makedirs(os.path.dirname(stats_path), exist_ok=True)
     with open(stats_path, 'w', encoding='utf-8') as f:
-        json.dump(mapping_stats, f, indent=2)
+        json.dump(_build_gtfs_atlas_stats(mapping_stats), f, indent=2)
 
     # integrate
     linked_stops = gtfs_data_streaming['stops'].merge(matches, on='stop_id', how='left')

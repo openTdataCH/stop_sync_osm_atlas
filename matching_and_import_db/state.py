@@ -35,10 +35,12 @@ class AtlasState:
     
     @classmethod
     def from_dataframe(cls, atlas_df: pd.DataFrame,
-                       routes_csv_path: str = 'data/processed/atlas_routes_gtfs.csv') -> 'AtlasState':
+                       routes_csv_path: str = 'data/processed/atlas_routes.csv',
+                       directions_csv_path: str = 'data/processed/atlas_route_directions.csv',
+                       stops_csv_path: str = 'data/processed/atlas_route_stops.csv') -> 'AtlasState':
         """
         Builds AtlasState directly from a DataFrame, computing duplicate sets automatically.
-        Also loads the GTFS routes CSV if available.
+        Also loads the GTFS routes CSVs if available.
         """
         dup_mask = atlas_df.duplicated(subset=['number', 'designation'], keep=False)
         non_empty = atlas_df['designation'].notna() & (atlas_df['designation'].astype(str).str.strip() != '')
@@ -52,12 +54,12 @@ class AtlasState:
             for s in sloids:
                 duplicate_sloid_map[s] = sloids
 
-        routes_by_sloid = cls._load_routes(routes_csv_path)
+        routes_by_sloid = cls._load_routes(routes_csv_path, directions_csv_path, stops_csv_path)
         return cls(atlas_df, duplicate_sloid_map, routes_by_sloid)
 
     @staticmethod
-    def _load_routes(path: str) -> dict:
-        """Load atlas_routes_gtfs.csv into a per-sloid GTFS route mapping."""
+    def _load_routes(routes_csv_path: str, directions_csv_path: str, stops_csv_path: str) -> dict:
+        """Load normalized GTFS route CSVs into a per-sloid GTFS route mapping."""
         def _norm_dir(val):
             try:
                 if pd.isna(val):
@@ -67,28 +69,51 @@ class AtlasState:
                 return None
 
         by_sloid: dict[str, dict[str, list]] = defaultdict(lambda: {'gtfs': []})
-        if not os.path.exists(path):
-            logger.warning(f"Routes CSV not found at {path!r}; route matching will be skipped.")
+        
+        if not all(os.path.exists(p) for p in [routes_csv_path, directions_csv_path, stops_csv_path]):
+            logger.warning(f"One or more GTFS route CSVs not found; route matching will be skipped.")
             return {}
+            
         try:
-            df = pd.read_csv(path, dtype=str, low_memory=False)
+            df_routes = pd.read_csv(routes_csv_path, dtype=str, low_memory=False)
+            df_directions = pd.read_csv(directions_csv_path, dtype=str, low_memory=False)
+            df_stops = pd.read_csv(stops_csv_path, dtype=str, low_memory=False)
+            
+            # Clean NA
+            df_routes = df_routes.where(pd.notna(df_routes), None)
+            df_directions = df_directions.where(pd.notna(df_directions), None)
+            df_stops = df_stops.where(pd.notna(df_stops), None)
+            
+            routes_map = {row['route_id']: row for row in df_routes.to_dict(orient='records') if row.get('route_id')}
+            dirs_map = {}
+            for row in df_directions.to_dict(orient='records'):
+                if row.get('route_id') and row.get('direction_id'):
+                    dirs_map[(row['route_id'], row['direction_id'])] = row
+                    
+            for row in df_stops.to_dict(orient='records'):
+                sloid = str(row['sloid']) if row.get('sloid') is not None else None
+                if not sloid:
+                    continue
+                route_id = row.get('route_id')
+                direction_id = row.get('direction_id')
+                
+                route_info = routes_map.get(route_id, {})
+                dir_info = dirs_map.get((route_id, direction_id), {})
+                
+                entry = {
+                    'route_id': route_id,
+                    'route_id_normalized': route_info.get('route_id_normalized'),
+                    'route_name_short': route_info.get('route_short_name'),
+                    'route_name_long': route_info.get('route_long_name'),
+                    'direction_id': _norm_dir(direction_id),
+                    'direction_name': dir_info.get('direction_label'),
+                }
+                by_sloid[sloid]['gtfs'].append(entry)
+                
         except Exception as exc:
-            logger.warning(f"Error loading routes CSV {path!r}: {exc}")
+            logger.warning(f"Error loading GTFS route CSVs: {exc}")
             return {}
-        df = df.where(pd.notna(df), None)
-        for row in df.to_dict(orient='records'):
-            sloid = str(row['sloid']) if row.get('sloid') is not None else None
-            if not sloid:
-                continue
-            entry = {
-                'route_id': row.get('route_id'),
-                'route_id_normalized': row.get('route_id_normalized'),
-                'route_name_short': row.get('route_name_short'),
-                'route_name_long': row.get('route_name_long'),
-                'direction_id': _norm_dir(row.get('direction_id')),
-                'direction_name': row.get('direction_name'),
-            }
-            by_sloid[sloid]['gtfs'].append(entry)
+            
         return dict(by_sloid)
 
     def __init__(self, atlas_df: pd.DataFrame, duplicate_sloid_map: dict,
@@ -381,29 +406,8 @@ class OsmState:
                     return '1'
             return None
 
-        # Always parse relations from XML to build node_routes.
-        # Direction strings are loaded from sidecar CSV if available (perf cache),
-        # otherwise also derived from the same relation pass.
-        dir_csv_path = "data/processed/osm_directions.csv"
+        # Direction strings are derived from the relation pass directly.
         loaded_dirs_from_csv = False
-
-        if os.path.exists(dir_csv_path):
-            try:
-                df = pd.read_csv(dir_csv_path, dtype=str)
-                df = df.where(pd.notna(df), None)
-                for r in df.to_dict(orient='records'):
-                    nid = str(r.get('node_id'))
-                    ds = str(r.get('direction_string'))
-                    dtype = str(r.get('dir_type'))
-                    if not ds or ds == 'None' or not nid or nid == 'None':
-                        continue
-                    if dtype == 'name':
-                        name_dirs[nid].add(ds)
-                    elif dtype == 'uic':
-                        uic_dirs[nid].add(ds)
-                loaded_dirs_from_csv = True
-            except Exception as e:
-                logger.warning(f"Error reading {dir_csv_path}: {e}")
 
         for relation in root.iter("relation"):
             rel_tags: dict[str, str] = {t.get('k'): t.get('v') for t in relation.findall('./tag')}

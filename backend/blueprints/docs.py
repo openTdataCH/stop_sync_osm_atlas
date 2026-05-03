@@ -12,6 +12,7 @@ from urllib.parse import unquote
 from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file, redirect, current_app
 from werkzeug.utils import safe_join
 from backend.services.docs_stats import replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html
+from backend.services.repo_scanner import RepoScanner
 from backend.services.request_payload import read_request_payload
 import uuid
 import threading
@@ -48,6 +49,15 @@ except Exception:  # pragma: no cover
 
 docs_bp = Blueprint('docs', __name__)
 logger = logging.getLogger(__name__)
+
+# Lazy-loaded RepoScanner
+_repo_scanner: Optional[RepoScanner] = None
+
+def _get_repo_scanner() -> RepoScanner:
+    global _repo_scanner
+    if _repo_scanner is None:
+        _repo_scanner = RepoScanner(_repo_root())
+    return _repo_scanner
 
 
 def _to_bool(value, default: bool = True) -> bool:
@@ -208,6 +218,25 @@ _CODE_FILE_EXTENSIONS = {
     '.js', '.ts', '.tsx', '.jsx', '.css', '.html',
 }
 
+_MERMAID_FENCE_PATTERN = re.compile(r'```mermaid(.*?)```', re.DOTALL | re.IGNORECASE)
+_MERMAID_NODE_START_PATTERN = re.compile(
+    r'(?P<node_id>[A-Za-z][A-Za-z0-9_]*)'
+    r'(?P<open>\[\[|\[\(|\[\{|\["|\[\'|\[|\(\(|\(|\{\{|\{)'
+)
+_MERMAID_EXISTING_CLICK_PATTERN = re.compile(r'(?m)^\s*click\s+([A-Za-z][A-Za-z0-9_]*)\b')
+_MERMAID_NODE_CLOSERS = {
+    '[[': ']]',
+    '[(': ')]',
+    '[{': '}]',
+    '["': '"]',
+    "['": "']",
+    '[': ']',
+    '((': '))',
+    '(': ')',
+    '{{': '}}',
+    '{': '}',
+}
+
 
 def _looks_like_repo_file_link(href: str) -> bool:
     if not href:
@@ -269,6 +298,123 @@ def _rewrite_repo_links_to_github(markdown_text: str) -> str:
         return f"]({new_href}{title})"
 
     return pattern.sub(repl, markdown_text)
+
+
+def _protect_mermaid_blocks(markdown_text: str, token_prefix: str) -> Tuple[str, List[str]]:
+    mermaid_blocks: List[str] = []
+
+    def save_mermaid(match: re.Match) -> str:
+        mermaid_blocks.append(match.group(0))
+        return f"<!--{token_prefix}_{len(mermaid_blocks)-1}-->"
+
+    protected = _MERMAID_FENCE_PATTERN.sub(save_mermaid, markdown_text)
+    return protected, mermaid_blocks
+
+
+def _restore_mermaid_blocks(markdown_text: str, token_prefix: str, mermaid_blocks: List[str]) -> str:
+    pattern = re.compile(rf'<!--{token_prefix}_(\d+)-->')
+
+    def restore_mermaid(match: re.Match) -> str:
+        idx = int(match.group(1))
+        return mermaid_blocks[idx]
+
+    return pattern.sub(restore_mermaid, markdown_text)
+
+
+def _protect_rendered_mermaid_divs(html: str) -> Tuple[str, List[str]]:
+    mermaid_divs: List[str] = []
+
+    def save_div(match: re.Match) -> str:
+        mermaid_divs.append(match.group(0))
+        return f"<!--MERMAID_HTML_{len(mermaid_divs)-1}-->"
+
+    protected = re.sub(
+        r'<div class="mermaid">.*?</div>',
+        save_div,
+        html,
+        flags=re.DOTALL,
+    )
+    return protected, mermaid_divs
+
+
+def _normalize_mermaid_node_label(label: str) -> str:
+    normalized = label.strip().strip('"\'')
+    normalized = re.split(r'\\n|<br\s*/?>', normalized, maxsplit=1, flags=re.IGNORECASE)[0]
+    return normalized.strip()
+
+
+def _append_mermaid_click_links(mermaid_block: str, scanner: RepoScanner, github_base: str) -> str:
+    existing_click_ids = set(_MERMAID_EXISTING_CLICK_PATTERN.findall(mermaid_block))
+    click_commands: List[str] = []
+
+    for match in _MERMAID_NODE_START_PATTERN.finditer(mermaid_block):
+        node_id = match.group('node_id')
+        if node_id in existing_click_ids:
+            continue
+
+        opener = match.group('open')
+        closer = _MERMAID_NODE_CLOSERS.get(opener)
+        if closer is None:
+            continue
+
+        label_start = match.end()
+        label_end = mermaid_block.find(closer, label_start)
+        if label_end == -1:
+            continue
+
+        clean_label = _normalize_mermaid_node_label(mermaid_block[label_start:label_end])
+        if not clean_label:
+            continue
+
+        resolved = scanner.resolve_path(clean_label)
+        if not resolved:
+            continue
+
+        link = f"{github_base}{resolved}".replace(' ', '%20')
+        click_commands.append(f'    click {node_id} "{link}"')
+        existing_click_ids.add(node_id)
+
+    if not click_commands:
+        return mermaid_block
+
+    fence_end = mermaid_block.rfind('```')
+    if fence_end == -1:
+        return mermaid_block
+
+    body = mermaid_block[:fence_end].rstrip()
+    closing_fence = mermaid_block[fence_end:]
+    return f"{body}\n" + "\n".join(click_commands) + f"\n{closing_fence}"
+
+
+def _auto_link_code_files(markdown_text: str) -> str:
+    """Detect code file names or paths and turn them into GitHub links."""
+    scanner = _get_repo_scanner()
+    github_base = _github_blob_base()
+
+    # 1. Handle standard text/backticks for paths like 'path/to/file.py' or 'file.py'
+    # Pattern: words, slashes, dots, ending in .py etc.
+    # Capture optional backticks so we can put them inside the link brackets: [`path.py`](url)
+    ext_pattern = '|'.join(re.escape(ext.lstrip('.')) for ext in _CODE_FILE_EXTENSIONS)
+    path_regex = re.compile(rf'(?<![\[\(])(`?)\b([\w\-/]+\.(?:{ext_pattern}))\b(`?)(?![\)\]])')
+
+    def text_repl(match: re.Match) -> str:
+        open_tick = match.group(1)
+        path_query = match.group(2)
+        close_tick = match.group(3)
+        resolved = scanner.resolve_path(path_query)
+        if resolved:
+            link = f"{github_base}{resolved}".replace(' ', '%20')
+            return f"[{open_tick}{path_query}{close_tick}]({link})"
+        return match.group(0)
+
+    protected_text, mermaid_blocks = _protect_mermaid_blocks(markdown_text, 'MERMAID_AUTOLINK')
+    protected_text = path_regex.sub(text_repl, protected_text)
+
+    processed_blocks = [
+        _append_mermaid_click_links(block, scanner, github_base)
+        for block in mermaid_blocks
+    ]
+    return _restore_mermaid_blocks(protected_text, 'MERMAID_AUTOLINK', processed_blocks)
 
 
 def _rewrite_internal_doc_links_to_routes(markdown_text: str, file_to_slug: Dict[str, str]) -> str:
@@ -458,6 +604,9 @@ def _read_markdown(filename: str) -> str:
 
 
 def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) -> str:
+    # Auto-link code files (plain text and mermaid)
+    markdown_text = _auto_link_code_files(markdown_text)
+
     markdown_text = _rewrite_repo_links_to_github(markdown_text)
     
     # Rewrite internal .md links to Flask /docs/ routes
@@ -467,23 +616,17 @@ def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) 
     markdown_text = convert_github_alerts_to_html(markdown_text)
 
     # Protect mermaid blocks from stats replacement spans
-    mermaid_blocks = []
-    def save_mermaid(match: re.Match) -> str:
-        mermaid_blocks.append(match.group(0))
-        return f"<!--MERMAID_BLOCK_{len(mermaid_blocks)-1}-->"
-
-    markdown_text = re.sub(r'```mermaid.*?```', save_mermaid, markdown_text, flags=re.DOTALL)
+    markdown_text, mermaid_blocks = _protect_mermaid_blocks(markdown_text, 'MERMAID_BLOCK')
 
     # Replace stats placeholders with actual values from stats.json
     markdown_text = replace_stats_placeholders(markdown_text)
 
     # Restore mermaid blocks and replace stats inside them without spans
-    def restore_mermaid(match: re.Match) -> str:
-        idx = int(match.group(1))
-        block = mermaid_blocks[idx]
-        return replace_stats_placeholders(block, no_span=True)
-
-    markdown_text = re.sub(r'<!--MERMAID_BLOCK_(\d+)-->', restore_mermaid, markdown_text)
+    markdown_text = _restore_mermaid_blocks(
+        markdown_text,
+        'MERMAID_BLOCK',
+        [replace_stats_placeholders(block, no_span=True) for block in mermaid_blocks],
+    )
 
     # Inject canonical palette grid if placeholder is present
     if '[[canonical_palette]]' in markdown_text:
@@ -526,7 +669,7 @@ def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) 
     # and not preceded or followed by other dollars. Supports single char like $B$.
     markdown_text = re.sub(r'(?<!\$)\$[^\s$](?:.*?[^\s$])?\$(?!\$)', _protect_math, markdown_text)
 
-    md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table', 'url'], hard_wrap=True)
+    md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table'], hard_wrap=True)
     html = md(markdown_text)
     
     # Convert mermaid code blocks to mermaid divs for client-side rendering
@@ -572,8 +715,10 @@ def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) 
         # Older Bleach versions don't support css_sanitizer.
         clean_kwargs.pop('css_sanitizer', None)
         sanitized = bleach.clean(html, **clean_kwargs)
+
+    sanitized, mermaid_divs = _protect_rendered_mermaid_divs(sanitized)
     sanitized = bleach.linkify(sanitized)
-    return sanitized
+    return _restore_mermaid_blocks(sanitized, 'MERMAID_HTML', mermaid_divs)
 
 
 @docs_bp.route('/docs')

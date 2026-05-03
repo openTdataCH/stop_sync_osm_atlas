@@ -148,7 +148,9 @@ def run_matching() -> MatchingOutput:
     # ── Identify ATLAS duplicate groups & init State ─────────────────────
     atlas_state = AtlasState.from_dataframe(
         atlas_df,
-        routes_csv_path='data/processed/atlas_routes_gtfs.csv',
+        routes_csv_path='data/processed/atlas_routes.csv',
+        directions_csv_path='data/processed/atlas_route_directions.csv',
+        stops_csv_path='data/processed/atlas_route_stops.csv',
     )
 
     # ── Pre-group platform ↔ stop_position pairs ─────────────────────────

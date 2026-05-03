@@ -2,7 +2,7 @@
 Route-based matching predicate.
 
 Matches ATLAS stops to OSM nodes by comparing GTFS route tokens.
-Route data is provided by AtlasState (atlas_routes_gtfs.csv) and OsmState
+Route data is provided by AtlasState (loaded from normalized GTFS route CSVs) and OsmState
 (derived from the OSM XML relation pass) — no file I/O happens here.
 """
 import logging

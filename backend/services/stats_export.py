@@ -40,6 +40,31 @@ DATA_META_PATH = os.path.join(
     'data', 'data_meta.json'
 )
 
+GTFS_ATLAS_STATS_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    'data', 'gtfs_atlas_stats.json'
+)
+
+
+def _load_gtfs_atlas_stats(total_atlas_platforms: int | None = None) -> Optional[Dict[str, Any]]:
+    """Load canonical GTFS-to-ATLAS stats from the GTFS sidecar."""
+    if not os.path.exists(GTFS_ATLAS_STATS_PATH):
+        return None
+
+    try:
+        with open(GTFS_ATLAS_STATS_PATH, 'r', encoding='utf-8') as f:
+            stats = json.load(f)
+    except Exception as e:
+        logger.warning(f"Could not load gtfs_atlas_stats.json: {e}")
+        return None
+
+    if total_atlas_platforms and stats.get('atlas', {}).get('total') in (None, 0):
+        stats.setdefault('atlas', {})['total'] = total_atlas_platforms
+        touched = int(stats['atlas'].get('touched_by_gtfs_routes') or 0)
+        stats['atlas']['coverage_percent'] = round((touched / total_atlas_platforms) * 100, 1) if total_atlas_platforms > 0 else 0.0
+
+    return stats
+
 
 def get_report_css_content(css_files: List[str]) -> str:
     """Load and concatenate CSS files relative to repository root."""
@@ -117,7 +142,6 @@ def export_pipeline_stats(
     total_osm_stations: int = None,
     total_matched_osm_stops: int = None,
     total_unmatched_osm_stops: int = None,
-    atlas_route_stats: Dict[str, int] = None,
     osm_route_stats: Dict[str, int] = None,
     osm_nodes_with_routes: set = None,
     no_nearby_atlas_osm_ids: set = None,
@@ -506,35 +530,15 @@ def export_pipeline_stats(
         },
     }
     
-    # Add detailed route stats if provided
-    if atlas_route_stats or osm_route_stats:
-        stats['routes'] = {}
-        if atlas_route_stats:
-            stats['routes'].update(atlas_route_stats)
-            # Calculate percentages if total atlas is available
-            if total_atlas_platforms and total_atlas_platforms > 0:
-                any_route = atlas_route_stats.get('atlas_with_routes', 0)
-                gtfs_matches = atlas_route_stats.get('atlas_gtfs_matches', 0)
-                stats['routes']['atlas_with_routes_percent'] = round((any_route / total_atlas_platforms * 100), 1)
-                stats['routes']['gtfs_coverage_percent'] = round((gtfs_matches / total_atlas_platforms * 100), 1)
-                
-        if osm_route_stats:
-            stats['routes'].update(osm_route_stats)
-            if total_osm_stops and total_osm_stops > 0:
-                osm_with_routes = osm_route_stats.get('osm_with_routes', 0)
-                stats['routes']['osm_with_routes_percent'] = round((osm_with_routes / total_osm_stops * 100), 1)
+    if osm_route_stats:
+        stats['routes'] = dict(osm_route_stats)
+        if total_osm_stops and total_osm_stops > 0:
+            osm_with_routes = osm_route_stats.get('osm_with_routes', 0)
+            stats['routes']['osm_with_routes_percent'] = round((osm_with_routes / total_osm_stops * 100), 1)
 
-    # Load GTFS mapping stats if available
-    gtfs_mapping_stats_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        'data', 'gtfs_mapping_stats.json'
-    )
-    if os.path.exists(gtfs_mapping_stats_path):
-        try:
-            with open(gtfs_mapping_stats_path, 'r', encoding='utf-8') as f:
-                stats['gtfs_mapping'] = json.load(f)
-        except Exception as e:
-            logger.warning(f"Could not load gtfs_mapping_stats.json: {e}")
+    gtfs_atlas_stats = _load_gtfs_atlas_stats(total_atlas_platforms)
+    if gtfs_atlas_stats:
+        stats['gtfs_atlas'] = gtfs_atlas_stats
 
     if db_session:
         # Reuse existing compute_db_stats helper

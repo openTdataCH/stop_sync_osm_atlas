@@ -64,7 +64,6 @@ def create_app():
     def analytics_page():
         from backend.services.stats_export import load_stats_from_file
         stats = load_stats_from_file()
-        gtfs_mapping_stats = stats.get('gtfs_mapping') if stats else None
 
         # Determine which view to show based on the URL
         active_view = 'reports' if request.path.endswith('/reports') else 'stats'
@@ -86,7 +85,6 @@ def create_app():
             stats=stats,
             problem_breakdown=problem_breakdown,
             route_problem_breakdown=route_problem_breakdown,
-            gtfs_mapping_stats=gtfs_mapping_stats,
             active_view=active_view
         )
 

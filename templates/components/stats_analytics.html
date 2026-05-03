@@ -1057,11 +1057,12 @@ SECTION 6 — ROUTES
   </div>
   <div class="card-body">
     {% set rt = stats.routes %}
+    {% set ga = stats.gtfs_atlas %}
     <table class="table table-sm table-hover">
       <tr>
-        <td>ATLAS GTFS coverage</td>
-        <td class="text-end">{{ "{:,}".format(rt.atlas_gtfs_matches|default(0)) }}</td>
-        <td class="text-end">{{ rt.gtfs_coverage_percent|default(0) }}%</td>
+        <td>ATLAS stops touched by GTFS routes</td>
+        <td class="text-end">{{ "{:,}".format(ga.atlas.touched_by_gtfs_routes|default(0)) }} / {{ "{:,}".format(ga.atlas.total|default(0)) }}</td>
+        <td class="text-end">{{ ga.atlas.coverage_percent|default(0) }}%</td>
       </tr>
       <tr>
         <td>OSM stops with routes coverage</td>
@@ -1069,6 +1070,9 @@ SECTION 6 — ROUTES
         <td class="text-end">{{ rt.osm_with_routes_percent|default(0) }}%</td>
       </tr>
     </table>
+    <div class="text-muted small mt-2">
+      ATLAS coverage here is stop-side route coverage. The GTFS mapping block below reports the separate GTFS stop_id to ATLAS sloid mapping coverage.
+    </div>
   </div>
 </div>
 {% endif %}
@@ -1142,8 +1146,8 @@ SECTION 6 — ROUTES
 {% endif %}
 
 {# GTFS stop_id → ATLAS sloid Mapping #}
-{% if gtfs_mapping_stats %}
-{% set gm = gtfs_mapping_stats %}
+{% if stats.gtfs_atlas is defined and stats.gtfs_atlas %}
+{% set ga = stats.gtfs_atlas %}
 <div class="card mb-4">
   <div class="card-header">
     <h5 class="mb-0">GTFS stop_id → ATLAS sloid Mapping</h5>
@@ -1154,26 +1158,26 @@ SECTION 6 — ROUTES
     <div class="row mb-3">
       <div class="col-md-3 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(gm.total_gtfs_stop_ids|default(0)) }}</div>
+          <div class="stat-card__value">{{ "{:,}".format(ga.gtfs_stop_ids.total|default(0)) }}</div>
           <div class="stat-card__label">Total GTFS stop_ids</div>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm stat-card--success">
-          <div class="stat-card__value">{{ "{:,}".format(gm.matched_gtfs_stop_ids|default(0)) }}</div>
+          <div class="stat-card__value">{{ "{:,}".format(ga.gtfs_stop_ids.matched_to_atlas|default(0)) }}</div>
           <div class="stat-card__label">Matched stop_ids</div>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm stat-card--warning">
-          <div class="stat-card__value">{{ "{:,}".format(gm.unmatched_gtfs_stop_ids|default(0)) }}</div>
+          <div class="stat-card__value">{{ "{:,}".format(ga.gtfs_stop_ids.unmatched|default(0)) }}</div>
           <div class="stat-card__label">Unmatched stop_ids</div>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm stat-card--primary">
-          <div class="stat-card__value">{{ gm.gtfs_coverage_percent|default(0) }}%</div>
-          <div class="stat-card__label">GTFS Coverage</div>
+          <div class="stat-card__value">{{ ga.gtfs_stop_ids.coverage_percent|default(0) }}%</div>
+          <div class="stat-card__label">GTFS stop_id Coverage</div>
         </div>
       </div>
     </div>
@@ -1181,20 +1185,20 @@ SECTION 6 — ROUTES
     <div class="row mb-4">
       <div class="col-md-4 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(gm.total_atlas_sloids|default(0)) }}</div>
-          <div class="stat-card__label">Total ATLAS sloids</div>
+          <div class="stat-card__value">{{ "{:,}".format(ga.atlas.total|default(0)) }}</div>
+          <div class="stat-card__label">Total ATLAS stops</div>
         </div>
       </div>
       <div class="col-md-4 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm stat-card--success">
-          <div class="stat-card__value">{{ "{:,}".format(gm.touched_atlas_sloids|default(0)) }}</div>
-          <div class="stat-card__label">Touched ATLAS sloids</div>
+          <div class="stat-card__value">{{ "{:,}".format(ga.atlas.touched_by_gtfs_routes|default(0)) }}</div>
+          <div class="stat-card__label">ATLAS stops touched</div>
         </div>
       </div>
       <div class="col-md-4 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm stat-card--primary">
-          <div class="stat-card__value">{{ gm.atlas_coverage_percent|default(0) }}%</div>
-          <div class="stat-card__label">ATLAS Coverage</div>
+          <div class="stat-card__value">{{ ga.atlas.coverage_percent|default(0) }}%</div>
+          <div class="stat-card__label">ATLAS stop Coverage</div>
         </div>
       </div>
     </div>
@@ -1219,7 +1223,7 @@ SECTION 6 — ROUTES
               Matches on <code>(UIC number, local ref)</code> = <code>(number, designation)</code> in ATLAS.
             </p>
             <div class="stat-card stat-card--sm stat-card--success">
-              <div class="stat-card__value">{{ "{:,}".format(gm.strict_assignments|default(0)) }}</div>
+              <div class="stat-card__value">{{ "{:,}".format(ga.assignments.strict|default(0)) }}</div>
               <div class="stat-card__label">Assignments</div>
             </div>
           </div>
@@ -1236,7 +1240,7 @@ SECTION 6 — ROUTES
               For remaining stops: if a UIC number maps to exactly one ATLAS row, use that sloid.
             </p>
             <div class="stat-card stat-card--sm stat-card--success">
-              <div class="stat-card__value">{{ "{:,}".format(gm.unique_number_fallback_assignments|default(0)) }}</div>
+              <div class="stat-card__value">{{ "{:,}".format(ga.assignments.unique_number_fallback|default(0)) }}</div>
               <div class="stat-card__label">Assignments</div>
             </div>
           </div>
@@ -1247,7 +1251,7 @@ SECTION 6 — ROUTES
     <div class="row mb-4">
       <div class="col-12">
         <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(gm.total_assignments|default(0)) }}</div>
+          <div class="stat-card__value">{{ "{:,}".format(ga.assignments.total|default(0)) }}</div>
           <div class="stat-card__label">Total assignments (both paths combined)</div>
         </div>
       </div>
@@ -1263,13 +1267,13 @@ SECTION 6 — ROUTES
         <div class="row">
           <div class="col-6">
             <div class="stat-card stat-card--sm">
-              <div class="stat-card__value">{{ "{:,}".format(gm.stop_to_sloid.one_to_one|default(0)) }}</div>
+              <div class="stat-card__value">{{ "{:,}".format(ga.cardinality.stop_to_sloid.one_to_one|default(0)) }}</div>
               <div class="stat-card__label">1 → 1</div>
             </div>
           </div>
           <div class="col-6">
             <div class="stat-card stat-card--sm stat-card--warning">
-              <div class="stat-card__value">{{ "{:,}".format(gm.stop_to_sloid.one_to_many|default(0)) }}</div>
+              <div class="stat-card__value">{{ "{:,}".format(ga.cardinality.stop_to_sloid.one_to_many|default(0)) }}</div>
               <div class="stat-card__label">1 → many</div>
             </div>
           </div>
@@ -1280,13 +1284,13 @@ SECTION 6 — ROUTES
         <div class="row">
           <div class="col-6">
             <div class="stat-card stat-card--sm">
-              <div class="stat-card__value">{{ "{:,}".format(gm.sloid_to_stop.one_to_one|default(0)) }}</div>
+              <div class="stat-card__value">{{ "{:,}".format(ga.cardinality.sloid_to_stop.one_to_one|default(0)) }}</div>
               <div class="stat-card__label">1 → 1</div>
             </div>
           </div>
           <div class="col-6">
             <div class="stat-card stat-card--sm stat-card--warning">
-              <div class="stat-card__value">{{ "{:,}".format(gm.sloid_to_stop.many_to_one|default(0)) }}</div>
+              <div class="stat-card__value">{{ "{:,}".format(ga.cardinality.sloid_to_stop.many_to_one|default(0)) }}</div>
               <div class="stat-card__label">many → 1</div>
             </div>
           </div>
@@ -1295,8 +1299,8 @@ SECTION 6 — ROUTES
     </div>
 
     {# ── Unmatched Reasons ── #}
-    {% if gm.unmatched_reasons is defined and gm.unmatched_reasons %}
-    {% set ur = gm.unmatched_reasons %}
+    {% if ga.unmatched_reasons is defined and ga.unmatched_reasons %}
+    {% set ur = ga.unmatched_reasons %}
     <hr>
     <h6 class="mb-3">Unmatched Reasons</h6>
     <table class="table table-sm table-hover mb-0">
