@@ -4,7 +4,7 @@ import math
 import pytest
 from backend.models import StopsMatched, AtlasStop, OsmNode, Problem
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def setup_test_env_and_db():
     """
     Overrides environment variables to point to the subsetted data in tests/data.
@@ -101,7 +101,7 @@ def setup_test_env_and_db():
 
 
 
-def test_small_pipeline_end_to_end():
+def test_small_pipeline_end_to_end(setup_test_env_and_db):
     """
     End-to-End Test (Small Pipeline)
     
