@@ -3,10 +3,6 @@
 
     const PopupUtils = {};
 
-    function hasGlobalFunction(name) {
-        return typeof global[name] === 'function';
-    }
-
     function escapeInlineJsString(value) {
         return String(value)
             .replace(/\\/g, '\\\\')
@@ -51,7 +47,7 @@
             const safeRouteId = escapeInlineJsString(filterRouteId);
             const safeDirections = escapeInlineJsString(directions.join(','));
             const routeIdText = group.displayRouteId || group.routeId;
-            const routeIdLink = filterRouteId && routeIdText !== 'unknown' && options.enableRouteLink !== false && hasGlobalFunction('filterByRoute')
+            const routeIdLink = filterRouteId && routeIdText !== 'unknown' && options.enableRouteLink !== false
                 ? `<a href="#" onclick="filterByRoute('${safeRouteId}', '${safeDirections}'); return false;">${routeIdText}</a>`
                 : routeIdText;
 
@@ -161,7 +157,7 @@
     function createFilterLink(value, type, displayText, options = {}) {
         if (!value) return 'N/A';
         const text = displayText || value;
-        if (options.enableFilterLink === false || !hasGlobalFunction('addCustomFilter')) {
+        if (options.enableFilterLink === false) {
             return text;
         }
         const safeValue = escapeInlineJsString(value);
