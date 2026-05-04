@@ -44,6 +44,7 @@ class TestGtfsRoutesIntegration:
             {
                 'sloid': 'ch:1:sloid:1',
                 'stop_id': 'stop-1',
+                'match_method': 'strict',
                 'route_id': 'gtfs-route-1',
                 'agency_id': 'agency-1',
                 'route_short_name': 'R1',
@@ -56,6 +57,7 @@ class TestGtfsRoutesIntegration:
             {
                 'sloid': 'ch:1:sloid:2',
                 'stop_id': 'stop-2',
+                'match_method': 'coordinate_proximity',
                 'route_id': 'gtfs-route-2',
                 'agency_id': 'agency-2',
                 'route_short_name': 'R2',
@@ -125,7 +127,7 @@ class TestGtfsRoutesIntegration:
         }
         assert expected_stop_cols.issubset(set(stops_df.columns)), "Route-stop columns are missing"
         assert set(stops_df['sloid']) == {'ch:1:sloid:1', 'ch:1:sloid:2'}
-        assert set(stops_df['mapping_method']) == {'fallback'}
+        assert set(stops_df['mapping_method']) == {'strict', 'coordinate_proximity'}
 
     def test_gtfs_only_integration(self, tmp_path):
         """Test that GTFS routes output writes entity-first GTFS files only."""
@@ -136,6 +138,7 @@ class TestGtfsRoutesIntegration:
         integrated_gtfs = pd.DataFrame([{
             'sloid': 'ch:1:sloid:1',
             'stop_id': 'stop-1',
+            'match_method': 'unique_number',
             'route_id': 'r1',
             'agency_id': 'agency-1',
             'route_short_name': 'R1',
@@ -162,7 +165,7 @@ class TestGtfsRoutesIntegration:
         assert len(directions) == 1
         assert len(stops) == 1
         assert stops.iloc[0]['sloid'] == 'ch:1:sloid:1'
-        assert stops.iloc[0]['mapping_method'] == 'fallback'
+        assert stops.iloc[0]['mapping_method'] == 'unique_number'
 
 
 def test_gtfs_permalink_uses_current_year_and_en_locale():

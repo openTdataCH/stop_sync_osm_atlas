@@ -20,6 +20,69 @@ window.ProblemsMap = (function() {
     // Request management for context loading
     let currentContextRequest = null; // jqXHR of in-flight /api/data
 
+    function normalizeProblemMembers(problem) {
+        if (!problem) {
+            return [];
+        }
+        return Array.isArray(problem.members) && problem.members.length ? problem.members : [problem];
+    }
+
+    function buildProblemIdentitySets(problem) {
+        const members = normalizeProblemMembers(problem);
+        const identities = {
+            stopIds: new Set(),
+            sloids: new Set(),
+            osmNodeIds: new Set()
+        };
+
+        members.forEach(member => {
+            if (!member) {
+                return;
+            }
+            if (member.id != null) {
+                identities.stopIds.add(String(member.id));
+            }
+            if (member.sloid) {
+                identities.sloids.add(String(member.sloid));
+            }
+            if (member.osm_node_id != null) {
+                identities.osmNodeIds.add(String(member.osm_node_id));
+            }
+        });
+
+        return identities;
+    }
+
+    function stopMatchesProblemIdentities(stop, identities) {
+        if (!stop) {
+            return false;
+        }
+
+        if (stop.id != null && identities.stopIds.has(String(stop.id))) {
+            return true;
+        }
+        if (stop.sloid && identities.sloids.has(String(stop.sloid))) {
+            return true;
+        }
+        if (stop.osm_node_id != null && identities.osmNodeIds.has(String(stop.osm_node_id))) {
+            return true;
+        }
+
+        if (Array.isArray(stop.osm_matches)) {
+            return stop.osm_matches.some(match => {
+                if (!match) {
+                    return false;
+                }
+                return (
+                    (match.id != null && identities.stopIds.has(String(match.id))) ||
+                    (match.osm_node_id != null && identities.osmNodeIds.has(String(match.osm_node_id)))
+                );
+            });
+        }
+
+        return false;
+    }
+
     /**
      * Initialize the map on the problems page with same style as main page
      */
@@ -152,53 +215,9 @@ window.ProblemsMap = (function() {
             const contextMarkersLayer = ProblemsState.getContextMarkersLayer();
             contextMarkersLayer.clearLayers();
             
-            // Filter out the current problem from context data
-            let filteredData = data.filter(stop => {
-                // More robust filtering - handle different data structures
-                const isCurrentProblem = (
-                    (problem.id && stop.id === problem.id) ||
-                    (problem.sloid && stop.sloid === problem.sloid) ||
-                    (problem.osm_node_id && stop.osm_node_id === problem.osm_node_id) ||
-                    // Handle case where stop has osm_matches array
-                    (problem.sloid && Array.isArray(stop.osm_matches) && 
-                     stop.osm_matches.some(match => match.osm_node_id === problem.osm_node_id)) ||
-                    // Handle case where problem is in osm_matches
-                    (problem.osm_node_id && Array.isArray(stop.osm_matches) && 
-                     stop.osm_matches.some(match => match.osm_node_id === problem.osm_node_id))
-                );
-                return !isCurrentProblem;
-            });
-            
-            if (filteredData.length === 0) {
-                // Try with simpler filtering as fallback
-                const simplefilteredData = data.filter(stop => {
-                    // Only filter out exact matches by coordinates
-                    const problemLat = parseFloat(problem.atlas_lat || problem.osm_lat);
-                    const problemLon = parseFloat(problem.atlas_lon || problem.osm_lon);
-                    const stopAtlasLat = parseFloat(stop.atlas_lat);
-                    const stopAtlasLon = parseFloat(stop.atlas_lon);
-                    const stopOsmLat = parseFloat(stop.osm_lat);
-                    const stopOsmLon = parseFloat(stop.osm_lon);
-                    
-                    // Check if coordinates are too close (within 10 meters)
-                    const isAtSameLocation = (
-                        (stopAtlasLat && stopAtlasLon && 
-                         Math.abs(stopAtlasLat - problemLat) < 0.0001 && 
-                         Math.abs(stopAtlasLon - problemLon) < 0.0001) ||
-                        (stopOsmLat && stopOsmLon && 
-                         Math.abs(stopOsmLat - problemLat) < 0.0001 && 
-                         Math.abs(stopOsmLon - problemLon) < 0.0001)
-                    );
-                    
-                    return !isAtSameLocation;
-                });
-                
-                if (simplefilteredData.length === 0) {
-                    filteredData = data; // Show everything as last resort
-                } else {
-                    filteredData = simplefilteredData;
-                }
-            }
+            // Filter out the current problem by explicit identities only.
+            const problemIdentities = buildProblemIdentitySets(problem);
+            const filteredData = data.filter(stop => !stopMatchesProblemIdentities(stop, problemIdentities));
             
             // Collect marker data for cluster handling
             var contextMarkerData = [];

@@ -8,6 +8,9 @@ from sqlalchemy.sql import func
 
 problems_bp = Blueprint('problems', __name__)
 
+DEFAULT_PROBLEM_SORT_BY = 'priority'
+DEFAULT_PROBLEM_SORT_ORDER = 'asc'
+
 
 def parse_csv_values(raw_value):
     if not raw_value:
@@ -29,6 +32,45 @@ def parse_priority_values(raw_priority):
         except ValueError:
             continue
     return values
+
+
+def get_problem_sort_params(args):
+    sort_by = request.args.get('sort_by', DEFAULT_PROBLEM_SORT_BY)
+    sort_order = request.args.get('sort_order', DEFAULT_PROBLEM_SORT_ORDER)
+    return sort_by, sort_order
+
+
+def sort_duplicate_groups(group_items, sort_by, sort_order):
+    if sort_by == 'priority':
+        def priority_key(group):
+            priority = group.get('priority')
+            if priority is None:
+                priority = 999
+            try:
+                priority = int(priority)
+            except Exception:
+                priority = 999
+
+            if sort_order == 'desc':
+                priority = -priority
+
+            return (
+                priority,
+                0 if group.get('group_type') == 'osm' else 1,
+                str(group.get('uic_ref') or group.get('sloid') or ''),
+                str(group.get('osm_local_ref') or group.get('atlas_designation') or '')
+            )
+
+        return sorted(group_items, key=priority_key)
+
+    return sorted(
+        group_items,
+        key=lambda g: (
+            0 if g.get('group_type') == 'osm' else 1,
+            str(g.get('uic_ref') or g.get('sloid') or ''),
+            str(g.get('osm_local_ref') or g.get('atlas_designation') or '')
+        )
+    )
 
 
 
@@ -60,8 +102,7 @@ def get_problems():
         
         problem_type_filter = request.args.get('problem_type', 'all')
         atlas_operator_filter = request.args.get('atlas_operator', None)
-        sort_by = request.args.get('sort_by', 'default')
-        sort_order = request.args.get('sort_order', 'asc')
+        sort_by, sort_order = get_problem_sort_params(request.args)
         priority_filter = request.args.get('priority', None)
 
         selected_problem_types = []
@@ -225,11 +266,7 @@ def get_problems():
                 payload = build_atlas_group_payload(key, pr_list)
                 if payload:
                     group_items.append(payload)
-            group_items.sort(key=lambda g: (
-                0 if g.get('group_type') == 'osm' else 1,
-                str(g.get('uic_ref') or g.get('sloid') or ''),
-                str(g.get('osm_local_ref') or '')
-            ))
+            group_items = sort_duplicate_groups(group_items, sort_by, sort_order)
             total_groups = len(group_items)
             paged_groups = group_items[offset:offset+limit]
             return jsonify({
@@ -237,8 +274,8 @@ def get_problems():
                 'total': total_groups,
                 'page': page,
                 'limit': limit,
-                'sort_by': 'default',
-                'sort_order': 'asc'
+                'sort_by': sort_by,
+                'sort_order': sort_order
             })
         distinct_stop_ids_subquery = query.with_entities(Problem.stop_id).distinct().subquery()
         total_problems = db.session.query(func.count()).select_from(distinct_stop_ids_subquery).scalar()
@@ -342,8 +379,8 @@ def get_problems():
                 "total": 0,
                 "page": 1,
                 "limit": 100,
-                "sort_by": request.args.get('sort_by', 'default'),
-                "sort_order": request.args.get('sort_order', 'asc')
+                "sort_by": request.args.get('sort_by', DEFAULT_PROBLEM_SORT_BY),
+                "sort_order": request.args.get('sort_order', DEFAULT_PROBLEM_SORT_ORDER)
             }), 200
         app.logger.exception(f"Error fetching problems: {str(e)}")
         return jsonify({"error": str(e)}), 500

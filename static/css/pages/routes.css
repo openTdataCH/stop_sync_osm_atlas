@@ -300,8 +300,9 @@
 
 .routes-gtfs-map-overlay .header-summary {
   position: static;
-  width: 100%;
-  max-width: none;
+  width: fit-content;
+  min-width: 0;
+  margin-left: auto; /* Align to the right of the overlay container */
 }
 
 .routes-gtfs-map-banner {

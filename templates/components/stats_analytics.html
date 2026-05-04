@@ -1060,7 +1060,7 @@ SECTION 6 — ROUTES
     {% set ga = stats.gtfs_atlas %}
     <table class="table table-sm table-hover">
       <tr>
-        <td>ATLAS stops touched by GTFS routes</td>
+        <td>ATLAS stops matched by GTFS routes</td>
         <td class="text-end">{{ "{:,}".format(ga.atlas.touched_by_gtfs_routes|default(0)) }} / {{ "{:,}".format(ga.atlas.total|default(0)) }}</td>
         <td class="text-end">{{ ga.atlas.coverage_percent|default(0) }}%</td>
       </tr>
@@ -1192,7 +1192,7 @@ SECTION 6 — ROUTES
       <div class="col-md-4 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm stat-card--success">
           <div class="stat-card__value">{{ "{:,}".format(ga.atlas.touched_by_gtfs_routes|default(0)) }}</div>
-          <div class="stat-card__label">ATLAS stops touched</div>
+          <div class="stat-card__label">ATLAS stops matched</div>
         </div>
       </div>
       <div class="col-md-4 col-sm-6 mb-3">

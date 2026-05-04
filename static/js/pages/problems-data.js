@@ -3,6 +3,9 @@
 window.ProblemsData = (function () {
     'use strict';
 
+    const DEFAULT_SORT_BY = 'priority';
+    const DEFAULT_SORT_ORDER = 'asc';
+
     function getSelectedTypes() {
         return ProblemsState.getSelectedProblemTypes() || [];
     }
@@ -57,6 +60,10 @@ window.ProblemsData = (function () {
         const orderGroup = (arr) => {
             if (!Array.isArray(arr)) return arr;
             return arr.slice().sort((a, b) => {
+                const priorityA = Number.isFinite(Number(a.priority)) ? Number(a.priority) : 999;
+                const priorityB = Number.isFinite(Number(b.priority)) ? Number(b.priority) : 999;
+                if (priorityA !== priorityB) return priorityA - priorityB;
+
                 if (selectedTypes.length > 0) {
                     const aMatch = selectedTypes.includes(a.problem) ? 1 : 0;
                     const bMatch = selectedTypes.includes(b.problem) ? 1 : 0;
@@ -157,6 +164,8 @@ window.ProblemsData = (function () {
             page: page,
             limit: 100,
             problem_type: getProblemTypeParamValue(),
+            sort_by: DEFAULT_SORT_BY,
+            sort_order: DEFAULT_SORT_ORDER,
             include_routes: 1
         };
 

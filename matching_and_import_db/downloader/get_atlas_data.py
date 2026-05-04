@@ -191,7 +191,12 @@ def write_atlas_route_csvs(
     stops_df = integrated_data[['route_id', 'direction_id', 'sloid', 'stop_id']].copy()
     stops_df['direction_id'] = stops_df['direction_id'].apply(_safe_direction_id)
     stops_df['stop_sequence'] = stops_df.groupby(['route_id', 'direction_id']).cumcount()
-    stops_df['mapping_method'] = 'integrated_order'
+    if 'match_method' in integrated_data.columns:
+        stops_df['mapping_method'] = integrated_data['match_method']
+    elif 'mapping_method' in integrated_data.columns:
+        stops_df['mapping_method'] = integrated_data['mapping_method']
+    else:
+        stops_df['mapping_method'] = None
     stops_out = os.path.join(out_dir, "atlas_route_stops.csv")
     stops_df.to_csv(stops_out, index=False)
     print(f"GTFS route stops: wrote {len(stops_df):,} rows to {stops_out}")
