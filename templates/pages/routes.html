@@ -14,10 +14,28 @@
 <div class="routes-page">
   <div class="routes-container">
     <header class="routes-header">
-      <h1>Routes</h1>
+      <nav class="c-page-tabs" role="tablist">
+        <a href="{{ url_for('routes.routes_page') }}"
+           class="c-page-tabs__tab {{ 'is-active' if active_view == 'routes' }}"
+           role="tab"
+           aria-selected="{{ 'true' if active_view == 'routes' else 'false' }}">
+          Routes
+        </a>
+        <a href="{{ url_for('routes.routes_gtfs_stop_id_sloid_page') }}"
+           class="c-page-tabs__tab {{ 'is-active' if active_view == 'gtfs_stop_id_sloid' }}"
+           role="tab"
+           aria-selected="{{ 'true' if active_view == 'gtfs_stop_id_sloid' else 'false' }}">
+          GTFS stop_id <i class="fas fa-arrows-alt-h mx-2" style="opacity: 0.5; font-size: 0.8em; vertical-align: middle;"></i> SLOID
+        </a>
+      </nav>
+      {% if active_view == 'gtfs_stop_id_sloid' %}
+      {# Description removed as per user request #}
+      {% else %}
       <p>Filter matched and unmatched routes, then unfold each card to inspect stops or preview route position on the map.</p>
+      {% endif %}
     </header>
 
+    {% if active_view == 'routes' %}
     <section class="routes-toolbar" aria-label="Routes filters and search">
       <form method="get" action="{{ url_for('routes.routes_page') }}" class="routes-toolbar__form" id="routesToolbarForm">
         <input type="hidden" name="atlas_operator" id="routesAtlasOperatorInput" value="{{ atlas_operator_query }}">
@@ -327,6 +345,17 @@
       <a class="btn btn-outline-primary" href="{{ url_for('routes.routes_page') }}">Clear all filters</a>
     </section>
     {% endif %}
+    {% else %}
+    <section class="routes-gtfs-map-view" aria-label="GTFS stop_id to ATLAS sloid map">
+      <div class="routes-gtfs-map-shell">
+        <div id="routesGtfsStopIdSloidBanner" class="routes-gtfs-map-banner d-none" aria-live="polite"></div>
+        <div class="routes-gtfs-map-overlay">
+          {{ stats_overlay(show_filters=False) }}
+        </div>
+        <div id="routesGtfsStopIdSloidMap" class="routes-gtfs-map"></div>
+      </div>
+    </section>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
@@ -336,7 +365,13 @@
 <script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-shared.js') }}"></script>
+{% if active_view == 'gtfs_stop_id_sloid' %}
+<script src="{{ url_for('static', filename='js/components/move_popup.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/line-renderer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/header-summary.js') }}"></script>
+{% endif %}
 <script src="{{ url_for('static', filename='js/components/map-renderer.js') }}"></script>
+{% if active_view == 'routes' %}
 <script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>
 <script>
@@ -349,4 +384,17 @@ window.routesPageConfig = {
 };
 </script>
 <script src="{{ url_for('static', filename='js/pages/routes.js') }}"></script>
+{% else %}
+<script>
+window.routesGtfsStopIdSloidConfig = {
+  summaryUrl: {{ url_for('routes.routes_gtfs_stop_id_sloid_summary_api') | tojson }},
+  mapUrl: {{ url_for('routes.routes_gtfs_stop_id_sloid_map_api') | tojson }},
+  popupUrl: {{ url_for('routes.routes_gtfs_stop_id_sloid_popup_api') | tojson }},
+  detailZoom: {{ gtfs_stop_id_sloid_detail_zoom | tojson }},
+  detailLimit: {{ gtfs_stop_id_sloid_detail_limit | tojson }},
+  overviewLimit: {{ gtfs_stop_id_sloid_overview_limit | tojson }}
+};
+</script>
+<script src="{{ url_for('static', filename='js/pages/routes-gtfs-stop-id-sloid.js') }}"></script>
+{% endif %}
 {% endblock %}

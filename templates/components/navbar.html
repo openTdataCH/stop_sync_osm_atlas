@@ -1,11 +1,14 @@
 <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
   <div class="container-fluid">
     <!-- Brand -->
-    <a class="navbar-brand d-flex align-items-center text-nowrap" href="{{ url_for('index') }}"
+    <a class="navbar-brand d-flex align-items-center text-nowrap mt-1" href="{{ url_for('index') }}"
       title="OSM &amp; ATLAS Synchronization">
       <img src="{{ url_for('static', filename='header/header.svg') }}" alt="OSM &amp; ATLAS"
         class="d-inline-block align-top me-2">
-      <span class="fw-bold navbar-brand-text">OSM &amp; ATLAS Synchronization</span>
+      <div class="d-flex flex-column mt-1">
+        <span class="fw-bold navbar-brand-text">OSM &amp; ATLAS Synchronization</span>
+        <small class="text-muted" style="font-size:0.75rem; line-height:1;">Version beta</small>
+      </div>
     </a>
 
     <!-- Mobile toggle button -->

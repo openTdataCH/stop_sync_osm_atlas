@@ -33,7 +33,8 @@ services:
     container_name: stop_sync_osm_atlas_migrator
     restart: "no"
     entrypoint: ["/bin/bash", "-lc"]
-    command: "python matching_and_import_db/database/init.py && flask db upgrade"
+    command:
+      - "python matching_and_import_db/database/init.py && flask db upgrade"
     volumes:
       - ./data:/app/data
     depends_on:

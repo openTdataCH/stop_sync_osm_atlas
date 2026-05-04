@@ -36,7 +36,7 @@
 		{
 			"label": "Docker: Run Matching & Import (Existing Data)",
 			"type": "shell",
-			"command": "docker compose up -d db redis app scheduler && docker exec stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode match-import --trigger manual",
+			"command": "docker compose up -d db redis && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode match-import --trigger manual",
 			"problemMatcher": [],
 			"group": "build",
 			"presentation": {
@@ -51,7 +51,7 @@
 		{
 			"label": "Docker: Run Full Data Pipeline (Download & Match & Import)",
 			"type": "shell",
-			"command": "docker compose up -d db redis app scheduler && docker exec stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual",
+			"command": "docker compose up -d db redis && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual",
 			"problemMatcher": [],
 			"group": "build",
 			"presentation": {
@@ -66,7 +66,7 @@
 		{
 			"label": "Docker: Run Flask DB Upgrade",
 			"type": "shell",
-			"command": "docker compose up -d db redis app && docker exec -it stop_sync_osm_atlas_app flask db upgrade",
+			"command": "docker compose up -d db redis && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app",
 			"problemMatcher": [],
 			"presentation": {
 				"echo": true,
@@ -96,7 +96,7 @@
 		{
 			"label": "Docker: Trigger Scheduled Pipeline Now",
 			"type": "shell",
-			"command": "docker compose up -d db redis scheduler && docker exec stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual",
+			"command": "docker compose up -d db redis && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d scheduler && docker exec stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual",
 			"problemMatcher": [],
 			"group": "build",
 			"presentation": {

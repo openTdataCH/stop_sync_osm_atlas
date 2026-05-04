@@ -11,6 +11,7 @@ import math
 import os
 import time
 import argparse
+import json
 from collections import Counter
 
 import pandas as pd
@@ -32,9 +33,17 @@ from matching_and_import_db.database.helpers import (
     apply_problem_results,
 )
 from matching_and_import_db.database.route_loader import load_all_route_data, build_route_write_payload
+from matching_and_import_db.downloader.get_atlas_gtfs import (
+    GTFS_DB_STATE_CACHE_PATH,
+    GTFS_DB_STOPS_CACHE_PATH,
+    build_gtfs_atlas_payload,
+    build_gtfs_db_payload_rows,
+    load_gtfs_data_streaming,
+    write_gtfs_db_payload_cache,
+)
 
 # --- External models --------------------------------------------------------
-from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem, AtlasRoute, AtlasRouteDirection, OsmRoute, OsmRouteTag
+from backend.models import StopsMatched, AtlasStop, GtfsStop, GtfsAtlasStopMatch, OsmNode, OsmStop, OsmStopMember, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem, AtlasRoute, AtlasRouteDirection, OsmRoute, OsmRouteTag
 from backend.services.stats_export import (
     export_pipeline_stats,
     save_stats_to_file,
@@ -47,6 +56,8 @@ def _ensure_import_schema_exists(db_session) -> None:
     """Fail fast with actionable guidance if import tables are missing."""
     required_tables = [
         'atlas_stops',
+        'gtfs_stops',
+        'gtfs_atlas_stop_matches',
         'osm_nodes',
         'osm_stops',
         'osm_stop_members',
@@ -87,6 +98,97 @@ def _collect_importable_sloids(base_data: MatchingOutput) -> set[str]:
             importable.add(str(sloid))
 
     return importable
+
+
+def _normalize_text(value):
+    value = safe_value(value)
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def _write_gtfs_atlas_stats(stats_payload: dict[str, object]) -> None:
+    stats_path = os.path.join('data', 'gtfs_atlas_stats.json')
+    os.makedirs(os.path.dirname(stats_path), exist_ok=True)
+    with open(stats_path, 'w', encoding='utf-8') as handle:
+        json.dump(stats_payload, handle, indent=2)
+
+
+def _load_gtfs_insert_payload_cache() -> tuple[list[dict], list[dict]] | None:
+    if not (os.path.exists(GTFS_DB_STOPS_CACHE_PATH) and os.path.exists(GTFS_DB_STATE_CACHE_PATH)):
+        return None
+
+    try:
+        gtfs_stops_df = pd.read_csv(GTFS_DB_STOPS_CACHE_PATH)
+        gtfs_state_df = pd.read_csv(GTFS_DB_STATE_CACHE_PATH)
+    except (pd.errors.EmptyDataError, FileNotFoundError):
+        return None
+
+    gtfs_stop_rows = gtfs_stops_df.where(pd.notna(gtfs_stops_df), None).to_dict(orient='records')
+    gtfs_state_rows = gtfs_state_df.where(pd.notna(gtfs_state_df), None).to_dict(orient='records')
+    return gtfs_stop_rows, gtfs_state_rows
+
+
+def _build_gtfs_insert_payloads() -> tuple[list[dict], list[dict]]:
+    cached_payload = _load_gtfs_insert_payload_cache()
+    if cached_payload is not None:
+        gtfs_stop_rows, gtfs_state_rows = cached_payload
+        print(
+            f"Loaded {len(gtfs_stop_rows)} GTFS stops and {len(gtfs_state_rows)} GTFS↔ATLAS state rows "
+            "from cached GTFS import artifacts"
+        )
+        return gtfs_stop_rows, gtfs_state_rows
+
+    atlas_csv_path = os.getenv('ATLAS_STOPS_CSV', 'data/raw/stops_ATLAS.csv')
+    gtfs_folder = os.getenv('GTFS_FOLDER', os.path.join('data', 'raw', 'gtfs'))
+    required_gtfs_files = ('stops.txt', 'stop_times.txt', 'trips.txt', 'routes.txt')
+
+    if not os.path.exists(atlas_csv_path):
+        raise FileNotFoundError(
+            f"Required GTFS↔ATLAS import source is missing: {atlas_csv_path}"
+        )
+
+    missing_gtfs_files = [
+        filename for filename in required_gtfs_files
+        if not os.path.exists(os.path.join(gtfs_folder, filename))
+    ]
+    if missing_gtfs_files:
+        raise FileNotFoundError(
+            "Required GTFS source files are missing from "
+            f"{gtfs_folder}: {', '.join(missing_gtfs_files)}"
+        )
+
+    traffic_points = pd.read_csv(atlas_csv_path, sep=';', dtype={'sloid': str, 'number': str}, low_memory=False)
+    gtfs_stream = load_gtfs_data_streaming(gtfs_folder)
+    gtfs_payload = build_gtfs_atlas_payload(gtfs_stream, traffic_points)
+    _write_gtfs_atlas_stats(gtfs_payload['mapping_stats_export'])
+    gtfs_stop_rows, gtfs_state_rows = build_gtfs_db_payload_rows(gtfs_payload, traffic_points)
+    write_gtfs_db_payload_cache(gtfs_payload, traffic_points)
+
+    matched_stop_ids = {
+        row['stop_id']
+        for row in gtfs_state_rows
+        if row.get('stop_type') == 'matched' and row.get('stop_id')
+    }
+    matched_sloids = {
+        row['sloid']
+        for row in gtfs_state_rows
+        if row.get('stop_type') == 'matched' and row.get('sloid')
+    }
+    atlas_stop_ids = {
+        row['sloid']
+        for row in gtfs_state_rows
+        if row.get('sloid')
+    }
+
+    print(
+        "Prepared "
+        f"{len(gtfs_stop_rows)} GTFS stops and {len(gtfs_state_rows)} GTFS↔ATLAS state rows "
+        f"({len(matched_stop_ids)} GTFS matched, {len(gtfs_stop_rows) - len(matched_stop_ids)} GTFS unmatched, "
+        f"{len(atlas_stop_ids) - len(matched_sloids)} ATLAS unmatched)"
+    )
+    return gtfs_stop_rows, gtfs_state_rows
 
 
 def precompute_problem_artifacts(base_data: MatchingOutput) -> dict:
@@ -484,10 +586,13 @@ def build_fast_insert_payloads(
             "(OSM node_id not in osm_nodes)"
         )
 
+    gtfs_stop_dicts, gtfs_atlas_match_dicts = _build_gtfs_insert_payloads()
+
     # ---- Summary ----
     total_matched = sum(1 for d in stops_matched_dicts if d['stop_type'] == 'matched')
     print(f"Payload precompute complete: {len(stops_matched_dicts)} stop rows, "
           f"{len(osm_node_dicts)} OSM nodes, {len(atlas_stop_dicts)} ATLAS stops, "
+          f"{len(gtfs_stop_dicts)} GTFS stops, {len(gtfs_atlas_match_dicts)} GTFS↔ATLAS matches, "
           f"{len(problem_rows)} problem rows, {len(route_osm_dicts)} route-OSM rows")
 
     return {
@@ -496,6 +601,8 @@ def build_fast_insert_payloads(
         'osm_stop_members': osm_stop_member_dicts,
         'stops_matched': stops_matched_dicts,
         'atlas_stops': atlas_stop_dicts,
+        'gtfs_stops': gtfs_stop_dicts,
+        'gtfs_atlas_stop_matches': gtfs_atlas_match_dicts,
         'problem_rows': problem_rows,
         'route_osm_stops': route_osm_dicts,
         'route_atlas_stops': route_atlas_dicts,
@@ -532,7 +639,7 @@ def import_to_database(
 
     # ---- TRUNCATE all tables ----
     print("Truncating all database tables...")
-    session.execute(text("TRUNCATE TABLE atlas_stops, osm_nodes, osm_stops, osm_stop_members, route_atlas_stops, route_osm_stops CASCADE"))
+    session.execute(text("TRUNCATE TABLE atlas_stops, gtfs_stops, gtfs_atlas_stop_matches, osm_nodes, osm_stops, osm_stop_members, route_atlas_stops, route_osm_stops CASCADE"))
     session.execute(text("TRUNCATE TABLE atlas_routes, atlas_route_directions, osm_routes, osm_route_tags, routes_matched, route_problems CASCADE"))
     session.execute(text("TRUNCATE TABLE problems, stops_matched CASCADE"))
     session.commit()
@@ -600,6 +707,20 @@ def import_to_database(
             session.execute(insert(AtlasStop), atlas_rows[i:i + _BULK_BATCH])
         session.commit()
         print(f"Imported {len(atlas_rows)} ATLAS stops")
+
+    gtfs_rows = db_payloads.get('gtfs_stops', [])
+    if gtfs_rows:
+        for i in range(0, len(gtfs_rows), _BULK_BATCH):
+            session.execute(insert(GtfsStop), gtfs_rows[i:i + _BULK_BATCH])
+        session.commit()
+        print(f"Imported {len(gtfs_rows)} GTFS stops")
+
+    gtfs_match_rows = db_payloads.get('gtfs_atlas_stop_matches', [])
+    if gtfs_match_rows:
+        for i in range(0, len(gtfs_match_rows), _BULK_BATCH):
+            session.execute(insert(GtfsAtlasStopMatch), gtfs_match_rows[i:i + _BULK_BATCH])
+        session.commit()
+        print(f"Imported {len(gtfs_match_rows)} GTFS↔ATLAS stop matches")
 
     # ---- Bulk insert: route tables ----
     atlas_routes = db_payloads.get('atlas_routes', [])
