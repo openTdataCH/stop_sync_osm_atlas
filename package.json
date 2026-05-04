@@ -8,7 +8,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "vendor:sync": "node scripts/sync_vendor_assets.mjs",
-    "vendor:check-cdn": "node scripts/check_no_cdn_templates.mjs"
+    "vendor:check-cdn": "node scripts/check_no_cdn_templates.mjs",
+    "svg:shrink:osm": "node scripts/reduce_svg_bandwidth.mjs --input static/osm.svg --in-place --mode auto --display-width 16 --display-height 16 --pixel-ratio 2 --target-reduction 80"
   },
   "devDependencies": {
     "@fortawesome/fontawesome-free": "5.15.3",
@@ -17,7 +18,8 @@
     "jest-environment-jsdom": "^29.7.0",
     "leaflet": "1.9.4",
     "mathjax": "3.2.2",
-    "mermaid": "10.9.1"
+    "mermaid": "10.9.1",
+    "svgo": "^4.0.1"
   },
   "jest": {
     "testEnvironment": "jsdom",

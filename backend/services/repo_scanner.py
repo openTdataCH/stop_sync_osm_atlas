@@ -4,14 +4,17 @@ from typing import Dict, List, Set, Optional
 
 logger = logging.getLogger(__name__)
 
-# Extensions to consider for auto-linking
-CODE_EXTENSIONS = {'.py', '.sql', '.sh', '.yml', '.yaml', '.json', '.js', '.ts'}
+# Extensions to consider for auto-linking (synchronized with docs.py)
+CODE_EXTENSIONS = {
+    '.py', '.sql', '.sh', '.yml', '.yaml', '.json', '.toml', '.ini', '.cfg',
+    '.js', '.ts', '.tsx', '.jsx', '.css', '.html',
+}
 
 # Directories to ignore during scanning
 IGNORE_DIRS = {
     '.git', 'node_modules', 'venv', '.venv', '__pycache__', 
-    'htmlcov', '.pytest_cache', 'documentation', 'static', 'templates',
-    'data', 'coverage', '.gemini'
+    'htmlcov', '.pytest_cache', 'documentation', 'data', 'coverage', '.gemini',
+    'vendor', 'dist', 'build'
 }
 
 class RepoScanner:

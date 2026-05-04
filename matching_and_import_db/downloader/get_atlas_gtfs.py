@@ -1,12 +1,37 @@
 """GTFS data download and processing module."""
+import math
 import os
 import zipfile
 import requests
+import numpy as np
 import pandas as pd
 import shutil
 from typing import Dict, Set
 
 from .geo_utils import filter_points_in_switzerland
+
+
+COORD_PROXIMITY_MAX_DISTANCE_M = 0.5
+_COORD_BUCKET_METERS_PER_DEG_LAT = 111_320.0
+_COORD_BUCKET_METERS_PER_DEG_LON = _COORD_BUCKET_METERS_PER_DEG_LAT * math.cos(math.radians(46.8))
+GTFS_DB_STOPS_CACHE_PATH = os.path.join('data', 'processed', 'gtfs_stops.csv')
+GTFS_DB_STATE_CACHE_PATH = os.path.join('data', 'processed', 'gtfs_atlas_stop_matches.csv')
+
+
+def _normalize_optional_text(value: object) -> str | None:
+    if pd.isna(value):
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def _normalize_optional_float(value: object) -> float | None:
+    if pd.isna(value):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _build_gtfs_atlas_stats(mapping_stats: Dict[str, object]) -> Dict[str, object]:
@@ -31,6 +56,7 @@ def _build_gtfs_atlas_stats(mapping_stats: Dict[str, object]) -> Dict[str, objec
         },
         'assignments': {
             'strict': int(mapping_stats.get('strict_assignments') or 0),
+            'coordinate_proximity': int(mapping_stats.get('coordinate_proximity_assignments') or 0),
             'unique_number_fallback': int(mapping_stats.get('unique_number_fallback_assignments') or 0),
             'total': int(mapping_stats.get('total_assignments') or 0),
         },
@@ -38,8 +64,133 @@ def _build_gtfs_atlas_stats(mapping_stats: Dict[str, object]) -> Dict[str, objec
             'stop_to_sloid': mapping_stats.get('stop_to_sloid') or {},
             'sloid_to_stop': mapping_stats.get('sloid_to_stop') or {},
         },
+        'coordinate_proximity': {
+            'distance_threshold_m': float(mapping_stats.get('coordinate_proximity_distance_threshold_m') or 0.0),
+            'candidate_pairs': int(mapping_stats.get('coordinate_proximity_candidate_pairs') or 0),
+            'candidate_gtfs_stop_ids': int(mapping_stats.get('coordinate_proximity_candidate_gtfs_stop_ids') or 0),
+            'candidate_atlas_sloids': int(mapping_stats.get('coordinate_proximity_candidate_atlas_sloids') or 0),
+            'assignments': int(mapping_stats.get('coordinate_proximity_assignments') or 0),
+            'conflicting_gtfs_stop_ids': int(mapping_stats.get('coordinate_proximity_conflicting_gtfs_stop_ids') or 0),
+            'conflicting_atlas_sloids': int(mapping_stats.get('coordinate_proximity_conflicting_atlas_sloids') or 0),
+        },
         'unmatched_reasons': mapping_stats.get('unmatched_reasons') or {},
     }
+
+
+def _build_coordinate_proximity_matches(
+    gtfs_remaining: pd.DataFrame,
+    atlas_data: pd.DataFrame,
+    max_distance_m: float = COORD_PROXIMITY_MAX_DISTANCE_M,
+) -> tuple[pd.DataFrame, Dict[str, int | float]]:
+    empty_matches = pd.DataFrame({
+        'stop_id': pd.Series(dtype='object'),
+        'sloid': pd.Series(dtype='object'),
+        'match_method': pd.Series(dtype='object'),
+        'distance_m': pd.Series(dtype='float64'),
+    })
+    empty_stats: Dict[str, int | float] = {
+        'coordinate_proximity_distance_threshold_m': float(max_distance_m),
+        'coordinate_proximity_candidate_pairs': 0,
+        'coordinate_proximity_candidate_gtfs_stop_ids': 0,
+        'coordinate_proximity_candidate_atlas_sloids': 0,
+        'coordinate_proximity_assignments': 0,
+        'coordinate_proximity_conflicting_gtfs_stop_ids': 0,
+        'coordinate_proximity_conflicting_atlas_sloids': 0,
+    }
+
+    if gtfs_remaining.empty or atlas_data.empty:
+        return empty_matches, empty_stats
+
+    gtfs_coords = gtfs_remaining[['stop_id', 'uic_number', 'stop_lat', 'stop_lon']].copy()
+    gtfs_coords['stop_lat'] = pd.to_numeric(gtfs_coords['stop_lat'], errors='coerce')
+    gtfs_coords['stop_lon'] = pd.to_numeric(gtfs_coords['stop_lon'], errors='coerce')
+    gtfs_coords = gtfs_coords.dropna(subset=['stop_id', 'uic_number', 'stop_lat', 'stop_lon'])
+
+    atlas_coords = atlas_data[['sloid', 'number', 'lat', 'lon']].copy()
+    atlas_coords['lat'] = pd.to_numeric(atlas_coords['lat'], errors='coerce')
+    atlas_coords['lon'] = pd.to_numeric(atlas_coords['lon'], errors='coerce')
+    atlas_coords = atlas_coords.dropna(subset=['sloid', 'number', 'lat', 'lon'])
+
+    if gtfs_coords.empty or atlas_coords.empty:
+        return empty_matches, empty_stats
+
+    relevant_numbers = set(gtfs_coords['uic_number'].astype(str).unique())
+    atlas_coords = atlas_coords[atlas_coords['number'].astype(str).isin(relevant_numbers)].copy()
+    if atlas_coords.empty:
+        return empty_matches, empty_stats
+
+    gtfs_coords['bucket_x'] = (gtfs_coords['stop_lon'].astype(float) * _COORD_BUCKET_METERS_PER_DEG_LON / max_distance_m).round().astype('int64')
+    gtfs_coords['bucket_y'] = (gtfs_coords['stop_lat'].astype(float) * _COORD_BUCKET_METERS_PER_DEG_LAT / max_distance_m).round().astype('int64')
+    atlas_coords['bucket_x'] = (atlas_coords['lon'].astype(float) * _COORD_BUCKET_METERS_PER_DEG_LON / max_distance_m).round().astype('int64')
+    atlas_coords['bucket_y'] = (atlas_coords['lat'].astype(float) * _COORD_BUCKET_METERS_PER_DEG_LAT / max_distance_m).round().astype('int64')
+
+    offsets = pd.DataFrame(
+        [(dx, dy) for dx in (-1, 0, 1) for dy in (-1, 0, 1)],
+        columns=['bucket_dx', 'bucket_dy'],
+    )
+    gtfs_expanded = (
+        gtfs_coords.assign(_merge_key=1)
+        .merge(offsets.assign(_merge_key=1), on='_merge_key', how='left')
+        .drop(columns=['_merge_key'])
+    )
+    gtfs_expanded['bucket_x'] = gtfs_expanded['bucket_x'] + gtfs_expanded['bucket_dx']
+    gtfs_expanded['bucket_y'] = gtfs_expanded['bucket_y'] + gtfs_expanded['bucket_dy']
+
+    candidates = gtfs_expanded.merge(
+        atlas_coords,
+        left_on=['uic_number', 'bucket_x', 'bucket_y'],
+        right_on=['number', 'bucket_x', 'bucket_y'],
+        how='inner',
+        suffixes=('_gtfs', '_atlas'),
+    )
+    if candidates.empty:
+        return empty_matches, empty_stats
+
+    lat1 = np.radians(candidates['stop_lat'].astype(float))
+    lon1 = np.radians(candidates['stop_lon'].astype(float))
+    lat2 = np.radians(candidates['lat'].astype(float))
+    lon2 = np.radians(candidates['lon'].astype(float))
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = np.sin(dlat / 2) ** 2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon / 2) ** 2
+    a = np.clip(a, 0.0, 1.0)
+    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1.0 - a))
+    candidates['distance_m'] = 6_371_000.0 * c
+
+    valid_pairs = candidates.loc[candidates['distance_m'] <= max_distance_m, ['stop_id', 'sloid', 'distance_m']].drop_duplicates(subset=['stop_id', 'sloid'])
+    if valid_pairs.empty:
+        return empty_matches, empty_stats
+
+    stop_candidate_counts = valid_pairs.groupby('stop_id', sort=False)['sloid'].nunique()
+    sloid_candidate_counts = valid_pairs.groupby('sloid', sort=False)['stop_id'].nunique()
+
+    conflict_free = valid_pairs[
+        valid_pairs['stop_id'].map(stop_candidate_counts).eq(1)
+        & valid_pairs['sloid'].map(sloid_candidate_counts).eq(1)
+    ][['stop_id', 'sloid', 'distance_m']].drop_duplicates()
+    conflict_free['match_method'] = 'coordinate_proximity'
+
+    stats: Dict[str, int | float] = {
+        'coordinate_proximity_distance_threshold_m': float(max_distance_m),
+        'coordinate_proximity_candidate_pairs': int(len(valid_pairs)),
+        'coordinate_proximity_candidate_gtfs_stop_ids': int(valid_pairs['stop_id'].nunique()),
+        'coordinate_proximity_candidate_atlas_sloids': int(valid_pairs['sloid'].nunique()),
+        'coordinate_proximity_assignments': int(len(conflict_free)),
+        'coordinate_proximity_conflicting_gtfs_stop_ids': int((stop_candidate_counts > 1).sum()),
+        'coordinate_proximity_conflicting_atlas_sloids': int((sloid_candidate_counts > 1).sum()),
+    }
+    return conflict_free, stats
+
+
+def parse_gtfs_stop_ids(gtfs_stops: pd.DataFrame) -> pd.DataFrame:
+    """Parse GTFS stop identifiers into reusable UIC/local-ref fields."""
+    parsed = gtfs_stops.copy()
+    parts = parsed['stop_id'].astype(str).str.split(':', n=2, expand=True)
+    parsed['uic_number'] = parts[0]
+    parsed['local_ref'] = parts[2] if parts.shape[1] >= 3 else None
+    parsed['normalized_local_ref'] = parsed['local_ref'].replace({'10000': '1', '10001': '2'})
+    parsed['uic_number'] = parsed['uic_number'].astype(str)
+    return parsed
 
 
 def download_and_extract_gtfs(gtfs_url):
@@ -279,12 +430,18 @@ def load_gtfs_data_streaming(gtfs_folder: str):
     }
 
 
-def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataFrame], traffic_points: pd.DataFrame) -> pd.DataFrame:
+def build_integrated_gtfs_data_streaming(
+    gtfs_data_streaming: Dict[str, pd.DataFrame],
+    traffic_points: pd.DataFrame,
+    gtfs_payload: Dict[str, object] | None = None,
+) -> pd.DataFrame:
     """Build the final integrated GTFS DataFrame using streaming outputs.
 
     Returns DataFrame with columns:
       ['stop_id', 'sloid', 'route_id', 'route_short_name', 'route_long_name', 'direction_id', 'direction']
     """
+    gtfs_payload = gtfs_payload or build_gtfs_atlas_payload(gtfs_data_streaming, traffic_points)
+
     # stop_id, route_id, direction_id
     stop_route_unique = gtfs_data_streaming['stop_route_unique']
     # add route metadata
@@ -304,9 +461,6 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
     else:
         route_directions_unique = route_directions
 
-    # match GTFS stops to ATLAS sloids
-    matches, mapping_stats = match_gtfs_to_atlas({'stops': gtfs_data_streaming['stops']}, traffic_points, return_stats=True)
-
     import json
     stats_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -314,10 +468,10 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
     )
     os.makedirs(os.path.dirname(stats_path), exist_ok=True)
     with open(stats_path, 'w', encoding='utf-8') as f:
-        json.dump(_build_gtfs_atlas_stats(mapping_stats), f, indent=2)
+        json.dump(gtfs_payload['mapping_stats_export'], f, indent=2)
 
     # integrate
-    linked_stops = gtfs_data_streaming['stops'].merge(matches, on='stop_id', how='left')
+    linked_stops = gtfs_payload['gtfs_stops'].merge(gtfs_payload['matches'], on='stop_id', how='left')
     integrated = linked_stops.merge(route_enriched, on='stop_id', how='inner')
     integrated = integrated.merge(route_directions_unique, on='route_id', how='left')
 
@@ -329,37 +483,176 @@ def build_integrated_gtfs_data_streaming(gtfs_data_streaming: Dict[str, pd.DataF
     return integrated
 
 
+def build_gtfs_atlas_payload(gtfs_data_streaming: Dict[str, pd.DataFrame], traffic_points: pd.DataFrame) -> Dict[str, object]:
+    """Return canonical GTFS stops, GTFS→ATLAS matches, and exported stats.
+
+    The database importer and the route CSV/integration writers should consume
+    this helper instead of rebuilding GTFS matching state separately.
+    """
+    gtfs_stops = parse_gtfs_stop_ids(gtfs_data_streaming['stops'])
+    matches, mapping_stats = match_gtfs_to_atlas({'stops': gtfs_stops}, traffic_points, return_stats=True)
+    return {
+        'gtfs_stops': gtfs_stops,
+        'matches': matches.copy(),
+        'mapping_stats': mapping_stats,
+        'mapping_stats_export': _build_gtfs_atlas_stats(mapping_stats),
+    }
+
+
+def build_gtfs_db_payload_rows(
+    gtfs_payload: Dict[str, object],
+    traffic_points: pd.DataFrame,
+) -> tuple[list[dict], list[dict]]:
+    gtfs_stop_rows = []
+    for stop in gtfs_payload['gtfs_stops'].to_dict(orient='records'):
+        stop_id = _normalize_optional_text(stop.get('stop_id'))
+        if not stop_id:
+            continue
+
+        stop_lat = _normalize_optional_float(stop.get('stop_lat'))
+        stop_lon = _normalize_optional_float(stop.get('stop_lon'))
+        if stop_lat is None or stop_lon is None:
+            continue
+
+        gtfs_stop_rows.append({
+            'stop_id': stop_id,
+            'stop_name': _normalize_optional_text(stop.get('stop_name')),
+            'uic_number': _normalize_optional_text(stop.get('uic_number')),
+            'local_ref': _normalize_optional_text(stop.get('local_ref')),
+            'normalized_local_ref': _normalize_optional_text(stop.get('normalized_local_ref')),
+            'stop_lat': stop_lat,
+            'stop_lon': stop_lon,
+        })
+
+    gtfs_stop_lookup = {row['stop_id']: row for row in gtfs_stop_rows}
+    gtfs_uic_numbers = {
+        row['uic_number']
+        for row in gtfs_stop_rows
+        if row.get('uic_number')
+    }
+
+    atlas_coords = traffic_points[['sloid', 'number']].copy()
+    atlas_coords['atlas_lat'] = pd.to_numeric(traffic_points.get('wgs84North'), errors='coerce')
+    atlas_coords['atlas_lon'] = pd.to_numeric(traffic_points.get('wgs84East'), errors='coerce')
+    atlas_coords = atlas_coords.dropna(subset=['sloid', 'atlas_lat', 'atlas_lon'])
+    atlas_coords['number'] = atlas_coords['number'].astype(str)
+    if gtfs_uic_numbers:
+        atlas_coords = atlas_coords[atlas_coords['number'].isin(gtfs_uic_numbers)].copy()
+
+    atlas_stop_lookup = {}
+    for atlas_row in atlas_coords.to_dict(orient='records'):
+        sloid = _normalize_optional_text(atlas_row.get('sloid'))
+        if not sloid or sloid in atlas_stop_lookup:
+            continue
+        atlas_stop_lookup[sloid] = {
+            'atlas_lat': float(atlas_row['atlas_lat']),
+            'atlas_lon': float(atlas_row['atlas_lon']),
+        }
+
+    gtfs_state_rows = []
+    matched_stop_ids = set()
+    matched_sloids = set()
+    for match in gtfs_payload['matches'].to_dict(orient='records'):
+        stop_id = _normalize_optional_text(match.get('stop_id'))
+        sloid = _normalize_optional_text(match.get('sloid'))
+        match_method = _normalize_optional_text(match.get('match_method'))
+        if not stop_id or not sloid or not match_method:
+            continue
+
+        gtfs_stop = gtfs_stop_lookup.get(stop_id)
+        atlas_stop = atlas_stop_lookup.get(sloid)
+        if gtfs_stop is None or atlas_stop is None:
+            continue
+
+        gtfs_state_rows.append({
+            'stop_id': stop_id,
+            'sloid': sloid,
+            'stop_type': 'matched',
+            'match_method': match_method,
+            'distance_m': _normalize_optional_float(match.get('distance_m')),
+            'gtfs_stop_lat': gtfs_stop['stop_lat'],
+            'gtfs_stop_lon': gtfs_stop['stop_lon'],
+            'atlas_lat': atlas_stop['atlas_lat'],
+            'atlas_lon': atlas_stop['atlas_lon'],
+        })
+        matched_stop_ids.add(stop_id)
+        matched_sloids.add(sloid)
+
+    for gtfs_stop in gtfs_stop_rows:
+        stop_id = gtfs_stop['stop_id']
+        if stop_id in matched_stop_ids:
+            continue
+        gtfs_state_rows.append({
+            'stop_id': stop_id,
+            'sloid': None,
+            'stop_type': 'gtfs_unmatched',
+            'match_method': None,
+            'distance_m': None,
+            'gtfs_stop_lat': gtfs_stop['stop_lat'],
+            'gtfs_stop_lon': gtfs_stop['stop_lon'],
+            'atlas_lat': None,
+            'atlas_lon': None,
+        })
+
+    for sloid, atlas_stop in atlas_stop_lookup.items():
+        if sloid in matched_sloids:
+            continue
+        gtfs_state_rows.append({
+            'stop_id': None,
+            'sloid': sloid,
+            'stop_type': 'atlas_unmatched',
+            'match_method': None,
+            'distance_m': None,
+            'gtfs_stop_lat': None,
+            'gtfs_stop_lon': None,
+            'atlas_lat': atlas_stop['atlas_lat'],
+            'atlas_lon': atlas_stop['atlas_lon'],
+        })
+
+    return gtfs_stop_rows, gtfs_state_rows
+
+
+def write_gtfs_db_payload_cache(
+    gtfs_payload: Dict[str, object],
+    traffic_points: pd.DataFrame,
+    stops_cache_path: str = GTFS_DB_STOPS_CACHE_PATH,
+    state_cache_path: str = GTFS_DB_STATE_CACHE_PATH,
+) -> tuple[list[dict], list[dict]]:
+    gtfs_stop_rows, gtfs_state_rows = build_gtfs_db_payload_rows(gtfs_payload, traffic_points)
+
+    os.makedirs(os.path.dirname(stops_cache_path), exist_ok=True)
+    pd.DataFrame(gtfs_stop_rows).to_csv(stops_cache_path, index=False)
+    pd.DataFrame(gtfs_state_rows).to_csv(state_cache_path, index=False)
+    return gtfs_stop_rows, gtfs_state_rows
+
+
 # The normalize_route_id function is imported at module level when needed
 
 
 def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
-    """Map stop_id GTFS → sloid ATLAS using strict + unique-number matching.
+    """Map stop_id GTFS → sloid ATLAS using strict + coordinate + unique-number matching.
 
     Strict: (uic_number, normalized_local_ref) == (number, designation)
     Fallback (applied only for stops not matched strictly):
-      1) If an ATLAS "number" has exactly one row, use that sloid
+      1) If a same-UIC GTFS stop and ATLAS stop are within 0.5m and both sides are unique, assign them.
+      2) If an ATLAS "number" has exactly one row, use that sloid.
     """
     print("Mapping stop_id GTFS → sloid ATLAS…")
     
     # GTFS stops are already filtered for Switzerland during loading
-    gtfs_stops = gtfs_data['stops'].copy()
-    
-    # Parse stop_id to extract UIC and local reference (vectorized; same semantics as the prior apply())
-    parts = gtfs_stops['stop_id'].astype(str).str.split(':', n=2, expand=True)
-    gtfs_stops['uic_number'] = parts[0]
-    if parts.shape[1] >= 3:
-        gtfs_stops['local_ref'] = parts[2]
-    else:
-        gtfs_stops['local_ref'] = None
-    
-    # Normalize local_ref (10000->1, 10001->2)
-    gtfs_stops['normalized_local_ref'] = gtfs_stops['local_ref'].replace({'10000': '1', '10001': '2'})
-    gtfs_stops['uic_number'] = gtfs_stops['uic_number'].astype(str)
+    gtfs_stops = parse_gtfs_stop_ids(gtfs_data['stops'])
     
     # Prepare ATLAS data
-    atlas_data = traffic_points[['sloid', 'number', 'designation']].copy()
+    atlas_columns = ['sloid', 'number', 'designation']
+    if 'wgs84North' in traffic_points.columns:
+        atlas_columns.append('wgs84North')
+    if 'wgs84East' in traffic_points.columns:
+        atlas_columns.append('wgs84East')
+    atlas_data = traffic_points[atlas_columns].copy()
     atlas_data['number'] = atlas_data['number'].astype(str)
     atlas_data = atlas_data.dropna(subset=['sloid', 'number'])
+    atlas_data['lat'] = pd.to_numeric(atlas_data.get('wgs84North'), errors='coerce')
+    atlas_data['lon'] = pd.to_numeric(atlas_data.get('wgs84East'), errors='coerce')
     
     # Strict: match on UIC number and designation
     strict_matches = pd.merge(
@@ -368,12 +661,20 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
         left_on=['uic_number', 'normalized_local_ref'],
         right_on=['number', 'designation'],
         how='inner'
-    )[['stop_id', 'sloid']]
+    )[['stop_id', 'sloid']].drop_duplicates()
+    strict_matches['match_method'] = 'strict'
+    strict_matches['distance_m'] = np.nan
 
-    # Fallback for remaining stops: unique ATLAS number only
+    # Fallback for remaining stops: same-UIC coordinate proximity within 0.5m.
     matched_stop_ids = set(strict_matches['stop_id'])
     remaining = gtfs_stops[~gtfs_stops['stop_id'].isin(matched_stop_ids)].copy()
 
+    coordinate_matches, coordinate_stats = _build_coordinate_proximity_matches(remaining, atlas_data)
+
+    matched_stop_ids |= set(coordinate_matches['stop_id'])
+    remaining = gtfs_stops[~gtfs_stops['stop_id'].isin(matched_stop_ids)].copy()
+
+    # Final fallback for remaining stops: unique ATLAS number only.
     atlas_counts = atlas_data.groupby('number', sort=False)['sloid'].nunique()
     unique_numbers = set(atlas_counts[atlas_counts == 1].index.astype(str))
 
@@ -382,7 +683,12 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
         .drop_duplicates(subset=['number'])
     )
 
-    unique_fallback_matches = pd.DataFrame(columns=['stop_id', 'sloid'])
+    unique_fallback_matches = pd.DataFrame({
+        'stop_id': pd.Series(dtype='object'),
+        'sloid': pd.Series(dtype='object'),
+        'match_method': pd.Series(dtype='object'),
+        'distance_m': pd.Series(dtype='float64'),
+    })
     if not remaining.empty and not atlas_unique_lookup.empty:
         unique_fallback_matches = (
             remaining[['stop_id', 'uic_number']]
@@ -390,8 +696,18 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
             [['stop_id', 'sloid']]
             .drop_duplicates()
         )
+        unique_fallback_matches['match_method'] = 'unique_number'
+        unique_fallback_matches['distance_m'] = np.nan
 
-    combined = pd.concat([strict_matches, unique_fallback_matches], ignore_index=True).drop_duplicates()
+    match_frames = [frame for frame in (strict_matches, coordinate_matches, unique_fallback_matches) if not frame.empty]
+    if match_frames:
+        combined = (
+            pd.concat(match_frames, ignore_index=True)
+            .drop_duplicates(subset=['stop_id', 'sloid'])
+            .sort_values(by=['stop_id', 'sloid'])
+        )
+    else:
+        combined = pd.DataFrame(columns=['stop_id', 'sloid', 'match_method', 'distance_m'])
 
     # Derive mapping quality stats for docs/UI.
     total_gtfs_stops = int(gtfs_stops['stop_id'].nunique())
@@ -423,7 +739,7 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
         unmatched_non_unique_after_strict = int(unmatched_total - unmatched_no_atlas_number)
 
     mapping_stats = {
-        'algorithm_version': 'strict_plus_unique_number',
+        'algorithm_version': 'strict_plus_coordinate_proximity_plus_unique_number',
         'total_gtfs_stop_ids': total_gtfs_stops,
         'matched_gtfs_stop_ids': matched_stop_ids_count,
         'unmatched_gtfs_stop_ids': unmatched_total,
@@ -432,8 +748,15 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
         'gtfs_coverage_percent': round((matched_stop_ids_count / total_gtfs_stops * 100), 2) if total_gtfs_stops else 0.0,
         'atlas_coverage_percent': round((touched_sloids / total_atlas_sloids * 100), 2) if total_atlas_sloids else 0.0,
         'strict_assignments': int(len(strict_matches)),
+        'coordinate_proximity_assignments': int(len(coordinate_matches)),
         'unique_number_fallback_assignments': int(len(unique_fallback_matches)),
         'total_assignments': int(len(combined)),
+        'coordinate_proximity_distance_threshold_m': float(coordinate_stats.get('coordinate_proximity_distance_threshold_m') or 0.0),
+        'coordinate_proximity_candidate_pairs': int(coordinate_stats.get('coordinate_proximity_candidate_pairs') or 0),
+        'coordinate_proximity_candidate_gtfs_stop_ids': int(coordinate_stats.get('coordinate_proximity_candidate_gtfs_stop_ids') or 0),
+        'coordinate_proximity_candidate_atlas_sloids': int(coordinate_stats.get('coordinate_proximity_candidate_atlas_sloids') or 0),
+        'coordinate_proximity_conflicting_gtfs_stop_ids': int(coordinate_stats.get('coordinate_proximity_conflicting_gtfs_stop_ids') or 0),
+        'coordinate_proximity_conflicting_atlas_sloids': int(coordinate_stats.get('coordinate_proximity_conflicting_atlas_sloids') or 0),
         'stop_to_sloid': {
             'one_to_one': stop_1_to_1,
             'one_to_many': stop_1_to_many,
@@ -445,15 +768,18 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
         'unmatched_reasons': {
             'no_atlas_candidate_for_uic_number': unmatched_no_atlas_number,
             'non_unique_atlas_number_after_strict_miss': unmatched_non_unique_after_strict,
+            'coordinate_proximity_conflicting_gtfs_stop_ids': int(coordinate_stats.get('coordinate_proximity_conflicting_gtfs_stop_ids') or 0),
+            'coordinate_proximity_conflicting_atlas_sloids': int(coordinate_stats.get('coordinate_proximity_conflicting_atlas_sloids') or 0),
         },
     }
 
-    if remaining.empty:
-        print(f"stop_id→sloid: strict assignments = {len(strict_matches):,}")
+    if combined.empty:
+        print("stop_id→sloid: no matches found")
         return (combined, mapping_stats) if return_stats else combined
 
     print(
         f"stop_id→sloid: strict = {len(strict_matches):,}, "
+        f"coordinate_proximity = {len(coordinate_matches):,}, "
         f"unique_fallback = {len(unique_fallback_matches):,}, total = {len(combined):,}"
     )
     return (combined, mapping_stats) if return_stats else combined

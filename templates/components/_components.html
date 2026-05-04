@@ -7,7 +7,7 @@
 </div>
 {% endmacro %}
 
-{% macro stats_overlay() %}
+{% macro stats_overlay(show_filters=True) %}
 <div id="headerSummaryInfo" class="header-summary">
   <div class="header-summary__mobile-bar">
     <span class="header-summary__mobile-title">Summary</span>
@@ -19,6 +19,7 @@
 
   <div id="headerSummaryContent" class="header-summary__content">
     <div id="headerSummaryStats"></div>
+    {% if show_filters %}
     <div id="headerSummaryFiltersRow" class="header-summary__filters-row">
       <button type="button" id="headerSummaryFiltersToggle" class="header-summary__filters-toggle" aria-expanded="false">
         <span id="headerSummaryFiltersLabel">Filters: None (All entries)</span>
@@ -29,6 +30,7 @@
     <div id="headerSummaryFiltersPanel" class="header-summary__filters-panel d-none">
       <div id="activeFilters" class="d-flex flex-wrap align-items-center"></div>
     </div>
+    {% endif %}
   </div>
 </div>
 {% endmacro %}

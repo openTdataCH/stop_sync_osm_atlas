@@ -54,6 +54,44 @@ def upgrade_():
         batch_op.create_index(batch_op.f('ix_atlas_stops_representative_sloid'), ['representative_sloid'], unique=False)
 
     op.create_table(
+        'gtfs_stops',
+        sa.Column('stop_id', sa.String(length=255), nullable=False),
+        sa.Column('stop_name', sa.String(length=255), nullable=True),
+        sa.Column('uic_number', sa.String(length=64), nullable=False),
+        sa.Column('local_ref', sa.String(length=64), nullable=True),
+        sa.Column('normalized_local_ref', sa.String(length=64), nullable=True),
+        sa.Column('stop_lat', sa.Float(), nullable=False),
+        sa.Column('stop_lon', sa.Float(), nullable=False),
+        sa.PrimaryKeyConstraint('stop_id'),
+    )
+    with op.batch_alter_table('gtfs_stops') as batch_op:
+        batch_op.create_index('idx_gtfs_stops_coords', ['stop_lat', 'stop_lon'], unique=False)
+        batch_op.create_index('idx_gtfs_stops_uic_number', ['uic_number'], unique=False)
+
+    op.create_table(
+        'gtfs_atlas_stop_matches',
+        sa.Column('id', sa.Integer(), nullable=False),
+        sa.Column('stop_id', sa.String(length=255), nullable=True),
+        sa.Column('sloid', sa.String(length=100), nullable=True),
+        sa.Column('stop_type', sa.String(length=50), nullable=False),
+        sa.Column('match_method', sa.String(length=50), nullable=True),
+        sa.Column('distance_m', sa.Float(), nullable=True),
+        sa.Column('gtfs_stop_lat', sa.Float(), nullable=True),
+        sa.Column('gtfs_stop_lon', sa.Float(), nullable=True),
+        sa.Column('atlas_lat', sa.Float(), nullable=True),
+        sa.Column('atlas_lon', sa.Float(), nullable=True),
+        sa.ForeignKeyConstraint(['stop_id'], ['gtfs_stops.stop_id'], ondelete='CASCADE'),
+        sa.ForeignKeyConstraint(['sloid'], ['atlas_stops.sloid'], ondelete='CASCADE'),
+        sa.PrimaryKeyConstraint('id'),
+        sa.UniqueConstraint('stop_id', 'sloid', name='uq_gtfs_atlas_stop_matches_stop_sloid'),
+    )
+    with op.batch_alter_table('gtfs_atlas_stop_matches') as batch_op:
+        batch_op.create_index('idx_gtfs_atlas_stop_matches_stop_type', ['stop_type'], unique=False)
+        batch_op.create_index('idx_gtfs_atlas_stop_matches_method', ['match_method'], unique=False)
+        batch_op.create_index('idx_gtfs_atlas_stop_matches_sloid', ['sloid'], unique=False)
+        batch_op.create_index('idx_gtfs_atlas_stop_matches_stop_id', ['stop_id'], unique=False)
+
+    op.create_table(
         'osm_nodes',
         sa.Column('osm_node_id', sa.String(length=100), nullable=False),
         sa.Column('osm_local_ref', sa.String(length=100), nullable=True),

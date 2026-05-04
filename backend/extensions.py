@@ -48,15 +48,6 @@ try:
 except ModuleNotFoundError:
 	limiter = _MissingLimiter("Flask-Limiter")
 
-
-try:
-	from flask_talisman import Talisman
-
-	talisman = Talisman()
-except ModuleNotFoundError:
-	talisman = _MissingInitAppExtension("Flask-Talisman", "HTTPS/security header enforcement")
-
-
 try:
 	from flask_migrate import Migrate
 

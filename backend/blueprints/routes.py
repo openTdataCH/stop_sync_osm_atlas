@@ -1,11 +1,20 @@
 from collections import Counter
 
-from flask import Blueprint, render_template, request
+from flask import Blueprint, jsonify, render_template, request
 from sqlalchemy import func, literal, or_
 
 from backend.db_errors import is_missing_table_error
 from backend.extensions import db
 from backend.models import AtlasRoute, AtlasRouteDirection, AtlasStop, OsmNode, OsmRoute, RouteAtlasStops, RouteOsmStops, RoutesMatched, StopsMatched
+from backend.services.gtfs_stop_id_sloid import (
+    GTFS_STOP_ID_SLOID_DETAIL_LIMIT,
+    GTFS_STOP_ID_SLOID_DETAIL_ZOOM,
+    GTFS_STOP_ID_SLOID_OVERVIEW_LIMIT,
+    build_atlas_stop_popup,
+    build_gtfs_stop_id_sloid_map_payload,
+    build_gtfs_stop_id_sloid_summary,
+    build_gtfs_stop_popup,
+)
 from backend.services.transport_routes import get_atlas_route_display_name, get_osm_route_display_name
 
 
@@ -33,6 +42,9 @@ MATCH_FILTER_LABELS = {
     ROUTE_UNMATCHED_ATLAS: 'Unmatched ATLAS',
     ROUTE_UNMATCHED_OSM: 'Unmatched OSM',
 }
+
+ROUTES_VIEW_ROUTES = 'routes'
+ROUTES_VIEW_GTFS_STOP_ID_SLOID = 'gtfs_stop_id_sloid'
 
 
 class _EmptyPagination:
@@ -82,6 +94,17 @@ def _search_placeholder() -> str:
 def _filters_summary_text(matched_filter: str) -> str:
     matched_label = MATCH_FILTER_LABELS.get(matched_filter, MATCH_FILTER_LABELS[ROUTE_MATCH_ALL])
     return f'Status: {matched_label}'
+
+
+def _render_routes_template(active_view: str, **context):
+    return render_template(
+        'pages/routes.html',
+        active_view=active_view,
+        gtfs_stop_id_sloid_detail_zoom=GTFS_STOP_ID_SLOID_DETAIL_ZOOM,
+        gtfs_stop_id_sloid_detail_limit=GTFS_STOP_ID_SLOID_DETAIL_LIMIT,
+        gtfs_stop_id_sloid_overview_limit=GTFS_STOP_ID_SLOID_OVERVIEW_LIMIT,
+        **context,
+    )
 
 
 def _load_available_atlas_operators() -> list[str]:
@@ -215,6 +238,35 @@ def _bounded_int(value, default, minimum=None, maximum=None):
         parsed = maximum
 
     return parsed
+
+
+def _parse_gtfs_stop_id_sloid_bbox_args():
+    return (
+        float(request.args.get('min_lat', '0')),
+        float(request.args.get('min_lon', '0')),
+        float(request.args.get('max_lat', '0')),
+        float(request.args.get('max_lon', '0')),
+    )
+
+
+def _empty_gtfs_stop_id_sloid_map_payload(zoom: int):
+    return {
+        'gtfs_stops': [],
+        'atlas_stops': [],
+        'matches': [],
+        'meta': {
+            'zoom': zoom,
+            'detail_zoom': GTFS_STOP_ID_SLOID_DETAIL_ZOOM,
+            'detail_limit': GTFS_STOP_ID_SLOID_DETAIL_LIMIT,
+            'overview_limit': GTFS_STOP_ID_SLOID_OVERVIEW_LIMIT,
+            'overview_mode': zoom < GTFS_STOP_ID_SLOID_DETAIL_ZOOM,
+            'gtfs_capped': False,
+            'atlas_capped': False,
+            'gtfs_returned': 0,
+            'atlas_returned': 0,
+            'matches_returned': 0,
+        },
+    }
 
 
 def _load_atlas_route_stops(atlas_route_ids):
@@ -843,8 +895,8 @@ def routes_page():
 
         range_start, range_end = _compute_page_range(pagination)
 
-        return render_template(
-            'pages/routes.html',
+        return _render_routes_template(
+            ROUTES_VIEW_ROUTES,
             route_rows=route_rows,
             pagination=pagination,
             matched_filter=matched_filter,
@@ -864,8 +916,8 @@ def routes_page():
         if is_missing_table_error(e):
             db.session.rollback()
             empty_pagination = _EmptyPagination(page=page, per_page=per_page)
-            return render_template(
-                'pages/routes.html',
+            return _render_routes_template(
+                ROUTES_VIEW_ROUTES,
                 route_rows=[],
                 pagination=empty_pagination,
                 matched_filter=matched_filter,
@@ -882,3 +934,80 @@ def routes_page():
                 range_end=0,
             )
         raise
+
+
+@routes_bp.route('/routes/gtfs-stop-id-sloid')
+def routes_gtfs_stop_id_sloid_page():
+    return _render_routes_template(ROUTES_VIEW_GTFS_STOP_ID_SLOID)
+
+
+@routes_bp.route('/api/routes/gtfs-stop-id-sloid/summary')
+def routes_gtfs_stop_id_sloid_summary_api():
+    try:
+        return jsonify(build_gtfs_stop_id_sloid_summary())
+    except Exception as exc:
+        if is_missing_table_error(exc):
+            db.session.rollback()
+            return jsonify({
+                'algorithm_version': None,
+                'total_gtfs_stops': 0,
+                'matched_gtfs_stops': 0,
+                'unmatched_gtfs_stops': 0,
+                'gtfs_coverage_percent': 0.0,
+                'total_atlas_stops': 0,
+                'matched_atlas_stops': 0,
+                'unmatched_atlas_stops': 0,
+                'atlas_coverage_percent': 0.0,
+                'assignments': {
+                    'strict': 0,
+                    'coordinate_proximity': 0,
+                    'unique_number_fallback': 0,
+                    'total': 0,
+                },
+            })
+        raise
+
+
+@routes_bp.route('/api/routes/gtfs-stop-id-sloid/map')
+def routes_gtfs_stop_id_sloid_map_api():
+    zoom = _bounded_int(request.args.get('zoom'), default=GTFS_STOP_ID_SLOID_DETAIL_ZOOM, minimum=0)
+    try:
+        min_lat, min_lon, max_lat, max_lon = _parse_gtfs_stop_id_sloid_bbox_args()
+    except ValueError:
+        return jsonify({'error': 'Invalid viewport bounds'}), 400
+
+    try:
+        return jsonify(build_gtfs_stop_id_sloid_map_payload(min_lat, min_lon, max_lat, max_lon, zoom))
+    except Exception as exc:
+        if is_missing_table_error(exc):
+            db.session.rollback()
+            return jsonify(_empty_gtfs_stop_id_sloid_map_payload(zoom))
+        raise
+
+
+@routes_bp.route('/api/routes/gtfs-stop-id-sloid/popup')
+def routes_gtfs_stop_id_sloid_popup_api():
+    entity_type = (request.args.get('entity_type') or '').strip().lower()
+    try:
+        if entity_type == 'gtfs':
+            stop_id = (request.args.get('stop_id') or '').strip()
+            if not stop_id:
+                return jsonify({'error': 'Missing stop_id'}), 400
+            popup_payload = build_gtfs_stop_popup(stop_id)
+        elif entity_type == 'atlas':
+            sloid = (request.args.get('sloid') or '').strip()
+            if not sloid:
+                return jsonify({'error': 'Missing sloid'}), 400
+            popup_payload = build_atlas_stop_popup(sloid)
+        else:
+            return jsonify({'error': 'entity_type must be atlas or gtfs'}), 400
+    except Exception as exc:
+        if is_missing_table_error(exc):
+            db.session.rollback()
+            return jsonify({'error': 'GTFS stop_id to sloid data is not available yet'}), 404
+        raise
+
+    if popup_payload is None:
+        return jsonify({'error': 'Stop not found'}), 404
+
+    return jsonify(popup_payload)

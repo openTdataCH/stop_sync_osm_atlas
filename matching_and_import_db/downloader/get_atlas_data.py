@@ -12,9 +12,11 @@ from typing import Optional
 
 from .geo_utils import filter_points_in_switzerland
 from .get_atlas_gtfs import (
+    build_gtfs_atlas_payload,
     download_and_extract_gtfs,
     load_gtfs_data_streaming,
     build_integrated_gtfs_data_streaming,
+    write_gtfs_db_payload_cache,
 )
 from matching_and_import_db.utils.route_id import normalize_route_id as _normalize_route_id_for_matching
 from backend.services.stats_export import load_stats_from_file, save_stats_to_file
@@ -222,7 +224,13 @@ if __name__ == "__main__":
         gtfs_folder = download_and_extract_gtfs(gtfs_url)
 
         gtfs_stream = load_gtfs_data_streaming(gtfs_folder)
-        integrated_data = build_integrated_gtfs_data_streaming(gtfs_stream, stops_data)
+        gtfs_payload = build_gtfs_atlas_payload(gtfs_stream, stops_data)
+        integrated_data = build_integrated_gtfs_data_streaming(gtfs_stream, stops_data, gtfs_payload=gtfs_payload)
+        gtfs_stop_rows, gtfs_state_rows = write_gtfs_db_payload_cache(gtfs_payload, stops_data)
+        print(
+            f"GTFS DB cache: wrote {len(gtfs_stop_rows):,} GTFS stops and "
+            f"{len(gtfs_state_rows):,} GTFS↔ATLAS state rows"
+        )
 
         # Print statistics
         total_gtfs_stops = len(integrated_data['stop_id'].unique())

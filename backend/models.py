@@ -102,6 +102,44 @@ class AtlasStop(db.Model):
     # JSONB array of all SLOIDs in the duplicate group (e.g. ["sloid1", "sloid2"])
     duplicate_group_sloids = db.Column(JSONB)
 
+
+class GtfsStop(db.Model):
+    __tablename__ = 'gtfs_stops'
+    __table_args__ = (
+        db.Index('idx_gtfs_stops_uic_number', 'uic_number'),
+        db.Index('idx_gtfs_stops_coords', 'stop_lat', 'stop_lon'),
+    )
+
+    stop_id = db.Column(db.String(255), primary_key=True)
+    stop_name = db.Column(db.String(255))
+    uic_number = db.Column(db.String(64), nullable=False)
+    local_ref = db.Column(db.String(64))
+    normalized_local_ref = db.Column(db.String(64))
+    stop_lat = db.Column(db.Float, nullable=False)
+    stop_lon = db.Column(db.Float, nullable=False)
+
+
+class GtfsAtlasStopMatch(db.Model):
+    __tablename__ = 'gtfs_atlas_stop_matches'
+    __table_args__ = (
+        db.UniqueConstraint('stop_id', 'sloid', name='uq_gtfs_atlas_stop_matches_stop_sloid'),
+        db.Index('idx_gtfs_atlas_stop_matches_stop_type', 'stop_type'),
+        db.Index('idx_gtfs_atlas_stop_matches_stop_id', 'stop_id'),
+        db.Index('idx_gtfs_atlas_stop_matches_sloid', 'sloid'),
+        db.Index('idx_gtfs_atlas_stop_matches_method', 'match_method'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    stop_id = db.Column(db.String(255), db.ForeignKey('gtfs_stops.stop_id', ondelete='CASCADE'))
+    sloid = db.Column(db.String(100), db.ForeignKey('atlas_stops.sloid', ondelete='CASCADE'))
+    stop_type = db.Column(db.String(50), nullable=False)
+    match_method = db.Column(db.String(50))
+    distance_m = db.Column(db.Float)
+    gtfs_stop_lat = db.Column(db.Float)
+    gtfs_stop_lon = db.Column(db.Float)
+    atlas_lat = db.Column(db.Float)
+    atlas_lon = db.Column(db.Float)
+
 class OsmNode(db.Model):
     __tablename__ = 'osm_nodes'
     

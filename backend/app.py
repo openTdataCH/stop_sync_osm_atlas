@@ -1,9 +1,9 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect
 import logging
 import os
 
 # Import the modular components
-from backend.extensions import db, limiter, talisman, migrate
+from backend.extensions import db, limiter, migrate
 from backend.blueprints.data import data_bp
 from backend.blueprints.reports import reports_bp
 from backend.blueprints.search import search_bp
@@ -24,8 +24,6 @@ def create_app():
 
     db.init_app(app)
     limiter.init_app(app)
-    # Keep CSP relaxed for current CDN-heavy frontend; enforce HTTPS conditionally via env
-    talisman.init_app(app, content_security_policy=None, force_https=os.getenv('FORCE_HTTPS', 'false').lower() == 'true')
     migrate.init_app(app, db)
 
     # Register blueprints
@@ -37,7 +35,14 @@ def create_app():
     app.register_blueprint(docs_bp)
     app.register_blueprint(system_bp)
     app.register_blueprint(routes_bp)
- 
+    @app.before_request
+    def enforce_https():
+        if os.getenv('FORCE_HTTPS', 'false').lower() == 'true':
+            # Check X-Forwarded-Proto for proxies, or fallback to request.is_secure
+            if request.headers.get('X-Forwarded-Proto', 'http') == 'http' and not request.is_secure:
+                url = request.url.replace('http://', 'https://', 1)
+                return redirect(url, code=301)
+
     @app.context_processor
     def inject_stats_metadata():
         from backend.services.stats_export import load_stats_from_file
