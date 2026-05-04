@@ -105,6 +105,37 @@
         return formatDistanceMeters(distanceM) || 'N/A';
     }
 
+    function collectMappingMethods(items) {
+        if (!Array.isArray(items) || items.length === 0) {
+            return [];
+        }
+
+        const seen = new Set();
+        return items.reduce(function (methods, item) {
+            const matchMethod = item && hasValue(item.match_method)
+                ? String(item.match_method).trim()
+                : '';
+            if (!matchMethod || seen.has(matchMethod)) {
+                return methods;
+            }
+            seen.add(matchMethod);
+            methods.push(matchMethod);
+            return methods;
+        }, []);
+    }
+
+    function buildMappingMethodRow(items) {
+        const methods = collectMappingMethods(items);
+        if (methods.length === 0) {
+            return null;
+        }
+
+        return [
+            methods.length === 1 ? 'Mapping Method' : 'Mapping Methods',
+            methods.map(buildMatchTypeHtml).join(', ')
+        ];
+    }
+
     function renderBubbleCard(options) {
         const {
             type,
@@ -442,6 +473,10 @@
             hideMatchMetadata: true,
         });
 
+        const mappingMethodRow = buildMappingMethodRow(data.matched_gtfs);
+        if (mappingMethodRow) {
+            rows.push(mappingMethodRow);
+        }
         rows.push(['Matched GTFS', String(data.matched_gtfs_count || 0)]);
         rows.push(['Same-UIC GTFS', String(data.same_uic_gtfs_count || 0)]);
         return rows;
@@ -461,6 +496,10 @@
             rows.push(['Coord', coords]);
         }
 
+        const mappingMethodRow = buildMappingMethodRow(data.matched_sloids);
+        if (mappingMethodRow) {
+            rows.push(mappingMethodRow);
+        }
         rows.push(['Matched SLOIDs', String(data.matched_sloid_count || 0)]);
         rows.push(['ATLAS Candidates', String(data.candidate_atlas_count || 0)]);
         return rows;
@@ -468,31 +507,6 @@
 
     function gtfsReferenceHasMatches(data) {
         return Number(data && data.matched_sloid_count || 0) > 0;
-    }
-
-    function buildAtlasReferenceSectionsHtml(data) {
-        const matchedGtfsSection = buildDetailSectionHtml(
-            'Matched GTFS Stops',
-            buildDetailListHtml(data.matched_gtfs, function (item) {
-                const parts = [formatPopupMono(item.stop_id)];
-                if (item.stop_name) parts.push(item.stop_name);
-                if (item.match_method) parts.push(buildMatchTypeHtml(item.match_method));
-                if (item.distance_m != null) parts.push(formatDetailDistanceMeters(item.distance_m));
-                return parts.join(' / ');
-            })
-        );
-
-        const sameUicSection = buildDetailSectionHtml(
-            'Same-UIC GTFS Candidates',
-            buildDetailListHtml(data.same_uic_gtfs, function (item) {
-                const parts = [formatPopupMono(item.stop_id)];
-                if (item.stop_name) parts.push(item.stop_name);
-                if (item.local_ref) parts.push(`ref ${item.local_ref}`);
-                return parts.join(' / ');
-            })
-        );
-
-        return `${matchedGtfsSection}${sameUicSection}`;
     }
 
     function buildGtfsReferenceSectionsHtml(data) {
@@ -515,7 +529,6 @@
             unmatched,
             headerHtml: buildBubbleHeader(data, 'atlas', unmatched),
             rows: buildAtlasReferenceRows(data, unmatched, options),
-            sectionsHtml: buildAtlasReferenceSectionsHtml(data),
         });
 
         return wrapSingleBubble(content, 'atlas', data && (data.sloid || data.id || ''));
@@ -524,41 +537,19 @@
     function generateGtfsReferenceBubbleHtml(data) {
         const unmatched = Number(data.matched_sloid_count || 0) === 0;
         const headerHtml = `<h5>${unmatched ? 'Unmatched ' : ''}GTFS Stop</h5>`;
-        const actionButtonHtml = gtfsReferenceHasMatches(data)
-            ? `<button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.showMatches(this)'>See Matches</button>`
+        const sectionsHtml = gtfsReferenceHasMatches(data)
+            ? buildGtfsReferenceSectionsHtml(data)
             : '';
 
-        const initialContent = renderBubbleCard({
+        const content = renderBubbleCard({
             type: 'gtfs',
             unmatched,
             headerHtml,
             rows: buildGtfsReferenceRows(data),
-            footerHtml: actionButtonHtml ? `<div class="bubble-footer"><div class="bubble-btn-row">${actionButtonHtml}</div></div>` : '',
+            sectionsHtml,
         });
 
-        if (!gtfsReferenceHasMatches(data)) {
-            return wrapSingleBubble(initialContent, 'gtfs', data && (data.stop_id || data.id || ''));
-        }
-
-        const closeButtonHtml = `<button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.hideMatches(this, null, "gtfs")'>Close Matches</button>`;
-        const unifiedContent = renderBubbleCard({
-            type: 'gtfs',
-            unmatched,
-            headerHtml,
-            rows: buildGtfsReferenceRows(data),
-            sectionsHtml: buildGtfsReferenceSectionsHtml(data),
-            footerHtml: `<div class="bubble-footer"><div class="bubble-btn-row">${closeButtonHtml}</div></div>`,
-        });
-
-        return `
-            <div class="popup-content-container popup-outer-wrapper" data-stop-id="${data && (data.stop_id || data.id || '')}" data-type="gtfs">
-                <div class="popup-initial-view" style="display: block;">
-                    ${initialContent}
-                </div>
-                <div class="popup-unified-view" style="display: none;">
-                    ${unifiedContent}
-                </div>
-            </div>`;
+        return wrapSingleBubble(content, 'gtfs', data && (data.stop_id || data.id || ''));
     }
 
     function generateGtfsStopIdSloidPopupHtml(data, options = {}) {

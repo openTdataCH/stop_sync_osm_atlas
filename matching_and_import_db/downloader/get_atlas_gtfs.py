@@ -437,8 +437,8 @@ def build_integrated_gtfs_data_streaming(
 ) -> pd.DataFrame:
     """Build the final integrated GTFS DataFrame using streaming outputs.
 
-    Returns DataFrame with columns:
-      ['stop_id', 'sloid', 'route_id', 'route_short_name', 'route_long_name', 'direction_id', 'direction']
+        Returns DataFrame with columns:
+            ['stop_id', 'sloid', 'match_method', 'route_id', 'route_short_name', 'route_long_name', 'direction_id', 'direction']
     """
     gtfs_payload = gtfs_payload or build_gtfs_atlas_payload(gtfs_data_streaming, traffic_points)
 
@@ -478,7 +478,7 @@ def build_integrated_gtfs_data_streaming(
     # Remove any multiplicative duplicates that could have slipped through
     integrated = integrated.drop_duplicates(subset=['stop_id', 'sloid', 'route_id', 'direction_id'])
 
-    cols = ['stop_id', 'sloid', 'route_id', 'agency_id', 'route_short_name', 'route_long_name', 'route_desc', 'route_type', 'direction_id', 'direction']
+    cols = ['stop_id', 'sloid', 'match_method', 'route_id', 'agency_id', 'route_short_name', 'route_long_name', 'route_desc', 'route_type', 'direction_id', 'direction']
     integrated = integrated[cols].sort_values(by='sloid')
     return integrated
 
