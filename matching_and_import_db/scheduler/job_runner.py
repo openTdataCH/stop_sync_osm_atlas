@@ -46,9 +46,12 @@ def _timed_step(step_name: str):
     started = time.perf_counter()
     try:
         yield
-    finally:
+    except Exception:
         elapsed = time.perf_counter() - started
-        LOGGER.info("Step %s completed in %.2fs", step_name, elapsed)
+        LOGGER.error("Step %s failed after %.2fs", step_name, elapsed)
+        raise
+    elapsed = time.perf_counter() - started
+    LOGGER.info("Step %s completed successfully in %.2fs", step_name, elapsed)
 
 
 class _RunLockHeartbeat:
@@ -86,7 +89,10 @@ def _run_subprocess(command: list[str], phase: str, message: str, maintenance: b
         env.setdefault("PYTHONUNBUFFERED", "1")
         completed = subprocess.run(command, check=False, env=env)
     if completed.returncode != 0:
-        raise RuntimeError(f"Command failed ({completed.returncode}): {' '.join(command)}")
+        LOGGER.error("Step %s command exited with code %s", phase, completed.returncode)
+        raise RuntimeError(
+            f"Step {phase} failed: command exited with code {completed.returncode}: {' '.join(command)}"
+        )
 
 
 def _record_data_updated_timestamp() -> str:

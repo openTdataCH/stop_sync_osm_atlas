@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 from collections import defaultdict
 import csv
 import os
+import time
 from typing import Optional
 
 
@@ -21,6 +22,9 @@ OVERPASS_HEADERS = {
     "Accept": "application/osm3s+xml, text/xml, application/xml;q=0.9, */*;q=0.1",
     "User-Agent": OVERPASS_USER_AGENT,
 }
+OVERPASS_RETRY_STATUS_CODES = {502, 504}
+OVERPASS_MAX_RETRIES = int(os.getenv("OVERPASS_MAX_RETRIES", "2"))
+OVERPASS_RETRY_BACKOFF_SECONDS = float(os.getenv("OVERPASS_RETRY_BACKOFF_SECONDS", "5"))
 
 
 def _raise_overpass_error(response: requests.Response) -> None:
@@ -68,14 +72,34 @@ def query_overpass(session: Optional[requests.Session] = None):
     print("Querying OpenStreetMap data...")
     client = session or requests
     request_body = query.strip().encode("utf-8")
-    response = client.post(
-        OVERPASS_URL,
-        data=request_body,
-        headers=OVERPASS_HEADERS,
-        timeout=(30, 600),
-    )
-    if response.status_code != 200:
-        _raise_overpass_error(response)
+    response = None
+    for attempt in range(OVERPASS_MAX_RETRIES + 1):
+        response = client.post(
+            OVERPASS_URL,
+            data=request_body,
+            headers=OVERPASS_HEADERS,
+            timeout=(30, 600),
+        )
+        if response.status_code == 200:
+            break
+
+        should_retry = (
+            response.status_code in OVERPASS_RETRY_STATUS_CODES
+            and attempt < OVERPASS_MAX_RETRIES
+        )
+        if not should_retry:
+            _raise_overpass_error(response)
+
+        delay_seconds = OVERPASS_RETRY_BACKOFF_SECONDS * (2 ** attempt)
+        print(
+            "Overpass request returned "
+            f"{response.status_code}. Retrying in {delay_seconds:.1f}s "
+            f"(attempt {attempt + 2}/{OVERPASS_MAX_RETRIES + 1})..."
+        )
+        time.sleep(delay_seconds)
+
+    if response is None:
+        raise RuntimeError("Overpass request did not produce a response")
 
     response.encoding = 'utf-8'
     # Save to organized data directory

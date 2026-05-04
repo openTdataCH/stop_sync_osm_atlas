@@ -5,6 +5,9 @@
 
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+{% if active_view == 'gtfs_stop_id_sloid' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
+{% endif %}
 <!-- Shared filters/overlay CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/shared-filters.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/routes.css') }}">
@@ -369,6 +372,8 @@
 <script src="{{ url_for('static', filename='js/components/move_popup.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/line-renderer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/header-summary.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/popup-utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/popup-renderer.js') }}"></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/components/map-renderer.js') }}"></script>
 {% if active_view == 'routes' %}

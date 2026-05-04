@@ -1,7 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="white"/>
-  <g fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M6 16V12C6 9.79 7.79 8 10 8H26M26 8L20 4M26 8L20 12" stroke="#000000"/>
-    <path d="M26 16V20C26 22.21 24.21 24 22 24H6M6 24L12 20M6 24L12 28" stroke="#000000"/>
-  </g>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" viewBox="0 0 444 406"><rect width="406" height="406" x="19" y="1" fill="#fff" rx="56" ry="56"/><g transform="translate(222 203) scale(1.15) translate(-222 -203)"><path fill="#d0322b" d="M320 193q-1 52-45 81a99 99 0 0 1-150-60l-1-2-2-22q1-37 25-64 41-44 98-30 55 15 72 71l2 6zm-83-34v-21h-32v37h-37v32h37v38h32v-38h38v-32h-38z"/><path fill="#68ad5d" d="m321 193-2-20q8-6 3-15-23-57-81-70c-44-8-85 11-108 46q-4 5-9 5H77c9-33 49-82 108-97 66-15 144 14 179 89l19-17-1 17-5 59q-1 4-5 3z"/><path fill="#143587" d="m122 190 2 22q-5 3-3 10a107 107 0 0 0 192 25l4-3h52c-22 51-59 86-113 96-80 16-137-18-176-88l-19 17 7-79z"/><path fill="#fefcfc" d="M237 160v15h38v32h-38v38h-32v-38h-37v-32h37v-37h32z"/></g></svg>

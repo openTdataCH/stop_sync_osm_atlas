@@ -20,96 +20,15 @@
     bannerElement.classList.toggle('route-card__map-status--error', !!isError);
   }
 
-  function formatCoordinate(value) {
-    var numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric.toFixed(6) : 'n/a';
-  }
-
-  function formatDistance(value) {
-    var numeric = Number(value);
-    return Number.isFinite(numeric) ? numeric.toFixed(2) + ' m' : 'n/a';
-  }
-
-  function buildListHtml(items, formatter) {
-    if (!Array.isArray(items) || items.length === 0) {
-      return '<p class="routes-gtfs-popup__empty">None</p>';
+  function renderPopupHtml(payload) {
+    if (!window.PopupRenderer || typeof window.PopupRenderer.generateGtfsStopIdSloidPopupHtml !== 'function') {
+      throw new Error('Shared popup renderer is not available on the GTFS stop_id/SLOID page.');
     }
 
-    return '<ul class="routes-gtfs-popup__list">' + items.map(function (item) {
-      return '<li>' + formatter(item) + '</li>';
-    }).join('') + '</ul>';
-  }
-
-  function renderGtfsPopup(data) {
-    return [
-      '<div class="routes-gtfs-popup">',
-      '<h5 class="routes-gtfs-popup__title">GTFS stop_id</h5>',
-      '<p class="routes-gtfs-popup__meta">Green markers are matched GTFS stops. Gray markers are unmatched.</p>',
-      '<table class="routes-gtfs-popup__table">',
-      '<tr><td>stop_id</td><td><span class="routes-gtfs-popup__mono">' + (data.stop_id || 'n/a') + '</span></td></tr>',
-      '<tr><td>Name</td><td>' + (data.stop_name || 'n/a') + '</td></tr>',
-      '<tr><td>UIC</td><td><span class="routes-gtfs-popup__mono">' + (data.uic_number || 'n/a') + '</span></td></tr>',
-      '<tr><td>local_ref</td><td><span class="routes-gtfs-popup__mono">' + (data.local_ref || 'n/a') + '</span></td></tr>',
-      '<tr><td>normalized</td><td><span class="routes-gtfs-popup__mono">' + (data.normalized_local_ref || 'n/a') + '</span></td></tr>',
-      '<tr><td>Coordinates</td><td><span class="routes-gtfs-popup__mono">' + formatCoordinate(data.stop_lat) + ', ' + formatCoordinate(data.stop_lon) + '</span></td></tr>',
-      '<tr><td>Matched sloids</td><td>' + String(data.matched_sloid_count || 0) + '</td></tr>',
-      '<tr><td>ATLAS candidates</td><td>' + String(data.candidate_atlas_count || 0) + '</td></tr>',
-      '</table>',
-      '<div class="routes-gtfs-popup__section">',
-      '<h6>Matched ATLAS stops</h6>',
-      buildListHtml(data.matched_sloids, function (item) {
-        return '<span class="routes-gtfs-popup__mono">' + (item.sloid || 'n/a') + '</span>'
-          + (item.atlas_designation_official ? ' / ' + item.atlas_designation_official : '')
-          + (item.match_method ? ' / ' + item.match_method : '')
-          + (item.distance_m != null ? ' / ' + formatDistance(item.distance_m) : '');
-      }),
-      '</div>',
-      '<div class="routes-gtfs-popup__section">',
-      '<h6>Same-UIC ATLAS candidates</h6>',
-      buildListHtml(data.candidate_atlas, function (item) {
-        return '<span class="routes-gtfs-popup__mono">' + (item.sloid || 'n/a') + '</span>'
-          + (item.atlas_designation_official ? ' / ' + item.atlas_designation_official : '')
-          + (item.atlas_business_org_abbr ? ' / ' + item.atlas_business_org_abbr : '');
-      }),
-      '</div>',
-      '</div>'
-    ].join('');
-  }
-
-  function renderAtlasPopup(data) {
-    return [
-      '<div class="routes-gtfs-popup">',
-      '<h5 class="routes-gtfs-popup__title">ATLAS sloid</h5>',
-      '<p class="routes-gtfs-popup__meta">Blue markers are matched ATLAS stops. Red markers are unmatched.</p>',
-      '<table class="routes-gtfs-popup__table">',
-      '<tr><td>Sloid</td><td><span class="routes-gtfs-popup__mono">' + (data.sloid || 'n/a') + '</span></td></tr>',
-      '<tr><td>UIC</td><td><span class="routes-gtfs-popup__mono">' + (data.uic_ref || 'n/a') + '</span></td></tr>',
-      '<tr><td>Name</td><td>' + (data.atlas_designation_official || 'n/a') + '</td></tr>',
-      '<tr><td>Designation</td><td>' + (data.atlas_designation || 'n/a') + '</td></tr>',
-      '<tr><td>Business org</td><td>' + (data.atlas_business_org_abbr || 'n/a') + '</td></tr>',
-      '<tr><td>Coordinates</td><td><span class="routes-gtfs-popup__mono">' + formatCoordinate(data.atlas_lat) + ', ' + formatCoordinate(data.atlas_lon) + '</span></td></tr>',
-      '<tr><td>Matched GTFS</td><td>' + String(data.matched_gtfs_count || 0) + '</td></tr>',
-      '<tr><td>Same-UIC GTFS</td><td>' + String(data.same_uic_gtfs_count || 0) + '</td></tr>',
-      '</table>',
-      '<div class="routes-gtfs-popup__section">',
-      '<h6>Matched GTFS stops</h6>',
-      buildListHtml(data.matched_gtfs, function (item) {
-        return '<span class="routes-gtfs-popup__mono">' + (item.stop_id || 'n/a') + '</span>'
-          + (item.stop_name ? ' / ' + item.stop_name : '')
-          + (item.match_method ? ' / ' + item.match_method : '')
-          + (item.distance_m != null ? ' / ' + formatDistance(item.distance_m) : '');
-      }),
-      '</div>',
-      '<div class="routes-gtfs-popup__section">',
-      '<h6>Same-UIC GTFS candidates</h6>',
-      buildListHtml(data.same_uic_gtfs, function (item) {
-        return '<span class="routes-gtfs-popup__mono">' + (item.stop_id || 'n/a') + '</span>'
-          + (item.stop_name ? ' / ' + item.stop_name : '')
-          + (item.local_ref ? ' / ref ' + item.local_ref : '');
-      }),
-      '</div>',
-      '</div>'
-    ].join('');
+    return window.PopupRenderer.generateGtfsStopIdSloidPopupHtml(payload, {
+      enableFilterLinks: false,
+      enableRouteLinks: false
+    });
   }
 
   function createGtfsMarker(lat, lon, color) {
@@ -151,7 +70,7 @@
           return response.json();
         })
         .then(function (payload) {
-          var html = entityType === 'atlas' ? renderAtlasPopup(payload) : renderGtfsPopup(payload);
+          var html = renderPopupHtml(payload);
           var popup = typeof createPopupWithOptions === 'function'
             ? createPopupWithOptions(html)
             : L.popup({ autoClose: false, closeOnClick: false, maxWidth: 900 }).setContent(html);
@@ -173,14 +92,9 @@
       return;
     }
 
-    var assignmentLine = 'Strict ' + String(summary.assignments.strict || 0)
-      + ' / Coordinate ' + String(summary.assignments.coordinate_proximity || 0)
-      + ' / Fallback ' + String(summary.assignments.unique_number_fallback || 0);
-
     summaryElement.innerHTML = [
       '<div class="header-summary__stat"><strong>' + String(summary.total_gtfs_stops || 0) + '</strong> GTFS stops, <span style="color:#2f9e44;font-weight:bold;">' + String(summary.gtfs_coverage_percent || 0) + '% matched</span></div>',
-      '<div class="header-summary__stat"><strong>' + String(summary.total_atlas_stops || 0) + '</strong> ATLAS stops, <span style="color:#174092;font-weight:bold;">' + String(summary.atlas_coverage_percent || 0) + '% touched</span></div>',
-      '<div class="header-summary__stat">' + assignmentLine + (summary.algorithm_version ? ' / ' + summary.algorithm_version : '') + '</div>'
+      '<div class="header-summary__stat"><strong>' + String(summary.total_atlas_stops || 0) + '</strong> ATLAS stops, <span style="color:#174092;font-weight:bold;">' + String(summary.atlas_coverage_percent || 0) + '% touched</span></div>'
     ].join('');
   }
 

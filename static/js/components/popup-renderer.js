@@ -67,6 +67,73 @@
         return `${text} <a href="${docUrl}" class="matchtype-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs for this matching method"><i class="fas fa-info-circle"></i></a>`;
     }
 
+    function buildFilterText(value, type, options, displayText) {
+        if (!hasValue(value)) return 'N/A';
+        return PopupUtils.createFilterLink(value, type, displayText, {
+            enableFilterLink: !(options && options.enableFilterLinks === false)
+        });
+    }
+
+    function getBubbleClass(type) {
+        if (type === 'atlas') return 'atlas-match';
+        if (type === 'osm') return 'osm-match';
+        return 'gtfs-match';
+    }
+
+    function buildPopupTableRowsHtml(rows) {
+        if (!Array.isArray(rows) || rows.length === 0) return '';
+        return `<table class="popup-table">${rows.map(([label, value]) => `<tr><td>${label}:</td><td>${value}</td></tr>`).join('')}</table>`;
+    }
+
+    function buildDetailListHtml(items, formatter, emptyMessage = 'None') {
+        if (!Array.isArray(items) || items.length === 0) {
+            return `<p class="popup-empty-state">${emptyMessage}</p>`;
+        }
+
+        return `<ul class="popup-detail-list">${items.map(item => `<li>${formatter(item)}</li>`).join('')}</ul>`;
+    }
+
+    function buildDetailSectionHtml(title, contentHtml) {
+        return `<section class="popup-detail-section"><h6>${title}</h6>${contentHtml}</section>`;
+    }
+
+    function formatPopupMono(value) {
+        return `<span class="popup-mono">${value || 'N/A'}</span>`;
+    }
+
+    function formatDetailDistanceMeters(distanceM) {
+        return formatDistanceMeters(distanceM) || 'N/A';
+    }
+
+    function renderBubbleCard(options) {
+        const {
+            type,
+            unmatched = false,
+            headerHtml,
+            rows = [],
+            sectionsHtml = '',
+            footerHtml = '',
+            osmEditorUrl = null,
+        } = options;
+
+        const bubbleClass = getBubbleClass(type);
+        const unmatchedClass = unmatched ? ' unmatched' : '';
+        const osmEditorLinkHtml = type === 'osm' && osmEditorUrl
+            ? `<div class="osm-editor-link-container mt-2"><a href="${osmEditorUrl}" class="osm-editor-link" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Edit in OSM iD Editor</a></div>`
+            : '';
+
+        return `
+            <div class="${bubbleClass}${unmatchedClass}">
+                <div class="bubble-body">
+                    ${headerHtml}
+                    ${buildPopupTableRowsHtml(rows)}
+                    ${osmEditorLinkHtml}
+                    ${sectionsHtml}
+                    ${footerHtml}
+                </div>
+            </div>`;
+    }
+
     function getOsmTypeDisplay(data, withFallback) {
         if (hasValue(data.osm_node_type) && OSM_NODE_TYPE_MAP[data.osm_node_type]) {
             return OSM_NODE_TYPE_MAP[data.osm_node_type];
@@ -113,15 +180,15 @@
         return `<h5>${headerText}${linkHtml}</h5>`;
     }
 
-    function buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml) {
+    function buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml, options = {}) {
         if (hideRoutesAndNotes) {
             return actionButtonHtml ? `<div class="bubble-footer"><div class="bubble-btn-row">${actionButtonHtml}</div></div>` : '';
         }
 
         const routes = type === 'atlas' ? data.routes_atlas : data.routes_osm;
         const formattedRoutes = type === 'atlas'
-            ? PopupUtils.formatAtlasRouteList(routes)
-            : PopupUtils.formatRouteList(routes);
+            ? PopupUtils.formatAtlasRouteList(routes, { enableRouteLink: !(options.enableRouteLinks === false) })
+            : PopupUtils.formatRouteList(routes, { enableRouteLink: !(options.enableRouteLinks === false) });
         const collapsible = PopupUtils.createCollapsible('Routes', formattedRoutes, COLLAPSIBLE_DEFAULT_EXPANDED);
         const buttons = `${collapsible.buttonHtml || ''}${actionButtonHtml || ''}`;
 
@@ -134,15 +201,14 @@
             </div>`;
     }
 
-    function buildAtlasRows(data, unmatched) {
+    function buildAtlasRows(data, unmatched, options = {}) {
         const rows = [];
-        const link = PopupUtils.createFilterLink;
         const mismatchText = data.isOperatorMismatch && !unmatched
             ? ' <span class="operator-mismatch">(!Operator Mismatch!)</span>'
             : '';
 
-        rows.push(['Sloid', unmatched ? data.sloid : link(data.sloid, 'atlas')]);
-        if (hasValue(data.uic_ref)) rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
+        rows.push(['Sloid', unmatched ? (data.sloid || 'N/A') : buildFilterText(data.sloid, 'atlas', options)]);
+        if (hasValue(data.uic_ref)) rows.push(['UIC Ref', buildFilterText(data.uic_ref, 'station', options)]);
         rows.push(['Name', data.atlas_designation_official || 'N/A']);
         rows.push(['Designation', data.atlas_designation || 'N/A']);
         rows.push(['Business Org', `${data.atlas_business_org_abbr || 'N/A'}${mismatchText}`]);
@@ -150,7 +216,7 @@
         const coords = formatCoords(data.atlas_lat, data.atlas_lon);
         if (coords) rows.push(['Coord', coords]);
 
-        if (!unmatched) {
+        if (!unmatched && !options.hideMatchMetadata) {
             const distance = formatDistanceMeters(data.distance_m);
             if (distance) rows.push(['Distance', distance]);
             rows.push(['Match Type', buildMatchTypeHtml(data.match_type)]);
@@ -159,17 +225,16 @@
         return rows;
     }
 
-    function buildOsmRows(data, unmatched) {
+    function buildOsmRows(data, unmatched, options = {}) {
         const rows = [];
-        const link = PopupUtils.createFilterLink;
         const mismatchText = data.isOperatorMismatch && !unmatched
             ? ' <span class="operator-mismatch">(!Operator Mismatch!)</span>'
             : '';
 
-        rows.push(['Node ID', unmatched ? data.osm_node_id : link(data.osm_node_id, 'osm')]);
+        rows.push(['Node ID', unmatched ? (data.osm_node_id || 'N/A') : buildFilterText(data.osm_node_id, 'osm', options)]);
 
         if (unmatched) {
-            if (hasValue(data.uic_ref)) rows.push(['UIC Ref', link(data.uic_ref, 'station')]);
+            if (hasValue(data.uic_ref)) rows.push(['UIC Ref', buildFilterText(data.uic_ref, 'station', options)]);
             if (hasValue(data.osm_uic_ref)) rows.push(['OSM UIC Ref', data.osm_uic_ref]);
             rows.push(['Name', data.osm_name || 'N/A']);
             rows.push(['UIC Name', data.osm_uic_name || 'N/A']);
@@ -198,10 +263,11 @@
         const coords = formatCoords(data.osm_lat, data.osm_lon);
         if (coords) rows.push(['Coord', coords]);
 
-        const distance = formatDistanceMeters(data.distance_m);
-        if (distance) rows.push(['Distance', distance]);
-
-        rows.push(['Match Type', buildMatchTypeHtml(data.match_type)]);
+        if (!options.hideMatchMetadata) {
+            const distance = formatDistanceMeters(data.distance_m);
+            if (distance) rows.push(['Distance', distance]);
+            rows.push(['Match Type', buildMatchTypeHtml(data.match_type)]);
+        }
         return rows;
     }
 
@@ -209,27 +275,20 @@
         const { type, unmatched = false, hideRoutesAndNotes = false, actionButtonHtml = '' } = opts;
         if (!type) throw new Error('PopupRenderer.renderBubble - type is required');
 
-        const rows = type === 'atlas' ? buildAtlasRows(data, unmatched) : buildOsmRows(data, unmatched);
-        const tableRowsHtml = rows.map(([label, value]) => `<tr><td>${label}:</td><td>${value}</td></tr>`).join('');
-        const bubbleClass = type === 'atlas' ? 'atlas-match' : 'osm-match';
-        const unmatchedClass = unmatched ? ' unmatched' : '';
         const bubbleHeader = buildBubbleHeader(data, type, unmatched);
+        const rows = type === 'atlas'
+            ? buildAtlasRows(data, unmatched, opts)
+            : buildOsmRows(data, unmatched, opts);
+        const footerHtml = buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml, opts);
 
-        const osmEditorUrl = type === 'osm' ? buildOsmEditorUrl(data.osm_node_id) : null;
-        const osmEditorLinkHtml = osmEditorUrl
-            ? `<div class="osm-editor-link-container mt-2"><a href="${osmEditorUrl}" class="osm-editor-link" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Edit in OSM iD Editor</a></div>`
-            : '';
-        const footerHtml = buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml);
-
-        return `
-            <div class="${bubbleClass}${unmatchedClass}">
-                <div class="bubble-body">
-                    ${bubbleHeader}
-                    <table class="popup-table">${tableRowsHtml}</table>
-                    ${osmEditorLinkHtml}
-                    ${footerHtml}
-                </div>
-            </div>`;
+        return renderBubbleCard({
+            type,
+            unmatched,
+            headerHtml: bubbleHeader,
+            rows,
+            footerHtml,
+            osmEditorUrl: type === 'osm' ? buildOsmEditorUrl(data.osm_node_id) : null,
+        });
     }
 
     function wrapSingleBubble(innerHtml, type, stopId) {
@@ -377,6 +436,151 @@
         return specs;
     }
 
+    function buildAtlasReferenceRows(data, unmatched, options = {}) {
+        const rows = buildAtlasRows(data, unmatched, {
+            ...options,
+            hideMatchMetadata: true,
+        });
+
+        rows.push(['Matched GTFS', String(data.matched_gtfs_count || 0)]);
+        rows.push(['Same-UIC GTFS', String(data.same_uic_gtfs_count || 0)]);
+        return rows;
+    }
+
+    function buildGtfsReferenceRows(data) {
+        const rows = [
+            ['stop_id', formatPopupMono(data.stop_id)],
+            ['Name', data.stop_name || 'N/A'],
+            ['UIC', formatPopupMono(data.uic_number)],
+            ['local_ref', formatPopupMono(data.local_ref)],
+            ['Normalized', formatPopupMono(data.normalized_local_ref)],
+        ];
+
+        const coords = formatCoords(data.stop_lat, data.stop_lon);
+        if (coords) {
+            rows.push(['Coord', coords]);
+        }
+
+        rows.push(['Matched SLOIDs', String(data.matched_sloid_count || 0)]);
+        rows.push(['ATLAS Candidates', String(data.candidate_atlas_count || 0)]);
+        return rows;
+    }
+
+    function gtfsReferenceHasMatches(data) {
+        return Number(data && data.matched_sloid_count || 0) > 0;
+    }
+
+    function buildAtlasReferenceSectionsHtml(data) {
+        const matchedGtfsSection = buildDetailSectionHtml(
+            'Matched GTFS Stops',
+            buildDetailListHtml(data.matched_gtfs, function (item) {
+                const parts = [formatPopupMono(item.stop_id)];
+                if (item.stop_name) parts.push(item.stop_name);
+                if (item.match_method) parts.push(buildMatchTypeHtml(item.match_method));
+                if (item.distance_m != null) parts.push(formatDetailDistanceMeters(item.distance_m));
+                return parts.join(' / ');
+            })
+        );
+
+        const sameUicSection = buildDetailSectionHtml(
+            'Same-UIC GTFS Candidates',
+            buildDetailListHtml(data.same_uic_gtfs, function (item) {
+                const parts = [formatPopupMono(item.stop_id)];
+                if (item.stop_name) parts.push(item.stop_name);
+                if (item.local_ref) parts.push(`ref ${item.local_ref}`);
+                return parts.join(' / ');
+            })
+        );
+
+        return `${matchedGtfsSection}${sameUicSection}`;
+    }
+
+    function buildGtfsReferenceSectionsHtml(data) {
+        return buildDetailSectionHtml(
+            'Matches',
+            buildDetailListHtml(data.matched_sloids, function (item) {
+                const parts = [formatPopupMono(item.sloid)];
+                if (item.atlas_designation_official) parts.push(item.atlas_designation_official);
+                if (item.match_method) parts.push(buildMatchTypeHtml(item.match_method));
+                if (item.distance_m != null) parts.push(formatDetailDistanceMeters(item.distance_m));
+                return parts.join(' / ');
+            })
+        );
+    }
+
+    function generateAtlasReferenceBubbleHtml(data, options = {}) {
+        const unmatched = Number(data.matched_gtfs_count || 0) === 0;
+        const content = renderBubbleCard({
+            type: 'atlas',
+            unmatched,
+            headerHtml: buildBubbleHeader(data, 'atlas', unmatched),
+            rows: buildAtlasReferenceRows(data, unmatched, options),
+            sectionsHtml: buildAtlasReferenceSectionsHtml(data),
+        });
+
+        return wrapSingleBubble(content, 'atlas', data && (data.sloid || data.id || ''));
+    }
+
+    function generateGtfsReferenceBubbleHtml(data) {
+        const unmatched = Number(data.matched_sloid_count || 0) === 0;
+        const headerHtml = `<h5>${unmatched ? 'Unmatched ' : ''}GTFS Stop</h5>`;
+        const actionButtonHtml = gtfsReferenceHasMatches(data)
+            ? `<button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.showMatches(this)'>See Matches</button>`
+            : '';
+
+        const initialContent = renderBubbleCard({
+            type: 'gtfs',
+            unmatched,
+            headerHtml,
+            rows: buildGtfsReferenceRows(data),
+            footerHtml: actionButtonHtml ? `<div class="bubble-footer"><div class="bubble-btn-row">${actionButtonHtml}</div></div>` : '',
+        });
+
+        if (!gtfsReferenceHasMatches(data)) {
+            return wrapSingleBubble(initialContent, 'gtfs', data && (data.stop_id || data.id || ''));
+        }
+
+        const closeButtonHtml = `<button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.hideMatches(this, null, "gtfs")'>Close Matches</button>`;
+        const unifiedContent = renderBubbleCard({
+            type: 'gtfs',
+            unmatched,
+            headerHtml,
+            rows: buildGtfsReferenceRows(data),
+            sectionsHtml: buildGtfsReferenceSectionsHtml(data),
+            footerHtml: `<div class="bubble-footer"><div class="bubble-btn-row">${closeButtonHtml}</div></div>`,
+        });
+
+        return `
+            <div class="popup-content-container popup-outer-wrapper" data-stop-id="${data && (data.stop_id || data.id || '')}" data-type="gtfs">
+                <div class="popup-initial-view" style="display: block;">
+                    ${initialContent}
+                </div>
+                <div class="popup-unified-view" style="display: none;">
+                    ${unifiedContent}
+                </div>
+            </div>`;
+    }
+
+    function generateGtfsStopIdSloidPopupHtml(data, options = {}) {
+        if (!data || !data.entity_type) {
+            throw new Error('PopupRenderer.generateGtfsStopIdSloidPopupHtml - entity_type is required');
+        }
+
+        if (data.entity_type === 'atlas') {
+            return generateAtlasReferenceBubbleHtml(data, {
+                ...options,
+                enableFilterLinks: false,
+                enableRouteLinks: false,
+            });
+        }
+
+        if (data.entity_type === 'gtfs') {
+            return generateGtfsReferenceBubbleHtml(data);
+        }
+
+        throw new Error(`PopupRenderer.generateGtfsStopIdSloidPopupHtml - unsupported entity_type: ${data.entity_type}`);
+    }
+
     function generateSingleAtlasBubbleHtml(data, isUnmatched = false, options = {}) {
         const inner = renderBubble(data, { type: 'atlas', unmatched: isUnmatched, ...options });
         const stopId = data && (data.id || data.stop_id || '');
@@ -493,6 +697,7 @@
     PopupRenderer.generateInitialBubbleHtml = generateInitialBubbleHtml;
     PopupRenderer.generateUnifiedBubbleHtml = generateUnifiedBubbleHtml;
     PopupRenderer.generatePopupHtml = generatePopupHtml;
+    PopupRenderer.generateGtfsStopIdSloidPopupHtml = generateGtfsStopIdSloidPopupHtml;
     PopupRenderer.showMatches = showMatches;
     PopupRenderer.hideMatches = hideMatches;
     global.PopupRenderer = PopupRenderer;
