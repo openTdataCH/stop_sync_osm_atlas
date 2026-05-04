@@ -115,6 +115,17 @@ def _write_gtfs_atlas_stats(stats_payload: dict[str, object]) -> None:
         json.dump(stats_payload, handle, indent=2)
 
 
+def _normalize_cached_insert_records(rows: list[dict]) -> list[dict]:
+    """Convert pandas missing sentinels from cached CSV payloads into plain None."""
+    return [
+        {
+            key: safe_value(value)
+            for key, value in row.items()
+        }
+        for row in rows
+    ]
+
+
 def _load_gtfs_insert_payload_cache() -> tuple[list[dict], list[dict]] | None:
     if not (os.path.exists(GTFS_DB_STOPS_CACHE_PATH) and os.path.exists(GTFS_DB_STATE_CACHE_PATH)):
         return None
@@ -125,8 +136,12 @@ def _load_gtfs_insert_payload_cache() -> tuple[list[dict], list[dict]] | None:
     except (pd.errors.EmptyDataError, FileNotFoundError):
         return None
 
-    gtfs_stop_rows = gtfs_stops_df.where(pd.notna(gtfs_stops_df), None).to_dict(orient='records')
-    gtfs_state_rows = gtfs_state_df.where(pd.notna(gtfs_state_df), None).to_dict(orient='records')
+    gtfs_stop_rows = _normalize_cached_insert_records(
+        gtfs_stops_df.to_dict(orient='records')
+    )
+    gtfs_state_rows = _normalize_cached_insert_records(
+        gtfs_state_df.to_dict(orient='records')
+    )
     return gtfs_stop_rows, gtfs_state_rows
 
 

@@ -10,6 +10,9 @@ def test_routes_gtfs_stop_id_sloid_tab_renders(client):
     assert 'SLOID' in html
     assert 'routesGtfsStopIdSloidMap' in html
     assert 'routesGtfsStopIdSloidConfig' in html
+    assert 'css/components/popup.css' in html
+    assert 'js/components/popup-utils.js' in html
+    assert 'js/components/popup-renderer.js' in html
 
 
 def test_routes_gtfs_stop_id_sloid_summary_api(client, monkeypatch):

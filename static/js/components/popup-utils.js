@@ -3,6 +3,10 @@
 
     const PopupUtils = {};
 
+    function hasGlobalFunction(name) {
+        return typeof global[name] === 'function';
+    }
+
     function escapeInlineJsString(value) {
         return String(value)
             .replace(/\\/g, '\\\\')
@@ -36,7 +40,7 @@
         return groups;
     }
 
-    function formatRouteList(routes) {
+    function formatRouteList(routes, options = {}) {
         routes = normalizeRoutes(routes);
         if (routes.length === 0) { return '<i>No route information available</i>'; }
         const routeGroups = groupRoutes(routes);
@@ -47,7 +51,7 @@
             const safeRouteId = escapeInlineJsString(filterRouteId);
             const safeDirections = escapeInlineJsString(directions.join(','));
             const routeIdText = group.displayRouteId || group.routeId;
-            const routeIdLink = filterRouteId && routeIdText !== 'unknown'
+            const routeIdLink = filterRouteId && routeIdText !== 'unknown' && options.enableRouteLink !== false && hasGlobalFunction('filterByRoute')
                 ? `<a href="#" onclick="filterByRoute('${safeRouteId}', '${safeDirections}'); return false;">${routeIdText}</a>`
                 : routeIdText;
 
@@ -62,7 +66,7 @@
         return `<ul class="route-list" style="margin-top: 5px; padding-left: 15px;">${itemsHtml}</ul>`;
     }
 
-    function formatAtlasRouteList(routes) {
+    function formatAtlasRouteList(routes, options = {}) {
         routes = normalizeRoutes(routes);
         if (routes.length === 0) { return '<i>No route information available</i>'; }
 
@@ -74,7 +78,7 @@
                 direction_id: route.direction_id,
             }));
 
-        return formatRouteList(normalized);
+        return formatRouteList(normalized, options);
     }
 
     function categorizeRoutes(atlasRoutes, osmRoutes) {
@@ -154,9 +158,12 @@
         return html || '<i>No route information available</i>';
     }
 
-    function createFilterLink(value, type, displayText) {
+    function createFilterLink(value, type, displayText, options = {}) {
         if (!value) return 'N/A';
         const text = displayText || value;
+        if (options.enableFilterLink === false || !hasGlobalFunction('addCustomFilter')) {
+            return text;
+        }
         const safeValue = escapeInlineJsString(value);
         const safeType = escapeInlineJsString(type);
         return `<a href="#" onclick="addCustomFilter('${safeValue}', '${safeType}'); return false;">${text}</a>`;

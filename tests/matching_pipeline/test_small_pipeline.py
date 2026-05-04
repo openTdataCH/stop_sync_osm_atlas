@@ -1,5 +1,6 @@
 import os
 import importlib
+import math
 import pytest
 from backend.models import StopsMatched, AtlasStop, OsmNode, Problem
 
@@ -153,3 +154,35 @@ def test_small_pipeline_end_to_end():
     assert matched_db_count > 0, "Expected StopsMatched records in DB."
     assert atlas_db_count > 0, "Expected AtlasStop records in DB."
     assert osm_db_count > 0, "Expected OsmNode records in DB."
+
+
+def test_load_gtfs_insert_payload_cache_normalizes_nan_values(tmp_path, monkeypatch):
+    import matching_and_import_db.database.importer as importer_mod
+
+    stops_cache = tmp_path / 'gtfs_stops.csv'
+    state_cache = tmp_path / 'gtfs_atlas_stop_matches.csv'
+
+    stops_cache.write_text(
+        "stop_id,stop_name,uic_number,local_ref,normalized_local_ref,stop_lat,stop_lon\n"
+        "stop-1,Main Stop,8500,,,46.1,7.1\n",
+        encoding='utf-8',
+    )
+    state_cache.write_text(
+        "stop_id,sloid,stop_type,match_method,distance_m,gtfs_stop_lat,gtfs_stop_lon,atlas_lat,atlas_lon\n"
+        "stop-1,sloid-1,matched,,NaN,46.1,7.1,46.2,7.2\n"
+        ",,atlas_unmatched,,NaN,,,46.3,7.3\n",
+        encoding='utf-8',
+    )
+
+    monkeypatch.setattr(importer_mod, 'GTFS_DB_STOPS_CACHE_PATH', str(stops_cache))
+    monkeypatch.setattr(importer_mod, 'GTFS_DB_STATE_CACHE_PATH', str(state_cache))
+
+    gtfs_stop_rows, gtfs_state_rows = importer_mod._load_gtfs_insert_payload_cache()
+
+    assert gtfs_stop_rows[0]['local_ref'] is None
+    assert gtfs_stop_rows[0]['normalized_local_ref'] is None
+    assert gtfs_state_rows[0]['match_method'] is None
+    assert gtfs_state_rows[0]['distance_m'] is None
+    assert gtfs_state_rows[1]['stop_id'] is None
+    assert gtfs_state_rows[1]['sloid'] is None
+    assert not math.isnan(gtfs_state_rows[0]['gtfs_stop_lat'])

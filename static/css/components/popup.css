@@ -96,7 +96,7 @@
 /* -------------------------------------------------------------------------
    Match Cards
    ------------------------------------------------------------------------- */
-.atlas-match, .osm-match {
+.atlas-match, .osm-match, .gtfs-match {
   margin-bottom: 0;
   width: 100%;
   max-width: none;
@@ -120,6 +120,12 @@
   --bubble-fg: var(--color-map-atlas-matched);
 }
 
+.gtfs-match {
+  --bubble-bg: rgba(47, 158, 68, 0.12);
+  --bubble-border: rgba(47, 158, 68, 0.28);
+  --bubble-fg: #2f9e44;
+}
+
 .atlas-match.unmatched {
   --bubble-bg: rgba(220, 53, 69, 0.12);
   --bubble-border: rgba(220, 53, 69, 0.28);
@@ -130,6 +136,12 @@
   --bubble-bg: rgba(108, 117, 125, 0.14);
   --bubble-border: rgba(108, 117, 125, 0.28);
   --bubble-fg: var(--color-map-osm-unmatched);
+}
+
+.gtfs-match.unmatched {
+  --bubble-bg: rgba(108, 117, 125, 0.14);
+  --bubble-border: rgba(108, 117, 125, 0.28);
+  --bubble-fg: #6c757d;
 }
 
 .bubble-body {
@@ -144,17 +156,50 @@
 
 
 
-.osm-match:hover, .atlas-match:hover {
+.osm-match:hover, .atlas-match:hover, .gtfs-match:hover {
   transform: translateY(-2px);
 }
 
 
-.atlas-match h5, .osm-match h5 {
+.atlas-match h5, .osm-match h5, .gtfs-match h5 {
   color: var(--bubble-fg);
   margin-top: 0;
   margin-bottom: var(--space-1);
   font-weight: var(--font-bold);
   font-size: var(--text-xs);
+}
+
+.popup-detail-section {
+  margin-top: 10px;
+}
+
+.popup-detail-section h6 {
+  margin: 0 0 6px;
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.popup-detail-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--text-xs);
+}
+
+.popup-detail-list li + li {
+  margin-top: 4px;
+}
+
+.popup-empty-state {
+  margin: 0;
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+}
+
+.popup-mono {
+  font-family: var(--font-family-monospace, monospace);
 }
 
 .additional-match {
@@ -217,7 +262,7 @@
   padding: var(--space-2);
   background: rgba(255, 255, 255, 0.5);
   border-radius: var(--radius-md);
-  border-start: 3px solid var(--bubble-border);
+  border-left: 3px solid var(--bubble-border);
   font-size: var(--text-xs);
 }
 

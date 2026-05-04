@@ -1213,7 +1213,7 @@ SECTION 6 — ROUTES
     </p>
     <div class="row mb-4">
       {# Path 1: Strict #}
-      <div class="col-lg-6 mb-3">
+      <div class="col-lg-4 col-md-6 mb-3">
         <div class="card h-100">
           <div class="card-header py-2">
             <h6 class="mb-0">① Strict matching</h6>
@@ -1229,15 +1229,32 @@ SECTION 6 — ROUTES
           </div>
         </div>
       </div>
-      {# Path 2: Unique-number fallback #}
-      <div class="col-lg-6 mb-3">
+      {# Path 2: Coordinate Proximity #}
+      <div class="col-lg-4 col-md-6 mb-3">
         <div class="card h-100">
           <div class="card-header py-2">
-            <h6 class="mb-0">② Unique-number fallback</h6>
+            <h6 class="mb-0">② Coordinate proximity</h6>
           </div>
           <div class="card-body">
             <p class="text-muted small mb-2">
-              For remaining stops: if a UIC number maps to exactly one ATLAS row, use that sloid.
+              For remaining: ATLAS stops with the same UIC number within 0.5m (must be unambiguous).
+            </p>
+            <div class="stat-card stat-card--sm stat-card--success">
+              <div class="stat-card__value">{{ "{:,}".format(ga.assignments.coordinate_proximity|default(0)) }}</div>
+              <div class="stat-card__label">Assignments</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {# Path 3: Unique-number fallback #}
+      <div class="col-lg-4 col-md-12 mb-3">
+        <div class="card h-100">
+          <div class="card-header py-2">
+            <h6 class="mb-0">③ Unique-number fallback</h6>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small mb-2">
+              For remaining: if a UIC number maps to exactly one ATLAS row, use that sloid.
             </p>
             <div class="stat-card stat-card--sm stat-card--success">
               <div class="stat-card__value">{{ "{:,}".format(ga.assignments.unique_number_fallback|default(0)) }}</div>
@@ -1250,9 +1267,9 @@ SECTION 6 — ROUTES
 
     <div class="row mb-4">
       <div class="col-12">
-        <div class="stat-card stat-card--sm">
+        <div class="stat-card stat-card--sm stat-card--success">
           <div class="stat-card__value">{{ "{:,}".format(ga.assignments.total|default(0)) }}</div>
-          <div class="stat-card__label">Total assignments (both paths combined)</div>
+          <div class="stat-card__label">Total assignments (all paths combined)</div>
         </div>
       </div>
     </div>
@@ -1319,6 +1336,12 @@ SECTION 6 — ROUTES
           <td>Non-unique ATLAS number (strict miss, fallback not applicable)</td>
           <td class="text-end">{{ "{:,}".format(ur.non_unique_atlas_number_after_strict_miss|default(0)) }}</td>
         </tr>
+        {% if ur.coordinate_proximity_conflicting_gtfs_stop_ids is defined and ur.coordinate_proximity_conflicting_gtfs_stop_ids > 0 %}
+        <tr>
+          <td>Coordinate proximity conflict (multiple candidates within radius)</td>
+          <td class="text-end">{{ "{:,}".format(ur.coordinate_proximity_conflicting_gtfs_stop_ids) }}</td>
+        </tr>
+        {% endif %}
       </tbody>
     </table>
     {% endif %}
