@@ -7,10 +7,12 @@ import time
 from typing import Optional
 
 
-# Create data directories
-os.makedirs("data/raw", exist_ok=True)
-os.makedirs("data/processed", exist_ok=True)
-os.makedirs("data/debug", exist_ok=True)
+def ensure_data_dirs():
+    """Ensure required data directories exist."""
+    os.makedirs("data/raw", exist_ok=True)
+    os.makedirs("data/processed", exist_ok=True)
+    os.makedirs("data/debug", exist_ok=True)
+
 
 OVERPASS_URL = os.getenv("OVERPASS_API_URL", "https://overpass-api.de/api/interpreter")
 OVERPASS_USER_AGENT = os.getenv(
@@ -40,6 +42,7 @@ def query_overpass(session: Optional[requests.Session] = None):
     Queries the Overpass API for public transport nodes in Switzerland and 
     all routes that reference them. The result is saved to 'data/raw/osm_data.xml'.
     """
+    ensure_data_dirs()
     query = """
         [out:xml][timeout:360];
         area["ISO3166-1"="CH"]->.searchArea;
@@ -110,6 +113,7 @@ def query_overpass(session: Optional[requests.Session] = None):
     return response.text
 
 def process_osm_routes_data(xml_data, out_dir="data/processed/"):
+    ensure_data_dirs()
     import datetime
     run_id = datetime.date.today().isoformat()
 

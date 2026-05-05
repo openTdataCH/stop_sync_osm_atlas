@@ -15,6 +15,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Create data directory
+        run: mkdir -p data/raw data/processed data/debug
+
       - name: Check documentation links
         run: |
           docker compose run --rm --no-deps --user "$(id -u):$(id -g)" --entrypoint '' \
@@ -110,6 +113,9 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "docs(deps): auto-update dependency overlap matrix & text"
+
+      - name: Create data directory
+        run: mkdir -p data/raw data/processed data/debug
 
       - name: Run Python tests
         run: |
