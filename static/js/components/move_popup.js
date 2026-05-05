@@ -1,6 +1,7 @@
 // Draggable and Resizable popup implementation for map stops
 (function() {
     if (typeof L === 'undefined') { return; }
+    const POPUP_BUBBLE_SELECTOR = '.atlas-match, .osm-match, .gtfs-match';
     L.DraggablePopup = L.Popup.extend({
         options: {
             minWidth: AppConstants.POPUP.MIN_WIDTH,
@@ -131,13 +132,13 @@
                 }
             } else if (initialView && getComputedStyle(initialView).display !== 'none') {
                 // Single bubble in initial view
-                const singleBubble = initialView.querySelector('.atlas-match, .osm-match');
+                const singleBubble = initialView.querySelector(POPUP_BUBBLE_SELECTOR);
                 if (singleBubble) {
                     bubbleElements = [singleBubble];
                 }
             } else {
                 // Standalone popup content (no initial/unified wrappers).
-                const directBubble = contentNode.querySelector('.atlas-match, .osm-match');
+                const directBubble = contentNode.querySelector(POPUP_BUBBLE_SELECTOR);
                 if (directBubble) {
                     bubbleElements = [directBubble];
                 }
@@ -417,7 +418,7 @@
             if (!this._map) return null;
             if (this._map._popupConnectionSvg && this._map._popupConnectionSvg.isConnected) {
                 this._lineLayer = this._map._popupConnectionSvg;
-                return this._lineLayer;
+                            wrapper.querySelector(POPUP_BUBBLE_SELECTOR)
             }
 
             const mapContainer = this._map.getContainer();

@@ -5,7 +5,15 @@
   var routeMaps = new Map();
 
   function parseSelectedOperators() {
-    var config = window.routesPageConfig || {};
+    var configElement = document.getElementById('routesPageConfig');
+    var config = {};
+    if (configElement) {
+      try {
+        config = JSON.parse(configElement.textContent);
+      } catch (e) {
+        console.error('Failed to parse routesPageConfig', e);
+      }
+    }
     var selected = config.selectedAtlasOperators;
     if (!Array.isArray(selected)) {
       return [];

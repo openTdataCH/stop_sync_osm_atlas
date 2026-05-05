@@ -1,24 +1,22 @@
 (function () {
   'use strict';
 
-  var config = window.routesGtfsStopIdSloidConfig || {};
+  var configElement = document.getElementById('routesGtfsStopIdSloidConfig');
+  var config = {};
+  if (configElement) {
+    try {
+      config = JSON.parse(configElement.textContent);
+    } catch (e) {
+      console.error('Failed to parse routesGtfsStopIdSloidConfig', e);
+    }
+  }
   var mapElement = document.getElementById('routesGtfsStopIdSloidMap');
   if (!mapElement || typeof L === 'undefined') {
     return;
   }
 
-  var bannerElement = document.getElementById('routesGtfsStopIdSloidBanner');
   var summaryElement = document.getElementById('headerSummaryStats');
   var activeRequestController = null;
-
-  function setBanner(text, isError) {
-    if (!bannerElement) {
-      return;
-    }
-    bannerElement.textContent = text || '';
-    bannerElement.classList.toggle('d-none', !text);
-    bannerElement.classList.toggle('route-card__map-status--error', !!isError);
-  }
 
   function renderPopupHtml(payload) {
     if (!window.PopupRenderer || typeof window.PopupRenderer.generateGtfsStopIdSloidPopupHtml !== 'function') {
@@ -71,9 +69,7 @@
         })
         .then(function (payload) {
           var html = renderPopupHtml(payload);
-          var popup = typeof createPopupWithOptions === 'function'
-            ? createPopupWithOptions(html)
-            : L.popup({ autoClose: false, closeOnClick: false, maxWidth: 900 }).setContent(html);
+            var popup = createPopupWithOptions(html);
           marker.bindPopup(popup);
           marker._gtfsPopupLoaded = true;
           marker.openPopup();
@@ -216,10 +212,9 @@
     }
 
     var styleOptions = {
-      color: '#174092',
-      weight: 1.6,
-      opacity: 0.38,
-      dashArray: '6 8'
+      color: '#F0AD4E',
+      weight: 2,
+      opacity: 1
     };
 
     if (window.LineRenderer && typeof window.LineRenderer.drawLine === 'function') {
@@ -255,29 +250,11 @@
         return;
       }
 
-      var gtfsColor = data.match_status === 'matched' ? '#2f9e44' : '#6C757D';
+      var gtfsColor = data.match_status === 'matched' ? '#F0AD4E' : '#6C757D';
       marker = createGtfsMarker(entry.lat, entry.lon, gtfsColor);
       attachPopupLoader(marker, 'gtfs', data.stop_id);
       gtfsMarkersLayer.addLayer(marker);
     });
-
-    var messages = [];
-    if (payload.meta && payload.meta.overview_mode) {
-      messages.push('Overview mode is active below zoom ' + String(config.detailZoom || 11) + '.');
-    }
-    if (payload.meta && payload.meta.atlas_capped) {
-      messages.push('ATLAS markers capped at ' + String(payload.meta.overview_mode ? config.overviewLimit : config.detailLimit) + '.');
-    }
-    if (payload.meta && payload.meta.gtfs_capped) {
-      messages.push('GTFS markers capped at ' + String(payload.meta.overview_mode ? config.overviewLimit : config.detailLimit) + '.');
-    }
-    if (payload.meta && payload.meta.matches_returned) {
-      messages.push(String(payload.meta.matches_returned) + ' GTFS↔ATLAS lines visible.');
-    }
-    if (!messages.length && payload.meta && payload.meta.atlas_returned === 0 && payload.meta.gtfs_returned === 0) {
-      messages.push('No GTFS or ATLAS stops fall inside the current viewport.');
-    }
-    setBanner(messages.join(' '), false);
   }
 
   function loadViewportData() {
@@ -311,7 +288,6 @@
         atlasMarkersLayer.clearLayers();
         gtfsMarkersLayer.clearLayers();
         linesLayer.clearLayers();
-        setBanner('Failed to load GTFS stop_id to sloid map data.', true);
       });
   }
 

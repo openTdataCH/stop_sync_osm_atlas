@@ -40,7 +40,7 @@
         DEFAULT_CENTER: [47.3769, 8.5417],
         
         // Default zoom level when map first loads
-        DEFAULT_ZOOM: 13,
+        DEFAULT_ZOOM: 14,
         
         // Maximum zoom level (allows upscaling tiles for better precision)
         MAX_ZOOM: 20,

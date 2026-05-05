@@ -85,6 +85,20 @@
         return `<table class="popup-table">${rows.map(([label, value]) => `<tr><td>${label}:</td><td>${value}</td></tr>`).join('')}</table>`;
     }
 
+    function buildPopupToggleButtonHtml(showUnified) {
+        const handlerName = showUnified ? 'showMatches' : 'hideMatches';
+        const label = showUnified ? 'See Matches' : 'Close Matches';
+        return `<button class="btn btn-sm popup-action-btn" onclick="PopupRenderer.${handlerName}(this)">${label}</button>`;
+    }
+
+    function buildActionOnlyFooterHtml(actionButtonHtml) {
+        if (!actionButtonHtml) {
+            return '';
+        }
+
+        return `<div class="bubble-footer"><div class="bubble-btn-row">${actionButtonHtml}</div></div>`;
+    }
+
     function buildDetailListHtml(items, formatter, emptyMessage = 'None') {
         if (!Array.isArray(items) || items.length === 0) {
             return `<p class="popup-empty-state">${emptyMessage}</p>`;
@@ -103,6 +117,19 @@
 
     function formatDetailDistanceMeters(distanceM) {
         return formatDistanceMeters(distanceM) || 'N/A';
+    }
+
+    function appendIndividualMatchMetadataRows(rows, data, matchFieldName = 'match_method') {
+        if (hasValue(data && data[matchFieldName])) {
+            rows.push(['Mapping Method', buildMatchTypeHtml(data[matchFieldName])]);
+        }
+
+        const distance = formatDistanceMeters(data && data.distance_m);
+        if (distance) {
+            rows.push(['Distance', distance]);
+        }
+
+        return rows;
     }
 
     function collectMappingMethods(items) {
@@ -209,6 +236,10 @@
         }
 
         return `<h5>${headerText}${linkHtml}</h5>`;
+    }
+
+    function buildGtfsBubbleHeader(unmatched) {
+        return `<h5>${unmatched ? 'Unmatched ' : ''}GTFS Stop</h5>`;
     }
 
     function buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml, options = {}) {
@@ -324,6 +355,32 @@
 
     function wrapSingleBubble(innerHtml, type, stopId) {
         return `<div class="popup-content-container" data-stop-id="${stopId}" data-type="${type}">${innerHtml}</div>`;
+    }
+
+    function wrapPopupViews(initialContent, unifiedContent, type, stopId) {
+        if (!unifiedContent) {
+            return wrapSingleBubble(initialContent, type, stopId);
+        }
+
+        return `
+            <div class="popup-content-container popup-outer-wrapper" data-stop-id="${stopId}" data-type="${type}">
+                <div class="popup-initial-view" style="display: block;">
+                    ${initialContent}
+                </div>
+                <div class="popup-unified-view" style="display: none;">
+                    ${unifiedContent}
+                </div>
+            </div>`;
+    }
+
+    function buildUnifiedPopupViewHtml(cardsHtml) {
+        return `
+            <div class="matches-container">${cardsHtml}</div>
+            <div class="popup-actions mt-2">${buildPopupToggleButtonHtml(false)}</div>`;
+    }
+
+    function wrapPopupMatchCard(cardHtml) {
+        return `<div class="popup-match-item">${cardHtml}</div>`;
     }
 
     function buildAtlasDataFromStop(stop) {
@@ -482,7 +539,15 @@
         return rows;
     }
 
-    function buildGtfsReferenceRows(data) {
+    function buildAtlasReferenceMatchRows(data, options = {}) {
+        const rows = buildAtlasRows(data, false, {
+            ...options,
+            hideMatchMetadata: true,
+        });
+        return appendIndividualMatchMetadataRows(rows, data);
+    }
+
+    function buildGtfsRows(data, options = {}) {
         const rows = [
             ['stop_id', formatPopupMono(data.stop_id)],
             ['Name', data.stop_name || 'N/A'],
@@ -496,60 +561,136 @@
             rows.push(['Coord', coords]);
         }
 
-        const mappingMethodRow = buildMappingMethodRow(data.matched_sloids);
-        if (mappingMethodRow) {
-            rows.push(mappingMethodRow);
+        if (options.includeSummaryCounts) {
+            const mappingMethodRow = buildMappingMethodRow(data.matched_sloids);
+            if (mappingMethodRow) {
+                rows.push(mappingMethodRow);
+            }
+            rows.push(['Matched SLOIDs', String(data.matched_sloid_count || 0)]);
+            rows.push(['ATLAS Candidates', String(data.candidate_atlas_count || 0)]);
         }
-        rows.push(['Matched SLOIDs', String(data.matched_sloid_count || 0)]);
-        rows.push(['ATLAS Candidates', String(data.candidate_atlas_count || 0)]);
+
+        if (options.includeMatchMetadata) {
+            appendIndividualMatchMetadataRows(rows, data);
+        }
+
         return rows;
+    }
+
+    function buildGtfsReferenceRows(data) {
+        return buildGtfsRows(data, { includeSummaryCounts: true });
+    }
+
+    function buildGtfsReferenceMatchRows(data) {
+        return buildGtfsRows(data, { includeMatchMetadata: true });
     }
 
     function gtfsReferenceHasMatches(data) {
         return Number(data && data.matched_sloid_count || 0) > 0;
     }
 
-    function buildGtfsReferenceSectionsHtml(data) {
-        return buildDetailSectionHtml(
-            'Matches',
-            buildDetailListHtml(data.matched_sloids, function (item) {
-                const parts = [formatPopupMono(item.sloid)];
-                if (item.atlas_designation_official) parts.push(item.atlas_designation_official);
-                if (item.match_method) parts.push(buildMatchTypeHtml(item.match_method));
-                if (item.distance_m != null) parts.push(formatDetailDistanceMeters(item.distance_m));
-                return parts.join(' / ');
-            })
-        );
+    function atlasReferenceHasMatches(data) {
+        return Number(data && data.matched_gtfs_count || 0) > 0;
     }
 
-    function generateAtlasReferenceBubbleHtml(data, options = {}) {
+    function renderAtlasReferenceSummaryBubbleHtml(data, options = {}) {
         const unmatched = Number(data.matched_gtfs_count || 0) === 0;
-        const content = renderBubbleCard({
+        const actionButtonHtml = !options.suppressMatchToggle && atlasReferenceHasMatches(data)
+            ? buildPopupToggleButtonHtml(true)
+            : '';
+
+        return renderBubbleCard({
             type: 'atlas',
             unmatched,
             headerHtml: buildBubbleHeader(data, 'atlas', unmatched),
             rows: buildAtlasReferenceRows(data, unmatched, options),
+            footerHtml: buildActionOnlyFooterHtml(actionButtonHtml),
         });
-
-        return wrapSingleBubble(content, 'atlas', data && (data.sloid || data.id || ''));
     }
 
-    function generateGtfsReferenceBubbleHtml(data) {
+    function renderAtlasReferenceMatchBubbleHtml(data, options = {}) {
+        return renderBubbleCard({
+            type: 'atlas',
+            unmatched: false,
+            headerHtml: buildBubbleHeader(data, 'atlas', false),
+            rows: buildAtlasReferenceMatchRows(data, options),
+        });
+    }
+
+    function renderGtfsReferenceSummaryBubbleHtml(data, options = {}) {
         const unmatched = Number(data.matched_sloid_count || 0) === 0;
-        const headerHtml = `<h5>${unmatched ? 'Unmatched ' : ''}GTFS Stop</h5>`;
-        const sectionsHtml = gtfsReferenceHasMatches(data)
-            ? buildGtfsReferenceSectionsHtml(data)
+        const actionButtonHtml = !options.suppressMatchToggle && gtfsReferenceHasMatches(data)
+            ? buildPopupToggleButtonHtml(true)
             : '';
 
-        const content = renderBubbleCard({
+        return renderBubbleCard({
             type: 'gtfs',
             unmatched,
-            headerHtml,
+            headerHtml: buildGtfsBubbleHeader(unmatched),
             rows: buildGtfsReferenceRows(data),
-            sectionsHtml,
+            footerHtml: buildActionOnlyFooterHtml(actionButtonHtml),
         });
+    }
 
-        return wrapSingleBubble(content, 'gtfs', data && (data.stop_id || data.id || ''));
+    function renderGtfsReferenceMatchBubbleHtml(data) {
+        return renderBubbleCard({
+            type: 'gtfs',
+            unmatched: false,
+            headerHtml: buildGtfsBubbleHeader(false),
+            rows: buildGtfsReferenceMatchRows(data),
+        });
+    }
+
+    function buildGtfsReferenceUnifiedBubbleHtml(data, options = {}) {
+        if (!gtfsReferenceHasMatches(data)) {
+            return '';
+        }
+
+        const cardsHtml = [
+            wrapPopupMatchCard(renderGtfsReferenceSummaryBubbleHtml({
+                ...data,
+                matched_sloid_count: data.matched_sloid_count,
+                candidate_atlas_count: data.candidate_atlas_count,
+            }, { suppressMatchToggle: true })),
+            ...(Array.isArray(data.matched_sloids) ? data.matched_sloids.map(function (item) {
+                return wrapPopupMatchCard(renderAtlasReferenceMatchBubbleHtml(item, options));
+            }) : [])
+        ].join('');
+
+        return buildUnifiedPopupViewHtml(cardsHtml);
+    }
+
+    function buildAtlasReferenceUnifiedBubbleHtml(data) {
+        if (!atlasReferenceHasMatches(data)) {
+            return '';
+        }
+
+        const cardsHtml = [
+            wrapPopupMatchCard(renderAtlasReferenceSummaryBubbleHtml({
+                ...data,
+                matched_gtfs_count: data.matched_gtfs_count,
+                same_uic_gtfs_count: data.same_uic_gtfs_count,
+            }, { suppressMatchToggle: true })),
+            ...(Array.isArray(data.matched_gtfs) ? data.matched_gtfs.map(function (item) {
+                return wrapPopupMatchCard(renderGtfsReferenceMatchBubbleHtml(item));
+            }) : [])
+        ].join('');
+
+        return buildUnifiedPopupViewHtml(cardsHtml);
+    }
+
+    function generateAtlasReferenceBubbleHtml(data, options = {}) {
+        const content = renderAtlasReferenceSummaryBubbleHtml(data, options);
+        const unifiedContent = buildAtlasReferenceUnifiedBubbleHtml(data);
+
+        return wrapPopupViews(content, unifiedContent, 'atlas', data && (data.sloid || data.id || ''));
+    }
+
+    function generateGtfsReferenceBubbleHtml(data, options = {}) {
+        const content = renderGtfsReferenceSummaryBubbleHtml(data, options);
+        const unifiedContent = buildGtfsReferenceUnifiedBubbleHtml(data, options);
+
+        return wrapPopupViews(content, unifiedContent, 'gtfs', data && (data.stop_id || data.id || ''));
     }
 
     function generateGtfsStopIdSloidPopupHtml(data, options = {}) {
@@ -566,7 +707,7 @@
         }
 
         if (data.entity_type === 'gtfs') {
-            return generateGtfsReferenceBubbleHtml(data);
+            return generateGtfsReferenceBubbleHtml(data, options);
         }
 
         throw new Error(`PopupRenderer.generateGtfsStopIdSloidPopupHtml - unsupported entity_type: ${data.entity_type}`);
@@ -587,7 +728,7 @@
     function generateInitialBubbleHtml(stop, initialViewType, options = {}) {
         const isUnmatched = stop.stop_type === 'atlas_unmatched' || stop.stop_type === 'osm_unmatched';
         const actionButtonHtml = stopHasMatches(stop)
-            ? `<button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.showMatches(this, ${stop.id})'>See Matches</button>`
+            ? buildPopupToggleButtonHtml(true)
             : '';
 
         if (initialViewType === 'atlas') {
@@ -620,10 +761,9 @@
             return `<div class="popup-match-item">${bubble}</div>`;
         }).join('');
 
-        const closeButtonHtml = `<button class="btn btn-sm popup-action-btn" onclick='PopupRenderer.hideMatches(this, ${stop.id}, "${initialViewType}")'>Close Matches</button>`;
         return `
             <div class="matches-container">${cardsHtml}</div>
-            <div class="popup-actions mt-2">${closeButtonHtml}</div>`;
+            <div class="popup-actions mt-2">${buildPopupToggleButtonHtml(false)}</div>`;
     }
 
     function generatePopupHtml(stop, initialViewType, options = {}) {
@@ -632,15 +772,7 @@
             ? generateUnifiedBubbleHtml(stop, initialViewType, options)
             : '';
 
-        return `
-            <div class="popup-content-container popup-outer-wrapper" data-stop-id="${stop.id}" data-type="${initialViewType}">
-                <div class="popup-initial-view" style="display: block;">
-                    ${initialContent}
-                </div>
-                <div class="popup-unified-view" style="display: none;">
-                    ${unifiedContent}
-                </div>
-            </div>`;
+        return wrapPopupViews(initialContent, unifiedContent, initialViewType, stop.id);
     }
 
     function toggleMatchesView(buttonElement, showUnified) {
@@ -674,11 +806,11 @@
         }, 0);
     }
 
-    function showMatches(buttonElement, stopId) {
+    function showMatches(buttonElement) {
         toggleMatchesView(buttonElement, true);
     }
 
-    function hideMatches(buttonElement, stopId, initialViewType) {
+    function hideMatches(buttonElement) {
         toggleMatchesView(buttonElement, false);
     }
 

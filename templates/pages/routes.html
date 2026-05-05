@@ -351,7 +351,21 @@
     {% else %}
     <section class="routes-gtfs-map-view" aria-label="GTFS stop_id to ATLAS sloid map">
       <div class="routes-gtfs-map-shell">
-        <div id="routesGtfsStopIdSloidBanner" class="routes-gtfs-map-banner d-none" aria-live="polite"></div>
+        <div class="routes-gtfs-map-info" aria-label="GTFS stop_id to SLOID map legend">
+          <button type="button" class="routes-gtfs-map-info__button" aria-label="About this map">
+            <i class="fas fa-info-circle" aria-hidden="true"></i>
+          </button>
+          <div class="routes-gtfs-map-info__tooltip" role="note">
+            <p>This is <strong>not</strong> OSM-ATLAS matching. This is opentransportdata.swiss GTFS stop_id to SLOID matching. We use it to identify which GTFS routes use each SLOID. Check <a href="{{ url_for('docs.docs_page', page='intro') }}">docs/intro</a> for more.</p>
+            <p class="routes-gtfs-map-info__legend-title">Legend</p>
+            <ul class="routes-gtfs-map-info__legend-list">
+              <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--atlas-matched" aria-hidden="true"></span> Blue: ATLAS stops with a corresponding OpenTransportData GTFS stop_id.</li>
+              <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--gtfs-matched" aria-hidden="true"></span> Yellow: OpenTransportData GTFS stop_ids with a corresponding ATLAS SLOID.</li>
+              <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--atlas-unmatched" aria-hidden="true"></span> Red: ATLAS stops without a corresponding GTFS stop_id.</li>
+              <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--gtfs-unmatched" aria-hidden="true"></span> Gray: GTFS stop_ids without a corresponding ATLAS SLOID.</li>
+            </ul>
+          </div>
+        </div>
         <div class="routes-gtfs-map-overlay">
           {{ stats_overlay(show_filters=False) }}
         </div>
@@ -379,26 +393,26 @@
 {% if active_view == 'routes' %}
 <script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>
-<script>
-window.routesPageConfig = {
-  selectedAtlasOperators: {{ selected_atlas_operators | tojson }},
-  matchedFilter: {{ matched_filter | tojson }},
-  matchFilterLabels: {{ match_filter_labels | tojson }},
-  q: {{ q | tojson }},
-  baseUrl: {{ url_for('routes.routes_page') | tojson }}
-};
+<script type="application/json" id="routesPageConfig">
+{
+  "selectedAtlasOperators": {{ selected_atlas_operators | tojson }},
+  "matchedFilter": {{ matched_filter | tojson }},
+  "matchFilterLabels": {{ match_filter_labels | tojson }},
+  "q": {{ q | tojson }},
+  "baseUrl": {{ url_for('routes.routes_page') | tojson }}
+}
 </script>
 <script src="{{ url_for('static', filename='js/pages/routes.js') }}"></script>
 {% else %}
-<script>
-window.routesGtfsStopIdSloidConfig = {
-  summaryUrl: {{ url_for('routes.routes_gtfs_stop_id_sloid_summary_api') | tojson }},
-  mapUrl: {{ url_for('routes.routes_gtfs_stop_id_sloid_map_api') | tojson }},
-  popupUrl: {{ url_for('routes.routes_gtfs_stop_id_sloid_popup_api') | tojson }},
-  detailZoom: {{ gtfs_stop_id_sloid_detail_zoom | tojson }},
-  detailLimit: {{ gtfs_stop_id_sloid_detail_limit | tojson }},
-  overviewLimit: {{ gtfs_stop_id_sloid_overview_limit | tojson }}
-};
+<script type="application/json" id="routesGtfsStopIdSloidConfig">
+{
+  "summaryUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_summary_api') | tojson }},
+  "mapUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_map_api') | tojson }},
+  "popupUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_popup_api') | tojson }},
+  "detailZoom": {{ gtfs_stop_id_sloid_detail_zoom | tojson }},
+  "detailLimit": {{ gtfs_stop_id_sloid_detail_limit | tojson }},
+  "overviewLimit": {{ gtfs_stop_id_sloid_overview_limit | tojson }}
+}
 </script>
 <script src="{{ url_for('static', filename='js/pages/routes-gtfs-stop-id-sloid.js') }}"></script>
 {% endif %}
