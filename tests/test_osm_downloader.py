@@ -10,9 +10,8 @@ class DummyResponse:
 
 
 def test_query_overpass_posts_raw_query(monkeypatch, tmp_path):
-    from matching_and_import_db.downloader import get_osm_data
-
     monkeypatch.chdir(tmp_path)
+    from matching_and_import_db.downloader import get_osm_data
     captured = {}
 
     class DummySession:
@@ -35,9 +34,8 @@ def test_query_overpass_posts_raw_query(monkeypatch, tmp_path):
 
 
 def test_query_overpass_raises_on_http_error(monkeypatch, tmp_path):
-    from matching_and_import_db.downloader import get_osm_data
-
     monkeypatch.chdir(tmp_path)
+    from matching_and_import_db.downloader import get_osm_data
 
     class DummySession:
         def post(self, url, data=None, headers=None, timeout=None):
@@ -55,9 +53,8 @@ def test_query_overpass_raises_on_http_error(monkeypatch, tmp_path):
 
 
 def test_query_overpass_retries_504_then_succeeds(monkeypatch, tmp_path):
-    from matching_and_import_db.downloader import get_osm_data
-
     monkeypatch.chdir(tmp_path)
+    from matching_and_import_db.downloader import get_osm_data
     monkeypatch.setattr(get_osm_data, "OVERPASS_MAX_RETRIES", 2)
     monkeypatch.setattr(get_osm_data, "OVERPASS_RETRY_BACKOFF_SECONDS", 0.25)
     sleeps = []
@@ -83,9 +80,8 @@ def test_query_overpass_retries_504_then_succeeds(monkeypatch, tmp_path):
 
 
 def test_query_overpass_exhausts_retries_for_502(monkeypatch, tmp_path):
-    from matching_and_import_db.downloader import get_osm_data
-
     monkeypatch.chdir(tmp_path)
+    from matching_and_import_db.downloader import get_osm_data
     monkeypatch.setattr(get_osm_data, "OVERPASS_MAX_RETRIES", 2)
     monkeypatch.setattr(get_osm_data, "OVERPASS_RETRY_BACKOFF_SECONDS", 0.5)
     sleeps = []
