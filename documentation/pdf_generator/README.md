@@ -5,14 +5,14 @@ This folder contains a script and associated CSS to generate a PDF from the repo
 ## How it works
 
 The `build_docs_pdf.py` script follows a two-stage process:
-1. **Pandoc**: It gathers all `.md` files in the `documentation/` folder, replaces local links with anchors, fetches pipeline statistics, converts Mermaid diagrams to SVGs (using the Kroki API), and compiles everything into a single, standalone HTML5 file.
-2. **Headless Chrome**: It uses your locally installed Google Chrome (or Chromium) in headless mode to "print" this HTML to a high-quality (300+ DPI) PDF document.
+1. **Markdown to HTML**: It gathers the `.md` files in the `documentation/` folder, replaces local links with anchors, injects stats placeholders, rewrites repo links to GitHub blob URLs, and converts Mermaid diagrams to local SVGs through the Kroki API.
+2. **WeasyPrint rendering**: It renders the combined HTML plus `docs_print.css` into the final PDF.
 
 ## Usage
 
 **Prerequisites:**
-- `pandoc` must be installed and available in your `PATH`.
-- **Google Chrome** or **Chromium** must be installed (typially found at `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` on macOS).
+- The Python dependencies used by the web/docs stack must be installed, including `mistune` and `weasyprint`.
+- The generator needs network access to `https://kroki.io/mermaid/svg` so Mermaid blocks can be rendered to SVG.
 
 You can run the script via the VS Code Tasks:
 - `Tasks: Run Task` -> `Docs: Build PDF`
@@ -24,4 +24,4 @@ python3 documentation/pdf_generator/build_docs_pdf.py
 
 ## Generated Files
 
-All intermediate files (like the standalone HTML format and extracted SVG diagrams) and the final PDF are placed inside the `documentation/generated/` folder. This folder is ignored by git.
+The generated HTML bundle, extracted SVG diagrams, and the final PDF are placed inside the `documentation/generated/` folder. This folder is ignored by git.
