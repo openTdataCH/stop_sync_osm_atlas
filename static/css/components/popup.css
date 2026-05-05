@@ -121,9 +121,9 @@
 }
 
 .gtfs-match {
-  --bubble-bg: rgba(47, 158, 68, 0.12);
-  --bubble-border: rgba(47, 158, 68, 0.28);
-  --bubble-fg: #2f9e44;
+  --bubble-bg: rgba(240, 173, 78, 0.14);
+  --bubble-border: rgba(240, 173, 78, 0.34);
+  --bubble-fg: #F0AD4E;
 }
 
 .atlas-match.unmatched {
