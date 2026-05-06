@@ -33,7 +33,7 @@ window.ProblemsState = (function () {
     let isLoadingMore = false;
 
     // UI state
-    let showContext = false; // Toggle state for showing context
+    let showContext = true; // Toggle state for showing context
     let keyboardHintShown = false;
     let keyboardHintTimeout = null;
 
