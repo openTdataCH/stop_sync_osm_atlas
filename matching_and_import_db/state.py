@@ -162,7 +162,9 @@ class AtlasState:
             uic_ref=_str(row.get('number')),
             designation=_str(row.get('designation')),
             designation_official=_str(row.get('designationOfficial')),
-            business_org_abbr=_str(row.get('servicePointBusinessOrganisationAbbreviationEn'))
+            business_org_abbr=_str(row.get('servicePointBusinessOrganisationAbbreviationEn')),
+            business_org_id=_str(row.get('servicePointBusinessOrganisation')),
+            business_org_name=_str(row.get('servicePointBusinessOrganisationDescriptionEn')),
         )
 
     def _build_duplicate_groups(self) -> None:

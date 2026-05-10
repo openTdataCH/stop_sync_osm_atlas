@@ -86,6 +86,19 @@ class Problem(db.Model):
 
 
 
+class AtlasOperator(db.Model):
+    __tablename__ = 'atlas_operators'
+    __table_args__ = (
+        db.Index('idx_atlas_operator_sboid', 'sboid'),
+    )
+
+    atlas_business_org_abbr = db.Column(db.String(100), primary_key=True)
+    sboid = db.Column(db.String(100), unique=True)
+    atlas_business_org_name = db.Column(db.String(255))
+
+    atlas_stops = db.relationship('AtlasStop', back_populates='atlas_operator', lazy='select')
+
+
 class AtlasStop(db.Model):
     __tablename__ = 'atlas_stops'
     __table_args__ = (
@@ -96,11 +109,16 @@ class AtlasStop(db.Model):
     uic_ref = db.Column(db.String(100), index=True)
     atlas_designation = db.Column(db.String(255))
     atlas_designation_official = db.Column(db.String(255))
-    atlas_business_org_abbr = db.Column(db.String(100))
+    atlas_business_org_abbr = db.Column(
+        db.String(100),
+        db.ForeignKey('atlas_operators.atlas_business_org_abbr', ondelete='SET NULL'),
+    )
     # FK to the representative SLOID (NULL if this IS the representative or not in a group)
     representative_sloid = db.Column(db.String(100), nullable=True, index=True)
     # JSONB array of all SLOIDs in the duplicate group (e.g. ["sloid1", "sloid2"])
     duplicate_group_sloids = db.Column(JSONB)
+
+    atlas_operator = db.relationship('AtlasOperator', back_populates='atlas_stops', lazy='select')
 
 
 class GtfsStop(db.Model):

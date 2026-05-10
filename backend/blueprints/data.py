@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func, case
 from sqlalchemy.orm import joinedload, load_only
 from collections import defaultdict
-from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
+from backend.models import AtlasOperator, StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
 from backend.extensions import db, limiter
 from backend.db_errors import is_missing_table_error
 from backend.serializers.stops import format_stop_data
@@ -92,11 +92,11 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
 @limiter.limit("60/minute")
 def get_operators():
     try:
-        operators = db.session.query(AtlasStop.atlas_business_org_abbr) \
-            .filter(AtlasStop.atlas_business_org_abbr.isnot(None)) \
-            .filter(AtlasStop.atlas_business_org_abbr != '') \
+        operators = db.session.query(AtlasOperator.atlas_business_org_abbr) \
+            .filter(AtlasOperator.atlas_business_org_abbr.isnot(None)) \
+            .filter(AtlasOperator.atlas_business_org_abbr != '') \
             .distinct() \
-            .order_by(AtlasStop.atlas_business_org_abbr) \
+            .order_by(AtlasOperator.atlas_business_org_abbr) \
             .all()
         operator_list = [op[0] for op in operators if op[0]]
         return jsonify({"operators": operator_list, "total": len(operator_list)})

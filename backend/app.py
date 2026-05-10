@@ -11,6 +11,7 @@ from backend.blueprints.stats import stats_bp
 from backend.blueprints.problems import problems_bp
 from backend.blueprints.docs import docs_bp
 from backend.blueprints.system import system_bp
+from backend.blueprints.operators import operators_bp
 from backend.blueprints.routes import routes_bp
 
 
@@ -34,6 +35,7 @@ def create_app():
     app.register_blueprint(problems_bp)
     app.register_blueprint(docs_bp)
     app.register_blueprint(system_bp)
+    app.register_blueprint(operators_bp)
     app.register_blueprint(routes_bp)
     @app.before_request
     def enforce_https():
