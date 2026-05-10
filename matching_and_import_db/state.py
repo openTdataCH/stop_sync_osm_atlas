@@ -9,7 +9,6 @@ import pandas as pd
 
 from matching_and_import_db.utils.common import haversine_distance
 from matching_and_import_db.utils.spatial_index import build_kdtree_from_nodes, batch_to_xyz, meters_to_unit_chord_radius
-from matching_and_import_db.utils.org_standardization import standardize_operator
 from matching_and_import_db.models import AtlasNode, AtlasEntity
 from matching_and_import_db.models import OsmNode, OsmEntity
 
@@ -284,11 +283,6 @@ class OsmState:
 
             for tag in node.findall("tag"):
                 k, v = tag.get("k"), tag.get("v")
-                if k == "operator":
-                    original = v
-                    v, changed = standardize_operator(v)
-                    if changed:
-                        tags['original_operator'] = original
                 tags[k] = v
                 if k == "local_ref":
                     local_ref = v
@@ -331,11 +325,6 @@ class OsmState:
             local_ref = None
             for tag in way.findall("tag"):
                 k, v = tag.get("k"), tag.get("v")
-                if k == "operator":
-                    original = v
-                    v, changed = standardize_operator(v)
-                    if changed:
-                        tags['original_operator'] = original
                 tags[k] = v
                 if k == "local_ref":
                     local_ref = v

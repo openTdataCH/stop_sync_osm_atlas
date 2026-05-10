@@ -1,7 +1,6 @@
 import os
 import re
 import json
-import csv
 import sys
 import importlib
 import subprocess
@@ -633,10 +632,6 @@ def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) 
         palette_html = get_canonical_palette_html()
         markdown_text = markdown_text.replace('[[canonical_palette]]', palette_html)
 
-    # Inject operator normalizations table if placeholder is present
-    if '[[operator_normalizations_table]]' in markdown_text:
-        table_html = _get_operator_normalizations_table_html()
-        markdown_text = markdown_text.replace('[[operator_normalizations_table]]', table_html)
 
     # Rewrite repo-relative image/asset paths to the docs assets route
     # Example: ![...](images/foo.png) -> ![...](/docs/assets/images/foo.png)
@@ -953,39 +948,6 @@ def cancel_docs_pdf(task_id):
     return jsonify({"status": "cancelled"})
 
 
-def _get_operator_normalizations_table_html() -> str:
-    """Read the CSV and return a styled HTML table for embedding."""
-    csv_path = os.path.abspath(os.path.join(
-        os.path.dirname(__file__), '..', '..', 'matching_and_import_db', 'utils', 'operator_normalizations.csv'
-    ))
-    
-    if not os.path.isfile(csv_path):
-        return '<p class="text-muted"><em>Mappings file not found.</em></p>'
-    
-    try:
-        rows = []
-        with open(csv_path, 'r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-            
-        if not rows:
-            return '<p class="text-muted"><em>No active mappings found.</em></p>'
-
-        html = '<details class="doc-expandable-section mb-4">'
-        html += '<summary class="doc-expandable-summary">View current normalization mappings (' + str(len(rows)) + ')</summary>'
-        html += '<div class="doc-expandable-content">'
-        html += '<table class="table table-sm table-hover">'
-        html += '<thead><tr><th>Alias</th><th>Normalized Name</th></tr></thead>'
-        html += '<tbody>'
-        for row in rows:
-            html += f'<tr><td><code>{row.get("alias", "")}</code></td><td><strong>{row.get("standard_name", "")}</strong></td></tr>'
-        html += '</tbody></table>'
-        html += '<div class="small text-muted mt-2"><i class="fas fa-file-csv"></i> Source: <code>matching_and_import_db/utils/operator_normalizations.csv</code></div>'
-        html += '</div></details>'
-        return html
-    except Exception as e:
-        logger.error("Error generating operator normalizations table: %s", e)
-        return f'<p class="text-danger"><small>Error loading mappings: {str(e)}</small></p>'
 
 
 @docs_bp.route('/api/docs/stats')

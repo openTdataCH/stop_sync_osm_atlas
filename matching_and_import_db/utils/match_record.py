@@ -49,7 +49,6 @@ class MatchRecord(TypedDict, total=False):
     osm_local_ref: Optional[str]
     osm_network: str
     osm_operator: str
-    osm_original_operator: Optional[str]
     osm_amenity: str
     osm_railway: str
     osm_aerialway: str
@@ -139,7 +138,6 @@ def create_match_record(
         osm_local_ref=osm_node.get('local_ref', '') if osm_node else '',
         osm_network=tags.get('network', ''),
         osm_operator=tags.get('operator', ''),
-        osm_original_operator=tags.get('original_operator'),
         osm_amenity=tags.get('amenity', ''),
         osm_railway=tags.get('railway', ''),
         osm_aerialway=tags.get('aerialway', ''),
