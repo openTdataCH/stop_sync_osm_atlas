@@ -20,6 +20,7 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
+from backend.services.data_meta import load_data_meta
 from backend.services.time_utils import get_zurich_now, format_zurich_timestamp
  
 logger = logging.getLogger(__name__)
@@ -35,11 +36,6 @@ STATS_SUMMARY_PDF_PATH = os.path.join(
     'documentation', 'generated', 'stats_summary.pdf'
 )
  
-DATA_META_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    'data', 'data_meta.json'
-)
-
 GTFS_ATLAS_STATS_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
     'data', 'gtfs_atlas_stats.json'
@@ -64,6 +60,36 @@ def _load_gtfs_atlas_stats(total_atlas_platforms: int | None = None) -> Optional
         stats['atlas']['coverage_percent'] = round((touched / total_atlas_platforms) * 100, 1) if total_atlas_platforms > 0 else 0.0
 
     return stats
+
+
+def _build_source_download_stats(meta: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not meta:
+        return None
+
+    preprocessing_sources = meta.get('preprocessing_sources') or {}
+    if not isinstance(preprocessing_sources, dict):
+        return None
+
+    default_downloaded_at = preprocessing_sources.get('preprocessing_completed_at')
+    source_downloads: Dict[str, Any] = {}
+
+    for source_name in ('atlas', 'gtfs'):
+        snapshot = preprocessing_sources.get(source_name) or {}
+        if not isinstance(snapshot, dict):
+            continue
+
+        source_download = {
+            'downloaded_at': snapshot.get('downloaded_at') or default_downloaded_at,
+            'etag': snapshot.get('etag'),
+            'last_modified': snapshot.get('last_modified'),
+            'download_filename': snapshot.get('download_filename'),
+            'final_url': snapshot.get('final_url'),
+        }
+
+        if any(value is not None for value in source_download.values()):
+            source_downloads[source_name] = source_download
+
+    return source_downloads or None
 
 
 def get_report_css_content(css_files: List[str]) -> str:
@@ -386,13 +412,13 @@ def export_pipeline_stats(
     
     # Load data meta if available to get the actual data source update time
     data_updated_at = None
-    if os.path.exists(DATA_META_PATH):
-        try:
-            with open(DATA_META_PATH, 'r', encoding='utf-8') as f:
-                meta = json.load(f)
-                data_updated_at = meta.get('data_updated_at')
-        except Exception as e:
-            logger.warning(f"Could not load data_meta.json: {e}")
+    source_downloads = None
+    try:
+        meta = load_data_meta()
+        data_updated_at = meta.get('data_updated_at')
+        source_downloads = _build_source_download_stats(meta)
+    except Exception as e:
+        logger.warning(f"Could not load data_meta.json: {e}")
  
     zurich_now = get_zurich_now()
     stats_computed_at = format_zurich_timestamp(zurich_now)
@@ -402,6 +428,7 @@ def export_pipeline_stats(
         "generated_at": stats_computed_at,
         "stats_computed_at": stats_computed_at,
         "data_updated_at": data_updated_at,
+        "source_downloads": source_downloads,
         "version": "1.1",
         
         # High-level summary (for overview)

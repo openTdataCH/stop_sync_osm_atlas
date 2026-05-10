@@ -22,11 +22,40 @@ from matching_and_import_db.utils.route_id import normalize_route_id as _normali
 from backend.services.stats_export import load_stats_from_file, save_stats_to_file
 
 
+ATLAS_ACTUAL_DATE_RESOURCE_PERMALINK = (
+    "https://data.opentransportdata.swiss/dataset/traffic-point-v2/"
+    "resource_permalink/actual-date-world-traffic-point.csv"
+)
+
+
 def _ensure_parent_dir(path: str) -> None:
     """Create the output parent directory if needed."""
     parent = os.path.dirname(path)
     if parent:
         os.makedirs(parent, exist_ok=True)
+
+
+def _load_atlas_dataframe(response: requests.Response) -> pd.DataFrame:
+    payload = io.BytesIO(response.content)
+    if zipfile.is_zipfile(payload):
+        payload.seek(0)
+        print("ATLAS: download successful, extracting ZIP file...")
+        with zipfile.ZipFile(payload) as z:
+            csv_files = z.namelist()
+            print("ATLAS: files in ZIP:", csv_files)
+
+            if not csv_files:
+                raise Exception("No CSV file found in the ZIP archive.")
+
+            csv_filename = csv_files[0]
+            print("ATLAS: extracting:", csv_filename)
+
+            with z.open(csv_filename) as extracted_file:
+                return pd.read_csv(extracted_file, sep=";")
+
+    payload.seek(0)
+    print("ATLAS: download successful, reading CSV file...")
+    return pd.read_csv(payload, sep=";", encoding="utf-8-sig")
 
 
 def _safe_direction_id(val):
@@ -66,88 +95,76 @@ def get_atlas_stops(output_path, download_url):
     response = requests.get(download_url)
     response.raise_for_status()
 
-    print("ATLAS: download successful, extracting ZIP file…")
-    with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-        csv_files = z.namelist()
-        print("ATLAS: files in ZIP:", csv_files)
+    df = _load_atlas_dataframe(response)
 
-        if not csv_files:
-            raise Exception("No CSV file found in the ZIP archive.")
+    # ── Step 1: Country filter (uicCountryCode == 85) ──────────────
+    raw_total = len(df)
+    df = df[df['uicCountryCode'] == 85]
+    after_country = len(df)
 
-        csv_filename = csv_files[0]
-        print("ATLAS: extracting:", csv_filename)
+    # ── Step 2: Geography filter (inside Swiss border polygon) ──────
+    df = filter_points_in_switzerland(df, lat_col='wgs84North', lon_col='wgs84East')
+    after_geo = len(df)
 
-        with z.open(csv_filename) as f:
-            df = pd.read_csv(f, sep=";")
+    # ── Step 3: Validity filter (validTo >= today) ──────────────────
+    # Note: pandas datetime64[ns] cannot represent years > 2262,
+    # turning '9999-12-31' into NaT.  Compare ISO strings directly.
+    today_iso = datetime.date.today().isoformat()
+    valid_to_iso = df['validTo'].astype(str).str.slice(0, 10)
+    df = df[valid_to_iso >= today_iso].copy()
+    after_validity = len(df)
+    print(
+        f"ATLAS: filtered {after_geo - after_validity:,} rows with past "
+        f"validTo dates, kept {after_validity:,} rows"
+    )
 
-            # ── Step 1: Country filter (uicCountryCode == 85) ──────────────
-            raw_total = len(df)
-            df = df[df['uicCountryCode'] == 85]
-            after_country = len(df)
+    # ── Step 4: Type filter (BOARDING_PLATFORM) ─────────────────────
+    # Collect type counts from the full (pre-type-filter) dataset so we
+    # can report every type present in the raw Swiss data.
+    type_counts: dict = {}
+    if 'trafficPointElementType' in df.columns:
+        type_counts = df['trafficPointElementType'].value_counts(dropna=False).to_dict()
+        # Convert numpy int64 keys/values to plain Python types
+        type_counts = {str(k): int(v) for k, v in type_counts.items()}
 
-            # ── Step 2: Geography filter (inside Swiss border polygon) ──────
-            df = filter_points_in_switzerland(df, lat_col='wgs84North', lon_col='wgs84East')
-            after_geo = len(df)
+        df = df[df['trafficPointElementType'] == 'BOARDING_PLATFORM'].copy()
+        print(
+            f"ATLAS: filtered to BOARDING_PLATFORM, kept {len(df):,} "
+            f"(from {after_validity:,})"
+        )
+    else:
+        print("ATLAS: 'trafficPointElementType' column not found, cannot filter for BOARDING_PLATFORM.")
 
-            # ── Step 3: Validity filter (validTo >= today) ──────────────────
-            # Note: pandas datetime64[ns] cannot represent years > 2262,
-            # turning '9999-12-31' into NaT.  Compare ISO strings directly.
-            today_iso = datetime.date.today().isoformat()
-            valid_to_iso = df['validTo'].astype(str).str.slice(0, 10)
-            df = df[valid_to_iso >= today_iso].copy()
-            after_validity = len(df)
-            print(
-                f"ATLAS: filtered {after_geo - after_validity:,} rows with past "
-                f"validTo dates, kept {after_validity:,} rows"
-            )
+    after_type = len(df)
 
-            # ── Step 4: Type filter (BOARDING_PLATFORM) ─────────────────────
-            # Collect type counts from the full (pre-type-filter) dataset so we
-            # can report every type present in the raw Swiss data.
-            type_counts: dict = {}
-            if 'trafficPointElementType' in df.columns:
-                type_counts = df['trafficPointElementType'].value_counts(dropna=False).to_dict()
-                # Convert numpy int64 keys/values to plain Python types
-                type_counts = {str(k): int(v) for k, v in type_counts.items()}
+    # ── Save processed data ─────────────────────────────────────────
+    _ensure_parent_dir(output_path)
+    df.to_csv(output_path, sep=";", index=False)
+    print(f"ATLAS: total BOARDING_PLATFORM rows kept = {after_type:,}")
+    print(f"ATLAS: processed CSV saved to: {output_path}")
 
-                df = df[df['trafficPointElementType'] == 'BOARDING_PLATFORM'].copy()
-                print(
-                    f"ATLAS: filtered to BOARDING_PLATFORM, kept {len(df):,} "
-                    f"(from {after_validity:,})"
-                )
-            else:
-                print("ATLAS: 'trafficPointElementType' column not found, cannot filter for BOARDING_PLATFORM.")
+    # ── Build and return filter statistics ──────────────────────────
+    def _pct(part: int, total: int) -> float:
+        return round(part / total * 100, 1) if total else 0.0
 
-            after_type = len(df)
+    boarding_platform_count = type_counts.get('BOARDING_PLATFORM', 0)
+    boarding_area_count = type_counts.get('BOARDING_AREA', 0)
 
-            # ── Save processed data ─────────────────────────────────────────
-            _ensure_parent_dir(output_path)
-            df.to_csv(output_path, sep=";", index=False)
-            print(f"ATLAS: total BOARDING_PLATFORM rows kept = {after_type:,}")
-            print(f"ATLAS: processed CSV saved to: {output_path}")
-
-            # ── Build and return filter statistics ──────────────────────────
-            def _pct(part: int, total: int) -> float:
-                return round(part / total * 100, 1) if total else 0.0
-
-            boarding_platform_count = type_counts.get('BOARDING_PLATFORM', 0)
-            boarding_area_count = type_counts.get('BOARDING_AREA', 0)
-
-            return {
-                "downloaded_at": today_iso,
-                "raw_total": raw_total,
-                "after_country_filter": after_country,
-                "after_geo_filter": after_geo,
-                "after_validity_filter": after_validity,
-                "after_type_filter": after_type,
-                "eliminated_by_country": raw_total - after_country,
-                "eliminated_by_geo": after_country - after_geo,
-                "eliminated_by_validity": after_geo - after_validity,
-                "eliminated_by_type": after_validity - after_type,
-                "type_counts": type_counts,
-                "boarding_platform_pct": _pct(boarding_platform_count, raw_total),
-                "boarding_area_pct": _pct(boarding_area_count, raw_total),
-            }
+    return {
+        "downloaded_at": today_iso,
+        "raw_total": raw_total,
+        "after_uic_number_filter": after_country,
+        "after_geo_filter": after_geo,
+        "after_validity_filter": after_validity,
+        "after_type_filter": after_type,
+        "eliminated_by_uic_number": raw_total - after_country,
+        "eliminated_by_geo": after_country - after_geo,
+        "eliminated_by_validity": after_geo - after_validity,
+        "eliminated_by_type": after_validity - after_type,
+        "type_counts": type_counts,
+        "boarding_platform_pct": _pct(boarding_platform_count, raw_total),
+        "boarding_area_pct": _pct(boarding_area_count, raw_total),
+    }
 
 
 def write_atlas_route_csvs(
@@ -205,7 +222,7 @@ def write_atlas_route_csvs(
 if __name__ == "__main__":
     # Download and process ATLAS data
     atlas_stops_csv_output_path = "data/raw/stops_ATLAS.csv"
-    download_url = "https://data.opentransportdata.swiss/en/dataset/traffic-points-actual-date/permalink"
+    download_url = ATLAS_ACTUAL_DATE_RESOURCE_PERMALINK
 
     atlas_filter_stats = get_atlas_stops(atlas_stops_csv_output_path, download_url)
 
