@@ -43,17 +43,20 @@ def test_operators_page_renders_operator_cards(client, monkeypatch):
         ),
     )
 
-    response = client.get('/operators')
+    response = client.get('/data/operators')
 
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert 'Schweizerische Bundesbahnen SBB' in html
-    assert 'Abbreviation: SBB' in html
+    assert 'Abbr: SBB' in html
     assert 'SBOID: 11' in html
     assert 'BLS' in html
     assert 'matched osm operators' in html.lower()
-    assert 'href="/operators"' in html
-    assert re.search(r'class="nav-link[^\"]* active[^\"]*" href="/operators"', html)
+    assert 'href="/data/operators"' in html
+    assert 'href="/data/analytics"' in html
+    assert 'href="/data/export"' in html
+    assert re.search(r'class="nav-link[^\"]* active[^\"]*" href="/data"', html)
+    assert re.search(r'class="c-page-tabs__tab is-active"[^>]*>\s*Operators\s*</a>', html)
 
 
 def test_operators_page_forwards_filters_to_loader(client, monkeypatch):
@@ -65,7 +68,7 @@ def test_operators_page_forwards_filters_to_loader(client, monkeypatch):
 
     monkeypatch.setattr(operators_module, '_load_operators_view', _fake_loader)
 
-    response = client.get('/operators?q=SBB&coverage=no_osm_matches&per_page=50&page=2')
+    response = client.get('/data/operators?q=SBB&coverage=no_osm_matches&per_page=50&page=2')
 
     assert response.status_code == 200
     assert captured == {
@@ -74,3 +77,10 @@ def test_operators_page_forwards_filters_to_loader(client, monkeypatch):
         'page': 2,
         'per_page': 50,
     }
+
+
+def test_data_root_redirects_to_analytics(client):
+    response = client.get('/data')
+
+    assert response.status_code == 302
+    assert response.headers['Location'].endswith('/data/analytics')

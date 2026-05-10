@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, url_for
 import logging
 import os
 
@@ -66,14 +66,18 @@ def create_app():
     def problems():
         return render_template('pages/problems.html')
 
-    @app.route('/analytics', endpoint='analytics_stats')
-    @app.route('/analytics/reports', endpoint='analytics_reports')
+    @app.route('/data')
+    def data_index():
+        return redirect(url_for('analytics_stats'))
+
+    @app.route('/data/analytics', endpoint='analytics_stats')
+    @app.route('/data/export', endpoint='analytics_reports')
     def analytics_page():
         from backend.services.stats_export import load_stats_from_file
         stats = load_stats_from_file()
 
         # Determine which view to show based on the URL
-        active_view = 'reports' if request.path.endswith('/reports') else 'stats'
+        active_view = 'reports' if request.path.endswith('/export') else 'stats'
 
         # Read priority breakdown from stats.json (populated by pipeline)
         problem_breakdown = {}

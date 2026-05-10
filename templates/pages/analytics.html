@@ -16,20 +16,7 @@
   <div class="stats-container">
 
     <header class="mb-2">
-      <nav class="c-page-tabs" role="tablist">
-        <a href="{{ url_for('analytics_stats') }}" 
-           class="c-page-tabs__tab {{ 'is-active' if active_view == 'stats' }}"
-           role="tab" 
-           aria-selected="{{ 'true' if active_view == 'stats' else 'false' }}">
-          Analytics
-        </a>
-        <a href="{{ url_for('analytics_reports') }}" 
-           class="c-page-tabs__tab {{ 'is-active' if active_view == 'reports' }}"
-           role="tab" 
-           aria-selected="{{ 'true' if active_view == 'reports' else 'false' }}">
-          Export
-        </a>
-      </nav>
+      {% include "components/data_page_tabs.html" %}
       
       <div class="d-flex justify-content-between align-items-center mt-2">
         {% if active_view == 'reports' %}
