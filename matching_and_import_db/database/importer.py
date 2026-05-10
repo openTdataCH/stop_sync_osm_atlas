@@ -43,7 +43,7 @@ from matching_and_import_db.downloader.get_atlas_gtfs import (
 )
 
 # --- External models --------------------------------------------------------
-from backend.models import StopsMatched, AtlasStop, GtfsStop, GtfsAtlasStopMatch, OsmNode, OsmStop, OsmStopMember, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem, AtlasRoute, AtlasRouteDirection, OsmRoute, OsmRouteTag
+from backend.models import StopsMatched, AtlasOperator, AtlasStop, GtfsStop, GtfsAtlasStopMatch, OsmNode, OsmStop, OsmStopMember, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem, AtlasRoute, AtlasRouteDirection, OsmRoute, OsmRouteTag
 from backend.services.stats_export import (
     export_pipeline_stats,
     save_stats_to_file,
@@ -55,6 +55,7 @@ from backend.services.stats_export import (
 def _ensure_import_schema_exists(db_session) -> None:
     """Fail fast with actionable guidance if import tables are missing."""
     required_tables = [
+        'atlas_operators',
         'atlas_stops',
         'gtfs_stops',
         'gtfs_atlas_stop_matches',
@@ -106,6 +107,35 @@ def _normalize_text(value):
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _build_atlas_operator_record(atlas_node) -> dict | None:
+    abbr = _normalize_text(getattr(atlas_node, 'business_org_abbr', None))
+    if not abbr:
+        return None
+
+    return {
+        'atlas_business_org_abbr': abbr,
+        'sboid': _normalize_text(getattr(atlas_node, 'business_org_id', None)),
+        'atlas_business_org_name': _normalize_text(getattr(atlas_node, 'business_org_name', None)),
+    }
+
+
+def _remember_atlas_operator(operator_rows_by_abbr: dict[str, dict], atlas_node) -> None:
+    record = _build_atlas_operator_record(atlas_node)
+    if record is None:
+        return
+
+    abbr = record['atlas_business_org_abbr']
+    existing = operator_rows_by_abbr.get(abbr)
+    if existing is None:
+        operator_rows_by_abbr[abbr] = record
+        return
+
+    if not existing.get('sboid') and record.get('sboid'):
+        existing['sboid'] = record['sboid']
+    if not existing.get('atlas_business_org_name') and record.get('atlas_business_org_name'):
+        existing['atlas_business_org_name'] = record['atlas_business_org_name']
 
 
 def _write_gtfs_atlas_stats(stats_payload: dict[str, object]) -> None:
@@ -362,6 +392,7 @@ def build_fast_insert_payloads(
 
     # ---- 1. Matched stops ----
     stops_matched_dicts = []
+    atlas_operator_rows_by_abbr = {}
     atlas_stop_dicts = []
     # problems_dicts will be keyed by a temporary stop sequence number.
     # We use a list of (stop_sequence, problem_dicts) to pair them up later.
@@ -409,12 +440,13 @@ def build_fast_insert_payloads(
             rep_sloid = None
             if dup_group and str(sloid) != dup_group[0]:
                 rep_sloid = dup_group[0]
+            _remember_atlas_operator(atlas_operator_rows_by_abbr, current_match.atlas_node)
             atlas_stop_dicts.append({
                 'sloid': sloid,
                 'uic_ref': current_match.atlas_node.uic_ref,
                 'atlas_designation': current_match.atlas_node.designation,
                 'atlas_designation_official': current_match.atlas_node.designation_official,
-                'atlas_business_org_abbr': current_match.atlas_node.business_org_abbr,
+                'atlas_business_org_abbr': _normalize_text(current_match.atlas_node.business_org_abbr),
                 'representative_sloid': rep_sloid,
                 'duplicate_group_sloids': dup_group,
             })
@@ -473,12 +505,13 @@ def build_fast_insert_payloads(
             rep_sloid = None
             if dup_group and str(sloid) != dup_group[0]:
                 rep_sloid = dup_group[0]
+            _remember_atlas_operator(atlas_operator_rows_by_abbr, atlas_node)
             atlas_stop_dicts.append({
                 'sloid': sloid,
                 'uic_ref': atlas_node.uic_ref,
                 'atlas_designation': atlas_node.designation,
                 'atlas_designation_official': atlas_node.designation_official,
-                'atlas_business_org_abbr': atlas_node.business_org_abbr,
+                'atlas_business_org_abbr': _normalize_text(atlas_node.business_org_abbr),
                 'representative_sloid': rep_sloid,
                 'duplicate_group_sloids': dup_group,
             })
@@ -602,11 +635,15 @@ def build_fast_insert_payloads(
         )
 
     gtfs_stop_dicts, gtfs_atlas_match_dicts = _build_gtfs_insert_payloads()
+    atlas_operator_dicts = sorted(
+        atlas_operator_rows_by_abbr.values(),
+        key=lambda row: row['atlas_business_org_abbr'],
+    )
 
     # ---- Summary ----
     total_matched = sum(1 for d in stops_matched_dicts if d['stop_type'] == 'matched')
     print(f"Payload precompute complete: {len(stops_matched_dicts)} stop rows, "
-          f"{len(osm_node_dicts)} OSM nodes, {len(atlas_stop_dicts)} ATLAS stops, "
+          f"{len(osm_node_dicts)} OSM nodes, {len(atlas_operator_dicts)} ATLAS operators, {len(atlas_stop_dicts)} ATLAS stops, "
           f"{len(gtfs_stop_dicts)} GTFS stops, {len(gtfs_atlas_match_dicts)} GTFS↔ATLAS matches, "
           f"{len(problem_rows)} problem rows, {len(route_osm_dicts)} route-OSM rows")
 
@@ -615,6 +652,7 @@ def build_fast_insert_payloads(
         'osm_stops': osm_stop_dicts,
         'osm_stop_members': osm_stop_member_dicts,
         'stops_matched': stops_matched_dicts,
+        'atlas_operators': atlas_operator_dicts,
         'atlas_stops': atlas_stop_dicts,
         'gtfs_stops': gtfs_stop_dicts,
         'gtfs_atlas_stop_matches': gtfs_atlas_match_dicts,
@@ -654,7 +692,7 @@ def import_to_database(
 
     # ---- TRUNCATE all tables ----
     print("Truncating all database tables...")
-    session.execute(text("TRUNCATE TABLE atlas_stops, gtfs_stops, gtfs_atlas_stop_matches, osm_nodes, osm_stops, osm_stop_members, route_atlas_stops, route_osm_stops CASCADE"))
+    session.execute(text("TRUNCATE TABLE atlas_stops, atlas_operators, gtfs_stops, gtfs_atlas_stop_matches, osm_nodes, osm_stops, osm_stop_members, route_atlas_stops, route_osm_stops CASCADE"))
     session.execute(text("TRUNCATE TABLE atlas_routes, atlas_route_directions, osm_routes, osm_route_tags, routes_matched, route_problems CASCADE"))
     session.execute(text("TRUNCATE TABLE problems, stops_matched CASCADE"))
     session.commit()
@@ -714,6 +752,13 @@ def import_to_database(
                     session.execute(insert(Problem), problem_dicts[i:i + _BULK_BATCH])
                 session.commit()
                 print(f"Imported {len(problem_dicts)} problem rows")
+
+    atlas_operator_rows = db_payloads.get('atlas_operators', [])
+    if atlas_operator_rows:
+        for i in range(0, len(atlas_operator_rows), _BULK_BATCH):
+            session.execute(insert(AtlasOperator), atlas_operator_rows[i:i + _BULK_BATCH])
+        session.commit()
+        print(f"Imported {len(atlas_operator_rows)} ATLAS operators")
 
     # ---- Bulk insert: atlas_stops ----
     atlas_rows = db_payloads['atlas_stops']

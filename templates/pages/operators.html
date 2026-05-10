@@ -1,0 +1,171 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Operators{% endblock %}
+
+{% block head_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/operators.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="operators-page">
+  <div class="operators-container">
+    <header class="operators-header">
+      <h1>Operators</h1>
+      <p>For each ATLAS operator, inspect the normalized OSM operators seen on matched ATLAS↔OSM stops.</p>
+    </header>
+
+    <section class="operators-toolbar" aria-label="Operators filters and search">
+      <form method="get" action="{{ url_for('operators.operators_page') }}" class="operators-toolbar__form" id="operatorsToolbarForm">
+        <div class="operators-toolbar__inline d-flex align-items-center flex-wrap gap-2">
+          <div class="operators-toolbar__inline-item operators-toolbar__inline-item--search position-relative">
+            <label class="visually-hidden" for="operatorsSearchInput">Search operators</label>
+            <div class="input-group input-group-sm smart-search-input-group bg-white shadow-sm">
+              <span class="input-group-text bg-white border-0" id="operators-search-icon"><i class="fas fa-search text-muted"></i></span>
+              <input
+                id="operatorsSearchInput"
+                name="q"
+                type="search"
+                class="form-control form-control-sm border-0 ps-0 border-start-0"
+                placeholder="Search ATLAS operator, SBOID or matched OSM operator"
+                value="{{ q }}"
+                aria-describedby="operators-search-icon"
+                style="box-shadow: none;"
+              >
+            </div>
+          </div>
+
+          <div class="dropdown operators-toolbar__inline-item">
+            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="coverageDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
+              Coverage: {{ coverage_labels[coverage_filter] }}
+            </button>
+            <div class="dropdown-menu shadow-lg border-0 p-2" aria-labelledby="coverageDropdown" style="min-width: 250px;">
+              {% for value, label in coverage_labels.items() %}
+              <div class="form-check">
+                <input type="radio" class="form-check-input filter-auto-submit" id="coverage{{ loop.index }}" name="coverage" value="{{ value }}" {% if coverage_filter == value %}checked{% endif %}>
+                <label class="form-check-label" for="coverage{{ loop.index }}">{{ label }}</label>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          <div class="dropdown operators-toolbar__inline-item">
+            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="operatorsPerPageDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
+              {{ per_page }} per page
+            </button>
+            <div class="dropdown-menu shadow-lg border-0 p-2" aria-labelledby="operatorsPerPageDropdown" style="min-width: 110px;">
+              {% for option in per_page_options %}
+              <div class="form-check">
+                <input type="radio" class="form-check-input filter-auto-submit" id="operatorsPerPage{{ option }}" name="per_page" value="{{ option }}" {% if per_page == option %}checked{% endif %}>
+                <label class="form-check-label" for="operatorsPerPage{{ option }}">{{ option }}</label>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+
+          {% if q or coverage_filter != 'all' %}
+          <div class="operators-toolbar__inline-item ms-auto">
+            <a class="btn btn-outline-secondary btn-sm rounded-pill px-3" href="{{ url_for('operators.operators_page') }}">Clear filters</a>
+          </div>
+          {% endif %}
+        </div>
+      </form>
+    </section>
+
+    <section class="operators-summary d-flex align-items-center flex-wrap gap-3 mb-4" aria-live="polite">
+      <div class="operators-summary__text text-muted small fw-medium">
+        {% if pagination.total > 0 %}
+        Showing {{ range_start }}-{{ range_end }} of {{ pagination.total }} operators.
+        {% else %}
+        No operators found for the current filter combination.
+        {% endif %}
+      </div>
+    </section>
+
+    {% if operator_rows %}
+    <section class="operators-list" aria-label="Operators list">
+      {% for operator in operator_rows %}
+      <article class="operator-card {{ 'operator-card--has-matches' if operator.has_osm_matches else 'operator-card--no-matches' }}">
+        <header class="operator-card__header">
+          <div class="operator-card__pane operator-card__pane--atlas">
+            <div class="operator-card__pane-label">ATLAS</div>
+            <h2 class="operator-card__title">{{ operator.atlas_business_org_name }}</h2>
+            <div class="operator-card__meta">
+              <span class="operator-card__meta-pill">Abbr: {{ operator.atlas_business_org_abbr }}</span>
+              {% if operator.sboid %}
+              <span class="operator-card__meta-pill">SBOID: {{ operator.sboid }}</span>
+              {% endif %}
+            </div>
+            <div class="operator-card__stats-row">
+              <span class="operator-card__stat"><strong>{{ operator.atlas_stop_count }}</strong> ATLAS stops</span>
+              <span class="operator-card__stat"><strong>{{ operator.matched_stop_count }}</strong> matched</span>
+            </div>
+            {% if operator.unmatched_atlas_stop_count > 0 %}
+            <div class="operator-card__footer-note">{{ operator.unmatched_atlas_stop_count }} ATLAS stops remain unmatched.</div>
+            {% endif %}
+          </div>
+
+          <div class="operator-card__pane operator-card__pane--osm">
+            <div class="operator-card__pane-label">OSM</div>
+            {% if operator.has_osm_matches %}
+            <div class="operator-card__osm-count">{{ operator.osm_operator_count }} OSM operator{{ 's' if operator.osm_operator_count != 1 }}</div>
+            <ul class="operator-card__matches" aria-label="Matched OSM operators">
+              {% for osm_operator in operator.osm_operators %}
+              <li class="operator-match-pill">
+                <span class="operator-match-pill__name">{{ osm_operator.osm_operator }}</span>
+                <span class="operator-match-pill__count">{{ osm_operator.matched_stop_count }} matched stops</span>
+              </li>
+              {% endfor %}
+            </ul>
+            {% elif operator.has_matched_stops %}
+            <p class="operator-card__empty">Matched stops exist, but none of those OSM stops currently carry an <code>operator</code> tag.</p>
+            {% else %}
+            <p class="operator-card__empty">No ATLAS stops for this operator are currently matched to an OSM stop with an operator value.</p>
+            {% endif %}
+            {% if operator.missing_osm_operator_count > 0 %}
+            <div class="operator-card__footer-note">{{ operator.missing_osm_operator_count }} matched OSM stops have no operator tag.</div>
+            {% endif %}
+          </div>
+        </header>
+      </article>
+      {% endfor %}
+    </section>
+
+    <nav class="operators-pagination" aria-label="Operators pagination">
+      <ul class="pagination justify-content-center">
+        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('operators.operators_page', coverage=coverage_filter, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
+            <span aria-hidden="true">&laquo;</span>
+          </a>
+        </li>
+
+        {% for page_num in pagination.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
+          {% if page_num %}
+          <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('operators.operators_page', coverage=coverage_filter, q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
+          </li>
+          {% else %}
+          <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
+          {% endif %}
+        {% endfor %}
+
+        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('operators.operators_page', coverage=coverage_filter, q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
+            <span aria-hidden="true">&raquo;</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+    {% else %}
+    <section class="operators-empty-state" aria-live="polite">
+      <h2>No operators found</h2>
+      <p>Try broadening the filters, or run the import pipeline if operator data has not been loaded yet.</p>
+      <a class="btn btn-outline-primary" href="{{ url_for('operators.operators_page') }}">Clear all filters</a>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/pages/operators.js') }}"></script>
+{% endblock %}

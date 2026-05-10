@@ -5,7 +5,7 @@ from sqlalchemy import func, literal, or_
 
 from backend.db_errors import is_missing_table_error
 from backend.extensions import db
-from backend.models import AtlasRoute, AtlasRouteDirection, AtlasStop, OsmNode, OsmRoute, RouteAtlasStops, RouteOsmStops, RoutesMatched, StopsMatched
+from backend.models import AtlasOperator, AtlasRoute, AtlasRouteDirection, AtlasStop, OsmNode, OsmRoute, RouteAtlasStops, RouteOsmStops, RoutesMatched, StopsMatched
 from backend.services.gtfs_stop_id_sloid import (
     GTFS_STOP_ID_SLOID_DETAIL_LIMIT,
     GTFS_STOP_ID_SLOID_DETAIL_ZOOM,
@@ -110,11 +110,11 @@ def _render_routes_template(active_view: str, **context):
 def _load_available_atlas_operators() -> list[str]:
     try:
         rows = (
-            db.session.query(AtlasStop.atlas_business_org_abbr)
-            .filter(AtlasStop.atlas_business_org_abbr.isnot(None))
-            .filter(AtlasStop.atlas_business_org_abbr != '')
+            db.session.query(AtlasOperator.atlas_business_org_abbr)
+            .filter(AtlasOperator.atlas_business_org_abbr.isnot(None))
+            .filter(AtlasOperator.atlas_business_org_abbr != '')
             .distinct()
-            .order_by(AtlasStop.atlas_business_org_abbr.asc())
+            .order_by(AtlasOperator.atlas_business_org_abbr.asc())
             .all()
         )
         return [row[0] for row in rows if row and row[0]]

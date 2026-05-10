@@ -19,6 +19,8 @@ class AtlasNode:
     designation: str
     designation_official: str
     business_org_abbr: str
+    business_org_id: str = ''
+    business_org_name: str = ''
 
 
 @dataclass(frozen=True)
