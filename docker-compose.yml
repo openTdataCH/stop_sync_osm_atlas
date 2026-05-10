@@ -3,6 +3,7 @@ services:
     image: redis:7-alpine
     container_name: stop_sync_osm_atlas_redis
     restart: "no"
+    profiles: ["redis"]
     command: [ "redis-server", "--save", "", "--appendonly", "no" ]
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
@@ -57,8 +58,6 @@ services:
     depends_on:
       db:
         condition: service_healthy # Waits for db to be healthy before starting app
-      redis:
-        condition: service_healthy
       migrator:
         condition: service_completed_successfully
     environment:
@@ -71,7 +70,10 @@ services:
       SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
-      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
+      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}
+      PIPELINE_STATE_BACKEND: ${PIPELINE_STATE_BACKEND:-file}
+      PIPELINE_STATE_REDIS_URL: ${PIPELINE_STATE_REDIS_URL:-}
+      PIPELINE_STATE_DIR: ${PIPELINE_STATE_DIR:-data/runtime}
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 2g # Web app stays lighter, pipeline runs in scheduler service
     # mem_reservation: 1g # Optional: guarantee 1g
@@ -84,7 +86,10 @@ services:
       - ./data:/app/data
     environment:
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
-      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
+      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}
+      PIPELINE_STATE_BACKEND: ${PIPELINE_STATE_BACKEND:-file}
+      PIPELINE_STATE_REDIS_URL: ${PIPELINE_STATE_REDIS_URL:-}
+      PIPELINE_STATE_DIR: ${PIPELINE_STATE_DIR:-data/runtime}
 
   scheduler:
     image: ghcr.io/opentdatach/stop_sync_osm_atlas-scheduler:latest
@@ -96,16 +101,18 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       migrator:
         condition: service_completed_successfully
     environment:
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
-      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}
+      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}
+      PIPELINE_STATE_BACKEND: ${PIPELINE_STATE_BACKEND:-file}
+      PIPELINE_STATE_REDIS_URL: ${PIPELINE_STATE_REDIS_URL:-}
+      PIPELINE_STATE_DIR: ${PIPELINE_STATE_DIR:-data/runtime}
       PIPELINE_TIMEZONE: ${PIPELINE_TIMEZONE:-Europe/Zurich}
       PIPELINE_SCHEDULE_INTERVAL_HOURS: ${PIPELINE_SCHEDULE_INTERVAL_HOURS:-24}
       PIPELINE_IMPORT_ETA_SECONDS: ${PIPELINE_IMPORT_ETA_SECONDS:-150}
+      PIPELINE_SOURCE_PROBE_TIMEOUT_SECONDS: ${PIPELINE_SOURCE_PROBE_TIMEOUT_SECONDS:-120}
     cpu_shares: 2048
     mem_limit: 4g
 

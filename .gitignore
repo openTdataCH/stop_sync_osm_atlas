@@ -99,5 +99,6 @@ latex_document_non_nodes
 /*.md
 !/README.md
 
+/*.png
 coverage.xml
 .coverage

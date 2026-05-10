@@ -1,25 +1,29 @@
-import json
 import os
-import threading
-import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from redis import Redis
 from redis.exceptions import RedisError
 
-_STATUS_KEY = "pipeline:update:status"
-_LOCK_KEY = "pipeline:update:lock"
-_DEFAULT_LOCK_TTL_SECONDS = int(os.getenv("PIPELINE_LOCK_TTL_SECONDS", "14400"))
+from backend.services.pipeline_state_store import get_pipeline_state_store
 
-_STATE_LOCK = threading.Lock()
-_FALLBACK_STATE: Dict[str, Any] = {}
-_FALLBACK_LOCK_TOKEN: Optional[str] = None
+_DEFAULT_LOCK_TTL_SECONDS = int(os.getenv("PIPELINE_LOCK_TTL_SECONDS", "14400"))
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _parse_iso_timestamp(value: Any) -> datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _base_status() -> Dict[str, Any]:
@@ -44,42 +48,18 @@ def _base_status() -> Dict[str, Any]:
     }
 
 
-def _get_redis_client() -> Optional[Redis]:
-    uri = os.getenv("RATELIMIT_STORAGE_URI", "redis://redis:6379/0")
-    try:
-        client = Redis.from_url(uri, decode_responses=True)
-        client.ping()
-        return client
-    except Exception:
-        return None
-
-
 def _read_raw_status() -> Dict[str, Any]:
-    client = _get_redis_client()
-    if client:
-        try:
-            payload = client.get(_STATUS_KEY)
-            if payload:
-                data = json.loads(payload)
-                if isinstance(data, dict):
-                    return data
-        except (RedisError, json.JSONDecodeError):
-            pass
-    with _STATE_LOCK:
-        return dict(_FALLBACK_STATE) if _FALLBACK_STATE else {}
+    try:
+        return get_pipeline_state_store().read_status()
+    except (RedisError, RuntimeError):
+        return {}
 
 
 def _write_raw_status(payload: Dict[str, Any]) -> None:
-    client = _get_redis_client()
-    if client:
-        try:
-            client.set(_STATUS_KEY, json.dumps(payload))
-            return
-        except RedisError:
-            pass
-    with _STATE_LOCK:
-        _FALLBACK_STATE.clear()
-        _FALLBACK_STATE.update(payload)
+    try:
+        get_pipeline_state_store().write_status(payload)
+    except (RedisError, RuntimeError):
+        return
 
 
 def get_status() -> Dict[str, Any]:
@@ -206,66 +186,40 @@ def set_data_updated(data_updated_at: Optional[str]) -> Dict[str, Any]:
 
 def acquire_run_lock(ttl_seconds: int = _DEFAULT_LOCK_TTL_SECONDS) -> Optional[str]:
     token = str(uuid.uuid4())
-    client = _get_redis_client()
-    if client:
-        try:
-            ok = client.set(_LOCK_KEY, token, nx=True, ex=max(1, ttl_seconds))
-            if ok:
+    try:
+        store = get_pipeline_state_store()
+        if store.acquire_lock(token, ttl_seconds=max(1, ttl_seconds)):
+            return token
+
+        status = get_status()
+        lock_state = store.read_lock()
+        lock_acquired_at = _parse_iso_timestamp(lock_state.get("acquired_at"))
+        status_updated_at = _parse_iso_timestamp(status.get("updated_at"))
+        should_clear_stale_lock = (
+            status.get("status") != "running"
+            and lock_acquired_at is not None
+            and status_updated_at is not None
+            and status_updated_at >= lock_acquired_at
+        )
+        if should_clear_stale_lock:
+            store.clear_lock()
+            if store.acquire_lock(token, ttl_seconds=max(1, ttl_seconds)):
                 return token
+    except (RedisError, RuntimeError):
+        return None
 
-            # Recover from stale lock when persisted status says no run is active.
-            status = get_status().get("status")
-            if status != "running":
-                client.delete(_LOCK_KEY)
-                ok = client.set(_LOCK_KEY, token, nx=True, ex=max(1, ttl_seconds))
-                if ok:
-                    return token
-
-            return None
-        except RedisError:
-            pass
-
-    global _FALLBACK_LOCK_TOKEN
-    with _STATE_LOCK:
-        if _FALLBACK_LOCK_TOKEN is not None:
-            return None
-        _FALLBACK_LOCK_TOKEN = token
-        return token
+    return None
 
 
 def refresh_run_lock(token: str, ttl_seconds: int = _DEFAULT_LOCK_TTL_SECONDS) -> None:
-    client = _get_redis_client()
-    if client:
-        try:
-            if client.get(_LOCK_KEY) == token:
-                client.expire(_LOCK_KEY, max(1, ttl_seconds))
-        except RedisError:
-            pass
+    try:
+        get_pipeline_state_store().refresh_lock(token, ttl_seconds=max(1, ttl_seconds))
+    except (RedisError, RuntimeError):
+        return
 
 
 def release_run_lock(token: str) -> None:
-    client = _get_redis_client()
-    if client:
-        try:
-            pipe = client.pipeline(True)
-            while True:
-                try:
-                    pipe.watch(_LOCK_KEY)
-                    current = pipe.get(_LOCK_KEY)
-                    if current != token:
-                        pipe.unwatch()
-                        return
-                    pipe.multi()
-                    pipe.delete(_LOCK_KEY)
-                    pipe.execute()
-                    return
-                except RedisError:
-                    time.sleep(0.05)
-                    continue
-        except RedisError:
-            pass
-
-    global _FALLBACK_LOCK_TOKEN
-    with _STATE_LOCK:
-        if _FALLBACK_LOCK_TOKEN == token:
-            _FALLBACK_LOCK_TOKEN = None
+    try:
+        get_pipeline_state_store().release_lock(token)
+    except (RedisError, RuntimeError):
+        return

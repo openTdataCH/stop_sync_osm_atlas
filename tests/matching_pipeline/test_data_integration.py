@@ -15,6 +15,8 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from matching_and_import_db.downloader.get_atlas_data import (
+    ATLAS_ACTUAL_DATE_RESOURCE_PERMALINK,
+    get_atlas_stops,
     get_current_gtfs_permalink,
     write_atlas_route_csvs,
 )
@@ -195,4 +197,36 @@ def test_gtfs_permalink_links_do_not_contain_stale_years():
                 stale_hits.append((str(file_path), found_year, match.group(0)))
 
     assert not stale_hits, f"Found stale GTFS timetable years: {stale_hits}"
+
+
+def test_atlas_actual_date_permalink_targets_v2_csv_resource():
+    assert ATLAS_ACTUAL_DATE_RESOURCE_PERMALINK == (
+        "https://data.opentransportdata.swiss/dataset/traffic-point-v2/"
+        "resource_permalink/actual-date-world-traffic-point.csv"
+    )
+
+
+def test_get_atlas_stops_accepts_plain_csv_payload_with_bom(tmp_path):
+    csv_payload = (
+        "\ufeffsloid;uicCountryCode;validTo;trafficPointElementType;wgs84North;wgs84East\n"
+        "ch:1:sloid:1;85;9999-12-31;BOARDING_PLATFORM;47.0;8.0\n"
+    ).encode("utf-8")
+    mocked_response = MagicMock()
+    mocked_response.content = csv_payload
+    mocked_response.raise_for_status.return_value = None
+
+    output_path = tmp_path / "stops_ATLAS.csv"
+
+    with patch("matching_and_import_db.downloader.get_atlas_data.requests.get", return_value=mocked_response), patch(
+        "matching_and_import_db.downloader.get_atlas_data.filter_points_in_switzerland",
+        side_effect=lambda df, lat_col, lon_col: df,
+    ):
+        stats = get_atlas_stops(str(output_path), ATLAS_ACTUAL_DATE_RESOURCE_PERMALINK)
+
+    written = pd.read_csv(output_path, sep=";")
+
+    assert list(written.columns)[0] == "sloid"
+    assert written.iloc[0]["sloid"] == "ch:1:sloid:1"
+    assert stats["raw_total"] == 1
+    assert stats["after_type_filter"] == 1
 

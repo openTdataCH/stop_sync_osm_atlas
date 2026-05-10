@@ -1,10 +1,11 @@
 # **OSM & ATLAS Synchronization**
 
-Welcome! This project provides a systematic pipeline to identify, analyze, and resolve discrepancies between public transport stop data from **ATLAS** (Swiss official data) and **OpenStreetMap (OSM)**.
+Welcome! This project provides a systematic pipeline to identify and analyze discrepancies between public transport stop data from **ATLAS** (Swiss official data) and **OpenStreetMap (OSM)**.
 
 It automates data download and processing (ATLAS, OSM, GTFS), performs exact/distance-based/route-based matching, and serves an interactive web app for inspecting matches, problems, and manual fixes.
 
-![Geneva stops](documentation/images/image.png)
+There's a public instance of the project at: https://atlas.osm.ch
+![IMAGE](documentation/images/image.png)
 
 ---
 
@@ -48,9 +49,10 @@ It automates data download and processing (ATLAS, OSM, GTFS), performs exact/dis
     Docker will automatically:
     - Build the application images
     - Download and start Postgres (PostGIS) database
-    - Start the redis container
     - Start the web app container
     - Start the scheduler container (daily pipeline at 2:00 Europe/Zurich)
+
+    Redis is no longer required by default. The default local setup uses file-backed pipeline state and `memory://` rate limiting.
 
     *Note: The data pipeline (downloading and matching ATLAS/OSM/GTFS data) does not run automatically on startup.* It runs in the dedicated scheduler service at the configured time. To run it immediately, use the VS Code Task "Docker: Trigger Scheduled Pipeline Now" (see below), or run:
     ```bash
@@ -122,7 +124,7 @@ Docker Compose now runs five primary services:
 - `app`: Flask web app and API.
 - `scheduler`: Dedicated background worker that runs the recurring pipeline on a configurable hour interval (`PIPELINE_TIMEZONE`, default `Europe/Zurich`).
 - `db`: Postgres + PostGIS import database.
-- `redis`: Shared cache/rate-limit and pipeline status/lock storage.
+- `redis`: Optional shared backend for multi-worker rate limiting or Redis-backed pipeline state.
 - `migrator`: One-shot startup service that runs `flask db upgrade` before `app` and `scheduler`.
 
 For local test execution, there is also a dedicated `test` service/image with both app and pipeline dependencies.
@@ -130,7 +132,8 @@ For local test execution, there is also a dedicated `test` service/image with bo
 Scheduler behavior:
 
 - Uses APScheduler interval trigger (`PIPELINE_SCHEDULE_INTERVAL_HOURS`).
-- Publishes run status to `/api/system/pipeline_status`.
+- Publishes run status to `/api/system/pipeline_status` through a shared pipeline-state backend (`redis` or `file`).
+- Checks HTTP validators (`ETag` / `Last-Modified`) on the ATLAS and GTFS permalinks before re-running preprocessing.
 - Sets maintenance mode only for the import phase so the UI can show "Data update in progress" with elapsed/ETA.
 - Uses a distributed lock to prevent concurrent runs.
 
@@ -146,6 +149,39 @@ If you have VS Code installed, we have provided built-in tasks to quickly run co
     - **`Docker: Trigger Scheduled Pipeline Now`**: Fires a full manual run equivalent to the recurring scheduled run.
 
 You can do this while the `app` container is running in the background.
+
+## Environment & Secrets
+
+Most local runs work without a `.env` file, but these variables are the main ones to override when needed:
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `DATABASE_URI` | SQLAlchemy connection string | `postgresql+psycopg://stops_user:1234@db:5432/import_db` |
+| `SECRET_KEY` | Flask secret key | `dev-insecure` |
+| `RATELIMIT_STORAGE_URI` | Flask-Limiter backend | `memory://` |
+| `PIPELINE_STATE_BACKEND` | Shared pipeline status/lock backend (`redis`, `file`, `memory`) | `file` |
+| `PIPELINE_STATE_REDIS_URL` | Redis URL for pipeline state when backend is `redis` | unset |
+| `PIPELINE_STATE_DIR` | Shared directory for pipeline state when backend is `file` | `data/runtime` |
+| `PIPELINE_TIMEZONE` | Scheduler timezone | `Europe/Zurich` |
+| `PIPELINE_SCHEDULE_INTERVAL_HOURS` | Automatic pipeline interval | `24` |
+| `PIPELINE_IMPORT_ETA_SECONDS` | Import-phase ETA shown in the UI | `150` |
+| `PIPELINE_SOURCE_PROBE_TIMEOUT_SECONDS` | Timeout for ATLAS/GTFS source validator probes | `120` |
+
+Redis-free local deployments use:
+
+```env
+RATELIMIT_STORAGE_URI=memory://
+PIPELINE_STATE_BACKEND=file
+PIPELINE_STATE_DIR=data/runtime
+```
+
+If you want Redis-backed state instead, start it explicitly and set:
+
+```env
+RATELIMIT_STORAGE_URI=redis://redis:6379/0
+PIPELINE_STATE_BACKEND=redis
+PIPELINE_STATE_REDIS_URL=redis://redis:6379/0
+```
 
 ## Running the Web Application
 

@@ -1,6 +1,5 @@
 import argparse
 import contextlib
-import json
 import logging
 import os
 import subprocess
@@ -10,6 +9,7 @@ import time
 from datetime import datetime
 from typing import Optional
 
+from backend.services import data_meta
 from backend.services.pipeline_status import (
     acquire_run_lock,
     finish_failure,
@@ -21,6 +21,15 @@ from backend.services.pipeline_status import (
     start_run,
 )
 from backend.services.time_utils import format_zurich_timestamp, get_zurich_now
+from matching_and_import_db.downloader.get_atlas_data import (
+    ATLAS_ACTUAL_DATE_RESOURCE_PERMALINK,
+    get_current_gtfs_permalink,
+)
+from matching_and_import_db.downloader.source_freshness import (
+    preprocessing_sources_unchanged,
+    probe_remote_source,
+    source_snapshot_is_usable,
+)
 from matching_and_import_db.database.importer import (
     build_fast_insert_payloads,
     export_stats_after_import,
@@ -38,7 +47,7 @@ LOCK_TTL_SECONDS = int(os.getenv("PIPELINE_LOCK_TTL_SECONDS", "14400"))
 LOCK_HEARTBEAT_SECONDS = int(
     os.getenv("PIPELINE_LOCK_HEARTBEAT_SECONDS", str(max(5, min(60, LOCK_TTL_SECONDS // 4))))
 )
-DATA_META_PATH = os.path.join("data", "data_meta.json")
+PREPROCESSING_META_KEY = "preprocessing_sources"
 
 
 @contextlib.contextmanager
@@ -97,12 +106,75 @@ def _run_subprocess(command: list[str], phase: str, message: str, maintenance: b
 
 def _record_data_updated_timestamp() -> str:
     data_updated_at = format_zurich_timestamp(get_zurich_now())
-    os.makedirs(os.path.dirname(DATA_META_PATH), exist_ok=True)
-    with open(DATA_META_PATH, "w", encoding="utf-8") as handle:
-        json.dump({"data_updated_at": data_updated_at}, handle)
+    data_meta.update_data_meta(data_updated_at=data_updated_at)
     set_data_updated(data_updated_at)
     LOGGER.info("Data update timestamp saved: %s", data_updated_at)
     return data_updated_at
+
+
+def _load_preprocessing_source_state() -> dict:
+    return data_meta.load_data_meta().get(PREPROCESSING_META_KEY) or {}
+
+
+def _probe_preprocessing_sources() -> dict:
+    gtfs_url = get_current_gtfs_permalink()
+    return {
+        "atlas": probe_remote_source("atlas", ATLAS_ACTUAL_DATE_RESOURCE_PERMALINK),
+        "gtfs": probe_remote_source("gtfs", gtfs_url),
+    }
+
+
+def _persist_preprocessing_source_state(source_state: dict) -> None:
+    downloaded_at = format_zurich_timestamp(get_zurich_now())
+    payload = {
+        "atlas": {
+            **(source_state.get("atlas") or {}),
+            "downloaded_at": downloaded_at,
+        },
+        "gtfs": {
+            **(source_state.get("gtfs") or {}),
+            "downloaded_at": downloaded_at,
+        },
+        "preprocessing_completed_at": downloaded_at,
+    }
+    data_meta.update_data_meta(**{PREPROCESSING_META_KEY: payload})
+    LOGGER.info("Persisted ATLAS/GTFS preprocessing source validators")
+
+
+def _preprocessing_sources_ready(source_state: dict) -> bool:
+    return all(source_snapshot_is_usable(source_state.get(source_name)) for source_name in ("atlas", "gtfs"))
+
+
+def _run_atlas_gtfs_preprocessing_if_needed(lock_token: str) -> None:
+    set_phase(
+        phase="source_probe",
+        message="Checking ATLAS + GTFS source freshness",
+        maintenance=False,
+    )
+    current_sources = _probe_preprocessing_sources()
+    previous_sources = _load_preprocessing_source_state()
+
+    if preprocessing_sources_unchanged(previous_sources, current_sources):
+        set_phase(
+            phase="atlas_download",
+            message="ATLAS + GTFS unchanged; reusing cached preprocessing outputs",
+            maintenance=False,
+        )
+        LOGGER.info("ATLAS and GTFS sources unchanged; skipping preprocessing download step")
+        return
+
+    _run_subprocess(
+        [sys.executable, "-m", "matching_and_import_db.downloader.get_atlas_data"],
+        phase="atlas_download",
+        message="Downloading and processing ATLAS + GTFS data",
+    )
+    refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
+
+    source_state_to_persist = current_sources if _preprocessing_sources_ready(current_sources) else _probe_preprocessing_sources()
+    if _preprocessing_sources_ready(source_state_to_persist):
+        _persist_preprocessing_source_state(source_state_to_persist)
+    else:
+        LOGGER.warning("ATLAS/GTFS preprocessing succeeded, but source validators could not be persisted")
 
 
 def _run_matching_and_import(lock_token: str) -> None:
@@ -192,11 +264,7 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
     try:
         refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
         if mode == "full":
-            _run_subprocess(
-                [sys.executable, "-m", "matching_and_import_db.downloader.get_atlas_data"],
-                phase="atlas_download",
-                message="Downloading and processing ATLAS + GTFS data",
-            )
+            _run_atlas_gtfs_preprocessing_if_needed(lock_token)
             refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
 
             _run_subprocess(
