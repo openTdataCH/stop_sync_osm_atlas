@@ -168,7 +168,7 @@ def test_navbar_renders_next_run_metadata(client, monkeypatch):
     assert 'data-running-label="Pipeline running in the background"' in html
     assert 'id="navbarNextRunInfo"' in html
     assert 'data-bs-toggle="tooltip"' in html
-    assert 'title="Next pipeline run: 2026-05-03 08:00"' in html
+    assert 'title="Next pipeline run: 2026-05-03 10:00"' in html
     navbar_fragment = re.search(r'<span[^>]*id="navbarDataUpdated"[\s\S]*?<\/span>\s*<\/li>', html)
     assert navbar_fragment is not None
     assert 'far fa-clock' not in navbar_fragment.group(0)
@@ -191,6 +191,13 @@ def test_record_data_updated_timestamp_writes_meta_and_status(monkeypatch, tmp_p
     assert result == "2026-05-02T21:31:00+02:00"
     assert captured["value"] == "2026-05-02T21:31:00+02:00"
     assert (tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8") == '{"data_updated_at": "2026-05-02T21:31:00+02:00"}'
+
+
+def test_format_zurich_display_timestamp_formats_iso_strings():
+    from backend.services.time_utils import format_zurich_display_timestamp
+
+    assert format_zurich_display_timestamp("2026-05-10T11:14:40.367792+02:00") == "2026-05-10 11:14"
+    assert format_zurich_display_timestamp("2026-05-10T09:14:40Z") == "2026-05-10 11:14"
 
 
 def test_source_snapshot_unchanged_uses_http_validators():

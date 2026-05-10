@@ -39,7 +39,7 @@
           
           {% if stats %}
           <div class="text-muted small">
-            <i class="far fa-clock me-1"></i> Stats computed: {{ stats.stats_computed_at[:10] }} {{ stats.stats_computed_at[11:16] }}
+            <i class="far fa-clock me-1"></i> Stats computed: {{ stats.stats_computed_at|format_zurich_display_timestamp }}
           </div>
           {% endif %}
         </div>
