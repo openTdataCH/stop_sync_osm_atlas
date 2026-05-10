@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func, case
 from sqlalchemy.orm import joinedload, load_only
 from collections import defaultdict
-from backend.models import AtlasOperator, StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
+from backend.models import AtlasOperator, StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember, OsmRoute
 from backend.extensions import db, limiter
 from backend.db_errors import is_missing_table_error
 from backend.serializers.stops import format_stop_data
@@ -85,12 +85,12 @@ def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
 
     return query
 
-# ----------------------------
-# API Endpoint: /api/operators
-# ----------------------------
-@data_bp.route('/api/operators', methods=['GET'])
+# ------------------------------------
+# API Endpoint: /api/atlas_operators
+# ------------------------------------
+@data_bp.route('/api/atlas_operators', methods=['GET'])
 @limiter.limit("60/minute")
-def get_operators():
+def get_atlas_operators():
     try:
         operators = db.session.query(AtlasOperator.atlas_business_org_abbr) \
             .filter(AtlasOperator.atlas_business_org_abbr.isnot(None)) \
@@ -106,6 +106,54 @@ def get_operators():
             app.logger.warning("Operators unavailable: atlas tables are not initialized yet.")
             return jsonify({"operators": [], "total": 0}), 200
         app.logger.error(f"Error fetching operators: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ----------------------------------
+# API Endpoint: /api/osm_operators
+# ----------------------------------
+@data_bp.route('/api/osm_operators', methods=['GET'])
+@limiter.limit("60/minute")
+def get_osm_operators():
+    try:
+        operators = db.session.query(OsmNode.osm_operator) \
+            .filter(OsmNode.osm_operator.isnot(None)) \
+            .filter(OsmNode.osm_operator != '') \
+            .distinct() \
+            .order_by(OsmNode.osm_operator) \
+            .all()
+        operator_list = [op[0] for op in operators if op[0]]
+        return jsonify({"operators": operator_list, "total": len(operator_list)})
+    except Exception as e:
+        if is_missing_table_error(e):
+            db.session.rollback()
+            app.logger.warning("OSM operators unavailable: osm tables are not initialized yet.")
+            return jsonify({"operators": [], "total": 0}), 200
+        app.logger.error(f"Error fetching OSM operators: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ----------------------------------
+# API Endpoint: /api/osm_route_operators
+# ----------------------------------
+@data_bp.route('/api/osm_route_operators', methods=['GET'])
+@limiter.limit("60/minute")
+def get_osm_route_operators():
+    try:
+        operators = db.session.query(OsmRoute.operator) \
+            .filter(OsmRoute.operator.isnot(None)) \
+            .filter(OsmRoute.operator != '') \
+            .distinct() \
+            .order_by(OsmRoute.operator) \
+            .all()
+        operator_list = [op[0] for op in operators if op[0]]
+        return jsonify({"operators": operator_list, "total": len(operator_list)})
+    except Exception as e:
+        if is_missing_table_error(e):
+            db.session.rollback()
+            app.logger.warning("OSM route operators unavailable: osm route tables are not initialized yet.")
+            return jsonify({"operators": [], "total": 0}), 200
+        app.logger.error(f"Error fetching OSM route operators: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 

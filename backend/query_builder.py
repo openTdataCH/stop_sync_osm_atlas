@@ -60,6 +60,16 @@ class FilterBuilder:
         )
     
     @staticmethod
+    def build_osm_operator_conditions(osm_operators):
+        """Build OSM operator filter conditions."""
+        if not osm_operators:
+            return None
+        
+        return StopsMatched.osm_node_details.has(
+            OsmNode.osm_operator.in_(osm_operators)
+        )
+    
+    @staticmethod
     def build_station_filter_conditions(filter_values, filter_types, route_directions, route_query_func):
         """Build station/route ID filter conditions."""
         if not filter_values:
@@ -233,6 +243,14 @@ class QueryBuilder:
                 entity_conditions.append(StopsMatched.osm_node_id.like('way_%'))
             if entity_conditions:
                 osm_conditions.append(db.or_(*entity_conditions) if len(entity_conditions) > 1 else entity_conditions[0])
+
+        # OSM operator filter
+        if filters.get('osm_operators'):
+            osm_operator_condition = self.filter_builder.build_osm_operator_conditions(
+                filters['osm_operators']
+            )
+            if osm_operator_condition is not None:
+                osm_conditions.append(osm_operator_condition)
 
         if osm_conditions:
             combined_osm_condition = db.and_(*osm_conditions)

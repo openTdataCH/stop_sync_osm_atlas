@@ -7,6 +7,7 @@ class OperatorDropdown {
             multiple: true,
             allowClear: true,
             searchPlaceholder: 'Search operators...',
+            apiUrl: '/api/atlas_operators',
             onSelectionChange: null,
             ...options
         };
@@ -51,7 +52,7 @@ class OperatorDropdown {
     }
     async loadOperators() {
         try {
-            const response = await fetch('/api/operators');
+            const response = await fetch(this.options.apiUrl);
             const data = await response.json();
             if (data.error) { console.error('Error loading operators:', data.error); return; }
             this.operators = data.operators || [];

@@ -42,6 +42,7 @@
     <section class="routes-toolbar" aria-label="Routes filters and search">
       <form method="get" action="{{ url_for('routes.routes_page') }}" class="routes-toolbar__form" id="routesToolbarForm">
         <input type="hidden" name="atlas_operator" id="routesAtlasOperatorInput" value="{{ atlas_operator_query }}">
+        <input type="hidden" name="osm_operator" id="routesOsmOperatorInput" value="{{ osm_operator_query }}">
         <input type="hidden" name="matched" id="routesMatchedInput" value="{{ matched_filter }}">
 
         <div class="routes-toolbar__inline d-flex align-items-center flex-wrap gap-2">
@@ -70,12 +71,25 @@
           <!-- ATLAS dropdown -->
           <div class="dropdown routes-toolbar__inline-item">
             <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="routesAtlasDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
-              Operator
+              ATLAS Operator
             </button>
             <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="routesAtlasDropdown" style="width: 280px; max-height: 60vh; overflow-y: auto;">
               <div class="form-group mb-0">
                 <label for="atlasOperatorFilterRoutes" class="fw-bold small text-uppercase text-muted">ATLAS Operator</label>
                 <div id="atlasOperatorFilterRoutes"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- OSM Operator dropdown -->
+          <div class="dropdown routes-toolbar__inline-item">
+            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="routesOsmDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
+              OSM Operator
+            </button>
+            <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="routesOsmDropdown" style="width: 280px; max-height: 60vh; overflow-y: auto;">
+              <div class="form-group mb-0">
+                <label for="osmOperatorFilterRoutes" class="fw-bold small text-uppercase text-muted">OSM Operator</label>
+                <div id="osmOperatorFilterRoutes"></div>
               </div>
             </div>
           </div>
@@ -319,7 +333,7 @@
     <nav class="routes-pagination" aria-label="Routes pagination">
       <ul class="pagination justify-content-center">
         <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
+          <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
             <span aria-hidden="true">&laquo;</span>
           </a>
         </li>
@@ -327,7 +341,7 @@
         {% for page_num in pagination.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
           {% if page_num %}
           <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-            <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
+            <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
           </li>
           {% else %}
           <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
@@ -335,7 +349,7 @@
         {% endfor %}
 
         <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
+          <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
             <span aria-hidden="true">&raquo;</span>
           </a>
         </li>
@@ -396,11 +410,15 @@
 <script type="application/json" id="routesPageConfig">
 {
   "selectedAtlasOperators": {{ selected_atlas_operators | tojson }},
+  "selectedOsmOperators": {{ selected_osm_operators | tojson }},
   "matchedFilter": {{ matched_filter | tojson }},
   "matchFilterLabels": {{ match_filter_labels | tojson }},
   "q": {{ q | tojson }},
   "baseUrl": {{ url_for('routes.routes_page') | tojson }}
 }
+</script>
+<script>
+window.routesPageConfig = JSON.parse(document.getElementById('routesPageConfig').textContent);
 </script>
 <script src="{{ url_for('static', filename='js/pages/routes.js') }}"></script>
 {% else %}
