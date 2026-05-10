@@ -1,0 +1,20 @@
+<nav class="c-page-tabs" role="tablist" aria-label="Data pages">
+  <a href="{{ url_for('analytics_stats') }}"
+     class="c-page-tabs__tab {{ 'is-active' if active_view == 'stats' }}"
+     role="tab"
+     aria-selected="{{ 'true' if active_view == 'stats' else 'false' }}">
+    Analytics
+  </a>
+  <a href="{{ url_for('analytics_reports') }}"
+     class="c-page-tabs__tab {{ 'is-active' if active_view == 'reports' }}"
+     role="tab"
+     aria-selected="{{ 'true' if active_view == 'reports' else 'false' }}">
+    Export
+  </a>
+  <a href="{{ url_for('operators.operators_page') }}"
+     class="c-page-tabs__tab {{ 'is-active' if active_view == 'operators' }}"
+     role="tab"
+     aria-selected="{{ 'true' if active_view == 'operators' else 'false' }}">
+    Operators
+  </a>
+</nav>
