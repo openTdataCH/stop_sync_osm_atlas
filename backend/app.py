@@ -13,10 +13,12 @@ from backend.blueprints.docs import docs_bp
 from backend.blueprints.system import system_bp
 from backend.blueprints.operators import operators_bp
 from backend.blueprints.routes import routes_bp
+from backend.services.time_utils import format_zurich_display_timestamp
 
 
 def create_app():
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
+    app.add_template_filter(format_zurich_display_timestamp, 'format_zurich_display_timestamp')
 
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/import_db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False

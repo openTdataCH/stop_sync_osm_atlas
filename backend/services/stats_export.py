@@ -17,11 +17,14 @@ import os
 import statistics
 import time
 from collections import defaultdict
-from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
 from backend.services.data_meta import load_data_meta
-from backend.services.time_utils import get_zurich_now, format_zurich_timestamp
+from backend.services.time_utils import (
+    format_zurich_display_timestamp,
+    format_zurich_timestamp,
+    get_zurich_now,
+)
  
 logger = logging.getLogger(__name__)
 
@@ -79,7 +82,9 @@ def _build_source_download_stats(meta: Optional[Dict[str, Any]]) -> Optional[Dic
             continue
 
         source_download = {
-            'downloaded_at': snapshot.get('downloaded_at') or default_downloaded_at,
+            'downloaded_at': format_zurich_display_timestamp(
+                snapshot.get('downloaded_at') or default_downloaded_at
+            ),
             'etag': snapshot.get('etag'),
             'last_modified': snapshot.get('last_modified'),
             'download_filename': snapshot.get('download_filename'),
