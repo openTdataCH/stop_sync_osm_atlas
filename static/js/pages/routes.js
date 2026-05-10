@@ -2,6 +2,7 @@
   'use strict';
 
   var operatorDropdown = null;
+  var osmOperatorDropdown = null;
   var routeMaps = new Map();
 
   function parseSelectedOperators() {
@@ -56,6 +57,66 @@
       dropdownEl.addEventListener('hide.bs.dropdown', function () {
         var current = (operatorDropdown.getSelection() || []).join(',');
         var initial = (parseSelectedOperators() || []).join(',');
+        if (current !== initial) {
+          document.getElementById('routesToolbarForm').submit();
+        }
+      });
+    }
+  }
+
+  function parseSelectedOsmOperators() {
+    var configElement = document.getElementById('routesPageConfig');
+    var config = {};
+    if (configElement) {
+      try {
+        config = JSON.parse(configElement.textContent);
+      } catch (e) {
+        console.error('Failed to parse routesPageConfig', e);
+      }
+    }
+    var selected = config.selectedOsmOperators;
+    if (!Array.isArray(selected)) {
+      return [];
+    }
+    return selected.filter(function (value) {
+      return typeof value === 'string' && value.trim() !== '';
+    });
+  }
+
+  function syncOsmOperatorInput(selectedOperators) {
+    var hiddenInput = document.getElementById('routesOsmOperatorInput');
+    if (!hiddenInput) {
+      return;
+    }
+    hiddenInput.value = (selectedOperators || []).join(',');
+  }
+
+  function initOsmOperatorDropdown() {
+    var container = document.getElementById('osmOperatorFilterRoutes');
+    if (!container || typeof window.OperatorDropdown !== 'function') {
+      return;
+    }
+
+    var initialSelection = parseSelectedOsmOperators();
+
+    osmOperatorDropdown = new window.OperatorDropdown('#osmOperatorFilterRoutes', {
+      apiUrl: '/api/osm_route_operators',
+      placeholder: 'Select OSM operators...',
+      multiple: true,
+      onSelectionChange: function (selectedOperators) {
+        syncOsmOperatorInput(selectedOperators);
+      }
+    });
+
+    osmOperatorDropdown.setSelection(initialSelection);
+    syncOsmOperatorInput(initialSelection);
+
+    // Auto-submit when dropdown closes if selection changed
+    var dropdownEl = document.getElementById('routesOsmDropdown');
+    if (dropdownEl) {
+      dropdownEl.addEventListener('hide.bs.dropdown', function () {
+        var current = (osmOperatorDropdown.getSelection() || []).join(',');
+        var initial = (parseSelectedOsmOperators() || []).join(',');
         if (current !== initial) {
           document.getElementById('routesToolbarForm').submit();
         }
@@ -163,13 +224,24 @@
       }));
     }
 
-    // Operator chips
+    // ATLAS Operator chips
     if (config.selectedAtlasOperators && config.selectedAtlasOperators.length > 0) {
       config.selectedAtlasOperators.forEach(function (op) {
         chips.push(buildRemovableChip({
           label: 'ATLAS Operator: ' + op,
           badgeClass: 'filter-chip-operator',
           data: { type: 'operator', value: op }
+        }));
+      });
+    }
+
+    // OSM Operator chips
+    if (config.selectedOsmOperators && config.selectedOsmOperators.length > 0) {
+      config.selectedOsmOperators.forEach(function (op) {
+        chips.push(buildRemovableChip({
+          label: 'OSM Operator: ' + op,
+          badgeClass: 'filter-chip-osm',
+          data: { type: 'osmOperator', value: op }
         }));
       });
     }
@@ -224,6 +296,15 @@
           params.set('atlas_operator', ops.join(','));
         } else {
           params.delete('atlas_operator');
+        }
+      } else if (type === 'osmOperator') {
+        var osmOps = (params.get('osm_operator') || '').split(',').filter(function (o) {
+          return o && o !== value;
+        });
+        if (osmOps.length > 0) {
+          params.set('osm_operator', osmOps.join(','));
+        } else {
+          params.delete('osm_operator');
         }
       }
 
@@ -621,8 +702,18 @@
   }
 
   function init() {
+    var configElement = document.getElementById('routesPageConfig');
+    if (configElement) {
+      try {
+        window.routesPageConfig = JSON.parse(configElement.textContent);
+      } catch (e) {
+        console.error('Failed to parse routesPageConfig', e);
+      }
+    }
+
     bindSearchHint();
     initOperatorDropdown();
+    initOsmOperatorDropdown();
     initStatusFilter();
     bindAutoSubmit();
     updateActiveFiltersUI();

@@ -87,6 +87,26 @@ def _serialize_atlas_operator_filter(atlas_operators: list[str]) -> str:
     return ','.join(sorted(set(atlas_operators)))
 
 
+def _parse_osm_operator_filter() -> list[str]:
+    selected = [
+        value.strip()
+        for value in request.args.getlist('osm_operator')
+        if value and value.strip()
+    ]
+    if selected:
+        return sorted(set(selected))
+
+    raw = (request.args.get('osm_operator') or '').strip()
+    if not raw:
+        return []
+
+    return sorted({operator.strip() for operator in raw.split(',') if operator.strip()})
+
+
+def _serialize_osm_operator_filter(osm_operators: list[str]) -> str:
+    return ','.join(sorted(set(osm_operators)))
+
+
 def _search_placeholder() -> str:
     return 'Search Atlas or OSM GTFS route ID'
 
@@ -628,7 +648,7 @@ def _route_display_mode(atlas_route_id, osm_route_id):
     return 'unmatched'
 
 
-def _matched_routes_query(atlas_operators, q):
+def _matched_routes_query(atlas_operators, osm_operators, q):
     query = (
         db.session.query(
             literal('matched').label('entry_type'),
@@ -647,6 +667,9 @@ def _matched_routes_query(atlas_operators, q):
         query = query.join(AtlasStop, RouteAtlasStops.sloid == AtlasStop.sloid)
         query = query.filter(AtlasStop.atlas_business_org_abbr.in_(atlas_operators))
 
+    if osm_operators:
+        query = query.filter(OsmRoute.operator.in_(osm_operators))
+
     if q:
         query = query.filter(
             or_(
@@ -658,7 +681,7 @@ def _matched_routes_query(atlas_operators, q):
     return query.group_by(RouteAtlasStops.atlas_route_id, AtlasRoute.route_id, OsmRoute.gtfs_route_id)
 
 
-def _unmatched_atlas_routes_query(atlas_operators, q):
+def _unmatched_atlas_routes_query(atlas_operators, osm_operators, q):
     matched_atlas_subquery = (
         db.session.query(RoutesMatched.atlas_route_id)
         .filter(RoutesMatched.atlas_route_id.isnot(None))
@@ -680,12 +703,16 @@ def _unmatched_atlas_routes_query(atlas_operators, q):
         query = query.join(AtlasStop, RouteAtlasStops.sloid == AtlasStop.sloid)
         query = query.filter(AtlasStop.atlas_business_org_abbr.in_(atlas_operators))
 
+    # OSM operator filter: unmatched ATLAS routes have no OSM route, so exclude them
+    if osm_operators:
+        query = query.filter(literal(False))
+
     if q:
         query = query.filter(RouteAtlasStops.atlas_route_id.ilike(f'%{q}%'))
 
     return query.group_by(RouteAtlasStops.atlas_route_id, AtlasRoute.route_id)
 
-def _unmatched_osm_routes_query(atlas_operators, q):
+def _unmatched_osm_routes_query(atlas_operators, osm_operators, q):
     matched_osm_subquery = (
         db.session.query(RoutesMatched.osm_route_id)
         .filter(RoutesMatched.osm_route_id.isnot(None))
@@ -706,19 +733,22 @@ def _unmatched_osm_routes_query(atlas_operators, q):
     if atlas_operators:
         query = query.filter(literal(False))
 
+    if osm_operators:
+        query = query.filter(OsmRoute.operator.in_(osm_operators))
+
     if q:
         query = query.filter(OsmRoute.gtfs_route_id.ilike(f'%{q}%'))
 
     return query.group_by(RouteOsmStops.osm_route_id, OsmRoute.gtfs_route_id)
 
-def _load_primary_route_page(matched_filter, atlas_operators, q, page, per_page):
+def _load_primary_route_page(matched_filter, atlas_operators, osm_operators, q, page, per_page):
     queries = []
     if matched_filter in {ROUTE_MATCH_ALL, ROUTE_MATCHED}:
-        queries.append(_matched_routes_query(atlas_operators, q))
+        queries.append(_matched_routes_query(atlas_operators, osm_operators, q))
     if matched_filter in {ROUTE_MATCH_ALL, ROUTE_UNMATCHED, ROUTE_UNMATCHED_ATLAS}:
-        queries.append(_unmatched_atlas_routes_query(atlas_operators, q))
+        queries.append(_unmatched_atlas_routes_query(atlas_operators, osm_operators, q))
     if matched_filter in {ROUTE_MATCH_ALL, ROUTE_UNMATCHED, ROUTE_UNMATCHED_OSM}:
-        queries.append(_unmatched_osm_routes_query(atlas_operators, q))
+        queries.append(_unmatched_osm_routes_query(atlas_operators, osm_operators, q))
 
     if not queries:
         return [], _EmptyPagination(page=page, per_page=per_page)
@@ -828,10 +858,11 @@ def _build_route_row(primary_route_id, atlas_route_id, osm_route_id, atlas_stops
     }
 
 
-def _load_routes_view(matched_filter, atlas_operators, q, page, per_page):
+def _load_routes_view(matched_filter, atlas_operators, osm_operators, q, page, per_page):
     primary_entries, pagination = _load_primary_route_page(
         matched_filter=matched_filter,
         atlas_operators=atlas_operators,
+        osm_operators=osm_operators,
         q=q,
         page=page,
         per_page=per_page,
@@ -877,6 +908,8 @@ def routes_page():
     matched_filter = _normalize_route_match_filter(request.args.get('matched'))
     selected_atlas_operators = _parse_atlas_operator_filter()
     atlas_operator_query = _serialize_atlas_operator_filter(selected_atlas_operators)
+    selected_osm_operators = _parse_osm_operator_filter()
+    osm_operator_query = _serialize_osm_operator_filter(selected_osm_operators)
 
     q = (request.args.get('q') or '').strip()
     page = _bounded_int(request.args.get('page'), default=1, minimum=1)
@@ -888,6 +921,7 @@ def routes_page():
         route_rows, pagination = _load_routes_view(
             matched_filter=matched_filter,
             atlas_operators=selected_atlas_operators,
+            osm_operators=selected_osm_operators,
             q=q,
             page=page,
             per_page=per_page,
@@ -903,6 +937,8 @@ def routes_page():
             available_atlas_operators=available_atlas_operators,
             selected_atlas_operators=selected_atlas_operators,
             atlas_operator_query=atlas_operator_query,
+            selected_osm_operators=selected_osm_operators,
+            osm_operator_query=osm_operator_query,
             per_page_options=ROUTES_PER_PAGE_OPTIONS,
             match_filter_labels=MATCH_FILTER_LABELS,
             filters_summary=_filters_summary_text(matched_filter),
@@ -924,6 +960,8 @@ def routes_page():
                 available_atlas_operators=available_atlas_operators,
                 selected_atlas_operators=selected_atlas_operators,
                 atlas_operator_query=atlas_operator_query,
+                selected_osm_operators=selected_osm_operators,
+                osm_operator_query=osm_operator_query,
                 per_page_options=ROUTES_PER_PAGE_OPTIONS,
                 match_filter_labels=MATCH_FILTER_LABELS,
                 filters_summary=_filters_summary_text(matched_filter),

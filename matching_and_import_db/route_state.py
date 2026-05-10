@@ -30,6 +30,7 @@ class RouteState:
         1. Exact ID match
         2. Normalized -jXX fallback match
         """
+        self.osm_route_to_atlas_route.clear()
         try:
             self.atlas_routes = pd.read_csv(atlas_routes_path, dtype=str)
             self.osm_routes = pd.read_csv(osm_routes_path, dtype=str)

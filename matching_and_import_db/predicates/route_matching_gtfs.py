@@ -92,7 +92,7 @@ class RouteMatchPredicate(BasePredicate):
 
                     if gtfs_tokens & node_tokens:
                         matched_node, matched_dist = node, dist
-                        match_source, match_evidence = 'gtfs', 'gtfs_tokens'
+                        match_source, match_evidence = 'tokens', 'gtfs_tokens'
                         break
 
             # P2: name-based direction fallback
@@ -107,7 +107,7 @@ class RouteMatchPredicate(BasePredicate):
                         nid = str(node.node_id)
                         if any(dn in name_dirs.get(nid, set()) for dn in dir_names):
                             matched_node, matched_dist = node, dist
-                            match_source, match_evidence = 'gtfs', 'direction_name'
+                            match_source, match_evidence = 'direction', 'direction_name'
                             break
 
             if matched_node is not None:

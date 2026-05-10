@@ -52,19 +52,22 @@
 
   function generateOperatorChipsHtml(operators, options = {}) {
     const context = options.context || 'index';
+    const labelPrefix = options.labelPrefix || 'Operator';
+    const chipType = options.chipType || 'atlasOperator';
+    const chipBadgeClass = options.badgeClass || 'filter-chip-operator';
     const chips = [];
     (operators || []).forEach(function(operator) {
       if (context === 'index') {
         chips.push(buildRemovableChip({
-          label: 'Operator: ' + operator,
-          badgeClass: 'filter-chip-operator',
+          label: labelPrefix + ': ' + operator,
+          badgeClass: chipBadgeClass,
           removeClass: 'remove-filter',
-          data: { type: 'atlasOperator', filter: operator }
+          data: { type: chipType, filter: operator }
         }));
       } else {
         chips.push(buildRemovableChip({
-          label: 'Operator: ' + operator,
-          badgeClass: 'filter-chip-operator',
+          label: labelPrefix + ': ' + operator,
+          badgeClass: chipBadgeClass,
           removeClass: 'remove-operator-chip',
           data: { operator: operator }
         }));

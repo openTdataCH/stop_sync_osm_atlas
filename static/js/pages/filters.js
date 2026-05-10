@@ -9,6 +9,7 @@ var activeFilters = {
     stopType: [],
     matchMethods: [],
     atlasOperators: [],
+    osmOperators: [],
     matchedOptions: {
         allSelected: true,
         methods: { exact: false, name: false },
@@ -173,6 +174,7 @@ function getActiveFilterCount() {
     count += activeFilters.station.length;
     count += activeFilters.transportTypes.length;
     count += activeFilters.atlasOperators.length;
+    count += activeFilters.osmOperators.length;
 
     if (activeFilters.osmGroups && activeFilters.osmGroups.length > 0) {
         count += activeFilters.osmGroups.includes('all') ? 1 : activeFilters.osmGroups.length;
@@ -556,8 +558,11 @@ function updateFiltersUI() {
     const entityTypeGroupHtml = buildOrGroup(entityTypeChips);
     if (entityTypeGroupHtml) finalGroupStrings.push(entityTypeGroupHtml);
 
-    const operatorGroupHtml = window.FilterChipUtils.generateOperatorChipsHtml(activeFilters.atlasOperators, { context: 'index' });
+    const operatorGroupHtml = window.FilterChipUtils.generateOperatorChipsHtml(activeFilters.atlasOperators, { context: 'index', labelPrefix: 'ATLAS Operator' });
     if (operatorGroupHtml) finalGroupStrings.push(operatorGroupHtml);
+
+    const osmOperatorGroupHtml = window.FilterChipUtils.generateOperatorChipsHtml(activeFilters.osmOperators, { context: 'index', labelPrefix: 'OSM Operator', chipType: 'osmOperator', badgeClass: 'filter-chip-osm' });
+    if (osmOperatorGroupHtml) finalGroupStrings.push(osmOperatorGroupHtml);
 
     if (activeFilters.osmGroups && activeFilters.osmGroups.length > 0) {
         if (activeFilters.osmGroups.includes('all')) {
@@ -605,10 +610,14 @@ function clearAllFilters() {
     activeFilters.stationTypes = [];
     activeFilters.routeDirections = [];
 
-    // Clear operators and reset dropdown
+    // Clear operators and reset dropdowns
     activeFilters.atlasOperators = [];
     if (window.operatorDropdown) {
         window.operatorDropdown.setSelection([]);
+    }
+    activeFilters.osmOperators = [];
+    if (window.osmOperatorDropdown) {
+        window.osmOperatorDropdown.setSelection([]);
     }
 
     // Clear top N
@@ -875,6 +884,18 @@ function initFilterEventHandlers() {
                     // Update the operator dropdown if it exists
                     if (window.operatorDropdown) {
                         window.operatorDropdown.setSelection(activeFilters.atlasOperators);
+                    }
+                    needsManualUpdateCall = true;
+                    break;
+                case 'osmOperator':
+                    // Remove from activeFilters.osmOperators array
+                    const osmOperatorIndex = activeFilters.osmOperators.indexOf(filterValue);
+                    if (osmOperatorIndex > -1) {
+                        activeFilters.osmOperators.splice(osmOperatorIndex, 1);
+                    }
+                    // Update the OSM operator dropdown if it exists
+                    if (window.osmOperatorDropdown) {
+                        window.osmOperatorDropdown.setSelection(activeFilters.osmOperators);
                     }
                     needsManualUpdateCall = true;
                     break;

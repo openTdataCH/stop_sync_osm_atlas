@@ -181,6 +181,9 @@ def parse_filter_params(request_args):
     atlas_operator_str = request_args.get('atlas_operator')
     if atlas_operator_str:
         filters['atlas_operators'] = [op.strip() for op in atlas_operator_str.split(',') if op.strip()]
+    osm_operator_str = request_args.get('osm_operator')
+    if osm_operator_str:
+        filters['osm_operators'] = [op.strip() for op in osm_operator_str.split(',') if op.strip()]
     station_filter_str = request_args.get('station_filter')
     if station_filter_str:
         filters['filter_values'] = [val.strip() for val in station_filter_str.split(',') if val.strip()]

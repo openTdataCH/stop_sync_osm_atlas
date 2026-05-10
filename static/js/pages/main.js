@@ -364,6 +364,9 @@ function appendCurrentFilterParams(params, options) {
     if (activeFilters.atlasOperators.length > 0) {
         params.atlas_operator = activeFilters.atlasOperators.join(',');
     }
+    if (activeFilters.osmOperators.length > 0) {
+        params.osm_operator = activeFilters.osmOperators.join(',');
+    }
     if (includeTopN && activeFilters.topN) {
         params.top_n = activeFilters.topN;
     }
@@ -409,6 +412,11 @@ function loadTopNMatches() {
         // Add atlas operator filters to params
         if (activeFilters.atlasOperators.length > 0) {
             params.atlas_operator = activeFilters.atlasOperators.join(',');
+        }
+
+        // Add OSM operator filters to params
+        if (activeFilters.osmOperators.length > 0) {
+            params.osm_operator = activeFilters.osmOperators.join(',');
         }
         if (activeFilters.showDuplicatesOnly) {
             params.show_duplicates_only = 'true';
@@ -1400,6 +1408,20 @@ $(document).ready(function () {
         multiple: true,
         onSelectionChange: function (selectedOperators) {
             activeFilters.atlasOperators = selectedOperators;
+            updateFiltersUI();
+            if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
+            loadDataForViewport();
+            updateHeaderSummary();
+        }
+    });
+
+    // Initialize OSM operator dropdown
+    window.osmOperatorDropdown = new OperatorDropdown('#osmOperatorFilter', {
+        apiUrl: '/api/osm_operators',
+        placeholder: 'Select OSM operators...',
+        multiple: true,
+        onSelectionChange: function (selectedOperators) {
+            activeFilters.osmOperators = selectedOperators;
             updateFiltersUI();
             if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
             loadDataForViewport();
