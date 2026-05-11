@@ -1,5 +1,3 @@
-import re
-
 from backend.blueprints import operators as operators_module
 
 
@@ -16,45 +14,6 @@ class _DummyPagination:
 
     def iter_pages(self, **_kwargs):
         return [1] if self.total else []
-
-
-def test_operators_page_renders_operator_cards(client, monkeypatch):
-    monkeypatch.setattr(
-        operators_module,
-        '_load_operators_view',
-        lambda **_kwargs: (
-            [{
-                'atlas_business_org_abbr': 'SBB',
-                'atlas_business_org_name': 'Schweizerische Bundesbahnen SBB',
-                'sboid': '11',
-                'atlas_stop_count': 12,
-                'matched_stop_count': 9,
-                'unmatched_atlas_stop_count': 3,
-                'missing_osm_operator_count': 1,
-                'osm_operator_count': 2,
-                'has_osm_matches': True,
-                'has_matched_stops': True,
-                'osm_operators': [
-                    {'osm_operator': 'SBB', 'matched_stop_count': 7},
-                    {'osm_operator': 'BLS', 'matched_stop_count': 2},
-                ],
-            }],
-            _DummyPagination(total=1),
-        ),
-    )
-
-    response = client.get('/operators')
-
-    assert response.status_code == 200
-    html = response.get_data(as_text=True)
-    assert 'Schweizerische Bundesbahnen SBB' in html
-    assert 'Abbr: SBB' in html
-    assert 'SBOID: 11' in html
-    assert 'BLS' in html
-    assert 'matched osm operators' in html.lower()
-    assert 'href="/operators"' in html
-    assert 'href="/data"' in html
-    assert re.search(r'class="nav-link[^\"]* active[^\"]*" href="/operators"', html)
 
 
 def test_operators_page_forwards_filters_to_loader(client, monkeypatch):

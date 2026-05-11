@@ -298,7 +298,7 @@ window.ProblemsUI = (function () {
         return `
             <div class="problem-section-item">
                 <div class="alert alert-warning problem-info-banner mb-3">
-                    <small><i class="fas fa-exclamation-triangle"></i> Route evidence conflicts with ${matchMethod}. Review GTFS route IDs, route names and directions.</small>
+                    <small><i class="fas fa-exclamation-triangle"></i> Route evidence conflicts with ${matchMethod}. Compare route names, GTFS route IDs, and directions.</small>
                 </div>
                 <div class="attribute-mini-popups">
                     <div class="atlas-match attribute-mini-popup">
