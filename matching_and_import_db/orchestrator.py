@@ -3,7 +3,7 @@
 Top-level orchestrator for the ATLAS ↔ OSM matching pipeline.
 
 Loads data, builds indexes, runs the predicate pipeline, and performs
-post-processing (isolation detection, summary reporting).
+summary reporting.
 """
 import logging
 import os
@@ -24,19 +24,18 @@ from matching_and_import_db.predicates.name_matching import NameMatchPredicate
 from matching_and_import_db.predicates.trio_distance_matching import TrioDistanceMatchingPredicate
 from matching_and_import_db.predicates.distance_matching import GroupProximityPredicate, LocalRefDistancePredicate, NearestDistancePredicate
 from matching_and_import_db.predicates.route_matching_gtfs import RouteMatchPredicate
-from matching_and_import_db.predicates.postpass_matching import PostpassUniqueUicPredicate
+from matching_and_import_db.route_state import RouteState
 
 DEFAULT_PIPELINE = [
     TrioDistanceMatchingPredicate(),
     ExactUicPredicate(),
     NameMatchPredicate(),
+    RouteMatchPredicate(),
     GroupProximityPredicate(),
     LocalRefDistancePredicate(),
     NearestDistancePredicate(mode='single', pass_label='first'),
     NearestDistancePredicate(mode='ratio', pass_label='first'),
     NearestDistancePredicate(mode='single', pass_label='second'),
-    RouteMatchPredicate(),
-    PostpassUniqueUicPredicate(),
 ]
 
 
@@ -144,6 +143,7 @@ def run_matching() -> MatchingOutput:
     atlas_df = pd.read_csv(atlas_csv_file, sep=";")
 
     osm_index = OsmState.from_xml_file(osm_xml_file)
+    RouteState.get_instance().load_and_match()
 
     # ── Identify ATLAS duplicate groups & init State ─────────────────────
     atlas_state = AtlasState.from_dataframe(
@@ -179,9 +179,7 @@ def run_matching() -> MatchingOutput:
         max_distance=50.0,
     )
 
-    pipeline = DEFAULT_PIPELINE
-
-    pipeline_result = run_pipeline(pipeline, ctx)
+    pipeline_result = run_pipeline(DEFAULT_PIPELINE, ctx)
 
     # Build canonical OSM stop units (single / pair / trio).
     all_osm_nodes = osm_index.get_all_nodes()
@@ -245,6 +243,9 @@ def run_matching() -> MatchingOutput:
         duplicate_sloid_map=atlas_state.duplicate_sloid_map,
         osm_stop_units=stop_units,
         all_osm_nodes=all_osm_nodes,
+        atlas_routes_by_sloid=dict(atlas_state._routes_by_sloid),
+        osm_node_routes=dict(osm_index._node_routes),
+        osm_name_dirs={node_id: set(values) for node_id, values in osm_index.name_dirs.items()},
     )
 
     # ── Summary ──────────────────────────────────────────────────────────

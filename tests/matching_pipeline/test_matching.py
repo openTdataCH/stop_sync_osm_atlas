@@ -7,7 +7,7 @@ from collections import defaultdict
 import pandas as pd
 import pytest
 
-from matching_and_import_db.models import AtlasNode, OsmNode
+from matching_and_import_db.models import AtlasNode, MatchRecord, OsmNode
 from matching_and_import_db.pipeline import MatchingContext, run_pipeline
 from matching_and_import_db.predicates import BasePredicate
 from matching_and_import_db.predicates.distance_matching import (
@@ -21,6 +21,8 @@ from matching_and_import_db.predicates.name_matching import NameMatchPredicate
 from matching_and_import_db.predicates.trio_distance_matching import TrioDistanceMatchingPredicate
 from matching_and_import_db.predicates.route_matching_gtfs import RouteMatchPredicate
 from matching_and_import_db.orchestrator import DEFAULT_PIPELINE
+from matching_and_import_db.problem_detection.context import ProblemContext
+from matching_and_import_db.problem_detection.stop_predicates import contradicts_route_matching_problem
 from matching_and_import_db.state import AtlasState, OsmState
 from matching_and_import_db.utils.common import haversine_distance
 from matching_and_import_db.utils.route_id import normalize_route_id
@@ -90,11 +92,13 @@ def _build_ctx(
     *,
     duplicate_sloid_map: dict[str, list[str]] | None = None,
     node_routes: dict[str, list[dict]] | None = None,
+    atlas_routes_by_sloid: dict[str, dict[str, list]] | None = None,
+    name_dirs: dict[str, set[str]] | None = None,
 ) -> MatchingContext:
     atlas_state = AtlasState(
         atlas_df=_atlas_df(atlas_rows),
         duplicate_sloid_map=duplicate_sloid_map or {},
-        routes_by_sloid={},
+        routes_by_sloid=atlas_routes_by_sloid or {},
     )
 
     xml_nodes = {(entry['lat'], entry['lon']): entry for entry in osm_entries}
@@ -111,6 +115,7 @@ def _build_ctx(
         xml_nodes=xml_nodes,
         uic_ref_dict=dict(uic_ref_dict),
         name_index=dict(name_index),
+        name_dirs=name_dirs or {},
         node_routes=node_routes or {},
     )
     return MatchingContext(atlas=atlas_state, osm=osm_state, max_distance=50.0)
@@ -164,6 +169,11 @@ class TestDefaultPipeline:
             ('ratio', 'first'),
             ('single', 'second'),
         ]
+
+    def test_default_pipeline_runs_route_matching_before_distance_block(self):
+        predicate_names = [predicate.name for predicate in DEFAULT_PIPELINE]
+
+        assert predicate_names.index('RouteMatchPredicate') < predicate_names.index('GroupProximityPredicate')
 
 
 class TestBipartiteMatch:
@@ -297,6 +307,170 @@ class TestCurrentPredicates:
         assert len(ctx.all_matches) == 1
         assert ctx.all_matches[0].osm_node.node_id == 'osm_1'
         assert ctx.all_matches[0].match_type == 'route_gtfs_tokens'
+
+    def test_route_match_predicate_prefers_stronger_token_overlap(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('s_weak', 'u1', '1', 'Stop', 47.00000, 8.00000),
+                _atlas_row('s_strong', 'u1', '2', 'Stop', 47.00002, 8.00002),
+            ],
+            [_osm_entry('osm_1', 47.000021, 8.000021, uic_ref='u1', name='Stop')],
+            node_routes={
+                'osm_1': [
+                    {'gtfs_route_id': 'route_a-j26', 'direction_id': '1', 'route_name': 'A'},
+                    {'gtfs_route_id': 'route_b-j26', 'direction_id': '1', 'route_name': 'B'},
+                    {'gtfs_route_id': 'route_c-j26', 'direction_id': '1', 'route_name': 'C'},
+                ],
+            },
+            atlas_routes_by_sloid={
+                's_weak': {
+                    'gtfs': [
+                        {'route_id': 'route_a-j26', 'route_id_normalized': 'route_a-jXX', 'direction_id': '1'},
+                        {'route_id': 'route_b-j26', 'route_id_normalized': 'route_b-jXX', 'direction_id': '1'},
+                    ],
+                },
+                's_strong': {
+                    'gtfs': [
+                        {'route_id': 'route_a-j26', 'route_id_normalized': 'route_a-jXX', 'direction_id': '1'},
+                        {'route_id': 'route_b-j26', 'route_id_normalized': 'route_b-jXX', 'direction_id': '1'},
+                        {'route_id': 'route_c-j26', 'route_id_normalized': 'route_c-jXX', 'direction_id': '1'},
+                    ],
+                },
+            },
+        )
+
+        RouteMatchPredicate().run(ctx)
+
+        assert len(ctx.all_matches) == 1
+        assert ctx.all_matches[0].atlas_node.sloid == 's_strong'
+        assert ctx.all_matches[0].osm_node.node_id == 'osm_1'
+        assert ctx.all_matches[0].match_type == 'route_gtfs_tokens'
+
+    def test_route_match_predicate_skips_ambiguous_equal_token_matches(self):
+        ctx = _build_ctx(
+            [
+                _atlas_row('s1', 'u1', '1', 'Stop', 47.00000, 8.00000),
+                _atlas_row('s2', 'u1', '2', 'Stop', 47.00001, 8.00001),
+            ],
+            [_osm_entry('osm_1', 47.000011, 8.000011, uic_ref='u1', name='Stop')],
+            node_routes={
+                'osm_1': [
+                    {'gtfs_route_id': 'route_a-j26', 'direction_id': '1', 'route_name': 'A'},
+                    {'gtfs_route_id': 'route_b-j26', 'direction_id': '1', 'route_name': 'B'},
+                ],
+            },
+            atlas_routes_by_sloid={
+                's1': {
+                    'gtfs': [
+                        {'route_id': 'route_a-j26', 'route_id_normalized': 'route_a-jXX', 'direction_id': '1'},
+                        {'route_id': 'route_b-j26', 'route_id_normalized': 'route_b-jXX', 'direction_id': '1'},
+                    ],
+                },
+                's2': {
+                    'gtfs': [
+                        {'route_id': 'route_a-j26', 'route_id_normalized': 'route_a-jXX', 'direction_id': '1'},
+                        {'route_id': 'route_b-j26', 'route_id_normalized': 'route_b-jXX', 'direction_id': '1'},
+                    ],
+                },
+            },
+        )
+
+        RouteMatchPredicate().run(ctx)
+
+        assert ctx.all_matches == []
+
+    def test_route_matching_before_distance_avoids_direction_conflict(self):
+        atlas_rows = [
+            _atlas_row('s_bad', '', '', '', 46.5221688, 6.5661288),
+            _atlas_row('s_good', '', '', '', 46.5222554, 6.5656973),
+        ]
+        osm_entries = [
+            _osm_entry('osm_1', 46.5222435, 6.5661495, public_transport='stop_position'),
+        ]
+        atlas_routes_by_sloid = {
+            's_bad': {
+                'gtfs': [
+                    {
+                        'route_id': '91-m1-j26-1',
+                        'route_id_normalized': '91-m1-jXX-1',
+                        'direction_id': '0',
+                    },
+                ],
+            },
+            's_good': {
+                'gtfs': [
+                    {
+                        'route_id': '91-m1-j26-1',
+                        'route_id_normalized': '91-m1-jXX-1',
+                        'direction_id': '1',
+                    },
+                ],
+            },
+        }
+        node_routes = {
+            'osm_1': [
+                {
+                    'relation_id': '79742',
+                    'gtfs_route_id': '91-m1-j24-1',
+                    'direction_id': '1',
+                },
+            ],
+        }
+
+        ctx = _build_ctx(
+            atlas_rows,
+            osm_entries,
+            atlas_routes_by_sloid=atlas_routes_by_sloid,
+            node_routes=node_routes,
+        )
+        run_pipeline(
+            [
+                RouteMatchPredicate(),
+                NearestDistancePredicate(mode='single', pass_label='first'),
+            ],
+            ctx,
+        )
+
+        assert [(record.atlas_node.sloid, record.osm_node.node_id) for record in ctx.all_matches] == [
+            ('s_good', 'osm_1')
+        ]
+
+    def test_contradicts_route_matching_problem_flags_direction_conflict(self):
+        ctx = ProblemContext(
+            atlas_routes_by_sloid={
+                's_bad': {
+                    'gtfs': [
+                        {
+                            'route_id': '91-m1-j26-1',
+                            'route_id_normalized': '91-m1-jXX-1',
+                            'direction_id': '0',
+                        },
+                    ],
+                },
+            },
+            osm_node_routes={
+                'osm_1': [
+                    {
+                        'relation_id': '79742',
+                        'gtfs_route_id': '91-m1-j24-1',
+                        'direction_id': '1',
+                    },
+                ],
+            },
+        )
+        record = MatchRecord(
+            atlas_node=AtlasNode('s_bad', 46.5221688, 6.5661288, '', '', '', 'TL'),
+            osm_node=OsmNode('osm_1', 46.5222435, 6.5661495, None, None, None, None, '', '', 'stop_position', None, None, None, {}),
+            match_type='distance_matching_3a',
+            distance_m=8.0,
+            notes='test',
+        )
+
+        problems = contradicts_route_matching_problem(ctx, record)
+
+        assert len(problems) == 1
+        assert problems[0].problem_type == 'contradicts_route_matching'
+        assert problems[0].priority == 2
 
     def test_group_proximity_partial_matching_leaves_far_outlier_unmatched(self):
         ctx = _build_ctx(

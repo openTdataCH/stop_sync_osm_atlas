@@ -158,3 +158,6 @@ class MatchingOutput:
     duplicate_sloid_map: dict[str, list[str]]
     osm_stop_units: list[OsmStopUnitRecord] = field(default_factory=list)
     all_osm_nodes: list[OsmNode] = field(default_factory=list)
+    atlas_routes_by_sloid: dict[str, dict[str, list[Any]]] = field(default_factory=dict)
+    osm_node_routes: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    osm_name_dirs: dict[str, set[str]] = field(default_factory=dict)

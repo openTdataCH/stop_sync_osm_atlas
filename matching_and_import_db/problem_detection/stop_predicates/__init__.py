@@ -2,12 +2,14 @@
 
 from matching_and_import_db.problem_detection.stop_predicates.distance import distance_problem
 from matching_and_import_db.problem_detection.stop_predicates.attributes import attributes_problem
+from matching_and_import_db.problem_detection.stop_predicates.contradicts_route_matching import contradicts_route_matching_problem
 from matching_and_import_db.problem_detection.stop_predicates.unmatched import unmatched_problem
 from matching_and_import_db.problem_detection.stop_predicates.duplicates import duplicates_problem
 
 __all__ = [
     "distance_problem",
     "attributes_problem",
+    "contradicts_route_matching_problem",
     "unmatched_problem",
     "duplicates_problem",
 ]

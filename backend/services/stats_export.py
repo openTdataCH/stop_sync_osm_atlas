@@ -250,7 +250,6 @@ def export_pipeline_stats(
     # Extract specific match counts
     exact_matches = match_type_counts.get('exact', 0)
     name_matches = match_type_counts.get('name', 0)
-    exact_postpass_matches = match_type_counts.get('exact_postpass', 0)
     duplicate_propagation_matches = match_type_counts.get('duplicate_propagation', 0)
     osm_group_propagation_matches = match_type_counts.get('osm_group_propagation', 0)
     
@@ -511,8 +510,6 @@ def export_pipeline_stats(
                 }
             },
             "post_processing": {
-                "unique_by_uic": exact_postpass_matches,
-                "unique_by_uic_mto": mto_pairs_by_type.get('exact_postpass', 0),
                 "duplicate_propagation": duplicate_propagation_matches,
                 "duplicate_propagation_mto": mto_pairs_by_type.get('duplicate_propagation', 0),
                 "osm_group_propagation": osm_group_propagation_matches,
@@ -608,8 +605,6 @@ def _classify_match_type(match_type: str) -> str:
         return 'route_gtfs'
     if match_type.startswith('route_'):
         return 'route_gtfs'
-    if match_type == 'exact_postpass':
-        return 'post_unique_by_uic'
     if match_type == 'duplicate_propagation':
         return 'post_duplicate_propagation'
     if match_type == 'osm_group_propagation':
@@ -913,6 +908,7 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
         'distance': type_counts.get('distance', 0),
         'unmatched': type_counts.get('unmatched', 0),
         'attributes': type_counts.get('attributes', 0),
+        'contradicts_route_matching': type_counts.get('contradicts_route_matching', 0),
         'duplicates': type_counts.get('duplicates', 0),
         'multiple_problems': multiple_problems,
         'stops_with_problems': stops_with_problems,

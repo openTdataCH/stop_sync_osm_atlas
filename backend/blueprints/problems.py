@@ -10,6 +10,7 @@ problems_bp = Blueprint('problems', __name__)
 
 DEFAULT_PROBLEM_SORT_BY = 'priority'
 DEFAULT_PROBLEM_SORT_ORDER = 'asc'
+VISIBLE_PROBLEM_TYPES = ('distance', 'unmatched', 'attributes', 'duplicates')
 
 
 def parse_csv_values(raw_value):
@@ -113,6 +114,8 @@ def get_problems():
         include_routes = str(request.args.get('include_routes', '0')).strip().lower() in ('1', 'true', 'yes', 'on')
 
         query = Problem.query.join(StopsMatched)
+        if not selected_problem_types:
+            query = query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
         if selected_problem_types:
             query = query.filter(Problem.problem_type.in_(selected_problem_types))
         query = apply_atlas_operator_filter(query, atlas_operator_filter)
@@ -294,9 +297,11 @@ def get_problems():
         else:
             query = query.order_by(Problem.stop_id, Problem.problem_type)
         if sort_by == 'distance' and distance_only_mode:
-            stop_distance_query = db.session.query(StopsMatched.id, StopsMatched.distance_m).join(Problem).filter(
-                Problem.problem_type.in_(selected_problem_types) if selected_problem_types else True
-            )
+            stop_distance_query = db.session.query(StopsMatched.id, StopsMatched.distance_m).join(Problem)
+            if selected_problem_types:
+                stop_distance_query = stop_distance_query.filter(Problem.problem_type.in_(selected_problem_types))
+            else:
+                stop_distance_query = stop_distance_query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
             stop_distance_query = apply_atlas_operator_filter(stop_distance_query, atlas_operator_filter)
             if selected_priorities:
                 stop_distance_query = stop_distance_query.filter(Problem.priority.in_(selected_priorities))
@@ -324,6 +329,8 @@ def get_problems():
             stop_ids_query = db.session.query(Problem.stop_id).join(StopsMatched)
             if selected_problem_types:
                 stop_ids_query = stop_ids_query.filter(Problem.problem_type.in_(selected_problem_types))
+            else:
+                stop_ids_query = stop_ids_query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
             stop_ids_query = apply_atlas_operator_filter(stop_ids_query, atlas_operator_filter)
             if selected_priorities:
                 stop_ids_query = stop_ids_query.filter(Problem.priority.in_(selected_priorities))
@@ -337,6 +344,8 @@ def get_problems():
             ).filter(Problem.stop_id.in_(paged_stop_ids))
             if selected_problem_types:
                 final_query = final_query.filter(Problem.problem_type.in_(selected_problem_types))
+            else:
+                final_query = final_query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
             final_query = apply_atlas_operator_filter(final_query, atlas_operator_filter)
             if selected_priorities:
                 final_query = final_query.filter(Problem.priority.in_(selected_priorities))
@@ -400,7 +409,7 @@ def get_problem_stats():
         }
         selected_priorities = parse_priority_values(request.args.get('priority'))
 
-        problem_types = ['distance', 'unmatched', 'attributes', 'duplicates']
+        problem_types = list(VISIBLE_PROBLEM_TYPES)
         for ptype in problem_types:
             q = Problem.query.join(StopsMatched).filter(Problem.problem_type == ptype)
             q = apply_atlas_operator_filter(q, atlas_operator_filter)
