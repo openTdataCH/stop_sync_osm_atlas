@@ -877,7 +877,7 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
     from backend.models import StopsMatched, Problem
     from sqlalchemy import func
 
-    total_stops = db_session.query(StopsMatched).count()
+    total_stops = db_session.query(func.count(StopsMatched.id)).scalar() or 0
 
     type_counts = dict(
         db_session.query(Problem.problem_type, func.count(Problem.id))
