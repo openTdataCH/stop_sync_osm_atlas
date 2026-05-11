@@ -6,8 +6,6 @@
  */
 window.ProblemsUI = (function () {
     'use strict';
-} else if (problem.problem === 'contradicts_route_matching') {
-    actionButtonsHtml += generateRouteContradictionDetailsHtml(problem);
 
     // Small UI helpers
     // Map priority to alert styling
@@ -386,6 +384,8 @@ window.ProblemsUI = (function () {
             }
         } else if (problem.problem === 'attributes') {
             actionButtonsHtml += generateAttributeComparisonHtml(problem);
+        } else if (problem.problem === 'contradicts_route_matching') {
+            actionButtonsHtml += generateRouteContradictionDetailsHtml(problem);
         } else if (problem.problem === 'distance') {
             actionButtonsHtml += generateDistanceDetailsHtml(problem);
         } else if (problem.problem === 'unmatched') {
