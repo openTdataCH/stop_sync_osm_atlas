@@ -249,7 +249,7 @@ def _load_operators_view(coverage_filter, q, page, per_page):
     return operator_rows, pagination
 
 
-@operators_bp.route('/data/operators')
+@operators_bp.route('/operators')
 def operators_page():
     coverage_filter = _normalize_coverage_filter(request.args.get('coverage'))
     q = (request.args.get('q') or '').strip()
