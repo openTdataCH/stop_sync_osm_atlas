@@ -14,7 +14,7 @@ var activeFilters = {
         allSelected: true,
         methods: { exact: false, name: false },
         distanceMatching: { allSelected: false, stage1: false, stage2: false, stage3a: false, stage3b: false },
-        routeMatching: { allSelected: false, gtfs: false }
+        routeMatching: { allSelected: false, tokens: false, direction: false }
     },
     unmatchedOptions: {
         allSelected: true,
@@ -46,7 +46,8 @@ const DISTANCE_METHOD_CHECKBOX_SELECTORS = [
     '#distanceMethodStage3b'
 ];
 const ROUTE_METHOD_CHECKBOX_SELECTORS = [
-    '#routeMethodGtfs'
+    '#routeMethodTokens',
+    '#routeMethodDirection'
 ];
 
 let isBulkCheckboxSyncDepth = 0;
@@ -99,8 +100,11 @@ function getSelectedMatchedMethodFiltersFromState() {
         }
     });
 
-    if (activeFilters.matchedOptions.routeMatching.gtfs) {
-        selectedMethods.push('route_gtfs');
+    if (activeFilters.matchedOptions.routeMatching.tokens) {
+        selectedMethods.push('route_gtfs_tokens');
+    }
+    if (activeFilters.matchedOptions.routeMatching.direction) {
+        selectedMethods.push('route_gtfs_direction');
     }
 
     return selectedMethods;
@@ -469,8 +473,11 @@ function updateFiltersUI() {
                 matchedSubConditionStrings.push(buildRemovableChip({ label: 'Route Match: All', badgeClass: 'filter-chip-matched', data: { type: 'masterRoute', target: '#masterRouteMatchingCheckbox' } }));
             } else {
                 let routeStageChips = [];
-                if (activeFilters.matchedOptions.routeMatching.gtfs) {
-                    routeStageChips.push(buildRemovableChip({ label: 'Route: GTFS', badgeClass: 'filter-chip-matched', data: { type: 'specificRoute', target: '#routeMethodGtfs' } }));
+                if (activeFilters.matchedOptions.routeMatching.tokens) {
+                    routeStageChips.push(buildRemovableChip({ label: 'Route: Tokens', badgeClass: 'filter-chip-matched', data: { type: 'specificRoute', target: '#routeMethodTokens' } }));
+                }
+                if (activeFilters.matchedOptions.routeMatching.direction) {
+                    routeStageChips.push(buildRemovableChip({ label: 'Route: Direction', badgeClass: 'filter-chip-matched', data: { type: 'specificRoute', target: '#routeMethodDirection' } }));
                 }
                 const rGrp = buildOrGroup(routeStageChips);
                 if (rGrp) matchedSubConditionStrings.push(rGrp);
@@ -719,7 +726,8 @@ function updateActiveFilters() {
         },
         routeMatching: {
             allSelected: allRouteMethodsSelected,
-            gtfs: $('#routeMethodGtfs').is(':checked')
+            tokens: $('#routeMethodTokens').is(':checked'),
+            direction: $('#routeMethodDirection').is(':checked')
         }
     };
 
