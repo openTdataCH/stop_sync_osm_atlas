@@ -652,19 +652,13 @@ SECTION 3 — UNMATCHED
           </tr>
         </table>
         {% set mat = ua.osm.matrix if ua.osm.matrix is defined else {} %}
-        <div class="accordion-item {% if is_pdf %}is-open{% endif %}" id="accordion-osm-attrs">
-          <button class="accordion-trigger" onclick="toggleAccordion('osm-attrs')"
-            aria-expanded="{% if is_pdf %}true{% else %}false{% endif %}" aria-controls="panel-osm-attrs">
+        <div class="accordion-item is-open" id="accordion-osm-attrs">
+          <div class="accordion-trigger">
             <span class="accordion-trigger__left">
               <span class="accordion-trigger__label">Attributes Analysis</span>
             </span>
-            <span class="accordion-trigger__right">
-              <span class="accordion-chevron">
-                <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
-              </span>
-            </span>
-          </button>
-          <div class="accordion-panel" id="panel-osm-attrs" {% if is_pdf %}style="max-height: none;"{% endif %}>
+          </div>
+          <div class="accordion-panel" id="panel-osm-attrs" style="max-height: none;">
             <div class="accordion-panel__inner">
               <table class="table table-sm table-hover mb-0">
                 <thead class="thead-light">
@@ -896,22 +890,18 @@ SECTION 5 — PROBLEMS
       {% for prio, label, css_id, severity in priority_meta %}
       {% set prio_data = problem_breakdown.get(prio, {}) %}
       {% set prio_total = prio_data.values()|sum if prio_data else 0 %}
-      <div class="accordion-item accordion-item--{{ severity }} {% if is_pdf %}is-open{% endif %}"
+      <div class="accordion-item accordion-item--{{ severity }} is-open"
         id="accordion-{{ css_id }}">
-        <button class="accordion-trigger" onclick="toggleAccordion('{{ css_id }}')"
-          aria-expanded="{% if is_pdf %}true{% else %}false{% endif %}" aria-controls="panel-{{ css_id }}">
+        <div class="accordion-trigger">
           <span class="accordion-trigger__left">
             <span class="priority-badge priority-badge--{{ severity }}">P{{ prio }}</span>
             <span class="accordion-trigger__label">{{ label }}</span>
           </span>
           <span class="accordion-trigger__right">
             <span class="accordion-trigger__count">{{ "{:,}".format(prio_total) }}</span>
-            <span class="accordion-chevron">
-              <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
-            </span>
           </span>
-        </button>
-        <div class="accordion-panel" id="panel-{{ css_id }}" {% if is_pdf %}style="max-height: none;" {% endif %}>
+        </div>
+        <div class="accordion-panel" id="panel-{{ css_id }}" style="max-height: none;">
           <div class="accordion-panel__inner">
             <table class="table table-sm mb-0">
               <thead class="thead-light">
@@ -989,22 +979,18 @@ SECTION 5 — PROBLEMS
       {% for prio, label, css_id, severity in rpriority_meta %}
       {% set rprio_data = route_problem_breakdown.get(prio, {}) %}
       {% set rprio_total = rprio_data.values()|sum if rprio_data else 0 %}
-      <div class="accordion-item accordion-item--{{ severity }} {% if is_pdf %}is-open{% endif %}"
+      <div class="accordion-item accordion-item--{{ severity }} is-open"
         id="accordion-{{ css_id }}">
-        <button class="accordion-trigger" onclick="toggleAccordion('{{ css_id }}')"
-          aria-expanded="{% if is_pdf %}true{% else %}false{% endif %}" aria-controls="panel-{{ css_id }}">
+        <div class="accordion-trigger">
           <span class="accordion-trigger__left">
             <span class="priority-badge priority-badge--{{ severity }}">P{{ prio }}</span>
             <span class="accordion-trigger__label">{{ label }}</span>
           </span>
           <span class="accordion-trigger__right">
             <span class="accordion-trigger__count">{{ "{:,}".format(rprio_total) }}</span>
-            <span class="accordion-chevron">
-              <svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
-            </span>
           </span>
-        </button>
-        <div class="accordion-panel" id="panel-{{ css_id }}" {% if is_pdf %}style="max-height: none;" {% endif %}>
+        </div>
+        <div class="accordion-panel" id="panel-{{ css_id }}" style="max-height: none;">
           <div class="accordion-panel__inner">
             <table class="table table-sm mb-0">
               <thead class="thead-light">
