@@ -7,7 +7,7 @@
         class="d-inline-block align-top me-2">
       <div class="d-flex flex-column mt-1">
         <span class="fw-bold navbar-brand-text">OSM &amp; ATLAS Synchronization</span>
-        <small class="text-muted" style="font-size:0.75rem; line-height:1;">Version beta</small>
+        <small class="text-muted" style="font-size:0.75rem; line-height:1;">Version beta 0.1</small>
       </div>
     </a>
 
@@ -22,23 +22,29 @@
       <!-- Main navigation links -->
       <ul class="navbar-nav me-auto">
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint == 'index' %} active{%- endif %}" href="{{ url_for('index') }}">Map</a>
+          <a class="nav-link {%- if request.endpoint == 'index' %} active{%- endif %}"
+            href="{{ url_for('index') }}">Map</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint == 'problems' %} active{%- endif %}" href="{{ url_for('problems') }}">Problems</a>
+          <a class="nav-link {%- if request.endpoint == 'problems' %} active{%- endif %}"
+            href="{{ url_for('problems') }}">Problems</a>
         </li>
 
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint == 'routes.routes_page' %} active{%- endif %}" href="{{ url_for('routes.routes_page') }}">Routes</a>
+          <a class="nav-link {%- if request.endpoint == 'routes.routes_page' %} active{%- endif %}"
+            href="{{ url_for('routes.routes_page') }}">Routes</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint == 'operators.operators_page' %} active{%- endif %}" href="{{ url_for('operators.operators_page') }}">Operators</a>
+          <a class="nav-link {%- if request.endpoint == 'operators.operators_page' %} active{%- endif %}"
+            href="{{ url_for('operators.operators_page') }}">Operators</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint in ('analytics_stats', 'analytics_reports') %} active{%- endif %}" href="{{ url_for('data_index') }}">Data</a>
+          <a class="nav-link {%- if request.endpoint in ('analytics_stats', 'analytics_reports') %} active{%- endif %}"
+            href="{{ url_for('data_index') }}">Data</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint and request.endpoint.startswith('docs.') %} active{%- endif %}" href="{{ url_for('docs.docs_page') }}">Docs</a>
+          <a class="nav-link {%- if request.endpoint and request.endpoint.startswith('docs.') %} active{%- endif %}"
+            href="{{ url_for('docs.docs_page') }}">Docs</a>
         </li>
       </ul>
 
@@ -46,24 +52,17 @@
       <ul class="navbar-nav align-items-center">
         {% if data_updated_at %}
         <li class="nav-item">
-          <span
-            id="navbarDataUpdated"
-            class="navbar-text text-muted small me-3"
+          <span id="navbarDataUpdated" class="navbar-text text-muted small me-3"
             data-pipeline-next-run-at="{{ pipeline_next_run_at or '' }}"
             data-data-updated-at="{{ data_updated_at or '' }}"
             data-default-label="Data updated: {{ data_updated_at|format_zurich_display_timestamp }}"
-            data-running-label="Pipeline running in the background"
-            data-blocking-label="Pipeline running"
-            tabindex="0">
-            <button
-              type="button"
-              id="navbarNextRunInfo"
+            data-running-label="Pipeline running in the background" data-blocking-label="Pipeline running" tabindex="0">
+            <button type="button" id="navbarNextRunInfo"
               class="btn btn-link btn-sm text-muted text-decoration-none p-0 border-0 me-1 align-baseline"
-              aria-label="Next pipeline run information"
-              data-bs-toggle="tooltip"
-              data-bs-trigger="hover focus"
-              data-bs-placement="bottom"
-              {% if pipeline_next_run_at %}title="Next pipeline run: {{ pipeline_next_run_at|format_zurich_display_timestamp }}"{% else %}hidden{% endif %}>
+              aria-label="Next pipeline run information" data-bs-toggle="tooltip" data-bs-trigger="hover focus"
+              data-bs-placement="bottom" {% if pipeline_next_run_at
+              %}title="Next pipeline run: {{ pipeline_next_run_at|format_zurich_display_timestamp }}" {% else %}hidden{%
+              endif %}>
               <i class="fas fa-info-circle"></i>
             </button>
             <span id="navbarDataUpdatedText">Data updated: {{ data_updated_at|format_zurich_display_timestamp }}</span>
