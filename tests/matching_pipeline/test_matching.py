@@ -296,7 +296,7 @@ class TestCurrentPredicates:
 
         assert len(ctx.all_matches) == 1
         assert ctx.all_matches[0].osm_node.node_id == 'osm_1'
-        assert ctx.all_matches[0].match_type == 'route_gtfs_gtfs'
+        assert ctx.all_matches[0].match_type == 'route_gtfs_tokens'
 
     def test_group_proximity_partial_matching_leaves_far_outlier_unmatched(self):
         ctx = _build_ctx(
