@@ -20,6 +20,8 @@ def test_compute_db_stats_includes_contradicts_route_matching(app, monkeypatch):
         ]
         if any(cmd in statement for cmd in spatial_cmds) or statement.startswith('TRUNCATE TABLE'):
             return
+        if 'CREATE INDEX idx_stops_geom_gist ON stops_matched (geom)' in statement:
+            return
         if 'AddGeometryColumn' in statement:
             match = re.search(r"AddGeometryColumn\s*\('(\w+)',\s*'(\w+)'", statement)
             if match:
