@@ -5,6 +5,53 @@ window.ProblemsData = (function () {
 
     const DEFAULT_SORT_BY = 'priority';
     const DEFAULT_SORT_ORDER = 'asc';
+    const ALL_PROBLEM_TYPES = [
+        'attributes',
+        'contradicts_route_matching',
+        'distance',
+        'duplicates',
+        'unmatched'
+    ];
+
+    function getNormalizedProblemTypeSelection(selectedTypes) {
+        return Array.isArray(selectedTypes) ? selectedTypes : [];
+    }
+
+    function getEffectiveSelectedTypes(selectedTypes = getSelectedTypes()) {
+        const normalizedSelection = getNormalizedProblemTypeSelection(selectedTypes);
+        if (!normalizedSelection.length) {
+            return ALL_PROBLEM_TYPES.slice();
+        }
+        return ALL_PROBLEM_TYPES.filter(type => normalizedSelection.includes(type));
+    }
+
+    function isAllProblemTypesSelected(selectedTypes = getSelectedTypes()) {
+        return getNormalizedProblemTypeSelection(selectedTypes).length === 0;
+    }
+
+    function computeNextProblemTypeSelection(currentTypes, newType, isChecked) {
+        if (newType === 'all') {
+            return [];
+        }
+
+        let next = getEffectiveSelectedTypes(currentTypes);
+
+        if (isChecked) {
+            if (!next.includes(newType)) {
+                next = next.concat([newType]);
+            }
+        } else {
+            next = next.filter(type => type !== newType);
+        }
+
+        next = ALL_PROBLEM_TYPES.filter(type => next.includes(type));
+
+        if (!next.length || next.length === ALL_PROBLEM_TYPES.length) {
+            return [];
+        }
+
+        return next;
+    }
 
     function getSelectedTypes() {
         return ProblemsState.getSelectedProblemTypes() || [];
@@ -82,7 +129,9 @@ window.ProblemsData = (function () {
 
     function updateTypeButtonDisplay() {
         const selectedTypes = getSelectedTypes();
-        if (!selectedTypes.length) {
+        const effectiveSelectedTypes = getEffectiveSelectedTypes(selectedTypes);
+
+        if (isAllProblemTypesSelected(selectedTypes)) {
             $('#typeFilterButtonProblems').text('Type: All');
         } else if (selectedTypes.length === 1) {
             const label = selectedTypes[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -91,11 +140,12 @@ window.ProblemsData = (function () {
             $('#typeFilterButtonProblems').text(`Type: ${selectedTypes.length} selected`);
         }
 
-        $('#filterProblemTypeAll').prop('checked', selectedTypes.length === 0);
-        $('#filterProblemTypeAttributes').prop('checked', selectedTypes.includes('attributes'));
-        $('#filterProblemTypeDistance').prop('checked', selectedTypes.includes('distance'));
-        $('#filterProblemTypeDuplicates').prop('checked', selectedTypes.includes('duplicates'));
-        $('#filterProblemTypeUnmatched').prop('checked', selectedTypes.includes('unmatched'));
+        $('#filterProblemTypeAll').prop('checked', isAllProblemTypesSelected(selectedTypes));
+        $('#filterProblemTypeAttributes').prop('checked', effectiveSelectedTypes.includes('attributes'));
+        $('#filterProblemTypeContradictsRouteMatching').prop('checked', effectiveSelectedTypes.includes('contradicts_route_matching'));
+        $('#filterProblemTypeDistance').prop('checked', effectiveSelectedTypes.includes('distance'));
+        $('#filterProblemTypeDuplicates').prop('checked', effectiveSelectedTypes.includes('duplicates'));
+        $('#filterProblemTypeUnmatched').prop('checked', effectiveSelectedTypes.includes('unmatched'));
     }
 
     function syncPrioritySelectionUi() {
@@ -118,17 +168,7 @@ window.ProblemsData = (function () {
 
     function updateProblemTypeFilter(newType, isChecked) {
         const current = getSelectedTypes();
-        let next = [];
-
-        if (newType === 'all') {
-            next = [];
-        } else {
-            if (isChecked) {
-                next = current.includes(newType) ? current : current.concat([newType]);
-            } else {
-                next = current.filter(t => t !== newType);
-            }
-        }
+        const next = computeNextProblemTypeSelection(current, newType, isChecked);
 
         ProblemsState.setSelectedProblemTypes(next);
         updateTypeButtonDisplay();
@@ -249,6 +289,7 @@ window.ProblemsData = (function () {
         $.getJSON('/api/problems/stats', params, function (stats) {
             $('#typeCountAll').text((stats.all && stats.all.all) || 0);
             $('#typeCountAttributes').text((stats.attributes && stats.attributes.all) || 0);
+            $('#typeCountContradictsRouteMatching').text((stats.contradicts_route_matching && stats.contradicts_route_matching.all) || 0);
             $('#typeCountDistance').text((stats.distance && stats.distance.all) || 0);
             $('#typeCountDuplicates').text((stats.duplicates && stats.duplicates.all) || 0);
             $('#typeCountUnmatched').text((stats.unmatched && stats.unmatched.all) || 0);
@@ -301,8 +342,11 @@ window.ProblemsData = (function () {
     }
 
     return {
+        ALL_PROBLEM_TYPES,
+        computeNextProblemTypeSelection,
         groupProblemsByEntry,
         updateProblemTypeFilter,
+        updateTypeButtonDisplay,
         fetchProblems,
         prefetchNextPageIfNeeded,
         initializeProblemTypeFilter,

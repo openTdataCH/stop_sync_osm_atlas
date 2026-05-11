@@ -10,7 +10,13 @@ problems_bp = Blueprint('problems', __name__)
 
 DEFAULT_PROBLEM_SORT_BY = 'priority'
 DEFAULT_PROBLEM_SORT_ORDER = 'asc'
-VISIBLE_PROBLEM_TYPES = ('distance', 'unmatched', 'attributes', 'duplicates')
+VISIBLE_PROBLEM_TYPES = (
+    'distance',
+    'unmatched',
+    'attributes',
+    'contradicts_route_matching',
+    'duplicates',
+)
 
 
 def parse_csv_values(raw_value):
@@ -405,6 +411,7 @@ def get_problem_stats():
             'distance': {'all': 0, 'solved': 0, 'unsolved': 0},
             'unmatched': {'all': 0, 'solved': 0, 'unsolved': 0},
             'attributes': {'all': 0, 'solved': 0, 'unsolved': 0},
+            'contradicts_route_matching': {'all': 0, 'solved': 0, 'unsolved': 0},
             'duplicates': {'all': 0, 'solved': 0, 'unsolved': 0}
         }
         selected_priorities = parse_priority_values(request.args.get('priority'))
@@ -432,6 +439,7 @@ def get_problem_stats():
                 'distance': {'all': 0, 'solved': 0, 'unsolved': 0},
                 'unmatched': {'all': 0, 'solved': 0, 'unsolved': 0},
                 'attributes': {'all': 0, 'solved': 0, 'unsolved': 0},
+                'contradicts_route_matching': {'all': 0, 'solved': 0, 'unsolved': 0},
                 'duplicates': {'all': 0, 'solved': 0, 'unsolved': 0}
             }), 200
         app.logger.error(f"Error fetching problem stats: {str(e)}")

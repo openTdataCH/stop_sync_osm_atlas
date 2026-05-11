@@ -6,6 +6,8 @@
  */
 window.ProblemsUI = (function () {
     'use strict';
+} else if (problem.problem === 'contradicts_route_matching') {
+    actionButtonsHtml += generateRouteContradictionDetailsHtml(problem);
 
     // Small UI helpers
     // Map priority to alert styling
@@ -206,6 +208,9 @@ window.ProblemsUI = (function () {
                 // Banner is rendered within the attribute comparison section; skip here to avoid duplication
                 return '';
             }
+            case 'contradicts_route_matching': {
+                return '';
+            }
             case 'duplicates': {
                 // Info is already shown in the resolution actions banner, no need for bottom banner
                 return '';
@@ -230,6 +235,73 @@ window.ProblemsUI = (function () {
     function generateUnmatchedDetailsHtml(problem) {
         const isAtlas = problem.stop_type === 'atlas_unmatched' || (!!problem.sloid && !problem.osm_node_id);
         return `<div class="problem-section-item"><div class="alert alert-info mb-0"><small><i class="fas fa-info-circle"></i> This ${isAtlas ? 'ATLAS' : 'OSM'} entry has no counterpart under current matching rules.</small></div></div>`;
+    }
+
+    function formatRouteEvidenceItems(routes, sourceType) {
+        const uniqueLabels = [];
+        const seen = new Set();
+
+        (Array.isArray(routes) ? routes : []).forEach(route => {
+            const baseLabel = sourceType === 'atlas'
+                ? (route.route_name_short || route.route_name_long || route.route_id)
+                : (route.route_name || route.display_route_id || route.route_id || route.internal_route_id);
+            if (!baseLabel) {
+                return;
+            }
+
+            const directionSuffix = route.direction_id !== undefined && route.direction_id !== null && String(route.direction_id) !== ''
+                ? ` dir:${route.direction_id}`
+                : '';
+            const label = `${baseLabel}${directionSuffix}`;
+
+            if (!seen.has(label)) {
+                seen.add(label);
+                uniqueLabels.push(label);
+            }
+        });
+
+        return uniqueLabels;
+    }
+
+    function generateRouteContradictionDetailsHtml(problem) {
+        const atlasRoutes = formatRouteEvidenceItems(problem.routes_atlas, 'atlas');
+        const osmRoutes = formatRouteEvidenceItems(problem.routes_osm, 'osm');
+        const matchMethod = problem.match_type === 'route_gtfs_direction'
+            ? 'direction-name route matching'
+            : problem.match_type === 'route_gtfs_tokens'
+                ? 'GTFS token route matching'
+                : 'the current matched pair';
+
+        function renderRouteList(routes) {
+            if (!routes.length) {
+                return '<div class="text-muted">No route evidence available.</div>';
+            }
+
+            const previewItems = routes.slice(0, 3).map(route => `<li>${route}</li>`).join('');
+            const remainder = routes.length > 3
+                ? `<li class="text-muted">+${routes.length - 3} more</li>`
+                : '';
+
+            return `<ul class="mb-0 ps-3">${previewItems}${remainder}</ul>`;
+        }
+
+        return `
+            <div class="problem-section-item">
+                <h6><i class="fas fa-route"></i> Route Evidence</h6>
+                <div class="alert alert-warning problem-info-banner mb-3">
+                    <small><i class="fas fa-exclamation-triangle"></i> This stop pair conflicts with route evidence from ATLAS GTFS rows and OSM route memberships. Review nearby candidates on the same line before accepting ${matchMethod}.</small>
+                </div>
+                <div class="attribute-mini-popups">
+                    <div class="atlas-match attribute-mini-popup">
+                        <h5>ATLAS Routes</h5>
+                        ${renderRouteList(atlasRoutes)}
+                    </div>
+                    <div class="osm-match attribute-mini-popup">
+                        <h5>OSM Routes</h5>
+                        ${renderRouteList(osmRoutes)}
+                    </div>
+                </div>
+            </div>`;
     }
 
     function updateFloatingPriority(problem) {
