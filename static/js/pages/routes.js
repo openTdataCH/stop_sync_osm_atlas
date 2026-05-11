@@ -101,7 +101,7 @@
 
     osmOperatorDropdown = new window.OperatorDropdown('#osmOperatorFilterRoutes', {
       apiUrl: '/api/osm_route_operators',
-      placeholder: 'Select OSM operators...',
+      placeholder: 'Select OSM route operators...',
       multiple: true,
       onSelectionChange: function (selectedOperators) {
         syncOsmOperatorInput(selectedOperators);
@@ -239,7 +239,7 @@
     if (config.selectedOsmOperators && config.selectedOsmOperators.length > 0) {
       config.selectedOsmOperators.forEach(function (op) {
         chips.push(buildRemovableChip({
-          label: 'OSM Operator: ' + op,
+          label: 'OSM Route Operator: ' + op,
           badgeClass: 'filter-chip-osm',
           data: { type: 'osmOperator', value: op }
         }));
