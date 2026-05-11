@@ -10,7 +10,7 @@ class _DummyProblemContext:
 
 
 def test_build_fast_insert_payloads_normalizes_blank_atlas_operator_abbr(monkeypatch):
-    monkeypatch.setattr(importer_mod, 'run_problem_pipeline', lambda *args, **kwargs: [])
+    monkeypatch.setattr(importer_mod, 'evaluate_unmatched_problems', lambda *args, **kwargs: [])
     monkeypatch.setattr(importer_mod, '_build_gtfs_insert_payloads', lambda: ([], []))
 
     atlas_node = AtlasNode(

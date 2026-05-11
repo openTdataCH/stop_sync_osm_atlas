@@ -1,9 +1,9 @@
 """
 Pipeline runner for problem detection on unmatched records.
 
-Provides ``run_problem_pipeline`` and ``STOP_PROBLEM_PIPELINE`` used by
+Provides ``evaluate_unmatched_problems`` and ``STOP_PROBLEM_PIPELINE`` used by
 ``importer.py`` when evaluating problems for unmatched ATLAS / OSM stops
-(matched records use ``MatchRecord.evaluate_problems()`` instead).
+(matched records use ``MatchRecord.evaluate_matched_problems()`` instead).
 """
 
 import logging
@@ -25,7 +25,7 @@ STOP_PROBLEM_PIPELINE = [
 ]
 
 
-def run_problem_pipeline(predicates, ctx, stop_dict):
+def evaluate_unmatched_problems(predicates, ctx, stop_dict):
     """Run *predicates* sequentially, collecting ProblemResult lists."""
     results = []
     for predicate in predicates:
