@@ -1166,7 +1166,7 @@ def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -
         'route_problem_breakdown': route_problem_stats.get('by_priority', {}),
         'probs': problem_stats,
         'route_probs': route_problem_stats,
-        'generated_at': datetime.now(),
+        'generated_at': get_zurich_now(),
         'css_content': '',
         'pdf_assets_prefix': 'static/vendor/'
     }
