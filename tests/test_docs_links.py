@@ -132,8 +132,8 @@ def test_documentation_links_in_rendered_html():
             pytest.fail("\n".join(message))
 
 
-def test_docs_canonical_slug_urls_and_legacy_redirects():
-    """Ensure docs use canonical slug URLs and old filename URLs redirect."""
+def test_docs_canonical_slug_urls():
+    """Ensure docs use canonical slug URLs."""
     try:
         import sys
         from pathlib import Path
@@ -154,12 +154,6 @@ def test_docs_canonical_slug_urls_and_legacy_redirects():
         canonical = client.get('/docs/exact_matching')
         assert canonical.status_code == 200
 
-        # Legacy filename-style route should redirect to canonical slug route.
-        legacy = client.get('/docs/2.1%20Exact%20matching', follow_redirects=False)
-        assert legacy.status_code in (301, 302)
-        location = legacy.headers.get('Location', '')
-        assert location.endswith('/docs/exact_matching')
-
         # Sidebar and docs navigation links should be slug-based.
         root = client.get('/docs')
         assert root.status_code == 200
@@ -172,7 +166,6 @@ def test_docs_canonical_slug_urls_and_legacy_redirects():
         }
 
         assert '/docs/exact_matching' in docs_hrefs
-        assert '/docs/2.1%20Exact%20matching' not in docs_hrefs
 
 
 def test_auto_linking_of_repo_files():

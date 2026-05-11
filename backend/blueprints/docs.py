@@ -734,18 +734,7 @@ def docs_page(page: str = ''):
             return None
 
         # Canonical slug lookup.
-        by_slug = slug_to_file.get(decoded_page)
-        if by_slug:
-            return by_slug
-
-        # Legacy filename lookup (with or without .md extension).
-        candidate = decoded_page if decoded_page.lower().endswith('.md') else f"{decoded_page}.md"
-        if candidate in file_to_slug:
-            return candidate
-
-        # Fallback for loosely formatted legacy links.
-        fallback_slug = _slugify_doc_stem(os.path.splitext(decoded_page)[0])
-        return slug_to_file.get(fallback_slug)
+        return slug_to_file.get(decoded_page)
 
     is_partial = request.headers.get('X-Docs-Partial') == '1' or request.args.get('partial') == '1'
 
@@ -757,10 +746,6 @@ def docs_page(page: str = ''):
         abort(404)
 
     active_slug = file_to_slug.get(active_file, '')
-
-    # Redirect legacy/non-canonical URLs to canonical slugs for clean URLs.
-    if page and unquote(page).strip('/') != active_slug and not is_partial:
-        return redirect(url_for('docs.docs_page', page=active_slug), code=301)
 
     if active_file is None:
         active_file = files[0]
