@@ -110,7 +110,7 @@ class MatchRecord:
     notes: str
     problems: list['ProblemResult'] = field(default_factory=list)
 
-    def evaluate_problems(self, problem_ctx: 'ProblemContext', predicates: list) -> None:
+    def evaluate_matched_problems(self, problem_ctx: 'ProblemContext', predicates: list) -> None:
         """
         Natively execute the problem heuristics on this match, directly returning ProblemResult
         objects without relying on the ORM or Importer logic.

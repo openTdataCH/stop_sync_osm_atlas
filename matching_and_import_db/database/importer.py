@@ -21,7 +21,7 @@ from sqlalchemy import func, text, inspect, insert
 from matching_and_import_db.orchestrator import run_matching
 from matching_and_import_db.models import MatchingOutput
 from matching_and_import_db.problem_detection.context import ProblemContext
-from matching_and_import_db.problem_detection.pipeline import run_problem_pipeline, STOP_PROBLEM_PIPELINE
+from matching_and_import_db.problem_detection.pipeline import evaluate_unmatched_problems, STOP_PROBLEM_PIPELINE
 from matching_and_import_db.problem_detection.result import ProblemResult
 from matching_and_import_db.database.session import session
 from matching_and_import_db.database.helpers import (
@@ -242,7 +242,7 @@ def precompute_problem_artifacts(base_data: MatchingOutput) -> dict:
 
     matched_problem_map = {}
     for current_match in getattr(base_data, 'matched', []):
-        current_match.evaluate_problems(problem_ctx, STOP_PROBLEM_PIPELINE)
+        current_match.evaluate_matched_problems(problem_ctx, STOP_PROBLEM_PIPELINE)
         matched_problem_map[id(current_match)] = list(current_match.problems)
 
     unmatched_atlas_problem_map = {}
@@ -261,7 +261,7 @@ def precompute_problem_artifacts(base_data: MatchingOutput) -> dict:
         unmatched_atlas_problem_map[id(atlas_node)] = {
             'match_type': 'no_nearby_counterpart' if is_isolated else None,
             'is_isolated': is_isolated,
-            'problems': run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, atlas_node),
+            'problems': evaluate_unmatched_problems(STOP_PROBLEM_PIPELINE, problem_ctx, atlas_node),
         }
 
     unmatched_osm_problem_map = {}
@@ -269,7 +269,7 @@ def precompute_problem_artifacts(base_data: MatchingOutput) -> dict:
         osm_lat, osm_lon = osm_node.lat, osm_node.lon
         if osm_lat == 0.0 and osm_lon == 0.0 and 'lat' not in osm_node.tags:
             continue
-        unmatched_osm_problem_map[id(osm_node)] = run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, osm_node)
+        unmatched_osm_problem_map[id(osm_node)] = evaluate_unmatched_problems(STOP_PROBLEM_PIPELINE, problem_ctx, osm_node)
 
     return {
         'problem_ctx': problem_ctx,
@@ -408,7 +408,7 @@ def build_fast_insert_payloads(
         if id(current_match) in matched_problem_map:
             problems = matched_problem_map[id(current_match)]
         else:
-            current_match.evaluate_problems(problem_ctx, STOP_PROBLEM_PIPELINE)
+            current_match.evaluate_matched_problems(problem_ctx, STOP_PROBLEM_PIPELINE)
             problems = current_match.problems
 
         sloid = current_match.atlas_node.sloid
@@ -475,7 +475,7 @@ def build_fast_insert_payloads(
             nearest_d = problem_ctx.nearest_osm_distance(atlas_lat, atlas_lon)
             is_isolated = True if nearest_d is None or nearest_d > 50 else False
             match_type_for_unmatched = 'no_nearby_counterpart' if is_isolated else None
-            problems = run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, atlas_node)
+            problems = evaluate_unmatched_problems(STOP_PROBLEM_PIPELINE, problem_ctx, atlas_node)
 
         if is_isolated and sloid:
             no_nearby_osm_sloids.add(sloid)
@@ -551,7 +551,7 @@ def build_fast_insert_payloads(
         if id(osm_node) in unmatched_osm_problem_map:
             problems = unmatched_osm_problem_map[id(osm_node)]
         else:
-            problems = run_problem_pipeline(STOP_PROBLEM_PIPELINE, problem_ctx, osm_node)
+            problems = evaluate_unmatched_problems(STOP_PROBLEM_PIPELINE, problem_ctx, osm_node)
 
         geom_wkt = _make_point_wkt(osm_lat, osm_lon)
 
