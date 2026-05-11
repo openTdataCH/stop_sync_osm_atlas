@@ -196,13 +196,6 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
         </tr>
         <tr>
-          <td>Post-processing: Unique by UIC</td>
-          <td class="text-end">{{ "{:,}".format(stages.post_processing.unique_by_uic) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stages.post_processing.unique_by_uic / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stages.post_processing.unique_by_uic_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('post_unique_by_uic', 0)) }}</td>
-        </tr>
-        <tr>
           <td>Post-processing: ATLAS Duplicate propagation</td>
           <td class="text-end">{{ "{:,}".format(stages.post_processing.duplicate_propagation) }}</td>
           <td class="text-end">{{ "%.1f"|format(stages.post_processing.duplicate_propagation / total_denom * 100) }}%
@@ -269,8 +262,8 @@ SECTION 1 — STOPS MATCHING
     <h6 class="mt-3 mb-2">Distance by Matching Stage</h6>
     {% set stage_order = ['exact', 'name', 'distance_trio', 'distance_stage1_uic_ref',
     'distance_stage1_uic_name', 'distance_stage1_name', 'distance_stage1', 'distance_stage2',
-    'distance_stage3a_pass1', 'distance_stage3a_pass2', 'distance_stage3b', 'route_gtfs',
-    'post_unique_by_uic', 'post_duplicate_propagation', 'post_osm_group_propagation'] %}
+  'distance_stage3a_pass1', 'distance_stage3a_pass2', 'distance_stage3b', 'route_gtfs',
+  'post_duplicate_propagation', 'post_osm_group_propagation'] %}
     {% set stage_labels = {
     'exact': 'Exact (UIC ref)',
     'name': 'Name matching',
@@ -284,7 +277,6 @@ SECTION 1 — STOPS MATCHING
     'distance_stage3a_pass2': 'Distance Stage 3a pass 2 (single candidate)',
     'distance_stage3b': 'Distance Stage 3b (ratio test)',
     'route_gtfs': 'Route matching (GTFS)',
-    'post_unique_by_uic': 'Post: Unique by UIC',
     'post_duplicate_propagation': 'Post: Duplicate propagation',
     'post_osm_group_propagation': 'Post: OSM group propagation',
     } %}

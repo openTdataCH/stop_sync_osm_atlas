@@ -28,16 +28,6 @@ var activeFilters = {
 };
 
 const SMART_SEARCH_VALIDATION_MESSAGE = 'Allowed formats: UIC (e.g. 8503000), ATLAS SLOID (ch:1:sloid:...), OSM node id (123456789), route (11-T-jXX-1 dir:0)';
-const MATCHED_METHOD_CHECKBOX_SELECTORS = [
-    '#filterExact',
-    '#filterName',
-    '#distanceMethodTrio',
-    '#distanceMethodStage1',
-    '#distanceMethodStage2',
-    '#distanceMethodStage3a',
-    '#distanceMethodStage3b',
-    '#routeMethodGtfs'
-];
 const DISTANCE_METHOD_CHECKBOX_SELECTORS = [
     '#distanceMethodTrio',
     '#distanceMethodStage1',
@@ -79,6 +69,128 @@ function formatTransportTypeLabel(filter) {
     return labels[filter] || filter.replace(/_/g, ' ').split(' ').map(function (word) {
         return word.charAt(0).toUpperCase() + word.slice(1);
     }).join(' ');
+}
+
+function formatOsmEntityTypeLabel(filter) {
+    return 'OSM: ' + (filter === 'way' ? 'Ways' : filter);
+}
+
+function removeValueFromArray(values, value) {
+    const index = values.indexOf(value);
+    if (index === -1) {
+        return false;
+    }
+
+    values.splice(index, 1);
+    return true;
+}
+
+const SIMPLE_ARRAY_FILTER_DEFINITIONS = [
+    {
+        stateKey: 'transportTypes',
+        filterType: 'transportType',
+        renderGroup: function (values, helpers) {
+            const chips = values.map(function (filter) {
+                return helpers.buildRemovableChip({
+                    label: formatTransportTypeLabel(filter),
+                    badgeClass: 'filter-chip-osm',
+                    data: { type: 'transportType', filter: filter }
+                });
+            });
+            return helpers.buildOrGroup(chips);
+        },
+        remove: function (value) {
+            $('.filter-transport-type[value="' + value + '"]').prop('checked', false).trigger('change');
+            return false;
+        }
+    },
+    {
+        stateKey: 'osmEntityTypes',
+        filterType: 'osmEntityType',
+        renderGroup: function (values, helpers) {
+            const chips = values.map(function (filter) {
+                return helpers.buildRemovableChip({
+                    label: formatOsmEntityTypeLabel(filter),
+                    badgeClass: 'filter-chip-osm',
+                    data: { type: 'osmEntityType', filter: filter }
+                });
+            });
+            return helpers.buildOrGroup(chips);
+        },
+        remove: function (value) {
+            $('.filter-osm-entity-type[value="' + value + '"]').prop('checked', false).trigger('change');
+            return false;
+        }
+    },
+    {
+        stateKey: 'atlasOperators',
+        filterType: 'atlasOperator',
+        renderGroup: function (values) {
+            return window.FilterChipUtils.generateOperatorChipsHtml(values, {
+                context: 'index',
+                labelPrefix: 'ATLAS Operator'
+            });
+        },
+        remove: function (value) {
+            if (!removeValueFromArray(activeFilters.atlasOperators, value)) {
+                return true;
+            }
+            if (window.operatorDropdown) {
+                window.operatorDropdown.setSelection(activeFilters.atlasOperators);
+            }
+            return true;
+        }
+    },
+    {
+        stateKey: 'osmOperators',
+        filterType: 'osmOperator',
+        renderGroup: function (values) {
+            return window.FilterChipUtils.generateOperatorChipsHtml(values, {
+                context: 'index',
+                labelPrefix: 'OSM Stop Operator',
+                chipType: 'osmOperator',
+                badgeClass: 'filter-chip-osm'
+            });
+        },
+        remove: function (value) {
+            if (!removeValueFromArray(activeFilters.osmOperators, value)) {
+                return true;
+            }
+            if (window.osmOperatorDropdown) {
+                window.osmOperatorDropdown.setSelection(activeFilters.osmOperators);
+            }
+            return true;
+        }
+    }
+];
+
+function countSimpleArrayFilters() {
+    return SIMPLE_ARRAY_FILTER_DEFINITIONS.reduce(function (count, definition) {
+        const values = activeFilters[definition.stateKey] || [];
+        return count + values.length;
+    }, 0);
+}
+
+function appendSimpleArrayFilterGroups(finalGroupStrings, helpers) {
+    SIMPLE_ARRAY_FILTER_DEFINITIONS.forEach(function (definition) {
+        const values = activeFilters[definition.stateKey] || [];
+        const groupHtml = definition.renderGroup(values, helpers);
+        if (groupHtml) {
+            finalGroupStrings.push(groupHtml);
+        }
+    });
+}
+
+function removeSimpleArrayFilter(filterType, filterValue) {
+    const definition = SIMPLE_ARRAY_FILTER_DEFINITIONS.find(function (entry) {
+        return entry.filterType === filterType;
+    });
+
+    if (!definition) {
+        return null;
+    }
+
+    return definition.remove(filterValue);
 }
 
 function getSelectedMatchedMethodFiltersFromState() {
@@ -135,6 +247,19 @@ function isAtlasUnmatchedScopeActive() {
     return activeFilters.stopType.includes('atlas_unmatched') || getSelectedUnmatchedReasonFiltersFromState().length > 0;
 }
 
+function countSelectedFlags(flags, excludedKeys = []) {
+    if (!flags) {
+        return 0;
+    }
+
+    return Object.keys(flags).reduce(function (count, key) {
+        if (excludedKeys.includes(key) || !flags[key]) {
+            return count;
+        }
+        return count + 1;
+    }, 0);
+}
+
 function getActiveFilterCount() {
     let count = 0;
     const showMatchedFilters = isMatchedScopeActive();
@@ -144,22 +269,18 @@ function getActiveFilterCount() {
         if (activeFilters.matchedOptions.allSelected) {
             count += 1;
         } else {
-            Object.keys(activeFilters.matchedOptions.methods).forEach(function (method) {
-                if (activeFilters.matchedOptions.methods[method]) count += 1;
-            });
+            count += countSelectedFlags(activeFilters.matchedOptions.methods);
 
             if (activeFilters.matchedOptions.distanceMatching.allSelected) {
                 count += 1;
             } else {
-                Object.keys(activeFilters.matchedOptions.distanceMatching).forEach(function (stage) {
-                    if (stage !== 'allSelected' && activeFilters.matchedOptions.distanceMatching[stage]) count += 1;
-                });
+                count += countSelectedFlags(activeFilters.matchedOptions.distanceMatching, ['allSelected']);
             }
 
             if (activeFilters.matchedOptions.routeMatching.allSelected) {
                 count += 1;
             } else {
-                if (activeFilters.matchedOptions.routeMatching.gtfs) count += 1;
+                count += countSelectedFlags(activeFilters.matchedOptions.routeMatching, ['allSelected']);
             }
         }
     }
@@ -168,17 +289,14 @@ function getActiveFilterCount() {
         if (activeFilters.unmatchedOptions.allSelected) {
             count += 1;
         } else {
-            if (activeFilters.unmatchedOptions.reasons.noNearbyOSM) count += 1;
-            if (activeFilters.unmatchedOptions.reasons.osmNearby) count += 1;
+            count += countSelectedFlags(activeFilters.unmatchedOptions.reasons);
         }
     }
 
     if (activeFilters.stopType.includes('osm_unmatched')) count += 1;
 
     count += activeFilters.station.length;
-    count += activeFilters.transportTypes.length;
-    count += activeFilters.atlasOperators.length;
-    count += activeFilters.osmOperators.length;
+    count += countSimpleArrayFilters();
 
     if (activeFilters.osmGroups && activeFilters.osmGroups.length > 0) {
         count += activeFilters.osmGroups.includes('all') ? 1 : activeFilters.osmGroups.length;
@@ -550,26 +668,10 @@ function updateFiltersUI() {
     const stationIdGroupHtml = buildOrGroup(stationIdChips);
     if (stationIdGroupHtml) finalGroupStrings.push(stationIdGroupHtml);
 
-    let transportTypeChips = [];
-    activeFilters.transportTypes.forEach(function (filter) {
-        var dName = formatTransportTypeLabel(filter);
-        transportTypeChips.push(buildRemovableChip({ label: dName, badgeClass: 'filter-chip-osm', data: { type: 'transportType', filter: filter } }));
+    appendSimpleArrayFilterGroups(finalGroupStrings, {
+        buildRemovableChip: buildRemovableChip,
+        buildOrGroup: buildOrGroup
     });
-    const transportTypeGroupHtml = buildOrGroup(transportTypeChips);
-    if (transportTypeGroupHtml) finalGroupStrings.push(transportTypeGroupHtml);
-    
-    let entityTypeChips = [];
-    activeFilters.osmEntityTypes.forEach(function (filter) {
-        entityTypeChips.push(buildRemovableChip({ label: 'OSM: ' + (filter === 'way' ? 'Ways' : filter), badgeClass: 'filter-chip-osm', data: { type: 'osmEntityType', filter: filter } }));
-    });
-    const entityTypeGroupHtml = buildOrGroup(entityTypeChips);
-    if (entityTypeGroupHtml) finalGroupStrings.push(entityTypeGroupHtml);
-
-    const operatorGroupHtml = window.FilterChipUtils.generateOperatorChipsHtml(activeFilters.atlasOperators, { context: 'index', labelPrefix: 'ATLAS Operator' });
-    if (operatorGroupHtml) finalGroupStrings.push(operatorGroupHtml);
-
-    const osmOperatorGroupHtml = window.FilterChipUtils.generateOperatorChipsHtml(activeFilters.osmOperators, { context: 'index', labelPrefix: 'OSM Stop Operator', chipType: 'osmOperator', badgeClass: 'filter-chip-osm' });
-    if (osmOperatorGroupHtml) finalGroupStrings.push(osmOperatorGroupHtml);
 
     if (activeFilters.osmGroups && activeFilters.osmGroups.length > 0) {
         if (activeFilters.osmGroups.includes('all')) {
@@ -875,74 +977,49 @@ function initFilterEventHandlers() {
                 $(targetCheckboxId).prop('checked', false).trigger('change');
             }
         } else {
+            const simpleArrayRemoval = removeSimpleArrayFilter(type, filterValue);
+            if (simpleArrayRemoval !== null) {
+                needsManualUpdateCall = simpleArrayRemoval;
+            } else {
             // Handle types that don't use data-target but have corresponding UI elements or direct activeFilters manipulation
-            switch (type) {
-                case 'transportType':
-                    $('.filter-transport-type[value="' + filterValue + '"]').prop('checked', false).trigger('change');
-                    break;
-                case 'osmEntityType':
-                    $('.filter-osm-entity-type[value="' + filterValue + '"]').prop('checked', false).trigger('change');
-                    break;
-                case 'atlasOperator':
-                    // Remove from activeFilters.atlasOperators array
-                    const operatorIndex = activeFilters.atlasOperators.indexOf(filterValue);
-                    if (operatorIndex > -1) {
-                        activeFilters.atlasOperators.splice(operatorIndex, 1);
-                    }
-                    // Update the operator dropdown if it exists
-                    if (window.operatorDropdown) {
-                        window.operatorDropdown.setSelection(activeFilters.atlasOperators);
-                    }
-                    needsManualUpdateCall = true;
-                    break;
-                case 'osmOperator':
-                    // Remove from activeFilters.osmOperators array
-                    const osmOperatorIndex = activeFilters.osmOperators.indexOf(filterValue);
-                    if (osmOperatorIndex > -1) {
-                        activeFilters.osmOperators.splice(osmOperatorIndex, 1);
-                    }
-                    // Update the OSM operator dropdown if it exists
-                    if (window.osmOperatorDropdown) {
-                        window.osmOperatorDropdown.setSelection(activeFilters.osmOperators);
-                    }
-                    needsManualUpdateCall = true;
-                    break;
-                case 'station': // For UIC, Sloid, OSM Node ID, Route ID filters
-                    if (index !== undefined && index >= 0 && index < activeFilters.station.length) {
-                        activeFilters.station.splice(index, 1);
-                        activeFilters.stationTypes.splice(index, 1);
-                        activeFilters.routeDirections.splice(index, 1);
-                    }
-                    needsManualUpdateCall = true;
-                    break;
-                case 'topN':
-                    activeFilters.topN = null;
-                    $('#topDistance').val(10); // Reset input field as well
-                    $('#toggleTopNBtn').html('<i class="fas fa-filter"></i> Activate Top N');
-                    // updateActiveFilters will handle clearing layers via loadDataForViewport or loadTopNMatches
-                    needsManualUpdateCall = true;
-                    break;
-                case 'showDuplicatesOnly':
-                    $('#filterDuplicatesOnly').prop('checked', false).trigger('change');
-                    break;
-                case 'osmGroup':
-                    $('#filterOsmGroup').prop('checked', false).trigger('change');
-                    break;
-                case 'specificOsmGroup':
-                    var remainingOsmGroupTypes = $('.filter-osm-group-type:checked').not('[value="' + filterValue + '"]');
-                    if (remainingOsmGroupTypes.length === 0) {
+                switch (type) {
+                    case 'station': // For UIC, Sloid, OSM Node ID, Route ID filters
+                        if (index !== undefined && index >= 0 && index < activeFilters.station.length) {
+                            activeFilters.station.splice(index, 1);
+                            activeFilters.stationTypes.splice(index, 1);
+                            activeFilters.routeDirections.splice(index, 1);
+                        }
+                        needsManualUpdateCall = true;
+                        break;
+                    case 'topN':
+                        activeFilters.topN = null;
+                        $('#topDistance').val(10); // Reset input field as well
+                        $('#toggleTopNBtn').html('<i class="fas fa-filter"></i> Activate Top N');
+                        // updateActiveFilters will handle clearing layers via loadDataForViewport or loadTopNMatches
+                        needsManualUpdateCall = true;
+                        break;
+                    case 'showDuplicatesOnly':
+                        $('#filterDuplicatesOnly').prop('checked', false).trigger('change');
+                        break;
+                    case 'osmGroup':
                         $('#filterOsmGroup').prop('checked', false).trigger('change');
-                    } else {
-                        $('.filter-osm-group-type[value="' + filterValue + '"]').prop('checked', false).trigger('change');
-                    }
-                    break;
-                // Add other special cases if any are not covered by data-target or a standard checkbox classes
-                default:
-                    // If a type is missed, it might require manual update or a new case.
-                    // For safety, if no specific handling and no targetCheckboxId, consider manual update.
-                    // However, most filter chips should have a data-target or fall into one of these categories.
-                    console.warn('Unhandled filter removal type or missing data-target:', type);
-                    needsManualUpdateCall = true;
+                        break;
+                    case 'specificOsmGroup':
+                        var remainingOsmGroupTypes = $('.filter-osm-group-type:checked').not('[value="' + filterValue + '"]');
+                        if (remainingOsmGroupTypes.length === 0) {
+                            $('#filterOsmGroup').prop('checked', false).trigger('change');
+                        } else {
+                            $('.filter-osm-group-type[value="' + filterValue + '"]').prop('checked', false).trigger('change');
+                        }
+                        break;
+                    // Add other special cases if any are not covered by data-target or a standard checkbox classes
+                    default:
+                        // If a type is missed, it might require manual update or a new case.
+                        // For safety, if no specific handling and no targetCheckboxId, consider manual update.
+                        // However, most filter chips should have a data-target or fall into one of these categories.
+                        console.warn('Unhandled filter removal type or missing data-target:', type);
+                        needsManualUpdateCall = true;
+                }
             }
         }
 

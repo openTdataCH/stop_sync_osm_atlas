@@ -11,6 +11,7 @@ import logging
 from matching_and_import_db.problem_detection.stop_predicates import (
     distance_problem,
     attributes_problem,
+    contradicts_route_matching_problem,
     unmatched_problem,
     duplicates_problem,
 )
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 STOP_PROBLEM_PIPELINE = [
     distance_problem,
     attributes_problem,
+    contradicts_route_matching_problem,
     unmatched_problem,
     duplicates_problem,
 ]
