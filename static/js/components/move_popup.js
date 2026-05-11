@@ -414,11 +414,20 @@
             const dragHandle = container.querySelector('.popup-drag-handle');
             if (dragHandle) { dragHandle.style.cursor = this._isDragging ? 'grabbing' : 'grab'; }
         },
+        _syncLineLayerDimensions: function(svg) {
+            if (!svg || !this._map) return;
+            const mapSize = this._map.getSize();
+            svg.setAttribute('width', String(mapSize.x));
+            svg.setAttribute('height', String(mapSize.y));
+            svg.setAttribute('viewBox', `0 0 ${mapSize.x} ${mapSize.y}`);
+            svg.setAttribute('preserveAspectRatio', 'none');
+        },
         _getOrCreateLineLayer: function() {
             if (!this._map) return null;
             if (this._map._popupConnectionSvg && this._map._popupConnectionSvg.isConnected) {
                 this._lineLayer = this._map._popupConnectionSvg;
-                            wrapper.querySelector(POPUP_BUBBLE_SELECTOR)
+                this._syncLineLayerDimensions(this._lineLayer);
+                return this._lineLayer;
             }
 
             const mapContainer = this._map.getContainer();
@@ -429,6 +438,7 @@
                 mapContainer.appendChild(svg);
             }
 
+            this._syncLineLayerDimensions(svg);
             this._map._popupConnectionSvg = svg;
             this._lineLayer = svg;
             return svg;
@@ -445,6 +455,7 @@
         },
         _updateLine: function() {
             if (!this._line || !this._marker || !this._map || !this._container) return;
+            this._syncLineLayerDimensions(this._lineLayer);
             const markerPoint = this._map.latLngToContainerPoint(this._marker.getLatLng());
             const popupTipPoint = this._getPopupTipPoint(); 
             if (!popupTipPoint) return;
