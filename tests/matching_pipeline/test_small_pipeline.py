@@ -5,7 +5,7 @@ import pytest
 from backend.models import StopsMatched, AtlasStop, OsmNode, Problem
 
 @pytest.fixture
-def setup_test_env_and_db():
+def setup_test_env_and_db(monkeypatch):
     """
     Overrides environment variables to point to the subsetted data in tests/data.
     Uses the in-memory SQLite database automatically configured by the docker 
@@ -70,6 +70,9 @@ def setup_test_env_and_db():
     # Mock PostGIS/EWKT geometry generation in the importer
     orig_make_point_wkt = getattr(importer_mod, '_make_point_wkt', None)
     importer_mod._make_point_wkt = lambda lat, lon: None
+
+    # Keep this test hermetic: CI does not ship GTFS cache artifacts or raw GTFS files.
+    monkeypatch.setattr(importer_mod, '_build_gtfs_insert_payloads', lambda: ([], []))
 
     # Mock PostGIS make_point_geom (legacy/helpers)
     orig_make_point_geom = db_helpers.make_point_geom
