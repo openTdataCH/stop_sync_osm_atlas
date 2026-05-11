@@ -11,8 +11,18 @@
   <div class="operators-container">
     <header class="operators-header">
       {% include "components/data_page_tabs.html" %}
-      <h1>Operators</h1>
-      <p>For each ATLAS operator, inspect the OSM operators seen on matched ATLAS↔OSM stops.</p>
+      <h1>
+        Operators
+        <div class="operators-info" aria-label="About operator discrepancies">
+          <button type="button" class="operators-info__button" aria-label="Info">
+            <i class="fas fa-info-circle" aria-hidden="true"></i>
+          </button>
+          <div class="operators-info__tooltip" role="note">
+            <p>Discrepancies between ATLAS and OSM operators can be explored on the <a href="{{ url_for('problems') }}">Problems</a> page by selecting <strong>Attributes</strong> problems (Priority 3). Check the <a href="{{ url_for('docs.docs_page', page='stop_problems') }}">Stop Problems documentation</a> for more details.</p>
+          </div>
+        </div>
+      </h1>
+      <p>For each ATLAS stop operator, inspect the OSM stop operators seen on matched ATLAS↔OSM stops.</p>
     </header>
 
     <section class="operators-toolbar" aria-label="Operators filters and search">
