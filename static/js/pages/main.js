@@ -1418,7 +1418,7 @@ $(document).ready(function () {
     // Initialize OSM operator dropdown
     window.osmOperatorDropdown = new OperatorDropdown('#osmOperatorFilter', {
         apiUrl: '/api/osm_operators',
-        placeholder: 'Select OSM operators...',
+        placeholder: 'Select OSM stop operators...',
         multiple: true,
         onSelectionChange: function (selectedOperators) {
             activeFilters.osmOperators = selectedOperators;

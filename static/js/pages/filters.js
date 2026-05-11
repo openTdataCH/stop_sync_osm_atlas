@@ -561,7 +561,7 @@ function updateFiltersUI() {
     const operatorGroupHtml = window.FilterChipUtils.generateOperatorChipsHtml(activeFilters.atlasOperators, { context: 'index', labelPrefix: 'ATLAS Operator' });
     if (operatorGroupHtml) finalGroupStrings.push(operatorGroupHtml);
 
-    const osmOperatorGroupHtml = window.FilterChipUtils.generateOperatorChipsHtml(activeFilters.osmOperators, { context: 'index', labelPrefix: 'OSM Operator', chipType: 'osmOperator', badgeClass: 'filter-chip-osm' });
+    const osmOperatorGroupHtml = window.FilterChipUtils.generateOperatorChipsHtml(activeFilters.osmOperators, { context: 'index', labelPrefix: 'OSM Stop Operator', chipType: 'osmOperator', badgeClass: 'filter-chip-osm' });
     if (osmOperatorGroupHtml) finalGroupStrings.push(osmOperatorGroupHtml);
 
     if (activeFilters.osmGroups && activeFilters.osmGroups.length > 0) {
