@@ -279,7 +279,7 @@ def generate_report_data(params, task_id=None):
         elif report_type == 'problems':
             problem_types_str = params.get('problem_types', '')
             selected_types = [t.strip() for t in problem_types_str.split(',') if t.strip()]
-            valid_problem_types = {'distance', 'unmatched', 'attributes', 'duplicates'}
+            valid_problem_types = {'distance', 'unmatched', 'attributes', 'contradicts_route_matching', 'duplicates'}
             if selected_types:
                 selected_types = [t for t in selected_types if t in valid_problem_types]
             else:

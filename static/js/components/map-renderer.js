@@ -488,8 +488,8 @@ function drawProblemOnMap(map, problemData, layers) {
     }
     let popup;
 
-    // Case: 'distance' or 'attributes' problem (a matched pair)
-    if ((stop.problem === 'distance' || stop.problem === 'attributes') && stop.stop_type === 'matched' && stop.atlas_lat && stop.osm_lat) {
+    // Case: matched-pair stop problems rendered as ATLAS<->OSM links
+    if ((stop.problem === 'distance' || stop.problem === 'attributes' || stop.problem === 'contradicts_route_matching') && stop.stop_type === 'matched' && stop.atlas_lat && stop.osm_lat) {
         const atlasMarker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, COLOR_ATLAS_MATCHED, stop.has_atlas_duplicate);
         const atlasPopup = createPopupWithOptions(popupRenderer.generatePopupHtml(stop, 'atlas'));
         atlasMarker.bindPopup(atlasPopup).addTo(layers.markersLayer);
