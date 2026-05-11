@@ -113,7 +113,6 @@ class TestGtfsRoutesIntegration:
             'direction_id',
             'representative_headsign',
             'direction_label',
-            'trip_count',
         }
         assert expected_direction_cols.issubset(set(directions_df.columns)), "Direction columns are missing"
         assert set(directions_df['direction_label']) == {'A -> B', 'B -> A'}

@@ -199,9 +199,8 @@ def write_atlas_route_csvs(
     directions_df['direction_id'] = directions_df['direction_id'].apply(_safe_direction_id)
     directions_df['representative_headsign'] = None
     directions_df['direction_label'] = directions_df['direction']
-    directions_df['trip_count'] = 0
     directions_out = os.path.join(out_dir, "atlas_route_directions.csv")
-    directions_df[['route_id', 'direction_id', 'representative_headsign', 'direction_label', 'trip_count']].to_csv(directions_out, index=False)
+    directions_df[['route_id', 'direction_id', 'representative_headsign', 'direction_label']].to_csv(directions_out, index=False)
     print(f"GTFS directions: wrote {len(directions_df):,} rows to {directions_out}")
 
     # Extract ordered stops per route-direction using the integrated row order.
