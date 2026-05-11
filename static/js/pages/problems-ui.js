@@ -236,7 +236,7 @@ window.ProblemsUI = (function () {
     }
 
     function formatRouteEvidenceItems(routes, sourceType) {
-        const uniqueLabels = [];
+        const uniqueRoutes = [];
         const seen = new Set();
 
         (Array.isArray(routes) ? routes : []).forEach(route => {
@@ -247,18 +247,26 @@ window.ProblemsUI = (function () {
                 return;
             }
 
+            const routeId = sourceType === 'atlas'
+                ? route.route_id
+                : (route.display_route_id || route.route_id || route.internal_route_id);
+            const normalizedBaseLabel = String(baseLabel);
+            const normalizedRouteId = routeId == null ? '' : String(routeId);
+            const labelWithId = normalizedRouteId && normalizedBaseLabel !== normalizedRouteId
+                ? `${normalizedBaseLabel} (ID: ${normalizedRouteId})`
+                : normalizedBaseLabel;
             const directionSuffix = route.direction_id !== undefined && route.direction_id !== null && String(route.direction_id) !== ''
-                ? ` dir:${route.direction_id}`
+                ? ` Dir: ${route.direction_id}`
                 : '';
-            const label = `${baseLabel}${directionSuffix}`;
+            const label = `${labelWithId}${directionSuffix}`;
 
             if (!seen.has(label)) {
                 seen.add(label);
-                uniqueLabels.push(label);
+                uniqueRoutes.push(label);
             }
         });
 
-        return uniqueLabels;
+        return uniqueRoutes;
     }
 
     function generateRouteContradictionDetailsHtml(problem) {
@@ -270,33 +278,36 @@ window.ProblemsUI = (function () {
                 ? 'GTFS token route matching'
                 : 'the current matched pair';
 
-        function renderRouteList(routes) {
+        function buildRouteRows(identifierLabel, identifierValue, routes) {
+            const rows = [[identifierLabel, identifierValue || '-']];
+
             if (!routes.length) {
-                return '<div class="text-muted">No route evidence available.</div>';
+                rows.push(['Route Evidence', 'No route evidence available']);
+            } else {
+                routes.forEach((route, index) => {
+                    rows.push([`Route ${index + 1}`, route]);
+                });
             }
 
-            const previewItems = routes.slice(0, 3).map(route => `<li>${route}</li>`).join('');
-            const remainder = routes.length > 3
-                ? `<li class="text-muted">+${routes.length - 3} more</li>`
-                : '';
-
-            return `<ul class="mb-0 ps-3">${previewItems}${remainder}</ul>`;
+            return rows.map(([key, value]) => `<tr><td>${key}:</td><td>${value}</td></tr>`).join('');
         }
+
+        const atlasRowsHtml = buildRouteRows('Sloid', problem.sloid, atlasRoutes);
+        const osmRowsHtml = buildRouteRows('Node ID', problem.osm_node_id, osmRoutes);
 
         return `
             <div class="problem-section-item">
-                <h6><i class="fas fa-route"></i> Route Evidence</h6>
                 <div class="alert alert-warning problem-info-banner mb-3">
-                    <small><i class="fas fa-exclamation-triangle"></i> This stop pair conflicts with route evidence from ATLAS GTFS rows and OSM route memberships. Review nearby candidates on the same line before accepting ${matchMethod}.</small>
+                    <small><i class="fas fa-exclamation-triangle"></i> Route evidence conflicts with ${matchMethod}. Review GTFS route IDs, route names and directions.</small>
                 </div>
                 <div class="attribute-mini-popups">
                     <div class="atlas-match attribute-mini-popup">
                         <h5>ATLAS Routes</h5>
-                        ${renderRouteList(atlasRoutes)}
+                        <table class="popup-table mb-0">${atlasRowsHtml}</table>
                     </div>
                     <div class="osm-match attribute-mini-popup">
                         <h5>OSM Routes</h5>
-                        ${renderRouteList(osmRoutes)}
+                        <table class="popup-table mb-0">${osmRowsHtml}</table>
                     </div>
                 </div>
             </div>`;
