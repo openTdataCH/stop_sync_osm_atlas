@@ -90,6 +90,21 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('name', 0)) }}</td>
         </tr>
         <tr class="fw-bold">
+          <td>Route matching (total)</td>
+          <td class="text-end">{{ "{:,}".format(stages.route.count) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stages.route.count / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stages.route.mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
+        </tr>
+        {% set rb = stages.route.breakdown %}
+        <tr class="text-muted">
+          <td class="ps-4">GTFS</td>
+          <td class="text-end">{{ "{:,}".format(rb.gtfs) }}</td>
+          <td class="text-end">{{ "%.1f"|format(rb.gtfs / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(rb.gtfs_mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
+        </tr>
+        <tr class="fw-bold">
           <td>Distance (total)</td>
           <td class="text-end">{{ "{:,}".format(stages.distance.count) }}</td>
           <td class="text-end">{{ "%.1f"|format(stages.distance.count / total_denom * 100) }}%</td>
@@ -180,21 +195,6 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3b', 0)) }}</td>
         </tr>
         {% endif %}
-        <tr class="fw-bold">
-          <td>Route matching (total)</td>
-          <td class="text-end">{{ "{:,}".format(stages.route.count) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stages.route.count / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stages.route.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
-        </tr>
-        {% set rb = stages.route.breakdown %}
-        <tr class="text-muted">
-          <td class="ps-4">GTFS</td>
-          <td class="text-end">{{ "{:,}".format(rb.gtfs) }}</td>
-          <td class="text-end">{{ "%.1f"|format(rb.gtfs / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(rb.gtfs_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
-        </tr>
         <tr>
           <td>Post-processing: ATLAS Duplicate propagation</td>
           <td class="text-end">{{ "{:,}".format(stages.post_processing.duplicate_propagation) }}</td>
@@ -260,9 +260,9 @@ SECTION 1 — STOPS MATCHING
 
     {% if dq.by_stage %}
     <h6 class="mt-3 mb-2">Distance by Matching Stage</h6>
-    {% set stage_order = ['exact', 'name', 'distance_trio', 'distance_stage1_uic_ref',
+    {% set stage_order = ['distance_trio', 'exact', 'name', 'route_gtfs', 'distance_stage1_uic_ref',
     'distance_stage1_uic_name', 'distance_stage1_name', 'distance_stage1', 'distance_stage2',
-  'distance_stage3a_pass1', 'distance_stage3a_pass2', 'distance_stage3b', 'route_gtfs',
+  'distance_stage3a_pass1', 'distance_stage3a_pass2', 'distance_stage3b',
   'post_duplicate_propagation', 'post_osm_group_propagation'] %}
     {% set stage_labels = {
     'exact': 'Exact (UIC ref)',
