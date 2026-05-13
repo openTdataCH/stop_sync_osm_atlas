@@ -102,3 +102,4 @@ latex_document_non_nodes
 /*.png
 coverage.xml
 .coverage
+docs_to_read
