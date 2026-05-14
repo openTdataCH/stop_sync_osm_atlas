@@ -45,6 +45,9 @@ def _base_status() -> Dict[str, Any]:
         "last_error": None,
         "data_updated_at": None,
         "next_run_at": None,
+        "run_type": None,
+        "refresh_scope_tables_rewritten": [],
+        "refresh_scope_tables_reused": [],
     }
 
 

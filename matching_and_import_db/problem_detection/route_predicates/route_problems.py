@@ -15,12 +15,12 @@ def _normalize_text(value, *, lower=True):
 
     return text.lower() if lower else text
 
-def detect_route_problems(atlas_routes, osm_routes, routes_matched_rows):
+def detect_route_problems(atlas_line_families, osm_route_relations, routes_matched_rows):
     problems = []
     
     # Create lookups
-    atlas_map = {r.get('route_id'): r for r in atlas_routes if r.get('route_id')}
-    osm_map = {r.get('relation_id'): r for r in osm_routes if r.get('relation_id')}
+    atlas_map = {r.get('route_id'): r for r in atlas_line_families if r.get('route_id')}
+    osm_map = {r.get('relation_id'): r for r in osm_route_relations if r.get('relation_id')}
     
     for match in routes_matched_rows:
         atlas_route = atlas_map.get(match['atlas_route_id'])

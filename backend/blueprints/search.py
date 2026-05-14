@@ -4,6 +4,7 @@ from sqlalchemy import func, text
 from backend.models import StopsMatched, AtlasStop, OsmNode
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
+from backend.services.transport_routes import get_stops_for_route
 from backend.queries.helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint, resolve_stop_type_match_filters, build_stop_scope_condition, build_match_method_conditions
 from backend.queries.helpers import build_atlas_duplicate_membership_condition
 
@@ -241,18 +242,17 @@ def get_stop_by_id():
                 lon_col_name = 'atlas_lon'
                 popup_view_type = 'atlas'
         elif identifier_type == 'route':
-            from backend.models import RouteAtlasStops, RouteOsmStops
-            stop = optimize_query_for_endpoint(StopsMatched.query, 'search').join(
-                RouteAtlasStops, StopsMatched.sloid == RouteAtlasStops.sloid
-            ).filter(RouteAtlasStops.atlas_route_id == identifier).first()
-            if stop:
+            route_stops = get_stops_for_route(identifier)
+            atlas_sloids = route_stops.get('atlas_sloids', [])
+            osm_nodes = route_stops.get('osm_nodes', [])
+
+            if atlas_sloids:
+                stop = optimize_query_for_endpoint(StopsMatched.query, 'search').filter(StopsMatched.sloid.in_(atlas_sloids)).first()
                 lat_col_name = 'atlas_lat'
                 lon_col_name = 'atlas_lon'
                 popup_view_type = 'atlas'
-            else:
-                stop = optimize_query_for_endpoint(StopsMatched.query, 'search').join(
-                    RouteOsmStops, StopsMatched.osm_node_id == RouteOsmStops.osm_node_id
-                ).filter(RouteOsmStops.osm_route_id == identifier).first()
+            elif osm_nodes:
+                stop = optimize_query_for_endpoint(StopsMatched.query, 'search').filter(StopsMatched.osm_node_id.in_(osm_nodes)).first()
                 if stop:
                     lat_col_name = 'osm_lat'
                     lon_col_name = 'osm_lon'

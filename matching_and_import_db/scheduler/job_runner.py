@@ -18,6 +18,7 @@ from backend.services.pipeline_status import (
     release_run_lock,
     set_data_updated,
     set_phase,
+    set_status,
     start_run,
 )
 from backend.services.time_utils import format_zurich_timestamp, get_zurich_now
@@ -33,12 +34,14 @@ from matching_and_import_db.downloader.source_freshness import (
 from matching_and_import_db.database.importer import (
     build_fast_insert_payloads,
     export_stats_after_import,
+    get_refresh_scope_tables,
     import_to_database,
     print_problem_summary,
     precompute_problem_artifacts,
     precompute_route_artifacts,
 )
 from matching_and_import_db.orchestrator import run_matching
+from matching_and_import_db.scheduler.job_types import PipelineRunType
 
 LOGGER = logging.getLogger(__name__)
 LOG_LEVEL = os.getenv("PIPELINE_LOG_LEVEL", "INFO").upper()
@@ -48,6 +51,20 @@ LOCK_HEARTBEAT_SECONDS = int(
     os.getenv("PIPELINE_LOCK_HEARTBEAT_SECONDS", str(max(5, min(60, LOCK_TTL_SECONDS // 4))))
 )
 PREPROCESSING_META_KEY = "preprocessing_sources"
+
+
+def _force_full_refresh_enabled() -> bool:
+    return os.getenv("PIPELINE_FORCE_FULL_REFRESH", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _publish_refresh_scope(run_type: PipelineRunType) -> tuple[list[str], list[str]]:
+    rewritten_tables, reused_tables = get_refresh_scope_tables(run_type)
+    set_status(
+        run_type=run_type.value,
+        refresh_scope_tables_rewritten=rewritten_tables,
+        refresh_scope_tables_reused=reused_tables,
+    )
+    return rewritten_tables, reused_tables
 
 
 @contextlib.contextmanager
@@ -90,24 +107,43 @@ class _RunLockHeartbeat:
 
 def _run_subprocess(command: list[str], phase: str, message: str, maintenance: bool = False) -> None:
     set_phase(phase=phase, message=message, maintenance=maintenance)
-    with _timed_step(phase):
-        LOGGER.info("Running command: %s", " ".join(command))
-        env = os.environ.copy()
-        # Keep child Python processes unbuffered so their progress logs appear in
-        # Docker logs in real time.
-        env.setdefault("PYTHONUNBUFFERED", "1")
-        completed = subprocess.run(command, check=False, env=env)
+    started = time.perf_counter()
+    LOGGER.info("Running command: %s", " ".join(command))
+    env = os.environ.copy()
+    # Keep child Python processes unbuffered so their progress logs appear in
+    # Docker logs in real time.
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    completed = subprocess.run(command, check=False, env=env)
+    elapsed = time.perf_counter() - started
     if completed.returncode != 0:
-        LOGGER.error("Step %s command exited with code %s", phase, completed.returncode)
+        LOGGER.error("Step %s command exited with code %s after %.2fs", phase, completed.returncode, elapsed)
         raise RuntimeError(
             f"Step {phase} failed: command exited with code {completed.returncode}: {' '.join(command)}"
         )
+    LOGGER.info("Step %s completed successfully in %.2fs", phase, elapsed)
 
 
-def _record_data_updated_timestamp() -> str:
+def _record_data_updated_timestamp(
+    run_type: PipelineRunType | None = None,
+    rewritten_tables: list[str] | None = None,
+    reused_tables: list[str] | None = None,
+) -> str:
     data_updated_at = format_zurich_timestamp(get_zurich_now())
-    data_meta.update_data_meta(data_updated_at=data_updated_at)
+    meta_fields = {"data_updated_at": data_updated_at}
+    if run_type is not None:
+        meta_fields["last_run_type"] = run_type.value
+    if rewritten_tables is not None:
+        meta_fields["refresh_scope_tables_rewritten"] = list(rewritten_tables)
+    if reused_tables is not None:
+        meta_fields["refresh_scope_tables_reused"] = list(reused_tables)
+    data_meta.update_data_meta(**meta_fields)
     set_data_updated(data_updated_at)
+    if run_type is not None:
+        set_status(
+            run_type=run_type.value,
+            refresh_scope_tables_rewritten=list(rewritten_tables or []),
+            refresh_scope_tables_reused=list(reused_tables or []),
+        )
     LOGGER.info("Data update timestamp saved: %s", data_updated_at)
     return data_updated_at
 
@@ -145,7 +181,7 @@ def _preprocessing_sources_ready(source_state: dict) -> bool:
     return all(source_snapshot_is_usable(source_state.get(source_name)) for source_name in ("atlas", "gtfs"))
 
 
-def _run_atlas_gtfs_preprocessing_if_needed(lock_token: str) -> None:
+def _run_atlas_gtfs_preprocessing_if_needed(lock_token: str) -> PipelineRunType:
     set_phase(
         phase="source_probe",
         message="Checking ATLAS + GTFS source freshness",
@@ -155,13 +191,22 @@ def _run_atlas_gtfs_preprocessing_if_needed(lock_token: str) -> None:
     previous_sources = _load_preprocessing_source_state()
 
     if preprocessing_sources_unchanged(previous_sources, current_sources):
+        if _force_full_refresh_enabled():
+            set_phase(
+                phase="atlas_download",
+                message="ATLAS + GTFS unchanged; reusing cached preprocessing outputs and forcing full refresh",
+                maintenance=False,
+            )
+            LOGGER.info("ATLAS and GTFS sources unchanged, but full refresh is forced by environment")
+            return PipelineRunType.COMPLETE
+
         set_phase(
             phase="atlas_download",
             message="ATLAS + GTFS unchanged; reusing cached preprocessing outputs",
             maintenance=False,
         )
         LOGGER.info("ATLAS and GTFS sources unchanged; skipping preprocessing download step")
-        return
+        return PipelineRunType.ATLAS_CACHED
 
     _run_subprocess(
         [sys.executable, "-m", "matching_and_import_db.downloader.get_atlas_data"],
@@ -175,9 +220,10 @@ def _run_atlas_gtfs_preprocessing_if_needed(lock_token: str) -> None:
         _persist_preprocessing_source_state(source_state_to_persist)
     else:
         LOGGER.warning("ATLAS/GTFS preprocessing succeeded, but source validators could not be persisted")
+    return PipelineRunType.COMPLETE
 
 
-def _run_matching_and_import(lock_token: str) -> None:
+def _run_matching_and_import(lock_token: str, run_type: PipelineRunType) -> None:
     set_phase(
         phase="matching",
         message="Running matching pipeline",
@@ -224,15 +270,20 @@ def _run_matching_and_import(lock_token: str) -> None:
     # Blocking maintenance: only TRUNCATE + bulk INSERT, zero Python logic.
     set_phase(
         phase="import",
-        message="Importing into database (maintenance window)",
+        message=f"Importing into database ({run_type.value} maintenance window)",
         maintenance=True,
         eta_seconds=IMPORT_ETA_SECONDS,
     )
     with _timed_step("import"):
-        no_nearby_sloids = import_to_database(db_payloads=db_payloads)
+        no_nearby_sloids = import_to_database(db_payloads=db_payloads, run_type=run_type)
     refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
 
-    _record_data_updated_timestamp()
+    rewritten_tables, reused_tables = get_refresh_scope_tables(run_type)
+    _record_data_updated_timestamp(
+        run_type=run_type,
+        rewritten_tables=rewritten_tables,
+        reused_tables=reused_tables,
+    )
     refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
 
     set_phase(
@@ -262,9 +313,12 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
     LOGGER.info("Pipeline run started (run_id=%s, mode=%s)", run_id, mode)
 
     try:
+        run_type = PipelineRunType.COMPLETE
+        _publish_refresh_scope(run_type)
         refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
         if mode == "full":
-            _run_atlas_gtfs_preprocessing_if_needed(lock_token)
+            run_type = _run_atlas_gtfs_preprocessing_if_needed(lock_token)
+            _publish_refresh_scope(run_type)
             refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
 
             _run_subprocess(
@@ -274,17 +328,18 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
             )
             refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
 
-            _run_matching_and_import(lock_token)
+            _run_matching_and_import(lock_token, run_type)
 
         elif mode == "match-import":
-            _run_matching_and_import(lock_token)
+            _publish_refresh_scope(run_type)
+            _run_matching_and_import(lock_token, run_type)
 
         else:
             raise ValueError(f"Unsupported mode: {mode}")
 
         finish_success(
             message=(
-                f"Pipeline run completed successfully ({mode}) at "
+                f"Pipeline run completed successfully ({mode}, {run_type.value}) at "
                 f"{datetime.utcnow().isoformat()}Z"
             )
         )

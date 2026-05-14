@@ -34,9 +34,9 @@ class AtlasState:
     
     @classmethod
     def from_dataframe(cls, atlas_df: pd.DataFrame,
-                       routes_csv_path: str = 'data/processed/atlas_routes.csv',
-                       directions_csv_path: str = 'data/processed/atlas_route_directions.csv',
-                       stops_csv_path: str = 'data/processed/atlas_route_stops.csv') -> 'AtlasState':
+                       line_families_csv_path: str = 'data/processed/atlas_line_families.csv',
+                       itineraries_csv_path: str = 'data/processed/atlas_itineraries.csv',
+                       stop_calls_csv_path: str = 'data/processed/atlas_itinerary_stop_calls.csv') -> 'AtlasState':
         """
         Builds AtlasState directly from a DataFrame, computing duplicate sets automatically.
         Also loads the GTFS routes CSVs if available.
@@ -53,12 +53,12 @@ class AtlasState:
             for s in sloids:
                 duplicate_sloid_map[s] = sloids
 
-        routes_by_sloid = cls._load_routes(routes_csv_path, directions_csv_path, stops_csv_path)
-        return cls(atlas_df, duplicate_sloid_map, routes_by_sloid)
+        route_evidence_by_sloid = cls._load_routes(line_families_csv_path, itineraries_csv_path, stop_calls_csv_path)
+        return cls(atlas_df, duplicate_sloid_map, route_evidence_by_sloid)
 
     @staticmethod
-    def _load_routes(routes_csv_path: str, directions_csv_path: str, stops_csv_path: str) -> dict:
-        """Load normalized GTFS route CSVs into a per-sloid GTFS route mapping."""
+    def _load_routes(line_families_csv_path: str, itineraries_csv_path: str, stop_calls_csv_path: str) -> dict:
+        """Load normalized ATLAS line-family and itinerary CSVs into a per-sloid GTFS route mapping."""
         def _norm_dir(val):
             try:
                 if pd.isna(val):
@@ -69,35 +69,48 @@ class AtlasState:
 
         by_sloid: dict[str, dict[str, list]] = defaultdict(lambda: {'gtfs': []})
         
-        if not all(os.path.exists(p) for p in [routes_csv_path, directions_csv_path, stops_csv_path]):
-            logger.warning(f"One or more GTFS route CSVs not found; route matching will be skipped.")
+        if not all(os.path.exists(p) for p in [line_families_csv_path, itineraries_csv_path, stop_calls_csv_path]):
+            logger.warning("One or more normalized ATLAS route CSVs not found; route matching will be skipped.")
             return {}
             
         try:
-            df_routes = pd.read_csv(routes_csv_path, dtype=str, low_memory=False)
-            df_directions = pd.read_csv(directions_csv_path, dtype=str, low_memory=False)
-            df_stops = pd.read_csv(stops_csv_path, dtype=str, low_memory=False)
+            df_line_families = pd.read_csv(line_families_csv_path, dtype=str, low_memory=False)
+            df_itineraries = pd.read_csv(itineraries_csv_path, dtype=str, low_memory=False)
+            df_stop_calls = pd.read_csv(stop_calls_csv_path, dtype=str, low_memory=False)
             
             # Clean NA
-            df_routes = df_routes.where(pd.notna(df_routes), None)
-            df_directions = df_directions.where(pd.notna(df_directions), None)
-            df_stops = df_stops.where(pd.notna(df_stops), None)
+            df_line_families = df_line_families.where(pd.notna(df_line_families), None)
+            df_itineraries = df_itineraries.where(pd.notna(df_itineraries), None)
+            df_stop_calls = df_stop_calls.where(pd.notna(df_stop_calls), None)
             
-            routes_map = {row['route_id']: row for row in df_routes.to_dict(orient='records') if row.get('route_id')}
-            dirs_map = {}
-            for row in df_directions.to_dict(orient='records'):
-                if row.get('route_id') and row.get('direction_id'):
-                    dirs_map[(row['route_id'], row['direction_id'])] = row
+            line_family_map = {
+                row['atlas_line_id']: row
+                for row in df_line_families.to_dict(orient='records')
+                if row.get('atlas_line_id')
+            }
+            itinerary_map = {
+                row['atlas_itinerary_id']: row
+                for row in df_itineraries.to_dict(orient='records')
+                if row.get('atlas_itinerary_id')
+            }
+            seen_entries: set[tuple[str, str | None, str | None]] = set()
                     
-            for row in df_stops.to_dict(orient='records'):
+            for row in df_stop_calls.to_dict(orient='records'):
                 sloid = str(row['sloid']) if row.get('sloid') is not None else None
                 if not sloid:
                     continue
-                route_id = row.get('route_id')
-                direction_id = row.get('direction_id')
+                itinerary = itinerary_map.get(row.get('atlas_itinerary_id')) or {}
+                route_id = itinerary.get('atlas_line_id')
+                direction_id = itinerary.get('direction_id')
+                if route_id is None:
+                    continue
                 
-                route_info = routes_map.get(route_id, {})
-                dir_info = dirs_map.get((route_id, direction_id), {})
+                entry_key = (sloid, route_id, direction_id)
+                if entry_key in seen_entries:
+                    continue
+                seen_entries.add(entry_key)
+
+                route_info = line_family_map.get(route_id, {})
                 
                 entry = {
                     'route_id': route_id,
@@ -105,21 +118,21 @@ class AtlasState:
                     'route_name_short': route_info.get('route_short_name'),
                     'route_name_long': route_info.get('route_long_name'),
                     'direction_id': _norm_dir(direction_id),
-                    'direction_name': dir_info.get('direction_label'),
+                    'direction_name': itinerary.get('direction_label'),
                 }
                 by_sloid[sloid]['gtfs'].append(entry)
                 
         except Exception as exc:
-            logger.warning(f"Error loading GTFS route CSVs: {exc}")
+            logger.warning(f"Error loading normalized ATLAS route CSVs: {exc}")
             return {}
             
         return dict(by_sloid)
 
     def __init__(self, atlas_df: pd.DataFrame, duplicate_sloid_map: dict,
-                 routes_by_sloid: dict = None):
+                 route_evidence_by_sloid: dict = None):
         self._df = atlas_df
         self.duplicate_sloid_map = duplicate_sloid_map
-        self._routes_by_sloid: dict[str, dict[str, list]] = routes_by_sloid or {}
+        self._route_evidence_by_sloid: dict[str, dict[str, list]] = route_evidence_by_sloid or {}
         self.matched_ids: set[str] = set()
 
         # Pre-grouping maps (derived directly from duplicate_sloid_map)
@@ -135,9 +148,9 @@ class AtlasState:
     def add_matched_sloid(self, sloid: str):
         self.matched_ids.add(sloid)
 
-    def get_routes(self, sloid: str) -> dict[str, list]:
-        """Returns {'gtfs': [...]} route entries for the given sloid."""
-        return self._routes_by_sloid.get(sloid, {'gtfs': []})
+    def get_route_evidence(self, sloid: str) -> dict[str, list]:
+        """Returns {'gtfs': [...]} route-evidence entries for the given SLOID."""
+        return self._route_evidence_by_sloid.get(sloid, {'gtfs': []})
 
     def _to_atlas_node(self, row: pd.Series) -> AtlasNode:
         """Safely convert a pandas row into our strong Domain Entity."""

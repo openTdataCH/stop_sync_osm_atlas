@@ -121,42 +121,51 @@ class AtlasStop(db.Model):
     atlas_operator = db.relationship('AtlasOperator', back_populates='atlas_stops', lazy='select')
 
 
-class GtfsStop(db.Model):
-    __tablename__ = 'gtfs_stops'
+class GtfsStopRaw(db.Model):
+    __tablename__ = 'gtfs_stops_raw'
     __table_args__ = (
-        db.Index('idx_gtfs_stops_uic_number', 'uic_number'),
-        db.Index('idx_gtfs_stops_coords', 'stop_lat', 'stop_lon'),
+        db.Index('idx_gtfs_stops_raw_uic_number', 'uic_number'),
+        db.Index('idx_gtfs_stops_raw_original_stop_id', 'original_stop_id'),
+        db.Index('idx_gtfs_stops_raw_parent_station', 'parent_station'),
+        db.Index('idx_gtfs_stops_raw_coords', 'stop_lat', 'stop_lon'),
     )
 
     stop_id = db.Column(db.String(255), primary_key=True)
+    stop_code = db.Column(db.String(255))
     stop_name = db.Column(db.String(255))
+    stop_lat = db.Column(db.Float, nullable=False)
+    stop_lon = db.Column(db.Float, nullable=False)
+    platform_code = db.Column(db.String(255))
+    original_stop_id = db.Column(db.String(255))
+    location_type = db.Column(db.String(20))
+    parent_station = db.Column(db.String(255))
     uic_number = db.Column(db.String(64), nullable=False)
     local_ref = db.Column(db.String(64))
     normalized_local_ref = db.Column(db.String(64))
-    stop_lat = db.Column(db.Float, nullable=False)
-    stop_lon = db.Column(db.Float, nullable=False)
 
 
-class GtfsAtlasStopMatch(db.Model):
-    __tablename__ = 'gtfs_atlas_stop_matches'
+class GtfsStopIdentityResolution(db.Model):
+    __tablename__ = 'gtfs_stop_identity_resolution'
     __table_args__ = (
-        db.UniqueConstraint('stop_id', 'sloid', name='uq_gtfs_atlas_stop_matches_stop_sloid'),
-        db.Index('idx_gtfs_atlas_stop_matches_stop_type', 'stop_type'),
-        db.Index('idx_gtfs_atlas_stop_matches_stop_id', 'stop_id'),
-        db.Index('idx_gtfs_atlas_stop_matches_sloid', 'sloid'),
-        db.Index('idx_gtfs_atlas_stop_matches_method', 'match_method'),
+        db.UniqueConstraint('stop_id', name='uq_gtfs_stop_identity_resolution_stop_id'),
+        db.Index('idx_gtfs_stop_identity_resolution_sloid', 'resolved_sloid'),
+        db.Index('idx_gtfs_stop_identity_resolution_method', 'resolution_method'),
+        db.Index('idx_gtfs_stop_identity_resolution_level', 'identity_level'),
     )
 
     id = db.Column(db.Integer, primary_key=True)
-    stop_id = db.Column(db.String(255), db.ForeignKey('gtfs_stops.stop_id', ondelete='CASCADE'))
-    sloid = db.Column(db.String(100), db.ForeignKey('atlas_stops.sloid', ondelete='CASCADE'))
-    stop_type = db.Column(db.String(50), nullable=False)
-    match_method = db.Column(db.String(50))
+    stop_id = db.Column(db.String(255), db.ForeignKey('gtfs_stops_raw.stop_id', ondelete='CASCADE'), nullable=False)
+    source_location_type = db.Column(db.String(20))
+    identity_level = db.Column(db.String(50))
+    resolved_sloid = db.Column(db.String(100), db.ForeignKey('atlas_stops.sloid', ondelete='SET NULL'))
+    resolution_method = db.Column(db.String(100), nullable=False)
+    confidence = db.Column(db.Float)
     distance_m = db.Column(db.Float)
     gtfs_stop_lat = db.Column(db.Float)
     gtfs_stop_lon = db.Column(db.Float)
     atlas_lat = db.Column(db.Float)
     atlas_lon = db.Column(db.Float)
+    details_json = db.Column(JSONB)
 
 class OsmNode(db.Model):
     __tablename__ = 'osm_nodes'
@@ -237,9 +246,14 @@ class OsmStopMember(db.Model):
     osm_node = db.relationship('OsmNode', lazy='select')
 
 
-class AtlasRoute(db.Model):
-    __tablename__ = 'atlas_routes'
-    route_id = db.Column(db.String(100), primary_key=True)
+class AtlasLineFamily(db.Model):
+    __tablename__ = 'atlas_line_families'
+    __table_args__ = (
+        db.Index('idx_atlas_line_families_route_id_normalized', 'route_id_normalized'),
+        db.Index('idx_atlas_line_families_route_type', 'route_type'),
+    )
+
+    atlas_line_id = db.Column(db.String(100), primary_key=True)
     route_id_normalized = db.Column(db.String(100))
     agency_id = db.Column(db.String(100))
     route_short_name = db.Column(db.String(255))
@@ -248,78 +262,318 @@ class AtlasRoute(db.Model):
     route_type = db.Column(db.String(50))
     run_id = db.Column(db.String(100))
 
-class AtlasRouteDirection(db.Model):
-    __tablename__ = 'atlas_route_directions'
-    id = db.Column(db.Integer, primary_key=True)
-    route_id = db.Column(db.String(100), db.ForeignKey('atlas_routes.route_id', ondelete='CASCADE'))
+
+class AtlasItinerary(db.Model):
+    __tablename__ = 'atlas_itineraries'
+    __table_args__ = (
+        db.Index('idx_atlas_itineraries_line_direction', 'atlas_line_id', 'direction_id'),
+        db.UniqueConstraint('atlas_line_id', 'direction_id', 'pattern_hash', name='uq_atlas_itineraries_line_direction_pattern'),
+    )
+
+    atlas_itinerary_id = db.Column(db.String(160), primary_key=True)
+    atlas_line_id = db.Column(db.String(100), db.ForeignKey('atlas_line_families.atlas_line_id', ondelete='CASCADE'), nullable=False)
     direction_id = db.Column(db.String(20))
+    pattern_hash = db.Column(db.String(128), nullable=False)
     representative_headsign = db.Column(db.String(255))
     direction_label = db.Column(db.String(255))
     trip_count = db.Column(db.Integer)
+    shape_id = db.Column(db.String(255))
+    geometry_wkt = db.Column(db.Text)
 
-class OsmRoute(db.Model):
-    __tablename__ = 'osm_routes'
+
+class AtlasItineraryStopCall(db.Model):
+    __tablename__ = 'atlas_itinerary_stop_calls'
+    __table_args__ = (
+        db.Index('idx_atlas_itinerary_stop_calls_itinerary_sequence', 'atlas_itinerary_id', 'stop_sequence'),
+        db.Index('idx_atlas_itinerary_stop_calls_sloid', 'resolved_sloid'),
+        db.UniqueConstraint('atlas_itinerary_id', 'stop_sequence', name='uq_atlas_itinerary_stop_calls_sequence'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    atlas_itinerary_id = db.Column(db.String(160), db.ForeignKey('atlas_itineraries.atlas_itinerary_id', ondelete='CASCADE'), nullable=False)
+    stop_sequence = db.Column(db.Integer, nullable=False)
+    gtfs_stop_id = db.Column(db.String(255), db.ForeignKey('gtfs_stops_raw.stop_id', ondelete='SET NULL'))
+    resolved_sloid = db.Column(db.String(100), db.ForeignKey('atlas_stops.sloid', ondelete='SET NULL'))
+    resolved_sloid_variants = db.Column(db.Text)
+    canonical_stop_key = db.Column(db.String(255))
+    stop_label = db.Column(db.String(255))
+    uic_number = db.Column(db.String(64))
+    platform_code = db.Column(db.String(255))
+    stop_lat = db.Column(db.Float)
+    stop_lon = db.Column(db.Float)
+
+
+class OsmRouteMaster(db.Model):
+    __tablename__ = 'osm_route_masters'
+    __table_args__ = (
+        db.Index('idx_osm_route_masters_gtfs_route_id', 'gtfs_route_id'),
+        db.Index('idx_osm_route_masters_ref', 'ref'),
+    )
+
+    route_master_id = db.Column(db.String(100), primary_key=True)
+    route_master = db.Column(db.String(100))
+    name = db.Column(db.String(255))
+    ref = db.Column(db.String(100))
+    operator = db.Column(db.String(255))
+    network = db.Column(db.String(255))
+    colour = db.Column(db.String(64))
+    gtfs_route_id = db.Column(db.String(255))
+    run_id = db.Column(db.String(100))
+
+
+class OsmRouteMasterTag(db.Model):
+    __tablename__ = 'osm_route_master_tags'
+    __table_args__ = (
+        db.Index('idx_osm_route_master_tags_key', 'tag_key'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    route_master_id = db.Column(db.String(100), db.ForeignKey('osm_route_masters.route_master_id', ondelete='CASCADE'), nullable=False)
+    tag_key = db.Column(db.String(255), nullable=False)
+    tag_value = db.Column(db.Text)
+
+
+class OsmRouteMasterMember(db.Model):
+    __tablename__ = 'osm_route_master_members'
+    __table_args__ = (
+        db.Index('idx_osm_route_master_members_relation', 'relation_id'),
+        db.UniqueConstraint('route_master_id', 'relation_id', name='uq_osm_route_master_members_relation'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    route_master_id = db.Column(db.String(100), db.ForeignKey('osm_route_masters.route_master_id', ondelete='CASCADE'), nullable=False)
+    relation_id = db.Column(db.String(100), nullable=False)
+    member_sequence = db.Column(db.Integer)
+    member_role = db.Column(db.String(100))
+
+
+class OsmRouteRelation(db.Model):
+    __tablename__ = 'osm_route_relations'
+    __table_args__ = (
+        db.Index('idx_osm_route_relations_gtfs_route_id', 'gtfs_route_id'),
+        db.Index('idx_osm_route_relations_route', 'route'),
+        db.Index('idx_osm_route_relations_ref_operator', 'ref', 'operator'),
+    )
+
     relation_id = db.Column(db.String(100), primary_key=True)
     route = db.Column(db.String(100))
     name = db.Column(db.String(255))
     ref = db.Column(db.String(100))
     operator = db.Column(db.String(255))
     network = db.Column(db.String(255))
+    from_name = db.Column(db.String(255))
+    to_name = db.Column(db.String(255))
+    via = db.Column(db.String(255))
+    public_transport_version = db.Column(db.String(50))
+    colour = db.Column(db.String(64))
     gtfs_route_id = db.Column(db.String(255))
+    gtfs_trip_id = db.Column(db.String(255))
+    gtfs_trip_id_sample = db.Column(db.String(255))
+    gtfs_shape_id = db.Column(db.String(255))
+    route_master_id = db.Column(db.String(100), db.ForeignKey('osm_route_masters.route_master_id', ondelete='SET NULL'))
+    family_origin = db.Column(db.String(50))
+    synthetic_family_key = db.Column(db.String(255))
     run_id = db.Column(db.String(100))
 
-class OsmRouteTag(db.Model):
-    __tablename__ = 'osm_route_tags'
+
+class OsmRouteRelationTag(db.Model):
+    __tablename__ = 'osm_route_relation_tags'
+    __table_args__ = (
+        db.Index('idx_osm_route_relation_tags_key', 'tag_key'),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
-    relation_id = db.Column(db.String(100), db.ForeignKey('osm_routes.relation_id', ondelete='CASCADE'))
-    tag_key = db.Column(db.String(255))
+    relation_id = db.Column(db.String(100), db.ForeignKey('osm_route_relations.relation_id', ondelete='CASCADE'), nullable=False)
+    tag_key = db.Column(db.String(255), nullable=False)
     tag_value = db.Column(db.Text)
 
-class RouteAtlasStops(db.Model):
-    __tablename__ = 'route_atlas_stops'
 
-    id = db.Column(db.Integer, primary_key=True)
-    atlas_route_id = db.Column(db.String(100), index=True)
-    direction_id = db.Column(db.String(20), index=True)
-    sloid = db.Column(db.String(100), db.ForeignKey('atlas_stops.sloid', ondelete='CASCADE'), index=True)
-    stop_sequence = db.Column(db.Integer)
-
+class OsmRouteRelationMember(db.Model):
+    __tablename__ = 'osm_route_relation_members'
     __table_args__ = (
-        db.Index('idx_atlas_route_dir_seq', 'atlas_route_id', 'direction_id', 'stop_sequence'),
-        db.UniqueConstraint('atlas_route_id', 'direction_id', 'sloid', 'stop_sequence', name='uq_route_atlas_stops_seq'),
+        db.Index('idx_osm_route_relation_members_relation_sequence', 'relation_id', 'member_sequence'),
     )
 
-class RouteOsmStops(db.Model):
-    __tablename__ = 'route_osm_stops'
-
     id = db.Column(db.Integer, primary_key=True)
-    osm_route_id = db.Column(db.String(100), index=True)
-    direction_id = db.Column(db.String(20), index=True)
-    osm_node_id = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='CASCADE'), index=True)
-    stop_sequence = db.Column(db.Integer)
+    relation_id = db.Column(db.String(100), db.ForeignKey('osm_route_relations.relation_id', ondelete='CASCADE'), nullable=False)
+    member_type = db.Column(db.String(20), nullable=False)
+    member_ref = db.Column(db.String(100), nullable=False)
+    member_role = db.Column(db.String(100))
+    member_sequence = db.Column(db.Integer, nullable=False)
+    resolved_node_id = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='SET NULL'))
 
+
+class OsmRouteRelationStop(db.Model):
+    __tablename__ = 'osm_route_relation_stops'
     __table_args__ = (
-        db.Index('idx_osm_route_dir_seq', 'osm_route_id', 'direction_id', 'stop_sequence'),
-        db.UniqueConstraint('osm_route_id', 'direction_id', 'osm_node_id', 'stop_sequence', name='uq_route_osm_stops_seq'),
+        db.Index('idx_osm_route_relation_stops_relation_sequence', 'relation_id', 'stop_sequence'),
+        db.Index('idx_osm_route_relation_stops_node_id', 'osm_node_id'),
     )
 
-class RoutesMatched(db.Model):
-    __tablename__ = 'routes_matched'
+    id = db.Column(db.Integer, primary_key=True)
+    relation_id = db.Column(db.String(100), db.ForeignKey('osm_route_relations.relation_id', ondelete='CASCADE'), nullable=False)
+    direction_id = db.Column(db.String(20))
+    stop_sequence = db.Column(db.Integer, nullable=False)
+    osm_node_id = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='SET NULL'))
+    stop_role = db.Column(db.String(100))
+    canonical_stop_key = db.Column(db.String(255))
+    stop_label = db.Column(db.String(255))
+    uic_ref = db.Column(db.String(100))
+    stop_lat = db.Column(db.Float)
+    stop_lon = db.Column(db.Float)
+
+
+class LineFamily(db.Model):
+    __tablename__ = 'line_families'
+    __table_args__ = (
+        db.Index('idx_line_families_source', 'source'),
+        db.Index('idx_line_families_gtfs_route_id', 'gtfs_route_id'),
+        db.UniqueConstraint('source', 'source_family_id', name='uq_line_families_source_family_id'),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
-    atlas_route_id = db.Column(db.String(100), index=True)
-    osm_route_id = db.Column(db.String(100), index=True)
-    match_type = db.Column(db.String(50))
+    source = db.Column(db.String(20), nullable=False)
+    source_family_id = db.Column(db.String(255), nullable=False)
+    family_origin = db.Column(db.String(50))
+    route_type = db.Column(db.String(50))
+    display_route_id = db.Column(db.String(255))
+    public_name = db.Column(db.String(255))
+    ref = db.Column(db.String(100))
+    operator = db.Column(db.String(255))
+    network = db.Column(db.String(255))
+    gtfs_route_id = db.Column(db.String(255))
+    normalized_route_id = db.Column(db.String(255))
+    atlas_line_id = db.Column(db.String(100), db.ForeignKey('atlas_line_families.atlas_line_id', ondelete='SET NULL'))
+    route_master_id = db.Column(db.String(100), db.ForeignKey('osm_route_masters.route_master_id', ondelete='SET NULL'))
+    representative_relation_id = db.Column(db.String(100), db.ForeignKey('osm_route_relations.relation_id', ondelete='SET NULL'))
+
+
+class Itinerary(db.Model):
+    __tablename__ = 'itineraries'
+    __table_args__ = (
+        db.Index('idx_itineraries_line_family', 'line_family_id'),
+        db.Index('idx_itineraries_source', 'source'),
+        db.UniqueConstraint('source', 'source_itinerary_id', name='uq_itineraries_source_itinerary_id'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    source = db.Column(db.String(20), nullable=False)
+    line_family_id = db.Column(db.Integer, db.ForeignKey('line_families.id', ondelete='CASCADE'), nullable=False)
+    source_itinerary_id = db.Column(db.String(255), nullable=False)
+    direction_id = db.Column(db.String(20))
+    pattern_hash = db.Column(db.String(128))
+    display_name = db.Column(db.String(255))
+    representative_headsign = db.Column(db.String(255))
+    from_name = db.Column(db.String(255))
+    to_name = db.Column(db.String(255))
+    trip_count = db.Column(db.Integer)
+    shape_id = db.Column(db.String(255))
+    geometry_wkt = db.Column(db.Text)
+    canonical_stop_count = db.Column(db.Integer)
+
+
+class StopCall(db.Model):
+    __tablename__ = 'stop_calls'
+    __table_args__ = (
+        db.Index('idx_stop_calls_itinerary_sequence', 'itinerary_id', 'stop_sequence'),
+        db.Index('idx_stop_calls_canonical_stop_key', 'canonical_stop_key'),
+        db.UniqueConstraint('itinerary_id', 'stop_sequence', name='uq_stop_calls_itinerary_sequence'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    itinerary_id = db.Column(db.Integer, db.ForeignKey('itineraries.id', ondelete='CASCADE'), nullable=False)
+    stop_sequence = db.Column(db.Integer, nullable=False)
+    source_stop_id = db.Column(db.String(255))
+    source_sloid = db.Column(db.String(100), db.ForeignKey('atlas_stops.sloid', ondelete='SET NULL'))
+    source_sloid_variants = db.Column(db.Text)
+    source_node_id = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='SET NULL'))
+    canonical_stop_key = db.Column(db.String(255))
+    stop_label = db.Column(db.String(255))
+    uic_ref = db.Column(db.String(100))
+    platform_code = db.Column(db.String(255))
+    stop_lat = db.Column(db.Float)
+    stop_lon = db.Column(db.Float)
+    member_role = db.Column(db.String(100))
+
+
+class LineFamilyMatch(db.Model):
+    __tablename__ = 'line_family_matches'
+    __table_args__ = (
+        db.Index('idx_line_family_matches_atlas_family', 'atlas_line_family_id'),
+        db.Index('idx_line_family_matches_osm_family', 'osm_line_family_id'),
+        db.UniqueConstraint('atlas_line_family_id', 'osm_line_family_id', name='uq_line_family_matches_pair'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    atlas_line_family_id = db.Column(db.Integer, db.ForeignKey('line_families.id', ondelete='CASCADE'), nullable=False)
+    osm_line_family_id = db.Column(db.Integer, db.ForeignKey('line_families.id', ondelete='CASCADE'), nullable=False)
     match_confidence = db.Column(db.Float)
     match_reason = db.Column(db.String(255))
-    match_version = db.Column(db.String(50))
+    match_score = db.Column(db.Float)
 
-class RouteProblem(db.Model):
-    __tablename__ = 'route_problems'
-    
+
+class ItineraryMatch(db.Model):
+    __tablename__ = 'itinerary_matches'
+    __table_args__ = (
+        db.Index('idx_itinerary_matches_atlas_itinerary', 'atlas_itinerary_id'),
+        db.Index('idx_itinerary_matches_osm_itinerary', 'osm_itinerary_id'),
+        db.UniqueConstraint('atlas_itinerary_id', 'osm_itinerary_id', name='uq_itinerary_matches_pair'),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
-    problem_type = db.Column(db.String(50))
-    priority = db.Column(db.Integer)
-    atlas_route_id = db.Column(db.String(100))
-    osm_route_id = db.Column(db.String(100))
+    line_family_match_id = db.Column(db.Integer, db.ForeignKey('line_family_matches.id', ondelete='CASCADE'))
+    atlas_itinerary_id = db.Column(db.Integer, db.ForeignKey('itineraries.id', ondelete='CASCADE'), nullable=False)
+    osm_itinerary_id = db.Column(db.Integer, db.ForeignKey('itineraries.id', ondelete='CASCADE'), nullable=False)
+    direction_score = db.Column(db.Float)
+    stop_score = db.Column(db.Float)
+    geometry_score = db.Column(db.Float)
+    overall_score = db.Column(db.Float)
+    match_reason = db.Column(db.String(255))
+
+
+class StopAlignment(db.Model):
+    __tablename__ = 'stop_alignments'
+    __table_args__ = (
+        db.Index('idx_stop_alignments_match_index', 'itinerary_match_id', 'alignment_index'),
+        db.UniqueConstraint('itinerary_match_id', 'alignment_index', name='uq_stop_alignments_match_index'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    itinerary_match_id = db.Column(db.Integer, db.ForeignKey('itinerary_matches.id', ondelete='CASCADE'), nullable=False)
+    alignment_index = db.Column(db.Integer, nullable=False)
+    atlas_stop_call_id = db.Column(db.Integer, db.ForeignKey('stop_calls.id', ondelete='SET NULL'))
+    osm_stop_call_id = db.Column(db.Integer, db.ForeignKey('stop_calls.id', ondelete='SET NULL'))
+    alignment_type = db.Column(db.String(50), nullable=False)
+    alignment_score = db.Column(db.Float)
+
+
+class RouteDiagnostic(db.Model):
+    __tablename__ = 'route_diagnostics'
+    __table_args__ = (
+        db.Index('idx_route_diagnostics_type', 'diagnostic_type'),
+        db.Index('idx_route_diagnostics_itinerary_match', 'itinerary_match_id'),
+        db.Index('idx_route_diagnostics_line_family_match', 'line_family_match_id'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    entity_level = db.Column(db.String(50), nullable=False)
+    line_family_match_id = db.Column(db.Integer, db.ForeignKey('line_family_matches.id', ondelete='CASCADE'))
+    itinerary_match_id = db.Column(db.Integer, db.ForeignKey('itinerary_matches.id', ondelete='CASCADE'))
+    diagnostic_type = db.Column(db.String(100), nullable=False)
+    severity = db.Column(db.String(50))
+    details = db.Column(JSONB)
+
+
+class StopDiagnostic(db.Model):
+    __tablename__ = 'stop_diagnostics'
+    __table_args__ = (
+        db.Index('idx_stop_diagnostics_type', 'diagnostic_type'),
+        db.Index('idx_stop_diagnostics_match_alignment', 'itinerary_match_id', 'alignment_index'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    itinerary_match_id = db.Column(db.Integer, db.ForeignKey('itinerary_matches.id', ondelete='CASCADE'), nullable=False)
+    alignment_index = db.Column(db.Integer)
+    diagnostic_type = db.Column(db.String(100), nullable=False)
+    severity = db.Column(db.String(50))
     details = db.Column(JSONB)

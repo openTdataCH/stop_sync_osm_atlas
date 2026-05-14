@@ -2,6 +2,7 @@
 Tests for data integration and processing pipelines.
 Verifies the correct flow of data through the various processing stages.
 """
+import json
 import os
 import re
 import sys
@@ -16,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from matching_and_import_db.downloader.get_atlas_data import (
     ATLAS_ACTUAL_DATE_RESOURCE_PERMALINK,
+    _build_atlas_itinerary_frames,
     get_atlas_stops,
     get_current_gtfs_permalink,
     write_atlas_route_csvs,
@@ -80,21 +82,21 @@ class TestGtfsRoutesIntegration:
         )
         
         # 3. Verify Output
-        routes_file = tmp_path / "atlas_routes.csv"
-        directions_file = tmp_path / "atlas_route_directions.csv"
-        stops_file = tmp_path / "atlas_route_stops.csv"
+        line_families_file = tmp_path / "atlas_line_families.csv"
+        itineraries_file = tmp_path / "atlas_itineraries.csv"
+        stop_calls_file = tmp_path / "atlas_itinerary_stop_calls.csv"
 
-        assert routes_file.exists(), "Routes CSV was not created"
-        assert directions_file.exists(), "Route directions CSV was not created"
-        assert stops_file.exists(), "Route stops CSV was not created"
+        assert line_families_file.exists(), "ATLAS line families CSV was not created"
+        assert itineraries_file.exists(), "ATLAS itineraries CSV was not created"
+        assert stop_calls_file.exists(), "ATLAS itinerary stop calls CSV was not created"
 
-        routes_df = pd.read_csv(routes_file)
-        directions_df = pd.read_csv(directions_file)
-        stops_df = pd.read_csv(stops_file)
+        line_families_df = pd.read_csv(line_families_file)
+        itineraries_df = pd.read_csv(itineraries_file)
+        stop_calls_df = pd.read_csv(stop_calls_file)
 
-        assert len(routes_df) == 2, f"Expected 2 route rows, got {len(routes_df)}"
+        assert len(line_families_df) == 2, f"Expected 2 line-family rows, got {len(line_families_df)}"
         expected_route_cols = {
-            'route_id',
+            'atlas_line_id',
             'agency_id',
             'route_id_normalized',
             'route_short_name',
@@ -103,32 +105,32 @@ class TestGtfsRoutesIntegration:
             'route_type',
             'run_id',
         }
-        assert expected_route_cols.issubset(set(routes_df.columns)), "Route columns are missing"
-        assert 'gtfs-route-1' in routes_df['route_id'].values
-        assert 'gtfs-route-2' in routes_df['route_id'].values
+        assert expected_route_cols.issubset(set(line_families_df.columns)), "Line-family columns are missing"
+        assert 'gtfs-route-1' in line_families_df['atlas_line_id'].values
+        assert 'gtfs-route-2' in line_families_df['atlas_line_id'].values
 
-        assert len(directions_df) == 2, f"Expected 2 direction rows, got {len(directions_df)}"
+        assert len(itineraries_df) == 2, f"Expected 2 itinerary rows, got {len(itineraries_df)}"
         expected_direction_cols = {
-            'route_id',
+            'atlas_itinerary_id',
+            'atlas_line_id',
             'direction_id',
             'representative_headsign',
             'direction_label',
         }
-        assert expected_direction_cols.issubset(set(directions_df.columns)), "Direction columns are missing"
-        assert set(directions_df['direction_label']) == {'A -> B', 'B -> A'}
+        assert expected_direction_cols.issubset(set(itineraries_df.columns)), "Itinerary columns are missing"
+        assert set(itineraries_df['direction_label']) == {'A -> B', 'B -> A'}
 
-        assert len(stops_df) == 2, f"Expected 2 route-stop rows, got {len(stops_df)}"
+        assert len(stop_calls_df) == 2, f"Expected 2 itinerary stop-call rows, got {len(stop_calls_df)}"
         expected_stop_cols = {
-            'route_id',
-            'direction_id',
+            'atlas_itinerary_id',
             'sloid',
             'stop_id',
             'stop_sequence',
             'mapping_method',
         }
-        assert expected_stop_cols.issubset(set(stops_df.columns)), "Route-stop columns are missing"
-        assert set(stops_df['sloid']) == {'ch:1:sloid:1', 'ch:1:sloid:2'}
-        assert set(stops_df['mapping_method']) == {'strict', 'coordinate_proximity'}
+        assert expected_stop_cols.issubset(set(stop_calls_df.columns)), "Itinerary stop-call columns are missing"
+        assert set(stop_calls_df['sloid']) == {'ch:1:sloid:1', 'ch:1:sloid:2'}
+        assert set(stop_calls_df['mapping_method']) == {'strict', 'coordinate_proximity'}
 
     def test_gtfs_only_integration(self, tmp_path):
         """Test that GTFS routes output writes entity-first GTFS files only."""
@@ -159,14 +161,14 @@ class TestGtfsRoutesIntegration:
         )
         
         # Verify
-        routes = pd.read_csv(tmp_path / "atlas_routes.csv")
-        directions = pd.read_csv(tmp_path / "atlas_route_directions.csv")
-        stops = pd.read_csv(tmp_path / "atlas_route_stops.csv")
-        assert len(routes) == 1
-        assert len(directions) == 1
-        assert len(stops) == 1
-        assert stops.iloc[0]['sloid'] == 'ch:1:sloid:1'
-        assert stops.iloc[0]['mapping_method'] == 'unique_number'
+        line_families = pd.read_csv(tmp_path / "atlas_line_families.csv")
+        itineraries = pd.read_csv(tmp_path / "atlas_itineraries.csv")
+        stop_calls = pd.read_csv(tmp_path / "atlas_itinerary_stop_calls.csv")
+        assert len(line_families) == 1
+        assert len(itineraries) == 1
+        assert len(stop_calls) == 1
+        assert stop_calls.iloc[0]['sloid'] == 'ch:1:sloid:1'
+        assert stop_calls.iloc[0]['mapping_method'] == 'unique_number'
 
 
 def test_gtfs_permalink_uses_current_year_and_en_locale():
@@ -228,4 +230,41 @@ def test_get_atlas_stops_accepts_plain_csv_payload_with_bom(tmp_path):
     assert written.iloc[0]["sloid"] == "ch:1:sloid:1"
     assert stats["raw_total"] == 1
     assert stats["after_type_filter"] == 1
+
+
+def test_atlas_itineraries_collapse_same_uic_sequence_and_keep_sloid_variants(tmp_path):
+    stop_times_path = tmp_path / "trip_stop_times.csv"
+    pd.DataFrame([
+        {'trip_id': 'trip-1', 'stop_id': '8501000:0:A', 'stop_sequence': 1},
+        {'trip_id': 'trip-1', 'stop_id': '8502000:0:B', 'stop_sequence': 2},
+        {'trip_id': 'trip-2', 'stop_id': '8501000:0:C', 'stop_sequence': 1},
+        {'trip_id': 'trip-2', 'stop_id': '8502000:0:B', 'stop_sequence': 2},
+    ]).to_csv(stop_times_path, index=False)
+
+    gtfs_data = {
+        'trip_stop_times_path': str(stop_times_path),
+        'trips': pd.DataFrame([
+            {'trip_id': 'trip-1', 'route_id': 'R1', 'direction_id': '0', 'trip_headsign': 'End', 'trip_short_name': None, 'shape_id': None},
+            {'trip_id': 'trip-2', 'route_id': 'R1', 'direction_id': '0', 'trip_headsign': 'End', 'trip_short_name': None, 'shape_id': None},
+        ]),
+        'stops': pd.DataFrame([
+            {'stop_id': '8501000:0:A', 'stop_name': 'Alpha A', 'platform_code': 'A', 'original_stop_id': '8501000:0:A', 'location_type': None, 'parent_station': None},
+            {'stop_id': '8501000:0:C', 'stop_name': 'Alpha C', 'platform_code': 'C', 'original_stop_id': '8501000:0:C', 'location_type': None, 'parent_station': None},
+            {'stop_id': '8502000:0:B', 'stop_name': 'Beta B', 'platform_code': 'B', 'original_stop_id': '8502000:0:B', 'location_type': None, 'parent_station': None},
+        ]),
+    }
+    integrated = pd.DataFrame([
+        {'stop_id': '8501000:0:A', 'sloid': 'ch:1:sloid:A', 'match_method': 'uic_platform'},
+        {'stop_id': '8501000:0:C', 'sloid': 'ch:1:sloid:C', 'match_method': 'uic_platform'},
+        {'stop_id': '8502000:0:B', 'sloid': 'ch:1:sloid:B', 'match_method': 'uic_platform'},
+    ])
+
+    itineraries_df, stop_calls_df = _build_atlas_itinerary_frames(gtfs_data, integrated)
+
+    assert len(itineraries_df) == 1
+    assert int(itineraries_df.iloc[0]['trip_count']) == 2
+    assert len(stop_calls_df) == 2
+
+    first_stop = stop_calls_df.sort_values(by='stop_sequence').iloc[0]
+    assert json.loads(first_stop['sloid_variants']) == ['ch:1:sloid:A', 'ch:1:sloid:C']
 

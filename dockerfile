@@ -10,6 +10,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     dos2unix \
+    graphviz \
+    libgraphviz-dev \
+    build-essential \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user and group

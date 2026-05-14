@@ -34,24 +34,22 @@
     {% block content %}{% endblock %}
   </main>
 
-  <div id="pipelineRunNotice" class="pipeline-run-notice" aria-live="polite" aria-atomic="true" role="status">
-    <div class="pipeline-run-notice__content">
-      <div class="pipeline-run-notice__title">
-        <i class="fas fa-sync-alt fa-spin"></i>
-        <span>Data update running in background</span>
-      </div>
-      <div class="pipeline-run-notice__meta">
-        <span id="pipelineRunNoticeStatus">Preparing update...</span>
-        <span class="pipeline-run-notice__separator">|</span>
-        <span>Phase: <strong id="pipelineRunNoticePhase">initializing</strong></span>
-      </div>
-    </div>
-  </div>
-
   <div id="pipelineMaintenanceOverlay" aria-live="polite" aria-atomic="true" role="status">
     <div class="pipeline-maintenance-card">
       <div class="pipeline-maintenance-card__header">
-        <i class="fas fa-sync-alt fa-spin"></i>
+        <svg class="pipeline-sync-icon" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <path id="sync-arrow" d="M 102.8 127.4 A 200 200 0 0 1 456 256 L 486 256 L 426 336 L 366 256 L 396 256 A 140 140 0 0 0 148.8 166.0 Z" />
+          </defs>
+          <g class="sync-static">
+            <circle cx="256" cy="256" r="110" fill="#c12e22" />
+            <path d="M 236 186 h 40 v 50 h 50 v 40 h -50 v 50 h -40 v -50 h -50 v -40 h 50 Z" fill="#fdfcfc" />
+          </g>
+          <g class="sync-spin">
+            <use href="#sync-arrow" fill="#5ba04a" />
+            <use href="#sync-arrow" fill="#173f8a" transform="rotate(180 256 256)" />
+          </g>
+        </svg>
         <span id="pipelineMaintenanceTitle">Data update in progress</span>
       </div>
       <div class="pipeline-maintenance-card__body">

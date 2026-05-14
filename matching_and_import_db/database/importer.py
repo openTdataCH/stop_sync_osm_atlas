@@ -13,9 +13,11 @@ import time
 import argparse
 import json
 from collections import Counter
+from dataclasses import dataclass
+from typing import Any
 
 import pandas as pd
-from sqlalchemy import func, text, inspect, insert
+from sqlalchemy import text, inspect, insert
 
 # --- Internal modules -------------------------------------------------------
 from matching_and_import_db.orchestrator import run_matching
@@ -28,9 +30,6 @@ from matching_and_import_db.database.helpers import (
     make_point_geom,
     safe_value,
     get_osm_node_type,
-    validate_coordinates,
-    get_from_tags,
-    apply_problem_results,
 )
 from matching_and_import_db.database.route_loader import load_all_route_data, build_route_write_payload
 from matching_and_import_db.downloader.get_atlas_gtfs import (
@@ -41,9 +40,38 @@ from matching_and_import_db.downloader.get_atlas_gtfs import (
     load_gtfs_data_streaming,
     write_gtfs_db_payload_cache,
 )
+from matching_and_import_db.scheduler.job_types import PipelineRunType
 
 # --- External models --------------------------------------------------------
-from backend.models import StopsMatched, AtlasOperator, AtlasStop, GtfsStop, GtfsAtlasStopMatch, OsmNode, OsmStop, OsmStopMember, RouteAtlasStops, RouteOsmStops, RoutesMatched, Problem, AtlasRoute, AtlasRouteDirection, OsmRoute, OsmRouteTag
+from backend.models import (
+    StopsMatched,
+    AtlasOperator,
+    AtlasStop,
+    GtfsStopRaw,
+    GtfsStopIdentityResolution,
+    OsmNode,
+    OsmStop,
+    OsmStopMember,
+    Problem,
+    AtlasLineFamily,
+    AtlasItinerary,
+    AtlasItineraryStopCall,
+    OsmRouteMaster,
+    OsmRouteMasterTag,
+    OsmRouteMasterMember,
+    OsmRouteRelation,
+    OsmRouteRelationTag,
+    OsmRouteRelationMember,
+    OsmRouteRelationStop,
+    LineFamily,
+    Itinerary,
+    StopCall,
+    LineFamilyMatch,
+    ItineraryMatch,
+    StopAlignment,
+    RouteDiagnostic,
+    StopDiagnostic,
+)
 from backend.services.stats_export import (
     export_pipeline_stats,
     save_stats_to_file,
@@ -57,14 +85,29 @@ def _ensure_import_schema_exists(db_session) -> None:
     required_tables = [
         'atlas_operators',
         'atlas_stops',
-        'gtfs_stops',
-        'gtfs_atlas_stop_matches',
+        'gtfs_stops_raw',
+        'gtfs_stop_identity_resolution',
         'osm_nodes',
         'osm_stops',
         'osm_stop_members',
-        'route_atlas_stops',
-        'route_osm_stops',
-        'routes_matched',
+        'atlas_line_families',
+        'atlas_itineraries',
+        'atlas_itinerary_stop_calls',
+        'osm_route_masters',
+        'osm_route_master_tags',
+        'osm_route_master_members',
+        'osm_route_relations',
+        'osm_route_relation_tags',
+        'osm_route_relation_members',
+        'osm_route_relation_stops',
+        'line_families',
+        'itineraries',
+        'stop_calls',
+        'line_family_matches',
+        'itinerary_matches',
+        'stop_alignments',
+        'route_diagnostics',
+        'stop_diagnostics',
         'problems',
         'stops_matched',
     ]
@@ -79,6 +122,122 @@ def _ensure_import_schema_exists(db_session) -> None:
         "Import DB schema is not initialized. Missing tables: "
         f"{missing_str}. Run DB migrations first (for Docker: task 'Docker: Run Flask DB Upgrade')."
     )
+
+
+STATIC_IMPORT_TABLES = [
+    'atlas_operators',
+    'atlas_stops',
+    'gtfs_stops_raw',
+    'gtfs_stop_identity_resolution',
+    'atlas_line_families',
+    'atlas_itineraries',
+    'atlas_itinerary_stop_calls',
+]
+
+ATLAS_CACHED_REFRESH_TABLES = [
+    'stop_diagnostics',
+    'route_diagnostics',
+    'stop_alignments',
+    'itinerary_matches',
+    'line_family_matches',
+    'stop_calls',
+    'itineraries',
+    'line_families',
+    'osm_route_relation_stops',
+    'osm_route_relation_members',
+    'osm_route_relation_tags',
+    'osm_route_relations',
+    'osm_route_master_members',
+    'osm_route_master_tags',
+    'osm_route_masters',
+    'problems',
+    'stops_matched',
+    'osm_stop_members',
+    'osm_stops',
+    'osm_nodes',
+]
+
+FULL_REFRESH_TABLES = ATLAS_CACHED_REFRESH_TABLES[:15] + STATIC_IMPORT_TABLES[::-1] + ATLAS_CACHED_REFRESH_TABLES[15:]
+
+STATIC_PAYLOAD_KEYS = [
+    'atlas_operators',
+    'atlas_stops',
+    'gtfs_stops_raw',
+    'gtfs_stop_identity_resolution',
+    'atlas_line_families',
+    'atlas_itineraries',
+    'atlas_itinerary_stop_calls',
+]
+
+DYNAMIC_PAYLOAD_KEYS = [
+    'osm_nodes',
+    'osm_stops',
+    'osm_stop_members',
+    'stops_matched',
+    'problem_rows',
+    'osm_route_masters',
+    'osm_route_master_tags',
+    'osm_route_master_members',
+    'osm_route_relations',
+    'osm_route_relation_tags',
+    'osm_route_relation_members',
+    'osm_route_relation_stops',
+    'line_families',
+    'itineraries',
+    'stop_calls',
+    'line_family_matches',
+    'itinerary_matches',
+    'stop_alignments',
+    'route_diagnostics',
+    'stop_diagnostics',
+]
+
+META_PAYLOAD_KEYS = [
+    'matched_routes',
+    'no_nearby_osm_sloids',
+]
+
+
+@dataclass(frozen=True)
+class ImportPayloadGroups:
+    static: dict[str, Any]
+    dynamic: dict[str, Any]
+    meta: dict[str, Any]
+
+
+def split_import_payloads(db_payloads: dict[str, Any]) -> ImportPayloadGroups:
+    return ImportPayloadGroups(
+        static={key: db_payloads.get(key, []) for key in STATIC_PAYLOAD_KEYS},
+        dynamic={key: db_payloads.get(key, []) for key in DYNAMIC_PAYLOAD_KEYS},
+        meta={key: db_payloads.get(key) for key in META_PAYLOAD_KEYS},
+    )
+
+
+def get_refresh_scope_tables(run_type: PipelineRunType) -> tuple[list[str], list[str]]:
+    if run_type == PipelineRunType.ATLAS_CACHED:
+        return list(ATLAS_CACHED_REFRESH_TABLES), list(STATIC_IMPORT_TABLES)
+    return list(FULL_REFRESH_TABLES), []
+
+
+def _validate_atlas_cached_refresh_preconditions(db_session) -> None:
+    required_non_empty_tables = [
+        'atlas_stops',
+        'gtfs_stops_raw',
+        'gtfs_stop_identity_resolution',
+        'atlas_line_families',
+        'atlas_itineraries',
+        'atlas_itinerary_stop_calls',
+    ]
+    empty_tables = []
+    for table_name in required_non_empty_tables:
+        has_rows = db_session.execute(text(f'SELECT 1 FROM {table_name} LIMIT 1')).scalar() is not None
+        if not has_rows:
+            empty_tables.append(table_name)
+    if empty_tables:
+        raise RuntimeError(
+            'ATLAS-cached refresh requested, but required static tables are empty: '
+            f"{', '.join(empty_tables)}. Run a full refresh first."
+        )
 
 
 def _collect_importable_sloids(base_data: MatchingOutput) -> set[str]:
@@ -147,13 +306,19 @@ def _write_gtfs_atlas_stats(stats_payload: dict[str, object]) -> None:
 
 def _normalize_cached_insert_records(rows: list[dict]) -> list[dict]:
     """Convert pandas missing sentinels from cached CSV payloads into plain None."""
-    return [
-        {
-            key: safe_value(value)
-            for key, value in row.items()
-        }
-        for row in rows
-    ]
+    normalized_rows = []
+    for row in rows:
+        normalized_row = {}
+        for key, value in row.items():
+            cleaned = safe_value(value)
+            if key.endswith('_json') and isinstance(cleaned, str):
+                try:
+                    cleaned = json.loads(cleaned)
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    pass
+            normalized_row[key] = cleaned
+        normalized_rows.append(normalized_row)
+    return normalized_rows
 
 
 def _load_gtfs_insert_payload_cache() -> tuple[list[dict], list[dict]] | None:
@@ -214,22 +379,18 @@ def _build_gtfs_insert_payloads() -> tuple[list[dict], list[dict]]:
     matched_stop_ids = {
         row['stop_id']
         for row in gtfs_state_rows
-        if row.get('stop_type') == 'matched' and row.get('stop_id')
+        if row.get('resolved_sloid') and row.get('stop_id')
     }
     matched_sloids = {
-        row['sloid']
+        row['resolved_sloid']
         for row in gtfs_state_rows
-        if row.get('stop_type') == 'matched' and row.get('sloid')
+        if row.get('resolved_sloid')
     }
-    atlas_stop_ids = {
-        row['sloid']
-        for row in gtfs_state_rows
-        if row.get('sloid')
-    }
+    atlas_stop_ids = set(traffic_points['sloid'].dropna().astype(str).unique()) if 'sloid' in traffic_points.columns else set()
 
     print(
         "Prepared "
-        f"{len(gtfs_stop_rows)} GTFS stops and {len(gtfs_state_rows)} GTFS↔ATLAS state rows "
+        f"{len(gtfs_stop_rows)} GTFS raw stops and {len(gtfs_state_rows)} GTFS identity-resolution rows "
         f"({len(matched_stop_ids)} GTFS matched, {len(gtfs_stop_rows) - len(matched_stop_ids)} GTFS unmatched, "
         f"{len(atlas_stop_ids) - len(matched_sloids)} ATLAS unmatched)"
     )
@@ -284,7 +445,7 @@ def precompute_route_artifacts(base_data: MatchingOutput, all_route_data: dict |
     """Prepare route-route write payload before maintenance begins."""
     route_data = all_route_data or load_all_route_data()
     importable_sloids = _collect_importable_sloids(base_data)
-    route_write_payload = build_route_write_payload(route_data, importable_sloids)
+    route_write_payload = build_route_write_payload(route_data, importable_sloids, base_data=base_data)
     return {
         'all_route_data': route_data,
         'route_write_payload': route_write_payload,
@@ -578,20 +739,28 @@ def build_fast_insert_payloads(
 
         stop_idx += 1
 
-    # ---- 4. Synthetic OSM nodes referenced by route members ----
+    # ---- 4. Route payload + synthetic OSM nodes referenced by route rows ----
     route_artifacts = route_artifacts or {}
     all_route_data = route_artifacts.get('all_route_data')
     if all_route_data is None:
         all_route_data = load_all_route_data()
 
+    route_write_payload = route_artifacts.get('route_write_payload')
+    if route_write_payload is None:
+        importable_sloids = {d['sloid'] for d in atlas_stop_dicts if d.get('sloid')}
+        route_write_payload = build_route_write_payload(all_route_data, importable_sloids, base_data=base_data)
+
     known_osm_node_ids = {d['osm_node_id'] for d in osm_node_dicts}
 
-    osm_route_dir_to_nodes = all_route_data.get('osm_route_dir_to_nodes', {})
     route_node_ids = {
-        str(node_id)
-        for _, osm_data in osm_route_dir_to_nodes.items()
-        for node_id in osm_data.get('nodes', [])
-        if node_id
+        str(row['osm_node_id'])
+        for row in route_write_payload.get('osm_route_relation_stops', [])
+        if row.get('osm_node_id')
+    }
+    route_node_ids |= {
+        str(row['source_node_id'])
+        for row in route_write_payload.get('stop_calls', [])
+        if row.get('source_node_id')
     }
     synthetic_node_ids = sorted(route_node_ids - known_osm_node_ids)
     if synthetic_node_ids:
@@ -600,41 +769,33 @@ def build_fast_insert_payloads(
         print(f"Prepared {len(synthetic_node_ids)} synthetic OSM nodes referenced by routes")
 
     # ---- 5. Route rows ----
-    route_write_payload = route_artifacts.get('route_write_payload')
-    if route_write_payload is None:
-        importable_sloids = {d['sloid'] for d in atlas_stop_dicts}
-        route_write_payload = build_route_write_payload(all_route_data, importable_sloids)
-
-    route_osm_dicts_raw = route_write_payload.get('route_osm_stops', [])
-    known_osm_node_ids = {
-        str(d.get('osm_node_id'))
-        for d in osm_node_dicts
-        if d.get('osm_node_id') is not None
-    }
-    route_osm_dicts = [
-        row for row in route_osm_dicts_raw
-        if row.get('osm_node_id') is not None and str(row.get('osm_node_id')) in known_osm_node_ids
-    ]
-    skipped_route_osm_nodes = len(route_osm_dicts_raw) - len(route_osm_dicts)
-    route_atlas_dicts = route_write_payload.get('route_atlas_stops', [])
-    routes_matched_dicts = route_write_payload.get('routes_matched', [])
-    atlas_routes_dicts = route_write_payload.get('atlas_routes', [])
-    atlas_dirs_dicts = route_write_payload.get('atlas_route_directions', [])
-    osm_routes_dicts = route_write_payload.get('osm_routes', [])
-    osm_tags_dicts = route_write_payload.get('osm_route_tags', [])
+    skipped_route_osm_nodes = 0
+    atlas_line_family_dicts = route_write_payload.get('atlas_line_families', [])
+    atlas_itinerary_dicts = route_write_payload.get('atlas_itineraries', [])
+    atlas_itinerary_stop_call_dicts = route_write_payload.get('atlas_itinerary_stop_calls', [])
+    osm_route_master_dicts = route_write_payload.get('osm_route_masters', [])
+    osm_route_master_tag_dicts = route_write_payload.get('osm_route_master_tags', [])
+    osm_route_master_member_dicts = route_write_payload.get('osm_route_master_members', [])
+    osm_route_relation_dicts = route_write_payload.get('osm_route_relations', [])
+    osm_route_relation_tag_dicts = route_write_payload.get('osm_route_relation_tags', [])
+    osm_route_relation_member_dicts = route_write_payload.get('osm_route_relation_members', [])
+    osm_route_relation_stop_dicts = route_write_payload.get('osm_route_relation_stops', [])
+    line_family_dicts = route_write_payload.get('line_families', [])
+    itinerary_dicts = route_write_payload.get('itineraries', [])
+    stop_call_dicts = route_write_payload.get('stop_calls', [])
+    line_family_match_dicts = route_write_payload.get('line_family_matches', [])
+    itinerary_match_dicts = route_write_payload.get('itinerary_matches', [])
+    stop_alignment_dicts = route_write_payload.get('stop_alignments', [])
+    route_diagnostic_dicts = route_write_payload.get('route_diagnostics', [])
+    stop_diagnostic_dicts = route_write_payload.get('stop_diagnostics', [])
 
     skipped_sloids = int(route_write_payload.get('skipped_sloids', 0) or 0)
     matched_routes = int(route_write_payload.get('matched_routes', 0) or 0)
 
     if skipped_sloids:
-        print(f"  Skipped {skipped_sloids} route-atlas entries (SLOID not in atlas_stops)")
-    if skipped_route_osm_nodes:
-        print(
-            f"  Skipped {skipped_route_osm_nodes} route-OSM entries "
-            "(OSM node_id not in osm_nodes)"
-        )
+        print(f"  Skipped {skipped_sloids} atlas itinerary stop calls with non-imported SLOIDs")
 
-    gtfs_stop_dicts, gtfs_atlas_match_dicts = _build_gtfs_insert_payloads()
+    gtfs_stop_dicts, gtfs_identity_resolution_dicts = _build_gtfs_insert_payloads()
     atlas_operator_dicts = sorted(
         atlas_operator_rows_by_abbr.values(),
         key=lambda row: row['atlas_business_org_abbr'],
@@ -644,8 +805,8 @@ def build_fast_insert_payloads(
     total_matched = sum(1 for d in stops_matched_dicts if d['stop_type'] == 'matched')
     print(f"Payload precompute complete: {len(stops_matched_dicts)} stop rows, "
           f"{len(osm_node_dicts)} OSM nodes, {len(atlas_operator_dicts)} ATLAS operators, {len(atlas_stop_dicts)} ATLAS stops, "
-          f"{len(gtfs_stop_dicts)} GTFS stops, {len(gtfs_atlas_match_dicts)} GTFS↔ATLAS matches, "
-          f"{len(problem_rows)} problem rows, {len(route_osm_dicts)} route-OSM rows")
+          f"{len(gtfs_stop_dicts)} GTFS raw stops, {len(gtfs_identity_resolution_dicts)} GTFS identity rows, "
+          f"{len(problem_rows)} problem rows, {len(line_family_match_dicts)} matched line families")
 
     return {
         'osm_nodes': osm_node_dicts,
@@ -654,17 +815,27 @@ def build_fast_insert_payloads(
         'stops_matched': stops_matched_dicts,
         'atlas_operators': atlas_operator_dicts,
         'atlas_stops': atlas_stop_dicts,
-        'gtfs_stops': gtfs_stop_dicts,
-        'gtfs_atlas_stop_matches': gtfs_atlas_match_dicts,
+        'gtfs_stops_raw': gtfs_stop_dicts,
+        'gtfs_stop_identity_resolution': gtfs_identity_resolution_dicts,
         'problem_rows': problem_rows,
-        'route_osm_stops': route_osm_dicts,
-        'route_atlas_stops': route_atlas_dicts,
-        'routes_matched': routes_matched_dicts,
-        'atlas_routes': atlas_routes_dicts,
-        'atlas_route_directions': atlas_dirs_dicts,
-        'osm_routes': osm_routes_dicts,
-        'osm_route_tags': osm_tags_dicts,
-        'route_problems': route_write_payload.get('route_problems', []),
+        'atlas_line_families': atlas_line_family_dicts,
+        'atlas_itineraries': atlas_itinerary_dicts,
+        'atlas_itinerary_stop_calls': atlas_itinerary_stop_call_dicts,
+        'osm_route_masters': osm_route_master_dicts,
+        'osm_route_master_tags': osm_route_master_tag_dicts,
+        'osm_route_master_members': osm_route_master_member_dicts,
+        'osm_route_relations': osm_route_relation_dicts,
+        'osm_route_relation_tags': osm_route_relation_tag_dicts,
+        'osm_route_relation_members': osm_route_relation_member_dicts,
+        'osm_route_relation_stops': osm_route_relation_stop_dicts,
+        'line_families': line_family_dicts,
+        'itineraries': itinerary_dicts,
+        'stop_calls': stop_call_dicts,
+        'line_family_matches': line_family_match_dicts,
+        'itinerary_matches': itinerary_match_dicts,
+        'stop_alignments': stop_alignment_dicts,
+        'route_diagnostics': route_diagnostic_dicts,
+        'stop_diagnostics': stop_diagnostic_dicts,
         'matched_routes': route_write_payload.get('matched_routes', 0),
         'no_nearby_osm_sloids': no_nearby_osm_sloids,
     }
@@ -677,8 +848,20 @@ def build_fast_insert_payloads(
 _BULK_BATCH = int(os.getenv('DB_IMPORT_BATCH_SIZE', '10000'))
 
 
+def _bulk_insert_rows(model, rows: list[dict], label: str | None = None) -> int:
+    if not rows:
+        return 0
+    for i in range(0, len(rows), _BULK_BATCH):
+        session.execute(insert(model), rows[i:i + _BULK_BATCH])
+    session.commit()
+    if label:
+        print(f"Imported {len(rows)} {label}")
+    return len(rows)
+
+
 def import_to_database(
     db_payloads: dict | None = None,
+    run_type: PipelineRunType = PipelineRunType.COMPLETE,
 ):
     """Fully refresh the database "Import DB".
 
@@ -690,39 +873,38 @@ def import_to_database(
     if db_payloads is None:
         raise ValueError("db_payloads must be provided")
 
-    # ---- TRUNCATE all tables ----
-    print("Truncating all database tables...")
-    session.execute(text("TRUNCATE TABLE atlas_stops, atlas_operators, gtfs_stops, gtfs_atlas_stop_matches, osm_nodes, osm_stops, osm_stop_members, route_atlas_stops, route_osm_stops CASCADE"))
-    session.execute(text("TRUNCATE TABLE atlas_routes, atlas_route_directions, osm_routes, osm_route_tags, routes_matched, route_problems CASCADE"))
-    session.execute(text("TRUNCATE TABLE problems, stops_matched CASCADE"))
+    payload_groups = split_import_payloads(db_payloads)
+    db_payloads = {
+        **payload_groups.static,
+        **payload_groups.dynamic,
+        **payload_groups.meta,
+    }
+    rewritten_tables, reused_tables = get_refresh_scope_tables(run_type)
+    if run_type == PipelineRunType.ATLAS_CACHED:
+        _validate_atlas_cached_refresh_preconditions(session)
+
+    # ---- TRUNCATE selected tables ----
+    print(f"Truncating {len(rewritten_tables)} tables for {run_type.value} refresh...")
+    if reused_tables:
+        print(f"Reusing static tables: {', '.join(reused_tables)}")
+    session.execute(text(f"TRUNCATE TABLE {', '.join(rewritten_tables)} CASCADE"))
     session.commit()
 
-    # ---- Bulk insert: OSM nodes ----
-    osm_node_rows = db_payloads['osm_nodes']
-    if osm_node_rows:
-        for i in range(0, len(osm_node_rows), _BULK_BATCH):
-            session.execute(insert(OsmNode), osm_node_rows[i:i + _BULK_BATCH])
-        session.commit()
-        print(f"Imported {len(osm_node_rows)} OSM nodes")
-
-    # ---- Bulk insert: OSM stop units ----
-    osm_stop_rows = db_payloads['osm_stops']
-    if osm_stop_rows:
-        for i in range(0, len(osm_stop_rows), _BULK_BATCH):
-            session.execute(insert(OsmStop), osm_stop_rows[i:i + _BULK_BATCH])
-        session.commit()
-        print(f"Imported {len(osm_stop_rows)} OSM stop units")
-
-    # ---- Bulk insert: OSM stop members ----
-    osm_member_rows = db_payloads['osm_stop_members']
-    if osm_member_rows:
-        for i in range(0, len(osm_member_rows), _BULK_BATCH):
-            session.execute(insert(OsmStopMember), osm_member_rows[i:i + _BULK_BATCH])
-        session.commit()
-        print(f"Imported {len(osm_member_rows)} OSM stop members")
+    _bulk_insert_rows(OsmNode, db_payloads.get('osm_nodes', []), 'OSM nodes')
+    _bulk_insert_rows(OsmStop, db_payloads.get('osm_stops', []), 'OSM stop units')
+    _bulk_insert_rows(OsmStopMember, db_payloads.get('osm_stop_members', []), 'OSM stop members')
+    if run_type == PipelineRunType.COMPLETE:
+        _bulk_insert_rows(AtlasOperator, db_payloads.get('atlas_operators', []), 'ATLAS operators')
+        _bulk_insert_rows(AtlasStop, db_payloads.get('atlas_stops', []), 'ATLAS stops')
+        _bulk_insert_rows(GtfsStopRaw, db_payloads.get('gtfs_stops_raw', []), 'GTFS raw stops')
+        _bulk_insert_rows(
+            GtfsStopIdentityResolution,
+            db_payloads.get('gtfs_stop_identity_resolution', []),
+            'GTFS identity-resolution rows',
+        )
 
     # ---- Bulk insert: stops_matched (strip internal _idx before insert) ----
-    stops_rows = db_payloads['stops_matched']
+    stops_rows = db_payloads.get('stops_matched', [])
     if stops_rows:
         # Insert in batches and collect auto-generated IDs to link problems
         stop_idx_to_db_id = {}
@@ -753,88 +935,77 @@ def import_to_database(
                 session.commit()
                 print(f"Imported {len(problem_dicts)} problem rows")
 
-    atlas_operator_rows = db_payloads.get('atlas_operators', [])
-    if atlas_operator_rows:
-        for i in range(0, len(atlas_operator_rows), _BULK_BATCH):
-            session.execute(insert(AtlasOperator), atlas_operator_rows[i:i + _BULK_BATCH])
-        session.commit()
-        print(f"Imported {len(atlas_operator_rows)} ATLAS operators")
-
-    # ---- Bulk insert: atlas_stops ----
-    atlas_rows = db_payloads['atlas_stops']
-    if atlas_rows:
-        for i in range(0, len(atlas_rows), _BULK_BATCH):
-            session.execute(insert(AtlasStop), atlas_rows[i:i + _BULK_BATCH])
-        session.commit()
-        print(f"Imported {len(atlas_rows)} ATLAS stops")
-
-    gtfs_rows = db_payloads.get('gtfs_stops', [])
-    if gtfs_rows:
-        for i in range(0, len(gtfs_rows), _BULK_BATCH):
-            session.execute(insert(GtfsStop), gtfs_rows[i:i + _BULK_BATCH])
-        session.commit()
-        print(f"Imported {len(gtfs_rows)} GTFS stops")
-
-    gtfs_match_rows = db_payloads.get('gtfs_atlas_stop_matches', [])
-    if gtfs_match_rows:
-        for i in range(0, len(gtfs_match_rows), _BULK_BATCH):
-            session.execute(insert(GtfsAtlasStopMatch), gtfs_match_rows[i:i + _BULK_BATCH])
-        session.commit()
-        print(f"Imported {len(gtfs_match_rows)} GTFS↔ATLAS stop matches")
-
-    # ---- Bulk insert: route tables ----
-    atlas_routes = db_payloads.get('atlas_routes', [])
-    if atlas_routes:
-        for i in range(0, len(atlas_routes), _BULK_BATCH):
-            session.execute(insert(AtlasRoute), atlas_routes[i:i + _BULK_BATCH])
-        session.commit()
-
-    atlas_route_dirs = db_payloads.get('atlas_route_directions', [])
-    if atlas_route_dirs:
-        for i in range(0, len(atlas_route_dirs), _BULK_BATCH):
-            session.execute(insert(AtlasRouteDirection), atlas_route_dirs[i:i + _BULK_BATCH])
-        session.commit()
-
-    osm_routes = db_payloads.get('osm_routes', [])
-    if osm_routes:
-        for i in range(0, len(osm_routes), _BULK_BATCH):
-            session.execute(insert(OsmRoute), osm_routes[i:i + _BULK_BATCH])
-        session.commit()
-
-    osm_route_tags = db_payloads.get('osm_route_tags', [])
-    if osm_route_tags:
-        for i in range(0, len(osm_route_tags), _BULK_BATCH):
-            session.execute(insert(OsmRouteTag), osm_route_tags[i:i + _BULK_BATCH])
-        session.commit()
-
-    route_osm = db_payloads.get('route_osm_stops', [])
-    if route_osm:
-        for i in range(0, len(route_osm), _BULK_BATCH):
-            session.execute(insert(RouteOsmStops), route_osm[i:i + _BULK_BATCH])
-        session.commit()
-
-    route_atlas = db_payloads.get('route_atlas_stops', [])
-    if route_atlas:
-        for i in range(0, len(route_atlas), _BULK_BATCH):
-            session.execute(insert(RouteAtlasStops), route_atlas[i:i + _BULK_BATCH])
-        session.commit()
-
-    routes_matched = db_payloads.get('routes_matched', [])
-    if routes_matched:
-        for i in range(0, len(routes_matched), _BULK_BATCH):
-            session.execute(insert(RoutesMatched), routes_matched[i:i + _BULK_BATCH])
-        session.commit()
-
-    route_problems = db_payloads.get('route_problems', [])
-    if route_problems:
-        from backend.models import RouteProblem
-        for i in range(0, len(route_problems), _BULK_BATCH):
-            session.execute(insert(RouteProblem), route_problems[i:i + _BULK_BATCH])
-        session.commit()
-        print(f"Imported {len(route_problems)} route problems")
+    if run_type == PipelineRunType.COMPLETE:
+        _bulk_insert_rows(AtlasLineFamily, db_payloads.get('atlas_line_families', []), 'ATLAS line families')
+        _bulk_insert_rows(AtlasItinerary, db_payloads.get('atlas_itineraries', []), 'ATLAS itineraries')
+        _bulk_insert_rows(
+            AtlasItineraryStopCall,
+            db_payloads.get('atlas_itinerary_stop_calls', []),
+            'ATLAS itinerary stop calls',
+        )
+    _bulk_insert_rows(OsmRouteMaster, db_payloads.get('osm_route_masters', []), 'OSM route masters')
+    _bulk_insert_rows(
+        OsmRouteMasterTag,
+        db_payloads.get('osm_route_master_tags', []),
+        'OSM route master tags',
+    )
+    _bulk_insert_rows(
+        OsmRouteRelation,
+        db_payloads.get('osm_route_relations', []),
+        'OSM route relations',
+    )
+    _bulk_insert_rows(
+        OsmRouteMasterMember,
+        db_payloads.get('osm_route_master_members', []),
+        'OSM route master members',
+    )
+    _bulk_insert_rows(
+        OsmRouteRelationTag,
+        db_payloads.get('osm_route_relation_tags', []),
+        'OSM route relation tags',
+    )
+    _bulk_insert_rows(
+        OsmRouteRelationMember,
+        db_payloads.get('osm_route_relation_members', []),
+        'OSM route relation members',
+    )
+    _bulk_insert_rows(
+        OsmRouteRelationStop,
+        db_payloads.get('osm_route_relation_stops', []),
+        'OSM route relation stops',
+    )
+    _bulk_insert_rows(LineFamily, db_payloads.get('line_families', []), 'line families')
+    _bulk_insert_rows(Itinerary, db_payloads.get('itineraries', []), 'itineraries')
+    _bulk_insert_rows(StopCall, db_payloads.get('stop_calls', []), 'stop calls')
+    _bulk_insert_rows(
+        LineFamilyMatch,
+        db_payloads.get('line_family_matches', []),
+        'line family matches',
+    )
+    _bulk_insert_rows(
+        ItineraryMatch,
+        db_payloads.get('itinerary_matches', []),
+        'itinerary matches',
+    )
+    _bulk_insert_rows(
+        StopAlignment,
+        db_payloads.get('stop_alignments', []),
+        'stop alignments',
+    )
+    _bulk_insert_rows(
+        RouteDiagnostic,
+        db_payloads.get('route_diagnostics', []),
+        'route diagnostics',
+    )
+    _bulk_insert_rows(
+        StopDiagnostic,
+        db_payloads.get('stop_diagnostics', []),
+        'stop diagnostics',
+    )
 
     matched_routes = db_payloads.get('matched_routes', 0)
-    print(f"Route import completed: {matched_routes} ATLAS↔OSM route pairs linked")
+    itinerary_matches = len(db_payloads.get('itinerary_matches', []))
+    print(f"Route import completed: {matched_routes} line-family matches, {itinerary_matches} itinerary matches")
 
     session.close()
     print("Data import complete!")
@@ -900,7 +1071,7 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
         # Calculate OSM route stats
         osm_with_routes_count = 0
         try:
-            routes_path = "data/processed/osm_route_members.csv"
+            routes_path = "data/processed/osm_route_relation_members.csv"
             if os.path.exists(routes_path):
                 routes_df = pd.read_csv(routes_path)
                 nodes_with_routes = set(routes_df['resolved_node_id'].dropna().astype(str).unique())

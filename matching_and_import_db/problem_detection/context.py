@@ -81,7 +81,7 @@ class ProblemContext:
     osm_platform_count_by_uic: dict = field(default_factory=dict)
 
     # Route evidence lookups for matched-pair diagnostics
-    atlas_routes_by_sloid: dict[str, dict[str, list]] = field(default_factory=dict)
+    atlas_route_evidence_by_sloid: dict[str, dict[str, list]] = field(default_factory=dict)
     osm_node_routes: dict[str, list[dict]] = field(default_factory=dict)
     osm_name_dirs: dict[str, set[str]] = field(default_factory=dict)
 
@@ -97,7 +97,7 @@ class ProblemContext:
         # Using output.duplicate_sloid_map
         ctx = cls(
             duplicate_sloid_map=output.duplicate_sloid_map,
-            atlas_routes_by_sloid=getattr(output, 'atlas_routes_by_sloid', {}) or {},
+            atlas_route_evidence_by_sloid=getattr(output, 'atlas_route_evidence_by_sloid', {}) or {},
             osm_node_routes=getattr(output, 'osm_node_routes', {}) or {},
             osm_name_dirs=getattr(output, 'osm_name_dirs', {}) or {},
         )

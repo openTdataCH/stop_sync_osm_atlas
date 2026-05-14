@@ -188,7 +188,9 @@
             </div>
             <div class="route-meta__name">{{ route.osm_route_name }}</div>
             <div class="route-meta__id">GTFS ID: {{ route.osm_route_display_id or '-' }}</div>
-            {% if route.osm_route_id %}
+            {% if route.osm_route_master_id %}
+            <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_master_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View route master {{ route.osm_route_master_id }} on OSM</a>
+            {% elif route.osm_route_id %}
             <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View relation {{ route.osm_route_id }} on OSM</a>
             {% endif %}
           </div>
@@ -217,7 +219,9 @@
             </div>
             <div class="route-meta__name">{{ route.osm_route_name or 'OSM route' }}</div>
             <div class="route-meta__id">GTFS ID: {{ route.osm_route_display_id or '-' }}</div>
-            {% if route.osm_route_id %}
+            {% if route.osm_route_master_id %}
+            <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_master_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View route master {{ route.osm_route_master_id }} on OSM</a>
+            {% elif route.osm_route_id %}
             <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View relation {{ route.osm_route_id }} on OSM</a>
             {% endif %}
             <div class="route-meta__detail">No matched Atlas route.</div>
@@ -247,6 +251,11 @@
                 {% if direction.representative_headsign %}Headsign: {{ direction.representative_headsign }}{% endif %}
               </p>
               {% endif %}
+              {% if direction.osm_relation_id %}
+              <p class="route-card__summary">
+                <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ direction.osm_relation_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View itinerary relation {{ direction.osm_relation_id }} on OSM</a>
+              </p>
+              {% endif %}
               <div class="direction-block__columns">
                 <div class="stops-column">
                   <h4>ATLAS Stops</h4>
@@ -260,7 +269,7 @@
                       </div>
                       <ul class="stops-list stops-list--nested">
                         {% for member in group.members %}
-                        <li><div class="stop-id stop-id--secondary">SLOID: {{ member.stop_id }}</div></li>
+                        <li><div class="stop-id stop-id--secondary">{{ 'SLOIDs' if member.stop_ids|length > 1 else 'SLOID' }}: {{ member.stop_ids|join(', ') if member.stop_ids else (member.stop_id or '-') }}</div></li>
                         {% endfor %}
                       </ul>
                     </li>
@@ -283,7 +292,7 @@
                       </div>
                       <ul class="stops-list stops-list--nested">
                         {% for member in group.members %}
-                        <li><div class="stop-id stop-id--secondary">Node: {{ member.stop_id }}</div></li>
+                        <li><div class="stop-id stop-id--secondary">{{ 'Nodes' if member.stop_ids|length > 1 else 'Node' }}: {{ member.stop_ids|join(', ') if member.stop_ids else (member.stop_id or '-') }}</div></li>
                         {% endfor %}
                       </ul>
                     </li>
