@@ -111,6 +111,17 @@ def _atlas_itinerary_sequence_key(stop_id: str, sloid: object, original_stop_id:
     return f'gtfs:{stop_id}'
 
 
+def _atlas_itinerary_bucket_key(
+    representative_headsign: str | None,
+    trip_short_name: str | None,
+    pattern_hash: str,
+) -> str:
+    bucket_value = _first_non_empty([representative_headsign, trip_short_name])
+    if bucket_value is None:
+        return pattern_hash
+    return _hash_stop_sequence([f'headsign:{bucket_value}'])
+
+
 def _merge_atlas_stop_row(existing_row: dict[str, object], new_row: dict[str, object]) -> None:
     for field_name in (
         'stop_id',
@@ -258,7 +269,10 @@ def _build_atlas_itinerary_frames(
         )
 
     itinerary_rows = {}
-    itinerary_stop_rows_by_key: dict[tuple[str, str | None, str], list[dict[str, object]]] = {}
+    itinerary_pattern_rows_by_key: dict[
+        tuple[str, str | None, str],
+        dict[str, dict[str, object]],
+    ] = {}
 
     if trip_stop_times_path:
         trip_groups = _iter_trip_groups_from_staged_stop_times(trip_stop_times_path)
@@ -321,16 +335,20 @@ def _build_atlas_itinerary_frames(
         if not stop_rows_for_itinerary:
             continue
 
-        pattern_hash = _hash_stop_sequence(sequence_stop_keys)
-        itinerary_key = (route_id, direction_id, pattern_hash)
-
         direction_label = (
             direction_lookup.get((route_id, direction_id))
             or _first_non_empty(direction_values)
             or representative_headsign
             or trip_short_name
         )
-        atlas_itinerary_id = f"{route_id}:{direction_id or 'na'}:{pattern_hash}"
+        pattern_hash = _hash_stop_sequence(sequence_stop_keys)
+        itinerary_bucket_hash = _atlas_itinerary_bucket_key(
+            representative_headsign,
+            trip_short_name,
+            pattern_hash,
+        )
+        itinerary_key = (route_id, direction_id, itinerary_bucket_hash)
+        atlas_itinerary_id = f"{route_id}:{direction_id or 'na'}:{itinerary_bucket_hash}"
 
         existing_row = itinerary_rows.get(itinerary_key)
         if existing_row is None:
@@ -342,7 +360,7 @@ def _build_atlas_itinerary_frames(
                 'representative_headsign': representative_headsign,
                 'trip_count': 1,
                 'shape_id': shape_id,
-                'pattern_hash': pattern_hash,
+                'pattern_hash': itinerary_bucket_hash,
             }
         else:
             existing_row['trip_count'] += 1
@@ -353,12 +371,20 @@ def _build_atlas_itinerary_frames(
             if existing_row['shape_id'] is None:
                 existing_row['shape_id'] = shape_id
 
-        existing_stop_rows = itinerary_stop_rows_by_key.get(itinerary_key)
-        if existing_stop_rows is None:
-            itinerary_stop_rows_by_key[itinerary_key] = stop_rows_for_itinerary
+        pattern_candidates = itinerary_pattern_rows_by_key.setdefault(itinerary_key, {})
+        pattern_candidate = pattern_candidates.get(pattern_hash)
+        if pattern_candidate is None:
+            pattern_candidates[pattern_hash] = {
+                'trip_count': 1,
+                'shape_id': shape_id,
+                'stop_rows': stop_rows_for_itinerary,
+            }
             processed_stop_call_count += len(stop_rows_for_itinerary)
         else:
-            for existing_stop_row, stop_row in zip(existing_stop_rows, stop_rows_for_itinerary):
+            pattern_candidate['trip_count'] += 1
+            if pattern_candidate['shape_id'] is None:
+                pattern_candidate['shape_id'] = shape_id
+            for existing_stop_row, stop_row in zip(pattern_candidate['stop_rows'], stop_rows_for_itinerary):
                 _merge_atlas_stop_row(existing_stop_row, stop_row)
 
         if processed_trip_count % progress_trip_interval == 0:
@@ -381,8 +407,19 @@ def _build_atlas_itinerary_frames(
     )
 
     itinerary_stop_rows: list[dict[str, object]] = []
-    for itinerary_key, stop_rows in itinerary_stop_rows_by_key.items():
+    for itinerary_key, pattern_candidates in itinerary_pattern_rows_by_key.items():
         atlas_itinerary_id = itinerary_rows[itinerary_key]['atlas_itinerary_id']
+        _, selected_pattern = max(
+            pattern_candidates.items(),
+            key=lambda item: (
+                int(item[1]['trip_count']),
+                len(item[1]['stop_rows']),
+                item[0],
+            ),
+        )
+        if selected_pattern.get('shape_id') is not None:
+            itinerary_rows[itinerary_key]['shape_id'] = selected_pattern['shape_id']
+        stop_rows = selected_pattern['stop_rows']
         for stop_row in stop_rows:
             itinerary_stop_rows.append({
                 'atlas_itinerary_id': atlas_itinerary_id,
