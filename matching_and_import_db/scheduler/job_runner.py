@@ -194,19 +194,18 @@ def _run_atlas_gtfs_preprocessing_if_needed(lock_token: str) -> PipelineRunType:
         if _force_full_refresh_enabled():
             set_phase(
                 phase="atlas_download",
-                message="ATLAS + GTFS unchanged; reusing cached preprocessing outputs and forcing full refresh",
+                message="ATLAS + GTFS unchanged; forcing preprocessing rebuild and full refresh",
                 maintenance=False,
             )
-            LOGGER.info("ATLAS and GTFS sources unchanged, but full refresh is forced by environment")
-            return PipelineRunType.COMPLETE
-
-        set_phase(
-            phase="atlas_download",
-            message="ATLAS + GTFS unchanged; reusing cached preprocessing outputs",
-            maintenance=False,
-        )
-        LOGGER.info("ATLAS and GTFS sources unchanged; skipping preprocessing download step")
-        return PipelineRunType.ATLAS_CACHED
+            LOGGER.info("ATLAS and GTFS sources unchanged, but preprocessing and full refresh are forced by environment")
+        else:
+            set_phase(
+                phase="atlas_download",
+                message="ATLAS + GTFS unchanged; reusing cached preprocessing outputs",
+                maintenance=False,
+            )
+            LOGGER.info("ATLAS and GTFS sources unchanged; skipping preprocessing download step")
+            return PipelineRunType.ATLAS_CACHED
 
     _run_subprocess(
         [sys.executable, "-m", "matching_and_import_db.downloader.get_atlas_data"],

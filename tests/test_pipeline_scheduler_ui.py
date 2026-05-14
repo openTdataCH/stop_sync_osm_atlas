@@ -306,8 +306,8 @@ def test_run_atlas_gtfs_preprocessing_can_force_full_refresh(monkeypatch):
     run_type = job_runner._run_atlas_gtfs_preprocessing_if_needed("lock-token")
 
     assert run_type == PipelineRunType.COMPLETE
-    assert captured.get("subprocess_called") is None
+    assert captured.get("subprocess_called") is True
     assert captured["phases"][-1] == (
         "atlas_download",
-        "ATLAS + GTFS unchanged; reusing cached preprocessing outputs and forcing full refresh",
+        "ATLAS + GTFS unchanged; forcing preprocessing rebuild and full refresh",
     )
