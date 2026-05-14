@@ -11,8 +11,8 @@ class RouteState:
     
     def __init__(self):
         self.osm_route_to_atlas_route: Dict[str, str] = {}
-        self.atlas_routes: pd.DataFrame = None
-        self.osm_routes: pd.DataFrame = None
+        self.atlas_line_families: pd.DataFrame = None
+        self.osm_route_relations: pd.DataFrame = None
 
     @classmethod
     def get_instance(cls):
@@ -24,7 +24,11 @@ class RouteState:
     def reset(cls):
         cls._instance = None
 
-    def load_and_match(self, atlas_routes_path="data/processed/atlas_routes.csv", osm_routes_path="data/processed/osm_routes.csv"):
+    def load_and_match(
+        self,
+        atlas_line_families_path="data/processed/atlas_line_families.csv",
+        osm_route_relations_path="data/processed/osm_route_relations.csv",
+    ):
         """
         Loads the CSV files and precomputes the equivalency map.
         1. Exact ID match
@@ -32,19 +36,19 @@ class RouteState:
         """
         self.osm_route_to_atlas_route.clear()
         try:
-            self.atlas_routes = pd.read_csv(atlas_routes_path, dtype=str)
-            self.osm_routes = pd.read_csv(osm_routes_path, dtype=str)
+            self.atlas_line_families = pd.read_csv(atlas_line_families_path, dtype=str)
+            self.osm_route_relations = pd.read_csv(osm_route_relations_path, dtype=str)
         except Exception as e:
             print(f"RouteState: Failed to load route data: {e}")
             return
             
-        if self.atlas_routes.empty or self.osm_routes.empty:
+        if self.atlas_line_families.empty or self.osm_route_relations.empty:
             return
             
         # 1. Exact match on GTFS Route ID
-        atlas_route_ids = set(self.atlas_routes['route_id'].dropna())
+        atlas_route_ids = set(self.atlas_line_families['atlas_line_id'].dropna())
         
-        for _, osm_row in self.osm_routes.iterrows():
+        for _, osm_row in self.osm_route_relations.iterrows():
             osm_rel_id = osm_row['relation_id']
             gtfs_id = osm_row['gtfs_route_id']
             
@@ -56,10 +60,10 @@ class RouteState:
             if pd.notna(gtfs_id):
                 norm_osm = normalize_route_id(gtfs_id)
                 # Find matching normalized atlas route
-                matches = self.atlas_routes[self.atlas_routes['route_id_normalized'] == norm_osm]
+                matches = self.atlas_line_families[self.atlas_line_families['route_id_normalized'] == norm_osm]
                 if not matches.empty:
                     # Just pick the first one for simplicity, or could refine with direction
-                    self.osm_route_to_atlas_route[osm_rel_id] = matches.iloc[0]['route_id']
+                    self.osm_route_to_atlas_route[osm_rel_id] = matches.iloc[0]['atlas_line_id']
                     
         print(f"RouteState: Precomputed {len(self.osm_route_to_atlas_route)} route matches.")
 

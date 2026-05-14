@@ -27,10 +27,10 @@ def _normalize_text_values(values: Iterable[str] | None) -> set[str]:
     }
 
 
-def build_atlas_gtfs_tokens(atlas_routes_data: dict[str, list] | None) -> set[tuple[str, str]]:
+def build_atlas_gtfs_tokens(atlas_route_evidence: dict[str, list] | None) -> set[tuple[str, str]]:
     tokens: set[tuple[str, str]] = set()
 
-    for entry in (atlas_routes_data or {}).get('gtfs', []):
+    for entry in (atlas_route_evidence or {}).get('gtfs', []):
         direction_id = _normalize_direction_id(entry.get('direction_id'))
         if direction_id is None:
             continue
@@ -53,10 +53,10 @@ def build_atlas_gtfs_tokens(atlas_routes_data: dict[str, list] | None) -> set[tu
     return tokens
 
 
-def build_atlas_direction_names(atlas_routes_data: dict[str, list] | None) -> set[str]:
+def build_atlas_direction_names(atlas_route_evidence: dict[str, list] | None) -> set[str]:
     return _normalize_text_values(
         entry.get('direction_name')
-        for entry in (atlas_routes_data or {}).get('gtfs', [])
+        for entry in (atlas_route_evidence or {}).get('gtfs', [])
     )
 
 
@@ -96,7 +96,7 @@ def build_osm_gtfs_tokens(
 
 
 def classify_route_alignment(
-    atlas_routes_data: dict[str, list] | None,
+    atlas_route_evidence: dict[str, list] | None,
     osm_node_routes: list[dict] | None,
     osm_direction_names: Iterable[str] | None,
     route_state: RouteState | None = None,
@@ -110,14 +110,14 @@ def classify_route_alignment(
     - ``direction_contradiction``
     - ``inconclusive``
     """
-    atlas_tokens = build_atlas_gtfs_tokens(atlas_routes_data)
+    atlas_tokens = build_atlas_gtfs_tokens(atlas_route_evidence)
     osm_tokens = build_osm_gtfs_tokens(osm_node_routes, route_state=route_state)
     if atlas_tokens and osm_tokens:
         if atlas_tokens & osm_tokens:
             return 'token_match'
         return 'token_contradiction'
 
-    atlas_direction_names = build_atlas_direction_names(atlas_routes_data)
+    atlas_direction_names = build_atlas_direction_names(atlas_route_evidence)
     osm_direction_names = _normalize_text_values(osm_direction_names)
     if atlas_direction_names and osm_direction_names:
         if atlas_direction_names & osm_direction_names:

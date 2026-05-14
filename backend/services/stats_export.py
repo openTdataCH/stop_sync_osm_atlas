@@ -918,26 +918,27 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
 
 def compute_route_problem_stats(db_session) -> Dict[str, Any]:
     """Compute route problem statistics by querying the database after import."""
-    from backend.models import RoutesMatched, RouteProblem
+    from backend.models import LineFamilyMatch, RouteDiagnostic
     from sqlalchemy import func
 
-    total_routes_matched = db_session.query(RoutesMatched).count()
+    total_routes_matched = db_session.query(LineFamilyMatch).count()
 
     type_counts = dict(
-        db_session.query(RouteProblem.problem_type, func.count(RouteProblem.id))
-        .group_by(RouteProblem.problem_type).all()
+        db_session.query(RouteDiagnostic.diagnostic_type, func.count(RouteDiagnostic.id))
+        .group_by(RouteDiagnostic.diagnostic_type).all()
     )
 
-    # Priority × type breakdown
-    by_priority: Dict[int, Dict[str, int]] = {}
+    # Severity × type breakdown. Keep the historical by_priority key to avoid
+    # changing downstream stats consumers all at once.
+    by_priority: Dict[str, Dict[str, int]] = {}
     rows = (
-        db_session.query(RouteProblem.priority, RouteProblem.problem_type, func.count(RouteProblem.id))
-        .group_by(RouteProblem.priority, RouteProblem.problem_type).all()
+        db_session.query(RouteDiagnostic.severity, RouteDiagnostic.diagnostic_type, func.count(RouteDiagnostic.id))
+        .group_by(RouteDiagnostic.severity, RouteDiagnostic.diagnostic_type).all()
     )
-    for priority, ptype, cnt in rows:
-        by_priority.setdefault(priority, {})[ptype] = cnt
+    for severity, diagnostic_type, count in rows:
+        by_priority.setdefault(severity or 'unknown', {})[diagnostic_type] = count
         
-    total_problems = db_session.query(RouteProblem).count()
+    total_problems = db_session.query(RouteDiagnostic).count()
 
     return {
         'total_routes_matched': total_routes_matched,
@@ -950,44 +951,62 @@ def compute_route_problem_stats(db_session) -> Dict[str, Any]:
 
 def compute_route_route_stats(db_session) -> Dict[str, Any]:
     """Compute route-route linking statistics from route tables in the import DB."""
-    from backend.models import RouteAtlasStops, RouteOsmStops, RoutesMatched
+    from backend.models import Itinerary, ItineraryMatch, LineFamily, LineFamilyMatch
+    from sqlalchemy import inspect
 
-    total_links = db_session.query(RoutesMatched).count()
+    total_links = db_session.query(LineFamilyMatch).count()
+    inspector = inspect(db_session.get_bind())
+    itinerary_links_total = db_session.query(ItineraryMatch).count() if inspector.has_table(ItineraryMatch.__tablename__) else 0
 
     atlas_routes_linked = (
-        db_session.query(RoutesMatched.atlas_route_id)
-        .filter(RoutesMatched.atlas_route_id.isnot(None))
+        db_session.query(LineFamilyMatch.atlas_line_family_id)
+        .filter(LineFamilyMatch.atlas_line_family_id.isnot(None))
         .distinct()
         .count()
     )
     osm_routes_linked = (
-        db_session.query(RoutesMatched.osm_route_id)
-        .filter(RoutesMatched.osm_route_id.isnot(None))
+        db_session.query(LineFamilyMatch.osm_line_family_id)
+        .filter(LineFamilyMatch.osm_line_family_id.isnot(None))
         .distinct()
         .count()
     )
 
     atlas_route_ids_total = (
-        db_session.query(RouteAtlasStops.atlas_route_id)
-        .filter(RouteAtlasStops.atlas_route_id.isnot(None))
-        .distinct()
+        db_session.query(LineFamily.id)
+        .filter(LineFamily.source == 'atlas')
         .count()
     )
     osm_route_ids_total = (
-        db_session.query(RouteOsmStops.osm_route_id)
-        .filter(RouteOsmStops.osm_route_id.isnot(None))
-        .distinct()
+        db_session.query(LineFamily.id)
+        .filter(LineFamily.source == 'osm')
         .count()
     )
 
     atlas_route_directions_total = (
-        db_session.query(RouteAtlasStops.atlas_route_id, RouteAtlasStops.direction_id)
+        db_session.query(Itinerary.line_family_id, Itinerary.direction_id)
+        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+        .filter(LineFamily.source == 'atlas')
         .distinct()
         .count()
     )
     osm_route_directions_total = (
-        db_session.query(RouteOsmStops.osm_route_id, RouteOsmStops.direction_id)
+        db_session.query(Itinerary.line_family_id, Itinerary.direction_id)
+        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+        .filter(LineFamily.source == 'osm')
         .distinct()
+        .count()
+    )
+
+    atlas_itineraries_total = (
+        db_session.query(Itinerary.id)
+        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+        .filter(LineFamily.source == 'atlas')
+        .count()
+    )
+    osm_itineraries_total = (
+        db_session.query(Itinerary.id)
+        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+        .filter(LineFamily.source == 'osm')
         .count()
     )
 
@@ -1011,6 +1030,9 @@ def compute_route_route_stats(db_session) -> Dict[str, Any]:
         'osm_route_ids_total': osm_route_ids_total,
         'atlas_route_directions_total': atlas_route_directions_total,
         'osm_route_directions_total': osm_route_directions_total,
+        'atlas_itineraries_total': atlas_itineraries_total,
+        'osm_itineraries_total': osm_itineraries_total,
+        'itinerary_links_total': itinerary_links_total,
         'atlas_routes_without_link': atlas_routes_without_link,
         'osm_routes_without_link': osm_routes_without_link,
         'atlas_link_coverage_percent': atlas_link_coverage_percent,

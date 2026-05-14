@@ -89,12 +89,12 @@ class RouteMatchPredicate(BasePredicate):
             if not sloid:
                 continue
 
-            atlas_routes_data = ctx.atlas.get_routes(sloid)
-            if not atlas_routes_data['gtfs']:
+            atlas_route_evidence = ctx.atlas.get_route_evidence(sloid)
+            if not atlas_route_evidence['gtfs']:
                 continue
 
-            atlas_tokens = build_atlas_gtfs_tokens(atlas_routes_data)
-            atlas_direction_names = build_atlas_direction_names(atlas_routes_data)
+            atlas_tokens = build_atlas_gtfs_tokens(atlas_route_evidence)
+            atlas_direction_names = build_atlas_direction_names(atlas_route_evidence)
 
             # Find OSM candidates within max_distance
             candidates = [
