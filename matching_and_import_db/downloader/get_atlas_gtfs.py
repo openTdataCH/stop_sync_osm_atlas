@@ -241,6 +241,8 @@ def parse_gtfs_stop_ids(gtfs_stops: pd.DataFrame) -> pd.DataFrame:
         parsed['uic_number'] = original_uic.where(original_uic.notna(), parsed['uic_number'])
     if original_parts.shape[1] >= 3:
         original_local_ref = original_parts[2].replace('', pd.NA)
+        # Only use original_local_ref if the original string was actually a UIC-based ID
+        original_local_ref = original_local_ref.where(original_uic.notna(), pd.NA)
         parsed['local_ref'] = original_local_ref.where(original_local_ref.notna(), parsed['local_ref'])
 
     parsed['platform_code'] = parsed.get('platform_code')
@@ -333,7 +335,7 @@ def load_gtfs_data_streaming(gtfs_folder: str):
             - trips: filtered trips DataFrame (only trips that touch Swiss stops)
             - routes: filtered routes DataFrame (only routes referenced by filtered trips)
             - stop_route_unique: DataFrame[stop_id, route_id, direction_id]
-            - route_directions: DataFrame[route_id, direction]
+            - route_directions: DataFrame[route_id, direction] (first stop → last stop, all stops including cross-border)
             - trip_stop_times_path: CSV path with filtered Swiss trip stop-times
             - trip_stop_times_row_count: number of staged Swiss trip stop-time rows
     """
@@ -412,14 +414,14 @@ def load_gtfs_data_streaming(gtfs_folder: str):
 
     # Streaming over stop_times: collect
     #  - relevant_trip_ids (trips touching Swiss stops)
-    #  - trip termini among Swiss stops (stop_sequence min/max per trip)
+    #  - trip termini among all stops (stop_sequence min/max per trip, for direction labels)
     #  - unique (stop_id, route_id, direction_id) combinations
     #
     # Optimization: no per-row Python loops inside the hot path.
     # We accumulate small DataFrames per chunk and do a single final reduce.
     relevant_trip_ids: Set[str] = set()
-    terminus_first_parts: list = []   # (trip_id, stop_id, stop_sequence) — first Swiss stop per trip per chunk
-    terminus_last_parts: list = []    # same for last
+    global_terminus_first_parts: list = []  # (trip_id, stop_id, stop_sequence) — first stop per trip per chunk (all stops, not Swiss-only)
+    global_terminus_last_parts: list = []   # same for last
     stop_route_parts: list = []       # unique (stop_id, route_id, direction_id) slices
     trip_stop_times_path = os.path.join(gtfs_folder, GTFS_TRIP_STOP_TIMES_STAGE_FILENAME)
     try:
@@ -440,6 +442,11 @@ def load_gtfs_data_streaming(gtfs_folder: str):
     ):
         if not swiss_stop_ids:
             continue
+
+        # Track global termini from ALL stops for direction labels (not Swiss-only)
+        grp_all = chunk.groupby('trip_id', sort=False)['stop_sequence']
+        global_terminus_first_parts.append(chunk.loc[grp_all.idxmin(), ['trip_id', 'stop_id', 'stop_sequence']])
+        global_terminus_last_parts.append(chunk.loc[grp_all.idxmax(), ['trip_id', 'stop_id', 'stop_sequence']])
 
         mask = chunk['stop_id'].isin(swiss_stop_ids)
         if not mask.any():
@@ -466,13 +473,6 @@ def load_gtfs_data_streaming(gtfs_folder: str):
         trip_stop_times_header_written = True
         trip_stop_times_row_count += len(swiss_chunk)
 
-        # Per-trip Swiss termini (min/max stop_sequence among Swiss stops)
-        # Vectorized: use idxmin/idxmax then loc — no Python iteration
-        grp = swiss_chunk.groupby('trip_id', sort=False)['stop_sequence']
-        idx_first = grp.idxmin()
-        idx_last = grp.idxmax()
-        terminus_first_parts.append(swiss_chunk.loc[idx_first, ['trip_id', 'stop_id', 'stop_sequence']])
-        terminus_last_parts.append(swiss_chunk.loc[idx_last, ['trip_id', 'stop_id', 'stop_sequence']])
 
         # Build unique (stop_id, route_id, direction_id) — vectorized map + drop_duplicates
         route_ids = swiss_chunk['trip_id'].map(route_by_trip)
@@ -496,13 +496,18 @@ def load_gtfs_data_streaming(gtfs_folder: str):
         trips_df = pd.DataFrame(columns=['trip_id', 'route_id', 'direction_id', 'trip_headsign', 'trip_short_name', 'shape_id'])
     print(f"GTFS: loaded {len(trips_df):,} trips (filtered to relevant trips)")
 
-    # Derive route_directions from per-trip Swiss termini (same semantics as before)
-    # Final reduce: find the true global first/last Swiss stop per trip across all chunks
-    if terminus_first_parts and terminus_last_parts:
-        stop_id_to_name = swiss_stops.set_index('stop_id')['stop_name'].to_dict()
+    # Derive route_directions from per-trip global termini (first stop → last stop)
+    # Final reduce: find the true global first/last stop per trip across all chunks,
+    # then filter to only trips that touch Swiss stops (relevant_trip_ids).
+    if global_terminus_first_parts and global_terminus_last_parts:
+        stop_id_to_name = all_stops.set_index('stop_id')['stop_name'].to_dict()
 
-        all_first = pd.concat(terminus_first_parts, ignore_index=True)
-        all_last = pd.concat(terminus_last_parts, ignore_index=True)
+        all_first = pd.concat(global_terminus_first_parts, ignore_index=True)
+        all_last = pd.concat(global_terminus_last_parts, ignore_index=True)
+
+        # Filter to relevant trips (those touching Swiss stops)
+        all_first = all_first[all_first['trip_id'].isin(relevant_trip_ids)]
+        all_last = all_last[all_last['trip_id'].isin(relevant_trip_ids)]
 
         # Keep the row with the globally minimum/maximum stop_sequence per trip
         global_first = all_first.loc[all_first.groupby('trip_id')['stop_sequence'].idxmin(), ['trip_id', 'stop_id']]

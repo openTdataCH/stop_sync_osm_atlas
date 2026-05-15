@@ -22,7 +22,7 @@ from matching_and_import_db.utils.common import haversine_distance
 from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
 from matching_and_import_db.predicates.name_matching import NameMatchPredicate
 from matching_and_import_db.predicates.trio_distance_matching import TrioDistanceMatchingPredicate
-from matching_and_import_db.predicates.distance_matching import GroupProximityPredicate, LocalRefDistancePredicate, NearestDistancePredicate
+from matching_and_import_db.predicates.distance_matching import GroupProximityPredicate, LongDistanceGroupProximityPredicate, LocalRefDistancePredicate, NearestDistancePredicate
 from matching_and_import_db.predicates.route_matching_gtfs import RouteMatchPredicate
 from matching_and_import_db.route_state import RouteState
 
@@ -32,6 +32,7 @@ DEFAULT_PIPELINE = [
     NameMatchPredicate(),
     RouteMatchPredicate(),
     GroupProximityPredicate(),
+    LongDistanceGroupProximityPredicate(),
     LocalRefDistancePredicate(),
     NearestDistancePredicate(mode='single', pass_label='first'),
     NearestDistancePredicate(mode='ratio', pass_label='first'),
