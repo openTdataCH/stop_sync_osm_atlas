@@ -53,6 +53,7 @@ MATCH_FILTER_LABELS = {
 }
 
 ROUTES_VIEW_ROUTES = 'routes'
+ROUTES_VIEW_NON_GTFS = 'non_gtfs_routes'
 ROUTES_VIEW_GTFS_STOP_ID_SLOID = 'gtfs_stop_id_sloid'
 
 
@@ -119,10 +120,31 @@ def _search_placeholder() -> str:
     return 'Search Atlas line IDs or OSM display route IDs'
 
 
+def _route_listing_endpoint(active_view: str) -> str:
+    if active_view == ROUTES_VIEW_NON_GTFS:
+        return 'routes.non_gtfs_routes_page'
+    return 'routes.routes_page'
+
+
+def _is_non_gtfs_osm_family(osm_family: LineFamily | None) -> bool:
+    if osm_family is None or osm_family.source != 'osm':
+        return False
+    return (_clean_text(osm_family.network) or '').lower() == 'flixbus'
+
+
+def _osm_route_id_label(gtfs_route_id: str | None, display_route_id: str | None) -> str:
+    if _clean_text(gtfs_route_id):
+        return 'GTFS ID'
+    if _clean_text(display_route_id):
+        return 'Route ref'
+    return 'Route ID'
+
+
 def _render_routes_template(active_view: str, **context):
     return render_template(
         'pages/routes.html',
         active_view=active_view,
+        listing_endpoint=_route_listing_endpoint(active_view),
         gtfs_stop_id_sloid_detail_zoom=GTFS_STOP_ID_SLOID_DETAIL_ZOOM,
         gtfs_stop_id_sloid_detail_limit=GTFS_STOP_ID_SLOID_DETAIL_LIMIT,
         gtfs_stop_id_sloid_overview_limit=GTFS_STOP_ID_SLOID_OVERVIEW_LIMIT,
@@ -305,9 +327,13 @@ def _load_route_page_data():
             'osm_route_master_id': _clean_text(osm_family.route_master_id),
             'osm_route_id': _clean_text(osm_family.representative_relation_id),
             'osm_representative_relation_id': _clean_text(osm_family.representative_relation_id),
+            'osm_gtfs_route_id': _clean_text(osm_family.gtfs_route_id),
             'osm_route_display_id': _clean_text(osm_family.display_route_id),
+            'osm_route_id_label': _osm_route_id_label(osm_family.gtfs_route_id, osm_family.display_route_id),
             'osm_route_name': _clean_text(osm_family.public_name) or _clean_text(osm_family.ref) or _clean_text(osm_family.display_route_id),
             'osm_operator': _clean_text(osm_family.operator),
+            'osm_network': _clean_text(osm_family.network),
+            'is_non_gtfs': _is_non_gtfs_osm_family(osm_family),
             'primary_route_id': _clean_text(atlas_family.source_family_id) or _clean_text(osm_family.display_route_id),
         })
 
@@ -331,9 +357,13 @@ def _load_route_page_data():
             'osm_route_master_id': None,
             'osm_route_id': None,
             'osm_representative_relation_id': None,
+            'osm_gtfs_route_id': None,
             'osm_route_display_id': None,
+            'osm_route_id_label': 'Route ID',
             'osm_route_name': None,
             'osm_operator': None,
+            'osm_network': None,
+            'is_non_gtfs': False,
             'primary_route_id': _clean_text(atlas_family.source_family_id),
         })
 
@@ -343,7 +373,7 @@ def _load_route_page_data():
         route_items.append({
             'display_mode': 'osm_only',
             'is_matched': False,
-            'match_label': 'Unmatched OSM',
+            'match_label': 'Non-GTFS OSM' if _is_non_gtfs_osm_family(osm_family) else 'Unmatched OSM',
             'sort_route_id': _clean_text(osm_family.display_route_id) or '',
             'atlas_family_id': None,
             'osm_family_id': osm_family.id,
@@ -356,9 +386,13 @@ def _load_route_page_data():
             'osm_route_master_id': _clean_text(osm_family.route_master_id),
             'osm_route_id': _clean_text(osm_family.representative_relation_id),
             'osm_representative_relation_id': _clean_text(osm_family.representative_relation_id),
+            'osm_gtfs_route_id': _clean_text(osm_family.gtfs_route_id),
             'osm_route_display_id': _clean_text(osm_family.display_route_id),
+            'osm_route_id_label': _osm_route_id_label(osm_family.gtfs_route_id, osm_family.display_route_id),
             'osm_route_name': _clean_text(osm_family.public_name) or _clean_text(osm_family.ref) or _clean_text(osm_family.display_route_id),
             'osm_operator': _clean_text(osm_family.operator),
+            'osm_network': _clean_text(osm_family.network),
+            'is_non_gtfs': _is_non_gtfs_osm_family(osm_family),
             'primary_route_id': _clean_text(osm_family.display_route_id),
         })
 
@@ -401,6 +435,17 @@ def _route_matches_filters(route_item, q, atlas_operators, osm_operators, matche
             return False
 
     return True
+
+
+def _partition_route_items(route_items):
+    gtfs_route_items = []
+    non_gtfs_route_items = []
+    for item in route_items:
+        if item.get('is_non_gtfs'):
+            non_gtfs_route_items.append(item)
+        else:
+            gtfs_route_items.append(item)
+    return gtfs_route_items, non_gtfs_route_items
 
 
 def _load_detail_maps(page_items):
@@ -584,6 +629,8 @@ def routes_page():
         else:
             raise
 
+    route_items, _non_gtfs_route_items = _partition_route_items(route_items)
+
     filtered_items = [
         item
         for item in route_items
@@ -615,6 +662,51 @@ def routes_page():
         atlas_operator_query=_serialize_filter(selected_atlas_operators),
         osm_operator_query=_serialize_filter(selected_osm_operators),
         q=q,
+        search_placeholder=_search_placeholder(),
+    )
+
+
+@routes_bp.route('/routes/non-gtfs')
+def non_gtfs_routes_page():
+    page = _bounded_int(request.args.get('page', 1), 1, minimum=1)
+    per_page = _bounded_int(request.args.get('per_page', 10), 10, minimum=1, maximum=max(ROUTES_PER_PAGE_OPTIONS))
+
+    try:
+        route_items = _load_route_page_data()
+    except Exception as exc:
+        if is_missing_table_error(exc):
+            db.session.rollback()
+            route_items = []
+        else:
+            raise
+
+    _gtfs_route_items, non_gtfs_route_items = _partition_route_items(route_items)
+    non_gtfs_route_items.sort(key=lambda item: (item['sort_route_id'].lower(), item['display_mode']))
+
+    total = len(non_gtfs_route_items)
+    start_index = (page - 1) * per_page
+    page_items = non_gtfs_route_items[start_index:start_index + per_page]
+    pagination = _ListPagination(page_items, page, per_page, total) if total else _EmptyPagination(page, per_page)
+    route_rows = _build_route_rows(page_items)
+    range_start, range_end = _compute_page_range(pagination)
+
+    return _render_routes_template(
+        ROUTES_VIEW_NON_GTFS,
+        route_rows=route_rows,
+        pagination=pagination,
+        range_start=range_start,
+        range_end=range_end,
+        per_page=per_page,
+        per_page_options=ROUTES_PER_PAGE_OPTIONS,
+        match_filter_labels=MATCH_FILTER_LABELS,
+        matched_filter=ROUTE_MATCH_ALL,
+        available_atlas_operators=[],
+        available_osm_operators=[],
+        selected_atlas_operators=[],
+        selected_osm_operators=[],
+        atlas_operator_query='',
+        osm_operator_query='',
+        q='',
         search_placeholder=_search_placeholder(),
     )
 
