@@ -9,31 +9,31 @@ SECTION 0 — TIMESTAMPS
   <div class="card-body py-3">
     <div class="row align-items-center">
       <div class="col-md-3 col-sm-6 mb-2 mb-md-0">
-        <div class="text-muted small fw-bold text-uppercase mb-1">Pipeline Completed</div>
-        <div class="fw-medium text-dark">
-          <i class="fas fa-check-circle text-success me-1"></i>
-          {{ stats.last_pipeline_data_import_ended_at|format_zurich_display_timestamp|default('Unknown') }}
+        <div class="text-muted small fw-bold text-uppercase mb-1">Last Pipeline Completed</div>
+        <div class="fw-medium text-dark d-flex align-items-center">
+          <img src="{{ url_for('static', filename='favicon.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="Pipeline Status">
+          <span>{{ stats.last_pipeline_data_import_ended_at|format_zurich_display_timestamp|default('Unknown') }}</span>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-2 mb-md-0 border-start">
-        <div class="text-muted small fw-bold text-uppercase mb-1">ATLAS Downloaded</div>
-        <div class="fw-medium text-dark">
-          <i class="fas fa-train text-primary me-1"></i>
-          {{ stats.source_downloads.atlas.atlas_downloaded_at|default(stats.source_downloads.atlas.downloaded_at)|format_zurich_display_timestamp|default('Unknown') }}
+        <div class="text-muted small fw-bold text-uppercase mb-1">Last ATLAS Downloaded</div>
+        <div class="fw-medium text-dark d-flex align-items-center">
+          <img src="{{ url_for('static', filename='atlas.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="ATLAS">
+          <span>{{ stats.source_downloads.atlas.atlas_downloaded_at|default(stats.source_downloads.atlas.downloaded_at)|format_zurich_display_timestamp|default('Unknown') }}</span>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-2 mb-md-0 border-start">
-        <div class="text-muted small fw-bold text-uppercase mb-1">GTFS Downloaded</div>
-        <div class="fw-medium text-dark">
-          <i class="fas fa-bus text-primary me-1"></i>
-          {{ stats.source_downloads.gtfs.gtfs_downloaded_at|default(stats.source_downloads.gtfs.downloaded_at)|format_zurich_display_timestamp|default('Unknown') }}
+        <div class="text-muted small fw-bold text-uppercase mb-1">Last GTFS Downloaded</div>
+        <div class="fw-medium text-dark d-flex align-items-center">
+          <img src="{{ url_for('static', filename='opentransportdata.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="GTFS">
+          <span>{{ stats.source_downloads.gtfs.gtfs_downloaded_at|default(stats.source_downloads.gtfs.downloaded_at)|format_zurich_display_timestamp|default('Unknown') }}</span>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 border-start">
-        <div class="text-muted small fw-bold text-uppercase mb-1">OSM Queried</div>
-        <div class="fw-medium text-dark">
-          <i class="fas fa-map-marked-alt text-info me-1"></i>
-          {{ stats.last_overpass_query_at|format_zurich_display_timestamp|default('Unknown') }}
+        <div class="text-muted small fw-bold text-uppercase mb-1">Last OSM Queried</div>
+        <div class="fw-medium text-dark d-flex align-items-center">
+          <img src="{{ url_for('static', filename='osm.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="OSM">
+          <span>{{ stats.last_overpass_query_at|format_zurich_display_timestamp|default('Unknown') }}</span>
         </div>
       </div>
     </div>

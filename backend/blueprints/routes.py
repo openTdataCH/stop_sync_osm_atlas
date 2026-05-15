@@ -126,11 +126,6 @@ def _route_listing_endpoint(active_view: str) -> str:
     return 'routes.routes_page'
 
 
-def _is_non_gtfs_osm_family(osm_family: LineFamily | None) -> bool:
-    if osm_family is None or osm_family.source != 'osm':
-        return False
-    return (_clean_text(osm_family.network) or '').lower() == 'flixbus'
-
 
 def _osm_route_id_label(gtfs_route_id: str | None, display_route_id: str | None) -> str:
     if _clean_text(gtfs_route_id):
@@ -333,7 +328,7 @@ def _load_route_page_data():
             'osm_route_name': _clean_text(osm_family.public_name) or _clean_text(osm_family.ref) or _clean_text(osm_family.display_route_id),
             'osm_operator': _clean_text(osm_family.operator),
             'osm_network': _clean_text(osm_family.network),
-            'is_non_gtfs': _is_non_gtfs_osm_family(osm_family),
+            'is_non_gtfs': getattr(osm_family, 'is_non_gtfs', False),
             'primary_route_id': _clean_text(atlas_family.source_family_id) or _clean_text(osm_family.display_route_id),
         })
 
@@ -373,7 +368,7 @@ def _load_route_page_data():
         route_items.append({
             'display_mode': 'osm_only',
             'is_matched': False,
-            'match_label': 'Non-GTFS OSM' if _is_non_gtfs_osm_family(osm_family) else 'Unmatched OSM',
+            'match_label': 'Non-GTFS OSM' if getattr(osm_family, 'is_non_gtfs', False) else 'Unmatched OSM',
             'sort_route_id': _clean_text(osm_family.display_route_id) or '',
             'atlas_family_id': None,
             'osm_family_id': osm_family.id,
@@ -392,7 +387,7 @@ def _load_route_page_data():
             'osm_route_name': _clean_text(osm_family.public_name) or _clean_text(osm_family.ref) or _clean_text(osm_family.display_route_id),
             'osm_operator': _clean_text(osm_family.operator),
             'osm_network': _clean_text(osm_family.network),
-            'is_non_gtfs': _is_non_gtfs_osm_family(osm_family),
+            'is_non_gtfs': getattr(osm_family, 'is_non_gtfs', False),
             'primary_route_id': _clean_text(osm_family.display_route_id),
         })
 
