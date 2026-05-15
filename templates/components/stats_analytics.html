@@ -147,7 +147,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(stages.distance.count) }}</td>
           <td class="text-end">{{ "%.1f"|format(stages.distance.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stages.distance.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_trio', 0) + nmc_by_stage.get('distance_stage1_uic_ref', 0) + nmc_by_stage.get('distance_stage1_uic_name', 0) + nmc_by_stage.get('distance_stage1_name', 0) + nmc_by_stage.get('distance_stage1', 0) + nmc_by_stage.get('distance_stage2', 0) + nmc_by_stage.get('distance_stage3a_pass1', 0) + nmc_by_stage.get('distance_stage3a_pass2', 0) + nmc_by_stage.get('distance_stage3b', 0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_trio', 0) + nmc_by_stage.get('distance_stage1_uic_ref', 0) + nmc_by_stage.get('distance_stage1_uic_name', 0) + nmc_by_stage.get('distance_stage1_name', 0) + nmc_by_stage.get('distance_stage1', 0) + nmc_by_stage.get('distance_stage1b_uic_ref', 0) + nmc_by_stage.get('distance_stage1b_uic_name', 0) + nmc_by_stage.get('distance_stage1b_name', 0) + nmc_by_stage.get('distance_stage1b', 0) + nmc_by_stage.get('distance_stage2', 0) + nmc_by_stage.get('distance_stage3a_pass1', 0) + nmc_by_stage.get('distance_stage3a_pass2', 0) + nmc_by_stage.get('distance_stage3b', 0)) }}</td>
         </tr>
         {% set db = stages.distance.breakdown %}
         <tr class="text-muted">
@@ -158,7 +158,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_trio', 0)) }}</td>
         </tr>
         <tr class="text-muted">
-          <td class="ps-4">Stage 1: Group proximity</td>
+          <td class="ps-4">Stage 1: Group proximity (50m)</td>
           <td class="text-end">{{ "{:,}".format(db.stage1_group) }}</td>
           <td class="text-end">{{ "%.1f"|format(db.stage1_group / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage1_group_mto|default(0)) }}</td>
@@ -190,6 +190,43 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(stage1k.name.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stage1k.name.mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_name', 0)) }}</td>
+        </tr>
+        {% endif %}
+        {% if (db.stage1b_long_group|default(0)) > 0 %}
+        <tr class="text-muted">
+          <td class="ps-4">Stage 1b: Group proximity (150m)</td>
+          <td class="text-end">{{ "{:,}".format(db.stage1b_long_group|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format((db.stage1b_long_group|default(0)) / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(db.stage1b_long_group_mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_uic_ref', 0) + nmc_by_stage.get('distance_stage1b_uic_name', 0) + nmc_by_stage.get('distance_stage1b_name', 0) + nmc_by_stage.get('distance_stage1b', 0)) }}</td>
+        </tr>
+        {% endif %}
+        {% set stage1bk = db.stage1b_long_group_by_key if db.stage1b_long_group_by_key is defined else {} %}
+        {% if stage1bk.uic_ref is defined and stage1bk.uic_ref.count > 0 %}
+        <tr class="text-muted">
+          <td class="ps-5">Stage 1d: UIC ref (150m)</td>
+          <td class="text-end">{{ "{:,}".format(stage1bk.uic_ref.count) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stage1bk.uic_ref.count / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stage1bk.uic_ref.mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_uic_ref', 0)) }}</td>
+        </tr>
+        {% endif %}
+        {% if stage1bk.uic_name is defined and stage1bk.uic_name.count > 0 %}
+        <tr class="text-muted">
+          <td class="ps-5">Stage 1e: UIC name (150m)</td>
+          <td class="text-end">{{ "{:,}".format(stage1bk.uic_name.count) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stage1bk.uic_name.count / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stage1bk.uic_name.mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_uic_name', 0)) }}</td>
+        </tr>
+        {% endif %}
+        {% if stage1bk.name is defined and stage1bk.name.count > 0 %}
+        <tr class="text-muted">
+          <td class="ps-5">Stage 1f: Name (150m)</td>
+          <td class="text-end">{{ "{:,}".format(stage1bk.name.count) }}</td>
+          <td class="text-end">{{ "%.1f"|format(stage1bk.name.count / total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(stage1bk.name.mto|default(0)) }}</td>
+          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_name', 0)) }}</td>
         </tr>
         {% endif %}
         <tr class="text-muted">
@@ -299,7 +336,8 @@ SECTION 1 — STOPS MATCHING
     {% if dq.by_stage %}
     <h6 class="mt-3 mb-2">Distance by Matching Stage</h6>
     {% set stage_order = ['distance_trio', 'exact', 'name', 'route_gtfs', 'distance_stage1_uic_ref',
-    'distance_stage1_uic_name', 'distance_stage1_name', 'distance_stage1', 'distance_stage2',
+    'distance_stage1_uic_name', 'distance_stage1_name', 'distance_stage1', 'distance_stage1b_uic_ref',
+    'distance_stage1b_uic_name', 'distance_stage1b_name', 'distance_stage1b', 'distance_stage2',
   'distance_stage3a_pass1', 'distance_stage3a_pass2', 'distance_stage3b',
   'post_duplicate_propagation', 'post_osm_group_propagation'] %}
     {% set stage_labels = {
@@ -310,6 +348,10 @@ SECTION 1 — STOPS MATCHING
     'distance_stage1_uic_name': 'Distance Stage 1b (UIC name)',
     'distance_stage1_name': 'Distance Stage 1c (Name)',
     'distance_stage1': 'Distance Stage 1 (other)',
+    'distance_stage1b_uic_ref': 'Distance Stage 1d (UIC ref, 150m)',
+    'distance_stage1b_uic_name': 'Distance Stage 1e (UIC name, 150m)',
+    'distance_stage1b_name': 'Distance Stage 1f (Name, 150m)',
+    'distance_stage1b': 'Distance Stage 1b (other, 150m)',
     'distance_stage2': 'Distance Stage 2 (local ref)',
     'distance_stage3a_pass1': 'Distance Stage 3a pass 1 (single candidate)',
     'distance_stage3a_pass2': 'Distance Stage 3a pass 2 (single candidate)',
@@ -1225,11 +1267,28 @@ SECTION 6 — ROUTES
     <h6 class="mb-3">Matching Paths</h6>
 
     <div class="row mb-4">
-      {# Path 1: Strict #}
-      <div class="col-lg-4 col-md-6 mb-3">
+      {# Path 1: Direct SLOID match #}
+      <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card h-100 border-success">
+          <div class="card-header py-2 bg-success text-white">
+            <h6 class="mb-0">① Direct SLOID match</h6>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small mb-2">
+              Matches where <code>original_stop_id</code> directly contains a valid ATLAS SLOID.
+            </p>
+            <div class="stat-card stat-card--sm stat-card--success">
+              <div class="stat-card__value">{{ "{:,}".format(ga.assignments.original_stop_id|default(0)) }}</div>
+              <div class="stat-card__label">Assignments</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {# Path 2: Strict #}
+      <div class="col-lg-3 col-md-6 mb-3">
         <div class="card h-100">
           <div class="card-header py-2">
-            <h6 class="mb-0">① Strict matching</h6>
+            <h6 class="mb-0">② Strict matching</h6>
           </div>
           <div class="card-body">
             <p class="text-muted small mb-2">
@@ -1242,11 +1301,11 @@ SECTION 6 — ROUTES
           </div>
         </div>
       </div>
-      {# Path 2: Coordinate Proximity #}
-      <div class="col-lg-4 col-md-6 mb-3">
+      {# Path 3: Coordinate Proximity #}
+      <div class="col-lg-3 col-md-6 mb-3">
         <div class="card h-100">
           <div class="card-header py-2">
-            <h6 class="mb-0">② Coordinate proximity</h6>
+            <h6 class="mb-0">③ Coordinate proximity</h6>
           </div>
           <div class="card-body">
             <p class="text-muted small mb-2">
@@ -1259,11 +1318,11 @@ SECTION 6 — ROUTES
           </div>
         </div>
       </div>
-      {# Path 3: Unique-number fallback #}
-      <div class="col-lg-4 col-md-12 mb-3">
+      {# Path 4: Unique-number fallback #}
+      <div class="col-lg-3 col-md-6 mb-3">
         <div class="card h-100">
           <div class="card-header py-2">
-            <h6 class="mb-0">③ Unique-number fallback</h6>
+            <h6 class="mb-0">④ Unique-number fallback</h6>
           </div>
           <div class="card-body">
             <p class="text-muted small mb-2">

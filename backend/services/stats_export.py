@@ -262,12 +262,19 @@ def export_pipeline_stats(
     distance_stage1_uic_ref = match_type_counts.get('distance_matching_1_uic_ref', 0)
     distance_stage1_uic_name = match_type_counts.get('distance_matching_1_uic_name', 0)
     distance_stage1_name = match_type_counts.get('distance_matching_1_name', 0)
+    distance_stage1b = sum(
+        v for k, v in match_type_counts.items()
+        if k.startswith('long_distance_group_proximity_')
+    )
+    distance_stage1b_uic_ref = match_type_counts.get('long_distance_group_proximity_uic_ref', 0)
+    distance_stage1b_uic_name = match_type_counts.get('long_distance_group_proximity_uic_name', 0)
+    distance_stage1b_name = match_type_counts.get('long_distance_group_proximity_name', 0)
     distance_stage2 = match_type_counts.get('distance_matching_2', 0)
     distance_stage3a_pass1 = match_type_counts.get('distance_matching_3a', 0)
     distance_stage3a_pass2 = match_type_counts.get('distance_matching_3a_second_pass', 0)
     distance_stage3a = distance_stage3a_pass1 + distance_stage3a_pass2
     distance_stage3b = match_type_counts.get('distance_matching_3b', 0)
-    total_distance_matches = distance_stage0 + distance_stage1 + distance_stage2 + distance_stage3a + distance_stage3b
+    total_distance_matches = distance_stage0 + distance_stage1 + distance_stage1b + distance_stage2 + distance_stage3a + distance_stage3b
     
     # Route matching breakdown
     route_gtfs_matches = sum(
@@ -470,8 +477,8 @@ def export_pipeline_stats(
             },
             "distance": {
                 "count": total_distance_matches,
-                "mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching')),
-                "description": "Proximity-based spatial matching (≤50m)",
+                "mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching') or k.startswith('long_distance_group_proximity')),
+                "description": "Proximity-based spatial matching (50m and long-distance group fallback)",
                 "breakdown": {
                     "stage0_trio": distance_stage0,
                     "stage0_trio_mto": mto_pairs_by_type.get('distance_matching_trio', 0),
@@ -489,6 +496,22 @@ def export_pipeline_stats(
                         "name": {
                             "count": distance_stage1_name,
                             "mto": mto_pairs_by_type.get('distance_matching_1_name', 0),
+                        },
+                    },
+                    "stage1b_long_group": distance_stage1b,
+                    "stage1b_long_group_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('long_distance_group_proximity_')),
+                    "stage1b_long_group_by_key": {
+                        "uic_ref": {
+                            "count": distance_stage1b_uic_ref,
+                            "mto": mto_pairs_by_type.get('long_distance_group_proximity_uic_ref', 0),
+                        },
+                        "uic_name": {
+                            "count": distance_stage1b_uic_name,
+                            "mto": mto_pairs_by_type.get('long_distance_group_proximity_uic_name', 0),
+                        },
+                        "name": {
+                            "count": distance_stage1b_name,
+                            "mto": mto_pairs_by_type.get('long_distance_group_proximity_name', 0),
                         },
                     },
                     "stage2_local_ref": distance_stage2,
@@ -596,6 +619,14 @@ def _classify_match_type(match_type: str) -> str:
         return 'distance_stage1_name'
     if match_type.startswith('distance_matching_1_'):
         return 'distance_stage1'
+    if match_type == 'long_distance_group_proximity_uic_ref':
+        return 'distance_stage1b_uic_ref'
+    if match_type == 'long_distance_group_proximity_uic_name':
+        return 'distance_stage1b_uic_name'
+    if match_type == 'long_distance_group_proximity_name':
+        return 'distance_stage1b_name'
+    if match_type.startswith('long_distance_group_proximity_'):
+        return 'distance_stage1b'
     if match_type == 'distance_matching_2':
         return 'distance_stage2'
     if match_type == 'distance_matching_3a':

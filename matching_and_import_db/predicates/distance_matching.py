@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Ratio-test constants (Stage 3b)
 RATIO_TEST_MIN_D2 = 10   # minimum d2 in metres
 RATIO_TEST_FACTOR = 4    # d2 / d1 must be ≥ this
+LONG_DISTANCE_GROUP_PROXIMITY_MAX_DISTANCE_M = 150.0
 
 
 def _filter_current_candidates(ctx: MatchingContext, candidates: list[tuple[OsmNode, float]]) -> list[tuple[OsmNode, float]]:
@@ -153,8 +154,21 @@ def bipartite_match_max_cardinality(
 class GroupProximityPredicate(BasePredicate):
     """Conflict-free maximum-cardinality proximity matching within UIC / name groups."""
 
+    def __init__(
+        self,
+        max_distance: float | None = None,
+        match_type_prefix: str = 'distance_matching_1',
+        notes_label: str = 'Conflict-free max-cardinality proximity match',
+        name: str = 'GroupProximityPredicate',
+    ):
+        super().__init__(name=name)
+        self.max_distance = max_distance
+        self.match_type_prefix = match_type_prefix
+        self.notes_label = notes_label
+
     def run(self, ctx: MatchingContext) -> None:
         matched_here: set[str] = set()
+        max_distance = self.max_distance if self.max_distance is not None else ctx.max_distance
 
         # --- Build OSM groupings ---
         osm_by: dict[str, dict[str, list[OsmNode]]] = {
@@ -188,7 +202,7 @@ class GroupProximityPredicate(BasePredicate):
 
                 avail = [n for n in osm_by[osm_key].get(group_val_str, [])
                          if not ctx.osm.is_used(n.node_id)]
-                pairs = bipartite_match_max_cardinality(valid_atlas_entries, avail, ctx.max_distance)
+                pairs = bipartite_match_max_cardinality(valid_atlas_entries, avail, max_distance)
                 if not pairs:
                     continue
 
@@ -198,14 +212,26 @@ class GroupProximityPredicate(BasePredicate):
                     ctx.commit(
                         atlas_node=entry,
                         osm_node=osm,
-                        match_type=f'distance_matching_1_{osm_key}',
+                        match_type=f'{self.match_type_prefix}_{osm_key}',
                         distance_m=dist,
-                        notes=f"Conflict-free max-cardinality proximity match ({osm_key})",
+                        notes=f"{self.notes_label} ({osm_key})",
                     )
                     matched_here.add(entry.sloid)
 
             # update remaining logic
             remaining = [e for e in remaining if e.sloid not in matched_here]
+
+
+class LongDistanceGroupProximityPredicate(GroupProximityPredicate):
+    """Second group-proximity pass using the same logic with a 150m cap."""
+
+    def __init__(self):
+        super().__init__(
+            max_distance=LONG_DISTANCE_GROUP_PROXIMITY_MAX_DISTANCE_M,
+            match_type_prefix='long_distance_group_proximity',
+            notes_label='Conflict-free max-cardinality long-distance group proximity match',
+            name='LongDistanceGroupProximityPredicate',
+        )
 
 
 # ---------------------------------------------------------------------------

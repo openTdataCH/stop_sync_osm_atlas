@@ -97,7 +97,6 @@
   border-radius: var(--radius-md);
   padding: var(--space-4);
   text-align: center;
-  height: 100%;
   position: relative;
   overflow: hidden;
 }

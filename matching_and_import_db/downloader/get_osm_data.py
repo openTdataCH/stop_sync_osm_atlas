@@ -68,15 +68,15 @@ def query_overpass(session: Optional[requests.Session] = None):
         )->.candidate_ways;
 
         (
-            relation(bn.pt_nodes)[type=route];
-            relation(bw.candidate_ways)[type=route];
+            relation(bn.pt_nodes)[type=route][route!=hiking];
+            relation(bw.candidate_ways)[type=route][route!=hiking];
         )->.seed_routes;
 
         relation(br.seed_routes)[type=route_master]->.route_masters;
 
         (
             .seed_routes;
-            relation(r.route_masters)[type=route];
+            relation(r.route_masters)[type=route][route!=hiking];
         )->.routes;
 
         .pt_nodes out body qt;

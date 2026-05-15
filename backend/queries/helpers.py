@@ -34,7 +34,12 @@ def parse_match_method_values(match_method_str):
 
 
 def is_matched_method(value):
-    return value in ['exact', 'name'] or value.startswith('distance_matching_') or value.startswith('route_')
+    return (
+        value in ['exact', 'name'] or
+        value.startswith('distance_matching_') or
+        value.startswith('long_distance_group_proximity') or
+        value.startswith('route_')
+    )
 
 
 def resolve_stop_type_match_filters(stop_filter_str, match_method_str):
@@ -73,6 +78,8 @@ def build_match_method_conditions(stop_model, matched_methods):
     method_conditions = []
     for method in matched_methods:
         if method.startswith('route_'):
+            method_conditions.append(stop_model.match_type.like(f'{method}%'))
+        elif method.startswith('long_distance_group_proximity'):
             method_conditions.append(stop_model.match_type.like(f'{method}%'))
         elif method.startswith('distance_matching_'):
             method_conditions.append(stop_model.match_type.like(f'{method}%'))

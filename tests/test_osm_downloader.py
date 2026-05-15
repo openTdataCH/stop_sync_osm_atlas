@@ -29,6 +29,7 @@ def test_query_overpass_posts_raw_query(monkeypatch, tmp_path):
     assert captured["url"] == get_osm_data.OVERPASS_URL
     assert isinstance(captured["data"], bytes)
     assert captured["data"].decode("utf-8").startswith("[out:xml]")
+    assert '[type=route][route!=hiking]' in captured["data"].decode("utf-8")
     assert captured["headers"]["Content-Type"].startswith("text/plain")
     assert captured["timeout"] == (30, 600)
     assert Path("data/raw/osm_data.xml").read_text(encoding="utf-8") == result
