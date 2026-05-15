@@ -441,6 +441,7 @@ class LineFamily(db.Model):
     ref = db.Column(db.String(100))
     operator = db.Column(db.String(255))
     network = db.Column(db.String(255))
+    is_non_gtfs = db.Column(db.Boolean, default=False, nullable=False, server_default='false')
     gtfs_route_id = db.Column(db.String(255))
     normalized_route_id = db.Column(db.String(255))
     atlas_line_id = db.Column(db.String(100), db.ForeignKey('atlas_line_families.atlas_line_id', ondelete='SET NULL'))

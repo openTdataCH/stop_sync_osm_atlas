@@ -360,6 +360,7 @@ def _build_osm_source_rows(all_route_data: dict[str, pd.DataFrame], lookups: dic
             'ref': _to_text(row.get('ref')),
             'operator': _to_text(row.get('operator')),
             'network': _to_text(row.get('network')),
+            'is_non_gtfs': str(row.get('is_non_gtfs')).lower() == 'true',
             'colour': _to_text(row.get('colour')),
             'gtfs_route_id': _to_text(row.get('gtfs_route_id')),
             'run_id': _to_text(row.get('run_id')),
@@ -408,6 +409,7 @@ def _build_osm_source_rows(all_route_data: dict[str, pd.DataFrame], lookups: dic
             'ref': _to_text(row.get('ref')),
             'operator': _to_text(row.get('operator')),
             'network': _to_text(row.get('network')),
+            'is_non_gtfs': str(row.get('is_non_gtfs')).lower() == 'true',
             'from_name': _to_text(row.get('from_name')),
             'to_name': _to_text(row.get('to_name')),
             'via': _to_text(row.get('via')),
@@ -521,6 +523,7 @@ def _build_line_family_rows(
             'ref': row.get('route_short_name'),
             'operator': row.get('agency_id'),
             'network': None,
+            'is_non_gtfs': False,
             'gtfs_route_id': row['atlas_line_id'],
             'normalized_route_id': _first_non_empty(row.get('route_id_normalized'), normalize_route_id(row['atlas_line_id'])),
             'atlas_line_id': row['atlas_line_id'],
@@ -596,6 +599,7 @@ def _build_line_family_rows(
             'ref': _first_non_empty(route_master_row.get('ref'), representative_relation.get('ref')),
             'operator': _first_non_empty(route_master_row.get('operator'), representative_relation.get('operator')),
             'network': _first_non_empty(route_master_row.get('network'), representative_relation.get('network')),
+            'is_non_gtfs': bool(route_master_row.get('is_non_gtfs') or representative_relation.get('is_non_gtfs')),
             'gtfs_route_id': gtfs_route_id,
             'normalized_route_id': normalized_route_id,
             'atlas_line_id': None,
@@ -992,6 +996,8 @@ def build_route_write_payload(
     candidate_pairs = []
     for atlas_family in atlas_line_families:
         for osm_family in osm_line_families:
+            if osm_family.get('is_non_gtfs'):
+                continue
             score, reason = _score_line_family_pair(atlas_family, osm_family)
             if score <= 0.0 or reason is None:
                 continue

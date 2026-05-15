@@ -580,6 +580,10 @@ function updateFiltersUI() {
                             target = '#distanceMethodTrio';
                         }
                         if (stage === 'stage1') dLabel = 'Dist: Group Proximity';
+                        if (stage === 'longGroup') {
+                            dLabel = 'Dist: Long-distance Group';
+                            target = '#distanceMethodLongGroup';
+                        }
                         if (stage === 'stage2') dLabel = 'Dist: Local Ref Match';
                         if (stage === 'stage3a') dLabel = 'Dist: Single Candidate';
                         if (stage === 'stage3b') dLabel = 'Dist: Relative Distance';

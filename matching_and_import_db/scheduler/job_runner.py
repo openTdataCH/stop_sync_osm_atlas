@@ -321,7 +321,7 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
             refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
 
             _run_subprocess(
-                [sys.executable, "matching_and_import_db/downloader/get_osm_data.py"],
+                [sys.executable, "-m", "matching_and_import_db.downloader.get_osm_data"],
                 phase="osm_download",
                 message="Downloading and processing OSM data",
             )
