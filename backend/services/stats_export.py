@@ -82,8 +82,8 @@ def _build_source_download_stats(meta: Optional[Dict[str, Any]]) -> Optional[Dic
             continue
 
         source_download = {
-            'downloaded_at': format_zurich_display_timestamp(
-                snapshot.get('downloaded_at') or default_downloaded_at
+            f'{source_name}_downloaded_at': format_zurich_display_timestamp(
+                snapshot.get(f'{source_name}_downloaded_at') or snapshot.get('downloaded_at') or default_downloaded_at
             ),
             'etag': snapshot.get('etag'),
             'last_modified': snapshot.get('last_modified'),
@@ -415,11 +415,13 @@ def export_pipeline_stats(
 
     
     # Load data meta if available to get the actual data source update time
-    data_updated_at = None
+    last_pipeline_data_import_ended_at = None
+    last_overpass_query_at = None
     source_downloads = None
     try:
         meta = load_data_meta()
-        data_updated_at = meta.get('data_updated_at')
+        last_pipeline_data_import_ended_at = meta.get('last_pipeline_data_import_ended_at') or meta.get('data_updated_at')
+        last_overpass_query_at = meta.get('last_overpass_query_at')
         source_downloads = _build_source_download_stats(meta)
     except Exception as e:
         logger.warning(f"Could not load data_meta.json: {e}")
@@ -431,7 +433,8 @@ def export_pipeline_stats(
     stats = {
         "generated_at": stats_computed_at,
         "stats_computed_at": stats_computed_at,
-        "data_updated_at": data_updated_at,
+        "last_pipeline_data_import_ended_at": last_pipeline_data_import_ended_at,
+        "last_overpass_query_at": last_overpass_query_at,
         "source_downloads": source_downloads,
         "version": "1.1",
         

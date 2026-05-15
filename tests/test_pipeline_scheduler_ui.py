@@ -68,7 +68,7 @@ def test_pipeline_status_maps_old_storage_key(monkeypatch):
     assert "maintenance" not in status
 
 
-def test_pipeline_status_falls_back_to_stats_data_updated_at(monkeypatch):
+def test_pipeline_status_falls_back_to_stats_last_pipeline_data_import_ended_at(monkeypatch):
     from backend.services import pipeline_status
 
     monkeypatch.setattr(pipeline_status, "_read_raw_status", lambda: {})
@@ -76,13 +76,13 @@ def test_pipeline_status_falls_back_to_stats_data_updated_at(monkeypatch):
     class DummyStatsExport:
         @staticmethod
         def load_stats_from_file():
-            return {"data_updated_at": "2026-05-02T19:31:00+02:00"}
+            return {"last_pipeline_data_import_ended_at": "2026-05-02T19:31:00+02:00"}
 
     monkeypatch.setitem(__import__("sys").modules, "backend.services.stats_export", DummyStatsExport)
 
     status = pipeline_status.get_status()
 
-    assert status["data_updated_at"] == "2026-05-02T19:31:00+02:00"
+    assert status["last_pipeline_data_import_ended_at"] == "2026-05-02T19:31:00+02:00"
 
 
 def test_pipeline_status_supports_data_updated_field(monkeypatch):
@@ -93,7 +93,7 @@ def test_pipeline_status_supports_data_updated_field(monkeypatch):
 
     status = pipeline_status.set_data_updated("2026-05-02T19:31:00+02:00")
 
-    assert status["data_updated_at"] == "2026-05-02T19:31:00+02:00"
+    assert status["last_pipeline_data_import_ended_at"] == "2026-05-02T19:31:00+02:00"
 
 
 def test_pipeline_status_file_backend_persists_status(monkeypatch, tmp_path):
@@ -146,13 +146,13 @@ def test_navbar_renders_next_run_metadata(client, monkeypatch):
     monkeypatch.setattr(
         stats_export,
         "load_stats_from_file",
-        lambda: {"data_updated_at": "2026-05-02T09:15:00+02:00"},
+        lambda: {"last_pipeline_data_import_ended_at": "2026-05-02T09:15:00+02:00"},
     )
     monkeypatch.setattr(
         pipeline_status,
         "get_status",
         lambda: {
-            "data_updated_at": "2026-05-02T19:31:00+02:00",
+            "last_pipeline_data_import_ended_at": "2026-05-02T19:31:00+02:00",
             "next_run_at": "2026-05-03T08:00:00+00:00",
         },
     )
@@ -190,7 +190,7 @@ def test_record_data_updated_timestamp_writes_meta_and_status(monkeypatch, tmp_p
 
     assert result == "2026-05-02T21:31:00+02:00"
     assert captured["value"] == "2026-05-02T21:31:00+02:00"
-    assert (tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8") == '{"data_updated_at": "2026-05-02T21:31:00+02:00"}'
+    assert (tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8") == '{"last_pipeline_data_import_ended_at": "2026-05-02T21:31:00+02:00"}'
 
 
 def test_record_data_updated_timestamp_persists_run_type_and_refresh_scope(monkeypatch, tmp_path):
@@ -217,7 +217,7 @@ def test_record_data_updated_timestamp_persists_run_type_and_refresh_scope(monke
     assert captured["status"]["run_type"] == "atlas_cached"
     assert captured["status"]["refresh_scope_tables_reused"] == ['atlas_stops', 'gtfs_stops_raw']
     assert json.loads((tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8")) == {
-        "data_updated_at": "2026-05-03T12:00:00+02:00",
+        "last_pipeline_data_import_ended_at": "2026-05-03T12:00:00+02:00",
         "last_run_type": "atlas_cached",
         "refresh_scope_tables_rewritten": ['osm_nodes', 'line_families'],
         "refresh_scope_tables_reused": ['atlas_stops', 'gtfs_stops_raw'],

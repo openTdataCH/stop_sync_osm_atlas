@@ -128,8 +128,8 @@ def _record_data_updated_timestamp(
     rewritten_tables: list[str] | None = None,
     reused_tables: list[str] | None = None,
 ) -> str:
-    data_updated_at = format_zurich_timestamp(get_zurich_now())
-    meta_fields = {"data_updated_at": data_updated_at}
+    last_pipeline_data_import_ended_at = format_zurich_timestamp(get_zurich_now())
+    meta_fields = {"last_pipeline_data_import_ended_at": last_pipeline_data_import_ended_at}
     if run_type is not None:
         meta_fields["last_run_type"] = run_type.value
     if rewritten_tables is not None:
@@ -137,15 +137,15 @@ def _record_data_updated_timestamp(
     if reused_tables is not None:
         meta_fields["refresh_scope_tables_reused"] = list(reused_tables)
     data_meta.update_data_meta(**meta_fields)
-    set_data_updated(data_updated_at)
+    set_data_updated(last_pipeline_data_import_ended_at)
     if run_type is not None:
         set_status(
             run_type=run_type.value,
             refresh_scope_tables_rewritten=list(rewritten_tables or []),
             refresh_scope_tables_reused=list(reused_tables or []),
         )
-    LOGGER.info("Data update timestamp saved: %s", data_updated_at)
-    return data_updated_at
+    LOGGER.info("Data update timestamp saved: %s", last_pipeline_data_import_ended_at)
+    return last_pipeline_data_import_ended_at
 
 
 def _load_preprocessing_source_state() -> dict:
@@ -165,11 +165,11 @@ def _persist_preprocessing_source_state(source_state: dict) -> None:
     payload = {
         "atlas": {
             **(source_state.get("atlas") or {}),
-            "downloaded_at": downloaded_at,
+            "atlas_downloaded_at": downloaded_at,
         },
         "gtfs": {
             **(source_state.get("gtfs") or {}),
-            "downloaded_at": downloaded_at,
+            "gtfs_downloaded_at": downloaded_at,
         },
         "preprocessing_completed_at": downloaded_at,
     }

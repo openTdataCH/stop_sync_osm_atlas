@@ -148,16 +148,16 @@
 
     function syncNavbarDataUpdatedValue() {
         var element = getDataUpdatedElement();
-        if (!element || !latestStatus || !latestStatus.data_updated_at) {
+        if (!element || !latestStatus || !latestStatus.last_pipeline_data_import_ended_at) {
             return;
         }
 
-        var formatted = formatLabelTimestamp(latestStatus.data_updated_at);
+        var formatted = formatLabelTimestamp(latestStatus.last_pipeline_data_import_ended_at);
         if (!formatted) {
             return;
         }
 
-        element.setAttribute('data-data-updated-at', latestStatus.data_updated_at);
+        element.setAttribute('data-data-updated-at', latestStatus.last_pipeline_data_import_ended_at);
         element.setAttribute('data-default-label', 'Data updated: ' + formatted);
     }
 
