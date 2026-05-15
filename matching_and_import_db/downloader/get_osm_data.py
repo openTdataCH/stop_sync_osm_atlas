@@ -4,7 +4,11 @@ from collections import defaultdict
 import csv
 import os
 import time
+import datetime
 from typing import Optional
+
+from backend.services.data_meta import update_data_meta
+from backend.services.time_utils import format_zurich_timestamp, get_zurich_now
 
 
 def ensure_data_dirs():
@@ -118,6 +122,10 @@ def query_overpass(session: Optional[requests.Session] = None):
     with open("data/raw/osm_data.xml", "w", encoding="utf-8") as f:
         f.write(response.text)
     print("Raw OSM data saved to data/raw/osm_data.xml")
+
+    # Save the timestamp
+    update_data_meta(last_overpass_query_at=format_zurich_timestamp(get_zurich_now()))
+    
     return response.text
 
 def process_osm_routes_data(xml_data, out_dir="data/processed/"):

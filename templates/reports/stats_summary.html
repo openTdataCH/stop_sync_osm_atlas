@@ -9,8 +9,8 @@
     </div>
     <div class="meta">
         <div>Report Generated: {{ generated_at|format_zurich_display_timestamp }}</div>
-        {% if stats.data_updated_at %}
-        <div>Data Source Updated: {{ stats.data_updated_at|format_zurich_display_timestamp }}</div>
+        {% if stats.last_pipeline_data_import_ended_at %}
+        <div>Data Source Updated: {{ stats.last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}</div>
         {% endif %}
         <div>Stats Computed: {{ stats.stats_computed_at|format_zurich_display_timestamp }}</div>
     </div>
