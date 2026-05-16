@@ -1408,22 +1408,7 @@ SECTION 6 — ROUTES
       </tfoot>
     </table>
 
-    {# Visual bar breakdown #}
-    {% if fo_total > 0 %}
-    <div class="diagram-wrap mt-3">
-      <svg class="diagram-svg" viewBox="0 0 760 44" role="img" aria-label="OSM route family grouping method breakdown">
-        {% set w_rm = (fo.route_master|default(0) / fo_total * 760)|round(0, 'floor')|int %}
-        {% set w_gtfs = (fo.synthetic_gtfs_route_id|default(0) / fo_total * 760)|round(0, 'floor')|int %}
-        {% set w_ref = (fo.synthetic_ref_operator|default(0) / fo_total * 760)|round(0, 'floor')|int %}
-        {% set w_rel = (fo.synthetic_relation|default(0) / fo_total * 760)|round(0, 'floor')|int %}
-        <rect x="0" y="8" width="760" height="28" rx="8" fill="#f8f9fa"></rect>
-        <rect x="0" y="8" width="{{ w_rm }}" height="28" rx="8" fill="#198754"></rect>
-        <rect x="{{ w_rm }}" y="8" width="{{ w_gtfs }}" height="28" fill="#174092"></rect>
-        <rect x="{{ w_rm + w_gtfs }}" y="8" width="{{ w_ref }}" height="28" fill="#F0AD4E"></rect>
-        <rect x="{{ w_rm + w_gtfs + w_ref }}" y="8" width="{{ w_rel }}" height="28" fill="#6C757D"></rect>
-      </svg>
-    </div>
-    {% endif %}
+    {# Visual bar breakdown removed #}
   </div>
 </div>
 {% endif %}
@@ -1495,8 +1480,8 @@ SECTION 6 — ROUTES
     <div class="row mb-4">
       {# Path 1: Direct SLOID match #}
       <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card h-100 border-success">
-          <div class="card-header py-2 bg-success text-white">
+        <div class="card h-100">
+          <div class="card-header py-2">
             <h6 class="mb-0">① Direct SLOID match</h6>
           </div>
           <div class="card-body">
