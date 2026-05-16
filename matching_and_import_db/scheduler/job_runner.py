@@ -32,6 +32,7 @@ from matching_and_import_db.downloader.source_freshness import (
     source_snapshot_is_usable,
 )
 from matching_and_import_db.database.importer import (
+    atlas_cached_static_tables_ready,
     build_fast_insert_payloads,
     export_stats_after_import,
     get_refresh_scope_tables,
@@ -40,6 +41,7 @@ from matching_and_import_db.database.importer import (
     precompute_problem_artifacts,
     precompute_route_artifacts,
 )
+from matching_and_import_db.database.session import session
 from matching_and_import_db.orchestrator import run_matching
 from matching_and_import_db.scheduler.job_types import PipelineRunType
 
@@ -199,13 +201,25 @@ def _run_atlas_gtfs_preprocessing_if_needed(lock_token: str) -> PipelineRunType:
             )
             LOGGER.info("ATLAS and GTFS sources unchanged, but preprocessing and full refresh are forced by environment")
         else:
+            if atlas_cached_static_tables_ready(session):
+                set_phase(
+                    phase="atlas_download",
+                    message="ATLAS + GTFS unchanged; reusing cached preprocessing outputs",
+                    maintenance=False,
+                )
+                LOGGER.info("ATLAS and GTFS sources unchanged; skipping preprocessing download step")
+                return PipelineRunType.ATLAS_CACHED
+
             set_phase(
                 phase="atlas_download",
-                message="ATLAS + GTFS unchanged; reusing cached preprocessing outputs",
+                message="ATLAS + GTFS unchanged; cached preprocessing found, rebuilding static import tables",
                 maintenance=False,
             )
-            LOGGER.info("ATLAS and GTFS sources unchanged; skipping preprocessing download step")
-            return PipelineRunType.ATLAS_CACHED
+            LOGGER.info(
+                "ATLAS and GTFS sources unchanged, but static import tables are missing/empty; "
+                "running cached bootstrap refresh"
+            )
+            return PipelineRunType.ATLAS_CACHED_BOOTSTRAP
 
     _run_subprocess(
         [sys.executable, "-m", "matching_and_import_db.downloader.get_atlas_data"],

@@ -128,6 +128,15 @@ STATIC_IMPORT_TABLES = [
     'atlas_itinerary_stop_calls',
 ]
 
+ATLAS_CACHED_REQUIRED_STATIC_TABLES = [
+    'atlas_stops',
+    'gtfs_stops_raw',
+    'gtfs_stop_identity_resolution',
+    'atlas_line_families',
+    'atlas_itineraries',
+    'atlas_itinerary_stop_calls',
+]
+
 ATLAS_CACHED_REFRESH_TABLES = [
     'itinerary_matches',
     'line_family_matches',
@@ -207,17 +216,20 @@ def get_refresh_scope_tables(run_type: PipelineRunType) -> tuple[list[str], list
     return list(FULL_REFRESH_TABLES), []
 
 
+def atlas_cached_static_tables_ready(db_session) -> bool:
+    inspector = inspect(db_session.get_bind())
+    for table_name in ATLAS_CACHED_REQUIRED_STATIC_TABLES:
+        if not inspector.has_table(table_name):
+            return False
+        has_rows = db_session.execute(text(f'SELECT 1 FROM {table_name} LIMIT 1')).scalar() is not None
+        if not has_rows:
+            return False
+    return True
+
+
 def _validate_atlas_cached_refresh_preconditions(db_session) -> None:
-    required_non_empty_tables = [
-        'atlas_stops',
-        'gtfs_stops_raw',
-        'gtfs_stop_identity_resolution',
-        'atlas_line_families',
-        'atlas_itineraries',
-        'atlas_itinerary_stop_calls',
-    ]
     empty_tables = []
-    for table_name in required_non_empty_tables:
+    for table_name in ATLAS_CACHED_REQUIRED_STATIC_TABLES:
         has_rows = db_session.execute(text(f'SELECT 1 FROM {table_name} LIMIT 1')).scalar() is not None
         if not has_rows:
             empty_tables.append(table_name)
@@ -877,7 +889,7 @@ def import_to_database(
     _bulk_insert_rows(OsmNode, db_payloads.get('osm_nodes', []), 'OSM nodes')
     _bulk_insert_rows(OsmStop, db_payloads.get('osm_stops', []), 'OSM stop units')
     _bulk_insert_rows(OsmStopMember, db_payloads.get('osm_stop_members', []), 'OSM stop members')
-    if run_type == PipelineRunType.COMPLETE:
+    if run_type in {PipelineRunType.COMPLETE, PipelineRunType.ATLAS_CACHED_BOOTSTRAP}:
         _bulk_insert_rows(AtlasOperator, db_payloads.get('atlas_operators', []), 'ATLAS operators')
         _bulk_insert_rows(AtlasStop, db_payloads.get('atlas_stops', []), 'ATLAS stops')
         _bulk_insert_rows(GtfsStopRaw, db_payloads.get('gtfs_stops_raw', []), 'GTFS raw stops')
@@ -919,7 +931,7 @@ def import_to_database(
                 session.commit()
                 print(f"Imported {len(problem_dicts)} problem rows")
 
-    if run_type == PipelineRunType.COMPLETE:
+    if run_type in {PipelineRunType.COMPLETE, PipelineRunType.ATLAS_CACHED_BOOTSTRAP}:
         _bulk_insert_rows(AtlasLineFamily, db_payloads.get('atlas_line_families', []), 'ATLAS line families')
         _bulk_insert_rows(AtlasItinerary, db_payloads.get('atlas_itineraries', []), 'ATLAS itineraries')
         _bulk_insert_rows(

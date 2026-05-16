@@ -101,6 +101,17 @@ def test_get_refresh_scope_tables_for_atlas_cached_reuses_static_tables():
     assert 'atlas_stops' not in rewritten_tables
 
 
+def test_get_refresh_scope_tables_for_atlas_cached_bootstrap_rewrites_static_tables():
+    rewritten_tables, reused_tables = importer_mod.get_refresh_scope_tables(
+        importer_mod.PipelineRunType.ATLAS_CACHED_BOOTSTRAP
+    )
+
+    assert 'atlas_stops' in rewritten_tables
+    assert 'gtfs_stops_raw' in rewritten_tables
+    assert 'atlas_line_families' in rewritten_tables
+    assert reused_tables == []
+
+
 def test_choose_best_itinerary_pairs_handles_large_atlas_small_osm_without_recursion_error():
     atlas_itineraries = [
         {'id': itinerary_id}

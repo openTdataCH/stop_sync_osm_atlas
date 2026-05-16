@@ -70,16 +70,16 @@ def create_app():
 
     @app.route('/data')
     def data_index():
-        return redirect(url_for('data_stats'))
+        return redirect(url_for('data_analytics'))
 
-    @app.route('/data/stats', endpoint='data_stats')
+    @app.route('/data/analytics', endpoint='data_analytics')
     @app.route('/data/export', endpoint='data_reports')
     def data_page():
         from backend.services.stats_export import load_stats_from_file
         stats = load_stats_from_file()
 
         # Determine which view to show based on the URL
-        active_view = 'reports' if request.path.endswith('/export') else 'stats'
+        active_view = 'reports' if request.path.endswith('/export') else 'analytics'
 
         # Read priority breakdown from stats.json (populated by pipeline)
         problem_breakdown = {}
