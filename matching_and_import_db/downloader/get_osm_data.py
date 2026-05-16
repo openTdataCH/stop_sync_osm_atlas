@@ -385,7 +385,11 @@ def process_osm_routes_data(xml_data, out_dir="data/processed/"):
     _write_csv(
         os.path.join(out_dir, 'osm_route_masters.csv'),
         route_master_rows,
-        ['run_id', 'route_master_id', 'route_master', 'name', 'ref', 'operator', 'network', 'is_non_gtfs', 'colour', 'gtfs_route_id'],
+        [
+            'run_id', 'route_master_id', 'route_master', 'name', 'ref',
+            'operator', 'operator_wikidata', 'network', 'network_wikidata',
+            'is_non_gtfs', 'colour', 'gtfs_route_id',
+        ],
     )
     _write_csv(
         os.path.join(out_dir, 'osm_route_master_tags.csv'),
@@ -401,7 +405,8 @@ def process_osm_routes_data(xml_data, out_dir="data/processed/"):
         os.path.join(out_dir, 'osm_route_relations.csv'),
         routes_rows,
         [
-            'run_id', 'relation_id', 'route', 'name', 'ref', 'operator', 'network', 'is_non_gtfs',
+            'run_id', 'relation_id', 'route', 'name', 'ref',
+            'operator', 'operator_wikidata', 'network', 'network_wikidata', 'is_non_gtfs',
             'from_name', 'to_name', 'via', 'public_transport_version', 'colour',
             'gtfs_route_id', 'gtfs_trip_id', 'gtfs_trip_id_sample', 'gtfs_shape_id',
             'route_master_id', 'family_origin', 'synthetic_family_key',

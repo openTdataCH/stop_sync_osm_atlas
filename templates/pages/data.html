@@ -28,7 +28,7 @@
         {% endif %}
         
         <div class="d-flex align-items-center">
-          {% if active_view == 'stats' and stats and not is_pdf %}
+          {% if active_view == 'analytics' and stats and not is_pdf %}
             <button id="downloadStatsSummaryBtn" type="button"
                class="btn btn-sm btn-outline-primary shadow-sm fw-bold me-4"
                title="Download stats as PDF"
@@ -46,7 +46,7 @@
       </div>
     </header>
 
-    {% if active_view == 'stats' %}
+    {% if active_view == 'analytics' %}
     <div id="insights-data-tab">
       {% include "components/stats_data.html" %}
     </div>

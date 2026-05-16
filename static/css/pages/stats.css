@@ -320,12 +320,16 @@
    Section titles (Stops / Problems / Routes)
    ------------------------------------------------------------------------- */
 .stats-section-title {
-  font-size: 1.1rem;
-  font-weight: var(--font-bold, 700);
-  color: var(--color-fg-muted, #586069);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--color-fg);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin: 1.25rem 0 0.5rem;
-  padding-bottom: 0.35rem;
-  border-bottom: 2px solid var(--color-border, #e1e4e8);
+  letter-spacing: 0.12em;
+  margin: 4rem 0 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 3px solid var(--color-primary-muted, #174092);
+}
+
+.stats-section-title:first-of-type {
+  margin-top: 1rem;
 }
