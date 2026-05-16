@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 
 {% block title %}
-  {% if active_view == 'reports' %}Export{% else %}Analytics{% endif %}
+  {% if active_view == 'reports' %}Export{% else %}Data{% endif %}
 {% endblock %}
 
 {% block head_css %}
@@ -47,8 +47,8 @@
     </header>
 
     {% if active_view == 'stats' %}
-    <div id="insights-analytics-tab">
-      {% include "components/stats_analytics.html" %}
+    <div id="insights-data-tab">
+      {% include "components/stats_data.html" %}
     </div>
     {% else %}
     <div id="insights-export-tab">

@@ -265,7 +265,6 @@ def _build_atlas_source_rows(
             'route_long_name': _to_text(row.get('route_long_name')),
             'route_desc': _to_text(row.get('route_desc')),
             'route_type': _to_text(row.get('route_type')),
-            'run_id': _to_text(row.get('run_id')),
         })
 
     itinerary_rows: list[dict[str, Any]] = []
