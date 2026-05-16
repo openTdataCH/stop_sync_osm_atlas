@@ -39,7 +39,7 @@
             href="{{ url_for('operators.operators_page') }}">Operators</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint in ('analytics_stats', 'analytics_reports') %} active{%- endif %}"
+          <a class="nav-link {%- if request.endpoint in ('data_stats', 'data_reports') %} active{%- endif %}"
             href="{{ url_for('data_index') }}">Data</a>
         </li>
         <li class="nav-item">

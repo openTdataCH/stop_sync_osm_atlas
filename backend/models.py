@@ -260,7 +260,6 @@ class AtlasLineFamily(db.Model):
     route_long_name = db.Column(db.String(255))
     route_desc = db.Column(db.Text)
     route_type = db.Column(db.String(50))
-    run_id = db.Column(db.String(100))
 
 
 class AtlasItinerary(db.Model):

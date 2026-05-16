@@ -119,7 +119,7 @@ def _atlas_itinerary_bucket_key(
     bucket_value = _first_non_empty([representative_headsign, trip_short_name])
     if bucket_value is None:
         return pattern_hash
-    return _hash_stop_sequence([f'headsign:{bucket_value}'])
+    return bucket_value
 
 
 def _merge_atlas_stop_row(existing_row: dict[str, object], new_row: dict[str, object]) -> None:
@@ -342,13 +342,13 @@ def _build_atlas_itinerary_frames(
             or trip_short_name
         )
         pattern_hash = _hash_stop_sequence(sequence_stop_keys)
-        itinerary_bucket_hash = _atlas_itinerary_bucket_key(
+        itinerary_bucket_key = _atlas_itinerary_bucket_key(
             representative_headsign,
             trip_short_name,
             pattern_hash,
         )
-        itinerary_key = (route_id, direction_id, itinerary_bucket_hash)
-        atlas_itinerary_id = f"{route_id}:{direction_id or 'na'}:{itinerary_bucket_hash}"
+        itinerary_key = (route_id, direction_id, itinerary_bucket_key)
+        atlas_itinerary_id = f"{route_id}:{direction_id or 'na'}:{itinerary_bucket_key}"
 
         existing_row = itinerary_rows.get(itinerary_key)
         if existing_row is None:
@@ -359,8 +359,8 @@ def _build_atlas_itinerary_frames(
                 'direction_label': direction_label,
                 'representative_headsign': representative_headsign,
                 'trip_count': 1,
-                'shape_id': shape_id,
-                'pattern_hash': itinerary_bucket_hash,
+                'shape_id': None,
+                'pattern_hash': itinerary_bucket_key,
             }
         else:
             existing_row['trip_count'] += 1
@@ -368,22 +368,18 @@ def _build_atlas_itinerary_frames(
                 existing_row['representative_headsign'] = representative_headsign
             if existing_row['direction_label'] is None and direction_label is not None:
                 existing_row['direction_label'] = direction_label
-            if existing_row['shape_id'] is None:
-                existing_row['shape_id'] = shape_id
 
         pattern_candidates = itinerary_pattern_rows_by_key.setdefault(itinerary_key, {})
         pattern_candidate = pattern_candidates.get(pattern_hash)
         if pattern_candidate is None:
             pattern_candidates[pattern_hash] = {
                 'trip_count': 1,
-                'shape_id': shape_id,
                 'stop_rows': stop_rows_for_itinerary,
+                'uic_sequence': [k.replace('uic:', '') for k in sequence_stop_keys]
             }
             processed_stop_call_count += len(stop_rows_for_itinerary)
         else:
             pattern_candidate['trip_count'] += 1
-            if pattern_candidate['shape_id'] is None:
-                pattern_candidate['shape_id'] = shape_id
             for existing_stop_row, stop_row in zip(pattern_candidate['stop_rows'], stop_rows_for_itinerary):
                 _merge_atlas_stop_row(existing_stop_row, stop_row)
 
@@ -417,8 +413,7 @@ def _build_atlas_itinerary_frames(
                 item[0],
             ),
         )
-        if selected_pattern.get('shape_id') is not None:
-            itinerary_rows[itinerary_key]['shape_id'] = selected_pattern['shape_id']
+        itinerary_rows[itinerary_key]['shape_id'] = ">".join(selected_pattern['uic_sequence'])
         stop_rows = selected_pattern['stop_rows']
         for stop_row in stop_rows:
             itinerary_stop_rows.append({
@@ -552,11 +547,9 @@ def write_atlas_route_csvs(
     # Extract distinct routes / line families
     routes_df = integrated_data[['route_id', 'agency_id', 'route_short_name', 'route_long_name', 'route_desc', 'route_type']].drop_duplicates(subset=['route_id'])
     routes_df['route_id_normalized'] = routes_df['route_id'].apply(lambda x: _normalize_route_id_for_matching(str(x)) if pd.notna(x) else None)
-    # Record the pipeline run date on each emitted route row.
-    routes_df['run_id'] = datetime.date.today().isoformat()
 
     atlas_line_families_df = routes_df.rename(columns={'route_id': 'atlas_line_id'})[
-        ['atlas_line_id', 'agency_id', 'route_id_normalized', 'route_short_name', 'route_long_name', 'route_desc', 'route_type', 'run_id']
+        ['atlas_line_id', 'agency_id', 'route_id_normalized', 'route_short_name', 'route_long_name', 'route_desc', 'route_type']
     ]
     atlas_line_families_out = os.path.join(out_dir, "atlas_line_families.csv")
     atlas_line_families_df.to_csv(atlas_line_families_out, index=False)

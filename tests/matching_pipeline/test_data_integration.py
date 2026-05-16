@@ -103,7 +103,6 @@ class TestGtfsRoutesIntegration:
             'route_long_name',
             'route_desc',
             'route_type',
-            'run_id',
         }
         assert expected_route_cols.issubset(set(line_families_df.columns)), "Line-family columns are missing"
         assert 'gtfs-route-1' in line_families_df['atlas_line_id'].values

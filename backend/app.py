@@ -70,11 +70,11 @@ def create_app():
 
     @app.route('/data')
     def data_index():
-        return redirect(url_for('analytics_stats'))
+        return redirect(url_for('data_stats'))
 
-    @app.route('/data/analytics', endpoint='analytics_stats')
-    @app.route('/data/export', endpoint='analytics_reports')
-    def analytics_page():
+    @app.route('/data/stats', endpoint='data_stats')
+    @app.route('/data/export', endpoint='data_reports')
+    def data_page():
         from backend.services.stats_export import load_stats_from_file
         stats = load_stats_from_file()
 
@@ -94,7 +94,7 @@ def create_app():
             route_problem_breakdown = {int(k): v for k, v in raw.items()}
 
         return render_template(
-            'pages/analytics.html',
+            'pages/data.html',
             stats=stats,
             problem_breakdown=problem_breakdown,
             route_problem_breakdown=route_problem_breakdown,
