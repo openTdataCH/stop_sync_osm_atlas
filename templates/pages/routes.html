@@ -177,6 +177,7 @@
     {% if route_rows %}
     <section class="routes-list" aria-label="Routes list">
       {% for route in route_rows %}
+      {% set route_index = loop.index %}
       <article class="route-card route-card--{{ route.display_mode }}">
         <header class="route-card__header route-card__header--{{ route.display_mode }}">
           {% if route.display_mode == 'matched' %}
@@ -251,24 +252,25 @@
           <span class="route-card__badge {{ 'route-card__badge--matched' if route.is_matched else 'route-card__badge--unmatched' }}">{{ route.match_label }}</span>
         </div>
 
-        {% if route.direction_summary %}
-        <p class="route-card__summary">Directions: {{ route.direction_summary }}</p>
+        {% if route.variant_count is defined and route.variant_count > 0 %}
+        <p class="route-card__summary">ATLAS variants: {{ route.atlas_variant_count }} | OSM variants: {{ route.osm_variant_count }} | Matched: {{ route.matched_variant_count }}</p>
         {% endif %}
 
-        <details class="route-card__panel" aria-label="Stops list panel">
-          <summary>Stops list</summary>
+        {% if route.direction_groups %}
+        {% for direction in route.direction_groups %}
+        <details class="route-card__panel route-card__panel--map" aria-label="Stops list panel for variant">
+          <summary>
+            Route variant: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}
+            {% if direction.direction_label or direction.representative_headsign %}
+              - 
+              {% if direction.direction_label %}{{ direction.direction_label }}{% endif %}
+              {% if direction.direction_label and direction.representative_headsign %} | {% endif %}
+              {% if direction.representative_headsign %}{{ direction.representative_headsign }}{% endif %}
+            {% endif %}
+            <span class="route-card__badge route-card__badge--{{ direction.match_status }}" style="margin-left: 10px; font-size: 0.8em;">{{ direction.match_label }}</span>
+          </summary>
           <div class="route-card__panel-content">
-            {% if route.direction_groups %}
-            {% for direction in route.direction_groups %}
             <section class="direction-block">
-              <h3 class="direction-block__title">Direction: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}</h3>
-              {% if direction.direction_label or direction.representative_headsign %}
-              <p class="route-card__summary">
-                {% if direction.direction_label %}Label: {{ direction.direction_label }}{% endif %}
-                {% if direction.direction_label and direction.representative_headsign %} | {% endif %}
-                {% if direction.representative_headsign %}Headsign: {{ direction.representative_headsign }}{% endif %}
-              </p>
-              {% endif %}
               <div class="direction-block__columns">
                 <div class="stops-column">
                   <div class="stops-column-header">
@@ -324,42 +326,48 @@
                 </div>
               </div>
             </section>
-            {% endfor %}
-            {% else %}
-            <p class="stops-empty">No stop details available for this route.</p>
-            {% endif %}
-          </div>
-        </details>
-
-        <details class="route-card__panel route-card__panel--map" aria-label="Map panel">
-          <summary>Route on map</summary>
-          <div class="route-card__panel-content route-card__panel-content--map">
+            
             {% if route.map_filter %}
-            <div class="route-card__map-shell" style="position: relative;">
-              <div class="map-direction-filter-container" style="position: absolute; top: 10px; right: 10px; z-index: 1000;">
-                <!-- Filter chip will be rendered here by JS -->
-              </div>
+            <div class="route-card__map-shell mt-4" style="position: relative;">
+              <button class="btn btn-sm btn-outline-secondary toggle-context-btn" 
+                      style="position: absolute; top: 10px; right: 10px; z-index: 1000; background: white;"
+                      data-map-index="{{ route_index }}_{{ loop.index }}">
+                <i class="fas fa-eye"></i> See other markers
+              </button>
               <div
-                id="routeMap{{ loop.index }}"
+                id="routeMap{{ route_index }}_{{ loop.index }}"
                 class="route-card__map"
                 data-station-filter="{{ route.map_filter.station_filter }}"
                 data-filter-types="{{ route.map_filter.filter_types }}"
-                data-route-directions="{{ route.map_filter.route_directions }}"
+                data-route-directions="{{ direction.direction_id if direction.direction_id is not none else '' }}"
                 data-atlas-operators="{{ atlas_operator_query }}"
                 data-route-id="{{ route.primary_route_id }}"
-                data-map-index="{{ loop.index }}"
+                data-map-index="{{ route_index }}_{{ loop.index }}"
+                style="height: 300px; border-radius: 8px;"
               ></div>
+              <script type="application/json" class="variant-data" data-map-index="{{ route_index }}_{{ loop.index }}">
+                {{ direction | tojson | safe }}
+              </script>
             </div>
-            {% else %}
-            <p class="stops-empty">No map preview is available because this route has no geolocated stops.</p>
             {% endif %}
           </div>
         </details>
+        {% endfor %}
+        {% else %}
+        <details class="route-card__panel" aria-label="Stops list panel">
+          <summary>Stops list</summary>
+          <div class="route-card__panel-content">
+            <p class="stops-empty">No stop details available for this route.</p>
+          </div>
+        </details>
+        {% endif %}
+
+
       </article>
       {% endfor %}
     </section>
 
-    <nav class="routes-pagination" aria-label="Routes pagination">
+    <nav class="c-pagination routes-pagination" aria-label="Routes pagination">
       <ul class="pagination justify-content-center">
         <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
           <a class="page-link" href="{{ url_for(listing_endpoint, matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">

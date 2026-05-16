@@ -14,6 +14,7 @@ from backend.models import (
     ItineraryMatch,
     LineFamily,
     LineFamilyMatch,
+    OsmNode,
     StopCall,
 )
 from backend.services.gtfs_stop_id_sloid import (
@@ -220,14 +221,23 @@ def _direction_sort_key(direction_id):
     return (1, direction_text.lower())
 
 
-def _direction_summary(direction_groups):
-    if not direction_groups:
-        return None
-    labels = [group['direction_id'] if group['direction_id'] else 'Unspecified' for group in direction_groups]
-    summary = ', '.join(labels[:4])
-    if len(labels) > 4:
-        summary += f" (+{len(labels) - 4} more)"
-    return summary
+def _variant_count(direction_groups):
+    return len(direction_groups) if direction_groups else 0
+
+
+def _count_route_variants(direction_groups):
+    atlas_variant_count = sum(1 for group in direction_groups if group.get('has_atlas_variant'))
+    osm_variant_count = sum(1 for group in direction_groups if group.get('has_osm_variant'))
+    matched_variant_count = sum(1 for group in direction_groups if group.get('is_matched'))
+    return atlas_variant_count, osm_variant_count, matched_variant_count
+
+
+def _route_sort_key(route_item):
+    return (
+        0 if route_item.get('display_mode') == 'matched' else 1,
+        (route_item.get('sort_route_id') or '').lower(),
+        route_item.get('display_mode') or '',
+    )
 
 
 def _compute_page_range(pagination):
@@ -272,9 +282,29 @@ def _load_available_osm_route_operators() -> list[str]:
     return [row[0] for row in rows if row and row[0]]
 
 
+def _load_line_family_rows(source: str):
+    return (
+        db.session.query(
+            LineFamily.id.label('id'),
+            LineFamily.source_family_id.label('source_family_id'),
+            LineFamily.display_route_id.label('display_route_id'),
+            LineFamily.public_name.label('public_name'),
+            LineFamily.ref.label('ref'),
+            LineFamily.operator.label('operator'),
+            LineFamily.network.label('network'),
+            LineFamily.is_non_gtfs.label('is_non_gtfs'),
+            LineFamily.gtfs_route_id.label('gtfs_route_id'),
+            LineFamily.route_master_id.label('route_master_id'),
+            LineFamily.representative_relation_id.label('representative_relation_id'),
+        )
+        .filter(LineFamily.source == source)
+        .all()
+    )
+
+
 def _load_route_page_data():
-    atlas_generic_rows = db.session.query(LineFamily).filter(LineFamily.source == 'atlas').all()
-    osm_generic_rows = db.session.query(LineFamily).filter(LineFamily.source == 'osm').all()
+    atlas_generic_rows = _load_line_family_rows('atlas')
+    osm_generic_rows = _load_line_family_rows('osm')
     atlas_generic_by_id = {row.id: row for row in atlas_generic_rows}
     osm_generic_by_id = {row.id: row for row in osm_generic_rows}
 
@@ -475,11 +505,72 @@ def _load_detail_maps(page_items):
     for itinerary_list in itineraries_by_family.values():
         itinerary_list.sort(key=lambda row: (_direction_sort_key(row.direction_id), row.id))
 
-    return itinerary_by_id, stop_calls_by_itinerary, itinerary_matches_by_family_match, itineraries_by_family
+    # Fetch StopsMatched data for all sloids and osm_node_ids in the stop calls to avoid N+1
+    page_sloids = {c.source_sloid for c in stop_calls if c.source_sloid}
+    page_osm_nodes = {c.source_node_id for c in stop_calls if c.source_node_id}
+    
+    stops_matched_lookup = {}
+    if page_sloids or page_osm_nodes:
+        from backend.models import StopsMatched
+        matched_rows = db.session.query(
+            StopsMatched.sloid,
+            StopsMatched.stop_type,
+            StopsMatched.atlas_lat,
+            StopsMatched.atlas_lon,
+            StopsMatched.osm_node_id,
+            StopsMatched.osm_lat,
+            StopsMatched.osm_lon,
+        ).filter(
+            or_(
+                StopsMatched.sloid.in_(page_sloids) if page_sloids else False,
+                StopsMatched.osm_node_id.in_(page_osm_nodes) if page_osm_nodes else False
+            )
+        ).all()
+
+        atlas_duplicate_lookup = {
+            sloid: bool(duplicate_group_sloids)
+            for sloid, duplicate_group_sloids in db.session.query(
+                AtlasStop.sloid,
+                AtlasStop.duplicate_group_sloids,
+            ).filter(AtlasStop.sloid.in_(page_sloids)).all()
+        } if page_sloids else {}
+
+        osm_node_type_lookup = {
+            osm_node_id: osm_node_type
+            for osm_node_id, osm_node_type in db.session.query(
+                OsmNode.osm_node_id,
+                OsmNode.osm_node_type,
+            ).filter(OsmNode.osm_node_id.in_(page_osm_nodes)).all()
+        } if page_osm_nodes else {}
+        
+        # Build lookup maps
+        # Note: a sloid or node_id might appear in multiple rows if matched to different things,
+        # but for markers we just need the stop_type.
+        for row in matched_rows:
+            if row.sloid:
+                stops_matched_lookup[f"atlas_{row.sloid}"] = {
+                    'stop_type': row.stop_type,
+                    'atlas_lat': row.atlas_lat,
+                    'atlas_lon': row.atlas_lon,
+                    'osm_node_id': row.osm_node_id,
+                    'osm_lat': row.osm_lat,
+                    'osm_lon': row.osm_lon,
+                    'has_atlas_duplicate': atlas_duplicate_lookup.get(row.sloid, False),
+                }
+            if row.osm_node_id:
+                stops_matched_lookup[f"osm_{row.osm_node_id}"] = {
+                    'stop_type': row.stop_type,
+                    'osm_lat': row.osm_lat,
+                    'osm_lon': row.osm_lon,
+                    'osm_node_type': osm_node_type_lookup.get(row.osm_node_id),
+                }
+
+    return itinerary_by_id, stop_calls_by_itinerary, itinerary_matches_by_family_match, itineraries_by_family, stops_matched_lookup
 
 
-def _serialize_stop_calls(stop_calls, source_kind):
+def _serialize_stop_calls(stop_calls, source_kind, matched_lookup=None):
     serialized = []
+    matched_lookup = matched_lookup or {}
     for stop_call in stop_calls:
         stop_ids = []
         if source_kind == 'atlas':
@@ -488,19 +579,30 @@ def _serialize_stop_calls(stop_calls, source_kind):
                 stop_ids = [stop_call.source_sloid]
         elif stop_call.source_node_id:
             stop_ids = [stop_call.source_node_id]
+            
+        stop_id = stop_call.source_sloid if source_kind == 'atlas' else stop_call.source_node_id
+        match_info = matched_lookup.get(f"{source_kind}_{stop_id}") if stop_id else None
+        
         serialized.append({
-            'stop_id': stop_call.source_sloid if source_kind == 'atlas' else stop_call.source_node_id,
+            'stop_id': stop_id,
             'stop_ids': stop_ids,
             'uic_ref': stop_call.uic_ref,
             'stop_label': stop_call.stop_label,
             'stop_sequence': stop_call.stop_sequence,
             'lat': stop_call.stop_lat,
             'lon': stop_call.stop_lon,
+            'stop_type': match_info.get('stop_type') if match_info else (f"{source_kind}_unmatched"),
+            'has_atlas_duplicate': match_info.get('has_atlas_duplicate', False) if match_info else False,
+            'osm_node_type': match_info.get('osm_node_type') if match_info else None,
+            'osm_lat': match_info.get('osm_lat') if match_info and source_kind == 'atlas' else None,
+            'osm_lon': match_info.get('osm_lon') if match_info and source_kind == 'atlas' else None,
+            'atlas_lat': match_info.get('atlas_lat') if match_info and source_kind == 'osm' else None,
+            'atlas_lon': match_info.get('atlas_lon') if match_info and source_kind == 'osm' else None,
         })
     return serialized
 
 
-def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_calls):
+def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_calls, matched_lookup=None):
     direction_id = atlas_itinerary.direction_id if atlas_itinerary is not None else (osm_itinerary.direction_id if osm_itinerary is not None else None)
     direction_label = None
     representative_headsign = None
@@ -512,8 +614,19 @@ def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_call
     if representative_headsign is None and osm_itinerary is not None:
         representative_headsign = osm_itinerary.representative_headsign
 
-    atlas_stops = _serialize_stop_calls(atlas_calls, 'atlas')
-    osm_stops = _serialize_stop_calls(osm_calls, 'osm')
+    atlas_stops = _serialize_stop_calls(atlas_calls, 'atlas', matched_lookup)
+    osm_stops = _serialize_stop_calls(osm_calls, 'osm', matched_lookup)
+    is_matched = atlas_itinerary is not None and osm_itinerary is not None
+    if is_matched:
+        match_label = 'Matched variant'
+        match_status = 'matched'
+    elif atlas_itinerary is not None:
+        match_label = 'Unmatched ATLAS variant'
+        match_status = 'unmatched-atlas'
+    else:
+        match_label = 'Unmatched OSM variant'
+        match_status = 'unmatched-osm'
+
     return {
         'direction_id': direction_id,
         'direction_label': direction_label,
@@ -521,11 +634,16 @@ def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_call
         'osm_relation_id': _clean_text(osm_itinerary.source_itinerary_id) if osm_itinerary is not None else None,
         'atlas_uic_groups': _group_stops_by_uic(atlas_stops),
         'osm_uic_groups': _group_stops_by_uic(osm_stops),
+        'has_atlas_variant': atlas_itinerary is not None,
+        'has_osm_variant': osm_itinerary is not None,
+        'is_matched': is_matched,
+        'match_label': match_label,
+        'match_status': match_status,
     }
 
 
 def _build_route_rows(page_items):
-    itinerary_by_id, stop_calls_by_itinerary, itinerary_matches_by_family_match, itineraries_by_family = _load_detail_maps(page_items)
+    itinerary_by_id, stop_calls_by_itinerary, itinerary_matches_by_family_match, itineraries_by_family, stops_matched_lookup = _load_detail_maps(page_items)
     route_rows = []
 
     for item in page_items:
@@ -547,6 +665,7 @@ def _build_route_rows(page_items):
                         osm_itinerary,
                         stop_calls_by_itinerary.get(atlas_itinerary.id, []),
                         stop_calls_by_itinerary.get(osm_itinerary.id, []),
+                        stops_matched_lookup
                     )
                 )
 
@@ -560,6 +679,7 @@ def _build_route_rows(page_items):
                         None,
                         stop_calls_by_itinerary.get(itinerary.id, []),
                         [],
+                        stops_matched_lookup
                     )
                 )
         if item.get('osm_family_id') is not None:
@@ -572,10 +692,12 @@ def _build_route_rows(page_items):
                         itinerary,
                         [],
                         stop_calls_by_itinerary.get(itinerary.id, []),
+                        stops_matched_lookup
                     )
                 )
 
         direction_groups.sort(key=lambda group: (_direction_sort_key(group['direction_id']), group['direction_label'] or ''))
+        atlas_variant_count, osm_variant_count, matched_variant_count = _count_route_variants(direction_groups)
 
         map_filter = None
         has_geolocated_stops = any(
@@ -595,7 +717,10 @@ def _build_route_rows(page_items):
             **item,
             'atlas_operators_summary': ', '.join(item.get('atlas_operators', [])) if item.get('atlas_operators') else None,
             'direction_groups': direction_groups,
-            'direction_summary': _direction_summary(direction_groups),
+            'variant_count': _variant_count(direction_groups),
+            'atlas_variant_count': atlas_variant_count,
+            'osm_variant_count': osm_variant_count,
+            'matched_variant_count': matched_variant_count,
             'map_filter': map_filter,
         })
 
@@ -631,7 +756,7 @@ def routes_page():
         for item in route_items
         if _route_matches_filters(item, q, selected_atlas_operators, selected_osm_operators, matched_filter)
     ]
-    filtered_items.sort(key=lambda item: (item['sort_route_id'].lower(), item['display_mode']))
+    filtered_items.sort(key=_route_sort_key)
 
     total = len(filtered_items)
     start_index = (page - 1) * per_page

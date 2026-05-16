@@ -114,11 +114,11 @@ def _atlas_itinerary_sequence_key(stop_id: str, sloid: object, original_stop_id:
 def _atlas_itinerary_bucket_key(
     representative_headsign: str | None,
     trip_short_name: str | None,
-    pattern_hash: str,
+    fallback_pattern_hash: str,
 ) -> str:
     bucket_value = _first_non_empty([representative_headsign, trip_short_name])
     if bucket_value is None:
-        return pattern_hash
+        return fallback_pattern_hash
     return bucket_value
 
 
@@ -341,11 +341,11 @@ def _build_atlas_itinerary_frames(
             or representative_headsign
             or trip_short_name
         )
-        pattern_hash = _hash_stop_sequence(sequence_stop_keys)
+        fallback_pattern_hash = _hash_stop_sequence(sequence_stop_keys)
         itinerary_bucket_key = _atlas_itinerary_bucket_key(
             representative_headsign,
             trip_short_name,
-            pattern_hash,
+            fallback_pattern_hash,
         )
         itinerary_key = (route_id, direction_id, itinerary_bucket_key)
         atlas_itinerary_id = f"{route_id}:{direction_id or 'na'}:{itinerary_bucket_key}"
@@ -360,7 +360,7 @@ def _build_atlas_itinerary_frames(
                 'representative_headsign': representative_headsign,
                 'trip_count': 1,
                 'shape_id': None,
-                'pattern_hash': itinerary_bucket_key,
+                'headsign_or_pattern_hash': itinerary_bucket_key,
             }
         else:
             existing_row['trip_count'] += 1
@@ -370,9 +370,9 @@ def _build_atlas_itinerary_frames(
                 existing_row['direction_label'] = direction_label
 
         pattern_candidates = itinerary_pattern_rows_by_key.setdefault(itinerary_key, {})
-        pattern_candidate = pattern_candidates.get(pattern_hash)
+        pattern_candidate = pattern_candidates.get(fallback_pattern_hash)
         if pattern_candidate is None:
-            pattern_candidates[pattern_hash] = {
+            pattern_candidates[fallback_pattern_hash] = {
                 'trip_count': 1,
                 'stop_rows': stop_rows_for_itinerary,
                 'uic_sequence': [k.replace('uic:', '') for k in sequence_stop_keys]

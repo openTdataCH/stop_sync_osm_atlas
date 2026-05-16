@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import re
 from collections import defaultdict
@@ -18,6 +19,8 @@ from matching_and_import_db.utils.route_id import normalize_route_id
 
 PROCESSED_DIR = Path('data/processed')
 _NON_WORD_RE = re.compile(r'[^a-z0-9]+')
+_ITINERARY_MATCH_MIN_RATIO = 0.8
+_NON_ATLAS_STOP_KEY_PREFIXES = ('gtfs:', 'osm:', 'uic:')
 
 
 def _is_missing(value: Any) -> bool:
@@ -282,12 +285,12 @@ def _build_atlas_source_rows(
                 'atlas_itinerary_id': atlas_itinerary_id,
                 'atlas_line_id': atlas_line_id,
                 'direction_id': _to_text(row.get('direction_id')),
-                'pattern_hash': _to_text(row.get('pattern_hash')),
                 'representative_headsign': _to_text(row.get('representative_headsign')),
                 'direction_label': _to_text(row.get('direction_label')),
                 'trip_count': _to_int(row.get('trip_count'), default=0),
                 'shape_id': _to_text(row.get('shape_id')),
                 'geometry_wkt': _to_text(row.get('geometry_wkt')),
+                'headsign_or_pattern_hash': _to_text(row.get('headsign_or_pattern_hash') or row.get('pattern_hash')),
             })
         for row in _records(atlas_stop_calls_df):
             normalized_row, skipped = _build_atlas_stop_call_row(row, known_sloids, atlas_stop_lookup)
@@ -312,11 +315,11 @@ def _resolve_osm_stop_fields(node_id: str | None, row: dict[str, Any], lookups: 
 
     node = osm_node_lookup.get(node_id) if node_id is not None else None
     uic_ref = _first_non_empty(row.get('uic_ref'), getattr(node, 'uic_ref', None) if node else None)
-    canonical_stop_key = _to_text(row.get('canonical_stop_key'))
-    if canonical_stop_key is None and node_id is not None:
-        canonical_stop_key = matched_osm_to_sloid.get(node_id)
+    canonical_stop_key = matched_osm_to_sloid.get(node_id) if node_id is not None else None
     if canonical_stop_key is None and uic_ref is not None:
         canonical_stop_key = unique_atlas_sloid_by_uic.get(uic_ref)
+    if canonical_stop_key is None:
+        canonical_stop_key = _to_text(row.get('canonical_stop_key'))
     if canonical_stop_key is None and node_id is not None:
         canonical_stop_key = f'osm:{node_id}'
 
@@ -358,7 +361,9 @@ def _build_osm_source_rows(all_route_data: dict[str, pd.DataFrame], lookups: dic
             'name': _to_text(row.get('name')),
             'ref': _to_text(row.get('ref')),
             'operator': _to_text(row.get('operator')),
+            'operator_wikidata': _to_text(row.get('operator_wikidata')),
             'network': _to_text(row.get('network')),
+            'network_wikidata': _to_text(row.get('network_wikidata')),
             'is_non_gtfs': str(row.get('is_non_gtfs')).lower() == 'true',
             'colour': _to_text(row.get('colour')),
             'gtfs_route_id': _to_text(row.get('gtfs_route_id')),
@@ -407,7 +412,9 @@ def _build_osm_source_rows(all_route_data: dict[str, pd.DataFrame], lookups: dic
             'name': _to_text(row.get('name')),
             'ref': _to_text(row.get('ref')),
             'operator': _to_text(row.get('operator')),
+            'operator_wikidata': _to_text(row.get('operator_wikidata')),
             'network': _to_text(row.get('network')),
+            'network_wikidata': _to_text(row.get('network_wikidata')),
             'is_non_gtfs': str(row.get('is_non_gtfs')).lower() == 'true',
             'from_name': _to_text(row.get('from_name')),
             'to_name': _to_text(row.get('to_name')),
@@ -521,7 +528,9 @@ def _build_line_family_rows(
             'public_name': _first_non_empty(row.get('route_long_name'), row.get('route_short_name'), row['atlas_line_id']),
             'ref': row.get('route_short_name'),
             'operator': row.get('agency_id'),
+            'operator_wikidata': None,
             'network': None,
+            'network_wikidata': None,
             'is_non_gtfs': False,
             'gtfs_route_id': row['atlas_line_id'],
             'normalized_route_id': _first_non_empty(row.get('route_id_normalized'), normalize_route_id(row['atlas_line_id'])),
@@ -548,7 +557,9 @@ def _build_line_family_rows(
         normalized_gtfs_route_id = _first_non_empty(normalize_route_id(gtfs_route_id), gtfs_route_id)
         ref = relation.get('ref')
         operator = relation.get('operator')
+        operator_wikidata = relation.get('operator_wikidata')
         network = relation.get('network')
+        network_wikidata = relation.get('network_wikidata')
         route = relation.get('route')
 
         if route_master_id and route_master_id in route_master_lookup:
@@ -597,7 +608,9 @@ def _build_line_family_rows(
             'public_name': _first_non_empty(route_master_row.get('name'), representative_relation.get('name'), representative_relation.get('ref'), group['source_family_id']),
             'ref': _first_non_empty(route_master_row.get('ref'), representative_relation.get('ref')),
             'operator': _first_non_empty(route_master_row.get('operator'), representative_relation.get('operator')),
+            'operator_wikidata': _first_non_empty(route_master_row.get('operator_wikidata'), representative_relation.get('operator_wikidata')),
             'network': _first_non_empty(route_master_row.get('network'), representative_relation.get('network')),
+            'network_wikidata': _first_non_empty(route_master_row.get('network_wikidata'), representative_relation.get('network_wikidata')),
             'is_non_gtfs': bool(route_master_row.get('is_non_gtfs') or representative_relation.get('is_non_gtfs')),
             'gtfs_route_id': gtfs_route_id,
             'normalized_route_id': normalized_route_id,
@@ -641,7 +654,7 @@ def _build_itinerary_rows(
             'line_family_id': line_family_id,
             'source_itinerary_id': row['atlas_itinerary_id'],
             'direction_id': row.get('direction_id'),
-            'pattern_hash': row.get('pattern_hash'),
+            'headsign_or_pattern_hash': row.get('headsign_or_pattern_hash'),
             'display_name': _first_non_empty(row.get('direction_label'), row.get('representative_headsign'), row['atlas_itinerary_id']),
             'representative_headsign': row.get('representative_headsign'),
             'from_name': None,
@@ -683,7 +696,7 @@ def _build_itinerary_rows(
             continue
         call_rows = relation_stop_rows_by_relation.get(row['relation_id'], [])
         generic_itinerary_id = next(itinerary_id_counter)
-        pattern_hash = _hash_sequence([
+        sequence_pattern_hash = _hash_sequence([
             _first_non_empty(call_row.get('canonical_stop_key'), f"osm:{call_row.get('osm_node_id')}")
             for call_row in call_rows
         ]) if call_rows else None
@@ -694,7 +707,7 @@ def _build_itinerary_rows(
             'line_family_id': line_family_id,
             'source_itinerary_id': row['relation_id'],
             'direction_id': direction_id,
-            'pattern_hash': pattern_hash,
+            'headsign_or_pattern_hash': sequence_pattern_hash,
             'display_name': _first_non_empty(row.get('name'), f"{row.get('from_name')} -> {row.get('to_name')}" if row.get('from_name') or row.get('to_name') else None, row.get('ref'), row['relation_id']),
             'representative_headsign': _first_non_empty(row.get('name'), row.get('ref')),
             'from_name': row.get('from_name'),
@@ -733,13 +746,9 @@ def _score_line_family_pair(atlas_family: dict[str, Any], osm_family: dict[str, 
 
     atlas_route_id = _to_text(atlas_family.get('gtfs_route_id'))
     atlas_normalized = _to_text(atlas_family.get('normalized_route_id'))
-    atlas_ref = _to_text(atlas_family.get('ref'))
-    atlas_name = _normalize_name(atlas_family.get('public_name'))
 
     osm_gtfs_route_id = _to_text(osm_family.get('gtfs_route_id'))
     osm_normalized = _to_text(osm_family.get('normalized_route_id'))
-    osm_ref = _to_text(osm_family.get('ref'))
-    osm_name = _normalize_name(osm_family.get('public_name'))
 
     if atlas_route_id and osm_gtfs_route_id and atlas_route_id == osm_gtfs_route_id:
         return 1.0, 'exact_gtfs_route_id'
@@ -747,69 +756,100 @@ def _score_line_family_pair(atlas_family: dict[str, Any], osm_family: dict[str, 
         return 0.95, 'normalized_gtfs_route_id'
     if atlas_route_id and _to_text(osm_family.get('display_route_id')) == atlas_route_id:
         return 0.9, 'display_route_id_match'
-    if atlas_ref and osm_ref and atlas_ref == osm_ref:
-        return 0.7, 'route_ref_match'
-    if atlas_name and osm_name and atlas_name == osm_name:
-        return 0.6, 'route_name_match'
     return 0.0, None
 
 
-def _stop_match_strength(atlas_call: dict[str, Any], osm_call: dict[str, Any]) -> tuple[float, str]:
-    atlas_key = _to_text(atlas_call.get('canonical_stop_key'))
-    osm_key = _to_text(osm_call.get('canonical_stop_key'))
-    if atlas_key and osm_key and atlas_key == osm_key:
-        return 2.0, 'exact_match'
+def _parse_json_list(value: Any) -> list[str]:
+    text = _to_text(value)
+    if text is None:
+        return []
+    try:
+        parsed = json.loads(text)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [item for item in (_to_text(entry) for entry in parsed) if item is not None]
+
+
+def _is_resolved_atlas_sloid(value: Any) -> bool:
+    text = _to_text(value)
+    if text is None:
+        return False
+    return not text.startswith(_NON_ATLAS_STOP_KEY_PREFIXES)
+
+
+def _resolved_stop_identities(stop_call: dict[str, Any]) -> set[str]:
+    identities: set[str] = set()
+
+    source_sloid = _to_text(stop_call.get('source_sloid'))
+    if _is_resolved_atlas_sloid(source_sloid):
+        identities.add(source_sloid)
+
+    for variant in _parse_json_list(stop_call.get('source_sloid_variants')):
+        if _is_resolved_atlas_sloid(variant):
+            identities.add(variant)
+
+    canonical_stop_key = _to_text(stop_call.get('canonical_stop_key'))
+    if _is_resolved_atlas_sloid(canonical_stop_key):
+        identities.add(canonical_stop_key)
+
+    return identities
+
+
+def _match_stop_calls(atlas_call: dict[str, Any], osm_call: dict[str, Any]) -> str | None:
+    atlas_identities = _resolved_stop_identities(atlas_call)
+    osm_identities = _resolved_stop_identities(osm_call)
+    if atlas_identities and osm_identities:
+        if atlas_identities & osm_identities:
+            return 'resolved_sloid_match'
+        return None
 
     atlas_uic = _to_text(atlas_call.get('uic_ref'))
     osm_uic = _to_text(osm_call.get('uic_ref'))
     if atlas_uic and osm_uic and atlas_uic == osm_uic:
-        return 1.25, 'partial_match'
+        return 'uic_match'
 
-    atlas_name = _normalize_name(atlas_call.get('stop_label'))
-    osm_name = _normalize_name(osm_call.get('stop_label'))
-    if atlas_name and osm_name and atlas_name == osm_name:
-        return 0.75, 'partial_match'
-
-    return -1.0, 'mismatch'
+    return None
 
 
-def _align_stop_sequences(atlas_calls: list[dict[str, Any]], osm_calls: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], float]:
-    gap_penalty = -0.75
+def _align_stop_sequences(atlas_calls: list[dict[str, Any]], osm_calls: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
     rows = len(atlas_calls)
     cols = len(osm_calls)
-    scores = [[0.0] * (cols + 1) for _ in range(rows + 1)]
-    trace: list[list[tuple[str, str, float] | None]] = [[None] * (cols + 1) for _ in range(rows + 1)]
+    scores = [[0] * (cols + 1) for _ in range(rows + 1)]
+    trace: list[list[tuple[str, str | None] | None]] = [[None] * (cols + 1) for _ in range(rows + 1)]
 
     for i in range(1, rows + 1):
-        scores[i][0] = scores[i - 1][0] + gap_penalty
-        trace[i][0] = ('up', 'atlas_only', gap_penalty)
+        trace[i][0] = ('up', None)
     for j in range(1, cols + 1):
-        scores[0][j] = scores[0][j - 1] + gap_penalty
-        trace[0][j] = ('left', 'osm_only', gap_penalty)
+        trace[0][j] = ('left', None)
 
     for i in range(1, rows + 1):
         for j in range(1, cols + 1):
-            match_score, match_type = _stop_match_strength(atlas_calls[i - 1], osm_calls[j - 1])
-            candidates = [
-                (scores[i - 1][j - 1] + match_score, 'diag', match_type, match_score),
-                (scores[i - 1][j] + gap_penalty, 'up', 'atlas_only', gap_penalty),
-                (scores[i][j - 1] + gap_penalty, 'left', 'osm_only', gap_penalty),
-            ]
-            best_score, direction, alignment_type, alignment_score = max(candidates, key=lambda item: item[0])
-            scores[i][j] = best_score
-            trace[i][j] = (direction, alignment_type, alignment_score)
+            match_type = _match_stop_calls(atlas_calls[i - 1], osm_calls[j - 1])
+            diagonal = scores[i - 1][j - 1] + (1 if match_type else 0)
+            up = scores[i - 1][j]
+            left = scores[i][j - 1]
+            if match_type and diagonal >= up and diagonal >= left:
+                scores[i][j] = diagonal
+                trace[i][j] = ('diag', match_type)
+            elif up >= left:
+                scores[i][j] = up
+                trace[i][j] = ('up', None)
+            else:
+                scores[i][j] = left
+                trace[i][j] = ('left', None)
 
     alignments: list[dict[str, Any]] = []
     i = rows
     j = cols
     while i > 0 or j > 0:
-        direction, alignment_type, alignment_score = trace[i][j] or ('left', 'osm_only', gap_penalty)
+        direction, match_type = trace[i][j] or ('left', None)
         if direction == 'diag':
             alignments.append({
                 'atlas_call': atlas_calls[i - 1],
                 'osm_call': osm_calls[j - 1],
-                'alignment_type': alignment_type,
-                'alignment_score': alignment_score,
+                'alignment_type': match_type,
             })
             i -= 1
             j -= 1
@@ -818,7 +858,6 @@ def _align_stop_sequences(atlas_calls: list[dict[str, Any]], osm_calls: list[dic
                 'atlas_call': atlas_calls[i - 1],
                 'osm_call': None,
                 'alignment_type': 'atlas_only',
-                'alignment_score': gap_penalty,
             })
             i -= 1
         else:
@@ -826,56 +865,17 @@ def _align_stop_sequences(atlas_calls: list[dict[str, Any]], osm_calls: list[dic
                 'atlas_call': None,
                 'osm_call': osm_calls[j - 1],
                 'alignment_type': 'osm_only',
-                'alignment_score': gap_penalty,
             })
             j -= 1
 
     alignments.reverse()
-    matched_score = 0.0
-    for alignment in alignments:
-        if alignment['alignment_type'] == 'exact_match':
-            matched_score += 1.0
-        elif alignment['alignment_type'] == 'partial_match':
-            matched_score += 0.5
-    normalizer = max(rows, cols, 1)
-    return alignments, matched_score / normalizer
+    return alignments, scores[rows][cols]
 
 
-def _geometry_similarity(atlas_calls: list[dict[str, Any]], osm_calls: list[dict[str, Any]]) -> float | None:
-    atlas_with_coords = [call for call in atlas_calls if call.get('stop_lat') is not None and call.get('stop_lon') is not None]
-    osm_with_coords = [call for call in osm_calls if call.get('stop_lat') is not None and call.get('stop_lon') is not None]
-    if not atlas_with_coords or not osm_with_coords:
-        return None
-
-    endpoint_distances = []
-    for atlas_call, osm_call in ((atlas_with_coords[0], osm_with_coords[0]), (atlas_with_coords[-1], osm_with_coords[-1])):
-        distance = _coord_distance_m(
-            atlas_call.get('stop_lat'),
-            atlas_call.get('stop_lon'),
-            osm_call.get('stop_lat'),
-            osm_call.get('stop_lon'),
-        )
-        if distance is not None:
-            endpoint_distances.append(distance)
-    if not endpoint_distances:
-        return None
-    mean_distance = sum(endpoint_distances) / len(endpoint_distances)
-    return max(0.0, 1.0 - min(mean_distance, 5_000.0) / 5_000.0)
-
-
-def _score_direction(atlas_itinerary: dict[str, Any], osm_itinerary: dict[str, Any]) -> float:
+def _direction_ids_match(atlas_itinerary: dict[str, Any], osm_itinerary: dict[str, Any]) -> bool:
     atlas_direction = _to_text(atlas_itinerary.get('direction_id'))
     osm_direction = _to_text(osm_itinerary.get('direction_id'))
-    if atlas_direction and osm_direction:
-        if atlas_direction == osm_direction:
-            return 1.0
-        return 0.2
-
-    atlas_name = _normalize_name(atlas_itinerary.get('display_name'))
-    osm_name = _normalize_name(osm_itinerary.get('display_name'))
-    if atlas_name and osm_name and atlas_name == osm_name:
-        return 0.8
-    return 0.6
+    return atlas_direction is not None and atlas_direction == osm_direction
 
 
 def _score_itinerary_pair(
@@ -884,25 +884,27 @@ def _score_itinerary_pair(
     atlas_calls: list[dict[str, Any]],
     osm_calls: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    direction_score = _score_direction(atlas_itinerary, osm_itinerary)
-    alignments, stop_score = _align_stop_sequences(atlas_calls, osm_calls)
-    geometry_score = _geometry_similarity(atlas_calls, osm_calls)
-    if geometry_score is None:
-        geometry_score = stop_score
-    overall_score = round((0.2 * direction_score) + (0.6 * stop_score) + (0.2 * geometry_score), 4)
-    if stop_score >= 0.95 and direction_score >= 0.9:
-        match_reason = 'strong_stop_and_direction_match'
-    elif stop_score >= 0.6:
-        match_reason = 'stop_overlap_match'
+    direction_matches = _direction_ids_match(atlas_itinerary, osm_itinerary)
+    alignments, matched_stop_count = _align_stop_sequences(atlas_calls, osm_calls)
+    stop_score = round(matched_stop_count / max(len(atlas_calls), len(osm_calls), 1), 4)
+    is_eligible = direction_matches and stop_score >= _ITINERARY_MATCH_MIN_RATIO
+    if not direction_matches:
+        match_reason = 'direction_mismatch'
+    elif is_eligible:
+        match_reason = 'ordered_stop_match'
     else:
-        match_reason = 'weak_match'
+        match_reason = 'below_stop_match_threshold'
     return {
-        'direction_score': round(direction_score, 4),
-        'stop_score': round(stop_score, 4),
-        'geometry_score': round(geometry_score, 4),
-        'overall_score': overall_score,
+        'direction_score': 1.0 if direction_matches else 0.0,
+        'stop_score': stop_score,
+        'geometry_score': None,
+        'overall_score': stop_score,
         'match_reason': match_reason,
         'alignments': alignments,
+        'matched_stop_count': matched_stop_count,
+        'atlas_stop_count': len(atlas_calls),
+        'osm_stop_count': len(osm_calls),
+        'is_eligible': is_eligible,
     }
 
 
@@ -916,51 +918,37 @@ def _choose_best_itinerary_pairs(
 
     atlas_sorted = sorted(atlas_itineraries, key=lambda row: row['id'])
     osm_sorted = sorted(osm_itineraries, key=lambda row: row['id'])
-    threshold = 0.25
-
-    if len(osm_sorted) > 12:
-        matches: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
-        used_osm_ids: set[int] = set()
-        for atlas_itinerary in atlas_sorted:
-            candidates = [
-                (pair_scores[(atlas_itinerary['id'], osm_itinerary['id'])]['overall_score'], osm_itinerary)
-                for osm_itinerary in osm_sorted
-                if osm_itinerary['id'] not in used_osm_ids and pair_scores[(atlas_itinerary['id'], osm_itinerary['id'])]['overall_score'] > threshold
-            ]
-            if not candidates:
-                continue
-            _, osm_itinerary = max(candidates, key=lambda item: item[0])
-            used_osm_ids.add(osm_itinerary['id'])
-            matches.append((atlas_itinerary, osm_itinerary, pair_scores[(atlas_itinerary['id'], osm_itinerary['id'])]))
-        return matches
-
-    states: dict[int, tuple[float, tuple[tuple[int, int], ...]]] = {0: (0.0, ())}
+    candidates: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
     for atlas_itinerary in atlas_sorted:
-        next_states = dict(states)
-        for used_mask, (current_score, current_pairs) in states.items():
-            for osm_index, osm_itinerary in enumerate(osm_sorted):
-                if used_mask & (1 << osm_index):
-                    continue
-                score_row = pair_scores[(atlas_itinerary['id'], osm_itinerary['id'])]
-                if score_row['overall_score'] <= threshold:
-                    continue
-                next_mask = used_mask | (1 << osm_index)
-                total_score = current_score + score_row['overall_score']
-                existing = next_states.get(next_mask)
-                if existing is None or total_score > existing[0]:
-                    next_states[next_mask] = (
-                        total_score,
-                        current_pairs + ((atlas_itinerary['id'], osm_itinerary['id']),),
-                    )
-        states = next_states
+        for osm_itinerary in osm_sorted:
+            score_row = pair_scores[(atlas_itinerary['id'], osm_itinerary['id'])]
+            is_eligible = score_row.get('is_eligible')
+            if is_eligible is None:
+                is_eligible = float(score_row.get('overall_score') or 0.0) > 0.25
+            if not is_eligible:
+                continue
+            candidates.append((atlas_itinerary, osm_itinerary, score_row))
 
-    _, chosen_pairs = max(states.values(), key=lambda item: item[0])
-    atlas_lookup = {row['id']: row for row in atlas_sorted}
-    osm_lookup = {row['id']: row for row in osm_sorted}
-    return [
-        (atlas_lookup[atlas_id], osm_lookup[osm_id], pair_scores[(atlas_id, osm_id)])
-        for atlas_id, osm_id in chosen_pairs
-    ]
+    candidates.sort(
+        key=lambda item: (
+            -int(item[2].get('matched_stop_count', 0)),
+            -float(item[2].get('stop_score', item[2].get('overall_score', 0.0) or 0.0)),
+            item[0]['id'],
+            item[1]['id'],
+        )
+    )
+
+    chosen_pairs: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    used_atlas_ids: set[int] = set()
+    used_osm_ids: set[int] = set()
+    for atlas_itinerary, osm_itinerary, score_row in candidates:
+        if atlas_itinerary['id'] in used_atlas_ids or osm_itinerary['id'] in used_osm_ids:
+            continue
+        used_atlas_ids.add(atlas_itinerary['id'])
+        used_osm_ids.add(osm_itinerary['id'])
+        chosen_pairs.append((atlas_itinerary, osm_itinerary, score_row))
+
+    return chosen_pairs
 
 
 def build_route_write_payload(
@@ -987,9 +975,6 @@ def build_route_write_payload(
     itinerary_match_id_counter = count(1)
 
     line_family_match_rows: list[dict[str, Any]] = []
-    route_diagnostics: list[dict[str, Any]] = []
-    stop_diagnostics: list[dict[str, Any]] = []
-    stop_alignment_rows: list[dict[str, Any]] = []
     itinerary_match_rows: list[dict[str, Any]] = []
 
     candidate_pairs = []
@@ -1012,43 +997,10 @@ def build_route_write_payload(
             'id': next(line_family_match_id_counter),
             'atlas_line_family_id': atlas_family['id'],
             'osm_line_family_id': osm_family['id'],
-            'match_confidence': score,
-            'match_reason': reason,
-            'match_score': score,
+            'match_method': reason,
         })
         matched_atlas_family_ids.add(atlas_family['id'])
         matched_osm_family_ids.add(osm_family['id'])
-
-    for atlas_family in atlas_line_families:
-        if atlas_family['id'] in matched_atlas_family_ids:
-            continue
-        route_diagnostics.append({
-            'entity_level': 'line_family',
-            'line_family_match_id': None,
-            'itinerary_match_id': None,
-            'diagnostic_type': 'atlas_family_unmatched',
-            'severity': 'error',
-            'details': {
-                'atlas_line_family_id': atlas_family['id'],
-                'atlas_line_id': atlas_family.get('atlas_line_id'),
-                'display_route_id': atlas_family.get('display_route_id'),
-            },
-        })
-    for osm_family in osm_line_families:
-        if osm_family['id'] in matched_osm_family_ids:
-            continue
-        route_diagnostics.append({
-            'entity_level': 'line_family',
-            'line_family_match_id': None,
-            'itinerary_match_id': None,
-            'diagnostic_type': 'osm_family_unmatched',
-            'severity': 'warning',
-            'details': {
-                'osm_line_family_id': osm_family['id'],
-                'display_route_id': osm_family.get('display_route_id'),
-                'representative_relation_id': osm_family.get('representative_relation_id'),
-            },
-        })
 
     itineraries_by_family_id: dict[int, list[dict[str, Any]]] = defaultdict(list)
     for itinerary_row in itinerary_rows:
@@ -1090,93 +1042,6 @@ def build_route_write_payload(
                 'match_reason': score_row['match_reason'],
             })
 
-            if score_row['stop_score'] < 1.0:
-                route_diagnostics.append({
-                    'entity_level': 'itinerary',
-                    'line_family_match_id': line_family_match_row['id'],
-                    'itinerary_match_id': itinerary_match_id,
-                    'diagnostic_type': 'stop_sequence_divergence',
-                    'severity': 'warning',
-                    'details': {
-                        'atlas_itinerary_id': atlas_itinerary['source_itinerary_id'],
-                        'osm_itinerary_id': osm_itinerary['source_itinerary_id'],
-                        'stop_score': score_row['stop_score'],
-                    },
-                })
-            if score_row['direction_score'] < 1.0:
-                route_diagnostics.append({
-                    'entity_level': 'itinerary',
-                    'line_family_match_id': line_family_match_row['id'],
-                    'itinerary_match_id': itinerary_match_id,
-                    'diagnostic_type': 'direction_divergence',
-                    'severity': 'info',
-                    'details': {
-                        'atlas_direction_id': atlas_itinerary.get('direction_id'),
-                        'osm_direction_id': osm_itinerary.get('direction_id'),
-                        'direction_score': score_row['direction_score'],
-                    },
-                })
-
-            for alignment_index, alignment in enumerate(score_row['alignments']):
-                atlas_call = alignment.get('atlas_call')
-                osm_call = alignment.get('osm_call')
-                stop_alignment_rows.append({
-                    'itinerary_match_id': itinerary_match_id,
-                    'alignment_index': alignment_index,
-                    'atlas_stop_call_id': atlas_call.get('id') if atlas_call else None,
-                    'osm_stop_call_id': osm_call.get('id') if osm_call else None,
-                    'alignment_type': alignment['alignment_type'],
-                    'alignment_score': alignment['alignment_score'],
-                })
-                if alignment['alignment_type'] == 'exact_match':
-                    continue
-                stop_diagnostics.append({
-                    'itinerary_match_id': itinerary_match_id,
-                    'alignment_index': alignment_index,
-                    'diagnostic_type': {
-                        'partial_match': 'stop_partial_match',
-                        'atlas_only': 'atlas_only_stop',
-                        'osm_only': 'osm_only_stop',
-                        'mismatch': 'stop_mismatch',
-                    }.get(alignment['alignment_type'], 'stop_mismatch'),
-                    'severity': 'warning',
-                    'details': {
-                        'atlas_stop_label': atlas_call.get('stop_label') if atlas_call else None,
-                        'osm_stop_label': osm_call.get('stop_label') if osm_call else None,
-                        'atlas_canonical_stop_key': atlas_call.get('canonical_stop_key') if atlas_call else None,
-                        'osm_canonical_stop_key': osm_call.get('canonical_stop_key') if osm_call else None,
-                    },
-                })
-
-        for atlas_itinerary in atlas_itineraries:
-            if atlas_itinerary['id'] in matched_atlas_itinerary_ids:
-                continue
-            route_diagnostics.append({
-                'entity_level': 'itinerary',
-                'line_family_match_id': line_family_match_row['id'],
-                'itinerary_match_id': None,
-                'diagnostic_type': 'atlas_itinerary_unmatched',
-                'severity': 'warning',
-                'details': {
-                    'atlas_itinerary_id': atlas_itinerary['source_itinerary_id'],
-                    'display_name': atlas_itinerary.get('display_name'),
-                },
-            })
-        for osm_itinerary in osm_itineraries:
-            if osm_itinerary['id'] in matched_osm_itinerary_ids:
-                continue
-            route_diagnostics.append({
-                'entity_level': 'itinerary',
-                'line_family_match_id': line_family_match_row['id'],
-                'itinerary_match_id': None,
-                'diagnostic_type': 'osm_itinerary_unmatched',
-                'severity': 'info',
-                'details': {
-                    'osm_itinerary_id': osm_itinerary['source_itinerary_id'],
-                    'display_name': osm_itinerary.get('display_name'),
-                },
-            })
-
     return {
         'atlas_line_families': atlas_rows['atlas_line_families'],
         'atlas_itineraries': atlas_rows['atlas_itineraries'],
@@ -1193,9 +1058,6 @@ def build_route_write_payload(
         'stop_calls': stop_call_rows,
         'line_family_matches': line_family_match_rows,
         'itinerary_matches': itinerary_match_rows,
-        'stop_alignments': stop_alignment_rows,
-        'route_diagnostics': route_diagnostics,
-        'stop_diagnostics': stop_diagnostics,
         'matched_routes': len(line_family_match_rows),
         'skipped_sloids': atlas_rows['skipped_sloids'],
     }

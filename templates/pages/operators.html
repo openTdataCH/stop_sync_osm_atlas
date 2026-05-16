@@ -22,7 +22,12 @@
           </div>
         </div>
       </h1>
-      <p>For each ATLAS stop operator, inspect the OSM stop operators seen on matched ATLAS↔OSM stops.</p>
+      <p>
+        For each ATLAS stop operator, inspect the OSM stop operators seen on matched ATLAS↔OSM stops.<br>
+        <a href="https://transmodel-ids.toolforge.org/sboid/" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+          <i class="fas fa-external-link-alt" aria-hidden="true"></i> View SBOID mapping dashboard
+        </a>
+      </p>
     </header>
 
     <section class="operators-toolbar" aria-label="Operators filters and search">
@@ -118,6 +123,7 @@
           <div class="operator-card__pane operator-card__pane--osm">
             <div class="operator-card__pane-label">OSM</div>
             {% if operator.has_osm_matches %}
+            {% if operator.osm_operators %}
             <div class="operator-card__osm-count">{{ operator.osm_operator_count }} OSM operator{{ 's' if operator.osm_operator_count != 1 }}</div>
             <ul class="operator-card__matches" aria-label="Matched OSM operators">
               {% for osm_operator in operator.osm_operators %}
@@ -127,13 +133,35 @@
               </li>
               {% endfor %}
             </ul>
-            {% elif operator.has_matched_stops %}
-            <p class="operator-card__empty">Matched stops exist, but none of those OSM stops currently carry an <code>operator</code> tag.</p>
-            {% else %}
-            <p class="operator-card__empty">No ATLAS stops for this operator are currently matched to an OSM stop with an operator value.</p>
             {% endif %}
+
+            {% if supports_osm_operator_wikidata and operator.osm_operators_wikidata %}
+            <div class="operator-card__osm-count mt-2">{{ operator.osm_operator_wikidata_count }} OSM operator:wikidata tag{{ 's' if operator.osm_operator_wikidata_count != 1 }}</div>
+            <ul class="operator-card__matches" aria-label="Matched OSM operator:wikidata tags">
+              {% for osm_wikidata in operator.osm_operators_wikidata %}
+              <li class="operator-match-pill operator-match-pill--wikidata">
+                <span class="operator-match-pill__name">
+                  <a href="https://www.wikidata.org/wiki/{{ osm_wikidata.osm_operator_wikidata }}" target="_blank" rel="noopener noreferrer">
+                    {{ osm_wikidata.osm_operator_wikidata }}
+                  </a>
+                </span>
+                <span class="operator-match-pill__count">{{ osm_wikidata.matched_stop_count }} matched stops</span>
+              </li>
+              {% endfor %}
+            </ul>
+            {% endif %}
+
+            {% elif operator.has_matched_stops %}
+            <p class="operator-card__empty">Matched stops exist, but none of those OSM stops currently carry an <code>operator</code>{% if supports_osm_operator_wikidata %} or <code>operator:wikidata</code>{% endif %} tag.</p>
+            {% else %}
+            <p class="operator-card__empty">No ATLAS stops for this operator are currently matched to an OSM stop with an operator{% if supports_osm_operator_wikidata %} or wikidata{% endif %} value.</p>
+            {% endif %}
+            
             {% if operator.missing_osm_operator_count > 0 %}
-            <div class="operator-card__footer-note">{{ operator.missing_osm_operator_count }} matched OSM stops have no operator tag.</div>
+            <div class="operator-card__footer-note">{{ operator.missing_osm_operator_count }} matched OSM stops have no <code>operator</code> tag.</div>
+            {% endif %}
+            {% if supports_osm_operator_wikidata and operator.missing_osm_operator_wikidata_count > 0 %}
+            <div class="operator-card__footer-note">{{ operator.missing_osm_operator_wikidata_count }} matched OSM stops have no <code>operator:wikidata</code> tag.</div>
             {% endif %}
           </div>
         </header>
@@ -141,7 +169,7 @@
       {% endfor %}
     </section>
 
-    <nav class="operators-pagination" aria-label="Operators pagination">
+    <nav class="c-pagination operators-pagination" aria-label="Operators pagination">
       <ul class="pagination justify-content-center">
         <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
           <a class="page-link" href="{{ url_for('operators.operators_page', coverage=coverage_filter, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">

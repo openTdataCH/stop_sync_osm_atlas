@@ -1,19 +1,20 @@
-"""Route product baseline migration.
+"""Collapsed schema baseline migration.
 
-Revision ID: 20260513_000001
+Revision ID: 20260516_000004
 Revises:
-Create Date: 2026-05-13 12:00:00.000000
+Create Date: 2026-05-16 13:30:00.000000
 
-This repository is pre-production and the import schema is rebuilt from scratch.
-The migration history is therefore intentionally flattened to a single
-forward-only baseline describing the current schema only.
+This repository is still pre-production. The migration history is intentionally
+collapsed into one forward-only baseline describing the current schema only.
+Existing development databases should be recreated if they were stamped with an
+older revision.
 """
 
 from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision = '20260513_000001'
+revision = '20260516_000004'
 down_revision = None
 branch_labels = None
 depends_on = None
