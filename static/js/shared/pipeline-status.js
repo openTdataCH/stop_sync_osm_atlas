@@ -211,13 +211,11 @@
         if (statusText) {
             if (blocking) {
                 var message = latestStatus.message || 'Core data is being refreshed.';
-                var docsLink = document.getElementById('pipelineDocsLink');
-                var docsUrl = docsLink ? docsLink.getAttribute('href') : '/docs';
+                var docsUrl = statusText.getAttribute('data-docs-url') || '/docs';
                 
                 statusText.textContent = message + ' Use this time to ';
                 var a = document.createElement('a');
                 a.href = docsUrl;
-                a.id = 'pipelineDocsLink';
                 a.className = 'fw-bold';
                 a.textContent = 'read the documentation';
                 statusText.appendChild(a);

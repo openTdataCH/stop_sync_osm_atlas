@@ -2,7 +2,8 @@ from types import SimpleNamespace
 
 from flask import render_template
 
-from backend.blueprints.routes import _build_direction_group, _partition_route_items
+from backend.blueprints import routes as routes_module
+from backend.blueprints.routes import _build_direction_group, _partition_route_items, _route_sort_key
 
 
 class _TemplatePagination:
@@ -81,13 +82,18 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app):
             'osm_route_master_id': '999',
             'osm_route_id': '555',
             'is_non_gtfs': False,
-            'direction_summary': '0',
+            'variant_count': 1,
+            'atlas_variant_count': 1,
+            'osm_variant_count': 1,
+            'matched_variant_count': 1,
             'direction_groups': [
                 {
                     'direction_id': '0',
                     'direction_label': 'Luzern -> Sursee',
                     'representative_headsign': 'Sursee',
                     'osm_relation_id': '777',
+                    'has_atlas_variant': True,
+                    'has_osm_variant': True,
                     'atlas_uic_groups': [
                         {
                             'uic_ref': '8501000',
@@ -140,6 +146,7 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app):
     assert 'View itinerary relation 777 on OSM' in rendered
     assert 'GTFS ID: 91-1-A-j26-1' in rendered
     assert 'SLOIDs: ch:1:sloid:A, ch:1:sloid:C' in rendered
+    assert 'ATLAS variants: 1 | OSM variants: 1 | Matched: 1' in rendered
 
 
 def test_partition_route_items_separates_non_gtfs_routes():
@@ -150,6 +157,41 @@ def test_partition_route_items_separates_non_gtfs_routes():
 
     assert [item['sort_route_id'] for item in gtfs_items] == ['11']
     assert [item['sort_route_id'] for item in non_gtfs_items] == ['006']
+
+
+def test_load_line_family_rows_queries_only_required_columns(monkeypatch):
+    captured = {}
+
+    class _FakeQuery:
+        def filter(self, *_args, **_kwargs):
+            return self
+
+        def all(self):
+            return []
+
+    def _fake_query(*args):
+        captured['args'] = args
+        return _FakeQuery()
+
+    monkeypatch.setattr(routes_module.db.session, 'query', _fake_query)
+
+    routes_module._load_line_family_rows('atlas')
+
+    assert captured['args'][0] is not routes_module.LineFamily
+    assert len(captured['args']) > 1
+
+
+def test_route_sort_key_places_matched_routes_first():
+    items = [
+        {'display_mode': 'osm_only', 'sort_route_id': '999'},
+        {'display_mode': 'matched', 'sort_route_id': 'zzz'},
+        {'display_mode': 'atlas_only', 'sort_route_id': '001'},
+        {'display_mode': 'matched', 'sort_route_id': 'aaa'},
+    ]
+
+    sorted_items = sorted(items, key=_route_sort_key)
+
+    assert [item['display_mode'] for item in sorted_items[:2]] == ['matched', 'matched']
 
 
 def test_non_gtfs_routes_template_uses_route_ref_label_and_notice(app):
@@ -170,7 +212,10 @@ def test_non_gtfs_routes_template_uses_route_ref_label_and_notice(app):
             'osm_route_master_id': None,
             'osm_route_id': '6006',
             'is_non_gtfs': True,
-            'direction_summary': None,
+            'variant_count': 0,
+            'atlas_variant_count': 0,
+            'osm_variant_count': 0,
+            'matched_variant_count': 0,
             'direction_groups': [],
             'map_filter': None,
         }

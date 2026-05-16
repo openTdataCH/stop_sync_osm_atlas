@@ -302,6 +302,8 @@
             rows.push(['UIC Name', data.osm_uic_name || 'N/A']);
             rows.push(['Network', data.osm_network || 'N/A']);
             rows.push(['Operator', data.osm_operator || 'N/A']);
+            if (hasValue(data.osm_operator_wikidata)) rows.push(['Operator Wikidata', data.osm_operator_wikidata]);
+            if (hasValue(data.osm_network_wikidata)) rows.push(['Network Wikidata', data.osm_network_wikidata]);
             rows.push(['Type', getOsmTypeDisplay(data, true)]);
             rows.push(['Local Ref', data.osm_local_ref || 'N/A']);
             return rows;
@@ -318,6 +320,8 @@
         if (hasValue(data.osm_local_ref)) rows.push(['Local Ref', data.osm_local_ref]);
         if (hasValue(data.osm_network)) rows.push(['Network', data.osm_network]);
         if (hasValue(data.osm_operator)) rows.push(['Operator', `${data.osm_operator}${mismatchText}`]);
+        if (hasValue(data.osm_operator_wikidata)) rows.push(['Operator Wikidata', data.osm_operator_wikidata]);
+        if (hasValue(data.osm_network_wikidata)) rows.push(['Network Wikidata', data.osm_network_wikidata]);
 
         const osmType = getOsmTypeDisplay(data, false);
         if (osmType) rows.push(['Type', osmType]);
@@ -417,6 +421,8 @@
                 osm_local_ref: stop.osm_local_ref,
                 osm_network: stop.osm_network,
                 osm_operator: stop.osm_operator,
+                osm_operator_wikidata: stop.osm_operator_wikidata,
+                osm_network_wikidata: stop.osm_network_wikidata,
                 osm_public_transport: stop.osm_public_transport,
                 osm_amenity: stop.osm_amenity,
                 osm_aerialway: stop.osm_aerialway,
@@ -443,6 +449,8 @@
                 osm_local_ref: representative.osm_local_ref || stop.osm_local_ref,
                 osm_network: representative.osm_network || stop.osm_network,
                 osm_operator: representative.osm_operator || stop.osm_operator,
+                osm_operator_wikidata: representative.osm_operator_wikidata || stop.osm_operator_wikidata,
+                osm_network_wikidata: representative.osm_network_wikidata || stop.osm_network_wikidata,
                 osm_public_transport: representative.osm_public_transport || stop.osm_public_transport,
                 osm_amenity: representative.osm_amenity || stop.osm_amenity,
                 osm_aerialway: representative.osm_aerialway || stop.osm_aerialway,
@@ -467,6 +475,8 @@
             osm_local_ref: stop.osm_local_ref,
             osm_network: stop.osm_network,
             osm_operator: stop.osm_operator,
+            osm_operator_wikidata: stop.osm_operator_wikidata,
+            osm_network_wikidata: stop.osm_network_wikidata,
             osm_public_transport: stop.osm_public_transport,
             osm_amenity: stop.osm_amenity,
             osm_aerialway: stop.osm_aerialway,

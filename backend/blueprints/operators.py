@@ -1,9 +1,9 @@
 from collections import defaultdict
 
 from flask import Blueprint, render_template, request
-from sqlalchemy import case, func, or_
+from sqlalchemy import case, func, inspect, literal, or_
 
-from backend.db_errors import is_missing_table_error
+from backend.db_errors import is_missing_column_error, is_missing_table_error
 from backend.extensions import db
 from backend.models import AtlasOperator, AtlasStop, OsmNode, StopsMatched
 
@@ -70,6 +70,18 @@ def _normalize_coverage_filter(value: str | None) -> str:
     return OPERATOR_COVERAGE_ALL
 
 
+def _supports_osm_operator_wikidata() -> bool:
+    try:
+        bind = db.session.get_bind()
+        columns = inspect(bind).get_columns(OsmNode.__tablename__)
+    except Exception as exc:
+        if is_missing_table_error(exc):
+            return False
+        raise
+
+    return any(column.get('name') == 'osm_operator_wikidata' for column in columns)
+
+
 def _matched_osm_operator_subquery():
     return (
         db.session.query(StopsMatched.id)
@@ -82,15 +94,19 @@ def _matched_osm_operator_subquery():
     )
 
 
-def _operator_search_condition(q: str):
+def _operator_search_condition(q: str, supports_osm_operator_wikidata: bool):
     pattern = f'%{q}%'
+    osm_search_terms = [OsmNode.osm_operator.ilike(pattern)]
+    if supports_osm_operator_wikidata:
+        osm_search_terms.append(OsmNode.osm_operator_wikidata.ilike(pattern))
+
     matched_osm_search = (
         db.session.query(StopsMatched.id)
         .join(AtlasStop, AtlasStop.sloid == StopsMatched.sloid)
         .join(OsmNode, StopsMatched.osm_node_id == OsmNode.osm_node_id)
         .filter(StopsMatched.stop_type == 'matched')
         .filter(AtlasStop.atlas_business_org_abbr == AtlasOperator.atlas_business_org_abbr)
-        .filter(OsmNode.osm_operator.ilike(pattern))
+        .filter(or_(*osm_search_terms))
         .exists()
     )
 
@@ -118,9 +134,21 @@ def _load_atlas_stop_counts(operator_abbrs: list[str]) -> dict[str, int]:
     return {abbr: int(count or 0) for abbr, count in rows if abbr}
 
 
-def _load_match_counts(operator_abbrs: list[str]) -> dict[str, dict[str, int]]:
+def _load_match_counts(operator_abbrs: list[str], supports_osm_operator_wikidata: bool) -> dict[str, dict[str, int]]:
     if not operator_abbrs:
         return {}
+
+    missing_osm_operator_wikidata_count = literal(0)
+    if supports_osm_operator_wikidata:
+        missing_osm_operator_wikidata_count = func.sum(
+            case(
+                (
+                    or_(OsmNode.osm_operator_wikidata.is_(None), OsmNode.osm_operator_wikidata == ''),
+                    1,
+                ),
+                else_=0,
+            )
+        )
 
     rows = (
         db.session.query(
@@ -135,6 +163,7 @@ def _load_match_counts(operator_abbrs: list[str]) -> dict[str, dict[str, int]]:
                     else_=0,
                 )
             ).label('missing_osm_operator_count'),
+            missing_osm_operator_wikidata_count.label('missing_osm_operator_wikidata_count'),
         )
         .join(StopsMatched, AtlasStop.sloid == StopsMatched.sloid)
         .outerjoin(OsmNode, StopsMatched.osm_node_id == OsmNode.osm_node_id)
@@ -152,6 +181,7 @@ def _load_match_counts(operator_abbrs: list[str]) -> dict[str, dict[str, int]]:
         result[abbr] = {
             'matched_stop_count': int(row.matched_stop_count or 0),
             'missing_osm_operator_count': int(row.missing_osm_operator_count or 0),
+            'missing_osm_operator_wikidata_count': int(row.missing_osm_operator_wikidata_count or 0),
         }
     return result
 
@@ -193,13 +223,52 @@ def _load_osm_operators(operator_abbrs: list[str]) -> dict[str, list[dict[str, i
     return dict(grouped_rows)
 
 
-def _build_operator_row(operator, stop_counts, match_counts, osm_operators):
+def _load_osm_operators_wikidata(operator_abbrs: list[str], supports_osm_operator_wikidata: bool) -> dict[str, list[dict[str, int | str]]]:
+    if not operator_abbrs or not supports_osm_operator_wikidata:
+        return {}
+
+    rows = (
+        db.session.query(
+            AtlasStop.atlas_business_org_abbr.label('atlas_business_org_abbr'),
+            OsmNode.osm_operator_wikidata.label('osm_operator_wikidata'),
+            func.count(StopsMatched.id).label('matched_stop_count'),
+        )
+        .join(StopsMatched, AtlasStop.sloid == StopsMatched.sloid)
+        .join(OsmNode, StopsMatched.osm_node_id == OsmNode.osm_node_id)
+        .filter(StopsMatched.stop_type == 'matched')
+        .filter(AtlasStop.atlas_business_org_abbr.in_(operator_abbrs))
+        .filter(OsmNode.osm_operator_wikidata.isnot(None))
+        .filter(OsmNode.osm_operator_wikidata != '')
+        .group_by(AtlasStop.atlas_business_org_abbr, OsmNode.osm_operator_wikidata)
+        .order_by(
+            AtlasStop.atlas_business_org_abbr.asc(),
+            func.count(StopsMatched.id).desc(),
+            OsmNode.osm_operator_wikidata.asc(),
+        )
+        .all()
+    )
+
+    grouped_rows: dict[str, list[dict[str, int | str]]] = defaultdict(list)
+    for row in rows:
+        abbr = row.atlas_business_org_abbr
+        if not abbr or not row.osm_operator_wikidata:
+            continue
+        grouped_rows[abbr].append({
+            'osm_operator_wikidata': row.osm_operator_wikidata,
+            'matched_stop_count': int(row.matched_stop_count or 0),
+        })
+    return dict(grouped_rows)
+
+
+def _build_operator_row(operator, stop_counts, match_counts, osm_operators, osm_operators_wikidata, supports_osm_operator_wikidata):
     abbr = operator.atlas_business_org_abbr
     operator_matches = osm_operators.get(abbr, [])
+    wikidata_matches = osm_operators_wikidata.get(abbr, [])
     match_summary = match_counts.get(abbr, {})
     atlas_stop_count = stop_counts.get(abbr, 0)
     matched_stop_count = match_summary.get('matched_stop_count', 0)
     missing_osm_operator_count = match_summary.get('missing_osm_operator_count', 0)
+    missing_osm_operator_wikidata_count = match_summary.get('missing_osm_operator_wikidata_count', 0)
 
     return {
         'atlas_business_org_abbr': abbr,
@@ -210,14 +279,19 @@ def _build_operator_row(operator, stop_counts, match_counts, osm_operators):
         'matched_stop_count': matched_stop_count,
         'unmatched_atlas_stop_count': max(atlas_stop_count - matched_stop_count, 0),
         'missing_osm_operator_count': missing_osm_operator_count,
+        'missing_osm_operator_wikidata_count': missing_osm_operator_wikidata_count,
         'osm_operator_count': len(operator_matches),
-        'has_osm_matches': bool(operator_matches),
+        'osm_operator_wikidata_count': len(wikidata_matches),
+        'supports_osm_operator_wikidata': supports_osm_operator_wikidata,
+        'has_osm_matches': bool(operator_matches) or bool(wikidata_matches),
         'has_matched_stops': matched_stop_count > 0,
         'osm_operators': operator_matches,
+        'osm_operators_wikidata': wikidata_matches,
     }
 
 
 def _load_operators_view(coverage_filter, q, page, per_page):
+    supports_osm_operator_wikidata = _supports_osm_operator_wikidata()
     query = AtlasOperator.query
     has_osm_matches = _matched_osm_operator_subquery().exists()
 
@@ -227,7 +301,7 @@ def _load_operators_view(coverage_filter, q, page, per_page):
         query = query.filter(~has_osm_matches)
 
     if q:
-        query = query.filter(_operator_search_condition(q))
+        query = query.filter(_operator_search_condition(q, supports_osm_operator_wikidata))
 
     pagination = (
         query.order_by(
@@ -239,14 +313,22 @@ def _load_operators_view(coverage_filter, q, page, per_page):
 
     operator_abbrs = [operator.atlas_business_org_abbr for operator in pagination.items if operator.atlas_business_org_abbr]
     stop_counts = _load_atlas_stop_counts(operator_abbrs)
-    match_counts = _load_match_counts(operator_abbrs)
+    match_counts = _load_match_counts(operator_abbrs, supports_osm_operator_wikidata)
     osm_operators = _load_osm_operators(operator_abbrs)
+    osm_operators_wikidata = _load_osm_operators_wikidata(operator_abbrs, supports_osm_operator_wikidata)
 
     operator_rows = [
-        _build_operator_row(operator, stop_counts, match_counts, osm_operators)
+        _build_operator_row(
+            operator,
+            stop_counts,
+            match_counts,
+            osm_operators,
+            osm_operators_wikidata,
+            supports_osm_operator_wikidata,
+        )
         for operator in pagination.items
     ]
-    return operator_rows, pagination
+    return operator_rows, pagination, supports_osm_operator_wikidata
 
 
 @operators_bp.route('/operators')
@@ -257,19 +339,25 @@ def operators_page():
     per_page = _bounded_int(request.args.get('per_page'), default=20, minimum=10, maximum=100)
 
     try:
-        operator_rows, pagination = _load_operators_view(
+        load_result = _load_operators_view(
             coverage_filter=coverage_filter,
             q=q,
             page=page,
             per_page=per_page,
         )
+        if len(load_result) == 3:
+            operator_rows, pagination, supports_osm_operator_wikidata = load_result
+        else:
+            operator_rows, pagination = load_result
+            supports_osm_operator_wikidata = True
     except Exception as exc:
-        if not is_missing_table_error(exc):
+        if not (is_missing_table_error(exc) or is_missing_column_error(exc)):
             raise
 
         db.session.rollback()
         operator_rows = []
         pagination = _EmptyPagination(page=page, per_page=per_page)
+        supports_osm_operator_wikidata = False
 
     range_start, range_end = _compute_page_range(pagination)
     return render_template(
@@ -284,4 +372,5 @@ def operators_page():
         per_page_options=OPERATORS_PER_PAGE_OPTIONS,
         range_start=range_start,
         range_end=range_end,
+        supports_osm_operator_wikidata=supports_osm_operator_wikidata,
     )

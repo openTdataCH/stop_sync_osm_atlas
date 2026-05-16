@@ -595,6 +595,21 @@ SECTION 2 — OSM STOPS
         </div>
       </div>
     </div>
+
+    <div class="row">
+      <div class="col-md-6 mb-3">
+        <div class="stat-card stat-card--sm">
+          <div class="stat-card__value">{{ "{:,}".format(stats.summary.osm_operator_wikidata|default(0)) }}</div>
+          <div class="stat-card__label">Nodes with <code>operator:wikidata</code></div>
+        </div>
+      </div>
+      <div class="col-md-6 mb-3">
+        <div class="stat-card stat-card--sm">
+          <div class="stat-card__value">{{ "{:,}".format(stats.summary.osm_network_wikidata|default(0)) }}</div>
+          <div class="stat-card__label">Nodes with <code>network:wikidata</code></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1165,7 +1180,7 @@ SECTION 6 — ROUTES
       </tbody>
     </table>
 
-    <table class="table table-sm table-hover mb-0">
+    <table class="table table-sm table-hover mb-3">
       <thead class="thead-light">
         <tr>
           <th>Coverage</th>
@@ -1196,12 +1211,153 @@ SECTION 6 — ROUTES
         </tr>
       </tbody>
     </table>
+
+    {% if rr.by_match_method is defined and rr.by_match_method %}
+    {% set bmr = rr.by_match_method %}
+    {% set bmr_total = rr.total_links if rr.total_links > 0 else 1 %}
+    <h6 class="mt-3 mb-2">Match Method Breakdown</h6>
+    <table class="table table-sm table-hover mb-0">
+      <thead class="thead-light">
+        <tr>
+          <th>Method</th>
+          <th class="text-end">Count</th>
+          <th class="text-end">% of Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Exact GTFS route ID</td>
+          <td class="text-end">{{ "{:,}".format(bmr.exact_gtfs_route_id|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format(bmr.exact_gtfs_route_id|default(0) / bmr_total * 100) }}%</td>
+        </tr>
+        <tr>
+          <td>Normalized GTFS route ID</td>
+          <td class="text-end">{{ "{:,}".format(bmr.normalized_gtfs_route_id|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format(bmr.normalized_gtfs_route_id|default(0) / bmr_total * 100) }}%</td>
+        </tr>
+        <tr>
+          <td>OSM display route ID matches ATLAS route ID</td>
+          <td class="text-end">{{ "{:,}".format(bmr.display_route_id_match|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format(bmr.display_route_id_match|default(0) / bmr_total * 100) }}%</td>
+        </tr>
+        {% if (bmr.other|default(0)) > 0 %}
+        <tr class="text-muted">
+          <td>Other (unknown method)</td>
+          <td class="text-end">{{ "{:,}".format(bmr.other|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format(bmr.other|default(0) / bmr_total * 100) }}%</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+    {% endif %}
+
     <div class="text-muted small mt-2">
       This section reports route-route links from import DB route tables, not stop-level predicate matches.
     </div>
   </div>
 </div>
 {% endif %}
+
+{# OSM Route Family Grouping Methods #}
+{% if stats.route_route_matching is defined and stats.route_route_matching.osm_family_origin is defined %}
+{% set fo = stats.route_route_matching.osm_family_origin %}
+{% set fo_relations = stats.route_route_matching.osm_relations_by_origin if stats.route_route_matching.osm_relations_by_origin is defined else {} %}
+{% set fo_total = fo.values()|sum %}
+{% set fo_total_denom = fo_total if fo_total > 0 else 1 %}
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0">OSM Route Family Grouping Method</h5>
+  </div>
+  <div class="card-body">
+    <p class="text-muted small mb-3">
+      How OSM route relations are grouped into line families. Priority order:
+      route_master → GTFS route ID → (route, ref, operator, network) → per-relation fallback.
+    </p>
+    <table class="table table-sm table-hover mb-0">
+      <thead class="thead-light">
+        <tr>
+          <th>Grouping Method</th>
+          <th class="text-end">Families</th>
+          <th class="text-end">% of Families</th>
+          <th class="text-end">Relations</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <span class="type-dot" style="background:#198754"></span>
+            route_master (explicit OSM grouping)
+          </td>
+          <td class="text-end">{{ "{:,}".format(fo.route_master|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format(fo.route_master|default(0) / fo_total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(fo_relations.route_master|default(0)) }}</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="type-dot" style="background:#174092"></span>
+            Normalized GTFS route ID
+          </td>
+          <td class="text-end">{{ "{:,}".format(fo.synthetic_gtfs_route_id|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format(fo.synthetic_gtfs_route_id|default(0) / fo_total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(fo_relations.synthetic_gtfs_route_id|default(0)) }}</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="type-dot" style="background:#F0AD4E"></span>
+            Synthetic key (route, ref, operator, network)
+          </td>
+          <td class="text-end">{{ "{:,}".format(fo.synthetic_ref_operator|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format(fo.synthetic_ref_operator|default(0) / fo_total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(fo_relations.synthetic_ref_operator|default(0)) }}</td>
+        </tr>
+        <tr>
+          <td>
+            <span class="type-dot" style="background:#6C757D"></span>
+            Per-relation fallback (no grouping key)
+          </td>
+          <td class="text-end">{{ "{:,}".format(fo.synthetic_relation|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format(fo.synthetic_relation|default(0) / fo_total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(fo_relations.synthetic_relation|default(0)) }}</td>
+        </tr>
+        {% if (fo.other|default(0)) > 0 %}
+        <tr class="text-muted">
+          <td>Other / unknown</td>
+          <td class="text-end">{{ "{:,}".format(fo.other|default(0)) }}</td>
+          <td class="text-end">{{ "%.1f"|format(fo.other|default(0) / fo_total_denom * 100) }}%</td>
+          <td class="text-end">{{ "{:,}".format(fo_relations.other|default(0)) }}</td>
+        </tr>
+        {% endif %}
+      </tbody>
+      <tfoot>
+        <tr class="fw-bold">
+          <td>Total</td>
+          <td class="text-end">{{ "{:,}".format(fo_total) }}</td>
+          <td class="text-end">100%</td>
+          <td class="text-end">{{ "{:,}".format(fo_relations.values()|sum) }}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    {# Visual bar breakdown #}
+    {% if fo_total > 0 %}
+    <div class="diagram-wrap mt-3">
+      <svg class="diagram-svg" viewBox="0 0 760 44" role="img" aria-label="OSM route family grouping method breakdown">
+        {% set w_rm = (fo.route_master|default(0) / fo_total * 760)|round(0, 'floor')|int %}
+        {% set w_gtfs = (fo.synthetic_gtfs_route_id|default(0) / fo_total * 760)|round(0, 'floor')|int %}
+        {% set w_ref = (fo.synthetic_ref_operator|default(0) / fo_total * 760)|round(0, 'floor')|int %}
+        {% set w_rel = (fo.synthetic_relation|default(0) / fo_total * 760)|round(0, 'floor')|int %}
+        <rect x="0" y="8" width="760" height="28" rx="8" fill="#f8f9fa"></rect>
+        <rect x="0" y="8" width="{{ w_rm }}" height="28" rx="8" fill="#198754"></rect>
+        <rect x="{{ w_rm }}" y="8" width="{{ w_gtfs }}" height="28" fill="#174092"></rect>
+        <rect x="{{ w_rm + w_gtfs }}" y="8" width="{{ w_ref }}" height="28" fill="#F0AD4E"></rect>
+        <rect x="{{ w_rm + w_gtfs + w_ref }}" y="8" width="{{ w_rel }}" height="28" fill="#6C757D"></rect>
+      </svg>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 
 {# GTFS stop_id → ATLAS sloid Mapping #}
 {% if stats.gtfs_atlas is defined and stats.gtfs_atlas %}

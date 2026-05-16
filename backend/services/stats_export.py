@@ -176,6 +176,8 @@ def export_pipeline_stats(
     osm_route_stats: Dict[str, int] = None,
     osm_nodes_with_routes: set = None,
     no_nearby_atlas_osm_ids: set = None,
+    total_osm_operator_wikidata: int = 0,
+    total_osm_network_wikidata: int = 0,
     db_session=None,
 ) -> Dict[str, Any]:
     """
@@ -461,6 +463,8 @@ def export_pipeline_stats(
             "atlas_with_osm_within_50m": atlas_with_osm_within_50m,
             "atlas_with_osm_within_50m_percent": round((atlas_with_osm_within_50m / total_atlas_platforms * 100), 1) if total_atlas_platforms > 0 else 0,
             "matched_atlas_with_osm_within_50m_percent": matched_atlas_with_osm_within_50m_percent,
+            "osm_operator_wikidata": total_osm_operator_wikidata,
+            "osm_network_wikidata": total_osm_network_wikidata,
         },
         
         # Matching stage breakdown
@@ -598,7 +602,6 @@ def export_pipeline_stats(
     if db_session:
         # Reuse existing compute_db_stats helper
         stats['problems'] = compute_db_stats(db_session)
-        stats['route_problems'] = compute_route_problem_stats(db_session)
 
     return stats
 
@@ -950,39 +953,6 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
         'by_priority': by_priority,
     }
 
-def compute_route_problem_stats(db_session) -> Dict[str, Any]:
-    """Compute route problem statistics by querying the database after import."""
-    from backend.models import LineFamilyMatch, RouteDiagnostic
-    from sqlalchemy import func
-
-    total_routes_matched = db_session.query(LineFamilyMatch).count()
-
-    type_counts = dict(
-        db_session.query(RouteDiagnostic.diagnostic_type, func.count(RouteDiagnostic.id))
-        .group_by(RouteDiagnostic.diagnostic_type).all()
-    )
-
-    # Severity × type breakdown. Keep the historical by_priority key to avoid
-    # changing downstream stats consumers all at once.
-    by_priority: Dict[str, Dict[str, int]] = {}
-    rows = (
-        db_session.query(RouteDiagnostic.severity, RouteDiagnostic.diagnostic_type, func.count(RouteDiagnostic.id))
-        .group_by(RouteDiagnostic.severity, RouteDiagnostic.diagnostic_type).all()
-    )
-    for severity, diagnostic_type, count in rows:
-        by_priority.setdefault(severity or 'unknown', {})[diagnostic_type] = count
-        
-    total_problems = db_session.query(RouteDiagnostic).count()
-
-    return {
-        'total_routes_matched': total_routes_matched,
-        'total_problems': total_problems,
-        'by_type': type_counts,
-        'by_priority': by_priority,
-    }
-
-
-
 def compute_route_route_stats(db_session) -> Dict[str, Any]:
     """Compute route-route linking statistics from route tables in the import DB."""
     from backend.models import Itinerary, ItineraryMatch, LineFamily, LineFamilyMatch
@@ -1056,6 +1026,72 @@ def compute_route_route_stats(db_session) -> Dict[str, Any]:
         if osm_route_ids_total > 0 else 0.0
     )
 
+    # Per-method match counts from the match_method column.
+    from sqlalchemy import func as sa_func
+    reason_rows = (
+        db_session.query(LineFamilyMatch.match_method, sa_func.count(LineFamilyMatch.id))
+        .group_by(LineFamilyMatch.match_method)
+        .all()
+    )
+    _known_reasons = {'exact_gtfs_route_id', 'normalized_gtfs_route_id', 'display_route_id_match'}
+    by_match_method: Dict[str, int] = {
+        'exact_gtfs_route_id': 0,
+        'normalized_gtfs_route_id': 0,
+        'display_route_id_match': 0,
+        'other': 0,
+    }
+    for reason, cnt in reason_rows:
+        if reason in _known_reasons:
+            by_match_method[reason] = cnt
+        else:
+            by_match_method['other'] += cnt
+
+    # OSM route family grouping method breakdown (family_origin)
+    from sqlalchemy import func as _func
+    osm_family_origin_rows = (
+        db_session.query(LineFamily.family_origin, _func.count(LineFamily.id))
+        .filter(LineFamily.source == 'osm')
+        .group_by(LineFamily.family_origin)
+        .all()
+    )
+    _known_origins = {
+        'route_master', 'synthetic_gtfs_route_id',
+        'synthetic_ref_operator', 'synthetic_relation',
+    }
+    osm_family_origin_counts: Dict[str, int] = {
+        'route_master': 0,
+        'synthetic_gtfs_route_id': 0,
+        'synthetic_ref_operator': 0,
+        'synthetic_relation': 0,
+        'other': 0,
+    }
+    for origin, cnt in osm_family_origin_rows:
+        if origin in _known_origins:
+            osm_family_origin_counts[origin] = cnt
+        else:
+            osm_family_origin_counts['other'] += cnt
+
+    # Count distinct OSM route relations per family_origin
+    osm_relations_by_origin_rows = (
+        db_session.query(LineFamily.family_origin, _func.count(Itinerary.id))
+        .join(Itinerary, Itinerary.line_family_id == LineFamily.id)
+        .filter(LineFamily.source == 'osm')
+        .group_by(LineFamily.family_origin)
+        .all()
+    )
+    osm_relations_by_origin: Dict[str, int] = {
+        'route_master': 0,
+        'synthetic_gtfs_route_id': 0,
+        'synthetic_ref_operator': 0,
+        'synthetic_relation': 0,
+        'other': 0,
+    }
+    for origin, cnt in osm_relations_by_origin_rows:
+        if origin in _known_origins:
+            osm_relations_by_origin[origin] = cnt
+        else:
+            osm_relations_by_origin['other'] += cnt
+
     return {
         'total_links': total_links,
         'atlas_routes_linked': atlas_routes_linked,
@@ -1071,7 +1107,11 @@ def compute_route_route_stats(db_session) -> Dict[str, Any]:
         'osm_routes_without_link': osm_routes_without_link,
         'atlas_link_coverage_percent': atlas_link_coverage_percent,
         'osm_link_coverage_percent': osm_link_coverage_percent,
+        'by_match_method': by_match_method,
+        'osm_family_origin': osm_family_origin_counts,
+        'osm_relations_by_origin': osm_relations_by_origin,
     }
+
 
 
 def compute_summary_from_db(db_session) -> Dict[str, Any]:
@@ -1210,14 +1250,11 @@ def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -
     
     from backend.extensions import db
     problem_stats = compute_db_stats(db.session)
-    route_problem_stats = compute_route_problem_stats(db.session)
     
     kwargs = {
         'stats': stats,
         'problem_breakdown': problem_stats.get('by_priority', {}),
-        'route_problem_breakdown': route_problem_stats.get('by_priority', {}),
         'probs': problem_stats,
-        'route_probs': route_problem_stats,
         'generated_at': get_zurich_now(),
         'css_content': '',
         'pdf_assets_prefix': 'static/vendor/'

@@ -68,9 +68,6 @@ from backend.models import (
     StopCall,
     LineFamilyMatch,
     ItineraryMatch,
-    StopAlignment,
-    RouteDiagnostic,
-    StopDiagnostic,
 )
 from backend.services.stats_export import (
     export_pipeline_stats,
@@ -105,9 +102,6 @@ def _ensure_import_schema_exists(db_session) -> None:
         'stop_calls',
         'line_family_matches',
         'itinerary_matches',
-        'stop_alignments',
-        'route_diagnostics',
-        'stop_diagnostics',
         'problems',
         'stops_matched',
     ]
@@ -135,9 +129,6 @@ STATIC_IMPORT_TABLES = [
 ]
 
 ATLAS_CACHED_REFRESH_TABLES = [
-    'stop_diagnostics',
-    'route_diagnostics',
-    'stop_alignments',
     'itinerary_matches',
     'line_family_matches',
     'stop_calls',
@@ -187,9 +178,6 @@ DYNAMIC_PAYLOAD_KEYS = [
     'stop_calls',
     'line_family_matches',
     'itinerary_matches',
-    'stop_alignments',
-    'route_diagnostics',
-    'stop_diagnostics',
 ]
 
 META_PAYLOAD_KEYS = [
@@ -519,6 +507,8 @@ def build_fast_insert_payloads(
             'osm_uic_ref': node.uic_ref,
             'osm_network': node.network,
             'osm_operator': node.operator,
+            'osm_operator_wikidata': node.tags.get('operator:wikidata') if node.tags else None,
+            'osm_network_wikidata': node.tags.get('network:wikidata') if node.tags else None,
             'osm_public_transport': node.public_transport,
             'osm_railway': node.railway,
             'osm_amenity': node.amenity,
@@ -785,9 +775,6 @@ def build_fast_insert_payloads(
     stop_call_dicts = route_write_payload.get('stop_calls', [])
     line_family_match_dicts = route_write_payload.get('line_family_matches', [])
     itinerary_match_dicts = route_write_payload.get('itinerary_matches', [])
-    stop_alignment_dicts = route_write_payload.get('stop_alignments', [])
-    route_diagnostic_dicts = route_write_payload.get('route_diagnostics', [])
-    stop_diagnostic_dicts = route_write_payload.get('stop_diagnostics', [])
 
     skipped_sloids = int(route_write_payload.get('skipped_sloids', 0) or 0)
     matched_routes = int(route_write_payload.get('matched_routes', 0) or 0)
@@ -833,9 +820,6 @@ def build_fast_insert_payloads(
         'stop_calls': stop_call_dicts,
         'line_family_matches': line_family_match_dicts,
         'itinerary_matches': itinerary_match_dicts,
-        'stop_alignments': stop_alignment_dicts,
-        'route_diagnostics': route_diagnostic_dicts,
-        'stop_diagnostics': stop_diagnostic_dicts,
         'matched_routes': route_write_payload.get('matched_routes', 0),
         'no_nearby_osm_sloids': no_nearby_osm_sloids,
     }
@@ -987,21 +971,6 @@ def import_to_database(
         db_payloads.get('itinerary_matches', []),
         'itinerary matches',
     )
-    _bulk_insert_rows(
-        StopAlignment,
-        db_payloads.get('stop_alignments', []),
-        'stop alignments',
-    )
-    _bulk_insert_rows(
-        RouteDiagnostic,
-        db_payloads.get('route_diagnostics', []),
-        'route diagnostics',
-    )
-    _bulk_insert_rows(
-        StopDiagnostic,
-        db_payloads.get('stop_diagnostics', []),
-        'stop diagnostics',
-    )
 
     matched_routes = db_payloads.get('matched_routes', 0)
     itinerary_matches = len(db_payloads.get('itinerary_matches', []))
@@ -1087,6 +1056,10 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
             'osm_with_routes': osm_with_routes_count
         }
         
+        # Calculate Wikidata tag counts
+        osm_operator_wikidata_count = sum(1 for node in all_osm_nodes if node.tags.get('operator:wikidata'))
+        osm_network_wikidata_count = sum(1 for node in all_osm_nodes if node.tags.get('network:wikidata'))
+
         stats = export_pipeline_stats(
             matched_records=matched_records,
             unmatched_atlas=unmatched_atlas,
@@ -1101,7 +1074,9 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
             total_matched_osm_stops=matched_osm_stops,
             total_unmatched_osm_stops=unmatched_osm_stops,
             osm_route_stats=osm_route_stats,
-            osm_nodes_with_routes=nodes_with_routes if 'nodes_with_routes' in locals() else set()
+            osm_nodes_with_routes=nodes_with_routes if 'nodes_with_routes' in locals() else set(),
+            total_osm_operator_wikidata=osm_operator_wikidata_count,
+            total_osm_network_wikidata=osm_network_wikidata_count
         )
 
         # Compute quality metrics (distance quality, many-to-one, cross-predicate, OSM groups)

@@ -53,8 +53,8 @@
         <span id="pipelineMaintenanceTitle">Data update in progress</span>
       </div>
       <div class="pipeline-maintenance-card__body">
-        <div id="pipelineMaintenanceStatus" class="pipeline-maintenance-card__status">
-          Core data is being refreshed. Use this time to <a href="{{ url_for('docs.docs_page') }}" class="fw-bold" id="pipelineDocsLink">read the documentation</a>.
+        <div id="pipelineMaintenanceStatus" class="pipeline-maintenance-card__status" data-docs-url="{{ url_for('docs.docs_page') }}">
+          <!-- Status populated by Javascript -->
         </div>
         <div class="pipeline-maintenance-card__timers">
           <span class="pipeline-maintenance-chip">

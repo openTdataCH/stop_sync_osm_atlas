@@ -88,16 +88,10 @@ def create_app():
             # JSON keys are strings; convert to int for template usage
             problem_breakdown = {int(k): v for k, v in raw.items()}
 
-        route_problem_breakdown = {}
-        if stats and 'route_problems' in stats and 'by_priority' in stats['route_problems']:
-            raw = stats['route_problems']['by_priority']
-            route_problem_breakdown = {int(k): v for k, v in raw.items()}
-
         return render_template(
             'pages/data.html',
             stats=stats,
             problem_breakdown=problem_breakdown,
-            route_problem_breakdown=route_problem_breakdown,
             active_view=active_view
         )
 
