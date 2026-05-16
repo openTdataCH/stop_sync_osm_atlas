@@ -953,10 +953,19 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
         'by_priority': by_priority,
     }
 
+
+def _summarize_numeric_values(values: List[int | float]) -> Dict[str, float]:
+    if not values:
+        return {'mean': 0.0, 'median': 0.0}
+    return {
+        'mean': round(float(statistics.mean(values)), 2),
+        'median': round(float(statistics.median(values)), 2),
+    }
+
 def compute_route_route_stats(db_session) -> Dict[str, Any]:
     """Compute route-route linking statistics from route tables in the import DB."""
     from backend.models import Itinerary, ItineraryMatch, LineFamily, LineFamilyMatch
-    from sqlalchemy import inspect
+    from sqlalchemy import inspect, func
 
     total_links = db_session.query(LineFamilyMatch).count()
     inspector = inspect(db_session.get_bind())
@@ -1026,10 +1035,85 @@ def compute_route_route_stats(db_session) -> Dict[str, Any]:
         if osm_route_ids_total > 0 else 0.0
     )
 
+    itinerary_count_rows = (
+        db_session.query(LineFamily.source, Itinerary.line_family_id, func.count(Itinerary.id))
+        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+        .group_by(LineFamily.source, Itinerary.line_family_id)
+        .all()
+    )
+    atlas_itinerary_counts_by_family: Dict[int, int] = {}
+    osm_itinerary_counts_by_family: Dict[int, int] = {}
+    atlas_itinerary_counts: List[int] = []
+    osm_itinerary_counts: List[int] = []
+    for source, line_family_id, count in itinerary_count_rows:
+        count = int(count or 0)
+        if source == 'atlas':
+            atlas_itinerary_counts_by_family[line_family_id] = count
+            atlas_itinerary_counts.append(count)
+        elif source == 'osm':
+            osm_itinerary_counts_by_family[line_family_id] = count
+            osm_itinerary_counts.append(count)
+
+    atlas_trip_count_values = [
+        int(value)
+        for (value,) in (
+            db_session.query(Itinerary.trip_count)
+            .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+            .filter(LineFamily.source == 'atlas', Itinerary.trip_count.isnot(None))
+            .all()
+        )
+        if value is not None
+    ]
+
+    atlas_itineraries_linked = 0
+    osm_itineraries_linked = 0
+    if inspector.has_table(ItineraryMatch.__tablename__):
+        atlas_itineraries_linked = (
+            db_session.query(ItineraryMatch.atlas_itinerary_id)
+            .filter(ItineraryMatch.atlas_itinerary_id.isnot(None))
+            .distinct()
+            .count()
+        )
+        osm_itineraries_linked = (
+            db_session.query(ItineraryMatch.osm_itinerary_id)
+            .filter(ItineraryMatch.osm_itinerary_id.isnot(None))
+            .distinct()
+            .count()
+        )
+
+    atlas_itinerary_link_coverage_percent = (
+        round((atlas_itineraries_linked / atlas_itineraries_total) * 100, 1)
+        if atlas_itineraries_total > 0 else 0.0
+    )
+    osm_itinerary_link_coverage_percent = (
+        round((osm_itineraries_linked / osm_itineraries_total) * 100, 1)
+        if osm_itineraries_total > 0 else 0.0
+    )
+
+    matched_family_variant_gaps: List[int] = []
+    atlas_has_more_variants_count = 0
+    same_variant_count = 0
+    osm_has_more_variants_count = 0
+    for atlas_line_family_id, osm_line_family_id in (
+        db_session.query(
+            LineFamilyMatch.atlas_line_family_id,
+            LineFamilyMatch.osm_line_family_id,
+        ).all()
+    ):
+        atlas_variants = atlas_itinerary_counts_by_family.get(atlas_line_family_id, 0)
+        osm_variants = osm_itinerary_counts_by_family.get(osm_line_family_id, 0)
+        gap = atlas_variants - osm_variants
+        matched_family_variant_gaps.append(gap)
+        if gap > 0:
+            atlas_has_more_variants_count += 1
+        elif gap < 0:
+            osm_has_more_variants_count += 1
+        else:
+            same_variant_count += 1
+
     # Per-method match counts from the match_method column.
-    from sqlalchemy import func as sa_func
     reason_rows = (
-        db_session.query(LineFamilyMatch.match_method, sa_func.count(LineFamilyMatch.id))
+        db_session.query(LineFamilyMatch.match_method, func.count(LineFamilyMatch.id))
         .group_by(LineFamilyMatch.match_method)
         .all()
     )
@@ -1047,9 +1131,8 @@ def compute_route_route_stats(db_session) -> Dict[str, Any]:
             by_match_method['other'] += cnt
 
     # OSM route family grouping method breakdown (family_origin)
-    from sqlalchemy import func as _func
     osm_family_origin_rows = (
-        db_session.query(LineFamily.family_origin, _func.count(LineFamily.id))
+        db_session.query(LineFamily.family_origin, func.count(LineFamily.id))
         .filter(LineFamily.source == 'osm')
         .group_by(LineFamily.family_origin)
         .all()
@@ -1073,7 +1156,7 @@ def compute_route_route_stats(db_session) -> Dict[str, Any]:
 
     # Count distinct OSM route relations per family_origin
     osm_relations_by_origin_rows = (
-        db_session.query(LineFamily.family_origin, _func.count(Itinerary.id))
+        db_session.query(LineFamily.family_origin, func.count(Itinerary.id))
         .join(Itinerary, Itinerary.line_family_id == LineFamily.id)
         .filter(LineFamily.source == 'osm')
         .group_by(LineFamily.family_origin)
@@ -1107,6 +1190,21 @@ def compute_route_route_stats(db_session) -> Dict[str, Any]:
         'osm_routes_without_link': osm_routes_without_link,
         'atlas_link_coverage_percent': atlas_link_coverage_percent,
         'osm_link_coverage_percent': osm_link_coverage_percent,
+        'atlas_itineraries_linked': atlas_itineraries_linked,
+        'osm_itineraries_linked': osm_itineraries_linked,
+        'atlas_itinerary_link_coverage_percent': atlas_itinerary_link_coverage_percent,
+        'osm_itinerary_link_coverage_percent': osm_itinerary_link_coverage_percent,
+        'variant_density': {
+            'atlas_itineraries_per_family': _summarize_numeric_values(atlas_itinerary_counts),
+            'osm_itineraries_per_family': _summarize_numeric_values(osm_itinerary_counts),
+            'atlas_trip_count_per_itinerary': _summarize_numeric_values(atlas_trip_count_values),
+        },
+        'matched_family_variant_gap': {
+            **_summarize_numeric_values(matched_family_variant_gaps),
+            'atlas_has_more_count': atlas_has_more_variants_count,
+            'same_count': same_variant_count,
+            'osm_has_more_count': osm_has_more_variants_count,
+        },
         'by_match_method': by_match_method,
         'osm_family_origin': osm_family_origin_counts,
         'osm_relations_by_origin': osm_relations_by_origin,

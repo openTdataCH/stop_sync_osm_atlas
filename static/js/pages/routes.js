@@ -455,9 +455,20 @@
       atlasMatched: colors.ATLAS_MATCHED || '#174092',
       osmMatched: colors.OSM_MATCHED || '#4CAF50',
       atlasUnmatched: colors.ATLAS_UNMATCHED || '#DC3545',
-      osmUnmatched: colors.OSM_UNMATCHED || '#6C757D',
-      line: colors.LINE_ATLAS_OSM || '#174092'
+      osmUnmatched: colors.OSM_UNMATCHED || '#6C757D'
     };
+  }
+
+  function isMatchedLikeStopType(stopType) {
+    return stopType === 'matched' || stopType === 'effectively_matched';
+  }
+
+  function getAtlasStopMarkerColor(stopType, colors) {
+    return stopType === 'atlas_unmatched' ? colors.atlasUnmatched : colors.atlasMatched;
+  }
+
+  function getOsmStopMarkerColor(stopType, colors) {
+    return stopType === 'osm_unmatched' ? colors.osmUnmatched : colors.osmMatched;
   }
 
   function createAtlasMarkerSafe(lat, lon, color, hasAtlasDuplicate, zoomOverride) {
@@ -498,18 +509,12 @@
       var osmLat = stop.osm_lat;
       var osmLon = stop.osm_lon;
 
-      if ((stopType === 'matched' || stopType === 'effectively_matched') && atlasLat != null && atlasLon != null && osmLat != null && osmLon != null) {
-        var atlasMarker = createAtlasMarkerSafe(atlasLat, atlasLon, colors.atlasMatched, stop.has_atlas_duplicate, mapState.map.getZoom());
+      if (isMatchedLikeStopType(stopType) && atlasLat != null && atlasLon != null && osmLat != null && osmLon != null) {
+        var atlasMarker = createAtlasMarkerSafe(atlasLat, atlasLon, getAtlasStopMarkerColor(stopType, colors), stop.has_atlas_duplicate, mapState.map.getZoom());
         atlasMarker.addTo(mapState.markersLayer);
 
-        var osmMarker = createOsmMarkerSafe(osmLat, osmLon, colors.osmMatched, stop.osm_node_type, mapState.map.getZoom());
+        var osmMarker = createOsmMarkerSafe(osmLat, osmLon, getOsmStopMarkerColor(stopType, colors), stop.osm_node_type, mapState.map.getZoom());
         osmMarker.addTo(mapState.markersLayer);
-
-        L.polyline([[atlasLat, atlasLon], [osmLat, osmLon]], {
-          color: colors.line,
-          weight: 2,
-          opacity: 0.85
-        }).addTo(mapState.linesLayer);
 
         points.push([atlasLat, atlasLon]);
         points.push([osmLat, osmLon]);
@@ -517,13 +522,13 @@
       }
 
       if (atlasLat != null && atlasLon != null) {
-        var atlasColor = stopType === 'atlas_unmatched' ? colors.atlasUnmatched : colors.atlasMatched;
+        var atlasColor = getAtlasStopMarkerColor(stopType, colors);
         createAtlasMarkerSafe(atlasLat, atlasLon, atlasColor, stop.has_atlas_duplicate, mapState.map.getZoom()).addTo(mapState.markersLayer);
         points.push([atlasLat, atlasLon]);
       }
 
       if (osmLat != null && osmLon != null) {
-        var osmColor = stopType === 'osm_unmatched' ? colors.osmUnmatched : colors.osmMatched;
+        var osmColor = getOsmStopMarkerColor(stopType, colors);
         createOsmMarkerSafe(osmLat, osmLon, osmColor, stop.osm_node_type, mapState.map.getZoom()).addTo(mapState.markersLayer);
         points.push([osmLat, osmLon]);
       }
@@ -538,56 +543,34 @@
     var colors = getMapColors();
     var points = [];
 
-    var atlasPath = [];
     if (direction.atlas_uic_groups) {
       direction.atlas_uic_groups.forEach(function (group) {
         if (group.members) {
           group.members.forEach(function (member) {
             if (member.lat != null && member.lon != null) {
               var stopType = member.stop_type;
-              var color = (stopType === 'matched' || stopType === 'effectively_matched') ? colors.atlasMatched : colors.atlasUnmatched;
+              var color = getAtlasStopMarkerColor(stopType, colors);
               createAtlasMarkerSafe(member.lat, member.lon, color, member.has_atlas_duplicate, mapState.map.getZoom()).addTo(mapState.markersLayer);
-              atlasPath.push([member.lat, member.lon]);
               points.push([member.lat, member.lon]);
-              
-              // Draw connection line if matched
-              if ((stopType === 'matched' || stopType === 'effectively_matched') && member.osm_lat != null && member.osm_lon != null) {
-                L.polyline([[member.lat, member.lon], [member.osm_lat, member.osm_lon]], { color: '#666', weight: 1, opacity: 0.5 }).addTo(mapState.linesLayer);
-              }
             }
           });
         }
       });
     }
 
-    if (atlasPath.length > 1) {
-      L.polyline(atlasPath, { color: colors.atlasMatched, weight: 2, opacity: 0.5, dashArray: '4,4' }).addTo(mapState.linesLayer);
-    }
-
-    var osmPath = [];
     if (direction.osm_uic_groups) {
       direction.osm_uic_groups.forEach(function (group) {
         if (group.members) {
           group.members.forEach(function (member) {
             if (member.lat != null && member.lon != null) {
               var stopType = member.stop_type;
-              var color = (stopType === 'matched' || stopType === 'effectively_matched') ? colors.osmMatched : colors.osmUnmatched;
+              var color = getOsmStopMarkerColor(stopType, colors);
               createOsmMarkerSafe(member.lat, member.lon, color, member.osm_node_type, mapState.map.getZoom()).addTo(mapState.markersLayer);
-              osmPath.push([member.lat, member.lon]);
               points.push([member.lat, member.lon]);
-              
-              // Draw connection line if matched (only need to do it once, already done in atlas loop usually, but here for robustness)
-              if ((stopType === 'matched' || stopType === 'effectively_matched') && member.atlas_lat != null && member.atlas_lon != null) {
-                // If we want to avoid double lines, we could track them, but for 1-off maps it's fine
-              }
             }
           });
         }
       });
-    }
-
-    if (osmPath.length > 1) {
-      L.polyline(osmPath, { color: colors.osmMatched, weight: 2, opacity: 0.5, dashArray: '4,4' }).addTo(mapState.linesLayer);
     }
     
     return points;
@@ -634,13 +617,13 @@
           if (variantStopIds.has(String(stop.sloid)) || variantStopIds.has(String(stop.osm_node_id))) return;
           
           if (stop.atlas_lat != null && stop.atlas_lon != null) {
-            var color = (stop.stop_type === 'matched' || stop.stop_type === 'effectively_matched') ? colors.atlasMatched : colors.atlasUnmatched;
+            var color = getAtlasStopMarkerColor(stop.stop_type, colors);
             var m = createAtlasMarkerSafe(stop.atlas_lat, stop.atlas_lon, color, stop.has_atlas_duplicate, mapState.map.getZoom());
             m.setStyle({ opacity: 0.4, fillOpacity: 0.2 });
             m.addTo(mapState.markersLayer);
           }
           if (stop.osm_lat != null && stop.osm_lon != null) {
-            var color = (stop.stop_type === 'matched' || stop.stop_type === 'effectively_matched') ? colors.osmMatched : colors.osmUnmatched;
+            var color = getOsmStopMarkerColor(stop.stop_type, colors);
             var m = createOsmMarkerSafe(stop.osm_lat, stop.osm_lon, color, stop.osm_node_type, mapState.map.getZoom());
             m.setStyle({ opacity: 0.4, fillOpacity: 0.2 });
             m.addTo(mapState.markersLayer);

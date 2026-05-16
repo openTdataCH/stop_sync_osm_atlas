@@ -10,7 +10,7 @@ def format_zurich_timestamp(dt: datetime) -> str:
     return dt.isoformat()
 
 
-def format_zurich_display_timestamp(value: datetime | str | None) -> str | None:
+def format_zurich_display_timestamp(value: datetime | str | None, include_seconds: bool = False) -> str | None:
     """Format a datetime or ISO timestamp for user-facing display in Zurich time."""
     if value in (None, ""):
         return value
@@ -28,4 +28,6 @@ def format_zurich_display_timestamp(value: datetime | str | None) -> str | None:
         dt = dt.replace(tzinfo=ZoneInfo("Europe/Zurich"))
     else:
         dt = dt.astimezone(ZoneInfo("Europe/Zurich"))
-    return dt.strftime('%Y-%m-%d %H:%M')
+    
+    format_str = '%Y-%m-%d %H:%M:%S' if include_seconds else '%Y-%m-%d %H:%M'
+    return dt.strftime(format_str)

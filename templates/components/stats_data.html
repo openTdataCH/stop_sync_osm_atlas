@@ -12,28 +12,28 @@ SECTION 0 — TIMESTAMPS
         <div class="text-muted small fw-bold text-uppercase mb-1">Last Pipeline Completed</div>
         <div class="fw-medium text-dark d-flex align-items-center">
           <img src="{{ url_for('static', filename='favicon.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="Pipeline Status">
-          <span>{{ stats.last_pipeline_data_import_ended_at|format_zurich_display_timestamp|default('Unknown') }}</span>
+          <span>{{ stats.last_pipeline_data_import_ended_at|format_zurich_display_timestamp(include_seconds=True)|default('Unknown') }}</span>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-2 mb-md-0 border-start">
         <div class="text-muted small fw-bold text-uppercase mb-1">Last ATLAS Downloaded</div>
         <div class="fw-medium text-dark d-flex align-items-center">
           <img src="{{ url_for('static', filename='atlas.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="ATLAS">
-          <span>{{ stats.source_downloads.atlas.atlas_downloaded_at|default(stats.source_downloads.atlas.downloaded_at)|format_zurich_display_timestamp|default('Unknown') }}</span>
+          <span>{{ stats.source_downloads.atlas.atlas_downloaded_at|default(stats.source_downloads.atlas.downloaded_at)|format_zurich_display_timestamp(include_seconds=True)|default('Unknown') }}</span>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-2 mb-md-0 border-start">
         <div class="text-muted small fw-bold text-uppercase mb-1">Last GTFS Downloaded</div>
         <div class="fw-medium text-dark d-flex align-items-center">
           <img src="{{ url_for('static', filename='opentransportdata.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="GTFS">
-          <span>{{ stats.source_downloads.gtfs.gtfs_downloaded_at|default(stats.source_downloads.gtfs.downloaded_at)|format_zurich_display_timestamp|default('Unknown') }}</span>
+          <span>{{ stats.source_downloads.gtfs.gtfs_downloaded_at|default(stats.source_downloads.gtfs.downloaded_at)|format_zurich_display_timestamp(include_seconds=True)|default('Unknown') }}</span>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 border-start">
         <div class="text-muted small fw-bold text-uppercase mb-1">Last OSM Queried</div>
         <div class="fw-medium text-dark d-flex align-items-center">
           <img src="{{ url_for('static', filename='osm.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="OSM">
-          <span>{{ stats.last_overpass_query_at|format_zurich_display_timestamp|default('Unknown') }}</span>
+          <span>{{ stats.last_overpass_query_at|format_zurich_display_timestamp(include_seconds=True)|default('Unknown') }}</span>
         </div>
       </div>
     </div>
@@ -1200,6 +1200,16 @@ SECTION 6 — ROUTES
           <td class="text-end">{{ rr.osm_link_coverage_percent|default(0) }}%</td>
         </tr>
         <tr>
+          <td>ATLAS itineraries with link</td>
+          <td class="text-end">{{ "{:,}".format(rr.atlas_itineraries_linked|default(0)) }} / {{ "{:,}".format(rr.atlas_itineraries_total|default(0)) }}</td>
+          <td class="text-end">{{ rr.atlas_itinerary_link_coverage_percent|default(0) }}%</td>
+        </tr>
+        <tr>
+          <td>OSM itineraries with link</td>
+          <td class="text-end">{{ "{:,}".format(rr.osm_itineraries_linked|default(0)) }} / {{ "{:,}".format(rr.osm_itineraries_total|default(0)) }}</td>
+          <td class="text-end">{{ rr.osm_itinerary_link_coverage_percent|default(0) }}%</td>
+        </tr>
+        <tr>
           <td>ATLAS route directions (total)</td>
           <td class="text-end">{{ "{:,}".format(rr.atlas_route_directions_total|default(0)) }}</td>
           <td class="text-end">-</td>
@@ -1254,6 +1264,66 @@ SECTION 6 — ROUTES
     <div class="text-muted small mt-2">
       This section reports route-route links from import DB route tables, not stop-level predicate matches.
     </div>
+
+    {% if rr.variant_density is defined %}
+    {% set vd = rr.variant_density %}
+    {% set gap = rr.matched_family_variant_gap if rr.matched_family_variant_gap is defined else {} %}
+    <h6 class="mt-4 mb-2">Route Pipeline Shape</h6>
+    <table class="table table-sm table-hover mb-0">
+      <thead class="thead-light">
+        <tr>
+          <th>Metric</th>
+          <th class="text-end">Mean</th>
+          <th class="text-end">Median</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ATLAS itineraries per family</td>
+          <td class="text-end">{{ vd.atlas_itineraries_per_family.mean|default(0) }}</td>
+          <td class="text-end">{{ vd.atlas_itineraries_per_family.median|default(0) }}</td>
+        </tr>
+        <tr>
+          <td>OSM itineraries per family</td>
+          <td class="text-end">{{ vd.osm_itineraries_per_family.mean|default(0) }}</td>
+          <td class="text-end">{{ vd.osm_itineraries_per_family.median|default(0) }}</td>
+        </tr>
+        <tr>
+          <td>GTFS trips collapsed into one ATLAS itinerary</td>
+          <td class="text-end">{{ vd.atlas_trip_count_per_itinerary.mean|default(0) }}</td>
+          <td class="text-end">{{ vd.atlas_trip_count_per_itinerary.median|default(0) }}</td>
+        </tr>
+        <tr>
+          <td>Matched family itinerary gap (ATLAS - OSM)</td>
+          <td class="text-end">{{ gap.mean|default(0) }}</td>
+          <td class="text-end">{{ gap.median|default(0) }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table class="table table-sm table-hover mt-3 mb-0">
+      <thead class="thead-light">
+        <tr>
+          <th>Matched Family Comparison</th>
+          <th class="text-end">Count</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Matched families where ATLAS has more itineraries</td>
+          <td class="text-end">{{ "{:,}".format(gap.atlas_has_more_count|default(0)) }}</td>
+        </tr>
+        <tr>
+          <td>Matched families with equal itinerary counts</td>
+          <td class="text-end">{{ "{:,}".format(gap.same_count|default(0)) }}</td>
+        </tr>
+        <tr>
+          <td>Matched families where OSM has more itineraries</td>
+          <td class="text-end">{{ "{:,}".format(gap.osm_has_more_count|default(0)) }}</td>
+        </tr>
+      </tbody>
+    </table>
+    {% endif %}
   </div>
 </div>
 {% endif %}
