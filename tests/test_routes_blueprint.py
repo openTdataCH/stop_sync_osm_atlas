@@ -149,6 +149,73 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app):
     assert 'ATLAS variants: 1 | OSM variants: 1 | Matched: 1' in rendered
 
 
+def test_routes_template_deduplicates_identical_variant_label_and_headsign(app):
+    route_rows = [
+        {
+            'display_mode': 'osm_only',
+            'is_matched': False,
+            'match_label': 'Unmatched OSM',
+            'atlas_route_id': None,
+            'atlas_route_short_name': None,
+            'atlas_route_long_name': None,
+            'atlas_route_name': None,
+            'atlas_operators_summary': None,
+            'osm_route_name': 'Route 31',
+            'osm_gtfs_route_id': '31',
+            'osm_route_display_id': '31',
+            'osm_route_id_label': 'GTFS ID',
+            'osm_route_master_id': None,
+            'osm_route_id': '300',
+            'is_non_gtfs': False,
+            'variant_count': 1,
+            'atlas_variant_count': 0,
+            'osm_variant_count': 1,
+            'matched_variant_count': 0,
+            'direction_groups': [
+                {
+                    'direction_id': '0',
+                    'direction_label': 'Unique Variant Label',
+                    'representative_headsign': 'Unique Variant Label',
+                    'osm_relation_id': '300',
+                    'has_atlas_variant': False,
+                    'has_osm_variant': True,
+                    'atlas_uic_groups': [],
+                    'osm_uic_groups': [],
+                    'match_status': 'unmatched-osm',
+                    'match_label': 'Unmatched OSM variant',
+                }
+            ],
+            'map_filter': None,
+        }
+    ]
+
+    with app.test_request_context('/routes'):
+        rendered = render_template(
+            'pages/routes.html',
+            active_view='routes',
+            listing_endpoint='routes.routes_page',
+            route_rows=route_rows,
+            pagination=_TemplatePagination(),
+            range_start=1,
+            range_end=1,
+            atlas_operator_query='',
+            osm_operator_query='',
+            matched_filter='all',
+            match_filter_labels={'all': 'All'},
+            q='',
+            search_placeholder='Search route',
+            per_page=10,
+            per_page_options=[10],
+            available_atlas_operators=[],
+            selected_atlas_operators=[],
+            available_osm_operators=[],
+            selected_osm_operators=[],
+        )
+
+    assert 'Unique Variant Label | Unique Variant Label' not in rendered
+    assert rendered.count('Unique Variant Label') == 1
+
+
 def test_partition_route_items_separates_non_gtfs_routes():
     gtfs_items, non_gtfs_items = _partition_route_items([
         {'sort_route_id': '11', 'is_non_gtfs': False},

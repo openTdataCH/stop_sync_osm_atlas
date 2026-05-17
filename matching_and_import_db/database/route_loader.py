@@ -118,10 +118,7 @@ def load_all_route_data() -> dict[str, pd.DataFrame]:
         'atlas_itineraries': 'atlas_itineraries.csv',
         'atlas_itinerary_stop_calls': 'atlas_itinerary_stop_calls.csv',
         'osm_route_masters': 'osm_route_masters.csv',
-        'osm_route_master_tags': 'osm_route_master_tags.csv',
-        'osm_route_master_members': 'osm_route_master_members.csv',
         'osm_route_relations': 'osm_route_relations.csv',
-        'osm_route_relation_tags': 'osm_route_relation_tags.csv',
         'osm_route_relation_members': 'osm_route_relation_members.csv',
         'osm_route_relation_stops': 'osm_route_relation_stops.csv',
     }
@@ -370,36 +367,6 @@ def _build_osm_source_rows(all_route_data: dict[str, pd.DataFrame], lookups: dic
             'run_id': _to_text(row.get('run_id')),
         })
 
-    route_master_tag_rows: list[dict[str, Any]] = []
-    for row in _records(all_route_data.get('osm_route_master_tags')):
-        route_master_id = _to_text(row.get('route_master_id'))
-        tag_key = _to_text(row.get('tag_key'))
-        if route_master_id is None or tag_key is None:
-            continue
-        route_master_tag_rows.append({
-            'route_master_id': route_master_id,
-            'tag_key': tag_key,
-            'tag_value': _to_text(row.get('tag_value')),
-        })
-
-    route_master_member_rows: list[dict[str, Any]] = []
-    seen_route_master_members: set[tuple[str, str]] = set()
-    for row in _records(all_route_data.get('osm_route_master_members')):
-        route_master_id = _to_text(row.get('route_master_id'))
-        relation_id = _to_text(row.get('relation_id'))
-        if route_master_id is None or relation_id is None:
-            continue
-        membership_key = (route_master_id, relation_id)
-        if membership_key in seen_route_master_members:
-            continue
-        seen_route_master_members.add(membership_key)
-        route_master_member_rows.append({
-            'route_master_id': route_master_id,
-            'relation_id': relation_id,
-            'member_sequence': _to_int(row.get('member_sequence')),
-            'member_role': _to_text(row.get('member_role')),
-        })
-
     relation_rows: list[dict[str, Any]] = []
     relation_source = all_route_data.get('osm_route_relations')
     for row in _records(relation_source):
@@ -429,19 +396,6 @@ def _build_osm_source_rows(all_route_data: dict[str, pd.DataFrame], lookups: dic
             'family_origin': _to_text(row.get('family_origin')),
             'synthetic_family_key': _to_text(row.get('synthetic_family_key')),
             'run_id': _to_text(row.get('run_id')),
-        })
-
-    relation_tag_rows: list[dict[str, Any]] = []
-    relation_tag_source = all_route_data.get('osm_route_relation_tags')
-    for row in _records(relation_tag_source):
-        relation_id = _to_text(row.get('relation_id'))
-        tag_key = _to_text(row.get('tag_key'))
-        if relation_id is None or tag_key is None:
-            continue
-        relation_tag_rows.append({
-            'relation_id': relation_id,
-            'tag_key': tag_key,
-            'tag_value': _to_text(row.get('tag_value')),
         })
 
     relation_member_rows: list[dict[str, Any]] = []
@@ -497,11 +451,7 @@ def _build_osm_source_rows(all_route_data: dict[str, pd.DataFrame], lookups: dic
     relation_stop_rows.sort(key=lambda row: (row['relation_id'], row['stop_sequence'], row['osm_node_id'] or ''))
     return {
         'osm_route_masters': route_master_rows,
-        'osm_route_master_tags': route_master_tag_rows,
-        'osm_route_master_members': route_master_member_rows,
         'osm_route_relations': relation_rows,
-        'osm_route_relation_tags': relation_tag_rows,
-        'osm_route_relation_members': relation_member_rows,
         'osm_route_relation_stops': relation_stop_rows,
     }
 
@@ -708,8 +658,13 @@ def _build_itinerary_rows(
             'source_itinerary_id': row['relation_id'],
             'direction_id': direction_id,
             'headsign_or_pattern_hash': sequence_pattern_hash,
-            'display_name': _first_non_empty(row.get('name'), f"{row.get('from_name')} -> {row.get('to_name')}" if row.get('from_name') or row.get('to_name') else None, row.get('ref'), row['relation_id']),
-            'representative_headsign': _first_non_empty(row.get('name'), row.get('ref')),
+            'display_name': _first_non_empty(
+                f"{row.get('from_name')} -> {row.get('to_name')}" if row.get('from_name') or row.get('to_name') else None,
+                row.get('name'),
+                row.get('ref'),
+                row['relation_id'],
+            ),
+            'representative_headsign': _first_non_empty(row.get('to_name'), row.get('name'), row.get('ref')),
             'from_name': row.get('from_name'),
             'to_name': row.get('to_name'),
             'trip_count': 1,
@@ -1044,15 +999,7 @@ def build_route_write_payload(
 
     return {
         'atlas_line_families': atlas_rows['atlas_line_families'],
-        'atlas_itineraries': atlas_rows['atlas_itineraries'],
-        'atlas_itinerary_stop_calls': atlas_rows['atlas_itinerary_stop_calls'],
-        'osm_route_masters': osm_rows['osm_route_masters'],
-        'osm_route_master_tags': osm_rows['osm_route_master_tags'],
-        'osm_route_master_members': osm_rows['osm_route_master_members'],
         'osm_route_relations': osm_rows['osm_route_relations'],
-        'osm_route_relation_tags': osm_rows['osm_route_relation_tags'],
-        'osm_route_relation_members': osm_rows['osm_route_relation_members'],
-        'osm_route_relation_stops': osm_rows['osm_route_relation_stops'],
         'line_families': line_family_rows,
         'itineraries': itinerary_rows,
         'stop_calls': stop_call_rows,

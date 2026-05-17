@@ -162,6 +162,9 @@ Most local runs work without a `.env` file, but these variables are the main one
 | `PIPELINE_STATE_BACKEND` | Shared pipeline status/lock backend (`redis`, `file`, `memory`) | `file` |
 | `PIPELINE_STATE_REDIS_URL` | Redis URL for pipeline state when backend is `redis` | unset |
 | `PIPELINE_STATE_DIR` | Shared directory for pipeline state when backend is `file` | `data/runtime` |
+| `ASYNC_EXPORT_STATE_BACKEND` | Async report/docs export backend (`redis`, `file`, `memory`) | `file` |
+| `ASYNC_EXPORT_REDIS_URL` | Redis URL for async export state when backend is `redis` | unset |
+| `ASYNC_EXPORT_STATE_DIR` | Shared directory for async export state when backend is `file` | `data/runtime/async_export` |
 | `PIPELINE_TIMEZONE` | Scheduler timezone | `Europe/Zurich` |
 | `PIPELINE_SCHEDULE_INTERVAL_HOURS` | Automatic pipeline interval | `24` |
 | `PIPELINE_IMPORT_ETA_SECONDS` | Import-phase ETA shown in the UI | `150` |
@@ -173,6 +176,8 @@ Redis-free local deployments use:
 RATELIMIT_STORAGE_URI=memory://
 PIPELINE_STATE_BACKEND=file
 PIPELINE_STATE_DIR=data/runtime
+ASYNC_EXPORT_STATE_BACKEND=file
+ASYNC_EXPORT_STATE_DIR=data/runtime/async_export
 ```
 
 If you want Redis-backed state instead, start it explicitly and set:
@@ -181,6 +186,8 @@ If you want Redis-backed state instead, start it explicitly and set:
 RATELIMIT_STORAGE_URI=redis://redis:6379/0
 PIPELINE_STATE_BACKEND=redis
 PIPELINE_STATE_REDIS_URL=redis://redis:6379/0
+ASYNC_EXPORT_STATE_BACKEND=redis
+ASYNC_EXPORT_REDIS_URL=redis://redis:6379/0
 ```
 
 ## Running the Web Application

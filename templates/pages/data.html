@@ -31,15 +31,15 @@
           {% if active_view == 'analytics' and stats and not is_pdf %}
             <button id="downloadStatsSummaryBtn" type="button"
                class="btn btn-sm btn-outline-primary shadow-sm fw-bold me-4"
-               title="Download stats as PDF"
+               title="Download Analytics as PDF"
                style="height: fit-content; line-height: 1.2;">
-              <i class="fas fa-file-pdf me-1"></i> Download Summary PDF
+              <i class="fas fa-file-pdf me-1"></i> Download Analytics PDF
             </button>
           {% endif %}
           
           {% if stats %}
           <div class="text-muted small">
-            <i class="far fa-clock me-1"></i> Stats computed: {{ stats.stats_computed_at|format_zurich_display_timestamp }}
+            <i class="far fa-clock me-1"></i> Stats computed: {{ stats.stats_computed_at|format_zurich_display_timestamp(include_seconds=True) }}
           </div>
           {% endif %}
         </div>
