@@ -1,4 +1,5 @@
 from matching_and_import_db.database.route_loader import (
+    _build_itinerary_rows,
     _align_stop_sequences,
     _resolve_osm_stop_fields,
     _score_itinerary_pair,
@@ -121,3 +122,45 @@ def test_score_itinerary_pair_uses_uic_fallback_only_without_resolved_identity()
     assert score_row['matched_stop_count'] == 1
     assert score_row['is_eligible'] is True
     assert score_row['alignments'][0]['alignment_type'] == 'uic_match'
+
+
+def test_build_itinerary_rows_prefers_osm_from_to_for_display_and_to_for_headsign():
+    itinerary_rows, _, _ = _build_itinerary_rows(
+        {
+            'atlas_itineraries': [],
+            'atlas_itinerary_stop_calls': [],
+        },
+        {
+            'osm_route_relations': [
+                {
+                    'relation_id': '300',
+                    'name': 'Bus 31: Zurich HB -> Kienastenwies',
+                    'from_name': 'Zurich HB',
+                    'to_name': 'Kienastenwies',
+                    'ref': '31',
+                    'gtfs_shape_id': None,
+                }
+            ],
+            'osm_route_relation_stops': [
+                {
+                    'relation_id': '300',
+                    'stop_sequence': 1,
+                    'direction_id': '0',
+                    'canonical_stop_key': 'osm:100',
+                    'osm_node_id': '100',
+                    'stop_role': 'platform',
+                    'stop_label': 'Zurich HB',
+                    'uic_ref': '8503000',
+                    'stop_lat': None,
+                    'stop_lon': None,
+                }
+            ],
+        },
+        {},
+        {'300': 7},
+    )
+
+    osm_itinerary = itinerary_rows[0]
+
+    assert osm_itinerary['display_name'] == 'Zurich HB -> Kienastenwies'
+    assert osm_itinerary['representative_headsign'] == 'Kienastenwies'

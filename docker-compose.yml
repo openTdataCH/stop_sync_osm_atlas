@@ -74,6 +74,9 @@ services:
       PIPELINE_STATE_BACKEND: ${PIPELINE_STATE_BACKEND:-file}
       PIPELINE_STATE_REDIS_URL: ${PIPELINE_STATE_REDIS_URL:-}
       PIPELINE_STATE_DIR: ${PIPELINE_STATE_DIR:-data/runtime}
+      ASYNC_EXPORT_STATE_BACKEND: ${ASYNC_EXPORT_STATE_BACKEND:-file}
+      ASYNC_EXPORT_REDIS_URL: ${ASYNC_EXPORT_REDIS_URL:-}
+      ASYNC_EXPORT_STATE_DIR: ${ASYNC_EXPORT_STATE_DIR:-data/runtime/async_export}
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 2g # Web app stays lighter, pipeline runs in scheduler service
     # mem_reservation: 1g # Optional: guarantee 1g
@@ -90,6 +93,9 @@ services:
       PIPELINE_STATE_BACKEND: ${PIPELINE_STATE_BACKEND:-file}
       PIPELINE_STATE_REDIS_URL: ${PIPELINE_STATE_REDIS_URL:-}
       PIPELINE_STATE_DIR: ${PIPELINE_STATE_DIR:-data/runtime}
+      ASYNC_EXPORT_STATE_BACKEND: ${ASYNC_EXPORT_STATE_BACKEND:-file}
+      ASYNC_EXPORT_REDIS_URL: ${ASYNC_EXPORT_REDIS_URL:-}
+      ASYNC_EXPORT_STATE_DIR: ${ASYNC_EXPORT_STATE_DIR:-data/runtime/async_export}
 
   scheduler:
     image: ghcr.io/opentdatach/stop_sync_osm_atlas-scheduler:latest

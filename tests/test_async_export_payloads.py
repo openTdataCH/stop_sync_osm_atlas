@@ -78,6 +78,50 @@ def test_generate_report_async_invalid_type_returns_400(client, monkeypatch):
     assert payload.get('error') == 'Invalid report_type provided'
 
 
+def test_generate_report_async_summary_rejects_non_pdf(client, monkeypatch):
+    _patch_async_helpers(monkeypatch, reports_blueprint)
+
+    response = client.post('/api/generate_report_async', json={
+        'report_type': 'summary',
+        'format': 'csv',
+    })
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload
+    assert payload.get('error') == 'Summary report only supports PDF format'
+
+
+def test_generate_report_sync_summary_rejects_non_pdf(client):
+    response = client.get('/api/generate_report?report_type=summary&format=csv')
+
+    assert response.status_code == 400
+    payload = response.get_json()
+    assert payload
+    assert payload.get('message') == 'Summary report only supports PDF format'
+
+
+def test_generate_report_sync_summary_pdf_uses_summary_handler(client, monkeypatch):
+    called = {}
+
+    def _fake_send_summary_pdf_response(download_name='summary_operator_asc.pdf'):
+        called['download_name'] = download_name
+        return 'ok', 200
+
+    monkeypatch.setattr(reports_blueprint, '_send_summary_pdf_response', _fake_send_summary_pdf_response)
+    monkeypatch.setattr(
+        reports_blueprint,
+        'generate_report_data',
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError('generate_report_data should not run for summary PDF')),
+    )
+
+    response = client.get('/api/generate_report?report_type=summary&format=pdf&sort=operator_asc')
+
+    assert response.status_code == 200
+    assert response.get_data(as_text=True) == 'ok'
+    assert called.get('download_name') == 'summary_operator_asc.pdf'
+
+
 def test_generate_docs_pdf_async_accepts_form_payload(client, monkeypatch):
     _patch_async_helpers(monkeypatch, docs_blueprint)
     monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', lambda *args, **kwargs: None)

@@ -54,15 +54,7 @@ from backend.models import (
     OsmStopMember,
     Problem,
     AtlasLineFamily,
-    AtlasItinerary,
-    AtlasItineraryStopCall,
-    OsmRouteMaster,
-    OsmRouteMasterTag,
-    OsmRouteMasterMember,
     OsmRouteRelation,
-    OsmRouteRelationTag,
-    OsmRouteRelationMember,
-    OsmRouteRelationStop,
     LineFamily,
     Itinerary,
     StopCall,
@@ -88,15 +80,7 @@ def _ensure_import_schema_exists(db_session) -> None:
         'osm_stops',
         'osm_stop_members',
         'atlas_line_families',
-        'atlas_itineraries',
-        'atlas_itinerary_stop_calls',
-        'osm_route_masters',
-        'osm_route_master_tags',
-        'osm_route_master_members',
         'osm_route_relations',
-        'osm_route_relation_tags',
-        'osm_route_relation_members',
-        'osm_route_relation_stops',
         'line_families',
         'itineraries',
         'stop_calls',
@@ -124,8 +108,6 @@ STATIC_IMPORT_TABLES = [
     'gtfs_stops_raw',
     'gtfs_stop_identity_resolution',
     'atlas_line_families',
-    'atlas_itineraries',
-    'atlas_itinerary_stop_calls',
 ]
 
 ATLAS_CACHED_REQUIRED_STATIC_TABLES = [
@@ -133,8 +115,6 @@ ATLAS_CACHED_REQUIRED_STATIC_TABLES = [
     'gtfs_stops_raw',
     'gtfs_stop_identity_resolution',
     'atlas_line_families',
-    'atlas_itineraries',
-    'atlas_itinerary_stop_calls',
 ]
 
 ATLAS_CACHED_REFRESH_TABLES = [
@@ -143,13 +123,7 @@ ATLAS_CACHED_REFRESH_TABLES = [
     'stop_calls',
     'itineraries',
     'line_families',
-    'osm_route_relation_stops',
-    'osm_route_relation_members',
-    'osm_route_relation_tags',
     'osm_route_relations',
-    'osm_route_master_members',
-    'osm_route_master_tags',
-    'osm_route_masters',
     'problems',
     'stops_matched',
     'osm_stop_members',
@@ -157,7 +131,7 @@ ATLAS_CACHED_REFRESH_TABLES = [
     'osm_nodes',
 ]
 
-FULL_REFRESH_TABLES = ATLAS_CACHED_REFRESH_TABLES[:15] + STATIC_IMPORT_TABLES[::-1] + ATLAS_CACHED_REFRESH_TABLES[15:]
+FULL_REFRESH_TABLES = ATLAS_CACHED_REFRESH_TABLES + STATIC_IMPORT_TABLES[::-1]
 
 STATIC_PAYLOAD_KEYS = [
     'atlas_operators',
@@ -165,8 +139,6 @@ STATIC_PAYLOAD_KEYS = [
     'gtfs_stops_raw',
     'gtfs_stop_identity_resolution',
     'atlas_line_families',
-    'atlas_itineraries',
-    'atlas_itinerary_stop_calls',
 ]
 
 DYNAMIC_PAYLOAD_KEYS = [
@@ -175,13 +147,7 @@ DYNAMIC_PAYLOAD_KEYS = [
     'osm_stop_members',
     'stops_matched',
     'problem_rows',
-    'osm_route_masters',
-    'osm_route_master_tags',
-    'osm_route_master_members',
     'osm_route_relations',
-    'osm_route_relation_tags',
-    'osm_route_relation_members',
-    'osm_route_relation_stops',
     'line_families',
     'itineraries',
     'stop_calls',
@@ -755,11 +721,6 @@ def build_fast_insert_payloads(
     known_osm_node_ids = {d['osm_node_id'] for d in osm_node_dicts}
 
     route_node_ids = {
-        str(row['osm_node_id'])
-        for row in route_write_payload.get('osm_route_relation_stops', [])
-        if row.get('osm_node_id')
-    }
-    route_node_ids |= {
         str(row['source_node_id'])
         for row in route_write_payload.get('stop_calls', [])
         if row.get('source_node_id')
@@ -771,17 +732,8 @@ def build_fast_insert_payloads(
         print(f"Prepared {len(synthetic_node_ids)} synthetic OSM nodes referenced by routes")
 
     # ---- 5. Route rows ----
-    skipped_route_osm_nodes = 0
     atlas_line_family_dicts = route_write_payload.get('atlas_line_families', [])
-    atlas_itinerary_dicts = route_write_payload.get('atlas_itineraries', [])
-    atlas_itinerary_stop_call_dicts = route_write_payload.get('atlas_itinerary_stop_calls', [])
-    osm_route_master_dicts = route_write_payload.get('osm_route_masters', [])
-    osm_route_master_tag_dicts = route_write_payload.get('osm_route_master_tags', [])
-    osm_route_master_member_dicts = route_write_payload.get('osm_route_master_members', [])
     osm_route_relation_dicts = route_write_payload.get('osm_route_relations', [])
-    osm_route_relation_tag_dicts = route_write_payload.get('osm_route_relation_tags', [])
-    osm_route_relation_member_dicts = route_write_payload.get('osm_route_relation_members', [])
-    osm_route_relation_stop_dicts = route_write_payload.get('osm_route_relation_stops', [])
     line_family_dicts = route_write_payload.get('line_families', [])
     itinerary_dicts = route_write_payload.get('itineraries', [])
     stop_call_dicts = route_write_payload.get('stop_calls', [])
@@ -818,15 +770,7 @@ def build_fast_insert_payloads(
         'gtfs_stop_identity_resolution': gtfs_identity_resolution_dicts,
         'problem_rows': problem_rows,
         'atlas_line_families': atlas_line_family_dicts,
-        'atlas_itineraries': atlas_itinerary_dicts,
-        'atlas_itinerary_stop_calls': atlas_itinerary_stop_call_dicts,
-        'osm_route_masters': osm_route_master_dicts,
-        'osm_route_master_tags': osm_route_master_tag_dicts,
-        'osm_route_master_members': osm_route_master_member_dicts,
         'osm_route_relations': osm_route_relation_dicts,
-        'osm_route_relation_tags': osm_route_relation_tag_dicts,
-        'osm_route_relation_members': osm_route_relation_member_dicts,
-        'osm_route_relation_stops': osm_route_relation_stop_dicts,
         'line_families': line_family_dicts,
         'itineraries': itinerary_dicts,
         'stop_calls': stop_call_dicts,
@@ -933,42 +877,10 @@ def import_to_database(
 
     if run_type in {PipelineRunType.COMPLETE, PipelineRunType.ATLAS_CACHED_BOOTSTRAP}:
         _bulk_insert_rows(AtlasLineFamily, db_payloads.get('atlas_line_families', []), 'ATLAS line families')
-        _bulk_insert_rows(AtlasItinerary, db_payloads.get('atlas_itineraries', []), 'ATLAS itineraries')
-        _bulk_insert_rows(
-            AtlasItineraryStopCall,
-            db_payloads.get('atlas_itinerary_stop_calls', []),
-            'ATLAS itinerary stop calls',
-        )
-    _bulk_insert_rows(OsmRouteMaster, db_payloads.get('osm_route_masters', []), 'OSM route masters')
-    _bulk_insert_rows(
-        OsmRouteMasterTag,
-        db_payloads.get('osm_route_master_tags', []),
-        'OSM route master tags',
-    )
     _bulk_insert_rows(
         OsmRouteRelation,
         db_payloads.get('osm_route_relations', []),
         'OSM route relations',
-    )
-    _bulk_insert_rows(
-        OsmRouteMasterMember,
-        db_payloads.get('osm_route_master_members', []),
-        'OSM route master members',
-    )
-    _bulk_insert_rows(
-        OsmRouteRelationTag,
-        db_payloads.get('osm_route_relation_tags', []),
-        'OSM route relation tags',
-    )
-    _bulk_insert_rows(
-        OsmRouteRelationMember,
-        db_payloads.get('osm_route_relation_members', []),
-        'OSM route relation members',
-    )
-    _bulk_insert_rows(
-        OsmRouteRelationStop,
-        db_payloads.get('osm_route_relation_stops', []),
-        'OSM route relation stops',
     )
     _bulk_insert_rows(LineFamily, db_payloads.get('line_families', []), 'line families')
     _bulk_insert_rows(Itinerary, db_payloads.get('itineraries', []), 'itineraries')

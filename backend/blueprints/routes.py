@@ -7,7 +7,6 @@ from sqlalchemy import or_
 from backend.db_errors import is_missing_table_error
 from backend.extensions import db
 from backend.models import (
-    AtlasLineFamily,
     AtlasOperator,
     AtlasStop,
     Itinerary,
@@ -308,9 +307,6 @@ def _load_route_page_data():
     atlas_generic_by_id = {row.id: row for row in atlas_generic_rows}
     osm_generic_by_id = {row.id: row for row in osm_generic_rows}
 
-    atlas_raw_rows = db.session.query(AtlasLineFamily).all()
-    atlas_raw_by_id = {row.atlas_line_id: row for row in atlas_raw_rows}
-
     operator_rows = (
         db.session.query(Itinerary.line_family_id, AtlasStop.atlas_business_org_abbr)
         .join(StopCall, StopCall.itinerary_id == Itinerary.id)
@@ -335,7 +331,10 @@ def _load_route_page_data():
         osm_family = osm_generic_by_id.get(match_row.osm_line_family_id)
         if atlas_family is None or osm_family is None:
             continue
-        atlas_raw = atlas_raw_by_id.get(atlas_family.source_family_id)
+        atlas_route_short_name = _clean_text(atlas_family.ref)
+        atlas_route_long_name = _clean_text(atlas_family.public_name)
+        if atlas_route_short_name and atlas_route_long_name and atlas_route_short_name == atlas_route_long_name:
+            atlas_route_long_name = None
         route_items.append({
             'display_mode': 'matched',
             'is_matched': True,
@@ -345,8 +344,8 @@ def _load_route_page_data():
             'osm_family_id': osm_family.id,
             'line_family_match_id': match_row.id,
             'atlas_route_id': atlas_family.source_family_id,
-            'atlas_route_short_name': _clean_text(getattr(atlas_raw, 'route_short_name', None)) or _clean_text(atlas_family.ref),
-            'atlas_route_long_name': _clean_text(getattr(atlas_raw, 'route_long_name', None)),
+            'atlas_route_short_name': atlas_route_short_name,
+            'atlas_route_long_name': atlas_route_long_name,
             'atlas_route_name': _clean_text(atlas_family.public_name) or _clean_text(atlas_family.display_route_id),
             'atlas_operators': atlas_operator_map.get(atlas_family.id, []),
             'osm_route_master_id': _clean_text(osm_family.route_master_id),
@@ -365,7 +364,10 @@ def _load_route_page_data():
     for atlas_family in atlas_generic_rows:
         if atlas_family.id in matched_atlas_ids:
             continue
-        atlas_raw = atlas_raw_by_id.get(atlas_family.source_family_id)
+        atlas_route_short_name = _clean_text(atlas_family.ref)
+        atlas_route_long_name = _clean_text(atlas_family.public_name)
+        if atlas_route_short_name and atlas_route_long_name and atlas_route_short_name == atlas_route_long_name:
+            atlas_route_long_name = None
         route_items.append({
             'display_mode': 'atlas_only',
             'is_matched': False,
@@ -375,8 +377,8 @@ def _load_route_page_data():
             'osm_family_id': None,
             'line_family_match_id': None,
             'atlas_route_id': atlas_family.source_family_id,
-            'atlas_route_short_name': _clean_text(getattr(atlas_raw, 'route_short_name', None)) or _clean_text(atlas_family.ref),
-            'atlas_route_long_name': _clean_text(getattr(atlas_raw, 'route_long_name', None)),
+            'atlas_route_short_name': atlas_route_short_name,
+            'atlas_route_long_name': atlas_route_long_name,
             'atlas_route_name': _clean_text(atlas_family.public_name) or _clean_text(atlas_family.display_route_id),
             'atlas_operators': atlas_operator_map.get(atlas_family.id, []),
             'osm_route_master_id': None,

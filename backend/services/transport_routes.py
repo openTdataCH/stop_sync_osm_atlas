@@ -1,7 +1,7 @@
 from flask import current_app as app
 
 from backend.extensions import db
-from backend.models import AtlasLineFamily, Itinerary, LineFamily, LineFamilyMatch, OsmRouteRelation, StopCall
+from backend.models import Itinerary, LineFamily, LineFamilyMatch, StopCall
 
 from matching_and_import_db.utils.route_id import normalize_route_id
 
@@ -11,83 +11,6 @@ def _clean_text(value):
         return None
     cleaned = str(value).strip()
     return cleaned or None
-
-
-def get_osm_route_metadata(route_id: str | None) -> dict[str, str | None]:
-    if not route_id:
-        return {
-            'relation_id': None,
-            'gtfs_route_id': None,
-            'name': None,
-            'ref': None,
-        }
-
-    try:
-        row = (
-            db.session.query(OsmRouteRelation.gtfs_route_id, OsmRouteRelation.name, OsmRouteRelation.ref)
-            .filter(OsmRouteRelation.relation_id == route_id)
-            .first()
-        )
-    except Exception as exc:
-        app.logger.error(f"Error fetching OSM route metadata for {route_id}: {exc}")
-        return {
-            'relation_id': route_id,
-            'gtfs_route_id': None,
-            'name': None,
-            'ref': None,
-        }
-
-    return {
-        'relation_id': route_id,
-        'gtfs_route_id': _clean_text(getattr(row, 'gtfs_route_id', None)) if row else None,
-        'name': _clean_text(getattr(row, 'name', None)) if row else None,
-        'ref': _clean_text(getattr(row, 'ref', None)) if row else None,
-    }
-
-
-def get_atlas_route_metadata(route_id: str | None) -> dict[str, str | None]:
-    if not route_id:
-        return {'route_name_short': None, 'route_name_long': None}
-
-    try:
-        row = db.session.get(AtlasLineFamily, route_id)
-    except Exception as exc:
-        app.logger.error(f"Error fetching ATLAS route metadata for {route_id}: {exc}")
-        return {'route_name_short': None, 'route_name_long': None}
-
-    if row is None:
-        return {'route_name_short': None, 'route_name_long': None}
-
-    return {
-        'route_name_short': _clean_text(row.route_short_name),
-        'route_name_long': _clean_text(row.route_long_name),
-    }
-
-
-def get_atlas_route_display_name(route_id: str | None) -> str | None:
-    if not route_id:
-        return None
-    metadata = get_atlas_route_metadata(route_id)
-    return metadata.get('route_name_short') or metadata.get('route_name_long') or route_id
-
-
-def get_osm_route_display_id(route_id: str | None) -> str | None:
-    if not route_id:
-        return None
-    return get_osm_route_metadata(route_id).get('gtfs_route_id') or route_id
-
-
-def get_osm_route_name(route_id: str | None) -> str | None:
-    if not route_id:
-        return None
-    metadata = get_osm_route_metadata(route_id)
-    return metadata.get('name') or metadata.get('ref') or metadata.get('gtfs_route_id') or route_id
-
-
-def get_osm_route_display_name(route_id: str | None) -> str | None:
-    if not route_id:
-        return None
-    return get_osm_route_name(route_id)
 
 
 def get_atlas_routes_for_sloid(sloid):

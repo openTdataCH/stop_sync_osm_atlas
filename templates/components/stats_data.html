@@ -104,21 +104,32 @@ SECTION 1 — STOPS MATCHING
           <th class="text-end">% of Total</th>
           <th class="text-end">Many-to-One</th>
           <th class="text-end" title="Not matched to closest OSM node">Not Closest</th>
+          <th class="text-end" title="Mean distance between matched pairs">Mean (m)</th>
+          <th class="text-end" title="Median distance between matched pairs">Median (m)</th>
+          <th class="text-end" title="95th percentile distance">P95 (m)</th>
         </tr>
       </thead>
       <tbody>
         {% set total = stats.summary.matched_pairs %}
         {% set total_denom = total if total > 0 else 1 %}
         {% set stages = stats.matching_stages %}
-        {% set nmc_by_stage = stats.quality_metrics.distance_quality.not_matched_to_closest_by_stage if
-        stats.quality_metrics is defined and stats.quality_metrics.distance_quality is defined and
-        stats.quality_metrics.distance_quality.not_matched_to_closest_by_stage is defined else {} %}
+        {% set qm = stats.quality_metrics if stats.quality_metrics is defined else {} %}
+        {% set dq_by_stage = qm.distance_quality.by_stage if qm and qm.distance_quality and qm.distance_quality.by_stage else {} %}
+        {% set nmc_by_stage = qm.distance_quality.not_matched_to_closest_by_stage if qm and qm.distance_quality and qm.distance_quality.not_matched_to_closest_by_stage else {} %}
+
+        {% macro distance_cols(key) %}
+          {% set sd = dq_by_stage.get(key) %}
+          <td class="text-end text-muted">{{ sd.mean_m if sd and sd.mean_m is not none else '-' }}</td>
+          <td class="text-end text-muted">{{ sd.median_m if sd and sd.median_m is not none else '-' }}</td>
+          <td class="text-end text-muted">{{ sd.p95_m if sd and sd.p95_m is not none else '-' }}</td>
+        {% endmacro %}
         <tr>
           <td>Exact (UIC ref)</td>
           <td class="text-end">{{ "{:,}".format(stages.exact.count) }}</td>
           <td class="text-end">{{ "%.1f"|format(stages.exact.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stages.exact.mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('exact', 0)) }}</td>
+          {{ distance_cols('exact') }}
         </tr>
         <tr>
           <td>Name matching</td>
@@ -126,6 +137,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(stages.name.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stages.name.mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('name', 0)) }}</td>
+          {{ distance_cols('name') }}
         </tr>
         <tr class="fw-bold">
           <td>Route matching (total)</td>
@@ -133,6 +145,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(stages.route.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stages.route.mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
+          {{ distance_cols('route_gtfs') }}
         </tr>
         {% set rb = stages.route.breakdown %}
         <tr class="text-muted">
@@ -141,6 +154,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(rb.gtfs / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(rb.gtfs_mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
+          {{ distance_cols('route_gtfs') }}
         </tr>
         <tr class="fw-bold">
           <td>Distance (total)</td>
@@ -148,6 +162,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(stages.distance.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stages.distance.mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_trio', 0) + nmc_by_stage.get('distance_stage1_uic_ref', 0) + nmc_by_stage.get('distance_stage1_uic_name', 0) + nmc_by_stage.get('distance_stage1_name', 0) + nmc_by_stage.get('distance_stage1', 0) + nmc_by_stage.get('distance_stage1b_uic_ref', 0) + nmc_by_stage.get('distance_stage1b_uic_name', 0) + nmc_by_stage.get('distance_stage1b_name', 0) + nmc_by_stage.get('distance_stage1b', 0) + nmc_by_stage.get('distance_stage2', 0) + nmc_by_stage.get('distance_stage3a_pass1', 0) + nmc_by_stage.get('distance_stage3a_pass2', 0) + nmc_by_stage.get('distance_stage3b', 0)) }}</td>
+          <td class="text-end text-muted">-</td><td class="text-end text-muted">-</td><td class="text-end text-muted">-</td>
         </tr>
         {% set db = stages.distance.breakdown %}
         <tr class="text-muted">
@@ -156,6 +171,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format((db.stage0_trio|default(0)) / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage0_trio_mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_trio', 0)) }}</td>
+          {{ distance_cols('distance_trio') }}
         </tr>
         <tr class="text-muted">
           <td class="ps-4">Stage 1: Group proximity (50m)</td>
@@ -163,6 +179,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(db.stage1_group / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage1_group_mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_uic_ref', 0) + nmc_by_stage.get('distance_stage1_uic_name', 0) + nmc_by_stage.get('distance_stage1_name', 0) + nmc_by_stage.get('distance_stage1', 0)) }}</td>
+          {{ distance_cols('distance_stage1') }}
         </tr>
         {% set stage1k = db.stage1_group_by_key if db.stage1_group_by_key is defined else {} %}
         {% if stage1k.uic_ref is defined and stage1k.uic_ref.count > 0 %}
@@ -172,6 +189,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(stage1k.uic_ref.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stage1k.uic_ref.mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_uic_ref', 0)) }}</td>
+          {{ distance_cols('distance_stage1_uic_ref') }}
         </tr>
         {% endif %}
         {% if stage1k.uic_name is defined and stage1k.uic_name.count > 0 %}
@@ -181,6 +199,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(stage1k.uic_name.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stage1k.uic_name.mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_uic_name', 0)) }}</td>
+          {{ distance_cols('distance_stage1_uic_name') }}
         </tr>
         {% endif %}
         {% if stage1k.name is defined and stage1k.name.count > 0 %}
@@ -190,6 +209,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(stage1k.name.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stage1k.name.mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_name', 0)) }}</td>
+          {{ distance_cols('distance_stage1_name') }}
         </tr>
         {% endif %}
         {% if (db.stage1b_long_group|default(0)) > 0 %}
@@ -199,6 +219,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format((db.stage1b_long_group|default(0)) / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage1b_long_group_mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_uic_ref', 0) + nmc_by_stage.get('distance_stage1b_uic_name', 0) + nmc_by_stage.get('distance_stage1b_name', 0) + nmc_by_stage.get('distance_stage1b', 0)) }}</td>
+          {{ distance_cols('distance_stage1b') }}
         </tr>
         {% endif %}
         {% set stage1bk = db.stage1b_long_group_by_key if db.stage1b_long_group_by_key is defined else {} %}
@@ -209,6 +230,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(stage1bk.uic_ref.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stage1bk.uic_ref.mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_uic_ref', 0)) }}</td>
+          {{ distance_cols('distance_stage1b_uic_ref') }}
         </tr>
         {% endif %}
         {% if stage1bk.uic_name is defined and stage1bk.uic_name.count > 0 %}
@@ -218,6 +240,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(stage1bk.uic_name.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stage1bk.uic_name.mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_uic_name', 0)) }}</td>
+          {{ distance_cols('distance_stage1b_uic_name') }}
         </tr>
         {% endif %}
         {% if stage1bk.name is defined and stage1bk.name.count > 0 %}
@@ -227,6 +250,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(stage1bk.name.count / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(stage1bk.name.mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_name', 0)) }}</td>
+          {{ distance_cols('distance_stage1b_name') }}
         </tr>
         {% endif %}
         <tr class="text-muted">
@@ -235,6 +259,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(db.stage2_local_ref / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage2_local_ref_mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage2', 0)) }}</td>
+          {{ distance_cols('distance_stage2') }}
         </tr>
         <tr class="text-muted">
           <td class="ps-4">Stage 3a: Single candidate</td>
@@ -242,6 +267,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(db.stage3a_single / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage3a_single_mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a_pass1', 0) + nmc_by_stage.get('distance_stage3a_pass2', 0)) }}</td>
+          <td class="text-end text-muted">-</td><td class="text-end text-muted">-</td><td class="text-end text-muted">-</td>
         </tr>
         {% if (db.stage3a_single_pass1|default(0)) > 0 %}
         <tr class="text-muted">
@@ -250,6 +276,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format((db.stage3a_single_pass1|default(0)) / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass1_mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a_pass1', 0)) }}</td>
+          {{ distance_cols('distance_stage3a_pass1') }}
         </tr>
         {% endif %}
         {% if (db.stage3a_single_pass2|default(0)) > 0 %}
@@ -259,6 +286,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format((db.stage3a_single_pass2|default(0)) / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass2_mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a_pass2', 0)) }}</td>
+          {{ distance_cols('distance_stage3a_pass2') }}
         </tr>
         {% endif %}
         {% if (db.stage3b_relative|default(0)) > 0 %}
@@ -268,6 +296,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "%.1f"|format(db.stage3b_relative / total_denom * 100) }}%</td>
           <td class="text-end">{{ "{:,}".format(db.stage3b_relative_mto|default(0)) }}</td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3b', 0)) }}</td>
+          {{ distance_cols('distance_stage3b') }}
         </tr>
         {% endif %}
         <tr>
@@ -278,6 +307,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(stages.post_processing.duplicate_propagation_mto|default(0)) }}
           </td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('post_duplicate_propagation', 0)) }}</td>
+          {{ distance_cols('post_duplicate_propagation') }}
         </tr>
         <tr>
           <td>Post-processing: OSM stop partner propagation</td>
@@ -288,6 +318,7 @@ SECTION 1 — STOPS MATCHING
           <td class="text-end">{{ "{:,}".format(stages.post_processing.osm_group_propagation_mto|default(0)) }}
           </td>
           <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('post_osm_group_propagation', 0)) }}</td>
+          {{ distance_cols('post_osm_group_propagation') }}
         </tr>
       </tbody>
     </table>
@@ -334,66 +365,6 @@ SECTION 1 — STOPS MATCHING
     {% endif %}
 
     {% if dq.by_stage %}
-    <h6 class="mt-3 mb-2">Distance by Matching Stage</h6>
-    {% set stage_order = ['distance_trio', 'exact', 'name', 'route_gtfs', 'distance_stage1_uic_ref',
-    'distance_stage1_uic_name', 'distance_stage1_name', 'distance_stage1', 'distance_stage1b_uic_ref',
-    'distance_stage1b_uic_name', 'distance_stage1b_name', 'distance_stage1b', 'distance_stage2',
-  'distance_stage3a_pass1', 'distance_stage3a_pass2', 'distance_stage3b',
-  'post_duplicate_propagation', 'post_osm_group_propagation'] %}
-    {% set stage_labels = {
-    'exact': 'Exact (UIC ref)',
-    'name': 'Name matching',
-    'distance_trio': 'Distance Stage 0 (trio side)',
-    'distance_stage1_uic_ref': 'Distance Stage 1a (UIC ref)',
-    'distance_stage1_uic_name': 'Distance Stage 1b (UIC name)',
-    'distance_stage1_name': 'Distance Stage 1c (Name)',
-    'distance_stage1': 'Distance Stage 1 (other)',
-    'distance_stage1b_uic_ref': 'Distance Stage 1d (UIC ref, 150m)',
-    'distance_stage1b_uic_name': 'Distance Stage 1e (UIC name, 150m)',
-    'distance_stage1b_name': 'Distance Stage 1f (Name, 150m)',
-    'distance_stage1b': 'Distance Stage 1b (other, 150m)',
-    'distance_stage2': 'Distance Stage 2 (local ref)',
-    'distance_stage3a_pass1': 'Distance Stage 3a pass 1 (single candidate)',
-    'distance_stage3a_pass2': 'Distance Stage 3a pass 2 (single candidate)',
-    'distance_stage3b': 'Distance Stage 3b (ratio test)',
-    'route_gtfs': 'Route matching (GTFS)',
-    'post_duplicate_propagation': 'Post: Duplicate propagation',
-    'post_osm_group_propagation': 'Post: OSM group propagation',
-    } %}
-    <table class="table table-sm table-hover">
-      <thead class="thead-light">
-        <tr>
-          <th>Stage</th>
-          <th class="text-end">Count</th>
-          <th class="text-end">Mean (m)</th>
-          <th class="text-end">Median (m)</th>
-          <th class="text-end">P95 (m)</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for stage in stage_order %}
-        {% if dq.by_stage.get(stage) %}
-        {% set sd = dq.by_stage.get(stage) %}
-        <tr>
-          <td>{{ stage_labels.get(stage, stage) }}</td>
-          <td class="text-end">{{ "{:,}".format(sd.count) }}</td>
-          <td class="text-end">{{ sd.mean_m if sd.mean_m is not none else '-' }}</td>
-          <td class="text-end">{{ sd.median_m if sd.median_m is not none else '-' }}</td>
-          <td class="text-end">{{ sd.p95_m if sd.p95_m is not none else '-' }}</td>
-        </tr>
-        {% endif %}
-        {% endfor %}
-        {% for stage, sd in dq.by_stage.items() if stage not in stage_order %}
-        <tr>
-          <td>{{ stage }}</td>
-          <td class="text-end">{{ "{:,}".format(sd.count) }}</td>
-          <td class="text-end">{{ sd.mean_m if sd.mean_m is not none else '-' }}</td>
-          <td class="text-end">{{ sd.median_m if sd.median_m is not none else '-' }}</td>
-          <td class="text-end">{{ sd.p95_m if sd.p95_m is not none else '-' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
     {% endif %}
 
 

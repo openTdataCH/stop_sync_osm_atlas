@@ -40,7 +40,7 @@
       {% if active_view == 'gtfs_stop_id_sloid' %}
       {# Description removed as per user request #}
       {% elif active_view == 'non_gtfs_routes' %}
-      <p>These are routes that do not appear in the OpenTransportData GTFS dataset but we still display them. We do not attempt to match these routes.</p>
+      <p>These are OSM public transport routes that do not appear in the OpenTransportData GTFS dataset but we still display them. We do not attempt to match these routes.</p>
       {% else %}
       <p>Filter matched and unmatched routes, then unfold each card to inspect stops or preview route position on the map.</p>
       {% endif %}
@@ -258,14 +258,19 @@
 
         {% if route.direction_groups %}
         {% for direction in route.direction_groups %}
+        {% set direction_label = direction.direction_label %}
+        {% set representative_headsign = direction.representative_headsign %}
         <details class="route-card__panel route-card__panel--map" aria-label="Stops list panel for variant">
           <summary>
             Route variant: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}
-            {% if direction.direction_label or direction.representative_headsign %}
+            {% if direction_label or representative_headsign %}
               - 
-              {% if direction.direction_label %}{{ direction.direction_label }}{% endif %}
-              {% if direction.direction_label and direction.representative_headsign %} | {% endif %}
-              {% if direction.representative_headsign %}{{ direction.representative_headsign }}{% endif %}
+              {% if direction_label %}
+              {{ direction_label }}
+              {% else %}
+              {{ representative_headsign }}
+              {% endif %}
+              {% if direction_label and representative_headsign and direction_label != representative_headsign %} | {{ representative_headsign }}{% endif %}
             {% endif %}
             <span class="route-card__badge route-card__badge--{{ direction.match_status }}" style="margin-left: 10px; font-size: 0.8em;">{{ direction.match_label }}</span>
           </summary>
