@@ -1346,8 +1346,10 @@ def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -
             "WeasyPrint is required for PDF export. Install web dependencies to generate reports."
         ) from exc
     
-    from backend.extensions import db
-    problem_stats = compute_db_stats(db.session)
+    problem_stats = stats.get('problems') if isinstance(stats, dict) else None
+    if not problem_stats:
+        from backend.extensions import db
+        problem_stats = compute_db_stats(db.session)
     
     kwargs = {
         'stats': stats,
