@@ -30,6 +30,7 @@ def test_build_direction_group_keeps_variant_sloids_and_osm_relation_id():
         direction_id='0',
         display_name='Luzern - Sursee',
         representative_headsign='Sursee',
+        to_name='Sursee',
         source_itinerary_id='777',
     )
     atlas_calls = [
@@ -60,6 +61,8 @@ def test_build_direction_group_keeps_variant_sloids_and_osm_relation_id():
     direction_group = _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_calls)
 
     assert direction_group['osm_relation_id'] == '777'
+    assert direction_group['atlas_headsign'] == 'Sursee'
+    assert direction_group['osm_to_name'] == 'Sursee'
     assert direction_group['atlas_uic_groups'][0]['member_count'] == 2
     assert direction_group['atlas_uic_groups'][0]['members'][0]['stop_ids'] == ['ch:1:sloid:A', 'ch:1:sloid:C']
 
@@ -71,9 +74,16 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app):
             'is_matched': True,
             'match_label': 'Matched',
             'atlas_route_id': '91-1-A-j26-1',
+            'atlas_route_display_id': 'S1',
             'atlas_route_short_name': '91',
             'atlas_route_long_name': 'Luzern - Sursee',
             'atlas_route_name': 'Luzern - Sursee',
+            'atlas_route_type': 'rail',
+            'atlas_family_origin': 'atlas_gtfs',
+            'atlas_route_operator': 'agency-1',
+            'atlas_gtfs_route_id': '91-1-A-j26-1',
+            'atlas_normalized_route_id': '911aj261',
+            'atlas_line_id': '91-1-A-j26-1',
             'atlas_operators_summary': None,
             'osm_route_name': 'Luzern - Sursee',
             'osm_gtfs_route_id': '91-1-A-j26-1',
@@ -81,6 +91,14 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app):
             'osm_route_id_label': 'GTFS ID',
             'osm_route_master_id': '999',
             'osm_route_id': '555',
+            'osm_ref': 'S1',
+            'osm_route_type': 'train',
+            'osm_family_origin': 'route_master',
+            'osm_operator': 'SBB',
+            'osm_operator_wikidata': 'Q123',
+            'osm_network': 'S-Bahn Schweiz',
+            'osm_network_wikidata': 'Q456',
+            'osm_normalized_route_id': '911aj261',
             'is_non_gtfs': False,
             'variant_count': 1,
             'atlas_variant_count': 1,
@@ -91,9 +109,12 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app):
                     'direction_id': '0',
                     'direction_label': 'Luzern -> Sursee',
                     'representative_headsign': 'Sursee',
+                    'atlas_headsign': 'Sursee',
+                    'osm_to_name': 'Sursee',
                     'osm_relation_id': '777',
                     'has_atlas_variant': True,
                     'has_osm_variant': True,
+                    'is_matched': True,
                     'atlas_uic_groups': [
                         {
                             'uic_ref': '8501000',
@@ -145,11 +166,16 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app):
     assert 'https://www.openstreetmap.org/relation/999' in rendered
     assert 'View itinerary relation 777 on OSM' in rendered
     assert 'GTFS ID: 91-1-A-j26-1' in rendered
+    assert 'Route master ID' in rendered
+    assert 'Operator Wikidata' in rendered
     assert 'SLOIDs: ch:1:sloid:A, ch:1:sloid:C' in rendered
     assert 'ATLAS variants: 1 | OSM variants: 1 | Matched: 1' in rendered
+    assert 'Subroutes and itineraries are experimental.' in rendered
+    assert 'should not yet be treated as a canonical OSM mapping target.' in rendered
+    assert 'OSM to_name:' in rendered
 
 
-def test_routes_template_deduplicates_identical_variant_label_and_headsign(app):
+def test_routes_template_labels_variant_direction_and_headsign(app):
     route_rows = [
         {
             'display_mode': 'osm_only',
@@ -176,9 +202,12 @@ def test_routes_template_deduplicates_identical_variant_label_and_headsign(app):
                     'direction_id': '0',
                     'direction_label': 'Unique Variant Label',
                     'representative_headsign': 'Unique Variant Label',
+                    'atlas_headsign': None,
+                    'osm_to_name': 'Unique Variant Label',
                     'osm_relation_id': '300',
                     'has_atlas_variant': False,
                     'has_osm_variant': True,
+                    'is_matched': False,
                     'atlas_uic_groups': [],
                     'osm_uic_groups': [],
                     'match_status': 'unmatched-osm',
@@ -212,8 +241,10 @@ def test_routes_template_deduplicates_identical_variant_label_and_headsign(app):
             selected_osm_operators=[],
         )
 
-    assert 'Unique Variant Label | Unique Variant Label' not in rendered
-    assert rendered.count('Unique Variant Label') == 1
+    assert 'Dir: 0' in rendered
+    assert 'Unique Variant Label' in rendered
+    assert 'to_name:' in rendered
+    assert rendered.count('Unique Variant Label') >= 2
 
 
 def test_partition_route_items_separates_non_gtfs_routes():
@@ -316,3 +347,4 @@ def test_non_gtfs_routes_template_uses_route_ref_label_and_notice(app):
     assert 'Route ref: 006' in rendered
     assert 'GTFS ID: 006' not in rendered
     assert 'Excluded from route matching.' in rendered
+    assert 'Subroutes and itineraries are experimental.' not in rendered

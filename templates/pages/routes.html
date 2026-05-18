@@ -13,6 +13,81 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/routes.css') }}">
 {% endblock %}
 
+{% macro render_route_meta(route, side, solo=False) %}
+{% set is_atlas = side == 'atlas' %}
+{% set title = 'ATLAS' if is_atlas else 'OSM' %}
+{% set base_class = 'route-meta route-meta--atlas' if is_atlas else 'route-meta route-meta--osm' %}
+{% if solo %}{% set base_class = base_class + ' route-meta--solo' %}{% endif %}
+{% set display_name = (route.atlas_route_short_name or route.atlas_route_name or 'Atlas route') if is_atlas else (route.osm_route_name or 'OSM route') %}
+{% set secondary_name = route.atlas_route_long_name if is_atlas else route.osm_ref %}
+{% set route_id_text = ('ID: ' ~ (route.atlas_route_id or '-')) if is_atlas else (route.osm_route_id_label ~ ': ' ~ ((route.osm_gtfs_route_id or route.osm_route_display_id) or '-')) %}
+{% set operator_text = route.atlas_operators_summary if is_atlas else route.osm_operator %}
+<details class="{{ base_class }}">
+  <summary class="route-meta__summary">
+    <div class="route-meta__summary-main">
+      <div class="route-meta__topline">
+        <span class="route-meta__title">{{ title }}</span>
+        {% if operator_text %}
+        <div class="route-meta__operator">{{ operator_text }}</div>
+        {% endif %}
+      </div>
+      <div class="route-meta__name">{{ display_name }}</div>
+      {% if secondary_name and secondary_name != display_name %}
+      <div class="route-meta__detail">{{ secondary_name }}</div>
+      {% endif %}
+      <div class="route-meta__id">{{ route_id_text }}</div>
+    </div>
+  </summary>
+  <div class="route-meta__content">
+    <dl class="route-meta__attributes">
+      {% if is_atlas %}
+        {% if route.atlas_route_display_id %}<dt>Display route ID</dt><dd>{{ route.atlas_route_display_id }}</dd>{% endif %}
+        {% if route.atlas_gtfs_route_id %}<dt>GTFS route ID</dt><dd>{{ route.atlas_gtfs_route_id }}</dd>{% endif %}
+        {% if route.atlas_route_operator %}<dt>Route operator</dt><dd>{{ route.atlas_route_operator }}</dd>{% endif %}
+        {% if route.atlas_operators_summary %}<dt>Observed stop operators</dt><dd>{{ route.atlas_operators_summary }}</dd>{% endif %}
+        {% if route.atlas_route_type %}<dt>Route type</dt><dd>{{ route.atlas_route_type }}</dd>{% endif %}
+        {% if route.atlas_family_origin %}<dt>Family origin</dt><dd>{{ route.atlas_family_origin }}</dd>{% endif %}
+        {% if route.atlas_normalized_route_id %}<dt>Normalized route ID</dt><dd>{{ route.atlas_normalized_route_id }}</dd>{% endif %}
+        {% if route.atlas_line_id %}<dt>Atlas line ID</dt><dd>{{ route.atlas_line_id }}</dd>{% endif %}
+        {% if route.atlas_network %}<dt>Network</dt><dd>{{ route.atlas_network }}</dd>{% endif %}
+        {% if route.atlas_operator_wikidata %}<dt>Operator Wikidata</dt><dd>{{ route.atlas_operator_wikidata }}</dd>{% endif %}
+        {% if route.atlas_network_wikidata %}<dt>Network Wikidata</dt><dd>{{ route.atlas_network_wikidata }}</dd>{% endif %}
+      {% else %}
+        {% if route.osm_route_master_id %}<dt>Route master ID</dt><dd>{{ route.osm_route_master_id }}</dd>{% endif %}
+        {% if route.osm_route_id %}<dt>Representative relation</dt><dd>{{ route.osm_route_id }}</dd>{% endif %}
+        {% if route.osm_route_display_id %}<dt>Display route ID</dt><dd>{{ route.osm_route_display_id }}</dd>{% endif %}
+        {% if route.osm_gtfs_route_id %}<dt>GTFS route ID</dt><dd>{{ route.osm_gtfs_route_id }}</dd>{% endif %}
+        {% if route.osm_ref %}<dt>Ref</dt><dd>{{ route.osm_ref }}</dd>{% endif %}
+        {% if route.osm_route_type %}<dt>Route type</dt><dd>{{ route.osm_route_type }}</dd>{% endif %}
+        {% if route.osm_family_origin %}<dt>Family origin</dt><dd>{{ route.osm_family_origin }}</dd>{% endif %}
+        {% if route.osm_operator %}<dt>Operator</dt><dd>{{ route.osm_operator }}</dd>{% endif %}
+        {% if route.osm_operator_wikidata %}<dt>Operator Wikidata</dt><dd>{{ route.osm_operator_wikidata }}</dd>{% endif %}
+        {% if route.osm_network %}<dt>Network</dt><dd>{{ route.osm_network }}</dd>{% endif %}
+        {% if route.osm_network_wikidata %}<dt>Network Wikidata</dt><dd>{{ route.osm_network_wikidata }}</dd>{% endif %}
+        {% if route.osm_normalized_route_id %}<dt>Normalized route ID</dt><dd>{{ route.osm_normalized_route_id }}</dd>{% endif %}
+        {% if route.is_non_gtfs %}<dt>Non-GTFS</dt><dd>Yes</dd>{% endif %}
+      {% endif %}
+    </dl>
+    {% if is_atlas %}
+      {% if route.display_mode == 'atlas_only' %}
+      <div class="route-meta__note">No matched OSM route.</div>
+      {% endif %}
+    {% else %}
+      {% if route.osm_route_master_id %}
+      <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_master_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View route master {{ route.osm_route_master_id }} on OSM</a>
+      {% elif route.osm_route_id %}
+      <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View relation {{ route.osm_route_id }} on OSM</a>
+      {% endif %}
+      {% if route.is_non_gtfs %}
+      <div class="route-meta__note">Not part of the OpenTransportData GTFS dataset. Excluded from route matching.</div>
+      {% elif route.display_mode == 'osm_only' %}
+      <div class="route-meta__note">No matched Atlas route.</div>
+      {% endif %}
+    {% endif %}
+  </div>
+</details>
+{% endmacro %}
+
 {% block content %}
 <div class="routes-page">
   <div class="routes-container">
@@ -43,6 +118,13 @@
       <p>These are OSM public transport routes that do not appear in the OpenTransportData GTFS dataset but we still display them. We do not attempt to match these routes.</p>
       {% else %}
       <p>Filter matched and unmatched routes, then unfold each card to inspect stops or preview route position on the map.</p>
+      <div class="routes-header__note" role="note">
+        <strong>Subroutes and itineraries are experimental.</strong>
+        OSM route relations should ideally represent public-facing or service-level variants that passengers would recognize,
+        but we do not yet have a stable rule for deriving those variants from OpenTransportData GTFS data.
+        For now, the itinerary layer is only a heuristic reduction based mainly on GTFS headsign grouping,
+        so these variant buckets are useful for inspection but should not yet be treated as a canonical OSM mapping target.
+      </div>
       {% endif %}
     </header>
 
@@ -181,70 +263,12 @@
       <article class="route-card route-card--{{ route.display_mode }}">
         <header class="route-card__header route-card__header--{{ route.display_mode }}">
           {% if route.display_mode == 'matched' %}
-          <div class="route-meta route-meta--atlas">
-            <div class="route-meta__topline">
-              <span class="route-meta__title">ATLAS</span>
-              {% if route.atlas_operators_summary %}
-              <div class="route-meta__operator">{{ route.atlas_operators_summary }}</div>
-              {% endif %}
-            </div>
-            <div class="route-meta__name">{{ route.atlas_route_short_name or route.atlas_route_name }}</div>
-            {% if route.atlas_route_long_name and route.atlas_route_long_name != (route.atlas_route_short_name or route.atlas_route_name) %}
-            <div class="route-meta__detail">{{ route.atlas_route_long_name }}</div>
-            {% endif %}
-            <div class="route-meta__id">ID: {{ route.atlas_route_id }}</div>
-          </div>
-          <div class="route-meta route-meta--osm">
-            <div class="route-meta__topline">
-              <span class="route-meta__title">OSM</span>
-              {% if route.osm_operator %}
-              <div class="route-meta__operator">{{ route.osm_operator }}</div>
-              {% endif %}
-            </div>
-            <div class="route-meta__name">{{ route.osm_route_name }}</div>
-            <div class="route-meta__id">{{ route.osm_route_id_label }}: {{ (route.osm_gtfs_route_id or route.osm_route_display_id) or '-' }}</div>
-            {% if route.osm_route_master_id %}
-            <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_master_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View route master {{ route.osm_route_master_id }} on OSM</a>
-            {% elif route.osm_route_id %}
-            <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View relation {{ route.osm_route_id }} on OSM</a>
-            {% endif %}
-          </div>
+          {{ render_route_meta(route, 'atlas') }}
+          {{ render_route_meta(route, 'osm') }}
           {% elif route.display_mode == 'atlas_only' %}
-          <div class="route-meta route-meta--atlas route-meta--solo">
-            <div class="route-meta__topline">
-              <span class="route-meta__title">ATLAS</span>
-              {% if route.atlas_operators_summary %}
-              <div class="route-meta__operator">{{ route.atlas_operators_summary }}</div>
-              {% endif %}
-            </div>
-            <div class="route-meta__name">{{ route.atlas_route_short_name or route.atlas_route_name or 'Atlas route' }}</div>
-            {% if route.atlas_route_long_name and route.atlas_route_long_name != (route.atlas_route_short_name or route.atlas_route_name) %}
-            <div class="route-meta__detail">{{ route.atlas_route_long_name }}</div>
-            {% endif %}
-            <div class="route-meta__id">ID: {{ route.atlas_route_id or '-' }}</div>
-            <div class="route-meta__detail">No matched OSM route.</div>
-          </div>
+          {{ render_route_meta(route, 'atlas', solo=True) }}
           {% elif route.display_mode == 'osm_only' %}
-          <div class="route-meta route-meta--osm route-meta--solo">
-            <div class="route-meta__topline">
-              <span class="route-meta__title">OSM</span>
-              {% if route.osm_operator %}
-              <div class="route-meta__operator">{{ route.osm_operator }}</div>
-              {% endif %}
-            </div>
-            <div class="route-meta__name">{{ route.osm_route_name or 'OSM route' }}</div>
-            <div class="route-meta__id">{{ route.osm_route_id_label }}: {{ (route.osm_gtfs_route_id or route.osm_route_display_id) or '-' }}</div>
-            {% if route.osm_route_master_id %}
-            <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_master_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View route master {{ route.osm_route_master_id }} on OSM</a>
-            {% elif route.osm_route_id %}
-            <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View relation {{ route.osm_route_id }} on OSM</a>
-            {% endif %}
-            {% if route.is_non_gtfs %}
-            <div class="route-meta__detail">Not part of the OpenTransportData GTFS dataset. Excluded from route matching.</div>
-            {% else %}
-            <div class="route-meta__detail">No matched Atlas route.</div>
-            {% endif %}
-          </div>
+          {{ render_route_meta(route, 'osm', solo=True) }}
           {% endif %}
         </header>
 
@@ -259,20 +283,39 @@
         {% if route.direction_groups %}
         {% for direction in route.direction_groups %}
         {% set direction_label = direction.direction_label %}
-        {% set representative_headsign = direction.representative_headsign %}
+        {% set atlas_headsign = direction.atlas_headsign or (direction.representative_headsign if direction.has_atlas_variant else None) %}
+        {% set osm_to_name = direction.osm_to_name %}
         <details class="route-card__panel route-card__panel--map" aria-label="Stops list panel for variant">
           <summary>
-            Route variant: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}
-            {% if direction_label or representative_headsign %}
-              - 
+            <span class="route-card__panel-summary-main">
+              <span class="route-card__panel-summary-prefix">Dir: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}</span>
               {% if direction_label %}
-              {{ direction_label }}
-              {% else %}
-              {{ representative_headsign }}
+              <span class="route-card__panel-summary-label">{{ direction_label }}</span>
               {% endif %}
-              {% if direction_label and representative_headsign and direction_label != representative_headsign %} | {{ representative_headsign }}{% endif %}
-            {% endif %}
-            <span class="route-card__badge route-card__badge--{{ direction.match_status }}" style="margin-left: 10px; font-size: 0.8em;">{{ direction.match_label }}</span>
+              {% if direction.is_matched and atlas_headsign %}
+              <span class="route-card__panel-summary-label">
+                <span class="route-card__panel-summary-muted">Headsign:</span> {{ atlas_headsign }}
+              </span>
+              {% endif %}
+              {% if direction.is_matched and osm_to_name %}
+              <span class="route-card__panel-summary-label">
+                <span class="route-card__panel-summary-muted">OSM to_name:</span> {{ osm_to_name }}
+              </span>
+              {% endif %}
+              {% if direction.has_osm_variant and not direction.has_atlas_variant and osm_to_name %}
+              <span class="route-card__panel-summary-label">
+                <span class="route-card__panel-summary-muted">to_name:</span> {{ osm_to_name }}
+              </span>
+              {% endif %}
+              {% if direction.has_atlas_variant and not direction.has_osm_variant and atlas_headsign %}
+              <span class="route-card__panel-summary-label">
+                <span class="route-card__panel-summary-muted">Headsign:</span> {{ atlas_headsign }}
+              </span>
+              {% endif %}
+            </span>
+            <span class="route-card__panel-summary-badge">
+              <span class="route-card__badge route-card__badge--{{ direction.match_status }}">{{ direction.match_label }}</span>
+            </span>
           </summary>
           <div class="route-card__panel-content">
             <section class="direction-block">
