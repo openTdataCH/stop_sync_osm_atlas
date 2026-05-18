@@ -67,17 +67,6 @@ window.ProblemsData = (function () {
         return selectedTypes.join(',');
     }
 
-    function getPriorityParamValue() {
-        const selectedPriorities = getSelectedPriorities();
-        if (!selectedPriorities.length) return 'all';
-        return selectedPriorities.join(',');
-    }
-
-    function updateCountBadge(total) {
-        const countText = `${total} ${total === 1 ? 'entry' : 'entries'}`;
-        $('#problemsResultsCount').text(countText);
-    }
-
     function groupProblemsByEntry(problems) {
         const grouped = {};
         const selectedTypes = getSelectedTypes();
@@ -234,7 +223,6 @@ window.ProblemsData = (function () {
             }
 
             ProblemsState.setCurrentPage(data.page);
-            updateCountBadge(ProblemsState.getTotalProblems());
 
             const problemsByEntry = groupProblemsByEntry(ProblemsState.getAllProblems());
             ProblemsState.setProblemsByEntry(problemsByEntry);
@@ -243,7 +231,6 @@ window.ProblemsData = (function () {
             if (allProblems.length === 0) {
                 $('#problemTypeDisplay').text('No problems found for this filter combination.');
                 $('#actionButtonsContent').empty();
-                $('#actionButtonsContent').find('.scroll-indicator').remove();
 
                 const markersLayer = ProblemsState.getProblemMarkersLayer();
                 const linesLayer = ProblemsState.getProblemLinesLayer();
@@ -352,8 +339,6 @@ window.ProblemsData = (function () {
         initializeProblemTypeFilter,
         navigateToNextProblem,
         updatePriorityFilter,
-        updateCountBadge,
-        getProblemTypeParamValue,
-        getPriorityParamValue
+        getProblemTypeParamValue
     };
 })();

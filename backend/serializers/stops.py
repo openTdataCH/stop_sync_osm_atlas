@@ -1,7 +1,13 @@
 from backend.models import StopsMatched
 from backend.services.transport_routes import get_atlas_routes_for_sloid, get_osm_routes_for_node
 
-def format_stop_data(stop: StopsMatched, problem_type: str = None, include_routes: bool = False) -> dict:
+def format_stop_data(
+    stop: StopsMatched,
+    problem_type: str = None,
+    include_routes: bool = False,
+    atlas_routes=None,
+    osm_routes=None,
+) -> dict:
     atlas_details = stop.atlas_stop_details
     osm_details = stop.osm_node_details
     has_atlas_duplicate = bool(atlas_details and atlas_details.duplicate_group_sloids)
@@ -48,8 +54,8 @@ def format_stop_data(stop: StopsMatched, problem_type: str = None, include_route
 
     if include_routes:
         result.update({
-            "routes_atlas": get_atlas_routes_for_sloid(stop.sloid) if stop.sloid else [],
-            "routes_osm": get_osm_routes_for_node(stop.osm_node_id) if stop.osm_node_id else [],
+            "routes_atlas": atlas_routes if atlas_routes is not None else (get_atlas_routes_for_sloid(stop.sloid) if stop.sloid else []),
+            "routes_osm": osm_routes if osm_routes is not None else (get_osm_routes_for_node(stop.osm_node_id) if stop.osm_node_id else []),
         })
 
     if problem_type:

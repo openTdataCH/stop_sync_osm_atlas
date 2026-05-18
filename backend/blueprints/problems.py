@@ -4,6 +4,7 @@ from backend.models import StopsMatched, AtlasStop, Problem
 from backend.extensions import db, limiter
 from backend.db_errors import is_missing_table_error
 from backend.serializers.stops import format_stop_data
+from backend.services.transport_routes import get_atlas_routes_for_sloids, get_osm_routes_for_nodes
 from sqlalchemy.sql import func
 
 problems_bp = Blueprint('problems', __name__)
@@ -91,6 +92,20 @@ def apply_atlas_operator_filter(query, atlas_operator_filter):
     return query
 
 
+def build_problem_route_lookup(stops, include_routes):
+    if not include_routes:
+        return {}, {}
+
+    valid_stops = [stop for stop in stops if stop is not None]
+    atlas_routes_by_sloid = get_atlas_routes_for_sloids(
+        {stop.sloid for stop in valid_stops if stop.sloid}
+    )
+    osm_routes_by_node_id = get_osm_routes_for_nodes(
+        {stop.osm_node_id for stop in valid_stops if stop.osm_node_id}
+    )
+    return atlas_routes_by_sloid, osm_routes_by_node_id
+
+
 @problems_bp.route('/api/problems', methods=['GET'])
 @limiter.limit("120/minute")
 def get_problems():
@@ -140,6 +155,10 @@ def get_problems():
                 joinedload(Problem.stop).subqueryload(StopsMatched.osm_node_details)
             )
             duplicate_problems = dup_query.all()
+            atlas_routes_by_sloid, osm_routes_by_node_id = build_problem_route_lookup(
+                [problem.stop for problem in duplicate_problems],
+                include_routes,
+            )
             from collections import defaultdict
             osm_groups = defaultdict(list)
             atlas_groups = defaultdict(list)
@@ -178,7 +197,13 @@ def get_problems():
                 priorities = []
                 for pr in members.values():
                     st = pr.stop
-                    formatted = format_stop_data(st, problem_type='duplicates', include_routes=include_routes)
+                    formatted = format_stop_data(
+                        st,
+                        problem_type='duplicates',
+                        include_routes=include_routes,
+                        atlas_routes=atlas_routes_by_sloid.get(str(st.sloid), []),
+                        osm_routes=osm_routes_by_node_id.get(str(st.osm_node_id), []),
+                    )
                     formatted.update({
                         'priority': pr.priority,
                         'solution': '',
@@ -233,7 +258,13 @@ def get_problems():
                 priorities = []
                 for pr in members.values():
                     st = pr.stop
-                    formatted = format_stop_data(st, problem_type='duplicates', include_routes=include_routes)
+                    formatted = format_stop_data(
+                        st,
+                        problem_type='duplicates',
+                        include_routes=include_routes,
+                        atlas_routes=atlas_routes_by_sloid.get(str(st.sloid), []),
+                        osm_routes=osm_routes_by_node_id.get(str(st.osm_node_id), []),
+                    )
                     formatted.update({
                         'priority': pr.priority,
                         'solution': '',
@@ -368,9 +399,19 @@ def get_problems():
             else:
                 final_query = final_query.order_by(Problem.stop_id, Problem.problem_type)
             final_problems = final_query.all()
+        atlas_routes_by_sloid, osm_routes_by_node_id = build_problem_route_lookup(
+            [problem.stop for problem in final_problems],
+            include_routes,
+        )
         problems = []
         for problem in final_problems:
-            formatted_stop = format_stop_data(problem.stop, problem_type=problem.problem_type, include_routes=include_routes)
+            formatted_stop = format_stop_data(
+                problem.stop,
+                problem_type=problem.problem_type,
+                include_routes=include_routes,
+                atlas_routes=atlas_routes_by_sloid.get(str(problem.stop.sloid), []),
+                osm_routes=osm_routes_by_node_id.get(str(problem.stop.osm_node_id), []),
+            )
             st = problem.stop
             formatted_stop['priority'] = problem.priority
             formatted_stop['solution'] = ''
@@ -417,12 +458,21 @@ def get_problem_stats():
         selected_priorities = parse_priority_values(request.args.get('priority'))
 
         problem_types = list(VISIBLE_PROBLEM_TYPES)
+        counts_query = db.session.query(
+            Problem.problem_type,
+            func.count(func.distinct(Problem.stop_id))
+        ).join(StopsMatched).filter(Problem.problem_type.in_(problem_types))
+        counts_query = apply_atlas_operator_filter(counts_query, atlas_operator_filter)
+        if selected_priorities:
+            counts_query = counts_query.filter(Problem.priority.in_(selected_priorities))
+
+        counts_by_type = {
+            problem_type: count
+            for problem_type, count in counts_query.group_by(Problem.problem_type).all()
+        }
+
         for ptype in problem_types:
-            q = Problem.query.join(StopsMatched).filter(Problem.problem_type == ptype)
-            q = apply_atlas_operator_filter(q, atlas_operator_filter)
-            if selected_priorities:
-                q = q.filter(Problem.priority.in_(selected_priorities))
-            count = q.with_entities(Problem.stop_id).distinct().count()
+            count = counts_by_type.get(ptype, 0)
             stats[ptype]['all'] = count
             stats[ptype]['unsolved'] = count
 
