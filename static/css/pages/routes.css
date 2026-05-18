@@ -658,13 +658,24 @@
 }
 
 .route-card__badge--matched {
-  background: rgba(47, 132, 52, 0.14);
-  color: #256a2a;
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
+}
+
+.route-card__badge--unmatched-atlas {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-fg);
+}
+
+.route-card__badge--unmatched-osm {
+  background: var(--color-bg-muted);
+  color: var(--color-fg-muted);
+  border: 1px solid var(--color-border);
 }
 
 .route-card__badge--unmatched {
-  background: rgba(196, 72, 72, 0.12);
-  color: #8f2f2f;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-fg);
 }
 
 .route-card__summary {
@@ -788,10 +799,24 @@
 }
 
 .stops-column h4 {
-  margin: 0 0 var(--space-2) 0;
+  margin: 0;
   font-size: var(--text-sm);
   color: var(--color-fg);
   font-weight: var(--font-semibold);
+}
+
+.stops-column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+  min-height: 24px;
+}
+
+.stops-column-header .route-meta__link {
+  margin-top: 0;
+  white-space: nowrap;
 }
 
 .stops-list {
@@ -864,19 +889,6 @@
   font-size: var(--text-sm);
 }
 
-.routes-pagination {
-  margin-top: var(--space-4);
-}
-
-.routes-pagination .page-link {
-  color: var(--color-fg);
-}
-
-.routes-pagination .page-item.active .page-link {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-white);
-}
 
 .routes-empty-state {
   background: var(--color-bg);

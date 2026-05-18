@@ -455,9 +455,20 @@
       atlasMatched: colors.ATLAS_MATCHED || '#174092',
       osmMatched: colors.OSM_MATCHED || '#4CAF50',
       atlasUnmatched: colors.ATLAS_UNMATCHED || '#DC3545',
-      osmUnmatched: colors.OSM_UNMATCHED || '#6C757D',
-      line: colors.LINE_ATLAS_OSM || '#174092'
+      osmUnmatched: colors.OSM_UNMATCHED || '#6C757D'
     };
+  }
+
+  function isMatchedLikeStopType(stopType) {
+    return stopType === 'matched' || stopType === 'effectively_matched';
+  }
+
+  function getAtlasStopMarkerColor(stopType, colors) {
+    return stopType === 'atlas_unmatched' ? colors.atlasUnmatched : colors.atlasMatched;
+  }
+
+  function getOsmStopMarkerColor(stopType, colors) {
+    return stopType === 'osm_unmatched' ? colors.osmUnmatched : colors.osmMatched;
   }
 
   function createAtlasMarkerSafe(lat, lon, color, hasAtlasDuplicate, zoomOverride) {
@@ -498,18 +509,12 @@
       var osmLat = stop.osm_lat;
       var osmLon = stop.osm_lon;
 
-      if ((stopType === 'matched' || stopType === 'effectively_matched') && atlasLat != null && atlasLon != null && osmLat != null && osmLon != null) {
-        var atlasMarker = createAtlasMarkerSafe(atlasLat, atlasLon, colors.atlasMatched, stop.has_atlas_duplicate, mapState.map.getZoom());
+      if (isMatchedLikeStopType(stopType) && atlasLat != null && atlasLon != null && osmLat != null && osmLon != null) {
+        var atlasMarker = createAtlasMarkerSafe(atlasLat, atlasLon, getAtlasStopMarkerColor(stopType, colors), stop.has_atlas_duplicate, mapState.map.getZoom());
         atlasMarker.addTo(mapState.markersLayer);
 
-        var osmMarker = createOsmMarkerSafe(osmLat, osmLon, colors.osmMatched, stop.osm_node_type, mapState.map.getZoom());
+        var osmMarker = createOsmMarkerSafe(osmLat, osmLon, getOsmStopMarkerColor(stopType, colors), stop.osm_node_type, mapState.map.getZoom());
         osmMarker.addTo(mapState.markersLayer);
-
-        L.polyline([[atlasLat, atlasLon], [osmLat, osmLon]], {
-          color: colors.line,
-          weight: 2,
-          opacity: 0.85
-        }).addTo(mapState.linesLayer);
 
         points.push([atlasLat, atlasLon]);
         points.push([osmLat, osmLon]);
@@ -517,13 +522,13 @@
       }
 
       if (atlasLat != null && atlasLon != null) {
-        var atlasColor = stopType === 'atlas_unmatched' ? colors.atlasUnmatched : colors.atlasMatched;
+        var atlasColor = getAtlasStopMarkerColor(stopType, colors);
         createAtlasMarkerSafe(atlasLat, atlasLon, atlasColor, stop.has_atlas_duplicate, mapState.map.getZoom()).addTo(mapState.markersLayer);
         points.push([atlasLat, atlasLon]);
       }
 
       if (osmLat != null && osmLon != null) {
-        var osmColor = stopType === 'osm_unmatched' ? colors.osmUnmatched : colors.osmMatched;
+        var osmColor = getOsmStopMarkerColor(stopType, colors);
         createOsmMarkerSafe(osmLat, osmLon, osmColor, stop.osm_node_type, mapState.map.getZoom()).addTo(mapState.markersLayer);
         points.push([osmLat, osmLon]);
       }
@@ -531,7 +536,144 @@
 
     return points;
   }
+  function renderVariantStops(mapState, direction) {
+    mapState.markersLayer.clearLayers();
+    mapState.linesLayer.clearLayers();
 
+    var colors = getMapColors();
+    var points = [];
+
+    if (direction.atlas_uic_groups) {
+      direction.atlas_uic_groups.forEach(function (group) {
+        if (group.members) {
+          group.members.forEach(function (member) {
+            if (member.lat != null && member.lon != null) {
+              var stopType = member.stop_type;
+              var color = getAtlasStopMarkerColor(stopType, colors);
+              createAtlasMarkerSafe(member.lat, member.lon, color, member.has_atlas_duplicate, mapState.map.getZoom()).addTo(mapState.markersLayer);
+              points.push([member.lat, member.lon]);
+            }
+          });
+        }
+      });
+    }
+
+    if (direction.osm_uic_groups) {
+      direction.osm_uic_groups.forEach(function (group) {
+        if (group.members) {
+          group.members.forEach(function (member) {
+            if (member.lat != null && member.lon != null) {
+              var stopType = member.stop_type;
+              var color = getOsmStopMarkerColor(stopType, colors);
+              createOsmMarkerSafe(member.lat, member.lon, color, member.osm_node_type, mapState.map.getZoom()).addTo(mapState.markersLayer);
+              points.push([member.lat, member.lon]);
+            }
+          });
+        }
+      });
+    }
+    
+    return points;
+  }
+
+  function loadContextMarkers(mapElement, mapState, points) {
+    if (!points || points.length === 0) return;
+    
+    var bounds = L.latLngBounds(points);
+    var pad = 0.01; // roughly 1km
+    var params = {
+      min_lat: bounds.getSouth() - pad,
+      max_lat: bounds.getNorth() + pad,
+      min_lon: bounds.getWest() - pad,
+      max_lon: bounds.getEast() + pad,
+      limit: 100
+    };
+    
+    var query = buildQueryString(params);
+    
+    fetch('/api/data?' + query)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (!data || data.length === 0) return;
+        
+        var colors = getMapColors();
+        var variantStopIds = new Set();
+        
+        // Find IDs already in the variant to avoid duplicates
+        var scriptElement = document.querySelector('script.variant-data[data-map-index="' + mapElement.dataset.mapIndex + '"]');
+        if (scriptElement) {
+          var directionData = JSON.parse(scriptElement.textContent);
+          [directionData.atlas_uic_groups, directionData.osm_uic_groups].forEach(function(groups) {
+            if (groups) groups.forEach(function(g) {
+              if (g.members) g.members.forEach(function(m) {
+                if (m.stop_id) variantStopIds.add(String(m.stop_id));
+              });
+            });
+          });
+        }
+
+        data.forEach(function(stop) {
+          // Skip if already in variant
+          if (variantStopIds.has(String(stop.sloid)) || variantStopIds.has(String(stop.osm_node_id))) return;
+          
+          if (stop.atlas_lat != null && stop.atlas_lon != null) {
+            var color = getAtlasStopMarkerColor(stop.stop_type, colors);
+            var m = createAtlasMarkerSafe(stop.atlas_lat, stop.atlas_lon, color, stop.has_atlas_duplicate, mapState.map.getZoom());
+            m.setStyle({ opacity: 0.4, fillOpacity: 0.2 });
+            m.addTo(mapState.markersLayer);
+          }
+          if (stop.osm_lat != null && stop.osm_lon != null) {
+            var color = getOsmStopMarkerColor(stop.stop_type, colors);
+            var m = createOsmMarkerSafe(stop.osm_lat, stop.osm_lon, color, stop.osm_node_type, mapState.map.getZoom());
+            m.setStyle({ opacity: 0.4, fillOpacity: 0.2 });
+            m.addTo(mapState.markersLayer);
+          }
+        });
+      });
+  }
+
+  function toggleContext(btn) {
+    var mapIndex = btn.dataset.mapIndex;
+    var mapElement = document.getElementById('routeMap' + mapIndex);
+    if (!mapElement) return;
+    
+    var mapState = routeMaps.get(mapElement);
+    if (!mapState) return;
+    
+    mapState.showContext = !mapState.showContext;
+    
+    if (mapState.showContext) {
+      btn.innerHTML = '<i class="fas fa-eye-slash"></i> Hide other markers';
+      btn.classList.add('btn-secondary');
+      btn.classList.remove('btn-outline-secondary');
+      
+      // We need the points to know where to look
+      var scriptElement = document.querySelector('script.variant-data[data-map-index="' + mapIndex + '"]');
+      if (scriptElement) {
+        var directionData = JSON.parse(scriptElement.textContent);
+        var points = [];
+        [directionData.atlas_uic_groups, directionData.osm_uic_groups].forEach(function(groups) {
+          if (groups) groups.forEach(function(g) {
+            if (g.members) g.members.forEach(function(m) {
+              if (m.lat != null && m.lon != null) points.push([m.lat, m.lon]);
+            });
+          });
+        });
+        loadContextMarkers(mapElement, mapState, points);
+      }
+    } else {
+      btn.innerHTML = '<i class="fas fa-eye"></i> See other markers';
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-outline-secondary');
+      
+      // Re-render variant only
+      var scriptElement = document.querySelector('script.variant-data[data-map-index="' + mapIndex + '"]');
+      if (scriptElement) {
+        var directionData = JSON.parse(scriptElement.textContent);
+        renderVariantStops(mapState, directionData);
+      }
+    }
+  }
   function getGlobalBboxParams() {
     var bounds = (window.AppConstants && window.AppConstants.MAP && window.AppConstants.MAP.MAX_BOUNDS) || [[45.5, 5.5], [48.0, 11.0]];
     return {
@@ -595,6 +737,31 @@
 
     mapState.loading = true;
     setMapStatus(mapElement, 'Loading route points on map...', false);
+
+    var mapIndex = mapElement.dataset.mapIndex;
+    var scriptElement = document.querySelector('script.variant-data[data-map-index="' + mapIndex + '"]');
+    
+    if (scriptElement) {
+        try {
+            var directionData = JSON.parse(scriptElement.textContent);
+            var points = renderVariantStops(mapState, directionData);
+            
+            if (!points || points.length === 0) {
+              setMapStatus(mapElement, 'No geolocated route points were returned for this variant.', false);
+            } else {
+              setMapStatus(mapElement, '', false);
+              var bounds = L.latLngBounds(points);
+              mapState.map.fitBounds(bounds.pad(0.2));
+            }
+            mapState.loaded = true;
+        } catch (e) {
+            setMapStatus(mapElement, 'Could not load route map data.', true);
+            console.error('Failed to parse inline variant data', e);
+        } finally {
+            mapState.loading = false;
+        }
+        return;
+    }
 
     var params = buildRouteRequestParams(mapElement);
     var query = buildQueryString(params);
@@ -678,27 +845,13 @@
       });
     });
 
-    if (window.FilterChipUtils && typeof window.FilterChipUtils.bindDirectionDropdownEvents === 'function') {
-      window.FilterChipUtils.bindDirectionDropdownEvents(function(mapIndex, newDirection) {
-        var mapElement = document.querySelector('.route-card__map[data-map-index="' + mapIndex + '"]');
-        if (mapElement) {
-          var stationFilter = mapElement.dataset.stationFilter || '';
-          var idCount = stationFilter.split(',').length;
-          // Ensure we pass the direction for every ID in the comma-separated station filter
-          var directions = [];
-          for (var i = 0; i < idCount; i++) {
-            directions.push(newDirection);
-          }
-          mapElement.dataset.routeDirections = directions.join(',');
-          
-          var mapState = routeMaps.get(mapElement);
-          if (mapState) {
-            mapState.loading = false;
-            loadRouteMapData(mapElement, mapState);
-          }
-        }
-      });
-    }
+    // Attach toggle context handlers
+    document.addEventListener('click', function(e) {
+      var btn = e.target.closest('.toggle-context-btn');
+      if (btn) {
+        toggleContext(btn);
+      }
+    });
   }
 
   function init() {

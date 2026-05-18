@@ -148,16 +148,16 @@
 
     function syncNavbarDataUpdatedValue() {
         var element = getDataUpdatedElement();
-        if (!element || !latestStatus || !latestStatus.data_updated_at) {
+        if (!element || !latestStatus || !latestStatus.last_pipeline_data_import_ended_at) {
             return;
         }
 
-        var formatted = formatLabelTimestamp(latestStatus.data_updated_at);
+        var formatted = formatLabelTimestamp(latestStatus.last_pipeline_data_import_ended_at);
         if (!formatted) {
             return;
         }
 
-        element.setAttribute('data-data-updated-at', latestStatus.data_updated_at);
+        element.setAttribute('data-data-updated-at', latestStatus.last_pipeline_data_import_ended_at);
         element.setAttribute('data-default-label', 'Data updated: ' + formatted);
     }
 
@@ -191,15 +191,7 @@
 
         // Bypassing maintenance overlay for documentation pages
         var isDocsPage = window.location.pathname.startsWith('/docs');
-        var shouldShow = !!visible && !isDocsPage;
-        
-        overlay.classList.toggle('is-visible', shouldShow);
-    }
-
-    function setRunNoticeVisible(visible) {
-        var notice = document.getElementById('pipelineRunNotice');
-        if (!notice) return;
-        notice.classList.toggle('is-visible', !!visible);
+        overlay.classList.toggle('is-visible', !!visible && !isDocsPage);
     }
 
     function applyStatus(status) {
@@ -208,10 +200,7 @@
         var statusText = document.getElementById('pipelineMaintenanceStatus');
         var phaseText = document.getElementById('pipelinePhase');
         var titleText = document.getElementById('pipelineMaintenanceTitle');
-        var noticeStatusText = document.getElementById('pipelineRunNoticeStatus');
-        var noticePhaseText = document.getElementById('pipelineRunNoticePhase');
         var blocking = isBlockingMaintenance(latestStatus);
-        var running = isPipelineRunning(latestStatus);
 
         if (titleText) {
             titleText.textContent = blocking ? 'Data update in progress' : 'System status';
@@ -222,13 +211,11 @@
         if (statusText) {
             if (blocking) {
                 var message = latestStatus.message || 'Core data is being refreshed.';
-                var docsLink = document.getElementById('pipelineDocsLink');
-                var docsUrl = docsLink ? docsLink.getAttribute('href') : '/docs';
+                var docsUrl = statusText.getAttribute('data-docs-url') || '/docs';
                 
                 statusText.textContent = message + ' Use this time to ';
                 var a = document.createElement('a');
                 a.href = docsUrl;
-                a.id = 'pipelineDocsLink';
                 a.className = 'fw-bold';
                 a.textContent = 'read the documentation';
                 statusText.appendChild(a);
@@ -236,12 +223,6 @@
             } else {
                 statusText.textContent = latestStatus.message || 'Waiting for status';
             }
-        }
-        if (noticeStatusText) {
-            noticeStatusText.textContent = latestStatus.message || 'Data update in progress';
-        }
-        if (noticePhaseText) {
-            noticePhaseText.textContent = latestStatus.phase || 'idle';
         }
 
         var dataUpdatedEl = getDataUpdatedElement();
@@ -256,8 +237,6 @@
 
         updateTimerFields();
         setOverlayVisible(blocking);
-        // Keep background phases silent in UI; only blocking maintenance should interrupt users.
-        setRunNoticeVisible(false);
     }
 
     function scheduleNextTick() {

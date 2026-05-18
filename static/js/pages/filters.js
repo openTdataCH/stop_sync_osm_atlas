@@ -13,7 +13,7 @@ var activeFilters = {
     matchedOptions: {
         allSelected: true,
         methods: { exact: false, name: false },
-        distanceMatching: { allSelected: false, stage1: false, stage2: false, stage3a: false, stage3b: false },
+        distanceMatching: { allSelected: false, stage1: false, longGroup: false, stage2: false, stage3a: false, stage3b: false },
         routeMatching: { allSelected: false, tokens: false, direction: false }
     },
     unmatchedOptions: {
@@ -31,6 +31,7 @@ const SMART_SEARCH_VALIDATION_MESSAGE = 'Allowed formats: UIC (e.g. 8503000), AT
 const DISTANCE_METHOD_CHECKBOX_SELECTORS = [
     '#distanceMethodTrio',
     '#distanceMethodStage1',
+    '#distanceMethodLongGroup',
     '#distanceMethodStage2',
     '#distanceMethodStage3a',
     '#distanceMethodStage3b'
@@ -208,6 +209,10 @@ function getSelectedMatchedMethodFiltersFromState() {
 
     Object.keys(activeFilters.matchedOptions.distanceMatching).forEach(function (stage) {
         if (stage !== 'allSelected' && activeFilters.matchedOptions.distanceMatching[stage]) {
+            if (stage === 'longGroup') {
+                selectedMethods.push('long_distance_group_proximity');
+                return;
+            }
             selectedMethods.push('distance_matching_' + stage.replace('stage', ''));
         }
     });
@@ -575,6 +580,10 @@ function updateFiltersUI() {
                             target = '#distanceMethodTrio';
                         }
                         if (stage === 'stage1') dLabel = 'Dist: Group Proximity';
+                        if (stage === 'longGroup') {
+                            dLabel = 'Dist: Long-distance Group';
+                            target = '#distanceMethodLongGroup';
+                        }
                         if (stage === 'stage2') dLabel = 'Dist: Local Ref Match';
                         if (stage === 'stage3a') dLabel = 'Dist: Single Candidate';
                         if (stage === 'stage3b') dLabel = 'Dist: Relative Distance';
@@ -822,6 +831,7 @@ function updateActiveFilters() {
             allSelected: allDistanceMethodsSelected,
             trio: $('#distanceMethodTrio').is(':checked'),
             stage1: $('#distanceMethodStage1').is(':checked'),
+            longGroup: $('#distanceMethodLongGroup').is(':checked'),
             stage2: $('#distanceMethodStage2').is(':checked'),
             stage3a: $('#distanceMethodStage3a').is(':checked'),
             stage3b: $('#distanceMethodStage3b').is(':checked')

@@ -82,8 +82,8 @@ def _build_source_download_stats(meta: Optional[Dict[str, Any]]) -> Optional[Dic
             continue
 
         source_download = {
-            'downloaded_at': format_zurich_display_timestamp(
-                snapshot.get('downloaded_at') or default_downloaded_at
+            f'{source_name}_downloaded_at': format_zurich_display_timestamp(
+                snapshot.get(f'{source_name}_downloaded_at') or snapshot.get('downloaded_at') or default_downloaded_at
             ),
             'etag': snapshot.get('etag'),
             'last_modified': snapshot.get('last_modified'),
@@ -176,6 +176,8 @@ def export_pipeline_stats(
     osm_route_stats: Dict[str, int] = None,
     osm_nodes_with_routes: set = None,
     no_nearby_atlas_osm_ids: set = None,
+    total_osm_operator_wikidata: int = 0,
+    total_osm_network_wikidata: int = 0,
     db_session=None,
 ) -> Dict[str, Any]:
     """
@@ -262,12 +264,19 @@ def export_pipeline_stats(
     distance_stage1_uic_ref = match_type_counts.get('distance_matching_1_uic_ref', 0)
     distance_stage1_uic_name = match_type_counts.get('distance_matching_1_uic_name', 0)
     distance_stage1_name = match_type_counts.get('distance_matching_1_name', 0)
+    distance_stage1b = sum(
+        v for k, v in match_type_counts.items()
+        if k.startswith('long_distance_group_proximity_')
+    )
+    distance_stage1b_uic_ref = match_type_counts.get('long_distance_group_proximity_uic_ref', 0)
+    distance_stage1b_uic_name = match_type_counts.get('long_distance_group_proximity_uic_name', 0)
+    distance_stage1b_name = match_type_counts.get('long_distance_group_proximity_name', 0)
     distance_stage2 = match_type_counts.get('distance_matching_2', 0)
     distance_stage3a_pass1 = match_type_counts.get('distance_matching_3a', 0)
     distance_stage3a_pass2 = match_type_counts.get('distance_matching_3a_second_pass', 0)
     distance_stage3a = distance_stage3a_pass1 + distance_stage3a_pass2
     distance_stage3b = match_type_counts.get('distance_matching_3b', 0)
-    total_distance_matches = distance_stage0 + distance_stage1 + distance_stage2 + distance_stage3a + distance_stage3b
+    total_distance_matches = distance_stage0 + distance_stage1 + distance_stage1b + distance_stage2 + distance_stage3a + distance_stage3b
     
     # Route matching breakdown
     route_gtfs_matches = sum(
@@ -415,11 +424,13 @@ def export_pipeline_stats(
 
     
     # Load data meta if available to get the actual data source update time
-    data_updated_at = None
+    last_pipeline_data_import_ended_at = None
+    last_overpass_query_at = None
     source_downloads = None
     try:
         meta = load_data_meta()
-        data_updated_at = meta.get('data_updated_at')
+        last_pipeline_data_import_ended_at = meta.get('last_pipeline_data_import_ended_at') or meta.get('data_updated_at')
+        last_overpass_query_at = meta.get('last_overpass_query_at')
         source_downloads = _build_source_download_stats(meta)
     except Exception as e:
         logger.warning(f"Could not load data_meta.json: {e}")
@@ -431,7 +442,8 @@ def export_pipeline_stats(
     stats = {
         "generated_at": stats_computed_at,
         "stats_computed_at": stats_computed_at,
-        "data_updated_at": data_updated_at,
+        "last_pipeline_data_import_ended_at": last_pipeline_data_import_ended_at,
+        "last_overpass_query_at": last_overpass_query_at,
         "source_downloads": source_downloads,
         "version": "1.1",
         
@@ -451,6 +463,8 @@ def export_pipeline_stats(
             "atlas_with_osm_within_50m": atlas_with_osm_within_50m,
             "atlas_with_osm_within_50m_percent": round((atlas_with_osm_within_50m / total_atlas_platforms * 100), 1) if total_atlas_platforms > 0 else 0,
             "matched_atlas_with_osm_within_50m_percent": matched_atlas_with_osm_within_50m_percent,
+            "osm_operator_wikidata": total_osm_operator_wikidata,
+            "osm_network_wikidata": total_osm_network_wikidata,
         },
         
         # Matching stage breakdown
@@ -467,8 +481,8 @@ def export_pipeline_stats(
             },
             "distance": {
                 "count": total_distance_matches,
-                "mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching')),
-                "description": "Proximity-based spatial matching (≤50m)",
+                "mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching') or k.startswith('long_distance_group_proximity')),
+                "description": "Proximity-based spatial matching (50m and long-distance group fallback)",
                 "breakdown": {
                     "stage0_trio": distance_stage0,
                     "stage0_trio_mto": mto_pairs_by_type.get('distance_matching_trio', 0),
@@ -486,6 +500,22 @@ def export_pipeline_stats(
                         "name": {
                             "count": distance_stage1_name,
                             "mto": mto_pairs_by_type.get('distance_matching_1_name', 0),
+                        },
+                    },
+                    "stage1b_long_group": distance_stage1b,
+                    "stage1b_long_group_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('long_distance_group_proximity_')),
+                    "stage1b_long_group_by_key": {
+                        "uic_ref": {
+                            "count": distance_stage1b_uic_ref,
+                            "mto": mto_pairs_by_type.get('long_distance_group_proximity_uic_ref', 0),
+                        },
+                        "uic_name": {
+                            "count": distance_stage1b_uic_name,
+                            "mto": mto_pairs_by_type.get('long_distance_group_proximity_uic_name', 0),
+                        },
+                        "name": {
+                            "count": distance_stage1b_name,
+                            "mto": mto_pairs_by_type.get('long_distance_group_proximity_name', 0),
                         },
                     },
                     "stage2_local_ref": distance_stage2,
@@ -572,7 +602,6 @@ def export_pipeline_stats(
     if db_session:
         # Reuse existing compute_db_stats helper
         stats['problems'] = compute_db_stats(db_session)
-        stats['route_problems'] = compute_route_problem_stats(db_session)
 
     return stats
 
@@ -593,6 +622,14 @@ def _classify_match_type(match_type: str) -> str:
         return 'distance_stage1_name'
     if match_type.startswith('distance_matching_1_'):
         return 'distance_stage1'
+    if match_type == 'long_distance_group_proximity_uic_ref':
+        return 'distance_stage1b_uic_ref'
+    if match_type == 'long_distance_group_proximity_uic_name':
+        return 'distance_stage1b_uic_name'
+    if match_type == 'long_distance_group_proximity_name':
+        return 'distance_stage1b_name'
+    if match_type.startswith('long_distance_group_proximity_'):
+        return 'distance_stage1b'
     if match_type == 'distance_matching_2':
         return 'distance_stage2'
     if match_type == 'distance_matching_3a':
@@ -916,78 +953,73 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
         'by_priority': by_priority,
     }
 
-def compute_route_problem_stats(db_session) -> Dict[str, Any]:
-    """Compute route problem statistics by querying the database after import."""
-    from backend.models import RoutesMatched, RouteProblem
-    from sqlalchemy import func
 
-    total_routes_matched = db_session.query(RoutesMatched).count()
-
-    type_counts = dict(
-        db_session.query(RouteProblem.problem_type, func.count(RouteProblem.id))
-        .group_by(RouteProblem.problem_type).all()
-    )
-
-    # Priority × type breakdown
-    by_priority: Dict[int, Dict[str, int]] = {}
-    rows = (
-        db_session.query(RouteProblem.priority, RouteProblem.problem_type, func.count(RouteProblem.id))
-        .group_by(RouteProblem.priority, RouteProblem.problem_type).all()
-    )
-    for priority, ptype, cnt in rows:
-        by_priority.setdefault(priority, {})[ptype] = cnt
-        
-    total_problems = db_session.query(RouteProblem).count()
-
+def _summarize_numeric_values(values: List[int | float]) -> Dict[str, float]:
+    if not values:
+        return {'mean': 0.0, 'median': 0.0}
     return {
-        'total_routes_matched': total_routes_matched,
-        'total_problems': total_problems,
-        'by_type': type_counts,
-        'by_priority': by_priority,
+        'mean': round(float(statistics.mean(values)), 2),
+        'median': round(float(statistics.median(values)), 2),
     }
-
-
 
 def compute_route_route_stats(db_session) -> Dict[str, Any]:
     """Compute route-route linking statistics from route tables in the import DB."""
-    from backend.models import RouteAtlasStops, RouteOsmStops, RoutesMatched
+    from backend.models import Itinerary, ItineraryMatch, LineFamily, LineFamilyMatch
+    from sqlalchemy import inspect, func
 
-    total_links = db_session.query(RoutesMatched).count()
+    total_links = db_session.query(LineFamilyMatch).count()
+    inspector = inspect(db_session.get_bind())
+    itinerary_links_total = db_session.query(ItineraryMatch).count() if inspector.has_table(ItineraryMatch.__tablename__) else 0
 
     atlas_routes_linked = (
-        db_session.query(RoutesMatched.atlas_route_id)
-        .filter(RoutesMatched.atlas_route_id.isnot(None))
+        db_session.query(LineFamilyMatch.atlas_line_family_id)
+        .filter(LineFamilyMatch.atlas_line_family_id.isnot(None))
         .distinct()
         .count()
     )
     osm_routes_linked = (
-        db_session.query(RoutesMatched.osm_route_id)
-        .filter(RoutesMatched.osm_route_id.isnot(None))
+        db_session.query(LineFamilyMatch.osm_line_family_id)
+        .filter(LineFamilyMatch.osm_line_family_id.isnot(None))
         .distinct()
         .count()
     )
 
     atlas_route_ids_total = (
-        db_session.query(RouteAtlasStops.atlas_route_id)
-        .filter(RouteAtlasStops.atlas_route_id.isnot(None))
-        .distinct()
+        db_session.query(LineFamily.id)
+        .filter(LineFamily.source == 'atlas')
         .count()
     )
     osm_route_ids_total = (
-        db_session.query(RouteOsmStops.osm_route_id)
-        .filter(RouteOsmStops.osm_route_id.isnot(None))
-        .distinct()
+        db_session.query(LineFamily.id)
+        .filter(LineFamily.source == 'osm')
         .count()
     )
 
     atlas_route_directions_total = (
-        db_session.query(RouteAtlasStops.atlas_route_id, RouteAtlasStops.direction_id)
+        db_session.query(Itinerary.line_family_id, Itinerary.direction_id)
+        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+        .filter(LineFamily.source == 'atlas')
         .distinct()
         .count()
     )
     osm_route_directions_total = (
-        db_session.query(RouteOsmStops.osm_route_id, RouteOsmStops.direction_id)
+        db_session.query(Itinerary.line_family_id, Itinerary.direction_id)
+        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+        .filter(LineFamily.source == 'osm')
         .distinct()
+        .count()
+    )
+
+    atlas_itineraries_total = (
+        db_session.query(Itinerary.id)
+        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+        .filter(LineFamily.source == 'atlas')
+        .count()
+    )
+    osm_itineraries_total = (
+        db_session.query(Itinerary.id)
+        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+        .filter(LineFamily.source == 'osm')
         .count()
     )
 
@@ -1003,6 +1035,146 @@ def compute_route_route_stats(db_session) -> Dict[str, Any]:
         if osm_route_ids_total > 0 else 0.0
     )
 
+    itinerary_count_rows = (
+        db_session.query(LineFamily.source, Itinerary.line_family_id, func.count(Itinerary.id))
+        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+        .group_by(LineFamily.source, Itinerary.line_family_id)
+        .all()
+    )
+    atlas_itinerary_counts_by_family: Dict[int, int] = {}
+    osm_itinerary_counts_by_family: Dict[int, int] = {}
+    atlas_itinerary_counts: List[int] = []
+    osm_itinerary_counts: List[int] = []
+    for source, line_family_id, count in itinerary_count_rows:
+        count = int(count or 0)
+        if source == 'atlas':
+            atlas_itinerary_counts_by_family[line_family_id] = count
+            atlas_itinerary_counts.append(count)
+        elif source == 'osm':
+            osm_itinerary_counts_by_family[line_family_id] = count
+            osm_itinerary_counts.append(count)
+
+    atlas_trip_count_values = [
+        int(value)
+        for (value,) in (
+            db_session.query(Itinerary.trip_count)
+            .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
+            .filter(LineFamily.source == 'atlas', Itinerary.trip_count.isnot(None))
+            .all()
+        )
+        if value is not None
+    ]
+
+    atlas_itineraries_linked = 0
+    osm_itineraries_linked = 0
+    if inspector.has_table(ItineraryMatch.__tablename__):
+        atlas_itineraries_linked = (
+            db_session.query(ItineraryMatch.atlas_itinerary_id)
+            .filter(ItineraryMatch.atlas_itinerary_id.isnot(None))
+            .distinct()
+            .count()
+        )
+        osm_itineraries_linked = (
+            db_session.query(ItineraryMatch.osm_itinerary_id)
+            .filter(ItineraryMatch.osm_itinerary_id.isnot(None))
+            .distinct()
+            .count()
+        )
+
+    atlas_itinerary_link_coverage_percent = (
+        round((atlas_itineraries_linked / atlas_itineraries_total) * 100, 1)
+        if atlas_itineraries_total > 0 else 0.0
+    )
+    osm_itinerary_link_coverage_percent = (
+        round((osm_itineraries_linked / osm_itineraries_total) * 100, 1)
+        if osm_itineraries_total > 0 else 0.0
+    )
+
+    matched_family_variant_gaps: List[int] = []
+    atlas_has_more_variants_count = 0
+    same_variant_count = 0
+    osm_has_more_variants_count = 0
+    for atlas_line_family_id, osm_line_family_id in (
+        db_session.query(
+            LineFamilyMatch.atlas_line_family_id,
+            LineFamilyMatch.osm_line_family_id,
+        ).all()
+    ):
+        atlas_variants = atlas_itinerary_counts_by_family.get(atlas_line_family_id, 0)
+        osm_variants = osm_itinerary_counts_by_family.get(osm_line_family_id, 0)
+        gap = atlas_variants - osm_variants
+        matched_family_variant_gaps.append(gap)
+        if gap > 0:
+            atlas_has_more_variants_count += 1
+        elif gap < 0:
+            osm_has_more_variants_count += 1
+        else:
+            same_variant_count += 1
+
+    # Per-method match counts from the match_method column.
+    reason_rows = (
+        db_session.query(LineFamilyMatch.match_method, func.count(LineFamilyMatch.id))
+        .group_by(LineFamilyMatch.match_method)
+        .all()
+    )
+    _known_reasons = {'exact_gtfs_route_id', 'normalized_gtfs_route_id', 'display_route_id_match'}
+    by_match_method: Dict[str, int] = {
+        'exact_gtfs_route_id': 0,
+        'normalized_gtfs_route_id': 0,
+        'display_route_id_match': 0,
+        'other': 0,
+    }
+    for reason, cnt in reason_rows:
+        if reason in _known_reasons:
+            by_match_method[reason] = cnt
+        else:
+            by_match_method['other'] += cnt
+
+    # OSM route family grouping method breakdown (family_origin)
+    osm_family_origin_rows = (
+        db_session.query(LineFamily.family_origin, func.count(LineFamily.id))
+        .filter(LineFamily.source == 'osm')
+        .group_by(LineFamily.family_origin)
+        .all()
+    )
+    _known_origins = {
+        'route_master', 'synthetic_gtfs_route_id',
+        'synthetic_ref_operator', 'synthetic_relation',
+    }
+    osm_family_origin_counts: Dict[str, int] = {
+        'route_master': 0,
+        'synthetic_gtfs_route_id': 0,
+        'synthetic_ref_operator': 0,
+        'synthetic_relation': 0,
+        'other': 0,
+    }
+    for origin, cnt in osm_family_origin_rows:
+        if origin in _known_origins:
+            osm_family_origin_counts[origin] = cnt
+        else:
+            osm_family_origin_counts['other'] += cnt
+
+    # Count distinct OSM route relations per family_origin
+    osm_relations_by_origin_rows = (
+        db_session.query(LineFamily.family_origin, func.count(Itinerary.id))
+        .join(Itinerary, Itinerary.line_family_id == LineFamily.id)
+        .filter(LineFamily.source == 'osm')
+        .group_by(LineFamily.family_origin)
+        .all()
+    )
+    osm_relations_by_origin: Dict[str, int] = {
+        'route_master': 0,
+        'synthetic_gtfs_route_id': 0,
+        'synthetic_ref_operator': 0,
+        'synthetic_relation': 0,
+        'other': 0,
+    }
+    for origin, cnt in osm_relations_by_origin_rows:
+        if origin in _known_origins:
+            osm_relations_by_origin[origin] = cnt
+        else:
+            osm_relations_by_origin['other'] += cnt
+
     return {
         'total_links': total_links,
         'atlas_routes_linked': atlas_routes_linked,
@@ -1011,11 +1183,33 @@ def compute_route_route_stats(db_session) -> Dict[str, Any]:
         'osm_route_ids_total': osm_route_ids_total,
         'atlas_route_directions_total': atlas_route_directions_total,
         'osm_route_directions_total': osm_route_directions_total,
+        'atlas_itineraries_total': atlas_itineraries_total,
+        'osm_itineraries_total': osm_itineraries_total,
+        'itinerary_links_total': itinerary_links_total,
         'atlas_routes_without_link': atlas_routes_without_link,
         'osm_routes_without_link': osm_routes_without_link,
         'atlas_link_coverage_percent': atlas_link_coverage_percent,
         'osm_link_coverage_percent': osm_link_coverage_percent,
+        'atlas_itineraries_linked': atlas_itineraries_linked,
+        'osm_itineraries_linked': osm_itineraries_linked,
+        'atlas_itinerary_link_coverage_percent': atlas_itinerary_link_coverage_percent,
+        'osm_itinerary_link_coverage_percent': osm_itinerary_link_coverage_percent,
+        'variant_density': {
+            'atlas_itineraries_per_family': _summarize_numeric_values(atlas_itinerary_counts),
+            'osm_itineraries_per_family': _summarize_numeric_values(osm_itinerary_counts),
+            'atlas_trip_count_per_itinerary': _summarize_numeric_values(atlas_trip_count_values),
+        },
+        'matched_family_variant_gap': {
+            **_summarize_numeric_values(matched_family_variant_gaps),
+            'atlas_has_more_count': atlas_has_more_variants_count,
+            'same_count': same_variant_count,
+            'osm_has_more_count': osm_has_more_variants_count,
+        },
+        'by_match_method': by_match_method,
+        'osm_family_origin': osm_family_origin_counts,
+        'osm_relations_by_origin': osm_relations_by_origin,
     }
+
 
 
 def compute_summary_from_db(db_session) -> Dict[str, Any]:
@@ -1154,14 +1348,11 @@ def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -
     
     from backend.extensions import db
     problem_stats = compute_db_stats(db.session)
-    route_problem_stats = compute_route_problem_stats(db.session)
     
     kwargs = {
         'stats': stats,
         'problem_breakdown': problem_stats.get('by_priority', {}),
-        'route_problem_breakdown': route_problem_stats.get('by_priority', {}),
         'probs': problem_stats,
-        'route_probs': route_problem_stats,
         'generated_at': get_zurich_now(),
         'css_content': '',
         'pdf_assets_prefix': 'static/vendor/'

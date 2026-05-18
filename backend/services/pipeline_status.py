@@ -43,8 +43,11 @@ def _base_status() -> Dict[str, Any]:
         "finished_at": None,
         "last_success_at": None,
         "last_error": None,
-        "data_updated_at": None,
+        "last_pipeline_data_import_ended_at": None,
         "next_run_at": None,
+        "run_type": None,
+        "refresh_scope_tables_rewritten": [],
+        "refresh_scope_tables_reused": [],
     }
 
 
@@ -70,12 +73,12 @@ def get_status() -> Dict[str, Any]:
         data["blocking_maintenance"] = bool(raw.get("maintenance"))
     data.pop("maintenance", None)
     data["updated_at"] = data.get("updated_at") or _now_iso()
-    if not data.get("data_updated_at"):
+    if not data.get("last_pipeline_data_import_ended_at"):
         try:
             from backend.services.stats_export import load_stats_from_file
-
+            
             stats = load_stats_from_file() or {}
-            data["data_updated_at"] = stats.get("data_updated_at")
+            data["last_pipeline_data_import_ended_at"] = stats.get("last_pipeline_data_import_ended_at") or stats.get("data_updated_at")
         except Exception:
             pass
     return data
@@ -180,8 +183,8 @@ def set_next_run(next_run_at: Optional[str]) -> Dict[str, Any]:
     return set_status(next_run_at=next_run_at)
 
 
-def set_data_updated(data_updated_at: Optional[str]) -> Dict[str, Any]:
-    return set_status(data_updated_at=data_updated_at)
+def set_data_updated(last_pipeline_data_import_ended_at: Optional[str]) -> Dict[str, Any]:
+    return set_status(last_pipeline_data_import_ended_at=last_pipeline_data_import_ended_at)
 
 
 def acquire_run_lock(ttl_seconds: int = _DEFAULT_LOCK_TTL_SECONDS) -> Optional[str]:

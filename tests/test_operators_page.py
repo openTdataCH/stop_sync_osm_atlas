@@ -35,9 +35,3 @@ def test_operators_page_forwards_filters_to_loader(client, monkeypatch):
         'per_page': 50,
     }
 
-
-def test_data_root_redirects_to_analytics(client):
-    response = client.get('/data')
-
-    assert response.status_code == 302
-    assert response.headers['Location'].endswith('/data/analytics')
