@@ -24,6 +24,12 @@
            aria-selected="{{ 'true' if active_view == 'routes' else 'false' }}">
           Routes
         </a>
+        <a href="{{ url_for('routes.non_gtfs_routes_page') }}"
+           class="c-page-tabs__tab {{ 'is-active' if active_view == 'non_gtfs_routes' }}"
+           role="tab"
+           aria-selected="{{ 'true' if active_view == 'non_gtfs_routes' else 'false' }}">
+          Non GTFS routes
+        </a>
         <a href="{{ url_for('routes.routes_gtfs_stop_id_sloid_page') }}"
            class="c-page-tabs__tab {{ 'is-active' if active_view == 'gtfs_stop_id_sloid' }}"
            role="tab"
@@ -33,14 +39,17 @@
       </nav>
       {% if active_view == 'gtfs_stop_id_sloid' %}
       {# Description removed as per user request #}
+      {% elif active_view == 'non_gtfs_routes' %}
+      <p>These are OSM public transport routes that do not appear in the OpenTransportData GTFS dataset but we still display them. We do not attempt to match these routes.</p>
       {% else %}
       <p>Filter matched and unmatched routes, then unfold each card to inspect stops or preview route position on the map.</p>
       {% endif %}
     </header>
 
+    {% if active_view in ['routes', 'non_gtfs_routes'] %}
     {% if active_view == 'routes' %}
     <section class="routes-toolbar" aria-label="Routes filters and search">
-      <form method="get" action="{{ url_for('routes.routes_page') }}" class="routes-toolbar__form" id="routesToolbarForm">
+      <form method="get" action="{{ url_for(listing_endpoint) }}" class="routes-toolbar__form" id="routesToolbarForm">
         <input type="hidden" name="atlas_operator" id="routesAtlasOperatorInput" value="{{ atlas_operator_query }}">
         <input type="hidden" name="osm_operator" id="routesOsmOperatorInput" value="{{ osm_operator_query }}">
         <input type="hidden" name="matched" id="routesMatchedInput" value="{{ matched_filter }}">
@@ -146,13 +155,18 @@
         </div>
       </form>
     </section>
+    {% endif %}
 
     <section class="routes-summary d-flex align-items-center flex-wrap gap-3 mb-4" aria-live="polite">
       <div class="routes-summary__text text-muted small fw-medium">
         {% if pagination.total > 0 %}
-        Showing {{ range_start }}-{{ range_end }} of {{ pagination.total }} routes.
+        Showing {{ range_start }}-{{ range_end }} of {{ pagination.total }} {% if active_view == 'non_gtfs_routes' %}non GTFS routes{% else %}routes{% endif %}.
+        {% else %}
+        {% if active_view == 'non_gtfs_routes' %}
+        No non GTFS routes found.
         {% else %}
         No routes found for the current filter combination.
+        {% endif %}
         {% endif %}
       </div>
       <div class="routes-filters-display flex-grow-1">
@@ -163,6 +177,7 @@
     {% if route_rows %}
     <section class="routes-list" aria-label="Routes list">
       {% for route in route_rows %}
+      {% set route_index = loop.index %}
       <article class="route-card route-card--{{ route.display_mode }}">
         <header class="route-card__header route-card__header--{{ route.display_mode }}">
           {% if route.display_mode == 'matched' %}
@@ -187,8 +202,10 @@
               {% endif %}
             </div>
             <div class="route-meta__name">{{ route.osm_route_name }}</div>
-            <div class="route-meta__id">GTFS ID: {{ route.osm_route_display_id or '-' }}</div>
-            {% if route.osm_route_id %}
+            <div class="route-meta__id">{{ route.osm_route_id_label }}: {{ (route.osm_gtfs_route_id or route.osm_route_display_id) or '-' }}</div>
+            {% if route.osm_route_master_id %}
+            <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_master_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View route master {{ route.osm_route_master_id }} on OSM</a>
+            {% elif route.osm_route_id %}
             <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View relation {{ route.osm_route_id }} on OSM</a>
             {% endif %}
           </div>
@@ -216,11 +233,17 @@
               {% endif %}
             </div>
             <div class="route-meta__name">{{ route.osm_route_name or 'OSM route' }}</div>
-            <div class="route-meta__id">GTFS ID: {{ route.osm_route_display_id or '-' }}</div>
-            {% if route.osm_route_id %}
+            <div class="route-meta__id">{{ route.osm_route_id_label }}: {{ (route.osm_gtfs_route_id or route.osm_route_display_id) or '-' }}</div>
+            {% if route.osm_route_master_id %}
+            <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_master_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View route master {{ route.osm_route_master_id }} on OSM</a>
+            {% elif route.osm_route_id %}
             <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View relation {{ route.osm_route_id }} on OSM</a>
             {% endif %}
+            {% if route.is_non_gtfs %}
+            <div class="route-meta__detail">Not part of the OpenTransportData GTFS dataset. Excluded from route matching.</div>
+            {% else %}
             <div class="route-meta__detail">No matched Atlas route.</div>
+            {% endif %}
           </div>
           {% endif %}
         </header>
@@ -229,27 +252,35 @@
           <span class="route-card__badge {{ 'route-card__badge--matched' if route.is_matched else 'route-card__badge--unmatched' }}">{{ route.match_label }}</span>
         </div>
 
-        {% if route.direction_summary %}
-        <p class="route-card__summary">Directions: {{ route.direction_summary }}</p>
+        {% if route.variant_count is defined and route.variant_count > 0 %}
+        <p class="route-card__summary">ATLAS variants: {{ route.atlas_variant_count }} | OSM variants: {{ route.osm_variant_count }} | Matched: {{ route.matched_variant_count }}</p>
         {% endif %}
 
-        <details class="route-card__panel" aria-label="Stops list panel">
-          <summary>Stops list</summary>
-          <div class="route-card__panel-content">
-            {% if route.direction_groups %}
-            {% for direction in route.direction_groups %}
-            <section class="direction-block">
-              <h3 class="direction-block__title">Direction: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}</h3>
-              {% if direction.direction_label or direction.representative_headsign %}
-              <p class="route-card__summary">
-                {% if direction.direction_label %}Label: {{ direction.direction_label }}{% endif %}
-                {% if direction.direction_label and direction.representative_headsign %} | {% endif %}
-                {% if direction.representative_headsign %}Headsign: {{ direction.representative_headsign }}{% endif %}
-              </p>
+        {% if route.direction_groups %}
+        {% for direction in route.direction_groups %}
+        {% set direction_label = direction.direction_label %}
+        {% set representative_headsign = direction.representative_headsign %}
+        <details class="route-card__panel route-card__panel--map" aria-label="Stops list panel for variant">
+          <summary>
+            Route variant: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}
+            {% if direction_label or representative_headsign %}
+              - 
+              {% if direction_label %}
+              {{ direction_label }}
+              {% else %}
+              {{ representative_headsign }}
               {% endif %}
+              {% if direction_label and representative_headsign and direction_label != representative_headsign %} | {{ representative_headsign }}{% endif %}
+            {% endif %}
+            <span class="route-card__badge route-card__badge--{{ direction.match_status }}" style="margin-left: 10px; font-size: 0.8em;">{{ direction.match_label }}</span>
+          </summary>
+          <div class="route-card__panel-content">
+            <section class="direction-block">
               <div class="direction-block__columns">
                 <div class="stops-column">
-                  <h4>ATLAS Stops</h4>
+                  <div class="stops-column-header">
+                    <h4>ATLAS Stops</h4>
+                  </div>
                   {% if direction.atlas_uic_groups %}
                   <ol class="stops-list">
                     {% for group in direction.atlas_uic_groups %}
@@ -260,7 +291,7 @@
                       </div>
                       <ul class="stops-list stops-list--nested">
                         {% for member in group.members %}
-                        <li><div class="stop-id stop-id--secondary">SLOID: {{ member.stop_id }}</div></li>
+                        <li><div class="stop-id stop-id--secondary">{{ 'SLOIDs' if member.stop_ids|length > 1 else 'SLOID' }}: {{ member.stop_ids|join(', ') if member.stop_ids else (member.stop_id or '-') }}</div></li>
                         {% endfor %}
                       </ul>
                     </li>
@@ -272,7 +303,12 @@
                 </div>
 
                 <div class="stops-column">
-                  <h4>OSM Stops</h4>
+                  <div class="stops-column-header">
+                    <h4>OSM Stops</h4>
+                    {% if direction.osm_relation_id %}
+                    <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ direction.osm_relation_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View itinerary relation {{ direction.osm_relation_id }} on OSM</a>
+                    {% endif %}
+                  </div>
                   {% if direction.osm_uic_groups %}
                   <ol class="stops-list">
                     {% for group in direction.osm_uic_groups %}
@@ -283,7 +319,7 @@
                       </div>
                       <ul class="stops-list stops-list--nested">
                         {% for member in group.members %}
-                        <li><div class="stop-id stop-id--secondary">Node: {{ member.stop_id }}</div></li>
+                        <li><div class="stop-id stop-id--secondary">{{ 'Nodes' if member.stop_ids|length > 1 else 'Node' }}: {{ member.stop_ids|join(', ') if member.stop_ids else (member.stop_id or '-') }}</div></li>
                         {% endfor %}
                       </ul>
                     </li>
@@ -295,45 +331,51 @@
                 </div>
               </div>
             </section>
-            {% endfor %}
-            {% else %}
-            <p class="stops-empty">No stop details available for this route.</p>
-            {% endif %}
-          </div>
-        </details>
-
-        <details class="route-card__panel route-card__panel--map" aria-label="Map panel">
-          <summary>Route on map</summary>
-          <div class="route-card__panel-content route-card__panel-content--map">
+            
             {% if route.map_filter %}
-            <div class="route-card__map-shell" style="position: relative;">
-              <div class="map-direction-filter-container" style="position: absolute; top: 10px; right: 10px; z-index: 1000;">
-                <!-- Filter chip will be rendered here by JS -->
-              </div>
+            <div class="route-card__map-shell mt-4" style="position: relative;">
+              <button class="btn btn-sm btn-outline-secondary toggle-context-btn" 
+                      style="position: absolute; top: 10px; right: 10px; z-index: 1000; background: white;"
+                      data-map-index="{{ route_index }}_{{ loop.index }}">
+                <i class="fas fa-eye"></i> See other markers
+              </button>
               <div
-                id="routeMap{{ loop.index }}"
+                id="routeMap{{ route_index }}_{{ loop.index }}"
                 class="route-card__map"
                 data-station-filter="{{ route.map_filter.station_filter }}"
                 data-filter-types="{{ route.map_filter.filter_types }}"
-                data-route-directions="{{ route.map_filter.route_directions }}"
+                data-route-directions="{{ direction.direction_id if direction.direction_id is not none else '' }}"
                 data-atlas-operators="{{ atlas_operator_query }}"
                 data-route-id="{{ route.primary_route_id }}"
-                data-map-index="{{ loop.index }}"
+                data-map-index="{{ route_index }}_{{ loop.index }}"
+                style="height: 300px; border-radius: 8px;"
               ></div>
+              <script type="application/json" class="variant-data" data-map-index="{{ route_index }}_{{ loop.index }}">
+                {{ direction | tojson | safe }}
+              </script>
             </div>
-            {% else %}
-            <p class="stops-empty">No map preview is available because this route has no geolocated stops.</p>
             {% endif %}
           </div>
         </details>
+        {% endfor %}
+        {% else %}
+        <details class="route-card__panel" aria-label="Stops list panel">
+          <summary>Stops list</summary>
+          <div class="route-card__panel-content">
+            <p class="stops-empty">No stop details available for this route.</p>
+          </div>
+        </details>
+        {% endif %}
+
+
       </article>
       {% endfor %}
     </section>
 
-    <nav class="routes-pagination" aria-label="Routes pagination">
+    <nav class="c-pagination routes-pagination" aria-label="Routes pagination">
       <ul class="pagination justify-content-center">
         <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
+          <a class="page-link" href="{{ url_for(listing_endpoint, matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
             <span aria-hidden="true">&laquo;</span>
           </a>
         </li>
@@ -341,7 +383,7 @@
         {% for page_num in pagination.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
           {% if page_num %}
           <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-            <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
+            <a class="page-link" href="{{ url_for(listing_endpoint, matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
           </li>
           {% else %}
           <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
@@ -349,7 +391,7 @@
         {% endfor %}
 
         <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('routes.routes_page', matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
+          <a class="page-link" href="{{ url_for(listing_endpoint, matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
             <span aria-hidden="true">&raquo;</span>
           </a>
         </li>
@@ -357,9 +399,15 @@
     </nav>
     {% else %}
     <section class="routes-empty-state" aria-live="polite">
+      {% if active_view == 'non_gtfs_routes' %}
+      <h2>No non GTFS routes found</h2>
+      <p>No currently classified non GTFS routes are available to display.</p>
+      <a class="btn btn-outline-primary" href="{{ url_for('routes.non_gtfs_routes_page') }}">Reload non GTFS routes</a>
+      {% else %}
       <h2>No routes found</h2>
       <p>Try broadening filters or clearing ATLAS Operator selections.</p>
       <a class="btn btn-outline-primary" href="{{ url_for('routes.routes_page') }}">Clear all filters</a>
+      {% endif %}
     </section>
     {% endif %}
     {% else %}
@@ -404,7 +452,7 @@
 <script src="{{ url_for('static', filename='js/components/popup-renderer.js') }}"></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/components/map-renderer.js') }}"></script>
-{% if active_view == 'routes' %}
+{% if active_view in ['routes', 'non_gtfs_routes'] %}
 <script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>
 <script type="application/json" id="routesPageConfig">

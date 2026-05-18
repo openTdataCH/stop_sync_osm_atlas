@@ -92,13 +92,13 @@ def _build_ctx(
     *,
     duplicate_sloid_map: dict[str, list[str]] | None = None,
     node_routes: dict[str, list[dict]] | None = None,
-    atlas_routes_by_sloid: dict[str, dict[str, list]] | None = None,
+    atlas_route_evidence_by_sloid: dict[str, dict[str, list]] | None = None,
     name_dirs: dict[str, set[str]] | None = None,
 ) -> MatchingContext:
     atlas_state = AtlasState(
         atlas_df=_atlas_df(atlas_rows),
         duplicate_sloid_map=duplicate_sloid_map or {},
-        routes_by_sloid=atlas_routes_by_sloid or {},
+        route_evidence_by_sloid=atlas_route_evidence_by_sloid or {},
     )
 
     xml_nodes = {(entry['lat'], entry['lon']): entry for entry in osm_entries}
@@ -290,7 +290,7 @@ class TestCurrentPredicates:
                 ],
             },
         )
-        ctx.atlas._routes_by_sloid = {
+        ctx.atlas._route_evidence_by_sloid = {
             's1': {
                 'gtfs': [
                     {
@@ -322,7 +322,7 @@ class TestCurrentPredicates:
                     {'gtfs_route_id': 'route_c-j26', 'direction_id': '1', 'route_name': 'C'},
                 ],
             },
-            atlas_routes_by_sloid={
+            atlas_route_evidence_by_sloid={
                 's_weak': {
                     'gtfs': [
                         {'route_id': 'route_a-j26', 'route_id_normalized': 'route_a-jXX', 'direction_id': '1'},
@@ -359,7 +359,7 @@ class TestCurrentPredicates:
                     {'gtfs_route_id': 'route_b-j26', 'direction_id': '1', 'route_name': 'B'},
                 ],
             },
-            atlas_routes_by_sloid={
+            atlas_route_evidence_by_sloid={
                 's1': {
                     'gtfs': [
                         {'route_id': 'route_a-j26', 'route_id_normalized': 'route_a-jXX', 'direction_id': '1'},
@@ -387,7 +387,7 @@ class TestCurrentPredicates:
         osm_entries = [
             _osm_entry('osm_1', 46.5222435, 6.5661495, public_transport='stop_position'),
         ]
-        atlas_routes_by_sloid = {
+        atlas_route_evidence_by_sloid = {
             's_bad': {
                 'gtfs': [
                     {
@@ -420,7 +420,7 @@ class TestCurrentPredicates:
         ctx = _build_ctx(
             atlas_rows,
             osm_entries,
-            atlas_routes_by_sloid=atlas_routes_by_sloid,
+            atlas_route_evidence_by_sloid=atlas_route_evidence_by_sloid,
             node_routes=node_routes,
         )
         run_pipeline(
@@ -437,7 +437,7 @@ class TestCurrentPredicates:
 
     def test_contradicts_route_matching_problem_flags_direction_conflict(self):
         ctx = ProblemContext(
-            atlas_routes_by_sloid={
+            atlas_route_evidence_by_sloid={
                 's_bad': {
                     'gtfs': [
                         {

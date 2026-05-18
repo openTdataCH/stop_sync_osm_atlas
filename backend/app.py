@@ -55,7 +55,7 @@ def create_app():
         stats = load_stats_from_file() or {}
         pipeline_status = get_status()
         return {
-            'data_updated_at': pipeline_status.get('data_updated_at') or stats.get('data_updated_at'),
+            'last_pipeline_data_import_ended_at': pipeline_status.get('last_pipeline_data_import_ended_at') or stats.get('data_updated_at'),
             'stats_computed_at': stats.get('stats_computed_at') or stats.get('generated_at'),
             'pipeline_next_run_at': pipeline_status.get('next_run_at'),
         }
@@ -70,16 +70,16 @@ def create_app():
 
     @app.route('/data')
     def data_index():
-        return redirect(url_for('analytics_stats'))
+        return redirect(url_for('data_analytics'))
 
-    @app.route('/data/analytics', endpoint='analytics_stats')
-    @app.route('/data/export', endpoint='analytics_reports')
-    def analytics_page():
+    @app.route('/data/analytics', endpoint='data_analytics')
+    @app.route('/data/export', endpoint='data_reports')
+    def data_page():
         from backend.services.stats_export import load_stats_from_file
         stats = load_stats_from_file()
 
         # Determine which view to show based on the URL
-        active_view = 'reports' if request.path.endswith('/export') else 'stats'
+        active_view = 'reports' if request.path.endswith('/export') else 'analytics'
 
         # Read priority breakdown from stats.json (populated by pipeline)
         problem_breakdown = {}
@@ -88,16 +88,10 @@ def create_app():
             # JSON keys are strings; convert to int for template usage
             problem_breakdown = {int(k): v for k, v in raw.items()}
 
-        route_problem_breakdown = {}
-        if stats and 'route_problems' in stats and 'by_priority' in stats['route_problems']:
-            raw = stats['route_problems']['by_priority']
-            route_problem_breakdown = {int(k): v for k, v in raw.items()}
-
         return render_template(
-            'pages/analytics.html',
+            'pages/data.html',
             stats=stats,
             problem_breakdown=problem_breakdown,
-            route_problem_breakdown=route_problem_breakdown,
             active_view=active_view
         )
 

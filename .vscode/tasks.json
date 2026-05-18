@@ -64,6 +64,21 @@
 			}
 		},
 		{
+			"label": "Docker: Run Full Data Pipeline (Force Full Refresh)",
+			"type": "shell",
+			"command": "docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec -e PIPELINE_FORCE_FULL_REFRESH=true stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual",
+			"problemMatcher": [],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			}
+		},
+		{
 			"label": "Docker: Run Flask DB Upgrade",
 			"type": "shell",
 			"command": "docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app",
@@ -137,6 +152,21 @@
 			"label": "Assets: Sync Local Vendor Libraries",
 			"type": "shell",
 			"command": "npm run vendor:sync",
+			"problemMatcher": [],
+			"group": "build",
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": true,
+				"panel": "shared",
+				"showReuseMessage": true,
+				"clear": false
+			}
+		},
+		{
+			"label": "Docs: Generate ER Diagram",
+			"type": "shell",
+			"command": "docker exec stop_sync_osm_atlas_app python3 documentation/print_er_diagram/generate_er.py",
 			"problemMatcher": [],
 			"group": "build",
 			"presentation": {

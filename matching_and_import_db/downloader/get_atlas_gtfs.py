@@ -1,4 +1,5 @@
 """GTFS data download and processing module."""
+import hashlib
 import math
 import os
 import zipfile
@@ -14,8 +15,9 @@ from .geo_utils import filter_points_in_switzerland
 COORD_PROXIMITY_MAX_DISTANCE_M = 0.5
 _COORD_BUCKET_METERS_PER_DEG_LAT = 111_320.0
 _COORD_BUCKET_METERS_PER_DEG_LON = _COORD_BUCKET_METERS_PER_DEG_LAT * math.cos(math.radians(46.8))
-GTFS_DB_STOPS_CACHE_PATH = os.path.join('data', 'processed', 'gtfs_stops.csv')
-GTFS_DB_STATE_CACHE_PATH = os.path.join('data', 'processed', 'gtfs_atlas_stop_matches.csv')
+GTFS_DB_STOPS_CACHE_PATH = os.path.join('data', 'processed', 'gtfs_stops_raw.csv')
+GTFS_DB_STATE_CACHE_PATH = os.path.join('data', 'processed', 'gtfs_stop_identity_resolution.csv')
+GTFS_TRIP_STOP_TIMES_STAGE_FILENAME = 'swiss_trip_stop_times.csv'
 
 
 def _normalize_optional_text(value: object) -> str | None:
@@ -32,6 +34,48 @@ def _normalize_optional_float(value: object) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _normalize_platform_code(value: object) -> str | None:
+    normalized = _normalize_optional_text(value)
+    if normalized is None:
+        return None
+    alias_map = {
+        '10000': '1',
+        '10001': '2',
+    }
+    if normalized in alias_map:
+        return alias_map[normalized]
+    stripped = normalized.lstrip('0')
+    return stripped or normalized
+
+
+def _derive_identity_level(stop_row: dict[str, object]) -> str:
+    location_type = _normalize_optional_text(stop_row.get('location_type'))
+    if location_type == '1':
+        return 'station'
+    if _normalize_platform_code(stop_row.get('platform_code')) or _normalize_optional_text(stop_row.get('normalized_local_ref')):
+        return 'platform'
+    if _normalize_optional_text(stop_row.get('parent_station')):
+        return 'child_stop'
+    return 'stop'
+
+
+def _confidence_for_resolution_method(method: str | None) -> float:
+    if method == 'original_stop_id':
+        return 1.0
+    if method == 'uic_platform':
+        return 0.95
+    if method == 'coordinate_proximity':
+        return 0.85
+    if method == 'unique_number':
+        return 0.6
+    return 0.0
+
+
+def _hash_trip_pattern(stop_ids: list[str]) -> str:
+    digest = hashlib.sha1('>'.join(stop_ids).encode('utf-8')).hexdigest()
+    return digest[:16]
 
 
 def _build_gtfs_atlas_stats(mapping_stats: Dict[str, object]) -> Dict[str, object]:
@@ -55,6 +99,7 @@ def _build_gtfs_atlas_stats(mapping_stats: Dict[str, object]) -> Dict[str, objec
             'coverage_percent': round((gtfs_matched / gtfs_total) * 100, 2) if gtfs_total > 0 else 0.0,
         },
         'assignments': {
+            'original_stop_id': int(mapping_stats.get('original_stop_id_assignments') or 0),
             'strict': int(mapping_stats.get('strict_assignments') or 0),
             'coordinate_proximity': int(mapping_stats.get('coordinate_proximity_assignments') or 0),
             'unique_number_fallback': int(mapping_stats.get('unique_number_fallback_assignments') or 0),
@@ -185,11 +230,30 @@ def _build_coordinate_proximity_matches(
 def parse_gtfs_stop_ids(gtfs_stops: pd.DataFrame) -> pd.DataFrame:
     """Parse GTFS stop identifiers into reusable UIC/local-ref fields."""
     parsed = gtfs_stops.copy()
-    parts = parsed['stop_id'].astype(str).str.split(':', n=2, expand=True)
-    parsed['uic_number'] = parts[0]
-    parsed['local_ref'] = parts[2] if parts.shape[1] >= 3 else None
-    parsed['normalized_local_ref'] = parsed['local_ref'].replace({'10000': '1', '10001': '2'})
-    parsed['uic_number'] = parsed['uic_number'].astype(str)
+    stop_parts = parsed['stop_id'].fillna('').astype(str).str.split(':', n=2, expand=True)
+    original_parts = parsed.get('original_stop_id', pd.Series(index=parsed.index, dtype='object')).fillna('').astype(str).str.split(':', n=2, expand=True)
+
+    parsed['uic_number'] = stop_parts[0].replace('', pd.NA)
+    parsed['local_ref'] = stop_parts[2] if stop_parts.shape[1] >= 3 else None
+
+    if original_parts.shape[1] >= 1:
+        original_uic = original_parts[0].where(original_parts[0].str.fullmatch(r'\d+'), pd.NA)
+        parsed['uic_number'] = original_uic.where(original_uic.notna(), parsed['uic_number'])
+    if original_parts.shape[1] >= 3:
+        original_local_ref = original_parts[2].replace('', pd.NA)
+        # Only use original_local_ref if the original string was actually a UIC-based ID
+        original_local_ref = original_local_ref.where(original_uic.notna(), pd.NA)
+        parsed['local_ref'] = original_local_ref.where(original_local_ref.notna(), parsed['local_ref'])
+
+    parsed['platform_code'] = parsed.get('platform_code')
+    parsed['stop_code'] = parsed.get('stop_code')
+    parsed['normalized_local_ref'] = parsed['local_ref'].map(_normalize_platform_code)
+    parsed['normalized_local_ref'] = parsed['normalized_local_ref'].where(
+        parsed['normalized_local_ref'].notna(),
+        parsed['platform_code'].map(_normalize_platform_code),
+    )
+    parsed['uic_number'] = parsed['uic_number'].fillna(parsed.get('stop_code')).astype(str)
+    parsed['uic_number'] = parsed['uic_number'].replace({'None': pd.NA, 'nan': pd.NA})
     return parsed
 
 
@@ -266,12 +330,14 @@ def load_gtfs_data_streaming(gtfs_folder: str):
       - Single pass over stop_times.txt (instead of two full passes)
       - No per-chunk reconstruction of trip join tables
 
-    Returns a dict with keys:
-      - stops: Swiss stops DataFrame
-      - trips: filtered trips DataFrame (only trips that touch Swiss stops)
-      - routes: filtered routes DataFrame (only routes referenced by filtered trips)
-      - stop_route_unique: DataFrame[stop_id, route_id, direction_id]
-      - route_directions: DataFrame[route_id, direction]
+        Returns a dict with keys:
+            - stops: Swiss stops DataFrame
+            - trips: filtered trips DataFrame (only trips that touch Swiss stops)
+            - routes: filtered routes DataFrame (only routes referenced by filtered trips)
+            - stop_route_unique: DataFrame[stop_id, route_id, direction_id]
+            - route_directions: DataFrame[route_id, direction] (first stop → last stop, all stops including cross-border)
+            - trip_stop_times_path: CSV path with filtered Swiss trip stop-times
+            - trip_stop_times_row_count: number of staged Swiss trip stop-time rows
     """
     print("GTFS: loading data (optimized streaming, single pass over stop_times)…")
 
@@ -281,24 +347,66 @@ def load_gtfs_data_streaming(gtfs_folder: str):
     routes_path = os.path.join(gtfs_folder, "routes.txt")
 
     # Load Swiss stops (prefix + Swiss polygon)
+    stop_columns = {
+        'stop_id',
+        'stop_name',
+        'stop_lat',
+        'stop_lon',
+        'stop_code',
+        'platform_code',
+        'original_stop_id',
+        'location_type',
+        'parent_station',
+    }
     all_stops = pd.read_csv(
         stops_path,
-        usecols=['stop_id', 'stop_name', 'stop_lat', 'stop_lon'],
-        dtype={'stop_id': str, 'stop_name': str, 'stop_lat': float, 'stop_lon': float},
+        usecols=lambda column_name: column_name in stop_columns,
+        dtype={
+            'stop_id': str,
+            'stop_name': str,
+            'stop_code': str,
+            'platform_code': str,
+            'original_stop_id': str,
+            'parent_station': str,
+        },
         low_memory=False,
     )
+    for optional_column in ('stop_code', 'platform_code', 'original_stop_id', 'location_type', 'parent_station'):
+        if optional_column not in all_stops.columns:
+            all_stops[optional_column] = pd.NA
+    all_stops['stop_lat'] = pd.to_numeric(all_stops['stop_lat'], errors='coerce')
+    all_stops['stop_lon'] = pd.to_numeric(all_stops['stop_lon'], errors='coerce')
+    all_stops['location_type'] = pd.to_numeric(all_stops['location_type'], errors='coerce').astype('Int64')
     prefixed = all_stops[all_stops['stop_id'].str.startswith('85')].copy()
     swiss_stops = filter_points_in_switzerland(prefixed, lat_col='stop_lat', lon_col='stop_lon')
     swiss_stop_ids: Set[str] = set(swiss_stops['stop_id'].astype(str))
     print(f"GTFS: filtered to {len(swiss_stops):,} Swiss stops inside CH border (from {len(prefixed):,} prefixed '85')")
 
     # Load trips once; filter later to relevant_trip_ids found via stop_times streaming
+    trip_columns = {
+        'trip_id',
+        'route_id',
+        'direction_id',
+        'trip_headsign',
+        'trip_short_name',
+        'shape_id',
+    }
     trips_all = pd.read_csv(
         trips_path,
-        usecols=['trip_id', 'route_id', 'direction_id'],
-        dtype={'trip_id': str, 'route_id': str, 'direction_id': 'Int8'},
+        usecols=lambda column_name: column_name in trip_columns,
+        dtype={
+            'trip_id': str,
+            'route_id': str,
+            'trip_headsign': str,
+            'trip_short_name': str,
+            'shape_id': str,
+        },
         low_memory=False,
     )
+    for optional_column in ('direction_id', 'trip_headsign', 'trip_short_name', 'shape_id'):
+        if optional_column not in trips_all.columns:
+            trips_all[optional_column] = pd.NA
+    trips_all['direction_id'] = pd.to_numeric(trips_all['direction_id'], errors='coerce').astype('Int64')
     # Pandas Series maps are faster than rebuilding a join table per chunk
     # Note: indexing by trip_id strings preserves exact join semantics while avoiding per-chunk merges.
     route_by_trip = pd.Series(trips_all['route_id'].values, index=trips_all['trip_id'].astype(str))
@@ -306,15 +414,22 @@ def load_gtfs_data_streaming(gtfs_folder: str):
 
     # Streaming over stop_times: collect
     #  - relevant_trip_ids (trips touching Swiss stops)
-    #  - trip termini among Swiss stops (stop_sequence min/max per trip)
+    #  - trip termini among all stops (stop_sequence min/max per trip, for direction labels)
     #  - unique (stop_id, route_id, direction_id) combinations
     #
     # Optimization: no per-row Python loops inside the hot path.
     # We accumulate small DataFrames per chunk and do a single final reduce.
     relevant_trip_ids: Set[str] = set()
-    terminus_first_parts: list = []   # (trip_id, stop_id, stop_sequence) — first Swiss stop per trip per chunk
-    terminus_last_parts: list = []    # same for last
+    global_terminus_first_parts: list = []  # (trip_id, stop_id, stop_sequence) — first stop per trip per chunk (all stops, not Swiss-only)
+    global_terminus_last_parts: list = []   # same for last
     stop_route_parts: list = []       # unique (stop_id, route_id, direction_id) slices
+    trip_stop_times_path = os.path.join(gtfs_folder, GTFS_TRIP_STOP_TIMES_STAGE_FILENAME)
+    try:
+        os.remove(trip_stop_times_path)
+    except FileNotFoundError:
+        pass
+    trip_stop_times_header_written = False
+    trip_stop_times_row_count = 0
 
     chunk_size = 500000
     chunks_seen = 0
@@ -327,6 +442,11 @@ def load_gtfs_data_streaming(gtfs_folder: str):
     ):
         if not swiss_stop_ids:
             continue
+
+        # Track global termini from ALL stops for direction labels (not Swiss-only)
+        grp_all = chunk.groupby('trip_id', sort=False)['stop_sequence']
+        global_terminus_first_parts.append(chunk.loc[grp_all.idxmin(), ['trip_id', 'stop_id', 'stop_sequence']])
+        global_terminus_last_parts.append(chunk.loc[grp_all.idxmax(), ['trip_id', 'stop_id', 'stop_sequence']])
 
         mask = chunk['stop_id'].isin(swiss_stop_ids)
         if not mask.any():
@@ -344,14 +464,15 @@ def load_gtfs_data_streaming(gtfs_folder: str):
 
         # trips touching Swiss stops — use fast numpy unique array directly
         relevant_trip_ids.update(swiss_chunk['trip_id'].unique())
+        swiss_chunk.to_csv(
+            trip_stop_times_path,
+            mode='a',
+            index=False,
+            header=not trip_stop_times_header_written,
+        )
+        trip_stop_times_header_written = True
+        trip_stop_times_row_count += len(swiss_chunk)
 
-        # Per-trip Swiss termini (min/max stop_sequence among Swiss stops)
-        # Vectorized: use idxmin/idxmax then loc — no Python iteration
-        grp = swiss_chunk.groupby('trip_id', sort=False)['stop_sequence']
-        idx_first = grp.idxmin()
-        idx_last = grp.idxmax()
-        terminus_first_parts.append(swiss_chunk.loc[idx_first, ['trip_id', 'stop_id', 'stop_sequence']])
-        terminus_last_parts.append(swiss_chunk.loc[idx_last, ['trip_id', 'stop_id', 'stop_sequence']])
 
         # Build unique (stop_id, route_id, direction_id) — vectorized map + drop_duplicates
         route_ids = swiss_chunk['trip_id'].map(route_by_trip)
@@ -372,16 +493,21 @@ def load_gtfs_data_streaming(gtfs_folder: str):
     if relevant_trip_ids:
         trips_df = trips_all[trips_all['trip_id'].astype(str).isin(relevant_trip_ids)].copy()
     else:
-        trips_df = pd.DataFrame(columns=['trip_id', 'route_id', 'direction_id'])
+        trips_df = pd.DataFrame(columns=['trip_id', 'route_id', 'direction_id', 'trip_headsign', 'trip_short_name', 'shape_id'])
     print(f"GTFS: loaded {len(trips_df):,} trips (filtered to relevant trips)")
 
-    # Derive route_directions from per-trip Swiss termini (same semantics as before)
-    # Final reduce: find the true global first/last Swiss stop per trip across all chunks
-    if terminus_first_parts and terminus_last_parts:
-        stop_id_to_name = swiss_stops.set_index('stop_id')['stop_name'].to_dict()
+    # Derive route_directions from per-trip global termini (first stop → last stop)
+    # Final reduce: find the true global first/last stop per trip across all chunks,
+    # then filter to only trips that touch Swiss stops (relevant_trip_ids).
+    if global_terminus_first_parts and global_terminus_last_parts:
+        stop_id_to_name = all_stops.set_index('stop_id')['stop_name'].to_dict()
 
-        all_first = pd.concat(terminus_first_parts, ignore_index=True)
-        all_last = pd.concat(terminus_last_parts, ignore_index=True)
+        all_first = pd.concat(global_terminus_first_parts, ignore_index=True)
+        all_last = pd.concat(global_terminus_last_parts, ignore_index=True)
+
+        # Filter to relevant trips (those touching Swiss stops)
+        all_first = all_first[all_first['trip_id'].isin(relevant_trip_ids)]
+        all_last = all_last[all_last['trip_id'].isin(relevant_trip_ids)]
 
         # Keep the row with the globally minimum/maximum stop_sequence per trip
         global_first = all_first.loc[all_first.groupby('trip_id')['stop_sequence'].idxmin(), ['trip_id', 'stop_id']]
@@ -389,15 +515,16 @@ def load_gtfs_data_streaming(gtfs_folder: str):
 
         merged = global_first.merge(global_last, on='trip_id', suffixes=('_first', '_last'))
         merged['route_id'] = merged['trip_id'].map(route_by_trip)
+        merged['direction_id'] = merged['trip_id'].map(dir_by_trip)
         merged = merged.dropna(subset=['route_id'])
         merged['direction'] = (
             merged['stop_id_first'].map(stop_id_to_name).fillna('Unknown')
             + ' → '
             + merged['stop_id_last'].map(stop_id_to_name).fillna('Unknown')
         )
-        route_directions = merged[['route_id', 'direction']].drop_duplicates()
+        route_directions = merged[['route_id', 'direction_id', 'direction']].drop_duplicates()
     else:
-        route_directions = pd.DataFrame(columns=['route_id', 'direction'])
+        route_directions = pd.DataFrame(columns=['route_id', 'direction_id', 'direction'])
     print(f"GTFS: extracted {len(route_directions):,} unique route direction strings (first→last)")
 
     # Final reduce: materialize the unique (stop_id, route_id, direction_id) table
@@ -406,6 +533,8 @@ def load_gtfs_data_streaming(gtfs_folder: str):
     else:
         stop_route_unique = pd.DataFrame(columns=['stop_id', 'route_id', 'direction_id'])
     print(f"GTFS: built {len(stop_route_unique):,} unique (stop_id, route_id, direction_id) triples")
+
+    print(f"GTFS: staged {trip_stop_times_row_count:,} Swiss trip stop-time rows to {trip_stop_times_path}")
 
     # Load routes filtered to those we actually reference
     relevant_route_ids: Set[str] = set(trips_df['route_id'].dropna().astype(str).unique())
@@ -427,6 +556,8 @@ def load_gtfs_data_streaming(gtfs_folder: str):
         'routes': swiss_routes,
         'stop_route_unique': stop_route_unique,
         'route_directions': route_directions,
+        'trip_stop_times_path': trip_stop_times_path if trip_stop_times_header_written else None,
+        'trip_stop_times_row_count': trip_stop_times_row_count,
     }
 
 
@@ -449,13 +580,13 @@ def build_integrated_gtfs_data_streaming(
         gtfs_data_streaming['routes'][['route_id', 'agency_id', 'route_short_name', 'route_long_name', 'route_desc', 'route_type']],
         on='route_id', how='left'
     )
-    # direction strings by route (reduce to a single representative direction per route)
+    # direction strings by route/direction_id
     route_directions = gtfs_data_streaming['route_directions']
     if not route_directions.empty:
         route_directions_unique = (
             route_directions
             .dropna(subset=['route_id'])
-            .groupby('route_id', as_index=False)['direction']
+            .groupby(['route_id', 'direction_id'], as_index=False)['direction']
             .first()
         )
     else:
@@ -473,7 +604,7 @@ def build_integrated_gtfs_data_streaming(
     # integrate
     linked_stops = gtfs_payload['gtfs_stops'].merge(gtfs_payload['matches'], on='stop_id', how='left')
     integrated = linked_stops.merge(route_enriched, on='stop_id', how='inner')
-    integrated = integrated.merge(route_directions_unique, on='route_id', how='left')
+    integrated = integrated.merge(route_directions_unique, on=['route_id', 'direction_id'], how='left')
 
     # Remove any multiplicative duplicates that could have slipped through
     integrated = integrated.drop_duplicates(subset=['stop_id', 'sloid', 'route_id', 'direction_id'])
@@ -516,7 +647,12 @@ def build_gtfs_db_payload_rows(
 
         gtfs_stop_rows.append({
             'stop_id': stop_id,
+            'stop_code': _normalize_optional_text(stop.get('stop_code')),
             'stop_name': _normalize_optional_text(stop.get('stop_name')),
+            'platform_code': _normalize_optional_text(stop.get('platform_code')),
+            'original_stop_id': _normalize_optional_text(stop.get('original_stop_id')),
+            'location_type': _normalize_optional_text(stop.get('location_type')),
+            'parent_station': _normalize_optional_text(stop.get('parent_station')),
             'uic_number': _normalize_optional_text(stop.get('uic_number')),
             'local_ref': _normalize_optional_text(stop.get('local_ref')),
             'normalized_local_ref': _normalize_optional_text(stop.get('normalized_local_ref')),
@@ -550,63 +686,41 @@ def build_gtfs_db_payload_rows(
         }
 
     gtfs_state_rows = []
-    matched_stop_ids = set()
-    matched_sloids = set()
+    match_lookup = {}
     for match in gtfs_payload['matches'].to_dict(orient='records'):
         stop_id = _normalize_optional_text(match.get('stop_id'))
         sloid = _normalize_optional_text(match.get('sloid'))
-        match_method = _normalize_optional_text(match.get('match_method'))
-        if not stop_id or not sloid or not match_method:
+        resolution_method = _normalize_optional_text(match.get('match_method'))
+        if not stop_id or not resolution_method:
             continue
-
-        gtfs_stop = gtfs_stop_lookup.get(stop_id)
-        atlas_stop = atlas_stop_lookup.get(sloid)
-        if gtfs_stop is None or atlas_stop is None:
-            continue
-
-        gtfs_state_rows.append({
-            'stop_id': stop_id,
-            'sloid': sloid,
-            'stop_type': 'matched',
-            'match_method': match_method,
+        match_lookup[stop_id] = {
+            'resolved_sloid': sloid,
+            'resolution_method': resolution_method,
             'distance_m': _normalize_optional_float(match.get('distance_m')),
-            'gtfs_stop_lat': gtfs_stop['stop_lat'],
-            'gtfs_stop_lon': gtfs_stop['stop_lon'],
-            'atlas_lat': atlas_stop['atlas_lat'],
-            'atlas_lon': atlas_stop['atlas_lon'],
-        })
-        matched_stop_ids.add(stop_id)
-        matched_sloids.add(sloid)
+        }
 
     for gtfs_stop in gtfs_stop_rows:
         stop_id = gtfs_stop['stop_id']
-        if stop_id in matched_stop_ids:
-            continue
+        match = match_lookup.get(stop_id, {})
+        resolved_sloid = match.get('resolved_sloid')
+        atlas_stop = atlas_stop_lookup.get(resolved_sloid) if resolved_sloid else None
         gtfs_state_rows.append({
             'stop_id': stop_id,
-            'sloid': None,
-            'stop_type': 'gtfs_unmatched',
-            'match_method': None,
-            'distance_m': None,
+            'source_location_type': gtfs_stop.get('location_type'),
+            'identity_level': _derive_identity_level(gtfs_stop),
+            'resolved_sloid': resolved_sloid,
+            'resolution_method': match.get('resolution_method') or 'unmatched',
+            'confidence': _confidence_for_resolution_method(match.get('resolution_method')),
+            'distance_m': match.get('distance_m'),
             'gtfs_stop_lat': gtfs_stop['stop_lat'],
             'gtfs_stop_lon': gtfs_stop['stop_lon'],
-            'atlas_lat': None,
-            'atlas_lon': None,
-        })
-
-    for sloid, atlas_stop in atlas_stop_lookup.items():
-        if sloid in matched_sloids:
-            continue
-        gtfs_state_rows.append({
-            'stop_id': None,
-            'sloid': sloid,
-            'stop_type': 'atlas_unmatched',
-            'match_method': None,
-            'distance_m': None,
-            'gtfs_stop_lat': None,
-            'gtfs_stop_lon': None,
-            'atlas_lat': atlas_stop['atlas_lat'],
-            'atlas_lon': atlas_stop['atlas_lon'],
+            'atlas_lat': atlas_stop['atlas_lat'] if atlas_stop else None,
+            'atlas_lon': atlas_stop['atlas_lon'] if atlas_stop else None,
+            'details_json': {
+                'original_stop_id': gtfs_stop.get('original_stop_id'),
+                'platform_code': gtfs_stop.get('platform_code'),
+                'parent_station': gtfs_stop.get('parent_station'),
+            },
         })
 
     return gtfs_stop_rows, gtfs_state_rows
@@ -630,12 +744,13 @@ def write_gtfs_db_payload_cache(
 
 
 def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
-    """Map stop_id GTFS → sloid ATLAS using strict + coordinate + unique-number matching.
+    """Map GTFS stops to ATLAS SLOIDs using original_stop_id-first identity resolution.
 
-    Strict: (uic_number, normalized_local_ref) == (number, designation)
-    Fallback (applied only for stops not matched strictly):
-      1) If a same-UIC GTFS stop and ATLAS stop are within 0.5m and both sides are unique, assign them.
-      2) If an ATLAS "number" has exactly one row, use that sloid.
+    Resolution order:
+        1) direct original_stop_id == sloid
+        2) strict (uic_number, normalized_local_ref/platform_code) == (number, designation)
+        3) same-UIC coordinate proximity within 0.5m
+        4) unique-number fallback
     """
     print("Mapping stop_id GTFS → sloid ATLAS…")
     
@@ -653,20 +768,38 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
     atlas_data = atlas_data.dropna(subset=['sloid', 'number'])
     atlas_data['lat'] = pd.to_numeric(atlas_data.get('wgs84North'), errors='coerce')
     atlas_data['lon'] = pd.to_numeric(atlas_data.get('wgs84East'), errors='coerce')
-    
-    # Strict: match on UIC number and designation
-    strict_matches = pd.merge(
-        gtfs_stops[['stop_id', 'uic_number', 'normalized_local_ref']],
-        atlas_data,
-        left_on=['uic_number', 'normalized_local_ref'],
-        right_on=['number', 'designation'],
-        how='inner'
-    )[['stop_id', 'sloid']].drop_duplicates()
-    strict_matches['match_method'] = 'strict'
-    strict_matches['distance_m'] = np.nan
+    atlas_data['normalized_designation'] = atlas_data['designation'].map(_normalize_platform_code)
 
-    # Fallback for remaining stops: same-UIC coordinate proximity within 0.5m.
-    matched_stop_ids = set(strict_matches['stop_id'])
+    direct_original_matches = pd.DataFrame(columns=['stop_id', 'sloid', 'match_method', 'distance_m'])
+    original_stop_candidates = gtfs_stops[['stop_id', 'original_stop_id']].dropna(subset=['original_stop_id'])
+    if not original_stop_candidates.empty:
+        direct_original_matches = (
+            original_stop_candidates
+            .merge(atlas_data[['sloid']], left_on='original_stop_id', right_on='sloid', how='inner')
+            [['stop_id', 'sloid']]
+            .drop_duplicates()
+        )
+        if not direct_original_matches.empty:
+            direct_original_matches['match_method'] = 'original_stop_id'
+            direct_original_matches['distance_m'] = np.nan
+    
+    matched_stop_ids = set(direct_original_matches['stop_id'])
+    remaining = gtfs_stops[~gtfs_stops['stop_id'].isin(matched_stop_ids)].copy()
+
+    strict_matches = pd.DataFrame(columns=['stop_id', 'sloid', 'match_method', 'distance_m'])
+    if not remaining.empty:
+        strict_matches = pd.merge(
+            remaining[['stop_id', 'uic_number', 'normalized_local_ref']].dropna(subset=['uic_number', 'normalized_local_ref']),
+            atlas_data[['sloid', 'number', 'normalized_designation']],
+            left_on=['uic_number', 'normalized_local_ref'],
+            right_on=['number', 'normalized_designation'],
+            how='inner'
+        )[['stop_id', 'sloid']].drop_duplicates()
+        if not strict_matches.empty:
+            strict_matches['match_method'] = 'uic_platform'
+            strict_matches['distance_m'] = np.nan
+
+    matched_stop_ids |= set(strict_matches['stop_id'])
     remaining = gtfs_stops[~gtfs_stops['stop_id'].isin(matched_stop_ids)].copy()
 
     coordinate_matches, coordinate_stats = _build_coordinate_proximity_matches(remaining, atlas_data)
@@ -699,7 +832,11 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
         unique_fallback_matches['match_method'] = 'unique_number'
         unique_fallback_matches['distance_m'] = np.nan
 
-    match_frames = [frame for frame in (strict_matches, coordinate_matches, unique_fallback_matches) if not frame.empty]
+    match_frames = [
+        frame
+        for frame in (direct_original_matches, strict_matches, coordinate_matches, unique_fallback_matches)
+        if not frame.empty
+    ]
     if match_frames:
         combined = (
             pd.concat(match_frames, ignore_index=True)
@@ -739,7 +876,7 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
         unmatched_non_unique_after_strict = int(unmatched_total - unmatched_no_atlas_number)
 
     mapping_stats = {
-        'algorithm_version': 'strict_plus_coordinate_proximity_plus_unique_number',
+        'algorithm_version': 'original_stop_id_plus_uic_platform_plus_coordinate_proximity_plus_unique_number',
         'total_gtfs_stop_ids': total_gtfs_stops,
         'matched_gtfs_stop_ids': matched_stop_ids_count,
         'unmatched_gtfs_stop_ids': unmatched_total,
@@ -747,6 +884,7 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
         'touched_atlas_sloids': touched_sloids,
         'gtfs_coverage_percent': round((matched_stop_ids_count / total_gtfs_stops * 100), 2) if total_gtfs_stops else 0.0,
         'atlas_coverage_percent': round((touched_sloids / total_atlas_sloids * 100), 2) if total_atlas_sloids else 0.0,
+        'original_stop_id_assignments': int(len(direct_original_matches)),
         'strict_assignments': int(len(strict_matches)),
         'coordinate_proximity_assignments': int(len(coordinate_matches)),
         'unique_number_fallback_assignments': int(len(unique_fallback_matches)),
@@ -778,7 +916,8 @@ def match_gtfs_to_atlas(gtfs_data, traffic_points, return_stats: bool = False):
         return (combined, mapping_stats) if return_stats else combined
 
     print(
-        f"stop_id→sloid: strict = {len(strict_matches):,}, "
+        f"stop_id→sloid: original_stop_id = {len(direct_original_matches):,}, "
+        f"uic_platform = {len(strict_matches):,}, "
         f"coordinate_proximity = {len(coordinate_matches):,}, "
         f"unique_fallback = {len(unique_fallback_matches):,}, total = {len(combined):,}"
     )

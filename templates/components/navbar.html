@@ -39,7 +39,7 @@
             href="{{ url_for('operators.operators_page') }}">Operators</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint in ('analytics_stats', 'analytics_reports') %} active{%- endif %}"
+          <a class="nav-link {%- if request.endpoint in ('data_analytics', 'data_reports') %} active{%- endif %}"
             href="{{ url_for('data_index') }}">Data</a>
         </li>
         <li class="nav-item">
@@ -50,12 +50,12 @@
 
       <!-- Right side items -->
       <ul class="navbar-nav align-items-center">
-        {% if data_updated_at %}
+        {% if last_pipeline_data_import_ended_at %}
         <li class="nav-item">
           <span id="navbarDataUpdated" class="navbar-text text-muted small me-3"
             data-pipeline-next-run-at="{{ pipeline_next_run_at or '' }}"
-            data-data-updated-at="{{ data_updated_at or '' }}"
-            data-default-label="Data updated: {{ data_updated_at|format_zurich_display_timestamp }}"
+            data-data-updated-at="{{ last_pipeline_data_import_ended_at or '' }}"
+            data-default-label="Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}"
             data-running-label="Pipeline running in the background" data-blocking-label="Pipeline running" tabindex="0">
             <button type="button" id="navbarNextRunInfo"
               class="btn btn-link btn-sm text-muted text-decoration-none p-0 border-0 me-1 align-baseline"
@@ -65,7 +65,7 @@
               endif %}>
               <i class="fas fa-info-circle"></i>
             </button>
-            <span id="navbarDataUpdatedText">Data updated: {{ data_updated_at|format_zurich_display_timestamp }}</span>
+            <span id="navbarDataUpdatedText">Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}</span>
           </span>
         </li>
         {% endif %}

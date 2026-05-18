@@ -22,7 +22,7 @@ from matching_and_import_db.utils.common import haversine_distance
 from matching_and_import_db.predicates.exact_matching import ExactUicPredicate
 from matching_and_import_db.predicates.name_matching import NameMatchPredicate
 from matching_and_import_db.predicates.trio_distance_matching import TrioDistanceMatchingPredicate
-from matching_and_import_db.predicates.distance_matching import GroupProximityPredicate, LocalRefDistancePredicate, NearestDistancePredicate
+from matching_and_import_db.predicates.distance_matching import GroupProximityPredicate, LongDistanceGroupProximityPredicate, LocalRefDistancePredicate, NearestDistancePredicate
 from matching_and_import_db.predicates.route_matching_gtfs import RouteMatchPredicate
 from matching_and_import_db.route_state import RouteState
 
@@ -32,6 +32,7 @@ DEFAULT_PIPELINE = [
     NameMatchPredicate(),
     RouteMatchPredicate(),
     GroupProximityPredicate(),
+    LongDistanceGroupProximityPredicate(),
     LocalRefDistancePredicate(),
     NearestDistancePredicate(mode='single', pass_label='first'),
     NearestDistancePredicate(mode='ratio', pass_label='first'),
@@ -148,9 +149,9 @@ def run_matching() -> MatchingOutput:
     # ── Identify ATLAS duplicate groups & init State ─────────────────────
     atlas_state = AtlasState.from_dataframe(
         atlas_df,
-        routes_csv_path='data/processed/atlas_routes.csv',
-        directions_csv_path='data/processed/atlas_route_directions.csv',
-        stops_csv_path='data/processed/atlas_route_stops.csv',
+        line_families_csv_path='data/processed/atlas_line_families.csv',
+        itineraries_csv_path='data/processed/atlas_itineraries.csv',
+        stop_calls_csv_path='data/processed/atlas_itinerary_stop_calls.csv',
     )
 
     # ── Pre-group platform ↔ stop_position pairs ─────────────────────────
@@ -243,7 +244,7 @@ def run_matching() -> MatchingOutput:
         duplicate_sloid_map=atlas_state.duplicate_sloid_map,
         osm_stop_units=stop_units,
         all_osm_nodes=all_osm_nodes,
-        atlas_routes_by_sloid=dict(atlas_state._routes_by_sloid),
+        atlas_route_evidence_by_sloid=dict(atlas_state._route_evidence_by_sloid),
         osm_node_routes=dict(osm_index._node_routes),
         osm_name_dirs={node_id: set(values) for node_id, values in osm_index.name_dirs.items()},
     )

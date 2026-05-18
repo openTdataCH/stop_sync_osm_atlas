@@ -11,6 +11,7 @@ import threading
 import time
 import uuid
 import os
+import shutil
 import tempfile
 from sqlalchemy import case
 
@@ -27,6 +28,28 @@ from backend.services.async_export import (
 )
 
 reports_bp = Blueprint('reports', __name__)
+
+
+def _copy_summary_pdf_to_temp(task_id):
+    from backend.services.stats_export import ensure_stats_summary_pdf_generated
+
+    source_path = ensure_stats_summary_pdf_generated(force=False)
+    filename = f"stats_summary_{task_id[:8]}.pdf"
+    dest_path = os.path.join(tempfile.gettempdir(), filename)
+    shutil.copy2(source_path, dest_path)
+    return dest_path, filename
+
+
+def _send_summary_pdf_response(download_name='summary_operator_asc.pdf'):
+    from backend.services.stats_export import ensure_stats_summary_pdf_generated
+
+    pdf_path = ensure_stats_summary_pdf_generated(force=False)
+    return send_file(
+        pdf_path,
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=download_name,
+    )
 
 
 def _normalize_report_type(report_type):
@@ -155,39 +178,30 @@ def _serialize_report_csv(data_for_report, report_type, include_fields):
 
 
 def _render_report_pdf_bytes(data_for_report, report_type, include_fields, sort_order):
+    if report_type == 'summary':
+        raise ValueError("Summary PDF rendering is handled by stats_export.")
+
     report_title_map = {
         'distance': 'Top Distance Matched Pairs',
         'unmatched': 'Unmatched Entries Report',
         'problems': 'Problems Report',
-        'summary': 'Statistics Summary Report',
     }
     from backend.services.stats_export import get_report_css_content
     css_content = get_report_css_content(['static/css/pages/reports.css'])
     
     report_title = report_title_map.get(report_type, 'OSM & ATLAS Report')
 
-    if report_type == 'summary':
-        report_html = render_template(
-            'reports/stats_summary.html',
-            stats=data_for_report['stats'],
-            problem_breakdown=data_for_report['problem_stats'].get('by_priority', {}),
-            probs=data_for_report['problem_stats'],
-            generated_at=datetime.now(),
-            css_content=css_content,
-            pdf_assets_prefix='static/vendor/'
-        )
-    else:
-        report_html = render_template(
-            'reports/report.html',
-            report_items=data_for_report,
-            generated_at=datetime.now(),
-            sort_order=sort_order,
-            report_title=report_title,
-            report_type=report_type,
-            include_fields=include_fields,
-            css_content=css_content,
-            pdf_assets_prefix='static/vendor/'
-        )
+    report_html = render_template(
+        'reports/report.html',
+        report_items=data_for_report,
+        generated_at=datetime.now(),
+        sort_order=sort_order,
+        report_title=report_title,
+        report_type=report_type,
+        include_fields=include_fields,
+        css_content=css_content,
+        pdf_assets_prefix='static/vendor/'
+    )
 
     try:
         from weasyprint import HTML
@@ -232,18 +246,12 @@ def generate_report_data(params, task_id=None):
         report_type = _normalize_report_type(params.get('report_type', 'distance'))
         report_format = str(params.get('format', 'pdf')).strip().lower()
         sort_param = _normalize_sort(report_type, params.get('sort', 'operator_asc'))
+
+        if report_type == 'summary':
+            raise ValueError("Summary exports are handled by stats_export.")
         
         atlas_operator_str = params.get('atlas_operator', '')
         atlas_operators = [op.strip() for op in atlas_operator_str.split(',') if op and op.strip()]
-
-        if report_type == 'summary':
-            # Summary report uses pre-calculated stats and is cached via ensure_stats_summary_pdf_generated
-            import os
-            from backend.services.stats_export import ensure_stats_summary_pdf_generated
-            # Use the intelligent caching built into stats_export
-            # We don't render HTML directly here anymore, we just return to the background thread
-            # which will use ensure_stats_summary_pdf_generated directly.
-            pass  # handled in caller
 
         def _apply_atlas_operator_filter(query):
             if not atlas_operators:
@@ -419,8 +427,11 @@ def generate_report_async():
             return jsonify({"error": "No data provided"}), 400
 
         report_type = _normalize_report_type(data.get('report_type', 'distance'))
+        report_format = str(data.get('format', 'pdf')).strip().lower()
         if report_type not in {'distance', 'unmatched', 'problems', 'summary'}:
             return jsonify({"error": "Invalid report_type provided"}), 400
+        if report_type == 'summary' and report_format != 'pdf':
+            return jsonify({"error": "Summary report only supports PDF format"}), 400
 
         task_id = str(uuid.uuid4())
         init_task(task_id)
@@ -453,28 +464,22 @@ def background_report_generation(params, task_id, flask_app):
             
             report_type = _normalize_report_type(params.get('report_type', 'distance'))
             report_format = params.get('format', 'pdf').lower()
-            sort_param = _normalize_sort(report_type, params.get('sort', 'operator_asc'))
             
-            # Smart cache handling for summary report
             if report_type == 'summary' and report_format == 'pdf':
-                from backend.services.stats_export import ensure_stats_summary_pdf_generated
-                filepath = ensure_stats_summary_pdf_generated(force=False)
-                filename = f"stats_summary_{task_id[:8]}.pdf"
-                import shutil
-                temp_dir = tempfile.gettempdir()
-                dest_path = os.path.join(temp_dir, filename)
-                shutil.copy2(filepath, dest_path)
+                dest_path, filename = _copy_summary_pdf_to_temp(task_id)
                 complete_task(task_id, dest_path, filename)
-                # Ensure UI instantly recognizes 100%
                 ae_update_progress(task_id, 1, 1)
                 return
+
+            if report_type == 'summary':
+                raise ValueError("Summary report only supports PDF format")
 
             # Proceed normally for customized reports
             result = generate_report_data(params, task_id)
             if result is None:
                 return  # Cancelled or error
                 
-            data_for_report, returned_report_type = result
+            data_for_report, _ = result
             report_format = params.get('format', 'pdf').lower()
             include_fields = _parse_include_fields(params.get('include_fields', ''))
             sort_param = _normalize_sort(report_type, params.get('sort', 'operator_asc'))
@@ -559,8 +564,15 @@ def cancel_report(task_id):
 @limiter.limit("20/day")
 def generate_report():
     try:
+        report_type = _normalize_report_type(request.args.get('report_type', 'distance'))
         report_format = (request.args.get('format', 'pdf') or 'pdf').lower()
+        sort_param = _normalize_sort(report_type, request.args.get('sort', 'operator_asc'))
         include_fields = _parse_include_fields(request.args.get('include_fields', ''))
+
+        if report_type == 'summary':
+            if report_format != 'pdf':
+                return jsonify({"status": "error", "message": "Summary report only supports PDF format"}), 400
+            return _send_summary_pdf_response(download_name=f"summary_{sort_param}.pdf")
 
         result = generate_report_data(request.args)
         if result is None:

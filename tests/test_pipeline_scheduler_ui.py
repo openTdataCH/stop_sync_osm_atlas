@@ -68,7 +68,7 @@ def test_pipeline_status_maps_old_storage_key(monkeypatch):
     assert "maintenance" not in status
 
 
-def test_pipeline_status_falls_back_to_stats_data_updated_at(monkeypatch):
+def test_pipeline_status_falls_back_to_stats_last_pipeline_data_import_ended_at(monkeypatch):
     from backend.services import pipeline_status
 
     monkeypatch.setattr(pipeline_status, "_read_raw_status", lambda: {})
@@ -76,13 +76,13 @@ def test_pipeline_status_falls_back_to_stats_data_updated_at(monkeypatch):
     class DummyStatsExport:
         @staticmethod
         def load_stats_from_file():
-            return {"data_updated_at": "2026-05-02T19:31:00+02:00"}
+            return {"last_pipeline_data_import_ended_at": "2026-05-02T19:31:00+02:00"}
 
     monkeypatch.setitem(__import__("sys").modules, "backend.services.stats_export", DummyStatsExport)
 
     status = pipeline_status.get_status()
 
-    assert status["data_updated_at"] == "2026-05-02T19:31:00+02:00"
+    assert status["last_pipeline_data_import_ended_at"] == "2026-05-02T19:31:00+02:00"
 
 
 def test_pipeline_status_supports_data_updated_field(monkeypatch):
@@ -93,7 +93,7 @@ def test_pipeline_status_supports_data_updated_field(monkeypatch):
 
     status = pipeline_status.set_data_updated("2026-05-02T19:31:00+02:00")
 
-    assert status["data_updated_at"] == "2026-05-02T19:31:00+02:00"
+    assert status["last_pipeline_data_import_ended_at"] == "2026-05-02T19:31:00+02:00"
 
 
 def test_pipeline_status_file_backend_persists_status(monkeypatch, tmp_path):
@@ -146,13 +146,13 @@ def test_navbar_renders_next_run_metadata(client, monkeypatch):
     monkeypatch.setattr(
         stats_export,
         "load_stats_from_file",
-        lambda: {"data_updated_at": "2026-05-02T09:15:00+02:00"},
+        lambda: {"last_pipeline_data_import_ended_at": "2026-05-02T09:15:00+02:00"},
     )
     monkeypatch.setattr(
         pipeline_status,
         "get_status",
         lambda: {
-            "data_updated_at": "2026-05-02T19:31:00+02:00",
+            "last_pipeline_data_import_ended_at": "2026-05-02T19:31:00+02:00",
             "next_run_at": "2026-05-03T08:00:00+00:00",
         },
     )
@@ -190,7 +190,38 @@ def test_record_data_updated_timestamp_writes_meta_and_status(monkeypatch, tmp_p
 
     assert result == "2026-05-02T21:31:00+02:00"
     assert captured["value"] == "2026-05-02T21:31:00+02:00"
-    assert (tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8") == '{"data_updated_at": "2026-05-02T21:31:00+02:00"}'
+    assert (tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8") == '{"last_pipeline_data_import_ended_at": "2026-05-02T21:31:00+02:00"}'
+
+
+def test_record_data_updated_timestamp_persists_run_type_and_refresh_scope(monkeypatch, tmp_path):
+    from matching_and_import_db.scheduler import job_runner
+    from matching_and_import_db.scheduler.job_types import PipelineRunType
+    from backend.services import data_meta
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(data_meta, "DATA_META_PATH", str(tmp_path / "data" / "data_meta.json"))
+    monkeypatch.setattr(job_runner, "get_zurich_now", lambda: datetime(2026, 5, 3, 10, 0, tzinfo=timezone.utc))
+    monkeypatch.setattr(job_runner, "format_zurich_timestamp", lambda dt: "2026-05-03T12:00:00+02:00")
+    captured = {}
+    monkeypatch.setattr(job_runner, "set_data_updated", lambda value: captured.setdefault("value", value))
+    monkeypatch.setattr(job_runner, "set_status", lambda **kwargs: captured.setdefault("status", kwargs))
+
+    result = job_runner._record_data_updated_timestamp(
+        run_type=PipelineRunType.ATLAS_CACHED,
+        rewritten_tables=['osm_nodes', 'line_families'],
+        reused_tables=['atlas_stops', 'gtfs_stops_raw'],
+    )
+
+    assert result == "2026-05-03T12:00:00+02:00"
+    assert captured["value"] == "2026-05-03T12:00:00+02:00"
+    assert captured["status"]["run_type"] == "atlas_cached"
+    assert captured["status"]["refresh_scope_tables_reused"] == ['atlas_stops', 'gtfs_stops_raw']
+    assert json.loads((tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8")) == {
+        "last_pipeline_data_import_ended_at": "2026-05-03T12:00:00+02:00",
+        "last_run_type": "atlas_cached",
+        "refresh_scope_tables_rewritten": ['osm_nodes', 'line_families'],
+        "refresh_scope_tables_reused": ['atlas_stops', 'gtfs_stops_raw'],
+    }
 
 
 def test_format_zurich_display_timestamp_formats_iso_strings():
@@ -213,6 +244,7 @@ def test_source_snapshot_unchanged_uses_http_validators():
 
 def test_run_atlas_gtfs_preprocessing_skips_when_sources_are_unchanged(monkeypatch):
     from matching_and_import_db.scheduler import job_runner
+    from matching_and_import_db.scheduler.job_types import PipelineRunType
 
     previous_sources = {
         "atlas": {"probe_ok": True, "etag": '"atlas"'},
@@ -226,6 +258,7 @@ def test_run_atlas_gtfs_preprocessing_skips_when_sources_are_unchanged(monkeypat
 
     monkeypatch.setattr(job_runner, "_load_preprocessing_source_state", lambda: previous_sources)
     monkeypatch.setattr(job_runner, "_probe_preprocessing_sources", lambda: current_sources)
+    monkeypatch.setattr(job_runner, "atlas_cached_static_tables_ready", lambda _session: True)
     monkeypatch.setattr(job_runner, "refresh_run_lock", lambda *args, **kwargs: None)
     monkeypatch.setattr(job_runner, "_persist_preprocessing_source_state", lambda *_args, **_kwargs: captured.setdefault("persisted", True))
     monkeypatch.setattr(job_runner, "_run_subprocess", lambda *args, **kwargs: captured.setdefault("subprocess_called", True))
@@ -235,10 +268,84 @@ def test_run_atlas_gtfs_preprocessing_skips_when_sources_are_unchanged(monkeypat
         lambda **kwargs: captured["phases"].append((kwargs["phase"], kwargs["message"])),
     )
 
-    job_runner._run_atlas_gtfs_preprocessing_if_needed("lock-token")
+    run_type = job_runner._run_atlas_gtfs_preprocessing_if_needed("lock-token")
 
+    assert run_type == PipelineRunType.ATLAS_CACHED
     assert captured.get("subprocess_called") is None
     assert captured["phases"][-1] == (
         "atlas_download",
         "ATLAS + GTFS unchanged; reusing cached preprocessing outputs",
+    )
+
+
+def test_run_atlas_gtfs_preprocessing_uses_bootstrap_when_static_tables_are_missing(monkeypatch):
+    from matching_and_import_db.scheduler import job_runner
+    from matching_and_import_db.scheduler.job_types import PipelineRunType
+
+    previous_sources = {
+        "atlas": {"probe_ok": True, "etag": '"atlas"'},
+        "gtfs": {"probe_ok": True, "etag": '"gtfs"'},
+    }
+    current_sources = {
+        "atlas": {"probe_ok": True, "etag": '"atlas"'},
+        "gtfs": {"probe_ok": True, "etag": '"gtfs"'},
+    }
+    captured = {"phases": []}
+
+    monkeypatch.setattr(job_runner, "_load_preprocessing_source_state", lambda: previous_sources)
+    monkeypatch.setattr(job_runner, "_probe_preprocessing_sources", lambda: current_sources)
+    monkeypatch.setattr(job_runner, "atlas_cached_static_tables_ready", lambda _session: False)
+    monkeypatch.setattr(job_runner, "refresh_run_lock", lambda *args, **kwargs: None)
+    monkeypatch.setattr(job_runner, "_persist_preprocessing_source_state", lambda *_args, **_kwargs: captured.setdefault("persisted", True))
+    monkeypatch.setattr(job_runner, "_run_subprocess", lambda *args, **kwargs: captured.setdefault("subprocess_called", True))
+    monkeypatch.setattr(
+        job_runner,
+        "set_phase",
+        lambda **kwargs: captured["phases"].append((kwargs["phase"], kwargs["message"])),
+    )
+
+    run_type = job_runner._run_atlas_gtfs_preprocessing_if_needed("lock-token")
+
+    assert run_type == PipelineRunType.ATLAS_CACHED_BOOTSTRAP
+    assert captured.get("subprocess_called") is None
+    assert captured["phases"][-1] == (
+        "atlas_download",
+        "ATLAS + GTFS unchanged; cached preprocessing found, rebuilding static import tables",
+    )
+
+
+def test_run_atlas_gtfs_preprocessing_can_force_full_refresh(monkeypatch):
+    from matching_and_import_db.scheduler import job_runner
+    from matching_and_import_db.scheduler.job_types import PipelineRunType
+
+    previous_sources = {
+        "atlas": {"probe_ok": True, "etag": '"atlas"'},
+        "gtfs": {"probe_ok": True, "etag": '"gtfs"'},
+    }
+    current_sources = {
+        "atlas": {"probe_ok": True, "etag": '"atlas"'},
+        "gtfs": {"probe_ok": True, "etag": '"gtfs"'},
+    }
+    captured = {"phases": []}
+
+    monkeypatch.setenv("PIPELINE_FORCE_FULL_REFRESH", "1")
+    monkeypatch.setattr(job_runner, "_load_preprocessing_source_state", lambda: previous_sources)
+    monkeypatch.setattr(job_runner, "_probe_preprocessing_sources", lambda: current_sources)
+    monkeypatch.setattr(job_runner, "atlas_cached_static_tables_ready", lambda _session: True)
+    monkeypatch.setattr(job_runner, "refresh_run_lock", lambda *args, **kwargs: None)
+    monkeypatch.setattr(job_runner, "_persist_preprocessing_source_state", lambda *_args, **_kwargs: captured.setdefault("persisted", True))
+    monkeypatch.setattr(job_runner, "_run_subprocess", lambda *args, **kwargs: captured.setdefault("subprocess_called", True))
+    monkeypatch.setattr(
+        job_runner,
+        "set_phase",
+        lambda **kwargs: captured["phases"].append((kwargs["phase"], kwargs["message"])),
+    )
+
+    run_type = job_runner._run_atlas_gtfs_preprocessing_if_needed("lock-token")
+
+    assert run_type == PipelineRunType.COMPLETE
+    assert captured.get("subprocess_called") is True
+    assert captured["phases"][-1] == (
+        "atlas_download",
+        "ATLAS + GTFS unchanged; forcing preprocessing rebuild and full refresh",
     )

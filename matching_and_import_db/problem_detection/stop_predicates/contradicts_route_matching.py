@@ -15,12 +15,12 @@ def contradicts_route_matching_problem(
     if not isinstance(record, MatchRecord):
         return []
 
-    atlas_routes_data = ctx.atlas_routes_by_sloid.get(str(record.atlas_node.sloid), {'gtfs': []})
+    atlas_route_evidence = ctx.atlas_route_evidence_by_sloid.get(str(record.atlas_node.sloid), {'gtfs': []})
     osm_node_routes = ctx.osm_node_routes.get(str(record.osm_node.node_id), [])
     osm_direction_names = ctx.osm_name_dirs.get(str(record.osm_node.node_id), set())
 
     alignment = classify_route_alignment(
-        atlas_routes_data,
+        atlas_route_evidence,
         osm_node_routes,
         osm_direction_names,
     )

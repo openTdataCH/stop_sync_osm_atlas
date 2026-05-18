@@ -23,6 +23,8 @@ def format_stop_data(stop: StopsMatched, problem_type: str = None, include_route
         "osm_lon": stop.osm_lon,
         "osm_network": osm_details.osm_network if osm_details else None,
         "osm_operator": osm_details.osm_operator if osm_details else None,
+        "osm_operator_wikidata": osm_details.osm_operator_wikidata if osm_details else None,
+        "osm_network_wikidata": osm_details.osm_network_wikidata if osm_details else None,
         "osm_public_transport": osm_details.osm_public_transport if osm_details else None,
         "osm_railway": osm_details.osm_railway if osm_details else None,
         "osm_amenity": osm_details.osm_amenity if osm_details else None,

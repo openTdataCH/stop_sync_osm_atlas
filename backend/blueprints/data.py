@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import func, case
 from sqlalchemy.orm import joinedload, load_only
 from collections import defaultdict
-from backend.models import AtlasOperator, StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember, OsmRoute
+from backend.models import AtlasOperator, StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember, OsmRouteRelation
 from backend.extensions import db, limiter
 from backend.db_errors import is_missing_table_error
 from backend.serializers.stops import format_stop_data
@@ -140,11 +140,11 @@ def get_osm_operators():
 @limiter.limit("60/minute")
 def get_osm_route_operators():
     try:
-        operators = db.session.query(OsmRoute.operator) \
-            .filter(OsmRoute.operator.isnot(None)) \
-            .filter(OsmRoute.operator != '') \
+        operators = db.session.query(OsmRouteRelation.operator) \
+            .filter(OsmRouteRelation.operator.isnot(None)) \
+            .filter(OsmRouteRelation.operator != '') \
             .distinct() \
-            .order_by(OsmRoute.operator) \
+            .order_by(OsmRouteRelation.operator) \
             .all()
         operator_list = [op[0] for op in operators if op[0]]
         return jsonify({"operators": operator_list, "total": len(operator_list)})
