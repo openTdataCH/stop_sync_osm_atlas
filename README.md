@@ -50,7 +50,7 @@ There's a public instance of the project at: https://atlas.osm.ch
     - Build the application images
     - Download and start Postgres (PostGIS) database
     - Start the web app container
-    - Start the scheduler container (daily pipeline at 2:00 Europe/Zurich)
+    - Start the scheduler container (default recurring run every 24 hours in `Europe/Zurich`)
 
     Redis is no longer required by default. The default local setup uses file-backed pipeline state and `memory://` rate limiting.
 
@@ -152,12 +152,14 @@ You can do this while the `app` container is running in the background.
 
 ## Environment & Secrets
 
-Most local runs work without a `.env` file, but these variables are the main ones to override when needed:
+Most local runs work without a `.env` file. If you want explicit local configuration, copy `env.example` to `.env` and adjust these values:
 
 | Variable | Purpose | Default |
 |---|---|---|
 | `DATABASE_URI` | SQLAlchemy connection string | `postgresql+psycopg://stops_user:1234@db:5432/import_db` |
 | `SECRET_KEY` | Flask secret key | `dev-insecure` |
+| `FLASK_DEBUG` | Enables Flask debug mode for local development | `1` |
+| `FORCE_HTTPS` | Redirect HTTP requests to HTTPS when running behind TLS | `false` |
 | `RATELIMIT_STORAGE_URI` | Flask-Limiter backend | `memory://` |
 | `PIPELINE_STATE_BACKEND` | Shared pipeline status/lock backend (`redis`, `file`, `memory`) | `file` |
 | `PIPELINE_STATE_REDIS_URL` | Redis URL for pipeline state when backend is `redis` | unset |
@@ -168,6 +170,7 @@ Most local runs work without a `.env` file, but these variables are the main one
 | `PIPELINE_TIMEZONE` | Scheduler timezone | `Europe/Zurich` |
 | `PIPELINE_SCHEDULE_INTERVAL_HOURS` | Automatic pipeline interval | `24` |
 | `PIPELINE_IMPORT_ETA_SECONDS` | Import-phase ETA shown in the UI | `150` |
+| `PIPELINE_LOG_LEVEL` | Scheduler and pipeline logging verbosity | `INFO` |
 | `PIPELINE_SOURCE_PROBE_TIMEOUT_SECONDS` | Timeout for ATLAS/GTFS source validator probes | `120` |
 
 Redis-free local deployments use:
@@ -192,9 +195,7 @@ ASYNC_EXPORT_REDIS_URL=redis://redis:6379/0
 
 ## Running the Web Application
 
-The Flask server is started automatically by Docker Compose.
-
-Access it at [http://localhost:5001/](http://localhost:5001/).
+After `docker compose up --build`, the Flask app is available at [http://localhost:5001/](http://localhost:5001/).
 
 ### Usage
 
@@ -202,7 +203,7 @@ Access it at [http://localhost:5001/](http://localhost:5001/).
 - **Filters & Search**: Filter by ATLAS SLOID, OSM Node ID, UIC reference, or route.
 - **Problems**: On the problems page you can solve the problems. See [3. Problems](documentation/3.%20Problems.md).
 - **Manage Data**: See [4. Database](documentation/4.%20Database.md).
-- **Generating Reports:** The web app can generate CSV and PDF reports. See [5.5 Generate Reports and PDFs](documentation/5.5%20Generate%20Reports%20and%20PDFs.md).
+- **Generating Reports:** The web app can generate CSV and PDF reports. See [6.5 Generate Reports and PDFs](documentation/6.5%20Generate%20Reports%20and%20PDFs.md).
 
 
 ## CI & Tests
@@ -210,7 +211,7 @@ Access it at [http://localhost:5001/](http://localhost:5001/).
 This repository uses **GitHub Actions** for continuous integration.
 
 - Workflow: [tests.yml](.github/workflows/tests.yml)
-- CI documentation: [CI and Tests](documentation/7.%20Test.md)
+- CI documentation: [CI and Tests](documentation/8.%20Test.md)
 
 
 ## Contributing and project Status
