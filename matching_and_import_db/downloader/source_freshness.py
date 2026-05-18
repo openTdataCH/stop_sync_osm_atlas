@@ -1,4 +1,3 @@
-import os
 import re
 from typing import Any, Dict
 from urllib.parse import urlparse
@@ -7,7 +6,7 @@ import requests
 
 
 _FILENAME_RE = re.compile(r'filename="?([^";]+)"?')
-_PROBE_TIMEOUT_SECONDS = int(os.getenv("PIPELINE_SOURCE_PROBE_TIMEOUT_SECONDS", "120"))
+_PROBE_TIMEOUT_SECONDS = 120
 
 
 def _strip_query(url: str | None) -> str | None:

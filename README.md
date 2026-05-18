@@ -170,7 +170,6 @@ Most local runs work without a `.env` file. If you want explicit local configura
 | `PIPELINE_SCHEDULE_INTERVAL_HOURS` | Automatic pipeline interval | `24` |
 | `PIPELINE_IMPORT_ETA_SECONDS` | Import-phase ETA shown in the UI | `150` |
 | `PIPELINE_LOG_LEVEL` | Scheduler and pipeline logging verbosity | `INFO` |
-| `PIPELINE_SOURCE_PROBE_TIMEOUT_SECONDS` | Timeout for ATLAS/GTFS source validator probes | `120` |
 
 Redis-free local deployments use:
 
