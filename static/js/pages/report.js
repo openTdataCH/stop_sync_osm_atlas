@@ -6,7 +6,7 @@ window.progressInterval = null;
 window.currentDownloadUrl = '/api/download_report/';
 window.currentCancelUrl = '/api/cancel_report/';
 window.currentCheckUrl = '/api/report_progress/';
-// Keep polling under the 60/min endpoint limiter.
+// Keep polling comfortably under the 240/min report progress limiter.
 var PROGRESS_POLL_INTERVAL_MS = 1500;
 var TARGET_PROGRESS_DURATION_MS = 20000;
 var MAX_ACTIVE_PROGRESS_PERCENT = 95;
@@ -207,6 +207,7 @@ function buildReportRequestParams() {
         if ($('#ptypeDistance').is(':checked')) ptypes.push('distance');
         if ($('#ptypeUnmatched').is(':checked')) ptypes.push('unmatched');
         if ($('#ptypeAttributes').is(':checked')) ptypes.push('attributes');
+        if ($('#ptypeContradictsRouteMatching').is(':checked')) ptypes.push('contradicts_route_matching');
         if ($('#ptypeDuplicates').is(':checked')) ptypes.push('duplicates');
         if (ptypes.length > 0) params.problem_types = ptypes.join(',');
 
@@ -596,6 +597,7 @@ window.cancelReportGeneration = cancelReportGeneration;
 window.resetProgressOverlay = resetProgressOverlay;
 window.startAsyncReportGeneration = startAsyncReportGeneration;
 window.startAsyncTask = startAsyncTask;
+window.buildReportRequestParams = buildReportRequestParams;
 window.startProgressPolling = startProgressPolling;
 window.updateProgress = updateProgress;
 window.showError = showError;

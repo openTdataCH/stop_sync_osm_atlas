@@ -29,6 +29,14 @@ from backend.services.async_export import (
 
 reports_bp = Blueprint('reports', __name__)
 
+PROBLEM_REPORT_TYPES = (
+    'distance',
+    'unmatched',
+    'attributes',
+    'contradicts_route_matching',
+    'duplicates',
+)
+
 
 def _copy_summary_pdf_to_temp(task_id):
     from backend.services.stats_export import ensure_stats_summary_pdf_generated
@@ -287,11 +295,10 @@ def generate_report_data(params, task_id=None):
         elif report_type == 'problems':
             problem_types_str = params.get('problem_types', '')
             selected_types = [t.strip() for t in problem_types_str.split(',') if t.strip()]
-            valid_problem_types = {'distance', 'unmatched', 'attributes', 'contradicts_route_matching', 'duplicates'}
             if selected_types:
-                selected_types = [t for t in selected_types if t in valid_problem_types]
+                selected_types = [t for t in selected_types if t in PROBLEM_REPORT_TYPES]
             else:
-                selected_types = list(valid_problem_types)
+                selected_types = list(PROBLEM_REPORT_TYPES)
 
             priorities_str = params.get('priorities', '')
             selected_priorities = []
