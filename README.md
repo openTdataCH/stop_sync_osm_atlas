@@ -157,7 +157,6 @@ Most local runs work without a `.env` file. If you want explicit local configura
 | Variable | Purpose | Default |
 |---|---|---|
 | `DATABASE_URI` | SQLAlchemy connection string | `postgresql+psycopg://stops_user:1234@db:5432/import_db` |
-| `SECRET_KEY` | Flask secret key | `dev-insecure` |
 | `FLASK_DEBUG` | Enables Flask debug mode for local development | `1` |
 | `FORCE_HTTPS` | Redirect HTTP requests to HTTPS when running behind TLS | `false` |
 | `RATELIMIT_STORAGE_URI` | Flask-Limiter backend | `memory://` |

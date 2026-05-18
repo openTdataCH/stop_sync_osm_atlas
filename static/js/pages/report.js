@@ -8,6 +8,9 @@ window.currentCancelUrl = '/api/cancel_report/';
 window.currentCheckUrl = '/api/report_progress/';
 // Keep polling under the 60/min endpoint limiter.
 var PROGRESS_POLL_INTERVAL_MS = 1500;
+var TARGET_PROGRESS_DURATION_MS = 20000;
+var MAX_ACTIVE_PROGRESS_PERCENT = 95;
+var PROGRESS_ANIMATION_INTERVAL_MS = 120;
 
 function resetProgressOverlay(title) {
     if (title) {
@@ -15,15 +18,86 @@ function resetProgressOverlay(title) {
     } else {
         $('#overlayTitle').text('Generating Report');
     }
-    $('#reportProgressBar').css('width', '0%').attr('aria-valuenow', 0).removeClass('progress-bar-striped progress-bar-animated');
+    stopProgressAnimation();
+    window.progressAnimationStartedAt = null;
+    window.currentTaskStatus = 'starting';
+    window.shouldShowProgressCounters = false;
+    setProgressBarValue(0);
+    $('#reportProgressBar').removeClass('progress-bar-striped progress-bar-animated');
     $('#progressText').text('Starting...');
     $('#entriesProcessed').text('0');
     $('#totalEntries').text('0');
-    $('#progressCounters').show();
-    $('#etaText').hide();
+    $('#progressCounters').hide();
     $('#downloadSection').hide();
     $('#errorSection').hide();
     $('#progressControls').show();
+}
+
+function setProgressBarValue(value) {
+    var normalizedValue = Math.max(0, Math.min(100, Math.round(value || 0)));
+    window.currentProgressBarValue = normalizedValue;
+    $('#reportProgressBar').css('width', normalizedValue + '%').attr('aria-valuenow', normalizedValue);
+}
+
+function getTimedProgressPercent() {
+    if (!window.progressAnimationStartedAt) {
+        return 0;
+    }
+
+    var elapsed = Date.now() - window.progressAnimationStartedAt;
+    var normalizedElapsed = Math.min(elapsed / TARGET_PROGRESS_DURATION_MS, 1);
+    var easedProgress = 1 - Math.pow(1 - normalizedElapsed, 3);
+
+    return MAX_ACTIVE_PROGRESS_PERCENT * easedProgress;
+}
+
+function getActiveProgressText(progressPercent) {
+    if ((window.currentTaskStatus || 'starting') === 'starting' && progressPercent < 10) {
+        return 'Starting...';
+    }
+
+    return 'Generating file... ' + progressPercent + '%';
+}
+
+function renderTimedProgress() {
+    if ((window.currentTaskStatus || 'processing') === 'completed' || (window.currentTaskStatus || 'processing') === 'error') {
+        return;
+    }
+
+    var targetProgress = getTimedProgressPercent();
+    var nextProgress = Math.max(window.currentProgressBarValue || 0, targetProgress);
+
+    setProgressBarValue(nextProgress);
+    $('#progressText').text(getActiveProgressText(window.currentProgressBarValue));
+}
+
+function startProgressAnimation() {
+    if (!window.progressAnimationStartedAt) {
+        window.progressAnimationStartedAt = Date.now();
+    }
+
+    stopProgressAnimation();
+    $('#reportProgressBar').addClass('progress-bar-striped progress-bar-animated');
+    window.progressAnimationInterval = setInterval(renderTimedProgress, PROGRESS_ANIMATION_INTERVAL_MS);
+    renderTimedProgress();
+}
+
+function stopProgressAnimation() {
+    if (window.progressAnimationInterval) {
+        clearInterval(window.progressAnimationInterval);
+        window.progressAnimationInterval = null;
+    }
+}
+
+function updateProgressCounters(processed, total) {
+    $('#entriesProcessed').text(processed.toLocaleString());
+    $('#totalEntries').text(total.toLocaleString());
+
+    if (window.shouldShowProgressCounters && total > 0) {
+        $('#progressCounters').show();
+    } else {
+        $('#progressCounters').hide();
+    }
 }
 
 function startAsyncTask(options) {
@@ -52,8 +126,10 @@ function startAsyncTask(options) {
         }
     }
     
-    // Store current params for progress bar logic (e.g., pdf timing adjustments)
-    window.currentReportParams = params;
+    window.shouldShowProgressCounters = config.showCounters;
+    if (typeof window.shouldShowProgressCounters !== 'boolean') {
+        window.shouldShowProgressCounters = config.generateUrl === '/api/generate_report_async' && params.report_type !== 'summary';
+    }
     
     $.ajax({
         url: config.generateUrl,
@@ -64,6 +140,8 @@ function startAsyncTask(options) {
         success: function(response) {
             if (response.task_id) {
                 window.currentTaskId = response.task_id;
+                window.currentTaskStatus = 'starting';
+                startProgressAnimation();
                 startProgressPolling();
             } else {
                 showError('Failed to start task');
@@ -148,10 +226,6 @@ function startProgressPolling() {
         clearInterval(window.progressInterval);
         window.progressInterval = null;
     }
-    if (window.pdfFakeProgressInterval) {
-        clearInterval(window.pdfFakeProgressInterval);
-        window.pdfFakeProgressInterval = null;
-    }
     
     window.progressInterval = setInterval(function() {
         if (!window.currentTaskId) return;
@@ -183,89 +257,30 @@ function updateProgress(progress) {
     
     var processed = progress.processed || 0;
     var total = progress.total || 0;
-    var status = progress.status;
-    
-    // Update counters
-    $('#entriesProcessed').text(processed.toLocaleString());
-    $('#totalEntries').text(total.toLocaleString());
-    
-    var isPdf = window.currentReportParams && window.currentReportParams.format === 'pdf';
-    var dataPercentage = total > 0 ? Math.round((processed / total) * 100) : 0;
-    var displayPercentage = isPdf ? Math.round(dataPercentage / 3) : dataPercentage;
+    var status = progress.status || 'processing';
 
-    // We defer setting width directly here if we are in PDF finalize state so we don't jump backwards
-    if (!(isPdf && status === 'finalizing')) {
-        $('#reportProgressBar').css('width', displayPercentage + '%').attr('aria-valuenow', displayPercentage);
-    }
+    window.currentTaskStatus = status;
+    updateProgressCounters(processed, total);
     
     if (status === 'starting') {
         $('#progressText').text('Starting...');
-    } else if (status === 'finalizing') {
-        if (isPdf) {
-            $('#progressText').text('Rendering PDF... this might take a moment');
-            if (!window.pdfFakeProgressInterval) {
-                // Determine starting value for the fake progress
-                window.pdfFakeProgressValue = Math.max(33, displayPercentage);
-                $('#reportProgressBar').css('width', window.pdfFakeProgressValue + '%');
-                $('#reportProgressBar').addClass('progress-bar-striped progress-bar-animated');
-                
-                window.pdfFakeProgressInterval = setInterval(function() {
-                    if (window.pdfFakeProgressValue < 95) {
-                        window.pdfFakeProgressValue += 1;
-                        $('#reportProgressBar').css('width', window.pdfFakeProgressValue + '%').attr('aria-valuenow', window.pdfFakeProgressValue);
-                        $('#progressText').text('Rendering PDF... ' + window.pdfFakeProgressValue + '%');
-                    }
-                }, 1500); // Slower interval for PDF generation
-            }
-        } else {
-            $('#progressText').text('Finalizing file...');
-            $('#reportProgressBar').css('width', '100%').addClass('progress-bar-striped progress-bar-animated');
+        if (!window.progressAnimationInterval) {
+            startProgressAnimation();
         }
-        $('#progressCounters').show();
-        $('#etaText').hide();
-    } else if (status === 'processing') {
-        if (total > 0) {
-            if (processed >= total) {
-                // If it hits 100% data, backend might still be formatting before setting to finalizing
-                if (isPdf) {
-                    $('#progressText').text('Query complete, compiling data...');
-                } else {
-                    $('#progressText').text('Finalizing file...');
-                    $('#reportProgressBar').css('width', '100%').addClass('progress-bar-striped progress-bar-animated');
-                }
-                $('#progressCounters').show();
-                $('#etaText').hide();
-                return;
-            }
-
-            // Determinate progress
-            if (isPdf) {
-                $('#progressText').text('Querying data: ' + displayPercentage + '%');
-            } else {
-                $('#progressText').text(displayPercentage + '% complete');
-            }
-            $('#reportProgressBar').removeClass('progress-bar-striped progress-bar-animated');
-            $('#progressCounters').show();
-            // Show ETA if available
-            if (progress.eta && progress.eta > 0) {
-                var eta = Math.round(isPdf ? progress.eta * 3 : progress.eta); // Roughly scale up ETA for PDF
-                var etaText = eta < 60 ? eta + 's' : Math.round(eta/60) + 'm ' + (eta%60) + 's';
-                $('#etaValue').text(etaText);
-                $('#etaText').show();
-            }
-        } else {
-            // Indeterminate progress
-            $('#progressText').text('Processing... this may take a moment.');
-            $('#reportProgressBar').css('width', '100%').addClass('progress-bar-striped progress-bar-animated');
-            $('#progressCounters').hide();
-            $('#etaText').hide();
+    } else if (status === 'processing' || status === 'finalizing') {
+        if (!window.progressAnimationInterval) {
+            startProgressAnimation();
         }
+        renderTimedProgress();
     } else if (status === 'completed') {
+        stopProgressAnimation();
         $('#progressText').text('Complete!');
-        $('#reportProgressBar').css('width', '100%').removeClass('progress-bar-striped progress-bar-animated');
+        setProgressBarValue(100);
+        $('#reportProgressBar').removeClass('progress-bar-striped progress-bar-animated');
         stopProgressPolling();
         showDownloadButton();
     } else if (status === 'error') {
+        stopProgressAnimation();
         stopProgressPolling();
         showError(progress.error || 'Unknown error occurred');
     }
@@ -278,18 +293,103 @@ function showDownloadButton() {
     if (window.currentTaskId) {
         // Automatically trigger the download
         setTimeout(function() {
-            window.location.href = window.currentDownloadUrl + window.currentTaskId;
-            setTimeout(function() {
-                $('#reportLoadingOverlay').hide();
-            }, 1500);
+            downloadCompletedTask(window.currentDownloadUrl + window.currentTaskId);
         }, 500);
     }
+}
+
+function getDownloadFilename(response) {
+    var disposition = response.headers.get('content-disposition') || '';
+    var utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match && utf8Match[1]) {
+        return decodeURIComponent(utf8Match[1]);
+    }
+
+    var asciiMatch = disposition.match(/filename="?([^";]+)"?/i);
+    if (asciiMatch && asciiMatch[1]) {
+        return asciiMatch[1];
+    }
+
+    return null;
+}
+
+function triggerBrowserDownload(blob, filename) {
+    var downloadName = filename || 'download';
+    var objectUrl = window.URL.createObjectURL(blob);
+    var link = document.createElement('a');
+
+    link.href = objectUrl;
+    link.download = downloadName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    window.setTimeout(function() {
+        window.URL.revokeObjectURL(objectUrl);
+    }, 1000);
+}
+
+function extractDownloadError(response, bodyText) {
+    var message = 'Download failed.';
+    var contentType = response.headers.get('content-type') || '';
+
+    if (contentType.indexOf('application/json') !== -1) {
+        try {
+            var payload = JSON.parse(bodyText);
+            if (payload && (payload.error || payload.message)) {
+                return payload.error || payload.message;
+            }
+        } catch (e) {
+            // Fall back to plain text handling below.
+        }
+    }
+
+    if (bodyText) {
+        return bodyText;
+    }
+
+    if (response.status) {
+        message = 'Download failed (' + response.status + ').';
+    }
+
+    return message;
+}
+
+function downloadCompletedTask(downloadUrl) {
+    $('#progressText').text('Preparing download...');
+
+    fetch(downloadUrl, {
+        method: 'GET',
+        credentials: 'same-origin'
+    })
+        .then(function(response) {
+            if (!response.ok) {
+                return response.text().then(function(bodyText) {
+                    throw new Error(extractDownloadError(response, bodyText));
+                });
+            }
+
+            var filename = getDownloadFilename(response);
+            return response.blob().then(function(blob) {
+                return { blob: blob, filename: filename };
+            });
+        })
+        .then(function(result) {
+            triggerBrowserDownload(result.blob, result.filename);
+            setTimeout(function() {
+                $('#reportLoadingOverlay').hide();
+            }, 500);
+        })
+        .catch(function(error) {
+            showError(error && error.message ? error.message : 'Download failed.');
+        });
 }
 
 function showError(message) {
     if (typeof message !== 'string') {
         message = 'An error occurred during report generation.';
     }
+    stopProgressAnimation();
     $('#progressControls').hide();
     $('#errorMessage').text(message);
     $('#errorSection').show();
@@ -322,6 +422,7 @@ function cancelReportGeneration() {
         clearInterval(window.progressInterval);
         window.progressInterval = null;
     }
+    stopProgressAnimation();
     
     $('#reportLoadingOverlay').hide();
 }
