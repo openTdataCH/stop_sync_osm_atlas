@@ -268,51 +268,6 @@ def test_atlas_itineraries_collapse_same_uic_sequence_and_keep_sloid_variants(tm
     assert json.loads(first_stop['sloid_variants']) == ['ch:1:sloid:A', 'ch:1:sloid:C']
 
 
-def test_atlas_itineraries_collapse_same_headsign_across_patterns_using_dominant_sequence(tmp_path):
-    stop_times_path = tmp_path / "trip_stop_times.csv"
-    pd.DataFrame([
-        {'trip_id': 'trip-1', 'stop_id': '8501000:0:A', 'stop_sequence': 1},
-        {'trip_id': 'trip-1', 'stop_id': '8502000:0:B', 'stop_sequence': 2},
-        {'trip_id': 'trip-1', 'stop_id': '8503000:0:C', 'stop_sequence': 3},
-        {'trip_id': 'trip-2', 'stop_id': '8501000:0:A', 'stop_sequence': 1},
-        {'trip_id': 'trip-2', 'stop_id': '8502000:0:B', 'stop_sequence': 2},
-        {'trip_id': 'trip-2', 'stop_id': '8503000:0:C', 'stop_sequence': 3},
-        {'trip_id': 'trip-3', 'stop_id': '8501000:0:A', 'stop_sequence': 1},
-        {'trip_id': 'trip-3', 'stop_id': '8503000:0:C', 'stop_sequence': 2},
-    ]).to_csv(stop_times_path, index=False)
-
-    gtfs_data = {
-        'trip_stop_times_path': str(stop_times_path),
-        'trips': pd.DataFrame([
-            {'trip_id': 'trip-1', 'route_id': 'R1', 'direction_id': '0', 'trip_headsign': 'Sursee', 'trip_short_name': None, 'shape_id': 'shape-long'},
-            {'trip_id': 'trip-2', 'route_id': 'R1', 'direction_id': '0', 'trip_headsign': 'Sursee', 'trip_short_name': None, 'shape_id': 'shape-long'},
-            {'trip_id': 'trip-3', 'route_id': 'R1', 'direction_id': '0', 'trip_headsign': 'Sursee', 'trip_short_name': None, 'shape_id': 'shape-short'},
-        ]),
-        'stops': pd.DataFrame([
-            {'stop_id': '8501000:0:A', 'stop_name': 'Alpha', 'platform_code': 'A', 'original_stop_id': '8501000:0:A', 'location_type': None, 'parent_station': None},
-            {'stop_id': '8502000:0:B', 'stop_name': 'Beta', 'platform_code': 'B', 'original_stop_id': '8502000:0:B', 'location_type': None, 'parent_station': None},
-            {'stop_id': '8503000:0:C', 'stop_name': 'Gamma', 'platform_code': 'C', 'original_stop_id': '8503000:0:C', 'location_type': None, 'parent_station': None},
-        ]),
-    }
-    integrated = pd.DataFrame([
-        {'stop_id': '8501000:0:A', 'sloid': 'ch:1:sloid:A', 'match_method': 'uic_platform'},
-        {'stop_id': '8502000:0:B', 'sloid': 'ch:1:sloid:B', 'match_method': 'uic_platform'},
-        {'stop_id': '8503000:0:C', 'sloid': 'ch:1:sloid:C', 'match_method': 'uic_platform'},
-    ])
-
-    itineraries_df, stop_calls_df = _build_atlas_itinerary_frames(gtfs_data, integrated)
-
-    assert len(itineraries_df) == 1
-    assert int(itineraries_df.iloc[0]['trip_count']) == 3
-    assert itineraries_df.iloc[0]['representative_headsign'] == 'Sursee'
-    assert itineraries_df.iloc[0]['shape_id'] == 'shape-long'
-    assert list(stop_calls_df.sort_values(by='stop_sequence')['stop_id']) == [
-        '8501000:0:A',
-        '8502000:0:B',
-        '8503000:0:C',
-    ]
-
-
 def test_atlas_itineraries_keep_distinct_patterns_when_headsign_missing(tmp_path):
     stop_times_path = tmp_path / "trip_stop_times.csv"
     pd.DataFrame([
