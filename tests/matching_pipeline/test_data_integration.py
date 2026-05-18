@@ -38,16 +38,34 @@ class TestGtfsRoutesIntegration:
         
         # Traffic points (needed by input signature, but not used if integrated keys are present)
         traffic_points = pd.DataFrame({'sloid': []})
-        
-        # GTFS Stream (can be None or mock, we are testing the precomputed path)
-        gtfs_stream = {} 
+        stop_times_path = tmp_path / "trip_stop_times.csv"
+        pd.DataFrame([
+            {'trip_id': 'trip-1', 'stop_id': 'stop-1a', 'stop_sequence': 1},
+            {'trip_id': 'trip-1', 'stop_id': 'stop-1b', 'stop_sequence': 2},
+            {'trip_id': 'trip-2', 'stop_id': 'stop-2a', 'stop_sequence': 1},
+            {'trip_id': 'trip-2', 'stop_id': 'stop-2b', 'stop_sequence': 2},
+        ]).to_csv(stop_times_path, index=False)
+
+        gtfs_stream = {
+            'trip_stop_times_path': str(stop_times_path),
+            'trips': pd.DataFrame([
+                {'trip_id': 'trip-1', 'route_id': 'gtfs-route-1', 'direction_id': '0', 'trip_headsign': 'End 1', 'trip_short_name': None, 'shape_id': None},
+                {'trip_id': 'trip-2', 'route_id': 'gtfs-route-2', 'direction_id': '1', 'trip_headsign': 'End 2', 'trip_short_name': None, 'shape_id': None},
+            ]),
+            'stops': pd.DataFrame([
+                {'stop_id': 'stop-1a', 'stop_name': 'Alpha', 'platform_code': None, 'original_stop_id': '8501000:0:1', 'location_type': None, 'parent_station': None},
+                {'stop_id': 'stop-1b', 'stop_name': 'Beta', 'platform_code': None, 'original_stop_id': '8502000:0:1', 'location_type': None, 'parent_station': None},
+                {'stop_id': 'stop-2a', 'stop_name': 'Gamma', 'platform_code': None, 'original_stop_id': '8503000:0:1', 'location_type': None, 'parent_station': None},
+                {'stop_id': 'stop-2b', 'stop_name': 'Delta', 'platform_code': None, 'original_stop_id': '8504000:0:1', 'location_type': None, 'parent_station': None},
+            ]),
+        }
         
         # Precomputed Integrated GTFS Data
         # Create a DataFrame that mimics build_integrated_gtfs_data_streaming output
         integrated_gtfs_data = pd.DataFrame([
             {
-                'sloid': 'ch:1:sloid:1',
-                'stop_id': 'stop-1',
+                'sloid': 'ch:1:sloid:1a',
+                'stop_id': 'stop-1a',
                 'match_method': 'strict',
                 'route_id': 'gtfs-route-1',
                 'agency_id': 'agency-1',
@@ -56,11 +74,24 @@ class TestGtfsRoutesIntegration:
                 'route_desc': 'Desc 1',
                 'route_type': '3',
                 'direction_id': 0,
-                'direction': 'A -> B'
+                'direction': 'Ignored -> Label'
             },
             {
-                'sloid': 'ch:1:sloid:2',
-                'stop_id': 'stop-2',
+                'sloid': 'ch:1:sloid:1b',
+                'stop_id': 'stop-1b',
+                'match_method': 'strict',
+                'route_id': 'gtfs-route-1',
+                'agency_id': 'agency-1',
+                'route_short_name': 'R1',
+                'route_long_name': 'Route 1',
+                'route_desc': 'Desc 1',
+                'route_type': '3',
+                'direction_id': 0,
+                'direction': 'Ignored -> Label'
+            },
+            {
+                'sloid': 'ch:1:sloid:2a',
+                'stop_id': 'stop-2a',
                 'match_method': 'coordinate_proximity',
                 'route_id': 'gtfs-route-2',
                 'agency_id': 'agency-2',
@@ -69,7 +100,20 @@ class TestGtfsRoutesIntegration:
                 'route_desc': 'Desc 2',
                 'route_type': '3',
                 'direction_id': 1,
-                'direction': 'B -> A'
+                'direction': 'Ignored -> Label'
+            },
+            {
+                'sloid': 'ch:1:sloid:2b',
+                'stop_id': 'stop-2b',
+                'match_method': 'coordinate_proximity',
+                'route_id': 'gtfs-route-2',
+                'agency_id': 'agency-2',
+                'route_short_name': 'R2',
+                'route_long_name': 'Route 2',
+                'route_desc': 'Desc 2',
+                'route_type': '3',
+                'direction_id': 1,
+                'direction': 'Ignored -> Label'
             }
         ])
         
@@ -117,9 +161,9 @@ class TestGtfsRoutesIntegration:
             'direction_label',
         }
         assert expected_direction_cols.issubset(set(itineraries_df.columns)), "Itinerary columns are missing"
-        assert set(itineraries_df['direction_label']) == {'A -> B', 'B -> A'}
+        assert set(itineraries_df['direction_label']) == {'Alpha -> Beta', 'Gamma -> Delta'}
 
-        assert len(stop_calls_df) == 2, f"Expected 2 itinerary stop-call rows, got {len(stop_calls_df)}"
+        assert len(stop_calls_df) == 4, f"Expected 4 itinerary stop-call rows, got {len(stop_calls_df)}"
         expected_stop_cols = {
             'atlas_itinerary_id',
             'sloid',
@@ -128,7 +172,7 @@ class TestGtfsRoutesIntegration:
             'mapping_method',
         }
         assert expected_stop_cols.issubset(set(stop_calls_df.columns)), "Itinerary stop-call columns are missing"
-        assert set(stop_calls_df['sloid']) == {'ch:1:sloid:1', 'ch:1:sloid:2'}
+        assert set(stop_calls_df['sloid']) == {'ch:1:sloid:1a', 'ch:1:sloid:1b', 'ch:1:sloid:2a', 'ch:1:sloid:2b'}
         assert set(stop_calls_df['mapping_method']) == {'strict', 'coordinate_proximity'}
 
     def test_gtfs_only_integration(self, tmp_path):
@@ -262,6 +306,7 @@ def test_atlas_itineraries_collapse_same_uic_sequence_and_keep_sloid_variants(tm
 
     assert len(itineraries_df) == 1
     assert int(itineraries_df.iloc[0]['trip_count']) == 2
+    assert itineraries_df.iloc[0]['direction_label'] == 'Alpha A -> Beta B'
     assert len(stop_calls_df) == 2
 
     first_stop = stop_calls_df.sort_values(by='stop_sequence').iloc[0]
@@ -299,4 +344,49 @@ def test_atlas_itineraries_keep_distinct_patterns_when_headsign_missing(tmp_path
 
     assert len(itineraries_df) == 2
     assert len(stop_calls_df) == 4
+    assert set(itineraries_df['direction_label']) == {'Alpha -> Beta', 'Alpha -> Gamma'}
+
+
+def test_atlas_itinerary_direction_label_uses_dominant_uic_subsequence(tmp_path):
+    stop_times_path = tmp_path / "trip_stop_times.csv"
+    pd.DataFrame([
+        {'trip_id': 'trip-1', 'stop_id': '8501000:0:minor', 'stop_sequence': 1},
+        {'trip_id': 'trip-1', 'stop_id': '8509000:0:minor', 'stop_sequence': 2},
+        {'trip_id': 'trip-2', 'stop_id': '8501000:0:main-a', 'stop_sequence': 1},
+        {'trip_id': 'trip-2', 'stop_id': '8502000:0:main', 'stop_sequence': 2},
+        {'trip_id': 'trip-3', 'stop_id': '8501000:0:main-b', 'stop_sequence': 1},
+        {'trip_id': 'trip-3', 'stop_id': '8502000:0:main', 'stop_sequence': 2},
+    ]).to_csv(stop_times_path, index=False)
+
+    gtfs_data = {
+        'trip_stop_times_path': str(stop_times_path),
+        'route_directions': pd.DataFrame([
+            {'route_id': 'R1', 'direction_id': '0', 'direction': 'Wrong -> Label'},
+        ]),
+        'trips': pd.DataFrame([
+            {'trip_id': 'trip-1', 'route_id': 'R1', 'direction_id': '0', 'trip_headsign': 'End', 'trip_short_name': None, 'shape_id': None},
+            {'trip_id': 'trip-2', 'route_id': 'R1', 'direction_id': '0', 'trip_headsign': 'End', 'trip_short_name': None, 'shape_id': None},
+            {'trip_id': 'trip-3', 'route_id': 'R1', 'direction_id': '0', 'trip_headsign': 'End', 'trip_short_name': None, 'shape_id': None},
+        ]),
+        'stops': pd.DataFrame([
+            {'stop_id': '8501000:0:minor', 'stop_name': 'Minor Start', 'platform_code': None, 'original_stop_id': '8501000:0:minor', 'location_type': None, 'parent_station': None},
+            {'stop_id': '8509000:0:minor', 'stop_name': 'Minor End', 'platform_code': None, 'original_stop_id': '8509000:0:minor', 'location_type': None, 'parent_station': None},
+            {'stop_id': '8501000:0:main-a', 'stop_name': 'Alpha', 'platform_code': None, 'original_stop_id': '8501000:0:main-a', 'location_type': None, 'parent_station': None},
+            {'stop_id': '8501000:0:main-b', 'stop_name': 'Alpha Alt', 'platform_code': None, 'original_stop_id': '8501000:0:main-b', 'location_type': None, 'parent_station': None},
+            {'stop_id': '8502000:0:main', 'stop_name': 'Beta', 'platform_code': None, 'original_stop_id': '8502000:0:main', 'location_type': None, 'parent_station': None},
+        ]),
+    }
+    integrated = pd.DataFrame([
+        {'stop_id': '8501000:0:minor', 'sloid': 'ch:1:sloid:minor-start', 'match_method': 'uic_platform'},
+        {'stop_id': '8509000:0:minor', 'sloid': 'ch:1:sloid:minor-end', 'match_method': 'uic_platform'},
+        {'stop_id': '8501000:0:main-a', 'sloid': 'ch:1:sloid:main-a', 'match_method': 'uic_platform'},
+        {'stop_id': '8501000:0:main-b', 'sloid': 'ch:1:sloid:main-b', 'match_method': 'uic_platform'},
+        {'stop_id': '8502000:0:main', 'sloid': 'ch:1:sloid:main-end', 'match_method': 'uic_platform'},
+    ])
+
+    itineraries_df, stop_calls_df = _build_atlas_itinerary_frames(gtfs_data, integrated)
+
+    assert len(itineraries_df) == 1
+    assert len(stop_calls_df) == 2
+    assert itineraries_df.iloc[0]['direction_label'] == 'Alpha -> Beta'
 

@@ -286,13 +286,19 @@ def _load_line_family_rows(source: str):
         db.session.query(
             LineFamily.id.label('id'),
             LineFamily.source_family_id.label('source_family_id'),
+            LineFamily.family_origin.label('family_origin'),
+            LineFamily.route_type.label('route_type'),
             LineFamily.display_route_id.label('display_route_id'),
             LineFamily.public_name.label('public_name'),
             LineFamily.ref.label('ref'),
             LineFamily.operator.label('operator'),
+            LineFamily.operator_wikidata.label('operator_wikidata'),
             LineFamily.network.label('network'),
+            LineFamily.network_wikidata.label('network_wikidata'),
             LineFamily.is_non_gtfs.label('is_non_gtfs'),
             LineFamily.gtfs_route_id.label('gtfs_route_id'),
+            LineFamily.normalized_route_id.label('normalized_route_id'),
+            LineFamily.atlas_line_id.label('atlas_line_id'),
             LineFamily.route_master_id.label('route_master_id'),
             LineFamily.representative_relation_id.label('representative_relation_id'),
         )
@@ -344,9 +350,19 @@ def _load_route_page_data():
             'osm_family_id': osm_family.id,
             'line_family_match_id': match_row.id,
             'atlas_route_id': atlas_family.source_family_id,
+            'atlas_route_display_id': _clean_text(atlas_family.display_route_id),
             'atlas_route_short_name': atlas_route_short_name,
             'atlas_route_long_name': atlas_route_long_name,
             'atlas_route_name': _clean_text(atlas_family.public_name) or _clean_text(atlas_family.display_route_id),
+            'atlas_route_type': _clean_text(atlas_family.route_type),
+            'atlas_family_origin': _clean_text(atlas_family.family_origin),
+            'atlas_route_operator': _clean_text(atlas_family.operator),
+            'atlas_operator_wikidata': _clean_text(atlas_family.operator_wikidata),
+            'atlas_network': _clean_text(atlas_family.network),
+            'atlas_network_wikidata': _clean_text(atlas_family.network_wikidata),
+            'atlas_gtfs_route_id': _clean_text(atlas_family.gtfs_route_id),
+            'atlas_normalized_route_id': _clean_text(atlas_family.normalized_route_id),
+            'atlas_line_id': _clean_text(atlas_family.atlas_line_id),
             'atlas_operators': atlas_operator_map.get(atlas_family.id, []),
             'osm_route_master_id': _clean_text(osm_family.route_master_id),
             'osm_route_id': _clean_text(osm_family.representative_relation_id),
@@ -355,8 +371,14 @@ def _load_route_page_data():
             'osm_route_display_id': _clean_text(osm_family.display_route_id),
             'osm_route_id_label': _osm_route_id_label(osm_family.gtfs_route_id, osm_family.display_route_id),
             'osm_route_name': _clean_text(osm_family.public_name) or _clean_text(osm_family.ref) or _clean_text(osm_family.display_route_id),
+            'osm_ref': _clean_text(osm_family.ref),
+            'osm_route_type': _clean_text(osm_family.route_type),
+            'osm_family_origin': _clean_text(osm_family.family_origin),
             'osm_operator': _clean_text(osm_family.operator),
+            'osm_operator_wikidata': _clean_text(osm_family.operator_wikidata),
             'osm_network': _clean_text(osm_family.network),
+            'osm_network_wikidata': _clean_text(osm_family.network_wikidata),
+            'osm_normalized_route_id': _clean_text(osm_family.normalized_route_id),
             'is_non_gtfs': getattr(osm_family, 'is_non_gtfs', False),
             'primary_route_id': _clean_text(atlas_family.source_family_id) or _clean_text(osm_family.display_route_id),
         })
@@ -377,9 +399,19 @@ def _load_route_page_data():
             'osm_family_id': None,
             'line_family_match_id': None,
             'atlas_route_id': atlas_family.source_family_id,
+            'atlas_route_display_id': _clean_text(atlas_family.display_route_id),
             'atlas_route_short_name': atlas_route_short_name,
             'atlas_route_long_name': atlas_route_long_name,
             'atlas_route_name': _clean_text(atlas_family.public_name) or _clean_text(atlas_family.display_route_id),
+            'atlas_route_type': _clean_text(atlas_family.route_type),
+            'atlas_family_origin': _clean_text(atlas_family.family_origin),
+            'atlas_route_operator': _clean_text(atlas_family.operator),
+            'atlas_operator_wikidata': _clean_text(atlas_family.operator_wikidata),
+            'atlas_network': _clean_text(atlas_family.network),
+            'atlas_network_wikidata': _clean_text(atlas_family.network_wikidata),
+            'atlas_gtfs_route_id': _clean_text(atlas_family.gtfs_route_id),
+            'atlas_normalized_route_id': _clean_text(atlas_family.normalized_route_id),
+            'atlas_line_id': _clean_text(atlas_family.atlas_line_id),
             'atlas_operators': atlas_operator_map.get(atlas_family.id, []),
             'osm_route_master_id': None,
             'osm_route_id': None,
@@ -388,8 +420,14 @@ def _load_route_page_data():
             'osm_route_display_id': None,
             'osm_route_id_label': 'Route ID',
             'osm_route_name': None,
+            'osm_ref': None,
+            'osm_route_type': None,
+            'osm_family_origin': None,
             'osm_operator': None,
+            'osm_operator_wikidata': None,
             'osm_network': None,
+            'osm_network_wikidata': None,
+            'osm_normalized_route_id': None,
             'is_non_gtfs': False,
             'primary_route_id': _clean_text(atlas_family.source_family_id),
         })
@@ -406,9 +444,19 @@ def _load_route_page_data():
             'osm_family_id': osm_family.id,
             'line_family_match_id': None,
             'atlas_route_id': None,
+            'atlas_route_display_id': None,
             'atlas_route_short_name': None,
             'atlas_route_long_name': None,
             'atlas_route_name': None,
+            'atlas_route_type': None,
+            'atlas_family_origin': None,
+            'atlas_route_operator': None,
+            'atlas_operator_wikidata': None,
+            'atlas_network': None,
+            'atlas_network_wikidata': None,
+            'atlas_gtfs_route_id': None,
+            'atlas_normalized_route_id': None,
+            'atlas_line_id': None,
             'atlas_operators': [],
             'osm_route_master_id': _clean_text(osm_family.route_master_id),
             'osm_route_id': _clean_text(osm_family.representative_relation_id),
@@ -417,8 +465,14 @@ def _load_route_page_data():
             'osm_route_display_id': _clean_text(osm_family.display_route_id),
             'osm_route_id_label': _osm_route_id_label(osm_family.gtfs_route_id, osm_family.display_route_id),
             'osm_route_name': _clean_text(osm_family.public_name) or _clean_text(osm_family.ref) or _clean_text(osm_family.display_route_id),
+            'osm_ref': _clean_text(osm_family.ref),
+            'osm_route_type': _clean_text(osm_family.route_type),
+            'osm_family_origin': _clean_text(osm_family.family_origin),
             'osm_operator': _clean_text(osm_family.operator),
+            'osm_operator_wikidata': _clean_text(osm_family.operator_wikidata),
             'osm_network': _clean_text(osm_family.network),
+            'osm_network_wikidata': _clean_text(osm_family.network_wikidata),
+            'osm_normalized_route_id': _clean_text(osm_family.normalized_route_id),
             'is_non_gtfs': getattr(osm_family, 'is_non_gtfs', False),
             'primary_route_id': _clean_text(osm_family.display_route_id),
         })
@@ -608,13 +662,18 @@ def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_call
     direction_id = atlas_itinerary.direction_id if atlas_itinerary is not None else (osm_itinerary.direction_id if osm_itinerary is not None else None)
     direction_label = None
     representative_headsign = None
+    atlas_headsign = None
+    osm_to_name = None
     if atlas_itinerary is not None:
         direction_label = atlas_itinerary.display_name
         representative_headsign = atlas_itinerary.representative_headsign
+        atlas_headsign = atlas_itinerary.representative_headsign
     if direction_label is None and osm_itinerary is not None:
         direction_label = osm_itinerary.display_name
     if representative_headsign is None and osm_itinerary is not None:
         representative_headsign = osm_itinerary.representative_headsign
+    if osm_itinerary is not None:
+        osm_to_name = _clean_text(getattr(osm_itinerary, 'to_name', None)) or _clean_text(getattr(osm_itinerary, 'representative_headsign', None))
 
     atlas_stops = _serialize_stop_calls(atlas_calls, 'atlas', matched_lookup)
     osm_stops = _serialize_stop_calls(osm_calls, 'osm', matched_lookup)
@@ -633,6 +692,8 @@ def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_call
         'direction_id': direction_id,
         'direction_label': direction_label,
         'representative_headsign': representative_headsign,
+        'atlas_headsign': atlas_headsign,
+        'osm_to_name': osm_to_name,
         'osm_relation_id': _clean_text(osm_itinerary.source_itinerary_id) if osm_itinerary is not None else None,
         'atlas_uic_groups': _group_stops_by_uic(atlas_stops),
         'osm_uic_groups': _group_stops_by_uic(osm_stops),

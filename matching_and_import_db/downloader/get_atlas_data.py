@@ -140,6 +140,17 @@ def _merge_atlas_stop_row(existing_row: dict[str, object], new_row: dict[str, ob
     existing_row['sloid_variants'].update(new_row.get('sloid_variants') or set())
 
 
+def _build_direction_label_from_stop_rows(stop_rows: list[dict[str, object]]) -> str | None:
+    if not stop_rows:
+        return None
+
+    first_stop_name = _first_non_empty([stop_rows[0].get('stop_name')])
+    last_stop_name = _first_non_empty([stop_rows[-1].get('stop_name')])
+    if first_stop_name is None or last_stop_name is None:
+        return None
+    return f'{first_stop_name} -> {last_stop_name}'
+
+
 def _build_stop_meta_lookup(gtfs_data) -> dict[str, dict[str, object]]:
     if not gtfs_data or not isinstance(gtfs_data, dict) or 'stops' not in gtfs_data:
         return {}
@@ -229,14 +240,6 @@ def _build_atlas_itinerary_frames(
     stop_meta_lookup = _build_stop_meta_lookup(gtfs_data)
     trip_lookup = _build_trip_lookup(gtfs_data)
 
-    direction_lookup = {}
-    if gtfs_data and isinstance(gtfs_data, dict) and 'route_directions' in gtfs_data:
-        direction_lookup = {
-            (str(row['route_id']), _safe_direction_id(row.get('direction_id'))): row.get('direction')
-            for row in gtfs_data['route_directions'].to_dict(orient='records')
-            if pd.notna(row.get('route_id'))
-        }
-
     trip_stop_times_path = None
     if gtfs_data and isinstance(gtfs_data, dict):
         trip_stop_times_path = gtfs_data.get('trip_stop_times_path')
@@ -306,7 +309,6 @@ def _build_atlas_itinerary_frames(
 
         sequence_stop_keys: list[str] = []
         stop_rows_for_itinerary: list[dict[str, object]] = []
-        direction_values: list[object] = []
         for stop_row in ordered_calls.itertuples(index=False):
             stop_id = str(stop_row.stop_id)
             match_row = match_lookup.get(stop_id, {})
@@ -315,8 +317,6 @@ def _build_atlas_itinerary_frames(
             canonical_stop_key = sloid if pd.notna(sloid) else f'gtfs:{stop_id}'
             uic_number = _parse_uic_from_gtfs_stop_id(stop_meta.get('original_stop_id')) or _parse_uic_from_gtfs_stop_id(stop_id)
             sequence_stop_keys.append(_atlas_itinerary_sequence_key(stop_id, sloid, stop_meta.get('original_stop_id')))
-            if hasattr(stop_row, 'direction'):
-                direction_values.append(stop_row.direction)
             stop_rows_for_itinerary.append({
                 'stop_sequence': int(stop_row.stop_sequence),
                 'stop_id': stop_id,
@@ -335,12 +335,6 @@ def _build_atlas_itinerary_frames(
         if not stop_rows_for_itinerary:
             continue
 
-        direction_label = (
-            direction_lookup.get((route_id, direction_id))
-            or _first_non_empty(direction_values)
-            or representative_headsign
-            or trip_short_name
-        )
         fallback_pattern_hash = _hash_stop_sequence(sequence_stop_keys)
         itinerary_bucket_key = _atlas_itinerary_bucket_key(
             representative_headsign,
@@ -356,7 +350,7 @@ def _build_atlas_itinerary_frames(
                 'atlas_itinerary_id': atlas_itinerary_id,
                 'atlas_line_id': route_id,
                 'direction_id': direction_id,
-                'direction_label': direction_label,
+                'direction_label': None,
                 'representative_headsign': representative_headsign,
                 'trip_count': 1,
                 'shape_id': None,
@@ -366,8 +360,6 @@ def _build_atlas_itinerary_frames(
             existing_row['trip_count'] += 1
             if existing_row['representative_headsign'] is None and representative_headsign is not None:
                 existing_row['representative_headsign'] = representative_headsign
-            if existing_row['direction_label'] is None and direction_label is not None:
-                existing_row['direction_label'] = direction_label
 
         pattern_candidates = itinerary_pattern_rows_by_key.setdefault(itinerary_key, {})
         pattern_candidate = pattern_candidates.get(fallback_pattern_hash)
@@ -391,8 +383,7 @@ def _build_atlas_itinerary_frames(
                 f"{processed_stop_call_count:,} emitted stop calls…"
             )
 
-    itineraries_df = pd.DataFrame(itinerary_rows.values())
-    if itineraries_df.empty:
+    if not itinerary_rows:
         return pd.DataFrame(), pd.DataFrame()
 
     print(
@@ -414,6 +405,7 @@ def _build_atlas_itinerary_frames(
             ),
         )
         itinerary_rows[itinerary_key]['shape_id'] = ">".join(selected_pattern['uic_sequence'])
+        itinerary_rows[itinerary_key]['direction_label'] = _build_direction_label_from_stop_rows(selected_pattern['stop_rows'])
         stop_rows = selected_pattern['stop_rows']
         for stop_row in stop_rows:
             itinerary_stop_rows.append({
@@ -432,6 +424,7 @@ def _build_atlas_itinerary_frames(
                 'uic_number': stop_row['uic_number'],
             })
 
+    itineraries_df = pd.DataFrame(itinerary_rows.values())
     itinerary_stop_calls_df = pd.DataFrame(itinerary_stop_rows)
     itineraries_df = itineraries_df.sort_values(by=['atlas_line_id', 'direction_id', 'atlas_itinerary_id']).reset_index(drop=True)
     itinerary_stop_calls_df = itinerary_stop_calls_df.sort_values(by=['atlas_itinerary_id', 'stop_sequence']).reset_index(drop=True)
