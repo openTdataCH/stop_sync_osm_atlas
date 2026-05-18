@@ -67,7 +67,6 @@ services:
       FLASK_DEBUG: 1 # Enables Flask debugger
       # Database URI for SQLAlchemy, now configurable via .env
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
-      SECRET_KEY: ${SECRET_KEY:-dev-insecure}
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}

@@ -1,6 +1,7 @@
 {% if not stats %}
 <div class="alert alert-warning">No stats available. Run the pipeline first.</div>
 {% else %}
+{% set static_prefix = pdf_static_prefix if pdf_static_prefix is defined else url_for('static', filename='') %}
 
 {# ══════════════════════════════════════════
 SECTION 0 — TIMESTAMPS
@@ -11,28 +12,28 @@ SECTION 0 — TIMESTAMPS
       <div class="col-md-3 col-sm-6 mb-2 mb-md-0">
         <div class="text-muted small fw-bold text-uppercase mb-1">Last Pipeline Completed</div>
         <div class="fw-medium text-dark d-flex align-items-center">
-          <img src="{{ url_for('static', filename='favicon.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="Pipeline Status">
+          <img src="{{ static_prefix }}favicon.svg" style="height: 1.1rem; width: auto;" class="me-1" alt="Pipeline Status">
           <span>{{ stats.last_pipeline_data_import_ended_at|format_zurich_display_timestamp(include_seconds=True)|default('Unknown') }}</span>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-2 mb-md-0 border-start">
         <div class="text-muted small fw-bold text-uppercase mb-1">Last ATLAS Downloaded</div>
         <div class="fw-medium text-dark d-flex align-items-center">
-          <img src="{{ url_for('static', filename='atlas.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="ATLAS">
+          <img src="{{ static_prefix }}atlas.svg" style="height: 1.1rem; width: auto;" class="me-1" alt="ATLAS">
           <span>{{ stats.source_downloads.atlas.atlas_downloaded_at|default(stats.source_downloads.atlas.downloaded_at)|format_zurich_display_timestamp(include_seconds=True)|default('Unknown') }}</span>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 mb-2 mb-md-0 border-start">
         <div class="text-muted small fw-bold text-uppercase mb-1">Last GTFS Downloaded</div>
         <div class="fw-medium text-dark d-flex align-items-center">
-          <img src="{{ url_for('static', filename='opentransportdata.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="GTFS">
+          <img src="{{ static_prefix }}opentransportdata.svg" style="height: 1.1rem; width: auto;" class="me-1" alt="GTFS">
           <span>{{ stats.source_downloads.gtfs.gtfs_downloaded_at|default(stats.source_downloads.gtfs.downloaded_at)|format_zurich_display_timestamp(include_seconds=True)|default('Unknown') }}</span>
         </div>
       </div>
       <div class="col-md-3 col-sm-6 border-start">
         <div class="text-muted small fw-bold text-uppercase mb-1">Last OSM Queried</div>
         <div class="fw-medium text-dark d-flex align-items-center">
-          <img src="{{ url_for('static', filename='osm.svg') }}" style="height: 1.1rem; width: auto;" class="me-1" alt="OSM">
+          <img src="{{ static_prefix }}osm.svg" style="height: 1.1rem; width: auto;" class="me-1" alt="OSM">
           <span>{{ stats.last_overpass_query_at|format_zurich_display_timestamp(include_seconds=True)|default('Unknown') }}</span>
         </div>
       </div>

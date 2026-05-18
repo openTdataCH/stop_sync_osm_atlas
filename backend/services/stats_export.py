@@ -1355,7 +1355,8 @@ def generate_stats_summary_pdf(stats: Dict[str, Any], output_path: str = None) -
         'probs': problem_stats,
         'generated_at': get_zurich_now(),
         'css_content': '',
-        'pdf_assets_prefix': 'static/vendor/'
+        'pdf_assets_prefix': 'static/vendor/',
+        'pdf_static_prefix': 'static/',
     }
     
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
