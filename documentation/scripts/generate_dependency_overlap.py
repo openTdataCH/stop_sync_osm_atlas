@@ -125,7 +125,7 @@ def generate_svg():
 
 
 def update_markdown():
-    doc_path = ROOT / "documentation" / "6.1 Dependency Management & Build Strategy.md"
+    doc_path = ROOT / "documentation" / "7.1 Dependency Management & Build Strategy.md"
     if not doc_path.exists():
         return
         
