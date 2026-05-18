@@ -343,7 +343,7 @@ class Itinerary(db.Model):
     from_name = db.Column(db.String(255))
     to_name = db.Column(db.String(255))
     trip_count = db.Column(db.Integer)
-    shape_id = db.Column(db.String(255))
+    shape_id = db.Column(db.Text)
     geometry_wkt = db.Column(db.Text)
     canonical_stop_count = db.Column(db.Integer)
 
