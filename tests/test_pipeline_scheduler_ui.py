@@ -175,6 +175,30 @@ def test_navbar_renders_next_run_metadata(client, monkeypatch):
     assert re.search(r'<span[^>]*id="navbarDataUpdated"[^>]*title=', html) is None
 
 
+def test_navbar_renders_next_run_without_import_timestamp(client, monkeypatch):
+    from backend.services import pipeline_status, stats_export
+
+    monkeypatch.setattr(stats_export, "load_stats_from_file", lambda: {})
+    monkeypatch.setattr(
+        pipeline_status,
+        "get_status",
+        lambda: {
+            "last_pipeline_data_import_ended_at": None,
+            "next_run_at": "2026-05-03T08:00:00+00:00",
+        },
+    )
+
+    response = client.get("/")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'id="navbarDataUpdated"' in html
+    assert 'data-data-updated-at=""' in html
+    assert 'data-pipeline-next-run-at="2026-05-03T08:00:00+00:00"' in html
+    assert "Data not imported yet" in html
+    assert 'title="Next pipeline run: 2026-05-03 10:00"' in html
+
+
 def test_record_data_updated_timestamp_writes_meta_and_status(monkeypatch, tmp_path):
     from matching_and_import_db.scheduler import job_runner
     from backend.services import data_meta
