@@ -100,8 +100,8 @@ def test_pipeline_status_file_backend_persists_status(monkeypatch, tmp_path):
     from backend.services import pipeline_status
 
     runtime_dir = tmp_path / "runtime"
-    monkeypatch.setenv("PIPELINE_STATE_BACKEND", "file")
-    monkeypatch.setenv("PIPELINE_STATE_DIR", str(runtime_dir))
+    monkeypatch.setenv("STATE_BACKEND", "file")
+    monkeypatch.setenv("STATE_DIR", str(runtime_dir))
 
     pipeline_status.set_status(status="running", phase="matching", message="Matching")
 
@@ -113,8 +113,8 @@ def test_pipeline_status_file_backend_persists_status(monkeypatch, tmp_path):
 def test_pipeline_status_file_backend_lock_is_shared(monkeypatch, tmp_path):
     from backend.services import pipeline_status
 
-    monkeypatch.setenv("PIPELINE_STATE_BACKEND", "file")
-    monkeypatch.setenv("PIPELINE_STATE_DIR", str(tmp_path / "runtime"))
+    monkeypatch.setenv("STATE_BACKEND", "file")
+    monkeypatch.setenv("STATE_DIR", str(tmp_path / "runtime"))
     pipeline_status.set_status(status="idle")
 
     first = pipeline_status.acquire_run_lock(ttl_seconds=30)
@@ -133,8 +133,8 @@ def test_pipeline_status_file_backend_lock_is_shared(monkeypatch, tmp_path):
 def test_pipeline_state_store_defaults_to_file_backend(monkeypatch):
     from backend.services import pipeline_state_store
 
-    monkeypatch.delenv("PIPELINE_STATE_BACKEND", raising=False)
-    monkeypatch.delenv("PIPELINE_STATE_REDIS_URL", raising=False)
+    monkeypatch.delenv("STATE_BACKEND", raising=False)
+    monkeypatch.delenv("STATE_REDIS_URL", raising=False)
     monkeypatch.delenv("RATELIMIT_STORAGE_URI", raising=False)
 
     assert pipeline_state_store._resolve_backend_name() == "file"
