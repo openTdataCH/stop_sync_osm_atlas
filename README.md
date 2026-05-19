@@ -191,8 +191,8 @@ After `docker compose up --build`, the Flask app is available at [http://localho
 
 - **Map View**: Browse stops by type (`matched`, `unmatched`, `osm`) and match method.
 - **Filters & Search**: Filter by ATLAS SLOID, OSM Node ID, UIC reference, or route.
-- **Problems**: On the problems page you can solve the problems. See [3. Problems](documentation/3.%20Problems.md).
-- **Manage Data**: See [4. Database](documentation/4.%20Database.md).
+- **Problems**: On the problems page you can solve the problems. See [4. Problems](documentation/4.%20Problems.md).
+- **Manage Data**: See [5. Database](documentation/5.%20Database.md).
 - **Generating Reports:** The web app can generate CSV and PDF reports. See [6.5 Generate Reports and PDFs](documentation/6.5%20Generate%20Reports%20and%20PDFs.md).
 
 

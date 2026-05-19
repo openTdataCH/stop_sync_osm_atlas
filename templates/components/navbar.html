@@ -50,12 +50,12 @@
 
       <!-- Right side items -->
       <ul class="navbar-nav align-items-center">
-        {% if last_pipeline_data_import_ended_at %}
+        {% if last_pipeline_data_import_ended_at or pipeline_next_run_at %}
         <li class="nav-item">
           <span id="navbarDataUpdated" class="navbar-text text-muted small me-3"
             data-pipeline-next-run-at="{{ pipeline_next_run_at or '' }}"
             data-data-updated-at="{{ last_pipeline_data_import_ended_at or '' }}"
-            data-default-label="Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}"
+            data-default-label="{% if last_pipeline_data_import_ended_at %}Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}{% else %}Data not imported yet{% endif %}"
             data-running-label="Pipeline running in the background" data-blocking-label="Pipeline running" tabindex="0">
             <button type="button" id="navbarNextRunInfo"
               class="btn btn-link btn-sm text-muted text-decoration-none p-0 border-0 me-1 align-baseline"
@@ -65,7 +65,7 @@
               endif %}>
               <i class="fas fa-info-circle"></i>
             </button>
-            <span id="navbarDataUpdatedText">Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}</span>
+            <span id="navbarDataUpdatedText">{% if last_pipeline_data_import_ended_at %}Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}{% else %}Data not imported yet{% endif %}</span>
           </span>
         </li>
         {% endif %}
