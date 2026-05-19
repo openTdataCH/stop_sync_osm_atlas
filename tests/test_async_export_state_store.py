@@ -7,23 +7,23 @@ from backend.services import async_export_state_store
 
 
 def test_async_export_state_store_defaults_to_file_backend(monkeypatch):
-    monkeypatch.delenv("ASYNC_EXPORT_STATE_BACKEND", raising=False)
-    monkeypatch.delenv("ASYNC_EXPORT_REDIS_URL", raising=False)
+    monkeypatch.delenv("STATE_BACKEND", raising=False)
+    monkeypatch.delenv("STATE_REDIS_URL", raising=False)
 
     assert async_export_state_store.resolve_backend_name() == "file"
 
 
 def test_async_export_state_store_redis_requires_url(monkeypatch):
-    monkeypatch.setenv("ASYNC_EXPORT_STATE_BACKEND", "redis")
-    monkeypatch.delenv("ASYNC_EXPORT_REDIS_URL", raising=False)
+    monkeypatch.setenv("STATE_BACKEND", "redis")
+    monkeypatch.setenv("STATE_REDIS_URL", "")
 
-    with pytest.raises(RuntimeError, match="ASYNC_EXPORT_REDIS_URL"):
+    with pytest.raises(RuntimeError, match="STATE_REDIS_URL"):
         async_export_state_store.get_async_export_state_store()
 
 
-def test_async_export_state_store_auto_selects_redis_when_url_set(monkeypatch):
-    monkeypatch.delenv("ASYNC_EXPORT_STATE_BACKEND", raising=False)
-    monkeypatch.setenv("ASYNC_EXPORT_REDIS_URL", "redis://localhost:6379/0")
+def test_async_export_state_store_uses_shared_backend(monkeypatch):
+    monkeypatch.setenv("STATE_BACKEND", "redis")
+    monkeypatch.setenv("STATE_REDIS_URL", "redis://localhost:6379/0")
 
     assert async_export_state_store.resolve_backend_name() == "redis"
 
@@ -32,8 +32,8 @@ def test_async_export_file_backend_roundtrip(monkeypatch, tmp_path):
     runtime_dir = tmp_path / "runtime"
     task_id = "report-task-1"
 
-    monkeypatch.setenv("ASYNC_EXPORT_STATE_BACKEND", "file")
-    monkeypatch.setenv("ASYNC_EXPORT_STATE_DIR", str(runtime_dir))
+    monkeypatch.setenv("STATE_BACKEND", "file")
+    monkeypatch.setenv("STATE_DIR", str(runtime_dir))
 
     async_export.init_task(task_id)
     async_export.set_task_status(task_id, "processing")
@@ -60,8 +60,8 @@ def test_async_export_file_backend_cleanup_removes_stale_files(monkeypatch, tmp_
     runtime_dir = tmp_path / "runtime"
     task_id = "stale-task"
 
-    monkeypatch.setenv("ASYNC_EXPORT_STATE_BACKEND", "file")
-    monkeypatch.setenv("ASYNC_EXPORT_STATE_DIR", str(runtime_dir))
+    monkeypatch.setenv("STATE_BACKEND", "file")
+    monkeypatch.setenv("STATE_DIR", str(runtime_dir))
 
     stale_created_at = (
         datetime.now(timezone.utc) - timedelta(seconds=async_export.TASK_MAX_AGE_SECONDS + 10)

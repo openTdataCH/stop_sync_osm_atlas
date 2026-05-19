@@ -10,9 +10,14 @@ from typing import Any, Dict, Iterator, Protocol
 from redis import Redis
 from redis.exceptions import RedisError
 
+from backend.services.state_backend_config import (
+    resolve_state_backend,
+    resolve_state_dir,
+    resolve_state_redis_url,
+)
+
 _STATUS_KEY = "pipeline:update:status"
 _LOCK_KEY = "pipeline:update:lock"
-_DEFAULT_RUNTIME_DIR = os.path.join("data", "runtime")
 
 
 def _now_utc() -> datetime:
@@ -62,10 +67,6 @@ def _parse_expiry(value: Any) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
-
-
-def _runtime_dir() -> str:
-    return os.getenv("PIPELINE_STATE_DIR", _DEFAULT_RUNTIME_DIR)
 
 
 class PipelineStateStore(Protocol):
@@ -278,25 +279,18 @@ _MEMORY_STORE = MemoryPipelineStateStore()
 
 
 def _resolve_backend_name() -> str:
-    configured = (os.getenv("PIPELINE_STATE_BACKEND") or "").strip().lower()
-    if configured:
-        return configured
-
-    if os.getenv("PIPELINE_STATE_REDIS_URL"):
-        return "redis"
-
-    return "file"
+    return resolve_state_backend()
 
 
 def get_pipeline_state_store() -> PipelineStateStore:
     backend = _resolve_backend_name()
     if backend == "redis":
-        redis_url = os.getenv("PIPELINE_STATE_REDIS_URL")
+        redis_url = resolve_state_redis_url()
         if not redis_url:
-            raise RuntimeError("PIPELINE_STATE_REDIS_URL is required when PIPELINE_STATE_BACKEND=redis")
+            raise RuntimeError("STATE_REDIS_URL is required when STATE_BACKEND=redis")
         return RedisPipelineStateStore(redis_url)
     if backend == "file":
-        return FilePipelineStateStore(_runtime_dir())
+        return FilePipelineStateStore(resolve_state_dir())
     if backend == "memory":
         return _MEMORY_STORE
-    raise RuntimeError(f"Unsupported PIPELINE_STATE_BACKEND: {backend}")
+    raise RuntimeError(f"Unsupported STATE_BACKEND: {backend}")

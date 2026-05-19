@@ -160,35 +160,27 @@ Most local runs work without a `.env` file. If you want explicit local configura
 | `FLASK_DEBUG` | Enables Flask debug mode for local development | `1` |
 | `FORCE_HTTPS` | Redirect HTTP requests to HTTPS when running behind TLS | `false` |
 | `RATELIMIT_STORAGE_URI` | Flask-Limiter backend | `memory://` |
-| `PIPELINE_STATE_BACKEND` | Shared pipeline status/lock backend (`redis`, `file`, `memory`) | `file` |
-| `PIPELINE_STATE_REDIS_URL` | Redis URL for pipeline state when backend is `redis` | unset |
-| `PIPELINE_STATE_DIR` | Shared directory for pipeline state when backend is `file` | `data/runtime` |
-| `ASYNC_EXPORT_STATE_BACKEND` | Async report/docs export backend (`redis`, `file`, `memory`) | `file` |
-| `ASYNC_EXPORT_REDIS_URL` | Redis URL for async export state when backend is `redis` | unset |
-| `ASYNC_EXPORT_STATE_DIR` | Shared directory for async export state when backend is `file` | `data/runtime/async_export` |
+| `STATE_BACKEND` | Shared runtime state backend for pipeline status/locks and async exports (`redis` or `file`) | `redis` in Docker, `file` in code |
+| `STATE_REDIS_URL` | Redis URL when `STATE_BACKEND=redis` | `redis://redis:6379/0` |
+| `STATE_DIR` | Shared directory when `STATE_BACKEND=file` | `data/runtime` |
 | `PIPELINE_TIMEZONE` | Scheduler timezone | `Europe/Zurich` |
 | `PIPELINE_SCHEDULE_INTERVAL_HOURS` | Automatic pipeline interval | `24` |
 | `PIPELINE_IMPORT_ETA_SECONDS` | Import-phase ETA shown in the UI | `150` |
 | `PIPELINE_LOG_LEVEL` | Scheduler and pipeline logging verbosity | `INFO` |
 
-Redis-free local deployments use:
+`docker compose up --build` starts Redis by default and stores shared runtime state there. Redis-free local deployments can switch to the file backend with:
 
 ```env
 RATELIMIT_STORAGE_URI=memory://
-PIPELINE_STATE_BACKEND=file
-PIPELINE_STATE_DIR=data/runtime
-ASYNC_EXPORT_STATE_BACKEND=file
-ASYNC_EXPORT_STATE_DIR=data/runtime/async_export
+STATE_BACKEND=file
+STATE_DIR=data/runtime
 ```
 
-If you want Redis-backed state instead, start it explicitly and set:
+The default Redis-backed state configuration is:
 
 ```env
-RATELIMIT_STORAGE_URI=redis://redis:6379/0
-PIPELINE_STATE_BACKEND=redis
-PIPELINE_STATE_REDIS_URL=redis://redis:6379/0
-ASYNC_EXPORT_STATE_BACKEND=redis
-ASYNC_EXPORT_REDIS_URL=redis://redis:6379/0
+STATE_BACKEND=redis
+STATE_REDIS_URL=redis://redis:6379/0
 ```
 
 ## Running the Web Application
@@ -218,4 +210,3 @@ This project is a **work in progress**. Feedback and improvements are welcome!
 Feel free to submit issues and pull requests. Thank you for your interest! 🚀
 
 ---
-

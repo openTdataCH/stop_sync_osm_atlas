@@ -9,8 +9,12 @@ from typing import Any, Dict, Iterator, Protocol
 
 from redis import Redis
 
+from backend.services.state_backend_config import (
+    resolve_state_backend,
+    resolve_state_dir,
+    resolve_state_redis_url,
+)
 
-_DEFAULT_RUNTIME_DIR = os.path.join("data", "runtime", "async_export")
 _PROGRESS_PATH = "tasks_progress.json"
 _COMPLETED_PATH = "tasks_completed.json"
 _GUARD_PATH = "tasks.guard"
@@ -82,10 +86,6 @@ def parse_created_at(value: Any) -> datetime | None:
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _runtime_dir() -> str:
-    return os.getenv("ASYNC_EXPORT_STATE_DIR", _DEFAULT_RUNTIME_DIR)
 
 
 class AsyncExportStateStore(Protocol):
@@ -308,23 +308,18 @@ _MEMORY_STORE = MemoryAsyncExportStateStore()
 
 
 def resolve_backend_name() -> str:
-    configured = (os.getenv("ASYNC_EXPORT_STATE_BACKEND") or "").strip().lower()
-    if configured:
-        return configured
-    if os.getenv("ASYNC_EXPORT_REDIS_URL"):
-        return "redis"
-    return "file"
+    return resolve_state_backend()
 
 
 def get_async_export_state_store() -> AsyncExportStateStore:
     backend = resolve_backend_name()
     if backend == "redis":
-        redis_url = os.getenv("ASYNC_EXPORT_REDIS_URL")
+        redis_url = resolve_state_redis_url()
         if not redis_url:
-            raise RuntimeError("ASYNC_EXPORT_REDIS_URL is required when ASYNC_EXPORT_STATE_BACKEND=redis")
+            raise RuntimeError("STATE_REDIS_URL is required when STATE_BACKEND=redis")
         return RedisAsyncExportStateStore(redis_url)
     if backend == "file":
-        return FileAsyncExportStateStore(_runtime_dir())
+        return FileAsyncExportStateStore(resolve_state_dir())
     if backend == "memory":
         return _MEMORY_STORE
-    raise RuntimeError(f"Unsupported ASYNC_EXPORT_STATE_BACKEND: {backend}")
+    raise RuntimeError(f"Unsupported STATE_BACKEND: {backend}")
