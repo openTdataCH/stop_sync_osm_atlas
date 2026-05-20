@@ -8,7 +8,7 @@ def generate(landscape=True):
         import pygraphviz as pgv
     except ImportError:
         print("Error: eralchemy2 or pygraphviz is not installed.")
-        print("Please install them with: pip install eralchemy2 pygraphviz")
+        print("Please install them with: pip install -r documentation/print_er_diagram/requirements.txt")
         sys.exit(1)
 
     # Add the project root to sys.path so we can import backend
