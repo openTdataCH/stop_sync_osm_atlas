@@ -81,10 +81,12 @@ def _build_source_download_stats(meta: Optional[Dict[str, Any]]) -> Optional[Dic
         if not isinstance(snapshot, dict):
             continue
 
+        downloaded_at = format_zurich_display_timestamp(
+            snapshot.get(f'{source_name}_downloaded_at') or snapshot.get('downloaded_at') or default_downloaded_at
+        )
         source_download = {
-            f'{source_name}_downloaded_at': format_zurich_display_timestamp(
-                snapshot.get(f'{source_name}_downloaded_at') or snapshot.get('downloaded_at') or default_downloaded_at
-            ),
+            'downloaded_at': downloaded_at,
+            f'{source_name}_downloaded_at': downloaded_at,
             'etag': snapshot.get('etag'),
             'last_modified': snapshot.get('last_modified'),
             'download_filename': snapshot.get('download_filename'),
