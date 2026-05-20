@@ -7,7 +7,6 @@ via :mod:`matching_and_import_db.database.route_loader`, helpers come from
 :mod:`matching_and_import_db.database.helpers`, and engine / session objects from
 :mod:`matching_and_import_db.database.session`.
 """
-import math
 import os
 import time
 import argparse
@@ -24,10 +23,8 @@ from matching_and_import_db.orchestrator import run_matching
 from matching_and_import_db.models import MatchingOutput
 from matching_and_import_db.problem_detection.context import ProblemContext
 from matching_and_import_db.problem_detection.pipeline import evaluate_unmatched_problems, STOP_PROBLEM_PIPELINE
-from matching_and_import_db.problem_detection.result import ProblemResult
 from matching_and_import_db.database.session import session
 from matching_and_import_db.database.helpers import (
-    make_point_geom,
     safe_value,
     get_osm_node_type,
 )
