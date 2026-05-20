@@ -6,7 +6,7 @@ import subprocess
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Optional
 
 from backend.services import data_meta
@@ -353,7 +353,7 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
         finish_success(
             message=(
                 f"Pipeline run completed successfully ({mode}, {run_type.value}) at "
-                f"{datetime.utcnow().isoformat()}Z"
+                f"{datetime.now(UTC).isoformat().replace('+00:00', 'Z')}"
             )
         )
         LOGGER.info("Pipeline run finished successfully")
