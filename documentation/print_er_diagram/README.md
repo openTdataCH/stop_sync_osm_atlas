@@ -4,9 +4,9 @@ This folder contains a script to generate a printable ER diagram from the projec
 
 ## Requirements
 
-These dependencies are now included in the project's **base requirements** and the **Docker container**. 
+The ER diagram tooling is intentionally kept out of the project's runtime requirements. Install the local requirements for this documentation utility only when you need to regenerate the diagram.
 
-If you are running locally outside of Docker, you will need:
+You will need:
 
 1.  **Graphviz**: The system-level tool for rendering diagrams.
     ```bash
@@ -14,9 +14,9 @@ If you are running locally outside of Docker, you will need:
     sudo apt install graphviz libgraphviz-dev build-essential # Ubuntu/Debian
     ```
 
-2.  **ERAlchemy2**: The Python library for generating the diagram.
+2.  **Python dependencies**: The ER diagram generator dependencies.
     ```bash
-    pip install eralchemy2
+    pip install -r documentation/print_er_diagram/requirements.txt
     ```
 
 ## Usage
