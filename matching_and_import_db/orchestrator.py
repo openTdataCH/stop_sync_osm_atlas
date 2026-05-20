@@ -7,8 +7,6 @@ summary reporting.
 """
 import logging
 import os
-import time
-import xml.etree.ElementTree as ET
 from collections import defaultdict
 
 import pandas as pd
@@ -92,18 +90,8 @@ def _resolve_path(preferred: str, alternates: list) -> str:
     return ""
 
 
-def _wait_for_file(paths: list[str], timeout: int = 60) -> str:
-    deadline = time.time() + timeout
-    while True:
-        for p in paths:
-            if p and os.path.exists(p):
-                return p
-        if time.time() >= deadline:
-            return ""
-        time.sleep(1.0)
-
 def _locate_file(env_key, default, label):
-    """Locate a required data file, optionally waiting."""
+    """Locate a required data file."""
     pref = os.getenv(env_key, default)
     alternates = [
         os.path.join('/app', pref) if not os.path.isabs(pref) else None,
@@ -111,9 +99,6 @@ def _locate_file(env_key, default, label):
         if not os.path.isabs(pref) else None,
     ]
     path = _resolve_path(pref, alternates)
-    if not path:
-        wait_list = [pref] + [a for a in alternates if a]
-        path = _wait_for_file(wait_list, timeout=int(os.getenv(f'WAIT_FOR_{label}_SECONDS', '60')))
     if not path:
         raise FileNotFoundError(
             f"Required {label} file not found. "
