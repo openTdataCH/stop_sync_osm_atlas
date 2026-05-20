@@ -31,7 +31,7 @@ SECTION 0 — TIMESTAMPS
         </div>
       </div>
       <div class="col-md-3 col-sm-6 border-start">
-        <div class="text-muted small fw-bold text-uppercase mb-1">Last OSM Queried</div>
+        <div class="text-muted small fw-bold text-uppercase mb-1">Last Overpass Query</div>
         <div class="fw-medium text-dark d-flex align-items-center">
           <img src="{{ static_prefix }}osm.svg" style="height: 1.1rem; width: auto;" class="me-1" alt="OSM">
           <span>{{ stats.last_overpass_query_at|format_zurich_display_timestamp(include_seconds=True)|default('Unknown') }}</span>
