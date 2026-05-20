@@ -186,6 +186,87 @@ def _build_trip_lookup(gtfs_data) -> dict[str, dict[str, object]]:
     }
 
 
+def _build_itinerary_stop_info_lookup(
+    stop_meta_lookup: dict[str, dict[str, object]],
+    match_lookup: dict[str, dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    stop_ids = set(stop_meta_lookup) | set(match_lookup)
+    stop_info_lookup: dict[str, dict[str, object]] = {}
+    for stop_id in stop_ids:
+        match_row = match_lookup.get(stop_id, {})
+        stop_meta = stop_meta_lookup.get(stop_id, {})
+        sloid = match_row.get('sloid')
+        has_sloid = pd.notna(sloid)
+        original_stop_id = stop_meta.get('original_stop_id')
+        uic_number = _parse_uic_from_gtfs_stop_id(original_stop_id) or _parse_uic_from_gtfs_stop_id(stop_id)
+        stop_info_lookup[stop_id] = {
+            'stop_id': stop_id,
+            'sloid': sloid,
+            'sloid_variants': {str(sloid)} if has_sloid else set(),
+            'mapping_method': match_row.get('match_method'),
+            'stop_name': stop_meta.get('stop_name'),
+            'platform_code': stop_meta.get('platform_code'),
+            'original_stop_id': original_stop_id,
+            'location_type': stop_meta.get('location_type'),
+            'parent_station': stop_meta.get('parent_station'),
+            'canonical_stop_key': sloid if has_sloid else f'gtfs:{stop_id}',
+            'uic_number': uic_number,
+            'sequence_key': _atlas_itinerary_sequence_key(stop_id, sloid, original_stop_id),
+        }
+    return stop_info_lookup
+
+
+def _itinerary_stop_info_for_stop_id(
+    stop_id: str,
+    stop_info_lookup: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    stop_info = stop_info_lookup.get(stop_id)
+    if stop_info is not None:
+        return stop_info
+
+    stop_info = {
+        'stop_id': stop_id,
+        'sloid': None,
+        'sloid_variants': set(),
+        'mapping_method': None,
+        'stop_name': None,
+        'platform_code': None,
+        'original_stop_id': None,
+        'location_type': None,
+        'parent_station': None,
+        'canonical_stop_key': f'gtfs:{stop_id}',
+        'uic_number': _parse_uic_from_gtfs_stop_id(stop_id),
+        'sequence_key': _atlas_itinerary_sequence_key(stop_id, None, None),
+    }
+    stop_info_lookup[stop_id] = stop_info
+    return stop_info
+
+
+def _build_stop_rows_for_itinerary(
+    ordered_calls: pd.DataFrame,
+    stop_info_lookup: dict[str, dict[str, object]],
+) -> list[dict[str, object]]:
+    stop_rows: list[dict[str, object]] = []
+    for stop_row in ordered_calls.itertuples(index=False):
+        stop_id = str(stop_row.stop_id)
+        stop_info = _itinerary_stop_info_for_stop_id(stop_id, stop_info_lookup)
+        stop_rows.append({
+            'stop_sequence': int(stop_row.stop_sequence),
+            'stop_id': stop_id,
+            'sloid': stop_info['sloid'],
+            'sloid_variants': set(stop_info['sloid_variants']),
+            'mapping_method': stop_info['mapping_method'],
+            'stop_name': stop_info['stop_name'],
+            'platform_code': stop_info['platform_code'],
+            'original_stop_id': stop_info['original_stop_id'],
+            'location_type': stop_info['location_type'],
+            'parent_station': stop_info['parent_station'],
+            'canonical_stop_key': stop_info['canonical_stop_key'],
+            'uic_number': stop_info['uic_number'],
+        })
+    return stop_rows
+
+
 def _iter_trip_groups_from_staged_stop_times(trip_stop_times_path: str, chunk_size: int = 500000):
     if not trip_stop_times_path or not os.path.exists(trip_stop_times_path):
         return
@@ -239,6 +320,7 @@ def _build_atlas_itinerary_frames(
     match_lookup = _build_match_lookup(integrated_data)
     stop_meta_lookup = _build_stop_meta_lookup(gtfs_data)
     trip_lookup = _build_trip_lookup(gtfs_data)
+    stop_info_lookup = _build_itinerary_stop_info_lookup(stop_meta_lookup, match_lookup)
 
     trip_stop_times_path = None
     if gtfs_data and isinstance(gtfs_data, dict):
@@ -289,6 +371,8 @@ def _build_atlas_itinerary_frames(
 
     processed_trip_count = 0
     processed_stop_call_count = 0
+    materialized_trip_pattern_count = 0
+    skipped_duplicate_trip_pattern_count = 0
     progress_trip_interval = 10000
 
     for trip_id, ordered_calls in trip_groups:
@@ -307,34 +391,14 @@ def _build_atlas_itinerary_frames(
             trip_short_name = _first_non_empty([trip_meta.get('trip_short_name')])
             shape_id = _first_non_empty([trip_meta.get('shape_id')])
 
-        sequence_stop_keys: list[str] = []
-        stop_rows_for_itinerary: list[dict[str, object]] = []
-        for stop_row in ordered_calls.itertuples(index=False):
-            stop_id = str(stop_row.stop_id)
-            match_row = match_lookup.get(stop_id, {})
-            stop_meta = stop_meta_lookup.get(stop_id, {})
-            sloid = match_row.get('sloid')
-            canonical_stop_key = sloid if pd.notna(sloid) else f'gtfs:{stop_id}'
-            uic_number = _parse_uic_from_gtfs_stop_id(stop_meta.get('original_stop_id')) or _parse_uic_from_gtfs_stop_id(stop_id)
-            sequence_stop_keys.append(_atlas_itinerary_sequence_key(stop_id, sloid, stop_meta.get('original_stop_id')))
-            stop_rows_for_itinerary.append({
-                'stop_sequence': int(stop_row.stop_sequence),
-                'stop_id': stop_id,
-                'sloid': sloid,
-                'sloid_variants': {str(sloid)} if pd.notna(sloid) else set(),
-                'mapping_method': match_row.get('match_method'),
-                'stop_name': stop_meta.get('stop_name'),
-                'platform_code': stop_meta.get('platform_code'),
-                'original_stop_id': stop_meta.get('original_stop_id'),
-                'location_type': stop_meta.get('location_type'),
-                'parent_station': stop_meta.get('parent_station'),
-                'canonical_stop_key': canonical_stop_key,
-                'uic_number': uic_number,
-            })
-
-        if not stop_rows_for_itinerary:
+        if ordered_calls.empty:
             continue
 
+        ordered_stop_ids = tuple(str(stop_id) for stop_id in ordered_calls['stop_id'].to_numpy())
+        sequence_stop_keys = [
+            _itinerary_stop_info_for_stop_id(stop_id, stop_info_lookup)['sequence_key']
+            for stop_id in ordered_stop_ids
+        ]
         fallback_pattern_hash = _hash_stop_sequence(sequence_stop_keys)
         itinerary_bucket_key = _atlas_itinerary_bucket_key(
             representative_headsign,
@@ -364,23 +428,34 @@ def _build_atlas_itinerary_frames(
         pattern_candidates = itinerary_pattern_rows_by_key.setdefault(itinerary_key, {})
         pattern_candidate = pattern_candidates.get(fallback_pattern_hash)
         if pattern_candidate is None:
+            stop_rows_for_itinerary = _build_stop_rows_for_itinerary(ordered_calls, stop_info_lookup)
             pattern_candidates[fallback_pattern_hash] = {
                 'trip_count': 1,
                 'stop_rows': stop_rows_for_itinerary,
-                'uic_sequence': [k.replace('uic:', '') for k in sequence_stop_keys]
+                'uic_sequence': [k.replace('uic:', '') for k in sequence_stop_keys],
+                'seen_stop_id_sequences': {ordered_stop_ids},
             }
+            materialized_trip_pattern_count += 1
             processed_stop_call_count += len(stop_rows_for_itinerary)
         else:
             pattern_candidate['trip_count'] += 1
-            for existing_stop_row, stop_row in zip(pattern_candidate['stop_rows'], stop_rows_for_itinerary):
-                _merge_atlas_stop_row(existing_stop_row, stop_row)
+            seen_stop_id_sequences = pattern_candidate.setdefault('seen_stop_id_sequences', set())
+            if ordered_stop_ids in seen_stop_id_sequences:
+                skipped_duplicate_trip_pattern_count += 1
+            else:
+                stop_rows_for_itinerary = _build_stop_rows_for_itinerary(ordered_calls, stop_info_lookup)
+                for existing_stop_row, stop_row in zip(pattern_candidate['stop_rows'], stop_rows_for_itinerary):
+                    _merge_atlas_stop_row(existing_stop_row, stop_row)
+                seen_stop_id_sequences.add(ordered_stop_ids)
+                materialized_trip_pattern_count += 1
 
         if processed_trip_count % progress_trip_interval == 0:
             print(
                 "ATLAS itineraries: processed "
                 f"{processed_trip_count:,} trips, "
                 f"{len(itinerary_rows):,} unique itineraries, "
-                f"{processed_stop_call_count:,} emitted stop calls…"
+                f"{processed_stop_call_count:,} emitted stop calls, "
+                f"{skipped_duplicate_trip_pattern_count:,} duplicate trip patterns skipped…"
             )
 
     if not itinerary_rows:
@@ -390,7 +465,9 @@ def _build_atlas_itinerary_frames(
         "ATLAS itineraries: completed reduction with "
         f"{processed_trip_count:,} trips, "
         f"{len(itinerary_rows):,} unique itineraries, "
-        f"{processed_stop_call_count:,} emitted stop calls"
+        f"{processed_stop_call_count:,} emitted stop calls, "
+        f"{materialized_trip_pattern_count:,} materialized trip patterns, "
+        f"{skipped_duplicate_trip_pattern_count:,} duplicate trip patterns skipped"
     )
 
     itinerary_stop_rows: list[dict[str, object]] = []
@@ -620,4 +697,3 @@ if __name__ == "__main__":
         print(f"Error writing GTFS routes CSV: {e}")
 
     print("Done!")
-
