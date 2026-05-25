@@ -169,9 +169,10 @@
    Content Area
    ------------------------------------------------------------------------- */
 .docs-content img {
+  display: block;
   max-width: 100%;
   height: auto;
-  margin: var(--space-4) 0;
+  margin: var(--space-4) auto;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
 }
