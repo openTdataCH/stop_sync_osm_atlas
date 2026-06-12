@@ -90,6 +90,47 @@ def test_split_import_payloads_separates_static_dynamic_groups():
     assert payload_groups.meta['no_nearby_osm_sloids'] == {'s1'}
 
 
+def test_validate_refresh_payloads_rejects_empty_stop_rows():
+    try:
+        importer_mod._validate_refresh_payloads({'stops_matched': []})
+    except RuntimeError as exc:
+        assert 'payload contains no stops_matched rows' in str(exc)
+    else:
+        raise AssertionError('Expected empty stops_matched payload to be rejected')
+
+
+def test_filter_gtfs_identity_rows_drops_unknown_resolved_sloids():
+    rows = importer_mod._filter_gtfs_identity_rows_to_known_sloids(
+        [
+            {
+                'stop_id': 'stop-1',
+                'resolved_sloid': 'known-sloid',
+                'resolution_method': 'original_stop_id',
+                'confidence': 1.0,
+                'details_json': {},
+            },
+            {
+                'stop_id': 'stop-2',
+                'resolved_sloid': 'missing-sloid',
+                'resolution_method': 'original_stop_id',
+                'confidence': 1.0,
+                'distance_m': 3.0,
+                'atlas_lat': 46.0,
+                'atlas_lon': 7.0,
+                'details_json': {'platform_code': '1'},
+            },
+        ],
+        {'known-sloid'},
+    )
+
+    assert rows[0]['resolved_sloid'] == 'known-sloid'
+    assert rows[1]['resolved_sloid'] is None
+    assert rows[1]['resolution_method'] == 'unmatched'
+    assert rows[1]['confidence'] == 0.0
+    assert rows[1]['atlas_lat'] is None
+    assert rows[1]['details_json']['dropped_resolved_sloid'] == 'missing-sloid'
+
+
 def test_get_refresh_scope_tables_for_atlas_cached_reuses_static_tables():
     rewritten_tables, reused_tables = importer_mod.get_refresh_scope_tables(importer_mod.PipelineRunType.ATLAS_CACHED)
 

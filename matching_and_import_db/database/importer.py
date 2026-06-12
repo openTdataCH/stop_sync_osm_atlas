@@ -360,6 +360,38 @@ def _build_gtfs_insert_payloads() -> tuple[list[dict], list[dict]]:
     return gtfs_stop_rows, gtfs_state_rows
 
 
+def _filter_gtfs_identity_rows_to_known_sloids(
+    gtfs_identity_rows: list[dict],
+    known_sloids: set[str],
+) -> list[dict]:
+    filtered_rows = []
+    dropped_resolutions = 0
+    for row in gtfs_identity_rows:
+        resolved_sloid = safe_value(row.get('resolved_sloid'))
+        if resolved_sloid and str(resolved_sloid) not in known_sloids:
+            row = dict(row)
+            row['details_json'] = {
+                **(row.get('details_json') or {}),
+                'dropped_resolved_sloid': str(resolved_sloid),
+                'dropped_reason': 'resolved_sloid_not_imported',
+            }
+            row['resolved_sloid'] = None
+            row['resolution_method'] = 'unmatched'
+            row['confidence'] = 0.0
+            row['distance_m'] = None
+            row['atlas_lat'] = None
+            row['atlas_lon'] = None
+            dropped_resolutions += 1
+        filtered_rows.append(row)
+
+    if dropped_resolutions:
+        print(
+            "Dropped "
+            f"{dropped_resolutions} GTFS↔ATLAS resolutions that referenced non-imported ATLAS SLOIDs"
+        )
+    return filtered_rows
+
+
 def precompute_problem_artifacts(base_data: MatchingOutput) -> dict:
     """Precompute problem detection so maintenance phase only writes to DB."""
     problem_ctx = ProblemContext.build(base_data)
@@ -743,10 +775,15 @@ def build_fast_insert_payloads(
     if skipped_sloids:
         print(f"  Skipped {skipped_sloids} atlas itinerary stop calls with non-imported SLOIDs")
 
-    gtfs_stop_dicts, gtfs_identity_resolution_dicts = _build_gtfs_insert_payloads()
     atlas_operator_dicts = sorted(
         atlas_operator_rows_by_abbr.values(),
         key=lambda row: row['atlas_business_org_abbr'],
+    )
+    importable_sloids = {row['sloid'] for row in atlas_stop_dicts if row.get('sloid')}
+    gtfs_stop_dicts, gtfs_identity_resolution_dicts = _build_gtfs_insert_payloads()
+    gtfs_identity_resolution_dicts = _filter_gtfs_identity_rows_to_known_sloids(
+        gtfs_identity_resolution_dicts,
+        importable_sloids,
     )
 
     # ---- Summary ----
@@ -790,10 +827,19 @@ def _bulk_insert_rows(model, rows: list[dict], label: str | None = None) -> int:
         return 0
     for i in range(0, len(rows), _BULK_BATCH):
         session.execute(insert(model), rows[i:i + _BULK_BATCH])
-    session.commit()
     if label:
         print(f"Imported {len(rows)} {label}")
     return len(rows)
+
+
+def _validate_refresh_payloads(db_payloads: dict) -> None:
+    """Refuse destructive refreshes that would publish an empty map."""
+    if not db_payloads.get('stops_matched'):
+        raise RuntimeError(
+            "Refusing to refresh import DB: payload contains no stops_matched rows. "
+            "This usually means matching/precompute produced an empty result and the "
+            "previous public data should be preserved."
+        )
 
 
 def import_to_database(
@@ -816,82 +862,90 @@ def import_to_database(
         **payload_groups.dynamic,
         **payload_groups.meta,
     }
+    _validate_refresh_payloads(db_payloads)
     rewritten_tables, reused_tables = get_refresh_scope_tables(run_type)
     if run_type == PipelineRunType.ATLAS_CACHED:
         _validate_atlas_cached_refresh_preconditions(session)
 
-    # ---- TRUNCATE selected tables ----
-    print(f"Truncating {len(rewritten_tables)} tables for {run_type.value} refresh...")
-    if reused_tables:
-        print(f"Reusing static tables: {', '.join(reused_tables)}")
-    session.execute(text(f"TRUNCATE TABLE {', '.join(rewritten_tables)} CASCADE"))
-    session.commit()
+    try:
+        # Precondition checks above may issue SELECTs and open an implicit
+        # SQLAlchemy transaction. Start the destructive refresh from a clean
+        # transaction boundary so TRUNCATE + INSERT commit or roll back together.
+        session.rollback()
 
-    _bulk_insert_rows(OsmNode, db_payloads.get('osm_nodes', []), 'OSM nodes')
-    _bulk_insert_rows(OsmStop, db_payloads.get('osm_stops', []), 'OSM stop units')
-    _bulk_insert_rows(OsmStopMember, db_payloads.get('osm_stop_members', []), 'OSM stop members')
-    if run_type in {PipelineRunType.COMPLETE, PipelineRunType.ATLAS_CACHED_BOOTSTRAP}:
-        _bulk_insert_rows(AtlasOperator, db_payloads.get('atlas_operators', []), 'ATLAS operators')
-        _bulk_insert_rows(AtlasStop, db_payloads.get('atlas_stops', []), 'ATLAS stops')
-        _bulk_insert_rows(GtfsStopRaw, db_payloads.get('gtfs_stops_raw', []), 'GTFS raw stops')
-        _bulk_insert_rows(
-            GtfsStopIdentityResolution,
-            db_payloads.get('gtfs_stop_identity_resolution', []),
-            'GTFS identity-resolution rows',
-        )
+        with session.begin():
+            # ---- TRUNCATE selected tables ----
+            print(f"Truncating {len(rewritten_tables)} tables for {run_type.value} refresh...")
+            if reused_tables:
+                print(f"Reusing static tables: {', '.join(reused_tables)}")
+            session.execute(text(f"TRUNCATE TABLE {', '.join(rewritten_tables)} CASCADE"))
 
-    # ---- Bulk insert: stops_matched (strip internal _idx before insert) ----
-    stops_rows = db_payloads.get('stops_matched', [])
-    if stops_rows:
-        # Insert in batches and collect auto-generated IDs to link problems
-        stop_idx_to_db_id = {}
-        for i in range(0, len(stops_rows), _BULK_BATCH):
-            batch = stops_rows[i:i + _BULK_BATCH]
-            clean_batch = [{k: v for k, v in d.items() if k != '_idx'} for d in batch]
-            result = session.execute(
-                insert(StopsMatched).returning(StopsMatched.id),
-                clean_batch,
+            _bulk_insert_rows(OsmNode, db_payloads.get('osm_nodes', []), 'OSM nodes')
+            _bulk_insert_rows(OsmStop, db_payloads.get('osm_stops', []), 'OSM stop units')
+            _bulk_insert_rows(OsmStopMember, db_payloads.get('osm_stop_members', []), 'OSM stop members')
+            if run_type in {PipelineRunType.COMPLETE, PipelineRunType.ATLAS_CACHED_BOOTSTRAP}:
+                _bulk_insert_rows(AtlasOperator, db_payloads.get('atlas_operators', []), 'ATLAS operators')
+                _bulk_insert_rows(AtlasStop, db_payloads.get('atlas_stops', []), 'ATLAS stops')
+                _bulk_insert_rows(GtfsStopRaw, db_payloads.get('gtfs_stops_raw', []), 'GTFS raw stops')
+                _bulk_insert_rows(
+                    GtfsStopIdentityResolution,
+                    db_payloads.get('gtfs_stop_identity_resolution', []),
+                    'GTFS identity-resolution rows',
+                )
+
+            # ---- Bulk insert: stops_matched (strip internal _idx before insert) ----
+            stops_rows = db_payloads.get('stops_matched', [])
+            if stops_rows:
+                # Insert in batches and collect auto-generated IDs to link problems
+                stop_idx_to_db_id = {}
+                for i in range(0, len(stops_rows), _BULK_BATCH):
+                    batch = stops_rows[i:i + _BULK_BATCH]
+                    clean_batch = [{k: v for k, v in d.items() if k != '_idx'} for d in batch]
+                    result = session.execute(
+                        insert(StopsMatched).returning(StopsMatched.id),
+                        clean_batch,
+                    )
+                    db_ids = [row[0] for row in result]
+                    for d, db_id in zip(batch, db_ids):
+                        stop_idx_to_db_id[d['_idx']] = db_id
+                print(f"Imported {len(stops_rows)} stops_matched rows")
+
+                # ---- Bulk insert: problems ----
+                problem_raw = db_payloads['problem_rows']
+                if problem_raw:
+                    problem_dicts = [
+                        {'stop_id': stop_idx_to_db_id[idx], 'problem_type': ptype, 'priority': prio}
+                        for idx, ptype, prio in problem_raw
+                        if idx in stop_idx_to_db_id
+                    ]
+                    if problem_dicts:
+                        for i in range(0, len(problem_dicts), _BULK_BATCH):
+                            session.execute(insert(Problem), problem_dicts[i:i + _BULK_BATCH])
+                        print(f"Imported {len(problem_dicts)} problem rows")
+
+            if run_type in {PipelineRunType.COMPLETE, PipelineRunType.ATLAS_CACHED_BOOTSTRAP}:
+                _bulk_insert_rows(AtlasLineFamily, db_payloads.get('atlas_line_families', []), 'ATLAS line families')
+            _bulk_insert_rows(
+                OsmRouteRelation,
+                db_payloads.get('osm_route_relations', []),
+                'OSM route relations',
             )
-            db_ids = [row[0] for row in result]
-            for d, db_id in zip(batch, db_ids):
-                stop_idx_to_db_id[d['_idx']] = db_id
-        session.commit()
-        print(f"Imported {len(stops_rows)} stops_matched rows")
-
-        # ---- Bulk insert: problems ----
-        problem_raw = db_payloads['problem_rows']
-        if problem_raw:
-            problem_dicts = [
-                {'stop_id': stop_idx_to_db_id[idx], 'problem_type': ptype, 'priority': prio}
-                for idx, ptype, prio in problem_raw
-                if idx in stop_idx_to_db_id
-            ]
-            if problem_dicts:
-                for i in range(0, len(problem_dicts), _BULK_BATCH):
-                    session.execute(insert(Problem), problem_dicts[i:i + _BULK_BATCH])
-                session.commit()
-                print(f"Imported {len(problem_dicts)} problem rows")
-
-    if run_type in {PipelineRunType.COMPLETE, PipelineRunType.ATLAS_CACHED_BOOTSTRAP}:
-        _bulk_insert_rows(AtlasLineFamily, db_payloads.get('atlas_line_families', []), 'ATLAS line families')
-    _bulk_insert_rows(
-        OsmRouteRelation,
-        db_payloads.get('osm_route_relations', []),
-        'OSM route relations',
-    )
-    _bulk_insert_rows(LineFamily, db_payloads.get('line_families', []), 'line families')
-    _bulk_insert_rows(Itinerary, db_payloads.get('itineraries', []), 'itineraries')
-    _bulk_insert_rows(StopCall, db_payloads.get('stop_calls', []), 'stop calls')
-    _bulk_insert_rows(
-        LineFamilyMatch,
-        db_payloads.get('line_family_matches', []),
-        'line family matches',
-    )
-    _bulk_insert_rows(
-        ItineraryMatch,
-        db_payloads.get('itinerary_matches', []),
-        'itinerary matches',
-    )
+            _bulk_insert_rows(LineFamily, db_payloads.get('line_families', []), 'line families')
+            _bulk_insert_rows(Itinerary, db_payloads.get('itineraries', []), 'itineraries')
+            _bulk_insert_rows(StopCall, db_payloads.get('stop_calls', []), 'stop calls')
+            _bulk_insert_rows(
+                LineFamilyMatch,
+                db_payloads.get('line_family_matches', []),
+                'line family matches',
+            )
+            _bulk_insert_rows(
+                ItineraryMatch,
+                db_payloads.get('itinerary_matches', []),
+                'itinerary matches',
+            )
+    except Exception:
+        session.rollback()
+        raise
 
     matched_routes = db_payloads.get('matched_routes', 0)
     itinerary_matches = len(db_payloads.get('itinerary_matches', []))
