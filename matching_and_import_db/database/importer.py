@@ -10,6 +10,7 @@ via :mod:`matching_and_import_db.database.route_loader`, helpers come from
 import os
 import time
 import argparse
+import ast
 import json
 from collections import Counter
 from dataclasses import dataclass
@@ -371,7 +372,7 @@ def _filter_gtfs_identity_rows_to_known_sloids(
         if resolved_sloid and str(resolved_sloid) not in known_sloids:
             row = dict(row)
             row['details_json'] = {
-                **(row.get('details_json') or {}),
+                **_coerce_details_json_mapping(row.get('details_json')),
                 'dropped_resolved_sloid': str(resolved_sloid),
                 'dropped_reason': 'resolved_sloid_not_imported',
             }
@@ -390,6 +391,24 @@ def _filter_gtfs_identity_rows_to_known_sloids(
             f"{dropped_resolutions} GTFS↔ATLAS resolutions that referenced non-imported ATLAS SLOIDs"
         )
     return filtered_rows
+
+
+def _coerce_details_json_mapping(value: Any) -> dict:
+    cleaned = safe_value(value)
+    if cleaned is None:
+        return {}
+    if isinstance(cleaned, dict):
+        return dict(cleaned)
+    if isinstance(cleaned, str):
+        for parser in (json.loads, ast.literal_eval):
+            try:
+                parsed = parser(cleaned)
+            except (TypeError, ValueError, SyntaxError, json.JSONDecodeError):
+                continue
+            if isinstance(parsed, dict):
+                return parsed
+        return {'raw_details_json': cleaned}
+    return {'raw_details_json': str(cleaned)}
 
 
 def precompute_problem_artifacts(base_data: MatchingOutput) -> dict:
