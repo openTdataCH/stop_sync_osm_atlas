@@ -119,6 +119,13 @@ def test_filter_gtfs_identity_rows_drops_unknown_resolved_sloids():
                 'atlas_lon': 7.0,
                 'details_json': {'platform_code': '1'},
             },
+            {
+                'stop_id': 'stop-3',
+                'resolved_sloid': 'also-missing-sloid',
+                'resolution_method': 'original_stop_id',
+                'confidence': 1.0,
+                'details_json': "{'platform_code': '2'}",
+            },
         ],
         {'known-sloid'},
     )
@@ -129,6 +136,9 @@ def test_filter_gtfs_identity_rows_drops_unknown_resolved_sloids():
     assert rows[1]['confidence'] == 0.0
     assert rows[1]['atlas_lat'] is None
     assert rows[1]['details_json']['dropped_resolved_sloid'] == 'missing-sloid'
+    assert rows[2]['resolved_sloid'] is None
+    assert rows[2]['details_json']['platform_code'] == '2'
+    assert rows[2]['details_json']['dropped_resolved_sloid'] == 'also-missing-sloid'
 
 
 def test_get_refresh_scope_tables_for_atlas_cached_reuses_static_tables():
