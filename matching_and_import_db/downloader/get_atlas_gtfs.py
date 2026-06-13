@@ -18,6 +18,7 @@ _COORD_BUCKET_METERS_PER_DEG_LON = _COORD_BUCKET_METERS_PER_DEG_LAT * math.cos(m
 GTFS_DB_STOPS_CACHE_PATH = os.path.join('data', 'processed', 'gtfs_stops_raw.csv')
 GTFS_DB_STATE_CACHE_PATH = os.path.join('data', 'processed', 'gtfs_stop_identity_resolution.csv')
 GTFS_TRIP_STOP_TIMES_STAGE_FILENAME = 'swiss_trip_stop_times.csv'
+SWISS_UIC_PREFIX = '85'
 
 
 def _normalize_optional_text(value: object) -> str | None:
@@ -268,6 +269,32 @@ def parse_gtfs_stop_ids(gtfs_stops: pd.DataFrame) -> pd.DataFrame:
     return parsed
 
 
+def _select_swiss_gtfs_stops(all_stops: pd.DataFrame) -> pd.DataFrame:
+    """Return Swiss GTFS stops using all known UIC/DIDOK identifier columns."""
+    required_columns = {'stop_id', 'original_stop_id', 'didok', 'stop_lat', 'stop_lon'}
+    missing_columns = sorted(required_columns - set(all_stops.columns))
+    if missing_columns:
+        raise RuntimeError(f"GTFS stops.txt missing required columns for Swiss stop filtering: {missing_columns}")
+
+    swiss_uic_mask = (
+        all_stops['didok'].fillna('').astype(str).str.startswith(SWISS_UIC_PREFIX)
+        | all_stops['original_stop_id'].fillna('').astype(str).str.startswith(SWISS_UIC_PREFIX)
+        | all_stops['stop_id'].fillna('').astype(str).str.startswith(SWISS_UIC_PREFIX)
+    )
+    prefixed = all_stops[swiss_uic_mask].copy()
+    swiss_stops = filter_points_in_switzerland(prefixed, lat_col='stop_lat', lon_col='stop_lon')
+    if swiss_stops.empty:
+        raise RuntimeError(
+            "GTFS Swiss stop filter produced 0 stops. Expected Swiss UIC/DIDOK values "
+            "starting with '85' in one of didok, original_stop_id, or stop_id."
+        )
+    print(
+        f"GTFS: filtered to {len(swiss_stops):,} Swiss stops inside CH border "
+        f"(from {len(prefixed):,} Swiss UIC/DIDOK rows)"
+    )
+    return swiss_stops
+
+
 def download_and_extract_gtfs(gtfs_url):
     """Download and extract GTFS data to a clean folder.
 
@@ -389,20 +416,8 @@ def load_gtfs_data_streaming(gtfs_folder: str):
     all_stops['stop_lat'] = pd.to_numeric(all_stops['stop_lat'], errors='coerce')
     all_stops['stop_lon'] = pd.to_numeric(all_stops['stop_lon'], errors='coerce')
     all_stops['location_type'] = pd.to_numeric(all_stops['location_type'], errors='coerce').astype('Int64')
-    swiss_uic_mask = (
-        all_stops['didok'].fillna('').astype(str).str.startswith('85')
-        | all_stops['original_stop_id'].fillna('').astype(str).str.startswith('85')
-        | all_stops['stop_id'].fillna('').astype(str).str.startswith('85')
-    )
-    prefixed = all_stops[swiss_uic_mask].copy()
-    swiss_stops = filter_points_in_switzerland(prefixed, lat_col='stop_lat', lon_col='stop_lon')
-    if swiss_stops.empty:
-        raise RuntimeError(
-            "GTFS Swiss stop filter produced 0 stops. Expected Swiss UIC/DIDOK values "
-            "starting with '85' in one of didok, original_stop_id, or stop_id."
-        )
+    swiss_stops = _select_swiss_gtfs_stops(all_stops)
     swiss_stop_ids: Set[str] = set(swiss_stops['stop_id'].astype(str))
-    print(f"GTFS: filtered to {len(swiss_stops):,} Swiss stops inside CH border (from {len(prefixed):,} Swiss UIC/DIDOK rows)")
 
     # Load trips once; filter later to relevant_trip_ids found via stop_times streaming
     trip_columns = {
