@@ -93,3 +93,14 @@ def test_stats_data_template_handles_missing_source_downloads():
     assert "Last ATLAS Downloaded" in html
     assert "Last GTFS Downloaded" in html
     assert "Unknown" in html
+
+
+def test_stats_data_template_handles_partial_stats_without_summary():
+    env = Environment(loader=FileSystemLoader("templates"))
+
+    html = env.get_template("components/stats_data.html").render(
+        stats={"atlas_filtering": {"total_input": 10}},
+        problem_breakdown={},
+    )
+
+    assert "No stats available" in html
