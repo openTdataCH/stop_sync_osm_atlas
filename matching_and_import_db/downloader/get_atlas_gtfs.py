@@ -233,8 +233,15 @@ def parse_gtfs_stop_ids(gtfs_stops: pd.DataFrame) -> pd.DataFrame:
     stop_parts = parsed['stop_id'].fillna('').astype(str).str.split(':', n=2, expand=True)
     original_parts = parsed.get('original_stop_id', pd.Series(index=parsed.index, dtype='object')).fillna('').astype(str).str.split(':', n=2, expand=True)
 
-    parsed['uic_number'] = stop_parts[0].replace('', pd.NA)
-    parsed['local_ref'] = stop_parts[2] if stop_parts.shape[1] >= 3 else None
+    if stop_parts.shape[1] >= 1:
+        stop_uic = stop_parts[0].where(stop_parts[0].str.fullmatch(r'\d+'), pd.NA)
+    else:
+        stop_uic = pd.Series(pd.NA, index=parsed.index, dtype='object')
+    parsed['uic_number'] = stop_uic
+    if stop_parts.shape[1] >= 3:
+        parsed['local_ref'] = stop_parts[2].where(stop_uic.notna(), pd.NA)
+    else:
+        parsed['local_ref'] = None
 
     if original_parts.shape[1] >= 1:
         original_uic = original_parts[0].where(original_parts[0].str.fullmatch(r'\d+'), pd.NA)
@@ -244,6 +251,10 @@ def parse_gtfs_stop_ids(gtfs_stops: pd.DataFrame) -> pd.DataFrame:
         # Only use original_local_ref if the original string was actually a UIC-based ID
         original_local_ref = original_local_ref.where(original_uic.notna(), pd.NA)
         parsed['local_ref'] = original_local_ref.where(original_local_ref.notna(), parsed['local_ref'])
+
+    didok_uic = parsed.get('didok', pd.Series(index=parsed.index, dtype='object')).fillna('').astype(str)
+    didok_uic = didok_uic.where(didok_uic.str.fullmatch(r'\d+'), pd.NA)
+    parsed['uic_number'] = didok_uic.where(didok_uic.notna(), parsed['uic_number'])
 
     parsed['platform_code'] = parsed.get('platform_code')
     parsed['stop_code'] = parsed.get('stop_code')
@@ -357,6 +368,7 @@ def load_gtfs_data_streaming(gtfs_folder: str):
         'original_stop_id',
         'location_type',
         'parent_station',
+        'didok',
     }
     all_stops = pd.read_csv(
         stops_path,
@@ -371,16 +383,26 @@ def load_gtfs_data_streaming(gtfs_folder: str):
         },
         low_memory=False,
     )
-    for optional_column in ('stop_code', 'platform_code', 'original_stop_id', 'location_type', 'parent_station'):
+    for optional_column in ('stop_code', 'platform_code', 'original_stop_id', 'location_type', 'parent_station', 'didok'):
         if optional_column not in all_stops.columns:
             all_stops[optional_column] = pd.NA
     all_stops['stop_lat'] = pd.to_numeric(all_stops['stop_lat'], errors='coerce')
     all_stops['stop_lon'] = pd.to_numeric(all_stops['stop_lon'], errors='coerce')
     all_stops['location_type'] = pd.to_numeric(all_stops['location_type'], errors='coerce').astype('Int64')
-    prefixed = all_stops[all_stops['stop_id'].str.startswith('85')].copy()
+    swiss_uic_mask = (
+        all_stops['didok'].fillna('').astype(str).str.startswith('85')
+        | all_stops['original_stop_id'].fillna('').astype(str).str.startswith('85')
+        | all_stops['stop_id'].fillna('').astype(str).str.startswith('85')
+    )
+    prefixed = all_stops[swiss_uic_mask].copy()
     swiss_stops = filter_points_in_switzerland(prefixed, lat_col='stop_lat', lon_col='stop_lon')
+    if swiss_stops.empty:
+        raise RuntimeError(
+            "GTFS Swiss stop filter produced 0 stops. Expected Swiss UIC/DIDOK values "
+            "starting with '85' in one of didok, original_stop_id, or stop_id."
+        )
     swiss_stop_ids: Set[str] = set(swiss_stops['stop_id'].astype(str))
-    print(f"GTFS: filtered to {len(swiss_stops):,} Swiss stops inside CH border (from {len(prefixed):,} prefixed '85')")
+    print(f"GTFS: filtered to {len(swiss_stops):,} Swiss stops inside CH border (from {len(prefixed):,} Swiss UIC/DIDOK rows)")
 
     # Load trips once; filter later to relevant_trip_ids found via stop_times streaming
     trip_columns = {
