@@ -1,4 +1,4 @@
-{% if not stats %}
+{% if not stats or stats.summary is not defined %}
 <div class="alert alert-warning">No stats available. Run the pipeline first.</div>
 {% else %}
 {% set static_prefix = pdf_static_prefix if pdf_static_prefix is defined else url_for('static', filename='') %}
