@@ -91,14 +91,6 @@
         return `<button class="btn btn-sm popup-action-btn" onclick="PopupRenderer.${handlerName}(this)">${label}</button>`;
     }
 
-    function buildActionOnlyFooterHtml(actionButtonHtml) {
-        if (!actionButtonHtml) {
-            return '';
-        }
-
-        return `<div class="bubble-footer"><div class="bubble-btn-row">${actionButtonHtml}</div></div>`;
-    }
-
     function buildDetailListHtml(items, formatter, emptyMessage = 'None') {
         if (!Array.isArray(items) || items.length === 0) {
             return `<p class="popup-empty-state">${emptyMessage}</p>`;
@@ -614,7 +606,7 @@
             unmatched,
             headerHtml: buildBubbleHeader(data, 'atlas', unmatched),
             rows: buildAtlasReferenceRows(data, unmatched, options),
-            footerHtml: buildActionOnlyFooterHtml(actionButtonHtml),
+            footerHtml: buildRoutesFooterHtml(data, 'atlas', unmatched, false, actionButtonHtml, options),
         });
     }
 
@@ -624,6 +616,7 @@
             unmatched: false,
             headerHtml: buildBubbleHeader(data, 'atlas', false),
             rows: buildAtlasReferenceMatchRows(data, options),
+            footerHtml: buildRoutesFooterHtml(data, 'atlas', false, false, '', options),
         });
     }
 
@@ -638,16 +631,19 @@
             unmatched,
             headerHtml: buildGtfsBubbleHeader(unmatched),
             rows: buildGtfsReferenceRows(data),
-            footerHtml: buildActionOnlyFooterHtml(actionButtonHtml),
+            // OpenTransportData GTFS is the source behind ATLAS itineraries,
+            // so its route payload uses the same routes_atlas contract.
+            footerHtml: buildRoutesFooterHtml(data, 'atlas', unmatched, false, actionButtonHtml, options),
         });
     }
 
-    function renderGtfsReferenceMatchBubbleHtml(data) {
+    function renderGtfsReferenceMatchBubbleHtml(data, options = {}) {
         return renderBubbleCard({
             type: 'gtfs',
             unmatched: false,
             headerHtml: buildGtfsBubbleHeader(false),
             rows: buildGtfsReferenceMatchRows(data),
+            footerHtml: buildRoutesFooterHtml(data, 'atlas', false, false, '', options),
         });
     }
 
@@ -661,7 +657,7 @@
                 ...data,
                 matched_sloid_count: data.matched_sloid_count,
                 candidate_atlas_count: data.candidate_atlas_count,
-            }, { suppressMatchToggle: true })),
+            }, { ...options, suppressMatchToggle: true })),
             ...(Array.isArray(data.matched_sloids) ? data.matched_sloids.map(function (item) {
                 return wrapPopupMatchCard(renderAtlasReferenceMatchBubbleHtml(item, options));
             }) : [])
@@ -670,7 +666,7 @@
         return buildUnifiedPopupViewHtml(cardsHtml);
     }
 
-    function buildAtlasReferenceUnifiedBubbleHtml(data) {
+    function buildAtlasReferenceUnifiedBubbleHtml(data, options = {}) {
         if (!atlasReferenceHasMatches(data)) {
             return '';
         }
@@ -680,9 +676,9 @@
                 ...data,
                 matched_gtfs_count: data.matched_gtfs_count,
                 same_uic_gtfs_count: data.same_uic_gtfs_count,
-            }, { suppressMatchToggle: true })),
+            }, { ...options, suppressMatchToggle: true })),
             ...(Array.isArray(data.matched_gtfs) ? data.matched_gtfs.map(function (item) {
-                return wrapPopupMatchCard(renderGtfsReferenceMatchBubbleHtml(item));
+                return wrapPopupMatchCard(renderGtfsReferenceMatchBubbleHtml(item, options));
             }) : [])
         ].join('');
 
@@ -691,7 +687,7 @@
 
     function generateAtlasReferenceBubbleHtml(data, options = {}) {
         const content = renderAtlasReferenceSummaryBubbleHtml(data, options);
-        const unifiedContent = buildAtlasReferenceUnifiedBubbleHtml(data);
+        const unifiedContent = buildAtlasReferenceUnifiedBubbleHtml(data, options);
 
         return wrapPopupViews(content, unifiedContent, 'atlas', data && (data.sloid || data.id || ''));
     }
@@ -834,6 +830,6 @@
     PopupRenderer.showMatches = showMatches;
     PopupRenderer.hideMatches = hideMatches;
     global.PopupRenderer = PopupRenderer;
+    global.MapComponents = global.MapComponents || {};
+    global.MapComponents.PopupRenderer = PopupRenderer;
 })(window);
-
-

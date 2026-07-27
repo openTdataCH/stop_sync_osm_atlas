@@ -3,7 +3,59 @@
 
   var operatorDropdown = null;
   var osmOperatorDropdown = null;
+  var headerSummaryController = null;
   var routeMaps = new Map();
+
+  function getMultiValueParams(params, paramName) {
+    var values = [];
+    params.getAll(paramName).forEach(function (rawValue) {
+      String(rawValue || '').split(',').forEach(function (value) {
+        var normalized = value.trim();
+        if (normalized && values.indexOf(normalized) === -1) {
+          values.push(normalized);
+        }
+      });
+    });
+    return values;
+  }
+
+  function setMultiValueParam(params, paramName, values) {
+    params.delete(paramName);
+    if (values.length > 0) {
+      params.set(paramName, values.join(','));
+    }
+  }
+
+  function buildFilterRemovalUrl(currentHref, type, value) {
+    var url = new URL(currentHref, window.location.origin);
+    var params = url.searchParams;
+
+    if (type === 'matched') {
+      params.delete('matched');
+    } else if (type === 'q') {
+      params.delete('q');
+    } else if (type === 'operator') {
+      setMultiValueParam(
+        params,
+        'atlas_operator',
+        getMultiValueParams(params, 'atlas_operator').filter(function (operator) {
+          return operator !== value;
+        })
+      );
+    } else if (type === 'osmOperator') {
+      setMultiValueParam(
+        params,
+        'osm_operator',
+        getMultiValueParams(params, 'osm_operator').filter(function (operator) {
+          return operator !== value;
+        })
+      );
+    }
+
+    params.delete('page');
+    var query = params.toString();
+    return url.pathname + (query ? '?' + query : '') + url.hash;
+  }
 
   function parseSelectedOperators() {
     var configElement = document.getElementById('routesPageConfig');
@@ -210,54 +262,66 @@
 
     if (!container || !window.FilterChipUtils) return;
 
-    var chips = [];
+    var filterGroups = [];
+    var activeFilterCount = 0;
     var buildRemovableChip = window.FilterChipUtils.buildRemovableChip;
     var joinWithAnd = window.FilterChipUtils.joinWithAndHtml;
+    var buildOrGroup = window.FilterChipUtils.buildOrGroupHtml;
 
     // Status chip (only if not default all)
     if (config.matchedFilter && config.matchedFilter !== 'all') {
       var matchLabel = (config.matchFilterLabels && config.matchFilterLabels[config.matchedFilter]) || config.matchedFilter;
-      chips.push(buildRemovableChip({
+      filterGroups.push(buildRemovableChip({
         label: 'Status: ' + matchLabel,
         badgeClass: config.matchedFilter === 'matched' ? 'filter-chip-matched' : 'filter-chip-unmatched',
-        data: { type: 'matched', value: config.matchedFilter }
+        data: { type: 'matched', value: config.matchedFilter },
+        removeLabel: 'Remove route status filter'
       }));
+      activeFilterCount += 1;
     }
 
     // ATLAS Operator chips
     if (config.selectedAtlasOperators && config.selectedAtlasOperators.length > 0) {
-      config.selectedAtlasOperators.forEach(function (op) {
-        chips.push(buildRemovableChip({
+      var atlasOperatorChips = config.selectedAtlasOperators.map(function (op) {
+        return buildRemovableChip({
           label: 'ATLAS Operator: ' + op,
           badgeClass: 'filter-chip-operator',
-          data: { type: 'operator', value: op }
-        }));
+          data: { type: 'operator', value: op },
+          removeLabel: 'Remove ATLAS operator ' + op
+        });
       });
+      filterGroups.push(buildOrGroup(atlasOperatorChips));
+      activeFilterCount += atlasOperatorChips.length;
     }
 
     // OSM Operator chips
     if (config.selectedOsmOperators && config.selectedOsmOperators.length > 0) {
-      config.selectedOsmOperators.forEach(function (op) {
-        chips.push(buildRemovableChip({
+      var osmOperatorChips = config.selectedOsmOperators.map(function (op) {
+        return buildRemovableChip({
           label: 'OSM Route Operator: ' + op,
           badgeClass: 'filter-chip-osm',
-          data: { type: 'osmOperator', value: op }
-        }));
+          data: { type: 'osmOperator', value: op },
+          removeLabel: 'Remove OSM route operator ' + op
+        });
       });
+      filterGroups.push(buildOrGroup(osmOperatorChips));
+      activeFilterCount += osmOperatorChips.length;
     }
 
     // Search chip
     if (config.q) {
-      chips.push(buildRemovableChip({
+      filterGroups.push(buildRemovableChip({
         label: 'Search: ' + config.q,
         badgeClass: 'filter-chip-secondary',
-        data: { type: 'q', value: config.q }
+        data: { type: 'q', value: config.q },
+        removeLabel: 'Remove route search filter'
       }));
+      activeFilterCount += 1;
     }
 
-    if (chips.length > 0) {
-      container.innerHTML = joinWithAnd(chips);
-      if (label) label.textContent = 'Filters: ' + chips.length + ' active';
+    if (filterGroups.length > 0) {
+      container.innerHTML = joinWithAnd(filterGroups);
+      if (label) label.textContent = 'Filters: ' + activeFilterCount + ' active';
       if (clearAll) clearAll.classList.remove('d-none');
       if (panel) panel.classList.remove('d-none');
     } else {
@@ -279,36 +343,7 @@
       e.preventDefault();
       var type = removeBtn.dataset.type;
       var value = removeBtn.dataset.value;
-      var config = window.routesPageConfig || {};
-
-      var url = new URL(window.location.href);
-      var params = url.searchParams;
-
-      if (type === 'matched') {
-        params.delete('matched');
-      } else if (type === 'q') {
-        params.delete('q');
-      } else if (type === 'operator') {
-        var ops = (params.get('atlas_operator') || '').split(',').filter(function (o) {
-          return o && o !== value;
-        });
-        if (ops.length > 0) {
-          params.set('atlas_operator', ops.join(','));
-        } else {
-          params.delete('atlas_operator');
-        }
-      } else if (type === 'osmOperator') {
-        var osmOps = (params.get('osm_operator') || '').split(',').filter(function (o) {
-          return o && o !== value;
-        });
-        if (osmOps.length > 0) {
-          params.set('osm_operator', osmOps.join(','));
-        } else {
-          params.delete('osm_operator');
-        }
-      }
-
-      window.location.href = url.pathname + '?' + params.toString();
+      window.location.href = buildFilterRemovalUrl(window.location.href, type, value);
     });
 
     var clearAll = document.getElementById('clearAllFilters');
@@ -322,25 +357,13 @@
   }
 
   function initSummaryToggle() {
-    var toggle = document.getElementById('headerSummaryFiltersToggle');
-    var panel = document.getElementById('headerSummaryFiltersPanel');
-    if (toggle && panel) {
-      toggle.addEventListener('click', function () {
-        var isHidden = panel.classList.contains('d-none');
-        panel.classList.toggle('d-none');
-        toggle.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
-      });
-    }
+    if (!window.HeaderSummary || typeof window.HeaderSummary.bind !== 'function') return null;
 
-    var mobileToggle = document.getElementById('headerSummaryMobileToggle');
-    var content = document.getElementById('headerSummaryContent');
-    if (mobileToggle && content) {
-      mobileToggle.addEventListener('click', function () {
-        content.classList.toggle('header-summary__content--visible');
-        var isExpanded = mobileToggle.getAttribute('aria-expanded') === 'true';
-        mobileToggle.setAttribute('aria-expanded', !isExpanded);
-      });
-    }
+    return window.HeaderSummary.bind({
+      activeFilterCount: document.querySelectorAll('#activeFilters .remove-filter').length,
+      filtersExpanded: false,
+      collapsed: false
+    });
   }
 
   function bindSearchHint() {
@@ -374,42 +397,6 @@
 
 
 
-  function createBaseLayers(mapInstance) {
-    var baseLayers = (window.MapShared && typeof window.MapShared.createBaseTileLayers === 'function')
-      ? window.MapShared.createBaseTileLayers()
-      : null;
-
-    var osmLayer = baseLayers ? baseLayers.osm : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 20,
-      maxNativeZoom: 19,
-      attribution: '© OpenStreetMap'
-    });
-
-    var transportLayer = baseLayers ? baseLayers.transport : L.tileLayer('https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png', {
-      maxZoom: 20,
-      maxNativeZoom: 18,
-      attribution: 'Map <a href="https://memomaps.de/">memomaps.de</a>, map data &copy; OpenStreetMap contributors'
-    });
-
-    var satelliteLayer = baseLayers ? baseLayers.satellite : L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 20,
-      maxNativeZoom: 19,
-      attribution: 'Tiles &copy; Esri'
-    });
-
-    osmLayer.addTo(mapInstance);
-
-    L.control.layers(
-      {
-        OpenStreetMap: osmLayer,
-        Transport: transportLayer,
-        Satellite: satelliteLayer
-      },
-      {},
-      { position: 'bottomleft' }
-    ).addTo(mapInstance);
-  }
-
   function createRouteMap(mapElement) {
     var defaultCenter = (window.AppConstants && window.AppConstants.MAP && window.AppConstants.MAP.DEFAULT_CENTER) || [47.3769, 8.5417];
     var defaultZoom = (window.AppConstants && window.AppConstants.MAP && window.AppConstants.MAP.DEFAULT_ZOOM) || 11;
@@ -417,23 +404,70 @@
     var maxZoom = (window.AppConstants && window.AppConstants.MAP && window.AppConstants.MAP.MAX_ZOOM) || 20;
     var maxBounds = (window.AppConstants && window.AppConstants.MAP && window.AppConstants.MAP.MAX_BOUNDS) || [[45.5, 5.5], [48.0, 11.0]];
 
-    var mapInstance = L.map(mapElement, {
-      minZoom: minZoom,
-      maxZoom: maxZoom,
-      maxBounds: maxBounds,
-      maxBoundsViscosity: 1.0,
-      zoomControl: true
-    }).setView(defaultCenter, defaultZoom);
+    if (!window.MapComponents || !window.MapComponents.MapCore) {
+      throw new Error('Route preview maps require MapComponents.MapCore.');
+    }
 
-    createBaseLayers(mapInstance);
+    var core = window.MapComponents.MapCore.create({
+      container: mapElement,
+      view: { center: defaultCenter, zoom: defaultZoom },
+      mapOptions: {
+        minZoom: minZoom,
+        maxZoom: maxZoom,
+        maxBounds: maxBounds,
+        maxBoundsViscosity: 1.0,
+        zoomControl: true
+      },
+      baseLayers: function () {
+        var layers = window.MapShared.createBaseTileLayers();
+        return {
+          OpenStreetMap: layers.osm,
+          Transport: layers.transport,
+          Satellite: layers.satellite
+        };
+      },
+      layerGroups: {
+        markers: true,
+        lines: true
+      },
+      controls: {
+        layers: { position: 'bottomleft' }
+      }
+    });
 
-    return {
+    var mapInstance = core.map;
+
+    var mapState = {
+      core: core,
       map: mapInstance,
-      markersLayer: L.layerGroup().addTo(mapInstance),
-      linesLayer: L.layerGroup().addTo(mapInstance),
+      markersLayer: core.layers.markers,
+      linesLayer: core.layers.lines,
       loaded: false,
-      loading: false
+      loading: false,
+      requestSequence: 0,
+      requestController: null,
+      contextSequence: 0,
+      contextController: null,
+      source: null,
+      contextStops: [],
+      showContext: false,
+      markerMode: null
     };
+
+    function refreshMarkersAtZoomThreshold() {
+      var nextMode = getMarkerMode(mapState.map.getZoom());
+      if (mapState.markerMode === nextMode) return;
+      mapState.markerMode = nextMode;
+      if (mapState.source) renderMapSnapshot(mapState);
+    }
+
+    mapState.markerMode = getMarkerMode(mapInstance.getZoom());
+    mapInstance.on('zoomend', refreshMarkersAtZoomThreshold);
+    mapState.removeZoomListener = function () {
+      mapInstance.off('zoomend', refreshMarkersAtZoomThreshold);
+    };
+
+    return mapState;
   }
 
   function parseRouteMapPayload(responseData) {
@@ -471,28 +505,62 @@
     return stopType === 'osm_unmatched' ? colors.osmUnmatched : colors.osmMatched;
   }
 
-  function createAtlasMarkerSafe(lat, lon, color, hasAtlasDuplicate, zoomOverride) {
-    if (typeof window.createAtlasMarker === 'function') {
-      return window.createAtlasMarker(lat, lon, color, hasAtlasDuplicate, zoomOverride);
+  function getMarkerMode(zoom) {
+    var threshold = (window.AppConstants && window.AppConstants.MAP &&
+      window.AppConstants.MAP.LABEL_ICON_MIN_ZOOM) || 18;
+    return Number(zoom) >= threshold ? 'label' : 'circle';
+  }
+
+  function addContextStops(mapState) {
+    if (!mapState.showContext || !Array.isArray(mapState.contextStops)) return;
+
+    var colors = getMapColors();
+    var sourceIds = new Set();
+    if (mapState.source && mapState.source.type === 'variant') {
+      [mapState.source.data.atlas_uic_groups, mapState.source.data.osm_uic_groups].forEach(function (groups) {
+        (groups || []).forEach(function (group) {
+          (group.members || []).forEach(function (member) {
+            if (member.stop_id != null) sourceIds.add(String(member.stop_id));
+          });
+        });
+      });
     }
-    return L.circleMarker([lat, lon], {
-      color: color,
-      radius: 6,
-      fillOpacity: 0.5,
-      weight: 2
+
+    mapState.contextStops.forEach(function (stop) {
+      if (sourceIds.has(String(stop.sloid)) || sourceIds.has(String(stop.osm_node_id))) return;
+
+      if (stop.atlas_lat != null && stop.atlas_lon != null) {
+        var atlasMarker = window.MapRenderer.createAtlasMarker(
+          stop.atlas_lat,
+          stop.atlas_lon,
+          getAtlasStopMarkerColor(stop.stop_type, colors),
+          stop.has_atlas_duplicate,
+          mapState.map.getZoom()
+        );
+        window.MapRenderer.setMarkerOpacity(atlasMarker, 0.4, 0.2);
+        atlasMarker.addTo(mapState.markersLayer);
+      }
+      if (stop.osm_lat != null && stop.osm_lon != null) {
+        var osmMarker = window.MapRenderer.createOsmMarker(
+          stop.osm_lat,
+          stop.osm_lon,
+          getOsmStopMarkerColor(stop.stop_type, colors),
+          stop.osm_node_type,
+          mapState.map.getZoom()
+        );
+        window.MapRenderer.setMarkerOpacity(osmMarker, 0.4, 0.2);
+        osmMarker.addTo(mapState.markersLayer);
+      }
     });
   }
 
-  function createOsmMarkerSafe(lat, lon, color, osmNodeType, zoomOverride) {
-    if (typeof window.createOsmMarker === 'function') {
-      return window.createOsmMarker(lat, lon, color, osmNodeType, zoomOverride);
-    }
-    return L.circleMarker([lat, lon], {
-      color: color,
-      radius: 6,
-      fillOpacity: 0.5,
-      weight: 2
-    });
+  function renderMapSnapshot(mapState) {
+    if (!mapState.source) return [];
+    var points = mapState.source.type === 'variant'
+      ? renderVariantStops(mapState, mapState.source.data)
+      : renderRouteStops(mapState, mapState.source.data);
+    addContextStops(mapState);
+    return points;
   }
 
   function renderRouteStops(mapState, stops) {
@@ -510,10 +578,10 @@
       var osmLon = stop.osm_lon;
 
       if (isMatchedLikeStopType(stopType) && atlasLat != null && atlasLon != null && osmLat != null && osmLon != null) {
-        var atlasMarker = createAtlasMarkerSafe(atlasLat, atlasLon, getAtlasStopMarkerColor(stopType, colors), stop.has_atlas_duplicate, mapState.map.getZoom());
+        var atlasMarker = window.MapRenderer.createAtlasMarker(atlasLat, atlasLon, getAtlasStopMarkerColor(stopType, colors), stop.has_atlas_duplicate, mapState.map.getZoom());
         atlasMarker.addTo(mapState.markersLayer);
 
-        var osmMarker = createOsmMarkerSafe(osmLat, osmLon, getOsmStopMarkerColor(stopType, colors), stop.osm_node_type, mapState.map.getZoom());
+        var osmMarker = window.MapRenderer.createOsmMarker(osmLat, osmLon, getOsmStopMarkerColor(stopType, colors), stop.osm_node_type, mapState.map.getZoom());
         osmMarker.addTo(mapState.markersLayer);
 
         points.push([atlasLat, atlasLon]);
@@ -523,13 +591,13 @@
 
       if (atlasLat != null && atlasLon != null) {
         var atlasColor = getAtlasStopMarkerColor(stopType, colors);
-        createAtlasMarkerSafe(atlasLat, atlasLon, atlasColor, stop.has_atlas_duplicate, mapState.map.getZoom()).addTo(mapState.markersLayer);
+        window.MapRenderer.createAtlasMarker(atlasLat, atlasLon, atlasColor, stop.has_atlas_duplicate, mapState.map.getZoom()).addTo(mapState.markersLayer);
         points.push([atlasLat, atlasLon]);
       }
 
       if (osmLat != null && osmLon != null) {
         var osmColor = getOsmStopMarkerColor(stopType, colors);
-        createOsmMarkerSafe(osmLat, osmLon, osmColor, stop.osm_node_type, mapState.map.getZoom()).addTo(mapState.markersLayer);
+        window.MapRenderer.createOsmMarker(osmLat, osmLon, osmColor, stop.osm_node_type, mapState.map.getZoom()).addTo(mapState.markersLayer);
         points.push([osmLat, osmLon]);
       }
     });
@@ -550,7 +618,7 @@
             if (member.lat != null && member.lon != null) {
               var stopType = member.stop_type;
               var color = getAtlasStopMarkerColor(stopType, colors);
-              createAtlasMarkerSafe(member.lat, member.lon, color, member.has_atlas_duplicate, mapState.map.getZoom()).addTo(mapState.markersLayer);
+              window.MapRenderer.createAtlasMarker(member.lat, member.lon, color, member.has_atlas_duplicate, mapState.map.getZoom()).addTo(mapState.markersLayer);
               points.push([member.lat, member.lon]);
             }
           });
@@ -565,7 +633,7 @@
             if (member.lat != null && member.lon != null) {
               var stopType = member.stop_type;
               var color = getOsmStopMarkerColor(stopType, colors);
-              createOsmMarkerSafe(member.lat, member.lon, color, member.osm_node_type, mapState.map.getZoom()).addTo(mapState.markersLayer);
+              window.MapRenderer.createOsmMarker(member.lat, member.lon, color, member.osm_node_type, mapState.map.getZoom()).addTo(mapState.markersLayer);
               points.push([member.lat, member.lon]);
             }
           });
@@ -578,6 +646,11 @@
 
   function loadContextMarkers(mapElement, mapState, points) {
     if (!points || points.length === 0) return;
+
+    if (mapState.contextController) mapState.contextController.abort();
+    mapState.contextController = new AbortController();
+    var controller = mapState.contextController;
+    var sequence = ++mapState.contextSequence;
     
     var bounds = L.latLngBounds(points);
     var pad = 0.01; // roughly 1km
@@ -591,44 +664,25 @@
     
     var query = buildQueryString(params);
     
-    fetch('/api/data?' + query)
-      .then(function(r) { return r.json(); })
+    fetch('/api/data?' + query, { signal: controller.signal })
+      .then(function(r) {
+        if (!r.ok) throw new Error('Context request failed with status ' + r.status);
+        return r.json();
+      })
       .then(function(data) {
-        if (!data || data.length === 0) return;
-        
-        var colors = getMapColors();
-        var variantStopIds = new Set();
-        
-        // Find IDs already in the variant to avoid duplicates
-        var scriptElement = document.querySelector('script.variant-data[data-map-index="' + mapElement.dataset.mapIndex + '"]');
-        if (scriptElement) {
-          var directionData = JSON.parse(scriptElement.textContent);
-          [directionData.atlas_uic_groups, directionData.osm_uic_groups].forEach(function(groups) {
-            if (groups) groups.forEach(function(g) {
-              if (g.members) g.members.forEach(function(m) {
-                if (m.stop_id) variantStopIds.add(String(m.stop_id));
-              });
-            });
-          });
-        }
-
-        data.forEach(function(stop) {
-          // Skip if already in variant
-          if (variantStopIds.has(String(stop.sloid)) || variantStopIds.has(String(stop.osm_node_id))) return;
-          
-          if (stop.atlas_lat != null && stop.atlas_lon != null) {
-            var color = getAtlasStopMarkerColor(stop.stop_type, colors);
-            var m = createAtlasMarkerSafe(stop.atlas_lat, stop.atlas_lon, color, stop.has_atlas_duplicate, mapState.map.getZoom());
-            m.setStyle({ opacity: 0.4, fillOpacity: 0.2 });
-            m.addTo(mapState.markersLayer);
-          }
-          if (stop.osm_lat != null && stop.osm_lon != null) {
-            var color = getOsmStopMarkerColor(stop.stop_type, colors);
-            var m = createOsmMarkerSafe(stop.osm_lat, stop.osm_lon, color, stop.osm_node_type, mapState.map.getZoom());
-            m.setStyle({ opacity: 0.4, fillOpacity: 0.2 });
-            m.addTo(mapState.markersLayer);
-          }
-        });
+        if (sequence !== mapState.contextSequence || !mapState.showContext) return;
+        mapState.contextStops = parseRouteMapPayload(data);
+        renderMapSnapshot(mapState);
+        setMapStatus(mapElement, '', false);
+      })
+      .catch(function (error) {
+        if (error && error.name === 'AbortError') return;
+        if (sequence !== mapState.contextSequence || !mapState.showContext) return;
+        setMapStatus(mapElement, 'Could not load surrounding map context.', true);
+        console.error('Failed to load route context', error);
+      })
+      .finally(function () {
+        if (mapState.contextController === controller) mapState.contextController = null;
       });
   }
 
@@ -662,16 +716,18 @@
         loadContextMarkers(mapElement, mapState, points);
       }
     } else {
+      mapState.contextSequence += 1;
+      if (mapState.contextController) {
+        mapState.contextController.abort();
+        mapState.contextController = null;
+      }
+      mapState.contextStops = [];
+      setMapStatus(mapElement, '', false);
       btn.innerHTML = '<i class="fas fa-eye"></i> See other markers';
       btn.classList.remove('btn-secondary');
       btn.classList.add('btn-outline-secondary');
       
-      // Re-render variant only
-      var scriptElement = document.querySelector('script.variant-data[data-map-index="' + mapIndex + '"]');
-      if (scriptElement) {
-        var directionData = JSON.parse(scriptElement.textContent);
-        renderVariantStops(mapState, directionData);
-      }
+      renderMapSnapshot(mapState);
     }
   }
   function getGlobalBboxParams() {
@@ -731,10 +787,9 @@
   }
 
   function loadRouteMapData(mapElement, mapState) {
-    if (mapState.loading) {
-      return;
-    }
-
+    if (mapState.requestController) mapState.requestController.abort();
+    mapState.requestController = null;
+    var sequence = ++mapState.requestSequence;
     mapState.loading = true;
     setMapStatus(mapElement, 'Loading route points on map...', false);
 
@@ -744,7 +799,8 @@
     if (scriptElement) {
         try {
             var directionData = JSON.parse(scriptElement.textContent);
-            var points = renderVariantStops(mapState, directionData);
+            mapState.source = { type: 'variant', data: directionData };
+            var points = renderMapSnapshot(mapState);
             
             if (!points || points.length === 0) {
               setMapStatus(mapElement, 'No geolocated route points were returned for this variant.', false);
@@ -765,8 +821,10 @@
 
     var params = buildRouteRequestParams(mapElement);
     var query = buildQueryString(params);
+    var controller = new AbortController();
+    mapState.requestController = controller;
 
-    fetch('/api/data?' + query)
+    fetch('/api/data?' + query, { signal: controller.signal })
       .then(function (response) {
         if (!response.ok) {
           throw new Error('Map request failed with status ' + response.status);
@@ -774,8 +832,10 @@
         return response.json();
       })
       .then(function (data) {
+        if (sequence !== mapState.requestSequence) return;
         var stops = parseRouteMapPayload(data);
-        var points = renderRouteStops(mapState, stops);
+        mapState.source = { type: 'routes', data: stops };
+        var points = renderMapSnapshot(mapState);
 
         if (!points || points.length === 0) {
           setMapStatus(mapElement, 'No geolocated route points were returned for this filter.', false);
@@ -789,11 +849,16 @@
         mapState.loaded = true;
       })
       .catch(function (error) {
+        if (error && error.name === 'AbortError') return;
+        if (sequence !== mapState.requestSequence) return;
         setMapStatus(mapElement, 'Could not load route map data.', true);
         console.error('Failed to load route map data', error);
       })
       .finally(function () {
-        mapState.loading = false;
+        if (sequence === mapState.requestSequence) {
+          mapState.loading = false;
+          if (mapState.requestController === controller) mapState.requestController = null;
+        }
       });
   }
 
@@ -854,6 +919,22 @@
     });
   }
 
+  function destroyRouteMaps() {
+    routeMaps.forEach(function (mapState) {
+      mapState.requestSequence += 1;
+      mapState.contextSequence += 1;
+      if (mapState.requestController) mapState.requestController.abort();
+      if (mapState.contextController) mapState.contextController.abort();
+      if (mapState.removeZoomListener) mapState.removeZoomListener();
+      if (mapState.core) mapState.core.destroy();
+    });
+    routeMaps.clear();
+    if (headerSummaryController) {
+      headerSummaryController.destroy();
+      headerSummaryController = null;
+    }
+  }
+
   function init() {
     var configElement = document.getElementById('routesPageConfig');
     if (configElement) {
@@ -871,8 +952,11 @@
     bindAutoSubmit();
     updateActiveFiltersUI();
     handleChipRemoval();
-    initSummaryToggle();
+    headerSummaryController = initSummaryToggle();
     initRouteMapPanels();
+    window.addEventListener('pagehide', function (event) {
+      if (!event.persisted) destroyRouteMaps();
+    }, { once: true });
   }
 
   if (document.readyState === 'loading') {
@@ -880,4 +964,10 @@
   } else {
     init();
   }
+
+  window.RoutesPageFilters = {
+    buildFilterRemovalUrl: buildFilterRemovalUrl,
+    getMultiValueParams: getMultiValueParams,
+    updateActiveFiltersUI: updateActiveFiltersUI
+  };
 })();

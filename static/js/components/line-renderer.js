@@ -303,5 +303,7 @@
     // ==========================================
     
     global.LineRenderer = LineRenderer;
+    global.MapComponents = global.MapComponents || {};
+    global.MapComponents.LineRenderer = LineRenderer;
 
 })(window);

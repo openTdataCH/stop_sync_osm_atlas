@@ -15,6 +15,7 @@ import logging
 import math
 import os
 import statistics
+import tempfile
 import time
 from collections import defaultdict
 from typing import Dict, Any, List, Optional, Tuple
@@ -877,8 +878,13 @@ def save_stats_to_file(stats: Dict[str, Any], filepath: str = None) -> str:
     # Ensure directory exists
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     
-    with open(filepath, 'w', encoding='utf-8') as f:
+    parent = os.path.dirname(filepath) or "."
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=parent, delete=False) as f:
         json.dump(stats, f, indent=2, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+        temp_path = f.name
+    os.replace(temp_path, filepath)
     
     return filepath
 
@@ -899,8 +905,14 @@ def load_stats_from_file(filepath: str = None) -> Optional[Dict[str, Any]]:
     if not os.path.exists(filepath):
         return None
     
-    with open(filepath, 'r', encoding='utf-8') as f:
-        return json.load(f)
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            payload = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Could not load stats file %s: %s", filepath, exc)
+        return None
+
+    return payload if isinstance(payload, dict) else None
 
 
 def compute_db_stats(db_session) -> Dict[str, Any]:

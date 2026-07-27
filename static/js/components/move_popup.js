@@ -504,10 +504,20 @@
         }
     });
     L.draggablePopup = function(options) { return new L.DraggablePopup(options); };
-    window.updateAllPopupLines = function() {
+    function updateAllPopupLines(mapInstance) {
         document.querySelectorAll('.leaflet-popup').forEach(function(container) {
             const popup = container._leaflet_popup_instance;
-            if (popup instanceof L.DraggablePopup && popup._updateLine) { popup._updateLine(); }
+            if (
+                popup instanceof L.DraggablePopup &&
+                popup._updateLine &&
+                (!mapInstance || popup._map === mapInstance)
+            ) {
+                popup._updateLine();
+            }
         });
-    };
+    }
+    window.MapComponents = window.MapComponents || {};
+    window.MapComponents.PopupLines = Object.freeze({
+        updateAll: updateAllPopupLines
+    });
 })();

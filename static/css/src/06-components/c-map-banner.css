@@ -1,0 +1,60 @@
+/* Shared completeness/error banner for viewport-driven maps. */
+.zoom-banner {
+  position: var(--zoom-banner-position, fixed);
+  left: 50%;
+  top: var(--zoom-banner-top, calc(var(--navbar-height) + 86px));
+  z-index: 1001;
+  max-width: calc(100vw - 2rem);
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-full, 999px);
+  background: rgba(80, 80, 80, 0.65);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  opacity: 1;
+  transition: top 180ms ease, opacity 160ms ease;
+}
+
+.zoom-banner.zoom-banner--faded {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.zoom-banner__action {
+  margin-left: var(--space-2, 0.5rem);
+  padding: 0.15rem 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: var(--radius-full, 999px);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.zoom-banner__action[hidden] {
+  display: none;
+}
+
+.zoom-banner__action:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .zoom-banner {
+    top: var(--zoom-banner-mobile-top, var(--zoom-banner-top, calc(var(--navbar-height) + 112px)));
+    width: min(340px, calc(100vw - 1rem));
+    max-width: calc(100vw - 1rem);
+    padding: 0.45rem 0.7rem;
+    font-size: 0.8rem;
+    white-space: normal;
+  }
+}

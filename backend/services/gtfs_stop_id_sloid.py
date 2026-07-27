@@ -1,22 +1,56 @@
 import os
 
-from sqlalchemy import case, func
+from sqlalchemy import case, func, or_
 
 from backend.extensions import db
 from backend.models import AtlasStop, GtfsStopIdentityResolution, GtfsStopRaw, StopsMatched
 from backend.services.stats_export import load_stats_from_file
+from backend.services.transport_routes import (
+    get_atlas_routes_for_gtfs_stop_ids,
+    get_atlas_routes_for_sloids,
+)
 
 
 GTFS_STOP_ID_SLOID_DETAIL_ZOOM = int(os.getenv('GTFS_STOP_ID_SLOID_DETAIL_ZOOM', '11'))
 GTFS_STOP_ID_SLOID_DETAIL_LIMIT = int(os.getenv('GTFS_STOP_ID_SLOID_DETAIL_LIMIT', '5000'))
 GTFS_STOP_ID_SLOID_OVERVIEW_LIMIT = int(os.getenv('GTFS_STOP_ID_SLOID_OVERVIEW_LIMIT', '3000'))
 GTFS_STOP_ID_SLOID_POPUP_PREVIEW_LIMIT = 8
+GTFS_STOP_ID_SLOID_SEARCH_KINDS = frozenset({'sloid', 'uic', 'gtfs_stop_id'})
 
 
 def _round_pct(numerator, denominator, digits=1):
     if not denominator:
         return 0.0
     return round((numerator / denominator) * 100, digits)
+
+
+def _merge_atlas_routes(*route_lists):
+    """Return one deterministic route per route/direction pair."""
+    routes_by_key = {}
+    for routes in route_lists:
+        for route in routes or []:
+            if not route:
+                continue
+            key = (
+                str(route.get('route_id') or ''),
+                str(route.get('direction_id') or ''),
+            )
+            current = routes_by_key.get(key)
+            if current is None:
+                routes_by_key[key] = dict(route)
+                continue
+            for field in ('route_name_short', 'route_name_long'):
+                if not current.get(field) and route.get(field):
+                    current[field] = route[field]
+
+    return [routes_by_key[key] for key in sorted(routes_by_key)]
+
+
+def _build_gtfs_popup_route_context(stop_id, matched_sloids):
+    routes_by_sloid = get_atlas_routes_for_sloids(matched_sloids)
+    direct_routes = get_atlas_routes_for_gtfs_stop_ids([stop_id]).get(stop_id, [])
+    related_routes = [routes_by_sloid.get(sloid, []) for sloid in matched_sloids]
+    return _merge_atlas_routes(direct_routes, *related_routes), routes_by_sloid
 
 
 def _build_match_count_subqueries():
@@ -85,6 +119,8 @@ def _build_atlas_coordinate_subquery():
 
 
 def _fetch_balanced_rows(matched_query, unmatched_query, active_limit):
+    if active_limit is None:
+        return matched_query.all() + unmatched_query.all(), False
     if active_limit <= 0:
         return [], False
 
@@ -110,10 +146,117 @@ def _fetch_balanced_rows(matched_query, unmatched_query, active_limit):
     return matched_rows[:matched_take] + unmatched_rows[:unmatched_take], capped
 
 
-def build_gtfs_stop_id_sloid_summary():
+def _resolve_map_limits(zoom, requested_limit):
+    """Return independent side budgets for a combined client limit."""
+    if requested_limit == 'all':
+        return None, None
+    if requested_limit is not None:
+        gtfs_limit = (requested_limit + 1) // 2
+        return gtfs_limit, requested_limit - gtfs_limit
+
+    default_limit = (
+        GTFS_STOP_ID_SLOID_OVERVIEW_LIMIT
+        if zoom < GTFS_STOP_ID_SLOID_DETAIL_ZOOM
+        else GTFS_STOP_ID_SLOID_DETAIL_LIMIT
+    )
+    return default_limit, default_limit
+
+
+def _apply_identifier_search(gtfs_query, atlas_query, search_kind, search_value):
+    """Restrict both map sides to one logical identifier search."""
+    if not search_kind or not search_value:
+        return gtfs_query, atlas_query
+
+    if search_kind == 'sloid':
+        matched_gtfs_ids = db.session.query(GtfsStopIdentityResolution.stop_id).filter(
+            GtfsStopIdentityResolution.resolved_sloid == search_value
+        )
+        return (
+            gtfs_query.filter(or_(
+                GtfsStopRaw.stop_id == search_value,
+                GtfsStopRaw.stop_id.in_(matched_gtfs_ids),
+            )),
+            atlas_query.filter(AtlasStop.sloid == search_value),
+        )
+
+    if search_kind == 'gtfs_stop_id':
+        matched_sloids = db.session.query(GtfsStopIdentityResolution.resolved_sloid).filter(
+            GtfsStopIdentityResolution.stop_id == search_value,
+            GtfsStopIdentityResolution.resolved_sloid.isnot(None),
+        )
+        return (
+            gtfs_query.filter(GtfsStopRaw.stop_id == search_value),
+            atlas_query.filter(AtlasStop.sloid.in_(matched_sloids)),
+        )
+
+    if search_kind == 'uic':
+        return (
+            gtfs_query.filter(or_(
+                GtfsStopRaw.uic_number == search_value,
+                GtfsStopRaw.stop_id == search_value,
+            )),
+            atlas_query.filter(AtlasStop.uic_ref == search_value),
+        )
+
+    raise ValueError(f'Unsupported GTFS stop map search kind: {search_kind}')
+
+
+def find_gtfs_stop_id_sloid_targets(search_kind, search_value):
+    """Return deterministic, mappable targets for an exact identifier search."""
+    if search_kind not in GTFS_STOP_ID_SLOID_SEARCH_KINDS:
+        raise ValueError(f'Unsupported GTFS stop map search kind: {search_kind}')
+
+    value = str(search_value or '').strip()
+    if not value:
+        return []
+
     gtfs_coords = _build_gtfs_coordinate_subquery()
     atlas_coords = _build_atlas_coordinate_subquery()
 
+    gtfs_query = (
+        db.session.query(
+            GtfsStopRaw.stop_id.label('identifier'),
+            gtfs_coords.c.gtfs_stop_lat.label('lat'),
+            gtfs_coords.c.gtfs_stop_lon.label('lon'),
+        )
+        .join(gtfs_coords, gtfs_coords.c.stop_id == GtfsStopRaw.stop_id)
+    )
+    atlas_query = (
+        db.session.query(
+            AtlasStop.sloid.label('identifier'),
+            atlas_coords.c.atlas_lat.label('lat'),
+            atlas_coords.c.atlas_lon.label('lon'),
+        )
+        .join(atlas_coords, atlas_coords.c.sloid == AtlasStop.sloid)
+    )
+    gtfs_query, atlas_query = _apply_identifier_search(
+        gtfs_query,
+        atlas_query,
+        search_kind,
+        value,
+    )
+
+    targets = []
+    seen = set()
+    for entity_type, rows in (
+        ('atlas', atlas_query.order_by(AtlasStop.sloid.asc()).all()),
+        ('gtfs', gtfs_query.order_by(GtfsStopRaw.stop_id.asc()).all()),
+    ):
+        for row in rows:
+            key = (entity_type, str(row.identifier))
+            if key in seen:
+                continue
+            seen.add(key)
+            targets.append({
+                'entity_type': entity_type,
+                'identifier': str(row.identifier),
+                'lat': row.lat,
+                'lon': row.lon,
+            })
+    return targets
+
+
+def build_gtfs_stop_id_sloid_summary():
     total_gtfs_stops = db.session.query(func.count(GtfsStopRaw.stop_id)).scalar() or 0
     matched_gtfs_stops = (
         db.session.query(func.count(func.distinct(GtfsStopIdentityResolution.stop_id)))
@@ -170,8 +313,18 @@ def build_gtfs_stop_id_sloid_summary():
     }
 
 
-def build_gtfs_stop_id_sloid_map_payload(min_lat, min_lon, max_lat, max_lon, zoom):
-    active_limit = GTFS_STOP_ID_SLOID_OVERVIEW_LIMIT if zoom < GTFS_STOP_ID_SLOID_DETAIL_ZOOM else GTFS_STOP_ID_SLOID_DETAIL_LIMIT
+def build_gtfs_stop_id_sloid_map_payload(
+    min_lat,
+    min_lon,
+    max_lat,
+    max_lon,
+    zoom,
+    search_kind=None,
+    search_value=None,
+    requested_limit=None,
+    include_matches=True,
+):
+    gtfs_limit, atlas_limit = _resolve_map_limits(zoom, requested_limit)
     gtfs_counts, atlas_counts = _build_match_count_subqueries()
     gtfs_coords = _build_gtfs_coordinate_subquery()
     atlas_coords = _build_atlas_coordinate_subquery()
@@ -221,22 +374,29 @@ def build_gtfs_stop_id_sloid_map_payload(min_lat, min_lon, max_lat, max_lon, zoo
         )
     )
 
+    gtfs_base, atlas_base = _apply_identifier_search(
+        gtfs_base,
+        atlas_base,
+        search_kind,
+        search_value,
+    )
+
     gtfs_rows, gtfs_capped = _fetch_balanced_rows(
         gtfs_base.filter(gtfs_match_count > 0).order_by(GtfsStopRaw.uic_number.asc(), GtfsStopRaw.stop_id.asc()),
         gtfs_base.filter(gtfs_match_count == 0).order_by(GtfsStopRaw.uic_number.asc(), GtfsStopRaw.stop_id.asc()),
-        active_limit,
+        gtfs_limit,
     )
     atlas_rows, atlas_capped = _fetch_balanced_rows(
         atlas_base.filter(atlas_match_count > 0).order_by(AtlasStop.uic_ref.asc(), AtlasStop.sloid.asc()),
         atlas_base.filter(atlas_match_count == 0).order_by(AtlasStop.uic_ref.asc(), AtlasStop.sloid.asc()),
-        active_limit,
+        atlas_limit,
     )
 
     gtfs_stop_ids = [row.stop_id for row in gtfs_rows]
     atlas_sloids = [row.sloid for row in atlas_rows]
 
     match_rows = []
-    if gtfs_stop_ids and atlas_sloids:
+    if include_matches and gtfs_stop_ids and atlas_sloids:
         match_rows = (
             db.session.query(GtfsStopIdentityResolution)
             .filter(
@@ -300,6 +460,8 @@ def build_gtfs_stop_id_sloid_map_payload(min_lat, min_lon, max_lat, max_lon, zoo
             'detail_limit': GTFS_STOP_ID_SLOID_DETAIL_LIMIT,
             'overview_limit': GTFS_STOP_ID_SLOID_OVERVIEW_LIMIT,
             'overview_mode': zoom < GTFS_STOP_ID_SLOID_DETAIL_ZOOM,
+            'requested_limit': requested_limit,
+            'includes_matches': bool(include_matches),
             'gtfs_capped': gtfs_capped,
             'atlas_capped': atlas_capped,
             'gtfs_returned': len(gtfs_rows),
@@ -346,6 +508,8 @@ def build_gtfs_stop_popup(stop_id):
         .all()
     )
     candidate_count = db.session.query(func.count(AtlasStop.sloid)).filter(AtlasStop.uic_ref == stop.uic_number).scalar() or 0
+    matched_sloids = [atlas_stop.sloid for _match, atlas_stop in matched_rows]
+    popup_routes, routes_by_sloid = _build_gtfs_popup_route_context(stop.stop_id, matched_sloids)
 
     return {
         'entity_type': 'gtfs',
@@ -358,6 +522,7 @@ def build_gtfs_stop_popup(stop_id):
         'stop_lon': stop_lon,
         'matched_sloid_count': int(matched_count),
         'candidate_atlas_count': int(candidate_count),
+        'routes_atlas': popup_routes,
         'matched_sloids': [
             {
                 'sloid': atlas_stop.sloid,
@@ -368,6 +533,7 @@ def build_gtfs_stop_popup(stop_id):
                 'atlas_lon': match.atlas_lon,
                 'match_method': match.resolution_method,
                 'distance_m': match.distance_m,
+                'routes_atlas': routes_by_sloid.get(atlas_stop.sloid, []),
             }
             for match, atlas_stop in matched_rows
         ],
@@ -422,6 +588,9 @@ def build_atlas_stop_popup(sloid):
         .all()
     )
     same_uic_count = db.session.query(func.count(GtfsStopRaw.stop_id)).filter(GtfsStopRaw.uic_number == stop.uic_ref).scalar() or 0
+    matched_stop_ids = [gtfs_stop.stop_id for _match, gtfs_stop in matched_rows]
+    routes_by_sloid = get_atlas_routes_for_sloids([stop.sloid])
+    routes_by_stop_id = get_atlas_routes_for_gtfs_stop_ids(matched_stop_ids)
 
     return {
         'entity_type': 'atlas',
@@ -434,6 +603,7 @@ def build_atlas_stop_popup(sloid):
         'atlas_lon': atlas_lon,
         'matched_gtfs_count': int(matched_count),
         'same_uic_gtfs_count': int(same_uic_count),
+        'routes_atlas': routes_by_sloid.get(stop.sloid, []),
         'matched_gtfs': [
             {
                 'stop_id': gtfs_stop.stop_id,
@@ -444,6 +614,7 @@ def build_atlas_stop_popup(sloid):
                 'stop_lon': match.gtfs_stop_lon,
                 'match_method': match.resolution_method,
                 'distance_m': match.distance_m,
+                'routes_atlas': routes_by_stop_id.get(gtfs_stop.stop_id, []),
             }
             for match, gtfs_stop in matched_rows
         ],

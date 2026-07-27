@@ -151,14 +151,14 @@
   flex-direction: column;
   min-width: 0;
   background: var(--color-bg);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   overflow: hidden;
   box-shadow: none;
 }
 
 #problemMap {
   flex: 1;
-  border-radius: 0;
+  border-radius: inherit;
 }
 
 /* -------------------------------------------------------------------------

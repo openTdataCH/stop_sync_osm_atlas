@@ -109,12 +109,15 @@
             return { buttonHtml: '', panelHtml: content + "<br>" };
         }
         const id = 'collapse-' + Math.random().toString(36).substring(2, 9);
-        const buttonHtml = `<button type="button" class="btn btn-sm popup-action-btn popup-routes-btn"
+        const buttonId = id + '-toggle';
+        const buttonHtml = `<button id="${buttonId}" type="button" class="btn btn-sm popup-action-btn popup-routes-btn"
+                    aria-controls="${id}" aria-expanded="${isExpanded ? 'true' : 'false'}"
                     onclick="PopupUtils.toggleCollapsible('${id}')">
                 <span class="btn-collapsible-title">${title}</span>
                 <span id="${id}-arrow" class="btn-collapsible-arrow">${isExpanded ? '▲' : '▼'}</span>
             </button>`;
         const panelHtml = `<div id="${id}" class="collapsible-content shadow-inner"
+                    role="region" aria-labelledby="${buttonId}" aria-hidden="${isExpanded ? 'false' : 'true'}"
                     style="display: ${isExpanded ? 'block' : 'none'};">
                 ${content}
             </div>`;
@@ -124,14 +127,18 @@
     function toggleCollapsible(id) {
         const element = document.getElementById(id);
         const arrow = document.getElementById(id + '-arrow');
+        const button = document.getElementById(id + '-toggle');
         if (!element || !arrow) return;
-        if (element.style.display === 'none') {
+        const expanded = element.style.display === 'none';
+        if (expanded) {
             element.style.display = 'block';
             arrow.textContent = '▲';
         } else {
             element.style.display = 'none';
             arrow.textContent = '▼';
         }
+        element.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+        if (button) button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     }
 
     function formatRoutesDisplay(atlasRoutes, osmRoutes, isOsmNode = false) {
@@ -175,7 +182,7 @@
     PopupUtils.toggleCollapsible = toggleCollapsible;
     PopupUtils.formatRoutesDisplay = formatRoutesDisplay;
     global.PopupUtils = PopupUtils;
+    global.MapComponents = global.MapComponents || {};
+    global.MapComponents.PopupUtils = PopupUtils;
 
 })(window);
-
-

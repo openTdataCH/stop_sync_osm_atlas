@@ -68,4 +68,19 @@ describe('PopupUtils route formatting', () => {
     expect(html).not.toContain('fa-filter');
     expect(html).toContain('Dir: 0');
   });
+
+  test('collapsible route controls expose and update their expanded state', () => {
+    const collapsible = PopupUtils.createCollapsible('Routes', '<ul><li>14</li></ul>');
+    document.body.innerHTML = collapsible.buttonHtml + collapsible.panelHtml;
+
+    const button = document.querySelector('.popup-routes-btn');
+    const panel = document.getElementById(button.getAttribute('aria-controls'));
+
+    expect(button.getAttribute('aria-expanded')).toBe('false');
+    expect(panel.getAttribute('aria-hidden')).toBe('true');
+
+    PopupUtils.toggleCollapsible(panel.id);
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+    expect(panel.getAttribute('aria-hidden')).toBe('false');
+  });
 });

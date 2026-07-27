@@ -157,6 +157,9 @@ Most local runs work without a `.env` file. If you want explicit local configura
 | Variable | Purpose | Default |
 |---|---|---|
 | `DATABASE_URI` | SQLAlchemy connection string | `postgresql+psycopg://stops_user:1234@db:5432/import_db` |
+| `WEB_DB_CONNECT_TIMEOUT_SECONDS` | Maximum wait while opening a web database connection | `5` |
+| `WEB_DB_LOCK_TIMEOUT_MS` | Maximum wait for a PostgreSQL lock in web requests | `3000` |
+| `WEB_DB_STATEMENT_TIMEOUT_MS` | Maximum PostgreSQL statement time for web requests; keep below Gunicorn's timeout | `25000` |
 | `FLASK_DEBUG` | Enables Flask debug mode for local development | `1` |
 | `FORCE_HTTPS` | Redirect HTTP requests to HTTPS when running behind TLS | `false` |
 | `RATELIMIT_STORAGE_URI` | Flask-Limiter backend | `memory://` |

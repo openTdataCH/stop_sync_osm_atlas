@@ -89,8 +89,8 @@
 {% endmacro %}
 
 {% block content %}
-<div class="routes-page">
-  <div class="routes-container">
+<div class="routes-page{{ ' routes-page--gtfs-map' if active_view == 'gtfs_stop_id_sloid' }}">
+  <div class="routes-container{{ ' routes-container--gtfs-map' if active_view == 'gtfs_stop_id_sloid' }}">
     <header class="routes-header">
       <nav class="c-page-tabs" role="tablist">
         <a href="{{ url_for('routes.routes_page') }}"
@@ -456,23 +456,64 @@
     {% else %}
     <section class="routes-gtfs-map-view" aria-label="GTFS stop_id to ATLAS sloid map">
       <div class="routes-gtfs-map-shell">
-        <div class="routes-gtfs-map-info" aria-label="GTFS stop_id to SLOID map legend">
-          <button type="button" class="routes-gtfs-map-info__button" aria-label="About this map">
-            <i class="fas fa-info-circle" aria-hidden="true"></i>
-          </button>
-          <div class="routes-gtfs-map-info__tooltip" role="note">
-            <p>This is <strong>not</strong> OSM-ATLAS matching. This is GTFS stop_id (from opentransportdata.swiss) to SLOID matching. We use it to identify which GTFS routes use each SLOID. Check <a href="{{ url_for('docs.docs_page', page='intro') }}">docs/intro</a> for more.</p>
-            <p class="routes-gtfs-map-info__legend-title">Legend</p>
-            <ul class="routes-gtfs-map-info__legend-list">
-              <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--atlas-matched" aria-hidden="true"></span> Blue: ATLAS stops with a corresponding OpenTransportData GTFS stop_id.</li>
-              <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--gtfs-matched" aria-hidden="true"></span> Yellow: OpenTransportData GTFS stop_ids with a corresponding ATLAS SLOID.</li>
-              <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--atlas-unmatched" aria-hidden="true"></span> Red: ATLAS stops without a corresponding GTFS stop_id.</li>
-              <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--gtfs-unmatched" aria-hidden="true"></span> Gray: GTFS stop_ids without a corresponding ATLAS SLOID.</li>
-            </ul>
+        <div class="routes-gtfs-map-top-right">
+          <div class="routes-gtfs-map-info" aria-label="GTFS stop_id to SLOID map legend">
+            <button type="button" class="routes-gtfs-map-info__button" aria-label="About this map">
+              <i class="fas fa-info-circle" aria-hidden="true"></i>
+            </button>
+            <div class="routes-gtfs-map-info__tooltip" role="note">
+              <p>This is <strong>not</strong> OSM-ATLAS matching. This is GTFS stop_id (from opentransportdata.swiss) to SLOID matching. We use it to identify which GTFS routes use each SLOID. Check <a href="{{ url_for('docs.docs_page', page='intro') }}">docs/intro</a> for more.</p>
+              <p class="routes-gtfs-map-info__legend-title">Legend</p>
+              <ul class="routes-gtfs-map-info__legend-list">
+                <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--atlas-matched" aria-hidden="true"></span> Blue: ATLAS stops with a corresponding OpenTransportData GTFS stop_id.</li>
+                <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--gtfs-matched" aria-hidden="true"></span> Yellow: OpenTransportData GTFS stop_ids with a corresponding ATLAS SLOID.</li>
+                <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--atlas-unmatched" aria-hidden="true"></span> Red: ATLAS stops without a corresponding GTFS stop_id.</li>
+                <li><span class="routes-gtfs-map-info__dot routes-gtfs-map-info__dot--gtfs-unmatched" aria-hidden="true"></span> Gray: GTFS stop_ids without a corresponding ATLAS SLOID.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="routes-gtfs-map-overlay">
+            {{ stats_overlay(show_filters=True) }}
           </div>
         </div>
-        <div class="routes-gtfs-map-overlay">
-          {{ stats_overlay(show_filters=False) }}
+        <form id="routesGtfsStopIdSloidSearchForm" class="routes-gtfs-map-search" role="search" novalidate>
+          <label class="visually-hidden" for="routesGtfsStopIdSloidSearchInput">Search by SLOID, UIC, or GTFS stop_id</label>
+          <div class="input-group input-group-sm smart-search-input-group bg-white shadow-sm">
+            <button
+              id="routesGtfsStopIdSloidSearchButton"
+              type="submit"
+              class="input-group-text bg-white border-0"
+              aria-label="Search stops"
+            >
+              <i class="fas fa-search text-muted" aria-hidden="true"></i>
+            </button>
+            <input
+              id="routesGtfsStopIdSloidSearchInput"
+              type="search"
+              class="form-control form-control-sm border-0 ps-0 border-start-0"
+              placeholder="Search stops..."
+              autocomplete="off"
+              aria-describedby="routesGtfsStopIdSloidSearchHint routesGtfsStopIdSloidSearchFeedback"
+            >
+          </div>
+          <div id="routesGtfsStopIdSloidSearchHint" class="smart-search-hint d-none">
+            <div class="smart-search-hint__title">Accepted formats</div>
+            <div class="smart-search-hint__item"><kbd>8503000</kbd> or <kbd>uic:8503000</kbd> UIC</div>
+            <div class="smart-search-hint__item"><kbd>ch:1:sloid:…</kbd> ATLAS SLOID</div>
+            <div class="smart-search-hint__item"><kbd>8507000:0:1</kbd> or <kbd>stop_id:…</kbd> GTFS stop_id</div>
+          </div>
+          <div id="routesGtfsStopIdSloidSearchFeedback" class="smart-search-feedback d-none" role="alert"></div>
+        </form>
+        <div
+          id="routesGtfsStopIdSloidStatus"
+          class="zoom-banner d-none"
+          role="status"
+          aria-live="polite"
+        >
+          <span id="routesGtfsStopIdSloidStatusText"></span>
+          <button id="routesGtfsStopIdSloidRetry" type="button" class="zoom-banner__action" hidden>
+            Retry
+          </button>
         </div>
         <div id="routesGtfsStopIdSloidMap" class="routes-gtfs-map"></div>
       </div>
@@ -487,17 +528,21 @@
 <script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/map-core.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/map-layer-registry.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/map-popup-controller.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/map-viewport-loader.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/header-summary.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>
 {% if active_view == 'gtfs_stop_id_sloid' %}
 <script src="{{ url_for('static', filename='js/components/move_popup.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/line-renderer.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/header-summary.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/popup-utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/popup-renderer.js') }}"></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/components/map-renderer.js') }}"></script>
 {% if active_view in ['routes', 'non_gtfs_routes'] %}
 <script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>
 <script type="application/json" id="routesPageConfig">
 {
   "selectedAtlasOperators": {{ selected_atlas_operators | tojson }},
@@ -517,10 +562,8 @@ window.routesPageConfig = JSON.parse(document.getElementById('routesPageConfig')
 {
   "summaryUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_summary_api') | tojson }},
   "mapUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_map_api') | tojson }},
-  "popupUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_popup_api') | tojson }},
-  "detailZoom": {{ gtfs_stop_id_sloid_detail_zoom | tojson }},
-  "detailLimit": {{ gtfs_stop_id_sloid_detail_limit | tojson }},
-  "overviewLimit": {{ gtfs_stop_id_sloid_overview_limit | tojson }}
+  "searchUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_search_api') | tojson }},
+  "popupUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_popup_api') | tojson }}
 }
 </script>
 <script src="{{ url_for('static', filename='js/pages/routes-gtfs-stop-id-sloid.js') }}"></script>

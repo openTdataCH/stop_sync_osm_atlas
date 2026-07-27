@@ -32,15 +32,15 @@ def _build_osm_route_payload(row):
     }
 
 
-def get_atlas_routes_for_sloids(sloids):
-    normalized_sloids = sorted({str(sloid).strip() for sloid in (sloids or []) if str(sloid).strip()})
-    if not normalized_sloids:
+def _get_atlas_routes_for_stop_values(values, stop_column):
+    normalized_values = sorted({str(value).strip() for value in (values or []) if str(value).strip()})
+    if not normalized_values:
         return {}
 
     try:
         rows = (
             db.session.query(
-                StopCall.source_sloid,
+                stop_column.label('stop_key'),
                 LineFamily.source_family_id,
                 Itinerary.direction_id,
                 LineFamily.ref,
@@ -48,19 +48,31 @@ def get_atlas_routes_for_sloids(sloids):
             )
             .join(Itinerary, Itinerary.line_family_id == LineFamily.id)
             .join(StopCall, StopCall.itinerary_id == Itinerary.id)
-            .filter(LineFamily.source == 'atlas', StopCall.source_sloid.in_(normalized_sloids))
+            .filter(LineFamily.source == 'atlas', stop_column.in_(normalized_values))
             .distinct()
-            .order_by(StopCall.source_sloid.asc(), LineFamily.source_family_id.asc(), Itinerary.direction_id.asc())
+            .order_by(stop_column.asc(), LineFamily.source_family_id.asc(), Itinerary.direction_id.asc())
             .all()
         )
 
-        routes_by_sloid = {sloid: [] for sloid in normalized_sloids}
+        routes_by_stop = {value: [] for value in normalized_values}
         for row in rows:
-            routes_by_sloid.setdefault(row.source_sloid, []).append(_build_atlas_route_payload(row))
-        return routes_by_sloid
+            routes_by_stop.setdefault(str(row.stop_key), []).append(_build_atlas_route_payload(row))
+        return routes_by_stop
     except Exception as exc:
-        app.logger.error(f"Error fetching routes for sloids {normalized_sloids}: {exc}")
-        return {sloid: [] for sloid in normalized_sloids}
+        # A failed SQL statement leaves PostgreSQL's transaction unusable.
+        # This helper intentionally degrades to an empty route list, so it must
+        # also restore the session before the popup response continues.
+        db.session.rollback()
+        app.logger.error(f"Error fetching ATLAS routes for stops {normalized_values}: {exc}")
+        return {value: [] for value in normalized_values}
+
+
+def get_atlas_routes_for_sloids(sloids):
+    return _get_atlas_routes_for_stop_values(sloids, StopCall.source_sloid)
+
+
+def get_atlas_routes_for_gtfs_stop_ids(stop_ids):
+    return _get_atlas_routes_for_stop_values(stop_ids, StopCall.source_stop_id)
 
 
 def get_osm_routes_for_nodes(osm_node_ids):

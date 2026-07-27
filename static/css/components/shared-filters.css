@@ -28,6 +28,24 @@
   border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
+/* Shared feedback panel for the smart-search controls used by map pages. */
+.smart-search-feedback {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1705;
+  min-width: 250px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.97);
+  color: var(--color-danger, #dc3545);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(8px);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+}
+
 @media (max-width: 768px) {
   .top-filters-overlay {
     top: 6px !important;
