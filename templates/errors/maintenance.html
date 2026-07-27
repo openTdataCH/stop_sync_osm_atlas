@@ -1,0 +1,14 @@
+{% extends "layouts/base.html" %}
+{% block title %}Route Data Update{% endblock %}
+{% block content %}
+<div class="container text-center my-5 py-5">
+  <h1 class="display-5">Route data temporarily unavailable</h1>
+  <p class="lead">{{ message }}</p>
+  {% if phase %}
+  <p class="text-muted">Current phase: {{ phase }}</p>
+  {% endif %}
+  <p>Please retry in about {{ retry_after_seconds }} seconds.</p>
+  <a href="{{ request.url }}" class="btn btn-primary">Retry</a>
+  <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Go Home</a>
+</div>
+{% endblock %}

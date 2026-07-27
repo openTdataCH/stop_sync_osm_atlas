@@ -142,24 +142,6 @@ main {
   font-weight: var(--font-medium);
 }
 
-/* Smart Search Error Feedback – mirrors .smart-search-hint */
-.smart-search-feedback {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 1001;
-  background: rgba(255, 255, 255, 0.97);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  padding: var(--space-2) var(--space-3);
-  min-width: 250px;
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--color-danger, #dc3545);
-}
-
 /* Doc info icon shared by hint and error tooltips */
 .smart-search-doc-link {
   pointer-events: auto;
@@ -175,35 +157,8 @@ main {
   text-decoration: none;
 }
 
-/* Zoom banner: centered overlay with semi-transparent background */
-.zoom-banner {
-  position: fixed;
-  left: 50%;
-  top: calc(var(--navbar-height) + 70px);
-  transform: translateX(-50%);
-  z-index: 1001;
-  pointer-events: auto;
-  background: rgba(80, 80, 80, 0.65);
-  color: #fff;
-  font-size: 0.85rem;
-  font-weight: 500;
-  padding: 0.5rem 1.25rem;
-  border-radius: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  white-space: nowrap;
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  opacity: 1;
-  transition: top 180ms ease, opacity 160ms ease;
-}
-
-.zoom-banner.zoom-banner--faded {
-  opacity: 0;
-  pointer-events: none;
-}
-
 .zoom-banner.zoom-banner--filters-open {
-  top: calc(var(--navbar-height) + 220px);
+  top: calc(var(--navbar-height) + 236px);
 }
 
 #activeFilters {
@@ -268,19 +223,8 @@ main {
     width: 100%;
   }
 
-  .zoom-banner {
-    top: calc(var(--navbar-height) + 96px);
-    width: min(340px, calc(100vw - 1rem));
-    max-width: calc(100vw - 1rem);
-    padding: 0.45rem 0.7rem;
-    font-size: 0.8rem;
-    white-space: normal;
-    text-align: center;
-    line-height: 1.2;
-  }
-
   .zoom-banner.zoom-banner--filters-open {
-    top: calc(var(--navbar-height) + 188px);
+    top: calc(var(--navbar-height) + 204px);
   }
 }
 

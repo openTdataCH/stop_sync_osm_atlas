@@ -26,6 +26,23 @@ window.ProblemsUI = (function () {
         return `<div class="problem-section-item"><h6>${title}</h6>${content}</div>`;
     }
 
+    function renderProblemOnMap(problem) {
+        if (window.ProblemsMap && typeof window.ProblemsMap.renderProblem === 'function') {
+            window.ProblemsMap.renderProblem(problem, { fitView: true });
+            return;
+        }
+
+        // Compatibility path for isolated consumers that have not loaded the
+        // Problems map controller.
+        const problemMap = ProblemsState.getProblemMap();
+        if (problemMap && window.ProblemsRenderer && typeof window.ProblemsRenderer.drawProblemOnMap === 'function') {
+            window.ProblemsRenderer.drawProblemOnMap(problemMap, problem, {
+                markersLayer: ProblemsState.getProblemMarkersLayer(),
+                linesLayer: ProblemsState.getProblemLinesLayer()
+            }, { fitView: true });
+        }
+    }
+
     // Extract member display info (badge, identifier, name) with group context awareness
     function getMemberDisplayInfo(member, groupType) {
         const isOsm = groupType === 'osm' ? true : (groupType === 'atlas' ? false : !!member.osm_node_id);
@@ -435,16 +452,16 @@ window.ProblemsUI = (function () {
                         const problem = currentEntryProblems[newProblemIndex];
                         ProblemsState.setCurrentProblem(problem);
 
-                        // Update map
-                        const problemMap = ProblemsState.getProblemMap();
-                        const markersLayer = ProblemsState.getProblemMarkersLayer();
-                        const linesLayer = ProblemsState.getProblemLinesLayer();
+                        renderProblemOnMap(problem);
 
-                        if (problemMap && typeof drawProblemOnMap !== 'undefined') {
-                            drawProblemOnMap(problemMap, problem, {
-                                markersLayer: markersLayer,
-                                linesLayer: linesLayer
-                            });
+                        // Context is fixed around the active issue, so switching to
+                        // another issue in the same entry requires a fresh request.
+                        if (
+                            ProblemsState.getShowContext() &&
+                            window.ProblemsMap &&
+                            typeof window.ProblemsMap.loadContextData === 'function'
+                        ) {
+                            window.ProblemsMap.loadContextData(problem);
                         }
 
                         // Update active highlight
@@ -516,17 +533,9 @@ window.ProblemsUI = (function () {
             // Make first issue active
             $(`.issue-container[data-problem-id="${firstProblem.id}"]`).addClass('active');
 
-            // Draw the problem markers and lines on the map
-            const problemMap = ProblemsState.getProblemMap();
-            const markersLayer = ProblemsState.getProblemMarkersLayer();
-            const linesLayer = ProblemsState.getProblemLinesLayer();
-
-            if (problemMap && typeof drawProblemOnMap !== 'undefined') {
-                drawProblemOnMap(problemMap, firstProblem, {
-                    markersLayer: markersLayer,
-                    linesLayer: linesLayer
-                });
-            }
+            // Draw after fitting the final view so marker labels and projected
+            // overlap offsets use the correct zoom.
+            renderProblemOnMap(firstProblem);
             updateFloatingPriority(firstProblem);
 
             // Load context if enabled
@@ -534,9 +543,13 @@ window.ProblemsUI = (function () {
             if (showContext && window.ProblemsMap && window.ProblemsMap.loadContextData) {
                 window.ProblemsMap.loadContextData(firstProblem);
             } else {
-                const contextLayer = ProblemsState.getContextMarkersLayer();
-                if (contextLayer) {
-                    contextLayer.clearLayers();
+                if (window.ProblemsMap && typeof window.ProblemsMap.clearContextData === 'function') {
+                    window.ProblemsMap.clearContextData();
+                } else {
+                    const contextLayer = ProblemsState.getContextMarkersLayer();
+                    if (contextLayer) {
+                        contextLayer.clearLayers();
+                    }
                 }
             }
 

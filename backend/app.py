@@ -16,11 +16,57 @@ from backend.blueprints.routes import routes_bp
 from backend.services.time_utils import format_zurich_display_timestamp
 
 
+def _bounded_env_int(name, default, *, minimum, maximum):
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(value, maximum))
+
+
+def _database_engine_options(database_uri):
+    if not database_uri.startswith(('postgresql:', 'postgresql+')):
+        return {}
+
+    connect_timeout_seconds = _bounded_env_int(
+        'WEB_DB_CONNECT_TIMEOUT_SECONDS',
+        5,
+        minimum=1,
+        maximum=60,
+    )
+    lock_timeout_ms = _bounded_env_int(
+        'WEB_DB_LOCK_TIMEOUT_MS',
+        3000,
+        minimum=100,
+        maximum=120_000,
+    )
+    statement_timeout_ms = _bounded_env_int(
+        'WEB_DB_STATEMENT_TIMEOUT_MS',
+        25_000,
+        minimum=1000,
+        maximum=300_000,
+    )
+    return {
+        'pool_pre_ping': True,
+        'connect_args': {
+            'connect_timeout': connect_timeout_seconds,
+            'options': (
+                f'-c lock_timeout={lock_timeout_ms} '
+                f'-c statement_timeout={statement_timeout_ms}'
+            ),
+        },
+    }
+
+
 def create_app():
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
     app.add_template_filter(format_zurich_display_timestamp, 'format_zurich_display_timestamp')
 
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/import_db')
+    database_uri = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/import_db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
+    engine_options = _database_engine_options(database_uri)
+    if engine_options:
+        app.config['SQLALCHEMY_ENGINE_OPTIONS'] = engine_options
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     logging.getLogger('werkzeug').setLevel(logging.WARNING)

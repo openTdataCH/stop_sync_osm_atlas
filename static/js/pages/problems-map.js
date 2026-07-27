@@ -2,29 +2,193 @@
 
 /**
  * ProblemsMap - Map initialization and rendering functionality
- * Depends on: ProblemsState, PopupRenderer (from popup-renderer.js), map utilities (from map-renderer.js)
+ * Depends on: ProblemsState, MapComponents.MapCore,
+ * MapComponents.MapPopupController, MapRenderer, LineRenderer, MapShared,
+ * PopupRenderer
  */
 window.ProblemsMap = (function() {
     'use strict';
 
     // Performance tuning constants for the problems page
     const PROBLEM_LINE_ZOOM_THRESHOLD = AppConstants.MAP.ZOOM_LINE_THRESHOLD;   // draw context lines only at high zoom
-    const CONTEXT_LIMIT_LOW_ZOOM = AppConstants.CONTEXT_MARKERS.LOW_ZOOM_LIMIT;
-    const CONTEXT_LIMIT_HIGH_ZOOM = AppConstants.CONTEXT_MARKERS.HIGH_ZOOM_LIMIT;
+    const CONTEXT_COORDINATE_OFFSET = 0.02; // Roughly 2 km around the selected problem
+    const CONTEXT_MARKER_OPACITY = 0.6;
+    const ZOOM_RENDER_DEBOUNCE_MS = 80;
     const MAP_COLORS = AppConstants.COLORS || {};
     const COLOR_ATLAS_MATCHED = MAP_COLORS.ATLAS_MATCHED || '#174092';
     const COLOR_OSM_MATCHED = MAP_COLORS.OSM_MATCHED || '#4CAF50';
     const COLOR_ATLAS_UNMATCHED = MAP_COLORS.ATLAS_UNMATCHED || '#DC3545';
     const COLOR_OSM_UNMATCHED = MAP_COLORS.OSM_UNMATCHED || '#6C757D';
 
+    let problemMapCore = null;
+    let contextPopupController = null;
+    let contextPopupMarkers = new Set();
+    let contextPopupKeyByMarker = new Map();
+    let renderedContext = null;
+    let zoomEndHandler = null;
+    let zoomRenderTimer = null;
+    let contextBatchCancel = null;
+    let contextRenderSequence = 0;
+    let isRenderingProblem = false;
+    let renderedProblem = null;
+    let removeResizeHandlers = null;
+
     // Request management for context loading
     let currentContextRequest = null; // jqXHR of in-flight /api/data
+    let contextRequestSequence = 0;
+
+    function createAbortError() {
+        const error = new Error('Popup request aborted');
+        error.name = 'AbortError';
+        return error;
+    }
+
+    /**
+     * Adapt the page's jQuery endpoint to the promise/AbortSignal contract used
+     * by MapPopupController. The shared popup component remains transport-free.
+     */
+    function requestStopPopup(stopData, viewType, signal) {
+        return new Promise(function(resolve, reject) {
+            if (signal && signal.aborted) {
+                reject(createAbortError());
+                return;
+            }
+            if (typeof $ === 'undefined' || typeof $.getJSON !== 'function') {
+                reject(new Error('The popup transport is unavailable.'));
+                return;
+            }
+
+            const request = $.getJSON('/api/stop_popup', {
+                stop_id: stopData.id,
+                view_type: viewType
+            });
+            let settled = false;
+
+            function removeAbortListener() {
+                if (signal && typeof signal.removeEventListener === 'function') {
+                    signal.removeEventListener('abort', onAbort);
+                }
+            }
+
+            function settle(callback, value) {
+                if (settled) return;
+                settled = true;
+                removeAbortListener();
+                callback(value);
+            }
+
+            function onAbort() {
+                if (request && typeof request.abort === 'function') {
+                    request.abort();
+                }
+                settle(reject, createAbortError());
+            }
+
+            if (signal && typeof signal.addEventListener === 'function') {
+                signal.addEventListener('abort', onAbort, { once: true });
+            }
+
+            request.done(function(payload) {
+                settle(resolve, payload);
+            }).fail(function(_jqXHR, textStatus, errorThrown) {
+                if (textStatus === 'abort' || (signal && signal.aborted)) {
+                    settle(reject, createAbortError());
+                    return;
+                }
+                settle(reject, new Error(errorThrown || textStatus || 'Failed to load stop details.'));
+            });
+        });
+    }
+
+    function renderStopPopup(payload, viewType) {
+        const enriched = payload && (payload.stop || payload);
+        if (!enriched) {
+            throw new Error('The popup endpoint returned no stop data.');
+        }
+
+        if (enriched.stop_type === 'atlas_unmatched') {
+            return viewType === 'atlas'
+                ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
+                : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
+        }
+        return PopupRenderer.generatePopupHtml(enriched, viewType);
+    }
+
+    function getContextPopupKey(markerData) {
+        if (!markerData || !markerData.stopData || !markerData.type) {
+            return null;
+        }
+        if (window.MapShared && typeof window.MapShared.createEntityKey === 'function') {
+            return window.MapShared.createEntityKey(markerData.type, markerData.stopData);
+        }
+        return markerData.stopData.id == null
+            ? null
+            : `${markerData.type}:${markerData.stopData.id}`;
+    }
+
+    function bindContextMarkerPopup(marker, markerData) {
+        if (!contextPopupController) return;
+        const key = getContextPopupKey(markerData);
+        if (!key || markerData.stopData.id == null) return;
+
+        contextPopupKeyByMarker.set(marker, key);
+        contextPopupController.attach(marker, {
+            key: key,
+            // A zoom redraw only changes projected marker positions. Preserve
+            // loaded details for the replacement marker.
+            retainCacheOnDetach: true,
+            load: function(context) {
+                return requestStopPopup(markerData.stopData, markerData.type, context.signal);
+            },
+            render: function(payload) {
+                return renderStopPopup(payload, markerData.type);
+            }
+        });
+    }
+
+    function getOpenContextPopupKeys() {
+        const openKeys = new Set();
+        contextPopupMarkers.forEach(function(marker) {
+            if (typeof marker.isPopupOpen === 'function' && marker.isPopupOpen()) {
+                const key = contextPopupKeyByMarker.get(marker);
+                if (key) openKeys.add(key);
+            }
+        });
+        return openKeys;
+    }
+
+    function detachContextPopups(options) {
+        options = options || {};
+        const keysToRemove = new Set();
+        if (contextPopupController) {
+            contextPopupMarkers.forEach(function(marker) {
+                const key = contextPopupKeyByMarker.get(marker);
+                contextPopupController.detach(marker);
+                if (!options.preserveCache && key) keysToRemove.add(key);
+                contextPopupKeyByMarker.delete(marker);
+            });
+            keysToRemove.forEach(function(key) {
+                contextPopupController.remove(key);
+            });
+        }
+        contextPopupMarkers = new Set();
+    }
 
     function normalizeProblemMembers(problem) {
         if (!problem) {
             return [];
         }
         return Array.isArray(problem.members) && problem.members.length ? problem.members : [problem];
+    }
+
+    function getProblemKey(problem) {
+        if (!problem) return null;
+        const memberIds = normalizeProblemMembers(problem).map(function(member) {
+            if (!member) return '';
+            if (member.id != null) return String(member.id);
+            return String(member.sloid || member.osm_node_id || '');
+        }).sort();
+        return [problem.problem || '', problem.group_type || '', memberIds.join(',')].join('|');
     }
 
     function buildProblemIdentitySets(problem) {
@@ -83,73 +247,353 @@ window.ProblemsMap = (function() {
         return false;
     }
 
+    function getProblemCenter(problem) {
+        const members = Array.isArray(problem && problem.members) ? problem.members : [];
+        const candidates = [problem].concat(members);
+
+        for (const candidate of candidates) {
+            if (!candidate) {
+                continue;
+            }
+
+            const coordinatePairs = [
+                [candidate.atlas_lat, candidate.atlas_lon],
+                [candidate.osm_lat, candidate.osm_lon]
+            ];
+
+            for (const [rawLat, rawLon] of coordinatePairs) {
+                if (rawLat == null || rawLon == null) {
+                    continue;
+                }
+
+                const lat = Number(rawLat);
+                const lon = Number(rawLon);
+                if (Number.isFinite(lat) && Number.isFinite(lon)) {
+                    return { lat, lon };
+                }
+            }
+        }
+
+        return null;
+    }
+
+    function abortCurrentContextRequest() {
+        const request = currentContextRequest;
+        currentContextRequest = null;
+
+        if (request && request.readyState !== 4 && typeof request.abort === 'function') {
+            try {
+                request.abort();
+            } catch (error) {
+                // Sequence checks still prevent this request from committing.
+            }
+        }
+    }
+
+    function clearContextLayer() {
+        contextRenderSequence += 1;
+        if (contextBatchCancel) {
+            contextBatchCancel();
+            contextBatchCancel = null;
+        }
+        detachContextPopups();
+        const contextMarkersLayer = ProblemsState.getContextMarkersLayer();
+        if (contextMarkersLayer) {
+            contextMarkersLayer.clearLayers();
+        }
+    }
+
+    /**
+     * Cancel any pending context work and remove the currently displayed context.
+     */
+    function clearContextData() {
+        contextRequestSequence += 1;
+        abortCurrentContextRequest();
+        renderedContext = null;
+        clearContextLayer();
+    }
+
+    function normalizeContextResponse(payload) {
+        if (Array.isArray(payload)) {
+            return payload;
+        }
+        if (payload && Array.isArray(payload.stops)) {
+            return payload.stops;
+        }
+        return null;
+    }
+
+    function buildContextMarkerData(stops) {
+        const markerData = [];
+        const createdAtlasMarkers = new Set();
+
+        stops.forEach(function(stop) {
+            const atlasMarkerKey = window.MapShared && typeof window.MapShared.getAtlasMarkerIdentity === 'function'
+                ? window.MapShared.getAtlasMarkerIdentity(stop)
+                : null;
+            if (stop.sloid && stop.atlas_lat != null && stop.atlas_lon != null && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
+                let atlasColor = COLOR_OSM_UNMATCHED;
+                if (stop.stop_type === 'matched') atlasColor = COLOR_ATLAS_MATCHED;
+                else if (stop.stop_type === 'atlas_unmatched') atlasColor = COLOR_ATLAS_UNMATCHED;
+
+                markerData.push({
+                    key: window.MapShared.createEntityKey('atlas', stop),
+                    lat: parseFloat(stop.atlas_lat),
+                    lon: parseFloat(stop.atlas_lon),
+                    type: 'atlas',
+                    color: atlasColor,
+                    hasAtlasDuplicate: stop.has_atlas_duplicate,
+                    originalLat: parseFloat(stop.atlas_lat),
+                    originalLon: parseFloat(stop.atlas_lon),
+                    stopData: stop,
+                    opacity: CONTEXT_MARKER_OPACITY
+                });
+                if (atlasMarkerKey) {
+                    createdAtlasMarkers.add(atlasMarkerKey);
+                }
+            }
+
+            const osmNodesToProcess = [];
+
+            if (stop.osm_node_id && stop.osm_lat != null && stop.osm_lon != null) {
+                osmNodesToProcess.push(stop);
+            }
+
+            if (Array.isArray(stop.osm_matches)) {
+                stop.osm_matches.forEach(osmMatch => {
+                    if (osmMatch.osm_node_id && osmMatch.osm_lat != null && osmMatch.osm_lon != null) {
+                        osmNodesToProcess.push({
+                            ...stop,
+                            ...osmMatch,
+                            id: osmMatch.osm_id || stop.id,
+                            osm_node_id: osmMatch.osm_node_id,
+                            osm_lat: osmMatch.osm_lat,
+                            osm_lon: osmMatch.osm_lon
+                        });
+                    }
+                });
+            }
+
+            osmNodesToProcess.forEach(osmData => {
+                let osmColor = COLOR_OSM_UNMATCHED;
+                if (osmData.stop_type === 'matched') osmColor = COLOR_OSM_MATCHED;
+
+                markerData.push({
+                    key: window.MapShared.createEntityKey('osm', osmData),
+                    lat: parseFloat(osmData.osm_lat),
+                    lon: parseFloat(osmData.osm_lon),
+                    type: 'osm',
+                    color: osmColor,
+                    osmNodeType: osmData.osm_node_type,
+                    originalLat: parseFloat(osmData.osm_lat),
+                    originalLon: parseFloat(osmData.osm_lon),
+                    stopData: osmData,
+                    opacity: CONTEXT_MARKER_OPACITY
+                });
+            });
+        });
+
+        return markerData;
+    }
+
+    function renderContextData(problem, stops, problemMap, zoom, options) {
+        options = options || {};
+        const contextMarkersLayer = ProblemsState.getContextMarkersLayer();
+        if (!contextMarkersLayer) {
+            return;
+        }
+
+        if (stops.length === 0) {
+            clearContextLayer();
+            return;
+        }
+
+        const problemIdentities = buildProblemIdentitySets(problem);
+        const filteredStops = stops.filter(stop => !stopMatchesProblemIdentities(stop, problemIdentities));
+        const previousOpenPopupKeys = options.preservePopupState
+            ? getOpenContextPopupKeys()
+            : new Set();
+        if (!options.preservePopupState) {
+            clearContextLayer();
+        } else {
+            contextRenderSequence += 1;
+            if (contextBatchCancel) {
+                contextBatchCancel();
+                contextBatchCancel = null;
+            }
+        }
+        const renderSequence = contextRenderSequence;
+
+        // Render into a disposable child layer. If a newer problem supersedes this
+        // render, clearing the parent detaches all of its remaining marker chunks.
+        const renderedContextLayer = L.layerGroup();
+        LineRenderer.drawAll(filteredStops, renderedContextLayer, {
+            showAtlas: true,
+            showOsm: true,
+            minZoom: PROBLEM_LINE_ZOOM_THRESHOLD,
+            currentZoom: zoom,
+            isContext: true
+        });
+
+        const contextMarkerData = buildContextMarkerData(filteredStops);
+        const contextMarkers = window.MapRenderer.createMarkersWithOverlapHandling(contextMarkerData, renderedContextLayer, {
+            batchAdd: true,
+            map: problemMap,
+            zoom: zoom,
+            bindPopup: bindContextMarkerPopup
+        });
+
+        contextMarkers.forEach(marker => {
+            window.MapRenderer.setMarkerOpacity(marker, CONTEXT_MARKER_OPACITY);
+        });
+
+        if (options.preservePopupState) {
+            // Attach replacements first so a same-key in-flight popup request is
+            // still owned while the old marker is detached.
+            detachContextPopups({ preserveCache: true });
+            contextMarkersLayer.clearLayers();
+        }
+        contextPopupMarkers = new Set(contextMarkers);
+        contextMarkersLayer.addLayer(renderedContextLayer);
+
+        contextBatchCancel = typeof contextMarkers.cancelBatch === 'function'
+            ? contextMarkers.cancelBatch
+            : null;
+        const batchComplete = contextMarkers.batchComplete || Promise.resolve({ status: 'complete' });
+        batchComplete.then(function(result) {
+            if (renderSequence !== contextRenderSequence || !result || result.status !== 'complete') return;
+            contextBatchCancel = null;
+            if (!options.preservePopupState || !contextPopupController) return;
+            contextMarkers.forEach(function(marker) {
+                const key = contextPopupKeyByMarker.get(marker);
+                if (key && previousOpenPopupKeys.has(key)) {
+                    contextPopupController.open(marker);
+                }
+            });
+        });
+    }
+
+    function renderProblem(problem, options) {
+        const problemMap = ProblemsState.getProblemMap();
+        if (!problemMap || !window.ProblemsRenderer || typeof window.ProblemsRenderer.drawProblemOnMap !== 'function') {
+            return false;
+        }
+
+        isRenderingProblem = true;
+        try {
+            window.ProblemsRenderer.drawProblemOnMap(problemMap, problem, {
+                markersLayer: ProblemsState.getProblemMarkersLayer(),
+                linesLayer: ProblemsState.getProblemLinesLayer()
+            }, options || {});
+            const labelZoom = AppConstants.MAP.LABEL_ICON_MIN_ZOOM || 18;
+            renderedProblem = {
+                problemKey: getProblemKey(problem),
+                zoomBand: problemMap.getZoom() < labelZoom ? 'circle' : 'label'
+            };
+        } finally {
+            isRenderingProblem = false;
+        }
+        return true;
+    }
+
+    function rerenderAtCurrentZoom() {
+        if (isRenderingProblem) return;
+        const problemMap = ProblemsState.getProblemMap();
+        const problem = ProblemsState.getCurrentProblem();
+        if (!problemMap || !problem) return;
+
+        const labelZoom = AppConstants.MAP.LABEL_ICON_MIN_ZOOM || 18;
+        const currentZoomBand = problemMap.getZoom() < labelZoom ? 'circle' : 'label';
+        const problemKey = getProblemKey(problem);
+        if (
+            problem.problem === 'duplicates' ||
+            !renderedProblem ||
+            renderedProblem.problemKey !== problemKey ||
+            renderedProblem.zoomBand !== currentZoomBand
+        ) {
+            renderProblem(problem, { fitView: false });
+        }
+        if (
+            ProblemsState.getShowContext() &&
+            renderedContext &&
+            renderedContext.problemKey === getProblemKey(problem)
+        ) {
+            renderContextData(
+                problem,
+                renderedContext.stops,
+                problemMap,
+                problemMap.getZoom(),
+                { preservePopupState: true }
+            );
+        }
+    }
+
+    function scheduleZoomRerender() {
+        if (isRenderingProblem) return;
+        if (zoomRenderTimer != null) clearTimeout(zoomRenderTimer);
+        zoomRenderTimer = setTimeout(function() {
+            zoomRenderTimer = null;
+            rerenderAtCurrentZoom();
+        }, ZOOM_RENDER_DEBOUNCE_MS);
+    }
+
     /**
      * Initialize the map on the problems page with same style as main page
      */
     function initProblemMap() {
-        const problemMap = L.map('problemMap', {
-            closePopupOnClick: false,
-            // Use SVG renderer so popup connection lines can be drawn (same as main map)
-            preferCanvas: false,
-            renderer: L.svg({ padding: 0.1 }),
-            maxZoom: AppConstants.MAP.MAX_ZOOM,
-            zoomControl: false
-        }).setView([47.3769, 8.5417], 12);
-        
-        // Increase SVG renderer padding at high zoom to prevent lines/markers
-        // from disappearing when one end is off-screen
-        problemMap.on('zoomend', function() {
-            var renderer = problemMap.getRenderer(problemMap);
-            if (renderer) {
-                renderer.options.padding = problemMap.getZoom() >= 16 ? 2.0 : 0.1;
+        destroyProblemMap();
+
+        if (!window.MapComponents || !window.MapComponents.MapCore || !window.MapComponents.MapPopupController) {
+            throw new Error('ProblemsMap requires MapCore and MapPopupController.');
+        }
+
+        problemMapCore = window.MapComponents.MapCore.create({
+            container: 'problemMap',
+            view: {
+                center: [47.3769, 8.5417],
+                zoom: 12
+            },
+            mapOptions: {
+                closePopupOnClick: false,
+                preferCanvas: false,
+                maxZoom: AppConstants.MAP.MAX_ZOOM,
+                zoomControl: false
+            },
+            rendererPadding: function(zoom) {
+                return zoom >= 16 ? 2.0 : 0.1;
+            },
+            popupBehavior: true,
+            baseLayers: function() {
+                return window.MapShared.createBaseTileLayers();
+            },
+            defaultBaseLayer: 'OpenStreetMap',
+            layerGroups: {
+                problemMarkers: { controlLabel: 'Problem Markers' },
+                problemLines: { controlLabel: 'Connection Lines' },
+                contextMarkers: true
+            },
+            controls: {
+                zoom: { position: 'bottomleft' },
+                layers: { position: 'bottomleft' }
             }
         });
 
-        const baseLayers = window.MapShared && typeof window.MapShared.createBaseTileLayers === 'function'
-            ? window.MapShared.createBaseTileLayers()
-            : null;
+        const problemMap = problemMapCore.map;
+        const problemMarkersLayer = problemMapCore.layers.problemMarkers;
+        const problemLinesLayer = problemMapCore.layers.problemLines;
+        const contextMarkersLayer = problemMapCore.layers.contextMarkers;
+        const osmLayerProblems = problemMapCore.baseLayers.OpenStreetMap;
 
-        const osmLayerProblems = baseLayers ? baseLayers.osm : L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-             maxZoom: AppConstants.MAP.MAX_ZOOM,
-             maxNativeZoom: AppConstants.MAP.MAX_NATIVE_ZOOM,
-             attribution: '© OpenStreetMap'
+        contextPopupController = window.MapComponents.MapPopupController.create({
+            cache: 'payload',
+            createPopup: function(content) {
+                return window.MapRenderer.createPopupWithOptions(content);
+            },
+            errorContent: '<div class="popup-error">Unable to load stop details. Click the marker to retry.</div>',
+            onError: function(error) {
+                console.error('Failed to load stop popup:', error);
+            }
         });
-
-        const transportLayerProblems = baseLayers ? baseLayers.transport : L.tileLayer('https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png', {
-            maxZoom: AppConstants.MAP.MAX_ZOOM,
-            maxNativeZoom: 18,
-            attribution: 'Map <a href="https://memomaps.de/">memomaps.de</a> <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        });
-
-        const satelliteLayerProblems = baseLayers ? baseLayers.satellite : L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: AppConstants.MAP.MAX_ZOOM,
-            maxNativeZoom: 19,
-            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
-        });
-
-        osmLayerProblems.addTo(problemMap);
-
-        const baseMaps = {
-            "OpenStreetMap": osmLayerProblems,
-            "Transport Map": transportLayerProblems,
-            "Satellite": satelliteLayerProblems
-        };
-        
-        const problemMarkersLayer = L.layerGroup().addTo(problemMap);
-        const problemLinesLayer = L.layerGroup().addTo(problemMap);
-        const contextMarkersLayer = L.layerGroup().addTo(problemMap);
-
-        const overlayMaps = {
-            "Problem Markers": problemMarkersLayer,
-            "Connection Lines": problemLinesLayer
-        };
-
-        // Mirror index page control placement: bottom-left
-        L.control.zoom({ position: 'bottomleft' }).addTo(problemMap);
-        L.control.layers(baseMaps, overlayMaps, { position: 'bottomleft' }).addTo(problemMap);
-        
-        // Attach standard popup-line handlers (shared)
-        attachPopupLineHandlersToMap(problemMap);
 
         // Store in state
         ProblemsState.setProblemMap(problemMap);
@@ -158,12 +602,56 @@ window.ProblemsMap = (function() {
         ProblemsState.setProblemLinesLayer(problemLinesLayer);
         ProblemsState.setContextMarkersLayer(contextMarkersLayer);
 
-        // Expose the map as window.map so shared marker utilities can switch to Canvas at low zoom
-        // This is safe on problems.html where the main map is not present
-        window.map = problemMap;
+        zoomEndHandler = scheduleZoomRerender;
+        problemMap.on('zoomend', zoomEndHandler);
 
-        // Manual match popup interactions are handled globally in map-renderer.js via attachPopupLineHandlersToMap
-        
+        return problemMap;
+    }
+
+    function invalidateMapSize() {
+        return problemMapCore ? problemMapCore.invalidateSize() : undefined;
+    }
+
+    function destroyProblemMap() {
+        contextRequestSequence += 1;
+        abortCurrentContextRequest();
+        renderedContext = null;
+        renderedProblem = null;
+        detachContextPopups();
+        if (zoomRenderTimer != null) {
+            clearTimeout(zoomRenderTimer);
+            zoomRenderTimer = null;
+        }
+        if (contextBatchCancel) {
+            contextBatchCancel();
+            contextBatchCancel = null;
+        }
+        contextRenderSequence += 1;
+
+        const problemMap = problemMapCore && problemMapCore.map;
+        if (problemMap && zoomEndHandler && typeof problemMap.off === 'function') {
+            problemMap.off('zoomend', zoomEndHandler);
+        }
+        zoomEndHandler = null;
+
+        if (contextPopupController) {
+            contextPopupController.destroy();
+            contextPopupController = null;
+        }
+        if (problemMapCore) {
+            problemMapCore.destroy();
+            problemMapCore = null;
+        }
+        if (removeResizeHandlers) {
+            removeResizeHandlers();
+            removeResizeHandlers = null;
+        }
+
+        ProblemsState.setProblemMap(null);
+        ProblemsState.setOsmLayerProblems(null);
+        ProblemsState.setProblemMarkersLayer(null);
+        ProblemsState.setProblemLinesLayer(null);
+        ProblemsState.setContextMarkersLayer(null);
     }
 
     /**
@@ -171,155 +659,69 @@ window.ProblemsMap = (function() {
      */
     function loadContextData(problem) {
         if (!ProblemsState.getShowContext() || !problem) {
-            return;
+            clearContextData();
+            return null;
         }
-        
-        // Calculate bounds around the problem location
-        const lat = problem.atlas_lat || problem.osm_lat;
-        const lon = problem.atlas_lon || problem.osm_lon;
-        
-        if (!lat || !lon) {
-            return;
+
+        const center = getProblemCenter(problem);
+        if (!center) {
+            clearContextData();
+            return null;
         }
-        
-        // Create a bounds around the problem (roughly 2km radius for better context)
-        const offset = 0.02; // Approximately 2km
-        const bounds = {
-            min_lat: lat - offset,
-            max_lat: lat + offset,
-            min_lon: lon - offset,
-            max_lon: lon + offset
-        };
-        
-        // Fetch data for the viewport
+
         const problemMap = ProblemsState.getProblemMap();
         const zoom = problemMap ? problemMap.getZoom() : 14;
+        const problemKey = getProblemKey(problem);
+        if (renderedContext && renderedContext.problemKey !== problemKey) {
+            renderedContext = null;
+            clearContextLayer();
+        }
         const params = {
-            min_lat: bounds.min_lat,
-            max_lat: bounds.max_lat,
-            min_lon: bounds.min_lon,
-            max_lon: bounds.max_lon,
-            limit: zoom < PROBLEM_LINE_ZOOM_THRESHOLD ? CONTEXT_LIMIT_LOW_ZOOM : CONTEXT_LIMIT_HIGH_ZOOM,
+            min_lat: center.lat - CONTEXT_COORDINATE_OFFSET,
+            max_lat: center.lat + CONTEXT_COORDINATE_OFFSET,
+            min_lon: center.lon - CONTEXT_COORDINATE_OFFSET,
+            max_lon: center.lon + CONTEXT_COORDINATE_OFFSET,
             zoom: zoom
         };
-        
-        // Cancel previous context request if still in flight
-        if (currentContextRequest && currentContextRequest.readyState !== 4) {
-            try { currentContextRequest.abort(); } catch(e) {}
-        }
-        currentContextRequest = $.getJSON("/api/data", params, function(data) {
-            if (data.length === 0) {
+
+        const requestSequence = ++contextRequestSequence;
+        abortCurrentContextRequest();
+
+        const request = $.getJSON('/api/data', params);
+        currentContextRequest = request;
+
+        request.done(function(payload) {
+            if (
+                requestSequence !== contextRequestSequence ||
+                request !== currentContextRequest ||
+                !ProblemsState.getShowContext()
+            ) {
                 return;
             }
-            
-            const contextMarkersLayer = ProblemsState.getContextMarkersLayer();
-            contextMarkersLayer.clearLayers();
-            
-            // Filter out the current problem by explicit identities only.
-            const problemIdentities = buildProblemIdentitySets(problem);
-            const filteredData = data.filter(stop => !stopMatchesProblemIdentities(stop, problemIdentities));
-            
-            // Collect marker data for cluster handling
-            var contextMarkerData = [];
-            var createdAtlasMarkers = new Set();
-            
-            // Process both ATLAS and OSM markers for each stop
-            filteredData.forEach(function(stop) {
-                // Handle ATLAS markers
-                const atlasMarkerKey = window.MapShared && typeof window.MapShared.getAtlasMarkerIdentity === 'function'
-                    ? window.MapShared.getAtlasMarkerIdentity(stop)
-                    : null;
-                if (stop.sloid && stop.atlas_lat != null && stop.atlas_lon != null && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
-                    let atlasColor = COLOR_OSM_UNMATCHED;
-                    if (stop.stop_type === 'matched') atlasColor = COLOR_ATLAS_MATCHED;
-                    else if (stop.stop_type === 'atlas_unmatched') atlasColor = COLOR_ATLAS_UNMATCHED;
-                    
-                    contextMarkerData.push({
-                        lat: parseFloat(stop.atlas_lat),
-                        lon: parseFloat(stop.atlas_lon),
-                        type: 'atlas',
-                        color: atlasColor,
-                        hasAtlasDuplicate: stop.has_atlas_duplicate,
-                        originalLat: parseFloat(stop.atlas_lat),
-                        originalLon: parseFloat(stop.atlas_lon),
-                        stopData: stop,
-                        opacity: 0.6
-                    });
-                    if (atlasMarkerKey) {
-                        createdAtlasMarkers.add(atlasMarkerKey);
-                    }
-                }
-                
-                // Handle OSM markers - both direct and from osm_matches array
-                const osmNodesToProcess = [];
-                
-                // Direct OSM data
-                if (stop.osm_node_id && stop.osm_lat != null && stop.osm_lon != null) {
-                    osmNodesToProcess.push(stop);
-                }
-                
-                // OSM data from osm_matches array
-                if (Array.isArray(stop.osm_matches)) {
-                    stop.osm_matches.forEach(osmMatch => {
-                        if (osmMatch.osm_node_id && osmMatch.osm_lat != null && osmMatch.osm_lon != null) {
-                            // Create a combined data object for the OSM marker
-                            const combinedOsmData = {
-                                ...stop, // Base stop data
-                                ...osmMatch, // Override with OSM-specific data
-                                id: osmMatch.osm_id || stop.id,
-                                osm_node_id: osmMatch.osm_node_id,
-                                osm_lat: osmMatch.osm_lat,
-                                osm_lon: osmMatch.osm_lon
-                            };
-                            osmNodesToProcess.push(combinedOsmData);
-                        }
-                    });
-                }
-                
-                // Create markers for all OSM nodes
-                osmNodesToProcess.forEach(osmData => {
-                    let osmColor = COLOR_OSM_UNMATCHED;
-                    if (osmData.stop_type === 'matched') osmColor = COLOR_OSM_MATCHED;
-                    else if (osmData.stop_type === 'osm_unmatched') osmColor = COLOR_OSM_UNMATCHED;
-                    
-                    contextMarkerData.push({
-                        lat: parseFloat(osmData.osm_lat),
-                        lon: parseFloat(osmData.osm_lon),
-                        type: 'osm',
-                        color: osmColor,
-                        osmNodeType: osmData.osm_node_type,
-                        originalLat: parseFloat(osmData.osm_lat),
-                        originalLon: parseFloat(osmData.osm_lon),
-                        stopData: osmData,
-                        opacity: 0.6
-                    });
-                });
-            });
-            
-            // Draw connection lines for matched pairs using LineRenderer (centralized, deduped)
-            LineRenderer.drawAll(filteredData, contextMarkersLayer, {
-                showAtlas: true,
-                showOsm: true,
-                minZoom: PROBLEM_LINE_ZOOM_THRESHOLD,
-                currentZoom: problemMap.getZoom(),
-                isContext: true
-            });
-            
-            // Create markers with overlap handling (batch add to keep UI responsive)
-            const contextMarkers = createMarkersWithOverlapHandling(contextMarkerData, contextMarkersLayer, { batchAdd: true, batchSize: 150 });
-            
-            // Apply opacity to markers after creation
-            contextMarkers.forEach(marker => {
-                if (marker.setOpacity) {
-                    marker.setOpacity(0.6); // For L.marker (duplicates)
-                } else if (marker.setStyle) {
-                    marker.setStyle({opacity: 0.6}); // For L.circleMarker (non-duplicates)
-                }
-            });
-            
+
+            const stops = normalizeContextResponse(payload);
+            if (stops === null) {
+                console.error('Failed to load context data: unexpected API response');
+                return;
+            }
+
+            renderedContext = {
+                problemKey: problemKey,
+                stops: stops
+            };
+            const renderZoom = problemMap ? problemMap.getZoom() : zoom;
+            renderContextData(problem, stops, problemMap, renderZoom);
         }).fail(function(jqXHR, textStatus, errorThrown) {
-            console.error("Failed to load context data:", textStatus, errorThrown);
+            if (requestSequence === contextRequestSequence && textStatus !== 'abort') {
+                console.error('Failed to load context data:', textStatus, errorThrown);
+            }
+        }).always(function() {
+            if (currentContextRequest === request) {
+                currentContextRequest = null;
+            }
         });
+
+        return request;
     }
 
     /**
@@ -340,10 +742,7 @@ window.ProblemsMap = (function() {
         } else {
             button.removeClass('btn-secondary').addClass('bg-white text-dark');
             button.html('<i class="fas fa-eye"></i> See other markers');
-            const contextMarkersLayer = ProblemsState.getContextMarkersLayer();
-            if (contextMarkersLayer) {
-                contextMarkersLayer.clearLayers();
-            }
+            clearContextData();
         }
     }
 
@@ -351,6 +750,7 @@ window.ProblemsMap = (function() {
      * Initialize modern resize functionality
      */
     function initializeResize() {
+        if (removeResizeHandlers) removeResizeHandlers();
         const mapSection = $('#mapSection');
         const problemSection = $('#problemSection');
         const resizeDivider = $('#resizeDivider');
@@ -360,7 +760,7 @@ window.ProblemsMap = (function() {
         let startMapWidth = 0;
         let startProblemWidth = 0;
 
-        resizeDivider.on('mousedown', function(e) {
+        resizeDivider.on('mousedown.problemsMapResize', function(e) {
             isResizing = true;
             startX = e.clientX;
             startMapWidth = mapSection.width();
@@ -371,7 +771,7 @@ window.ProblemsMap = (function() {
             e.preventDefault();
         });
 
-        $(document).on('mousemove', function(e) {
+        $(document).on('mousemove.problemsMapResize', function(e) {
             if (!isResizing) return;
             
             const deltaX = e.clientX - startX;
@@ -396,7 +796,7 @@ window.ProblemsMap = (function() {
             problemSection.css('flex', `0 0 ${newProblemWidth}px`);
         });
 
-        $(document).on('mouseup', function() {
+        $(document).on('mouseup.problemsMapResize', function() {
             if (isResizing) {
                 isResizing = false;
                 $('body').removeClass('user-select-none');
@@ -409,12 +809,23 @@ window.ProblemsMap = (function() {
                 }
             }
         });
+
+        removeResizeHandlers = function() {
+            resizeDivider.off('.problemsMapResize');
+            $(document).off('.problemsMapResize');
+            $('body').removeClass('user-select-none');
+            resizeDivider.removeClass('resizing');
+        };
     }
 
     // Public API
     return {
         initProblemMap,
+        invalidateMapSize,
+        destroyProblemMap,
+        renderProblem,
         loadContextData,
+        clearContextData,
         toggleContext,
         initializeResize
     };

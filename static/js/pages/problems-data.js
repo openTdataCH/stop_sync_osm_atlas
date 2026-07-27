@@ -237,7 +237,11 @@ window.ProblemsData = (function () {
                 const contextLayer = ProblemsState.getContextMarkersLayer();
                 if (markersLayer) markersLayer.clearLayers();
                 if (linesLayer) linesLayer.clearLayers();
-                if (contextLayer) contextLayer.clearLayers();
+                if (window.ProblemsMap && typeof window.ProblemsMap.clearContextData === 'function') {
+                    window.ProblemsMap.clearContextData();
+                } else if (contextLayer) {
+                    contextLayer.clearLayers();
+                }
             } else {
                 if (ProblemsState.getCurrentProblemIndex() === -1) {
                     ProblemsState.setCurrentProblemIndex(0);

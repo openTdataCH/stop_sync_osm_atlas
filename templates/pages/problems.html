@@ -183,25 +183,10 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- Leaflet scripts -->
-<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
-<!-- Shared constants and utilities (must load first) -->
-<script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
-<script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/mobile-filters.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/header-summary.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/map-shared.js') }}"></script>
-<!-- Shared filter chip utilities -->
-<script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>
-<!-- Shared popup and rendering utilities -->
-<script src="{{ url_for('static', filename='js/components/popup-utils.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/popup-renderer.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/move_popup.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/map-renderer.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/line-renderer.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
+{% include 'components/_map_scripts.html' %}
 <!-- Modular problems page scripts (order matters for dependencies) -->
 <script src="{{ url_for('static', filename='js/pages/problems-state.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pages/problems-renderer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/problems-map.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/problems-data.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/problems-ui.js') }}"></script>

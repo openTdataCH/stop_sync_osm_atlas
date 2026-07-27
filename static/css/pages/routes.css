@@ -17,11 +17,46 @@
   padding: 0 var(--space-4);
 }
 
+/* The GTFS↔SLOID view is a map workspace, like Index and Problems. Keep only
+   the normal page-edge spacing and let the map use the viewport below tabs. */
+.routes-page.routes-page--gtfs-map {
+  display: flex;
+  height: calc(100vh - var(--navbar-height));
+  height: calc(100dvh - var(--navbar-height));
+  min-height: 0;
+  padding: var(--space-2) 0;
+}
+
+.routes-container.routes-container--gtfs-map {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  padding: 0 var(--space-2);
+}
+
+.routes-container--gtfs-map .routes-header {
+  flex: 0 0 auto;
+  align-self: center;
+  width: min(1400px, calc(100% + var(--space-4)));
+  margin-bottom: var(--space-1);
+  padding: 0 var(--space-4);
+}
+
+.routes-container--gtfs-map .routes-header .c-page-tabs {
+  margin-bottom: 0;
+}
+
 .routes-header {
   margin-bottom: var(--space-2);
 }
 
 .routes-header .c-page-tabs {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow-x: auto;
   margin-bottom: var(--space-2);
 }
 
@@ -279,6 +314,7 @@
   color: var(--color-fg-muted);
   font-size: var(--text-sm);
   border-bottom: 1px solid var(--color-border);
+  margin-top: var(--space-3);
   padding-bottom: var(--space-3);
 }
 
@@ -290,7 +326,16 @@
   margin-top: var(--space-4);
 }
 
+.routes-container--gtfs-map .routes-gtfs-map-view {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 0;
+}
+
 .routes-gtfs-map-shell {
+  --zoom-banner-position: absolute;
+  --zoom-banner-top: 30px;
   position: relative;
   min-height: max(68vh, 620px);
   border-radius: var(--radius-lg);
@@ -300,31 +345,76 @@
   box-shadow: var(--shadow-md);
 }
 
+.routes-container--gtfs-map .routes-gtfs-map-shell {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+}
+
 .routes-gtfs-map {
   width: 100%;
   height: max(68vh, 620px);
 }
 
-.routes-gtfs-map-overlay {
+.routes-container--gtfs-map .routes-gtfs-map {
+  height: 100%;
+  min-height: 0;
+}
+
+.routes-gtfs-map-top-right {
   position: absolute;
   top: var(--space-4);
   right: var(--space-4);
   z-index: 1100;
-  width: min(360px, calc(100% - 2rem));
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: calc(100% - 2rem);
+}
+
+.routes-gtfs-map-overlay {
+  min-width: 0;
+  max-width: 360px;
 }
 
 .routes-gtfs-map-overlay .header-summary {
   position: static;
   width: fit-content;
   min-width: 0;
-  margin-left: auto; /* Align to the right of the overlay container */
+  margin-left: 0;
 }
 
-.routes-gtfs-map-info {
+.routes-gtfs-map-search {
   position: absolute;
   top: var(--space-4);
   left: var(--space-4);
   z-index: 1100;
+  width: 250px;
+  max-width: calc(100% - 5.5rem);
+}
+
+.routes-gtfs-map-search .input-group-text {
+  cursor: pointer;
+}
+
+.routes-gtfs-map-search .input-group-text:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.routes-gtfs-map-search .form-control {
+  min-width: 0;
+  box-shadow: none;
+}
+
+.routes-gtfs-map-search .smart-search-feedback,
+.routes-gtfs-map-search .smart-search-hint {
+  width: 100%;
+}
+
+.routes-gtfs-map-info {
+  position: relative;
+  flex: 0 0 auto;
 }
 
 .routes-gtfs-map-info__button {
@@ -350,7 +440,7 @@
 .routes-gtfs-map-info__tooltip {
   position: absolute;
   top: calc(100% + 0.55rem);
-  left: 0;
+  right: 0;
   width: min(430px, calc(100vw - 2.5rem));
   border-radius: var(--radius-md);
   border: 1px solid rgba(23, 64, 146, 0.2);
@@ -424,68 +514,6 @@
   background: #6C757D;
 }
 
-.routes-gtfs-popup {
-  min-width: 280px;
-}
-
-.routes-gtfs-popup__title {
-  margin: 0 0 var(--space-2) 0;
-  font-size: var(--text-base);
-  font-weight: var(--font-semibold);
-}
-
-.routes-gtfs-popup__meta {
-  margin: 0 0 var(--space-2) 0;
-  color: var(--color-fg-muted);
-  font-size: var(--text-xs);
-}
-
-.routes-gtfs-popup__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-}
-
-.routes-gtfs-popup__table td {
-  padding: 0.2rem 0;
-  vertical-align: top;
-}
-
-.routes-gtfs-popup__table td:first-child {
-  width: 110px;
-  color: var(--color-fg-muted);
-  font-weight: var(--font-semibold);
-}
-
-.routes-gtfs-popup__section {
-  margin-top: var(--space-3);
-}
-
-.routes-gtfs-popup__section h6 {
-  margin: 0 0 var(--space-1) 0;
-  font-size: var(--text-xs);
-  font-weight: var(--font-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-fg-muted);
-}
-
-.routes-gtfs-popup__list {
-  margin: 0;
-  padding-left: 1rem;
-  font-size: var(--text-sm);
-}
-
-.routes-gtfs-popup__empty {
-  margin: 0;
-  color: var(--color-fg-muted);
-  font-size: var(--text-sm);
-}
-
-.routes-gtfs-popup__mono {
-  font-family: var(--font-mono);
-}
-
 .routes-filters-display {
   position: relative;
   min-width: 0;
@@ -515,9 +543,11 @@
 }
 
 .routes-filters-display #activeFilters {
-  padding-top: 0;
+  padding: 0;
   border-top: none;
+  background: transparent;
   display: inline-flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 0;
 }
@@ -1047,10 +1077,10 @@
 }
 
 @media (max-width: 991px) {
-  .routes-gtfs-map-overlay {
+  .routes-gtfs-map-top-right {
     top: var(--space-3);
     right: var(--space-3);
-    width: min(340px, calc(100% - 1.5rem));
+    max-width: calc(100% - 1.5rem);
   }
 
   .routes-toolbar__inline {
@@ -1088,17 +1118,17 @@
     height: 70vh;
   }
 
-  .routes-gtfs-map-overlay {
-    top: auto;
+  .routes-gtfs-map-top-right {
+    top: calc(var(--space-2) + 44px);
     right: var(--space-2);
-    bottom: var(--space-2);
-    left: var(--space-2);
-    width: auto;
+    max-width: calc(100% - 1rem);
   }
 
-  .routes-gtfs-map-banner {
+  .routes-gtfs-map-search {
     top: var(--space-2);
-    max-width: calc(100% - 1rem);
+    left: var(--space-2);
+    width: calc(100% - 5.5rem);
+    max-width: none;
   }
 
   .routes-container {

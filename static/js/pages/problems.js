@@ -3,6 +3,8 @@
 $(document).ready(function () {
     var headerSummaryFiltersExpanded = false;
     var headerSummaryCollapsed = false;
+    var headerSummaryController = null;
+    var mobileFiltersController = null;
 
     function setMainLayoutHeights() {
         const root = $('.problems-page-root');
@@ -47,8 +49,8 @@ $(document).ready(function () {
 
     function applyHeaderSummaryLayoutState() {
         headerSummaryCollapsed = isMobileViewport();
-        if (window.HeaderSummary && typeof window.HeaderSummary.setCollapsed === 'function') {
-            window.HeaderSummary.setCollapsed(headerSummaryCollapsed);
+        if (headerSummaryController) {
+            headerSummaryController.setCollapsed(headerSummaryCollapsed, 'viewport');
         }
     }
 
@@ -97,8 +99,8 @@ $(document).ready(function () {
             }
         });
         updateSummaryStats();
-        if (window.HeaderSummary && typeof window.HeaderSummary.syncFilters === 'function') {
-            window.HeaderSummary.syncFilters({
+        if (headerSummaryController) {
+            headerSummaryController.syncFilters({
                 activeFilterCount: getActiveProblemsFilterCount(),
                 expanded: headerSummaryFiltersExpanded
             });
@@ -110,64 +112,20 @@ $(document).ready(function () {
     };
 
     function bindFilterEvents() {
-        $('#mobileFiltersToggleProblems').on('click', function () {
-            const overlay = document.querySelector('.top-filters-overlay');
-            const currentlyOpen = overlay ? overlay.classList.contains('is-mobile-open') : false;
-            const nextOpen = !currentlyOpen;
-            if (window.MobileFilters && typeof window.MobileFilters.setMobileFiltersOpen === 'function') {
-                window.MobileFilters.setMobileFiltersOpen({
-                    overlaySelector: '.top-filters-overlay',
-                    toggleId: 'mobileFiltersToggleProblems',
-                    isOpen: nextOpen
-                });
-            }
-            if (nextOpen && window.HeaderSummary && typeof window.HeaderSummary.setCollapsed === 'function') {
-                headerSummaryCollapsed = true;
-                window.HeaderSummary.setCollapsed(true);
-            }
-        });
-
-        $(document).on('change', '.filter-problem-type', function () {
+        $(document).on('change.problemsPage', '.filter-problem-type', function () {
             const type = String($(this).val() || '');
             const isChecked = $(this).is(':checked');
             ProblemsData.updateProblemTypeFilter(type, isChecked);
             renderFiltersSummary();
         });
 
-        $(document).on('click', '#priorityFilterProblems .priority-option', function (e) {
+        $(document).on('click.problemsPage', '#priorityFilterProblems .priority-option', function (e) {
             e.preventDefault();
             const priority = String($(this).data('priority'));
             ProblemsData.updatePriorityFilter(priority);
             renderFiltersSummary();
         });
 
-        $(document).on('click', '#clearAllFilters', function (e) {
-            e.preventDefault();
-            clearAllProblemFilters();
-        });
-
-        $(document).on('click', '#headerSummaryFiltersToggle', function (e) {
-            e.preventDefault();
-            if ($(this).prop('disabled')) return;
-            headerSummaryFiltersExpanded = !headerSummaryFiltersExpanded;
-            renderFiltersSummary();
-        });
-
-        $(document).on('click', '#headerSummaryMobileToggle', function (e) {
-            e.preventDefault();
-            if (!isMobileViewport()) return;
-            if (window.MobileFilters && typeof window.MobileFilters.setMobileFiltersOpen === 'function') {
-                window.MobileFilters.setMobileFiltersOpen({
-                    overlaySelector: '.top-filters-overlay',
-                    toggleId: 'mobileFiltersToggleProblems',
-                    isOpen: false
-                });
-            }
-            headerSummaryCollapsed = !headerSummaryCollapsed;
-            if (window.HeaderSummary && typeof window.HeaderSummary.setCollapsed === 'function') {
-                window.HeaderSummary.setCollapsed(headerSummaryCollapsed);
-            }
-        });
     }
 
     ProblemsMap.initProblemMap();
@@ -179,6 +137,38 @@ $(document).ready(function () {
         onSelectionChange: function (selectedOperators) {
             ProblemsState.setSelectedAtlasOperators(selectedOperators);
             refreshProblemsAfterFilterChange();
+        }
+    });
+
+    headerSummaryController = window.HeaderSummary.bind({
+        getActiveFilterCount: getActiveProblemsFilterCount,
+        filtersExpanded: headerSummaryFiltersExpanded,
+        collapsed: isMobileViewport(),
+        isMobileViewport: isMobileViewport,
+        onFiltersExpandedChange: function (expanded) {
+            headerSummaryFiltersExpanded = expanded;
+        },
+        onCollapsedChange: function (collapsed, meta) {
+            headerSummaryCollapsed = collapsed;
+            if (meta.source === 'mobile-toggle' && mobileFiltersController) {
+                mobileFiltersController.setOpen(false, 'summary-toggle');
+            }
+        },
+        onClearAll: clearAllProblemFilters
+    });
+    mobileFiltersController = window.MobileFilters.bind({
+        elements: {
+            overlay: '.top-filters-overlay',
+            toggle: '#mobileFiltersToggleProblems'
+        },
+        isOpen: false,
+        closeOnOutsideClick: true,
+        closeOnEscape: true,
+        onOpenChange: function (open) {
+            if (open && isMobileViewport()) {
+                headerSummaryCollapsed = true;
+                headerSummaryController.setCollapsed(true, 'mobile-filters');
+            }
         }
     });
 
@@ -195,16 +185,30 @@ $(document).ready(function () {
         ProblemsUI.showKeyboardHint();
     }, 2000);
 
-    $(window).on('resize', function () {
+    $(window).on('resize.problemsPage', function () {
         setMainLayoutHeights();
         applyHeaderSummaryLayoutState();
     });
+
+    window.addEventListener('pagehide', function (event) {
+        if (event.persisted) return;
+        if (headerSummaryController) headerSummaryController.destroy();
+        if (mobileFiltersController) mobileFiltersController.destroy();
+        if (window.operatorDropdownProblems && window.operatorDropdownProblems.destroy) {
+            window.operatorDropdownProblems.destroy();
+        }
+        if (window.ProblemsMap) window.ProblemsMap.destroyProblemMap();
+        $(document).off('.problemsPage');
+        $(window).off('.problemsPage');
+        $('#prevProblemBtn, #nextProblemBtn, #toggleContextBtn').off('.problemsPage');
+        $('#activeFilters').off('.filterchips');
+    }, { once: true });
 
     setTimeout(function () {
         setMainLayoutHeights();
     }, 300);
 
-    $('#prevProblemBtn').on('click', function () {
+    $('#prevProblemBtn').on('click.problemsPage', function () {
         const currentIndex = ProblemsState.getCurrentProblemIndex();
         if (currentIndex > 0) {
             ProblemsState.setCurrentProblemIndex(currentIndex - 1);
@@ -214,13 +218,13 @@ $(document).ready(function () {
         }
     });
 
-    $('#nextProblemBtn').on('click', function () {
+    $('#nextProblemBtn').on('click.problemsPage', function () {
         ProblemsData.navigateToNextProblem();
     });
 
-    $('#toggleContextBtn').on('click', ProblemsMap.toggleContext);
+    $('#toggleContextBtn').on('click.problemsPage', ProblemsMap.toggleContext);
 
-    $(document).on('keydown', function (e) {
+    $(document).on('keydown.problemsPage', function (e) {
         if (!$(e.target).is('input, textarea, select')) {
             ProblemsUI.hideKeyboardHint();
 

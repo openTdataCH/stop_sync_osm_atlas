@@ -65,9 +65,12 @@ services:
       # Flask environment variables (some are also in Dockerfile for explicitness)
       FLASK_APP: backend/app.py
       FLASK_ENV: development # Or production
-      FLASK_DEBUG: 1 # Enables Flask debugger
+      FLASK_DEBUG: ${FLASK_DEBUG:-1} # 1 = Flask debugger, 0 = Gunicorn
       # Database URI for SQLAlchemy, now configurable via .env
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
+      WEB_DB_CONNECT_TIMEOUT_SECONDS: ${WEB_DB_CONNECT_TIMEOUT_SECONDS:-5}
+      WEB_DB_LOCK_TIMEOUT_MS: ${WEB_DB_LOCK_TIMEOUT_MS:-3000}
+      WEB_DB_STATEMENT_TIMEOUT_MS: ${WEB_DB_STATEMENT_TIMEOUT_MS:-25000}
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}

@@ -7,7 +7,10 @@
         class="d-inline-block align-top me-2">
       <div class="d-flex flex-column mt-1">
         <span class="fw-bold navbar-brand-text">OSM &amp; ATLAS Synchronization</span>
-        <small class="text-muted" style="font-size:0.75rem; line-height:1;">Version beta 0.1</small>
+        <a href="{{ url_for('docs.docs_page', page='changelog') }}" target="_blank"
+          class="text-muted" style="font-size:0.75rem; line-height:1; text-decoration:none;"
+          onclick="event.stopPropagation()"
+          onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">Version 0.5</a>
       </div>
     </a>
 

@@ -29,6 +29,7 @@
    *  - removeClass: anchor class to hook removal handler (default: 'remove-filter')
    *  - data: object of data-* attributes for the anchor (e.g., { type: 'nodeType', filter: 'atlas' })
    *  - closeChar: character for the close button (default: 'x')
+   *  - removeLabel: optional accessible label for the remove action
    */
   function buildRemovableChip(options) {
     options = options || {};
@@ -37,6 +38,7 @@
     const removeClass = options.removeClass || 'remove-filter';
     const data = options.data || {};
     const closeChar = (options.closeChar == null ? 'x' : String(options.closeChar));
+    const removeLabel = options.removeLabel ? String(options.removeLabel) : '';
 
     let dataAttrs = '';
     Object.keys(data).forEach(function(key) {
@@ -46,8 +48,12 @@
       dataAttrs += ' ' + attrName + '="' + escapeHtml(val) + '"';
     });
 
+    const accessibilityAttrs = removeLabel
+      ? ' aria-label="' + escapeHtml(removeLabel) + '" title="' + escapeHtml(removeLabel) + '"'
+      : '';
+
     return '<span class="' + FILTER_CHIP_BADGE_CLASS + ' ' + extraBadgeClass + '">' + label +
-           ' <a href="#" class="text-dark ' + removeClass + '"' + dataAttrs + '>' + escapeHtml(closeChar) + '</a></span>';
+           ' <a href="#" class="text-dark ' + removeClass + '"' + dataAttrs + accessibilityAttrs + '>' + escapeHtml(closeChar) + '</a></span>';
   }
 
   function generateOperatorChipsHtml(operators, options = {}) {
@@ -214,5 +220,4 @@
 
   global.FilterChipUtils = { generateOperatorChipsHtml, generateProblemChipGroups, renderProblemChips, buildOrGroupHtml, joinWithAndHtml, buildRemovableChip, buildDirectionDropdownHtml, bindDirectionDropdownEvents };
 })(window);
-
 

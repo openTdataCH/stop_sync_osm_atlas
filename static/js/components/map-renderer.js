@@ -1,16 +1,10 @@
-// static/js/map-renderer.js
-
-// This file contains shared functions for rendering markers, popups, and lines on a Leaflet map.
+// Shared, domain-neutral Leaflet marker and popup primitives.
 
 // Cache for reusing identical L.divIcon instances
 const DivIconCache = new Map();
 const MAP_RENDERER_LABEL_ICON_MIN_ZOOM = (typeof AppConstants !== 'undefined' && AppConstants.MAP && AppConstants.MAP.LABEL_ICON_MIN_ZOOM) || 18;
-const MAP_RENDERER_COLORS = (typeof AppConstants !== 'undefined' && AppConstants.COLORS) || {};
-const COLOR_ATLAS_MATCHED = MAP_RENDERER_COLORS.ATLAS_MATCHED || '#174092';
-const COLOR_OSM_MATCHED = MAP_RENDERER_COLORS.OSM_MATCHED || '#4CAF50';
-const COLOR_ATLAS_UNMATCHED = MAP_RENDERER_COLORS.ATLAS_UNMATCHED || '#DC3545';
-const COLOR_OSM_UNMATCHED = MAP_RENDERER_COLORS.OSM_UNMATCHED || '#6C757D';
-const COLOR_LINE_ATLAS_OSM = MAP_RENDERER_COLORS.LINE_ATLAS_OSM || '#174092';
+const MARKER_OVERLAP_POINT_EPSILON_PX = 0.00001;
+const MIN_VISIBLE_OVERLAP_OFFSET_PX = 0.5;
 const OSM_LABEL_BY_NODE_TYPE = Object.freeze({
     platform: 'P',
     railway_station: 'S'
@@ -47,9 +41,8 @@ function resolveMarkerZoom(zoomOverride) {
     if (typeof zoomOverride === 'number' && !Number.isNaN(zoomOverride)) {
         return zoomOverride;
     }
-    if (typeof map !== 'undefined' && map && map.getZoom) {
-        return map.getZoom();
-    }
+    // Callers that care about the circle/icon threshold must pass zoom explicitly.
+    // The high-zoom representation is the deterministic compatibility default.
     return MAP_RENDERER_LABEL_ICON_MIN_ZOOM;
 }
 
@@ -69,229 +62,232 @@ function getCachedLabeledCircleIcon(keyPrefix, color, letter, size, radius, weig
 }
 
 /**
- * MarkerClusterManager handles overlapping markers by grouping them by coordinates
- * and applying professional offset patterns with visual indicators.
+ * Groups near-coincident markers within a maximum-zoom pixel threshold and
+ * gives each member a small, stable display displacement. Source coordinates
+ * are never mutated; callers receive separate display coordinates.
  */
 class MarkerClusterManager {
-    constructor() {
-        this.clusters = new Map(); // Key: "lat,lon", Value: array of marker data
-        this.offsetRadius = AppConstants.MARKERS.CLUSTER_OFFSET_RADIUS; // Pixels to offset markers
-        this.coordinateTolerance = AppConstants.MARKERS.COORDINATE_TOLERANCE; // Consider coordinates "same" if within this tolerance
+    constructor(options = {}) {
+        this.map = options.map || null;
+        this.zoom = typeof options.zoom === 'number' ? options.zoom : null;
+        this.bindPopup = typeof options.bindPopup === 'function' ? options.bindPopup : null;
+        this.entries = [];
+        this.offsetRadius = AppConstants.MARKERS.CLUSTER_OFFSET_RADIUS;
+        this.coordinateTolerance = AppConstants.MARKERS.COORDINATE_TOLERANCE;
+        this.overlapDistance = (
+            typeof options.overlapDistance === 'number' && options.overlapDistance > 0
+        ) ? options.overlapDistance : this.offsetRadius * 2;
+        this.referenceZoom = this._resolveReferenceZoom(options.referenceZoom);
     }
 
-    /**
-     * Creates an ATLAS marker for clustered/offset rendering.
-     * Delegates to the globally available createAtlasMarker helper.
-     */
-    _createAtlasMarkerWithCluster(lat, lon, color, hasAtlasDuplicate, clusterSize, index, originalLat, originalLon) {
-        try {
-            return createAtlasMarker(lat, lon, color, hasAtlasDuplicate);
-        } catch (e) {
-            // Fallback to a simple circle marker if helper is unavailable
-            return L.circleMarker([lat, lon], {
-                color: color,
-                radius: 6,
-                fillOpacity: 0.5,
-                weight: 2
-            });
+    _resolveReferenceZoom(override) {
+        if (typeof override === 'number' && Number.isFinite(override)) return override;
+        if (this.map && typeof this.map.getMaxZoom === 'function') {
+            const mapMaxZoom = this.map.getMaxZoom();
+            if (typeof mapMaxZoom === 'number' && Number.isFinite(mapMaxZoom)) return mapMaxZoom;
         }
+        const configuredMaxZoom = AppConstants.MAP && AppConstants.MAP.MAX_ZOOM;
+        return (typeof configuredMaxZoom === 'number' && Number.isFinite(configuredMaxZoom))
+            ? configuredMaxZoom
+            : 20;
+    }
+
+    _hasProjection() {
+        return !!(
+            this.map &&
+            typeof this.map.project === 'function' &&
+            typeof this.map.unproject === 'function'
+        );
+    }
+
+    _hasVisibleLayoutOffset() {
+        if (typeof this.zoom !== 'number' || !Number.isFinite(this.zoom)) return true;
+        const currentPixelRadius = this.offsetRadius * Math.pow(2, this.zoom - this.referenceZoom);
+        return currentPixelRadius >= MIN_VISIBLE_OVERLAP_OFFSET_PX;
+    }
+
+    _sortEntries(entries) {
+        return entries.sort((a, b) => {
+            const rank = { atlas: 0, osm: 1, gtfs: 2 };
+            const aType = a.type || a.entityType || '';
+            const bType = b.type || b.entityType || '';
+            const typeDifference = (rank[aType] ?? 9) - (rank[bType] ?? 9);
+            if (typeDifference !== 0) return typeDifference;
+            const aKey = String(a.key || a.entityKey || '');
+            const bKey = String(b.key || b.entityKey || '');
+            return aKey.localeCompare(bKey);
+        });
     }
 
     /**
-     * Creates an OSM marker for clustered/offset rendering.
-     * Delegates to the globally available createOsmMarker helper.
-     */
-    _createOsmMarkerWithCluster(lat, lon, color, osmNodeType, clusterSize, index, originalLat, originalLon) {
-        try {
-            return createOsmMarker(lat, lon, color, osmNodeType);
-        } catch (e) {
-            // Fallback to a simple circle marker if helper is unavailable
-            return L.circleMarker([lat, lon], {
-                color: color,
-                radius: 6,
-                fillOpacity: 0.5,
-                weight: 2
-            });
-        }
-    }
-
-    /**
-     * Normalizes coordinates to group nearby markers together
-     * @param {number} lat - Latitude
-     * @param {number} lon - Longitude
-     * @returns {string} Normalized coordinate key
-     */
-    _normalizeCoordinates(lat, lon) {
-        const normalizedLat = Math.round(lat / this.coordinateTolerance) * this.coordinateTolerance;
-        const normalizedLon = Math.round(lon / this.coordinateTolerance) * this.coordinateTolerance;
-        return `${normalizedLat},${normalizedLon}`;
-    }
-
-    /**
-     * Adds a marker to the cluster management system
-     * @param {number} lat - Latitude
-     * @param {number} lon - Longitude
-     * @param {Object} markerData - Marker data including type, color, popup, etc.
+     * Adds a marker without changing its source coordinate.
      */
     addMarker(lat, lon, markerData) {
-        const key = this._normalizeCoordinates(lat, lon);
+        const sourceLat = (lat == null || (typeof lat === 'string' && lat.trim() === ''))
+            ? NaN
+            : Number(lat);
+        const sourceLon = (lon == null || (typeof lon === 'string' && lon.trim() === ''))
+            ? NaN
+            : Number(lon);
+        if (!Number.isFinite(sourceLat) || !Number.isFinite(sourceLon)) return false;
 
-        if (!this.clusters.has(key)) {
-            this.clusters.set(key, []);
+        this.entries.push({
+            ...markerData,
+            lat: sourceLat,
+            lon: sourceLon
+        });
+        return true;
+    }
+
+    _locateEntries() {
+        const useProjection = this._hasProjection();
+        const entries = this._sortEntries(this.entries.slice());
+        return {
+            useProjection: useProjection,
+            threshold: useProjection ? this.overlapDistance : this.coordinateTolerance,
+            members: entries.map((entry) => {
+                const point = useProjection
+                    ? this.map.project([entry.lat, entry.lon], this.referenceZoom)
+                    : { x: entry.lon, y: entry.lat };
+                return { entry: entry, point: { x: Number(point.x), y: Number(point.y) } };
+            })
+        };
+    }
+
+    /**
+     * Build non-transitive proximity groups around deterministic anchors.
+     * A spatial index avoids coordinate-rounding boundaries and keeps dense
+     * co-located data linear rather than comparing every marker with every other.
+     */
+    _buildGroups() {
+        const located = this._locateEntries();
+        const threshold = located.threshold;
+        const thresholdSquared = threshold * threshold;
+        const grid = new Map();
+        const groups = [];
+
+        function cellKey(x, y) {
+            return `${x}:${y}`;
         }
 
-        this.clusters.get(key).push({
-            lat: lat,
-            lon: lon,
-            ...markerData
-        });
-    }
+        located.members.forEach((member) => {
+            const cellX = Math.floor(member.point.x / threshold);
+            const cellY = Math.floor(member.point.y / threshold);
+            let selectedGroup = null;
+            let selectedDistanceSquared = Infinity;
 
-    /**
-     * Calculates offset positions for overlapping markers in a circular pattern
-     * @param {number} centerLat - Center latitude
-     * @param {number} centerLon - Center longitude
-     * @param {number} count - Number of markers to offset
-     * @param {number} index - Index of current marker
-     * @returns {Object} Object with offsetLat and offsetLon
-     */
-    _calculateOffset(centerLat, centerLon, count, index) {
-        if (count === 1) {
-            return { offsetLat: centerLat, offsetLon: centerLon };
-        }
-
-        // Convert offset radius from pixels to approximate degrees
-        // This is a rough approximation - exact conversion depends on zoom level
-        const pixelToDegree = 0.000008; // Approximate conversion factor
-        const radiusInDegrees = this.offsetRadius * pixelToDegree;
-
-        // Arrange markers in a circular pattern around the center
-        const angle = (2 * Math.PI * index) / count;
-        const offsetLat = centerLat + radiusInDegrees * Math.sin(angle);
-        const offsetLon = centerLon + radiusInDegrees * Math.cos(angle);
-
-        return { offsetLat, offsetLon };
-    }
-
-    /**
-     * Returns the clustered data with calculated offsets, without creating Leaflet markers.
-     * @returns {Array} Array of objects { lat, lon, markerData }
-     */
-    getClusteredData() {
-        const results = [];
-        this.clusters.forEach((markerDataArray, coordKey) => {
-            const [centerLat, centerLon] = coordKey.split(',').map(Number);
-            const clusterSize = markerDataArray.length;
-
-            // Sort markers to ensure consistent ordering (Atlas first, then OSM)
-            markerDataArray.sort((a, b) => {
-                if (a.type === 'atlas' && b.type === 'osm') return -1;
-                if (a.type === 'osm' && b.type === 'atlas') return 1;
-                return 0;
-            });
-
-            markerDataArray.forEach((markerData, index) => {
-                const { offsetLat, offsetLon } = this._calculateOffset(centerLat, centerLon, clusterSize, index);
-                results.push({
-                    lat: offsetLat,
-                    lon: offsetLon,
-                    markerData: markerData
-                });
-            });
-        });
-        return results;
-    }
-
-    /**
-     * Creates all markers with proper offset handling
-     * @param {L.LayerGroup} layer - Leaflet layer group to add markers to
-     * @returns {Array} Array of created markers
-     */
-    createMarkersWithOffsets(layer, options = {}) {
-        const allMarkers = [];
-
-        this.clusters.forEach((markerDataArray, coordKey) => {
-            const [centerLat, centerLon] = coordKey.split(',').map(Number);
-            const clusterSize = markerDataArray.length;
-
-            // Sort markers to ensure consistent ordering (Atlas first, then OSM)
-            markerDataArray.sort((a, b) => {
-                if (a.type === 'atlas' && b.type === 'osm') return -1;
-                if (a.type === 'osm' && b.type === 'atlas') return 1;
-                return 0;
-            });
-
-            markerDataArray.forEach((markerData, index) => {
-                const { offsetLat, offsetLon } = this._calculateOffset(centerLat, centerLon, clusterSize, index);
-
-                // Create the marker with offset position
-                let marker;
-                if (markerData.type === 'atlas') {
-                    marker = this._createAtlasMarkerWithCluster(
-                        offsetLat, offsetLon, markerData.color, markerData.hasAtlasDuplicate,
-                        clusterSize, index, markerData.originalLat, markerData.originalLon
-                    );
-                } else {
-                    marker = this._createOsmMarkerWithCluster(
-                        offsetLat, offsetLon, markerData.color, markerData.osmNodeType,
-                        clusterSize, index, markerData.originalLat, markerData.originalLon
-                    );
-                }
-
-                // Bind popup or lazy loader and add to layer
-                if (markerData.popup) {
-                    marker.bindPopup(markerData.popup);
-                } else if (markerData.stopData && markerData.type) {
-                    // Lazy-load popup on first click (no temporary placeholder)
-                    marker.on('click', () => {
-                        if (marker._popupLoaded || marker._popupLoading) {
-                            if (marker._popupLoaded && marker.getPopup()) marker.openPopup();
-                            return;
+            for (let x = cellX - 1; x <= cellX + 1; x++) {
+                for (let y = cellY - 1; y <= cellY + 1; y++) {
+                    const candidates = grid.get(cellKey(x, y)) || [];
+                    candidates.forEach((group) => {
+                        const dx = member.point.x - group.anchor.x;
+                        const dy = member.point.y - group.anchor.y;
+                        const distanceSquared = dx * dx + dy * dy;
+                        if (distanceSquared <= thresholdSquared && distanceSquared < selectedDistanceSquared) {
+                            selectedGroup = group;
+                            selectedDistanceSquared = distanceSquared;
                         }
-                        marker._popupLoading = true;
-                        $.ajax({
-                            url: '/api/stop_popup',
-                            method: 'GET',
-                            dataType: 'json',
-                            data: { stop_id: markerData.stopData.id, view_type: markerData.type },
-                            cache: false,
-                            timeout: 8000,
-                            success: function (resp) {
-                                try {
-                                    const enriched = resp && (resp.stop || resp);
-                                    let content = '';
-                                    if (enriched && enriched.stop_type === 'atlas_unmatched') {
-                                        content = markerData.type === 'atlas'
-                                            ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
-                                            : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
-                                    } else {
-                                        content = PopupRenderer.generatePopupHtml(enriched, markerData.type);
-                                    }
-                                    const popup = createPopupWithOptions(content);
-                                    marker.bindPopup(popup);
-                                    marker._popupLoaded = true;
-                                    marker.openPopup();
-                                } catch (e) {
-                                    console.error('Failed to render popup:', e);
-                                } finally {
-                                    marker._popupLoading = false;
-                                }
-                            },
-                            error: function () {
-                                marker._popupLoading = false;
-                            }
-                        });
                     });
                 }
+            }
 
-                if (!options.deferAdd) {
-                    layer.addLayer(marker);
-                }
-                allMarkers.push(marker);
-            });
+            if (selectedGroup) {
+                selectedGroup.members.push(member);
+                return;
+            }
+
+            const group = { anchor: member.point, members: [member] };
+            groups.push(group);
+            const key = cellKey(cellX, cellY);
+            if (!grid.has(key)) grid.set(key, []);
+            grid.get(key).push(group);
         });
 
-        return allMarkers;
+        return { groups: groups, useProjection: located.useProjection };
+    }
+
+    _unprojectDisplayPoint(point, useProjection) {
+        if (useProjection) {
+            const latLng = this.map.unproject(point, this.referenceZoom);
+            return { lat: Number(latLng.lat), lon: Number(latLng.lng) };
+        }
+        return { lat: point.y, lon: point.x };
+    }
+
+    _layoutGroup(group, useProjection) {
+        if (group.members.length === 1) {
+            const entry = group.members[0].entry;
+            return [{ lat: entry.lat, lon: entry.lon, markerData: entry }];
+        }
+
+        const origin = group.members[0].point;
+        const centerOffset = group.members.reduce((total, member) => ({
+            x: total.x + (member.point.x - origin.x),
+            y: total.y + (member.point.y - origin.y)
+        }), { x: 0, y: 0 });
+        const center = {
+            x: origin.x + centerOffset.x / group.members.length,
+            y: origin.y + centerOffset.y / group.members.length
+        };
+        const fallbackRadius = this.offsetRadius * 360 / (256 * Math.pow(2, this.referenceZoom));
+        const radius = useProjection ? this.offsetRadius : fallbackRadius;
+
+        return group.members.map((member, index) => {
+            let dx = member.point.x - center.x;
+            let dy = member.point.y - center.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > MARKER_OVERLAP_POINT_EPSILON_PX) {
+                dx /= distance;
+                dy /= distance;
+            } else {
+                const angle = (2 * Math.PI * index) / group.members.length;
+                dx = Math.cos(angle);
+                dy = Math.sin(angle);
+            }
+
+            const display = this._unprojectDisplayPoint({
+                x: member.point.x + radius * dx,
+                y: member.point.y + radius * dy
+            }, useProjection);
+            return { lat: display.lat, lon: display.lon, markerData: member.entry };
+        });
+    }
+
+    /**
+     * Returns stable display coordinates without creating Leaflet markers.
+     */
+    getClusteredData() {
+        // At lower zooms the stable reference-zoom offset is subpixel. Avoid
+        // projecting and grouping thousands of markers for no visible result.
+        if (!this._hasVisibleLayoutOffset()) {
+            return this.entries.map((entry) => ({
+                lat: entry.lat,
+                lon: entry.lon,
+                markerData: entry
+            }));
+        }
+        const layout = this._buildGroups();
+        return layout.groups.flatMap((group) => this._layoutGroup(group, layout.useProjection));
+    }
+
+    /**
+     * Creates markers from the same display-coordinate data used by registry callers.
+     */
+    createMarkersWithOffsets(layer, options = {}) {
+        return this.getClusteredData().map(({ lat, lon, markerData }) => {
+            const marker = markerData.type === 'atlas'
+                ? createAtlasMarker(lat, lon, markerData.color, markerData.hasAtlasDuplicate, this.zoom)
+                : createOsmMarker(lat, lon, markerData.color, markerData.osmNodeType, this.zoom);
+
+            if (markerData.popup) {
+                marker.bindPopup(markerData.popup);
+            } else if (this.bindPopup) {
+                this.bindPopup(marker, markerData);
+            }
+            if (!options.deferAdd) layer.addLayer(marker);
+            return marker;
+        });
     }
 }
 
@@ -375,21 +371,56 @@ function createOsmMarker(lat, lon, color, osmNodeType = null, zoomOverride) {
  */
 function addLayersInChunks(layer, markers, batchSize = 200) {
     let currentIndex = 0;
+    let timeoutId = null;
+    let cancelled = false;
+    let settle;
+    const complete = new Promise(resolve => { settle = resolve; });
+
+    function finish(status) {
+        if (!settle) return;
+        const resolve = settle;
+        settle = null;
+        resolve({ status: status, added: currentIndex });
+    }
+
     function addNextChunk() {
+        timeoutId = null;
+        if (cancelled) {
+            finish('cancelled');
+            return;
+        }
         const end = Math.min(currentIndex + batchSize, markers.length);
         for (let i = currentIndex; i < end; i++) {
             try { layer.addLayer(markers[i]); } catch (e) { }
         }
         currentIndex = end;
         if (currentIndex < markers.length) {
-            setTimeout(addNextChunk, 0);
+            timeoutId = setTimeout(addNextChunk, 0);
+        } else {
+            finish('complete');
         }
     }
     addNextChunk();
+    return {
+        complete: complete,
+        cancel: function() {
+            if (cancelled || !settle) return;
+            cancelled = true;
+            if (timeoutId != null) clearTimeout(timeoutId);
+            timeoutId = null;
+            finish('cancelled');
+        }
+    };
 }
 
 function createMarkersWithOverlapHandling(markerDataArray, layer, options = {}) {
-    const clusterManager = new MarkerClusterManager();
+    const clusterManager = new MarkerClusterManager({
+        map: options.map || null,
+        zoom: typeof options.zoom === 'number'
+            ? options.zoom
+            : (options.map && typeof options.map.getZoom === 'function' ? options.map.getZoom() : null),
+        bindPopup: options.bindPopup
+    });
 
     // Add all markers to the cluster manager
     markerDataArray.forEach(markerData => {
@@ -400,9 +431,36 @@ function createMarkersWithOverlapHandling(markerDataArray, layer, options = {}) 
     const markers = clusterManager.createMarkersWithOffsets(layer, { deferAdd: !!options.batchAdd });
     if (options.batchAdd) {
         const batchSize = options.batchSize || 200;
-        addLayersInChunks(layer, markers, batchSize);
+        const batch = addLayersInChunks(layer, markers, batchSize);
+        Object.defineProperties(markers, {
+            batchComplete: { value: batch.complete },
+            cancelBatch: { value: batch.cancel }
+        });
     }
     return markers;
+}
+
+/**
+ * Apply opacity safely to either an L.Path marker or a DOM-icon L.Marker.
+ */
+function setMarkerOpacity(marker, opacity, fillOpacity = opacity) {
+    if (!marker) return marker;
+    if (typeof marker.setStyle === 'function') {
+        marker.setStyle({ opacity: opacity, fillOpacity: fillOpacity });
+    } else if (typeof marker.setOpacity === 'function') {
+        marker.setOpacity(opacity);
+    }
+    return marker;
+}
+
+function getMarkerRenderSignature(type, color, markerData, zoomOverride) {
+    const zoom = resolveMarkerZoom(zoomOverride);
+    const atlasHasLabel = type === 'atlas' && isDuplicateFlagSet(markerData && markerData.hasAtlasDuplicate);
+    const osmLabel = type === 'osm' ? resolveOsmLabel(markerData && markerData.osmNodeType) : null;
+    const labelCapable = atlasHasLabel || !!osmLabel;
+    const representation = labelCapable && zoom >= MAP_RENDERER_LABEL_ICON_MIN_ZOOM ? 'label' : 'circle';
+    const detail = representation === 'label' ? (type === 'atlas' ? 'D' : osmLabel) : 'plain';
+    return [type, color, representation, detail].join('|');
 }
 
 // Popup-related functions have been moved to popup-renderer.js
@@ -440,140 +498,14 @@ function createPopupWithOptions(content) {
     }).setContent(content);
 }
 
-/**
- * Attach standard popup line handling (open/close/move/zoom) to a Leaflet map.
- * Returns a live array reference of currently open popups for optional callers.
- * This mirrors the behavior used on the main map.
- * @param {L.Map} mapInstance
- * @returns {Array<L.Popup>} openPopups
- */
-function attachPopupLineHandlersToMap(mapInstance) {
-    const openPopups = [];
-    mapInstance.on('popupopen', function (e) {
-        openPopups.push(e.popup);
-    });
-    mapInstance.on('popupclose', function (e) {
-        const idx = openPopups.indexOf(e.popup);
-        if (idx !== -1) openPopups.splice(idx, 1);
-        if (e.popup instanceof L.DraggablePopup && e.popup._line) {
-            try { e.popup._removeLine(); } catch { }
-        }
-    });
-    mapInstance.on('move', function () {
-        if (window.updateAllPopupLines) window.updateAllPopupLines();
-        openPopups.forEach(popup => { if (popup._updatePosition) popup._updatePosition(); });
-    });
-    mapInstance.on('zoom', function () {
-        if (window.updateAllPopupLines) window.updateAllPopupLines();
-        openPopups.forEach(popup => { if (popup._updatePosition) popup._updatePosition(); });
-    });
-    return openPopups;
-}
-
-/**
- * Draws a problem case on the map, including markers and lines.
- * @param {L.Map} map - The Leaflet map instance.
- * @param {object} problemData - The data for the problem stop.
- * @param {object} layers - An object containing layer groups for markers and lines.
- */
-function drawProblemOnMap(map, problemData, layers) {
-    layers.markersLayer.clearLayers();
-    layers.linesLayer.clearLayers();
-
-    const stop = problemData;
-    const popupRenderer = window.PopupRenderer;
-    if (!popupRenderer) {
-        console.error('PopupRenderer is not defined. Check popup-renderer.js load/parse errors.');
-        return;
-    }
-    let popup;
-
-    // Case: matched-pair stop problems rendered as ATLAS<->OSM links
-    if ((stop.problem === 'distance' || stop.problem === 'attributes' || stop.problem === 'contradicts_route_matching') && stop.stop_type === 'matched' && stop.atlas_lat && stop.osm_lat) {
-        const atlasMarker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, COLOR_ATLAS_MATCHED, stop.has_atlas_duplicate);
-        const atlasPopup = createPopupWithOptions(popupRenderer.generatePopupHtml(stop, 'atlas'));
-        atlasMarker.bindPopup(atlasPopup).addTo(layers.markersLayer);
-
-        const osmMarker = createOsmMarker(stop.osm_lat, stop.osm_lon, COLOR_OSM_MATCHED, stop.osm_node_type);
-        const osmPopup = createPopupWithOptions(popupRenderer.generatePopupHtml(stop, 'osm'));
-        osmMarker.bindPopup(osmPopup).addTo(layers.markersLayer);
-
-        // Use same line styling as main page for consistency
-        const line = L.polyline([[stop.atlas_lat, stop.atlas_lon], [stop.osm_lat, stop.osm_lon]], {
-            color: COLOR_LINE_ATLAS_OSM,
-            weight: 2
-        });
-        line.addTo(layers.linesLayer);
-
-        map.fitBounds(line.getBounds().pad(0.2));
-        atlasMarker.openPopup();
-    }
-    // Case: 'unmatched' problem
-    else if (stop.problem === 'unmatched') {
-        if (stop.stop_type === 'atlas_unmatched' && stop.atlas_lat) { // Isolated ATLAS
-            const marker = createAtlasMarker(stop.atlas_lat, stop.atlas_lon, COLOR_ATLAS_UNMATCHED, stop.has_atlas_duplicate);
-            popup = createPopupWithOptions(popupRenderer.generateSingleAtlasBubbleHtml(stop, true));
-            marker.bindPopup(popup).addTo(layers.markersLayer);
-            map.setView([stop.atlas_lat, stop.atlas_lon], 16);
-            marker.openPopup();
-        } else if (stop.stop_type === 'osm_unmatched' && stop.osm_lat) { // Isolated OSM
-            const marker = createOsmMarker(stop.osm_lat, stop.osm_lon, COLOR_OSM_UNMATCHED, stop.osm_node_type);
-            popup = createPopupWithOptions(popupRenderer.generateSingleOsmBubbleHtml(stop, true));
-            marker.bindPopup(popup).addTo(layers.markersLayer);
-            map.setView([stop.osm_lat, stop.osm_lon], 16);
-            marker.openPopup();
-        }
-    }
-    // Case: 'duplicates' group
-    else if (stop.problem === 'duplicates') {
-        const members = Array.isArray(stop.members) ? stop.members : [];
-        const points = [];
-        const markerDataArray = [];
-        // Only render popups for the duplicated side when group_type is provided
-        const isOsmGroup = stop.group_type === 'osm';
-        const isAtlasGroup = stop.group_type === 'atlas';
-        members.forEach(member => {
-            // Show ATLAS side only if not an OSM-duplicates group
-            if (!isOsmGroup && member.atlas_lat != null && member.atlas_lon != null) {
-                let atlasColor = COLOR_ATLAS_MATCHED;
-                if (member.stop_type === 'atlas_unmatched') {
-                    atlasColor = COLOR_ATLAS_UNMATCHED;
-                }
-                markerDataArray.push({
-                    lat: parseFloat(member.atlas_lat),
-                    lon: parseFloat(member.atlas_lon),
-                    type: 'atlas',
-                    color: atlasColor,
-                    hasAtlasDuplicate: member.has_atlas_duplicate,
-                    originalLat: parseFloat(member.atlas_lat),
-                    originalLon: parseFloat(member.atlas_lon),
-                    stopData: member,
-                    popup: createPopupWithOptions(popupRenderer.generatePopupHtml(member, 'atlas'))
-                });
-                points.push([member.atlas_lat, member.atlas_lon]);
-            }
-            // Show OSM side only if not an ATLAS-duplicates group
-            if (!isAtlasGroup && member.osm_lat != null && member.osm_lon != null) {
-                markerDataArray.push({
-                    lat: parseFloat(member.osm_lat),
-                    lon: parseFloat(member.osm_lon),
-                    type: 'osm',
-                    color: COLOR_OSM_MATCHED,
-                    osmNodeType: member.osm_node_type,
-                    originalLat: parseFloat(member.osm_lat),
-                    originalLon: parseFloat(member.osm_lon),
-                    stopData: member,
-                    popup: createPopupWithOptions(popupRenderer.generatePopupHtml(member, 'osm'))
-                });
-                points.push([member.osm_lat, member.osm_lon]);
-            }
-        });
-        const createdMarkers = createMarkersWithOverlapHandling(markerDataArray, layers.markersLayer);
-        if (points.length > 0) {
-            const bounds = L.latLngBounds(points);
-            map.fitBounds(bounds.pad(0.2));
-        }
-        // Open a limited number of popups to avoid clutter
-        createdMarkers.slice(0, 6).forEach(m => { try { m.openPopup(); } catch (e) { } });
-    }
-}
+window.MapRenderer = Object.freeze({
+    MarkerClusterManager: MarkerClusterManager,
+    createAtlasMarker: createAtlasMarker,
+    createOsmMarker: createOsmMarker,
+    createMarkersWithOverlapHandling: createMarkersWithOverlapHandling,
+    setMarkerOpacity: setMarkerOpacity,
+    getMarkerRenderSignature: getMarkerRenderSignature,
+    createPopupWithOptions: createPopupWithOptions
+});
+window.MapComponents = window.MapComponents || {};
+window.MapComponents.MapRenderer = window.MapRenderer;

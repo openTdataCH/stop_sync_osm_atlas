@@ -9,6 +9,53 @@
     return null;
   }
 
+  function getOsmMarkerIdentity(stopData) {
+    if (!stopData) return null;
+    if (stopData.osm_node_id != null && stopData.osm_node_id !== '') return String(stopData.osm_node_id);
+    if (stopData.node_id != null && stopData.node_id !== '') return String(stopData.node_id);
+    if (stopData.id != null && stopData.id !== '') return String(stopData.id);
+    return null;
+  }
+
+  function getGtfsMarkerIdentity(stopData) {
+    if (!stopData) return null;
+    if (stopData.stop_id != null && stopData.stop_id !== '') return String(stopData.stop_id);
+    return null;
+  }
+
+  function createEntityKey(entityType, stopData) {
+    var normalizedType = String(entityType || '').toLowerCase();
+    var identity = null;
+    if (normalizedType === 'atlas') identity = getAtlasMarkerIdentity(stopData);
+    if (normalizedType === 'osm') identity = getOsmMarkerIdentity(stopData);
+    if (normalizedType === 'gtfs') identity = getGtfsMarkerIdentity(stopData);
+    return identity == null ? null : normalizedType + ':' + identity;
+  }
+
+  /**
+   * Shared completeness thresholds for viewport-driven maps.
+   *
+   * Pages still own their domain-specific overview query and visibility rules;
+   * this only prevents the 13/15 zoom boundaries and result budget from
+   * drifting between them.
+   */
+  function getViewportZoomPolicy(zoom) {
+    var normalizedZoom = Number(zoom);
+    var overviewZoom = AppConstants.MAP.ZOOM_MARKER_THRESHOLD;
+    var fullDetailZoom = overviewZoom + AppConstants.MAP.ADDITIONAL_BANNER_ZOOM_LEVELS;
+    var isOverview = normalizedZoom < overviewZoom;
+    var isFullDetail = normalizedZoom >= fullDetailZoom;
+
+    return {
+      zoom: normalizedZoom,
+      isOverview: isOverview,
+      isFullDetail: isFullDetail,
+      shouldShowBanner: !isFullDetail,
+      limit: isFullDetail ? null : AppConstants.DATA_LOADING.GENERAL_LIMIT,
+      mode: isOverview ? 'overview' : (isFullDetail ? 'full' : 'limited')
+    };
+  }
+
   function createBaseTileLayers() {
     var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: AppConstants.MAP.MAX_ZOOM,
@@ -35,8 +82,14 @@
     };
   }
 
-  global.MapShared = {
+  global.MapShared = Object.freeze({
     getAtlasMarkerIdentity: getAtlasMarkerIdentity,
+    getOsmMarkerIdentity: getOsmMarkerIdentity,
+    getGtfsMarkerIdentity: getGtfsMarkerIdentity,
+    createEntityKey: createEntityKey,
+    getViewportZoomPolicy: getViewportZoomPolicy,
     createBaseTileLayers: createBaseTileLayers
-  };
+  });
+  global.MapComponents = global.MapComponents || {};
+  global.MapComponents.MapShared = global.MapShared;
 })(window);

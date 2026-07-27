@@ -21,7 +21,7 @@
         // Leaflet zoom: ~2-3 is world/continent, ~5 is Europe, ~6-7 is central Europe.
         MIN_ZOOM: 8,
 
-        // Below this zoom level, markers are not rendered (performance optimization)
+        // Below this zoom level, viewport maps use their lighter overview policy
         ZOOM_MARKER_THRESHOLD: 13,
         
         // Below this zoom level, connection lines between matches are not rendered
@@ -68,17 +68,6 @@
         
         // Debounce delay (ms) for map pan/zoom events to prevent excessive API calls
         VIEW_DEBOUNCE_MS: 150
-    };
-
-    /**
-     * Context markers limits for problems page
-     */
-    AppConstants.CONTEXT_MARKERS = {
-        // Maximum context markers to show at low zoom
-        LOW_ZOOM_LIMIT: 150,
-        
-        // Maximum context markers to show at high zoom
-        HIGH_ZOOM_LIMIT: 200
     };
 
     // ==========================================
@@ -168,10 +157,11 @@
      * Marker clustering and rendering
      */
     AppConstants.MARKERS = {
-        // Pixels to offset markers in a cluster
-        CLUSTER_OFFSET_RADIUS: 0.6,
+        // Marker displacement at MAP.MAX_ZOOM. At lower zooms the fixed
+        // geographic displacement occupies progressively fewer screen pixels.
+        CLUSTER_OFFSET_RADIUS: 5,
         
-        // Coordinate tolerance for considering positions "same"
+        // Fallback grouping distance when no map projection is available
         COORDINATE_TOLERANCE: 0.00001,
         
         // Default marker radius
@@ -274,4 +264,3 @@
     global.AppConstants = AppConstants;
 
 })(window);
-

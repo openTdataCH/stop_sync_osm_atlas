@@ -53,6 +53,7 @@
 @import url('src/06-components/c-direction-dropdown.css');
 @import url('src/06-components/c-operator-dropdown.css');
 @import url('src/06-components/c-layout-map.css');
+@import url('src/06-components/c-map-banner.css');
 @import url('src/06-components/c-marker-cluster.css');
 @import url('src/06-components/c-dropdown-zindex.css');
 @import url('src/06-components/c-pipeline-status.css');
@@ -67,4 +68,3 @@
 @import url('src/07-utilities/u-text.css');
 
 /* 08-pages - Page-Specific Styles */
-

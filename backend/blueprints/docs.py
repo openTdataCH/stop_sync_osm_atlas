@@ -586,6 +586,25 @@ def _group_files_by_section(files: List[str], file_to_slug: Dict[str, str]) -> L
         sec['items'].sort(key=lambda it: it['file'].lower())
 
     sections = sorted(sections_map.values(), key=lambda s: s['number'])
+
+    # Append non-numbered markdown files (e.g. Changelog.md) as standalone
+    # entries at the bottom of the sidebar.
+    for f in files:
+        key = _top_level_section_key(f)
+        if key is not None:
+            continue  # already handled above
+        title = _derive_title(f)
+        slug = file_to_slug.get(f, '')
+        extra_key = f"extra_{slug}"
+        sections.append({
+            'key': extra_key,
+            'number': None,
+            'root_file': f,
+            'root_slug': slug,
+            'root_title': title,
+            'items': [],
+        })
+
     return sections
 
 
@@ -796,6 +815,9 @@ def docs_page(page: str = ''):
         }
 
     active_section = _top_level_section_key(active_file)
+    if active_section is None and active_file:
+        # Non-numbered file (e.g. Changelog.md): use the extra_ key
+        active_section = f"extra_{file_to_slug.get(active_file, '')}"
 
     if is_partial:
         return jsonify({
