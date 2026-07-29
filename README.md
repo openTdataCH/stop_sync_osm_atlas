@@ -52,7 +52,7 @@ There's a public instance of the project at: https://atlas.osm.ch
     - Start the web app container
     - Start the scheduler container (default recurring run every 24 hours in `Europe/Zurich`)
 
-    Redis is no longer required by default. The default local setup uses file-backed pipeline state and `memory://` rate limiting.
+    Docker Compose does not run Redis. Pipeline status, locks, and async-export state are shared through JSON files under `./data/runtime`, while rate limiting uses `memory://`.
 
     *Note: The data pipeline (downloading and matching ATLAS/OSM/GTFS data) does not run automatically on startup.* It runs in the dedicated scheduler service at the configured time. To run it immediately, use the VS Code Task "Docker: Trigger Scheduled Pipeline Now" (see below), or run:
     ```bash
@@ -119,12 +119,11 @@ During import, the UI shows a global maintenance popup. Downloading and matching
 
 ## Background Scheduler & Microservices
 
-Docker Compose now runs five primary services:
+Docker Compose runs four primary services:
 
 - `app`: Flask web app and API.
 - `scheduler`: Dedicated background worker that runs the recurring pipeline on a configurable hour interval (`PIPELINE_TIMEZONE`, default `Europe/Zurich`).
 - `db`: Postgres + PostGIS import database.
-- `redis`: Optional shared backend for multi-worker rate limiting or Redis-backed pipeline state.
 - `migrator`: One-shot startup service that runs `flask db upgrade` before `app` and `scheduler`.
 
 For local test execution, there is also a dedicated `test` service/image with both app and pipeline dependencies.
@@ -132,7 +131,7 @@ For local test execution, there is also a dedicated `test` service/image with bo
 Scheduler behavior:
 
 - Uses APScheduler interval trigger (`PIPELINE_SCHEDULE_INTERVAL_HOURS`).
-- Publishes run status to `/api/system/pipeline_status` through a shared pipeline-state backend (`redis` or `file`).
+- Publishes run status to `/api/system/pipeline_status` through JSON files in the shared `data/runtime` directory.
 - Checks HTTP validators (`ETag` / `Last-Modified`) on the ATLAS and GTFS permalinks before re-running preprocessing.
 - Sets maintenance mode only for the import phase so the UI can show "Data update in progress" with elapsed/ETA.
 - Uses a distributed lock to prevent concurrent runs.
@@ -163,15 +162,14 @@ Most local runs work without a `.env` file. If you want explicit local configura
 | `FLASK_DEBUG` | Enables Flask debug mode for local development | `1` |
 | `FORCE_HTTPS` | Redirect HTTP requests to HTTPS when running behind TLS | `false` |
 | `RATELIMIT_STORAGE_URI` | Flask-Limiter backend | `memory://` |
-| `STATE_BACKEND` | Shared runtime state backend for pipeline status/locks and async exports (`redis` or `file`) | `redis` in Docker, `file` in code |
-| `STATE_REDIS_URL` | Redis URL when `STATE_BACKEND=redis` | `redis://redis:6379/0` |
-| `STATE_DIR` | Shared directory when `STATE_BACKEND=file` | `data/runtime` |
+| `STATE_BACKEND` | Runtime-state backend for pipeline status/locks and async exports | `file` (fixed by Docker Compose) |
+| `STATE_DIR` | Shared JSON-state directory | `data/runtime` |
 | `PIPELINE_TIMEZONE` | Scheduler timezone | `Europe/Zurich` |
 | `PIPELINE_SCHEDULE_INTERVAL_HOURS` | Automatic pipeline interval | `24` |
 | `PIPELINE_IMPORT_ETA_SECONDS` | Import-phase ETA shown in the UI | `150` |
 | `PIPELINE_LOG_LEVEL` | Scheduler and pipeline logging verbosity | `INFO` |
 
-`docker compose up --build` starts Redis by default and stores shared runtime state there. Redis-free local deployments can switch to the file backend with:
+Docker Compose fixes `STATE_BACKEND=file` for the app, scheduler, and test services. Their shared `./data:/app/data` mount makes the JSON state files visible across containers:
 
 ```env
 RATELIMIT_STORAGE_URI=memory://
@@ -179,12 +177,10 @@ STATE_BACKEND=file
 STATE_DIR=data/runtime
 ```
 
-The default Redis-backed state configuration is:
-
-```env
-STATE_BACKEND=redis
-STATE_REDIS_URL=redis://redis:6379/0
-```
+The main files are `data/runtime/pipeline_status.json`, the transient
+`data/runtime/pipeline_lock.json`, `data/runtime/tasks_progress.json`, and
+`data/runtime/tasks_completed.json`. Writes are atomic, and lock updates are
+guarded with `fcntl.flock()`.
 
 ## Running the Web Application
 
