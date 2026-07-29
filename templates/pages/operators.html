@@ -1,6 +1,7 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}Operators{% endblock %}
+{% block title %}Swiss Public Transport Operators | OSM &amp; ATLAS{% endblock %}
+{% block meta_description %}Compare ATLAS public transport operators with operator tags found on matched OpenStreetMap stops in Switzerland.{% endblock %}
 
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/operators.css') }}">
@@ -172,7 +173,7 @@
     <nav class="c-pagination operators-pagination" aria-label="Operators pagination">
       <ul class="pagination justify-content-center">
         <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('operators.operators_page', coverage=coverage_filter, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
+          <a class="page-link" href="{{ url_for('operators.operators_page', coverage=coverage_filter if coverage_filter != 'all' else None, q=q if q else None, per_page=per_page if per_page != 20 else None, page=pagination.prev_num if pagination.has_prev and pagination.prev_num > 1 else None) }}" aria-label="Previous">
             <span aria-hidden="true">&laquo;</span>
           </a>
         </li>
@@ -180,7 +181,7 @@
         {% for page_num in pagination.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
           {% if page_num %}
           <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-            <a class="page-link" href="{{ url_for('operators.operators_page', coverage=coverage_filter, q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
+            <a class="page-link" href="{{ url_for('operators.operators_page', coverage=coverage_filter if coverage_filter != 'all' else None, q=q if q else None, per_page=per_page if per_page != 20 else None, page=page_num if page_num > 1 else None) }}">{{ page_num }}</a>
           </li>
           {% else %}
           <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
@@ -188,7 +189,7 @@
         {% endfor %}
 
         <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for('operators.operators_page', coverage=coverage_filter, q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
+          <a class="page-link" href="{{ url_for('operators.operators_page', coverage=coverage_filter if coverage_filter != 'all' else None, q=q if q else None, per_page=per_page if per_page != 20 else None, page=pagination.next_num if pagination.has_next and pagination.next_num > 1 else None) }}" aria-label="Next">
             <span aria-hidden="true">&raquo;</span>
           </a>
         </li>

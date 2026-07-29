@@ -6,6 +6,7 @@ from sqlalchemy import case, func, inspect, literal, or_
 from backend.db_errors import is_missing_column_error, is_missing_table_error
 from backend.extensions import db
 from backend.models import AtlasOperator, AtlasStop, OsmNode, StopsMatched
+from backend.services.url_query import canonical_query_redirect
 
 
 operators_bp = Blueprint('operators', __name__)
@@ -24,6 +25,7 @@ OPERATOR_COVERAGE_LABELS = {
     OPERATOR_COVERAGE_NO_OSM: 'Without matched OSM operators',
 }
 OPERATORS_PER_PAGE_OPTIONS = [10, 20, 50, 100]
+OPERATORS_DEFAULT_PER_PAGE = 20
 
 
 class _EmptyPagination:
@@ -336,7 +338,35 @@ def operators_page():
     coverage_filter = _normalize_coverage_filter(request.args.get('coverage'))
     q = (request.args.get('q') or '').strip()
     page = _bounded_int(request.args.get('page'), default=1, minimum=1)
-    per_page = _bounded_int(request.args.get('per_page'), default=20, minimum=10, maximum=100)
+    requested_per_page = _bounded_int(
+        request.args.get('per_page'),
+        default=OPERATORS_DEFAULT_PER_PAGE,
+        minimum=10,
+        maximum=100,
+    )
+    per_page = (
+        requested_per_page
+        if requested_per_page in OPERATORS_PER_PAGE_OPTIONS
+        else OPERATORS_DEFAULT_PER_PAGE
+    )
+
+    canonical_redirect = canonical_query_redirect(
+        'operators.operators_page',
+        (
+            ('q', q or None),
+            (
+                'coverage',
+                coverage_filter if coverage_filter != OPERATOR_COVERAGE_ALL else None,
+            ),
+            (
+                'per_page',
+                per_page if per_page != OPERATORS_DEFAULT_PER_PAGE else None,
+            ),
+            ('page', page if page > 1 else None),
+        ),
+    )
+    if canonical_redirect is not None:
+        return canonical_redirect
 
     try:
         load_result = _load_operators_view(

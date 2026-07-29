@@ -1,6 +1,7 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}Documentation{% endblock %}
+{% block title %}{{ active_title }} | OSM &amp; ATLAS Documentation{% endblock %}
+{% block meta_description %}Technical documentation for the open-source OSM and ATLAS Swiss public transport synchronization project.{% endblock %}
 
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/docs.css') }}">
@@ -367,8 +368,15 @@
           renderNav(payload.prev_page, payload.next_page);
           renderMermaid();
           renderMath();
+          if (payload.title) {
+            document.title = payload.title + ' | OSM & ATLAS Documentation';
+          }
 
           var canonicalUrl = payload.canonical_url || (urlObj.pathname + urlObj.search);
+          var canonicalLink = document.querySelector('link[rel="canonical"]');
+          if (canonicalLink) {
+            canonicalLink.href = new URL(canonicalUrl, window.location.origin).href;
+          }
           if (urlObj.hash) {
             canonicalUrl += urlObj.hash;
           }

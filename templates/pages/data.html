@@ -1,8 +1,7 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}
-  {% if active_view == 'reports' %}Export{% else %}Data{% endif %}
-{% endblock %}
+{% block title %}{% if active_view == 'reports' %}Export Synchronization Data{% else %}Synchronization Statistics{% endif %} | OSM &amp; ATLAS{% endblock %}
+{% block meta_description %}{% if active_view == 'reports' %}Export reports about OpenStreetMap and ATLAS public transport synchronization quality.{% else %}Review statistics about Swiss OpenStreetMap and ATLAS public transport stop synchronization.{% endif %}{% endblock %}
 
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/stats.css') }}">
