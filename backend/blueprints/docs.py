@@ -771,6 +771,7 @@ def docs_page(page: str = ''):
 
     raw_markdown = _read_markdown(active_file)
     html_content = _convert_markdown_to_html(raw_markdown, file_to_slug)
+    active_title = _derive_title(active_file)
 
     sections = _group_files_by_section(files, file_to_slug)
     # Build an ordered flat list for prev/next navigation
@@ -825,10 +826,13 @@ def docs_page(page: str = ''):
             'active_file': active_file,
             'active_slug': active_slug,
             'active_section': active_section,
+            'title': active_title,
             'prev_page': prev_page,
             'next_page': next_page,
             'canonical_url': url_for('docs.docs_page', page=active_slug),
         })
+
+    from backend.blueprints.seo import site_url
 
     return render_template(
         'pages/docs.html',
@@ -836,9 +840,13 @@ def docs_page(page: str = ''):
         active_file=active_file,
         active_slug=active_slug,
         active_section=active_section,
+        active_title=active_title,
         content_html=html_content,
         prev_page=prev_page,
         next_page=next_page,
+        seo_canonical_url=site_url(
+            url_for('docs.docs_page', page=active_slug),
+        ),
     )
 
 
@@ -1076,5 +1084,3 @@ def _get_realtime_db_stats() -> Dict:
                 "by_priority": {}
             }
         }
-
-

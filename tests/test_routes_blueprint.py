@@ -385,7 +385,7 @@ def test_routes_page_uses_sql_page_loader(client, monkeypatch):
 
     response = client.get(
         '/routes?page=7&per_page=20&matched=unmatched_osm'
-        '&atlas_operator=SBB,BLS&osm_operator=BLS&q=night'
+        '&atlas_operator=BLS,SBB&osm_operator=BLS&q=night'
     )
 
     assert response.status_code == 200

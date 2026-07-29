@@ -1,7 +1,8 @@
 {% extends "layouts/base.html" %}
 
 {% from "components/_components.html" import stats_overlay with context %}
-{% block title %}Routes{% endblock %}
+{% block title %}{% if active_view == 'non_gtfs_routes' %}Non-GTFS Routes{% elif active_view == 'gtfs_stop_id_sloid' %}GTFS stop_id and SLOID{% else %}Swiss Public Transport Routes{% endif %} | OSM &amp; ATLAS{% endblock %}
+{% block meta_description %}{% if active_view == 'non_gtfs_routes' %}Inspect OpenStreetMap public transport routes that are absent from the Swiss OpenTransportData GTFS dataset.{% elif active_view == 'gtfs_stop_id_sloid' %}Compare GTFS stop identifiers with Swiss ATLAS service location identifiers and inspect their map coverage.{% else %}Compare matched and unmatched Swiss public transport routes from OpenStreetMap and ATLAS.{% endif %}{% endblock %}
 
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
@@ -418,7 +419,7 @@
     <nav class="c-pagination routes-pagination" aria-label="Routes pagination">
       <ul class="pagination justify-content-center">
         <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for(listing_endpoint, matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=pagination.prev_num if pagination.has_prev else 1) }}" aria-label="Previous">
+          <a class="page-link" href="{{ url_for(listing_endpoint, matched=matched_filter if matched_filter != 'all' else None, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q if q else None, per_page=per_page if per_page != 10 else None, page=pagination.prev_num if pagination.has_prev and pagination.prev_num > 1 else None) }}" aria-label="Previous">
             <span aria-hidden="true">&laquo;</span>
           </a>
         </li>
@@ -426,7 +427,7 @@
         {% for page_num in pagination.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
           {% if page_num %}
           <li class="page-item {% if page_num == pagination.page %}active{% endif %}">
-            <a class="page-link" href="{{ url_for(listing_endpoint, matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=page_num) }}">{{ page_num }}</a>
+            <a class="page-link" href="{{ url_for(listing_endpoint, matched=matched_filter if matched_filter != 'all' else None, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q if q else None, per_page=per_page if per_page != 10 else None, page=page_num if page_num > 1 else None) }}">{{ page_num }}</a>
           </li>
           {% else %}
           <li class="page-item disabled"><span class="page-link">&hellip;</span></li>
@@ -434,7 +435,7 @@
         {% endfor %}
 
         <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-          <a class="page-link" href="{{ url_for(listing_endpoint, matched=matched_filter, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q, per_page=per_page, page=pagination.next_num if pagination.has_next else pagination.pages or 1) }}" aria-label="Next">
+          <a class="page-link" href="{{ url_for(listing_endpoint, matched=matched_filter if matched_filter != 'all' else None, atlas_operator=atlas_operator_query if atlas_operator_query else None, osm_operator=osm_operator_query if osm_operator_query else None, q=q if q else None, per_page=per_page if per_page != 10 else None, page=pagination.next_num if pagination.has_next and pagination.next_num > 1 else None) }}" aria-label="Next">
             <span aria-hidden="true">&raquo;</span>
           </a>
         </li>

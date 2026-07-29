@@ -26,6 +26,7 @@ from backend.services.gtfs_stop_id_sloid import (
     find_gtfs_stop_id_sloid_targets,
 )
 from backend.services.pipeline_status import get_status
+from backend.services.url_query import canonical_query_redirect
 
 
 routes_bp = Blueprint('routes', __name__)
@@ -44,6 +45,7 @@ ROUTE_MATCH_FILTERS = {
 }
 
 ROUTES_PER_PAGE_OPTIONS = [5, 10, 20, 50, 100]
+ROUTES_DEFAULT_PER_PAGE = 10
 
 MATCH_FILTER_LABELS = {
     ROUTE_MATCH_ALL: 'All',
@@ -1182,11 +1184,47 @@ def _build_route_rows(page_items):
 @routes_bp.route('/routes')
 def routes_page():
     page = _bounded_int(request.args.get('page', 1), 1, minimum=1)
-    per_page = _bounded_int(request.args.get('per_page', 10), 10, minimum=1, maximum=max(ROUTES_PER_PAGE_OPTIONS))
+    requested_per_page = _bounded_int(
+        request.args.get('per_page', ROUTES_DEFAULT_PER_PAGE),
+        ROUTES_DEFAULT_PER_PAGE,
+        minimum=1,
+        maximum=max(ROUTES_PER_PAGE_OPTIONS),
+    )
+    per_page = (
+        requested_per_page
+        if requested_per_page in ROUTES_PER_PAGE_OPTIONS
+        else ROUTES_DEFAULT_PER_PAGE
+    )
     q = (request.args.get('q') or '').strip()
     matched_filter = _normalize_route_match_filter(request.args.get('matched'))
     selected_atlas_operators = _parse_multi_filter('atlas_operator')
     selected_osm_operators = _parse_multi_filter('osm_operator')
+
+    canonical_redirect = canonical_query_redirect(
+        'routes.routes_page',
+        (
+            ('page', page if page > 1 else None),
+            (
+                'per_page',
+                per_page if per_page != ROUTES_DEFAULT_PER_PAGE else None,
+            ),
+            (
+                'matched',
+                matched_filter if matched_filter != ROUTE_MATCH_ALL else None,
+            ),
+            (
+                'atlas_operator',
+                _serialize_filter(selected_atlas_operators) or None,
+            ),
+            (
+                'osm_operator',
+                _serialize_filter(selected_osm_operators) or None,
+            ),
+            ('q', q or None),
+        ),
+    )
+    if canonical_redirect is not None:
+        return canonical_redirect
 
     try:
         page_items, total = _query_route_page(
@@ -1237,7 +1275,30 @@ def routes_page():
 @routes_bp.route('/routes/non-gtfs')
 def non_gtfs_routes_page():
     page = _bounded_int(request.args.get('page', 1), 1, minimum=1)
-    per_page = _bounded_int(request.args.get('per_page', 10), 10, minimum=1, maximum=max(ROUTES_PER_PAGE_OPTIONS))
+    requested_per_page = _bounded_int(
+        request.args.get('per_page', ROUTES_DEFAULT_PER_PAGE),
+        ROUTES_DEFAULT_PER_PAGE,
+        minimum=1,
+        maximum=max(ROUTES_PER_PAGE_OPTIONS),
+    )
+    per_page = (
+        requested_per_page
+        if requested_per_page in ROUTES_PER_PAGE_OPTIONS
+        else ROUTES_DEFAULT_PER_PAGE
+    )
+
+    canonical_redirect = canonical_query_redirect(
+        'routes.non_gtfs_routes_page',
+        (
+            ('page', page if page > 1 else None),
+            (
+                'per_page',
+                per_page if per_page != ROUTES_DEFAULT_PER_PAGE else None,
+            ),
+        ),
+    )
+    if canonical_redirect is not None:
+        return canonical_redirect
 
     try:
         page_items, total = _query_route_page(
@@ -1280,6 +1341,12 @@ def non_gtfs_routes_page():
 
 @routes_bp.route('/routes/gtfs-stop-id-sloid')
 def routes_gtfs_stop_id_sloid_page():
+    canonical_redirect = canonical_query_redirect(
+        'routes.routes_gtfs_stop_id_sloid_page',
+        (),
+    )
+    if canonical_redirect is not None:
+        return canonical_redirect
     return _render_routes_template(ROUTES_VIEW_GTFS_STOP_ID_SLOID)
 
 

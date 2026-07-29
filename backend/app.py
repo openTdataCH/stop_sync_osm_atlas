@@ -13,6 +13,7 @@ from backend.blueprints.docs import docs_bp
 from backend.blueprints.system import system_bp
 from backend.blueprints.operators import operators_bp
 from backend.blueprints.routes import routes_bp
+from backend.blueprints.seo import seo_bp, seo_template_context
 from backend.services.time_utils import format_zurich_display_timestamp
 
 
@@ -61,6 +62,7 @@ def _database_engine_options(database_uri):
 def create_app():
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
     app.add_template_filter(format_zurich_display_timestamp, 'format_zurich_display_timestamp')
+    app.config['SITE_URL'] = 'https://atlas.osm.ch'
 
     database_uri = os.getenv('DATABASE_URI', 'postgresql+psycopg://stops_user:1234@localhost:5432/import_db')
     app.config['SQLALCHEMY_DATABASE_URI'] = database_uri
@@ -85,6 +87,8 @@ def create_app():
     app.register_blueprint(system_bp)
     app.register_blueprint(operators_bp)
     app.register_blueprint(routes_bp)
+    app.register_blueprint(seo_bp)
+
     @app.before_request
     def enforce_https():
         if os.getenv('FORCE_HTTPS', 'false').lower() == 'true':
@@ -105,6 +109,17 @@ def create_app():
             'stats_computed_at': stats.get('stats_computed_at') or stats.get('generated_at'),
             'pipeline_next_run_at': pipeline_status.get('next_run_at'),
         }
+
+    app.context_processor(seo_template_context)
+
+    @app.after_request
+    def discourage_non_page_indexing(response):
+        if (
+            request.path.startswith('/api/')
+            or 400 <= response.status_code < 500
+        ):
+            response.headers['X-Robots-Tag'] = 'noindex, nofollow'
+        return response
 
     @app.route('/')
     def index():
@@ -143,11 +158,17 @@ def create_app():
 
     @app.errorhandler(404)
     def not_found(e):
-        return render_template('errors/404.html'), 404
+        return render_template(
+            'errors/404.html',
+            seo_robots='noindex,nofollow',
+        ), 404
 
     @app.errorhandler(500)
     def server_error(e):
-        return render_template('errors/500.html'), 500
+        return render_template(
+            'errors/500.html',
+            seo_robots='noindex,nofollow',
+        ), 500
 
     return app
 

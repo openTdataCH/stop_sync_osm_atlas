@@ -1,7 +1,8 @@
 {% extends "layouts/base.html" %}
 
 {% from "components/_components.html" import stats_overlay, top_filters_overlay with context %}
-{% block title %}OSM & ATLAS Matching Tool{% endblock %}
+{% block title %}Swiss Public Transport Stop Map | OSM &amp; ATLAS{% endblock %}
+{% block meta_description %}Compare Swiss public transport stops from OpenStreetMap with the federal ATLAS dataset, inspect matches, and find synchronization gaps.{% endblock %}
 
 {% block head_css %}
 <!-- Leaflet CSS -->
@@ -15,6 +16,7 @@
 {% endblock %}
 
 {% block content %}
+<h1 class="visually-hidden">Swiss OpenStreetMap and ATLAS public transport stop synchronization map</h1>
 <div class="container-fluid d-flex flex-column flex-grow-1 index-root">
 
   <div class="d-flex flex-row flex-grow-1" style="overflow: hidden;">

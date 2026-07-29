@@ -1,17 +1,21 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>{% block title %}My App{% endblock %}</title>
+  <title>{% block title %}OSM &amp; ATLAS Synchronization{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}Explore and compare Swiss public transport stops and routes from OpenStreetMap and the federal ATLAS dataset.{% endblock %}">
+  <meta name="robots" content="{{ seo_robots }}">
+  <meta name="google-site-verification" content="1oq4u6R95VEOWIUskIdKad2-SvkUHVrDvXR2fikSISI">
+  <link rel="canonical" href="{{ seo_canonical_url }}">
   <!-- Bootstrap CSS for UI elements -->
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}">
   <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/font-awesome/css/all.min.css') }}">
   <!-- Layered CSS entry -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="icon" type="image/svg+xml" sizes="any" href="{{ url_for('static', filename='favicon.svg') }}">
   {% block head_css %}{% endblock %}
 </head>
 
