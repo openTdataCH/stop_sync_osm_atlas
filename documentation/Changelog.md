@@ -17,5 +17,5 @@ All notable changes to this project will be documented in this page.
 ### Improvements
 
 - **Consolidated frontend code** — Unified map and popup logic across the application.
-- **Redis-optional** — If Redis is unavailable, the system falls back to a local JSON file for communication between app and scheduler.
+- **File-backed runtime state** — Docker Compose no longer runs Redis; the app and scheduler communicate through shared JSON files in `data/runtime`.
 - **Updated documentation** — Expanded and revised project documentation.

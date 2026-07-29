@@ -1,15 +1,4 @@
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: stop_sync_osm_atlas_redis
-    restart: "no"
-    command: [ "redis-server", "--save", "", "--appendonly", "no" ]
-    healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
   db:
     image: postgis/postgis:16-3.4
     container_name: stop_sync_osm_atlas_db
@@ -55,8 +44,6 @@ services:
       # Mount data directory for persistence
       - ./data:/app/data
     depends_on:
-      redis:
-        condition: service_healthy
       db:
         condition: service_healthy # Waits for db to be healthy before starting app
       migrator:
@@ -74,8 +61,7 @@ services:
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}
-      STATE_BACKEND: ${STATE_BACKEND:-redis}
-      STATE_REDIS_URL: ${STATE_REDIS_URL:-redis://redis:6379/0}
+      STATE_BACKEND: file
       STATE_DIR: ${STATE_DIR:-data/runtime}
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 2g # Web app stays lighter, pipeline runs in scheduler service
@@ -87,14 +73,10 @@ services:
     restart: "no"
     volumes:
       - ./data:/app/data
-    depends_on:
-      redis:
-        condition: service_healthy
     environment:
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}
-      STATE_BACKEND: ${STATE_BACKEND:-redis}
-      STATE_REDIS_URL: ${STATE_REDIS_URL:-redis://redis:6379/0}
+      STATE_BACKEND: file
       STATE_DIR: ${STATE_DIR:-data/runtime}
 
   scheduler:
@@ -105,8 +87,6 @@ services:
     volumes:
       - ./data:/app/data
     depends_on:
-      redis:
-        condition: service_healthy
       db:
         condition: service_healthy
       migrator:
@@ -114,8 +94,7 @@ services:
     environment:
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}
-      STATE_BACKEND: ${STATE_BACKEND:-redis}
-      STATE_REDIS_URL: ${STATE_REDIS_URL:-redis://redis:6379/0}
+      STATE_BACKEND: file
       STATE_DIR: ${STATE_DIR:-data/runtime}
       PIPELINE_TIMEZONE: ${PIPELINE_TIMEZONE:-Europe/Zurich}
       PIPELINE_SCHEDULE_INTERVAL_HOURS: ${PIPELINE_SCHEDULE_INTERVAL_HOURS:-24}
