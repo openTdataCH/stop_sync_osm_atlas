@@ -10,8 +10,7 @@ All notable changes to this project will be documented in this page.
 
 ### New Features
 - **Search and filters on GTFS↔SLOID map**
-- **See routes on the GTFS↔SLOID map popup** — Like on the main map
-- **Enhanced UI for route variants and replacement routes UI**
+- **See routes on the GTFS↔SLOID map popup** — Like on the main maps
 
 ### Improvements
 
