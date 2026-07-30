@@ -109,6 +109,7 @@
                 throw new Error('MapPopupController createPopup() returned no popup for key "' + binding.key + '".');
             }
             if (!isCurrent(binding, generation)) return false;
+            if (binding.marker.closePopup && binding.marker.getPopup && binding.marker.getPopup()) binding.marker.closePopup();
             binding.marker.bindPopup(popup);
             binding.loaded = true;
             binding.content = content;
@@ -134,6 +135,7 @@
                     ? binding.options.createPopup(rendered, popupContext(binding))
                     : rendered;
                 if (!isCurrent(binding, generation)) return;
+                if (binding.marker.closePopup && binding.marker.getPopup && binding.marker.getPopup()) binding.marker.closePopup();
                 binding.marker.bindPopup(popup);
                 binding.marker.openPopup();
             } catch (error) {
@@ -218,7 +220,6 @@
             if (binding.openingPromise) return binding.openingPromise;
 
             var generation = binding.generation;
-            showTransientContent(binding, binding.options.loadingContent, generation);
 
             var promise = resolveContent(binding, generation).then(function (content) {
                 if (!isCurrent(binding, generation)) {

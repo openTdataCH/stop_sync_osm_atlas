@@ -196,6 +196,7 @@ describe('MapPopupController', () => {
 
     await expect(controller.open(marker)).resolves.toEqual(expect.objectContaining({ status: 'loaded' }));
     expect(load).toHaveBeenCalledTimes(2);
+    expect(marker.closePopup).toHaveBeenCalledTimes(1);
     expect(marker.popup).toBe('Recovered');
   });
 
