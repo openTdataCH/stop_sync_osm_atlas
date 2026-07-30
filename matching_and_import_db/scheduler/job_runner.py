@@ -281,9 +281,16 @@ def _run_matching_and_import(lock_token: str, run_type: PipelineRunType) -> None
     refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
 
     # Blocking maintenance: only TRUNCATE + bulk INSERT, zero Python logic.
+    import_descriptions = {
+        PipelineRunType.COMPLETE: "complete import",
+        PipelineRunType.ATLAS_CACHED: "atlas-gtfs tables cached import",
+        PipelineRunType.ATLAS_CACHED_BOOTSTRAP: "atlas-gtfs tables bootstrap import",
+    }
+    import_desc = import_descriptions.get(run_type, f"{run_type.value} import")
+
     set_phase(
         phase="import",
-        message=f"Importing into database ({run_type.value} maintenance window)",
+        message=f"Importing into database ({import_desc})",
         maintenance=True,
         eta_seconds=IMPORT_ETA_SECONDS,
     )
