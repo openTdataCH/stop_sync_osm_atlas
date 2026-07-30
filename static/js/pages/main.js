@@ -892,7 +892,6 @@ function attachIndexPopup(marker, descriptor) {
     if (!markerData || !markerData.stopData) return;
     popupController.attach(marker, {
         key: descriptor.key,
-        loadingContent: '<div class="p-2 text-muted">Loading stop details…</div>',
         errorContent: '<div class="p-2 text-danger">Unable to load stop details. Click to retry.</div>',
         load: function (request) {
             var latest = marker.options.markerData;
