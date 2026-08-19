@@ -17,8 +17,7 @@
   padding: 0 var(--space-4);
 }
 
-/* The GTFS↔SLOID view is a map workspace, like Index and Problems. Keep only
-   the normal page-edge spacing and let the map use the viewport below tabs. */
+/* The GTFS↔SLOID view is a map workspace, like Index and Problems. */
 .routes-page.routes-page--gtfs-map {
   display: flex;
   height: calc(100vh - var(--navbar-height));
@@ -37,26 +36,7 @@
   padding: 0 var(--space-2);
 }
 
-.routes-container--gtfs-map .routes-header {
-  flex: 0 0 auto;
-  align-self: center;
-  width: min(1400px, calc(100% + var(--space-4)));
-  margin-bottom: var(--space-1);
-  padding: 0 var(--space-4);
-}
-
-.routes-container--gtfs-map .routes-header .c-page-tabs {
-  margin-bottom: 0;
-}
-
 .routes-header {
-  margin-bottom: var(--space-2);
-}
-
-.routes-header .c-page-tabs {
-  flex-wrap: nowrap;
-  white-space: nowrap;
-  overflow-x: auto;
   margin-bottom: var(--space-2);
 }
 
@@ -68,7 +48,7 @@
 }
 
 .routes-header p {
-  margin: var(--space-2) 0 0 0;
+  margin: 0;
   color: var(--color-fg-muted);
   font-size: var(--text-sm);
 }
