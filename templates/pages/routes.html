@@ -92,9 +92,27 @@
 {% block content %}
 <div class="routes-page{{ ' routes-page--gtfs-map' if active_view == 'gtfs_stop_id_sloid' }}">
   <div class="routes-container{{ ' routes-container--gtfs-map' if active_view == 'gtfs_stop_id_sloid' }}">
-    {% if active_view != 'gtfs_stop_id_sloid' %}
     <header class="routes-header">
-      {% if active_view == 'non_gtfs_routes' %}
+      <nav class="c-page-tabs" aria-label="Routes pages" style="--page-tabs-count: 3">
+        <a href="{{ url_for('routes.routes_page') }}"
+           class="c-page-tabs__tab{{ ' is-active' if active_view == 'routes' }}"
+           {% if active_view == 'routes' %}aria-current="page"{% endif %}>
+          Routes
+        </a>
+        <a href="{{ url_for('routes.non_gtfs_routes_page') }}"
+           class="c-page-tabs__tab{{ ' is-active' if active_view == 'non_gtfs_routes' }}"
+           {% if active_view == 'non_gtfs_routes' %}aria-current="page"{% endif %}>
+          Non-GTFS routes
+        </a>
+        <a href="{{ url_for('routes.routes_gtfs_stop_id_sloid_page') }}"
+           class="c-page-tabs__tab{{ ' is-active' if active_view == 'gtfs_stop_id_sloid' }}"
+           {% if active_view == 'gtfs_stop_id_sloid' %}aria-current="page"{% endif %}>
+          SLOID <span aria-hidden="true">↔</span> GTFS stop_id
+        </a>
+      </nav>
+      {% if active_view == 'gtfs_stop_id_sloid' %}
+      {# The map view needs no explanatory copy below its tabs. #}
+      {% elif active_view == 'non_gtfs_routes' %}
       <p>These are OSM public transport routes that do not appear in the OpenTransportData GTFS dataset but we still display them. We do not attempt to match these routes.</p>
       {% else %}
       <p>Filter matched and unmatched routes, then unfold each card to inspect stops or preview route position on the map.</p>
@@ -107,7 +125,6 @@
       </div>
       {% endif %}
     </header>
-    {% endif %}
 
     {% if active_view in ['routes', 'non_gtfs_routes'] %}
     {% if active_view == 'routes' %}

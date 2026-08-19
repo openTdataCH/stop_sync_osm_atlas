@@ -1,49 +1,30 @@
-import re
-
-
-def test_navbar_groups_secondary_routes_and_moves_mobile_version(client):
+def test_routes_subpages_use_page_tabs_and_keep_mobile_version(client):
     response = client.get('/routes/gtfs-stop-id-sloid')
 
     assert response.status_code == 200
     html = response.get_data(as_text=True)
 
-    assert 'aria-label="Show Routes pages"' in html
-    assert 'aria-controls="routesNavbarMenu"' in html
-    assert 'aria-label="Routes pages"' in html
-    assert 'fas fa-chevron-down navbar-section__chevron' in html
-    assert re.search(
-        r'aria-controls="routesNavbarMenu"[\s\S]*?'
-        r'</button>\s*<ul id="routesNavbarMenu"',
-        html,
-    )
-    assert 'nav-link dropdown-toggle navbar-section__toggle' not in html
-    assert re.search(
-        r'class="dropdown-item active"[^>]*aria-current="page"[^>]*>'
-        r'GTFS stop_id <span aria-hidden="true">↔</span> SLOID',
-        html,
-    )
+    assert '<nav class="c-page-tabs" aria-label="Routes pages" style="--page-tabs-count: 3">' in html
+    assert html.count('c-page-tabs__tab') == 3
+    assert 'SLOID <span aria-hidden="true">↔</span> GTFS stop_id' in html
+    assert 'c-page-tabs__tab is-active' in html
+    assert 'aria-current="page"' in html
+    assert 'navbar-section__toggle' not in html
+    assert 'routesNavbarMenu' not in html
     assert 'class="navbar-version navbar-version--brand"' in html
     assert 'class="nav-item navbar-mobile-version d-lg-none"' in html
     assert html.index('>Docs</a>') < html.index('navbar-mobile-version') < html.index('navbarDataUpdated')
-    assert 'c-page-tabs' not in html
 
 
-def test_navbar_groups_export_under_data_without_page_tabs(client):
+def test_data_subpages_use_page_tabs_without_navbar_dropdown(client):
     response = client.get('/data/export')
 
     assert response.status_code == 200
     html = response.get_data(as_text=True)
 
-    assert 'aria-label="Show Data pages"' in html
-    assert 'aria-controls="dataNavbarMenu"' in html
-    assert 'aria-label="Data pages"' in html
-    assert re.search(
-        r'aria-controls="dataNavbarMenu"[\s\S]*?'
-        r'</button>\s*<ul id="dataNavbarMenu"',
-        html,
-    )
-    assert re.search(
-        r'class="dropdown-item active"[^>]*aria-current="page"[^>]*>Export data</a>',
-        html,
-    )
-    assert 'c-page-tabs' not in html
+    assert '<nav class="c-page-tabs" aria-label="Data pages" style="--page-tabs-count: 2">' in html
+    assert html.count('c-page-tabs__tab') == 2
+    assert 'c-page-tabs__tab is-active' in html
+    assert 'aria-current="page"' in html
+    assert 'navbar-section__toggle' not in html
+    assert 'dataNavbarMenu' not in html

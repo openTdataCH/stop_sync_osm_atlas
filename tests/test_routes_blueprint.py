@@ -506,7 +506,7 @@ def test_non_gtfs_routes_template_uses_route_ref_label_and_notice(app):
             selected_osm_operators=[],
         )
 
-    assert 'Non GTFS routes' in rendered
+    assert 'Non-GTFS routes' in rendered
     assert 'We do not attempt to match these routes.' in rendered
     assert 'Route ref: 006' in rendered
     assert 'GTFS ID: 006' not in rendered
