@@ -55,6 +55,12 @@
   font-size: var(--text-sm);
 }
 
+.stats-header__description {
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
 /* Internal tables with rounded corners */
 .stats-page .table {
   border: 1px solid var(--color-border);
