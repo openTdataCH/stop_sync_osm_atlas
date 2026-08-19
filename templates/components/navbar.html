@@ -35,50 +35,17 @@
             href="{{ url_for('problems') }}">Problems</a>
         </li>
 
-        <li class="nav-item dropdown navbar-section">
-          <div class="navbar-section__primary">
-            <a class="nav-link {%- if request.endpoint and request.endpoint.startswith('routes.') %} active{%- endif %}"
-              href="{{ url_for('routes.routes_page') }}"
-              {%- if request.endpoint == 'routes.routes_page' %} aria-current="page"{%- endif %}>Routes</a>
-            <button class="nav-link navbar-section__toggle" type="button" data-bs-toggle="dropdown"
-              aria-expanded="false" aria-controls="routesNavbarMenu" aria-label="Show Routes pages">
-              <i class="fas fa-chevron-down navbar-section__chevron" aria-hidden="true"></i>
-            </button>
-            <ul id="routesNavbarMenu" class="dropdown-menu navbar-section__menu" aria-label="Routes pages">
-              <li>
-                <a class="dropdown-item {%- if request.endpoint == 'routes.non_gtfs_routes_page' %} active{%- endif %}"
-                  href="{{ url_for('routes.non_gtfs_routes_page') }}"
-                  {%- if request.endpoint == 'routes.non_gtfs_routes_page' %} aria-current="page"{%- endif %}>Non GTFS routes</a>
-              </li>
-              <li>
-                <a class="dropdown-item {%- if request.endpoint == 'routes.routes_gtfs_stop_id_sloid_page' %} active{%- endif %}"
-                  href="{{ url_for('routes.routes_gtfs_stop_id_sloid_page') }}"
-                  {%- if request.endpoint == 'routes.routes_gtfs_stop_id_sloid_page' %} aria-current="page"{%- endif %}>GTFS stop_id <span aria-hidden="true">↔</span> SLOID</a>
-              </li>
-            </ul>
-          </div>
+        <li class="nav-item">
+          <a class="nav-link {%- if request.endpoint and request.endpoint.startswith('routes.') %} active{%- endif %}"
+            href="{{ url_for('routes.routes_page') }}">Routes</a>
         </li>
         <li class="nav-item">
           <a class="nav-link {%- if request.endpoint == 'operators.operators_page' %} active{%- endif %}"
             href="{{ url_for('operators.operators_page') }}">Operators</a>
         </li>
-        <li class="nav-item dropdown navbar-section">
-          <div class="navbar-section__primary">
-            <a class="nav-link {%- if request.endpoint in ('data_analytics', 'data_reports') %} active{%- endif %}"
-              href="{{ url_for('data_analytics') }}"
-              {%- if request.endpoint == 'data_analytics' %} aria-current="page"{%- endif %}>Data</a>
-            <button class="nav-link navbar-section__toggle" type="button" data-bs-toggle="dropdown"
-              aria-expanded="false" aria-controls="dataNavbarMenu" aria-label="Show Data pages">
-              <i class="fas fa-chevron-down navbar-section__chevron" aria-hidden="true"></i>
-            </button>
-            <ul id="dataNavbarMenu" class="dropdown-menu navbar-section__menu" aria-label="Data pages">
-              <li>
-                <a class="dropdown-item {%- if request.endpoint == 'data_reports' %} active{%- endif %}"
-                  href="{{ url_for('data_reports') }}"
-                  {%- if request.endpoint == 'data_reports' %} aria-current="page"{%- endif %}>Export data</a>
-              </li>
-            </ul>
-          </div>
+        <li class="nav-item">
+          <a class="nav-link {%- if request.endpoint in ('data_analytics', 'data_reports') %} active{%- endif %}"
+            href="{{ url_for('data_analytics') }}">Data</a>
         </li>
         <li class="nav-item">
           <a class="nav-link {%- if request.endpoint and request.endpoint.startswith('docs.') %} active{%- endif %}"
