@@ -80,25 +80,32 @@
 
 @media (max-width: 768px) {
   .c-page-tabs {
-    display: grid;
-    grid-template-columns: repeat(var(--page-tabs-count, 2), minmax(0, 1fr));
-    align-items: end;
-    gap: 2px;
+    display: flex;
+    align-items: flex-end;
+    gap: var(--space-1);
     width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .c-page-tabs__tab,
-  .c-page-tabs__tab.is-active {
-    width: 100%;
-    padding: var(--space-2) 2px;
+  .c-page-tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .c-page-tabs__tab {
-    font-size: 0.7rem;
+    flex: 0 0 auto;
+    width: auto;
+    padding: var(--space-2) var(--space-2);
+    font-size: var(--text-xs);
+    white-space: nowrap;
   }
 
   .c-page-tabs__tab.is-active {
-    font-size: 0.78125rem;
+    flex: 0 0 auto;
+    width: auto;
+    padding: var(--space-2) var(--space-2);
+    font-size: 0.8125rem;
   }
 
   .c-page-tabs__tab.is-active::after {
