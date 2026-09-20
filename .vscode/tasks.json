@@ -141,9 +141,10 @@
 		{
 			"label": "Docs: Build PDF",
 			"type": "shell",
-			"command": "python3",
+			"command": "npm",
 			"args": [
-				"documentation/pdf_generator/build_docs_pdf.py"
+				"run",
+				"docs:build-pdf"
 			],
 			"isBackground": false,
 			"problemMatcher": [],

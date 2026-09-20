@@ -1,5 +1,16 @@
 {% extends "layouts/base.html" %}
 
+{% macro docs_nav_title(entry, suffix_key) -%}
+  {% if entry.owner_prefix %}
+  <span class="docs-nav-owner docs-nav-owner--{{ entry.owner_key }}" aria-hidden="true">
+    <span class="docs-nav-owner-label">{{ entry.owner_prefix }}</span><span class="docs-owner-separator">.</span><span class="docs-nav-owner-number">{{ entry.owner_number }}</span>
+  </span>
+  <span class="visually-hidden">{{ entry.owner_label }}.{{ entry.owner_number }} </span><span class="docs-section-title-text">{{ entry[suffix_key] }}</span>
+  {% else %}
+  <span class="docs-section-title-text">{{ entry[suffix_key] }}</span>
+  {% endif %}
+{%- endmacro %}
+
 {% block title %}{{ active_title }} | OSM &amp; ATLAS Documentation{% endblock %}
 {% block meta_description %}Technical documentation for the open-source OSM and ATLAS Swiss public transport synchronization project.{% endblock %}
 
@@ -48,11 +59,13 @@
       <div class="list-group list-group-flush" id="docs-sections">
         {% for collection in collections %}
         <div class="docs-collection docs-collection--{{ collection.key }}">
+          {% if collection.key != 'overview' %}
           <div class="docs-collection-heading">
             <span class="docs-collection-label">{{ collection.label }}</span>
             <span class="docs-owner-badge docs-owner-badge--{{ collection.badge_key }}">{{ collection.badge_label }}</span>
             <p>{{ collection.description }}</p>
           </div>
+          {% endif %}
           {% for sec in collection.sections %}
           <div class="docs-section" data-section="{{ sec.key }}">
             <div
@@ -70,9 +83,9 @@
                 {% if sec.root_title %}
                 {% if sec.root_slug %}
                 <a class="docs-section-link" href="{{ url_for('docs.docs_page', page=sec.root_slug) }}"
-                  data-section-link="{{ sec.key }}" data-doc-slug="{{ sec.root_slug }}">{{ sec.root_title }}</a>
+                  data-section-link="{{ sec.key }}" data-doc-slug="{{ sec.root_slug }}" title="{{ sec.root_title }}">{{ docs_nav_title(sec, 'root_title_suffix') }}</a>
                 {% else %}
-                <span class="docs-section-link" data-section-link="{{ sec.key }}">{{ sec.root_title }}</span>
+                <span class="docs-section-link" data-section-link="{{ sec.key }}">{{ docs_nav_title(sec, 'root_title_suffix') }}</span>
                 {% endif %}
                 {% else %}
                 <span class="docs-section-link" data-section-link="{{ sec.key }}">Section {{ sec.number }}</span>
@@ -83,7 +96,7 @@
               <div class="list-group list-group-flush">
                 {% for item in sec['items'] %}
                 <a class="list-group-item list-group-item-action level-{{ item.level }}{% if item.slug == active_slug %} active{% endif %}"
-                  href="{{ url_for('docs.docs_page', page=item.slug) }}" data-doc-slug="{{ item.slug }}">{{ item.title }}</a>
+                  href="{{ url_for('docs.docs_page', page=item.slug) }}" data-doc-slug="{{ item.slug }}" title="{{ item.title }}">{{ docs_nav_title(item, 'title_suffix') }}</a>
                 {% endfor %}
               </div>
             </div>
@@ -110,7 +123,7 @@
     <div class="col-md-9 docs-content">
       <div class="card docs-article-card">
         <span class="docs-owner-pill docs-owner-pill--{{ active_context.key }}" id="docs-owner-pill"
-          aria-label="{{ active_context.short_label }} documentation">
+          aria-label="{{ active_context.short_label }} documentation"{% if not active_context.show_owner_pill %} hidden{% endif %}>
           <span id="docs-owner-label">{{ active_context.short_label }}</span>
         </span>
         <div class="card-body" id="docs-content-html">
@@ -353,6 +366,7 @@
       var owner = context.short_label || '';
       if (label) label.textContent = owner;
       if (pill) {
+        pill.hidden = context.show_owner_pill === false;
         pill.classList.remove('docs-owner-pill--shared', 'docs-owner-pill--app', 'docs-owner-pill--engine');
         pill.classList.add('docs-owner-pill--' + (context.key || 'shared'));
         pill.setAttribute('aria-label', owner + ' documentation');

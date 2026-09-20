@@ -34,8 +34,12 @@ def _build_single_markdown_pdf(input_markdown: Path, output_pdf: Path, title: st
 
     markdown_content = docs_builder.replace_stats_placeholders(markdown_content, stats, html_escape=True)
     markdown_content = docs_builder.convert_github_alerts_to_html(markdown_content)
-    markdown_content = docs_builder._rewrite_repo_links(markdown_content)
+    markdown_content = docs_builder._rewrite_repo_links(markdown_content, input_markdown)
     markdown_content = docs_builder._rewrite_mermaid_blocks(markdown_content)
+    markdown_content = docs_builder._rewrite_markdown_asset_paths(
+        markdown_content,
+        input_markdown.parent,
+    )
 
     if "[[canonical_palette]]" in markdown_content:
         markdown_content = markdown_content.replace(

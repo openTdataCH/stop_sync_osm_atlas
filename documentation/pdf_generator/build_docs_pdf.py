@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import html
+import json
 import re
-import ssl
 import subprocess
 import sys
+import textwrap
 from datetime import datetime
 from html import escape
 from pathlib import Path
 from urllib.parse import unquote, urlparse
-from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
 import mistune
@@ -33,9 +33,12 @@ COMBINED_MD_PATH = OUTPUT_DIR / 'stop_sync_osm_atlas_docs_bundle.md'
 OUTPUT_HTML_PATH = OUTPUT_DIR / 'stop_sync_osm_atlas_docs_bundle.html'
 OUTPUT_PDF_PATH = OUTPUT_DIR / 'stop_sync_osm_atlas_documentation.pdf'
 GITHUB_BLOB_BASE = 'https://github.com/openTdataCH/stop_sync_osm_atlas/blob/main/'
-KROKI_MERMAID_ENDPOINT = 'https://kroki.io/mermaid/svg'
 SVG_NS = 'http://www.w3.org/2000/svg'
 XHTML_NS = 'http://www.w3.org/1999/xhtml'
+MERMAID_CONFIG_PATH = DOCS_DIR / 'pdf_generator' / 'mermaid_render_config.json'
+MERMAID_RENDER_CONFIG = json.loads(MERMAID_CONFIG_PATH.read_text(encoding='utf-8'))
+MERMAID_RENDER_CACHE_VERSION = MERMAID_RENDER_CONFIG['cacheVersion']
+MERMAID_INIT_DIRECTIVE = MERMAID_RENDER_CONFIG['initDirective']
 
 ET.register_namespace('', SVG_NS)
 
@@ -201,24 +204,6 @@ def _rewrite_repo_links(content: str, current_doc: Path) -> str:
     return pattern.sub(replace, content)
 
 
-def _fetch_mermaid_svg(diagram_source: str) -> str:
-    payload = diagram_source.encode('utf-8')
-    request = Request(
-        KROKI_MERMAID_ENDPOINT,
-        data=payload,
-        headers={
-            'Content-Type': 'text/plain; charset=utf-8',
-            'User-Agent': 'stop-sync-osm-atlas-docs/1.0',
-        },
-        method='POST',
-    )
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    with urlopen(request, timeout=45, context=ctx) as response:
-        return response.read().decode('utf-8')
-
-
 def _extract_foreign_object_lines(foreign_object: ET.Element) -> list[str]:
     lines: list[str] = []
     current_line_parts: list[str] = []
@@ -247,6 +232,38 @@ def _extract_foreign_object_lines(foreign_object: ET.Element) -> list[str]:
     return [line for line in lines if line]
 
 
+def _fit_svg_text_lines(
+    lines: list[str],
+    width: float,
+    height: float,
+) -> tuple[list[str], float]:
+    """Wrap SVG fallback labels and choose the largest size that fits."""
+    normalized = [' '.join(line.split()) for line in lines if line.strip()]
+    if not normalized or width <= 0 or height <= 0:
+        return normalized, 15.0
+
+    available_width = max(width - 8, 1)
+    available_height = max(height - 4, 1)
+    fitted_lines = normalized
+
+    for font_size in range(15, 7, -1):
+        max_chars = max(1, int(available_width / (font_size * 0.56)))
+        wrapped: list[str] = []
+        for line in normalized:
+            wrapped.extend(textwrap.wrap(
+                line,
+                width=max_chars,
+                break_long_words=True,
+                break_on_hyphens=False,
+            ) or [''])
+
+        fitted_lines = wrapped
+        if len(wrapped) * font_size * 1.2 <= available_height:
+            return wrapped, float(font_size)
+
+    return fitted_lines, 8.0
+
+
 def _convert_foreign_objects_to_svg_text(svg: str) -> str:
     svg = svg.replace('&nbsp;', ' ')
     svg = re.sub(
@@ -270,6 +287,7 @@ def _convert_foreign_objects_to_svg_text(svg: str) -> str:
             if not lines:
                 parent.remove(child)
                 continue
+            lines, font_size = _fit_svg_text_lines(lines, width, height)
 
             text_elem = ET.Element(f'{{{SVG_NS}}}text', {
                 'x': f'{x + (width / 2):.3f}',
@@ -277,7 +295,7 @@ def _convert_foreign_objects_to_svg_text(svg: str) -> str:
                 'text-anchor': 'middle',
                 'dominant-baseline': 'middle',
                 'font-family': 'DejaVu Sans,Trebuchet MS,Verdana,Arial,sans-serif',
-                'font-size': '15',
+                'font-size': f'{font_size:g}',
                 'fill': '#1a1a1a',
             })
 
@@ -377,7 +395,7 @@ def _rewrite_svg_img_tags_in_html(html_content: str, source_dir: Path | None = N
 
 
 def _rewrite_markdown_asset_paths(content: str, source_dir: Path) -> str:
-    pattern = re.compile(r'(!\[[^\]]*\]\()([^\s)]+)(\))')
+    pattern = re.compile(r'!\[([^\]]*)\]\(([^\s)]+)\)')
 
     def replace(match: re.Match[str]) -> str:
         asset_ref = match.group(2)
@@ -386,7 +404,10 @@ def _rewrite_markdown_asset_paths(content: str, source_dir: Path) -> str:
         resolved = _resolve_local_asset_path(asset_ref, source_dir=source_dir)
         if resolved is None:
             return match.group(0)
-        return f'{match.group(1)}{resolved.as_uri()}{match.group(3)}'
+        return (
+            f'<img src="{escape(resolved.as_uri(), quote=True)}" '
+            f'alt="{escape(match.group(1), quote=True)}" />'
+        )
 
     return pattern.sub(replace, content)
 
@@ -394,21 +415,18 @@ def _rewrite_markdown_asset_paths(content: str, source_dir: Path) -> str:
 def _render_mermaid_to_local_svg(diagram_source: str) -> Path:
     normalized_source = diagram_source.strip() + '\n'
     if "%%{init:" not in normalized_source:
-        normalized_source = (
-            "%%{init: {'theme': 'neutral', 'flowchart': {'htmlLabels': false}}}%%\n"
-            + normalized_source
-        )
+        normalized_source = f'{MERMAID_INIT_DIRECTIVE}\n{normalized_source}'
 
-    digest = hashlib.sha256(normalized_source.encode('utf-8')).hexdigest()[:16]
+    cache_input = f'{MERMAID_RENDER_CACHE_VERSION}\0{normalized_source}'
+    digest = hashlib.sha256(cache_input.encode('utf-8')).hexdigest()[:16]
     output_path = DIAGRAMS_DIR / f'mermaid-{digest}.svg'
     if output_path.exists():
         return output_path
 
-    svg = _fetch_mermaid_svg(normalized_source)
-    svg = _convert_foreign_objects_to_svg_text(svg)
-    svg = _ensure_svg_text_visibility(svg)
-    output_path.write_text(svg, encoding='utf-8')
-    return output_path
+    raise RuntimeError(
+        'A pre-rendered Mermaid asset is missing. Run '
+        '`npm run docs:render-mermaid` before building the PDF.'
+    )
 
 
 def _rewrite_mermaid_blocks(content: str) -> str:

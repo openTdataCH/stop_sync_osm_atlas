@@ -83,8 +83,8 @@ The canonical engine documentation lives in [`documentation/`](documentation/1.%
 - [Stop matching](documentation/2.%20Matching%20process.md)
 - [Route comparison](documentation/3.%20Routes.md)
 - [Problem detection](documentation/4.%20Problems.md)
-- [Caching and performance](documentation/7.5%20Pipeline%20Performance.md)
-- [Engine tests](documentation/8.1%20Pipeline%20tests.md)
+- [Caching and performance](documentation/5.2%20Pipeline%20Performance.md)
+- [Engine tests](documentation/6.%20Pipeline%20tests.md)
 - [Changelog](documentation/Changelog.md)
 - [Related projects and collaboration opportunities](documentation/Related%20projects.md)
 
