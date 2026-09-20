@@ -1,14 +1,14 @@
 # Transport Matcher
 
-A Python library for matching public transport stops and routes against OpenStreetMap. It returns complete results: matches and their evidence, unmatched entities, stop groups, discrepancies and diagnostics. It runs independently of the review website, Flask, PostGIS and any database service. Swiss GTFS preprocessing uses an embedded DuckDB database for temporary local work.
+A Python producer package for matching public transport stops and routes against OpenStreetMap. It contains a source-neutral matching core, curated format adapters, optional acquisition clients and maintained first-party integrations. It returns complete results: matches and their evidence, unmatched entities, stop groups, discrepancies and diagnostics. It runs independently of the review website, Flask, PostGIS and any database service. Swiss GTFS preprocessing uses an embedded DuckDB database for temporary local work.
 
 The Swiss ATLAS workflow and generic GTFS workflow use the same stop predicates. Dataset profiles define identifier mappings, grouping policies and thresholds. The project is licensed under AGPL-3.0-or-later.
 
 ```mermaid
 flowchart LR
-    A[ATLAS or GTFS] --> B[Adapter]
-    O[OSM extract] --> C[OSM adapter]
-    B --> E[Matching engine]
+    A[ATLAS or GTFS] --> B[Input integration]
+    O[OSM extract] --> C[OSM format adapters]
+    B --> E[Source-neutral core]
     C --> E
     P[Dataset profile] --> E
     E --> R[Versioned result bundle]
@@ -79,7 +79,7 @@ See [the result format](RESULT_FORMAT.md) for the integration contract. The revi
 
 The canonical engine documentation lives in [`documentation/`](documentation/1.%20Download%20and%20process%20data.md):
 
-- [Sources, adapters and acquisition](documentation/1.%20Download%20and%20process%20data.md)
+- [Input integrations and acquisition](documentation/1.%20Download%20and%20process%20data.md)
 - [Stop matching](documentation/2.%20Matching%20process.md)
 - [Route comparison](documentation/3.%20Routes.md)
 - [Problem detection](documentation/4.%20Problems.md)
@@ -89,6 +89,8 @@ The canonical engine documentation lives in [`documentation/`](documentation/1.%
 - [Related projects and collaboration opportunities](documentation/Related%20projects.md)
 
 The review application may render these pages in its combined documentation portal, but changes to engine behavior and its documentation belong together in this package.
+
+The built-in adapter set is intentionally curated. External datasets can implement `adapters.base.SourceAdapter` and return `AdapterResult` without adding code to this distribution. See the input-integration documentation for the acceptance criteria used for built-in adapters.
 
 ## Standalone container
 

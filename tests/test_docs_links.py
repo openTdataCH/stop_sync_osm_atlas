@@ -222,7 +222,8 @@ def test_docs_portal_labels_engine_and_application_boundaries():
             node.get_text(' ', strip=True)
             for node in soup.select('.docs-collection-label')
         }
-        assert 'Matching engine' in collection_labels
+        assert 'Engine input integrations' in collection_labels
+        assert 'Matching engine core' in collection_labels
         assert 'Review application & deployment' in collection_labels
         assert 'Project overview' not in collection_labels
 
@@ -230,9 +231,9 @@ def test_docs_portal_labels_engine_and_application_boundaries():
         assert overview_link is not None
         assert overview_link.get_text(' ', strip=True) == '0. Project overview'
 
-        overview_heading = soup.select_one('#docs-content-html > h1')
-        assert overview_heading is not None
-        assert overview_heading.get_text(' ', strip=True) == '0. Project overview'
+        article_heading = soup.select_one('#docs-content-html > h1')
+        assert article_heading is not None
+        assert article_heading.get_text(' ', strip=True).endswith('2.1 Exact Matching')
 
         pills = soup.select('#docs-owner-pill')
         assert len(pills) == 1
@@ -289,7 +290,7 @@ def test_docs_portal_uses_project_scoped_section_numbers():
             return f'{prefix}.{number} {suffix}'.strip(), owner
 
         for href, expected, owner_class, expanded_label in (
-            ('/docs/download_and_process_data', 'E.1 Data acquisition & processing', 'docs-nav-owner--engine', 'E'),
+            ('/docs/download_and_process_data', 'E.1 Input integrations & acquisition', 'docs-nav-owner--engine', 'E'),
             ('/docs/atlas_cached_import_optimization', 'E.5.1 Atlas-Cached Import Optimization', 'docs-nav-owner--engine', 'E'),
             ('/docs/pipeline_tests', 'E.6 Engine tests', 'docs-nav-owner--engine', 'E'),
             ('/docs/database', 'A.1 Database & bundle import', 'docs-nav-owner--app', 'A'),

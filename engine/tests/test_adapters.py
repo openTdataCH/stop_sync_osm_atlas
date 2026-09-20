@@ -58,7 +58,12 @@ def test_gtfs_without_swiss_identifiers_preserves_feed_scope_and_repeated_calls(
     assert paris == {'paris:A', 'paris:B'}
     assert not paris & lyon
     assert all(not stop.station_ref for stop in first.source.get_all_rows_as_dict().values())
-    calls = first.route_data['atlas_itinerary_stop_calls']
+    assert set(first.route_data) == {
+        'source_line_families', 'source_itineraries', 'source_itinerary_stop_calls',
+    }
+    calls = first.route_data['source_itinerary_stop_calls']
+    assert 'source_itinerary_id' in calls and 'source_stop_key' in calls
+    assert 'atlas_itinerary_id' not in calls and 'resolved_sloid' not in calls
     assert list(calls.stop_sequence) == [10, 20, 30]
     assert list(calls.canonical_stop_key) == ['paris:A', 'paris:B', 'paris:A']
     assert first.source.get_route_evidence('paris:A')['gtfs'][0]['route_id_normalized'] == 'paris:route:R-j25'

@@ -17,7 +17,7 @@ from transport_matcher.routes import build_route_write_payload
 from transport_matcher.adapters.atlas import atlas_records, atlas_state
 from transport_matcher.adapters.metadata import fingerprint
 from transport_matcher.adapters.osm import read_osm
-from transport_matcher.adapters.get_osm_data import process_osm_routes_data
+from transport_matcher.adapters.osm_routes import process_osm_routes_data
 from transport_matcher.adapters.route_products import (
     load_all_route_data, read_gtfs_identity_cache, scope_source_stop_keys, unresolved_osm_member_diagnostics,
 )

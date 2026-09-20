@@ -21,6 +21,8 @@ pipeline.
 - **Standalone package and CLI** — Added an installable Python package with source adapters, dataset profiles, offline tests and the `transport-matcher` command.
 - **Generic GTFS workflow** — Added namespaced source identities and matching profiles so feeds can be processed without SLOID or UIC identifiers.
 - **Independent result production** — Matching runs now write complete, validated result bundles without Flask, SQLAlchemy, PostGIS or review-application imports.
+- **Explicit integration boundary** — Added a public external-adapter contract and a first-party Swiss integration entry point. Generic GTFS route products now use `source_*` names internally while schema 1 retains its deprecated legacy field names at the serialization boundary.
+- **Separated OSM acquisition and parsing** — Overpass network access, normalized OSM element parsing and PTv2 route-product parsing now live in separate modules; the former combined module remains as a compatibility shim.
 
 ### Performance
 

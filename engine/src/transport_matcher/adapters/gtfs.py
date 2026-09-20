@@ -8,24 +8,15 @@ import json
 import re
 import zipfile
 from collections import defaultdict
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 
 from transport_matcher.core.models import SourceStop
 from transport_matcher.core.state import SourceState
+from .base import AdapterResult
 from .route_products import source_route_evidence, unresolved_osm_member_diagnostics
 from .metadata import fingerprint
-
-
-@dataclass
-class AdapterResult:
-    source: SourceState
-    route_data: dict[str, pd.DataFrame] = field(default_factory=dict)
-    extensions: dict[str, Any] = field(default_factory=dict)
-    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 def _read_tables(path: Path) -> dict[str, list[dict[str, str]]]:
@@ -117,7 +108,7 @@ def _build_route_products(tables, namespace, by_id):
             raise ValueError(f'Missing or duplicate GTFS route_id: {route_id!r}')
         routes[route_id] = row
         families.append({
-            'atlas_line_id': route_key(route_id), 'route_id_normalized': route_key(route_id),
+            'source_family_id': route_key(route_id), 'route_id_normalized': route_key(route_id),
             **{column: row.get(column) for column in ('agency_id', 'route_short_name', 'route_long_name', 'route_desc', 'route_type')},
         })
     trips = {}
@@ -150,7 +141,7 @@ def _build_route_products(tables, namespace, by_id):
         digest = hashlib.sha256(json.dumps(identity, separators=(',', ':')).encode()).hexdigest()[:24]
         itinerary_id = f'{namespace}:itinerary:{digest}'
         patterns[identity] = {
-            'atlas_itinerary_id': itinerary_id, 'atlas_line_id': route_key(trip['route_id']),
+            'source_itinerary_id': itinerary_id, 'source_family_id': route_key(trip['route_id']),
             'direction_id': trip.get('direction_id') or None,
             'direction_label': trip.get('trip_headsign') or None,
             'representative_headsign': trip.get('trip_headsign') or None,
@@ -165,18 +156,18 @@ def _build_route_products(tables, namespace, by_id):
         for sequence, _, row in ordered:
             stop = by_id.get(row['stop_id'])
             calls.append({
-                'atlas_itinerary_id': pattern['atlas_itinerary_id'], 'stop_sequence': sequence,
+                'source_itinerary_id': pattern['source_itinerary_id'], 'stop_sequence': sequence,
                 'gtfs_stop_id': f"{namespace}:{row['stop_id']}",
-                'resolved_sloid': stop.key if stop else None,
+                'source_stop_key': stop.key if stop else None,
                 'canonical_stop_key': stop.key if stop else f"{namespace}:{row['stop_id']}",
                 'stop_label': stop.name if stop else row['stop_id'],
                 'platform_code': stop.platform_code if stop else None,
                 'stop_lat': stop.lat if stop else None, 'stop_lon': stop.lon if stop else None,
             })
     return {
-        'atlas_line_families': pd.DataFrame(families),
-        'atlas_itineraries': pd.DataFrame(itineraries),
-        'atlas_itinerary_stop_calls': pd.DataFrame(calls),
+        'source_line_families': pd.DataFrame(families),
+        'source_itineraries': pd.DataFrame(itineraries),
+        'source_itinerary_stop_calls': pd.DataFrame(calls),
     }
 
 
@@ -192,7 +183,7 @@ def run_gtfs(gtfs_path: str | Path, osm_xml: str | Path, *, namespace: str, prof
     from transport_matcher.profiles import MatchingProfile
     from transport_matcher.routes import build_route_write_payload
     from .osm import read_osm
-    from .get_osm_data import process_osm_routes_data
+    from .osm_routes import process_osm_routes_data
     adapter = read_gtfs(gtfs_path, namespace=namespace)
     osm = read_osm(osm_xml, route_namespace=namespace)
     profile = profile or MatchingProfile(profile_id=f'gtfs:{namespace}', capabilities=('stops', 'problems', 'routes'))
@@ -202,9 +193,10 @@ def run_gtfs(gtfs_path: str | Path, osm_xml: str | Path, *, namespace: str, prof
         frame['gtfs_route_id'] = frame['gtfs_route_id'].map(lambda value: f'{namespace}:route:{value}' if value else None)
         frame['route_id_normalized'] = frame['gtfs_route_id']
     adapter.route_data.update(osm_products)
+    source_families = adapter.route_data.get('source_line_families', pd.DataFrame())
     route_state = RouteState.from_records(
-        [{'route_id': row['atlas_line_id'], 'route_id_normalized': row.get('route_id_normalized')}
-         for row in adapter.route_data.get('atlas_line_families', pd.DataFrame()).to_dict('records')],
+        [{'route_id': row['source_family_id'], 'route_id_normalized': row.get('route_id_normalized')}
+         for row in source_families.to_dict('records')],
         adapter.route_data['osm_route_relations'].to_dict('records'),
     )
     output = match(adapter.source, osm, profile, route_evidence={'route_state': route_state})

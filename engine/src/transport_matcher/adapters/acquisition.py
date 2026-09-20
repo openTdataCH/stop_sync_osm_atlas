@@ -13,7 +13,7 @@ from transport_matcher.timing import stage
 
 from .get_atlas_data import ATLAS_ACTUAL_DATE_RESOURCE_PERMALINK, get_atlas_stops, get_current_gtfs_permalink
 from .get_atlas_gtfs import download_and_extract_gtfs
-from .get_osm_data import query_overpass
+from transport_matcher.acquisition.overpass import query_overpass
 from .geo_utils import _ensure_swiss_geojson_cache
 from .source_freshness import probe_remote_source, source_snapshot_is_unchanged
 
