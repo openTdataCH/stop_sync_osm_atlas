@@ -3,7 +3,7 @@ from flask import current_app as app
 from backend.extensions import db
 from backend.models import Itinerary, LineFamily, LineFamilyMatch, StopCall
 
-from matching_and_import_db.utils.route_id import normalize_route_id
+from backend.services.source_config import normalize_route_search_id
 
 
 def _clean_text(value):
@@ -121,7 +121,7 @@ def get_osm_routes_for_node(osm_node_id):
 
 def get_stops_for_route(route_id, direction=None):
     try:
-        normalized_input = normalize_route_id(route_id) if route_id else None
+        normalized_input = normalize_route_search_id(route_id) if route_id else None
 
         direct_family_rows = (
             db.session.query(LineFamily.id, LineFamily.source)

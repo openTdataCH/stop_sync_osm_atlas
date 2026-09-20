@@ -67,20 +67,6 @@ describe('Index map adapter', () => {
             destroy: jest.fn()
         };
 
-        class ClusterManager {
-            constructor() {
-                this.entries = [];
-            }
-
-            addMarker(lat, lon, markerData) {
-                this.entries.push({ lat, lon, markerData });
-            }
-
-            getClusteredData() {
-                return this.entries.slice();
-            }
-        }
-
         window.L = global.L = {
             layerGroup: jest.fn(createLayerGroup),
             polyline: jest.fn(() => ({}))
@@ -120,37 +106,8 @@ describe('Index map adapter', () => {
             topN: null
         };
         window.getActiveFilterCount = jest.fn(() => activeFilterCount);
-        window.MapShared = {
-            getAtlasMarkerIdentity: stop => stop.sloid || stop.id || null,
-            getViewportZoomPolicy: zoom => ({
-                isOverview: zoom < 13,
-                isFullDetail: zoom >= 15,
-                shouldShowBanner: zoom < 15,
-                limit: zoom < 15 ? 1800 : null,
-                mode: zoom < 13 ? 'overview' : (zoom < 15 ? 'limited' : 'full')
-            }),
-            createEntityKey: (type, stop) => {
-                const identity = type === 'atlas'
-                    ? (stop.sloid || stop.id)
-                    : (stop.osm_node_id || stop.id);
-                return identity == null ? null : type + ':' + identity;
-            }
-        };
-        window.MapRenderer = {
-            MarkerClusterManager: ClusterManager,
-            getMarkerRenderSignature: jest.fn((type, color, data, zoom) =>
-                [type, color, zoom < 18 ? 'circle' : 'label', data.osmNodeType || 'plain'].join('|')),
-            createAtlasMarker: jest.fn(() => ({
-                options: {}, setLatLng: jest.fn(), on: jest.fn(), off: jest.fn(),
-                bindPopup: jest.fn(), openPopup: jest.fn(), closePopup: jest.fn(), unbindPopup: jest.fn()
-            })),
-            createOsmMarker: jest.fn(() => ({
-                options: {}, setLatLng: jest.fn(), on: jest.fn(), off: jest.fn(),
-                bindPopup: jest.fn(), openPopup: jest.fn(), closePopup: jest.fn(), unbindPopup: jest.fn()
-            })),
-            createPopupWithOptions: jest.fn(content => ({ content })),
-            createMarkersWithOverlapHandling: jest.fn(() => [])
-        };
+        require('./load-map-components')();
+        window.MapRenderer = { ...window.MapRenderer, renderEntities: jest.fn(() => []) };
         window.PopupRenderer = global.PopupRenderer = {
             generatePopupHtml: jest.fn(() => 'popup'),
             generateSingleAtlasBubbleHtml: jest.fn(() => 'atlas popup'),
@@ -158,7 +115,7 @@ describe('Index map adapter', () => {
         };
         window.LineRenderer = global.LineRenderer = {
             clearLines: jest.fn(),
-            drawAll: jest.fn()
+            drawRelationships: jest.fn()
         };
         window.MapComponents = {
             MapCore: {
@@ -244,6 +201,7 @@ describe('Index map adapter', () => {
         const payload = [{
             id: 'atlas-id',
             sloid: 'ch:1:sloid:1',
+            has_atlas_duplicate: true,
             stop_type: 'atlas_unmatched',
             lat: 46.5,
             lon: 7.5
@@ -257,7 +215,7 @@ describe('Index map adapter', () => {
         expect(firstDescriptors[0].key).toBe('atlas:ch:1:sloid:1');
         expect(secondDescriptors[0].key).toBe(firstDescriptors[0].key);
         expect(secondDescriptors[0].renderSignature).not.toBe(firstDescriptors[0].renderSignature);
-        expect(LineRenderer.drawAll).toHaveBeenCalledTimes(2);
+        expect(LineRenderer.drawRelationships).toHaveBeenCalledTimes(2);
     });
 
     test('reuses a contained uncapped result across zoom-in but never a capped one', () => {
@@ -336,7 +294,7 @@ describe('Index map adapter', () => {
         }]);
 
         expect(request.abort).toHaveBeenCalledTimes(1);
-        expect(window.MapRenderer.createMarkersWithOverlapHandling).not.toHaveBeenCalled();
+        expect(window.MapRenderer.renderEntities).not.toHaveBeenCalled();
         expect(failureCallback).toEqual(expect.any(Function));
         expect(alwaysCallback).toEqual(expect.any(Function));
         activeFilters.stopType = [];

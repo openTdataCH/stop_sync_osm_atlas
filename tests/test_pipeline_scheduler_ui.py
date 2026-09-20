@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 
 def test_create_interval_trigger_uses_hours():
-    from matching_and_import_db.scheduler import service
+    from backend.jobs import service
 
     trigger = service._create_interval_trigger(interval_hours=6)
 
@@ -13,7 +13,7 @@ def test_create_interval_trigger_uses_hours():
 
 
 def test_update_next_run_timestamp_serializes_utc_iso(monkeypatch):
-    from matching_and_import_db.scheduler import service
+    from backend.jobs import service
 
     expected = datetime(2026, 5, 2, 10, 30, tzinfo=timezone.utc)
     captured = {}
@@ -35,7 +35,7 @@ def test_update_next_run_timestamp_serializes_utc_iso(monkeypatch):
 
 
 def test_scheduler_started_listener_refreshes_next_run(monkeypatch):
-    from matching_and_import_db.scheduler import service
+    from backend.jobs import service
 
     captured = {}
     monkeypatch.setattr(service, "_update_next_run_timestamp", lambda: captured.setdefault("called", True))
@@ -200,7 +200,7 @@ def test_navbar_renders_next_run_without_import_timestamp(client, monkeypatch):
 
 
 def test_record_data_updated_timestamp_writes_meta_and_status(monkeypatch, tmp_path):
-    from matching_and_import_db.scheduler import job_runner
+    from backend.jobs import job_runner
     from backend.services import data_meta
 
     monkeypatch.chdir(tmp_path)
@@ -218,8 +218,8 @@ def test_record_data_updated_timestamp_writes_meta_and_status(monkeypatch, tmp_p
 
 
 def test_record_data_updated_timestamp_persists_run_type_and_refresh_scope(monkeypatch, tmp_path):
-    from matching_and_import_db.scheduler import job_runner
-    from matching_and_import_db.scheduler.job_types import PipelineRunType
+    from backend.jobs import job_runner
+    from backend.jobs.job_types import PipelineRunType
     from backend.services import data_meta
 
     monkeypatch.chdir(tmp_path)
@@ -255,121 +255,38 @@ def test_format_zurich_display_timestamp_formats_iso_strings():
     assert format_zurich_display_timestamp("2026-05-10T09:14:40Z") == "2026-05-10 11:14"
 
 
-def test_source_snapshot_unchanged_uses_http_validators():
-    from matching_and_import_db.downloader import source_freshness
-
-    previous = {"probe_ok": True, "etag": '"abc"', "last_modified": "old"}
-    current_same = {"probe_ok": True, "etag": '"abc"', "last_modified": "new"}
-    current_different = {"probe_ok": True, "etag": '"xyz"', "last_modified": "new"}
-
-    assert source_freshness.source_snapshot_is_unchanged(previous, current_same) is True
-    assert source_freshness.source_snapshot_is_unchanged(previous, current_different) is False
-
-
-def test_run_atlas_gtfs_preprocessing_skips_when_sources_are_unchanged(monkeypatch):
-    from matching_and_import_db.scheduler import job_runner
-    from matching_and_import_db.scheduler.job_types import PipelineRunType
-
-    previous_sources = {
-        "atlas": {"probe_ok": True, "etag": '"atlas"'},
-        "gtfs": {"probe_ok": True, "etag": '"gtfs"'},
-    }
-    current_sources = {
-        "atlas": {"probe_ok": True, "etag": '"atlas"'},
-        "gtfs": {"probe_ok": True, "etag": '"gtfs"'},
-    }
-    captured = {"phases": []}
-
-    monkeypatch.setattr(job_runner, "_load_preprocessing_source_state", lambda: previous_sources)
-    monkeypatch.setattr(job_runner, "_probe_preprocessing_sources", lambda: current_sources)
-    monkeypatch.setattr(job_runner, "atlas_cached_static_tables_ready", lambda _session: True)
-    monkeypatch.setattr(job_runner, "refresh_run_lock", lambda *args, **kwargs: None)
-    monkeypatch.setattr(job_runner, "_persist_preprocessing_source_state", lambda *_args, **_kwargs: captured.setdefault("persisted", True))
-    monkeypatch.setattr(job_runner, "_run_subprocess", lambda *args, **kwargs: captured.setdefault("subprocess_called", True))
-    monkeypatch.setattr(
-        job_runner,
-        "set_phase",
-        lambda **kwargs: captured["phases"].append((kwargs["phase"], kwargs["message"])),
-    )
-
-    run_type = job_runner._run_atlas_gtfs_preprocessing_if_needed("lock-token")
-
-    assert run_type == PipelineRunType.ATLAS_CACHED
-    assert captured.get("subprocess_called") is None
-    assert captured["phases"][-1] == (
-        "atlas_download",
-        "ATLAS + GTFS unchanged; reusing cached preprocessing outputs",
-    )
+def test_engine_command_reuses_source_snapshots_without_engine_import(monkeypatch, tmp_path):
+    from backend.jobs import job_runner
+    monkeypatch.setenv('MATCHER_COMMAND', '/path/to/engine/bin/transport-matcher')
+    monkeypatch.setenv('PIPELINE_WORKSPACE', str(tmp_path))
+    destination = tmp_path / 'result'
+    command = job_runner._engine_command('match-import', destination)
+    assert command[0] == '/path/to/engine/bin/transport-matcher'
+    assert '--download' not in command
+    assert str(destination) in command
+    assert '--download' in job_runner._engine_command('full', destination)
 
 
-def test_run_atlas_gtfs_preprocessing_uses_bootstrap_when_static_tables_are_missing(monkeypatch):
-    from matching_and_import_db.scheduler import job_runner
-    from matching_and_import_db.scheduler.job_types import PipelineRunType
-
-    previous_sources = {
-        "atlas": {"probe_ok": True, "etag": '"atlas"'},
-        "gtfs": {"probe_ok": True, "etag": '"gtfs"'},
-    }
-    current_sources = {
-        "atlas": {"probe_ok": True, "etag": '"atlas"'},
-        "gtfs": {"probe_ok": True, "etag": '"gtfs"'},
-    }
-    captured = {"phases": []}
-
-    monkeypatch.setattr(job_runner, "_load_preprocessing_source_state", lambda: previous_sources)
-    monkeypatch.setattr(job_runner, "_probe_preprocessing_sources", lambda: current_sources)
-    monkeypatch.setattr(job_runner, "atlas_cached_static_tables_ready", lambda _session: False)
-    monkeypatch.setattr(job_runner, "refresh_run_lock", lambda *args, **kwargs: None)
-    monkeypatch.setattr(job_runner, "_persist_preprocessing_source_state", lambda *_args, **_kwargs: captured.setdefault("persisted", True))
-    monkeypatch.setattr(job_runner, "_run_subprocess", lambda *args, **kwargs: captured.setdefault("subprocess_called", True))
-    monkeypatch.setattr(
-        job_runner,
-        "set_phase",
-        lambda **kwargs: captured["phases"].append((kwargs["phase"], kwargs["message"])),
-    )
-
-    run_type = job_runner._run_atlas_gtfs_preprocessing_if_needed("lock-token")
-
-    assert run_type == PipelineRunType.ATLAS_CACHED_BOOTSTRAP
-    assert captured.get("subprocess_called") is None
-    assert captured["phases"][-1] == (
-        "atlas_download",
-        "ATLAS + GTFS unchanged; cached preprocessing found, rebuilding static import tables",
-    )
+def test_engine_command_force_refresh_only_applies_to_acquisition(monkeypatch, tmp_path):
+    from backend.jobs import job_runner
+    monkeypatch.setenv('PIPELINE_FORCE_FULL_REFRESH', 'true')
+    assert '--force' in job_runner._engine_command('full', tmp_path / 'result')
+    assert '--force' not in job_runner._engine_command('match-import', tmp_path / 'result')
 
 
-def test_run_atlas_gtfs_preprocessing_can_force_full_refresh(monkeypatch):
-    from matching_and_import_db.scheduler import job_runner
-    from matching_and_import_db.scheduler.job_types import PipelineRunType
-
-    previous_sources = {
-        "atlas": {"probe_ok": True, "etag": '"atlas"'},
-        "gtfs": {"probe_ok": True, "etag": '"gtfs"'},
-    }
-    current_sources = {
-        "atlas": {"probe_ok": True, "etag": '"atlas"'},
-        "gtfs": {"probe_ok": True, "etag": '"gtfs"'},
-    }
-    captured = {"phases": []}
-
-    monkeypatch.setenv("PIPELINE_FORCE_FULL_REFRESH", "1")
-    monkeypatch.setattr(job_runner, "_load_preprocessing_source_state", lambda: previous_sources)
-    monkeypatch.setattr(job_runner, "_probe_preprocessing_sources", lambda: current_sources)
-    monkeypatch.setattr(job_runner, "atlas_cached_static_tables_ready", lambda _session: True)
-    monkeypatch.setattr(job_runner, "refresh_run_lock", lambda *args, **kwargs: None)
-    monkeypatch.setattr(job_runner, "_persist_preprocessing_source_state", lambda *_args, **_kwargs: captured.setdefault("persisted", True))
-    monkeypatch.setattr(job_runner, "_run_subprocess", lambda *args, **kwargs: captured.setdefault("subprocess_called", True))
-    monkeypatch.setattr(
-        job_runner,
-        "set_phase",
-        lambda **kwargs: captured["phases"].append((kwargs["phase"], kwargs["message"])),
-    )
-
-    run_type = job_runner._run_atlas_gtfs_preprocessing_if_needed("lock-token")
-
-    assert run_type == PipelineRunType.COMPLETE
-    assert captured.get("subprocess_called") is True
-    assert captured["phases"][-1] == (
-        "atlas_download",
-        "ATLAS + GTFS unchanged; forcing preprocessing rebuild and full refresh",
-    )
+def test_engine_process_does_not_receive_application_credentials(monkeypatch):
+    from types import SimpleNamespace
+    from backend.jobs import job_runner
+    monkeypatch.setenv('DATABASE_URI', 'test-database-secret')
+    monkeypatch.setenv('SECRET_KEY', 'test-session-secret')
+    monkeypatch.setenv('SOURCE_API_TOKEN', 'source-token')
+    monkeypatch.setattr(job_runner, 'set_phase', lambda **kwargs: None)
+    captured = {}
+    def run(command, **kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(returncode=0)
+    monkeypatch.setattr(job_runner.subprocess, 'run', run)
+    job_runner._run_subprocess(['transport-matcher', '--help'], 'matching', 'Matching')
+    assert 'DATABASE_URI' not in captured['env']
+    assert 'SECRET_KEY' not in captured['env']
+    assert captured['env']['SOURCE_API_TOKEN'] == 'source-token'

@@ -1,0 +1,13 @@
+{
+  "title": "Public Transport Review",
+  "source_label": "GTFS",
+  "source_id_label": "Stop ID",
+  "source_url_template": "",
+  "flag": "🚌",
+  "map_center": [51.5, -0.1],
+  "map_zoom": 14,
+  "map_bounds": null,
+  "map_min_zoom": 2,
+  "capabilities": {"routes": true, "gtfs_identity": false},
+  "route_search_normalization": "none"
+}

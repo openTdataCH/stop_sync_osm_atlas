@@ -1,8 +1,8 @@
 {% extends "layouts/base.html" %}
 
 {% from "components/_components.html" import stats_overlay with context %}
-{% block title %}{% if active_view == 'non_gtfs_routes' %}Non-GTFS Routes{% elif active_view == 'gtfs_stop_id_sloid' %}GTFS stop_id and SLOID{% else %}Swiss Public Transport Routes{% endif %} | OSM &amp; ATLAS{% endblock %}
-{% block meta_description %}{% if active_view == 'non_gtfs_routes' %}Inspect OpenStreetMap public transport routes that are absent from the Swiss OpenTransportData GTFS dataset.{% elif active_view == 'gtfs_stop_id_sloid' %}Compare GTFS stop identifiers with Swiss ATLAS service location identifiers and inspect their map coverage.{% else %}Compare matched and unmatched Swiss public transport routes from OpenStreetMap and ATLAS.{% endif %}{% endblock %}
+{% block title %}{% if active_view == 'non_gtfs_routes' %}Non-GTFS Routes{% elif active_view == 'gtfs_stop_id_sloid' %}GTFS stop_id and SLOID{% else %}Public Transport Routes{% endif %} | {{ review_config.title }}{% endblock %}
+{% block meta_description %}{% if active_view == 'non_gtfs_routes' %}Inspect OpenStreetMap public transport routes that are absent from the configured {{ review_config.source_label }} route dataset.{% elif active_view == 'gtfs_stop_id_sloid' %}Compare GTFS stop identifiers with Swiss ATLAS service location identifiers and inspect their map coverage.{% else %}Compare matched and unmatched public transport routes from OpenStreetMap and {{ review_config.source_label }}.{% endif %}{% endblock %}
 
 {% block head_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
@@ -16,10 +16,10 @@
 
 {% macro render_route_meta(route, side, solo=False) %}
 {% set is_atlas = side == 'atlas' %}
-{% set title = 'ATLAS' if is_atlas else 'OSM' %}
+{% set title = review_config.source_label if is_atlas else 'OSM' %}
 {% set base_class = 'route-meta route-meta--atlas' if is_atlas else 'route-meta route-meta--osm' %}
 {% if solo %}{% set base_class = base_class + ' route-meta--solo' %}{% endif %}
-{% set display_name = (route.atlas_route_short_name or route.atlas_route_name or 'Atlas route') if is_atlas else (route.osm_route_name or 'OSM route') %}
+{% set display_name = (route.atlas_route_short_name or route.atlas_route_name or (review_config.source_label ~ ' route')) if is_atlas else (route.osm_route_name or 'OSM route') %}
 {% set secondary_name = route.atlas_route_long_name if is_atlas else route.osm_ref %}
 {% set route_id_text = ('ID: ' ~ (route.atlas_route_id or '-')) if is_atlas else (route.osm_route_id_label ~ ': ' ~ ((route.osm_gtfs_route_id or route.osm_route_display_id) or '-')) %}
 {% set operator_text = route.atlas_operators_summary if is_atlas else route.osm_operator %}
@@ -49,7 +49,7 @@
         {% if route.atlas_route_type %}<dt>Route type</dt><dd>{{ route.atlas_route_type }}</dd>{% endif %}
         {% if route.atlas_family_origin %}<dt>Family origin</dt><dd>{{ route.atlas_family_origin }}</dd>{% endif %}
         {% if route.atlas_normalized_route_id %}<dt>Normalized route ID</dt><dd>{{ route.atlas_normalized_route_id }}</dd>{% endif %}
-        {% if route.atlas_line_id %}<dt>Atlas line ID</dt><dd>{{ route.atlas_line_id }}</dd>{% endif %}
+        {% if route.atlas_line_id %}<dt>{{ review_config.source_label }} line ID</dt><dd>{{ route.atlas_line_id }}</dd>{% endif %}
         {% if route.atlas_network %}<dt>Network</dt><dd>{{ route.atlas_network }}</dd>{% endif %}
         {% if route.atlas_operator_wikidata %}<dt>Operator Wikidata</dt><dd>{{ route.atlas_operator_wikidata }}</dd>{% endif %}
         {% if route.atlas_network_wikidata %}<dt>Network Wikidata</dt><dd>{{ route.atlas_network_wikidata }}</dd>{% endif %}
@@ -80,9 +80,9 @@
       <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ route.osm_route_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View relation {{ route.osm_route_id }} on OSM</a>
       {% endif %}
       {% if route.is_non_gtfs %}
-      <div class="route-meta__note">Not part of the OpenTransportData GTFS dataset. Excluded from route matching.</div>
+      <div class="route-meta__note">Not part of the configured {{ review_config.source_label }} route dataset. Excluded from route matching.</div>
       {% elif route.display_mode == 'osm_only' %}
-      <div class="route-meta__note">No matched Atlas route.</div>
+      <div class="route-meta__note">No matched {{ review_config.source_label }} route.</div>
       {% endif %}
     {% endif %}
   </div>
@@ -90,10 +90,13 @@
 {% endmacro %}
 
 {% block content %}
+{% if not review_config.capabilities.routes %}
+<div class="container py-4"><p>Route review is unavailable for this dataset.</p></div>
+{% else %}
 <div class="routes-page{{ ' routes-page--gtfs-map' if active_view == 'gtfs_stop_id_sloid' }}">
   <div class="routes-container{{ ' routes-container--gtfs-map' if active_view == 'gtfs_stop_id_sloid' }}">
     <header class="routes-header">
-      <nav class="c-page-tabs" aria-label="Routes pages" style="--page-tabs-count: 3">
+      <nav class="c-page-tabs" aria-label="Routes pages" style="--page-tabs-count: {{ 3 if review_config.capabilities.gtfs_identity else 2 }}">
         <a href="{{ url_for('routes.routes_page') }}"
            class="c-page-tabs__tab{{ ' is-active' if active_view == 'routes' }}"
            {% if active_view == 'routes' %}aria-current="page"{% endif %}>
@@ -104,22 +107,24 @@
            {% if active_view == 'non_gtfs_routes' %}aria-current="page"{% endif %}>
           Non-GTFS routes
         </a>
+        {% if review_config.capabilities.gtfs_identity %}
         <a href="{{ url_for('routes.routes_gtfs_stop_id_sloid_page') }}"
            class="c-page-tabs__tab{{ ' is-active' if active_view == 'gtfs_stop_id_sloid' }}"
            {% if active_view == 'gtfs_stop_id_sloid' %}aria-current="page"{% endif %}>
           SLOID <span aria-hidden="true">↔</span> GTFS stop_id
         </a>
+        {% endif %}
       </nav>
       {% if active_view == 'gtfs_stop_id_sloid' %}
       {# The map view needs no explanatory copy below its tabs. #}
       {% elif active_view == 'non_gtfs_routes' %}
-      <p>These are OSM public transport routes that do not appear in the OpenTransportData GTFS dataset but we still display them. We do not attempt to match these routes.</p>
+      <p>These are OSM public transport routes that do not appear in the configured {{ review_config.source_label }} route dataset but we still display them. We do not attempt to match these routes.</p>
       {% else %}
       <p>Filter matched and unmatched routes, then unfold each card to inspect stops or preview route position on the map.</p>
       <div class="routes-header__note" role="note">
         <strong>Subroutes and itineraries are experimental.</strong>
         OSM route relations should ideally represent public-facing or service-level variants that passengers would recognize,
-        but we do not yet have a stable rule for deriving those variants from OpenTransportData GTFS data.
+        but we do not yet have a stable rule for deriving those variants from {{ review_config.source_label }} route data.
         For now, the itinerary layer is only a heuristic reduction based mainly on GTFS headsign grouping,
         so these variant buckets are useful for inspection but should not yet be treated as a canonical OSM mapping target.
       </div>
@@ -153,18 +158,18 @@
             </div>
             <div id="routesSearchHint" class="smart-search-hint d-none">
               <div class="smart-search-hint__title">Route search</div>
-              <div class="smart-search-hint__item">Use Atlas route IDs or OSM GTFS route IDs, for example <kbd>11-T-j25-1</kbd>.</div>
+              <div class="smart-search-hint__item">Use {{ review_config.source_label }} route IDs or OSM GTFS route IDs.</div>
             </div>
           </div>
 
           <!-- ATLAS dropdown -->
           <div class="dropdown routes-toolbar__inline-item">
             <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="routesAtlasDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
-              ATLAS Operator
+              {{ review_config.source_label }} Operator
             </button>
             <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="routesAtlasDropdown" style="width: 280px; max-height: 60vh; overflow-y: auto;">
               <div class="form-group mb-0">
-                <label for="atlasOperatorFilterRoutes" class="fw-bold small text-uppercase text-muted">ATLAS Operator</label>
+                <label for="atlasOperatorFilterRoutes" class="fw-bold small text-uppercase text-muted">{{ review_config.source_label }} Operator</label>
                 <div id="atlasOperatorFilterRoutes"></div>
               </div>
             </div>
@@ -207,7 +212,7 @@
                 <div class="ps-3 border-start mt-2">
                   <div class="form-check">
                     <input type="checkbox" class="form-check-input routes-status-checkbox" id="unmatchedAtlasOnly" data-value="unmatched_atlas" {% if matched_filter == 'unmatched_atlas' %}checked{% endif %}>
-                    <label class="form-check-label" for="unmatchedAtlasOnly">Unmatched ATLAS</label>
+                    <label class="form-check-label" for="unmatchedAtlasOnly">Unmatched {{ review_config.source_label }}</label>
                   </div>
                   <div class="form-check">
                     <input type="checkbox" class="form-check-input routes-status-checkbox" id="unmatchedOsmOnly" data-value="unmatched_osm" {% if matched_filter == 'unmatched_osm' %}checked{% endif %}>
@@ -275,7 +280,7 @@
         </div>
 
         {% if route.variant_count is defined and route.variant_count > 0 %}
-        <p class="route-card__summary">ATLAS variants: {{ route.atlas_variant_count }} | OSM variants: {{ route.osm_variant_count }} | Matched: {{ route.matched_variant_count }}</p>
+        <p class="route-card__summary">{{ review_config.source_label }} variants: {{ route.atlas_variant_count }} | OSM variants: {{ route.osm_variant_count }} | Matched: {{ route.matched_variant_count }}</p>
         {% endif %}
 
         {% if route.direction_groups %}
@@ -320,7 +325,7 @@
               <div class="direction-block__columns">
                 <div class="stops-column">
                   <div class="stops-column-header">
-                    <h4>ATLAS Stops</h4>
+                    <h4>{{ review_config.source_label }} Stops</h4>
                   </div>
                   {% if direction.atlas_uic_groups %}
                   <ol class="stops-list">
@@ -332,14 +337,14 @@
                       </div>
                       <ul class="stops-list stops-list--nested">
                         {% for member in group.members %}
-                        <li><div class="stop-id stop-id--secondary">{{ 'SLOIDs' if member.stop_ids|length > 1 else 'SLOID' }}: {{ member.stop_ids|join(', ') if member.stop_ids else (member.stop_id or '-') }}</div></li>
+                        <li><div class="stop-id stop-id--secondary">{{ review_config.source_id_label }}{{ 's' if member.stop_ids|length > 1 else '' }}: {{ member.stop_ids|join(', ') if member.stop_ids else (member.stop_id or '-') }}</div></li>
                         {% endfor %}
                       </ul>
                     </li>
                     {% endfor %}
                   </ol>
                   {% else %}
-                  <p class="stops-empty">No ATLAS stops in this direction.</p>
+                  <p class="stops-empty">No {{ review_config.source_label }} stops in this direction.</p>
                   {% endif %}
                 </div>
 
@@ -446,7 +451,7 @@
       <a class="btn btn-outline-primary" href="{{ url_for('routes.non_gtfs_routes_page') }}">Reload non GTFS routes</a>
       {% else %}
       <h2>No routes found</h2>
-      <p>Try broadening filters or clearing ATLAS Operator selections.</p>
+      <p>Try broadening filters or clearing {{ review_config.source_label }} Operator selections.</p>
       <a class="btn btn-outline-primary" href="{{ url_for('routes.routes_page') }}">Clear all filters</a>
       {% endif %}
     </section>
@@ -474,34 +479,72 @@
             {{ stats_overlay(show_filters=True) }}
           </div>
         </div>
-        <form id="routesGtfsStopIdSloidSearchForm" class="routes-gtfs-map-search" role="search" novalidate>
-          <label class="visually-hidden" for="routesGtfsStopIdSloidSearchInput">Search by SLOID, UIC, or GTFS stop_id</label>
-          <div class="input-group input-group-sm smart-search-input-group bg-white shadow-sm">
-            <button
-              id="routesGtfsStopIdSloidSearchButton"
-              type="submit"
-              class="input-group-text bg-white border-0"
-              aria-label="Search stops"
-            >
-              <i class="fas fa-search text-muted" aria-hidden="true"></i>
+        <div id="routesGtfsStopIdSloidControls" class="routes-gtfs-map-controls">
+          <form id="routesGtfsStopIdSloidSearchForm" class="routes-gtfs-map-search" role="search" novalidate>
+            <label class="visually-hidden" for="routesGtfsStopIdSloidSearchInput">Search by SLOID, UIC, or GTFS stop_id</label>
+            <div class="input-group input-group-sm smart-search-input-group bg-white shadow-sm">
+              <button
+                id="routesGtfsStopIdSloidSearchButton"
+                type="submit"
+                class="input-group-text bg-white border-0"
+                aria-label="Search stops"
+              >
+                <i class="fas fa-search text-muted" aria-hidden="true"></i>
+              </button>
+              <input
+                id="routesGtfsStopIdSloidSearchInput"
+                type="search"
+                class="form-control form-control-sm border-0 ps-0 border-start-0"
+                placeholder="Search stops..."
+                autocomplete="off"
+                aria-describedby="routesGtfsStopIdSloidSearchHint routesGtfsStopIdSloidSearchFeedback"
+              >
+            </div>
+            <div id="routesGtfsStopIdSloidSearchHint" class="smart-search-hint d-none">
+              <div class="smart-search-hint__title">Accepted formats</div>
+              <div class="smart-search-hint__item"><kbd>8503000</kbd> or <kbd>uic:8503000</kbd> UIC</div>
+              <div class="smart-search-hint__item"><kbd>ch:1:sloid:…</kbd> ATLAS SLOID</div>
+              <div class="smart-search-hint__item"><kbd>8507000:0:1</kbd> or <kbd>stop_id:…</kbd> GTFS stop_id</div>
+            </div>
+            <div id="routesGtfsStopIdSloidSearchFeedback" class="smart-search-feedback d-none" role="alert"></div>
+          </form>
+
+          <div class="dropdown filter-item">
+            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+              type="button" id="routesGtfsMatchedDropdown" data-bs-toggle="dropdown" aria-haspopup="true"
+              aria-expanded="false" data-bs-auto-close="outside">
+              Matched
             </button>
-            <input
-              id="routesGtfsStopIdSloidSearchInput"
-              type="search"
-              class="form-control form-control-sm border-0 ps-0 border-start-0"
-              placeholder="Search stops..."
-              autocomplete="off"
-              aria-describedby="routesGtfsStopIdSloidSearchHint routesGtfsStopIdSloidSearchFeedback"
-            >
+            <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="routesGtfsMatchedDropdown">
+              <div class="form-check mb-2">
+                <input type="checkbox" id="routesGtfsMatchedAll" class="form-check-input">
+                <label class="form-check-label fw-bold text-primary" for="routesGtfsMatchedAll">All matched stops</label>
+              </div>
+              <div id="routesGtfsMatchMethodsSection" class="border-top pt-2 d-none">
+                <div class="fw-bold small text-uppercase text-muted mb-1">Matching methods</div>
+                <div id="routesGtfsMatchMethods"></div>
+              </div>
+            </div>
           </div>
-          <div id="routesGtfsStopIdSloidSearchHint" class="smart-search-hint d-none">
-            <div class="smart-search-hint__title">Accepted formats</div>
-            <div class="smart-search-hint__item"><kbd>8503000</kbd> or <kbd>uic:8503000</kbd> UIC</div>
-            <div class="smart-search-hint__item"><kbd>ch:1:sloid:…</kbd> ATLAS SLOID</div>
-            <div class="smart-search-hint__item"><kbd>8507000:0:1</kbd> or <kbd>stop_id:…</kbd> GTFS stop_id</div>
+
+          <div class="dropdown filter-item">
+            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+              type="button" id="routesGtfsUnmatchedDropdown" data-bs-toggle="dropdown" aria-haspopup="true"
+              aria-expanded="false" data-bs-auto-close="outside">
+              Unmatched
+            </button>
+            <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="routesGtfsUnmatchedDropdown">
+              <div class="form-check mb-2">
+                <input type="checkbox" id="routesGtfsUnmatchedGtfs" class="form-check-input">
+                <label class="form-check-label fw-bold" for="routesGtfsUnmatchedGtfs">GTFS unmatched</label>
+              </div>
+              <div class="form-check">
+                <input type="checkbox" id="routesGtfsUnmatchedAtlas" class="form-check-input">
+                <label class="form-check-label fw-bold" for="routesGtfsUnmatchedAtlas">ATLAS unmatched</label>
+              </div>
+            </div>
           </div>
-          <div id="routesGtfsStopIdSloidSearchFeedback" class="smart-search-feedback d-none" role="alert"></div>
-        </form>
+        </div>
         <div
           id="routesGtfsStopIdSloidStatus"
           class="zoom-banner d-none"
@@ -519,13 +562,16 @@
     {% endif %}
   </div>
 </div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
+{% if review_config.capabilities.routes %}
 <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-shared.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/map-entity-adapters.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-core.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-layer-registry.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-popup-controller.js') }}"></script>
@@ -546,7 +592,7 @@
   "selectedAtlasOperators": {{ selected_atlas_operators | tojson }},
   "selectedOsmOperators": {{ selected_osm_operators | tojson }},
   "matchedFilter": {{ matched_filter | tojson }},
-  "matchFilterLabels": {{ match_filter_labels | tojson }},
+  "matchFilterLabels": {{ dict(match_filter_labels, unmatched_atlas="Unmatched " ~ review_config.source_label) | tojson }},
   "q": {{ q | tojson }},
   "baseUrl": {{ url_for('routes.routes_page') | tojson }}
 }
@@ -565,5 +611,6 @@ window.routesPageConfig = JSON.parse(document.getElementById('routesPageConfig')
 }
 </script>
 <script src="{{ url_for('static', filename='js/pages/routes-gtfs-stop-id-sloid.js') }}"></script>
+{% endif %}
 {% endif %}
 {% endblock %}

@@ -18,6 +18,7 @@ from backend.models import (
     StopCall,
 )
 from backend.services.gtfs_stop_id_sloid import (
+    GTFS_STOP_ID_SLOID_FILTER_STATUSES,
     GTFS_STOP_ID_SLOID_SEARCH_KINDS,
     build_atlas_stop_popup,
     build_gtfs_stop_id_sloid_map_payload,
@@ -182,6 +183,17 @@ def _parse_gtfs_stop_id_sloid_include_matches():
     raise ValueError('Invalid include_matches value')
 
 
+def _parse_gtfs_stop_id_sloid_filters():
+    statuses = _parse_multi_filter('status')
+    if any(status not in GTFS_STOP_ID_SLOID_FILTER_STATUSES for status in statuses):
+        raise ValueError('Invalid GTFS stop map status filter')
+
+    match_methods = _parse_multi_filter('match_method')
+    if len(match_methods) > 20 or any(len(method) > 100 for method in match_methods):
+        raise ValueError('Invalid GTFS stop map match method filter')
+    return statuses, match_methods
+
+
 def _parse_multi_filter(param_name: str) -> list[str]:
     selected = {
         item.strip()
@@ -272,7 +284,7 @@ def _group_stops_by_uic(direction_stops):
 
         grouped_by_uic[uic]['members'].append(
             {
-                'stop_id': stop.get('stop_id'),
+                **stop,
                 'stop_ids': stop.get('stop_ids') or ([stop.get('stop_id')] if stop.get('stop_id') else []),
                 'stop_label': stop.get('stop_label') or '-',
                 'stop_sequence': stop.get('stop_sequence'),
@@ -1372,8 +1384,9 @@ def routes_gtfs_stop_id_sloid_map_api():
         search_kind, search_value = _parse_gtfs_stop_id_sloid_search()
         requested_limit = _parse_gtfs_stop_id_sloid_map_limit()
         include_matches = _parse_gtfs_stop_id_sloid_include_matches()
+        filter_statuses, match_methods = _parse_gtfs_stop_id_sloid_filters()
     except (TypeError, ValueError):
-        return jsonify({'error': 'Invalid map bounds, zoom, limit, relationship mode, or identifier search'}), 400
+        return jsonify({'error': 'Invalid map bounds, zoom, limit, relationship mode, filters, or identifier search'}), 400
 
     try:
         return jsonify(build_gtfs_stop_id_sloid_map_payload(
@@ -1386,6 +1399,8 @@ def routes_gtfs_stop_id_sloid_map_api():
             search_value,
             requested_limit,
             include_matches,
+            filter_statuses,
+            match_methods,
         ))
     except Exception as exc:
         if is_missing_table_error(exc):

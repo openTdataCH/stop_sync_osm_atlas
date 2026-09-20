@@ -47,7 +47,7 @@
             const safeRouteId = escapeInlineJsString(filterRouteId);
             const safeDirections = escapeInlineJsString(directions.join(','));
             const routeIdText = group.displayRouteId || group.routeId;
-            const routeIdLink = filterRouteId && routeIdText !== 'unknown' && options.enableRouteLink !== false
+            const routeIdLink = filterRouteId && routeIdText !== 'unknown' && options.enableRouteLink !== false && SharedUtils.hasCapability('routes')
                 ? `<a href="#" onclick="filterByRoute('${safeRouteId}', '${safeDirections}'); return false;">${routeIdText}</a>`
                 : routeIdText;
 
@@ -155,7 +155,7 @@
             addSection('OSM-only Routes', osmOnlyRoutes);
         } else {
             addSection('Matched Routes', matchedRoutes);
-            addSection('ATLAS-only Routes', atlasOnlyRoutes);
+            addSection(`${SharedUtils.sourceLabelHtml()}-only Routes`, atlasOnlyRoutes);
             addSection('OSM-only Routes', osmOnlyRoutes);
         }
         return html || '<i>No route information available</i>';

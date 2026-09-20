@@ -119,12 +119,18 @@ function installPage() {
       </div>
       <div id="headerSummaryFiltersPanel"><div id="activeFilters"></div></div>
     </div>
-    <form id="routesGtfsStopIdSloidSearchForm">
-      <button id="routesGtfsStopIdSloidSearchButton" type="submit">Search</button>
-      <input id="routesGtfsStopIdSloidSearchInput">
-      <div id="routesGtfsStopIdSloidSearchHint" class="d-none"></div>
-      <div id="routesGtfsStopIdSloidSearchFeedback" class="d-none"></div>
-    </form>
+    <div id="routesGtfsStopIdSloidControls">
+      <form id="routesGtfsStopIdSloidSearchForm">
+        <button id="routesGtfsStopIdSloidSearchButton" type="submit">Search</button>
+        <input id="routesGtfsStopIdSloidSearchInput">
+        <div id="routesGtfsStopIdSloidSearchHint" class="d-none"></div>
+        <div id="routesGtfsStopIdSloidSearchFeedback" class="d-none"></div>
+      </form>
+      <input id="routesGtfsMatchedAll" type="checkbox">
+      <div id="routesGtfsMatchMethodsSection" class="d-none"><div id="routesGtfsMatchMethods"></div></div>
+      <input id="routesGtfsUnmatchedGtfs" type="checkbox">
+      <input id="routesGtfsUnmatchedAtlas" type="checkbox">
+    </div>
     <div id="routesGtfsStopIdSloidStatus" class="zoom-banner d-none">
       <span id="routesGtfsStopIdSloidStatusText"></span>
       <button id="routesGtfsStopIdSloidRetry" hidden>Retry</button>
@@ -174,29 +180,11 @@ function installPage() {
   const registries = [];
   let viewportOptions;
 
-  class ClusterManager {
-    constructor() {
-      this.entries = [];
-    }
-
-    addMarker(lat, lon, markerData) {
-      this.entries.push({ lat, lon, markerData });
-    }
-
-    getClusteredData() {
-      return this.entries.map((entry) => {
-        const offset = entry.markerData.entityType === 'atlas' ? 0.001 : -0.001;
-        return {
-          lat: entry.lat + offset,
-          lon: entry.lon + offset,
-          markerData: entry.markerData
-        };
-      });
-    }
-  }
-
   window.L = {
     circleMarker: jest.fn((position) => createMarker(position, 'gtfs')),
+    marker: jest.fn(position => createMarker(position, 'atlas')),
+    divIcon: jest.fn(options => options),
+    polyline: jest.fn((coordinates, options) => ({ coordinates, options })),
     layerGroup: jest.fn(createLayerGroup)
   };
   window.AppConstants = {
@@ -215,32 +203,10 @@ function installPage() {
       VIEW_DEBOUNCE_MS: 150
     }
   };
-  window.MapRenderer = {
-    MarkerClusterManager: ClusterManager,
-    createAtlasMarker: jest.fn((lat, lon) => createMarker([lat, lon], 'atlas')),
-    getMarkerRenderSignature: jest.fn((type, color, data, zoom) => [type, color, data.hasAtlasDuplicate, zoom < 18 ? 'circle' : 'label'].join('|')),
-    createPopupWithOptions: jest.fn((content) => ({ content }))
-  };
-  window.MapShared = {
-    createEntityKey: jest.fn((type, stop) => `${type}:${type === 'atlas' ? stop.sloid : stop.stop_id}`),
-    getViewportZoomPolicy: jest.fn((zoom) => ({
-      zoom,
-      isOverview: zoom < 13,
-      isFullDetail: zoom >= 15,
-      shouldShowBanner: zoom < 15,
-      limit: zoom < 15 ? 1800 : null,
-      mode: zoom < 13 ? 'overview' : (zoom < 15 ? 'limited' : 'full')
-    }))
-  };
+  require('./load-map-components')();
+  window.MapRenderer = { ...window.MapRenderer, createPopupWithOptions: jest.fn(content => ({ content })) };
   window.PopupRenderer = {
     generateGtfsStopIdSloidPopupHtml: jest.fn((payload) => `<p>${payload.entity_type}</p>`)
-  };
-  window.LineRenderer = {
-    drawLine: jest.fn((layer, atlasLat, atlasLon, gtfsLat, gtfsLon) => {
-      const line = { atlasLat, atlasLon, gtfsLat, gtfsLon };
-      layer.addLayer(line);
-      return line;
-    })
   };
   const summaryController = {
       setCollapsed: jest.fn(),
@@ -258,7 +224,14 @@ function installPage() {
   };
   window.matchMedia = jest.fn(() => ({ matches: false }));
   window.fetch = jest.fn((url) => {
-    if (url === '/summary') return response({ total_gtfs_stops: 1, total_atlas_stops: 1 });
+    if (url === '/summary') return response({
+      total_gtfs_stops: 1,
+      total_atlas_stops: 1,
+      match_methods: [
+        { value: 'original_stop_id', label: 'Original stop_id', count: 7 },
+        { value: 'coordinate_proximity', label: 'Coordinate proximity', count: 2 }
+      ]
+    });
     return response({});
   });
 
@@ -367,7 +340,7 @@ describe('Routes GTFS stop_id/SLOID map adapter', () => {
   test('draws match lines between keyed display positions instead of raw snapshots', () => {
     const page = installPage();
     const viewportOptions = page.getViewportOptions();
-    window.LineRenderer.drawLine.mockClear();
+    window.L.polyline.mockClear();
 
     viewportOptions.onData(samplePayload({
       matches: [{
@@ -380,18 +353,18 @@ describe('Routes GTFS stop_id/SLOID map adapter', () => {
       }]
     }), { zoom: 20 });
 
-    expect(window.LineRenderer.drawLine).toHaveBeenCalledTimes(1);
-    const call = window.LineRenderer.drawLine.mock.calls[0];
-    expect(call[1]).toBeCloseTo(46.501);
-    expect(call[2]).toBeCloseTo(7.501);
-    expect(call[3]).toBeCloseTo(46.599);
-    expect(call[4]).toBeCloseTo(7.599);
+    expect(window.L.polyline).toHaveBeenCalledTimes(1);
+    const call = window.L.polyline.mock.calls[0];
+    expect(call[0]).toEqual([
+      page.registries[0].entries.get('atlas:ch:1:sloid:1').descriptor.displayPosition,
+      page.registries[1].entries.get('gtfs:8500:0:1').descriptor.displayPosition
+    ]);
   });
 
-  test('uses a null-safe raw-coordinate fallback for legacy relationships without keys', () => {
+  test('rejects malformed relationships without endpoint identities', () => {
     const page = installPage();
     const viewportOptions = page.getViewportOptions();
-    window.LineRenderer.drawLine.mockClear();
+    window.L.polyline.mockClear();
 
     viewportOptions.onData(samplePayload({
       matches: [
@@ -410,18 +383,16 @@ describe('Routes GTFS stop_id/SLOID map adapter', () => {
       ]
     }), { zoom: 20 });
 
-    expect(window.LineRenderer.drawLine).toHaveBeenCalledTimes(1);
-    expect(window.LineRenderer.drawLine.mock.calls[0].slice(1, 5))
-      .toEqual([46.51, 7.51, 46.61, 7.61]);
+    expect(window.L.polyline).not.toHaveBeenCalled();
   });
 
   test('transfers popup state only when a zoom signature replaces a marker', () => {
     const page = installPage();
     const viewportOptions = page.getViewportOptions();
 
-    viewportOptions.onData(samplePayload(), { zoom: 17 });
+    viewportOptions.onData(samplePayload({ atlas_stops: [{ ...samplePayload().atlas_stops[0], has_atlas_duplicate: true }] }), { zoom: 17 });
     const oldAtlasMarker = page.registries[0].entries.get('atlas:ch:1:sloid:1').layer;
-    viewportOptions.onData(samplePayload(), { zoom: 19 });
+    viewportOptions.onData(samplePayload({ atlas_stops: [{ ...samplePayload().atlas_stops[0], has_atlas_duplicate: true }] }), { zoom: 19 });
     const replacement = page.registries[0].entries.get('atlas:ch:1:sloid:1').layer;
 
     expect(replacement).not.toBe(oldAtlasMarker);
@@ -484,6 +455,50 @@ describe('Routes GTFS stop_id/SLOID map adapter', () => {
     expect(page.viewportController.invalidate).toHaveBeenCalledTimes(1);
   });
 
+  test('builds matched method and unmatched filters from the map pills', async () => {
+    const page = installPage();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const methods = document.querySelectorAll('.routes-gtfs-match-method');
+    expect(methods).toHaveLength(2);
+    expect(document.getElementById('routesGtfsMatchMethodsSection').classList.contains('d-none')).toBe(false);
+
+    methods[0].checked = true;
+    methods[0].dispatchEvent(new Event('change', { bubbles: true }));
+    await Promise.resolve();
+    expect(window.RoutesGtfsStopIdSloidMap.getFilters()).toEqual({
+      match_method: ['original_stop_id']
+    });
+    expect(document.getElementById('routesGtfsMatchedAll').indeterminate).toBe(true);
+    expect(document.getElementById('activeFilters').textContent).toContain('Matched: Original stop_id');
+
+    const gtfsUnmatched = document.getElementById('routesGtfsUnmatchedGtfs');
+    gtfsUnmatched.checked = true;
+    gtfsUnmatched.dispatchEvent(new Event('change', { bubbles: true }));
+    await Promise.resolve();
+    expect(window.RoutesGtfsStopIdSloidMap.getFilters()).toEqual({
+      match_method: ['original_stop_id'],
+      status: ['gtfs_unmatched']
+    });
+
+    const context = { requestBounds: page.bounds, zoom: 13, signal: {} };
+    window.fetch.mockClear();
+    window.fetch.mockImplementation(() => response(samplePayload()));
+    await page.getViewportOptions().load(context);
+    const requestUrl = new URL(window.fetch.mock.calls[0][0], 'https://example.test');
+    expect(requestUrl.searchParams.getAll('match_method')).toEqual(['original_stop_id']);
+    expect(requestUrl.searchParams.getAll('status')).toEqual(['gtfs_unmatched']);
+
+    const allMatched = document.getElementById('routesGtfsMatchedAll');
+    allMatched.checked = true;
+    allMatched.dispatchEvent(new Event('change', { bubbles: true }));
+    await Promise.resolve();
+    expect(window.RoutesGtfsStopIdSloidMap.getFilters()).toEqual({
+      status: ['gtfs_unmatched', 'matched']
+    });
+    expect(Array.from(methods).every(checkbox => checkbox.checked)).toBe(true);
+  });
+
   test('shares the Index zoom budget and reuses contained buffered viewports', () => {
     const page = installPage();
     const viewportOptions = page.getViewportOptions();
@@ -529,13 +544,13 @@ describe('Routes GTFS stop_id/SLOID map adapter', () => {
     expect(statusText.textContent).toBe('📍 Zoom in a bit more to see all markers in this area');
     expect(statusText.textContent).not.toContain('Updating');
 
-    window.LineRenderer.drawLine.mockClear();
+    window.L.polyline.mockClear();
     viewportOptions.onData(samplePayload(), { zoom: 12, cacheHit: false });
-    expect(window.LineRenderer.drawLine).not.toHaveBeenCalled();
+    expect(window.L.polyline).not.toHaveBeenCalled();
     expect(status.classList.contains('d-none')).toBe(false);
 
     viewportOptions.onData(samplePayload(), { zoom: 13, cacheHit: false });
-    expect(window.LineRenderer.drawLine).toHaveBeenCalledTimes(1);
+    expect(window.L.polyline).toHaveBeenCalledTimes(1);
     expect(status.classList.contains('d-none')).toBe(true);
 
     viewportOptions.onData(samplePayload({ meta: { gtfs_capped: true } }), { zoom: 15, cacheHit: false });

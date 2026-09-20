@@ -249,6 +249,8 @@ def _looks_like_repo_file_link(href: str) -> bool:
         return False
 
     path = href.split('#', 1)[0].split('?', 1)[0]
+    if path.startswith(('../engine/', '../docs_to_read/')) and path.endswith('.md'):
+        return True
     # Common repo root files without extensions.
     if os.path.basename(path).lower() in {'dockerfile'}:
         return True

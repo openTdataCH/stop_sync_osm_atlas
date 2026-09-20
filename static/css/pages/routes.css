@@ -25,6 +25,7 @@
   height: calc(100dvh - var(--navbar-height));
   min-height: 0;
   padding: var(--space-2) 0;
+  background: var(--color-bg-subtle);
 }
 
 .routes-container.routes-container--gtfs-map {
@@ -377,13 +378,36 @@
   margin-left: 0;
 }
 
-.routes-gtfs-map-search {
+.routes-gtfs-map-controls {
   position: absolute;
   top: var(--space-4);
   left: var(--space-4);
   z-index: 1100;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: calc(100% - 430px);
+}
+
+.routes-gtfs-map-search {
+  position: relative;
+  flex: 0 1 250px;
   width: 250px;
-  max-width: calc(100% - 5.5rem);
+  min-width: 180px;
+}
+
+.routes-gtfs-map-controls .filter-item {
+  flex: 0 0 auto;
+}
+
+.routes-gtfs-map-controls .dropdown-menu {
+  width: 260px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.routes-gtfs-map-controls .form-check-label {
+  white-space: normal;
 }
 
 .routes-gtfs-map-search .input-group-text {
@@ -1071,8 +1095,14 @@
 
 @media (max-width: 991px) {
   .routes-gtfs-map-top-right {
-    top: var(--space-3);
+    top: calc(var(--space-3) + 42px);
     right: var(--space-3);
+    max-width: calc(100% - 1.5rem);
+  }
+
+  .routes-gtfs-map-controls {
+    top: var(--space-3);
+    left: var(--space-3);
     max-width: calc(100% - 1.5rem);
   }
 
@@ -1111,17 +1141,41 @@
     height: 70vh;
   }
 
+  .routes-gtfs-map-shell {
+    --zoom-banner-top: 88px;
+  }
+
   .routes-gtfs-map-top-right {
-    top: calc(var(--space-2) + 44px);
+    top: calc(var(--space-2) + 92px);
     right: var(--space-2);
     max-width: calc(100% - 1rem);
+    flex-direction: column;
+    align-items: flex-end;
+  }
+
+  .routes-gtfs-map-overlay,
+  .routes-gtfs-map-overlay .header-summary {
+    max-width: calc(100vw - 2rem);
+  }
+
+  .routes-gtfs-map-controls {
+    top: var(--space-2);
+    left: var(--space-2);
+    width: calc(100% - 1rem);
+    max-width: calc(100% - 1rem);
+    gap: var(--space-1);
+    flex-wrap: wrap;
   }
 
   .routes-gtfs-map-search {
-    top: var(--space-2);
-    left: var(--space-2);
-    width: calc(100% - 5.5rem);
-    max-width: none;
+    flex: 1 0 100%;
+    width: 100%;
+    min-width: 100%;
+  }
+
+  .routes-gtfs-map-controls .filter-item .btn {
+    padding-left: 0.65rem !important;
+    padding-right: 0.65rem !important;
   }
 
   .routes-container {

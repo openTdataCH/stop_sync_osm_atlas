@@ -27,7 +27,11 @@ var activeFilters = {
     osmGroups: []
 };
 
-const SMART_SEARCH_VALIDATION_MESSAGE = 'Allowed formats: UIC (e.g. 8503000), ATLAS SLOID (ch:1:sloid:...), OSM node id (123456789), route (11-T-jXX-1 dir:0)';
+function smartSearchValidationMessage() {
+    return `Allowed formats: source:… (${SharedUtils.sourceLabel()} ${SharedUtils.sourceIdLabel()}), node/123456789 (OSM node)`
+        + (SharedUtils.hasCapability('gtfs_identity') ? ', UIC (8503000), SLOID (ch:1:sloid:…)' : '')
+        + (SharedUtils.hasCapability('routes') ? ', route:… (optional dir:0 or dir:1)' : '');
+}
 const DISTANCE_METHOD_CHECKBOX_SELECTORS = [
     '#distanceMethodTrio',
     '#distanceMethodStage1',
@@ -129,7 +133,7 @@ const SIMPLE_ARRAY_FILTER_DEFINITIONS = [
         renderGroup: function (values) {
             return window.FilterChipUtils.generateOperatorChipsHtml(values, {
                 context: 'index',
-                labelPrefix: 'ATLAS Operator'
+                labelPrefix: SharedUtils.sourceLabel() + ' Operator'
             });
         },
         remove: function (value) {
@@ -323,7 +327,7 @@ function showSmartSearchError(message, showHint = true) {
     if (!errorEl.length) return;
 
     if (message) {
-        const docLink = ' <a href="/docs/5.3 Filters and Search logic" class="smart-search-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>';
+        const docLink = ' <a href="/docs/filters_and_search_logic" class="smart-search-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>';
         errorEl.html($('<span>').text(message).html() + docLink).removeClass('d-none');
         if (showHint) {
             $('#smartSearchHint').removeClass('d-none');
@@ -341,6 +345,11 @@ function parseSmartSearchInput(rawValue) {
 
     if (!value) {
         return { error: 'Enter a search value.' };
+    }
+
+    const sourceMatch = value.match(/^source:(.+)$/i);
+    if (sourceMatch && sourceMatch[1].trim()) {
+        return { kind: 'atlas', value: sourceMatch[1].trim() };
     }
 
     if (/^ch:\d+:sloid:[^\s]+$/i.test(value)) {
@@ -361,9 +370,10 @@ function parseSmartSearchInput(rawValue) {
     // OR they look implicitly like a route ID with alphanumeric chunks separated by single dashes (e.g. 11-T-j25-1).
     const routeMatch = value.match(/^(?:route:([^\s]+)|([a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)+))(?:\s+dir:(0|1))?$/i);
     if (routeMatch) {
+        if (!SharedUtils.hasCapability('routes')) return { error: 'Route review is unavailable for this dataset.' };
         const routeId = (routeMatch[1] || routeMatch[2]).trim();
         if (!routeId) {
-            return { error: SMART_SEARCH_VALIDATION_MESSAGE };
+            return { error: smartSearchValidationMessage() };
         }
 
         return {
@@ -373,7 +383,7 @@ function parseSmartSearchInput(rawValue) {
         };
     }
 
-    return { error: SMART_SEARCH_VALIDATION_MESSAGE };
+    return { error: smartSearchValidationMessage() };
 }
 
 function addSearchToken(token) {
@@ -620,14 +630,14 @@ function updateFiltersUI() {
     let unmatchedAtlasString = '';
     if (activeFilters.unmatchedOptions && showUnmatchedAtlasFilters) {
         if (activeFilters.unmatchedOptions.allSelected) {
-            unmatchedAtlasString = buildRemovableChip({ label: 'Unmatched ATLAS', badgeClass: 'filter-chip-unmatched', data: { type: 'masterUnmatchedAtlas', target: '#masterUnmatchedAtlasCheckbox' } });
+            unmatchedAtlasString = buildRemovableChip({ label: 'Unmatched ' + SharedUtils.sourceLabel(), badgeClass: 'filter-chip-unmatched', data: { type: 'masterUnmatchedAtlas', target: '#masterUnmatchedAtlasCheckbox' } });
         } else {
             let reasonChips = [];
             if (activeFilters.unmatchedOptions.reasons.noNearbyOSM) {
-                reasonChips.push(buildRemovableChip({ label: 'Unmatched ATLAS: No OSM < 50m', badgeClass: 'filter-chip-unmatched', data: { type: 'specificUnmatched', target: '#filterNoNearbyOSM' } }));
+                reasonChips.push(buildRemovableChip({ label: 'Unmatched ' + SharedUtils.sourceLabel() + ': No OSM < 50m', badgeClass: 'filter-chip-unmatched', data: { type: 'specificUnmatched', target: '#filterNoNearbyOSM' } }));
             }
             if (activeFilters.unmatchedOptions.reasons.osmNearby) {
-                reasonChips.push(buildRemovableChip({ label: 'Unmatched ATLAS: OSM < 50m', badgeClass: 'filter-chip-unmatched', data: { type: 'specificUnmatched', target: '#filterOSMNearby' } }));
+                reasonChips.push(buildRemovableChip({ label: 'Unmatched ' + SharedUtils.sourceLabel() + ': OSM < 50m', badgeClass: 'filter-chip-unmatched', data: { type: 'specificUnmatched', target: '#filterOSMNearby' } }));
             }
             unmatchedAtlasString = buildOrGroup(reasonChips);
         }
@@ -650,7 +660,7 @@ function updateFiltersUI() {
         var direction = activeFilters.routeDirections[index] || '';
         var labelText = '', badgeClass = '', badgeHtmlContent = '';
         switch (filterType) {
-            case 'atlas': labelText = 'ATLAS SloidID: '; badgeClass = 'filter-chip-atlas'; badgeHtmlContent = labelText + filter; break;
+            case 'atlas': labelText = SharedUtils.sourceLabel() + ' ' + SharedUtils.sourceIdLabel() + ': '; badgeClass = 'filter-chip-atlas'; badgeHtmlContent = labelText + filter; break;
             case 'osm': labelText = 'OSM Node ID: '; badgeClass = 'filter-chip-osm'; badgeHtmlContent = labelText + filter; break;
             case 'route':
                 var normalizedRoute = normalizeRouteIdForDisplay(filter);
@@ -696,7 +706,7 @@ function updateFiltersUI() {
     }
 
     if (activeFilters.topN) finalGroupStrings.push(buildRemovableChip({ label: 'Top N Distances (' + activeFilters.topN + ')', badgeClass: 'filter-chip-secondary', data: { type: 'topN', filter: 'topN' } }));
-    if (activeFilters.showDuplicatesOnly) finalGroupStrings.push(buildRemovableChip({ label: 'Duplicate ATLAS', badgeClass: 'filter-chip-atlas', data: { type: 'showDuplicatesOnly' } }));
+    if (activeFilters.showDuplicatesOnly) finalGroupStrings.push(buildRemovableChip({ label: 'Duplicate ' + SharedUtils.sourceLabel(), badgeClass: 'filter-chip-atlas', data: { type: 'showDuplicatesOnly' } }));
 
     if (finalGroupStrings.length > 0) {
         if (getActiveFilterCount() === 1) {

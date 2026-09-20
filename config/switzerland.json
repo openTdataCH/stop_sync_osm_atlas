@@ -1,0 +1,13 @@
+{
+  "title": "OSM & ATLAS Synchronization",
+  "source_label": "ATLAS",
+  "source_id_label": "SLOID",
+  "source_url_template": "https://atlas.app.sbb.ch/service-point-directory/service-points/{uic_ref}/traffic-point-elements",
+  "flag": "🇨🇭",
+  "map_center": [46.8, 8.2],
+  "map_zoom": 8,
+  "map_bounds": [[45.5, 5.5], [48, 11]],
+  "map_min_zoom": 8,
+  "capabilities": {"routes": true, "gtfs_identity": true},
+  "route_search_normalization": "swiss_year"
+}

@@ -79,6 +79,8 @@ describe('ProblemsMap context loading', () => {
 
         window.AppConstants = global.AppConstants = {
             MAP: {
+                DEFAULT_CENTER: [47.3769, 8.5417],
+                DEFAULT_ZOOM: 12,
                 ZOOM_LINE_THRESHOLD: 16,
                 MAX_ZOOM: 20,
                 MAX_NATIVE_ZOOM: 19
@@ -105,15 +107,7 @@ describe('ProblemsMap context loading', () => {
             setContextMarkersLayer: jest.fn()
         };
 
-        window.MapShared = {
-            getAtlasMarkerIdentity: stop => stop.sloid || null,
-            createEntityKey: (type, stop) => {
-                const id = type === 'atlas' ? (stop.sloid || stop.id) : (stop.osm_node_id || stop.id);
-                return id == null ? null : `${type}:${id}`;
-            },
-            createBaseTileLayers: jest.fn()
-        };
-
+        require('./load-map-components')();
         popupController = {
             attach: jest.fn(),
             open: jest.fn(() => Promise.resolve({ status: 'opened' })),
@@ -143,15 +137,15 @@ describe('ProblemsMap context loading', () => {
         };
 
         global.LineRenderer = {
-            drawAll: jest.fn()
+            drawRelationships: jest.fn()
         };
         window.LineRenderer = global.LineRenderer;
 
         window.MapRenderer = global.MapRenderer = {
-            createMarkersWithOverlapHandling: jest.fn(markerData => markerData.map(() => ({
+            ...window.MapRenderer,
+            renderEntities: jest.fn(markerData => markerData.map(() => ({
                 setOpacity: jest.fn()
             }))),
-            setMarkerOpacity: jest.fn(),
             createPopupWithOptions: jest.fn(content => ({ content }))
         };
 
@@ -219,16 +213,15 @@ describe('ProblemsMap context loading', () => {
 
         requests[0].resolve(stops);
 
-        const markerData = MapRenderer.createMarkersWithOverlapHandling.mock.calls[0][0];
-        const markerOptions = MapRenderer.createMarkersWithOverlapHandling.mock.calls[0][2];
+        const markerData = MapRenderer.renderEntities.mock.calls[0][0];
+        const markerOptions = MapRenderer.renderEntities.mock.calls[0][2];
         expect(markerData).toHaveLength(250);
         expect(markerOptions).toEqual(expect.objectContaining({
-            map: problemMap,
-            zoom: 17,
+            layout: expect.objectContaining({ descriptors: expect.any(Array) }),
             bindPopup: expect.any(Function)
         }));
-        expect(MapRenderer.setMarkerOpacity).toHaveBeenCalledTimes(250);
-        expect(LineRenderer.drawAll).toHaveBeenCalledWith(stops, renderedChildLayers[0], expect.objectContaining({
+        expect(markerData.every(entity => entity.emphasis === 'context')).toBe(true);
+        expect(LineRenderer.drawRelationships).toHaveBeenCalledWith([], renderedChildLayers[0], expect.any(Map), expect.objectContaining({
             currentZoom: 17,
             isContext: true
         }));
@@ -242,7 +235,7 @@ describe('ProblemsMap context loading', () => {
 
         expect(contextLayer.clearLayers).toHaveBeenCalledTimes(1);
         expect(contextLayer.addLayer).not.toHaveBeenCalled();
-        expect(MapRenderer.createMarkersWithOverlapHandling).not.toHaveBeenCalled();
+        expect(MapRenderer.renderEntities).not.toHaveBeenCalled();
     });
 
     test('only the newest request may replace the displayed context', () => {
@@ -259,8 +252,8 @@ describe('ProblemsMap context loading', () => {
         requests[1].resolve(secondStops);
         requests[0].resolve(firstStops); // Simulate a transport that still invokes its callback after abort.
 
-        expect(LineRenderer.drawAll).toHaveBeenCalledTimes(1);
-        expect(LineRenderer.drawAll.mock.calls[0][0]).toEqual(secondStops);
+        expect(LineRenderer.drawRelationships).toHaveBeenCalledTimes(1);
+        expect(MapRenderer.renderEntities.mock.calls[0][0].map(entity => entity.popupRef.id)).toEqual(secondStops.map(stop => stop.id));
         expect(contextLayer.clearLayers).toHaveBeenCalledTimes(1);
         expect(contextLayer.addLayer).toHaveBeenCalledTimes(1);
     });
@@ -274,7 +267,7 @@ describe('ProblemsMap context loading', () => {
 
         requests[0].resolve([{ id: 'late', sloid: 'late', stop_type: 'atlas_unmatched', atlas_lat: 46.54, atlas_lon: 6.66 }]);
 
-        expect(LineRenderer.drawAll).not.toHaveBeenCalled();
+        expect(LineRenderer.drawRelationships).not.toHaveBeenCalled();
         expect(contextLayer.addLayer).not.toHaveBeenCalled();
     });
 
@@ -344,12 +337,11 @@ describe('ProblemsMap context loading', () => {
             expect.objectContaining({ markersLayer: expect.anything(), linesLayer: expect.anything() }),
             { fitView: false }
         );
-        expect(MapRenderer.createMarkersWithOverlapHandling).toHaveBeenCalledTimes(2);
-        expect(MapRenderer.createMarkersWithOverlapHandling.mock.calls[1][2]).toEqual(expect.objectContaining({
-            map: problemMap,
-            zoom: 18
+        expect(MapRenderer.renderEntities).toHaveBeenCalledTimes(2);
+        expect(MapRenderer.renderEntities.mock.calls[1][2]).toEqual(expect.objectContaining({
+            layout: expect.objectContaining({ descriptors: expect.any(Array) })
         }));
-        expect(LineRenderer.drawAll.mock.calls[1][2]).toEqual(expect.objectContaining({
+        expect(LineRenderer.drawRelationships.mock.calls[1][3]).toEqual(expect.objectContaining({
             currentZoom: 18
         }));
     });
@@ -366,7 +358,7 @@ describe('ProblemsMap context loading', () => {
         const oldMarker = { isPopupOpen: jest.fn(() => true) };
         const replacementMarker = { isPopupOpen: jest.fn(() => false) };
         let renderCount = 0;
-        MapRenderer.createMarkersWithOverlapHandling.mockImplementation((markerData, _layer, options) => {
+        MapRenderer.renderEntities.mockImplementation((markerData, _layer, options) => {
             renderCount += 1;
             const marker = renderCount === 1 ? oldMarker : replacementMarker;
             options.bindPopup(marker, markerData[0]);
@@ -407,7 +399,7 @@ describe('ProblemsMap context loading', () => {
     test('injects the page popup transport and renderer into the shared popup controller', async () => {
         ProblemsMap.initProblemMap();
         const marker = { name: 'marker' };
-        MapRenderer.createMarkersWithOverlapHandling.mockImplementation((markerData, _layer, options) => {
+        MapRenderer.renderEntities.mockImplementation((markerData, _layer, options) => {
             options.bindPopup(marker, markerData[0]);
             return [marker];
         });

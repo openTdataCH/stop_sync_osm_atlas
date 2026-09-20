@@ -1,211 +1,105 @@
-# **OSM & ATLAS Synchronization**
+# Public Transport Matching and Review
 
-Welcome! This project provides a systematic pipeline to identify and analyze discrepancies between public transport stop data from **ATLAS** (Swiss official data) and **OpenStreetMap (OSM)**.
+Compare official public transport stops and routes with OpenStreetMap, explain discrepancies, and inspect the results on a map. The Swiss deployment uses ATLAS and GTFS at [atlas.osm.ch](https://atlas.osm.ch).
 
-It automates data download and processing (ATLAS, OSM, GTFS), performs exact/distance-based/route-based matching, and serves an interactive web app for inspecting matches, problems, and manual fixes.
+This checkout contains two independently runnable projects:
 
-There's a public instance of the project at: https://atlas.osm.ch
-![IMAGE](documentation/images/image.png)
-
----
-
-## Table of Contents
-
-- [Prerequisites](#prerequisites)
-- [Installation & Setup (with Docker)](#installation--setup-with-docker)
-- [Pipeline](#pipeline)
-- [Background Scheduler & Microservices](#background-scheduler--microservices)
-- [Running the Web Application](#running-the-web-application)
-- [Environment & Secrets](#environment--secrets)
-- [CI & Tests](#ci--tests)
-- [Contributing and Project Status](#contributing-and-project-status)
-
----
-
-## Prerequisites
-
-- **Docker Desktop** with Compose v2 (required)
-- Internet connection to download datasets (ATLAS, OSM, GTFS)
-
-
-## Installation & Setup (with Docker)
-
-**Just want to run it?** Here's the fastest path:
-
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/openTdataCH/stop_sync_osm_atlas.git
-    cd stop_sync_osm_atlas
-    ```
-
-2.  **Configure environment** (optional):
-    - The application works out-of-the-box locally without a `.env` file. If you need to customize settings (DB users/passwords, URIs, flags, pipeline timezone), copy `env.example` to `.env` and adjust the values.
-
-3.  **Build and Run with Docker Compose**:
-    ```bash
-    docker compose up --build
-    ```
-    
-    Docker will automatically:
-    - Build the application images
-    - Download and start Postgres (PostGIS) database
-    - Start the web app container
-    - Start the scheduler container (default recurring run every 24 hours in `Europe/Zurich`)
-
-    Docker Compose does not run Redis. Pipeline status, locks, and async-export state are shared through JSON files under `./data/runtime`, while rate limiting uses `memory://`.
-
-    *Note: The data pipeline (downloading and matching ATLAS/OSM/GTFS data) does not run automatically on startup.* It runs in the dedicated scheduler service at the configured time. To run it immediately, use the VS Code Task "Docker: Trigger Scheduled Pipeline Now" (see below), or run:
-    ```bash
-    docker exec stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual
-    ```
-
-    Data and database state are cached across runs (`./data` directory and the `postgres_data` volume).
-
-
-4.  **Access the application**:
-    - Web app: [http://localhost:5001](http://localhost:5001)
-    - Postgres database: `localhost:5432` (user: `stops_user`, password: `1234`)
-
-5.  **To stop the services**:
-    ```bash
-    docker compose down
-    ```
-    To remove all data: `docker compose down -v`
-
-## Pipeline
+| Project | Purpose | Start here |
+|---|---|---|
+| `engine/` — `transport-matcher` | Python library and CLI: adapters, profiles, stop/route matching, grouping and problem detection. | [Engine guide](engine/README.md) |
+| Review application — repository root | Flask API, PostGIS importer, map, problems, routes and reports. Reads versioned bundles without installing the engine. | Instructions below |
 
 ```mermaid
 flowchart LR
-    subgraph Sources["Data Sources"]
-        A[("ATLAS<br/>Official Swiss Data")]
-        O[("OSM<br/>Community Data")]
-    end
-    
-    subgraph Pipeline["Processing Pipeline"]
-        direction TB
-        D["1. Download & Process"]
-        M["2. Multi-Stage Matching"]
-        P["3. Problem Detection"]
-        I["4. Database Import"]
-        D --> M --> P --> I
-    end
-    
-    subgraph Output["Output"]
-        DB[("PostgreSQL<br/>+ PostGIS")]
-        W["Web Application"]
-        DB --> W
-    end
-    
-    A --> D
-    O --> D
-    I --> DB
+    S[ATLAS, GTFS or another source] --> A[Source adapter]
+    O[OSM extract] --> E[Matching engine]
+    P[Dataset profile] --> E
+    A --> E
+    E --> B[Versioned result bundle]
+    B --> W[Review app and PostGIS]
+    B --> X[Other tools and analysis]
 ```
 
-When the daily scheduled job runs (or when manually triggered), the pipeline executes:
+The projects share a [documented result format](engine/RESULT_FORMAT.md), with no cross-project Python imports. `engine/` has its own package metadata, tests, examples and Dockerfile, ready to move to its own repository after review.
 
-- `matching_and_import_db/downloader/get_atlas_data.py`: downloads ATLAS data and GTFS, builds optimized route/stop artifacts
-- `matching_and_import_db/downloader/get_osm_data.py`: fetches OSM data via Overpass and processes it
-- `matching_and_import_db/orchestrator.py`: runs the matching pipeline
-- `matching_and_import_db/database/importer.py`: imports refreshed data into the import database
+## Try the engine without Docker or a database
 
-Downloads are cached under `data/raw/` and processed artifacts under `data/processed/` — see [1. Download and process data](documentation/1.%20Download%20and%20process%20data.md) for details.
+With Python 3.10 or later:
 
-
-### Data Import
-
-After acquisition, `matching_and_import_db/database/importer.py` populates the Postgres databases (e.g., `stops`, `problems`, `persistent_data`, `atlas_stops`, `osm_nodes`, `routes_and_directions`).
-
-During import, the UI shows a global maintenance popup. Downloading and matching stages run in the background without blocking normal browsing.
-
-## Background Scheduler & Microservices
-
-Docker Compose runs four primary services:
-
-- `app`: Flask web app and API.
-- `scheduler`: Dedicated background worker that runs the recurring pipeline on a configurable hour interval (`PIPELINE_TIMEZONE`, default `Europe/Zurich`).
-- `db`: Postgres + PostGIS import database.
-- `migrator`: One-shot startup service that runs `flask db upgrade` before `app` and `scheduler`.
-
-For local test execution, there is also a dedicated `test` service/image with both app and pipeline dependencies.
-
-Scheduler behavior:
-
-- Uses APScheduler interval trigger (`PIPELINE_SCHEDULE_INTERVAL_HOURS`).
-- Publishes run status to `/api/system/pipeline_status` through JSON files in the shared `data/runtime` directory.
-- Checks HTTP validators (`ETag` / `Last-Modified`) on the ATLAS and GTFS permalinks before re-running preprocessing.
-- Sets maintenance mode only for the import phase so the UI can show "Data update in progress" with elapsed/ETA.
-- Uses a distributed lock to prevent concurrent runs.
-
-### Manual Import & Testing (VS Code Tasks)
-
-If you have VS Code installed, we have provided built-in tasks to quickly run commands inside the running Docker containers without constantly restarting Docker:
-1. Open the VS Code Command Palette (`Cmd+Shift+P` on Mac).
-2. Select **`Tasks: Run Task`**.
-3. Choose one of the predefined tasks:
-   - **`Docker: Run All Tests`**: Executes the `pytest` suite.
-    - **`Docker: Run Matching & Import (Existing Data)`**: Runs matching + import on already downloaded files through the scheduler runner.
-    - **`Docker: Run Full Data Pipeline (Download & Match & Import)`**: Runs full download + matching + import through the scheduler runner.
-    - **`Docker: Trigger Scheduled Pipeline Now`**: Fires a full manual run equivalent to the recurring scheduled run.
-
-You can do this while the `app` container is running in the background.
-
-## Environment & Secrets
-
-Most local runs work without a `.env` file. If you want explicit local configuration, copy `env.example` to `.env` and adjust these values:
-
-| Variable | Purpose | Default |
-|---|---|---|
-| `DATABASE_URI` | SQLAlchemy connection string | `postgresql+psycopg://stops_user:1234@db:5432/import_db` |
-| `WEB_DB_CONNECT_TIMEOUT_SECONDS` | Maximum wait while opening a web database connection | `5` |
-| `WEB_DB_LOCK_TIMEOUT_MS` | Maximum wait for a PostgreSQL lock in web requests | `3000` |
-| `WEB_DB_STATEMENT_TIMEOUT_MS` | Maximum PostgreSQL statement time for web requests; keep below Gunicorn's timeout | `25000` |
-| `FLASK_DEBUG` | Enables Flask debug mode for local development | `1` |
-| `FORCE_HTTPS` | Redirect HTTP requests to HTTPS when running behind TLS | `false` |
-| `RATELIMIT_STORAGE_URI` | Flask-Limiter backend | `memory://` |
-| `STATE_BACKEND` | Runtime-state backend for pipeline status/locks and async exports | `file` (fixed by Docker Compose) |
-| `STATE_DIR` | Shared JSON-state directory | `data/runtime` |
-| `PIPELINE_TIMEZONE` | Scheduler timezone | `Europe/Zurich` |
-| `PIPELINE_SCHEDULE_INTERVAL_HOURS` | Automatic pipeline interval | `24` |
-| `PIPELINE_IMPORT_ETA_SECONDS` | Import-phase ETA shown in the UI | `150` |
-| `PIPELINE_LOG_LEVEL` | Scheduler and pipeline logging verbosity | `INFO` |
-
-Docker Compose fixes `STATE_BACKEND=file` for the app, scheduler, and test services. Their shared `./data:/app/data` mount makes the JSON state files visible across containers:
-
-```env
-RATELIMIT_STORAGE_URI=memory://
-STATE_BACKEND=file
-STATE_DIR=data/runtime
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -e './engine[gtfs,test]'
+transport-matcher gtfs --source engine/examples/gtfs --namespace demo --osm engine/examples/osm.xml --output /tmp/transport-demo
 ```
 
-The main files are `data/runtime/pipeline_status.json`, the transient
-`data/runtime/pipeline_lock.json`, `data/runtime/tasks_progress.json`, and
-`data/runtime/tasks_completed.json`. Writes are atomic, and lock updates are
-guarded with `fcntl.flock()`.
+The example is synthetic and uses no Swiss identifiers. The core library only needs NumPy/SciPy; adapters install through optional extras. See [the Python API and Swiss workflow](engine/README.md).
 
-## Running the Web Application
+## Run the review app with example results
 
-After `docker compose up --build`, the Flask app is available at [http://localhost:5001/](http://localhost:5001/).
+Docker Desktop with Compose v2 is the easiest local setup:
 
-### Usage
+```bash
+REVIEW_CONFIG=config/gtfs-example.json docker compose up --build -d db migrator app
+docker compose run --rm --no-deps --entrypoint '' app python -m backend.importing.importer tests/fixtures/result-v1
+```
 
-- **Map View**: Browse stops by type (`matched`, `unmatched`, `osm`) and match method.
-- **Filters & Search**: Filter by ATLAS SLOID, OSM Node ID, UIC reference, or route.
-- **Problems**: On the problems page you can solve the problems. See [4. Problems](documentation/4.%20Problems.md).
-- **Manage Data**: See [5. Database](documentation/5.%20Database.md).
-- **Generating Reports:** The web app can generate CSV and PDF reports. See [6.5 Generate Reports and PDFs](documentation/6.5%20Generate%20Reports%20and%20PDFs.md).
+Open [localhost:5001](http://localhost:5001). This small synthetic compatibility fixture lives under `tests/fixtures`, and is available through the development Compose bind mount. It is not included in the application image. It works without an engine installation. Use a local development database for the example: importing publishes the example as its active dataset.
 
+The command selects generic title, labels, map defaults and feature availability. Set `REVIEW_CONFIG=config/gtfs-example.json` in `.env` to keep that choice on later starts. `config/switzerland.json` preserves the Swiss presentation. Matching policies live in the engine and are separate from UI configuration.
 
-## CI & Tests
+## Run the Swiss deployment pipeline
 
-This repository uses **GitHub Actions** for continuous integration.
+```bash
+docker compose up --build -d
+docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode full --trigger manual
+```
 
-- Workflow: [tests.yml](.github/workflows/tests.yml)
-- CI documentation: [CI and Tests](documentation/8.%20Test.md)
+The scheduler invokes the independent `transport-matcher` executable, writes a complete result bundle, and asks the app importer to publish it. Daily runs use `PIPELINE_SCHEDULE_INTERVAL_HOURS` and `PIPELINE_TIMEZONE`.
 
+The VS Code Docker tasks build their required images before starting services. A source bind mount does not update installed packages in an existing container. If an older scheduler reports `No such file or directory: transport-matcher`, rebuild and replace it:
 
-## Contributing and project Status
+```bash
+docker compose build scheduler
+docker compose up -d --no-deps --force-recreate scheduler
+docker exec stop_sync_osm_atlas_scheduler transport-matcher --help
+```
 
-This project is a **work in progress**. Feedback and improvements are welcome!
-Feel free to submit issues and pull requests. Thank you for your interest! 🚀
+Use `--mode match-import` to reuse existing source snapshots. An app-only deployment can import a result from elsewhere with `PIPELINE_BUNDLE=/path/to/result python -m backend.jobs.job_runner --mode import`. `MATCHER_COMMAND` selects a separately installed engine executable for matching modes.
 
----
+The engine requires no database credentials. The importer validates files and references before loading a private PostGIS schema. Readers continue using the existing data while the new snapshot loads. The final switch is transactional; failed loads or lock timeouts preserve the old snapshot.
+
+## Configuration and development
+
+Copy `env.example` to `.env` to override settings. Source snapshots and runtime state live under `data/`; PostGIS persists in the Compose volume. Long-running services restart unless manually stopped. Database migrations run through the one-shot `migrator` service.
+
+```bash
+# Review application tests: engine package is not required.
+python -m pip install -r requirements-base.txt -r requirements-web.txt -r requirements-scheduler.txt -r requirements-test.txt
+DATABASE_URI=sqlite:// python -m pytest tests -q
+
+# Engine tests: website and database are not required.
+python -m pip install -e './engine[swiss,gtfs,acquisition,test]'
+python -m pytest engine/tests -q
+
+# Browser tests.
+npm ci
+npm test -- --runInBand
+```
+
+Real publication tests require `TEST_POSTGRES_URI` pointing to a disposable PostGIS database whose name ends in `_test`; those tests reset its public schema. Without it, only these database integration cases are skipped.
+
+## Contributing and documentation
+
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). A predicate contribution can use a tiny offline fixture; a UI contribution can use the precomputed bundle. No national download is required to begin.
+
+- [Documentation overview](documentation/0.%20Intro.md)
+- [Engine and app architecture](documentation/7.%20System%20Architecture.md)
+- [Bundle import and publication](documentation/5.1%20Import%20Process.md)
+- [Tests and CI](documentation/8.%20Test.md)
+- [Contribution tutorials](documentation/9.%20Contributing.md)
+- [Related tools and collaboration](documentation/ecosystem-collaboration-report.md)
+
+Code remains AGPL-3.0-or-later. Source dataset attribution is recorded separately in result metadata.
+
+For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline Performance](documentation/7.5%20Pipeline%20Performance.md).

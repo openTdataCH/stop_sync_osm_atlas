@@ -1,0 +1,433 @@
+{
+  "date": "2026-09-12",
+  "scope": "Offline local national inputs; no production publication or network downloads.",
+  "limitations": [
+    "Single observations, not a controlled statistical speedup study.",
+    "The pandas reference and Linux/import runs overlapped some other validation work. The final macOS native run had no overlapping national job.",
+    "macOS and Linux numbers use different Python/platform environments; do not interpret their ratio as an algorithm-only effect."
+  ],
+  "gtfs": {
+    "reference": {
+      "backend": "pandas",
+      "seconds": 1866.7256687909976,
+      "environment": {
+        "platform": "Darwin",
+        "python": "3.12.14",
+        "pandas": "3.0.5"
+      },
+      "rows": {
+        "atlas_line_families": 4024,
+        "atlas_itineraries": 14296,
+        "atlas_itinerary_stop_calls": 164090,
+        "gtfs_stops": 82213,
+        "gtfs_identity": 82213
+      },
+      "product_hashes": {
+        "atlas_line_families": "3a32f360ba15f7f7393763bfff2830e8fdc790aa9343ba7ccfb182c74413e347",
+        "atlas_itineraries": "a8899e8bce0c994fa811d9f3673b78529399818a0a9191f68260b3984e284f0e",
+        "atlas_itinerary_stop_calls": "b862965556cb1c43522748895c8f8eaac0b1fc48791acc16ee62a90fcd3cac80",
+        "gtfs_stops": "5bd9d74bea3bd2b15b35b42850e2a97f7fb09539e798e1aef14da9b7b710b9ec",
+        "gtfs_identity": "10f0ed7e04c2b5eaa399cb2624134f4b87e3c89d82a8fff5bd276bf6fa1c654b"
+      },
+      "mapping_statistics": {
+        "algorithm_version": "original_stop_id_plus_uic_platform_plus_coordinate_proximity_plus_unique_number",
+        "atlas": {
+          "total": 55016,
+          "touched_by_gtfs_routes": 43358,
+          "coverage_percent": 78.8
+        },
+        "gtfs_stop_ids": {
+          "total": 82213,
+          "matched_to_atlas": 49366,
+          "unmatched": 32847,
+          "coverage_percent": 60.05
+        },
+        "assignments": {
+          "original_stop_id": 41843,
+          "strict": 16,
+          "coordinate_proximity": 920,
+          "unique_number_fallback": 6587,
+          "total": 49366
+        },
+        "cardinality": {
+          "stop_to_sloid": {
+            "one_to_one": 49366,
+            "one_to_many": 0
+          },
+          "sloid_to_stop": {
+            "one_to_one": 38173,
+            "many_to_one": 5185
+          }
+        },
+        "coordinate_proximity": {
+          "distance_threshold_m": 0.5,
+          "candidate_pairs": 3893,
+          "candidate_gtfs_stop_ids": 3589,
+          "candidate_atlas_sloids": 2525,
+          "assignments": 920,
+          "conflicting_gtfs_stop_ids": 303,
+          "conflicting_atlas_sloids": 1360
+        },
+        "unmatched_reasons": {
+          "no_atlas_candidate_for_uic_number": 666,
+          "non_unique_atlas_number_after_strict_miss": 32181,
+          "coordinate_proximity_conflicting_gtfs_stop_ids": 303,
+          "coordinate_proximity_conflicting_atlas_sloids": 1360
+        }
+      }
+    },
+    "native_macos": {
+      "backend": "duckdb",
+      "seconds": 217.21018184399873,
+      "cpu_seconds": 289.154863,
+      "peak_rss_bytes": 1809252352,
+      "input_bytes": {
+        "stop_times.txt": 2510074782,
+        "trips.txt": 261907947,
+        "stops.txt": 13438314,
+        "routes.txt": 219491
+      },
+      "rows": {
+        "atlas_line_families": 4024,
+        "atlas_itineraries": 14296,
+        "atlas_itinerary_stop_calls": 164090,
+        "gtfs_stops": 82213,
+        "gtfs_identity": 82213
+      },
+      "product_hashes": {
+        "atlas_line_families": "3a32f360ba15f7f7393763bfff2830e8fdc790aa9343ba7ccfb182c74413e347",
+        "atlas_itineraries": "a8899e8bce0c994fa811d9f3673b78529399818a0a9191f68260b3984e284f0e",
+        "atlas_itinerary_stop_calls": "b862965556cb1c43522748895c8f8eaac0b1fc48791acc16ee62a90fcd3cac80",
+        "gtfs_stops": "5bd9d74bea3bd2b15b35b42850e2a97f7fb09539e798e1aef14da9b7b710b9ec",
+        "gtfs_identity": "10f0ed7e04c2b5eaa399cb2624134f4b87e3c89d82a8fff5bd276bf6fa1c654b"
+      },
+      "mapping_statistics": {
+        "algorithm_version": "original_stop_id_plus_uic_platform_plus_coordinate_proximity_plus_unique_number",
+        "atlas": {
+          "total": 55016,
+          "touched_by_gtfs_routes": 43358,
+          "coverage_percent": 78.8
+        },
+        "gtfs_stop_ids": {
+          "total": 82213,
+          "matched_to_atlas": 49366,
+          "unmatched": 32847,
+          "coverage_percent": 60.05
+        },
+        "assignments": {
+          "original_stop_id": 41843,
+          "strict": 16,
+          "coordinate_proximity": 920,
+          "unique_number_fallback": 6587,
+          "total": 49366
+        },
+        "cardinality": {
+          "stop_to_sloid": {
+            "one_to_one": 49366,
+            "one_to_many": 0
+          },
+          "sloid_to_stop": {
+            "one_to_one": 38173,
+            "many_to_one": 5185
+          }
+        },
+        "coordinate_proximity": {
+          "distance_threshold_m": 0.5,
+          "candidate_pairs": 3893,
+          "candidate_gtfs_stop_ids": 3589,
+          "candidate_atlas_sloids": 2525,
+          "assignments": 920,
+          "conflicting_gtfs_stop_ids": 303,
+          "conflicting_atlas_sloids": 1360
+        },
+        "unmatched_reasons": {
+          "no_atlas_candidate_for_uic_number": 666,
+          "non_unique_atlas_number_after_strict_miss": 32181,
+          "coordinate_proximity_conflicting_gtfs_stop_ids": 303,
+          "coordinate_proximity_conflicting_atlas_sloids": 1360
+        }
+      },
+      "environment": {
+        "platform": "Darwin",
+        "python": "3.12.14",
+        "pandas": "3.0.5"
+      }
+    },
+    "native_linux_4g": {
+      "backend": "duckdb",
+      "seconds": 635.7301383020003,
+      "cpu_seconds": 942.8084644850001,
+      "peak_rss_bytes": 1973145600,
+      "input_bytes": {
+        "stop_times.txt": 2510074782,
+        "trips.txt": 261907947,
+        "stops.txt": 13438314,
+        "routes.txt": 219491
+      },
+      "rows": {
+        "atlas_line_families": 4024,
+        "atlas_itineraries": 14296,
+        "atlas_itinerary_stop_calls": 164090,
+        "gtfs_stops": 82213,
+        "gtfs_identity": 82213
+      },
+      "product_hashes": {
+        "atlas_line_families": "3a32f360ba15f7f7393763bfff2830e8fdc790aa9343ba7ccfb182c74413e347",
+        "atlas_itineraries": "a8899e8bce0c994fa811d9f3673b78529399818a0a9191f68260b3984e284f0e",
+        "atlas_itinerary_stop_calls": "b862965556cb1c43522748895c8f8eaac0b1fc48791acc16ee62a90fcd3cac80",
+        "gtfs_stops": "5bd9d74bea3bd2b15b35b42850e2a97f7fb09539e798e1aef14da9b7b710b9ec",
+        "gtfs_identity": "fca94612b5c0f1e04d27c1dcc0442062e733e83d13cd98a234b60edb321da7d8"
+      },
+      "mapping_statistics": {
+        "algorithm_version": "original_stop_id_plus_uic_platform_plus_coordinate_proximity_plus_unique_number",
+        "atlas": {
+          "total": 55016,
+          "touched_by_gtfs_routes": 43358,
+          "coverage_percent": 78.8
+        },
+        "gtfs_stop_ids": {
+          "total": 82213,
+          "matched_to_atlas": 49366,
+          "unmatched": 32847,
+          "coverage_percent": 60.05
+        },
+        "assignments": {
+          "original_stop_id": 41843,
+          "strict": 16,
+          "coordinate_proximity": 920,
+          "unique_number_fallback": 6587,
+          "total": 49366
+        },
+        "cardinality": {
+          "stop_to_sloid": {
+            "one_to_one": 49366,
+            "one_to_many": 0
+          },
+          "sloid_to_stop": {
+            "one_to_one": 38173,
+            "many_to_one": 5185
+          }
+        },
+        "coordinate_proximity": {
+          "distance_threshold_m": 0.5,
+          "candidate_pairs": 3893,
+          "candidate_gtfs_stop_ids": 3589,
+          "candidate_atlas_sloids": 2525,
+          "assignments": 920,
+          "conflicting_gtfs_stop_ids": 303,
+          "conflicting_atlas_sloids": 1360
+        },
+        "unmatched_reasons": {
+          "no_atlas_candidate_for_uic_number": 666,
+          "non_unique_atlas_number_after_strict_miss": 32181,
+          "coordinate_proximity_conflicting_gtfs_stop_ids": 303,
+          "coordinate_proximity_conflicting_atlas_sloids": 1360
+        }
+      }
+    },
+    "stages_macos": {
+      "gtfs.metadata": {
+        "seconds": 7.17,
+        "cpu_seconds": 6.107
+      },
+      "gtfs.scan": {
+        "seconds": 33.842,
+        "cpu_seconds": 31.922
+      },
+      "gtfs.filter_and_termini": {
+        "seconds": 18.084,
+        "cpu_seconds": 31.277
+      },
+      "gtfs.partition": {
+        "seconds": 27.15,
+        "cpu_seconds": 37.383,
+        "rows": 26690026
+      },
+      "gtfs.reduce_patterns": {
+        "seconds": 102.506,
+        "cpu_seconds": 156.678,
+        "rows": 26690026
+      },
+      "gtfs.identity_matching": {
+        "seconds": 2.517,
+        "cpu_seconds": 2.341
+      },
+      "gtfs.itineraries": {
+        "seconds": 10.803,
+        "cpu_seconds": 10.738
+      },
+      "gtfs.identity_export": {
+        "seconds": 1.527,
+        "cpu_seconds": 1.507
+      }
+    },
+    "selected_stop_times": 26690026,
+    "relevant_trips": 1703423,
+    "reduced_patterns": 79685,
+    "parsed_cache_bytes": 22107402,
+    "exact_same_platform_product_hashes": true,
+    "cross_platform_identity_difference": {
+      "differing_fields": {
+        "distance_m": 120
+      },
+      "maximum_absolute_difference": {
+        "distance_m": 1.6653345369377348e-16
+      }
+    }
+  },
+  "database_import": {
+    "reference_seconds": 682.06,
+    "copy_seconds": 193.98374606400012,
+    "memory_limit_bytes": 4294967296,
+    "copy_peak_rss_bytes": 2055794688,
+    "stages": {
+      "import.validate_bundle": {
+        "seconds": 20.082,
+        "cpu_seconds": 20.004
+      },
+      "import.project": {
+        "seconds": 5.835,
+        "cpu_seconds": 5.834
+      },
+      "import.prepare_rows": {
+        "seconds": 4.255,
+        "cpu_seconds": 4.254
+      },
+      "import.table.osm_nodes": {
+        "seconds": 1.883,
+        "cpu_seconds": 1.833,
+        "rows": 66225
+      },
+      "import.table.osm_stops": {
+        "seconds": 1.255,
+        "cpu_seconds": 0.401,
+        "rows": 49446
+      },
+      "import.table.osm_stop_members": {
+        "seconds": 3.332,
+        "cpu_seconds": 0.48,
+        "rows": 66225
+      },
+      "import.table.atlas_operators": {
+        "seconds": 0.023,
+        "cpu_seconds": 0.012,
+        "rows": 434
+      },
+      "import.table.atlas_stops": {
+        "seconds": 3.717,
+        "cpu_seconds": 2.139,
+        "rows": 55016
+      },
+      "import.table.gtfs_stops_raw": {
+        "seconds": 2.443,
+        "cpu_seconds": 1.836,
+        "rows": 82213
+      },
+      "import.table.gtfs_stop_identity_resolution": {
+        "seconds": 8.059,
+        "cpu_seconds": 3.376,
+        "rows": 82213
+      },
+      "import.table.stops_matched": {
+        "seconds": 2.163,
+        "cpu_seconds": 2.103,
+        "rows": 78791
+      },
+      "import.table.problems": {
+        "seconds": 1.471,
+        "cpu_seconds": 0.409,
+        "rows": 42401
+      },
+      "import.table.atlas_line_families": {
+        "seconds": 0.088,
+        "cpu_seconds": 0.064,
+        "rows": 4024
+      },
+      "import.table.osm_route_relations": {
+        "seconds": 0.44,
+        "cpu_seconds": 0.343,
+        "rows": 8205
+      },
+      "import.table.line_families": {
+        "seconds": 0.914,
+        "cpu_seconds": 0.293,
+        "rows": 6898
+      },
+      "import.table.itineraries": {
+        "seconds": 2.203,
+        "cpu_seconds": 1.034,
+        "rows": 22501
+      },
+      "import.table.stop_calls": {
+        "seconds": 34.386,
+        "cpu_seconds": 12.609,
+        "rows": 317548
+      },
+      "import.table.line_family_matches": {
+        "seconds": 0.144,
+        "cpu_seconds": 0.026,
+        "rows": 2059
+      },
+      "import.table.itinerary_matches": {
+        "seconds": 0.14,
+        "cpu_seconds": 0.022,
+        "rows": 1051
+      },
+      "import.load_tables": {
+        "seconds": 68.836,
+        "cpu_seconds": 33.151
+      },
+      "import.indexes_and_analyze": {
+        "seconds": 35.57,
+        "cpu_seconds": 0.807
+      },
+      "import.load_and_publish": {
+        "seconds": 105.392,
+        "cpu_seconds": 34.308
+      }
+    },
+    "rows": {
+      "stops_matched": 78791,
+      "problems": 42401,
+      "line_families": 6898,
+      "itineraries": 22501,
+      "stop_calls": 317548,
+      "itinerary_matches": 1051
+    }
+  },
+  "cached_matching": {
+    "reference_seconds": 180.83,
+    "current_seconds": 100.24150499099778,
+    "reference_route_comparison_seconds": 95.5,
+    "current_route_comparison_seconds": 20.688,
+    "current_peak_rss_mib_including_harness": 2390.93359375,
+    "parity": "Identical match tuples, unmatched IDs, duplicate membership, problems and route decisions; group/member presentation order normalized and raw OSM extraction-date run_id excluded.",
+    "counts": {
+      "matches": 63801,
+      "unmatched_source": 5782,
+      "unmatched_osm": 9208,
+      "problems": 42401,
+      "family_matches": 2059,
+      "itinerary_matches": 1051
+    }
+  },
+  "compression": {
+    "level1": {
+      "seconds": 55.89941200900648,
+      "bytes": 42737350
+    },
+    "level9": {
+      "seconds": 65.06547807100287,
+      "bytes": 30914325
+    },
+    "same_uncompressed_records": true
+  },
+  "verification": {
+    "local_python_passed": 300,
+    "local_postgis_skipped": 6,
+    "separate_postgis_passed": 6,
+    "linux_engine_passed": 124,
+    "independent_consumer_matches_validated": 63801,
+    "git_diff_check": "passed"
+  }
+}

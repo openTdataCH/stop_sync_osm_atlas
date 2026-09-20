@@ -12,13 +12,7 @@ window.ProblemsMap = (function() {
     // Performance tuning constants for the problems page
     const PROBLEM_LINE_ZOOM_THRESHOLD = AppConstants.MAP.ZOOM_LINE_THRESHOLD;   // draw context lines only at high zoom
     const CONTEXT_COORDINATE_OFFSET = 0.02; // Roughly 2 km around the selected problem
-    const CONTEXT_MARKER_OPACITY = 0.6;
     const ZOOM_RENDER_DEBOUNCE_MS = 80;
-    const MAP_COLORS = AppConstants.COLORS || {};
-    const COLOR_ATLAS_MATCHED = MAP_COLORS.ATLAS_MATCHED || '#174092';
-    const COLOR_OSM_MATCHED = MAP_COLORS.OSM_MATCHED || '#4CAF50';
-    const COLOR_ATLAS_UNMATCHED = MAP_COLORS.ATLAS_UNMATCHED || '#DC3545';
-    const COLOR_OSM_UNMATCHED = MAP_COLORS.OSM_UNMATCHED || '#6C757D';
 
     let problemMapCore = null;
     let contextPopupController = null;
@@ -114,22 +108,10 @@ window.ProblemsMap = (function() {
         return PopupRenderer.generatePopupHtml(enriched, viewType);
     }
 
-    function getContextPopupKey(markerData) {
-        if (!markerData || !markerData.stopData || !markerData.type) {
-            return null;
-        }
-        if (window.MapShared && typeof window.MapShared.createEntityKey === 'function') {
-            return window.MapShared.createEntityKey(markerData.type, markerData.stopData);
-        }
-        return markerData.stopData.id == null
-            ? null
-            : `${markerData.type}:${markerData.stopData.id}`;
-    }
-
     function bindContextMarkerPopup(marker, markerData) {
         if (!contextPopupController) return;
-        const key = getContextPopupKey(markerData);
-        if (!key || markerData.stopData.id == null) return;
+        const key = markerData.key;
+        if (!key || markerData.popupRef.id == null) return;
 
         contextPopupKeyByMarker.set(marker, key);
         contextPopupController.attach(marker, {
@@ -138,10 +120,10 @@ window.ProblemsMap = (function() {
             // loaded details for the replacement marker.
             retainCacheOnDetach: true,
             load: function(context) {
-                return requestStopPopup(markerData.stopData, markerData.type, context.signal);
+                return requestStopPopup(markerData.popupRef, markerData.entityType, context.signal);
             },
             render: function(payload) {
-                return renderStopPopup(payload, markerData.type);
+                return renderStopPopup(payload, markerData.entityType);
             }
         });
     }
@@ -323,79 +305,6 @@ window.ProblemsMap = (function() {
         return null;
     }
 
-    function buildContextMarkerData(stops) {
-        const markerData = [];
-        const createdAtlasMarkers = new Set();
-
-        stops.forEach(function(stop) {
-            const atlasMarkerKey = window.MapShared && typeof window.MapShared.getAtlasMarkerIdentity === 'function'
-                ? window.MapShared.getAtlasMarkerIdentity(stop)
-                : null;
-            if (stop.sloid && stop.atlas_lat != null && stop.atlas_lon != null && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
-                let atlasColor = COLOR_OSM_UNMATCHED;
-                if (stop.stop_type === 'matched') atlasColor = COLOR_ATLAS_MATCHED;
-                else if (stop.stop_type === 'atlas_unmatched') atlasColor = COLOR_ATLAS_UNMATCHED;
-
-                markerData.push({
-                    key: window.MapShared.createEntityKey('atlas', stop),
-                    lat: parseFloat(stop.atlas_lat),
-                    lon: parseFloat(stop.atlas_lon),
-                    type: 'atlas',
-                    color: atlasColor,
-                    hasAtlasDuplicate: stop.has_atlas_duplicate,
-                    originalLat: parseFloat(stop.atlas_lat),
-                    originalLon: parseFloat(stop.atlas_lon),
-                    stopData: stop,
-                    opacity: CONTEXT_MARKER_OPACITY
-                });
-                if (atlasMarkerKey) {
-                    createdAtlasMarkers.add(atlasMarkerKey);
-                }
-            }
-
-            const osmNodesToProcess = [];
-
-            if (stop.osm_node_id && stop.osm_lat != null && stop.osm_lon != null) {
-                osmNodesToProcess.push(stop);
-            }
-
-            if (Array.isArray(stop.osm_matches)) {
-                stop.osm_matches.forEach(osmMatch => {
-                    if (osmMatch.osm_node_id && osmMatch.osm_lat != null && osmMatch.osm_lon != null) {
-                        osmNodesToProcess.push({
-                            ...stop,
-                            ...osmMatch,
-                            id: osmMatch.osm_id || stop.id,
-                            osm_node_id: osmMatch.osm_node_id,
-                            osm_lat: osmMatch.osm_lat,
-                            osm_lon: osmMatch.osm_lon
-                        });
-                    }
-                });
-            }
-
-            osmNodesToProcess.forEach(osmData => {
-                let osmColor = COLOR_OSM_UNMATCHED;
-                if (osmData.stop_type === 'matched') osmColor = COLOR_OSM_MATCHED;
-
-                markerData.push({
-                    key: window.MapShared.createEntityKey('osm', osmData),
-                    lat: parseFloat(osmData.osm_lat),
-                    lon: parseFloat(osmData.osm_lon),
-                    type: 'osm',
-                    color: osmColor,
-                    osmNodeType: osmData.osm_node_type,
-                    originalLat: parseFloat(osmData.osm_lat),
-                    originalLon: parseFloat(osmData.osm_lon),
-                    stopData: osmData,
-                    opacity: CONTEXT_MARKER_OPACITY
-                });
-            });
-        });
-
-        return markerData;
-    }
-
     function renderContextData(problem, stops, problemMap, zoom, options) {
         options = options || {};
         const contextMarkersLayer = ProblemsState.getContextMarkersLayer();
@@ -427,24 +336,15 @@ window.ProblemsMap = (function() {
         // Render into a disposable child layer. If a newer problem supersedes this
         // render, clearing the parent detaches all of its remaining marker chunks.
         const renderedContextLayer = L.layerGroup();
-        LineRenderer.drawAll(filteredStops, renderedContextLayer, {
-            showAtlas: true,
-            showOsm: true,
-            minZoom: PROBLEM_LINE_ZOOM_THRESHOLD,
-            currentZoom: zoom,
-            isContext: true
+        const snapshot = window.MapEntityAdapters.stops(filteredStops, { emphasis: 'context' });
+        const layout = window.MapRenderer.layoutEntities(snapshot.entities, {
+            map: problemMap, zoom: zoom, sourcePositionsByKey: snapshot.sourcePositionsByKey
         });
-
-        const contextMarkerData = buildContextMarkerData(filteredStops);
-        const contextMarkers = window.MapRenderer.createMarkersWithOverlapHandling(contextMarkerData, renderedContextLayer, {
-            batchAdd: true,
-            map: problemMap,
-            zoom: zoom,
-            bindPopup: bindContextMarkerPopup
+        LineRenderer.drawRelationships(snapshot.relationships, renderedContextLayer, layout.displayPositionsByKey, {
+            minZoom: PROBLEM_LINE_ZOOM_THRESHOLD, currentZoom: zoom, isContext: true
         });
-
-        contextMarkers.forEach(marker => {
-            window.MapRenderer.setMarkerOpacity(marker, CONTEXT_MARKER_OPACITY);
+        const contextMarkers = window.MapRenderer.renderEntities(snapshot.entities, renderedContextLayer, {
+            batchAdd: true, layout: layout, bindPopup: bindContextMarkerPopup
         });
 
         if (options.preservePopupState) {
@@ -550,8 +450,8 @@ window.ProblemsMap = (function() {
         problemMapCore = window.MapComponents.MapCore.create({
             container: 'problemMap',
             view: {
-                center: [47.3769, 8.5417],
-                zoom: 12
+                center: AppConstants.MAP.DEFAULT_CENTER,
+                zoom: AppConstants.MAP.DEFAULT_ZOOM
             },
             mapOptions: {
                 closePopupOnClick: false,

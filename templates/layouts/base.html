@@ -4,8 +4,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>{% block title %}OSM &amp; ATLAS Synchronization{% endblock %}</title>
-  <meta name="description" content="{% block meta_description %}Explore and compare Swiss public transport stops and routes from OpenStreetMap and the federal ATLAS dataset.{% endblock %}">
+  <title>{% block title %}{{ review_config.title }}{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}Explore and compare public transport stops and routes from OpenStreetMap and {{ review_config.source_label }}.{% endblock %}">
   <meta name="robots" content="{{ seo_robots }}">
   <meta name="google-site-verification" content="1oq4u6R95VEOWIUskIdKad2-SvkUHVrDvXR2fikSISI">
   <link rel="canonical" href="{{ seo_canonical_url }}">
@@ -46,8 +46,7 @@
             <path id="sync-arrow" d="M 102.8 127.4 A 200 200 0 0 1 456 256 L 486 256 L 426 336 L 381 256 L 411 256 A 155 155 0 0 0 137.3 156.4 Z" />
           </defs>
           <g class="sync-static">
-            <circle cx="256" cy="256" r="138" fill="#c12e22" />
-            <path d="M 231 168 h 50 v 63 h 63 v 50 h -63 v 63 h -50 v -63 h -63 v -50 h 63 Z" fill="#fdfcfc" />
+            <text x="256" y="292" text-anchor="middle" font-size="180">{{ review_config.flag }}</text>
           </g>
           <g class="sync-spin">
             <use href="#sync-arrow" fill="#5ba04a" />
@@ -83,6 +82,7 @@
   <!-- Bootstrap JS (includes Popper) -->
   <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
   <script src="{{ url_for('static', filename='js/shared/pipeline-status.js') }}"></script>
+  <script>window.ReviewConfig = {{ review_config | tojson }};</script>
   {% block scripts %}{% endblock %}
 </body>
 

@@ -18,25 +18,49 @@ describe('MapRenderer production component', () => {
     L.marker = jest.fn((position, options) => ({ position, options }));
     L.divIcon = jest.fn(options => options);
 
-    const scriptPath = path.join(__dirname, '../../static/js/components/map-renderer.js');
-    window.eval(fs.readFileSync(scriptPath, 'utf8'));
+    require('./load-map-components')();
   });
 
   afterAll(() => {
     delete window.map;
   });
 
+  test('reconciles adapter output through the real marker registry and updates its display position', () => {
+    window.eval(fs.readFileSync(path.join(__dirname,
+      '../../static/js/components/map-layer-registry.js'), 'utf8'));
+    const group = { addLayer: jest.fn(), removeLayer: jest.fn() };
+    const registry = window.MapComponents.MapLayerRegistry.create({
+      layerGroup: group,
+      create: window.MapRenderer.createEntityMarker,
+    });
+    function descriptors(lat) {
+      const snapshot = window.MapEntityAdapters.stops([{
+        id: 1, sloid: 'source:1', stop_type: 'atlas_unmatched',
+        atlas_lat: lat, atlas_lon: 6.6,
+      }]);
+      return window.MapRenderer.layoutEntities(snapshot.entities, { zoom: 14 }).descriptors;
+    }
+
+    expect(registry.reconcile(descriptors(46.5)).created).toEqual(['atlas:source:1']);
+    const marker = registry.get('atlas:source:1');
+    expect(marker.position).toEqual([46.5, 6.6]);
+    marker.setLatLng = jest.fn();
+    expect(registry.reconcile(descriptors(46.6)).updated).toEqual(['atlas:source:1']);
+    expect(marker.setLatLng).toHaveBeenCalledWith([46.6, 6.6]);
+    expect(group.addLayer).toHaveBeenCalledTimes(1);
+  });
+
   test('uses the explicit zoom instead of ambient window.map state', () => {
     window.map = { getZoom: () => 4 };
 
-    window.MapRenderer.createAtlasMarker(46.5, 6.6, '#174092', true, 18);
+    window.MapRenderer.createEntityMarker({ entity: window.MapShared.createEntity('atlas', '1', [46.5, 6.6], { status: 'matched', label: 'D' }), displayPosition: [46.5, 6.6], zoom: 18 });
 
     expect(L.marker).toHaveBeenCalledTimes(1);
     expect(L.circleMarker).not.toHaveBeenCalled();
   });
 
   test('switches labeled markers to circles below the label threshold', () => {
-    window.MapRenderer.createOsmMarker(46.5, 6.6, '#4CAF50', 'platform', 17);
+    window.MapRenderer.createEntityMarker({ entity: window.MapShared.createEntity('osm', '1', [46.5, 6.6], { status: 'matched', label: 'P' }), displayPosition: [46.5, 6.6], zoom: 17 });
 
     expect(L.circleMarker).toHaveBeenCalledTimes(1);
     expect(L.marker).not.toHaveBeenCalled();
@@ -49,8 +73,8 @@ describe('MapRenderer production component', () => {
       unproject: jest.fn(point => ({ lat: point.y / 100, lng: point.x / 100 })),
     };
     const manager = new window.MapRenderer.MarkerClusterManager({ map, zoom: 18 });
-    manager.addMarker(46.5, 6.6, { key: 'osm:2', type: 'osm' });
-    manager.addMarker(46.5, 6.6, { key: 'atlas:1', type: 'atlas' });
+    manager.addMarker(46.5, 6.6, { key: 'osm:2', entityType: 'osm' });
+    manager.addMarker(46.5, 6.6, { key: 'atlas:1', entityType: 'atlas' });
 
     const entries = manager.getClusteredData();
 
@@ -75,8 +99,8 @@ describe('MapRenderer production component', () => {
     };
     function positionsAt(currentZoom) {
       const manager = new window.MapRenderer.MarkerClusterManager({ map, zoom: currentZoom });
-      manager.addMarker(46.5, 6.6, { key: 'atlas:1', type: 'atlas' });
-      manager.addMarker(46.5, 6.6, { key: 'osm:2', type: 'osm' });
+      manager.addMarker(46.5, 6.6, { key: 'atlas:1', entityType: 'atlas' });
+      manager.addMarker(46.5, 6.6, { key: 'osm:2', entityType: 'osm' });
       return manager.getClusteredData();
     }
 
@@ -101,7 +125,7 @@ describe('MapRenderer production component', () => {
       unproject: jest.fn(point => ({ lat: point.y, lng: point.x })),
     };
     const manager = new window.MapRenderer.MarkerClusterManager({ map, zoom: 16 });
-    manager.addMarker(46.5, 6.6, { key: 'atlas:1', type: 'atlas' });
+    manager.addMarker(46.5, 6.6, { key: 'atlas:1', entityType: 'atlas' });
     manager.addMarker(46.5, 6.6, { key: 'gtfs:1', entityType: 'gtfs' });
 
     expect(manager.getClusteredData().map(entry => [entry.lat, entry.lon]))
@@ -120,8 +144,8 @@ describe('MapRenderer production component', () => {
       map,
       overlapDistance: 10
     });
-    manager.addMarker(0, 9, { key: 'atlas:a', type: 'atlas' });
-    manager.addMarker(0, 18, { key: 'osm:b', type: 'osm' });
+    manager.addMarker(0, 9, { key: 'atlas:a', entityType: 'atlas' });
+    manager.addMarker(0, 18, { key: 'osm:b', entityType: 'osm' });
     manager.addMarker(0, 27, { key: 'gtfs:c', entityType: 'gtfs' });
 
     const byKey = new Map(manager.getClusteredData().map(entry => [entry.markerData.key, entry]));
@@ -169,10 +193,10 @@ describe('MapRenderer production component', () => {
     };
     const manager = new window.MapRenderer.MarkerClusterManager({ map });
 
-    expect(manager.addMarker(null, 7, { key: 'atlas:null', type: 'atlas' })).toBe(false);
-    expect(manager.addMarker(' ', 7, { key: 'atlas:blank', type: 'atlas' })).toBe(false);
-    expect(manager.addMarker(46, Infinity, { key: 'atlas:infinity', type: 'atlas' })).toBe(false);
-    expect(manager.addMarker(46, 7, { key: 'atlas:valid', type: 'atlas' })).toBe(true);
+    expect(manager.addMarker(null, 7, { key: 'atlas:null', entityType: 'atlas' })).toBe(false);
+    expect(manager.addMarker(' ', 7, { key: 'atlas:blank', entityType: 'atlas' })).toBe(false);
+    expect(manager.addMarker(46, Infinity, { key: 'atlas:infinity', entityType: 'atlas' })).toBe(false);
+    expect(manager.addMarker(46, 7, { key: 'atlas:valid', entityType: 'atlas' })).toBe(true);
     expect(manager.getClusteredData()).toHaveLength(1);
     expect(map.project).toHaveBeenCalledTimes(1);
   });
@@ -188,7 +212,7 @@ describe('MapRenderer production component', () => {
     for (let index = 0; index < 10; index += 1) {
       manager.addMarker(source[0], source[1], {
         key: `atlas:${index}`,
-        type: 'atlas'
+        entityType: 'atlas'
       });
     }
 
@@ -203,47 +227,23 @@ describe('MapRenderer production component', () => {
     });
   });
 
-  test('applies opacity to both path and DOM-icon marker types', () => {
-    const pathMarker = { setStyle: jest.fn() };
-    const iconMarker = { setOpacity: jest.fn() };
-
-    window.MapRenderer.setMarkerOpacity(pathMarker, 0.6, 0.3);
-    window.MapRenderer.setMarkerOpacity(iconMarker, 0.6, 0.3);
-
-    expect(pathMarker.setStyle).toHaveBeenCalledWith({ opacity: 0.6, fillOpacity: 0.3 });
-    expect(iconMarker.setOpacity).toHaveBeenCalledWith(0.6);
-  });
-
-  test('render signatures change when marker representation changes', () => {
-    const data = { hasAtlasDuplicate: true };
-
-    expect(window.MapRenderer.getMarkerRenderSignature('atlas', '#174092', data, 17))
-      .not.toBe(window.MapRenderer.getMarkerRenderSignature('atlas', '#174092', data, 18));
-  });
-
-  test('render signatures stay stable across the threshold for circle-only markers', () => {
-    expect(window.MapRenderer.getMarkerRenderSignature('atlas', '#174092', { hasAtlasDuplicate: false }, 17))
-      .toBe(window.MapRenderer.getMarkerRenderSignature('atlas', '#174092', { hasAtlasDuplicate: false }, 18));
-    expect(window.MapRenderer.getMarkerRenderSignature('osm', '#4CAF50', { osmNodeType: 'stop_position' }, 17))
-      .toBe(window.MapRenderer.getMarkerRenderSignature('osm', '#4CAF50', { osmNodeType: 'stop_position' }, 18));
-    expect(window.MapRenderer.getMarkerRenderSignature('osm', '#4CAF50', { osmNodeType: 'platform' }, 17))
-      .not.toBe(window.MapRenderer.getMarkerRenderSignature('osm', '#4CAF50', { osmNodeType: 'platform' }, 18));
-  });
-
-  test('circle signatures ignore label-only metadata below the threshold', () => {
-    expect(window.MapRenderer.getMarkerRenderSignature('atlas', '#174092', { hasAtlasDuplicate: false }, 17))
-      .toBe(window.MapRenderer.getMarkerRenderSignature('atlas', '#174092', { hasAtlasDuplicate: true }, 17));
-    expect(window.MapRenderer.getMarkerRenderSignature('osm', '#4CAF50', { osmNodeType: 'stop_position' }, 17))
-      .toBe(window.MapRenderer.getMarkerRenderSignature('osm', '#4CAF50', { osmNodeType: 'platform' }, 17));
+  test.each(['atlas', 'osm'])('signatures track visible labels and emphasis for %s', type => {
+    const plain = window.MapShared.createEntity(type, '1', [46.5, 6.6], { status: 'matched' });
+    const labeled = window.MapShared.createEntity(type, '1', [46.5, 6.6], { status: 'matched', label: type === 'atlas' ? 'D' : 'P' });
+    const signature = window.MapRenderer.getEntityRenderSignature;
+    expect(signature(plain, 17)).toBe(signature(plain, 18));
+    expect(signature(plain, 17)).toBe(signature(labeled, 17));
+    expect(signature(labeled, 17)).not.toBe(signature(labeled, 18));
+    expect(signature({ ...plain, emphasis: 'context' }, 18)).not.toBe(signature(plain, 18));
   });
 
   test('cancels stale chunk insertion without adding the remaining markers', async () => {
     jest.useFakeTimers();
     const layer = { addLayer: jest.fn() };
-    const markers = window.MapRenderer.createMarkersWithOverlapHandling([
-      { key: 'atlas:1', lat: 46.5, lon: 6.6, type: 'atlas', color: '#174092' },
-      { key: 'atlas:2', lat: 46.6, lon: 6.7, type: 'atlas', color: '#174092' },
-      { key: 'atlas:3', lat: 46.7, lon: 6.8, type: 'atlas', color: '#174092' }
+    const markers = window.MapRenderer.renderEntities([
+      window.MapShared.createEntity('atlas', '1', [46.5, 6.6]),
+      window.MapShared.createEntity('atlas', '2', [46.6, 6.7]),
+      window.MapShared.createEntity('atlas', '3', [46.7, 6.8])
     ], layer, { batchAdd: true, batchSize: 1, zoom: 17 });
 
     expect(layer.addLayer).toHaveBeenCalledTimes(1);

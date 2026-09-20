@@ -8,6 +8,7 @@ COMMON_MAP_SCRIPTS = [
     "js/components/mobile-filters.js",
     "js/components/header-summary.js",
     "js/components/map-shared.js",
+    "js/components/map-entity-adapters.js",
     "js/components/filter-chip-utils.js",
     "js/components/popup-utils.js",
     "js/components/popup-renderer.js",
@@ -56,3 +57,31 @@ def test_problems_map_loads_its_feature_renderer_before_controller(client):
     assert html.index("js/pages/problems-map.js") < html.index(
         "js/pages/problems.js"
     )
+
+
+@pytest.mark.parametrize("path", ["/", "/problems"])
+def test_primary_maps_show_configured_source_labels_and_hide_unsupported_nav(app, client, path):
+    app.config["REVIEW_CONFIG"] = {
+        **app.config["REVIEW_CONFIG"], "title": "City Review", "source_label": "City GTFS",
+        "source_id_label": "Stop ID", "flag": "🚌",
+        "capabilities": {"routes": False, "gtfs_identity": False},
+    }
+    html = client.get(path).get_data(as_text=True)
+    assert "City GTFS Operator" in html or "City GTFS\n" in html
+    assert 'href="/routes"' not in html
+    assert "ATLAS Operator" not in html
+    if path == "/":
+        assert '<kbd>source:…</kbd> City GTFS Stop ID' in html
+        assert '<kbd>ch:1:sloid:' not in html
+        assert '<kbd>route:…</kbd>' not in html
+
+
+def test_disabled_routes_template_shows_message_without_loading_controllers(app):
+    from flask import render_template
+
+    app.config["REVIEW_CONFIG"]["capabilities"] = {"routes": False, "gtfs_identity": False}
+    with app.test_request_context("/routes"):
+        html = render_template("pages/routes.html", active_view="routes")
+    assert "Route review is unavailable for this dataset." in html
+    assert "js/pages/routes.js" not in html
+    assert "routeMap" not in html

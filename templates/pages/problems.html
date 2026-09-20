@@ -1,8 +1,8 @@
 {% extends "layouts/base.html" %}
 
 {% from "components/_components.html" import stats_overlay, top_filters_overlay with context %}
-{% block title %}Public Transport Data Problems | OSM &amp; ATLAS{% endblock %}
-{% block meta_description %}Explore missing, duplicate, distant, and contradictory public transport stop data between OpenStreetMap and ATLAS in Switzerland.{% endblock %}
+{% block title %}Public Transport Data Problems | {{ review_config.title }}{% endblock %}
+{% block meta_description %}Explore missing, duplicate, distant, and contradictory public transport stop data between OpenStreetMap and {{ review_config.source_label }}.{% endblock %}
 
 {% block head_css %}
 <!-- Leaflet CSS -->
@@ -103,16 +103,16 @@
               </div>
             </div>
 
-            <!-- Atlas Operator -->
+            <!-- {{ review_config.source_label }} Operator -->
             <div class="dropdown filter-item mx-1">
               <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
                 type="button" id="atlasDropdownProblems" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
-                Atlas Operator
+                {{ review_config.source_label }} Operator
               </button>
               <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="atlasDropdownProblems"
                 style="width: 320px; max-height: 60vh; overflow-y: auto;">
                 <div class="form-group mb-0">
-                  <label for="atlasOperatorFilterProblems" class="fw-bold small text-uppercase text-muted">ATLAS Operator</label>
+                  <label for="atlasOperatorFilterProblems" class="fw-bold small text-uppercase text-muted">{{ review_config.source_label }} Operator</label>
                   <div id="atlasOperatorFilterProblems"></div>
                 </div>
               </div>

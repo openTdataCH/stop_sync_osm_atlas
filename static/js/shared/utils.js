@@ -17,6 +17,25 @@
         return div.innerHTML;
     };
 
+    // Presentation labels stay separate from the app's compatibility field names.
+    SharedUtils.sourceLabel = () => String((global.ReviewConfig || {}).source_label || 'ATLAS');
+    SharedUtils.sourceIdLabel = () => String((global.ReviewConfig || {}).source_id_label || 'SLOID');
+    SharedUtils.sourceLabelHtml = () => SharedUtils.escapeHtml(SharedUtils.sourceLabel());
+    SharedUtils.sourceIdLabelHtml = () => SharedUtils.escapeHtml(SharedUtils.sourceIdLabel());
+    SharedUtils.hasCapability = name => (global.ReviewConfig || {}).capabilities?.[name] !== false;
+
+    SharedUtils.sourceUrl = function(data) {
+        const template = (global.ReviewConfig || {}).source_url_template;
+        if (!template) return null;
+        let complete = true;
+        const url = template.replace(/\{(id|sloid|uic_ref)\}/g, (_, key) => {
+            const value = key === 'id' ? (data.sloid ?? data.id) : data[key];
+            if (value == null || value === '') complete = false;
+            return encodeURIComponent(value ?? '');
+        });
+        return complete && /^https?:\/\//i.test(url) ? url : null;
+    };
+
     /**
      * Display a temporary message to the user
      * @param {string} message - Message to display (can include HTML)
@@ -116,4 +135,3 @@
     global.SharedUtils = SharedUtils;
 
 })(window);
-

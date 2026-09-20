@@ -28,16 +28,13 @@ ENV/
 .env
 .env.*
 
-# Large data directories (exclude by default)
-data/raw/
-# Explicitly include the Switzerland boundary cache used by get_atlas_data.py
-!data/raw/switzerland.geojson
-data/processed/*
-!data/processed/osm_nodes_with_routes.csv
-!data/processed/atlas_routes_unified.csv
+# Runtime inputs/results are supplied at runtime, never baked into either image.
+data/
+node_modules/
+.pytest_cache/
+coverage/
+htmlcov/
 
 # Documentation and report assets
 memoire/
-documentation/
-
-
+documentation/generated/

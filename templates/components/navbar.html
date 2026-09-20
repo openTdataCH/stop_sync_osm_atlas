@@ -2,17 +2,17 @@
   <div class="container-fluid">
     <!-- Brand -->
     <div class="navbar-brand d-flex text-nowrap mt-1">
-      <a class="navbar-brand-logo" href="{{ url_for('index') }}" title="OSM &amp; ATLAS Synchronization">
+      <a class="navbar-brand-logo" href="{{ url_for('index') }}" title="{{ review_config.title }}">
         <img src="{{ url_for('static', filename='header/header.svg') }}" alt="OSM &amp; ATLAS"
           class="d-inline-block align-top me-2">
       </a>
       <div class="navbar-brand-meta d-flex flex-column mt-1">
-        <a href="{{ url_for('index') }}" title="OSM &amp; ATLAS Synchronization"
+        <a href="{{ url_for('index') }}" title="{{ review_config.title }}"
           class="navbar-brand-title text-decoration-none">
-          <span class="fw-bold navbar-brand-text">OSM &amp; ATLAS Synchronization</span>
+          <span class="fw-bold navbar-brand-text">{{ review_config.title }}</span>
         </a>
         <a href="{{ url_for('docs.docs_page', page='changelog') }}" target="_blank" rel="noopener noreferrer"
-          class="navbar-version navbar-version--brand">Version 0.5</a>
+          class="navbar-version navbar-version--brand">Version 0.6</a>
       </div>
     </div>
 
@@ -35,10 +35,12 @@
             href="{{ url_for('problems') }}">Problems</a>
         </li>
 
+        {% if review_config.capabilities.routes %}
         <li class="nav-item">
           <a class="nav-link {%- if request.endpoint and request.endpoint.startswith('routes.') %} active{%- endif %}"
             href="{{ url_for('routes.routes_page') }}">Routes</a>
         </li>
+        {% endif %}
         <li class="nav-item">
           <a class="nav-link {%- if request.endpoint == 'operators.operators_page' %} active{%- endif %}"
             href="{{ url_for('operators.operators_page') }}">Operators</a>
@@ -54,7 +56,7 @@
         <li class="nav-item navbar-mobile-version d-lg-none">
           <a href="{{ url_for('docs.docs_page', page='changelog') }}" target="_blank" rel="noopener noreferrer"
             class="navbar-version navbar-version--menu">
-            Version 0.5 <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+            Version 0.6 <i class="fas fa-external-link-alt" aria-hidden="true"></i>
             <span class="visually-hidden">(opens in a new tab)</span>
           </a>
         </li>

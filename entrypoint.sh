@@ -9,13 +9,13 @@ MODE="${1:-app}"
 if [ "$MODE" = "scheduler" ]; then
     echo "Starting scheduler mode..."
     echo "Waiting for Postgres database..."
-    python matching_and_import_db/database/init.py
-    exec python -u -m matching_and_import_db.scheduler.service
+    python backend/importing/init.py
+    exec python -u -m backend.jobs.service
 fi
 
 
 echo "Waiting for Postgres database..."
-python matching_and_import_db/database/init.py
+python backend/importing/init.py
 
 # Run database migrations are now handled by the 'migrator' container in docker-compose.
 # We no longer run migrations in the app container.

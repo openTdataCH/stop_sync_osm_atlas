@@ -2,6 +2,14 @@ from backend.extensions import db
 from geoalchemy2 import Geometry
 from sqlalchemy.dialects.postgresql import JSONB
 
+
+class DatasetPublication(db.Model):
+    """The active source snapshot; updated in the same transaction as publication."""
+    __tablename__ = 'dataset_publication'
+    id = db.Column(db.Integer, primary_key=True)
+    run_id = db.Column(db.String(100), nullable=False)
+    manifest = db.Column(JSONB, nullable=False)
+
 """
 Model definitions for core entities and related tables.
 Relationships to `AtlasStop` and `OsmNode` are defined via explicit join
@@ -18,7 +26,7 @@ class StopsMatched(db.Model):
     )
     
     id = db.Column(db.Integer, primary_key=True)
-    sloid = db.Column(db.String(100), index=True)
+    sloid = db.Column(db.Text, index=True)
     # Valid values: 'matched', 'effectively_matched', 'atlas_unmatched', 'osm_unmatched'
     stop_type = db.Column(db.String(50))
     match_type = db.Column(db.String(50))
@@ -106,8 +114,8 @@ class AtlasStop(db.Model):
         db.Index('idx_atlas_operator', 'atlas_business_org_abbr'),
     )
     
-    sloid = db.Column(db.String(100), primary_key=True)
-    uic_ref = db.Column(db.String(100), index=True)
+    sloid = db.Column(db.Text, primary_key=True)
+    uic_ref = db.Column(db.Text, index=True)
     atlas_designation = db.Column(db.String(255))
     atlas_designation_official = db.Column(db.String(255))
     atlas_business_org_abbr = db.Column(
@@ -115,7 +123,7 @@ class AtlasStop(db.Model):
         db.ForeignKey('atlas_operators.atlas_business_org_abbr', ondelete='SET NULL'),
     )
     # FK to the representative SLOID (NULL if this IS the representative or not in a group)
-    representative_sloid = db.Column(db.String(100), nullable=True, index=True)
+    representative_sloid = db.Column(db.Text, nullable=True, index=True)
     # JSONB array of all SLOIDs in the duplicate group (e.g. ["sloid1", "sloid2"])
     duplicate_group_sloids = db.Column(JSONB)
 
@@ -131,15 +139,15 @@ class GtfsStopRaw(db.Model):
         db.Index('idx_gtfs_stops_raw_coords', 'stop_lat', 'stop_lon'),
     )
 
-    stop_id = db.Column(db.String(255), primary_key=True)
+    stop_id = db.Column(db.Text, primary_key=True)
     stop_code = db.Column(db.String(255))
     stop_name = db.Column(db.String(255))
     stop_lat = db.Column(db.Float, nullable=False)
     stop_lon = db.Column(db.Float, nullable=False)
     platform_code = db.Column(db.String(255))
-    original_stop_id = db.Column(db.String(255))
+    original_stop_id = db.Column(db.Text)
     location_type = db.Column(db.String(20))
-    parent_station = db.Column(db.String(255))
+    parent_station = db.Column(db.Text)
     uic_number = db.Column(db.String(64), nullable=False)
     local_ref = db.Column(db.String(64))
     normalized_local_ref = db.Column(db.String(64))
@@ -155,10 +163,10 @@ class GtfsStopIdentityResolution(db.Model):
     )
 
     id = db.Column(db.Integer, primary_key=True)
-    stop_id = db.Column(db.String(255), db.ForeignKey('gtfs_stops_raw.stop_id', ondelete='CASCADE'), nullable=False)
+    stop_id = db.Column(db.Text, db.ForeignKey('gtfs_stops_raw.stop_id', ondelete='CASCADE'), nullable=False)
     source_location_type = db.Column(db.String(20))
     identity_level = db.Column(db.String(50))
-    resolved_sloid = db.Column(db.String(100), db.ForeignKey('atlas_stops.sloid', ondelete='SET NULL'))
+    resolved_sloid = db.Column(db.Text, db.ForeignKey('atlas_stops.sloid', ondelete='SET NULL'))
     resolution_method = db.Column(db.String(100), nullable=False)
     confidence = db.Column(db.Float)
     distance_m = db.Column(db.Float)
@@ -256,9 +264,9 @@ class AtlasLineFamily(db.Model):
         db.Index('idx_atlas_line_families_route_type', 'route_type'),
     )
 
-    atlas_line_id = db.Column(db.String(100), primary_key=True)
-    route_id_normalized = db.Column(db.String(100))
-    agency_id = db.Column(db.String(100))
+    atlas_line_id = db.Column(db.Text, primary_key=True)
+    route_id_normalized = db.Column(db.Text)
+    agency_id = db.Column(db.Text)
     route_short_name = db.Column(db.String(255))
     route_long_name = db.Column(db.String(255))
     route_desc = db.Column(db.Text)
@@ -286,13 +294,13 @@ class OsmRouteRelation(db.Model):
     via = db.Column(db.String(255))
     public_transport_version = db.Column(db.String(50))
     colour = db.Column(db.String(64))
-    gtfs_route_id = db.Column(db.String(255))
-    gtfs_trip_id = db.Column(db.String(255))
-    gtfs_trip_id_sample = db.Column(db.String(255))
-    gtfs_shape_id = db.Column(db.String(255))
+    gtfs_route_id = db.Column(db.Text)
+    gtfs_trip_id = db.Column(db.Text)
+    gtfs_trip_id_sample = db.Column(db.Text)
+    gtfs_shape_id = db.Column(db.Text)
     route_master_id = db.Column(db.String(100))
     family_origin = db.Column(db.String(50))
-    synthetic_family_key = db.Column(db.String(255))
+    synthetic_family_key = db.Column(db.Text)
     run_id = db.Column(db.String(100))
 
 
@@ -306,20 +314,20 @@ class LineFamily(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     source = db.Column(db.String(20), nullable=False)
-    source_family_id = db.Column(db.String(255), nullable=False)
+    source_family_id = db.Column(db.Text, nullable=False)
     family_origin = db.Column(db.String(50))
     route_type = db.Column(db.String(50))
-    display_route_id = db.Column(db.String(255))
-    public_name = db.Column(db.String(255))
+    display_route_id = db.Column(db.Text)
+    public_name = db.Column(db.Text)
     ref = db.Column(db.String(100))
-    operator = db.Column(db.String(255))
+    operator = db.Column(db.Text)
     operator_wikidata = db.Column(db.String(100))
     network = db.Column(db.String(255))
     network_wikidata = db.Column(db.String(100))
     is_non_gtfs = db.Column(db.Boolean, default=False, nullable=False, server_default='false')
-    gtfs_route_id = db.Column(db.String(255))
-    normalized_route_id = db.Column(db.String(255))
-    atlas_line_id = db.Column(db.String(100), db.ForeignKey('atlas_line_families.atlas_line_id', ondelete='SET NULL'))
+    gtfs_route_id = db.Column(db.Text)
+    normalized_route_id = db.Column(db.Text)
+    atlas_line_id = db.Column(db.Text, db.ForeignKey('atlas_line_families.atlas_line_id', ondelete='SET NULL'))
     route_master_id = db.Column(db.String(100))
     representative_relation_id = db.Column(db.String(100), db.ForeignKey('osm_route_relations.relation_id', ondelete='SET NULL'))
 
@@ -335,10 +343,10 @@ class Itinerary(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     source = db.Column(db.String(20), nullable=False)
     line_family_id = db.Column(db.Integer, db.ForeignKey('line_families.id', ondelete='CASCADE'), nullable=False)
-    source_itinerary_id = db.Column(db.String(255), nullable=False)
+    source_itinerary_id = db.Column(db.Text, nullable=False)
     direction_id = db.Column(db.String(20))
     headsign_or_pattern_hash = db.Column(db.String(128))
-    display_name = db.Column(db.String(255))
+    display_name = db.Column(db.Text)
     representative_headsign = db.Column(db.String(255))
     from_name = db.Column(db.String(255))
     to_name = db.Column(db.String(255))
@@ -359,13 +367,13 @@ class StopCall(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     itinerary_id = db.Column(db.Integer, db.ForeignKey('itineraries.id', ondelete='CASCADE'), nullable=False)
     stop_sequence = db.Column(db.Integer, nullable=False)
-    source_stop_id = db.Column(db.String(255))
-    source_sloid = db.Column(db.String(100), db.ForeignKey('atlas_stops.sloid', ondelete='SET NULL'))
+    source_stop_id = db.Column(db.Text)
+    source_sloid = db.Column(db.Text, db.ForeignKey('atlas_stops.sloid', ondelete='SET NULL'))
     source_sloid_variants = db.Column(db.Text)
     source_node_id = db.Column(db.String(100), db.ForeignKey('osm_nodes.osm_node_id', ondelete='SET NULL'))
-    canonical_stop_key = db.Column(db.String(255))
-    stop_label = db.Column(db.String(255))
-    uic_ref = db.Column(db.String(100))
+    canonical_stop_key = db.Column(db.Text)
+    stop_label = db.Column(db.Text)
+    uic_ref = db.Column(db.Text)
     platform_code = db.Column(db.String(255))
     stop_lat = db.Column(db.Float)
     stop_lon = db.Column(db.Float)

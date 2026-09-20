@@ -1,35 +1,30 @@
 (function (global) {
   'use strict';
 
-  function getAtlasMarkerIdentity(stopData) {
-    if (!stopData) return null;
-    if (stopData.sloid != null && stopData.sloid !== '') return String(stopData.sloid);
-    if (stopData.representative_sloid != null && stopData.representative_sloid !== '') return String(stopData.representative_sloid);
-    if (stopData.id != null && stopData.id !== '') return String(stopData.id);
-    return null;
+  function createEntityKey(entityType, identifier) {
+    return ['atlas', 'osm', 'gtfs'].includes(entityType) && identifier != null && identifier !== ''
+      ? entityType + ':' + String(identifier) : null;
   }
 
-  function getOsmMarkerIdentity(stopData) {
-    if (!stopData) return null;
-    if (stopData.osm_node_id != null && stopData.osm_node_id !== '') return String(stopData.osm_node_id);
-    if (stopData.node_id != null && stopData.node_id !== '') return String(stopData.node_id);
-    if (stopData.id != null && stopData.id !== '') return String(stopData.id);
-    return null;
+  function finitePosition(lat, lon) {
+    if ([lat, lon].some(value => value == null || String(value).trim() === '')) return null;
+    const position = [Number(lat), Number(lon)];
+    return position.every(Number.isFinite) && Math.abs(position[0]) <= 90 && Math.abs(position[1]) <= 180
+      ? Object.freeze(position) : null;
   }
 
-  function getGtfsMarkerIdentity(stopData) {
-    if (!stopData) return null;
-    if (stopData.stop_id != null && stopData.stop_id !== '') return String(stopData.stop_id);
-    return null;
-  }
-
-  function createEntityKey(entityType, stopData) {
-    var normalizedType = String(entityType || '').toLowerCase();
-    var identity = null;
-    if (normalizedType === 'atlas') identity = getAtlasMarkerIdentity(stopData);
-    if (normalizedType === 'osm') identity = getOsmMarkerIdentity(stopData);
-    if (normalizedType === 'gtfs') identity = getGtfsMarkerIdentity(stopData);
-    return identity == null ? null : normalizedType + ':' + identity;
+  function createEntity(entityType, identifier, position, options = {}) {
+    const key = createEntityKey(entityType, identifier);
+    if (!key) return null;
+    const sourcePosition = position && finitePosition(position[0], position[1]);
+    if (!sourcePosition) return null;
+    return Object.freeze({
+      key, entityType, identifier: String(identifier), sourcePosition,
+      status: ['matched', 'effectively_matched'].includes(options.status) ? options.status : 'unmatched',
+      emphasis: ['context', 'focused', 'subdued'].includes(options.emphasis) ? options.emphasis : 'normal',
+      label: (entityType === 'atlas' ? ['D'] : entityType === 'osm' ? ['P', 'S'] : []).includes(options.label) ? options.label : null,
+      popupRef: options.popupRef || null
+    });
   }
 
   /**
@@ -83,9 +78,8 @@
   }
 
   global.MapShared = Object.freeze({
-    getAtlasMarkerIdentity: getAtlasMarkerIdentity,
-    getOsmMarkerIdentity: getOsmMarkerIdentity,
-    getGtfsMarkerIdentity: getGtfsMarkerIdentity,
+    finitePosition: finitePosition,
+    createEntity: createEntity,
     createEntityKey: createEntityKey,
     getViewportZoomPolicy: getViewportZoomPolicy,
     createBaseTileLayers: createBaseTileLayers

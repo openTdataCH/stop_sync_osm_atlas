@@ -1,0 +1,119 @@
+{
+  "engine_version": "0.1.0",
+  "files": {
+    "diagnostics": {
+      "bytes": 134,
+      "name": "diagnostics.jsonl.gz",
+      "rows": 1,
+      "sha256": "b143c3c52577d052b0ff34b44a2c147f24bea0efdfb959144c10d6efdf1b014d"
+    },
+    "extensions": {
+      "bytes": 115,
+      "name": "extensions.jsonl.gz",
+      "rows": 2,
+      "sha256": "60a7d79ba577e6f5fc7039c5c2a5f8b39543483f8813f3e2d88388c51a27adae"
+    },
+    "groups": {
+      "bytes": 134,
+      "name": "groups.jsonl.gz",
+      "rows": 2,
+      "sha256": "e31f9fe811a5cf81ba58ef84f1dcc452777b7c80deeda315b7be168d2e998a3b"
+    },
+    "matches": {
+      "bytes": 169,
+      "name": "matches.jsonl.gz",
+      "rows": 1,
+      "sha256": "b2fa3d1dd06f4f19e5b88663e44d48c03a1997cba0a75ac7e23f039ae9a9a146"
+    },
+    "osm_nodes": {
+      "bytes": 225,
+      "name": "osm_nodes.jsonl.gz",
+      "rows": 2,
+      "sha256": "e95b2f61d6ab1694f6cb1e8f367f7e7a38b627bf3c1662e0c483e0e2fc593a9c"
+    },
+    "problems": {
+      "bytes": 226,
+      "name": "problems.jsonl.gz",
+      "rows": 2,
+      "sha256": "f87e72146748d523fddd8d20469991a9b3d538232aaf11cfbc4a05cababe6372"
+    },
+    "routes": {
+      "bytes": 20,
+      "name": "routes.jsonl.gz",
+      "rows": 0,
+      "sha256": "9ceffb7310338057cfe71a4ae1e2c98d2c485d81cdef906532a801f457a38d64"
+    },
+    "source_stops": {
+      "bytes": 204,
+      "name": "source_stops.jsonl.gz",
+      "rows": 2,
+      "sha256": "34f2a43f151a5387cd89184ebd4c26478d671d1cf60a7982780dacfc141ce51d"
+    },
+    "unmatched": {
+      "bytes": 113,
+      "name": "unmatched.jsonl.gz",
+      "rows": 2,
+      "sha256": "d45c56359685ed0e40a4854202e0c5ef1341eee9b26396d7553d7684908d148a"
+    }
+  },
+  "generated_at": "2026-09-11T10:24:26.491953+00:00",
+  "metadata": {
+    "capabilities": [
+      "stops",
+      "problems"
+    ],
+    "profile": {
+      "capabilities": [
+        "stops",
+        "problems"
+      ],
+      "distance_priorities": [
+        80.0,
+        25.0,
+        15.0
+      ],
+      "distance_priority_exempt_operators": [],
+      "grouping": {
+        "nearby_source_distance": 30.0,
+        "pair_distance": 12.0,
+        "perfect_count_distance": 15.0,
+        "relaxed_ratio": 2.0,
+        "strict_ratio": 1.5,
+        "trio_middle_distance": 15.0
+      },
+      "isolation_radius": 50.0,
+      "long_distance": 150.0,
+      "max_distance": 50.0,
+      "name_match_max_distance": 1000.0,
+      "osm_grouping": false,
+      "predicate_names": [
+        "trio",
+        "exact",
+        "name",
+        "route",
+        "group_proximity",
+        "long_distance_group_proximity",
+        "local_ref",
+        "nearest_single",
+        "nearest_ratio",
+        "nearest_second"
+      ],
+      "profile_id": "generic",
+      "ratio_factor": 4.0,
+      "ratio_min_second_distance": 10.0,
+      "reference_rules": [],
+      "station_reference_matching": false
+    },
+    "summary": {
+      "matches": 1,
+      "osm_elements": 2,
+      "problems": 2,
+      "source_stops": 2,
+      "unmatched_osm": 1,
+      "unmatched_source": 1
+    }
+  },
+  "profile_id": "generic",
+  "run_id": "47a44a9a-33c0-435d-a8cc-46e9eba71bd0",
+  "schema_version": 1
+}
