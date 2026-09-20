@@ -159,6 +159,16 @@ td {
   border: 1px solid var(--line);
 }
 
+/*
+ * Keep content-sized columns, but let technical identifiers establish safe
+ * wrap points instead of forcing the whole table beyond the printed page.
+ */
+td,
+td code,
+td a {
+  overflow-wrap: anywhere;
+}
+
 th {
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   background: var(--panel-dark);

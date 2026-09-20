@@ -49,6 +49,63 @@ except Exception:  # pragma: no cover
 docs_bp = Blueprint('docs', __name__)
 logger = logging.getLogger(__name__)
 
+# Markdown remains next to the code that owns it.  The Flask application
+# assembles both trees into one reader-facing manual.
+_DOC_SOURCES = {
+    'app': {
+        'root': 'documentation',
+        'label': 'Review application',
+        'short_label': 'App',
+        'description': 'Bundle import, PostGIS, the Flask API, browser UI and deployment.',
+        'boundary': 'Consumes versioned result bundles; it does not run or reimplement matching rules.',
+        'repo_path': 'documentation/',
+    },
+    'engine': {
+        'root': 'engine/documentation',
+        'label': 'Matching engine',
+        'short_label': 'Engine',
+        'description': 'Source adapters, matching, route comparison, problem detection and result production.',
+        'boundary': 'Produces versioned result bundles; it has no Flask, SQLAlchemy or application-database dependency.',
+        'repo_path': 'engine/documentation/',
+    },
+}
+
+_DOC_COLLECTIONS = (
+    {
+        'key': 'overview',
+        'label': 'Project overview',
+        'description': 'How the engine and review application work together.',
+        'badge_label': 'Shared',
+        'badge_key': 'shared',
+        'source': 'app',
+        'sections': {'0'},
+    },
+    {
+        'key': 'engine',
+        'label': 'Matching engine',
+        'description': _DOC_SOURCES['engine']['description'],
+        'badge_label': 'Engine',
+        'badge_key': 'engine',
+        'source': 'engine',
+        'sections': None,
+    },
+    {
+        'key': 'app',
+        'label': 'Review application & deployment',
+        'description': _DOC_SOURCES['app']['description'],
+        'badge_label': 'App',
+        'badge_key': 'app',
+        'source': 'app',
+        'sections': None,
+        'exclude_sections': {'0'},
+    },
+)
+
+_SECTION_FALLBACK_TITLES = {
+    ('engine', '7'): '7. Operations & performance',
+    ('engine', '8'): '8. Engine testing',
+}
+
 # Lazy-loaded RepoScanner
 _repo_scanner: Optional[RepoScanner] = None
 
@@ -86,9 +143,19 @@ def _normalize_section_key(value) -> Optional[str]:
     if not text:
         return None
 
+    namespace = ''
+    if ':' in text:
+        prefix, text = text.split(':', 1)
+        prefix = prefix.strip().lower()
+        if prefix not in _DOC_SOURCES:
+            return None
+        namespace = f'{prefix}:'
+
     head = text.split('.', 1)[0].strip()
     if head.isdigit():
-        return head
+        return f'{namespace}{head}'
+    if namespace and re.fullmatch(r'[a-z0-9_-]+', text):
+        return f'{namespace}{text}'
     return None
 
 
@@ -148,12 +215,17 @@ def ensure_docs_pdf_generated() -> bool:
             
         # 2. Check if any markdown source file is newer
         if is_fresh:
-            for f in os.listdir(docs_dir):
-                if f.lower().endswith('.md'):
-                    src_path = os.path.join(docs_dir, f)
-                    if os.path.getmtime(src_path) > pdf_mtime:
-                        is_fresh = False
-                        break
+            for source_dir in _get_docs_dirs().values():
+                if not os.path.isdir(source_dir):
+                    continue
+                for f in os.listdir(source_dir):
+                    if f.lower().endswith('.md'):
+                        src_path = os.path.join(source_dir, f)
+                        if os.path.getmtime(src_path) > pdf_mtime:
+                            is_fresh = False
+                            break
+                if not is_fresh:
+                    break
         
         # 3. Check if the print CSS template is newer
         if is_fresh:
@@ -237,66 +309,40 @@ _MERMAID_NODE_CLOSERS = {
 }
 
 
-def _looks_like_repo_file_link(href: str) -> bool:
-    if not href:
-        return False
-    lower = href.lower()
-    if lower.startswith(('http://', 'https://', 'mailto:', '#')):
-        return False
-    # Docs assets are served locally (images/diagrams/documentation/*) and are
-    # handled separately.
-    if lower.startswith(('documentation/', 'images/', 'diagrams/')):
-        return False
+def _rewrite_repo_links_to_github(markdown_text: str, current_doc: str) -> str:
+    """Rewrite remaining links to real repository files as GitHub blob links.
 
-    path = href.split('#', 1)[0].split('?', 1)[0]
-    if path.startswith(('../engine/', '../docs_to_read/')) and path.endswith('.md'):
-        return True
-    # Common repo root files without extensions.
-    if os.path.basename(path).lower() in {'dockerfile'}:
-        return True
-    _, ext = os.path.splitext(path)
-    if not ext:
-        return False
-    if ext.lower() in _CODE_FILE_EXTENSIONS:
-        return True
-    return False
+    Documentation-to-documentation links are converted to local routes first.
+    Resolving from the current Markdown file keeps links correct in both source
+    trees and after the engine directory becomes its own repository.
+    """
 
-
-def _normalize_repo_relative_path(href: str) -> str:
-    # Drop query/fragment for blob path; keep them to re-append later.
-    base_part, frag = (href.split('#', 1) + [''])[:2]
-    base_part, query = (base_part.split('?', 1) + [''])[:2]
-
-    path = base_part.strip()
-    path = path.lstrip('/')
-    while path.startswith('../'):
-        path = path[3:]
-    if path.startswith('./'):
-        path = path[2:]
-
-    rebuilt = path
-    if query:
-        rebuilt += f"?{query}"
-    if frag:
-        rebuilt += f"#{frag}"
-    return rebuilt
-
-
-def _rewrite_repo_links_to_github(markdown_text: str) -> str:
-    """Rewrite markdown links that point to repo files into GitHub blob links."""
-
-    # Match standard markdown links: [text](href "optional title")
-    # Negative lookbehind avoids matching images: ![alt](...)
-    pattern = re.compile(r'(?<!\!)\]\(([^\s)]+)(\s+"[^"]*")?\)')
+    # Match standard markdown links: [text](href "optional title").  The
+    # negative lookbehind is anchored before ``[`` so image syntax is excluded.
+    pattern = re.compile(r'(?<!!)\[([^\]]*)\]\(([^\s)]+)(\s+"[^"]*")?\)')
 
     def repl(match: re.Match) -> str:
-        href = match.group(1)
-        title = match.group(2) or ''
-        if not _looks_like_repo_file_link(href):
+        label = match.group(1)
+        href = match.group(2)
+        title = match.group(3) or ''
+        if href.startswith(('http://', 'https://', 'mailto:', '#', '/')):
             return match.group(0)
-        normalized = _normalize_repo_relative_path(href)
+
+        base_part, frag = (href.split('#', 1) + [''])[:2]
+        base_part, query = (base_part.split('?', 1) + [''])[:2]
+        current_path = os.path.join(_repo_root(), current_doc)
+        candidate = os.path.realpath(os.path.join(os.path.dirname(current_path), unquote(base_part)))
+        repo_root = os.path.realpath(_repo_root())
+        if not candidate.startswith(repo_root + os.sep) or not os.path.isfile(candidate):
+            return match.group(0)
+
+        normalized = os.path.relpath(candidate, repo_root).replace(os.sep, '/')
         new_href = f"{_github_blob_base()}{normalized}".replace(' ', '%20')
-        return f"]({new_href}{title})"
+        if query:
+            new_href += f'?{query}'
+        if frag:
+            new_href += f'#{frag}'
+        return f"[{label}]({new_href}{title})"
 
     return pattern.sub(repl, markdown_text)
 
@@ -418,7 +464,11 @@ def _auto_link_code_files(markdown_text: str) -> str:
     return _restore_mermaid_blocks(protected_text, 'MERMAID_AUTOLINK', processed_blocks)
 
 
-def _rewrite_internal_doc_links_to_routes(markdown_text: str, file_to_slug: Dict[str, str]) -> str:
+def _rewrite_internal_doc_links_to_routes(
+    markdown_text: str,
+    file_to_slug: Dict[str, str],
+    current_doc: str,
+) -> str:
     """Rewrite relative .md links to internal /docs/ Flask routes.
 
     Transforms links like [Text](1.%20Download%20and%20process%20data.md)
@@ -445,12 +495,21 @@ def _rewrite_internal_doc_links_to_routes(markdown_text: str, file_to_slug: Dict
             anchor = ''
 
         clean_path = unquote(path_part).strip()
-        clean_path = clean_path.lstrip('./')
         candidate_file = os.path.basename(clean_path)
         if not candidate_file.lower().endswith('.md'):
             candidate_file = f"{candidate_file}.md"
 
-        slug = file_to_slug.get(candidate_file)
+        current_dir = os.path.dirname(current_doc)
+        candidate_id = os.path.normpath(os.path.join(current_dir, clean_path)).replace(os.sep, '/')
+        slug = file_to_slug.get(candidate_id)
+
+        if slug is None:
+            matching_slugs = {
+                candidate_slug
+                for doc_id, candidate_slug in file_to_slug.items()
+                if os.path.basename(doc_id) == candidate_file
+            }
+            slug = next(iter(matching_slugs)) if len(matching_slugs) == 1 else None
         if slug is None:
             # Keep unresolved links unchanged to avoid generating broken routes.
             return match.group(0)
@@ -463,13 +522,45 @@ def _rewrite_internal_doc_links_to_routes(markdown_text: str, file_to_slug: Dict
 
 
 def _get_docs_dir() -> str:
+    """Return the app-owned documentation directory (legacy helper)."""
     return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'documentation'))
 
 
+def _get_docs_dirs() -> Dict[str, str]:
+    root = _repo_root()
+    return {
+        source_key: os.path.join(root, source['root'])
+        for source_key, source in _DOC_SOURCES.items()
+    }
+
+
+def _doc_source_key(doc_id: str) -> str:
+    normalized = doc_id.replace(os.sep, '/')
+    for source_key, source in _DOC_SOURCES.items():
+        prefix = source['root'].rstrip('/') + '/'
+        if normalized.startswith(prefix):
+            return source_key
+    raise ValueError(f'Unknown documentation source for {doc_id!r}')
+
+
+def _doc_source(doc_id: str) -> Dict:
+    source_key = _doc_source_key(doc_id)
+    return {'key': source_key, **_DOC_SOURCES[source_key]}
+
+
 def _list_markdown_files() -> List[str]:
-    docs_dir = _get_docs_dir()
-    files = [f for f in os.listdir(docs_dir) if f.lower().endswith('.md')]
-    files.sort(key=lambda x: x.lower())
+    """Return repo-relative IDs for app- and engine-owned Markdown pages."""
+    root = _repo_root()
+    files: List[str] = []
+    for source_key in ('app', 'engine'):
+        docs_dir = _get_docs_dirs()[source_key]
+        if not os.path.isdir(docs_dir):
+            continue
+        for filename in os.listdir(docs_dir):
+            if filename.lower().endswith('.md'):
+                absolute = os.path.join(docs_dir, filename)
+                files.append(os.path.relpath(absolute, root).replace(os.sep, '/'))
+    files.sort(key=lambda value: (_doc_source_key(value), os.path.basename(value).lower()))
     return files
 
 
@@ -491,13 +582,16 @@ def _build_doc_slug_maps(files: List[str]) -> Tuple[Dict[str, str], Dict[str, st
     slug_to_file: Dict[str, str] = {}
 
     for filename in files:
-        stem = os.path.splitext(filename)[0]
+        stem = os.path.splitext(os.path.basename(filename))[0]
         base_slug = _slugify_doc_stem(stem)
         slug = base_slug
-        counter = 2
-        while slug in slug_to_file and slug_to_file[slug] != filename:
-            slug = f"{base_slug}_{counter}"
-            counter += 1
+        if slug in slug_to_file and slug_to_file[slug] != filename:
+            source_key = _doc_source_key(filename)
+            slug = f"{source_key}_{base_slug}"
+            counter = 2
+            while slug in slug_to_file and slug_to_file[slug] != filename:
+                slug = f"{source_key}_{base_slug}_{counter}"
+                counter += 1
 
         file_to_slug[filename] = slug
         slug_to_file[slug] = filename
@@ -506,7 +600,7 @@ def _build_doc_slug_maps(files: List[str]) -> Tuple[Dict[str, str], Dict[str, st
 
 
 def _derive_title(filename: str) -> str:
-    return os.path.splitext(filename)[0].replace('_', ' ').title()
+    return os.path.splitext(os.path.basename(filename))[0].replace('_', ' ').title()
 
 
 def _derive_level(filename: str) -> int:
@@ -518,7 +612,7 @@ def _derive_level(filename: str) -> int:
     - "1.2.3 Baz.md" -> 3
     Non-numbered files -> 0
     """
-    name = os.path.splitext(filename)[0]
+    name = os.path.splitext(os.path.basename(filename))[0]
     first_token = name.split(' ')[0] if ' ' in name else name
     trimmed = first_token.rstrip('.')
     if not trimmed or not trimmed[0].isdigit():
@@ -534,7 +628,7 @@ def _derive_level(filename: str) -> int:
 
 def _top_level_section_key(filename: str) -> Optional[str]:
     """Return the top-level numeric section as a string (e.g. '0', '1'), or None."""
-    name = os.path.splitext(filename)[0]
+    name = os.path.splitext(os.path.basename(filename))[0]
     first_token = name.split(' ')[0] if ' ' in name else name
     trimmed = first_token.rstrip('.')
     if not trimmed or not trimmed[0].isdigit():
@@ -547,7 +641,13 @@ def _top_level_section_key(filename: str) -> Optional[str]:
     return top
 
 
-def _group_files_by_section(files: List[str], file_to_slug: Dict[str, str]) -> List[Dict]:
+def _group_files_by_section(
+    files: List[str],
+    file_to_slug: Dict[str, str],
+    *,
+    collection_key: str,
+    source_key: str,
+) -> List[Dict]:
     """Group markdown files by their top-level numeric section.
 
     Returns a list of sections sorted by numeric key. Each section is a dict:
@@ -565,7 +665,8 @@ def _group_files_by_section(files: List[str], file_to_slug: Dict[str, str]) -> L
         title = _derive_title(f)
         if key not in sections_map:
             sections_map[key] = {
-                'key': key,
+                'key': f'{collection_key}-{key}',
+                'export_key': f'{source_key}:{key}',
                 'number': int(key),
                 'root_file': None,
                 'root_slug': None,
@@ -586,6 +687,8 @@ def _group_files_by_section(files: List[str], file_to_slug: Dict[str, str]) -> L
 
     for sec in sections_map.values():
         sec['items'].sort(key=lambda it: it['file'].lower())
+        if sec['root_title'] is None:
+            sec['root_title'] = _SECTION_FALLBACK_TITLES.get((source_key, str(sec['number'])))
 
     sections = sorted(sections_map.values(), key=lambda s: s['number'])
 
@@ -597,9 +700,10 @@ def _group_files_by_section(files: List[str], file_to_slug: Dict[str, str]) -> L
             continue  # already handled above
         title = _derive_title(f)
         slug = file_to_slug.get(f, '')
-        extra_key = f"extra_{slug}"
+        extra_key = f"{collection_key}-extra-{slug}"
         sections.append({
             'key': extra_key,
+            'export_key': f'{source_key}:extra-{slug}',
             'number': None,
             'root_file': f,
             'root_slug': slug,
@@ -610,10 +714,48 @@ def _group_files_by_section(files: List[str], file_to_slug: Dict[str, str]) -> L
     return sections
 
 
-def _read_markdown(filename: str) -> str:
-    docs_dir = _get_docs_dir()
-    safe_path = safe_join(docs_dir, filename)
-    if not safe_path or not os.path.isfile(safe_path):
+def _build_doc_collections(files: List[str], file_to_slug: Dict[str, str]) -> List[Dict]:
+    collections: List[Dict] = []
+    for definition in _DOC_COLLECTIONS:
+        selected: List[str] = []
+        for doc_id in files:
+            if _doc_source_key(doc_id) != definition['source']:
+                continue
+            section_key = _top_level_section_key(doc_id)
+            included = definition.get('sections')
+            excluded = definition.get('exclude_sections', set())
+            if included is not None and section_key not in included:
+                continue
+            if section_key in excluded:
+                continue
+            selected.append(doc_id)
+
+        if not selected:
+            continue
+
+        collections.append({
+            **definition,
+            'source_info': {'key': definition['source'], **_DOC_SOURCES[definition['source']]},
+            'sections': _group_files_by_section(
+                selected,
+                file_to_slug,
+                collection_key=definition['key'],
+                source_key=definition['source'],
+            ),
+        })
+    return collections
+
+
+def _read_markdown(doc_id: str) -> str:
+    root = _repo_root()
+    safe_path = safe_join(root, doc_id)
+    allowed_roots = tuple(os.path.realpath(path) for path in _get_docs_dirs().values())
+    real_path = os.path.realpath(safe_path) if safe_path else ''
+    if (
+        not safe_path
+        or not os.path.isfile(safe_path)
+        or not any(real_path.startswith(source_root + os.sep) for source_root in allowed_roots)
+    ):
         abort(404)
     with open(safe_path, 'r', encoding='utf-8') as f:
         return f.read()
@@ -623,14 +765,19 @@ def _read_markdown(filename: str) -> str:
 
 
 
-def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) -> str:
+def _convert_markdown_to_html(
+    markdown_text: str,
+    file_to_slug: Dict[str, str],
+    current_doc: str,
+) -> str:
     # Auto-link code files (plain text and mermaid)
     markdown_text = _auto_link_code_files(markdown_text)
 
-    markdown_text = _rewrite_repo_links_to_github(markdown_text)
-    
     # Rewrite internal .md links to Flask /docs/ routes
-    markdown_text = _rewrite_internal_doc_links_to_routes(markdown_text, file_to_slug)
+    markdown_text = _rewrite_internal_doc_links_to_routes(markdown_text, file_to_slug, current_doc)
+
+    # Remaining links to source files or non-served Markdown belong on GitHub.
+    markdown_text = _rewrite_repo_links_to_github(markdown_text, current_doc)
     
     # Convert GitHub-style alerts to HTML before markdown processing
     markdown_text = convert_github_alerts_to_html(markdown_text)
@@ -662,7 +809,8 @@ def _convert_markdown_to_html(markdown_text: str, file_to_slug: Dict[str, str]) 
         or 'src="documentation/' in markdown_text
         or 'src="images/' in markdown_text
     ):
-        prefix = url_for("docs.docs_asset", filename="")  # ends with '/docs/assets/'
+        source_key = _doc_source_key(current_doc)
+        prefix = url_for("docs.docs_asset", filename=f"{source_key}/")
         
         # Markdown image/link paths
         markdown_text = markdown_text.replace('](documentation/', f']({prefix}')
@@ -772,10 +920,15 @@ def docs_page(page: str = ''):
         active_file = files[0]
 
     raw_markdown = _read_markdown(active_file)
-    html_content = _convert_markdown_to_html(raw_markdown, file_to_slug)
+    html_content = _convert_markdown_to_html(raw_markdown, file_to_slug, active_file)
     active_title = _derive_title(active_file)
 
-    sections = _group_files_by_section(files, file_to_slug)
+    collections = _build_doc_collections(files, file_to_slug)
+    sections = [
+        section
+        for collection in collections
+        for section in collection['sections']
+    ]
     # Build an ordered flat list for prev/next navigation
     ordered_pages: List[Dict[str, str]] = []
     for sec in sections:
@@ -817,10 +970,31 @@ def docs_page(page: str = ''):
             'title': next_page['title'],
         }
 
-    active_section = _top_level_section_key(active_file)
-    if active_section is None and active_file:
-        # Non-numbered file (e.g. Changelog.md): use the extra_ key
-        active_section = f"extra_{file_to_slug.get(active_file, '')}"
+    active_section = None
+    active_collection = None
+    for collection in collections:
+        for section in collection['sections']:
+            section_files = [section.get('root_file')]
+            section_files.extend(item['file'] for item in section['items'])
+            if active_file in section_files:
+                active_section = section['key']
+                active_collection = collection
+                break
+        if active_collection:
+            break
+
+    source_info = _doc_source(active_file)
+    if active_collection and active_collection['key'] == 'overview':
+        active_context = {
+            'key': 'shared',
+            'label': 'Engine + review application',
+            'short_label': 'Shared',
+            'description': active_collection['description'],
+            'boundary': 'The engine produces a versioned result bundle; the review application validates, imports and presents it.',
+            'repo_path': source_info['repo_path'],
+        }
+    else:
+        active_context = source_info
 
     if is_partial:
         return jsonify({
@@ -828,6 +1002,7 @@ def docs_page(page: str = ''):
             'active_file': active_file,
             'active_slug': active_slug,
             'active_section': active_section,
+            'active_context': active_context,
             'title': active_title,
             'prev_page': prev_page,
             'next_page': next_page,
@@ -838,11 +1013,13 @@ def docs_page(page: str = ''):
 
     return render_template(
         'pages/docs.html',
+        collections=collections,
         sections=sections,
         active_file=active_file,
         active_slug=active_slug,
         active_section=active_section,
         active_title=active_title,
+        active_context=active_context,
         content_html=html_content,
         prev_page=prev_page,
         next_page=next_page,
@@ -854,8 +1031,12 @@ def docs_page(page: str = ''):
 
 @docs_bp.route('/docs/assets/<path:filename>')
 def docs_asset(filename: str):
-    docs_dir = _get_docs_dir()
-    return send_from_directory(docs_dir, filename)
+    source_key, separator, relative_path = filename.partition('/')
+    if not separator or source_key not in _DOC_SOURCES:
+        # Preserve old app-owned asset URLs during the transition.
+        source_key = 'app'
+        relative_path = filename
+    return send_from_directory(_get_docs_dirs()[source_key], relative_path)
 
 
 @docs_bp.route('/api/docs/generate_pdf_async', methods=['POST'])

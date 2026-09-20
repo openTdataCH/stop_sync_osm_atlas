@@ -46,46 +46,49 @@
         </button>
       </div>
       <div class="list-group list-group-flush" id="docs-sections">
-        {% for sec in sections %}
-        <div class="docs-section" data-section="{{ sec.key }}">
-          <div
-            class="list-group-item d-flex align-items-center justify-content-between docs-section-header shadow-sm mb-2{% if active_section == sec.key %} active{% endif %}"
-            {% if sec.root_slug %} data-root-href="{{ url_for('docs.docs_page', page=sec.root_slug) }}" {% endif %}>
-            <div class="d-flex align-items-center">
-              {% if sec['items']|length > 0 %}
-              <button class="btn btn-sm btn-link p-0 me-2 docs-toggle" type="button" data-section="{{ sec.key }}"
-                aria-expanded="false" aria-controls="sec-{{ sec.key }}-items">
-                <i class="fas fa-chevron-right chevron"></i>
-              </button>
-              {% else %}
-              <span class="me-2" style="display:inline-block;width:1rem;"></span>
-              {% endif %}
-              {% if sec.root_title %}
-              {% if sec.root_slug %}
-              <a class="docs-section-link" href="{{ url_for('docs.docs_page', page=sec.root_slug) }}"
-                data-section-link="{{ sec.key }}" data-doc-slug="{{ sec.root_slug }}">{{ sec.root_title }}</a>
-              {% else %}
-              <span class="docs-section-link" data-section-link="{{ sec.key }}">{{ sec.root_title }}</span>
-              {% endif %}
-              {% else %}
-              {% if sec.root_slug %}
-              <a class="docs-section-link" href="{{ url_for('docs.docs_page', page=sec.root_slug) }}"
-                data-section-link="{{ sec.key }}" data-doc-slug="{{ sec.root_slug }}">Section {{ sec.key }}</a>
-              {% else %}
-              <span class="docs-section-link" data-section-link="{{ sec.key }}">Section {{ sec.key }}</span>
-              {% endif %}
-              {% endif %}
+        {% for collection in collections %}
+        <div class="docs-collection docs-collection--{{ collection.key }}">
+          <div class="docs-collection-heading">
+            <span class="docs-collection-label">{{ collection.label }}</span>
+            <span class="docs-owner-badge docs-owner-badge--{{ collection.badge_key }}">{{ collection.badge_label }}</span>
+            <p>{{ collection.description }}</p>
+          </div>
+          {% for sec in collection.sections %}
+          <div class="docs-section" data-section="{{ sec.key }}">
+            <div
+              class="list-group-item d-flex align-items-center justify-content-between docs-section-header shadow-sm mb-2{% if active_section == sec.key %} active{% endif %}"
+              {% if sec.root_slug %} data-root-href="{{ url_for('docs.docs_page', page=sec.root_slug) }}" {% endif %}>
+              <div class="d-flex align-items-center">
+                {% if sec['items']|length > 0 %}
+                <button class="btn btn-sm btn-link p-0 me-2 docs-toggle" type="button" data-section="{{ sec.key }}"
+                  aria-expanded="false" aria-controls="sec-{{ sec.key }}-items">
+                  <i class="fas fa-chevron-right chevron"></i>
+                </button>
+                {% else %}
+                <span class="me-2 docs-toggle-spacer"></span>
+                {% endif %}
+                {% if sec.root_title %}
+                {% if sec.root_slug %}
+                <a class="docs-section-link" href="{{ url_for('docs.docs_page', page=sec.root_slug) }}"
+                  data-section-link="{{ sec.key }}" data-doc-slug="{{ sec.root_slug }}">{{ sec.root_title }}</a>
+                {% else %}
+                <span class="docs-section-link" data-section-link="{{ sec.key }}">{{ sec.root_title }}</span>
+                {% endif %}
+                {% else %}
+                <span class="docs-section-link" data-section-link="{{ sec.key }}">Section {{ sec.number }}</span>
+                {% endif %}
+              </div>
+            </div>
+            <div id="sec-{{ sec.key }}-items" class="docs-subitems collapse" data-subitems="{{ sec.key }}">
+              <div class="list-group list-group-flush">
+                {% for item in sec['items'] %}
+                <a class="list-group-item list-group-item-action level-{{ item.level }}{% if item.slug == active_slug %} active{% endif %}"
+                  href="{{ url_for('docs.docs_page', page=item.slug) }}" data-doc-slug="{{ item.slug }}">{{ item.title }}</a>
+                {% endfor %}
+              </div>
             </div>
           </div>
-          <div id="sec-{{ sec.key }}-items" class="docs-subitems collapse" data-subitems="{{ sec.key }}">
-            <div class="list-group list-group-flush">
-              {% for item in sec['items'] %}
-              <a class="list-group-item list-group-item-action level-{{ item.level }}{% if item.slug == active_slug %} active{% endif %}"
-                href="{{ url_for('docs.docs_page', page=item.slug) }}" data-doc-slug="{{ item.slug }}">{{ item.title
-                }}</a>
-              {% endfor %}
-            </div>
-          </div>
+          {% endfor %}
         </div>
         {% endfor %}
       </div>
@@ -105,7 +108,11 @@
       </div>
     </div>
     <div class="col-md-9 docs-content">
-      <div class="card">
+      <div class="card docs-article-card">
+        <span class="docs-owner-pill docs-owner-pill--{{ active_context.key }}" id="docs-owner-pill"
+          aria-label="{{ active_context.short_label }} documentation">
+          <span id="docs-owner-label">{{ active_context.short_label }}</span>
+        </span>
         <div class="card-body" id="docs-content-html">
           {{ content_html | safe }}
         </div>
@@ -153,11 +160,16 @@
           <label class="form-check-label fw-bold" for="selectAllDocsBtn">All Sections</label>
         </div>
         <div id="docsSectionCheckboxes">
-          {% for sec in sections %}
+          {% for collection in collections %}
+          <fieldset class="docs-export-group">
+            <legend>{{ collection.label }}</legend>
+            {% for sec in collection.sections %}
             <div class="form-check">
-              <input class="form-check-input doc-section-checkbox" type="checkbox" value="{{ sec.key }}" id="docSec{{ sec.key }}" checked>
-              <label class="form-check-label" for="docSec{{ sec.key }}">{{ sec.root_title or 'Section ' + sec.key|string }}</label>
+              <input class="form-check-input doc-section-checkbox" type="checkbox" value="{{ sec.export_key }}" id="docSec{{ sec.key }}" checked>
+              <label class="form-check-label" for="docSec{{ sec.key }}">{{ sec.root_title or 'Additional pages' }}</label>
             </div>
+            {% endfor %}
+          </fieldset>
           {% endfor %}
         </div>
       </div>
@@ -334,6 +346,19 @@
       }
     }
 
+    function renderContext(context) {
+      if (!context) return;
+      var pill = document.getElementById('docs-owner-pill');
+      var label = document.getElementById('docs-owner-label');
+      var owner = context.short_label || '';
+      if (label) label.textContent = owner;
+      if (pill) {
+        pill.classList.remove('docs-owner-pill--shared', 'docs-owner-pill--app', 'docs-owner-pill--engine');
+        pill.classList.add('docs-owner-pill--' + (context.key || 'shared'));
+        pill.setAttribute('aria-label', owner + ' documentation');
+      }
+    }
+
     function isDocsPagePath(pathname) {
       return pathname === DOCS_ROOT_PATH || pathname.indexOf(DOCS_ROOT_PATH + '/') === 0;
     }
@@ -365,6 +390,7 @@
           content.innerHTML = payload.content_html;
 
           markActiveDoc(payload.active_slug || '', payload.active_section || '');
+          renderContext(payload.active_context || null);
           renderNav(payload.prev_page, payload.next_page);
           renderMermaid();
           renderMath();

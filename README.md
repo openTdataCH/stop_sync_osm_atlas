@@ -20,7 +20,7 @@ flowchart LR
     B --> X[Other tools and analysis]
 ```
 
-The projects share a [documented result format](engine/RESULT_FORMAT.md), with no cross-project Python imports. `engine/` has its own package metadata, tests, examples and Dockerfile, ready to move to its own repository after review.
+The projects share a [documented result format](engine/RESULT_FORMAT.md), with no cross-project Python imports. `engine/` has its own package metadata, tests, examples, Dockerfile and [canonical engine documentation](engine/documentation/1.%20Download%20and%20process%20data.md), ready to move to its own repository after review. The web documentation portal displays both source trees while keeping their ownership explicit.
 
 ## Try the engine without Docker or a database
 
@@ -94,12 +94,15 @@ Real publication tests require `TEST_POSTGRES_URI` pointing to a disposable Post
 Start with [CONTRIBUTING.md](CONTRIBUTING.md). A predicate contribution can use a tiny offline fixture; a UI contribution can use the precomputed bundle. No national download is required to begin.
 
 - [Documentation overview](documentation/0.%20Intro.md)
+- [Engine documentation](engine/documentation/1.%20Download%20and%20process%20data.md)
+- [Review application changelog](documentation/Changelog.md)
+- [Matching engine changelog](engine/documentation/Changelog.md)
 - [Engine and app architecture](documentation/7.%20System%20Architecture.md)
 - [Bundle import and publication](documentation/5.1%20Import%20Process.md)
 - [Tests and CI](documentation/8.%20Test.md)
 - [Contribution tutorials](documentation/9.%20Contributing.md)
-- [Related tools and collaboration](documentation/ecosystem-collaboration-report.md)
+- [Related tools and collaboration](engine/documentation/Related%20projects.md)
 
 Code remains AGPL-3.0-or-later. Source dataset attribution is recorded separately in result metadata.
 
-For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline Performance](documentation/7.5%20Pipeline%20Performance.md).
+For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline Performance](engine/documentation/7.5%20Pipeline%20Performance.md).

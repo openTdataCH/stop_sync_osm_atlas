@@ -1,11 +1,11 @@
 # Documentation PDF Generator
 
-This folder contains a script and associated CSS to generate a PDF from the repository's markdown documentation.
+This folder contains the script and CSS that generate one PDF from the app- and engine-owned Markdown documentation.
 
 ## How it works
 
 The `build_docs_pdf.py` script follows a two-stage process:
-1. **Markdown to HTML**: It gathers the `.md` files in the `documentation/` folder, replaces local links with anchors, injects stats placeholders, rewrites repo links to GitHub blob URLs, and converts Mermaid diagrams to local SVGs through the Kroki API.
+1. **Markdown to HTML**: It gathers top-level `.md` files from `documentation/` and `engine/documentation/`, orders them as overview → engine → application, replaces local links with anchors, injects stats placeholders, rewrites repository links to GitHub blob URLs, and converts Mermaid diagrams to local SVGs through the Kroki API.
 2. **WeasyPrint rendering**: It renders the combined HTML plus `docs_print.css` into the final PDF.
 
 ## Usage
@@ -24,4 +24,4 @@ python3 documentation/pdf_generator/build_docs_pdf.py
 
 ## Generated Files
 
-The generated HTML bundle, extracted SVG diagrams, and the final PDF are placed inside the `documentation/generated/` folder. This folder is ignored by git.
+The generated HTML bundle, extracted SVG diagrams, and final PDF are placed inside `documentation/generated/`. This directory is ignored by Git and excluded from the application image.

@@ -1,6 +1,12 @@
-# Changelog
+# Review Application Changelog
 
-All notable changes to this project will be documented in this page.
+This page records notable changes to the review application, its database import,
+browser interface and deployment. Matching releases are recorded separately in
+the [matching engine changelog](../engine/documentation/Changelog.md).
+
+Changes to the [result bundle contract](../engine/RESULT_FORMAT.md) are recorded
+in both changelogs: here from the consumer side and in the engine changelog from
+the producer side.
 
 ---
 
@@ -8,15 +14,12 @@ All notable changes to this project will be documented in this page.
 
 ### Architecture
 
-- **Independent matching engine** — Added the installable `engine/` package with source adapters, dataset profiles, offline tests, and a standalone CLI.
-- **Versioned result boundary** — The engine now publishes validated result bundles; the review app imports them without importing engine code.
+- **Versioned result consumption** — The application validates and imports versioned result bundles without importing matching-engine code.
 - **Atomic snapshot publication** — Imports build and validate a private PostGIS staging schema before switching the public snapshot transactionally.
 
-### Performance and portability
+### Portability
 
-- **Staged source caching** — ATLAS filtering, GTFS download/parsing, and GTFS-to-ATLAS mapping now invalidate independently; full runs continue to refresh OSM.
-- **Large-feed GTFS processing** — The Swiss adapter uses DuckDB and reduced trip patterns before constructing Python itineraries.
-- **Generic GTFS workflow** — Namespaced source identities and capability-driven review configuration support non-Swiss feeds without requiring SLOID or UIC identifiers.
+- **Capability-driven review configuration** — Deployments can present non-Swiss result bundles without requiring SLOID- or UIC-specific interface features.
 
 ### Review application
 
