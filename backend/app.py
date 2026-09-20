@@ -16,6 +16,7 @@ from backend.blueprints.routes import routes_bp
 from backend.blueprints.seo import seo_bp, seo_template_context
 from backend.services.time_utils import format_zurich_display_timestamp
 from backend.services.source_config import load_review_config, effective_review_config
+from backend.version import APP_VERSION
 
 
 def _bounded_env_int(name, default, *, minimum, maximum):
@@ -63,7 +64,10 @@ def _database_engine_options(database_uri):
 def create_app():
     app = Flask(__name__, template_folder='../templates', static_folder='../static')
     app.config['REVIEW_CONFIG'] = load_review_config()
-    app.context_processor(lambda: {'review_config': effective_review_config()})
+    app.context_processor(lambda: {
+        'review_config': effective_review_config(),
+        'app_version': APP_VERSION,
+    })
     app.add_template_filter(format_zurich_display_timestamp, 'format_zurich_display_timestamp')
     app.config['SITE_URL'] = 'https://atlas.osm.ch'
 

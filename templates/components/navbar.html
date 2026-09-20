@@ -12,7 +12,7 @@
           <span class="fw-bold navbar-brand-text">{{ review_config.title }}</span>
         </a>
         <a href="{{ url_for('docs.docs_page', page='changelog') }}" target="_blank" rel="noopener noreferrer"
-          class="navbar-version navbar-version--brand">Version 0.6</a>
+          class="navbar-version navbar-version--brand">Version {{ app_version }}</a>
       </div>
     </div>
 
@@ -56,7 +56,7 @@
         <li class="nav-item navbar-mobile-version d-lg-none">
           <a href="{{ url_for('docs.docs_page', page='changelog') }}" target="_blank" rel="noopener noreferrer"
             class="navbar-version navbar-version--menu">
-            Version 0.6 <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+            Version {{ app_version }} <i class="fas fa-external-link-alt" aria-hidden="true"></i>
             <span class="visually-hidden">(opens in a new tab)</span>
           </a>
         </li>

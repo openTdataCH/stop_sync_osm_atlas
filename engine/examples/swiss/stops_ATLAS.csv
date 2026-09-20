@@ -1,9 +1,0 @@
-sloid;number;designation;designationOfficial;wgs84North;wgs84East;servicePointBusinessOrganisationAbbreviationEn
-ch:1:sloid:exact;8500010;1;Exact;47.0;8.0;TEST
-ch:1:sloid:name;8500011;A;By name;47.01;8.0;TEST
-ch:1:sloid:route;8500012;;Source route name;47.02;8.0;TEST
-ch:1:sloid:duplicate1;8500013;1;Duplicate;47.03;8.0;TEST
-ch:1:sloid:duplicate2;8500013;1;Duplicate;47.03001;8.0;TEST
-ch:1:sloid:trio1;8500014;A;Trio;47.04;8.0;TEST
-ch:1:sloid:trio2;8500014;B;Trio;47.04012;8.0;TEST
-ch:1:sloid:unmatched;8500015;;Unmatched;47.1;8.0;TEST

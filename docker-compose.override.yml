@@ -3,6 +3,8 @@ services:
     build:
       context: .
       target: app-stage
+      additional_contexts:
+        engine: ${ENGINE_DIR:-../engine}
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
@@ -13,26 +15,34 @@ services:
     build:
       context: .
       target: app-stage
+      additional_contexts:
+        engine: ${ENGINE_DIR:-../engine}
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
     volumes:
       - .:/app
+      - ${ENGINE_DIR:-../engine}:/app/engine:ro
       
   test:
     build:
       context: .
       target: test-stage
+      additional_contexts:
+        engine: ${ENGINE_DIR:-../engine}
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}
     volumes:
       - .:/app
+      - ${ENGINE_DIR:-../engine}:/app/engine:ro
       
   scheduler:
     build:
       context: .
       target: scheduler-stage
+      additional_contexts:
+        engine: ${ENGINE_DIR:-../engine}
       args:
         APP_UID: ${APP_UID:-1000}
         APP_GID: ${APP_GID:-1000}

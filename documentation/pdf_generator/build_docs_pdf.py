@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+import os
 import re
 import subprocess
 import sys
@@ -24,7 +25,16 @@ from backend.services.docs_stats import load_stats_for_docs, replace_stats_place
 
 
 DOCS_DIR = REPO_ROOT / 'documentation'
-ENGINE_DOCS_DIR = REPO_ROOT / 'engine' / 'documentation'
+_configured_engine_dir = os.getenv('ENGINE_DIR', '').strip()
+if _configured_engine_dir:
+    ENGINE_ROOT = Path(_configured_engine_dir)
+    if not ENGINE_ROOT.is_absolute():
+        ENGINE_ROOT = (REPO_ROOT / ENGINE_ROOT).resolve()
+elif (REPO_ROOT / 'engine' / 'pyproject.toml').is_file():
+    ENGINE_ROOT = REPO_ROOT / 'engine'
+else:
+    ENGINE_ROOT = REPO_ROOT.parent / 'engine'
+ENGINE_DOCS_DIR = ENGINE_ROOT / 'documentation'
 DOC_SOURCE_DIRS = {'app': DOCS_DIR, 'engine': ENGINE_DOCS_DIR}
 OUTPUT_DIR = DOCS_DIR / 'generated'
 DIAGRAMS_DIR = OUTPUT_DIR / 'diagrams'
@@ -157,11 +167,18 @@ def _rewrite_internal_doc_links(
     def replace(match: re.Match[str]) -> str:
         label = match.group(1)
         href = match.group(2)
-        if href.startswith(('http://', 'https://', '/')):
+        app_docs_prefix = (
+            'https://github.com/openTdataCH/stop_sync_osm_atlas/'
+            'blob/main/documentation/'
+        )
+        if href.startswith(app_docs_prefix):
+            path_part = href[len(app_docs_prefix):].split('#', 1)[0]
+            target = (DOCS_DIR / unquote(path_part)).resolve()
+        elif href.startswith(('http://', 'https://', '/')):
             return match.group(0)
-
-        path_part = href.split('#', 1)[0]
-        target = (current_doc.parent / unquote(path_part)).resolve()
+        else:
+            path_part = href.split('#', 1)[0]
+            target = (current_doc.parent / unquote(path_part)).resolve()
         anchor = anchor_map.get(str(target))
         if not anchor:
             return match.group(0)

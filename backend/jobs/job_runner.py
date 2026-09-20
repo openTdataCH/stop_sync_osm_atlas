@@ -184,10 +184,16 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
             _run_subprocess(_engine_command(mode, destination), phase='matching',
                             message='Preparing a complete matching result snapshot')
         refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
-        set_phase(phase='import', message='Validating and staging the new dataset', maintenance=False)
+        set_phase(
+            phase='import',
+            message='Validating and staging the new dataset',
+            maintenance=False,
+            eta_seconds=IMPORT_ETA_SECONDS,
+        )
         with _timed_step('import'):
             manifest = import_bundle(destination)
         rewritten, reused = get_refresh_scope_tables(run_type)
+        set_phase(phase='publish', message='Publishing the new dataset snapshot', maintenance=False)
         _record_data_updated_timestamp(run_type, rewritten, reused)
         data_meta.update_data_meta(active_run_id=manifest['run_id'], result_schema_version=manifest['schema_version'])
 

@@ -227,6 +227,22 @@ def test_docs_portal_labels_engine_and_application_boundaries():
         assert 'Review application & deployment' in collection_labels
         assert 'Project overview' not in collection_labels
 
+        engine_badges = {
+            node.get_text(' ', strip=True)
+            for node in soup.select('.docs-owner-badge--engine')
+        }
+        assert engine_badges == {'Engine v0.1.1'}
+
+        app_badges = {
+            node.get_text(' ', strip=True)
+            for node in soup.select('.docs-owner-badge--app')
+        }
+        assert app_badges == {'App v0.6.0'}
+
+        navbar_version = soup.select_one('.navbar-version--brand')
+        assert navbar_version is not None
+        assert navbar_version.get_text(' ', strip=True) == 'Version 0.6.0'
+
         overview_link = soup.find('a', href='/docs/intro')
         assert overview_link is not None
         assert overview_link.get_text(' ', strip=True) == '0. Project overview'

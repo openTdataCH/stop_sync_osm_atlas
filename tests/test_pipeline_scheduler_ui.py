@@ -96,6 +96,38 @@ def test_pipeline_status_supports_data_updated_field(monkeypatch):
     assert status["last_pipeline_data_import_ended_at"] == "2026-05-02T19:31:00+02:00"
 
 
+def test_pipeline_status_records_phase_history(monkeypatch):
+    from backend.services import pipeline_status
+
+    stored = {}
+    monkeypatch.setattr(pipeline_status, "_read_raw_status", lambda: dict(stored))
+    monkeypatch.setattr(
+        pipeline_status,
+        "_write_raw_status",
+        lambda payload: stored.update(payload),
+    )
+
+    pipeline_status.start_run(trigger="manual", run_id="run-1")
+    pipeline_status.set_phase("matching", "Matching sources")
+    pipeline_status.set_phase("import", "Importing snapshot")
+    finished = pipeline_status.finish_success()
+
+    assert [entry["phase"] for entry in finished["phase_history"]] == [
+        "initializing",
+        "matching",
+        "import",
+    ]
+    assert all(entry["duration_seconds"] >= 0 for entry in finished["phase_history"])
+    assert finished["phase_started_at"] is None
+
+    pipeline_status.start_run(trigger="manual", run_id="run-2")
+    pipeline_status.set_phase("matching", "Matching sources")
+    failed = pipeline_status.finish_failure("source unavailable")
+
+    assert failed["failed_phase"] == "matching"
+    assert failed["phase_history"][-1]["status"] == "failed"
+
+
 def test_pipeline_status_file_backend_persists_status(monkeypatch, tmp_path):
     from backend.services import pipeline_status
 

@@ -1,4 +1,0 @@
-stop_id,stop_name,stop_lat,stop_lon,platform_code
-a,Market,51.5,-0.1,1
-b,Library,51.501,-0.101,2
-c,Park,51.52,-0.11,

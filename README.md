@@ -2,11 +2,11 @@
 
 Compare official public transport stops and routes with OpenStreetMap, explain discrepancies, and inspect the results on a map. The Swiss deployment uses ATLAS and GTFS at [atlas.osm.ch](https://atlas.osm.ch).
 
-This checkout contains two independently runnable projects:
+This repository is the review application. It is developed beside an independently runnable matching-engine checkout:
 
 | Project | Purpose | Start here |
 |---|---|---|
-| `engine/` — `transport-matcher` | Producer package: source-neutral core, curated input integrations, profiles and result-bundle production. | [Engine guide](engine/README.md) |
+| Sibling `engine/` — `transport-matcher` | Producer package: source-neutral core, curated input integrations, profiles and result-bundle production. | Engine repository README |
 | Review application — repository root | Flask API, PostGIS importer, map, problems, routes and reports. Reads versioned bundles without installing the engine. | Instructions below |
 
 ```mermaid
@@ -20,7 +20,7 @@ flowchart LR
     B --> X[Other tools and analysis]
 ```
 
-The projects share a [documented result format](engine/RESULT_FORMAT.md), with no cross-project Python imports. `engine/` has its own package metadata, tests, examples, Dockerfile and [canonical engine documentation](engine/documentation/1.%20Download%20and%20process%20data.md), ready to move to its own repository after review. The web documentation portal displays both source trees while keeping their ownership explicit.
+The projects share the engine-owned versioned result format, with no cross-project Python imports. Docker receives the sibling checkout as a named `engine` build context: the scheduler installs its CLI, while the app image copies only its documentation and package-version metadata. The web documentation portal displays both documentation trees while keeping their ownership explicit.
 
 ## Try the engine without Docker or a database
 
@@ -29,17 +29,36 @@ With Python 3.10 or later:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-python -m pip install -e './engine[gtfs,test]'
-transport-matcher gtfs --source engine/examples/gtfs --namespace demo --osm engine/examples/osm.xml --output /tmp/transport-demo
+python -m pip install -e '../engine[gtfs,test]'
+transport-matcher gtfs --source ../engine/examples/gtfs --namespace demo --osm ../engine/examples/osm.xml --output /tmp/transport-demo
 ```
 
-The example is synthetic and uses no Swiss identifiers. The core library only needs NumPy/SciPy; curated integrations install through optional extras. Other datasets can use external adapters implementing the public adapter contract without adding code to this repository. See [the Python API and Swiss workflow](engine/README.md).
+The example is synthetic and uses no Swiss identifiers. The core library only needs NumPy/SciPy; curated integrations install through optional extras. Other datasets can use external adapters implementing the public adapter contract without adding code to this repository. See the sibling engine repository README for its Python API and Swiss workflow.
+
+## Pin the engine checkout
+
+Keep the private repository location, sibling path and immutable revision in the ignored `.env`:
+
+```dotenv
+ENGINE_REPO=https://github.com/your-account/matching-engine.git
+ENGINE_DIR=../engine
+ENGINE_REF=<full-commit-sha>
+```
+
+Before building, verify that the sibling checkout has the configured origin, is clean and is exactly at that revision:
+
+```bash
+./scripts/verify_engine_checkout.sh
+```
+
+Git credentials are never passed into Docker and the private repository URL is not committed. The complete meaning of package versions, Git tags, SHA pins and schema versions is documented in [Dependencies and Builds](documentation/3.1%20Dependency%20Management%20&%20Build%20Strategy.md#engine-release-identity-and-deployment-pin).
 
 ## Run the review app with example results
 
 Docker Desktop with Compose v2 is the easiest local setup:
 
 ```bash
+./scripts/verify_engine_checkout.sh
 REVIEW_CONFIG=config/gtfs-example.json docker compose up --build -d db migrator app
 docker compose run --rm --no-deps --entrypoint '' app python -m backend.importing.importer tests/fixtures/result-v1
 ```
@@ -51,6 +70,7 @@ The command selects generic title, labels, map defaults and feature availability
 ## Run the Swiss deployment pipeline
 
 ```bash
+./scripts/verify_engine_checkout.sh
 docker compose up --build -d
 docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode full --trigger manual
 ```
@@ -79,8 +99,8 @@ python -m pip install -r requirements-base.txt -r requirements-web.txt -r requir
 DATABASE_URI=sqlite:// python -m pytest tests -q
 
 # Engine tests: website and database are not required.
-python -m pip install -e './engine[swiss,gtfs,acquisition,test]'
-python -m pytest engine/tests -q
+python -m pip install -e '../engine[swiss,gtfs,acquisition,test]'
+python -m pytest ../engine/tests -q
 
 # Browser tests.
 npm ci
@@ -94,15 +114,15 @@ Real publication tests require `TEST_POSTGRES_URI` pointing to a disposable Post
 Start with [CONTRIBUTING.md](CONTRIBUTING.md). A predicate contribution can use a tiny offline fixture; a UI contribution can use the precomputed bundle. No national download is required to begin.
 
 - [Documentation overview](documentation/0.%20Intro.md)
-- [Engine documentation](engine/documentation/1.%20Download%20and%20process%20data.md)
+- [Engine documentation](../engine/documentation/1.%20Download%20and%20process%20data.md)
 - [Review application changelog](documentation/Changelog.md)
-- [Matching engine changelog](engine/documentation/Changelog.md)
+- [Matching engine changelog](../engine/documentation/Changelog.md)
 - [Engine and app architecture](documentation/3.%20System%20Architecture.md)
 - [Bundle import and publication](documentation/1.1%20Import%20Process.md)
 - [Tests and CI](documentation/4.%20Test.md)
 - [Contribution tutorials](documentation/Contributing.md)
-- [Related tools and collaboration](engine/documentation/Related%20projects.md)
+- [Related tools and collaboration](../engine/documentation/Related%20projects.md)
 
 Code remains AGPL-3.0-or-later. Source dataset attribution is recorded separately in result metadata.
 
-For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline Performance](engine/documentation/5.2%20Pipeline%20Performance.md).
+For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline Performance](../engine/documentation/5.2%20Pipeline%20Performance.md).

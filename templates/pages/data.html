@@ -14,16 +14,16 @@
 <div class="stats-page">
   <div class="stats-container">
 
-    <header class="mb-2">
+    <header class="stats-page-header mb-2">
       {% include "components/data_page_tabs.html" %}
 
-      <div class="d-flex justify-content-between align-items-center mt-2">
+      <div class="stats-page-header__row mt-3">
         {% if active_view == 'reports' %}
-          <p class="c-page-tabs__description mb-0">
-            Export detailed reports of synchronization quality and problems.
-          </p>
+          <div>
+            <h1 class="stats-page-header__title">Export data</h1>
+            <p class="c-page-tabs__description mb-0">Build a focused report of synchronization quality and problems.</p>
+          </div>
         {% else %}
-          <div></div>{# Spacer to keep alignment #}
         {% endif %}
         
         <div class="d-flex align-items-center">
@@ -281,6 +281,9 @@
 <script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/report.js') }}"></script>
+{% if active_view == 'analytics' and not is_pdf %}
+<script src="{{ url_for('static', filename='js/pages/data-analytics.js') }}"></script>
+{% endif %}
 <script>
   if (window.initReportGeneration) { window.initReportGeneration(); }
   

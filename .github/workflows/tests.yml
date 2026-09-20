@@ -6,20 +6,6 @@ on:
 permissions:
   contents: read
 jobs:
-  engine:
-    name: Independent engine
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-      - run: pip install './engine[swiss,gtfs,acquisition,test]'
-      - run: python -m pytest engine/tests -q
-      - name: Verify wheel runs outside checkout
-        run: |
-          cd /tmp
-          python -c 'from transport_matcher import SourceStop, OsmNode, match; assert match([SourceStop("demo", "1", 51.5, -0.1, name="A")], [OsmNode("1", 51.5, -0.1, name="A")]).matched'
   web:
     name: Independent review app and PostGIS publication
     runs-on: ubuntu-latest
@@ -40,6 +26,13 @@ jobs:
       STATE_BACKEND: memory
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout pinned engine documentation
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.ENGINE_REPOSITORY }}
+          ref: ${{ vars.ENGINE_REF }}
+          token: ${{ secrets.ENGINE_REPOSITORY_TOKEN }}
+          path: engine
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -63,6 +56,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout pinned engine producer
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.ENGINE_REPOSITORY }}
+          ref: ${{ vars.ENGINE_REF }}
+          token: ${{ secrets.ENGINE_REPOSITORY_TOKEN }}
+          path: engine
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
