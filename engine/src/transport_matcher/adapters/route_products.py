@@ -73,17 +73,22 @@ def read_gtfs_identity_cache(processed_dir: str | Path) -> tuple[list[dict], lis
 
 def source_route_evidence(route_data: dict[str, pd.DataFrame]) -> dict[str, dict[str, list]]:
     """Build optional stop evidence without flattening ordered stop-call products."""
-    required = ('atlas_line_families', 'atlas_itineraries', 'atlas_itinerary_stop_calls')
+    neutral = ('source_line_families', 'source_itineraries', 'source_itinerary_stop_calls')
+    legacy = ('atlas_line_families', 'atlas_itineraries', 'atlas_itinerary_stop_calls')
+    required = neutral if all(key in route_data for key in neutral) else legacy
     if not all(key in route_data and not route_data[key].empty for key in required):
         return {}
-    families = {str(row['atlas_line_id']): row for row in route_data[required[0]].to_dict('records')}
-    itineraries = {str(row['atlas_itinerary_id']): row for row in route_data[required[1]].to_dict('records')}
+    family_id_field = 'source_family_id' if required == neutral else 'atlas_line_id'
+    itinerary_id_field = 'source_itinerary_id' if required == neutral else 'atlas_itinerary_id'
+    source_key_field = 'source_stop_key' if required == neutral else 'resolved_sloid'
+    families = {str(row[family_id_field]): row for row in route_data[required[0]].to_dict('records')}
+    itineraries = {str(row[itinerary_id_field]): row for row in route_data[required[1]].to_dict('records')}
     evidence = {}
     seen = set()
     for row in route_data[required[2]].to_dict('records'):
-        source_key = row.get('resolved_sloid') or row.get('sloid')
-        itinerary = itineraries.get(str(row.get('atlas_itinerary_id')), {})
-        route_id = itinerary.get('atlas_line_id')
+        source_key = row.get(source_key_field) or row.get('sloid')
+        itinerary = itineraries.get(str(row.get(itinerary_id_field)), {})
+        route_id = itinerary.get(family_id_field)
         if not source_key or not route_id:
             continue
         direction = itinerary.get('direction_id')
@@ -113,12 +118,13 @@ def source_route_evidence(route_data: dict[str, pd.DataFrame]) -> dict[str, dict
 def scope_source_stop_keys(route_data: dict[str, pd.DataFrame], keys_by_id: dict[str, str]) -> dict[str, pd.DataFrame]:
     """Translate native source references to stable engine keys, keeping foreign keys."""
     result = dict(route_data)
-    calls = result.get('atlas_itinerary_stop_calls')
+    calls_key = 'source_itinerary_stop_calls' if 'source_itinerary_stop_calls' in result else 'atlas_itinerary_stop_calls'
+    calls = result.get(calls_key)
     if calls is None:
         return result
     calls = calls.copy()
-    result['atlas_itinerary_stop_calls'] = calls
-    for column in ('sloid', 'resolved_sloid', 'canonical_stop_key'):
+    result[calls_key] = calls
+    for column in ('source_stop_key', 'sloid', 'resolved_sloid', 'canonical_stop_key'):
         if column in calls:
             calls[column] = calls[column].map(lambda value: keys_by_id.get(str(value), value))
     for column in ('sloid_variants', 'resolved_sloid_variants'):

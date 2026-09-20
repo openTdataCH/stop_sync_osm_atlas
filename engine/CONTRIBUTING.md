@@ -33,11 +33,13 @@ Name equality alone can be ambiguous across cities. The generic profile caps nam
 
 ## Support another dataset
 
-Create an adapter under `adapters/` that produces `SourceStop` records and optionally a `SourceState` with explicit duplicate groups and route evidence. Keep source IDs as strings and select a stable namespace without a colon. Preserve source-specific fields under `extensions`; core predicates must not require them.
+Start with an external adapter that returns `adapters.base.AdapterResult`: `SourceStop` records and optionally a `SourceState` with explicit duplicate groups and route evidence. It does not need registration inside `transport_matcher`. Keep source IDs as strings and select a stable namespace without a colon. Preserve source-specific fields under namespaced `extensions`; core predicates must not require them.
 
 Use existing GTFS parsing when possible. Add a profile with reference mappings, thresholds and any grouping policy. Never infer that equal stop IDs or route IDs from different feeds mean the same entity. If an OSM extract's unscoped GTFS tags are assigned to a feed, make that adapter configuration explicit.
 
 Include an offline fixture covering at least one accepted match, one unmatched source stop, one unmatched OSM element and missing optional route data. Do not put file reading, pandas, environment lookups, Flask or SQLAlchemy in the core. Parser/acquisition dependencies belong in optional extras in `pyproject.toml`.
+
+An adapter belongs in this distribution only when it supports a broadly reusable standard or a maintained first-party deployment. It must have stable namespaced identities, strict validation, deterministic explicit inputs, provenance/fingerprints, isolated optional dependencies, offline tests and an identified maintainer. One-off agency or national adapters should remain external. Network clients belong under `acquisition/`; format parsing belongs under `adapters/`; dataset-specific composition belongs under `integrations/`.
 
 ## Understand or report a bad match
 

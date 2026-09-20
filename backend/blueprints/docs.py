@@ -62,9 +62,9 @@ _DOC_SOURCES = {
     },
     'engine': {
         'root': 'engine/documentation',
-        'label': 'Matching engine',
+        'label': 'Engine producer',
         'short_label': 'Engine',
-        'description': 'Source adapters, matching, route comparison, problem detection and result production.',
+        'description': 'Curated input integrations, source-neutral matching and result production.',
         'boundary': 'Produces versioned result bundles; it has no Flask, SQLAlchemy or application-database dependency.',
         'repo_path': 'engine/documentation/',
     },
@@ -81,13 +81,23 @@ _DOC_COLLECTIONS = (
         'sections': {'0'},
     },
     {
+        'key': 'engine-inputs',
+        'label': 'Engine input integrations',
+        'description': 'Curated format adapters, acquisition clients and the maintained Swiss integration. These are outside the source-neutral matching core.',
+        'badge_label': 'Engine',
+        'badge_key': 'engine',
+        'source': 'engine',
+        'sections': {'1'},
+    },
+    {
         'key': 'engine',
-        'label': 'Matching engine',
-        'description': _DOC_SOURCES['engine']['description'],
+        'label': 'Matching engine core',
+        'description': 'Source-neutral matching, route comparison, problem detection, result production and engine operations.',
         'badge_label': 'Engine',
         'badge_key': 'engine',
         'source': 'engine',
         'sections': None,
+        'exclude_sections': {'1'},
     },
     {
         'key': 'app',
@@ -106,7 +116,7 @@ _DOC_COLLECTIONS = (
 # repository without another reorganization.
 _DOC_SECTION_LABELS = {
     'engine': {
-        '1': ('E1', 'Data acquisition & processing'),
+        '1': ('E1', 'Input integrations & acquisition'),
         '2': ('E2', 'Matching process'),
         '3': ('E3', 'Routes'),
         '4': ('E4', 'Problems'),

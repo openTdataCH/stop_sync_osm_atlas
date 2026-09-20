@@ -10,6 +10,16 @@ class DummyResponse:
         self.encoding = None
 
 
+def test_acquisition_and_route_parsing_have_separate_canonical_modules():
+    from transport_matcher.acquisition.overpass import build_public_transport_query
+    from transport_matcher.adapters import get_osm_data
+    from transport_matcher.adapters.osm_routes import process_osm_routes_data
+
+    assert 'ISO3166-1"="FR' in build_public_transport_query('fr')
+    assert process_osm_routes_data('<osm/>', out_dir=None)['osm_route_relations'].empty
+    assert get_osm_data.process_osm_routes_data is process_osm_routes_data
+
+
 def test_query_overpass_posts_raw_query(monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)
     from transport_matcher.adapters import get_osm_data

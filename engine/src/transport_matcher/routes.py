@@ -1,7 +1,8 @@
 """Route and ordered itinerary comparison over explicit normalized input records.
 
-This module has no file access or persistence dependencies. Product tables retain
-the established Swiss names in result schema v1; IDs can belong to any source.
+This module has no file access or persistence dependencies. Adapters may use the
+source-neutral input names. The final projection retains the established Swiss
+field names only because result schema v1 requires them.
 """
 
 from __future__ import annotations
@@ -162,7 +163,7 @@ def _build_atlas_stop_call_row(
     known_sloids: set[str],
     atlas_stop_lookup: dict[str, dict[str, Any]],
 ) -> tuple[dict[str, Any], bool]:
-    resolved_sloid = _to_text(row.get('resolved_sloid') or row.get('sloid'))
+    resolved_sloid = _to_text(row.get('source_stop_key') or row.get('resolved_sloid') or row.get('sloid'))
     skipped_sloid = False
     if resolved_sloid not in known_sloids:
         skipped_sloid = resolved_sloid is not None
@@ -197,7 +198,7 @@ def _build_atlas_stop_call_row(
         if key in known_sloids
     ]
     return {
-        'atlas_itinerary_id': _to_text(row.get('atlas_itinerary_id')),
+        'atlas_itinerary_id': _to_text(row.get('source_itinerary_id') or row.get('atlas_itinerary_id')),
         'stop_sequence': _to_int(row.get('stop_sequence')),
         'gtfs_stop_id': gtfs_stop_id,
         'resolved_sloid': resolved_sloid,
@@ -217,9 +218,11 @@ def _build_atlas_source_rows(
     atlas_stop_lookup: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     line_family_rows: list[dict[str, Any]] = []
-    atlas_line_source = all_route_data.get('atlas_line_families')
+    atlas_line_source = all_route_data.get('source_line_families')
+    if atlas_line_source is None:
+        atlas_line_source = all_route_data.get('atlas_line_families')
     for row in _records(atlas_line_source):
-        atlas_line_id = _to_text(row.get('atlas_line_id'))
+        atlas_line_id = _to_text(row.get('source_family_id') or row.get('atlas_line_id'))
         if atlas_line_id is None:
             continue
         line_family_rows.append({
@@ -235,12 +238,16 @@ def _build_atlas_source_rows(
     itinerary_rows: list[dict[str, Any]] = []
     stop_call_rows: list[dict[str, Any]] = []
     skipped_sloids = 0
-    atlas_itineraries_df = all_route_data.get('atlas_itineraries')
-    atlas_stop_calls_df = all_route_data.get('atlas_itinerary_stop_calls')
+    atlas_itineraries_df = all_route_data.get('source_itineraries')
+    if atlas_itineraries_df is None:
+        atlas_itineraries_df = all_route_data.get('atlas_itineraries')
+    atlas_stop_calls_df = all_route_data.get('source_itinerary_stop_calls')
+    if atlas_stop_calls_df is None:
+        atlas_stop_calls_df = all_route_data.get('atlas_itinerary_stop_calls')
     if atlas_itineraries_df is not None and atlas_stop_calls_df is not None:
         for row in _records(atlas_itineraries_df):
-            atlas_itinerary_id = _to_text(row.get('atlas_itinerary_id'))
-            atlas_line_id = _to_text(row.get('atlas_line_id'))
+            atlas_itinerary_id = _to_text(row.get('source_itinerary_id') or row.get('atlas_itinerary_id'))
+            atlas_line_id = _to_text(row.get('source_family_id') or row.get('atlas_line_id'))
             if atlas_itinerary_id is None or atlas_line_id is None:
                 continue
             itinerary_rows.append({

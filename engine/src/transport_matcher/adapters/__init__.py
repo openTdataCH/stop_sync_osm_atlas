@@ -1,4 +1,9 @@
-"""Optional source readers and acquisition workflows, outside the matching core.
+"""Curated format readers outside the matching core.
 
-Import individual adapters to keep their format and download dependencies lazy.
+External adapters can implement :class:`SourceAdapter` without being registered
+in this package. Import individual built-ins to keep dependencies lazy.
 """
+
+from .base import AdapterResult, SourceAdapter
+
+__all__ = ["AdapterResult", "SourceAdapter"]

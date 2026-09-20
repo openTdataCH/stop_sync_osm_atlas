@@ -34,12 +34,12 @@ def main(argv=None):
     args = parser.parse_args(argv)
     metadata = {}
     if args.command == "swiss":
-        from transport_matcher.swiss import run_matching
+        from transport_matcher.integrations.swiss import run_matching
         workspace = args.workspace.resolve() if args.workspace else None
         if args.download:
             if workspace is None:
                 parser.error("--download requires --workspace")
-            from transport_matcher.adapters.acquisition import refresh_swiss
+            from transport_matcher.integrations.swiss import refresh_swiss
             metadata["acquisition"] = refresh_swiss(workspace, force=args.force)
         if workspace:
             args.source = args.source or workspace / "data/raw/stops_ATLAS.csv"

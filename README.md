@@ -6,14 +6,14 @@ This checkout contains two independently runnable projects:
 
 | Project | Purpose | Start here |
 |---|---|---|
-| `engine/` — `transport-matcher` | Python library and CLI: adapters, profiles, stop/route matching, grouping and problem detection. | [Engine guide](engine/README.md) |
+| `engine/` — `transport-matcher` | Producer package: source-neutral core, curated input integrations, profiles and result-bundle production. | [Engine guide](engine/README.md) |
 | Review application — repository root | Flask API, PostGIS importer, map, problems, routes and reports. Reads versioned bundles without installing the engine. | Instructions below |
 
 ```mermaid
 flowchart LR
-    S[ATLAS, GTFS or another source] --> A[Source adapter]
-    O[OSM extract] --> E[Matching engine]
-    P[Dataset profile] --> E
+    S[ATLAS, GTFS or another source] --> A[Input integration]
+    O[OSM extract] --> A
+    P[Dataset profile] --> E[Source-neutral core]
     A --> E
     E --> B[Versioned result bundle]
     B --> W[Review app and PostGIS]
@@ -33,7 +33,7 @@ python -m pip install -e './engine[gtfs,test]'
 transport-matcher gtfs --source engine/examples/gtfs --namespace demo --osm engine/examples/osm.xml --output /tmp/transport-demo
 ```
 
-The example is synthetic and uses no Swiss identifiers. The core library only needs NumPy/SciPy; adapters install through optional extras. See [the Python API and Swiss workflow](engine/README.md).
+The example is synthetic and uses no Swiss identifiers. The core library only needs NumPy/SciPy; curated integrations install through optional extras. Other datasets can use external adapters implementing the public adapter contract without adding code to this repository. See [the Python API and Swiss workflow](engine/README.md).
 
 ## Run the review app with example results
 
