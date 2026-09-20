@@ -17,7 +17,7 @@ root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
-from matching_and_import_db.database.session import session
+from backend.importing.session import session
 from backend.services.stats_export import (
     load_stats_from_file,
     save_stats_to_file,

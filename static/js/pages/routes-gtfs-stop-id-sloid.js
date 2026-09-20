@@ -12,19 +12,15 @@
     'search_kind',
     'search_value'
   ]);
-  var ATLAS_MATCHED_COLOR = '#174092';
-  var ATLAS_UNMATCHED_COLOR = '#DC3545';
-  var GTFS_MATCHED_COLOR = '#F0AD4E';
-  var GTFS_UNMATCHED_COLOR = '#6C757D';
-  var MATCH_LINE_STYLE = {
-    color: '#F0AD4E',
-    weight: 2,
-    opacity: 1
-  };
   var SEARCH_KIND_LABELS = Object.freeze({
     sloid: 'SLOID',
     uic: 'UIC',
     gtfs_stop_id: 'GTFS stop_id'
+  });
+  var FILTER_STATUS_LABELS = Object.freeze({
+    matched: 'Matched',
+    gtfs_unmatched: 'GTFS unmatched',
+    atlas_unmatched: 'ATLAS unmatched'
   });
 
   function parseConfig() {
@@ -226,13 +222,6 @@
     return Number.isFinite(number) ? number : null;
   }
 
-  function finitePosition(lat, lon) {
-    var normalizedLat = finiteCoordinate(lat);
-    var normalizedLon = finiteCoordinate(lon);
-    return normalizedLat == null || normalizedLon == null
-      ? null
-      : [normalizedLat, normalizedLon];
-  }
 
   function fetchJson(url, options) {
     return global.fetch(url, options || {}).then(function (response) {
@@ -262,12 +251,11 @@
   requireFunction(components.MapPopupController && components.MapPopupController.create, 'MapComponents.MapPopupController.create()');
   requireFunction(mapShared && mapShared.createEntityKey, 'MapShared.createEntityKey()');
   requireFunction(mapShared && mapShared.getViewportZoomPolicy, 'MapShared.getViewportZoomPolicy()');
-  requireFunction(mapRenderer && mapRenderer.MarkerClusterManager, 'MapRenderer.MarkerClusterManager');
-  requireFunction(mapRenderer && mapRenderer.createAtlasMarker, 'MapRenderer.createAtlasMarker()');
-  requireFunction(mapRenderer && mapRenderer.getMarkerRenderSignature, 'MapRenderer.getMarkerRenderSignature()');
+  requireFunction(mapRenderer && mapRenderer.layoutEntities, 'MapRenderer.layoutEntities()');
+  requireFunction(mapRenderer && mapRenderer.createEntityMarker, 'MapRenderer.createEntityMarker()');
   requireFunction(mapRenderer && mapRenderer.createPopupWithOptions, 'MapRenderer.createPopupWithOptions()');
   requireFunction(global.PopupRenderer && global.PopupRenderer.generateGtfsStopIdSloidPopupHtml, 'PopupRenderer.generateGtfsStopIdSloidPopupHtml()');
-  requireFunction(global.LineRenderer && global.LineRenderer.drawLine, 'LineRenderer.drawLine()');
+  requireFunction(global.LineRenderer && global.LineRenderer.drawRelationships, 'LineRenderer.drawRelationships()');
   requireFunction(global.FilterChipUtils && global.FilterChipUtils.buildRemovableChip, 'FilterChipUtils.buildRemovableChip()');
 
   var summaryElement = document.getElementById('headerSummaryStats');
@@ -279,8 +267,15 @@
   var searchButton = document.getElementById('routesGtfsStopIdSloidSearchButton');
   var searchHint = document.getElementById('routesGtfsStopIdSloidSearchHint');
   var searchFeedback = document.getElementById('routesGtfsStopIdSloidSearchFeedback');
+  var filterControls = document.getElementById('routesGtfsStopIdSloidControls');
+  var matchedAllCheckbox = document.getElementById('routesGtfsMatchedAll');
+  var unmatchedGtfsCheckbox = document.getElementById('routesGtfsUnmatchedGtfs');
+  var unmatchedAtlasCheckbox = document.getElementById('routesGtfsUnmatchedAtlas');
+  var matchMethodsSection = document.getElementById('routesGtfsMatchMethodsSection');
+  var matchMethodsContainer = document.getElementById('routesGtfsMatchMethods');
   var activeFiltersElement = document.getElementById('activeFilters');
   var filterAdapter = createFilterAdapter(config.initialFilters || {});
+  var matchMethodLabels = {};
   var identifierSearch = createIdentifierSearchAdapter();
   var searchRequestController = null;
   var searchRequestSequence = 0;
@@ -338,11 +333,11 @@
     setStatus('zoom', message, false);
   }
 
-  var defaultCenter = (global.AppConstants && global.AppConstants.MAP && global.AppConstants.MAP.DEFAULT_CENTER) || [46.8182, 8.2275];
-  var defaultZoom = (global.AppConstants && global.AppConstants.MAP && global.AppConstants.MAP.DEFAULT_ZOOM) || 8;
-  var minZoom = (global.AppConstants && global.AppConstants.MAP && global.AppConstants.MAP.MIN_ZOOM) || 8;
-  var maxZoom = (global.AppConstants && global.AppConstants.MAP && global.AppConstants.MAP.MAX_ZOOM) || 20;
-  var maxBounds = (global.AppConstants && global.AppConstants.MAP && global.AppConstants.MAP.MAX_BOUNDS) || [[45.5, 5.5], [48.0, 11.0]];
+  var defaultCenter = AppConstants.MAP.DEFAULT_CENTER;
+  var defaultZoom = AppConstants.MAP.DEFAULT_ZOOM;
+  var minZoom = AppConstants.MAP.MIN_ZOOM;
+  var maxZoom = AppConstants.MAP.MAX_ZOOM;
+  var maxBounds = AppConstants.MAP.MAX_BOUNDS;
 
   var mapCore = components.MapCore.create({
     container: mapElement,
@@ -407,7 +402,7 @@
     return {
       key: descriptor.key,
       load: function (context) {
-        return fetchJson(buildPopupUrl(descriptor.entityType, descriptor.identifier), {
+        return fetchJson(buildPopupUrl(descriptor.entity.entityType, descriptor.entity.identifier), {
           signal: context.signal
         });
       },
@@ -420,7 +415,7 @@
   }
 
   function updateMarker(marker, descriptor) {
-    if (typeof marker.setLatLng === 'function') marker.setLatLng(descriptor.position);
+    if (typeof marker.setLatLng === 'function') marker.setLatLng(descriptor.displayPosition);
     marker._routesGtfsDescriptor = descriptor;
     attachPopup(marker, descriptor);
   }
@@ -439,13 +434,7 @@
   var atlasRegistry = components.MapLayerRegistry.create({
     layerGroup: atlasMarkersLayer,
     create: function (descriptor) {
-      var marker = mapRenderer.createAtlasMarker(
-        descriptor.position[0],
-        descriptor.position[1],
-        descriptor.color,
-        descriptor.data.has_atlas_duplicate,
-        descriptor.zoom
-      );
+      var marker = mapRenderer.createEntityMarker(descriptor);
       marker._routesGtfsDescriptor = descriptor;
       attachPopup(marker, descriptor);
       return marker;
@@ -457,13 +446,7 @@
   var gtfsRegistry = components.MapLayerRegistry.create({
     layerGroup: gtfsMarkersLayer,
     create: function (descriptor) {
-      var marker = global.L.circleMarker(descriptor.position, {
-        color: descriptor.color,
-        fillColor: descriptor.color,
-        radius: 5,
-        weight: 1.5,
-        fillOpacity: 0.85
-      });
+      var marker = mapRenderer.createEntityMarker(descriptor);
       marker._routesGtfsDescriptor = descriptor;
       attachPopup(marker, descriptor);
       return marker;
@@ -471,104 +454,6 @@
     update: updateMarker,
     onRemove: handleMarkerRemoval
   });
-
-  function buildMarkerDescriptors(payload, zoom) {
-    var clusterManager = new mapRenderer.MarkerClusterManager({
-      map: map,
-      zoom: zoom
-    });
-
-    payload.atlasStops.forEach(function (stop) {
-      var key = mapShared.createEntityKey('atlas', stop);
-      var position = finitePosition(stop.atlas_lat, stop.atlas_lon);
-      if (!key || !position) return;
-      clusterManager.addMarker(position[0], position[1], {
-        entityType: 'atlas',
-        key: key,
-        data: stop
-      });
-    });
-
-    payload.gtfsStops.forEach(function (stop) {
-      var key = mapShared.createEntityKey('gtfs', stop);
-      var position = finitePosition(stop.stop_lat, stop.stop_lon);
-      if (!key || !position) return;
-      clusterManager.addMarker(position[0], position[1], {
-        entityType: 'gtfs',
-        key: key,
-        data: stop
-      });
-    });
-
-    var descriptors = {
-      atlas: [],
-      gtfs: [],
-      displayPositionsByKey: new Map()
-    };
-
-    clusterManager.getClusteredData().forEach(function (entry) {
-      var markerData = entry.markerData;
-      var stop = markerData.data;
-
-      if (markerData.entityType === 'atlas') {
-        var atlasColor = stop.match_status === 'matched' ? ATLAS_MATCHED_COLOR : ATLAS_UNMATCHED_COLOR;
-        var atlasDescriptor = {
-          key: markerData.key,
-          entityType: 'atlas',
-          identifier: String(stop.sloid),
-          position: [entry.lat, entry.lon],
-          color: atlasColor,
-          zoom: zoom,
-          renderSignature: mapRenderer.getMarkerRenderSignature('atlas', atlasColor, {
-            hasAtlasDuplicate: stop.has_atlas_duplicate
-          }, zoom),
-          data: stop
-        };
-        descriptors.atlas.push(atlasDescriptor);
-        descriptors.displayPositionsByKey.set(atlasDescriptor.key, atlasDescriptor.position);
-        return;
-      }
-
-      var gtfsColor = stop.match_status === 'matched' ? GTFS_MATCHED_COLOR : GTFS_UNMATCHED_COLOR;
-      var gtfsDescriptor = {
-        key: markerData.key,
-        entityType: 'gtfs',
-        identifier: String(stop.stop_id),
-        position: [entry.lat, entry.lon],
-        color: gtfsColor,
-        zoom: zoom,
-        renderSignature: ['gtfs', gtfsColor, 'circle'].join('|'),
-        data: stop
-      };
-      descriptors.gtfs.push(gtfsDescriptor);
-      descriptors.displayPositionsByKey.set(gtfsDescriptor.key, gtfsDescriptor.position);
-    });
-
-    return descriptors;
-  }
-
-  function replaceLines(matches, displayPositionsByKey) {
-    linesLayer.clearLayers();
-
-    matches.forEach(function (match) {
-      var atlasKey = mapShared.createEntityKey('atlas', { sloid: match.sloid });
-      var gtfsKey = mapShared.createEntityKey('gtfs', { stop_id: match.stop_id });
-      var atlasPosition = displayPositionsByKey.get(atlasKey) ||
-        finitePosition(match.atlas_lat, match.atlas_lon);
-      var gtfsPosition = displayPositionsByKey.get(gtfsKey) ||
-        finitePosition(match.gtfs_stop_lat, match.gtfs_stop_lon);
-      if (!atlasPosition || !gtfsPosition) return;
-
-      global.LineRenderer.drawLine(
-        linesLayer,
-        atlasPosition[0],
-        atlasPosition[1],
-        gtfsPosition[0],
-        gtfsPosition[1],
-        MATCH_LINE_STYLE
-      );
-    });
-  }
 
   function renderPayload(rawPayload, context) {
     var payload = normalizePayload(rawPayload);
@@ -579,14 +464,18 @@
       return;
     }
 
-    var descriptors = buildMarkerDescriptors(payload, context.zoom);
+    var snapshot = global.MapEntityAdapters.gtfs(payload);
+    var layout = mapRenderer.layoutEntities(snapshot.entities, {
+      map: map, zoom: context.zoom, sourcePositionsByKey: snapshot.sourcePositionsByKey
+    });
 
-    atlasRegistry.reconcile(descriptors.atlas, context);
-    gtfsRegistry.reconcile(descriptors.gtfs, context);
+    atlasRegistry.reconcile(layout.descriptors.filter(item => item.entity.entityType === 'atlas'), context);
+    gtfsRegistry.reconcile(layout.descriptors.filter(item => item.entity.entityType === 'gtfs'), context);
     if (context.zoom < AppConstants.MAP.ZOOM_LINE_THRESHOLD) {
       linesLayer.clearLayers();
     } else {
-      replaceLines(payload.matches, descriptors.displayPositionsByKey);
+      linesLayer.clearLayers();
+      global.LineRenderer.drawRelationships(snapshot.relationships, linesLayer, layout.displayPositionsByKey);
     }
     lastRenderedPayload = rawPayload;
     lastRenderedZoom = context.zoom;
@@ -642,8 +531,102 @@
     }
   });
 
+  function arrayValue(value) {
+    if (Array.isArray(value)) return value;
+    return value == null || value === '' ? [] : [String(value)];
+  }
+
+  function getMatchMethodCheckboxes() {
+    return matchMethodsContainer
+      ? Array.from(matchMethodsContainer.querySelectorAll('.routes-gtfs-match-method'))
+      : [];
+  }
+
+  function syncMatchedMasterFromMethods() {
+    if (!matchedAllCheckbox) return;
+    var methodCheckboxes = getMatchMethodCheckboxes();
+    var selectedCount = methodCheckboxes.filter(function (checkbox) { return checkbox.checked; }).length;
+    matchedAllCheckbox.checked = methodCheckboxes.length > 0 && selectedCount === methodCheckboxes.length;
+    matchedAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < methodCheckboxes.length;
+  }
+
+  function syncFilterControlsFromState(state) {
+    state = state || filterAdapter.getState();
+    var statuses = arrayValue(state.status);
+    var methods = arrayValue(state.match_method);
+    var allMatched = statuses.indexOf('matched') !== -1;
+
+    if (matchedAllCheckbox) {
+      matchedAllCheckbox.checked = allMatched;
+      matchedAllCheckbox.indeterminate = false;
+    }
+    if (unmatchedGtfsCheckbox) unmatchedGtfsCheckbox.checked = statuses.indexOf('gtfs_unmatched') !== -1;
+    if (unmatchedAtlasCheckbox) unmatchedAtlasCheckbox.checked = statuses.indexOf('atlas_unmatched') !== -1;
+    getMatchMethodCheckboxes().forEach(function (checkbox) {
+      checkbox.checked = allMatched || methods.indexOf(checkbox.value) !== -1;
+    });
+    if (!allMatched) syncMatchedMasterFromMethods();
+  }
+
+  function buildFilterStateFromControls() {
+    var statuses = [];
+    var methods = [];
+    if (matchedAllCheckbox && matchedAllCheckbox.checked) {
+      statuses.push('matched');
+    } else {
+      getMatchMethodCheckboxes().forEach(function (checkbox) {
+        if (checkbox.checked) methods.push(checkbox.value);
+      });
+    }
+    if (unmatchedGtfsCheckbox && unmatchedGtfsCheckbox.checked) statuses.push('gtfs_unmatched');
+    if (unmatchedAtlasCheckbox && unmatchedAtlasCheckbox.checked) statuses.push('atlas_unmatched');
+
+    var state = {};
+    if (statuses.length > 0) state.status = statuses;
+    if (methods.length > 0) state.match_method = methods;
+    return state;
+  }
+
+  function renderMatchingMethodOptions(methods) {
+    if (!matchMethodsContainer || !matchMethodsSection) return;
+    matchMethodsContainer.replaceChildren();
+    matchMethodLabels = {};
+
+    (Array.isArray(methods) ? methods : []).forEach(function (method, index) {
+      if (!method || !method.value) return;
+      var value = String(method.value);
+      var label = String(method.label || value.replace(/_/g, ' '));
+      matchMethodLabels[value] = label;
+
+      var wrapper = document.createElement('div');
+      wrapper.className = 'form-check';
+      var checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'form-check-input routes-gtfs-match-method';
+      checkbox.id = 'routesGtfsMatchMethod' + String(index);
+      checkbox.value = value;
+      var labelElement = document.createElement('label');
+      labelElement.className = 'form-check-label';
+      labelElement.htmlFor = checkbox.id;
+      labelElement.append(document.createTextNode(label + ' '));
+      if (method.count != null) {
+        var count = document.createElement('span');
+        count.className = 'badge filter-count-badge ms-1';
+        count.textContent = String(method.count);
+        labelElement.append(count);
+      }
+      wrapper.append(checkbox, labelElement);
+      matchMethodsContainer.append(wrapper);
+    });
+
+    matchMethodsSection.classList.toggle('d-none', getMatchMethodCheckboxes().length === 0);
+    syncFilterControlsFromState();
+  }
+
   function renderSummary(summary) {
-    if (!summaryElement || destroyed) return;
+    if (destroyed) return;
+    renderMatchingMethodOptions(summary.match_methods);
+    if (!summaryElement) return;
     summaryElement.innerHTML = [
       '<div class="header-summary__stat"><strong>' + String(summary.total_gtfs_stops || 0) + '</strong> <span>GTFS (<span style="color:#2f9e44;font-weight:bold;">' + String(summary.gtfs_coverage_percent || 0) + '% matched</span>)</span></div>',
       '<div class="header-summary__stat"><strong>' + String(summary.total_atlas_stops || 0) + '</strong> <span>ATLAS (<span style="color:#174092;font-weight:bold;">' + String(summary.atlas_coverage_percent || 0) + '% matched</span>)</span></div>'
@@ -671,17 +654,42 @@
     return filterAdapter.getActiveCount() + (identifierSearch.getState() ? 1 : 0);
   }
 
-  function renderActiveSearchChip() {
+  function renderActiveFilterChips() {
     var search = identifierSearch.getState();
+    var state = filterAdapter.getState();
+    var chips = [];
+    arrayValue(state.status).forEach(function (status) {
+      chips.push(global.FilterChipUtils.buildRemovableChip({
+        label: FILTER_STATUS_LABELS[status] || status,
+        badgeClass: status === 'matched' ? 'filter-chip-matched' : 'filter-chip-unmatched',
+        removeClass: 'remove-gtfs-map-filter',
+        data: { filterType: 'status', filterValue: status },
+        closeChar: '×',
+        removeLabel: 'Remove ' + (FILTER_STATUS_LABELS[status] || status) + ' filter'
+      }));
+    });
+    arrayValue(state.match_method).forEach(function (method) {
+      chips.push(global.FilterChipUtils.buildRemovableChip({
+        label: 'Matched: ' + (matchMethodLabels[method] || method.replace(/_/g, ' ')),
+        badgeClass: 'filter-chip-matched',
+        removeClass: 'remove-gtfs-map-filter',
+        data: { filterType: 'match_method', filterValue: method },
+        closeChar: '×',
+        removeLabel: 'Remove matching method filter'
+      }));
+    });
+    if (search) {
+      chips.push(global.FilterChipUtils.buildRemovableChip({
+        label: SEARCH_KIND_LABELS[search.kind] + ': ' + search.value,
+        badgeClass: 'filter-chip-secondary',
+        removeClass: 'remove-gtfs-identifier-search',
+        closeChar: '×',
+        removeLabel: 'Clear identifier search'
+      }));
+    }
     if (activeFiltersElement) {
-      activeFiltersElement.innerHTML = search
-        ? global.FilterChipUtils.buildRemovableChip({
-          label: SEARCH_KIND_LABELS[search.kind] + ': ' + search.value,
-          badgeClass: 'filter-chip-secondary',
-          removeClass: 'remove-gtfs-identifier-search',
-          closeChar: '×',
-          removeLabel: 'Clear identifier search'
-        })
+      activeFiltersElement.innerHTML = chips.length > 0
+        ? chips.join('')
         : '<span class="badge filter-chip-badge filter-chip-secondary">All entries</span>';
     }
     if (summaryBinding) {
@@ -742,7 +750,7 @@
       targets: targets
     });
     if (searchInput) searchInput.value = '';
-    renderActiveSearchChip();
+    renderActiveFilterChips();
     return focusIdentifierTargets(targets);
   }
 
@@ -800,7 +808,7 @@
 
   function clearIdentifierSearch() {
     var changed = resetIdentifierSearchState();
-    renderActiveSearchChip();
+    renderActiveFilterChips();
     if (!changed) return Promise.resolve({ status: 'unchanged' });
     viewportLoader.invalidate();
     return viewportLoader.reload({ force: true, reason: 'identifier-search-clear' });
@@ -809,7 +817,8 @@
   function clearAllMapFilters() {
     var searchChanged = resetIdentifierSearchState();
     var filtersChanged = filterAdapter.replace({});
-    renderActiveSearchChip();
+    syncFilterControlsFromState({});
+    renderActiveFilterChips();
     if (!searchChanged && !filtersChanged) return Promise.resolve({ status: 'unchanged' });
     viewportLoader.invalidate();
     return viewportLoader.reload({ force: true, reason: 'all-filters-clear' });
@@ -850,10 +859,39 @@
   }
 
   function handleActiveFiltersClick(event) {
-    var removeLink = event.target.closest('.remove-gtfs-identifier-search');
+    var removeLink = event.target.closest('.remove-gtfs-identifier-search, .remove-gtfs-map-filter');
     if (!removeLink) return;
     event.preventDefault();
-    clearIdentifierSearch();
+    if (removeLink.classList.contains('remove-gtfs-identifier-search')) {
+      clearIdentifierSearch();
+      return;
+    }
+
+    var filterType = removeLink.dataset.filterType;
+    var filterValue = removeLink.dataset.filterValue;
+    var nextState = filterAdapter.getState();
+    var values = arrayValue(nextState[filterType]).filter(function (value) {
+      return value !== filterValue;
+    });
+    if (values.length > 0) nextState[filterType] = values;
+    else delete nextState[filterType];
+    setFilters(nextState);
+  }
+
+  function handleFilterControlsChange(event) {
+    var target = event.target;
+    if (!target || target.type !== 'checkbox') return;
+    if (target === matchedAllCheckbox) {
+      getMatchMethodCheckboxes().forEach(function (checkbox) {
+        checkbox.checked = matchedAllCheckbox.checked;
+      });
+      matchedAllCheckbox.indeterminate = false;
+    } else if (target.classList.contains('routes-gtfs-match-method')) {
+      syncMatchedMasterFromMethods();
+    } else if (target !== unmatchedGtfsCheckbox && target !== unmatchedAtlasCheckbox) {
+      return;
+    }
+    setFilters(buildFilterStateFromControls());
   }
 
   function isMobileViewport() {
@@ -889,7 +927,8 @@
     if (!filterAdapter.replace(filters)) {
       return Promise.resolve({ status: 'unchanged' });
     }
-    renderActiveSearchChip();
+    syncFilterControlsFromState();
+    renderActiveFilterChips();
     viewportLoader.invalidate();
     return viewportLoader.reload({ force: true, reason: 'filters-change' });
   }
@@ -908,6 +947,7 @@
       searchInput.removeEventListener('blur', handleSearchBlur);
       searchInput.removeEventListener('keydown', handleSearchKeydown);
     }
+    if (filterControls) filterControls.removeEventListener('change', handleFilterControlsChange);
     if (activeFiltersElement) activeFiltersElement.removeEventListener('click', handleActiveFiltersClick);
     if (summaryRequestController) summaryRequestController.abort();
     if (summaryBinding) summaryBinding.destroy();
@@ -928,6 +968,7 @@
     searchInput.addEventListener('blur', handleSearchBlur);
     searchInput.addEventListener('keydown', handleSearchKeydown);
   }
+  if (filterControls) filterControls.addEventListener('change', handleFilterControlsChange);
   if (activeFiltersElement) activeFiltersElement.addEventListener('click', handleActiveFiltersClick);
 
   global.RoutesGtfsStopIdSloidMap = Object.freeze({
@@ -945,7 +986,8 @@
   });
 
   syncSummaryLayout();
-  renderActiveSearchChip();
+  syncFilterControlsFromState();
+  renderActiveFilterChips();
   loadSummary();
   viewportLoader.reload({ reason: 'initial' });
 })(window);

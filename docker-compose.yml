@@ -2,7 +2,7 @@ services:
   db:
     image: postgis/postgis:16-3.4
     container_name: stop_sync_osm_atlas_db
-    restart: "no"
+    restart: unless-stopped
     environment:
       POSTGRES_DB: import_db
       POSTGRES_USER: stops_user
@@ -23,7 +23,7 @@ services:
     restart: "no"
     entrypoint: ["/bin/bash", "-lc"]
     command:
-      - "python matching_and_import_db/database/init.py && flask db upgrade"
+      - "python backend/importing/init.py && flask db upgrade"
     volumes:
       - ./data:/app/data
     depends_on:
@@ -37,7 +37,7 @@ services:
   app:
     image: ghcr.io/opentdatach/stop_sync_osm_atlas-app:latest
     container_name: stop_sync_osm_atlas_app
-    restart: "no"
+    restart: unless-stopped
     ports:
       - "5001:5001"
     volumes:
@@ -55,6 +55,7 @@ services:
       FLASK_DEBUG: ${FLASK_DEBUG:-1} # 1 = Flask debugger, 0 = Gunicorn
       # Database URI for SQLAlchemy, now configurable via .env
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
+      REVIEW_CONFIG: ${REVIEW_CONFIG:-config/switzerland.json}
       WEB_DB_CONNECT_TIMEOUT_SECONDS: ${WEB_DB_CONNECT_TIMEOUT_SECONDS:-5}
       WEB_DB_LOCK_TIMEOUT_MS: ${WEB_DB_LOCK_TIMEOUT_MS:-3000}
       WEB_DB_STATEMENT_TIMEOUT_MS: ${WEB_DB_STATEMENT_TIMEOUT_MS:-25000}
@@ -82,7 +83,7 @@ services:
   scheduler:
     image: ghcr.io/opentdatach/stop_sync_osm_atlas-scheduler:latest
     container_name: stop_sync_osm_atlas_scheduler
-    restart: "no"
+    restart: unless-stopped
     command: ["scheduler"]
     volumes:
       - ./data:/app/data
@@ -99,6 +100,15 @@ services:
       PIPELINE_TIMEZONE: ${PIPELINE_TIMEZONE:-Europe/Zurich}
       PIPELINE_SCHEDULE_INTERVAL_HOURS: ${PIPELINE_SCHEDULE_INTERVAL_HOURS:-24}
       PIPELINE_IMPORT_ETA_SECONDS: ${PIPELINE_IMPORT_ETA_SECONDS:-150}
+      GTFS_PROCESSING_BACKEND: ${GTFS_PROCESSING_BACKEND:-duckdb}
+      GTFS_THREADS: ${GTFS_THREADS:-2}
+      GTFS_MEMORY_LIMIT: ${GTFS_MEMORY_LIMIT:-768MB}
+      DB_IMPORT_METHOD: ${DB_IMPORT_METHOD:-copy}
+      DB_IMPORT_BATCH_SIZE: ${DB_IMPORT_BATCH_SIZE:-10000}
+      MATCHER_COMMAND: ${MATCHER_COMMAND:-transport-matcher}
+      PIPELINE_WORKSPACE: ${PIPELINE_WORKSPACE:-/app}
+      PIPELINE_BUNDLE_DIR: ${PIPELINE_BUNDLE_DIR:-/app/data/results}
+      PIPELINE_FORCE_FULL_REFRESH: ${PIPELINE_FORCE_FULL_REFRESH:-false}
     cpu_shares: 2048
     mem_limit: 4g
 

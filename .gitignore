@@ -103,3 +103,9 @@ latex_document_non_nodes
 coverage.xml
 .coverage
 docs_to_read
+# Public contribution guides, synthetic GTFS fixtures, and reviewed design notes
+!/CONTRIBUTING.md
+!engine/examples/**/*.txt
+!engine/tests/fixtures/**/*.txt
+docs_to_read/*
+

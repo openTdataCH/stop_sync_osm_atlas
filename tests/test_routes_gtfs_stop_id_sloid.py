@@ -17,6 +17,12 @@ def test_routes_gtfs_stop_id_sloid_tab_renders(client):
     assert 'routesGtfsStopIdSloidSearchForm' in html
     assert 'routesGtfsStopIdSloidSearchInput' in html
     assert 'placeholder="Search stops..."' in html
+    assert 'routesGtfsMatchedDropdown' in html
+    assert 'routesGtfsMatchedAll' in html
+    assert 'routesGtfsMatchMethods' in html
+    assert 'routesGtfsUnmatchedDropdown' in html
+    assert 'routesGtfsUnmatchedGtfs' in html
+    assert 'routesGtfsUnmatchedAtlas' in html
     assert 'routes-page--gtfs-map' in html
     assert 'routes-container--gtfs-map' in html
     assert 'searchUrl' in html
@@ -90,7 +96,7 @@ def test_routes_gtfs_stop_id_sloid_map_api_forwards_identifier_search(client, mo
 
     assert response.status_code == 200
     assert captured['args'][5:7] == ('sloid', 'ch:1:sloid:92000')
-    assert captured['args'][7:] == (None, True)
+    assert captured['args'][7:] == (None, True, [], [])
 
 
 def test_routes_gtfs_stop_id_sloid_map_api_forwards_shared_zoom_limit(client, monkeypatch):
@@ -106,12 +112,34 @@ def test_routes_gtfs_stop_id_sloid_map_api_forwards_shared_zoom_limit(client, mo
     assert client.get(base_url + '&limit=1800').status_code == 200
     assert captured[-1][7] == 1800
     assert captured[-1][8] is True
+    assert captured[-1][9:] == ([], [])
     assert client.get(base_url + '&limit=all').status_code == 200
     assert captured[-1][7] == 'all'
     assert client.get(base_url + '&limit=1800&include_matches=0').status_code == 200
     assert captured[-1][8] is False
     assert client.get(base_url + '&limit=0').status_code == 400
     assert client.get(base_url + '&include_matches=maybe').status_code == 400
+
+
+def test_routes_gtfs_stop_id_sloid_map_api_forwards_and_validates_filters(client, monkeypatch):
+    captured = {}
+
+    def build_payload(*args):
+        captured['args'] = args
+        return {'gtfs_stops': [], 'atlas_stops': [], 'matches': [], 'meta': {}}
+
+    monkeypatch.setattr(routes_module, 'build_gtfs_stop_id_sloid_map_payload', build_payload)
+    base_url = '/api/routes/gtfs-stop-id-sloid/map?min_lat=46&min_lon=7&max_lat=47&max_lon=8&zoom=14'
+    response = client.get(
+        base_url
+        + '&status=matched&status=gtfs_unmatched'
+        + '&match_method=coordinate_proximity&match_method=original_stop_id'
+    )
+
+    assert response.status_code == 200
+    assert captured['args'][9] == ['gtfs_unmatched', 'matched']
+    assert captured['args'][10] == ['coordinate_proximity', 'original_stop_id']
+    assert client.get(base_url + '&status=unknown').status_code == 400
 
 
 def test_routes_gtfs_stop_id_sloid_search_api_returns_mappable_targets(client, monkeypatch):

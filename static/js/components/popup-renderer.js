@@ -53,10 +53,10 @@
     function getMatchDocUrl(matchType) {
         if (!matchType) return null;
         const mt = String(matchType).toLowerCase();
-        if (mt.startsWith('exact')) return '/docs/2.1%20Exact%20matching.md';
-        if (mt.includes('name')) return '/docs/2.2%20Name%20matching.md';
-        if (mt.includes('distance')) return '/docs/2.3%20Distance%20matching.md';
-        if (mt.startsWith('route')) return '/docs/2.4%20Route%20Matching.md';
+        if (mt.startsWith('exact')) return '/docs/exact_matching';
+        if (mt.includes('distance')) return '/docs/distance_matching';
+        if (mt.includes('name')) return '/docs/name_matching';
+        if (mt.startsWith('route')) return '/docs/stop_stop_matching_using_routes';
         return null;
     }
 
@@ -213,9 +213,11 @@
         let linkHtml = '';
 
         if (type === 'atlas') {
-            headerText += 'ATLAS Stop';
-            if (hasValue(data.uic_ref)) {
-                linkHtml = ` <a href="https://atlas.app.sbb.ch/service-point-directory/service-points/${data.uic_ref}/traffic-point-elements" target="_blank" title="View on SBB ATLAS">(view on ATLAS)</a>`;
+            const label = SharedUtils.sourceLabelHtml();
+            headerText += `${label} Stop`;
+            const sourceUrl = SharedUtils.sourceUrl(data);
+            if (sourceUrl) {
+                linkHtml = ` <a href="${SharedUtils.escapeHtml(sourceUrl).replace(/"/g, '&quot;')}" target="_blank" rel="noopener noreferrer">(view on ${label})</a>`;
             }
         } else {
             headerText += 'OSM Node';
@@ -235,7 +237,7 @@
     }
 
     function buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml, options = {}) {
-        if (hideRoutesAndNotes) {
+        if (hideRoutesAndNotes || !SharedUtils.hasCapability('routes')) {
             return actionButtonHtml ? `<div class="bubble-footer"><div class="bubble-btn-row">${actionButtonHtml}</div></div>` : '';
         }
 
@@ -261,7 +263,7 @@
             ? ' <span class="operator-mismatch">(!Operator Mismatch!)</span>'
             : '';
 
-        rows.push(['Sloid', unmatched ? (data.sloid || 'N/A') : buildFilterText(data.sloid, 'atlas', options)]);
+        rows.push([SharedUtils.sourceIdLabelHtml(), unmatched ? (data.sloid || 'N/A') : buildFilterText(data.sloid, 'atlas', options)]);
         if (hasValue(data.uic_ref)) rows.push(['UIC Ref', buildFilterText(data.uic_ref, 'station', options)]);
         rows.push(['Name', data.atlas_designation_official || 'N/A']);
         rows.push(['Designation', data.atlas_designation || 'N/A']);

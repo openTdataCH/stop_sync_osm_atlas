@@ -13,9 +13,13 @@ describe('LineRenderer production component', () => {
         LINE_OSM_GROUP_DASH: '6,4',
       },
     };
-    const scriptPath = path.join(__dirname, '../../static/js/components/line-renderer.js');
-    window.eval(fs.readFileSync(scriptPath, 'utf8'));
+    require('./load-map-components')();
   });
+
+  function drawStops(stops, layer, options) {
+    const snapshot = window.MapEntityAdapters.stops(stops);
+    return window.LineRenderer.drawRelationships(snapshot.relationships, layer, snapshot.sourcePositionsByKey, options);
+  }
 
   beforeEach(() => {
     L.polyline = jest.fn((coordinates, options) => ({ coordinates, options }));
@@ -37,7 +41,8 @@ describe('LineRenderer production component', () => {
       ],
     };
 
-    const count = window.LineRenderer.drawAll([stop], layer, {
+    const snapshot = window.MapEntityAdapters.stops([stop]);
+    const count = window.LineRenderer.drawRelationships(snapshot.relationships, layer, snapshot.sourcePositionsByKey, {
       showAtlas: true,
       showOsm: true,
       minZoom: 13,
@@ -54,7 +59,7 @@ describe('LineRenderer production component', () => {
   });
 
   test('draws context lines with reduced opacity', () => {
-    window.LineRenderer.drawAll([{
+    drawStops([{
       stop_type: 'matched',
       sloid: 'S1',
       atlas_lat: 46.5,
@@ -74,7 +79,7 @@ describe('LineRenderer production component', () => {
   });
 
   test('does not draw below the configured threshold', () => {
-    const count = window.LineRenderer.drawAll([{
+    const count = drawStops([{
       stop_type: 'matched',
       atlas_lat: 46.5,
       atlas_lon: 6.6,

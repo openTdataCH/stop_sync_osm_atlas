@@ -284,10 +284,10 @@
     if (config.selectedAtlasOperators && config.selectedAtlasOperators.length > 0) {
       var atlasOperatorChips = config.selectedAtlasOperators.map(function (op) {
         return buildRemovableChip({
-          label: 'ATLAS Operator: ' + op,
+          label: SharedUtils.sourceLabel() + ' Operator: ' + op,
           badgeClass: 'filter-chip-operator',
           data: { type: 'operator', value: op },
-          removeLabel: 'Remove ATLAS operator ' + op
+          removeLabel: 'Remove ' + SharedUtils.sourceLabel() + ' operator ' + op
         });
       });
       filterGroups.push(buildOrGroup(atlasOperatorChips));
@@ -398,11 +398,11 @@
 
 
   function createRouteMap(mapElement) {
-    var defaultCenter = (window.AppConstants && window.AppConstants.MAP && window.AppConstants.MAP.DEFAULT_CENTER) || [47.3769, 8.5417];
-    var defaultZoom = (window.AppConstants && window.AppConstants.MAP && window.AppConstants.MAP.DEFAULT_ZOOM) || 11;
-    var minZoom = (window.AppConstants && window.AppConstants.MAP && window.AppConstants.MAP.MIN_ZOOM) || 8;
-    var maxZoom = (window.AppConstants && window.AppConstants.MAP && window.AppConstants.MAP.MAX_ZOOM) || 20;
-    var maxBounds = (window.AppConstants && window.AppConstants.MAP && window.AppConstants.MAP.MAX_BOUNDS) || [[45.5, 5.5], [48.0, 11.0]];
+    var defaultCenter = AppConstants.MAP.DEFAULT_CENTER;
+    var defaultZoom = AppConstants.MAP.DEFAULT_ZOOM;
+    var minZoom = AppConstants.MAP.MIN_ZOOM;
+    var maxZoom = AppConstants.MAP.MAX_ZOOM;
+    var maxBounds = AppConstants.MAP.MAX_BOUNDS;
 
     if (!window.MapComponents || !window.MapComponents.MapCore) {
       throw new Error('Route preview maps require MapComponents.MapCore.');
@@ -483,28 +483,6 @@
     return [];
   }
 
-  function getMapColors() {
-    var colors = (window.AppConstants && window.AppConstants.COLORS) || {};
-    return {
-      atlasMatched: colors.ATLAS_MATCHED || '#174092',
-      osmMatched: colors.OSM_MATCHED || '#4CAF50',
-      atlasUnmatched: colors.ATLAS_UNMATCHED || '#DC3545',
-      osmUnmatched: colors.OSM_UNMATCHED || '#6C757D'
-    };
-  }
-
-  function isMatchedLikeStopType(stopType) {
-    return stopType === 'matched' || stopType === 'effectively_matched';
-  }
-
-  function getAtlasStopMarkerColor(stopType, colors) {
-    return stopType === 'atlas_unmatched' ? colors.atlasUnmatched : colors.atlasMatched;
-  }
-
-  function getOsmStopMarkerColor(stopType, colors) {
-    return stopType === 'osm_unmatched' ? colors.osmUnmatched : colors.osmMatched;
-  }
-
   function getMarkerMode(zoom) {
     var threshold = (window.AppConstants && window.AppConstants.MAP &&
       window.AppConstants.MAP.LABEL_ICON_MIN_ZOOM) || 18;
@@ -514,7 +492,6 @@
   function addContextStops(mapState) {
     if (!mapState.showContext || !Array.isArray(mapState.contextStops)) return;
 
-    var colors = getMapColors();
     var sourceIds = new Set();
     if (mapState.source && mapState.source.type === 'variant') {
       [mapState.source.data.atlas_uic_groups, mapState.source.data.osm_uic_groups].forEach(function (groups) {
@@ -526,122 +503,27 @@
       });
     }
 
-    mapState.contextStops.forEach(function (stop) {
-      if (sourceIds.has(String(stop.sloid)) || sourceIds.has(String(stop.osm_node_id))) return;
-
-      if (stop.atlas_lat != null && stop.atlas_lon != null) {
-        var atlasMarker = window.MapRenderer.createAtlasMarker(
-          stop.atlas_lat,
-          stop.atlas_lon,
-          getAtlasStopMarkerColor(stop.stop_type, colors),
-          stop.has_atlas_duplicate,
-          mapState.map.getZoom()
-        );
-        window.MapRenderer.setMarkerOpacity(atlasMarker, 0.4, 0.2);
-        atlasMarker.addTo(mapState.markersLayer);
-      }
-      if (stop.osm_lat != null && stop.osm_lon != null) {
-        var osmMarker = window.MapRenderer.createOsmMarker(
-          stop.osm_lat,
-          stop.osm_lon,
-          getOsmStopMarkerColor(stop.stop_type, colors),
-          stop.osm_node_type,
-          mapState.map.getZoom()
-        );
-        window.MapRenderer.setMarkerOpacity(osmMarker, 0.4, 0.2);
-        osmMarker.addTo(mapState.markersLayer);
-      }
+    var stops = mapState.contextStops.filter(function (stop) {
+      return !sourceIds.has(String(stop.sloid)) && !sourceIds.has(String(stop.osm_node_id));
+    });
+    var snapshot = window.MapEntityAdapters.stops(stops, { emphasis: 'subdued' });
+    window.MapRenderer.renderEntities(snapshot.entities, mapState.markersLayer, {
+      map: mapState.map, zoom: mapState.map.getZoom(), overlap: false
     });
   }
 
   function renderMapSnapshot(mapState) {
     if (!mapState.source) return [];
-    var points = mapState.source.type === 'variant'
-      ? renderVariantStops(mapState, mapState.source.data)
-      : renderRouteStops(mapState, mapState.source.data);
-    addContextStops(mapState);
-    return points;
-  }
-
-  function renderRouteStops(mapState, stops) {
+    var snapshot = mapState.source.type === 'variant'
+      ? window.MapEntityAdapters.routeDirection(mapState.source.data)
+      : window.MapEntityAdapters.stops(mapState.source.data);
     mapState.markersLayer.clearLayers();
     mapState.linesLayer.clearLayers();
-
-    var colors = getMapColors();
-    var points = [];
-
-    stops.forEach(function (stop) {
-      var stopType = stop.stop_type;
-      var atlasLat = stop.atlas_lat;
-      var atlasLon = stop.atlas_lon;
-      var osmLat = stop.osm_lat;
-      var osmLon = stop.osm_lon;
-
-      if (isMatchedLikeStopType(stopType) && atlasLat != null && atlasLon != null && osmLat != null && osmLon != null) {
-        var atlasMarker = window.MapRenderer.createAtlasMarker(atlasLat, atlasLon, getAtlasStopMarkerColor(stopType, colors), stop.has_atlas_duplicate, mapState.map.getZoom());
-        atlasMarker.addTo(mapState.markersLayer);
-
-        var osmMarker = window.MapRenderer.createOsmMarker(osmLat, osmLon, getOsmStopMarkerColor(stopType, colors), stop.osm_node_type, mapState.map.getZoom());
-        osmMarker.addTo(mapState.markersLayer);
-
-        points.push([atlasLat, atlasLon]);
-        points.push([osmLat, osmLon]);
-        return;
-      }
-
-      if (atlasLat != null && atlasLon != null) {
-        var atlasColor = getAtlasStopMarkerColor(stopType, colors);
-        window.MapRenderer.createAtlasMarker(atlasLat, atlasLon, atlasColor, stop.has_atlas_duplicate, mapState.map.getZoom()).addTo(mapState.markersLayer);
-        points.push([atlasLat, atlasLon]);
-      }
-
-      if (osmLat != null && osmLon != null) {
-        var osmColor = getOsmStopMarkerColor(stopType, colors);
-        window.MapRenderer.createOsmMarker(osmLat, osmLon, osmColor, stop.osm_node_type, mapState.map.getZoom()).addTo(mapState.markersLayer);
-        points.push([osmLat, osmLon]);
-      }
+    window.MapRenderer.renderEntities(snapshot.entities, mapState.markersLayer, {
+      map: mapState.map, zoom: mapState.map.getZoom(), overlap: false
     });
-
-    return points;
-  }
-  function renderVariantStops(mapState, direction) {
-    mapState.markersLayer.clearLayers();
-    mapState.linesLayer.clearLayers();
-
-    var colors = getMapColors();
-    var points = [];
-
-    if (direction.atlas_uic_groups) {
-      direction.atlas_uic_groups.forEach(function (group) {
-        if (group.members) {
-          group.members.forEach(function (member) {
-            if (member.lat != null && member.lon != null) {
-              var stopType = member.stop_type;
-              var color = getAtlasStopMarkerColor(stopType, colors);
-              window.MapRenderer.createAtlasMarker(member.lat, member.lon, color, member.has_atlas_duplicate, mapState.map.getZoom()).addTo(mapState.markersLayer);
-              points.push([member.lat, member.lon]);
-            }
-          });
-        }
-      });
-    }
-
-    if (direction.osm_uic_groups) {
-      direction.osm_uic_groups.forEach(function (group) {
-        if (group.members) {
-          group.members.forEach(function (member) {
-            if (member.lat != null && member.lon != null) {
-              var stopType = member.stop_type;
-              var color = getOsmStopMarkerColor(stopType, colors);
-              window.MapRenderer.createOsmMarker(member.lat, member.lon, color, member.osm_node_type, mapState.map.getZoom()).addTo(mapState.markersLayer);
-              points.push([member.lat, member.lon]);
-            }
-          });
-        }
-      });
-    }
-    
-    return points;
+    addContextStops(mapState);
+    return snapshot.entities.map(entity => entity.sourcePosition);
   }
 
   function loadContextMarkers(mapElement, mapState, points) {

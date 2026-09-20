@@ -46,7 +46,7 @@ def generate_svg():
     # Note: Reordered to show Scheduler before App as requested
     stages = {
         "Base Stage": {"libs": BASE_LIBS, "color": "#6C757D"},       # Neutral Gray
-        "Scheduler Stage": {"libs": BASE_LIBS + SCHED_LIBS, "color": "#F0AD4E"}, # P2 Orange
+        "Scheduler app layer": {"libs": BASE_LIBS + WEB_LIBS + SCHED_LIBS, "color": "#F0AD4E"}, # P2 Orange
         "App Stage": {"libs": BASE_LIBS + WEB_LIBS, "color": "#174092"},    # Primary Navy
         "Test Stage": {"libs": BASE_LIBS + WEB_LIBS + SCHED_LIBS + TEST_LIBS, "color": "#4CAF50"} # Success Green
     }
@@ -136,10 +136,10 @@ def update_markdown():
         return ", ".join(f"`{spec}`" for spec in sorted(specs, key=str.lower))
 
     descriptions = {
-        "requirements-base.txt": "Shared core backend foundations requested by all containers",
+        "requirements-base.txt": "Review deployment foundations",
         "requirements-web.txt": "Web-only stack for the API and UI",
-        "requirements-scheduler.txt": "Heavy geospatial stack required for the data pipeline",
-        "requirements-test.txt": "Testing frameworks"
+        "requirements-scheduler.txt": "Deployment scheduling tools; engine dependencies live in engine/pyproject.toml",
+        "requirements-test.txt": "Testing frameworks and HTML assertions"
     }
 
     new_lines = []
@@ -169,4 +169,3 @@ def update_markdown():
 if __name__ == "__main__":
     generate_svg()
     update_markdown()
-

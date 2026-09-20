@@ -38,7 +38,7 @@ describe('ProblemsUI route contradiction rendering', () => {
 
     expect(html).toContain('ATLAS Routes');
     expect(html).toContain('OSM Routes');
-    expect(html).toContain('Sloid:');
+    expect(html).toContain('SLOID:');
     expect(html).toContain('Node ID:');
     expect(html).toContain('55 (ID: 92-55-A-j26-1) Dir: 0');
     expect(html).toContain('Bus 55: Chavannes-des-Bois → Bossy (ID: 92-55-j22-1) Dir: 1');

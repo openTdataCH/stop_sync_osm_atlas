@@ -23,10 +23,6 @@ var VIEW_DEBOUNCE_MS = AppConstants.DATA_LOADING.VIEW_DEBOUNCE_MS;
 var MAIN_PAGE_COLORS = AppConstants.COLORS || {};
 var MAIN_COLOR_ATLAS_MATCHED = MAIN_PAGE_COLORS.ATLAS_MATCHED || '#174092';
 var MAIN_COLOR_OSM_MATCHED = MAIN_PAGE_COLORS.OSM_MATCHED || '#4CAF50';
-var MAIN_COLOR_ATLAS_UNMATCHED = MAIN_PAGE_COLORS.ATLAS_UNMATCHED || '#DC3545';
-var MAIN_COLOR_OSM_UNMATCHED = MAIN_PAGE_COLORS.OSM_UNMATCHED || '#6C757D';
-var MAIN_COLOR_LINE_ATLAS_OSM = MAIN_PAGE_COLORS.LINE_ATLAS_OSM || MAIN_COLOR_ATLAS_MATCHED;
-var MAIN_COLOR_TEMP_MARKER = MAIN_PAGE_COLORS.TEMP_MARKER || MAIN_COLOR_ATLAS_MATCHED;
 
 // Request management unrelated to viewport loading.
 var currentGlobalStatsRequest = null; // jqXHR of in-flight /api/global_stats
@@ -83,27 +79,7 @@ function fetchJson(url, params, signal) {
     });
 }
 
-function getAtlasMarkerIdentity(stopData) {
-    if (window.MapShared && typeof window.MapShared.getAtlasMarkerIdentity === 'function') {
-        return window.MapShared.getAtlasMarkerIdentity(stopData);
-    }
-    if (!stopData) return null;
-    if (stopData.id != null && stopData.id !== '') return String(stopData.id);
-    return null;
-}
-
-function isStandaloneOsmStopType(stopType) {
-    return stopType === 'osm_unmatched' || stopType === 'effectively_matched';
-}
-
-function getStandaloneOsmMarkerColor(stopData) {
-    return stopData && stopData.stop_type === 'effectively_matched'
-        ? MAIN_COLOR_OSM_MATCHED
-        : MAIN_COLOR_OSM_UNMATCHED;
-}
-
-// Note: popup HTML generation functions are provided by popup-renderer.js
-// Note: createAtlasMarker and createOsmMarker functions are now provided by map-renderer.js
+// Shared canonical entity rendering is provided by map-renderer.js
 
 // Create the Index map from one explicit configuration. MapCore owns map,
 // controls, base layers, renderer padding, popup-line handlers, and cleanup.
@@ -437,74 +413,18 @@ function loadTopNMatches() {
                 var showAtlasNodes = mapSideVisibility.showAtlas;
                 var showOSMNodes = mapSideVisibility.showOsm;
 
-                // Collect marker data for cluster handling
-                var topNMarkerData = [];
-                var createdAtlasMarkers = new Set();
-                var createdOsmMarkers = new Set();
-
-                filteredData.forEach(function (stop) {
-                    if (stop.stop_type === 'matched' && stop.atlas_lat && stop.atlas_lon && stop.osm_lat && stop.osm_lon) {
-                        var atlasMarkerKey = getAtlasMarkerIdentity(stop);
-
-                        if (showAtlasNodes && (!atlasMarkerKey || !createdAtlasMarkers.has(atlasMarkerKey))) {
-                            var atlasMarkerData = {
-                                lat: parseFloat(stop.atlas_lat),
-                                lon: parseFloat(stop.atlas_lon),
-                                type: 'atlas',
-                                color: MAIN_COLOR_ATLAS_MATCHED,
-                                hasAtlasDuplicate: stop.has_atlas_duplicate,
-                                originalLat: parseFloat(stop.atlas_lat),
-                                originalLon: parseFloat(stop.atlas_lon),
-                                stopData: stop
-                            };
-                            atlasMarkerData.key = getMarkerEntityKey('atlas', stop);
-                            topNMarkerData.push(atlasMarkerData);
-                            if (atlasMarkerKey) {
-                                createdAtlasMarkers.add(atlasMarkerKey);
-                            }
-                        }
-                        if (showOSMNodes) {
-                            var osmMarkerKey = getMarkerEntityKey('osm', stop);
-                            if (osmMarkerKey && !createdOsmMarkers.has(osmMarkerKey)) {
-                                var osmMarkerData = {
-                                    lat: parseFloat(stop.osm_lat),
-                                    lon: parseFloat(stop.osm_lon),
-                                    type: 'osm',
-                                    color: MAIN_COLOR_OSM_MATCHED,
-                                    osmNodeType: stop.osm_node_type,
-                                    originalLat: parseFloat(stop.osm_lat),
-                                    originalLon: parseFloat(stop.osm_lon),
-                                    stopData: stop
-                                };
-                                osmMarkerData.key = osmMarkerKey;
-                                topNMarkerData.push(osmMarkerData);
-                                createdOsmMarkers.add(osmMarkerKey);
-                            }
-                        }
-
-                        // Add connecting line when both node types are visible (Top N view is lightweight)
-                        if (showAtlasNodes && showOSMNodes) {
-                            var line = L.polyline([
-                                [parseFloat(stop.atlas_lat), parseFloat(stop.atlas_lon)],
-                                [parseFloat(stop.osm_lat), parseFloat(stop.osm_lon)]
-                            ], { color: MAIN_COLOR_LINE_ATLAS_OSM });
-                            topNLayer.addLayer(line);
-                        }
-                    }
+                var snapshot = window.MapEntityAdapters.topMatches(filteredData, {
+                    showAtlas: showAtlasNodes, showOsm: showOSMNodes
                 });
-
-                // Create markers with overlap handling
-                topNPopupMarkers = window.MapRenderer.createMarkersWithOverlapHandling(topNMarkerData, topNLayer, {
-                    map: map,
-                    zoom: map.getZoom(),
-                    bindPopup: function (marker, markerData) {
-                        if (!markerData.key) return;
-                        attachIndexPopup(marker, {
-                            key: markerData.key,
-                            markerData: markerData,
-                            zoom: map.getZoom()
-                        });
-                    }
+                var layout = window.MapRenderer.layoutEntities(snapshot.entities, {
+                    map: map, zoom: map.getZoom(), sourcePositionsByKey: snapshot.sourcePositionsByKey
+                });
+                LineRenderer.drawRelationships(snapshot.relationships, topNLayer, layout.displayPositionsByKey, {
+                    showAtlas: showAtlasNodes, showOsm: showOSMNodes, currentZoom: map.getZoom()
+                });
+                topNPopupMarkers = window.MapRenderer.renderEntities(snapshot.entities, topNLayer, {
+                    layout: layout,
+                    bindPopup: function (marker, entity) { attachIndexPopup(marker, { key: entity.key, entity: entity }); }
                 });
             }
         }).fail(function (_jqXHR, textStatus) {
@@ -586,7 +506,7 @@ function prepareZoomBanner(policy) {
     }
     if (!policy.hasAnyActiveFilter) {
         setZoomBannerText(policy.isLowZoom
-            ? '📍 Overview mode: showing unmatched ATLAS stops only. Zoom in for all markers.'
+            ? `📍 Overview mode: showing unmatched ${SharedUtils.sourceLabel()} stops only. Zoom in for all markers.`
             : '📍 Zoom in a bit more to see all markers in this area');
     }
     showZoomBanner(true, 150);
@@ -634,271 +554,31 @@ function getViewportVisibility(policy) {
     return getEffectiveMapSideVisibility();
 }
 
-function getMarkerEntityKey(type, stopData) {
-    if (window.MapShared && typeof window.MapShared.createEntityKey === 'function') {
-        return window.MapShared.createEntityKey(type, stopData);
-    }
-    var identity = type === 'atlas'
-        ? getAtlasMarkerIdentity(stopData)
-        : (stopData && (stopData.osm_node_id || stopData.id));
-    return identity == null ? null : type + ':' + String(identity);
-}
-
-function addUniqueMarker(markerData, markerList, markerKeys) {
-    var key = getMarkerEntityKey(markerData.type, markerData.stopData);
-    if (!key || markerKeys.has(key)) return false;
-    markerData.key = key;
-    markerList.push(markerData);
-    markerKeys.add(key);
-    return true;
-}
-
-function buildOsmMultiMatchData(stops, showOsm, zoom) {
-    if (!showOsm || zoom < ZOOM_LINE_THRESHOLD) return {};
-
-    var counts = Object.create(null);
-    stops.forEach(function (stop) {
-        if (stop.stop_type !== 'matched' || !Array.isArray(stop.osm_matches)) return;
-        stop.osm_matches.forEach(function (osmMatch) {
-            if (!osmMatch || osmMatch.osm_node_id == null) return;
-            var nodeId = String(osmMatch.osm_node_id);
-            counts[nodeId] = (counts[nodeId] || 0) + 1;
-        });
-    });
-
-    var multiNodeIds = new Set(
-        Object.keys(counts).filter(function (nodeId) { return counts[nodeId] > 1; })
-    );
-    var result = Object.create(null);
-    if (multiNodeIds.size === 0) return result;
-
-    stops.forEach(function (stop) {
-        if (stop.stop_type !== 'matched' || !stop.sloid || !Array.isArray(stop.osm_matches)) return;
-        stop.osm_matches.forEach(function (osmMatch) {
-            if (!osmMatch || osmMatch.osm_node_id == null) return;
-            var nodeId = String(osmMatch.osm_node_id);
-            if (!multiNodeIds.has(nodeId)) return;
-
-            if (!result[nodeId]) {
-                result[nodeId] = {
-                    osmData: {
-                        osm_id: osmMatch.osm_id,
-                        osm_node_id: osmMatch.osm_node_id,
-                        osm_name: osmMatch.osm_name,
-                        osm_uic_name: osmMatch.osm_uic_name,
-                        osm_uic_ref: osmMatch.osm_uic_ref,
-                        osm_local_ref: osmMatch.osm_local_ref,
-                        osm_network: osmMatch.osm_network,
-                        osm_operator: osmMatch.osm_operator,
-                        osm_public_transport: osmMatch.osm_public_transport,
-                        osm_amenity: osmMatch.osm_amenity,
-                        osm_aerialway: osmMatch.osm_aerialway,
-                        osm_railway: osmMatch.osm_railway,
-                        osm_lat: osmMatch.osm_lat,
-                        osm_lon: osmMatch.osm_lon,
-                        osm_node_type: osmMatch.osm_node_type,
-                        routes_osm: osmMatch.routes_osm,
-                        uic_ref: stop.uic_ref
-                    },
-                    atlasMatches: []
-                };
-            }
-
-            result[nodeId].atlasMatches.push({
-                id: stop.id,
-                sloid: stop.sloid,
-                uic_ref: stop.uic_ref,
-                atlas_designation: stop.atlas_designation,
-                atlas_designation_official: stop.atlas_designation_official,
-                atlas_business_org_abbr: stop.atlas_business_org_abbr,
-                atlas_lat: stop.atlas_lat,
-                atlas_lon: stop.atlas_lon,
-                distance_m: osmMatch.distance_m,
-                match_type: osmMatch.match_type || stop.match_type,
-                routes_atlas: stop.routes_atlas
-            });
-        });
-    });
-
-    return result;
-}
-
-function buildIndexMarkerData(stops, visibility, zoom) {
-    var markerData = [];
-    var markerKeys = new Set();
-    var multiMatches = buildOsmMultiMatchData(stops, visibility.showOsm, zoom);
-    var multiNodeIds = new Set(Object.keys(multiMatches));
-
-    function addAtlas(stop, lat, lon, color) {
-        if (!visibility.showAtlas || lat == null || lon == null) return;
-        var parsedLat = Number(lat);
-        var parsedLon = Number(lon);
-        if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLon)) return;
-        addUniqueMarker({
-            lat: parsedLat,
-            lon: parsedLon,
-            type: 'atlas',
-            color: color,
-            hasAtlasDuplicate: stop.has_atlas_duplicate,
-            originalLat: parsedLat,
-            originalLon: parsedLon,
-            stopData: stop
-        }, markerData, markerKeys);
-    }
-
-    function addOsm(stopData, lat, lon, color, osmNodeType, extra) {
-        if (!visibility.showOsm || lat == null || lon == null) return;
-        var parsedLat = Number(lat);
-        var parsedLon = Number(lon);
-        if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLon)) return;
-        var item = {
-            lat: parsedLat,
-            lon: parsedLon,
-            type: 'osm',
-            color: color,
-            osmNodeType: osmNodeType,
-            originalLat: parsedLat,
-            originalLon: parsedLon,
-            stopData: stopData
-        };
-        Object.keys(extra || {}).forEach(function (key) { item[key] = extra[key]; });
-        addUniqueMarker(item, markerData, markerKeys);
-    }
-
-    stops.forEach(function (stop) {
-        if (stop.stop_type === 'matched') {
-            if (stop.sloid && Array.isArray(stop.osm_matches)) {
-                addAtlas(stop, stop.atlas_lat, stop.atlas_lon, MAIN_COLOR_ATLAS_MATCHED);
-                stop.osm_matches.forEach(function (osmMatch) {
-                    if (!osmMatch || osmMatch.osm_node_id == null) return;
-                    var nodeId = String(osmMatch.osm_node_id);
-                    if (multiNodeIds.has(nodeId)) return;
-                    addOsm({
-                        id: osmMatch.osm_id || stop.id,
-                        stop_type: 'matched',
-                        match_type: stop.match_type,
-                        osm_node_id: osmMatch.osm_node_id
-                    }, osmMatch.osm_lat, osmMatch.osm_lon, MAIN_COLOR_OSM_MATCHED, osmMatch.osm_node_type);
-                });
-                return;
-            }
-
-            if (stop.sloid && stop.osm_node_id != null) {
-                addAtlas(stop, stop.atlas_lat, stop.atlas_lon, MAIN_COLOR_ATLAS_MATCHED);
-                addOsm(
-                    stop,
-                    stop.osm_lat,
-                    stop.osm_lon,
-                    MAIN_COLOR_OSM_MATCHED,
-                    stop.osm_node_type
-                );
-            }
-            return;
-        }
-
-        if (stop.stop_type === 'atlas_unmatched') {
-            addAtlas(stop, stop.lat, stop.lon, MAIN_COLOR_ATLAS_UNMATCHED);
-            return;
-        }
-
-        if (isStandaloneOsmStopType(stop.stop_type)) {
-            addOsm(
-                stop,
-                stop.osm_lat,
-                stop.osm_lon,
-                getStandaloneOsmMarkerColor(stop),
-                stop.osm_node_type
-            );
-        }
-    });
-
-    Object.keys(multiMatches).sort().forEach(function (nodeId) {
-        var multiMatch = multiMatches[nodeId];
-        if (!multiMatch || multiMatch.atlasMatches.length <= 1) return;
-        var osmData = multiMatch.osmData;
-        var popupPayload = {
-            id: osmData.osm_id,
-            stop_type: 'matched',
-            is_osm_node: true,
-            osm_node_id: nodeId,
-            osm_name: osmData.osm_name,
-            osm_uic_name: osmData.osm_uic_name,
-            osm_uic_ref: osmData.osm_uic_ref,
-            osm_local_ref: osmData.osm_local_ref,
-            osm_network: osmData.osm_network,
-            osm_operator: osmData.osm_operator,
-            osm_public_transport: osmData.osm_public_transport,
-            osm_amenity: osmData.osm_amenity,
-            osm_aerialway: osmData.osm_aerialway,
-            osm_railway: osmData.osm_railway,
-            osm_lat: osmData.osm_lat,
-            osm_lon: osmData.osm_lon,
-            osm_node_type: osmData.osm_node_type,
-            uic_ref: osmData.uic_ref,
-            routes_osm: osmData.routes_osm,
-            atlas_matches: multiMatch.atlasMatches
-        };
-        addOsm(
-            popupPayload,
-            osmData.osm_lat,
-            osmData.osm_lon,
-            MAIN_COLOR_OSM_MATCHED,
-            osmData.osm_node_type,
-            { popupPayload: popupPayload, isMultiMatch: true }
-        );
-    });
-
-    return markerData;
-}
-
-function buildMarkerDescriptors(markerData, zoom) {
-    var clusterManager = new window.MapRenderer.MarkerClusterManager({ map: map, zoom: zoom });
-    markerData.forEach(function (item) {
-        clusterManager.addMarker(item.lat, item.lon, item);
-    });
-
-    return clusterManager.getClusteredData().map(function (clustered) {
-        var data = clustered.markerData;
-        return {
-            key: data.key,
-            position: [clustered.lat, clustered.lon],
-            renderSignature: window.MapRenderer.getMarkerRenderSignature(
-                data.type,
-                data.color,
-                data,
-                zoom
-            ),
-            markerData: data,
-            zoom: zoom
-        };
-    });
-}
-
 function popupContentForMarker(payload, markerData) {
     var enriched = payload && (payload.stop || payload);
     if (enriched && enriched.stop_type === 'atlas_unmatched') {
-        return markerData.type === 'atlas'
+        return markerData.entityType === 'atlas'
             ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
             : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
     }
-    return PopupRenderer.generatePopupHtml(enriched, markerData.type);
+    return PopupRenderer.generatePopupHtml(enriched, markerData.entityType);
 }
 
 function attachIndexPopup(marker, descriptor) {
-    var markerData = descriptor.markerData;
+    var markerData = descriptor.entity;
     marker.options = marker.options || {};
     marker.options.markerData = markerData;
 
-    if (!markerData || !markerData.stopData) return;
+    if (!markerData || !markerData.popupRef) return;
     popupController.attach(marker, {
         key: descriptor.key,
         errorContent: '<div class="p-2 text-danger">Unable to load stop details. Click to retry.</div>',
         load: function (request) {
             var latest = marker.options.markerData;
-            if (latest.popupPayload) return latest.popupPayload;
+            if (latest.popupRef.payload) return latest.popupRef.payload;
             return fetchJson('/api/stop_popup', {
-                stop_id: latest.stopData.id,
-                view_type: latest.type
+                stop_id: latest.popupRef.id,
+                view_type: latest.entityType
             }, request.signal);
         },
         render: function (payload) {
@@ -923,27 +603,12 @@ function createIndexMarkerRegistry() {
     return window.MapComponents.MapLayerRegistry.create({
         layerGroup: markersLayer,
         create: function (descriptor) {
-            var data = descriptor.markerData;
-            var marker = data.type === 'atlas'
-                ? window.MapRenderer.createAtlasMarker(
-                    descriptor.position[0],
-                    descriptor.position[1],
-                    data.color,
-                    data.hasAtlasDuplicate,
-                    descriptor.zoom
-                )
-                : window.MapRenderer.createOsmMarker(
-                    descriptor.position[0],
-                    descriptor.position[1],
-                    data.color,
-                    data.osmNodeType,
-                    descriptor.zoom
-                );
+            var marker = window.MapRenderer.createEntityMarker(descriptor);
             attachIndexPopup(marker, descriptor);
             return marker;
         },
         update: function (marker, descriptor) {
-            marker.setLatLng(descriptor.position);
+            marker.setLatLng(descriptor.displayPosition);
             attachIndexPopup(marker, descriptor);
         },
         onRemove: function (marker, descriptor, removal) {
@@ -976,10 +641,16 @@ function renderIndexViewport(rawData, context) {
         if (stop && stop.id != null) stopsById[stop.id] = stop;
     });
 
-    var markerData = buildIndexMarkerData(payload.stops, visibility, context.zoom);
-    var descriptors = buildMarkerDescriptors(markerData, context.zoom);
+    var snapshot = window.MapEntityAdapters.stops(payload.stops, {
+        showAtlas: visibility.showAtlas, showOsm: visibility.showOsm,
+        multiMatchPopups: context.zoom >= ZOOM_LINE_THRESHOLD
+    });
+    var layout = window.MapRenderer.layoutEntities(snapshot.entities, {
+        map: map, zoom: context.zoom, sourcePositionsByKey: snapshot.sourcePositionsByKey
+    });
+    var descriptors = layout.descriptors;
     descriptors.forEach(function (descriptor) {
-        var nextMode = descriptor.markerData.isMultiMatch ? 'multi-match' : 'single-entity';
+        var nextMode = descriptor.entity.popupRef && descriptor.entity.popupRef.payload ? 'multi-match' : 'single-entity';
         var previousMode = popupModeByKey.get(descriptor.key);
         if (previousMode && previousMode !== nextMode) {
             // The same OSM entity has a richer local payload at multi-match
@@ -995,7 +666,7 @@ function renderIndexViewport(rawData, context) {
     });
 
     LineRenderer.clearLines(linesLayer);
-    LineRenderer.drawAll(payload.stops, linesLayer, {
+    LineRenderer.drawRelationships(snapshot.relationships, linesLayer, layout.displayPositionsByKey, {
         showAtlas: visibility.showAtlas,
         showOsm: visibility.showOsm,
         minZoom: ZOOM_LINE_THRESHOLD,
@@ -1084,30 +755,9 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
         const popupHtml = PopupRenderer.generatePopupHtml(stopData, popupViewType);
         const popup = window.MapRenderer.createPopupWithOptions(popupHtml).setLatLng([centerLat, centerLon]);
 
-        // Add a temporary marker
-        let tempMarkerColor = MAIN_COLOR_TEMP_MARKER;
-        if (stopData.stop_type === 'matched') {
-            tempMarkerColor = (popupViewType === 'atlas') ? MAIN_COLOR_ATLAS_MATCHED : MAIN_COLOR_OSM_MATCHED;
-        } else if (stopData.stop_type === 'atlas_unmatched') {
-            tempMarkerColor = (popupViewType === 'atlas') ? MAIN_COLOR_ATLAS_UNMATCHED : MAIN_COLOR_OSM_UNMATCHED;
-        } else if (isStandaloneOsmStopType(stopData.stop_type)) {
-            tempMarkerColor = getStandaloneOsmMarkerColor(stopData);
-        }
-
-
-        // Create temporary marker with cluster handling
-        const tempMarkerData = [{
-            lat: centerLat,
-            lon: centerLon,
-            type: popupViewType,
-            color: tempMarkerColor,
-            hasAtlasDuplicate: popupViewType === 'atlas' ? stopData.has_atlas_duplicate : false,
-            osmNodeType: popupViewType === 'osm' ? stopData.osm_node_type : null,
-            popup: popup,
-            originalLat: centerLat,
-            originalLon: centerLon,
-            stopData: stopData
-        }];
+        const entity = window.MapEntityAdapters.stopEntity(popupViewType, stopData, {
+            position: [centerLat, centerLon], emphasis: 'focused'
+        });
 
         // Clear previous temporary markers if any (optional, depends on desired behavior)
         // For now, let's assume new interaction clears old temporary focus
@@ -1118,7 +768,8 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
 
         // Create a temporary layer for this marker
         const tempLayer = L.layerGroup().addTo(map);
-        const createdMarkers = window.MapRenderer.createMarkersWithOverlapHandling(tempMarkerData, tempLayer, {
+        const createdMarkers = window.MapRenderer.renderEntities(entity ? [entity] : [], tempLayer, {
+            bindPopup: marker => marker.bindPopup(popup),
             map: map,
             zoom: map.getZoom()
         });
@@ -1170,7 +821,7 @@ function fetchAndCenterSpecificStop(identifier, identifierType) {
         let typeName = '';
         if (identifierType === 'atlas') {
             backendIdentifierType = 'sloid';
-            typeName = 'ATLAS SLOID';
+            typeName = SharedUtils.sourceLabel() + ' ' + SharedUtils.sourceIdLabel();
         } else if (identifierType === 'osm') {
             backendIdentifierType = 'osm_node_id';
             typeName = 'OSM node';
@@ -1439,7 +1090,7 @@ function updateHeaderSummary() {
             summaryHtml += `<div class="header-summary__stat"><img class="header-summary__stat-icon" src="/static/osm.svg" alt="OSM icon">${totalOSM} OSM stops, <span style="color: ${MAIN_COLOR_OSM_MATCHED}; font-weight: bold;">${osmPercentage}% matched</span></div>`;
         }
         if (totalATLAS > 0) {
-            summaryHtml += `<div class="header-summary__stat"><img class="header-summary__stat-icon" src="/static/atlas.svg" alt="ATLAS icon">${totalATLAS} ATLAS stops, <span style="color: ${MAIN_COLOR_ATLAS_MATCHED}; font-weight: bold;">${atlasPercentage}% matched</span></div>`;
+            summaryHtml += `<div class="header-summary__stat">${totalATLAS} ${SharedUtils.sourceLabelHtml()} stops, <span style="color: ${MAIN_COLOR_ATLAS_MATCHED}; font-weight: bold;">${atlasPercentage}% matched</span></div>`;
         }
 
         if (!summaryHtml) { // Fallback if both counts are zero for some reason based on filters
@@ -1470,8 +1121,6 @@ window.IndexMapPage = Object.freeze({
     getViewportPolicy: getViewportPolicy,
     normalizeViewportPayload: normalizeViewportPayload,
     isViewportPayloadCapped: isViewportPayloadCapped,
-    buildIndexMarkerData: buildIndexMarkerData,
-    buildMarkerDescriptors: buildMarkerDescriptors,
     renderIndexViewport: renderIndexViewport,
     destroy: destroyIndexPage
 });

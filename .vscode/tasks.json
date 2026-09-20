@@ -4,7 +4,7 @@
 		{
 			"label": "Docker: Run All Tests",
 			"type": "shell",
-			"command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// test python -m pytest tests/",
+			"command": "docker compose build test && docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// test python -m pytest tests/",
 			"problemMatcher": [],
 			"group": {
 				"kind": "test",
@@ -12,7 +12,6 @@
 			},
 			"presentation": {
 				"echo": true,
-				"command": "docker exec stop_sync_osm_atlas_app python -m matching_and_import_db.database.importer",
 				"focus": true,
 				"panel": "shared",
 				"showReuseMessage": true,
@@ -20,8 +19,8 @@
 			}
 		},
 		{
-			"label": "Docker: Run Small Pipeline Test",
-			"command": "docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// test python -m pytest tests/matching_pipeline/test_small_pipeline.py -v",
+			"label": "Docker: Validate Result Contract",
+			"command": "docker compose build test && docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// test python -m pytest tests/test_result_bundle.py -v",
 			"problemMatcher": [],
 			"group": "test",
 			"presentation": {
@@ -36,7 +35,7 @@
 		{
 			"label": "Docker: Run Matching & Import (Existing Data)",
 			"type": "shell",
-			"command": "docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode match-import --trigger manual",
+			"command": "docker compose build migrator app scheduler && docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode match-import --trigger manual",
 			"problemMatcher": [],
 			"group": "build",
 			"presentation": {
@@ -51,7 +50,7 @@
 		{
 			"label": "Docker: Run Full Data Pipeline (Download & Match & Import)",
 			"type": "shell",
-			"command": "docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual",
+			"command": "docker compose build migrator app scheduler && docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode full --trigger manual",
 			"problemMatcher": [],
 			"group": "build",
 			"presentation": {
@@ -66,7 +65,7 @@
 		{
 			"label": "Docker: Run Full Data Pipeline (Force Full Refresh)",
 			"type": "shell",
-			"command": "docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec -e PIPELINE_FORCE_FULL_REFRESH=true stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual",
+			"command": "docker compose build migrator app scheduler && docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec -e PIPELINE_FORCE_FULL_REFRESH=true stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode full --trigger manual",
 			"problemMatcher": [],
 			"group": "build",
 			"presentation": {
@@ -81,7 +80,7 @@
 		{
 			"label": "Docker: Run Flask DB Upgrade",
 			"type": "shell",
-			"command": "docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app",
+			"command": "docker compose build migrator app && docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app",
 			"problemMatcher": [],
 			"presentation": {
 				"echo": true,
@@ -95,7 +94,7 @@
 		{
 			"label": "Docker: Start App Only (No Import)",
 			"type": "shell",
-			"command": "FLASK_DEBUG=1 docker compose up",
+			"command": "FLASK_DEBUG=1 docker compose up --build app",
 			"problemMatcher": [],
 			"group": "build",
 			"presentation": {
@@ -111,7 +110,7 @@
 		{
 			"label": "Docker: Start App Only (No Import, Debug=False, Gunicorn)",
 			"type": "shell",
-			"command": "FLASK_DEBUG=0 docker compose up",
+			"command": "FLASK_DEBUG=0 docker compose up --build app",
 			"problemMatcher": [],
 			"group": "build",
 			"presentation": {
@@ -127,7 +126,7 @@
 		{
 			"label": "Docker: Trigger Scheduled Pipeline Now",
 			"type": "shell",
-			"command": "docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d scheduler && docker exec stop_sync_osm_atlas_scheduler python -m matching_and_import_db.scheduler.job_runner --mode full --trigger manual",
+			"command": "docker compose build migrator scheduler && docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d scheduler && docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode full --trigger manual",
 			"problemMatcher": [],
 			"group": "build",
 			"presentation": {

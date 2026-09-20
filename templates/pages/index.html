@@ -1,8 +1,8 @@
 {% extends "layouts/base.html" %}
 
 {% from "components/_components.html" import stats_overlay, top_filters_overlay with context %}
-{% block title %}Swiss Public Transport Stop Map | OSM &amp; ATLAS{% endblock %}
-{% block meta_description %}Compare Swiss public transport stops from OpenStreetMap with the federal ATLAS dataset, inspect matches, and find synchronization gaps.{% endblock %}
+{% block title %}Public Transport Stop Map | {{ review_config.title }}{% endblock %}
+{% block meta_description %}Compare public transport stops from OpenStreetMap with {{ review_config.source_label }}, inspect matches, and find synchronization gaps.{% endblock %}
 
 {% block head_css %}
 <!-- Leaflet CSS -->
@@ -16,7 +16,7 @@
 {% endblock %}
 
 {% block content %}
-<h1 class="visually-hidden">Swiss OpenStreetMap and ATLAS public transport stop synchronization map</h1>
+<h1 class="visually-hidden">OpenStreetMap and {{ review_config.source_label }} public transport stop synchronization map</h1>
 <div class="container-fluid d-flex flex-column flex-grow-1 index-root">
 
   <div class="d-flex flex-row flex-grow-1" style="overflow: hidden;">
@@ -34,14 +34,18 @@
             </div>
             <div id="smartSearchHint" class="smart-search-hint d-none">
               <div class="smart-search-hint__title">Accepted formats
-                <a href="/docs/5.3 Filters and Search logic" class="smart-search-doc-link"
+                <a href="/docs/filters_and_search_logic" class="smart-search-doc-link"
                   target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>
               </div>
+              <div class="smart-search-hint__item"><kbd>source:…</kbd> {{ review_config.source_label }} {{ review_config.source_id_label }}</div>
+              {% if review_config.capabilities.gtfs_identity %}
               <div class="smart-search-hint__item"><kbd>8503000</kbd> UIC station (starts with 85)</div>
-              <div class="smart-search-hint__item"><kbd>ch:1:sloid:...</kbd> ATLAS SLOID</div>
-              <div class="smart-search-hint__item"><kbd>123456789</kbd> OSM node ID</div>
-              <div class="smart-search-hint__item"><kbd>11-T-j25-1</kbd> Route ID</div>
-              <div class="smart-search-hint__item"><kbd>11-T-j25-1 dir:0</kbd> Route + direction</div>
+              <div class="smart-search-hint__item"><kbd>ch:1:sloid:…</kbd> {{ review_config.source_id_label }}</div>
+              {% endif %}
+              <div class="smart-search-hint__item"><kbd>node/123456789</kbd> OSM node ID</div>
+              {% if review_config.capabilities.routes %}
+              <div class="smart-search-hint__item"><kbd>route:…</kbd> Route ID (optional <kbd>dir:0</kbd> or <kbd>dir:1</kbd>)</div>
+              {% endif %}
             </div>
             <div id="smartSearchError" class="smart-search-feedback d-none"></div>
           </div>
@@ -50,20 +54,20 @@
           <div class="dropdown filter-item mx-1">
             <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
               type="button" id="atlasDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
-              ATLAS
+              {{ review_config.source_label }}
             </button>
             <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="atlasDropdown"
               style="width: 280px; max-height: 60vh; overflow-y: auto;">
               <div class="form-group">
-                <label for="atlasOperatorFilter" class="fw-bold small text-uppercase text-muted">ATLAS
+                <label for="atlasOperatorFilter" class="fw-bold small text-uppercase text-muted">{{ review_config.source_label }}
                   Operator</label>
                 <div id="atlasOperatorFilter"></div>
               </div>
               <div class="form-group mb-0" id="operatorMismatchContainer">
-                <label class="fw-bold small text-uppercase text-muted">ATLAS Flags</label>
+                <label class="fw-bold small text-uppercase text-muted">{{ review_config.source_label }} Flags</label>
                 <div class="form-check">
                   <input type="checkbox" class="filter-duplicates-only form-check-input" id="filterDuplicatesOnly">
-                  <label class="form-check-label" for="filterDuplicatesOnly">Duplicate ATLAS</label>
+                  <label class="form-check-label" for="filterDuplicatesOnly">Duplicate {{ review_config.source_label }}</label>
                 </div>
               </div>
             </div>
@@ -304,7 +308,7 @@
             <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="unmatchedDropdown" style="width: 250px;">
               <div class="form-check mb-2">
                 <input type="checkbox" class="form-check-input" id="masterUnmatchedAtlasCheckbox">
-                <label class="form-check-label fw-bold" for="masterUnmatchedAtlasCheckbox">ATLAS
+                <label class="form-check-label fw-bold" for="masterUnmatchedAtlasCheckbox">{{ review_config.source_label }}
                   unmatched</label>
               </div>
               <div class="ps-3 border-start mb-3">

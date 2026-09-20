@@ -47,7 +47,7 @@ window.ProblemsUI = (function () {
     function getMemberDisplayInfo(member, groupType) {
         const isOsm = groupType === 'osm' ? true : (groupType === 'atlas' ? false : !!member.osm_node_id);
         return {
-            badge: `<span class="badge-pill-outline ${isOsm ? 'badge-pill-outline--osm' : 'badge-pill-outline--atlas'}">${isOsm ? 'OSM' : 'ATLAS'}</span>`,
+            badge: `<span class="badge-pill-outline ${isOsm ? 'badge-pill-outline--osm' : 'badge-pill-outline--atlas'}">${isOsm ? 'OSM' : SharedUtils.sourceLabelHtml()}</span>`,
             ident: isOsm ? (member.osm_node_id || '-') : (member.sloid || '-'),
             name: isOsm ? (member.osm_name || member.osm_uic_name || '-')
                 : (member.atlas_designation_official || member.atlas_designation || '-'),
@@ -119,7 +119,7 @@ window.ProblemsUI = (function () {
                  </div>`;
 
         const atlasRows = [
-            ['Sloid', problem.sloid || '-']
+            [SharedUtils.sourceIdLabelHtml(), problem.sloid || '-']
         ];
         const osmRows = [
             ['Node ID', problem.osm_node_id || '-']
@@ -140,7 +140,7 @@ window.ProblemsUI = (function () {
 
         html += '<div class="attribute-mini-popups">';
         html += `<div class="atlas-match attribute-mini-popup">
-                    <h5>ATLAS</h5>
+                    <h5>${SharedUtils.sourceLabelHtml()}</h5>
                     <table class="popup-table mb-0">${atlasRowsHtml}</table>
                  </div>`;
         html += `<div class="osm-match attribute-mini-popup">
@@ -186,8 +186,6 @@ window.ProblemsUI = (function () {
         let icon = 'info-circle';
         let alertClass = 'alert-info';
 
-        const atlasOp = (problem.atlas_business_org_abbr || problem.atlas_operator || '').toString().trim().toUpperCase();
-        const isSbb = atlasOp === 'SBB';
         const distanceText = problem.distance_m ? `${Math.round(problem.distance_m)} m` : null;
 
         if (pr === 1) { alertClass = 'alert-danger'; icon = 'exclamation-circle'; }
@@ -196,9 +194,9 @@ window.ProblemsUI = (function () {
         switch (problemType) {
             case 'distance': {
                 // Map priority to short rationale (do not repeat priority or distance)
-                if (pr === 1) intent = `Very large distance${isSbb ? '' : ' and non‑SBB operator'}`;
-                else if (pr === 2) intent = `Large distance${isSbb ? '' : ' and non‑SBB operator'}`;
-                else intent = isSbb ? 'Distance above 25 m for SBB' : 'Distance above tolerance';
+                if (pr === 1) intent = 'Very large distance';
+                else if (pr === 2) intent = 'Large distance';
+                else intent = 'Distance above configured tolerance';
                 return `
                     <div class="problem-section-item">
                         <div class="alert ${alertClass} problem-info-banner mb-0">
@@ -208,8 +206,9 @@ window.ProblemsUI = (function () {
             }
             case 'unmatched': {
                 const isAtlas = problem.stop_type === 'atlas_unmatched';
-                const subject = isAtlas ? 'ATLAS entry' : 'OSM entry';
-                if (pr === 1) intent = 'No counterpart exists for this UIC or none within 80 m';
+                const subject = isAtlas ? SharedUtils.sourceLabelHtml() + ' entry' : 'OSM entry';
+                if (!SharedUtils.hasCapability('gtfs_identity')) intent = 'No counterpart under the configured matching rules';
+                else if (pr === 1) intent = 'No counterpart exists for this UIC or none within 80 m';
                 else if (pr === 2) intent = 'No counterpart within 50 m or platform count mismatch for this UIC';
                 else intent = 'Unmatched entry requiring review';
                 return `
@@ -244,12 +243,12 @@ window.ProblemsUI = (function () {
     function generateDistanceDetailsHtml(problem) {
         const distance = problem.distance_m ? Math.round(problem.distance_m) : null;
         const distanceText = distance != null ? `${distance}` : 'unknown';
-        return `<div class="problem-section-item"><div class="alert alert-info mb-0"><small><i class="fas fa-info-circle"></i> The matched ATLAS and OSM points are ${distanceText} m apart.</small></div></div>`;
+        return `<div class="problem-section-item"><div class="alert alert-info mb-0"><small><i class="fas fa-info-circle"></i> The matched ${SharedUtils.sourceLabelHtml()} and OSM points are ${distanceText} m apart.</small></div></div>`;
     }
 
     function generateUnmatchedDetailsHtml(problem) {
         const isAtlas = problem.stop_type === 'atlas_unmatched' || (!!problem.sloid && !problem.osm_node_id);
-        return `<div class="problem-section-item"><div class="alert alert-info mb-0"><small><i class="fas fa-info-circle"></i> This ${isAtlas ? 'ATLAS' : 'OSM'} entry has no counterpart under current matching rules.</small></div></div>`;
+        return `<div class="problem-section-item"><div class="alert alert-info mb-0"><small><i class="fas fa-info-circle"></i> This ${isAtlas ? SharedUtils.sourceLabelHtml() : 'OSM'} entry has no counterpart under current matching rules.</small></div></div>`;
     }
 
     function formatRouteEvidenceItems(routes, sourceType) {
@@ -309,7 +308,7 @@ window.ProblemsUI = (function () {
             return rows.map(([key, value]) => `<tr><td>${key}:</td><td>${value}</td></tr>`).join('');
         }
 
-        const atlasRowsHtml = buildRouteRows('Sloid', problem.sloid, atlasRoutes);
+        const atlasRowsHtml = buildRouteRows(SharedUtils.sourceIdLabelHtml(), problem.sloid, atlasRoutes);
         const osmRowsHtml = buildRouteRows('Node ID', problem.osm_node_id, osmRoutes);
 
         return `
@@ -319,7 +318,7 @@ window.ProblemsUI = (function () {
                 </div>
                 <div class="attribute-mini-popups">
                     <div class="atlas-match attribute-mini-popup">
-                        <h5>ATLAS Routes</h5>
+                        <h5>${SharedUtils.sourceLabelHtml()} Routes</h5>
                         <table class="popup-table mb-0">${atlasRowsHtml}</table>
                     </div>
                     <div class="osm-match attribute-mini-popup">
@@ -361,7 +360,7 @@ window.ProblemsUI = (function () {
             if (!Array.isArray(problem.members) || problem.members.length === 0) {
                 // Individual duplicate entry (shown in "All Problems" view)
                 const isOsm = !!problem.has_osm_duplicate;
-                const badge = `<span class="badge-pill-outline ${isOsm ? 'badge-pill-outline--osm' : 'badge-pill-outline--atlas'}">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
+                const badge = `<span class="badge-pill-outline ${isOsm ? 'badge-pill-outline--osm' : 'badge-pill-outline--atlas'}">${isOsm ? 'OSM' : SharedUtils.sourceLabelHtml()}</span>`;
                 const ident = isOsm ? (problem.osm_node_id || '-') : (problem.sloid || '-');
                 const name = isOsm ? (problem.osm_name || problem.osm_uic_name || '-')
                     : (problem.atlas_designation_official || problem.atlas_designation || '-');
@@ -391,7 +390,7 @@ window.ProblemsUI = (function () {
                 (problem.members || []).forEach(member => {
                     const isOsmGroup = problem.group_type === 'osm';
                     const isOsm = isOsmGroup ? true : (problem.group_type === 'atlas' ? false : !!member.osm_node_id);
-                    const badge = `<span class="badge-pill-outline ${isOsm ? 'badge-pill-outline--osm' : 'badge-pill-outline--atlas'}">${isOsm ? 'OSM' : 'ATLAS'}</span>`;
+                    const badge = `<span class="badge-pill-outline ${isOsm ? 'badge-pill-outline--osm' : 'badge-pill-outline--atlas'}">${isOsm ? 'OSM' : SharedUtils.sourceLabelHtml()}</span>`;
                     const ident = isOsm ? (member.osm_node_id || '-') : (member.sloid || '-');
                     const name = isOsm ? (member.osm_name || member.osm_uic_name || '-')
                         : (member.atlas_designation_official || member.atlas_designation || '-');

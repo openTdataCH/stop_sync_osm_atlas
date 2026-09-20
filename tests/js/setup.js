@@ -5,6 +5,9 @@
  * to simulate the browser environment with Leaflet.js and app-level globals.
  */
 
+// The shared presentation helpers are dependencies of every map surface.
+window.eval(require('fs').readFileSync(require('path').join(__dirname, '../../static/js/shared/utils.js'), 'utf8'));
+
 // Mock Leaflet.js
 global.L = {
     polyline: jest.fn(() => ({
@@ -68,4 +71,5 @@ global.AppConstants = {
 // Reset mocks before each test
 beforeEach(() => {
     jest.clearAllMocks();
+    delete window.ReviewConfig;
 });

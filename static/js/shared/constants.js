@@ -8,6 +8,7 @@
     'use strict';
 
     const AppConstants = {};
+    const review = global.ReviewConfig || {};
 
     // ==========================================
     // MAP CONFIGURATION
@@ -17,9 +18,7 @@
      * Map zoom level thresholds for rendering optimization
      */
     AppConstants.MAP = {
-        // Prevent zooming out to a world/continent view (app is Switzerland-focused)
-        // Leaflet zoom: ~2-3 is world/continent, ~5 is Europe, ~6-7 is central Europe.
-        MIN_ZOOM: 8,
+        MIN_ZOOM: review.map_min_zoom ?? 2,
 
         // Below this zoom level, viewport maps use their lighter overview policy
         ZOOM_MARKER_THRESHOLD: 13,
@@ -36,11 +35,11 @@
         // Number of additional zoom levels to keep the "zoom in" banner visible
         ADDITIONAL_BANNER_ZOOM_LEVELS: 2,
         
-        // Default map center (Switzerland coordinates: Zurich)
-        DEFAULT_CENTER: [47.3769, 8.5417],
+        // The review dataset config owns the initial view.
+        DEFAULT_CENTER: review.map_center || [0, 0],
         
         // Default zoom level when map first loads
-        DEFAULT_ZOOM: 14,
+        DEFAULT_ZOOM: review.map_zoom ?? 2,
         
         // Maximum zoom level (allows upscaling tiles for better precision)
         MAX_ZOOM: 20,
@@ -48,9 +47,8 @@
         // Maximum zoom level where tiles are actually available
         MAX_NATIVE_ZOOM: 19,
 
-        // Keep panning constrained to a Switzerland-centric "half of Europe" envelope.
-        // Format: [[southWestLat, southWestLon], [northEastLat, northEastLon]]
-        MAX_BOUNDS: [[45.5, 5.5], [48.0, 11.0]],
+        // Optional dataset envelope: [[southWestLat, southWestLon], [northEastLat, northEastLon]].
+        MAX_BOUNDS: review.map_bounds || null,
 
         // How strongly Leaflet resists panning outside MAX_BOUNDS (1.0 = hard stop)
         MAX_BOUNDS_VISCOSITY: 1.0

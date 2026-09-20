@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import pytest
 from flask import render_template
 
 from backend.blueprints import routes as routes_module
@@ -69,7 +70,12 @@ def test_build_direction_group_keeps_variant_sloids_and_osm_relation_id():
     assert direction_group['atlas_uic_groups'][0]['members'][0]['stop_ids'] == ['ch:1:sloid:A', 'ch:1:sloid:C']
 
 
-def test_routes_template_uses_route_master_link_and_itinerary_relation(app):
+@pytest.mark.parametrize("source_label,source_id_label", [("ATLAS", "SLOID"), ("City GTFS", "Stop ID")])
+def test_routes_template_uses_route_master_link_and_itinerary_relation(app, source_label, source_id_label):
+    app.config["REVIEW_CONFIG"].update({
+        "source_label": source_label, "source_id_label": source_id_label,
+        "capabilities": {"routes": True, "gtfs_identity": source_label == "ATLAS"},
+    })
     route_rows = [
         {
             'display_mode': 'matched',
@@ -170,8 +176,12 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app):
     assert 'GTFS ID: 91-1-A-j26-1' in rendered
     assert 'Route master ID' in rendered
     assert 'Operator Wikidata' in rendered
-    assert 'SLOIDs: ch:1:sloid:A, ch:1:sloid:C' in rendered
-    assert 'ATLAS variants: 1 | OSM variants: 1 | Matched: 1' in rendered
+    assert f'{source_id_label}s: ch:1:sloid:A, ch:1:sloid:C' in rendered
+    assert f'{source_label} variants: 1 | OSM variants: 1 | Matched: 1' in rendered
+    assert f'{source_label} Operator' in rendered
+    if source_label != "ATLAS":
+        assert '>ATLAS Stops<' not in rendered
+        assert 'href="/routes/gtfs-stop-id-sloid"' not in rendered
     assert 'Subroutes and itineraries are experimental.' in rendered
     assert 'should not yet be treated as a canonical OSM mapping target.' in rendered
     assert 'OSM to_name:' in rendered
@@ -512,3 +522,23 @@ def test_non_gtfs_routes_template_uses_route_ref_label_and_notice(app):
     assert 'GTFS ID: 006' not in rendered
     assert 'Excluded from route matching.' in rendered
     assert 'Subroutes and itineraries are experimental.' not in rendered
+
+
+def test_uic_grouping_preserves_all_marker_metadata_and_route_order():
+    """Route previews receive the metadata already emitted by stop-call serialization."""
+    stops = [
+        {'stop_id': 'a', 'uic_ref': 'second', 'stop_sequence': 1, 'lat': 47, 'lon': 8,
+         'stop_type': 'matched', 'has_atlas_duplicate': True, 'osm_node_type': 'platform',
+         'osm_lat': 47.01, 'osm_lon': 8.01, 'atlas_lat': None, 'atlas_lon': None},
+        {'stop_id': 'b', 'uic_ref': 'first', 'stop_sequence': 2, 'lat': 48, 'lon': 9,
+         'stop_type': 'osm_unmatched', 'has_atlas_duplicate': False, 'osm_node_type': 'railway_station'},
+        {'stop_id': 'c', 'uic_ref': 'second', 'stop_sequence': 3, 'lat': 47.1, 'lon': 8.1,
+         'stop_type': 'effectively_matched', 'stop_ids': ['c', 'd'], 'atlas_lat': 47.2, 'atlas_lon': 8.2},
+    ]
+    groups = routes_module._group_stops_by_uic(stops)
+    assert [group['uic_ref'] for group in groups] == ['second', 'first']
+    assert [member['stop_id'] for member in groups[0]['members']] == ['a', 'c']
+    assert groups[0]['member_count'] == 3
+    members = {member['stop_id']: member for group in groups for member in group['members']}
+    for stop in stops:
+        assert {key: members[stop['stop_id']][key] for key in stop} == stop

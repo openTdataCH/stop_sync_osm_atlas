@@ -5,11 +5,6 @@ const DivIconCache = new Map();
 const MAP_RENDERER_LABEL_ICON_MIN_ZOOM = (typeof AppConstants !== 'undefined' && AppConstants.MAP && AppConstants.MAP.LABEL_ICON_MIN_ZOOM) || 18;
 const MARKER_OVERLAP_POINT_EPSILON_PX = 0.00001;
 const MIN_VISIBLE_OVERLAP_OFFSET_PX = 0.5;
-const OSM_LABEL_BY_NODE_TYPE = Object.freeze({
-    platform: 'P',
-    railway_station: 'S'
-});
-
 function getCachedDivIcon(key, html, className, size, anchor) {
     if (DivIconCache.has(key)) {
         return DivIconCache.get(key);
@@ -24,39 +19,9 @@ function getCachedDivIcon(key, html, className, size, anchor) {
     return icon;
 }
 
-// Robust truthiness helper for duplicate flags coming from mixed backends
-// Treats null/undefined/empty/"false"/"0"/"none"/"null" as false; anything else as true
-function isDuplicateFlagSet(value) {
-    if (value === true) return true;
-    if (value === false || value == null) return false;
-    if (typeof value === 'number') return value !== 0 && !Number.isNaN(value);
-    if (typeof value === 'string') {
-        const normalized = value.trim().toLowerCase();
-        return !(normalized === '' || normalized === 'false' || normalized === '0' || normalized === 'none' || normalized === 'null' || normalized === 'undefined');
-    }
-    return !!value;
-}
-
-function resolveMarkerZoom(zoomOverride) {
-    if (typeof zoomOverride === 'number' && !Number.isNaN(zoomOverride)) {
-        return zoomOverride;
-    }
-    // Callers that care about the circle/icon threshold must pass zoom explicitly.
-    // The high-zoom representation is the deterministic compatibility default.
-    return MAP_RENDERER_LABEL_ICON_MIN_ZOOM;
-}
-
-function shouldUseCanvasMarker(zoomOverride) {
-    return resolveMarkerZoom(zoomOverride) < MAP_RENDERER_LABEL_ICON_MIN_ZOOM;
-}
-
-function resolveOsmLabel(osmNodeType) {
-    return OSM_LABEL_BY_NODE_TYPE[osmNodeType] || null;
-}
-
 // Helper to build and cache a labeled circle SVG icon
 function getCachedLabeledCircleIcon(keyPrefix, color, letter, size, radius, weight, fillOpacity) {
-    const key = `${keyPrefix}|${color}|${letter}|${size}`;
+    const key = `${keyPrefix}|${color}|${letter}|${size}|${weight}|${fillOpacity}`;
     const html = `\n            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">\n                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>\n                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">${letter}</text>\n            </svg>`;
     return getCachedDivIcon(key, html, 'custom-div-icon', [size, size], [radius, radius]);
 }
@@ -70,7 +35,6 @@ class MarkerClusterManager {
     constructor(options = {}) {
         this.map = options.map || null;
         this.zoom = typeof options.zoom === 'number' ? options.zoom : null;
-        this.bindPopup = typeof options.bindPopup === 'function' ? options.bindPopup : null;
         this.entries = [];
         this.offsetRadius = AppConstants.MARKERS.CLUSTER_OFFSET_RADIUS;
         this.coordinateTolerance = AppConstants.MARKERS.COORDINATE_TOLERANCE;
@@ -109,12 +73,12 @@ class MarkerClusterManager {
     _sortEntries(entries) {
         return entries.sort((a, b) => {
             const rank = { atlas: 0, osm: 1, gtfs: 2 };
-            const aType = a.type || a.entityType || '';
-            const bType = b.type || b.entityType || '';
+            const aType = a.entityType || '';
+            const bType = b.entityType || '';
             const typeDifference = (rank[aType] ?? 9) - (rank[bType] ?? 9);
             if (typeDifference !== 0) return typeDifference;
-            const aKey = String(a.key || a.entityKey || '');
-            const bKey = String(b.key || b.entityKey || '');
+            const aKey = String(a.key || '');
+            const bKey = String(b.key || '');
             return aKey.localeCompare(bKey);
         });
     }
@@ -271,104 +235,63 @@ class MarkerClusterManager {
         return layout.groups.flatMap((group) => this._layoutGroup(group, layout.useProjection));
     }
 
-    /**
-     * Creates markers from the same display-coordinate data used by registry callers.
-     */
-    createMarkersWithOffsets(layer, options = {}) {
-        return this.getClusteredData().map(({ lat, lon, markerData }) => {
-            const marker = markerData.type === 'atlas'
-                ? createAtlasMarker(lat, lon, markerData.color, markerData.hasAtlasDuplicate, this.zoom)
-                : createOsmMarker(lat, lon, markerData.color, markerData.osmNodeType, this.zoom);
-
-            if (markerData.popup) {
-                marker.bindPopup(markerData.popup);
-            } else if (this.bindPopup) {
-                this.bindPopup(marker, markerData);
-            }
-            if (!options.deferAdd) layer.addLayer(marker);
-            return marker;
-        });
-    }
 }
 
-/**
- * Creates a marker for an ATLAS stop.
- * @param {number} lat - Latitude.
- * @param {number} lon - Longitude.
- * @param {string} color - Marker color.
- * @param {boolean} hasAtlasDuplicate - Whether this stop has an atlas duplicate.
- * @returns {L.Marker} A Leaflet marker.
- */
-function createAtlasMarker(lat, lon, color, hasAtlasDuplicate, zoomOverride) {
-    const radius = AppConstants.MARKERS.DEFAULT_RADIUS;
-    const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
-    const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
-    const size = radius * 2;
-    const useCanvasOnly = shouldUseCanvasMarker(zoomOverride);
-    if (useCanvasOnly) {
-        return L.circleMarker([lat, lon], {
-            color: color,
-            radius: radius,
-            fillOpacity: fillOpacity,
-            weight: weight
-        });
-    }
-    if (isDuplicateFlagSet(hasAtlasDuplicate)) { // Show labeled icon only when truly flagged
-        const icon = getCachedLabeledCircleIcon('atlas', color, 'D', size, radius, weight, fillOpacity);
-        return L.marker([lat, lon], { icon: icon });
-    } else {
-        return L.circleMarker([lat, lon], {
-            color: color,
-            radius: radius,
-            fillOpacity: fillOpacity,
-            weight: weight
-        });
-    }
+// These styles depend only on the canonical contract, never on backend payload fields.
+function getEntityStyle(entity) {
+    const colors = AppConstants.COLORS || {};
+    const palette = {
+        atlas: [colors.ATLAS_MATCHED || '#174092', colors.ATLAS_UNMATCHED || '#DC3545'],
+        osm: [colors.OSM_MATCHED || '#4CAF50', colors.OSM_UNMATCHED || '#6C757D'],
+        gtfs: [colors.GTFS_MATCHED || '#F0AD4E', colors.GTFS_UNMATCHED || '#6C757D']
+    };
+    const color = palette[entity.entityType][entity.status === 'unmatched' ? 1 : 0];
+    const isGtfs = entity.entityType === 'gtfs';
+    return {
+        color, fillColor: color,
+        radius: isGtfs ? 5 : AppConstants.MARKERS.DEFAULT_RADIUS,
+        weight: isGtfs ? 1.5 : AppConstants.MARKERS.DEFAULT_WEIGHT,
+        opacity: entity.emphasis === 'subdued' ? 0.4 : entity.emphasis === 'context' ? 0.6 : 1,
+        fillOpacity: entity.emphasis === 'subdued' ? 0.2 : entity.emphasis === 'context' ? 0.6 : (isGtfs ? 0.85 : AppConstants.MARKERS.DEFAULT_FILL_OPACITY)
+    };
 }
 
-/**
- * Creates a marker for an OSM stop.
- * @param {number} lat - Latitude.
- * @param {number} lon - Longitude.
- * @param {string} color - Marker color.
- * @param {string} osmNodeType - The OSM node type ('platform', 'railway_station', etc.).
- * @returns {L.Marker} A Leaflet marker.
- */
-function createOsmMarker(lat, lon, color, osmNodeType = null, zoomOverride) {
-    const radius = AppConstants.MARKERS.DEFAULT_RADIUS;
-    const weight = AppConstants.MARKERS.DEFAULT_WEIGHT;
-    const fillOpacity = AppConstants.MARKERS.DEFAULT_FILL_OPACITY;
-    const size = radius * 2;
-    const useCanvasOnly = shouldUseCanvasMarker(zoomOverride);
-    if (useCanvasOnly) {
-        return L.circleMarker([lat, lon], {
-            color: color,
-            radius: radius,
-            fillOpacity: fillOpacity,
-            weight: weight
-        });
-    }
-
-    const label = resolveOsmLabel(osmNodeType);
-    if (label) {
-        const icon = getCachedLabeledCircleIcon('osm', color, label, size, radius, weight, fillOpacity);
-        return L.marker([lat, lon], { icon: icon });
-    } else {
-        return L.circleMarker([lat, lon], {
-            color: color,
-            radius: radius,
-            fillOpacity: fillOpacity,
-            weight: weight
-        });
-    }
+function getEntityRenderSignature(entity, zoom) {
+    const style = getEntityStyle(entity);
+    const label = zoom >= MAP_RENDERER_LABEL_ICON_MIN_ZOOM ? entity.label : null;
+    return [entity.entityType, style.color, label || 'circle', entity.emphasis].join('|');
 }
 
-/**
- * Enhanced marker creation function that handles overlapping markers
- * @param {Array} markerDataArray - Array of marker data objects
- * @param {L.LayerGroup} layer - Leaflet layer group to add markers to
- * @returns {Array} Array of created markers
- */
+function layoutEntities(entities, options = {}) {
+    const zoom = options.zoom ?? (options.map && options.map.getZoom());
+    const manager = new MarkerClusterManager({ map: options.map, zoom });
+    entities.forEach(entity => manager.addMarker(...entity.sourcePosition, { key: entity.key, entityType: entity.entityType, entity }));
+    const entries = options.overlap === false
+        ? manager.entries.map(entry => ({ lat: entry.lat, lon: entry.lon, markerData: entry }))
+        : manager.getClusteredData();
+    const displayPositionsByKey = new Map(options.sourcePositionsByKey || []);
+    const descriptors = entries.map(entry => {
+        const entity = entry.markerData.entity;
+        const displayPosition = Object.freeze([entry.lat, entry.lon]);
+        displayPositionsByKey.set(entity.key, displayPosition);
+        // The registry uses position for validation and default marker updates.
+        return { key: entity.key, entity, position: displayPosition, displayPosition, zoom,
+            renderSignature: getEntityRenderSignature(entity, zoom) };
+    });
+    return { descriptors, displayPositionsByKey };
+}
+
+function createEntityMarker(descriptor) {
+    const { entity, displayPosition, zoom } = descriptor;
+    const style = getEntityStyle(entity);
+    if (entity.label && zoom >= MAP_RENDERER_LABEL_ICON_MIN_ZOOM) {
+        const icon = getCachedLabeledCircleIcon(entity.entityType, style.color, entity.label,
+            style.radius * 2, style.radius, style.weight, style.fillOpacity);
+        return L.marker(displayPosition, { icon, opacity: style.opacity });
+    }
+    return L.circleMarker(displayPosition, style);
+}
+
 function addLayersInChunks(layer, markers, batchSize = 200) {
     let currentIndex = 0;
     let timeoutId = null;
@@ -413,58 +336,22 @@ function addLayersInChunks(layer, markers, batchSize = 200) {
     };
 }
 
-function createMarkersWithOverlapHandling(markerDataArray, layer, options = {}) {
-    const clusterManager = new MarkerClusterManager({
-        map: options.map || null,
-        zoom: typeof options.zoom === 'number'
-            ? options.zoom
-            : (options.map && typeof options.map.getZoom === 'function' ? options.map.getZoom() : null),
-        bindPopup: options.bindPopup
+function renderEntities(entities, layer, options = {}) {
+    const layout = options.layout || layoutEntities(entities, options);
+    const markers = layout.descriptors.map(descriptor => {
+        const marker = createEntityMarker(descriptor);
+        if (options.bindPopup) options.bindPopup(marker, descriptor.entity);
+        if (!options.batchAdd) layer.addLayer(marker);
+        return marker;
     });
-
-    // Add all markers to the cluster manager
-    markerDataArray.forEach(markerData => {
-        clusterManager.addMarker(markerData.lat, markerData.lon, markerData);
-    });
-
-    // Create markers with offset handling, deferring actual add if batching
-    const markers = clusterManager.createMarkersWithOffsets(layer, { deferAdd: !!options.batchAdd });
     if (options.batchAdd) {
-        const batchSize = options.batchSize || 200;
-        const batch = addLayersInChunks(layer, markers, batchSize);
+        const batch = addLayersInChunks(layer, markers, options.batchSize || 200);
         Object.defineProperties(markers, {
-            batchComplete: { value: batch.complete },
-            cancelBatch: { value: batch.cancel }
+            batchComplete: { value: batch.complete }, cancelBatch: { value: batch.cancel }
         });
     }
     return markers;
 }
-
-/**
- * Apply opacity safely to either an L.Path marker or a DOM-icon L.Marker.
- */
-function setMarkerOpacity(marker, opacity, fillOpacity = opacity) {
-    if (!marker) return marker;
-    if (typeof marker.setStyle === 'function') {
-        marker.setStyle({ opacity: opacity, fillOpacity: fillOpacity });
-    } else if (typeof marker.setOpacity === 'function') {
-        marker.setOpacity(opacity);
-    }
-    return marker;
-}
-
-function getMarkerRenderSignature(type, color, markerData, zoomOverride) {
-    const zoom = resolveMarkerZoom(zoomOverride);
-    const atlasHasLabel = type === 'atlas' && isDuplicateFlagSet(markerData && markerData.hasAtlasDuplicate);
-    const osmLabel = type === 'osm' ? resolveOsmLabel(markerData && markerData.osmNodeType) : null;
-    const labelCapable = atlasHasLabel || !!osmLabel;
-    const representation = labelCapable && zoom >= MAP_RENDERER_LABEL_ICON_MIN_ZOOM ? 'label' : 'circle';
-    const detail = representation === 'label' ? (type === 'atlas' ? 'D' : osmLabel) : 'plain';
-    return [type, color, representation, detail].join('|');
-}
-
-// Popup-related functions have been moved to popup-renderer.js
-// Use PopupRenderer.* functions instead of global functions
 
 /**
  * A wrapper for L.popup to apply consistent options.
@@ -500,11 +387,11 @@ function createPopupWithOptions(content) {
 
 window.MapRenderer = Object.freeze({
     MarkerClusterManager: MarkerClusterManager,
-    createAtlasMarker: createAtlasMarker,
-    createOsmMarker: createOsmMarker,
-    createMarkersWithOverlapHandling: createMarkersWithOverlapHandling,
-    setMarkerOpacity: setMarkerOpacity,
-    getMarkerRenderSignature: getMarkerRenderSignature,
+    getEntityStyle: getEntityStyle,
+    layoutEntities: layoutEntities,
+    createEntityMarker: createEntityMarker,
+    renderEntities: renderEntities,
+    getEntityRenderSignature: getEntityRenderSignature,
     createPopupWithOptions: createPopupWithOptions
 });
 window.MapComponents = window.MapComponents || {};
