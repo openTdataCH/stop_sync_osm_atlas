@@ -62,7 +62,7 @@
           {% if collection.key != 'overview' %}
           <div class="docs-collection-heading">
             <span class="docs-collection-label">{{ collection.label }}</span>
-            <span class="docs-owner-badge docs-owner-badge--{{ collection.badge_key }}">{{ collection.badge_label }}</span>
+            <span class="docs-owner-badge docs-owner-badge--{{ collection.badge_key }}">{{ collection.badge_label }}{% if collection.version %} v{{ collection.version }}{% endif %}</span>
             <p>{{ collection.description }}</p>
           </div>
           {% endif %}

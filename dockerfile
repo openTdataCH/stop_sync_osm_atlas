@@ -8,7 +8,12 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY scripts/render_docs_mermaid.mjs ./scripts/render_docs_mermaid.mjs
 COPY documentation ./documentation
-COPY engine/documentation ./engine/documentation
+# ``engine`` is a named build context supplied by Compose (or with
+# ``docker build --build-context engine=...``). The review app never vendors
+# or imports the engine package, but publishes the docs from the same checkout
+# that is installed in the scheduler image.
+COPY --from=engine /documentation ./engine/documentation
+COPY --from=engine /pyproject.toml ./engine/pyproject.toml
 RUN npm run docs:render-mermaid
 
 FROM python:3.13-slim-bookworm AS base
@@ -35,7 +40,8 @@ COPY --chown=app:app static ./static
 COPY --chown=app:app migrations ./migrations
 COPY --chown=app:app config ./config
 COPY --chown=app:app documentation ./documentation
-COPY --chown=app:app engine/documentation ./engine/documentation
+COPY --from=engine --chown=app:app /documentation ./engine/documentation
+COPY --from=engine --chown=app:app /pyproject.toml ./engine/pyproject.toml
 COPY --from=docs-diagram-stage --chown=app:app /app/documentation/generated/diagrams ./documentation/generated/diagrams
 COPY --chown=app:app README.md LICENSE entrypoint.sh ./
 RUN mkdir -p data .cache && chown app:app data .cache && chmod +x entrypoint.sh
@@ -57,7 +63,7 @@ FROM app-stage AS scheduler-stage
 USER root
 COPY requirements-scheduler.txt ./
 RUN pip install --no-cache-dir -r requirements-scheduler.txt
-COPY engine /opt/transport-matcher
+COPY --from=engine / /opt/transport-matcher
 RUN pip install --no-cache-dir '/opt/transport-matcher[swiss,acquisition]' \
     && transport-matcher --help > /dev/null
 USER app

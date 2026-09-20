@@ -38,11 +38,14 @@ def _base_status() -> Dict[str, Any]:
         "run_id": None,
         "trigger": None,
         "started_at": None,
+        "phase_started_at": None,
+        "phase_history": [],
         "maintenance_started_at": None,
         "updated_at": _now_iso(),
         "finished_at": None,
         "last_success_at": None,
         "last_error": None,
+        "failed_phase": None,
         "last_pipeline_data_import_ended_at": None,
         "next_run_at": None,
         "run_type": None,
@@ -112,6 +115,7 @@ def set_status(**fields: Any) -> Dict[str, Any]:
 
 def start_run(trigger: str, run_id: Optional[str] = None) -> str:
     run_identifier = run_id or str(uuid.uuid4())
+    started_at = _now_iso()
     set_status(
         status="running",
         phase="initializing",
@@ -122,9 +126,12 @@ def start_run(trigger: str, run_id: Optional[str] = None) -> str:
         eta_seconds=None,
         run_id=run_identifier,
         trigger=trigger,
-        started_at=_now_iso(),
+        started_at=started_at,
+        phase_started_at=started_at,
+        phase_history=[],
         finished_at=None,
         last_error=None,
+        failed_phase=None,
     )
     return run_identifier
 
@@ -139,6 +146,22 @@ def set_phase(
     total: Optional[int] = None,
     eta_seconds: Optional[int] = None,
 ) -> Dict[str, Any]:
+    current = get_status()
+    now = _now_iso()
+    history = list(current.get("phase_history") or [])
+    previous_phase = current.get("phase")
+    previous_started_at = current.get("phase_started_at")
+    if previous_phase and previous_phase not in {"idle", "failed", phase} and previous_started_at:
+        started = _parse_iso_timestamp(previous_started_at)
+        ended = _parse_iso_timestamp(now)
+        duration = max(0.0, (ended - started).total_seconds()) if started and ended else None
+        history.append({
+            "phase": previous_phase,
+            "started_at": previous_started_at,
+            "finished_at": now,
+            "duration_seconds": round(duration, 3) if duration is not None else None,
+        })
+
     effective_blocking = maintenance if blocking_maintenance is None else blocking_maintenance
     return set_status(
         status="running",
@@ -148,11 +171,27 @@ def set_phase(
         processed=processed,
         total=total,
         eta_seconds=eta_seconds,
+        phase_started_at=now if previous_phase != phase else previous_started_at or now,
+        phase_history=history,
     )
 
 
 def finish_success(message: str = "Pipeline update completed") -> Dict[str, Any]:
     ts = _now_iso()
+    current = get_status()
+    history = list(current.get("phase_history") or [])
+    phase_started_at = current.get("phase_started_at")
+    active_phase = current.get("phase")
+    started = _parse_iso_timestamp(phase_started_at)
+    ended = _parse_iso_timestamp(ts)
+    if active_phase and active_phase not in {"idle", "failed"} and phase_started_at:
+        duration = max(0.0, (ended - started).total_seconds()) if started and ended else None
+        history.append({
+            "phase": active_phase,
+            "started_at": phase_started_at,
+            "finished_at": ts,
+            "duration_seconds": round(duration, 3) if duration is not None else None,
+        })
     return set_status(
         status="idle",
         phase="idle",
@@ -162,6 +201,8 @@ def finish_success(message: str = "Pipeline update completed") -> Dict[str, Any]
         total=None,
         eta_seconds=None,
         finished_at=ts,
+        phase_started_at=None,
+        phase_history=history,
         last_success_at=ts,
         last_error=None,
     )
@@ -169,12 +210,30 @@ def finish_success(message: str = "Pipeline update completed") -> Dict[str, Any]
 
 def finish_failure(error_message: str) -> Dict[str, Any]:
     ts = _now_iso()
+    current = get_status()
+    history = list(current.get("phase_history") or [])
+    phase_started_at = current.get("phase_started_at")
+    active_phase = current.get("phase")
+    started = _parse_iso_timestamp(phase_started_at)
+    ended = _parse_iso_timestamp(ts)
+    if active_phase and active_phase not in {"idle", "failed"} and phase_started_at:
+        duration = max(0.0, (ended - started).total_seconds()) if started and ended else None
+        history.append({
+            "phase": active_phase,
+            "started_at": phase_started_at,
+            "finished_at": ts,
+            "duration_seconds": round(duration, 3) if duration is not None else None,
+            "status": "failed",
+        })
     return set_status(
         status="failed",
         phase="failed",
         message="Pipeline update failed",
         blocking_maintenance=False,
         finished_at=ts,
+        phase_started_at=None,
+        phase_history=history,
+        failed_phase=active_phase,
         last_error=error_message,
     )
 

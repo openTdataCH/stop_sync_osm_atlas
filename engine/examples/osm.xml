@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<osm version="0.6">
-  <node id="101" lat="51.50001" lon="-0.1"><tag k="name" v="Market"/><tag k="public_transport" v="platform"/><tag k="local_ref" v="1"/></node>
-  <node id="102" lat="51.50101" lon="-0.101"><tag k="name" v="Library"/><tag k="public_transport" v="platform"/><tag k="local_ref" v="2"/></node>
-  <node id="103" lat="51.53" lon="-0.1"><tag k="name" v="Lake"/><tag k="public_transport" v="platform"/></node>
-  <relation id="201"><member type="node" ref="101" role="platform"/><member type="node" ref="102" role="platform"/><tag k="type" v="route"/><tag k="route" v="bus"/><tag k="ref" v="1"/><tag k="gtfs:route_id" v="r1"/><tag k="from" v="Market"/><tag k="to" v="Library"/></relation>
-</osm>

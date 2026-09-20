@@ -7,48 +7,82 @@
 {% set gtfs_download = source_downloads.gtfs|default({}, true) %}
 
 {# ══════════════════════════════════════════
-SECTION 0 — TIMESTAMPS
+SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
 ══════════════════════════════════════════ #}
-<div class="card mb-4 mt-3 bg-light border-0 shadow-sm">
-  <div class="card-body py-3">
-    <div class="row align-items-center">
-      <div class="col-md-3 col-sm-6 mb-2 mb-md-0">
-        <div class="text-muted small fw-bold text-uppercase mb-1">Last Pipeline Completed</div>
-        <div class="fw-medium text-dark d-flex align-items-center">
-          <img src="{{ static_prefix }}favicon.svg" style="height: 1.1rem; width: auto;" class="me-1" alt="Pipeline Status">
-          <span>{{ stats.last_pipeline_data_import_ended_at|format_zurich_display_timestamp(include_seconds=True) or 'Unknown' }}</span>
-        </div>
-      </div>
-      <div class="col-md-3 col-sm-6 mb-2 mb-md-0 border-start">
-        <div class="text-muted small fw-bold text-uppercase mb-1">Last ATLAS Downloaded</div>
-        <div class="fw-medium text-dark d-flex align-items-center">
-          <img src="{{ static_prefix }}atlas.svg" style="height: 1.1rem; width: auto;" class="me-1" alt="ATLAS">
-          <span>{{ (atlas_download.atlas_downloaded_at|default(atlas_download.downloaded_at, true))|format_zurich_display_timestamp(include_seconds=True) or 'Unknown' }}</span>
-        </div>
-      </div>
-      <div class="col-md-3 col-sm-6 mb-2 mb-md-0 border-start">
-        <div class="text-muted small fw-bold text-uppercase mb-1">Last GTFS Downloaded</div>
-        <div class="fw-medium text-dark d-flex align-items-center">
-          <img src="{{ static_prefix }}opentransportdata.svg" style="height: 1.1rem; width: auto;" class="me-1" alt="GTFS">
-          <span>{{ (gtfs_download.gtfs_downloaded_at|default(gtfs_download.downloaded_at, true))|format_zurich_display_timestamp(include_seconds=True) or 'Unknown' }}</span>
-        </div>
-      </div>
-      <div class="col-md-3 col-sm-6 border-start">
-        <div class="text-muted small fw-bold text-uppercase mb-1">Last Overpass Query</div>
-        <div class="fw-medium text-dark d-flex align-items-center">
-          <img src="{{ static_prefix }}osm.svg" style="height: 1.1rem; width: auto;" class="me-1" alt="OSM">
-          <span>{{ stats.last_overpass_query_at|format_zurich_display_timestamp(include_seconds=True) or 'Unknown' }}</span>
-        </div>
-      </div>
+{% if not is_pdf %}
+<nav class="stats-section-nav" aria-label="Analytics sections">
+  <a class="stats-section-nav__link is-active" href="#stops-matching">Matching</a>
+  <a class="stats-section-nav__link" href="#osm-stops">OSM stops</a>
+  <a class="stats-section-nav__link" href="#unmatched">Unmatched</a>
+  <a class="stats-section-nav__link" href="#atlas">ATLAS</a>
+  <a class="stats-section-nav__link" href="#problems">Problems</a>
+  <a class="stats-section-nav__link" href="#routes">Routes</a>
+</nav>
+
+<section class="pipeline-run-card" id="pipelineRunCard" aria-live="polite"
+  data-last-completed="{{ stats.last_pipeline_data_import_ended_at|default('', true) }}">
+  <div class="pipeline-run-card__header">
+    <div>
+      <div class="pipeline-run-card__eyebrow">Pipeline</div>
+      <h2 class="pipeline-run-card__title" id="analyticsPipelineTitle">Latest run complete</h2>
+      <p class="pipeline-run-card__message" id="analyticsPipelineMessage" hidden></p>
+    </div>
+    <div class="pipeline-run-card__meta">
+      <span class="pipeline-run-card__status" id="analyticsPipelineStatus"><span class="pipeline-run-card__dot"></span>Complete</span>
+      <span id="analyticsPipelineElapsed">Updated {{ stats.last_pipeline_data_import_ended_at|format_zurich_display_timestamp(include_seconds=True) or 'time unknown' }}</span>
     </div>
   </div>
-</div>
+  <div class="pipeline-timeline" id="analyticsPipelineTimeline" aria-label="Pipeline progress">
+    <div class="pipeline-timeline__stage" data-pipeline-stage="initializing" style="--stage-size: 9">
+      <div class="pipeline-timeline__label"><span>Initialize</span></div>
+      <div class="pipeline-timeline__track"><span class="pipeline-timeline__fill"></span><strong data-stage-duration>Complete</strong></div>
+      <div class="pipeline-timeline__time" data-stage-time>—</div>
+    </div>
+    <div class="pipeline-timeline__stage" data-pipeline-stage="matching" style="--stage-size: 66">
+      <div class="pipeline-timeline__label"><span>Match sources</span></div>
+      <div class="pipeline-timeline__track"><span class="pipeline-timeline__fill"></span><strong data-stage-duration>Complete</strong></div>
+      <div class="pipeline-timeline__time" data-stage-time>—</div>
+    </div>
+    <div class="pipeline-timeline__stage" data-pipeline-stage="import" style="--stage-size: 18">
+      <div class="pipeline-timeline__label"><span>Validate &amp; import</span></div>
+      <div class="pipeline-timeline__track"><span class="pipeline-timeline__fill"></span><strong data-stage-duration>Complete</strong></div>
+      <div class="pipeline-timeline__time" data-stage-time>—</div>
+    </div>
+    <div class="pipeline-timeline__stage" data-pipeline-stage="publish" style="--stage-size: 7">
+      <div class="pipeline-timeline__label"><span>Publish</span></div>
+      <div class="pipeline-timeline__track"><span class="pipeline-timeline__fill"></span><strong data-stage-duration>Complete</strong></div>
+      <div class="pipeline-timeline__time" data-stage-time>—</div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="source-freshness" aria-label="Source freshness">
+  <div class="source-freshness__grid">
+    <div class="source-freshness__item">
+      <img src="{{ static_prefix }}favicon.svg" alt="">
+      <div><span>Pipeline completed</span><strong>{{ stats.last_pipeline_data_import_ended_at|format_zurich_display_timestamp(include_seconds=True) or 'Unknown' }}</strong></div>
+    </div>
+    <div class="source-freshness__item">
+      <img src="{{ static_prefix }}atlas.svg" alt="">
+      <div><span>Last ATLAS Downloaded</span><strong>{{ (atlas_download.atlas_downloaded_at|default(atlas_download.downloaded_at, true))|format_zurich_display_timestamp(include_seconds=True) or 'Unknown' }}</strong></div>
+    </div>
+    <div class="source-freshness__item">
+      <img src="{{ static_prefix }}opentransportdata.svg" alt="">
+      <div><span>Last GTFS Downloaded</span><strong>{{ (gtfs_download.gtfs_downloaded_at|default(gtfs_download.downloaded_at, true))|format_zurich_display_timestamp(include_seconds=True) or 'Unknown' }}</strong></div>
+    </div>
+    <div class="source-freshness__item">
+      <img src="{{ static_prefix }}osm.svg" alt="">
+      <div><span>Overpass queried</span><strong>{{ stats.last_overpass_query_at|format_zurich_display_timestamp(include_seconds=True) or 'Unknown' }}</strong></div>
+    </div>
+  </div>
+</section>
 
 {# ══════════════════════════════════════════
 SECTION 1 — STOPS MATCHING
 ══════════════════════════════════════════ #}
 <div class="mb-3">
-  <h2 class="stats-section-title mb-0">Stops matching</h2>
+  <h2 class="stats-section-title mb-0" id="stops-matching">Stops matching</h2>
 </div>
 
 {# Summary Cards #}
@@ -477,26 +511,29 @@ SECTION 1 — STOPS MATCHING
     </p>
     {% endif %}
 
-    <div class="row mt-3">
-      <div class="col-md-6">
-        <h6 class="mb-2">Distribution: 1 ATLAS to N OSM stops</h6>
-        <p class="text-muted small mb-2">Ratio key: <strong>1A:2O</strong> = one ATLAS platform matched to two OSM
-          stops.</p>
+    <div class="comparison-grid mt-4">
+      <section class="comparison-panel" aria-labelledby="atlasToOsmTitle">
+        <div class="comparison-panel__header">
+          <div>
+            <span class="comparison-panel__eyebrow">One ATLAS → many OSM</span>
+            <h6 id="atlasToOsmTitle">{{ "{:,}".format(mto.atlas_to_multiple_osm.count) }} ATLAS platforms</h6>
+          </div>
+          <span class="comparison-panel__key">1A : nO</span>
+        </div>
+        <p class="comparison-panel__help"><strong>1A:2O</strong> means one ATLAS platform is linked to two OSM stops.</p>
         {% set d1 = mto.atlas_to_multiple_osm.distribution if mto.atlas_to_multiple_osm.distribution is defined
         else [] %}
         {% if d1 %}
         {% set max_d1 = (d1|max(attribute='count')).count %}
-        <div class="diagram-wrap">
-          <svg class="diagram-svg" viewBox="0 0 520 {{ (d1|length) * 34 + 18 }}" role="img"
-            aria-label="Distribution of one atlas to many osm">
-            {% for row in d1 %}
-            {% set y = loop.index0 * 34 + 4 %}
-            <text x="2" y="{{ y + 16 }}" class="diagram-text">{{ row.ratio }}</text>
-            <rect x="110" y="{{ y + 2 }}" width="{{ (row.count / max_d1 * 280)|round(0, 'floor')|int }}" height="18"
-              rx="4" fill="#174092"></rect>
-            <text x="405" y="{{ y + 16 }}" class="diagram-text">{{ "{:,}".format(row.count) }}</text>
-            {% endfor %}
-          </svg>
+        <div class="distribution-chart" role="img" aria-label="Distribution of one ATLAS platform to many OSM stops">
+          {% for row in d1 %}
+          <div class="distribution-chart__row">
+            <strong>{{ row.ratio }}</strong>
+            <div class="distribution-chart__track"><span style="width: {{ (row.count / max_d1 * 100)|round(1) }}%"></span></div>
+            <span>{{ "{:,}".format(row.count) }}</span>
+            <small>{{ "%.1f"|format(row.count / mto.atlas_to_multiple_osm.count * 100) }}%</small>
+          </div>
+          {% endfor %}
         </div>
         {% else %}
         {% if mto.atlas_to_multiple_osm.count > 0 %}
@@ -505,26 +542,29 @@ SECTION 1 — STOPS MATCHING
         <p class="text-muted mb-0">No ATLAS platform is matched to more than one OSM stop.</p>
         {% endif %}
         {% endif %}
-      </div>
-      <div class="col-md-6">
-        <h6 class="mb-2">Distribution: N ATLAS to 1 OSM stop</h6>
-        <p class="text-muted small mb-2">Ratio key: <strong>2A:1O</strong> = two ATLAS platforms matched to one OSM
-          stop.</p>
+      </section>
+      <section class="comparison-panel comparison-panel--green" aria-labelledby="osmToAtlasTitle">
+        <div class="comparison-panel__header">
+          <div>
+            <span class="comparison-panel__eyebrow">Many ATLAS → one OSM</span>
+            <h6 id="osmToAtlasTitle">{{ "{:,}".format(mto.osm_to_multiple_atlas.count) }} OSM stops</h6>
+          </div>
+          <span class="comparison-panel__key">nA : 1O</span>
+        </div>
+        <p class="comparison-panel__help"><strong>2A:1O</strong> means two ATLAS platforms are linked to one OSM stop.</p>
         {% set d2 = mto.osm_to_multiple_atlas.distribution if mto.osm_to_multiple_atlas.distribution is defined
         else [] %}
         {% if d2 %}
         {% set max_d2 = (d2|max(attribute='count')).count %}
-        <div class="diagram-wrap">
-          <svg class="diagram-svg" viewBox="0 0 520 {{ (d2|length) * 34 + 18 }}" role="img"
-            aria-label="Distribution of many atlas to one osm">
-            {% for row in d2 %}
-            {% set y = loop.index0 * 34 + 4 %}
-            <text x="2" y="{{ y + 16 }}" class="diagram-text">{{ row.ratio }}</text>
-            <rect x="110" y="{{ y + 2 }}" width="{{ (row.count / max_d2 * 280)|round(0, 'floor')|int }}" height="18"
-              rx="4" fill="#4CAF50"></rect>
-            <text x="405" y="{{ y + 16 }}" class="diagram-text">{{ "{:,}".format(row.count) }}</text>
-            {% endfor %}
-          </svg>
+        <div class="distribution-chart" role="img" aria-label="Distribution of many ATLAS platforms to one OSM stop">
+          {% for row in d2 %}
+          <div class="distribution-chart__row">
+            <strong>{{ row.ratio }}</strong>
+            <div class="distribution-chart__track"><span style="width: {{ (row.count / max_d2 * 100)|round(1) }}%"></span></div>
+            <span>{{ "{:,}".format(row.count) }}</span>
+            <small>{{ "%.1f"|format(row.count / mto.osm_to_multiple_atlas.count * 100) }}%</small>
+          </div>
+          {% endfor %}
         </div>
         {% else %}
         {% if mto.osm_to_multiple_atlas.count > 0 %}
@@ -533,7 +573,7 @@ SECTION 1 — STOPS MATCHING
         <p class="text-muted mb-0">No OSM stop is matched to more than one ATLAS platform.</p>
         {% endif %}
         {% endif %}
-      </div>
+      </section>
     </div>
   </div>
 </div>
@@ -543,142 +583,103 @@ SECTION 1 — STOPS MATCHING
 {# ══════════════════════════════════════════
 SECTION 2 — OSM STOPS
 ══════════════════════════════════════════ #}
-<h2 class="stats-section-title">OSM Stops</h2>
+<h2 class="stats-section-title" id="osm-stops">OSM Stops</h2>
 
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">OSM Stop Inventory</h5>
-  </div>
-  <div class="card-body">
-    <div class="row">
-      <div class="col-md-4 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(stats.summary.osm_nodes|default(0)) }}</div>
-          <div class="stat-card__label">OSM Nodes</div>
-        </div>
-      </div>
-      <div class="col-md-4 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(stats.summary.osm_stops|default(0)) }}</div>
-          <div class="stat-card__label">OSM Stops</div>
-        </div>
-      </div>
-      <div class="col-md-4 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm stat-card--primary">
-          <div class="stat-card__value">{{ "{:,}".format(stats.summary.osm_stations|default(0)) }}</div>
-          <div class="stat-card__label">OSM Stations</div>
-        </div>
-      </div>
+{% set osm_node_total = stats.summary.osm_nodes|default(0) %}
+{% set osm_node_denom = osm_node_total if osm_node_total > 0 else 1 %}
+{% set way_stats = stats.osm_way_stops if stats.osm_way_stops is defined and stats.osm_way_stops else {} %}
+{% set og = stats.quality_metrics.osm_groups if stats.quality_metrics is defined and stats.quality_metrics and stats.quality_metrics.osm_groups is defined else {} %}
+<section class="osm-overview-card" aria-labelledby="osmOverviewTitle">
+  <div class="osm-overview-card__header">
+    <div>
+      <h3 id="osmOverviewTitle">OSM dataset overview</h3>
+      <p>Inventory, metadata coverage, and grouped stop structures in one view.</p>
     </div>
+    <img src="{{ static_prefix }}osm.svg" alt="OpenStreetMap">
+  </div>
 
-    <div class="row">
-      <div class="col-md-6 mb-3">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(stats.summary.osm_operator_wikidata|default(0)) }}</div>
-          <div class="stat-card__label">Nodes with <code>operator:wikidata</code></div>
-        </div>
-      </div>
-      <div class="col-md-6 mb-3">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(stats.summary.osm_network_wikidata|default(0)) }}</div>
-          <div class="stat-card__label">Nodes with <code>network:wikidata</code></div>
-        </div>
-      </div>
-    </div>
+  <div class="osm-inventory-strip" aria-label="OSM inventory">
+    <div><span>Nodes</span><strong>{{ "{:,}".format(osm_node_total) }}</strong><small>Raw stop-related points</small></div>
+    <div><span>Stops</span><strong>{{ "{:,}".format(stats.summary.osm_stops|default(0)) }}</strong><small>Grouped matching entities</small></div>
+    <div><span>Stations</span><strong>{{ "{:,}".format(stats.summary.osm_stations|default(0)) }}</strong><small>Station-level entities</small></div>
   </div>
-</div>
 
-{% if stats.osm_way_stops is defined and stats.osm_way_stops %}
-{% set way_stats = stats.osm_way_stops %}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">Non-node OSM Stops (Ways)</h5>
-  </div>
-  <div class="card-body">
-    <div class="row">
-      <div class="col-md-3 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(way_stats.total) }}</div>
-          <div class="stat-card__label">Total Way Stops</div>
+  <div class="osm-insight-grid">
+    <section class="osm-insight-panel">
+      <div class="osm-insight-panel__heading">
+        <div><span>Metadata</span><h4>Wikidata coverage</h4></div>
+        <strong>{{ "%.1f"|format((stats.summary.osm_network_wikidata|default(0)) / osm_node_denom * 100) }}%</strong>
+      </div>
+      <div class="osm-coverage-list">
+        <div>
+          <div><code>operator:wikidata</code><span>{{ "{:,}".format(stats.summary.osm_operator_wikidata|default(0)) }}</span></div>
+          <div class="osm-meter"><span style="width: {{ (stats.summary.osm_operator_wikidata|default(0)) / osm_node_denom * 100 }}%"></span></div>
+          <small>{{ "%.1f"|format((stats.summary.osm_operator_wikidata|default(0)) / osm_node_denom * 100) }}% of nodes</small>
+        </div>
+        <div>
+          <div><code>network:wikidata</code><span>{{ "{:,}".format(stats.summary.osm_network_wikidata|default(0)) }}</span></div>
+          <div class="osm-meter"><span style="width: {{ (stats.summary.osm_network_wikidata|default(0)) / osm_node_denom * 100 }}%"></span></div>
+          <small>{{ "%.1f"|format((stats.summary.osm_network_wikidata|default(0)) / osm_node_denom * 100) }}% of nodes</small>
         </div>
       </div>
-      <div class="col-md-3 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm stat-card--success">
-          <div class="stat-card__value">{{ "{:,}".format(way_stats.matched) }}</div>
-          <div class="stat-card__label">Matched</div>
-        </div>
-      </div>
-      <div class="col-md-3 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm stat-card--warning">
-          <div class="stat-card__value">{{ "{:,}".format(way_stats.unmatched) }}</div>
-          <div class="stat-card__label">Unmatched</div>
-        </div>
-      </div>
-      <div class="col-md-3 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm stat-card--primary">
-          <div class="stat-card__value">{{ way_stats.match_rate_percent }}%</div>
-          <div class="stat-card__label">Match Rate</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
+    </section>
 
-{% if stats.quality_metrics is defined and stats.quality_metrics and stats.quality_metrics.osm_groups is defined %}
-{% set og = stats.quality_metrics.osm_groups %}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">OSM Groups (Platform / Stop Position Pairs)</h5>
-  </div>
-  <div class="card-body">
-    <div class="row mb-3">
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(og.total_groups) }}</div>
-          <div class="stat-card__label">Total Groups</div>
-        </div>
+    {% if way_stats %}
+    {% set way_denom = way_stats.total if way_stats.total > 0 else 1 %}
+    <section class="osm-insight-panel">
+      <div class="osm-insight-panel__heading">
+        <div><span>Geometry</span><h4>Stops mapped as ways</h4></div>
+        <strong>{{ "{:,}".format(way_stats.total) }}</strong>
       </div>
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm stat-card--success">
-          <div class="stat-card__value">{{ "{:,}".format(og.both_members_matched) }}</div>
-          <div class="stat-card__label">Both Matched</div>
-        </div>
+      <div class="osm-split-bar" aria-label="Way stop match status">
+        <span class="is-matched" style="width: {{ way_stats.matched / way_denom * 100 }}%"></span>
+        <span class="is-unmatched" style="width: {{ way_stats.unmatched / way_denom * 100 }}%"></span>
       </div>
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm stat-card--danger">
-          <div class="stat-card__value">{{ "{:,}".format(og.neither_matched) }}</div>
-          <div class="stat-card__label">Neither Matched</div>
-        </div>
+      <dl class="osm-legend">
+        <div><dt><i class="is-matched"></i>Matched</dt><dd>{{ "{:,}".format(way_stats.matched) }} <small>{{ way_stats.match_rate_percent }}%</small></dd></div>
+        <div><dt><i class="is-unmatched"></i>Unmatched</dt><dd>{{ "{:,}".format(way_stats.unmatched) }} <small>{{ "%.1f"|format(way_stats.unmatched / way_denom * 100) }}%</small></dd></div>
+      </dl>
+    </section>
+    {% endif %}
+
+    {% if og %}
+    {% set group_denom = og.total_groups if og.total_groups > 0 else 1 %}
+    {% set one_member_matched = [og.total_groups - og.both_members_matched - og.neither_matched, 0]|max %}
+    <section class="osm-insight-panel">
+      <div class="osm-insight-panel__heading">
+        <div><span>Structure</span><h4>Platform / stop-position groups</h4></div>
+        <strong>{{ "{:,}".format(og.total_groups) }}</strong>
       </div>
-    </div>
-    {% if og.by_type %}
-    <h6>Groups by Type</h6>
-    <table class="table table-sm table-hover">
-      <thead class="thead-light">
-        <tr>
-          <th>Group Type</th>
-          <th class="text-end">Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for gtype, gcount in og.by_type.items() %}
-        <tr>
-          <td>{{ gtype }}</td>
-          <td class="text-end">{{ "{:,}".format(gcount) }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+      <div class="osm-split-bar" aria-label="OSM group match status">
+        <span class="is-matched" style="width: {{ og.both_members_matched / group_denom * 100 }}%"></span>
+        <span class="is-partial" style="width: {{ one_member_matched / group_denom * 100 }}%"></span>
+        <span class="is-unmatched" style="width: {{ og.neither_matched / group_denom * 100 }}%"></span>
+      </div>
+      <dl class="osm-legend">
+        <div><dt><i class="is-matched"></i>Both matched</dt><dd>{{ "{:,}".format(og.both_members_matched) }}</dd></div>
+        <div><dt><i class="is-partial"></i>One matched</dt><dd>{{ "{:,}".format(one_member_matched) }}</dd></div>
+        <div><dt><i class="is-unmatched"></i>Neither matched</dt><dd>{{ "{:,}".format(og.neither_matched) }}</dd></div>
+      </dl>
+    </section>
     {% endif %}
   </div>
-</div>
-{% endif %}
+
+  {% if og and og.by_type %}
+  <details class="osm-group-details">
+    <summary>Group types <span>{{ og.by_type|length }} types</span></summary>
+    <div class="osm-group-details__body">
+      {% for gtype, gcount in og.by_type.items() %}
+      <div><code>{{ gtype }}</code><strong>{{ "{:,}".format(gcount) }}</strong></div>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+</section>
 
 {# ══════════════════════════════════════════
 SECTION 3 — UNMATCHED
 ══════════════════════════════════════════ #}
-<h2 class="stats-section-title">Unmatched</h2>
+<h2 class="stats-section-title" id="unmatched">Unmatched</h2>
 
 {# Unmatched Analysis #}
 <div class="card mb-4">
@@ -687,88 +688,63 @@ SECTION 3 — UNMATCHED
   </div>
   <div class="card-body">
     {% set ua = stats.unmatched_analysis %}
-    <div class="row">
-      <div class="col-md-6">
-        <h6>Unmatched ATLAS ({{ "{:,}".format(ua.atlas.total) }})</h6>
-        <table class="table table-sm">
-          <tr>
-            <td>No OSM within 50m</td>
-            <td class="text-end">{{ "{:,}".format(ua.atlas.no_osm_within_50m) }}</td>
-          </tr>
-          <tr>
-            <td>Has nearby OSM</td>
-            <td class="text-end">{{ "{:,}".format(ua.atlas.has_nearby_osm) }}</td>
-          </tr>
-        </table>
-      </div>
-      <div class="col-md-6">
-        <h6>Unmatched OSM ({{ "{:,}".format(ua.osm.total) }})</h6>
-        <table class="table table-sm">
-          <tr>
-            <td>No ATLAS within 50m</td>
-            <td class="text-end">{{ "{:,}".format(ua.osm.no_atlas_within_50m|default(0)) }}</td>
-          </tr>
-          <tr>
-            <td>Has nearby ATLAS</td>
-            <td class="text-end">{{ "{:,}".format(ua.osm.has_nearby_atlas|default(0)) }}</td>
-          </tr>
-        </table>
-        {% set mat = ua.osm.matrix if ua.osm.matrix is defined else {} %}
-        <div class="accordion-item is-open" id="accordion-osm-attrs">
-          <div class="accordion-trigger">
-            <span class="accordion-trigger__left">
-              <span class="accordion-trigger__label">Attributes Analysis</span>
-            </span>
-          </div>
-          <div class="accordion-panel" id="panel-osm-attrs" style="max-height: none;">
-            <div class="accordion-panel__inner">
-              <table class="table table-sm table-hover mb-0">
-                <thead class="thead-light">
-                  <tr>
-                    <th>Has Attributes</th>
-                    <th class="text-end">Count</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>UIC & Local Ref & Routes</td>
-                    <td class="text-end">{{ "{:,}".format(mat.all_three|default(0)) }}</td>
-                  </tr>
-                  <tr>
-                    <td>UIC & Local Ref</td>
-                    <td class="text-end">{{ "{:,}".format(mat.uic_and_local|default(0)) }}</td>
-                  </tr>
-                  <tr>
-                    <td>UIC & Routes</td>
-                    <td class="text-end">{{ "{:,}".format(mat.uic_and_routes|default(0)) }}</td>
-                  </tr>
-                  <tr>
-                    <td>Local Ref & Routes</td>
-                    <td class="text-end">{{ "{:,}".format(mat.local_and_routes|default(0)) }}</td>
-                  </tr>
-                  <tr>
-                    <td>UIC only</td>
-                    <td class="text-end">{{ "{:,}".format(mat.uic_only|default(0)) }}</td>
-                  </tr>
-                  <tr>
-                    <td>Local Ref only</td>
-                    <td class="text-end">{{ "{:,}".format(mat.local_ref_only|default(0)) }}</td>
-                  </tr>
-                  <tr>
-                    <td>Routes only</td>
-                    <td class="text-end">{{ "{:,}".format(mat.routes_only|default(0)) }}</td>
-                  </tr>
-                  <tr>
-                    <td>None</td>
-                    <td class="text-end">{{ "{:,}".format(mat.none|default(0)) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
+    {% set atlas_unmatched_denom = ua.atlas.total if ua.atlas.total > 0 else 1 %}
+    {% set osm_unmatched_denom = ua.osm.total if ua.osm.total > 0 else 1 %}
+    <div class="unmatched-overview">
+      <section class="unmatched-panel">
+        <div class="unmatched-panel__header">
+          <div><span>ATLAS</span><strong>{{ "{:,}".format(ua.atlas.total) }}</strong></div>
+          <small>unmatched platforms</small>
         </div>
-      </div>
+        <div class="unmatched-panel__bar" aria-label="ATLAS unmatched proximity split">
+          <span style="width: {{ ua.atlas.no_osm_within_50m / atlas_unmatched_denom * 100 }}%"></span>
+          <span style="width: {{ ua.atlas.has_nearby_osm / atlas_unmatched_denom * 100 }}%"></span>
+        </div>
+        <dl class="unmatched-panel__legend">
+          <div><dt><i></i>No OSM within 50m</dt><dd>{{ "{:,}".format(ua.atlas.no_osm_within_50m) }} <small>{{ "%.1f"|format(ua.atlas.no_osm_within_50m / atlas_unmatched_denom * 100) }}%</small></dd></div>
+          <div><dt><i></i>Has nearby OSM</dt><dd>{{ "{:,}".format(ua.atlas.has_nearby_osm) }} <small>{{ "%.1f"|format(ua.atlas.has_nearby_osm / atlas_unmatched_denom * 100) }}%</small></dd></div>
+        </dl>
+      </section>
+      <section class="unmatched-panel unmatched-panel--osm">
+        <div class="unmatched-panel__header">
+          <div><span>OSM</span><strong>{{ "{:,}".format(ua.osm.total) }}</strong></div>
+          <small>unmatched stops</small>
+        </div>
+        <div class="unmatched-panel__bar" aria-label="OSM unmatched proximity split">
+          <span style="width: {{ (ua.osm.no_atlas_within_50m|default(0)) / osm_unmatched_denom * 100 }}%"></span>
+          <span style="width: {{ (ua.osm.has_nearby_atlas|default(0)) / osm_unmatched_denom * 100 }}%"></span>
+        </div>
+        <dl class="unmatched-panel__legend">
+          <div><dt><i></i>No ATLAS within 50m</dt><dd>{{ "{:,}".format(ua.osm.no_atlas_within_50m|default(0)) }} <small>{{ "%.1f"|format((ua.osm.no_atlas_within_50m|default(0)) / osm_unmatched_denom * 100) }}%</small></dd></div>
+          <div><dt><i></i>Has nearby ATLAS</dt><dd>{{ "{:,}".format(ua.osm.has_nearby_atlas|default(0)) }} <small>{{ "%.1f"|format((ua.osm.has_nearby_atlas|default(0)) / osm_unmatched_denom * 100) }}%</small></dd></div>
+        </dl>
+      </section>
     </div>
+
+    {% set mat = ua.osm.matrix if ua.osm.matrix is defined else {} %}
+    <section class="attribute-matrix mt-4" aria-labelledby="attributeMatrixTitle">
+      <div class="attribute-matrix__header">
+        <div><h6 id="attributeMatrixTitle">What data do unmatched OSM stops have?</h6><p>Attribute combinations can help prioritize records that are most likely to match.</p></div>
+        <span>{{ "{:,}".format(ua.osm.total) }} stops</span>
+      </div>
+      <div class="attribute-matrix__grid">
+        {% set attribute_rows = [
+          ('UIC + local ref + routes', mat.all_three|default(0)),
+          ('UIC + local ref', mat.uic_and_local|default(0)),
+          ('UIC + routes', mat.uic_and_routes|default(0)),
+          ('Local ref + routes', mat.local_and_routes|default(0)),
+          ('UIC only', mat.uic_only|default(0)),
+          ('Local ref only', mat.local_ref_only|default(0)),
+          ('Routes only', mat.routes_only|default(0)),
+          ('No matching attributes', mat.none|default(0))
+        ] %}
+        {% for label, count in attribute_rows %}
+        <div class="attribute-matrix__item{{ ' attribute-matrix__item--muted' if loop.last }}">
+          <span>{{ label }}</span><strong>{{ "{:,}".format(count) }}</strong><small>{{ "%.1f"|format(count / osm_unmatched_denom * 100) }}%</small>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
 
     {% if ua.uic_exhaustion is defined and ua.uic_exhaustion %}
     {% set uex = ua.uic_exhaustion %}
@@ -866,7 +842,7 @@ SECTION 3 — UNMATCHED
 {# ══════════════════════════════════════════
 SECTION 4 — ATLAS
 ══════════════════════════════════════════ #}
-<h2 class="stats-section-title">ATLAS</h2>
+<h2 class="stats-section-title" id="atlas">ATLAS</h2>
 
 {# ATLAS Duplicates #}
 <div class="card mb-4">
@@ -895,7 +871,7 @@ SECTION 4 — ATLAS
 {# ══════════════════════════════════════════
 SECTION 5 — PROBLEMS
 ══════════════════════════════════════════ #}
-<h2 class="stats-section-title">Problems</h2>
+<h2 class="stats-section-title" id="problems">Problems</h2>
 
 {% if stats.problems is defined and stats.problems %}
 {% set probs = stats.problems %}
@@ -1095,7 +1071,7 @@ SECTION 5 — PROBLEMS
 {# ══════════════════════════════════════════
 SECTION 6 — ROUTES
 ══════════════════════════════════════════ #}
-<h2 class="stats-section-title">Routes</h2>
+<h2 class="stats-section-title" id="routes">Routes</h2>
 
 {# Route Coverage #}
 {% if stats.routes is defined and stats.routes %}
@@ -1447,87 +1423,42 @@ SECTION 6 — ROUTES
       </div>
     </div>
 
-    <hr>
+    <div class="mapping-paths">
+      {% set assignment_total = ga.assignments.total|default(0) %}
+      {% set assignment_denom = assignment_total if assignment_total > 0 else 1 %}
+      <div class="mapping-paths__header">
+        <div>
+          <span>Ordered fallback sequence</span>
+          <h6>How GTFS stop IDs reach an ATLAS SLOID</h6>
+          <p>Each unmatched stop continues to the next method. The bar shows that method's share of all assignments.</p>
+        </div>
+        <div class="mapping-paths__total"><strong>{{ "{:,}".format(assignment_total) }}</strong><span>Total assignments</span></div>
+      </div>
 
-    {# ── Matching Paths ── #}
-    <h6 class="mb-3">Matching Paths</h6>
-
-    <div class="row mb-4">
-      {# Path 1: Direct SLOID match #}
-      <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card h-100">
-          <div class="card-header py-2">
-            <h6 class="mb-0">① Direct SLOID match</h6>
-          </div>
-          <div class="card-body">
-            <p class="text-muted small mb-2">
-              Matches where <code>original_stop_id</code> directly contains a valid ATLAS SLOID.
-            </p>
-            <div class="stat-card stat-card--sm stat-card--success">
-              <div class="stat-card__value">{{ "{:,}".format(ga.assignments.original_stop_id|default(0)) }}</div>
-              <div class="stat-card__label">Assignments</div>
-            </div>
-          </div>
+      <div class="mapping-paths__list">
+        <div class="mapping-path">
+          <span class="mapping-path__step">1</span>
+          <div class="mapping-path__copy"><h6>Direct SLOID</h6><p><code>original_stop_id</code> already contains a valid ATLAS SLOID.</p></div>
+          <div class="mapping-path__measure"><div><span style="width: {{ (ga.assignments.original_stop_id|default(0)) / assignment_denom * 100 }}%"></span></div><small>{{ "%.1f"|format((ga.assignments.original_stop_id|default(0)) / assignment_denom * 100) }}%</small></div>
+          <strong class="mapping-path__count">{{ "{:,}".format(ga.assignments.original_stop_id|default(0)) }}</strong>
         </div>
-      </div>
-      {# Path 2: Strict #}
-      <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card h-100">
-          <div class="card-header py-2">
-            <h6 class="mb-0">② Strict matching</h6>
-          </div>
-          <div class="card-body">
-            <p class="text-muted small mb-2">
-              Matches on <code>(UIC number, local ref)</code> = <code>(number, designation)</code> in ATLAS.
-            </p>
-            <div class="stat-card stat-card--sm stat-card--success">
-              <div class="stat-card__value">{{ "{:,}".format(ga.assignments.strict|default(0)) }}</div>
-              <div class="stat-card__label">Assignments</div>
-            </div>
-          </div>
+        <div class="mapping-path">
+          <span class="mapping-path__step">2</span>
+          <div class="mapping-path__copy"><h6>Strict identifiers</h6><p><code>UIC number + local ref</code> equals the ATLAS <code>number + designation</code>.</p></div>
+          <div class="mapping-path__measure"><div><span style="width: {{ (ga.assignments.strict|default(0)) / assignment_denom * 100 }}%"></span></div><small>{{ "%.1f"|format((ga.assignments.strict|default(0)) / assignment_denom * 100) }}%</small></div>
+          <strong class="mapping-path__count">{{ "{:,}".format(ga.assignments.strict|default(0)) }}</strong>
         </div>
-      </div>
-      {# Path 3: Coordinate Proximity #}
-      <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card h-100">
-          <div class="card-header py-2">
-            <h6 class="mb-0">③ Coordinate proximity</h6>
-          </div>
-          <div class="card-body">
-            <p class="text-muted small mb-2">
-              For remaining: ATLAS stops with the same UIC number within 0.5m (must be unambiguous).
-            </p>
-            <div class="stat-card stat-card--sm stat-card--success">
-              <div class="stat-card__value">{{ "{:,}".format(ga.assignments.coordinate_proximity|default(0)) }}</div>
-              <div class="stat-card__label">Assignments</div>
-            </div>
-          </div>
+        <div class="mapping-path">
+          <span class="mapping-path__step">3</span>
+          <div class="mapping-path__copy"><h6>Coordinate proximity</h6><p>Same UIC number, within 0.5m, with one unambiguous ATLAS candidate.</p></div>
+          <div class="mapping-path__measure"><div><span style="width: {{ (ga.assignments.coordinate_proximity|default(0)) / assignment_denom * 100 }}%"></span></div><small>{{ "%.1f"|format((ga.assignments.coordinate_proximity|default(0)) / assignment_denom * 100) }}%</small></div>
+          <strong class="mapping-path__count">{{ "{:,}".format(ga.assignments.coordinate_proximity|default(0)) }}</strong>
         </div>
-      </div>
-      {# Path 4: Unique-number fallback #}
-      <div class="col-lg-3 col-md-6 mb-3">
-        <div class="card h-100">
-          <div class="card-header py-2">
-            <h6 class="mb-0">④ Unique-number fallback</h6>
-          </div>
-          <div class="card-body">
-            <p class="text-muted small mb-2">
-              For remaining: if a UIC number maps to exactly one ATLAS row, use that sloid.
-            </p>
-            <div class="stat-card stat-card--sm stat-card--success">
-              <div class="stat-card__value">{{ "{:,}".format(ga.assignments.unique_number_fallback|default(0)) }}</div>
-              <div class="stat-card__label">Assignments</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="row mb-4">
-      <div class="col-12">
-        <div class="stat-card stat-card--sm stat-card--success">
-          <div class="stat-card__value">{{ "{:,}".format(ga.assignments.total|default(0)) }}</div>
-          <div class="stat-card__label">Total assignments (all paths combined)</div>
+        <div class="mapping-path">
+          <span class="mapping-path__step">4</span>
+          <div class="mapping-path__copy"><h6>Unique-number fallback</h6><p>The UIC number resolves to exactly one remaining ATLAS row.</p></div>
+          <div class="mapping-path__measure"><div><span style="width: {{ (ga.assignments.unique_number_fallback|default(0)) / assignment_denom * 100 }}%"></span></div><small>{{ "%.1f"|format((ga.assignments.unique_number_fallback|default(0)) / assignment_denom * 100) }}%</small></div>
+          <strong class="mapping-path__count">{{ "{:,}".format(ga.assignments.unique_number_fallback|default(0)) }}</strong>
         </div>
       </div>
     </div>

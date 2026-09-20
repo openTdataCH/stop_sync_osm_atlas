@@ -5,6 +5,8 @@ import sys
 import importlib
 import subprocess
 import logging
+import tomllib
+from functools import lru_cache
 from typing import List, Tuple, Dict, Optional
 from urllib.parse import unquote
 
@@ -13,6 +15,7 @@ from werkzeug.utils import safe_join
 from backend.services.docs_stats import replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html
 from backend.services.repo_scanner import RepoScanner
 from backend.services.request_payload import read_request_payload
+from backend.version import APP_VERSION
 import uuid
 import threading
 import tempfile
@@ -213,6 +216,36 @@ def _to_sections_list(value) -> Optional[List[str]]:
 
 def _repo_root() -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+
+
+def _engine_root() -> str:
+    """Return the standalone engine checkout or its image-build projection."""
+    app_root = _repo_root()
+    configured = os.getenv('ENGINE_DIR', '').strip()
+    candidates = []
+    if configured:
+        candidates.append(
+            configured if os.path.isabs(configured) else os.path.join(app_root, configured)
+        )
+    candidates.extend((
+        os.path.join(app_root, 'engine'),
+        os.path.join(os.path.dirname(app_root), 'engine'),
+    ))
+    for candidate in candidates:
+        if os.path.isfile(os.path.join(candidate, 'pyproject.toml')):
+            return os.path.abspath(candidate)
+    return os.path.abspath(candidates[0] if candidates else os.path.join(app_root, 'engine'))
+
+
+@lru_cache(maxsize=1)
+def _engine_version() -> Optional[str]:
+    """Read the version without importing or installing the engine package."""
+    try:
+        with open(os.path.join(_engine_root(), 'pyproject.toml'), 'rb') as handle:
+            version = tomllib.load(handle).get('project', {}).get('version')
+    except (FileNotFoundError, OSError, tomllib.TOMLDecodeError):
+        return None
+    return str(version).strip() if version else None
 
 
 def _docs_pdf_path() -> str:
@@ -530,8 +563,13 @@ def _rewrite_internal_doc_links_to_routes(
         link_text = match.group(1)
         href = match.group(2)
 
-        # Skip external links and absolute paths
-        if href.startswith(('http://', 'https://', '/')):
+        app_docs_prefix = (
+            'https://github.com/openTdataCH/stop_sync_osm_atlas/'
+            'blob/main/documentation/'
+        )
+        if href.startswith(app_docs_prefix):
+            href = f'../../documentation/{href[len(app_docs_prefix):]}'
+        elif href.startswith(('http://', 'https://', '/')):
             return match.group(0)
 
         # Split anchor if present
@@ -577,8 +615,8 @@ def _get_docs_dir() -> str:
 def _get_docs_dirs() -> Dict[str, str]:
     root = _repo_root()
     return {
-        source_key: os.path.join(root, source['root'])
-        for source_key, source in _DOC_SOURCES.items()
+        'app': os.path.join(root, _DOC_SOURCES['app']['root']),
+        'engine': os.path.join(_engine_root(), 'documentation'),
     }
 
 
@@ -597,8 +635,7 @@ def _doc_source(doc_id: str) -> Dict:
 
 
 def _list_markdown_files() -> List[str]:
-    """Return repo-relative IDs for app- and engine-owned Markdown pages."""
-    root = _repo_root()
+    """Return stable logical IDs for app- and engine-owned Markdown pages."""
     files: List[str] = []
     for source_key in ('app', 'engine'):
         docs_dir = _get_docs_dirs()[source_key]
@@ -607,7 +644,9 @@ def _list_markdown_files() -> List[str]:
         for filename in os.listdir(docs_dir):
             if filename.lower().endswith('.md'):
                 absolute = os.path.join(docs_dir, filename)
-                files.append(os.path.relpath(absolute, root).replace(os.sep, '/'))
+                if os.path.isfile(absolute):
+                    logical_root = _DOC_SOURCES[source_key]['root'].rstrip('/')
+                    files.append(f'{logical_root}/{filename}')
     files.sort(key=lambda value: (_doc_source_key(value), os.path.basename(value).lower()))
     return files
 
@@ -836,7 +875,7 @@ def _build_doc_collections(files: List[str], file_to_slug: Dict[str, str]) -> Li
         if not selected:
             continue
 
-        collections.append({
+        collection = {
             **definition,
             'source_info': {'key': definition['source'], **_DOC_SOURCES[definition['source']]},
             'sections': _group_files_by_section(
@@ -845,19 +884,26 @@ def _build_doc_collections(files: List[str], file_to_slug: Dict[str, str]) -> Li
                 collection_key=definition['key'],
                 source_key=definition['source'],
             ),
-        })
+        }
+        if definition['source'] == 'engine':
+            collection['version'] = _engine_version()
+        elif definition['source'] == 'app':
+            collection['version'] = APP_VERSION
+        collections.append(collection)
     return collections
 
 
 def _read_markdown(doc_id: str) -> str:
-    root = _repo_root()
-    safe_path = safe_join(root, doc_id)
-    allowed_roots = tuple(os.path.realpath(path) for path in _get_docs_dirs().values())
+    source_key = _doc_source_key(doc_id)
+    logical_root = _DOC_SOURCES[source_key]['root'].rstrip('/')
+    relative_path = doc_id[len(logical_root):].lstrip('/')
+    source_root = os.path.realpath(_get_docs_dirs()[source_key])
+    safe_path = safe_join(source_root, relative_path)
     real_path = os.path.realpath(safe_path) if safe_path else ''
     if (
         not safe_path
         or not os.path.isfile(safe_path)
-        or not any(real_path.startswith(source_root + os.sep) for source_root in allowed_roots)
+        or not real_path.startswith(source_root + os.sep)
     ):
         abort(404)
     with open(safe_path, 'r', encoding='utf-8') as f:

@@ -196,6 +196,7 @@
 
     function applyStatus(status) {
         latestStatus = status || {};
+        window.latestPipelineStatus = latestStatus;
 
         var statusText = document.getElementById('pipelineMaintenanceStatus');
         var phaseText = document.getElementById('pipelinePhase');
@@ -237,6 +238,9 @@
 
         updateTimerFields();
         setOverlayVisible(blocking);
+        document.dispatchEvent(new CustomEvent('pipeline-status:update', {
+            detail: latestStatus
+        }));
     }
 
     function scheduleNextTick() {

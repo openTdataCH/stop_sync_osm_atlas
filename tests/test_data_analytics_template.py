@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from jinja2 import Environment, FileSystemLoader
 
 
@@ -92,7 +94,17 @@ def test_stats_data_template_handles_missing_source_downloads():
 
     assert "Last ATLAS Downloaded" in html
     assert "Last GTFS Downloaded" in html
+    assert '<h2 id="sourceFreshnessTitle">Source freshness</h2>' not in html
+    assert "Inputs used by this analytics snapshot" not in html
     assert "Unknown" in html
+    assert 'class="stats-section-nav"' in html
+    assert 'id="pipelineRunCard"' in html
+    assert "The analytics below reflect the latest published dataset." not in html
+    assert html.count('data-pipeline-stage=') == 4
+    assert 'id="stops-matching"' in html
+    assert 'id="unmatched"' in html
+    assert 'class="osm-overview-card"' in html
+    assert 'class="osm-inventory-strip"' in html
 
 
 def test_stats_data_template_handles_partial_stats_without_summary():
@@ -104,3 +116,16 @@ def test_stats_data_template_handles_partial_stats_without_summary():
     )
 
     assert "No stats available" in html
+
+
+def test_analytics_design_does_not_use_left_accent_borders():
+    css = Path("static/css/pages/stats.css").read_text(encoding="utf-8")
+    template = Path("templates/components/stats_data.html").read_text(encoding="utf-8")
+
+    assert "border-left" not in css
+    assert "inset 3px 0" not in css
+    assert ".stats-page .stat-card--primary::after" not in css
+    assert "--card-accent: var(--color-primary)" in css
+    assert "#2563eb" not in css
+    assert 'class="mapping-paths"' in template
+    assert 'class="mapping-path__step"' in template

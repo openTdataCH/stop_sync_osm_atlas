@@ -1,2 +1,0 @@
-route_id,route_short_name,route_long_name,route_type,agency_id
-r1,1,Market to Library,3,demo
