@@ -6,22 +6,24 @@ import pytest
 
 def test_documentation_links():
     """
-    Scans all markdown files in the documentation directory and validates that
-    all relative links point to existing files.
+    Scans app- and engine-owned Markdown and validates relative links.
     """
     # Assuming code is running from repo root. If not, adjust or use conftest to set root.
     # Currently GitHub Action runs from repo root.
     repo_root = Path.cwd()
-    docs_dir = repo_root / "documentation"
-    
-    if not docs_dir.exists():
-        pytest.fail(f"Documentation directory not found at {docs_dir}")
+    docs_dirs = [repo_root / "documentation", repo_root / "engine" / "documentation"]
+    missing_dirs = [str(path) for path in docs_dirs if not path.exists()]
+    if missing_dirs:
+        pytest.fail(f"Documentation directories not found: {', '.join(missing_dirs)}")
 
     broken_links = []
     total_links = 0
     
     # Sort for consistent checking order
-    md_files = sorted(docs_dir.glob("*.md"))
+    md_files = sorted(
+        (path for docs_dir in docs_dirs for path in docs_dir.glob("*.md")),
+        key=lambda path: str(path.relative_to(repo_root)).lower(),
+    )
     
     for md_file in md_files:
         with open(md_file, encoding='utf-8') as f:
@@ -39,13 +41,11 @@ def test_documentation_links():
             # Clean URL: decode URL encoding (e.g., %20 -> space) and remove anchors
             clean_link = unquote(link.split('#')[0])
             
-            # All documentation links are relative to the documentation directory
-            # (flat structure with all .md files in the same directory)
             target = md_file.parent / clean_link
             
             if not target.exists():
                 broken_links.append({
-                    'file': md_file.name,
+                    'file': str(md_file.relative_to(repo_root)),
                     'link': link,
                     'target': str(target)
                 })
@@ -66,7 +66,11 @@ def test_documentation_links():
 def test_hard_coded_app_doc_links_use_canonical_slugs():
     """Catch template/JavaScript links that bypass Markdown link rewriting."""
     repo_root = Path(__file__).parent.parent
-    docs_files = sorted((repo_root / "documentation").glob("*.md"), key=lambda path: path.name.lower())
+    docs_files = sorted(
+        list((repo_root / "documentation").glob("*.md"))
+        + list((repo_root / "engine" / "documentation").glob("*.md")),
+        key=lambda path: str(path.relative_to(repo_root)).lower(),
+    )
 
     slugs = set()
     for path in docs_files:
@@ -200,6 +204,118 @@ def test_docs_canonical_slug_urls():
         }
 
         assert '/docs/exact_matching' in docs_hrefs
+
+
+def test_docs_portal_labels_engine_and_application_boundaries():
+    from backend.app import create_app
+    from bs4 import BeautifulSoup
+
+    app = create_app()
+    app.config['TESTING'] = True
+
+    with app.test_client() as client:
+        response = client.get('/docs/exact_matching')
+        assert response.status_code == 200
+        soup = BeautifulSoup(response.data.decode('utf-8'), 'html.parser')
+
+        collection_labels = {
+            node.get_text(' ', strip=True)
+            for node in soup.select('.docs-collection-label')
+        }
+        assert 'Matching engine' in collection_labels
+        assert 'Review application & deployment' in collection_labels
+
+        pills = soup.select('#docs-owner-pill')
+        assert len(pills) == 1
+        assert pills[0].get_text(' ', strip=True) == 'Engine'
+        assert 'docs-owner-pill--engine' in pills[0].get('class', [])
+        assert soup.select_one('#docs-context') is None
+
+        for path, label, modifier in (
+            ('/docs', 'Shared', 'docs-owner-pill--shared'),
+            ('/docs/database', 'App', 'docs-owner-pill--app'),
+        ):
+            owner_response = client.get(path)
+            assert owner_response.status_code == 200
+            owner_soup = BeautifulSoup(owner_response.data.decode('utf-8'), 'html.parser')
+            owner_pill = owner_soup.select_one('#docs-owner-pill')
+            assert owner_pill is not None
+            assert owner_pill.get_text(' ', strip=True) == label
+            assert modifier in owner_pill.get('class', [])
+
+        partial = client.get('/docs/database', headers={'X-Docs-Partial': '1'})
+        assert partial.status_code == 200
+        payload = partial.get_json()
+        assert payload['active_context']['key'] == 'app'
+        assert payload['active_context']['repo_path'] == 'documentation/'
+
+
+def test_app_and_engine_changelogs_have_distinct_canonical_routes():
+    from backend.app import create_app
+    from bs4 import BeautifulSoup
+
+    app = create_app()
+    app.config['TESTING'] = True
+
+    with app.test_client() as client:
+        app_response = client.get('/docs/changelog')
+        assert app_response.status_code == 200
+        app_soup = BeautifulSoup(app_response.data.decode('utf-8'), 'html.parser')
+        assert app_soup.select_one('#docs-owner-pill').get_text(strip=True) == 'App'
+        assert app_soup.select_one('h1').get_text(strip=True) == 'Review Application Changelog'
+        assert app_soup.find('a', href='/docs/engine_changelog') is not None
+
+        engine_response = client.get('/docs/engine_changelog')
+        assert engine_response.status_code == 200
+        engine_soup = BeautifulSoup(engine_response.data.decode('utf-8'), 'html.parser')
+        assert engine_soup.select_one('#docs-owner-pill').get_text(strip=True) == 'Engine'
+        assert engine_soup.select_one('h1').get_text(strip=True) == 'Matching Engine Changelog'
+        assert engine_soup.find('a', href='/docs/changelog') is not None
+
+
+def test_engine_documentation_assets_are_served_from_engine_tree():
+    from backend.app import create_app
+
+    app = create_app()
+    app.config['TESTING'] = True
+
+    with app.test_client() as client:
+        page = client.get('/docs/matching_process')
+        assert page.status_code == 200
+        assert b'/docs/assets/engine/images/osm-trio-match-illustration.svg' in page.data
+
+        asset = client.get('/docs/assets/engine/images/osm-trio-match-illustration.svg')
+        assert asset.status_code == 200
+        assert asset.mimetype == 'image/svg+xml'
+
+
+def test_pdf_document_selection_keeps_engine_and_app_sections_distinct():
+    from documentation.pdf_generator.build_docs_pdf import _prepare_document, _sorted_docs
+
+    all_docs = _sorted_docs()
+    relative = [str(path.relative_to(Path.cwd())) for path in all_docs]
+    assert relative[0] == 'documentation/0. Intro.md'
+    assert 'engine/documentation/2. Matching process.md' in relative
+    assert 'documentation/6. Web app.md' in relative
+    assert relative.index('engine/documentation/2. Matching process.md') < relative.index('documentation/6. Web app.md')
+
+    engine_only = _sorted_docs(['engine:2'])
+    assert engine_only
+    assert all('engine/documentation' in str(path) for path in engine_only)
+    assert {path.name for path in engine_only} >= {'2. Matching process.md', '2.1 Exact matching.md'}
+
+    app_only = _sorted_docs(['app:6'])
+    assert app_only
+    assert all(path.parent == Path.cwd() / 'documentation' for path in app_only)
+    assert {path.name for path in app_only} >= {'6. Web app.md', '6.8 Documentation Page Delivery.md'}
+
+    changelogs = _sorted_docs(['app:extra-changelog', 'engine:extra-changelog'])
+    assert len(changelogs) == 2
+    combined = _prepare_document(changelogs, include_cover=False)
+    assert 'id="doc-app-changelog"' in combined
+    assert 'id="doc-engine-changelog"' in combined
+    assert '](#doc-app-changelog)' in combined
+    assert '](#doc-engine-changelog)' in combined
 
 
 def test_auto_linking_of_repo_files():

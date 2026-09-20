@@ -15,13 +15,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements-web.txt ./
 RUN pip install --no-cache-dir -r requirements-web.txt
 ENV FLASK_APP=backend/app.py FLASK_RUN_HOST=0.0.0.0 FLASK_RUN_PORT=5001
-# Web image contains no engine source or engine dependencies.
+# Web image contains no engine source or engine dependencies. It includes the
+# engine-owned Markdown so the site can present one unified documentation portal.
 COPY --chown=app:app backend ./backend
 COPY --chown=app:app templates ./templates
 COPY --chown=app:app static ./static
 COPY --chown=app:app migrations ./migrations
 COPY --chown=app:app config ./config
 COPY --chown=app:app documentation ./documentation
+COPY --chown=app:app engine/documentation ./engine/documentation
 COPY --chown=app:app README.md LICENSE entrypoint.sh ./
 RUN mkdir -p data .cache && chown app:app data .cache && chmod +x entrypoint.sh
 USER app

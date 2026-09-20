@@ -127,7 +127,7 @@ def test_generate_docs_pdf_async_accepts_form_payload(client, monkeypatch):
     monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', lambda *args, **kwargs: None)
 
     response = client.post('/api/docs/generate_pdf_async', data={
-        'included_sections': '1.,2.',
+        'included_sections': 'engine:1,app:6',
         'include_cover': 'false',
     })
 
@@ -172,6 +172,8 @@ def test_docs_payload_parsing_helpers():
     assert docs_blueprint._to_sections_list('1.,2.') == ['1', '2']
     assert docs_blueprint._to_sections_list('["3.", "4."]') == ['3', '4']
     assert docs_blueprint._to_sections_list('1.2,7.1') == ['1', '7']
+    assert docs_blueprint._to_sections_list('engine:1,app:6') == ['engine:1', 'app:6']
+    assert docs_blueprint._to_sections_list('app:extra-changelog') == ['app:extra-changelog']
     assert docs_blueprint._to_sections_list('') is None
 
     assert docs_blueprint._to_bool('false') is False

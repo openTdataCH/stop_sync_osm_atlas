@@ -9,7 +9,7 @@ import sys
 from datetime import datetime
 from html import escape
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
@@ -24,6 +24,8 @@ from backend.services.docs_stats import load_stats_for_docs, replace_stats_place
 
 
 DOCS_DIR = REPO_ROOT / 'documentation'
+ENGINE_DOCS_DIR = REPO_ROOT / 'engine' / 'documentation'
+DOC_SOURCE_DIRS = {'app': DOCS_DIR, 'engine': ENGINE_DOCS_DIR}
 OUTPUT_DIR = DOCS_DIR / 'generated'
 DIAGRAMS_DIR = OUTPUT_DIR / 'diagrams'
 STYLE_PATH = DOCS_DIR / 'pdf_generator' / 'docs_print.css'
@@ -76,14 +78,46 @@ def _normalize_section_key(value: str) -> str | None:
     text = str(value).strip().rstrip('.')
     if not text:
         return None
+    namespace = ''
+    if ':' in text:
+        prefix, text = text.split(':', 1)
+        prefix = prefix.strip().lower()
+        if prefix not in DOC_SOURCE_DIRS:
+            return None
+        namespace = f'{prefix}:'
     head = text.split('.', 1)[0]
-    return head if head.isdigit() else None
+    if head.isdigit():
+        return f'{namespace}{head}'
+    if namespace and re.fullmatch(r'[a-z0-9_-]+', text):
+        return f'{namespace}{text}'
+    return None
+
+
+def _doc_source_key(path: Path) -> str:
+    resolved = path.resolve()
+    for source_key, source_dir in DOC_SOURCE_DIRS.items():
+        if resolved.parent == source_dir.resolve():
+            return source_key
+    raise ValueError(f'Unknown documentation source: {path}')
+
+
+def _doc_section_key(path: Path) -> str:
+    source_key = _doc_source_key(path)
+    top_key = _top_level_section_key(path.name)
+    if top_key:
+        return f'{source_key}:{top_key}'
+    return f'{source_key}:extra-{_slugify(path.stem)}'
 
 
 def _sorted_docs(included_sections: list[str] = None) -> list[Path]:
-    docs = sorted(
-        [path for path in DOCS_DIR.glob('*.md') if path.is_file()],
-        key=lambda path: path.name.lower(),
+    app_docs = [path for path in DOCS_DIR.glob('*.md') if path.is_file()]
+    engine_docs = [path for path in ENGINE_DOCS_DIR.glob('*.md') if path.is_file()]
+    overview = [path for path in app_docs if _top_level_section_key(path.name) == '0']
+    app_reference = [path for path in app_docs if path not in overview]
+    docs = (
+        sorted(overview, key=lambda path: path.name.lower())
+        + sorted(engine_docs, key=lambda path: path.name.lower())
+        + sorted(app_reference, key=lambda path: path.name.lower())
     )
     if included_sections is not None:
         normalized_sections = {
@@ -95,18 +129,26 @@ def _sorted_docs(included_sections: list[str] = None) -> list[Path]:
 
         filtered_docs = []
         for doc in docs:
-            top_key = _top_level_section_key(doc.name)
-            if top_key and top_key in normalized_sections:
+            section_key = _doc_section_key(doc)
+            legacy_key = _top_level_section_key(doc.name)
+            if section_key in normalized_sections or legacy_key in normalized_sections:
                 filtered_docs.append(doc)
         return filtered_docs
     return docs
 
 
 def _doc_anchor_map(doc_paths: list[Path]) -> dict[str, str]:
-    return {path.name: f'doc-{_slugify(path.stem)}' for path in doc_paths}
+    return {
+        str(path.resolve()): f'doc-{_doc_source_key(path)}-{_slugify(path.stem)}'
+        for path in doc_paths
+    }
 
 
-def _rewrite_internal_doc_links(content: str, anchor_map: dict[str, str]) -> str:
+def _rewrite_internal_doc_links(
+    content: str,
+    anchor_map: dict[str, str],
+    current_doc: Path,
+) -> str:
     pattern = re.compile(r'(?<!!)\[([^\]]+)\]\(([^)]+\.md(?:#[^)]+)?)\)')
 
     def replace(match: re.Match[str]) -> str:
@@ -116,8 +158,8 @@ def _rewrite_internal_doc_links(content: str, anchor_map: dict[str, str]) -> str
             return match.group(0)
 
         path_part = href.split('#', 1)[0]
-        filename = Path(unquote(path_part)).name
-        anchor = anchor_map.get(filename)
+        target = (current_doc.parent / unquote(path_part)).resolve()
+        anchor = anchor_map.get(str(target))
         if not anchor:
             return match.group(0)
         return f'[{label}](#{anchor})'
@@ -125,7 +167,7 @@ def _rewrite_internal_doc_links(content: str, anchor_map: dict[str, str]) -> str
     return pattern.sub(replace, content)
 
 
-def _rewrite_repo_links(content: str) -> str:
+def _rewrite_repo_links(content: str, current_doc: Path) -> str:
     pattern = re.compile(r'(?<!!)\[([^\]]+)\]\(([^)]+)\)')
     code_like_exts = {
         '.py', '.sql', '.sh', '.yml', '.yaml', '.json', '.toml', '.ini', '.cfg',
@@ -142,12 +184,16 @@ def _rewrite_repo_links(content: str) -> str:
         if href.startswith(('images/', 'diagrams/', 'documentation/')):
             return match.group(0)
 
-        base = href.split('#', 1)[0].split('?', 1)[0]
-        normalized = base.lstrip('./')
-        while normalized.startswith('../'):
-            normalized = normalized[3:]
-        suffix = Path(normalized).suffix.lower()
-        if Path(normalized).name.lower() != 'dockerfile' and suffix not in code_like_exts:
+        base = unquote(href.split('#', 1)[0].split('?', 1)[0])
+        candidate = (current_doc.parent / base).resolve()
+        try:
+            normalized = candidate.relative_to(REPO_ROOT.resolve()).as_posix()
+        except ValueError:
+            return match.group(0)
+        suffix = candidate.suffix.lower()
+        if not candidate.is_file():
+            return match.group(0)
+        if candidate.name.lower() != 'dockerfile' and suffix not in code_like_exts and suffix != '.md':
             return match.group(0)
 
         return f'[{label}]({GITHUB_BLOB_BASE}{normalized.replace(" ", "%20")})'
@@ -289,7 +335,8 @@ def _prepare_svg_asset_for_pdf(source_path: Path) -> Path:
 
 
 def _resolve_local_asset_path(asset_ref: str, source_dir: Path | None = None) -> Path | None:
-    decoded = unquote(asset_ref)
+    parsed = urlparse(asset_ref)
+    decoded = unquote(parsed.path if parsed.scheme == 'file' else asset_ref)
 
     candidates: list[Path] = []
     if source_dir is not None:
@@ -308,7 +355,7 @@ def _rewrite_svg_img_tags_in_html(html_content: str, source_dir: Path | None = N
 
     def replace(match: re.Match[str]) -> str:
         src = match.group(2)
-        if src.startswith(('http://', 'https://', 'data:', 'file:', '/')):
+        if src.startswith(('http://', 'https://', 'data:')):
             return match.group(0)
 
         base_src = src.split('#', 1)[0].split('?', 1)[0]
@@ -327,6 +374,21 @@ def _rewrite_svg_img_tags_in_html(html_content: str, source_dir: Path | None = N
         return f'{match.group(1)}{svg_path.as_uri()}{match.group(3)}'
 
     return pattern.sub(replace, html_content)
+
+
+def _rewrite_markdown_asset_paths(content: str, source_dir: Path) -> str:
+    pattern = re.compile(r'(!\[[^\]]*\]\()([^\s)]+)(\))')
+
+    def replace(match: re.Match[str]) -> str:
+        asset_ref = match.group(2)
+        if asset_ref.startswith(('http://', 'https://', 'data:', 'file:', '/')):
+            return match.group(0)
+        resolved = _resolve_local_asset_path(asset_ref, source_dir=source_dir)
+        if resolved is None:
+            return match.group(0)
+        return f'{match.group(1)}{resolved.as_uri()}{match.group(3)}'
+
+    return pattern.sub(replace, content)
 
 
 def _render_mermaid_to_local_svg(diagram_source: str) -> Path:
@@ -424,7 +486,7 @@ def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
 
     for doc_path in doc_paths:
         parts.extend([
-            f'<div id="{anchor_map[doc_path.name]}" class="doc-anchor"></div>',
+            f'<div id="{anchor_map[str(doc_path.resolve())]}" class="doc-anchor"></div>',
             '',
         ])
 
@@ -438,8 +500,8 @@ def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
         content = re.sub(r'```mermaid.*?```', save_mermaid, content, flags=re.DOTALL)
         
         content = replace_stats_placeholders(content, stats, html_escape=True)
-        content = _rewrite_internal_doc_links(content, anchor_map)
-        content = _rewrite_repo_links(content)
+        content = _rewrite_internal_doc_links(content, anchor_map, doc_path)
+        content = _rewrite_repo_links(content, doc_path)
         content = convert_github_alerts_to_html(content)
         if '[[canonical_palette]]' in content:
             content = content.replace('[[canonical_palette]]', get_canonical_palette_html())
@@ -452,6 +514,7 @@ def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
         content = re.sub(r'<!--MERMAID_BLOCK_(\d+)-->', restore_mermaid, content)
         
         content = _rewrite_mermaid_blocks(content)
+        content = _rewrite_markdown_asset_paths(content, doc_path.parent)
         content = _process_markdown_headers(content, doc_path.name)
         parts.append(content.strip())
         parts.append('')

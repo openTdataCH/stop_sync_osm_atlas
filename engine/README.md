@@ -75,6 +75,21 @@ Use `transport-matcher --help` for acquisition and GTFS refresh options. Command
 
 See [the result format](RESULT_FORMAT.md) for the integration contract. The review application consumes that format without importing this package.
 
+## Documentation
+
+The canonical engine documentation lives in [`documentation/`](documentation/1.%20Download%20and%20process%20data.md):
+
+- [Sources, adapters and acquisition](documentation/1.%20Download%20and%20process%20data.md)
+- [Stop matching](documentation/2.%20Matching%20process.md)
+- [Route comparison](documentation/3.%20Routes.md)
+- [Problem detection](documentation/4.%20Problems.md)
+- [Caching and performance](documentation/7.5%20Pipeline%20Performance.md)
+- [Engine tests](documentation/8.1%20Pipeline%20tests.md)
+- [Changelog](documentation/Changelog.md)
+- [Related projects and collaboration opportunities](documentation/Related%20projects.md)
+
+The review application may render these pages in its combined documentation portal, but changes to engine behavior and its documentation belong together in this package.
+
 ## Standalone container
 
 Build from this `engine/` directory; its Docker build context contains no review-application code:
