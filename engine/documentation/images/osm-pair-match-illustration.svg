@@ -19,7 +19,10 @@
   <rect x="0" y="0" width="860" height="380" rx="20" class="bg"/>
 
   <text x="430" y="54" text-anchor="middle" class="title">OSM pair: 1 ATLAS stop + 2 grouped OSM nodes</text>
-  <text x="430" y="88" text-anchor="middle" class="caption">The representative matches first; the sibling is then materialized as an OSM-group propagation row, so both blue links can appear on the map.</text>
+  <text x="430" y="82" text-anchor="middle" class="caption">
+    <tspan x="430" dy="0">The representative matches first; the sibling is then materialized as an OSM-group propagation row.</tspan>
+    <tspan x="430" dy="18">Both blue links can then appear on the map.</tspan>
+  </text>
 
   <line x1="225" y1="235" x2="640" y2="150" class="rail"/>
 

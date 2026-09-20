@@ -1,4 +1,16 @@
 # syntax=docker/dockerfile:1
+FROM node:22-bookworm-slim AS docs-diagram-stage
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends chromium \
+    && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY scripts/render_docs_mermaid.mjs ./scripts/render_docs_mermaid.mjs
+COPY documentation ./documentation
+COPY engine/documentation ./engine/documentation
+RUN npm run docs:render-mermaid
+
 FROM python:3.13-slim-bookworm AS base
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
@@ -24,6 +36,7 @@ COPY --chown=app:app migrations ./migrations
 COPY --chown=app:app config ./config
 COPY --chown=app:app documentation ./documentation
 COPY --chown=app:app engine/documentation ./engine/documentation
+COPY --from=docs-diagram-stage --chown=app:app /app/documentation/generated/diagrams ./documentation/generated/diagrams
 COPY --chown=app:app README.md LICENSE entrypoint.sh ./
 RUN mkdir -p data .cache && chown app:app data .cache && chmod +x entrypoint.sh
 USER app

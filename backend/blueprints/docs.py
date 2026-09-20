@@ -101,9 +101,25 @@ _DOC_COLLECTIONS = (
     },
 )
 
-_SECTION_FALLBACK_TITLES = {
-    ('engine', '7'): '7. Operations & performance',
-    ('engine', '8'): '8. Engine testing',
+# Documentation numbers are scoped to the project that owns the page. Each
+# source tree has its own sequential filenames so it can move to a standalone
+# repository without another reorganization.
+_DOC_SECTION_LABELS = {
+    'engine': {
+        '1': ('E1', 'Data acquisition & processing'),
+        '2': ('E2', 'Matching process'),
+        '3': ('E3', 'Routes'),
+        '4': ('E4', 'Problems'),
+        '5': ('E5', 'Operations & performance'),
+        '6': ('E6', 'Engine tests'),
+    },
+    'app': {
+        '0': ('0.', 'Project overview'),
+        '1': ('A1', 'Database & bundle import'),
+        '2': ('A2', 'Web app'),
+        '3': ('A3', 'Application architecture & deployment'),
+        '4': ('A4', 'Web app tests'),
+    },
 }
 
 # Lazy-loaded RepoScanner
@@ -204,6 +220,13 @@ def ensure_docs_pdf_generated() -> bool:
     existing_pdf = _existing_docs_pdf_path()
     docs_dir = _get_docs_dir()
     stats_path = os.path.normpath(os.path.join(_repo_root(), 'data', 'stats.json'))
+    generator_script = os.path.join(
+        _repo_root(),
+        'documentation',
+        'pdf_generator',
+        'build_docs_pdf.py',
+    )
+    stats_renderer = os.path.join(_repo_root(), 'backend', 'services', 'docs_stats.py')
     
     is_fresh = os.path.exists(pdf_path)
     if is_fresh:
@@ -213,30 +236,45 @@ def ensure_docs_pdf_generated() -> bool:
         if os.path.exists(stats_path) and os.path.getmtime(stats_path) > pdf_mtime:
             is_fresh = False
             
-        # 2. Check if any markdown source file is newer
+        # 2. Check if any documentation source or embedded asset is newer
         if is_fresh:
+            source_suffixes = {'.md', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.pdf'}
             for source_dir in _get_docs_dirs().values():
                 if not os.path.isdir(source_dir):
                     continue
-                for f in os.listdir(source_dir):
-                    if f.lower().endswith('.md'):
-                        src_path = os.path.join(source_dir, f)
+                for directory, child_dirs, files in os.walk(source_dir):
+                    child_dirs[:] = [name for name in child_dirs if name != 'generated']
+                    for filename in files:
+                        if os.path.splitext(filename)[1].lower() not in source_suffixes:
+                            continue
+                        src_path = os.path.join(directory, filename)
                         if os.path.getmtime(src_path) > pdf_mtime:
                             is_fresh = False
                             break
+                    if not is_fresh:
+                        break
                 if not is_fresh:
                     break
         
-        # 3. Check if the print CSS template is newer
+        # 3. Check if the renderer implementation or print CSS is newer
         if is_fresh:
             css_path = os.path.normpath(os.path.join(docs_dir, 'pdf_generator', 'docs_print.css'))
-            if os.path.exists(css_path) and os.path.getmtime(css_path) > pdf_mtime:
-                is_fresh = False
+            mermaid_config = os.path.normpath(os.path.join(
+                docs_dir,
+                'pdf_generator',
+                'mermaid_render_config.json',
+            ))
+            for render_dependency in (generator_script, stats_renderer, css_path, mermaid_config):
+                if (
+                    os.path.exists(render_dependency)
+                    and os.path.getmtime(render_dependency) > pdf_mtime
+                ):
+                    is_fresh = False
+                    break
 
     if is_fresh:
         return True
 
-    generator_script = os.path.join(_repo_root(), 'documentation', 'pdf_generator', 'build_docs_pdf.py')
     if not os.path.exists(generator_script):
         logger.error("Docs PDF generator script not found at %s", generator_script)
         return False
@@ -603,6 +641,38 @@ def _derive_title(filename: str) -> str:
     return os.path.splitext(os.path.basename(filename))[0].replace('_', ' ').title()
 
 
+def _display_title(filename: str) -> str:
+    """Return the project-scoped title shown in navigation and page metadata."""
+    derived = _derive_title(filename)
+    stem = os.path.splitext(os.path.basename(filename))[0]
+    first_token, separator, remainder = stem.partition(' ')
+    numeric_token = first_token.rstrip('.')
+    source_key = _doc_source_key(filename)
+    section_key = numeric_token.split('.', 1)[0]
+    section_label = _DOC_SECTION_LABELS.get(source_key, {}).get(section_key)
+
+    if not section_label:
+        return derived
+
+    prefix, root_title = section_label
+    if '.' not in numeric_token:
+        return f'{prefix} {root_title}'.strip()
+
+    suffix = numeric_token.split('.', 1)[1]
+    subsection_prefix = f'{prefix}.{suffix}'
+
+    title = remainder.replace('_', ' ').title() if separator else ''
+    return f'{subsection_prefix} {title}'.strip()
+
+
+def _split_scoped_title(title: str, owner_prefix: Optional[str]) -> Tuple[Optional[str], str]:
+    """Split ``A3.1 Page`` into its pill number and page-title suffix."""
+    if not owner_prefix or not title.startswith(owner_prefix):
+        return None, title
+    scoped_token, separator, suffix = title.partition(' ')
+    return scoped_token[1:], suffix if separator else ''
+
+
 def _derive_level(filename: str) -> int:
     """Return hierarchical level inferred from numeric prefix.
 
@@ -662,15 +732,21 @@ def _group_files_by_section(
         if key is None:
             continue
         level = _derive_level(f)
-        title = _derive_title(f)
+        title = _display_title(f)
         if key not in sections_map:
+            owner_label = _DOC_SOURCES[source_key]['short_label'] if key != '0' else None
             sections_map[key] = {
                 'key': f'{collection_key}-{key}',
                 'export_key': f'{source_key}:{key}',
                 'number': int(key),
+                'owner_key': source_key if owner_label else None,
+                'owner_label': owner_label,
+                'owner_prefix': owner_label[0] if owner_label else None,
+                'owner_number': None,
                 'root_file': None,
                 'root_slug': None,
                 'root_title': None,
+                'root_title_suffix': None,
                 'items': []
             }
         if level <= 1:
@@ -678,17 +754,29 @@ def _group_files_by_section(
             sections_map[key]['root_title'] = title
             sections_map[key]['root_slug'] = file_to_slug.get(f, '')
         else:
+            owner_number, title_suffix = _split_scoped_title(
+                title,
+                sections_map[key]['owner_prefix'],
+            )
             sections_map[key]['items'].append({
                 'file': f,
                 'slug': file_to_slug.get(f, ''),
                 'title': title,
+                'title_suffix': title_suffix,
+                'owner_key': sections_map[key]['owner_key'],
+                'owner_label': sections_map[key]['owner_label'],
+                'owner_prefix': sections_map[key]['owner_prefix'],
+                'owner_number': owner_number,
                 'level': level,
             })
 
     for sec in sections_map.values():
         sec['items'].sort(key=lambda it: it['file'].lower())
-        if sec['root_title'] is None:
-            sec['root_title'] = _SECTION_FALLBACK_TITLES.get((source_key, str(sec['number'])))
+        if sec['root_title']:
+            sec['owner_number'], sec['root_title_suffix'] = _split_scoped_title(
+                sec['root_title'],
+                sec['owner_prefix'],
+            )
 
     sections = sorted(sections_map.values(), key=lambda s: s['number'])
 
@@ -698,16 +786,21 @@ def _group_files_by_section(
         key = _top_level_section_key(f)
         if key is not None:
             continue  # already handled above
-        title = _derive_title(f)
+        title = _display_title(f)
         slug = file_to_slug.get(f, '')
         extra_key = f"{collection_key}-extra-{slug}"
         sections.append({
             'key': extra_key,
             'export_key': f'{source_key}:extra-{slug}',
             'number': None,
+            'owner_key': None,
+            'owner_label': None,
+            'owner_prefix': None,
+            'owner_number': None,
             'root_file': f,
             'root_slug': slug,
             'root_title': title,
+            'root_title_suffix': title,
             'items': [],
         })
 
@@ -846,7 +939,7 @@ def _convert_markdown_to_html(
     )
 
     if bleach is None:
-        return html
+        return _decorate_scoped_heading(html, current_doc)
 
     allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + [
         'p', 'pre', 'code', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'span', 'div', 'i',
@@ -882,7 +975,40 @@ def _convert_markdown_to_html(
 
     sanitized, mermaid_divs = _protect_rendered_mermaid_divs(sanitized)
     sanitized = bleach.linkify(sanitized)
-    return _restore_mermaid_blocks(sanitized, 'MERMAID_HTML', mermaid_divs)
+    sanitized = _restore_mermaid_blocks(sanitized, 'MERMAID_HTML', mermaid_divs)
+    return _decorate_scoped_heading(sanitized, current_doc)
+
+
+def _decorate_scoped_heading(html: str, current_doc: str) -> str:
+    """Turn an A/E heading prefix into the page-level owner indicator."""
+    source_key = _doc_source_key(current_doc)
+    source = _DOC_SOURCES.get(source_key)
+    if not source:
+        return html
+
+    owner_label = source['short_label']
+    prefix = owner_label[0]
+    pattern = re.compile(
+        rf'<h1>{re.escape(prefix)}(?P<number>\d+(?:\.\d+)*)\s+(?P<title>.*?)</h1>',
+        flags=re.DOTALL,
+    )
+
+    def replace(match: re.Match) -> str:
+        return (
+            '<h1 class="docs-scoped-heading">'
+            f'<span class="docs-heading-owner docs-heading-owner--{source_key}">'
+            f'<span class="docs-heading-owner-label" aria-label="{owner_label}">'
+            f'<span>{prefix}</span>'
+            f'<span class="docs-heading-owner-expansion">{owner_label[1:]}</span>'
+            '</span>'
+            '<span class="docs-owner-separator">.</span>'
+            f'<span class="docs-heading-number">{match.group("number")}</span>'
+            '</span>'
+            f'{match.group("title")}'
+            '</h1>'
+        )
+
+    return pattern.sub(replace, html, count=1)
 
 
 @docs_bp.route('/docs')
@@ -921,7 +1047,7 @@ def docs_page(page: str = ''):
 
     raw_markdown = _read_markdown(active_file)
     html_content = _convert_markdown_to_html(raw_markdown, file_to_slug, active_file)
-    active_title = _derive_title(active_file)
+    active_title = _display_title(active_file)
 
     collections = _build_doc_collections(files, file_to_slug)
     sections = [
@@ -936,7 +1062,7 @@ def docs_page(page: str = ''):
             ordered_pages.append({
                 'file': sec['root_file'],
                 'slug': file_to_slug.get(sec['root_file'], ''),
-                'title': sec.get('root_title') or _derive_title(sec['root_file']),
+                'title': sec.get('root_title') or _display_title(sec['root_file']),
             })
         for item in sec['items']:
             ordered_pages.append({
@@ -995,6 +1121,16 @@ def docs_page(page: str = ''):
         }
     else:
         active_context = source_info
+
+    active_context = {
+        **active_context,
+        # The project overview introduces both parts of the system, so it has
+        # no single owner to repeat in the article chrome.
+        'show_owner_pill': (
+            active_collection is None
+            or active_collection['key'] != 'overview'
+        ) and 'docs-heading-owner' not in html_content,
+    }
 
     if is_partial:
         return jsonify({

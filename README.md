@@ -97,12 +97,12 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md). A predicate contribution can use 
 - [Engine documentation](engine/documentation/1.%20Download%20and%20process%20data.md)
 - [Review application changelog](documentation/Changelog.md)
 - [Matching engine changelog](engine/documentation/Changelog.md)
-- [Engine and app architecture](documentation/7.%20System%20Architecture.md)
-- [Bundle import and publication](documentation/5.1%20Import%20Process.md)
-- [Tests and CI](documentation/8.%20Test.md)
-- [Contribution tutorials](documentation/9.%20Contributing.md)
+- [Engine and app architecture](documentation/3.%20System%20Architecture.md)
+- [Bundle import and publication](documentation/1.1%20Import%20Process.md)
+- [Tests and CI](documentation/4.%20Test.md)
+- [Contribution tutorials](documentation/Contributing.md)
 - [Related tools and collaboration](engine/documentation/Related%20projects.md)
 
 Code remains AGPL-3.0-or-later. Source dataset attribution is recorded separately in result metadata.
 
-For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline Performance](engine/documentation/7.5%20Pipeline%20Performance.md).
+For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline Performance](engine/documentation/5.2%20Pipeline%20Performance.md).

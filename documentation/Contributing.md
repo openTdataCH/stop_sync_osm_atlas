@@ -1,4 +1,4 @@
-# 9. Contributing
+# Contributing
 
 Choose the smallest part needed for your contribution. You can improve the matching engine without starting the website, and improve the website using an existing result bundle.
 
