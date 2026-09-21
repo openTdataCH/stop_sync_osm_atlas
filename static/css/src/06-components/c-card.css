@@ -78,30 +78,27 @@
 }
 
 /* -------------------------------------------------------------------------
-   Card with Accent Border
+   Semantic Card Borders
    ------------------------------------------------------------------------- */
-.c-card--accent-left {
-  border-start-width: 4px;
-}
 
 .c-card--primary {
-  border-start-color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 .c-card--success {
-  border-start-color: var(--color-success);
+  border-color: var(--color-success);
 }
 
 .c-card--warning {
-  border-start-color: var(--color-warning);
+  border-color: var(--color-warning);
 }
 
 .c-card--danger {
-  border-start-color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 .c-card--info {
-  border-start-color: var(--color-info);
+  border-color: var(--color-info);
 }
 
 /* -------------------------------------------------------------------------
@@ -131,5 +128,4 @@
   border-radius: 0 0 var(--radius-md) var(--radius-md) !important;
   flex-shrink: 0;
 }
-
 

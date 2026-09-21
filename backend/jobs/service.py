@@ -9,12 +9,13 @@ from apscheduler.events import EVENT_SCHEDULER_STARTED
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from backend.services.pipeline_status import set_next_run, set_status
+from backend.services.pipeline_status import reconcile_orphaned_run, set_next_run
 from backend.jobs.job_runner import run_pipeline
 
 LOGGER = logging.getLogger(__name__)
 LOG_LEVEL = os.getenv("PIPELINE_LOG_LEVEL", "INFO").upper()
 PIPELINE_TIMEZONE = os.getenv("PIPELINE_TIMEZONE", "Europe/Zurich")
+PIPELINE_WATCHDOG_INTERVAL_SECONDS = int(os.getenv("PIPELINE_WATCHDOG_INTERVAL_SECONDS", "60"))
 
 
 def _load_schedule_interval_hours() -> float:
@@ -61,7 +62,16 @@ def _scheduled_job() -> None:
     _update_next_run_timestamp()
 
 
+def _pipeline_watchdog() -> None:
+    try:
+        if reconcile_orphaned_run():
+            LOGGER.error("Recovered an interrupted pipeline run and released its stale lease")
+    except Exception:
+        LOGGER.exception("Pipeline liveness watchdog failed")
+
+
 def _handle_scheduler_started(_event=None) -> None:
+    _pipeline_watchdog()
     _update_next_run_timestamp()
 
 
@@ -84,26 +94,21 @@ def main() -> None:
         force=True,
     )
 
-    set_status(
-        status="idle",
-        phase="idle",
-        message="Scheduler service online",
-        maintenance=False,
-        run_id=None,
-        trigger=None,
-        started_at=None,
-        finished_at=None,
-        processed=None,
-        total=None,
-        eta_seconds=None,
-    )
-
     trigger = _create_interval_trigger()
     scheduler.add_job(
         _scheduled_job,
         trigger=trigger,
         id="daily_pipeline_update",
         name="Recurring data pipeline update",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _pipeline_watchdog,
+        trigger=IntervalTrigger(seconds=max(5, PIPELINE_WATCHDOG_INTERVAL_SECONDS), timezone=PIPELINE_TIMEZONE),
+        id="pipeline_liveness_watchdog",
+        name="Pipeline liveness watchdog",
         max_instances=1,
         coalesce=True,
         replace_existing=True,

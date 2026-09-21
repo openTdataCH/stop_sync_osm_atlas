@@ -70,6 +70,7 @@
    /* Map semantics */
    --color-map-atlas-matched: #174092;
    --color-map-osm-matched: #4caf50;
+   --color-map-gtfs-matched: #f0ad4e;
    --color-map-atlas-unmatched: #dc3545;
    --color-map-osm-unmatched: #6c757d;
    --color-map-line-atlas-osm: #174092;
@@ -81,6 +82,11 @@
    --color-surface-osm: #ecf8ed;
    --color-surface-accent-navy: rgba(23, 64, 146, 0.14);
    --color-surface-accent-osm: rgba(76, 175, 80, 0.12);
+
+   /* Documentation ownership semantics */
+   --color-docs-shared: #6b21a8;
+   --color-docs-shared-subtle: #faf5ff;
+   --color-docs-shared-border: #e9d5ff;
   
   /* Border colors */
   --color-border: #e5e7eb;
@@ -202,5 +208,4 @@
   --scrollbar-thumb: var(--color-fg-subtle);
   --scrollbar-thumb-hover: var(--color-fg-muted);
 }
-
 

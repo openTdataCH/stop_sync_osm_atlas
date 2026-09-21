@@ -218,8 +218,10 @@
         // Map semantics
         ATLAS_MATCHED: '#174092',
         OSM_MATCHED: '#4CAF50',
+        GTFS_MATCHED: '#F0AD4E',
         ATLAS_UNMATCHED: '#DC3545',
         OSM_UNMATCHED: '#6C757D',
+        GTFS_UNMATCHED: '#6C757D',
         LINE_ATLAS_OSM: '#174092',
         LINE_OSM_GROUP: '#4CAF50',
         LINE_OSM_GROUP_DASH: '6,4',

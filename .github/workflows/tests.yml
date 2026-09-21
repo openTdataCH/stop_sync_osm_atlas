@@ -66,6 +66,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - run: pip install './engine[gtfs]'
+      - run: pip install './engine[swiss,gtfs,test]'
+      - name: Validate progress across the process boundary
+        run: PROGRESS_CONTRACT_ENGINE=engine python -m pytest tests/test_engine_progress_contract.py -q
       - run: transport-matcher gtfs --source engine/examples/gtfs --namespace demo --osm engine/examples/osm.xml --output /tmp/result
       - run: python -c 'from backend.importing.bundle import read_bundle; b = read_bundle("/tmp/result"); assert b["matches"] and b["routes"]'

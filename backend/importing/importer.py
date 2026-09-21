@@ -21,6 +21,7 @@ from backend.importing.helpers import safe_value, get_osm_node_type
 from backend.jobs.job_types import PipelineRunType
 from backend.importing.projection import project_bundle
 from backend.importing.bundle import read_bundle
+from backend.importing.progress import progress_stage, report
 from backend.importing.timing import stage
 
 from backend.models import (
@@ -617,7 +618,14 @@ def _write_rows(db_session, db_payloads):
     _bulk_insert_rows(ItineraryMatch, db_payloads.get('itinerary_matches', []), 'itinerary matches', db_session=db_session)
 
 
-def import_to_database(db_payloads=None, run_type=PipelineRunType.COMPLETE, *, manifest=None):
+def import_to_database(
+    db_payloads=None,
+    run_type=PipelineRunType.COMPLETE,
+    *,
+    manifest=None,
+    progress_callback=None,
+    stage_event_callback=None,
+):
     """Stage a complete snapshot and atomically publish it in Postgres.
 
     Source caches remain an engine concern. Every bundle is a full snapshot, so
@@ -631,7 +639,14 @@ def import_to_database(db_payloads=None, run_type=PipelineRunType.COMPLETE, *, m
     _ensure_import_schema_exists(session)
     session.rollback()
     from backend.importing.publication import publish_snapshot
-    publish_snapshot(session.get_bind(), db_payloads, _write_rows, manifest=manifest)
+    publish_snapshot(
+        session.get_bind(),
+        db_payloads,
+        _write_rows,
+        manifest=manifest,
+        progress_callback=progress_callback,
+        stage_event_callback=stage_event_callback,
+    )
     session.expire_all()
     session.close()
     return db_payloads.get('no_nearby_osm_sloids', set())
@@ -726,18 +741,11 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
         stats['quality_metrics'] = base_data.quality_metrics
 
         # Compute problem statistics from DB
-        try:
-            from backend.importing.session import session
-            stats['problems'] = compute_db_stats(session)
-        except Exception as e:
-            print(f"Warning: Could not compute problem statistics: {e}")
+        from backend.importing.session import session
+        stats['problems'] = compute_db_stats(session)
 
         # Compute route-route statistics from DB route tables
-        try:
-            from backend.importing.session import session
-            stats['route_route_matching'] = compute_route_route_stats(session)
-        except Exception as e:
-            print(f"Warning: Could not compute route-route statistics: {e}")
+        stats['route_route_matching'] = compute_route_route_stats(session)
 
         if base_data.atlas_filtering:
             stats['atlas_filtering'] = base_data.atlas_filtering
@@ -751,32 +759,51 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
         
         return stats
     except Exception as e:
-        print(f"Warning: Failed to export stats: {e}")
-        return None
+        raise RuntimeError(f"Failed to export stats: {e}") from e
 
 
-def import_bundle(directory):
+class PublishedDatasetError(RuntimeError):
+    """Publication committed, but its derived analytics need regeneration."""
+
+    def __init__(self, manifest, error):
+        self.manifest = manifest
+        super().__init__(f"Dataset published, but analytics need regeneration: {error}")
+
+
+def import_bundle(directory, *, progress_callback=None, stage_event_callback=None):
     """Consume a complete result snapshot without an engine installation."""
-    with stage('import.validate_bundle'):
-        bundle = read_bundle(directory)
-    with stage('import.project'):
-        base_data, problems, routes = project_bundle(bundle)
-    with stage('import.prepare_rows'):
-        payload = build_fast_insert_payloads(base_data, problems, routes)
+    report(progress_callback, 'database', 'Validating the result bundle')
+    with progress_stage('database.validate', stage_event_callback):
+        with stage('import.validate_bundle'):
+            bundle = read_bundle(directory)
+    report(progress_callback, 'database', 'Preparing application records')
+    with progress_stage('database.prepare', stage_event_callback):
+        with stage('import.project'):
+            base_data, problems, routes = project_bundle(bundle)
+        with stage('import.prepare_rows'):
+            payload = build_fast_insert_payloads(base_data, problems, routes)
+    report(progress_callback, 'database', 'Loading and indexing the staged database')
     with stage('import.load_and_publish'):
-        no_nearby = import_to_database(db_payloads=payload, manifest=bundle['manifest'])
+        no_nearby = import_to_database(
+            db_payloads=payload,
+            manifest=bundle['manifest'],
+            progress_callback=progress_callback,
+            stage_event_callback=stage_event_callback,
+        )
     try:
-        with stage('import.statistics'):
-            _write_gtfs_atlas_stats(base_data.gtfs_atlas_stats)
-            export_stats_after_import(base_data, base_data.duplicate_sloid_map, no_nearby)
-            from backend.services.data_meta import update_data_meta
-            update_data_meta(
-                active_run_id=bundle['manifest']['run_id'],
-                source_capabilities=bundle['manifest']['metadata'].get('capabilities', []),
-            )
-    except Exception:
-        import logging
-        logging.getLogger(__name__).exception('Dataset published, but report metadata needs regeneration')
+        report(progress_callback, 'publish', 'Generating analytics for the published dataset')
+        with progress_stage('publish.analytics', stage_event_callback):
+            with stage('import.statistics'):
+                _write_gtfs_atlas_stats(base_data.gtfs_atlas_stats)
+                if export_stats_after_import(base_data, base_data.duplicate_sloid_map, no_nearby) is None:
+                    raise RuntimeError("Analytics export returned no result")
+                from backend.services.data_meta import update_data_meta
+                update_data_meta(
+                    active_run_id=bundle['manifest']['run_id'],
+                    source_capabilities=bundle['manifest']['metadata'].get('capabilities', []),
+                )
+    except Exception as exc:
+        raise PublishedDatasetError(bundle['manifest'], exc) from exc
     return bundle['manifest']
 
 

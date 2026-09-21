@@ -52,8 +52,8 @@ main {
 }
 
 .osm-group-subfilters {
-  border-start: 2px solid rgba(59, 130, 246, 0.2);
   margin-top: var(--space-2);
+  padding-left: var(--space-3);
 }
 
 .osm-group-subfilters .form-check {
@@ -61,9 +61,9 @@ main {
 }
 
 .osm-pair-subfilters {
-  border-start: 2px solid rgba(59, 130, 246, 0.15);
   margin-top: var(--space-1);
   margin-bottom: var(--space-1);
+  padding-left: var(--space-3);
 }
 
 .osm-pair-subfilters .form-check {
@@ -110,8 +110,8 @@ main {
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-start: 6px solid transparent;
-  border-end: 6px solid transparent;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
   border-bottom: 6px solid rgba(255, 255, 255, 0.97);
   filter: drop-shadow(0 -1px 0 var(--color-border));
 }
@@ -178,7 +178,7 @@ main {
   width: 100%;
   max-width: none;
   padding: 0.5rem 0 0;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: 1px solid var(--color-border);
   background-color: transparent;
 }
 

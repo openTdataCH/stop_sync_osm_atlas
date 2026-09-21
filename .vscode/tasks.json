@@ -2,197 +2,99 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Docker: Run All Tests",
+			"label": "Web app & DB",
 			"type": "shell",
-			"command": "docker compose build test && docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// test python -m pytest tests/",
-			"problemMatcher": [],
-			"group": {
-				"kind": "test",
-				"isDefault": true
-			},
-			"presentation": {
-				"echo": true,
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			}
-		},
-		{
-			"label": "Docker: Validate Result Contract",
-			"command": "docker compose build test && docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// test python -m pytest tests/test_result_bundle.py -v",
-			"problemMatcher": [],
-			"group": "test",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			}
-		},
-		{
-			"label": "Docker: Run Matching & Import (Existing Data)",
-			"type": "shell",
-			"command": "docker compose build migrator app scheduler && docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode match-import --trigger manual",
+			"command": "bash",
+			"args": ["${workspaceFolder}/scripts/run_vscode_task.sh", "${input:webAppAction}"],
 			"problemMatcher": [],
 			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			}
+			"presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "shared", "showReuseMessage": true, "clear": false }
 		},
 		{
-			"label": "Docker: Run Full Data Pipeline (Download & Match & Import)",
+			"label": "Data pipeline & matching",
 			"type": "shell",
-			"command": "docker compose build migrator app scheduler && docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode full --trigger manual",
+			"command": "bash",
+			"args": ["${workspaceFolder}/scripts/run_vscode_task.sh", "${input:dataPipelineAction}"],
 			"problemMatcher": [],
 			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			}
+			"presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "shared", "showReuseMessage": true, "clear": false }
 		},
 		{
-			"label": "Docker: Run Full Data Pipeline (Force Full Refresh)",
+			"label": "Tests",
 			"type": "shell",
-			"command": "docker compose build migrator app scheduler && docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app scheduler && docker exec -e PIPELINE_FORCE_FULL_REFRESH=true stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode full --trigger manual",
+			"command": "bash",
+			"args": ["${workspaceFolder}/scripts/run_vscode_task.sh", "${input:testAction}"],
+			"problemMatcher": [],
+			"group": { "kind": "test", "isDefault": true },
+			"presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "shared", "showReuseMessage": true, "clear": false }
+		},
+		{
+			"label": "Docs",
+			"type": "shell",
+			"command": "bash",
+			"args": ["${workspaceFolder}/scripts/run_vscode_task.sh", "${input:docsAction}"],
 			"problemMatcher": [],
 			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			}
+			"presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "shared", "showReuseMessage": true, "clear": false }
 		},
 		{
-			"label": "Docker: Run Flask DB Upgrade",
+			"label": "Sync vendor libraries",
 			"type": "shell",
-			"command": "docker compose build migrator app && docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d app",
-			"problemMatcher": [],
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			}
-		},
-		{
-			"label": "Docker: Start App Only (No Import)",
-			"type": "shell",
-			"command": "FLASK_DEBUG=1 docker compose up --build app",
+			"command": "bash",
+			"args": ["${workspaceFolder}/scripts/run_vscode_task.sh", "${input:vendorSyncAction}"],
 			"problemMatcher": [],
 			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			},
-			"isBackground": true
+			"presentation": { "echo": true, "reveal": "always", "focus": true, "panel": "shared", "showReuseMessage": true, "clear": false }
+		}
+	],
+	"inputs": [
+		{
+			"id": "webAppAction",
+			"type": "pickString",
+			"description": "Choose a web application or database action",
+			"options": [
+				{ "label": "Start app (debug)", "value": "web-debug" },
+				{ "label": "Start app (Gunicorn)", "value": "web-gunicorn" },
+				{ "label": "Run DB upgrade", "value": "web-db-upgrade" },
+				{ "label": "Regenerate dashboard stats", "value": "web-regenerate-stats" }
+			]
 		},
 		{
-			"label": "Docker: Start App Only (No Import, Debug=False, Gunicorn)",
-			"type": "shell",
-			"command": "FLASK_DEBUG=0 docker compose up --build app",
-			"problemMatcher": [],
-			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			},
-			"isBackground": true
+			"id": "dataPipelineAction",
+			"type": "pickString",
+			"description": "Choose a pipeline or matching action",
+			"options": [
+				{ "label": "Match and import existing data", "value": "pipeline-existing-data" },
+				{ "label": "Run full pipeline (download, match, import)", "value": "pipeline-full" },
+				{ "label": "Run full pipeline (force full refresh)", "value": "pipeline-force-refresh" },
+				{ "label": "Trigger scheduled pipeline now", "value": "pipeline-scheduled-now" }
+			]
 		},
 		{
-			"label": "Docker: Trigger Scheduled Pipeline Now",
-			"type": "shell",
-			"command": "docker compose build migrator scheduler && docker compose up -d db && docker compose up -d --force-recreate migrator && test \"$(docker wait stop_sync_osm_atlas_migrator)\" = \"0\" && docker compose up -d scheduler && docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode full --trigger manual",
-			"problemMatcher": [],
-			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			}
+			"id": "testAction",
+			"type": "pickString",
+			"description": "Choose the test suite",
+			"options": [
+				{ "label": "Run all tests", "value": "test-all" },
+				{ "label": "Validate result contract", "value": "test-result-contract" }
+			]
 		},
 		{
-			"label": "Docs: Build PDF",
-			"type": "shell",
-			"command": "npm",
-			"args": [
-				"run",
-				"docs:build-pdf"
-			],
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "build"
+			"id": "docsAction",
+			"type": "pickString",
+			"description": "Choose a documentation action",
+			"options": [
+				{ "label": "Build PDF", "value": "docs-pdf" },
+				{ "label": "Generate ER diagram", "value": "docs-er-diagram" }
+			]
 		},
 		{
-			"label": "Docker: Regenerate Dashboard Stats from DB",
-			"type": "shell",
-			"command": "docker exec stop_sync_osm_atlas_app python scripts/regenerate_stats.py",
-			"problemMatcher": [],
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			}
-		},
-		{
-			"label": "Assets: Sync Local Vendor Libraries",
-			"type": "shell",
-			"command": "npm run vendor:sync",
-			"problemMatcher": [],
-			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			}
-		},
-		{
-			"label": "Docs: Generate ER Diagram",
-			"type": "shell",
-			"command": "docker exec stop_sync_osm_atlas_app python3 documentation/print_er_diagram/generate_er.py",
-			"problemMatcher": [],
-			"group": "build",
-			"presentation": {
-				"echo": true,
-				"reveal": "always",
-				"focus": true,
-				"panel": "shared",
-				"showReuseMessage": true,
-				"clear": false
-			}
+			"id": "vendorSyncAction",
+			"type": "pickString",
+			"description": "Confirm the vendor-library action",
+			"options": [
+				{ "label": "Sync local vendor libraries", "value": "sync-vendor-libraries" }
+			]
 		}
 	]
 }

@@ -123,7 +123,7 @@
 .gtfs-match {
   --bubble-bg: rgba(240, 173, 78, 0.14);
   --bubble-border: rgba(240, 173, 78, 0.34);
-  --bubble-fg: #F0AD4E;
+  --bubble-fg: var(--color-map-gtfs-matched);
 }
 
 .atlas-match.unmatched {
@@ -261,8 +261,8 @@
   overflow-y: auto;
   padding: var(--space-2);
   background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  border-left: 3px solid var(--bubble-border);
   font-size: var(--text-xs);
 }
 
@@ -409,7 +409,7 @@
 }
 
 .bubble-btn-row .popup-routes-btn:hover {
-  background: #f0f2f5 !important;
+  background: var(--color-bg-muted) !important;
   border-color: rgba(0, 0, 0, 0.28) !important;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12) !important;
   transform: translateY(-1px);
@@ -490,7 +490,7 @@
    Popup Connection Line
    ------------------------------------------------------------------------- */
 .popup-connection-line {
-  stroke: rgba(80, 80, 80, 0.6);
+  stroke: rgba(0, 0, 0, 0.6);
   stroke-width: 1.5;
   stroke-dasharray: 4, 3;
   pointer-events: none;
@@ -543,4 +543,4 @@
 .customPopup .leaflet-popup-close-button:hover {
   color: var(--color-dark);
   background-color: rgba(255, 255, 255, 1);
-} 
+}

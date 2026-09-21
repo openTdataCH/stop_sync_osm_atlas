@@ -1,5 +1,6 @@
 import argparse
 import contextlib
+import json
 import logging
 import os
 import subprocess
@@ -18,14 +19,17 @@ from backend.services.pipeline_status import (
     finish_failure,
     finish_success,
     refresh_run_lock,
+    record_progress_event,
+    get_status,
     release_run_lock,
     set_data_updated,
     set_phase,
+    set_phase_outcome,
     set_status,
     start_run,
 )
 from backend.services.time_utils import format_zurich_timestamp, get_zurich_now
-from backend.importing.importer import import_bundle, get_refresh_scope_tables
+from backend.importing.importer import import_bundle, get_refresh_scope_tables, PublishedDatasetError
 from backend.jobs.job_types import PipelineRunType
 
 LOGGER = logging.getLogger(__name__)
@@ -35,6 +39,27 @@ LOCK_TTL_SECONDS = int(os.getenv("PIPELINE_LOCK_TTL_SECONDS", "14400"))
 LOCK_HEARTBEAT_SECONDS = int(
     os.getenv("PIPELINE_LOCK_HEARTBEAT_SECONDS", str(max(5, min(60, LOCK_TTL_SECONDS // 4))))
 )
+
+
+def _handle_engine_progress(payload: dict, *, run_id=None) -> None:
+    """Store versioned progress events; other engine JSON is log output only."""
+    if 'progress_schema_version' not in payload:
+        return
+    try:
+        record_progress_event(payload, owner="engine", run_id=run_id)
+    except ValueError as exc:
+        LOGGER.warning("Ignoring invalid engine progress event: %s", exc)
+
+
+def _handle_engine_output_line(line: str, *, run_id=None) -> None:
+    try:
+        payload = json.loads(line)
+    except (TypeError, json.JSONDecodeError):
+        return
+    if isinstance(payload, dict):
+        _handle_engine_progress(payload, run_id=run_id)
+
+
 def _publish_refresh_scope(run_type: PipelineRunType) -> tuple[list[str], list[str]]:
     rewritten_tables, reused_tables = get_refresh_scope_tables(run_type)
     set_status(
@@ -84,6 +109,7 @@ class _RunLockHeartbeat:
 
 
 def _run_subprocess(command: list[str], phase: str, message: str, maintenance: bool = False) -> None:
+    run_id = get_status().get("run_id")
     set_phase(phase=phase, message=message, maintenance=maintenance)
     started = time.perf_counter()
     LOGGER.info("Running command: %s", shlex.join(command))
@@ -96,7 +122,14 @@ def _run_subprocess(command: list[str], phase: str, message: str, maintenance: b
     # Docker logs in real time.
     env.setdefault("PYTHONUNBUFFERED", "1")
     try:
-        completed = subprocess.run(command, check=False, env=env)
+        process = subprocess.Popen(
+            command,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
     except FileNotFoundError as exc:
         raise RuntimeError(
             f"Matching executable {command[0]!r} was not found. Rebuild the scheduler "
@@ -105,11 +138,16 @@ def _run_subprocess(command: list[str], phase: str, message: str, maintenance: b
             "For a non-Docker installation, install the engine or set MATCHER_COMMAND "
             "to its executable."
         ) from exc
+    if process.stdout is not None:
+        for line in process.stdout:
+            print(line, end='', flush=True)
+            _handle_engine_output_line(line.strip(), run_id=run_id)
+    returncode = process.wait()
     elapsed = time.perf_counter() - started
-    if completed.returncode != 0:
-        LOGGER.error("Step %s command exited with code %s after %.2fs", phase, completed.returncode, elapsed)
+    if returncode != 0:
+        LOGGER.error("Step %s command exited with code %s after %.2fs", phase, returncode, elapsed)
         raise RuntimeError(
-            f"Step {phase} failed: command exited with code {completed.returncode}: {' '.join(command)}"
+            f"Step {phase} failed: command exited with code {returncode}: {' '.join(command)}"
         )
     LOGGER.info("Step %s completed successfully in %.2fs", phase, elapsed)
 
@@ -165,12 +203,30 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
     )
     heartbeat.start()
 
-    run_id = start_run(trigger=trigger)
+    initial_phase = {
+        'full': 'source_check',
+        'match-import': 'osm',
+        'import': 'database',
+    }.get(mode, 'source_check')
+    initial_message = {
+        'full': 'Checking source freshness',
+        'match-import': 'Preparing OpenStreetMap data',
+        'import': 'Validating the result bundle',
+    }.get(mode, 'Starting pipeline run')
+    run_id = start_run(trigger=trigger, initial_phase=initial_phase, message=initial_message)
     LOGGER.info("Pipeline run started (run_id=%s, mode=%s)", run_id, mode)
 
     try:
         if mode not in {'full', 'match-import', 'import'}:
             raise ValueError(f'Unsupported mode: {mode}')
+        if mode == 'match-import':
+            set_phase_outcome('source_check', 'skipped')
+            set_phase_outcome('atlas', 'reused')
+            set_phase_outcome('timetable', 'reused')
+        elif mode == 'import':
+            for phase in ('source_check', 'atlas', 'timetable', 'osm', 'stop_matching', 'route_matching'):
+                set_phase_outcome(phase, 'skipped')
+            set_phase_outcome('bundle', 'reused')
         run_type = PipelineRunType.COMPLETE
         _publish_refresh_scope(run_type)
         if mode == 'import':
@@ -181,23 +237,31 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
         else:
             bundle_root = Path(os.getenv('PIPELINE_BUNDLE_DIR', 'data/results')).resolve()
             destination = bundle_root / uuid.uuid4().hex
-            _run_subprocess(_engine_command(mode, destination), phase='matching',
-                            message='Preparing a complete matching result snapshot')
+            _run_subprocess(
+                _engine_command(mode, destination),
+                phase=initial_phase,
+                message=initial_message,
+            )
         refresh_run_lock(lock_token, ttl_seconds=LOCK_TTL_SECONDS)
-        set_phase(
-            phase='import',
-            message='Validating and staging the new dataset',
-            maintenance=False,
-            eta_seconds=IMPORT_ETA_SECONDS,
-        )
+        warnings = []
         with _timed_step('import'):
-            manifest = import_bundle(destination)
+            try:
+                manifest = import_bundle(
+                    destination,
+                    stage_event_callback=lambda event: record_progress_event(event, run_id=run_id),
+                )
+            except PublishedDatasetError as exc:
+                manifest = exc.manifest
+                warnings.append(str(exc))
+                LOGGER.warning("%s", exc)
+        set_status(expected_run_id=run_id, dataset_published=True)
         rewritten, reused = get_refresh_scope_tables(run_type)
-        set_phase(phase='publish', message='Publishing the new dataset snapshot', maintenance=False)
         _record_data_updated_timestamp(run_type, rewritten, reused)
         data_meta.update_data_meta(active_run_id=manifest['run_id'], result_schema_version=manifest['schema_version'])
 
         finish_success(
+            warnings=warnings,
+            run_id=run_id,
             message=(
                 f"Pipeline run completed successfully ({mode}, {run_type.value}) at "
                 f"{datetime.now(UTC).isoformat().replace('+00:00', 'Z')}"
@@ -208,7 +272,7 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
 
     except Exception as exc:
         error_message = str(exc)
-        finish_failure(error_message)
+        finish_failure(error_message, run_id=run_id)
         LOGGER.exception("Pipeline run failed: %s", error_message)
         return 1
 
