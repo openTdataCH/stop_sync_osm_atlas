@@ -64,7 +64,7 @@
 
       <!-- Right side items -->
       <ul class="navbar-nav align-items-center">
-        {% if last_pipeline_data_import_ended_at or pipeline_next_run_at %}
+        {% set pipeline_is_running = pipeline_status is defined and pipeline_status.status == 'running' %}
         <li class="nav-item">
           <span id="navbarDataUpdated" class="navbar-text text-muted small navbar-data-updated"
             data-pipeline-next-run-at="{{ pipeline_next_run_at or '' }}"
@@ -79,10 +79,9 @@
               endif %}>
               <i class="fas fa-info-circle"></i>
             </button>
-            <span id="navbarDataUpdatedText">{% if last_pipeline_data_import_ended_at %}Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}{% else %}Data not imported yet{% endif %}</span>
+            <span id="navbarDataUpdatedText">{% if pipeline_is_running %}{% if pipeline_status.blocking_maintenance %}Pipeline running{% else %}Pipeline running in the background{% endif %}{% elif last_pipeline_data_import_ended_at %}Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}{% else %}Data not imported yet{% endif %}</span>
           </span>
         </li>
-        {% endif %}
       </ul>
     </div>
   </div>

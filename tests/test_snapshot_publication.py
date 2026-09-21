@@ -85,14 +85,40 @@ def test_readers_see_previous_snapshot_while_new_one_is_staged(postgres):
 def test_publication_lock_timeout_keeps_old_run(postgres):
     payload, manifest = _example()
     publish_snapshot(postgres, payload, _write_rows, manifest=manifest)
+    events = []
     with postgres.connect() as reader, reader.begin():
         reader.execute(text('SELECT count(*) FROM stops_matched')).scalar()
         with pytest.raises(Exception) as error:
-            publish_snapshot(postgres, payload, _write_rows, manifest={**manifest, 'run_id': 'blocked'})
+            publish_snapshot(postgres, payload, _write_rows, manifest={**manifest, 'run_id': 'blocked'}, stage_event_callback=events.append)
         assert getattr(getattr(error.value, 'orig', None), 'sqlstate', None) == '55P03'
     assert _count(postgres) == 3
+    assert events[-1]['stage_id'] == 'publish.swap'
+    assert events[-1]['event'] == 'stage_failed'
     with postgres.connect() as connection:
         assert connection.execute(text('SELECT run_id FROM dataset_publication')).scalar() == manifest['run_id']
+
+
+def test_progress_reports_commit_and_reporting_failure_does_not_change_publication(postgres):
+    payload, manifest = _example()
+    observed = []
+    committed_runs = []
+
+    def report(event):
+        observed.append(event)
+        if event['stage_id'] == 'publish.swap' and event['event'] == 'stage_finished':
+            with postgres.connect() as connection:
+                committed_runs.append(connection.execute(text('SELECT run_id FROM dataset_publication')).scalar())
+            raise OSError('progress store unavailable after commit')
+
+    publish_snapshot(postgres, payload, _write_rows, manifest=manifest, stage_event_callback=report)
+    assert committed_runs == [manifest['run_id']]
+    assert [(event['stage_id'], event['event']) for event in observed] == [
+        ('database.load', 'stage_started'), ('database.load', 'stage_finished'),
+        ('publish.swap', 'stage_started'), ('publish.swap', 'stage_finished'),
+    ]
+    assert _count(postgres) == 3
+    with postgres.connect() as connection:
+        assert not connection.execute(text("SELECT nspname FROM pg_namespace WHERE nspname LIKE 'import_%' OR nspname LIKE 'previous_%'")).all()
 
 
 def test_long_source_identifiers_survive_migration_and_atomic_import_with_foreign_keys(postgres):

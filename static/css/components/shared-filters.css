@@ -12,20 +12,20 @@
 }
 
 .filter-item .dropdown-toggle {
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  color: #1e293b;
+  border: 1px solid var(--color-border);
+  color: var(--color-fg);
   transition: all 0.2s ease;
 }
 
 .filter-item .dropdown-toggle:hover {
-  background: #f8fafc;
-  border-color: rgba(59, 130, 246, 0.4);
+  background: var(--color-bg-subtle);
+  border-color: var(--color-primary-muted);
 }
 
 .filter-item .dropdown-menu {
   border-radius: var(--radius-lg);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-border);
 }
 
 /* Shared feedback panel for the smart-search controls used by map pages. */
@@ -66,7 +66,7 @@
     gap: var(--space-1);
     pointer-events: auto;
     border-radius: var(--radius-full);
-    border: 1px solid rgba(15, 23, 42, 0.12);
+    border: 1px solid var(--color-border);
     color: var(--color-fg);
     font-weight: var(--font-semibold);
     width: auto;
@@ -100,7 +100,7 @@
     width: 100%;
     border-radius: var(--radius-lg);
     background: rgba(255, 255, 255, 0.96);
-    border: 1px solid rgba(15, 23, 42, 0.08);
+    border: 1px solid var(--color-border);
     box-shadow: var(--shadow-md);
     overflow-y: auto;
   }
@@ -123,8 +123,8 @@
 
 .filter-chip-badge {
   background-color: var(--color-white, #ffffff) !important;
-  color: var(--color-fg, #1e293b) !important;
-  border: 1px solid var(--color-border, rgba(15, 23, 42, 0.12)) !important;
+  color: var(--color-fg) !important;
+  border: 1px solid var(--color-border) !important;
   font-weight: 600 !important;
   font-size: 0.75rem !important;
   padding: 0.18rem 0.55rem !important;
@@ -179,8 +179,8 @@
 /* Matched / Warning category (Yellow/Gold) */
 .filter-chip-matched,
 .filter-chip-problem-type {
-  border-color: #ffc107 !important; /* Brighter yellow for visibility */
-  color: #856404 !important; /* Darker text for readability on yellow */
+  border-color: var(--color-warning) !important;
+  color: var(--color-warning-fg) !important;
 }
 
 /* Unmatched / Danger category (Red) */
@@ -191,14 +191,14 @@
 
 /* Generic / Secondary category */
 .filter-chip-secondary {
-  border-color: var(--color-secondary, #64748b) !important;
-  color: var(--color-secondary, #64748b) !important;
+  border-color: var(--color-secondary) !important;
+  color: var(--color-secondary) !important;
 }
 
 .filter-chip-separator {
   font-size: 0.65rem;
   font-weight: 800;
-  color: var(--color-fg-muted, #64748b);
+  color: var(--color-fg-muted);
   margin: 0 0.08rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;

@@ -98,9 +98,15 @@ def test_stats_data_template_handles_missing_source_downloads():
     assert "Inputs used by this analytics snapshot" not in html
     assert "Unknown" in html
     assert 'class="stats-section-nav"' in html
+    assert 'class="stats-section-nav__indicator"' in html
     assert 'id="pipelineRunCard"' in html
+    assert 'id="pipelineStageDetails"' in html
+    assert html.index('aria-label="Source freshness"') < html.index('class="stats-section-nav"')
+    assert html.index('class="stats-section-nav"') < html.index('id="stops-matching"')
     assert "The analytics below reflect the latest published dataset." not in html
-    assert html.count('data-pipeline-stage=') == 4
+    assert html.count('data-pipeline-stage=') == 9
+    assert 'data-pipeline-stage="stop_matching"' in html
+    assert 'data-stage-label-full="Prepare timetable data"' in html
     assert 'id="stops-matching"' in html
     assert 'id="unmatched"' in html
     assert 'class="osm-overview-card"' in html
@@ -109,6 +115,7 @@ def test_stats_data_template_handles_missing_source_downloads():
 
 def test_stats_data_template_handles_partial_stats_without_summary():
     env = Environment(loader=FileSystemLoader("templates"))
+    env.filters["format_zurich_display_timestamp"] = lambda value, include_seconds=False: value
 
     html = env.get_template("components/stats_data.html").render(
         stats={"atlas_filtering": {"total_input": 10}},
@@ -116,6 +123,52 @@ def test_stats_data_template_handles_partial_stats_without_summary():
     )
 
     assert "No stats available" in html
+    assert 'id="pipelineRunCard"' in html
+    assert html.index('id="pipelineRunCard"') < html.index("No stats available")
+    assert html.count('data-pipeline-stage=') == 9
+    assert "Waiting for first pipeline run" in html
+
+
+def test_stats_data_template_keeps_live_pipeline_visible_without_stats():
+    env = Environment(loader=FileSystemLoader("templates"))
+    env.filters["format_zurich_display_timestamp"] = lambda value, include_seconds=False: value
+
+    html = env.get_template("components/stats_data.html").render(
+        stats=None,
+        problem_breakdown={},
+        pipeline_status={
+            "status": "running",
+            "phase": "initializing",
+            "message": "Initializing pipeline run",
+            "started_at": "2026-09-21T12:00:00+00:00",
+        },
+    )
+
+    assert 'class="pipeline-run-card is-running"' in html
+    assert "Pipeline update in progress" in html
+    assert "Initializing pipeline run" in html
+    assert html.index('id="pipelineRunCard"') < html.index("No stats available")
+
+
+def test_stats_data_template_renders_running_state_before_javascript_poll():
+    env = Environment(loader=FileSystemLoader("templates"))
+    env.globals["url_for"] = lambda endpoint, **values: "/static/"
+    env.filters["format_zurich_display_timestamp"] = lambda value, include_seconds=False: value
+
+    html = env.get_template("components/stats_data.html").render(
+        stats=_minimal_empty_stats(),
+        problem_breakdown={},
+        pipeline_status={
+            "status": "running",
+            "phase": "matching",
+            "message": "Matching sources",
+        },
+    )
+
+    assert 'class="pipeline-run-card is-running"' in html
+    assert "Pipeline update in progress" in html
+    assert "Matching sources" in html
+    assert '<span class="pipeline-run-card__dot"></span>Running' in html
 
 
 def test_analytics_design_does_not_use_left_accent_borders():

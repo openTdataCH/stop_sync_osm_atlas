@@ -8,7 +8,7 @@
    ------------------------------------------------------------------------- */
 .solution-card {
   margin-bottom: var(--space-4);
-  border-start: 5px solid var(--color-success);
+  border: 1px solid var(--color-success-border);
   transition: all var(--transition-fast);
 }
 
@@ -17,23 +17,23 @@
 }
 
 .solution-card.distance {
-  border-start-color: var(--color-danger);
+  border-color: var(--color-danger-border);
 }
 
 .solution-card.unmatched {
-  border-start-color: var(--color-warning);
+  border-color: var(--color-warning-border);
 }
 
 .solution-card.attributes {
-  border-start-color: var(--color-info);
+  border-color: var(--color-info-border);
 }
 
 .solution-card.atlas_note {
-  border-start-color: var(--color-cyan);
+  border-color: var(--color-info-border);
 }
 
 .solution-card.osm_note {
-  border-start-color: var(--color-primary);
+  border-color: var(--color-info-border);
 }
 
 .solution-header {
@@ -198,5 +198,4 @@
     max-height: calc(100vh - 400px);
   }
 }
-
 

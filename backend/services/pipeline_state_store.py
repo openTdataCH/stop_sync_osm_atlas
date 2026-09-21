@@ -8,7 +8,7 @@ from email.utils import parsedate_to_datetime
 from typing import Any, Dict, Iterator, Protocol
 
 from redis import Redis
-from redis.exceptions import RedisError
+from redis.exceptions import RedisError, WatchError
 
 from backend.services.state_backend_config import (
     resolve_state_backend,
@@ -69,14 +69,20 @@ def _parse_expiry(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _accept_run_update(current: dict, run_id: str) -> bool:
+    return current.get("run_id") == run_id and current.get("status") == "running" and not current.get("finished_at")
+
+
 class PipelineStateStore(Protocol):
     def read_status(self) -> Dict[str, Any]: ...
 
     def write_status(self, payload: Dict[str, Any]) -> None: ...
 
+    def patch_status(self, fields: Dict[str, Any], *, expected_run_id: str | None = None) -> Dict[str, Any]: ...
+
     def read_lock(self) -> Dict[str, Any]: ...
 
-    def acquire_lock(self, token: str, ttl_seconds: int) -> bool: ...
+    def acquire_lock(self, token: str, ttl_seconds: int, owner: Dict[str, Any] | None = None) -> bool: ...
 
     def refresh_lock(self, token: str, ttl_seconds: int) -> None: ...
 
@@ -121,15 +127,58 @@ class RedisPipelineStateStore:
     def write_status(self, payload: Dict[str, Any]) -> None:
         self._client().set(_STATUS_KEY, json.dumps(payload))
 
-    def acquire_lock(self, token: str, ttl_seconds: int) -> bool:
-        payload = json.dumps({"token": token, "acquired_at": _now_utc().isoformat()})
+    def patch_status(self, fields: Dict[str, Any], *, expected_run_id: str | None = None) -> Dict[str, Any]:
+        client = self._client()
+        while True:
+            with client.pipeline() as pipe:
+                try:
+                    pipe.watch(_STATUS_KEY)
+                    payload = pipe.get(_STATUS_KEY)
+                    try:
+                        current = json.loads(payload) if payload else {}
+                    except json.JSONDecodeError:
+                        current = {}
+                    if not isinstance(current, dict):
+                        current = {}
+                    if expected_run_id is not None and not _accept_run_update(current, expected_run_id):
+                        return current
+                    current.update(fields)
+                    pipe.multi()
+                    pipe.set(_STATUS_KEY, json.dumps(current))
+                    pipe.execute()
+                    return current
+                except WatchError:
+                    continue
+
+    def acquire_lock(self, token: str, ttl_seconds: int, owner: Dict[str, Any] | None = None) -> bool:
+        now = _now_utc().isoformat()
+        payload = json.dumps({"token": token, "acquired_at": now, "heartbeat_at": now, "owner": owner or {}})
         return bool(self._client().set(_LOCK_KEY, payload, nx=True, ex=max(1, ttl_seconds)))
 
     def refresh_lock(self, token: str, ttl_seconds: int) -> None:
         client = self._client()
-        current = self.read_lock()
-        if current.get("token") == token:
-            client.expire(_LOCK_KEY, max(1, ttl_seconds))
+        while True:
+            with client.pipeline() as pipe:
+                try:
+                    pipe.watch(_LOCK_KEY)
+                    payload = pipe.get(_LOCK_KEY)
+                    if not payload:
+                        pipe.unwatch()
+                        return
+                    try:
+                        current = json.loads(payload)
+                    except json.JSONDecodeError:
+                        current = {"token": payload}
+                    if current.get("token") != token:
+                        pipe.unwatch()
+                        return
+                    current["heartbeat_at"] = _now_utc().isoformat()
+                    pipe.multi()
+                    pipe.set(_LOCK_KEY, json.dumps(current), ex=max(1, ttl_seconds))
+                    pipe.execute()
+                    return
+                except WatchError:
+                    continue
 
     def release_lock(self, token: str) -> None:
         client = self._client()
@@ -178,27 +227,41 @@ class FilePipelineStateStore:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
     def read_status(self) -> Dict[str, Any]:
-        return _read_json_file(self._status_path)
+        with self._guard_lock():
+            return _read_json_file(self._status_path)
 
     def read_lock(self) -> Dict[str, Any]:
         with self._guard_lock():
             return _read_json_file(self._lock_path)
 
     def write_status(self, payload: Dict[str, Any]) -> None:
-        _atomic_write_json(self._status_path, payload)
+        with self._guard_lock():
+            _atomic_write_json(self._status_path, payload)
 
-    def acquire_lock(self, token: str, ttl_seconds: int) -> bool:
+    def patch_status(self, fields: Dict[str, Any], *, expected_run_id: str | None = None) -> Dict[str, Any]:
+        with self._guard_lock():
+            current = _read_json_file(self._status_path)
+            if expected_run_id is not None and not _accept_run_update(current, expected_run_id):
+                return current
+            current.update(fields)
+            _atomic_write_json(self._status_path, current)
+            return current
+
+    def acquire_lock(self, token: str, ttl_seconds: int, owner: Dict[str, Any] | None = None) -> bool:
         with self._guard_lock():
             current = _read_json_file(self._lock_path)
             expires_at = _parse_expiry(current.get("expires_at"))
             if current.get("token") and expires_at and expires_at > _now_utc():
                 return False
+            now = _now_utc().isoformat()
             _atomic_write_json(
                 self._lock_path,
                 {
                     "token": token,
-                    "acquired_at": _now_utc().isoformat(),
+                    "acquired_at": now,
+                    "heartbeat_at": now,
                     "expires_at": _expiry_iso(ttl_seconds),
+                    "owner": owner or {},
                 },
             )
             return True
@@ -213,7 +276,9 @@ class FilePipelineStateStore:
                 {
                     "token": token,
                     "acquired_at": current.get("acquired_at") or _now_utc().isoformat(),
+                    "heartbeat_at": _now_utc().isoformat(),
                     "expires_at": _expiry_iso(ttl_seconds),
+                    "owner": current.get("owner") or {},
                 },
             )
 
@@ -250,20 +315,37 @@ class MemoryPipelineStateStore:
             self._status.clear()
             self._status.update(payload)
 
+    def patch_status(self, fields: Dict[str, Any], *, expected_run_id: str | None = None) -> Dict[str, Any]:
+        with self._state_lock:
+            if expected_run_id is not None and not _accept_run_update(self._status, expected_run_id):
+                return dict(self._status)
+            self._status.update(fields)
+            return dict(self._status)
+
     def read_lock(self) -> Dict[str, Any]:
         with self._state_lock:
             return dict(self._lock_state)
 
-    def acquire_lock(self, token: str, ttl_seconds: int) -> bool:
-        del ttl_seconds
+    def acquire_lock(self, token: str, ttl_seconds: int, owner: Dict[str, Any] | None = None) -> bool:
         with self._state_lock:
             if self._lock_state.get("token") is not None:
                 return False
-            self._lock_state = {"token": token, "acquired_at": _now_utc().isoformat()}
+            now = _now_utc().isoformat()
+            self._lock_state = {
+                "token": token,
+                "acquired_at": now,
+                "heartbeat_at": now,
+                "expires_at": _expiry_iso(ttl_seconds),
+                "owner": owner or {},
+            }
             return True
 
     def refresh_lock(self, token: str, ttl_seconds: int) -> None:
-        del token, ttl_seconds
+        with self._state_lock:
+            if self._lock_state.get("token") != token:
+                return
+            self._lock_state["heartbeat_at"] = _now_utc().isoformat()
+            self._lock_state["expires_at"] = _expiry_iso(ttl_seconds)
 
     def release_lock(self, token: str) -> None:
         with self._state_lock:

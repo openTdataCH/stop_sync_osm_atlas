@@ -81,6 +81,7 @@
   <script src="{{ url_for('static', filename='js/shared/jquery-lite.js') }}"></script>
   <!-- Bootstrap JS (includes Popper) -->
   <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
+  <script>window.initialPipelineStatus = {{ pipeline_status|default({}, true)|tojson }};</script>
   <script src="{{ url_for('static', filename='js/shared/pipeline-status.js') }}"></script>
   <script>window.ReviewConfig = {{ review_config | tojson }};</script>
   {% block scripts %}{% endblock %}

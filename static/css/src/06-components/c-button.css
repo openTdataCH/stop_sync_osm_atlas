@@ -144,7 +144,7 @@
   width: 1em;
   height: 1em;
   border: 2px solid currentColor;
-  border-end-color: transparent;
+  border-right-color: transparent;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
@@ -155,5 +155,4 @@
   cursor: not-allowed;
   pointer-events: none;
 }
-
 

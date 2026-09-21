@@ -147,7 +147,7 @@
 
 .header-summary__mobile-toggle:hover {
   color: var(--color-primary);
-  background: rgba(59, 130, 246, 0.08);
+  background: var(--color-info-bg);
 }
 
 .header-summary__mobile-toggle-icon {

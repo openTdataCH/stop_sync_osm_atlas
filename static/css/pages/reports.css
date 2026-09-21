@@ -81,7 +81,7 @@
 .reports-card__header-icon {
   width: 36px;
   height: 36px;
-  background: linear-gradient(135deg, var(--color-info-bg) 0%, #e0efff 100%);
+  background: var(--color-primary-subtle);
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -208,7 +208,7 @@
   width: 5px;
   height: 8px;
   background: transparent;
-  border-end: 2px solid var(--color-white);
+  border-right: 2px solid var(--color-white);
   border-bottom: 2px solid var(--color-white);
   border-radius: 0;
   transform: rotate(45deg) scale(0);
@@ -322,7 +322,7 @@
 .form-select-custom:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(11, 87, 208, 0.1);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 /* -------------------------------------------------------------------------
@@ -346,7 +346,7 @@
 .limit-input-group input[type="number"]:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(11, 87, 208, 0.1);
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
 .limit-input-group input[type="number"]:disabled {

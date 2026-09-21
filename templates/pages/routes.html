@@ -149,7 +149,7 @@
                 id="routesSearchInput"
                 name="q"
                 type="search"
-                class="form-control form-control-sm border-0 ps-0 border-start-0"
+                class="form-control form-control-sm border-0 ps-0"
                 placeholder="{{ search_placeholder }}"
                 value="{{ q }}"
                 aria-describedby="routes-search-icon"
@@ -209,7 +209,7 @@
                   <input type="checkbox" class="form-check-input routes-status-checkbox" id="unmatchedOnly" data-value="unmatched" {% if matched_filter == 'unmatched' %}checked{% endif %}>
                   <label class="form-check-label" for="unmatchedOnly">Unmatched</label>
                 </div>
-                <div class="ps-3 border-start mt-2">
+                <div class="ps-3 mt-2">
                   <div class="form-check">
                     <input type="checkbox" class="form-check-input routes-status-checkbox" id="unmatchedAtlasOnly" data-value="unmatched_atlas" {% if matched_filter == 'unmatched_atlas' %}checked{% endif %}>
                     <label class="form-check-label" for="unmatchedAtlasOnly">Unmatched {{ review_config.source_label }}</label>
@@ -494,7 +494,7 @@
               <input
                 id="routesGtfsStopIdSloidSearchInput"
                 type="search"
-                class="form-control form-control-sm border-0 ps-0 border-start-0"
+                class="form-control form-control-sm border-0 ps-0"
                 placeholder="Search stops..."
                 autocomplete="off"
                 aria-describedby="routesGtfsStopIdSloidSearchHint routesGtfsStopIdSloidSearchFeedback"

@@ -115,6 +115,7 @@ def create_app():
             'last_pipeline_data_import_ended_at': pipeline_status.get('last_pipeline_data_import_ended_at') or stats.get('data_updated_at'),
             'stats_computed_at': stats.get('stats_computed_at') or stats.get('generated_at'),
             'pipeline_next_run_at': pipeline_status.get('next_run_at'),
+            'pipeline_status': pipeline_status,
         }
 
     app.context_processor(seo_template_context)

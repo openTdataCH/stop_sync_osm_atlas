@@ -32,7 +32,7 @@ body {
 /* Section titles */
 h2.stats-section-title { 
     page-break-after: avoid; 
-    border-bottom: 1px solid #e1e4e8; 
+    border-bottom: 1px solid #e5e7eb;
     margin-top: 0.8rem; 
     margin-bottom: 0.4rem; 
     padding-bottom: 0.25rem; 
@@ -58,7 +58,7 @@ h2.stats-section-title {
 
 /* Card spacing and break prevention */
 .card { 
-    border: 1px solid #e1e4e8 !important; 
+    border: 1px solid #e5e7eb !important;
     break-inside: avoid; 
     margin-bottom: 0.6rem !important; 
 }
@@ -111,8 +111,8 @@ h2.stats-section-title {
 .report-footer { 
     margin-top: 12px; 
     text-align: center; 
-    color: #94a3b8; 
+    color: #adb5bd;
     font-size: 8px; 
-    border-top: 1px solid #f1f5f9; 
+    border-top: 1px solid #f8f9fa;
     padding-top: 6px; 
 }

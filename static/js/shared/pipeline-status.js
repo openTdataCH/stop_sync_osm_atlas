@@ -2,7 +2,7 @@
     var POLL_MS_IDLE = 10000;
     var POLL_MS_ACTIVE = 1500;
     var timerHandle = null;
-    var latestStatus = null;
+    var latestStatus = window.initialPipelineStatus || null;
 
     function getDataUpdatedElement() {
         return document.getElementById('navbarDataUpdated');
@@ -273,8 +273,12 @@
     }
 
     function start() {
-        syncNavbarStatusLabel();
-        syncNextRunInfo();
+        if (latestStatus) {
+            applyStatus(latestStatus);
+        } else {
+            syncNavbarStatusLabel();
+            syncNextRunInfo();
+        }
         setInterval(updateTimerFields, 1000);
         fetchStatus();
     }

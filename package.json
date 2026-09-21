@@ -7,6 +7,7 @@
     "docs:render-mermaid": "node scripts/render_docs_mermaid.mjs",
     "docs:check-mermaid": "node scripts/render_docs_mermaid.mjs --check",
     "docs:build-pdf": "npm run docs:render-mermaid && python3 documentation/pdf_generator/build_docs_pdf.py",
+    "lint:css": "stylelint \"static/css/**/*.css\" --ignore-pattern \"static/css/main.css\" --ignore-pattern \"static/vendor/**\" && node scripts/stylelint/check-template-left-borders.mjs",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -23,6 +24,7 @@
     "mathjax": "3.2.2",
     "mermaid": "10.9.1",
     "puppeteer-core": "25.11.0",
+    "stylelint": "^16.26.1",
     "svgo": "^4.0.1"
   },
   "jest": {

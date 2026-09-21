@@ -1,61 +1,60 @@
-{% if not stats or stats.summary is not defined %}
-<div class="alert alert-warning">No stats available. Run the pipeline first.</div>
-{% else %}
-{% set static_prefix = pdf_static_prefix if pdf_static_prefix is defined else url_for('static', filename='') %}
-{% set source_downloads = stats.source_downloads|default({}, true) %}
-{% set atlas_download = source_downloads.atlas|default({}, true) %}
-{% set gtfs_download = source_downloads.gtfs|default({}, true) %}
+{% set stats_available = stats and stats.summary is defined %}
+{% set current_pipeline_status = pipeline_status|default({}, true) %}
+{% set pipeline_is_running = current_pipeline_status.status == 'running' %}
+{% set pipeline_has_failed = current_pipeline_status.status == 'failed' %}
+{% set pipeline_completed_at = current_pipeline_status.last_pipeline_data_import_ended_at|default('', true) %}
+{% if not pipeline_completed_at and stats_available %}
+  {% set pipeline_completed_at = stats.last_pipeline_data_import_ended_at|default('', true) %}
+{% endif %}
+{% set pipeline_has_completed = pipeline_completed_at or current_pipeline_status.finished_at or current_pipeline_status.last_success_at %}
+{% set stage_default_label = 'Waiting' if pipeline_is_running or not pipeline_has_completed else 'Complete' %}
 
 {# ══════════════════════════════════════════
 SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
 ══════════════════════════════════════════ #}
 {% if not is_pdf %}
-<nav class="stats-section-nav" aria-label="Analytics sections">
-  <a class="stats-section-nav__link is-active" href="#stops-matching">Matching</a>
-  <a class="stats-section-nav__link" href="#osm-stops">OSM stops</a>
-  <a class="stats-section-nav__link" href="#unmatched">Unmatched</a>
-  <a class="stats-section-nav__link" href="#atlas">ATLAS</a>
-  <a class="stats-section-nav__link" href="#problems">Problems</a>
-  <a class="stats-section-nav__link" href="#routes">Routes</a>
-</nav>
-
-<section class="pipeline-run-card" id="pipelineRunCard" aria-live="polite"
-  data-last-completed="{{ stats.last_pipeline_data_import_ended_at|default('', true) }}">
+<section class="pipeline-run-card{% if pipeline_is_running %} is-running{% elif pipeline_has_failed %} is-failed{% endif %}" id="pipelineRunCard" aria-live="polite"
+  data-last-completed="{{ pipeline_completed_at }}">
   <div class="pipeline-run-card__header">
     <div>
       <div class="pipeline-run-card__eyebrow">Pipeline</div>
-      <h2 class="pipeline-run-card__title" id="analyticsPipelineTitle">Latest run complete</h2>
-      <p class="pipeline-run-card__message" id="analyticsPipelineMessage" hidden></p>
+      <h2 class="pipeline-run-card__title" id="analyticsPipelineTitle">{% if pipeline_is_running %}Pipeline update in progress{% elif pipeline_has_failed %}Latest pipeline run failed{% elif pipeline_has_completed %}Latest run complete{% else %}Waiting for first pipeline run{% endif %}</h2>
+      <p class="pipeline-run-card__message" id="analyticsPipelineMessage"{% if not pipeline_is_running and not pipeline_has_failed %} hidden{% endif %}>{% if pipeline_is_running %}{{ current_pipeline_status.message or 'Preparing the next analytics snapshot.' }}{% elif pipeline_has_failed %}{{ current_pipeline_status.last_error or current_pipeline_status.message or 'The previous analytics snapshot remains available below.' }}{% endif %}</p>
     </div>
     <div class="pipeline-run-card__meta">
-      <span class="pipeline-run-card__status" id="analyticsPipelineStatus"><span class="pipeline-run-card__dot"></span>Complete</span>
-      <span id="analyticsPipelineElapsed">Updated {{ stats.last_pipeline_data_import_ended_at|format_zurich_display_timestamp(include_seconds=True) or 'time unknown' }}</span>
+      <span class="pipeline-run-card__status" id="analyticsPipelineStatus"><span class="pipeline-run-card__dot"></span>{% if pipeline_is_running %}Running{% elif pipeline_has_failed %}Needs attention{% elif pipeline_has_completed %}Complete{% else %}Waiting{% endif %}</span>
+      <span id="analyticsPipelineElapsed">{% if pipeline_is_running %}Running{% elif pipeline_has_failed %}Stopped{% elif pipeline_has_completed %}Updated {{ pipeline_completed_at|format_zurich_display_timestamp(include_seconds=True) or 'time unknown' }}{% else %}Not started{% endif %}</span>
     </div>
   </div>
   <div class="pipeline-timeline" id="analyticsPipelineTimeline" aria-label="Pipeline progress">
-    <div class="pipeline-timeline__stage" data-pipeline-stage="initializing" style="--stage-size: 9">
-      <div class="pipeline-timeline__label"><span>Initialize</span></div>
-      <div class="pipeline-timeline__track"><span class="pipeline-timeline__fill"></span><strong data-stage-duration>Complete</strong></div>
+    {% macro pipeline_stage(phase, label, size) -%}
+    <div class="pipeline-timeline__stage" data-pipeline-stage="{{ phase }}" style="--stage-size: {{ size }}">
+      <div class="pipeline-timeline__label"><span data-stage-label data-stage-label-full="{{ label }}">{{ label }}</span></div>
+      <div class="pipeline-timeline__track"><span class="pipeline-timeline__fill"></span><strong data-stage-duration>{{ stage_default_label }}</strong><span class="pipeline-timeline__state" data-stage-state aria-hidden="true"></span></div>
       <div class="pipeline-timeline__time" data-stage-time>—</div>
     </div>
-    <div class="pipeline-timeline__stage" data-pipeline-stage="matching" style="--stage-size: 66">
-      <div class="pipeline-timeline__label"><span>Match sources</span></div>
-      <div class="pipeline-timeline__track"><span class="pipeline-timeline__fill"></span><strong data-stage-duration>Complete</strong></div>
-      <div class="pipeline-timeline__time" data-stage-time>—</div>
-    </div>
-    <div class="pipeline-timeline__stage" data-pipeline-stage="import" style="--stage-size: 18">
-      <div class="pipeline-timeline__label"><span>Validate &amp; import</span></div>
-      <div class="pipeline-timeline__track"><span class="pipeline-timeline__fill"></span><strong data-stage-duration>Complete</strong></div>
-      <div class="pipeline-timeline__time" data-stage-time>—</div>
-    </div>
-    <div class="pipeline-timeline__stage" data-pipeline-stage="publish" style="--stage-size: 7">
-      <div class="pipeline-timeline__label"><span>Publish</span></div>
-      <div class="pipeline-timeline__track"><span class="pipeline-timeline__fill"></span><strong data-stage-duration>Complete</strong></div>
-      <div class="pipeline-timeline__time" data-stage-time>—</div>
-    </div>
+    {%- endmacro %}
+    {{ pipeline_stage('source_check', 'Check sources', 3) }}
+    {{ pipeline_stage('atlas', 'Prepare ATLAS', 4) }}
+    {{ pipeline_stage('timetable', 'Prepare timetable data', 20) }}
+    {{ pipeline_stage('osm', 'Prepare OpenStreetMap', 25) }}
+    {{ pipeline_stage('stop_matching', 'Stop matching', 10) }}
+    {{ pipeline_stage('route_matching', 'Route matching', 10) }}
+    {{ pipeline_stage('bundle', 'Build result bundle', 8) }}
+    {{ pipeline_stage('database', 'Stage database', 18) }}
+    {{ pipeline_stage('publish', 'Publish dataset', 2) }}
   </div>
+  <div class="pipeline-stage-details" id="pipelineStageDetails" aria-label="Pipeline stage details"></div>
 </section>
 {% endif %}
+
+{% if not stats_available %}
+<div class="alert alert-warning">No stats available yet. The pipeline status remains live above.</div>
+{% else %}
+{% set static_prefix = pdf_static_prefix if pdf_static_prefix is defined else url_for('static', filename='') %}
+{% set source_downloads = stats.source_downloads|default({}, true) %}
+{% set atlas_download = source_downloads.atlas|default({}, true) %}
+{% set gtfs_download = source_downloads.gtfs|default({}, true) %}
 
 <section class="source-freshness" aria-label="Source freshness">
   <div class="source-freshness__grid">
@@ -77,6 +76,18 @@ SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
     </div>
   </div>
 </section>
+
+{% if not is_pdf %}
+<nav class="stats-section-nav" aria-label="Analytics sections">
+  <span class="stats-section-nav__indicator" aria-hidden="true"></span>
+  <a class="stats-section-nav__link is-active" href="#stops-matching" aria-current="location">Matching</a>
+  <a class="stats-section-nav__link" href="#osm-stops">OSM stops</a>
+  <a class="stats-section-nav__link" href="#unmatched">Unmatched</a>
+  <a class="stats-section-nav__link" href="#atlas">ATLAS</a>
+  <a class="stats-section-nav__link" href="#problems">Problems</a>
+  <a class="stats-section-nav__link" href="#routes">Routes</a>
+</nav>
+{% endif %}
 
 {# ══════════════════════════════════════════
 SECTION 1 — STOPS MATCHING

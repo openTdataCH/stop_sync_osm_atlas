@@ -11,9 +11,8 @@
 <div class="operators-page">
   <div class="operators-container">
     <header class="operators-header">
-
-      <h1>
-        Operators
+      <div class="operators-header__heading">
+        <h1>ATLAS to OSM operators</h1>
         <div class="operators-info" aria-label="About operator discrepancies">
           <button type="button" class="operators-info__button" aria-label="Info">
             <i class="fas fa-info-circle" aria-hidden="true"></i>
@@ -22,10 +21,10 @@
             <p>Discrepancies between ATLAS and OSM operators can be explored on the <a href="{{ url_for('problems') }}">Problems</a> page by selecting <strong>Attributes</strong> problems (Priority 3). Check the <a href="{{ url_for('docs.docs_page', page='stop_problems') }}">Stop Problems documentation</a> for more details.</p>
           </div>
         </div>
-      </h1>
+      </div>
       <p>
-        For each ATLAS stop operator, inspect the OSM stop operators seen on matched ATLAS↔OSM stops.<br>
-        <a href="https://transmodel-ids.toolforge.org/sboid/" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+        See how each ATLAS operator maps to the <code>operator</code> values found on its matched OpenStreetMap stops.
+        <a href="https://transmodel-ids.toolforge.org/sboid/" target="_blank" rel="noopener noreferrer" class="operators-header__link">
           <i class="fas fa-external-link-alt" aria-hidden="true"></i> View SBOID mapping dashboard
         </a>
       </p>
@@ -42,7 +41,7 @@
                 id="operatorsSearchInput"
                 name="q"
                 type="search"
-                class="form-control form-control-sm border-0 ps-0 border-start-0"
+                class="form-control form-control-sm border-0 ps-0"
                 placeholder="Search ATLAS operator, SBOID or matched OSM operator"
                 value="{{ q }}"
                 aria-describedby="operators-search-icon"
@@ -102,70 +101,100 @@
     <section class="operators-list" aria-label="Operators list">
       {% for operator in operator_rows %}
       <article class="operator-card {{ 'operator-card--has-matches' if operator.has_osm_matches else 'operator-card--no-matches' }}">
-        <header class="operator-card__header">
-          <div class="operator-card__pane operator-card__pane--atlas">
-            <div class="operator-card__pane-label">ATLAS</div>
-            <h2 class="operator-card__title">{{ operator.atlas_business_org_name }}</h2>
-            <div class="operator-card__meta">
-              <span class="operator-card__meta-pill">Abbr: {{ operator.atlas_business_org_abbr }}</span>
-              {% if operator.sboid %}
-              <span class="operator-card__meta-pill">SBOID: {{ operator.sboid }}</span>
-              {% endif %}
-            </div>
-            <div class="operator-card__stats-row">
-              <span class="operator-card__stat"><strong>{{ operator.atlas_stop_count }}</strong> ATLAS stops</span>
-              <span class="operator-card__stat"><strong>{{ operator.matched_stop_count }}</strong> matched</span>
-            </div>
-            {% if operator.unmatched_atlas_stop_count > 0 %}
-            <div class="operator-card__footer-note">{{ operator.unmatched_atlas_stop_count }} ATLAS stops remain unmatched.</div>
-            {% endif %}
-          </div>
+        <div class="operator-card__mapping">
+          <svg class="operator-card__connectors" aria-hidden="true" focusable="false"></svg>
 
-          <div class="operator-card__pane operator-card__pane--osm">
-            <div class="operator-card__pane-label">OSM</div>
+          <section class="operator-source-group" aria-labelledby="operator-{{ loop.index }}-title">
+            <div class="operator-target-group__header operator-target-group__header--atlas">
+              <span>ATLAS operator</span>
+            </div>
+            <div class="operator-node operator-node--atlas">
+              <h2 class="operator-node__title" id="operator-{{ loop.index }}-title">{{ operator.atlas_business_org_name }}</h2>
+              <div class="operator-node__identifiers">
+                <span><span class="operator-node__identifier-label">Abbreviation</span>{{ operator.atlas_business_org_abbr }}</span>
+                {% if operator.sboid %}
+                <span><span class="operator-node__identifier-label">SBOID</span>{{ operator.sboid }}</span>
+                {% endif %}
+              </div>
+              <div class="operator-node__metrics" aria-label="ATLAS stop totals">
+                <span><strong>{{ operator.atlas_stop_count }}</strong> total stops</span>
+                <span><strong>{{ operator.matched_stop_count }}</strong> matched</span>
+                {% if operator.unmatched_atlas_stop_count > 0 %}
+                <span class="operator-node__metric--muted"><strong>{{ operator.unmatched_atlas_stop_count }}</strong> unmatched</span>
+                {% endif %}
+              </div>
+            </div>
+          </section>
+
+          <div class="operator-card__branch" aria-hidden="true"></div>
+
+          <div class="operator-card__destinations">
             {% if operator.has_osm_matches %}
-            {% if operator.osm_operators %}
-            <div class="operator-card__osm-count">{{ operator.osm_operator_count }} OSM operator{{ 's' if operator.osm_operator_count != 1 }}</div>
-            <ul class="operator-card__matches" aria-label="Matched OSM operators">
-              {% for osm_operator in operator.osm_operators %}
-              <li class="operator-match-pill">
-                <span class="operator-match-pill__name">{{ osm_operator.osm_operator }}</span>
-                <span class="operator-match-pill__count">{{ osm_operator.matched_stop_count }} matched stops</span>
-              </li>
-              {% endfor %}
-            </ul>
-            {% endif %}
+              {% if operator.osm_operators %}
+              <section class="operator-target-group" aria-label="Matched OSM operator values">
+                <div class="operator-target-group__header">
+                  <span>OSM <code>operator</code></span>
+                  <span>{{ operator.osm_operator_count }} value{{ 's' if operator.osm_operator_count != 1 }}</span>
+                </div>
+                <ul class="operator-target-list">
+                  {% for osm_operator in operator.osm_operators %}
+                  <li class="operator-node operator-node--osm">
+                    <span class="operator-node__target-icon" aria-hidden="true"><i class="fas fa-map-marker-alt"></i></span>
+                    <span class="operator-node__target-copy">
+                      <strong>{{ osm_operator.osm_operator }}</strong>
+                      <span>OSM operator value</span>
+                    </span>
+                    <span class="operator-node__count"><strong>{{ osm_operator.matched_stop_count }}</strong> matched stop{{ 's' if osm_operator.matched_stop_count != 1 }}</span>
+                  </li>
+                  {% endfor %}
+                </ul>
+              </section>
+              {% endif %}
 
-            {% if supports_osm_operator_wikidata and operator.osm_operators_wikidata %}
-            <div class="operator-card__osm-count mt-2">{{ operator.osm_operator_wikidata_count }} OSM operator:wikidata tag{{ 's' if operator.osm_operator_wikidata_count != 1 }}</div>
-            <ul class="operator-card__matches" aria-label="Matched OSM operator:wikidata tags">
-              {% for osm_wikidata in operator.osm_operators_wikidata %}
-              <li class="operator-match-pill operator-match-pill--wikidata">
-                <span class="operator-match-pill__name">
-                  <a href="https://www.wikidata.org/wiki/{{ osm_wikidata.osm_operator_wikidata }}" target="_blank" rel="noopener noreferrer">
-                    {{ osm_wikidata.osm_operator_wikidata }}
-                  </a>
-                </span>
-                <span class="operator-match-pill__count">{{ osm_wikidata.matched_stop_count }} matched stops</span>
-              </li>
-              {% endfor %}
-            </ul>
-            {% endif %}
-
-            {% elif operator.has_matched_stops %}
-            <p class="operator-card__empty">Matched stops exist, but none of those OSM stops currently carry an <code>operator</code>{% if supports_osm_operator_wikidata %} or <code>operator:wikidata</code>{% endif %} tag.</p>
+              {% if supports_osm_operator_wikidata and operator.osm_operators_wikidata %}
+              <section class="operator-target-group operator-target-group--wikidata" aria-label="Matched OSM operator Wikidata values">
+                <div class="operator-target-group__header">
+                  <span>OSM <code>operator:wikidata</code></span>
+                  <span>{{ operator.osm_operator_wikidata_count }} value{{ 's' if operator.osm_operator_wikidata_count != 1 }}</span>
+                </div>
+                <ul class="operator-target-list">
+                  {% for osm_wikidata in operator.osm_operators_wikidata %}
+                  <li class="operator-node operator-node--wikidata">
+                    <span class="operator-node__target-icon" aria-hidden="true"><i class="fas fa-link"></i></span>
+                    <span class="operator-node__target-copy">
+                      <strong><a href="https://www.wikidata.org/wiki/{{ osm_wikidata.osm_operator_wikidata }}" target="_blank" rel="noopener noreferrer">{{ osm_wikidata.osm_operator_wikidata }} <i class="fas fa-external-link-alt" aria-hidden="true"></i></a></strong>
+                      <span>Wikidata identifier</span>
+                    </span>
+                    <span class="operator-node__count"><strong>{{ osm_wikidata.matched_stop_count }}</strong> matched stop{{ 's' if osm_wikidata.matched_stop_count != 1 }}</span>
+                  </li>
+                  {% endfor %}
+                </ul>
+              </section>
+              {% endif %}
             {% else %}
-            <p class="operator-card__empty">No ATLAS stops for this operator are currently matched to an OSM stop with an operator{% if supports_osm_operator_wikidata %} or wikidata{% endif %} value.</p>
+              <section class="operator-node operator-node--empty">
+                <span class="operator-node__target-icon" aria-hidden="true"><i class="fas fa-unlink"></i></span>
+                <span class="operator-node__target-copy">
+                  <strong>No OSM operator value</strong>
+                  {% if operator.has_matched_stops %}
+                  <span>Matched stops exist, but their OSM stops do not carry an <code>operator</code>{% if supports_osm_operator_wikidata %} or <code>operator:wikidata</code>{% endif %} tag.</span>
+                  {% else %}
+                  <span>No stop for this operator is currently matched to an OSM stop with an operator value.</span>
+                  {% endif %}
+                </span>
+              </section>
             {% endif %}
-            
-            {% if operator.missing_osm_operator_count > 0 %}
-            <div class="operator-card__footer-note">{{ operator.missing_osm_operator_count }} matched OSM stops have no <code>operator</code> tag.</div>
-            {% endif %}
-            {% if supports_osm_operator_wikidata and operator.missing_osm_operator_wikidata_count > 0 %}
-            <div class="operator-card__footer-note">{{ operator.missing_osm_operator_wikidata_count }} matched OSM stops have no <code>operator:wikidata</code> tag.</div>
+
+            {% if operator.missing_osm_operator_count > 0 or (supports_osm_operator_wikidata and operator.missing_osm_operator_wikidata_count > 0) %}
+            <div class="operator-card__coverage-note">
+              <i class="fas fa-info-circle" aria-hidden="true"></i>
+              <span>
+                {% if operator.missing_osm_operator_count > 0 %}{{ operator.missing_osm_operator_count }} matched OSM stop{{ 's' if operator.missing_osm_operator_count != 1 }} without <code>operator</code>{% endif %}{% if operator.missing_osm_operator_count > 0 and supports_osm_operator_wikidata and operator.missing_osm_operator_wikidata_count > 0 %}<span aria-hidden="true"> · </span>{% endif %}{% if supports_osm_operator_wikidata and operator.missing_osm_operator_wikidata_count > 0 %}{{ operator.missing_osm_operator_wikidata_count }} without <code>operator:wikidata</code>{% endif %}
+              </span>
+            </div>
             {% endif %}
           </div>
-        </header>
+        </div>
       </article>
       {% endfor %}
     </section>
