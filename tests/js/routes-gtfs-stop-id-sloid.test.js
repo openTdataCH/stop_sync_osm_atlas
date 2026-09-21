@@ -558,6 +558,30 @@ describe('Routes GTFS stop_id/SLOID map adapter', () => {
     expect(statusText.textContent).toContain('matched stop’s counterpart');
   });
 
+  test('hides the zoom banner while GTFS map filter dropdowns are open', async () => {
+    const page = installPage();
+    const status = document.getElementById('routesGtfsStopIdSloidStatus');
+    const controls = document.getElementById('routesGtfsStopIdSloidControls');
+    const firstDropdown = document.createElement('div');
+    const secondDropdown = document.createElement('div');
+    firstDropdown.className = 'dropdown';
+    secondDropdown.className = 'dropdown';
+    controls.append(firstDropdown, secondDropdown);
+
+    page.getViewportOptions().onData(samplePayload(), { zoom: 12, cacheHit: false });
+    expect(status.classList.contains('d-none')).toBe(false);
+
+    firstDropdown.dispatchEvent(new Event('shown.bs.dropdown', { bubbles: true }));
+    expect(status.classList.contains('zoom-banner--faded')).toBe(true);
+
+    secondDropdown.dispatchEvent(new Event('shown.bs.dropdown', { bubbles: true }));
+    firstDropdown.dispatchEvent(new Event('hidden.bs.dropdown', { bubbles: true }));
+    expect(status.classList.contains('zoom-banner--faded')).toBe(true);
+
+    secondDropdown.dispatchEvent(new Event('hidden.bs.dropdown', { bubbles: true }));
+    expect(status.classList.contains('zoom-banner--faded')).toBe(false);
+  });
+
   test('does not reconcile an unchanged same-zoom cache hit', () => {
     const page = installPage();
     const viewportOptions = page.getViewportOptions();
