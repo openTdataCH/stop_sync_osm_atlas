@@ -329,7 +329,7 @@
 
 .routes-gtfs-map-shell {
   --zoom-banner-position: absolute;
-  --zoom-banner-top: 30px;
+  --zoom-banner-top: 70px;
   position: relative;
   min-height: max(68vh, 620px);
   border-radius: var(--radius-lg);

@@ -283,6 +283,7 @@
   var lastRenderedPayload = null;
   var lastRenderedZoom = null;
   var destroyed = false;
+  var openFilterDropdowns = new Set();
 
   function setStatus(kind, message, canRetry) {
     if (!statusElement || !statusTextElement) return;
@@ -290,6 +291,29 @@
     statusElement.dataset.state = kind || '';
     statusTextElement.textContent = message || '';
     if (retryButton) retryButton.hidden = !canRetry;
+  }
+
+  // Match the Index map: an open filter menu takes precedence over the
+  // completeness banner, which would otherwise obscure the menu.
+  function setStatusHiddenForFilterDropdown(dropdown, hidden) {
+    if (!statusElement || !dropdown) return;
+    if (hidden) openFilterDropdowns.add(dropdown);
+    else openFilterDropdowns.delete(dropdown);
+    statusElement.classList.toggle('zoom-banner--faded', openFilterDropdowns.size > 0);
+  }
+
+  function handleFilterDropdownShown(event) {
+    var dropdown = event.target && event.target.closest ? event.target.closest('.dropdown') : null;
+    if (dropdown && filterControls && filterControls.contains(dropdown)) {
+      setStatusHiddenForFilterDropdown(dropdown, true);
+    }
+  }
+
+  function handleFilterDropdownHidden(event) {
+    var dropdown = event.target && event.target.closest ? event.target.closest('.dropdown') : null;
+    if (dropdown && filterControls && filterControls.contains(dropdown)) {
+      setStatusHiddenForFilterDropdown(dropdown, false);
+    }
   }
 
   function getViewportPolicy(zoom) {
@@ -948,6 +972,10 @@
       searchInput.removeEventListener('keydown', handleSearchKeydown);
     }
     if (filterControls) filterControls.removeEventListener('change', handleFilterControlsChange);
+    if (filterControls) {
+      filterControls.removeEventListener('shown.bs.dropdown', handleFilterDropdownShown);
+      filterControls.removeEventListener('hidden.bs.dropdown', handleFilterDropdownHidden);
+    }
     if (activeFiltersElement) activeFiltersElement.removeEventListener('click', handleActiveFiltersClick);
     if (summaryRequestController) summaryRequestController.abort();
     if (summaryBinding) summaryBinding.destroy();
@@ -969,6 +997,10 @@
     searchInput.addEventListener('keydown', handleSearchKeydown);
   }
   if (filterControls) filterControls.addEventListener('change', handleFilterControlsChange);
+  if (filterControls) {
+    filterControls.addEventListener('shown.bs.dropdown', handleFilterDropdownShown);
+    filterControls.addEventListener('hidden.bs.dropdown', handleFilterDropdownHidden);
+  }
   if (activeFiltersElement) activeFiltersElement.addEventListener('click', handleActiveFiltersClick);
 
   global.RoutesGtfsStopIdSloidMap = Object.freeze({
