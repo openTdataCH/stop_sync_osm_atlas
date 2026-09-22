@@ -5,7 +5,6 @@ import html
 import json
 import os
 import re
-import subprocess
 import sys
 import textwrap
 from datetime import datetime
@@ -22,6 +21,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from backend.services.docs_stats import load_stats_for_docs, replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html
+from backend.services.quality_report import replace_quality_placeholder
 
 
 DOCS_DIR = REPO_ROOT / 'documentation'
@@ -179,6 +179,9 @@ def _rewrite_internal_doc_links(
         else:
             path_part = href.split('#', 1)[0]
             target = (current_doc.parent / unquote(path_part)).resolve()
+        logical_engine_root = REPO_ROOT / 'engine'
+        if target.is_relative_to(logical_engine_root):
+            target = (ENGINE_ROOT / target.relative_to(logical_engine_root)).resolve()
         anchor = anchor_map.get(str(target))
         if not anchor:
             return match.group(0)
@@ -535,6 +538,9 @@ def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
         content = re.sub(r'```mermaid.*?```', save_mermaid, content, flags=re.DOTALL)
         
         content = replace_stats_placeholders(content, stats, html_escape=True)
+        # A PDF has no application origin. Preserve evidence paths without
+        # turning root-relative portal URLs into misleading file:// links.
+        content = replace_quality_placeholder(content, REPO_ROOT, artifact_prefix=None)
         content = _rewrite_internal_doc_links(content, anchor_map, doc_path)
         content = _rewrite_repo_links(content, doc_path)
         content = convert_github_alerts_to_html(content)

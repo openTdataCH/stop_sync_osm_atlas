@@ -1,10 +1,10 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 describe('dataset presentation across primary map surfaces', () => {
   beforeAll(() => {
     ['components/popup-utils', 'components/popup-renderer', 'pages/problems-ui', 'pages/filters'].forEach(name => {
-      window.eval(fs.readFileSync(path.join(__dirname, '../../static/js/' + name + '.js'), 'utf8'));
+      loadBrowserScript(path.join(__dirname, '../../static/js/' + name + '.js'));
     });
   });
 

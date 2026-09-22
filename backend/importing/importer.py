@@ -6,14 +6,13 @@ Matching, grouping, route comparison and diagnostic decisions are already
 complete in the bundle. Only application persistence happens here.
 """
 import os
-import time
 import argparse
 import ast
 import json
 from collections import Counter
 from typing import Any
 
-from sqlalchemy import text, inspect, insert
+from sqlalchemy import inspect, insert
 
 # --- Internal modules -------------------------------------------------------
 from backend.importing.session import session
@@ -236,7 +235,6 @@ def build_fast_insert_payloads(
     Returns a dict of lists-of-dicts keyed by table name.
     """
     problem_ctx = problem_artifacts['problem_ctx']
-    matched_problem_map = problem_artifacts.get('matched_problem_map', {})
     unmatched_atlas_problem_map = problem_artifacts.get('unmatched_atlas_problem_map', {})
     unmatched_osm_problem_map = problem_artifacts.get('unmatched_osm_problem_map', {})
 
@@ -496,7 +494,6 @@ def build_fast_insert_payloads(
     itinerary_match_dicts = table_rows(ItineraryMatch, 'itinerary_matches')
 
     skipped_sloids = int(route_write_payload.get('skipped_sloids', 0) or 0)
-    matched_routes = int(route_write_payload.get('matched_routes', 0) or 0)
 
     if skipped_sloids:
         print(f"  Skipped {skipped_sloids} atlas itinerary stop calls with non-imported SLOIDs")
@@ -514,7 +511,6 @@ def build_fast_insert_payloads(
     )
 
     # ---- Summary ----
-    total_matched = sum(1 for d in stops_matched_dicts if d['stop_type'] == 'matched')
     print(f"Payload precompute complete: {len(stops_matched_dicts)} stop rows, "
           f"{len(osm_node_dicts)} OSM nodes, {len(atlas_operator_dicts)} ATLAS operators, {len(atlas_stop_dicts)} ATLAS stops, "
           f"{len(gtfs_stop_dicts)} GTFS raw stops, {len(gtfs_identity_resolution_dicts)} GTFS identity rows, "

@@ -7,7 +7,7 @@ import math
 from typing import Any, Iterable
 
 
-PROGRESS_SCHEMA_VERSION = 1
+PROGRESS_SCHEMA_VERSION = 2
 PROGRESS_STATUSES = {"waiting", "running", "complete", "reused", "skipped", "failed"}
 TERMINAL_STATUSES = PROGRESS_STATUSES - {"waiting", "running"}
 
@@ -29,9 +29,8 @@ class ProgressStage:
 
 PIPELINE_PHASE_STAGES = (
     ProgressStage("source_check", None, "source_check", "Check sources", "Check source freshness and reusable inputs.", 10),
-    ProgressStage("atlas", None, "atlas", "Prepare ATLAS", "Prepare the official source-stop snapshot.", 20),
-    ProgressStage("timetable", None, "timetable", "Prepare timetable data", "Prepare GTFS identities and routes.", 30),
-    ProgressStage("osm", None, "osm", "Prepare OpenStreetMap", "Download and normalize the OSM snapshot.", 40),
+    ProgressStage("source_files", None, "source_files", "Prepare source files", "Prepare reusable ATLAS and timetable files, then download the OSM snapshot.", 20),
+    ProgressStage("matching_inputs", None, "matching_inputs", "Load matching inputs", "Read ATLAS and timetable products, then parse OSM stops and routes for matching.", 30),
     ProgressStage("stop_matching", None, "stop_matching", "Stop matching", "Match stops and detect stop-level data problems.", 50),
     ProgressStage("route_matching", None, "route_matching", "Route matching", "Compare route families and itineraries.", 60),
     ProgressStage("bundle", None, "bundle", "Build result bundle", "Create the validated engine result snapshot.", 70),
@@ -173,20 +172,22 @@ def project_stage_states(current: dict) -> dict:
     if not current.get("stage_plan"):
         return states
     history = {entry["phase"]: entry for entry in current.get("phase_history", [])}
-    for root in PIPELINE_PHASE_STAGES:
+    # Historical plans keep their recorded roots until the next run resets them.
+    for root in (spec for spec in current["stage_plan"] if spec["parent_id"] is None):
+        root_id = root["id"]
         children = [states.get(spec["id"], {"status": "waiting"})
-                    for spec in current.get("stage_plan", []) if spec["parent_id"] == root.id]
+                    for spec in current.get("stage_plan", []) if spec["parent_id"] == root_id]
         statuses = {child["status"] for child in children}
-        entry = dict(history.get(root.id) or {})
+        entry = dict(history.get(root_id) or {})
         entry.pop("phase", None)
-        outcome = (current.get("phase_outcomes") or {}).get(root.id)
-        if "failed" in statuses or (current.get("status") == "failed" and current.get("failed_phase") == root.id):
+        outcome = (current.get("phase_outcomes") or {}).get(root_id)
+        if "failed" in statuses or (current.get("status") == "failed" and current.get("failed_phase") == root_id):
             status = "failed"
         elif outcome:
             status = outcome
         elif children and statuses <= TERMINAL_STATUSES:
             status = next(iter(statuses)) if len(statuses) == 1 else "complete"
-        elif "running" in statuses or (current.get("status") == "running" and current.get("phase") == root.id):
+        elif "running" in statuses or (current.get("status") == "running" and current.get("phase") == root_id):
             status = "running"
             entry = {"started_at": current.get("phase_started_at")}
         elif not children and entry:
@@ -199,7 +200,7 @@ def project_stage_states(current: dict) -> dict:
             if starts and ends:
                 entry.update(started_at=min(starts), finished_at=max(ends),
                              duration_seconds=round(sum(child.get("duration_seconds") or 0.0 for child in children), 3))
-        states[root.id] = dict(entry, status=status)
+        states[root_id] = dict(entry, status=status)
     return states
 
 

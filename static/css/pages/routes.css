@@ -624,11 +624,39 @@
 }
 
 .route-meta--atlas {
-  background: linear-gradient(135deg, var(--color-surface-atlas) 0%, var(--color-primary-subtle) 100%);
+  background: var(--color-primary-subtle);
+  border-color: var(--color-map-atlas-matched);
 }
 
 .route-meta--osm {
-  background: linear-gradient(135deg, var(--color-surface-osm) 0%, var(--color-success-subtle) 100%);
+  background: var(--color-success-subtle);
+  border-color: var(--color-map-osm-matched);
+}
+
+.route-meta--atlas.route-meta--unmatched {
+  background: var(--color-danger-subtle);
+  border-color: var(--color-map-atlas-unmatched);
+}
+
+.route-meta--osm.route-meta--unmatched {
+  background: var(--color-secondary-subtle);
+  border-color: var(--color-map-osm-unmatched);
+}
+
+.route-meta--atlas.route-meta--matched .route-meta__title {
+  color: var(--color-map-atlas-matched);
+}
+
+.route-meta--osm.route-meta--matched .route-meta__title {
+  color: var(--color-success-fg);
+}
+
+.route-meta--atlas.route-meta--unmatched .route-meta__title {
+  color: var(--color-danger-fg);
+}
+
+.route-meta--osm.route-meta--unmatched .route-meta__title {
+  color: var(--color-map-osm-unmatched);
 }
 
 .route-meta__title {

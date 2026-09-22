@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 function createEmptyFilters() {
@@ -31,9 +31,8 @@ function createEmptyFilters() {
 describe('filters active count', () => {
   beforeAll(() => {
     const scriptPath = path.join(__dirname, '../../static/js/pages/filters.js');
-    const scriptContent = fs.readFileSync(scriptPath, 'utf8');
 
-    window.eval(scriptContent);
+    loadBrowserScript(scriptPath);
   });
 
   beforeEach(() => {

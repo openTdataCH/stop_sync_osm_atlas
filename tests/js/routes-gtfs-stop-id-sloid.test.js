@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 const SCRIPT_PATH = path.join(__dirname, '../../static/js/pages/routes-gtfs-stop-id-sloid.js');
@@ -248,7 +248,7 @@ function installPage() {
     MapPopupController: { create: jest.fn(() => popupController) }
   };
 
-  window.eval(fs.readFileSync(SCRIPT_PATH, 'utf8'));
+  loadBrowserScript(SCRIPT_PATH);
 
   return {
     bounds,

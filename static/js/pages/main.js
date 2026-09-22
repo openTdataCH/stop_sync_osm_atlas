@@ -303,6 +303,28 @@ function appendOsmGroupParams(params) {
     return params;
 }
 
+function restoreOperatorFiltersFromUrl() {
+    var params = new URLSearchParams(window.location.search);
+    [
+        ['atlas_operator', 'atlasOperators', 'operatorDropdown'],
+        ['osm_operator', 'osmOperators', 'osmOperatorDropdown'],
+        ['osm_operator_wikidata', 'osmOperatorWikidata', 'osmOperatorWikidataDropdown']
+    ].forEach(function (entry) {
+        if (!params.has(entry[0])) return;
+        var values = params.getAll(entry[0]).flatMap(function (value) {
+            return value.split(',').map(function (item) { return item.trim(); }).filter(Boolean);
+        });
+        activeFilters[entry[1]] = [...new Set(values)];
+        if (window[entry[2]]) window[entry[2]].setSelection(activeFilters[entry[1]]);
+    });
+    activeFilters.missingOsmOperatorWikidata = params.get('missing_osm_operator_wikidata') === 'true';
+    $('#filterMissingOsmOperatorWikidata').prop('checked', activeFilters.missingOsmOperatorWikidata);
+    if (activeFilters.missingOsmOperatorWikidata) {
+        activeFilters.osmOperatorWikidata = [];
+        if (window.osmOperatorWikidataDropdown) window.osmOperatorWikidataDropdown.setSelection([]);
+    }
+}
+
 function appendCurrentFilterParams(params, options) {
     options = options || {};
     var includeTopN = options.includeTopN === true;
@@ -331,6 +353,10 @@ function appendCurrentFilterParams(params, options) {
     if (activeFilters.osmOperators.length > 0) {
         params.osm_operator = activeFilters.osmOperators.join(',');
     }
+    if (activeFilters.osmOperatorWikidata && activeFilters.osmOperatorWikidata.length > 0) {
+        params.osm_operator_wikidata = activeFilters.osmOperatorWikidata.join(',');
+    }
+    if (activeFilters.missingOsmOperatorWikidata) params.missing_osm_operator_wikidata = 'true';
     if (includeTopN && activeFilters.topN) {
         params.top_n = activeFilters.topN;
     }
@@ -395,6 +421,10 @@ function loadTopNMatches() {
         if (activeFilters.osmOperators.length > 0) {
             params.osm_operator = activeFilters.osmOperators.join(',');
         }
+        if (activeFilters.osmOperatorWikidata && activeFilters.osmOperatorWikidata.length > 0) {
+            params.osm_operator_wikidata = activeFilters.osmOperatorWikidata.join(',');
+        }
+        if (activeFilters.missingOsmOperatorWikidata) params.missing_osm_operator_wikidata = 'true';
         if (activeFilters.showDuplicatesOnly) {
             params.show_duplicates_only = 'true';
         }
@@ -974,9 +1004,7 @@ $(document).ready(function () {
         multiple: true,
         onSelectionChange: function (selectedOperators) {
             activeFilters.atlasOperators = selectedOperators;
-            updateFiltersUI();
-            if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
-            loadDataForViewport();
+            updateActiveFilters();
             updateHeaderSummary();
         }
     });
@@ -988,12 +1016,25 @@ $(document).ready(function () {
         multiple: true,
         onSelectionChange: function (selectedOperators) {
             activeFilters.osmOperators = selectedOperators;
-            updateFiltersUI();
-            if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
-            loadDataForViewport();
+            updateActiveFilters();
             updateHeaderSummary();
         }
     });
+
+    // Initialize OSM operator Wikidata dropdown
+    window.osmOperatorWikidataDropdown = new OperatorDropdown('#osmOperatorWikidataFilter', {
+        apiUrl: '/api/osm_operator_wikidata',
+        placeholder: 'Select Wikidata values...',
+        multiple: true,
+        onSelectionChange: function (selectedOperators) {
+            activeFilters.osmOperatorWikidata = selectedOperators;
+            if (selectedOperators.length) $('#filterMissingOsmOperatorWikidata').prop('checked', false);
+            updateActiveFilters();
+            updateHeaderSummary();
+        }
+    });
+
+    restoreOperatorFiltersFromUrl();
 
     // Report functionality is only needed on /reports.
     // Index uses the navbar for navigation.

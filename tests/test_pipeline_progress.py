@@ -11,12 +11,12 @@ from backend.services.pipeline_state_store import MemoryPipelineStateStore, File
 
 
 NOW = "2026-09-21T10:00:00+00:00"
-SPEC = dict(id="osm.future", parent_id="osm", phase="osm", label="Future parser",
+SPEC = dict(id="osm.future", parent_id="matching_inputs", phase="matching_inputs", label="Future parser",
             description="Engine-owned future work", order=10)
 
 
 def event(kind, **fields):
-    return dict(event=kind, progress_schema_version=1, stage_id=SPEC['id'], **fields)
+    return dict(event=kind, progress_schema_version=2, stage_id=SPEC['id'], **fields)
 
 
 @pytest.fixture
@@ -48,6 +48,7 @@ def store(monkeypatch):
     event('stage_progress', stage_spec=SPEC, counters=[]),
     event('pipeline_plan', stages=[SPEC, SPEC]),
     {**event('stage_started', stage_spec=SPEC), 'progress_schema_version': True},
+    {**event('stage_started', stage_spec=SPEC), 'progress_schema_version': 1},
     event('stage_started', stage_spec={**SPEC, 'progress_kind': []}),
 ])
 def test_invalid_event_has_no_side_effects(state, payload):
@@ -83,7 +84,7 @@ def test_interrupted_run_closes_children_and_cannot_be_reopened(store):
     pipeline_status.record_progress_event(event('stage_started'), run_id='run-1')
     failed = pipeline_status.finish_failure('Engine terminated', run_id='run-1')
     assert failed['stage_states']['osm.future']['status'] == 'failed'
-    assert failed['stage_states']['osm']['status'] == 'failed'
+    assert failed['stage_states']['matching_inputs']['status'] == 'failed'
     assert failed['stage_states']['database.validate']['status'] == 'skipped'
     before = deepcopy(store.read_status())
     pipeline_status.record_progress_event(event('stage_progress'), run_id='run-1')
@@ -94,7 +95,7 @@ def test_interrupted_run_closes_children_and_cannot_be_reopened(store):
 def test_completed_child_and_parent_stay_complete_after_late_heartbeat(store):
     pipeline_status.record_progress_event(event('stage_started'))
     completed = pipeline_status.record_progress_event(event('stage_finished', seconds=2))
-    assert completed['stage_states']['osm']['status'] == 'complete'
+    assert completed['stage_states']['matching_inputs']['status'] == 'complete'
     before = deepcopy(store.read_status())
     pipeline_status.record_progress_event(event('stage_progress', seconds=3))
     assert store.read_status() == before
@@ -134,8 +135,8 @@ def test_mixed_cache_reuse_and_execution_is_not_a_reused_phase(store):
     pipeline_status.record_progress_event(event('stage_outcome', outcome='reused'))
     pipeline_status.record_progress_event({**event('stage_started'), 'stage_id': other['id']})
     finished = pipeline_status.record_progress_event({**event('stage_finished', seconds=1), 'stage_id': other['id']})
-    assert finished['stage_states']['osm']['status'] == 'complete'
-    assert 'osm' not in finished['phase_outcomes']
+    assert finished['stage_states']['matching_inputs']['status'] == 'complete'
+    assert 'matching_inputs' not in finished['phase_outcomes']
 
 
 def test_runner_ignores_malformed_telemetry_and_keeps_consuming(store):
@@ -152,3 +153,24 @@ def test_legacy_finished_run_does_not_acquire_waiting_children(store):
     assert status['stage_states'] == {}
     pipeline_status.start_run('manual', run_id='new')
     assert pipeline_status.get_status()['stage_plan'] == initial_progress_plan()
+
+
+def test_historical_version_one_plan_keeps_its_recorded_roots(store):
+    old_plan = [
+        dict(id='osm', parent_id=None, phase='osm', label='Prepare OpenStreetMap', description='OSM', order=40),
+        dict(id='osm.prepare', parent_id='osm', phase='osm', label='Parse OSM', description='OSM', order=20),
+    ]
+    store.write_status(dict(
+        status='idle', phase='idle', finished_at=NOW, last_pipeline_data_import_ended_at=NOW,
+        progress_schema_version=1, stage_plan=old_plan,
+        stage_states={'osm.prepare': {'status': 'complete', 'duration_seconds': 4}},
+    ))
+    status = pipeline_status.get_status()
+    assert status['stage_plan'] == old_plan
+    assert status['stage_states']['osm']['status'] == 'complete'
+    assert 'matching_inputs' not in status['stage_states']
+    pipeline_status.start_run('manual', run_id='new')
+    status = pipeline_status.get_status()
+    assert status['progress_schema_version'] == 2
+    assert status['stage_plan'] == initial_progress_plan()
+    assert 'osm' not in status['stage_states']

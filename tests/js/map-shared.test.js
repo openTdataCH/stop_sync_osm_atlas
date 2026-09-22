@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 describe('MapShared identities', () => {
@@ -14,7 +14,7 @@ describe('MapShared identities', () => {
     };
     L.tileLayer = jest.fn(() => ({}));
     const scriptPath = path.join(__dirname, '../../static/js/components/map-shared.js');
-    window.eval(fs.readFileSync(scriptPath, 'utf8'));
+    loadBrowserScript(scriptPath);
   });
 
   test('builds type-prefixed stable entity keys', () => {

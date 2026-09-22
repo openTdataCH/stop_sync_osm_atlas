@@ -6,7 +6,7 @@
  */
 
 // The shared presentation helpers are dependencies of every map surface.
-window.eval(require('fs').readFileSync(require('path').join(__dirname, '../../static/js/shared/utils.js'), 'utf8'));
+require('./load-browser-script')(require('path').join(__dirname, '../../static/js/shared/utils.js'));
 
 // Mock Leaflet.js
 global.L = {
@@ -58,15 +58,6 @@ global.AppConstants = {
         DEFAULT: { color: '#6c757d', weight: 2, opacity: 0.6 }
     }
 };
-
-// Mock console methods to reduce noise in tests (optional)
-// Uncomment if you want to suppress console output during tests
-// global.console = {
-//     ...console,
-//     log: jest.fn(),
-//     warn: jest.fn(),
-//     error: jest.fn()
-// };
 
 // Reset mocks before each test
 beforeEach(() => {

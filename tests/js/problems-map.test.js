@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 function createRequest() {
@@ -176,7 +176,7 @@ describe('ProblemsMap context loading', () => {
         delete window.ProblemsMap;
         delete window.map;
         const scriptPath = path.join(__dirname, '../../static/js/pages/problems-map.js');
-        window.eval(fs.readFileSync(scriptPath, 'utf8'));
+        loadBrowserScript(scriptPath);
         global.ProblemsMap = window.ProblemsMap;
     });
 

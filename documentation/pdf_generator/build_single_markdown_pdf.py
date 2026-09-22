@@ -33,6 +33,7 @@ def _build_single_markdown_pdf(input_markdown: Path, output_pdf: Path, title: st
     stats = docs_builder.load_stats_for_docs()
 
     markdown_content = docs_builder.replace_stats_placeholders(markdown_content, stats, html_escape=True)
+    markdown_content = docs_builder.replace_quality_placeholder(markdown_content, REPO_ROOT, artifact_prefix=None)
     markdown_content = docs_builder.convert_github_alerts_to_html(markdown_content)
     markdown_content = docs_builder._rewrite_repo_links(markdown_content, input_markdown)
     markdown_content = docs_builder._rewrite_mermaid_blocks(markdown_content)

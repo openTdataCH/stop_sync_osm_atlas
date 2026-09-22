@@ -1,4 +1,3 @@
-import sys
 import os
 
 svg_content = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 300" width="100%" height="300">

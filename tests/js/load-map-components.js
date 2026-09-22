@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 // Exercise canonical adapters/layout in page tests while page lifecycle dependencies stay mocked.
@@ -10,6 +10,6 @@ module.exports = function loadMapComponents() {
             ...window.AppConstants.MARKERS }
     };
     ['map-shared', 'map-entity-adapters', 'map-renderer', 'line-renderer'].forEach(name => {
-        window.eval(fs.readFileSync(path.join(__dirname, '../../static/js/components/' + name + '.js'), 'utf8'));
+        loadBrowserScript(path.join(__dirname, '../../static/js/components/' + name + '.js'));
     });
 };

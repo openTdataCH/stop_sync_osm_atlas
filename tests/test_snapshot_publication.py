@@ -8,14 +8,13 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import Session
 
 from backend.extensions import db
 from backend.importing.bundle import read_bundle
 from backend.importing.projection import project_bundle
 from backend.importing.importer import build_fast_insert_payloads, _write_rows
 from backend.importing.publication import publish_snapshot
-import backend.models
+import backend.models  # noqa: F401 -- registers tables used by metadata.create_all.
 
 
 @pytest.fixture

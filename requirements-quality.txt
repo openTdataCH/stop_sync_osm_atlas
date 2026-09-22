@@ -1,0 +1,6 @@
+# Quality tools are separate from production and ordinary test dependencies.
+ruff==0.15.7
+vulture==2.15
+PyYAML==6.0.3
+jsonschema==4.26.0
+hypothesis==6.168.0

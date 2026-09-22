@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 const SCRIPT_PATH = path.join(__dirname, '../../static/js/pages/main.js');
@@ -151,7 +151,7 @@ describe('Index map adapter', () => {
         jquery.getJSON = jest.fn();
         window.$ = global.$ = jquery;
 
-        window.eval(fs.readFileSync(SCRIPT_PATH, 'utf8'));
+        loadBrowserScript(SCRIPT_PATH);
         window.IndexMapPage.init();
     });
 

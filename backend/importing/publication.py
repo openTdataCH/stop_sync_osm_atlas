@@ -12,7 +12,7 @@ from backend.importing.timing import stage
 from sqlalchemy.orm import Session
 
 from backend.extensions import db
-import backend.models  # Registers the application tables.
+import backend.models  # noqa: F401 -- registers the application tables.
 
 LOGGER = logging.getLogger(__name__)
 

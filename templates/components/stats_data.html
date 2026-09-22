@@ -28,16 +28,15 @@ SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
   </div>
   <div class="pipeline-timeline" id="analyticsPipelineTimeline" aria-label="Pipeline progress">
     {% macro pipeline_stage(phase, label, size) -%}
-    <div class="pipeline-timeline__stage" data-pipeline-stage="{{ phase }}" style="--stage-size: {{ size }}">
+    <div class="pipeline-timeline__stage" data-pipeline-stage="{{ phase }}" tabindex="0" style="--stage-size: {{ size }}">
       <div class="pipeline-timeline__label"><span data-stage-label data-stage-label-full="{{ label }}">{{ label }}</span></div>
       <div class="pipeline-timeline__track"><span class="pipeline-timeline__fill"></span><strong data-stage-duration>{{ stage_default_label }}</strong><span class="pipeline-timeline__state" data-stage-state aria-hidden="true"></span></div>
       <div class="pipeline-timeline__time" data-stage-time>—</div>
     </div>
     {%- endmacro %}
     {{ pipeline_stage('source_check', 'Check sources', 3) }}
-    {{ pipeline_stage('atlas', 'Prepare ATLAS', 4) }}
-    {{ pipeline_stage('timetable', 'Prepare timetable data', 20) }}
-    {{ pipeline_stage('osm', 'Prepare OpenStreetMap', 25) }}
+    {{ pipeline_stage('source_files', 'Prepare source files', 30) }}
+    {{ pipeline_stage('matching_inputs', 'Load matching inputs', 19) }}
     {{ pipeline_stage('stop_matching', 'Stop matching', 10) }}
     {{ pipeline_stage('route_matching', 'Route matching', 10) }}
     {{ pipeline_stage('bundle', 'Build result bundle', 8) }}

@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 describe('ProblemsRenderer final-view marker construction', () => {
@@ -35,7 +35,7 @@ describe('ProblemsRenderer final-view marker construction', () => {
       latLngBounds: jest.fn(() => ({ pad: jest.fn(() => ({ padded: true })) })),
       polyline: jest.fn((positions, options) => ({ positions, options }))
     };
-    window.eval(fs.readFileSync(path.join(__dirname, '../../static/js/pages/problems-renderer.js'), 'utf8'));
+    loadBrowserScript(path.join(__dirname, '../../static/js/pages/problems-renderer.js'));
   });
 
   test('fits matched bounds before construction, preserves source positions and opens the ATLAS popup', () => {

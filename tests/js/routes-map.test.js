@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 test('route previews preserve grouped order, refresh labels at zoom 18, and toggle subdued context', async () => {
@@ -37,7 +37,7 @@ test('route previews preserve grouped order, refresh labels at zoom 18, and togg
         { id: 99, sloid: 'context', atlas_lat: 47.2, atlas_lon: 8.2, stop_type: 'atlas_unmatched' },
         { id: 2, sloid: 'source:a', atlas_lat: 47.1, atlas_lon: 8.1, stop_type: 'matched' }
     ]) }));
-    window.eval(fs.readFileSync(path.join(__dirname, '../../static/js/pages/routes.js'), 'utf8'));
+    loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
     document.dispatchEvent(new Event('DOMContentLoaded'));
     const panel = document.querySelector('details');
     panel.open = true;
@@ -58,4 +58,58 @@ test('route previews preserve grouped order, refresh labels at zoom 18, and togg
     document.querySelector('button').click();
     expect(layers.markers.markers).toHaveLength(3);
     window.dispatchEvent(new Event('pagehide'));
+    // The native <details> toggle remains queued after changing `open` above.
+    // Page teardown must remove its listener before that event is delivered.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    panel.dispatchEvent(new Event('toggle'));
+    expect(window.MapComponents.MapCore.create).toHaveBeenCalledTimes(1);
+});
+
+test('inline comparisons update only their own map and restore the fixed variant when cleared', async () => {
+    const direction = { atlas_uic_groups: [{ members: [
+        { stop_id: 'fixed', lat: 47, lon: 8, stop_type: 'atlas_unmatched' }
+    ] }], osm_uic_groups: [] };
+    document.body.innerHTML = [0, 1].map(index => `
+        <details class="route-card__panel--map"><section class="variant-comparison"></section>
+          <div class="route-card__map-shell"><div id="routeMap${index}" class="route-card__map" data-map-index="${index}"></div></div>
+          <script class="variant-data" data-map-index="${index}" type="application/json">${JSON.stringify(direction)}</script>
+        </details>`).join('');
+    window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null } };
+    require('./load-map-components')();
+    const layer = () => ({ markers: [], addLayer(value) { this.markers.push(value); }, clearLayers() { this.markers = []; } });
+    const maps = [];
+    window.MapComponents.MapCore = { create: jest.fn(() => {
+        const core = { map: { getZoom: () => 12, on: jest.fn(), off: jest.fn(), fitBounds: jest.fn(), invalidateSize: jest.fn() },
+            layers: { markers: layer(), lines: layer() }, destroy: jest.fn() };
+        maps.push(core);
+        return core;
+    }) };
+    window.L = global.L = {
+        circleMarker: jest.fn((position, options) => ({ position, options })),
+        polyline: jest.fn((positions, options) => ({ positions, options })),
+        latLngBounds: jest.fn(() => ({ pad() { return this; } }))
+    };
+    loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    const panels = [...document.querySelectorAll('details')];
+    panels.forEach(panel => { panel.open = true; panel.dispatchEvent(new Event('toggle')); });
+    const comparison = { rows: [
+        { atlas: { id: 1, stop_ids: ['fixed'], lat: 47, lon: 8 },
+            osm: { id: 2, stop_ids: ['osm:2'], lat: 47.0001, lon: 8.0001 }, match_type: 'resolved_sloid_match' },
+        { atlas: null, osm: { id: 3, stop_ids: ['osm:3'], lat: 47.1, lon: 8.1 }, match_type: null },
+        { atlas: { id: 4, stop_ids: ['missing'], lat: null, lon: null },
+            osm: { id: 5, stop_ids: ['osm:5'], lat: null, lon: null }, match_type: 'uic_match' }
+    ] };
+    const first = panels[0].querySelector('section');
+    first.dispatchEvent(new CustomEvent('routecomparisonchange', { bubbles: true, detail: comparison }));
+    expect(maps[0].layers.markers.markers.map(marker => marker.position)).toEqual([[47, 8], [47.0001, 8.0001], [47.1, 8.1]]);
+    expect(maps[0].layers.lines.markers).toHaveLength(1);
+    expect(maps[0].layers.lines.markers[0].options.color).toBe('#174092');
+    expect(maps[1].layers.markers.markers.map(marker => marker.position)).toEqual([[47, 8]]);
+    expect(maps[1].layers.lines.markers).toHaveLength(0);
+    first.dispatchEvent(new CustomEvent('routecomparisonchange', { bubbles: true, detail: null }));
+    expect(maps[0].layers.markers.markers.map(marker => marker.position)).toEqual([[47, 8]]);
+    expect(maps[0].layers.lines.markers).toHaveLength(0);
+    window.dispatchEvent(new Event('pagehide'));
+    await new Promise(resolve => setTimeout(resolve, 0));
 });

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app as app
-from sqlalchemy.orm import joinedload, subqueryload
+from sqlalchemy.orm import joinedload
 from backend.models import StopsMatched, AtlasStop, Problem
 from backend.extensions import db, limiter
 from backend.db_errors import is_missing_table_error

@@ -392,11 +392,6 @@
   box-shadow: var(--shadow-sm);
 }
 
-.operator-node--wikidata {
-  border-color: rgba(23, 64, 146, 0.14);
-  background: linear-gradient(110deg, rgba(238, 243, 251, 0.7), rgba(255, 255, 255, 0.98) 58%);
-}
-
 .operator-node__target-icon {
   width: 2rem;
   height: 2rem;
@@ -404,11 +399,6 @@
   background: rgba(76, 175, 80, 0.12);
   color: var(--color-success-fg);
   font-size: 0.76rem;
-}
-
-.operator-node--wikidata .operator-node__target-icon {
-  background: rgba(23, 64, 146, 0.09);
-  color: var(--color-primary);
 }
 
 .operator-node__target-copy {
@@ -445,6 +435,42 @@
   margin-left: 0.2rem;
   font-size: 0.58rem;
   opacity: 0.65;
+}
+
+.operator-node__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.45rem;
+}
+
+.operator-node__map-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid rgba(76, 175, 80, 0.35);
+  border-radius: 7px;
+  background: rgba(236, 248, 237, 0.85);
+  color: var(--color-success-fg);
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.operator-node__map-link:hover,
+.operator-node__map-link:focus-visible {
+  border-color: var(--color-success-fg);
+  background: var(--color-success-subtle);
+  color: var(--color-success-fg);
+}
+
+.operator-node__map-link:focus-visible {
+  outline: 2px solid var(--color-success-fg);
+  outline-offset: 2px;
 }
 
 .operator-node__count {
@@ -494,6 +520,14 @@
 .operator-card__coverage-note i {
   margin-top: 0.16rem;
   color: var(--color-fg-subtle);
+}
+
+.operator-card__coverage-link {
+  margin-left: 0.35rem;
+  color: var(--color-success-fg);
+  font-weight: var(--font-semibold);
+  white-space: nowrap;
+  text-underline-offset: 0.15em;
 }
 
 .operator-card__coverage-note code {
@@ -697,8 +731,12 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .operator-node__count {
+  .operator-node__actions {
     grid-column: 2;
+    align-items: flex-start;
+  }
+
+  .operator-node__count {
     width: fit-content;
     text-align: left;
   }

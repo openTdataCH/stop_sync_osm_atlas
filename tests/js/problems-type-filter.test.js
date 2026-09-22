@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 function createMiniDollar() {
@@ -40,8 +40,7 @@ describe('problems type filter sync', () => {
     };
 
     const scriptPath = path.join(__dirname, '../../static/js/pages/problems-data.js');
-    const scriptContent = fs.readFileSync(scriptPath, 'utf8');
-    window.eval(scriptContent);
+    loadBrowserScript(scriptPath);
   });
 
   beforeEach(() => {

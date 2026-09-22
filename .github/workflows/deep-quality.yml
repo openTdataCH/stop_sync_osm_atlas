@@ -1,0 +1,69 @@
+name: Periodic quality
+on:
+  pull_request:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dependencies:
+    name: Dependency security audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: pip install pip-audit
+      - run: npm ci
+      - run: mkdir -p quality/raw
+      - name: Audit application production dependencies
+        run: pip-audit -r requirements-base.txt -r requirements-web.txt -r requirements-scheduler.txt --format json --output quality/raw/python-audit.json
+      - name: Audit browser and development dependencies
+        if: always()
+        run: npm audit --audit-level=high --json > quality/raw/npm-audit.json
+      - name: Publish audit findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-security-${{ github.sha }}
+          path: quality/raw/*audit.json
+  mutation:
+    name: Result validation mutation sample
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout pinned engine
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.ENGINE_REPOSITORY }}
+          ref: ${{ vars.ENGINE_REF }}
+          token: ${{ secrets.ENGINE_REPOSITORY_TOKEN }}
+          path: engine
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install './engine[swiss,gtfs,quality,mutation]'
+      - name: Mutate engine result validation
+        working-directory: engine
+        run: make quality-mutation PYTHON=python
+      - name: Publish mutation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-validation-mutation-${{ github.sha }}
+          path: |
+            engine/quality/raw/engine-mutation.txt
+            engine/quality/raw/engine-mutation.json
+          if-no-files-found: warn
+      - name: Explain mutation result policy
+        if: always()
+        run: echo 'Mutation survivors are advisory until a reviewed baseline exists; inspect the result-validation-mutation artifact.' >> "$GITHUB_STEP_SUMMARY"

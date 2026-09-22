@@ -91,24 +91,8 @@
         return `<button class="btn btn-sm popup-action-btn" onclick="PopupRenderer.${handlerName}(this)">${label}</button>`;
     }
 
-    function buildDetailListHtml(items, formatter, emptyMessage = 'None') {
-        if (!Array.isArray(items) || items.length === 0) {
-            return `<p class="popup-empty-state">${emptyMessage}</p>`;
-        }
-
-        return `<ul class="popup-detail-list">${items.map(item => `<li>${formatter(item)}</li>`).join('')}</ul>`;
-    }
-
-    function buildDetailSectionHtml(title, contentHtml) {
-        return `<section class="popup-detail-section"><h6>${title}</h6>${contentHtml}</section>`;
-    }
-
     function formatPopupMono(value) {
         return `<span class="popup-mono">${value || 'N/A'}</span>`;
-    }
-
-    function formatDetailDistanceMeters(distanceM) {
-        return formatDistanceMeters(distanceM) || 'N/A';
     }
 
     function appendIndividualMatchMetadataRows(rows, data, matchFieldName = 'match_method') {

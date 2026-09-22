@@ -7,20 +7,6 @@
 window.ProblemsUI = (function () {
     'use strict';
 
-    // Small UI helpers
-    // Map priority to alert styling
-    function getPriorityAlertStyle(priority) {
-        const pr = Number(priority);
-        if (pr === 1) return { alertClass: 'alert-danger', icon: 'exclamation-circle' };
-        if (pr === 2) return { alertClass: 'alert-warning', icon: 'exclamation-triangle' };
-        return { alertClass: 'alert-info', icon: 'info-circle' };
-    }
-
-    // Serialize data attributes for HTML
-    function serializeDataAttrs(attrs) {
-        return Object.entries(attrs).map(([k, v]) => `${k}="${v}"`).join(' ');
-    }
-
     // Wrap content in a problem section item
     function wrapInSection(title, content) {
         return `<div class="problem-section-item"><h6>${title}</h6>${content}</div>`;
@@ -41,18 +27,6 @@ window.ProblemsUI = (function () {
                 linesLayer: ProblemsState.getProblemLinesLayer()
             }, { fitView: true });
         }
-    }
-
-    // Extract member display info (badge, identifier, name) with group context awareness
-    function getMemberDisplayInfo(member, groupType) {
-        const isOsm = groupType === 'osm' ? true : (groupType === 'atlas' ? false : !!member.osm_node_id);
-        return {
-            badge: `<span class="badge-pill-outline ${isOsm ? 'badge-pill-outline--osm' : 'badge-pill-outline--atlas'}">${isOsm ? 'OSM' : SharedUtils.sourceLabelHtml()}</span>`,
-            ident: isOsm ? (member.osm_node_id || '-') : (member.sloid || '-'),
-            name: isOsm ? (member.osm_name || member.osm_uic_name || '-')
-                : (member.atlas_designation_official || member.atlas_designation || '-'),
-            isOsm
-        };
     }
 
     /**
@@ -185,8 +159,6 @@ window.ProblemsUI = (function () {
         let intent = '';
         let icon = 'info-circle';
         let alertClass = 'alert-info';
-
-        const distanceText = problem.distance_m ? `${Math.round(problem.distance_m)} m` : null;
 
         if (pr === 1) { alertClass = 'alert-danger'; icon = 'exclamation-circle'; }
         else if (pr === 2) { alertClass = 'alert-warning'; icon = 'exclamation-triangle'; }

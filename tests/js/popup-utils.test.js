@@ -1,12 +1,11 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 describe('PopupUtils route formatting', () => {
   beforeAll(() => {
     const scriptPath = path.join(__dirname, '../../static/js/components/popup-utils.js');
-    const scriptContent = fs.readFileSync(scriptPath, 'utf8');
 
-    window.eval(scriptContent);
+    loadBrowserScript(scriptPath);
     global.PopupUtils = window.PopupUtils;
   });
 

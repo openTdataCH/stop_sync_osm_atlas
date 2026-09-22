@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 describe('HeaderSummary filter visibility', () => {
@@ -6,9 +6,8 @@ describe('HeaderSummary filter visibility', () => {
 
   beforeAll(() => {
     const scriptPath = path.join(__dirname, '../../static/js/components/header-summary.js');
-    const scriptContent = fs.readFileSync(scriptPath, 'utf8');
 
-    window.eval(scriptContent);
+    loadBrowserScript(scriptPath);
   });
 
   beforeEach(() => {

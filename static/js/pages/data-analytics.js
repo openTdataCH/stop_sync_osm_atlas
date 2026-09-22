@@ -3,9 +3,8 @@
 
     var STAGES = [
         'source_check',
-        'atlas',
-        'timetable',
-        'osm',
+        'source_files',
+        'matching_inputs',
         'stop_matching',
         'route_matching',
         'bundle',
@@ -19,6 +18,85 @@
     };
     var latestStatus = null;
     var progressTimer = null;
+    var hoveredPipelineStage = null;
+    var stageRevealTimer = null;
+
+    function timelineStageFrom(target) {
+        var stage = target && target.closest && target.closest('[data-pipeline-stage]');
+        return stage && stage.closest('#pipelineRunCard') ? stage : null;
+    }
+
+    function syncStageHighlight(focusedTarget) {
+        if (focusedTarget === undefined) focusedTarget = document.activeElement;
+        var hovered = hoveredPipelineStage && hoveredPipelineStage.isConnected ? hoveredPipelineStage : null;
+        var stage = hovered || timelineStageFrom(focusedTarget);
+        var phase = stage && stage.getAttribute('data-pipeline-stage');
+        document.querySelectorAll('#pipelineRunCard [data-pipeline-stage]').forEach(function (segment) {
+            segment.classList.toggle('is-highlighted', segment === stage);
+        });
+        document.querySelectorAll('#pipelineStageDetails [data-progress-phase]').forEach(function (group) {
+            group.classList.toggle('is-highlighted', group.getAttribute('data-progress-phase') === phase);
+        });
+    }
+
+    function revealStageCard(stage) {
+        window.clearTimeout(stageRevealTimer);
+        if (!stage) return;
+        // A short pause avoids scrolling while the pointer crosses the timeline.
+        stageRevealTimer = window.setTimeout(function () {
+            if (!stage.isConnected) return;
+            var phase = stage.getAttribute('data-pipeline-stage');
+            var group = Array.prototype.find.call(document.querySelectorAll('#pipelineStageDetails [data-progress-phase]'), function (item) {
+                return item.getAttribute('data-progress-phase') === phase;
+            });
+            if (!group) return;
+            var bounds = group.getBoundingClientRect();
+            var topInset = parseFloat(window.getComputedStyle(group).scrollMarginTop) || 16;
+            var availableHeight = window.innerHeight - topInset - 16;
+            var visibleHeight = Math.min(bounds.height, availableHeight);
+            if (bounds.top >= topInset && bounds.top + visibleHeight <= window.innerHeight - 16) return;
+            var timeline = stage.closest('#analyticsPipelineTimeline');
+            if (!timeline) return;
+            var currentY = window.scrollY;
+            var targetY = bounds.top < topInset || bounds.height > availableHeight
+                ? currentY + bounds.top - topInset
+                : currentY + bounds.bottom + 16 - window.innerHeight;
+            // Keep the timeline above the cards visible, even when the selected
+            // card cannot fit alongside it. The bar may reach the top inset.
+            var barLimit = Math.max(0, currentY + timeline.getBoundingClientRect().top - topInset);
+            targetY = Math.max(0, Math.min(targetY, barLimit));
+            if (Math.abs(targetY - currentY) < 1) return;
+            var reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            window.scrollTo({top: targetY, behavior: reducedMotion ? 'auto' : 'smooth'});
+        }, 180);
+    }
+
+    function initStageHighlight() {
+        var card = document.getElementById('pipelineRunCard');
+        if (!card) return;
+        card.addEventListener('mouseover', function (event) {
+            var nextStage = timelineStageFrom(event.target);
+            if (nextStage !== hoveredPipelineStage) revealStageCard(nextStage);
+            hoveredPipelineStage = nextStage;
+            syncStageHighlight();
+        });
+        card.addEventListener('mouseout', function (event) {
+            var nextStage = timelineStageFrom(event.relatedTarget);
+            if (nextStage !== hoveredPipelineStage) revealStageCard(nextStage);
+            hoveredPipelineStage = nextStage;
+            syncStageHighlight();
+        });
+        card.addEventListener('focusin', function (event) {
+            syncStageHighlight();
+            revealStageCard(timelineStageFrom(event.target));
+        });
+        card.addEventListener('focusout', function (event) {
+            // focusout fires before document.activeElement becomes the next target.
+            syncStageHighlight(event.relatedTarget);
+            revealStageCard(hoveredPipelineStage || timelineStageFrom(event.relatedTarget));
+        });
+        window.addEventListener('pagehide', function () { window.clearTimeout(stageRevealTimer); }, {once: true});
+    }
 
     function setTextIfChanged(element, value) {
         if (element && element.textContent !== value) element.textContent = value;
@@ -239,14 +317,51 @@
         if (restoreFocus) focused.focus({preventScroll: true});
     }
 
+    function rootStages(status) {
+        var plan = Array.isArray(status.stage_plan) ? status.stage_plan : [];
+        return plan.filter(function (spec) {
+            return spec && spec.parent_id === null;
+        }).sort(function (a, b) { return a.order - b.order; });
+    }
+
+    function syncTimelinePlan(status) {
+        var timeline = document.getElementById('analyticsPipelineTimeline');
+        var roots = rootStages(status);
+        if (!timeline || !roots.length) return;
+        // Persisted older runs retain their original grouping. A new run's plan
+        // replaces it without requiring a page reload or rewriting history.
+        STAGES = roots.map(function (spec) { return spec.id; });
+        roots.forEach(function (spec, index) {
+            var element = Array.prototype.find.call(timeline.children, function (item) {
+                return item.getAttribute('data-pipeline-stage') === spec.id;
+            });
+            if (!element) {
+                element = document.createElement('div');
+                element.className = 'pipeline-timeline__stage';
+                element.tabIndex = 0;
+                element.setAttribute('data-pipeline-stage', spec.id);
+                element.style.setProperty('--stage-size', '1');
+                element.innerHTML = '<div class="pipeline-timeline__label"><span data-stage-label></span></div>' +
+                    '<div class="pipeline-timeline__track"><span class="pipeline-timeline__fill"></span>' +
+                    '<strong data-stage-duration></strong><span class="pipeline-timeline__state" data-stage-state aria-hidden="true"></span></div>' +
+                    '<div class="pipeline-timeline__time" data-stage-time></div>';
+            }
+            var label = element.querySelector('[data-stage-label]');
+            setTextIfChanged(label, spec.label);
+            label.setAttribute('data-stage-label-full', spec.label);
+            placeChild(timeline, element, index);
+        });
+        Array.prototype.slice.call(timeline.children).forEach(function (element) {
+            if (STAGES.indexOf(element.getAttribute('data-pipeline-stage')) === -1) element.remove();
+        });
+    }
+
     function renderStageDetails(status) {
         var container = document.getElementById('pipelineStageDetails');
         if (!container) return;
         var plan = Array.isArray(status.stage_plan) ? status.stage_plan : [];
         var states = status.stage_states || {};
-        var roots = plan.filter(function (spec) {
-            return spec && spec.parent_id === null && STAGES.indexOf(spec.id) !== -1;
-        }).sort(function (a, b) { return a.order - b.order; });
+        var roots = rootStages(status);
         var visiblePhases = Object.create(null);
         var phaseIndex = 0;
 
@@ -286,7 +401,7 @@
             Array.prototype.slice.call(list.querySelectorAll('[data-progress-stage]')).forEach(function (item) {
                 if (!childIds[item.getAttribute('data-progress-stage')]) item.remove();
             });
-            setTextIfChanged(summaryCount, failed ? 'Needs attention' : live ? 'Running' : finished + '/' + children.length + ' complete');
+            setTextIfChanged(summaryCount, failed ? 'Needs attention' : live ? 'Running' : finished + '/' + children.length + ' finished');
             group.classList.toggle('is-active', live);
             group.classList.toggle('is-failed', failed);
             group.classList.toggle('is-complete', !live && !failed && finished === children.length);
@@ -296,6 +411,7 @@
             if (!visiblePhases[group.getAttribute('data-progress-phase')]) group.remove();
         });
         container.hidden = Object.keys(visiblePhases).length === 0;
+        syncStageHighlight();
     }
 
     function renderPipeline(status) {
@@ -303,6 +419,7 @@
         if (!card || !status) return;
 
         latestStatus = status;
+        syncTimelinePlan(status);
         var running = status.status === 'running';
         var failed = status.status === 'failed';
         var currentPhase = normalizedPhase(failed ? status.failed_phase : status.phase);
@@ -422,6 +539,7 @@
         var indicator = nav.querySelector('.stats-section-nav__indicator');
         var prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var scrollTimer = null;
+        var indicatorFrame = null;
         var observerLockedUntil = 0;
         var sections = links.map(function (link) {
             return document.querySelector(link.getAttribute('href'));
@@ -451,7 +569,8 @@
             nav.style.setProperty('--stats-nav-indicator-x', link.offsetLeft + 'px');
             nav.style.setProperty('--stats-nav-indicator-width', link.offsetWidth + 'px');
             if (!animate) {
-                window.requestAnimationFrame(function () { nav.classList.add('is-ready'); });
+                window.cancelAnimationFrame(indicatorFrame);
+                indicatorFrame = window.requestAnimationFrame(function () { nav.classList.add('is-ready'); });
             } else {
                 nav.classList.add('is-ready');
             }
@@ -493,11 +612,18 @@
             });
         });
 
-        window.addEventListener('resize', function () {
+        function onResize() {
             var active = nav.querySelector('.stats-section-nav__link.is-active');
             syncSectionScrollOffset();
             moveIndicator(active, false);
-        });
+        }
+        window.addEventListener('resize', onResize);
+        window.addEventListener('pagehide', function () {
+            window.clearTimeout(scrollTimer);
+            window.cancelAnimationFrame(indicatorFrame);
+            window.removeEventListener('resize', onResize);
+            if (observer) observer.disconnect();
+        }, {once: true});
 
         if (!('IntersectionObserver' in window)) return;
         var observer = new IntersectionObserver(function (entries) {
@@ -516,6 +642,7 @@
 
     function start() {
         initSectionNavigation();
+        initStageHighlight();
         document.addEventListener('pipeline-status:update', function (event) {
             renderPipeline(event.detail || {});
         });

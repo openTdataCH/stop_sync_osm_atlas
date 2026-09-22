@@ -206,14 +206,14 @@ def test_pipeline_status_records_and_clears_reused_phase_outcomes(monkeypatch):
     )
 
     pipeline_status.start_run(trigger="manual", run_id="run-cache")
-    reused = pipeline_status.set_phase_outcome("atlas", "reused")
-    assert reused["phase_outcomes"] == {"atlas": "reused"}
-    assert reused["phase_history"][-1]["phase"] == "atlas"
+    reused = pipeline_status.set_phase_outcome("source_files", "reused")
+    assert reused["phase_outcomes"] == {"source_files": "reused"}
+    assert reused["phase_history"][-1]["phase"] == "source_files"
     assert reused["phase_history"][-1]["status"] == "reused"
     assert reused["phase_history"][-1]["duration_seconds"] == 0.0
     assert reused["phase_history"][-1]["started_at"] == reused["phase_history"][-1]["finished_at"]
 
-    active = pipeline_status.set_phase("atlas", "Preparing ATLAS data")
+    active = pipeline_status.set_phase("source_files", "Preparing ATLAS data")
     assert active["phase_outcomes"] == {}
     assert all(entry.get("status") != "reused" for entry in active["phase_history"])
 
@@ -231,8 +231,8 @@ def test_versioned_progress_plan_and_events_are_stored_generically(monkeypatch):
     pipeline_status.start_run(trigger="manual", run_id="run-progress")
     spec = {
         "id": "osm.future_parser",
-        "parent_id": "osm",
-        "phase": "osm",
+        "parent_id": "matching_inputs",
+        "phase": "matching_inputs",
         "label": "A future parser stage",
         "description": "Delivered by a newer engine without an application code change.",
         "order": 99,
@@ -241,25 +241,25 @@ def test_versioned_progress_plan_and_events_are_stored_generically(monkeypatch):
 
     pipeline_status.record_progress_event({
         "event": "pipeline_plan",
-        "progress_schema_version": 1,
+        "progress_schema_version": 2,
         "stages": [spec],
     })
     pipeline_status.record_progress_event({
         "event": "stage_started",
-        "progress_schema_version": 1,
+        "progress_schema_version": 2,
         "stage_id": spec["id"],
         "stage_spec": spec,
         "seconds": 0,
     })
     completed = pipeline_status.record_progress_event({
         "event": "stage_finished",
-        "progress_schema_version": 1,
+        "progress_schema_version": 2,
         "stage_id": spec["id"],
         "stage_spec": spec,
         "seconds": 3.25,
     })
 
-    assert completed["phase"] == "osm"
+    assert completed["phase"] == "matching_inputs"
     assert completed["message"] == "A future parser stage"
     assert completed["stage_states"][spec["id"]]["status"] == "complete"
     assert completed["stage_states"][spec["id"]]["duration_seconds"] == 3.25
@@ -276,11 +276,11 @@ def test_late_engine_plan_inherits_an_existing_phase_outcome(monkeypatch):
         lambda fields: stored.update(fields) or dict(stored),
     )
     pipeline_status.start_run(trigger="manual", run_id="run-reuse")
-    pipeline_status.set_phase_outcome("timetable", "reused")
+    pipeline_status.set_phase_outcome("source_files", "reused")
     status = pipeline_status.set_progress_plan([{
         "id": "timetable.engine_owned",
-        "parent_id": "timetable",
-        "phase": "timetable",
+        "parent_id": "source_files",
+        "phase": "source_files",
         "label": "Engine-owned timetable work",
         "description": "Arrives after the runner has recorded reuse.",
         "order": 10,
@@ -303,8 +303,8 @@ def test_all_reused_engine_children_roll_up_to_the_parent_phase(monkeypatch):
     pipeline_status.start_run(trigger="manual", run_id="run-atlas-reuse")
     pipeline_status.set_progress_plan([{
         "id": "atlas.prepare",
-        "parent_id": "atlas",
-        "phase": "atlas",
+        "parent_id": "source_files",
+        "phase": "source_files",
         "label": "Prepare ATLAS",
         "description": "Prepare the ATLAS cache.",
         "order": 10,
@@ -312,7 +312,7 @@ def test_all_reused_engine_children_roll_up_to_the_parent_phase(monkeypatch):
     }])
     status = pipeline_status.set_progress_stage_outcome("atlas.prepare", "reused")
 
-    assert status["phase_outcomes"]["atlas"] == "reused"
+    assert status["phase_outcomes"]["source_files"] == "reused"
     assert status["stage_states"]["atlas.prepare"]["status"] == "reused"
 
 
@@ -719,12 +719,12 @@ def test_engine_progress_forwards_versioned_events_without_stage_mapping(monkeyp
     monkeypatch.setattr(job_runner, 'record_progress_event', lambda payload, **kwargs: events.append(payload))
     payload = {
         'event': 'stage_started',
-        'progress_schema_version': 1,
+        'progress_schema_version': 2,
         'stage_id': 'osm.future_parser',
         'stage_spec': {
             'id': 'osm.future_parser',
-            'parent_id': 'osm',
-            'phase': 'osm',
+            'parent_id': 'matching_inputs',
+            'phase': 'matching_inputs',
             'label': 'Future parser',
             'description': 'A stage unknown to this application version.',
             'order': 99,

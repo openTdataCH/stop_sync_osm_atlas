@@ -144,7 +144,10 @@
                       <strong>{{ osm_operator.osm_operator }}</strong>
                       <span>OSM operator value</span>
                     </span>
-                    <span class="operator-node__count"><strong>{{ osm_operator.matched_stop_count }}</strong> matched stop{{ 's' if osm_operator.matched_stop_count != 1 }}</span>
+                    <span class="operator-node__actions">
+                      <span class="operator-node__count"><strong>{{ osm_operator.matched_stop_count }}</strong> matched stop{{ 's' if osm_operator.matched_stop_count != 1 }}</span>
+                      <a class="operator-node__map-link" href="{{ url_for('index', osm_operator=osm_operator.osm_operator) }}" aria-label="See {{ osm_operator.osm_operator }} on map"><i class="fas fa-map-marked-alt" aria-hidden="true"></i> See on map</a>
+                    </span>
                   </li>
                   {% endfor %}
                 </ul>
@@ -165,7 +168,10 @@
                       <strong><a href="https://www.wikidata.org/wiki/{{ osm_wikidata.osm_operator_wikidata }}" target="_blank" rel="noopener noreferrer">{{ osm_wikidata.osm_operator_wikidata }} <i class="fas fa-external-link-alt" aria-hidden="true"></i></a></strong>
                       <span>Wikidata identifier</span>
                     </span>
-                    <span class="operator-node__count"><strong>{{ osm_wikidata.matched_stop_count }}</strong> matched stop{{ 's' if osm_wikidata.matched_stop_count != 1 }}</span>
+                    <span class="operator-node__actions">
+                      <span class="operator-node__count"><strong>{{ osm_wikidata.matched_stop_count }}</strong> matched stop{{ 's' if osm_wikidata.matched_stop_count != 1 }}</span>
+                      <a class="operator-node__map-link" href="{{ url_for('index', osm_operator_wikidata=osm_wikidata.osm_operator_wikidata) }}" aria-label="See {{ osm_wikidata.osm_operator_wikidata }} on map"><i class="fas fa-map-marked-alt" aria-hidden="true"></i> See on map</a>
+                    </span>
                   </li>
                   {% endfor %}
                 </ul>
@@ -189,7 +195,14 @@
             <div class="operator-card__coverage-note">
               <i class="fas fa-info-circle" aria-hidden="true"></i>
               <span>
-                {% if operator.missing_osm_operator_count > 0 %}{{ operator.missing_osm_operator_count }} matched OSM stop{{ 's' if operator.missing_osm_operator_count != 1 }} without <code>operator</code>{% endif %}{% if operator.missing_osm_operator_count > 0 and supports_osm_operator_wikidata and operator.missing_osm_operator_wikidata_count > 0 %}<span aria-hidden="true"> · </span>{% endif %}{% if supports_osm_operator_wikidata and operator.missing_osm_operator_wikidata_count > 0 %}{{ operator.missing_osm_operator_wikidata_count }} without <code>operator:wikidata</code>{% endif %}
+                {% if operator.missing_osm_operator_count > 0 %}
+                  {{ operator.missing_osm_operator_count }} matched OSM stop{{ 's' if operator.missing_osm_operator_count != 1 }} without <code>operator</code>
+                {% endif %}
+                {% if supports_osm_operator_wikidata and operator.missing_osm_operator_wikidata_count > 0 %}
+                  {% if operator.missing_osm_operator_count > 0 %}<span aria-hidden="true"> · </span>{% endif %}
+                  {{ operator.missing_osm_operator_wikidata_count }} without <code>operator:wikidata</code>
+                  <a class="operator-card__coverage-link" href="{{ url_for('index', atlas_operator=operator.atlas_business_org_abbr, missing_osm_operator_wikidata='true') }}" aria-label="See {{ operator.atlas_business_org_abbr }} stops without operator:wikidata on map">See on map</a>
+                {% endif %}
               </span>
             </div>
             {% endif %}

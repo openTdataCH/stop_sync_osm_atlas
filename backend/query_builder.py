@@ -70,6 +70,15 @@ class FilterBuilder:
         )
     
     @staticmethod
+    def build_osm_operator_wikidata_conditions(wikidata_values):
+        """Filter by the operator:wikidata tag values shown on operator cards."""
+        if not wikidata_values:
+            return None
+        return StopsMatched.osm_node_details.has(
+            OsmNode.osm_operator_wikidata.in_(wikidata_values)
+        )
+
+    @staticmethod
     def build_station_filter_conditions(filter_values, filter_types, route_directions, route_query_func):
         """Build station/route ID filter conditions."""
         if not filter_values:
@@ -251,6 +260,17 @@ class QueryBuilder:
             )
             if osm_operator_condition is not None:
                 osm_conditions.append(osm_operator_condition)
+
+        if filters.get('missing_osm_operator_wikidata'):
+            osm_conditions.append(StopsMatched.osm_node_details.has(db.or_(
+                OsmNode.osm_operator_wikidata.is_(None),
+                OsmNode.osm_operator_wikidata == '',
+            )))
+
+        if filters.get('osm_operator_wikidata'):
+            osm_conditions.append(self.filter_builder.build_osm_operator_wikidata_conditions(
+                filters['osm_operator_wikidata']
+            ))
 
         if osm_conditions:
             combined_osm_condition = db.and_(*osm_conditions)

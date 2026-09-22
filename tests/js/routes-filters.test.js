@@ -1,10 +1,8 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 function loadScript(relativePath) {
-  window.eval(
-    fs.readFileSync(path.join(__dirname, '../..', relativePath), 'utf8')
-  );
+  loadBrowserScript(path.join(__dirname, '../..', relativePath));
 }
 
 describe('Routes operator filters', () => {
