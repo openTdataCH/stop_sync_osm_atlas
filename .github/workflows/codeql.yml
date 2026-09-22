@@ -1,0 +1,36 @@
+name: CodeQL
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: '41 4 * * 1'
+permissions:
+  contents: read
+jobs:
+  analyze:
+    name: Security analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          config: |
+            paths:
+              - backend
+              - static/js
+            paths-ignore:
+              - static/vendor
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

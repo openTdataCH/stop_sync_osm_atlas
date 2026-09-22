@@ -1,0 +1,457 @@
+{
+  "schema_version": 1,
+  "repository": "app",
+  "source_roots": [
+    "backend",
+    "static/js",
+    "static/css",
+    "templates",
+    "migrations",
+    "scripts",
+    "config",
+    ".github",
+    "documentation",
+    "quality"
+  ],
+  "source_files": [
+    "dockerfile",
+    "Dockerfile.quality",
+    "docker-compose.yml",
+    "docker-compose.override.yml",
+    "compose.quality.yml",
+    "entrypoint.sh",
+    "env.example",
+    "requirements-base.txt",
+    "requirements-web.txt",
+    "requirements-test.txt",
+    "requirements-scheduler.txt",
+    "requirements-quality.txt",
+    "package.json",
+    "package-lock.json",
+    "publiccode.yaml",
+    "Makefile",
+    "ruff.toml",
+    "eslint.config.mjs",
+    "stylelint.config.mjs"
+  ],
+  "exclusions": [],
+  "modules": [
+    {
+      "id": "app.snapshot-publication",
+      "title": "Snapshot import and atomic publication",
+      "criticality": "critical",
+      "responsibility": "Validate bundles, stage their projection, and atomically publish a complete snapshot while preserving the previous dataset on failure.",
+      "owner": "OSM Atlas maintainers",
+      "reviewed": "2026-09-22",
+      "paths": {
+        "source": [
+          "backend/importing/**"
+        ],
+        "tests": [
+          "tests/test_result_bundle.py",
+          "tests/test_bundle_properties.py",
+          "tests/test_import_projection.py",
+          "tests/test_snapshot_publication.py",
+          "tests/test_database_safety.py"
+        ]
+      },
+      "docs": {
+        "explanation": [
+          "documentation/1.1 Import Process.md"
+        ],
+        "reference": [
+          "documentation/1. Database.md"
+        ],
+        "operations": [
+          "documentation/1.1 Import Process.md"
+        ],
+        "decision": [
+          "quality/decisions.md"
+        ]
+      },
+      "invariants": [
+        "Validate before database writes.",
+        "Publish while holding the publication lock.",
+        "A failed pre-commit import preserves the active snapshot."
+      ],
+      "entrypoints": [
+        "backend.importing.bundle:read_bundle",
+        "backend.importing.publication:publish_snapshot"
+      ],
+      "dependencies": [
+        "app.query-api"
+      ],
+      "contracts": {
+        "consumes": [
+          "result-bundle-v1"
+        ],
+        "database": [
+          "active-snapshot-schema"
+        ]
+      }
+    },
+    {
+      "id": "app.pipeline-orchestration",
+      "title": "Pipeline orchestration and recovery",
+      "criticality": "high",
+      "responsibility": "Schedule isolated engine processes and imports, reduce progress events, and persist recoverable job state.",
+      "owner": "OSM Atlas maintainers",
+      "reviewed": "2026-09-22",
+      "paths": {
+        "source": [
+          "backend/jobs/**",
+          "backend/services/pipeline*.py",
+          "backend/services/state_backend_config.py",
+          "static/js/shared/pipeline-status.js"
+        ],
+        "tests": [
+          "tests/test_job_runner.py",
+          "tests/test_pipeline_progress.py",
+          "tests/test_engine_progress_contract.py",
+          "tests/test_pipeline_scheduler_ui.py"
+        ]
+      },
+      "docs": {
+        "explanation": [
+          "documentation/3.3 Background Scheduler.md"
+        ],
+        "reference": [
+          "documentation/3.5 Pipeline Progress.md"
+        ],
+        "operations": [
+          "documentation/3.3 Background Scheduler.md"
+        ]
+      },
+      "invariants": [
+        "Matching runs in the engine process.",
+        "Progress events never substitute for successful process completion.",
+        "Only the lock owner may publish or finish a job."
+      ],
+      "entrypoints": [
+        "backend.jobs.job_runner:run_pipeline"
+      ],
+      "dependencies": [
+        "app.snapshot-publication",
+        "app.query-api"
+      ],
+      "contracts": {
+        "consumes": [
+          "engine-progress-v2"
+        ]
+      }
+    },
+    {
+      "id": "app.query-api",
+      "title": "Queries, APIs and exports",
+      "criticality": "high",
+      "responsibility": "Expose validated filters, snapshot queries, serializers, aggregate statistics and report/export services.",
+      "owner": "OSM Atlas maintainers",
+      "reviewed": "2026-09-22",
+      "paths": {
+        "source": [
+          "backend/models.py",
+          "backend/query_builder.py",
+          "backend/queries/**",
+          "backend/serializers/**",
+          "backend/db_errors.py",
+          "backend/extensions.py",
+          "backend/services/__init__.py",
+          "backend/services/data_meta.py",
+          "backend/services/source_config.py",
+          "backend/services/global_stats.py",
+          "backend/services/gtfs_stop_id_sloid.py",
+          "backend/services/async_export*.py",
+          "backend/services/url_query.py",
+          "backend/services/time_utils.py",
+          "backend/services/transport_routes.py",
+          "backend/services/route_comparison.py",
+          "backend/services/request_payload.py",
+          "backend/services/validators.py",
+          "backend/services/stats_export.py",
+          "backend/blueprints/data.py",
+          "backend/blueprints/operators.py",
+          "backend/blueprints/problems.py",
+          "backend/blueprints/reports.py",
+          "backend/blueprints/routes.py",
+          "backend/blueprints/search.py",
+          "backend/blueprints/seo.py",
+          "backend/blueprints/stats.py",
+          "backend/blueprints/system.py",
+          "scripts/regenerate_stats.py"
+        ],
+        "tests": [
+          "tests/test_validators.py",
+          "tests/test_search_security.py",
+          "tests/test_filter_semantics.py",
+          "tests/test_routes_blueprint.py",
+          "tests/test_route_comparison.py",
+          "tests/test_operator_map_filters.py",
+          "tests/test_global_stats_service.py",
+          "tests/test_stats_export.py",
+          "tests/test_async_export*.py"
+        ]
+      },
+      "docs": {
+        "explanation": [
+          "documentation/2.2 Filters and Search logic.md"
+        ],
+        "reference": [
+          "documentation/3.2 Security and Rate Limits.md"
+        ]
+      },
+      "invariants": [
+        "Queries use the active published dataset.",
+        "Untrusted filters never become SQL syntax.",
+        "Exports preserve the same filter meaning as APIs."
+      ],
+      "entrypoints": [
+        "backend.services.validators:validate_pagination"
+      ],
+      "dependencies": [],
+      "contracts": {}
+    },
+    {
+      "id": "app.review-ui",
+      "title": "Review maps and workflows",
+      "criticality": "high",
+      "responsibility": "Render stop, problem, route and operator workflows with shared map lifecycle and filter behavior.",
+      "owner": "OSM Atlas maintainers",
+      "reviewed": "2026-09-22",
+      "paths": {
+        "source": [
+          "static/js/components/**",
+          "static/js/pages/**",
+          "static/js/shared/utils.js",
+          "static/js/shared/jquery-lite.js",
+          "static/js/shared/constants.js",
+          "templates/pages/index.html",
+          "templates/pages/problems.html",
+          "templates/pages/routes.html",
+          "templates/pages/operators.html",
+          "templates/pages/data.html",
+          "templates/reports/**",
+          "templates/components/_components.html",
+          "templates/components/_map_scripts.html",
+          "templates/components/export_overlay.html",
+          "templates/components/data_page_tabs.html",
+          "templates/components/stats_data.html",
+          "templates/components/routes-comparison.html"
+        ],
+        "tests": [
+          "tests/js/*.test.js",
+          "tests/test_map_templates.py",
+          "tests/test_navbar_navigation.py",
+          "tests/test_operators_page.py"
+        ]
+      },
+      "docs": {
+        "explanation": [
+          "documentation/2.1 Map Data Loading and Rendering.md"
+        ],
+        "reference": [
+          "documentation/2.2 Filters and Search logic.md"
+        ]
+      },
+      "invariants": [
+        "Stale requests cannot overwrite a newer viewport.",
+        "Map teardown removes listeners and layers.",
+        "Filters retain the API semantics."
+      ],
+      "entrypoints": [],
+      "dependencies": [
+        "app.query-api",
+        "app.pipeline-orchestration",
+        "platform.styles-assets"
+      ],
+      "contracts": {}
+    },
+    {
+      "id": "app.docs-delivery",
+      "title": "Documentation delivery and quality evidence",
+      "criticality": "medium",
+      "responsibility": "Discover and render the app and engine manuals, diagrams, PDFs and generated quality evidence.",
+      "owner": "OSM Atlas maintainers",
+      "reviewed": "2026-09-22",
+      "paths": {
+        "source": [
+          "backend/blueprints/docs.py",
+          "backend/services/repo_scanner.py",
+          "backend/services/docs_stats.py",
+          "backend/services/quality_report.py",
+          "documentation/**/*.py",
+          "documentation/**/*.css",
+          "templates/pages/docs.html",
+          "static/js/shared/mermaid-config.js",
+          "scripts/render_docs_mermaid.mjs",
+          "documentation/**/*.json"
+        ],
+        "tests": [
+          "tests/test_docs*.py",
+          "tests/test_dependency_docs_sync.py",
+          "tests/test_quality_report.py"
+        ]
+      },
+      "docs": {
+        "explanation": [
+          "documentation/2.8 Documentation Page Delivery.md"
+        ],
+        "reference": [
+          "documentation/4.3 Code Quality.md"
+        ]
+      },
+      "invariants": [
+        "Missing or stale evidence is never presented as a successful measurement.",
+        "Engine and app documentation retain their ownership."
+      ],
+      "entrypoints": [],
+      "dependencies": [
+        "app.query-api"
+      ],
+      "contracts": {}
+    },
+    {
+      "id": "platform.schema-deployment",
+      "title": "Schema, deployment and quality gates",
+      "criticality": "critical",
+      "responsibility": "Own migrations, application wiring, deployment configuration and the checks protecting the producer/consumer boundary.",
+      "owner": "OSM Atlas maintainers",
+      "reviewed": "2026-09-22",
+      "paths": {
+        "source": [
+          "migrations/**",
+          "backend/__init__.py",
+          "backend/app.py",
+          "backend/version.py",
+          ".github/**",
+          "config/**",
+          "docker*.yml",
+          "dockerfile",
+          "Dockerfile*",
+          "compose*.yml",
+          "entrypoint.sh",
+          "env.example",
+          "requirements*.txt",
+          "package*.json",
+          "publiccode.yaml",
+          "Makefile",
+          "*.toml",
+          "quality/**",
+          "scripts/quality.py",
+          "scripts/run_quality.py",
+          "scripts/quality*.mjs",
+          "scripts/check-js-coverage.*",
+          "scripts/run_vscode_task.sh",
+          "scripts/verify_engine_checkout.sh",
+          "eslint.config.*",
+          ".vscode/**"
+        ],
+        "tests": [
+          "tests/test_database_safety.py",
+          "tests/test_quality_system.py",
+          "tests/test_quality_runner.py"
+        ]
+      },
+      "docs": {
+        "explanation": [
+          "documentation/3. System Architecture.md"
+        ],
+        "reference": [
+          "documentation/3.1 Dependency Management & Build Strategy.md"
+        ],
+        "operations": [
+          "documentation/3.3 Background Scheduler.md"
+        ],
+        "decision": [
+          "quality/decisions.md"
+        ]
+      },
+      "invariants": [
+        "The app consumes versioned bundles without importing the engine.",
+        "Migrations preserve data and publication safety.",
+        "Quality checks fail visibly when required evidence is absent."
+      ],
+      "entrypoints": [],
+      "dependencies": [
+        "app.snapshot-publication",
+        "app.pipeline-orchestration",
+        "app.query-api",
+        "app.docs-delivery"
+      ],
+      "contracts": {}
+    },
+    {
+      "id": "platform.styles-assets",
+      "title": "Design system and local assets",
+      "criticality": "medium",
+      "responsibility": "Own CSS tokens, shared layouts, vendor provenance and asset lint rules.",
+      "owner": "OSM Atlas maintainers",
+      "reviewed": "2026-09-22",
+      "paths": {
+        "source": [
+          "static/css/**",
+          "templates/layouts/**",
+          "templates/errors/**",
+          "templates/components/navbar.html",
+          "scripts/stylelint/**",
+          "scripts/sync_vendor_assets.mjs",
+          "scripts/check_no_cdn_templates.mjs",
+          "stylelint.config.mjs"
+        ],
+        "tests": [
+          "tests/test_map_templates.py",
+          "tests/test_navbar_navigation.py"
+        ]
+      },
+      "docs": {
+        "explanation": [
+          "documentation/2.7 Colours and styles.md"
+        ],
+        "reference": [
+          "documentation/3.4 Frontend Asset Management.md"
+        ]
+      },
+      "invariants": [
+        "No left accent or colored left border.",
+        "Production templates load local pinned vendor assets."
+      ],
+      "entrypoints": [],
+      "dependencies": [],
+      "contracts": {}
+    }
+  ],
+  "contracts": [
+    {
+      "id": "result-bundle-v1",
+      "title": "Versioned result bundle",
+      "producers": [
+        "engine.result-producer"
+      ],
+      "consumers": [
+        "app.snapshot-publication"
+      ],
+      "tests": [
+        "tests/test_result_bundle.py",
+        "tests/test_import_projection.py"
+      ],
+      "docs": [
+        "documentation/1.1 Import Process.md"
+      ]
+    },
+    {
+      "id": "engine-progress-v2",
+      "title": "Engine progress events",
+      "producers": [
+        "engine.result-producer"
+      ],
+      "consumers": [
+        "app.pipeline-orchestration"
+      ],
+      "tests": [
+        "tests/test_engine_progress_contract.py"
+      ],
+      "docs": [
+        "documentation/3.5 Pipeline Progress.md"
+      ]
+    }
+  ]
+}

@@ -10,27 +10,33 @@
     "lint:css": "stylelint \"static/css/**/*.css\" --ignore-pattern \"static/css/main.css\" --ignore-pattern \"static/vendor/**\" && node scripts/stylelint/check-template-left-borders.mjs",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "test:coverage": "jest --coverage --runInBand --json --outputFile=quality/raw/javascript-tests.json && node scripts/check-js-coverage.cjs",
     "vendor:sync": "node scripts/sync_vendor_assets.mjs",
     "vendor:check-cdn": "node scripts/check_no_cdn_templates.mjs",
-    "svg:shrink:osm": "node scripts/reduce_svg_bandwidth.mjs --input static/osm.svg --in-place --mode auto --display-width 16 --display-height 16 --pixel-ratio 2 --target-reduction 80"
+    "svg:shrink:osm": "node scripts/reduce_svg_bandwidth.mjs --input static/osm.svg --in-place --mode auto --display-width 16 --display-height 16 --pixel-ratio 2 --target-reduction 80",
+    "lint:js": "eslint static/js tests/js scripts --no-warn-ignored"
   },
   "devDependencies": {
     "@fortawesome/fontawesome-free": "5.15.3",
     "bootstrap": "5.3.3",
+    "eslint": "^10.11.0",
+    "globals": "^16.5.0",
+    "istanbul-lib-instrument": "^6.0.3",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
+    "jscpd": "^4.3.0",
     "leaflet": "1.9.4",
     "mathjax": "3.2.2",
-    "mermaid": "10.9.1",
+    "mermaid": "10.9.8",
     "puppeteer-core": "25.11.0",
     "stylelint": "^16.26.1",
     "svgo": "^4.0.1"
   },
   "jest": {
-    "testEnvironment": "jsdom",
+    "testEnvironment": "<rootDir>/tests/js/strict-environment.cjs",
     "roots": [
-      "<rootDir>/tests/js"
+      "<rootDir>/tests/js",
+      "<rootDir>/static/js"
     ],
     "testMatch": [
       "**/*.test.js"
@@ -42,11 +48,19 @@
       "<rootDir>/tests/js/setup.js"
     ],
     "collectCoverageFrom": [
-      "static/js/components/**/*.js",
-      "static/js/pages/**/*.js",
-      "!static/js/**/*.test.js"
+      "static/js/**/*.js"
     ],
-    "coverageDirectory": "coverage",
-    "verbose": true
+    "coverageDirectory": "quality/raw",
+    "verbose": true,
+    "coverageReporters": [
+      [
+        "json",
+        {
+          "file": "javascript-coverage.json"
+        }
+      ],
+      "text-summary",
+      "lcovonly"
+    ]
   }
 }

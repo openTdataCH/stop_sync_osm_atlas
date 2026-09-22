@@ -104,9 +104,9 @@ def test_stats_data_template_handles_missing_source_downloads():
     assert html.index('aria-label="Source freshness"') < html.index('class="stats-section-nav"')
     assert html.index('class="stats-section-nav"') < html.index('id="stops-matching"')
     assert "The analytics below reflect the latest published dataset." not in html
-    assert html.count('data-pipeline-stage=') == 9
+    assert html.count('data-pipeline-stage=') == 8
     assert 'data-pipeline-stage="stop_matching"' in html
-    assert 'data-stage-label-full="Prepare timetable data"' in html
+    assert 'data-stage-label-full="Prepare source files"' in html
     assert 'id="stops-matching"' in html
     assert 'id="unmatched"' in html
     assert 'class="osm-overview-card"' in html
@@ -125,7 +125,7 @@ def test_stats_data_template_handles_partial_stats_without_summary():
     assert "No stats available" in html
     assert 'id="pipelineRunCard"' in html
     assert html.index('id="pipelineRunCard"') < html.index("No stats available")
-    assert html.count('data-pipeline-stage=') == 9
+    assert html.count('data-pipeline-stage=') == 8
     assert "Waiting for first pipeline run" in html
 
 

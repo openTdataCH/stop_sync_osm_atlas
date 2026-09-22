@@ -138,7 +138,7 @@ def test_runner_reports_published_dataset_with_analytics_warning(monkeypatch):
     def imported(directory, stage_event_callback):
         for stage_id in ('database.validate', 'database.prepare', 'database.load', 'publish.swap', 'publish.analytics'):
             for kind in ('stage_started', 'stage_failed' if stage_id == 'publish.analytics' else 'stage_finished'):
-                stage_event_callback(dict(event=kind, progress_schema_version=1, stage_id=stage_id))
+                stage_event_callback(dict(event=kind, progress_schema_version=2, stage_id=stage_id))
         raise PublishedDatasetError({'run_id': 'published-run', 'schema_version': 1}, 'report disk unavailable')
 
     monkeypatch.setattr(job_runner, 'import_bundle', imported)
@@ -150,3 +150,34 @@ def test_runner_reports_published_dataset_with_analytics_warning(monkeypatch):
     assert status['stage_states']['publish.analytics']['status'] == 'failed'
     assert status['stage_states']['publish']['status'] == 'failed'
     assert status['status'] == 'idle'
+
+
+@pytest.mark.parametrize('mode', ['match-import', 'import'])
+def test_reused_run_modes_keep_input_loading_separate(monkeypatch, mode):
+    from backend.services import pipeline_status
+    from backend.services.pipeline_state_store import MemoryPipelineStateStore
+
+    store = MemoryPipelineStateStore()
+    monkeypatch.setattr(pipeline_status, 'get_pipeline_state_store', lambda: store)
+    monkeypatch.setenv('PIPELINE_BUNDLE', '/unused-test-bundle')
+    monkeypatch.setattr(job_runner, '_record_data_updated_timestamp', lambda *args: None)
+    monkeypatch.setattr(job_runner.data_meta, 'update_data_meta', lambda **kw: None)
+    observed = []
+    monkeypatch.setattr(job_runner, '_run_subprocess', lambda *args, **kw: observed.append(store.read_status()))
+
+    def imported(*args, **kwargs):
+        observed.append(store.read_status())
+        return {'run_id': 'test', 'schema_version': 1}
+
+    monkeypatch.setattr(job_runner, 'import_bundle', imported)
+    assert job_runner.run_pipeline(mode) == 0
+    before_work = observed[0]
+    if mode == 'match-import':
+        assert before_work['phase'] == 'matching_inputs'
+        assert before_work['phase_outcomes'] == {'source_check': 'skipped', 'source_files': 'reused'}
+        assert before_work['stage_states']['matching_inputs']['status'] == 'running'
+    else:
+        assert before_work['phase_outcomes'] == {
+            **dict.fromkeys(('source_check', 'source_files', 'matching_inputs', 'stop_matching', 'route_matching'), 'skipped'),
+            'bundle': 'reused',
+        }

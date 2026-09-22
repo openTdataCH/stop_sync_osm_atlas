@@ -27,6 +27,12 @@ from backend.services.gtfs_stop_id_sloid import (
     find_gtfs_stop_id_sloid_targets,
 )
 from backend.services.pipeline_status import get_status
+from backend.services.route_comparison import (
+    best_comparison_options,
+    build_route_comparison,
+    compare_stop_calls,
+    list_comparison_options,
+)
 from backend.services.url_query import canonical_query_redirect
 
 
@@ -1098,6 +1104,11 @@ def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_call
         'atlas_headsign': atlas_headsign,
         'osm_to_name': osm_to_name,
         'osm_relation_id': _clean_text(osm_itinerary.source_itinerary_id) if osm_itinerary is not None else None,
+        'atlas_itinerary_id': getattr(atlas_itinerary, 'id', None),
+        'osm_itinerary_id': getattr(osm_itinerary, 'id', None),
+        'stop_comparison': compare_stop_calls(
+            atlas_calls, osm_calls, atlas_itinerary, osm_itinerary,
+        ) if is_matched else None,
         'atlas_uic_groups': _group_stops_by_uic(atlas_stops),
         'osm_uic_groups': _group_stops_by_uic(osm_stops),
         'has_atlas_variant': atlas_itinerary is not None,
@@ -1162,7 +1173,11 @@ def _build_route_rows(page_items):
                     )
                 )
 
-        direction_groups.sort(key=lambda group: (_direction_sort_key(group['direction_id']), group['direction_label'] or ''))
+        direction_groups.sort(key=lambda group: (
+            not group['is_matched'],
+            _direction_sort_key(group['direction_id']),
+            group['direction_label'] or '',
+        ))
         atlas_variant_count, osm_variant_count, matched_variant_count = _count_route_variants(direction_groups)
 
         map_filter = None
@@ -1360,6 +1375,92 @@ def routes_gtfs_stop_id_sloid_page():
     if canonical_redirect is not None:
         return canonical_redirect
     return _render_routes_template(ROUTES_VIEW_GTFS_STOP_ID_SLOID)
+
+
+def _comparison_integer(name, *, default=None, maximum=2_147_483_647):
+    raw_value = request.args.get(name)
+    if raw_value is None:
+        return default
+    value = int(raw_value)
+    if value < 1 or value > maximum:
+        raise ValueError(f'Invalid {name}')
+    return value
+
+
+def _comparison_database_error(exc):
+    if is_missing_table_error(exc):
+        db.session.rollback()
+        return _routes_unavailable_response('Route tables are not initialized yet.', phase='database')
+    return _handle_route_database_error(exc)
+
+
+@routes_bp.route('/api/routes/comparison')
+def routes_comparison_api():
+    try:
+        atlas_id = _comparison_integer('atlas_itinerary_id')
+        osm_id = _comparison_integer('osm_itinerary_id')
+        if atlas_id is None and osm_id is None:
+            raise ValueError('Select at least one itinerary.')
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Select at least one valid itinerary ID.'}), 400
+
+    try:
+        return jsonify(build_route_comparison(atlas_id, osm_id))
+    except LookupError as exc:
+        return jsonify({'error': str(exc)}), 404
+    except Exception as exc:
+        return _comparison_database_error(exc)
+
+
+@routes_bp.route('/api/routes/comparison/options')
+def routes_comparison_options_api():
+    try:
+        source = (request.args.get('source') or '').strip().lower()
+        if source not in {'atlas', 'osm'}:
+            raise ValueError('Invalid source')
+        q = (request.args.get('q') or '').strip()
+        if len(q) > 255:
+            raise ValueError('Search is too long')
+        fixed_id = _comparison_integer('fixed_itinerary_id')
+        unmatched = request.args.get('unmatched', '0' if fixed_id is not None else '1')
+        if unmatched not in {'0', '1'}:
+            raise ValueError('Invalid unmatched filter')
+        page = _comparison_integer('page', default=1)
+        per_page = _comparison_integer('per_page', default=30, maximum=100)
+        anchor_id = _comparison_integer('anchor_id')
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid comparison source, search, filter, page, or itinerary ID.'}), 400
+
+    try:
+        return jsonify(list_comparison_options(
+            source, q=q, unmatched=unmatched == '1', page=page, per_page=per_page, anchor_id=anchor_id,
+            fixed_itinerary_id=fixed_id,
+        ))
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    except LookupError as exc:
+        return jsonify({'error': str(exc)}), 404
+    except Exception as exc:
+        return _comparison_database_error(exc)
+
+
+@routes_bp.route('/api/routes/comparison/best')
+def routes_comparison_best_api():
+    try:
+        raw_ids = request.args.getlist('itinerary_id')
+        if not raw_ids or len(raw_ids) > 100:
+            raise ValueError('Select between 1 and 100 itineraries.')
+        itinerary_ids = list(dict.fromkeys(int(value) for value in raw_ids))
+        if any(value < 1 or value > 2_147_483_647 for value in itinerary_ids):
+            raise ValueError('Invalid itinerary ID')
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Select between 1 and 100 valid itinerary IDs.'}), 400
+    try:
+        return jsonify(best_comparison_options(itinerary_ids))
+    except LookupError as exc:
+        return jsonify({'error': str(exc)}), 404
+    except Exception as exc:
+        return _comparison_database_error(exc)
 
 
 @routes_bp.route('/api/routes/gtfs-stop-id-sloid/summary')

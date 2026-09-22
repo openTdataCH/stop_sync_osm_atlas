@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 function stageMarkup(phase) {
@@ -14,7 +14,7 @@ function stageMarkup(phase) {
 
 describe('analytics pipeline timeline', () => {
   const stages = [
-    'source_check', 'atlas', 'timetable', 'osm', 'stop_matching',
+    'source_check', 'source_files', 'matching_inputs', 'stop_matching',
     'route_matching', 'bundle', 'database', 'publish'
   ];
 
@@ -38,7 +38,7 @@ describe('analytics pipeline timeline', () => {
       </section>`;
 
     const scriptPath = path.join(__dirname, '../../static/js/pages/data-analytics.js');
-    window.eval(fs.readFileSync(scriptPath, 'utf8'));
+    loadBrowserScript(scriptPath);
     document.dispatchEvent(new Event('DOMContentLoaded'));
   });
 
@@ -135,19 +135,19 @@ describe('analytics pipeline timeline', () => {
 
   test('renders self-describing substages without frontend stage-specific code', () => {
     const stagePlan = [{
-      id: 'osm', parent_id: null, phase: 'osm', label: 'Prepare OpenStreetMap',
+      id: 'matching_inputs', parent_id: null, phase: 'matching_inputs', label: 'Load matching inputs',
       description: 'Prepare OSM', order: 40, progress_kind: 'indeterminate'
     }, {
-      id: 'osm.download', parent_id: 'osm', phase: 'osm', label: 'Download OSM data from Overpass',
+      id: 'osm.download', parent_id: 'matching_inputs', phase: 'matching_inputs', label: 'Download OSM data from Overpass',
       description: 'Download OSM', order: 10, progress_kind: 'indeterminate'
     }, {
-      id: 'osm.future_parser', parent_id: 'osm', phase: 'osm', label: 'A future parser stage',
+      id: 'osm.future_parser', parent_id: 'matching_inputs', phase: 'matching_inputs', label: 'A future parser stage',
       description: 'Added by a newer engine', order: 20, progress_kind: 'indeterminate'
     }];
     document.dispatchEvent(new CustomEvent('pipeline-status:update', {
       detail: {
         status: 'running',
-        phase: 'osm',
+        phase: 'matching_inputs',
         started_at: new Date(Date.now() - 20000).toISOString(),
         phase_started_at: new Date(Date.now() - 10000).toISOString(),
         phase_history: [],
@@ -159,7 +159,7 @@ describe('analytics pipeline timeline', () => {
       }
     }));
 
-    const details = document.querySelector('[data-progress-phase="osm"]');
+    const details = document.querySelector('[data-progress-phase="matching_inputs"]');
     expect(details.tagName).toBe('SECTION');
     expect(details.classList.contains('is-active')).toBe(true);
     expect(details.querySelectorAll('[data-progress-stage]')).toHaveLength(2);
@@ -171,23 +171,23 @@ describe('analytics pipeline timeline', () => {
   test('orders late phases and children while retaining focused nodes across polling', () => {
     const root = (id, order) => ({id, parent_id: null, phase: id, label: id, description: id, order});
     const child = (id, phase, order) => ({id, parent_id: phase, phase, label: id, description: id, order});
-    const appPlan = [root('osm', 40), root('database', 80), root('publish', 90),
+    const appPlan = [root('matching_inputs', 40), root('database', 80), root('publish', 90),
       child('database.load', 'database', 10), child('publish.swap', 'publish', 10)];
     const render = stage_plan => document.dispatchEvent(new CustomEvent('pipeline-status:update', {
-      detail: {status: 'running', run_id: 'ordering', phase: 'osm', stage_plan, stage_states: {}}
+      detail: {status: 'running', run_id: 'ordering', phase: 'matching_inputs', stage_plan, stage_states: {}}
     }));
     render(appPlan);
     const database = document.querySelector('[data-progress-phase="database"]');
     database.tabIndex = 0;
     database.focus();
-    const latePlan = [...appPlan, child('osm.later', 'osm', 20)];
+    const latePlan = [...appPlan, child('osm.later', 'matching_inputs', 20)];
     render(latePlan);
     expect(Array.from(document.querySelectorAll('[data-progress-phase]'), node => node.dataset.progressPhase))
-      .toEqual(['osm', 'database', 'publish']);
+      .toEqual(['matching_inputs', 'database', 'publish']);
     expect(document.activeElement).toBe(database);
     const later = document.querySelector('[data-progress-stage="osm.later"]');
-    render([...latePlan, child('osm.earlier', 'osm', 10)]);
-    expect(Array.from(document.querySelector('[data-progress-phase="osm"] ul').children, node => node.dataset.progressStage))
+    render([...latePlan, child('osm.earlier', 'matching_inputs', 10)]);
+    expect(Array.from(document.querySelector('[data-progress-phase="matching_inputs"] ul').children, node => node.dataset.progressStage))
       .toEqual(['osm.earlier', 'osm.later']);
     jest.advanceTimersByTime(1000);
     expect(document.querySelector('[data-progress-stage="osm.later"]')).toBe(later);
@@ -197,11 +197,11 @@ describe('analytics pipeline timeline', () => {
 
   test('renders opaque stage IDs safely and removes old-run children', () => {
     const id = 'osm.parser["quoted"]';
-    const root = {id: 'osm', parent_id: null, phase: 'osm', label: 'OSM', order: 40};
+    const root = {id: 'matching_inputs', parent_id: null, phase: 'matching_inputs', label: 'OSM', order: 40};
     const render = (run_id, children) => document.dispatchEvent(new CustomEvent('pipeline-status:update', {
-      detail: {status: 'running', phase: 'osm', run_id, stage_plan: [root, ...children], stage_states: {}}
+      detail: {status: 'running', phase: 'matching_inputs', run_id, stage_plan: [root, ...children], stage_states: {}}
     }));
-    const spec = {id, parent_id: 'osm', phase: 'osm', label: '<b>Literal label</b>', order: 10};
+    const spec = {id, parent_id: 'matching_inputs', phase: 'matching_inputs', label: '<b>Literal label</b>', order: 10};
     render('first', [spec]);
     render('first', [spec]);
     const items = document.querySelectorAll('[data-progress-stage]');
@@ -216,25 +216,25 @@ describe('analytics pipeline timeline', () => {
     document.dispatchEvent(new CustomEvent('pipeline-status:update', {
       detail: {status: 'idle', phase: 'idle', finished_at: '2026-09-21T10:00:00Z', dataset_published: true,
         warnings: ['Analytics need regeneration'], stage_states: {
-          publish: {status: 'failed'}, database: {status: 'complete'}, osm: {status: 'waiting'}
+          publish: {status: 'failed'}, database: {status: 'complete'}, matching_inputs: {status: 'waiting'}
         }}
     }));
     expect(document.getElementById('analyticsPipelineTitle').textContent).toBe('Dataset published with warnings');
     expect(document.getElementById('analyticsPipelineMessage').textContent).toContain('Analytics need regeneration');
     expect(document.querySelector('[data-pipeline-stage="publish"]').classList.contains('is-failed')).toBe(true);
     expect(document.querySelector('[data-pipeline-stage="publish"]').classList.contains('is-complete')).toBe(false);
-    expect(document.querySelector('[data-pipeline-stage="osm"]').classList.contains('is-complete')).toBe(false);
+    expect(document.querySelector('[data-pipeline-stage="matching_inputs"]').classList.contains('is-complete')).toBe(false);
   });
 
   test('keeps completed substage bullets expanded and successful', () => {
     const stagePlan = [{
-      id: 'osm', parent_id: null, phase: 'osm', label: 'Prepare OpenStreetMap',
+      id: 'matching_inputs', parent_id: null, phase: 'matching_inputs', label: 'Load matching inputs',
       description: 'Prepare OSM', order: 40, progress_kind: 'indeterminate'
     }, {
-      id: 'osm.download', parent_id: 'osm', phase: 'osm', label: 'Download OSM data from Overpass',
+      id: 'osm.download', parent_id: 'matching_inputs', phase: 'matching_inputs', label: 'Download OSM data from Overpass',
       description: 'Download OSM', order: 10, progress_kind: 'indeterminate'
     }, {
-      id: 'osm.prepare', parent_id: 'osm', phase: 'osm', label: 'Parse and prepare OSM data',
+      id: 'osm.prepare', parent_id: 'matching_inputs', phase: 'matching_inputs', label: 'Parse and prepare OSM data',
       description: 'Prepare OSM', order: 20, progress_kind: 'indeterminate'
     }];
     const completedStatus = {
@@ -251,10 +251,10 @@ describe('analytics pipeline timeline', () => {
 
     document.dispatchEvent(new CustomEvent('pipeline-status:update', {detail: completedStatus}));
 
-    const details = document.querySelector('[data-progress-phase="osm"]');
+    const details = document.querySelector('[data-progress-phase="matching_inputs"]');
     expect(details.classList.contains('is-complete')).toBe(true);
     expect(details.querySelectorAll('.pipeline-substage.is-complete')).toHaveLength(2);
-    expect(details.querySelector('.pipeline-stage-detail__count').textContent).toBe('2/2 complete');
+    expect(details.querySelector('.pipeline-stage-detail__count').textContent).toBe('2/2 finished');
     expect(details.querySelector('.pipeline-substage__status-label').textContent).toBe('Complete');
     expect(details.querySelector('.pipeline-substage__status-meta').textContent).toBe(' · 1m 46s');
   });
@@ -274,7 +274,7 @@ describe('analytics pipeline timeline', () => {
     document.dispatchEvent(new CustomEvent('pipeline-status:update', {
       detail: {
         status: 'running',
-        phase: 'osm',
+        phase: 'matching_inputs',
         started_at: new Date().toISOString(),
         phase_history: [],
         stage_plan: stagePlan,
@@ -286,21 +286,21 @@ describe('analytics pipeline timeline', () => {
     expect(group.tagName).toBe('SECTION');
     expect(group.querySelectorAll('.pipeline-substage.is-waiting')).toHaveLength(2);
     expect(Array.from(group.querySelectorAll('.pipeline-substage__status')).map(node => node.textContent)).toEqual(['Waiting', 'Waiting']);
-    expect(group.querySelector('.pipeline-stage-detail__count').textContent).toBe('0/2 complete');
+    expect(group.querySelector('.pipeline-stage-detail__count').textContent).toBe('0/2 finished');
   });
 
   test('uses a three-arrow reuse symbol instead of a relaunch arrow', () => {
     const stagePlan = [{
-      id: 'atlas', parent_id: null, phase: 'atlas', label: 'Prepare ATLAS',
-      description: 'Prepare ATLAS', order: 20, progress_kind: 'indeterminate'
+      id: 'source_files', parent_id: null, phase: 'source_files', label: 'Prepare source files',
+      description: 'Prepare source files', order: 20, progress_kind: 'indeterminate'
     }, {
-      id: 'atlas.prepare', parent_id: 'atlas', phase: 'atlas', label: 'Download and prepare ATLAS stops',
-      description: 'Prepare ATLAS', order: 10, progress_kind: 'indeterminate'
+      id: 'atlas.prepare', parent_id: 'source_files', phase: 'source_files', label: 'Download and prepare ATLAS stops',
+      description: 'Prepare source files', order: 10, progress_kind: 'indeterminate'
     }];
 
     document.dispatchEvent(new CustomEvent('pipeline-status:update', {
       detail: {
-        status: 'running', phase: 'osm', phase_history: [], stage_plan: stagePlan,
+        status: 'running', phase: 'matching_inputs', phase_history: [], stage_plan: stagePlan,
         stage_states: {'atlas.prepare': {status: 'reused'}}
       }
     }));
@@ -380,17 +380,12 @@ describe('analytics pipeline timeline', () => {
         started_at: new Date(Date.now() - 10000).toISOString(),
         phase_started_at: new Date(Date.now() - 5000).toISOString(),
         phase_history: [{
-          phase: 'atlas',
+          phase: 'source_files',
           started_at: '2026-09-20T10:00:01Z',
           finished_at: '2026-09-20T10:00:01Z',
           duration_seconds: 0,
           status: 'reused'
-        }, {
-          phase: 'timetable',
-          started_at: '2026-09-20T10:00:02Z',
-          finished_at: '2026-09-20T10:00:02Z',
-          duration_seconds: 0,
-          status: 'reused'
+
         }, {
           phase: 'bundle',
           started_at: '2026-09-20T10:00:03Z',
@@ -399,25 +394,22 @@ describe('analytics pipeline timeline', () => {
           status: 'skipped'
         }],
         phase_outcomes: {
-          atlas: 'reused',
-          timetable: 'reused',
+          source_files: 'reused',
           bundle: 'skipped'
         }
       }
     }));
 
-    expect(document.querySelector('[data-pipeline-stage="atlas"] [data-stage-duration]').textContent).toBe('Reused');
-    expect(document.querySelector('[data-pipeline-stage="timetable"] [data-stage-duration]').textContent).toBe('Reused');
+    expect(document.querySelector('[data-pipeline-stage="source_files"] [data-stage-duration]').textContent).toBe('Reused');
     expect(document.querySelector('[data-pipeline-stage="bundle"] [data-stage-duration]').textContent).toBe('Skipped');
-    expect(document.querySelector('[data-pipeline-stage="atlas"] [data-stage-time]').textContent).not.toBe('—');
-    expect(document.querySelector('[data-pipeline-stage="timetable"] [data-stage-time]').textContent).not.toBe('—');
+    expect(document.querySelector('[data-pipeline-stage="source_files"] [data-stage-time]').textContent).not.toBe('—');
     expect(document.querySelector('[data-pipeline-stage="bundle"] [data-stage-time]').textContent).not.toBe('—');
-    expect(document.querySelector('[data-pipeline-stage="atlas"] [data-stage-time]').title).toContain('Reuse decided at');
+    expect(document.querySelector('[data-pipeline-stage="source_files"] [data-stage-time]').title).toContain('Reuse decided at');
     expect(document.querySelector('[data-pipeline-stage="bundle"] [data-stage-time]').title).toContain('Skip decided at');
   });
 
   test('adds an accessible tooltip only when a stage label is truncated', () => {
-    const label = document.querySelector('[data-pipeline-stage="timetable"] [data-stage-label]');
+    const label = document.querySelector('[data-pipeline-stage="source_files"] [data-stage-label]');
     const dispose = jest.fn();
     const getOrCreateInstance = jest.fn(() => ({dispose}));
     const getInstance = jest.fn(() => ({dispose}));
@@ -428,7 +420,7 @@ describe('analytics pipeline timeline', () => {
     window.dispatchEvent(new Event('resize'));
 
     expect(label.classList.contains('is-truncated')).toBe(true);
-    expect(label.getAttribute('title')).toBe('timetable');
+    expect(label.getAttribute('title')).toBe('source_files');
     expect(label.getAttribute('tabindex')).toBe('0');
     expect(getOrCreateInstance).toHaveBeenCalled();
 
@@ -466,5 +458,64 @@ describe('analytics pipeline timeline', () => {
 
     expect(document.documentElement.style.getPropertyValue('--stats-section-scroll-offset')).toBe('124px');
     window.getComputedStyle.mockRestore();
+  });
+
+  test('keeps historical plans readable and switches to eight sequential phases on the next run', () => {
+    const timeline = document.createElement('div');
+    timeline.id = 'analyticsPipelineTimeline';
+    document.getElementById('pipelineRunCard').appendChild(timeline);
+    document.querySelectorAll('[data-pipeline-stage]').forEach(element => timeline.appendChild(element));
+    const root = (id, order) => ({id, parent_id: null, phase: id, label: id, order});
+    const child = (id, parent, order) => ({id, parent_id: parent, phase: parent, label: id, order});
+    const render = (run_id, stage_plan, stage_states) => document.dispatchEvent(new CustomEvent('pipeline-status:update', {
+      detail: {status: 'running', phase: 'matching_inputs', run_id, stage_plan, stage_states}
+    }));
+    const oldPhases = ['source_check', 'atlas', 'timetable', 'osm', ...stages.slice(3)];
+    render('old-run', [
+      ...oldPhases.map(root), child('atlas.load', 'atlas', 20), child('osm.download', 'osm', 10)
+    ], {'atlas.load': {status: 'complete'}, 'osm.download': {status: 'complete'}});
+    expect(Array.from(timeline.children, node => node.dataset.pipelineStage)).toEqual(oldPhases);
+    expect(document.querySelector('[data-progress-phase="atlas"]')).not.toBeNull();
+
+    const preparation = ['atlas.prepare', 'timetable.download', 'timetable.patterns', 'timetable.identities_routes', 'osm.download'];
+    const loading = ['atlas.load', 'timetable.load', 'osm.prepare'];
+    const plan = [
+      ...stages.map(root),
+      ...preparation.map((id, order) => child(id, 'source_files', order)),
+      ...loading.map((id, order) => child(id, 'matching_inputs', order))
+    ];
+    const states = Object.fromEntries(preparation.map(id => [id, {status: 'reused'}]));
+    states['osm.download'] = {status: 'complete'};
+    states['atlas.load'] = {status: 'complete'};
+    states['timetable.load'] = {status: 'running'};
+    render('new-run', plan, states);
+    expect(Array.from(timeline.children, node => node.dataset.pipelineStage)).toEqual(stages);
+    expect(document.querySelector('[data-progress-phase="atlas"]')).toBeNull();
+    expect(Array.from(document.querySelectorAll('[data-progress-stage]'), node => node.dataset.progressStage))
+      .toEqual([...preparation, ...loading]);
+    expect(document.querySelector('[data-progress-phase="source_files"] .pipeline-stage-detail__count').textContent)
+      .toBe('5/5 finished');
+    expect(document.querySelector('[data-progress-phase="matching_inputs"] .pipeline-stage-detail__count').textContent)
+      .toBe('Running');
+    const retained = timeline.querySelector('[data-pipeline-stage="matching_inputs"]');
+    render('new-run', plan, states);
+    expect(timeline.querySelector('[data-pipeline-stage="matching_inputs"]')).toBe(retained);
+    states['timetable.load'] = {status: 'skipped'};
+    states['osm.prepare'] = {status: 'complete'};
+    render('new-run', plan, states);
+    expect(document.querySelector('[data-progress-phase="matching_inputs"] .pipeline-stage-detail__count').textContent)
+      .toBe('3/3 finished');
+  });
+
+  test('pagehide cancels navigation animation, delayed scrolling, and pipeline timers', () => {
+    window.dispatchEvent(new Event('resize'));
+    document.querySelector('.stats-section-nav__link[href="#routes"]').click();
+    expect(jest.getTimerCount()).toBeGreaterThan(0);
+
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(jest.getTimerCount()).toBe(0);
+    window.dispatchEvent(new Event('resize'));
+    expect(jest.getTimerCount()).toBe(0);
   });
 });

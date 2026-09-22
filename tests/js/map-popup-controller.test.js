@@ -1,10 +1,10 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 function loadProductionScript() {
   const scriptPath = path.join(__dirname, '../../static/js/components/map-popup-controller.js');
   window.MapComponents = undefined;
-  window.eval(fs.readFileSync(scriptPath, 'utf8'));
+  loadBrowserScript(scriptPath);
 }
 
 function deferred() {

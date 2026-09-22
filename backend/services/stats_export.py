@@ -12,13 +12,12 @@ Statistics are divided into two categories:
 
 import json
 import logging
-import math
 import os
 import statistics
 import tempfile
 import time
 from collections import defaultdict
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 
 from backend.services.data_meta import load_data_meta
 from backend.services.time_utils import (

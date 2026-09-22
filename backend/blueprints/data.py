@@ -1,10 +1,10 @@
 from flask import Blueprint, request, jsonify, current_app as app
-from sqlalchemy import func, case
-from sqlalchemy.orm import joinedload, load_only
+from sqlalchemy import case
+from sqlalchemy.orm import joinedload
 from collections import defaultdict
 from backend.models import AtlasOperator, StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember, OsmRouteRelation
 from backend.extensions import db, limiter
-from backend.db_errors import is_missing_table_error
+from backend.db_errors import is_missing_column_error, is_missing_table_error
 from backend.serializers.stops import format_stop_data
 from backend.services.transport_routes import get_stops_for_route, get_osm_routes_for_node, get_atlas_routes_for_sloid
 from backend.queries.helpers import (
@@ -133,6 +133,28 @@ def get_osm_operators():
         return jsonify({"error": str(e)}), 500
 
 
+@data_bp.route('/api/osm_operator_wikidata', methods=['GET'])
+@limiter.limit("60/minute")
+def get_osm_operator_wikidata():
+    try:
+        values = (
+            db.session.query(OsmNode.osm_operator_wikidata)
+            .filter(OsmNode.osm_operator_wikidata.isnot(None))
+            .filter(OsmNode.osm_operator_wikidata != '')
+            .distinct()
+            .order_by(OsmNode.osm_operator_wikidata)
+            .all()
+        )
+        operators = [value for (value,) in values]
+        return jsonify({"operators": operators, "total": len(operators)})
+    except Exception as exc:
+        if is_missing_table_error(exc) or is_missing_column_error(exc):
+            db.session.rollback()
+            return jsonify({"operators": [], "total": 0}), 200
+        app.logger.error("Error fetching OSM operator Wikidata: %s", exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 # ----------------------------------
 # API Endpoint: /api/osm_route_operators
 # ----------------------------------
@@ -237,8 +259,6 @@ def get_data():
         # Enrich any OSM-backed stop with pair partners and trio links.
         osm_node_ids = [s['osm_node_id'] for s in regular_stops if s['osm_node_id']]
         if osm_node_ids:
-            osm_node_set = set(osm_node_ids)
-
             stop_rows = db.session.query(
                 OsmStopMember.node_id,
                 OsmStopMember.osm_stop_id,
@@ -570,5 +590,4 @@ def get_stop_popup():
     except Exception as e:
         app.logger.error(f"Error fetching stop popup: {e}")
         return jsonify({"error": str(e)}), 500
-
 

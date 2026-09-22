@@ -39,6 +39,10 @@ def test_engine_events_are_accepted_and_resolve_in_consumer(mode, tmp_path):
     assert events and events[0]['event'] == 'pipeline_plan'
     state = dict(status='running', run_id='composition-test', phase='source_check',
                  stage_plan=initial_progress_plan(), stage_states={})
+    roots = {spec['id']: spec['order'] for spec in state['stage_plan'] if spec['parent_id'] is None}
+    planned = sorted(events[0]['stages'], key=lambda spec: (roots[spec['phase']], spec['order']))
+    finished = [event['stage_id'] for event in events if event['event'] == 'stage_finished']
+    assert finished == [spec['id'] for spec in planned]
     for event in events:
         state.update(apply_progress_event(state, event, '2026-09-21T10:00:00+00:00', owner='engine', run_id='composition-test'))
     plan = events[0]['stages']

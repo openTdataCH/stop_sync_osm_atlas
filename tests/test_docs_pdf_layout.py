@@ -2,8 +2,10 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 import mistune
+import pytest
 from weasyprint import CSS, HTML
 from weasyprint.formatting_structure import boxes
+from weasyprint.urls import URLFetcher, URLFetchingError
 
 from documentation.pdf_generator import build_docs_pdf as docs_builder
 from documentation.pdf_generator.build_single_markdown_pdf import _build_single_markdown_pdf
@@ -123,3 +125,21 @@ def test_single_markdown_pdf_builds(tmp_path, monkeypatch):
     assert result == output_path
     assert output_path.exists()
     assert output_path.stat().st_size > 0
+
+
+def test_stylesheet_parameter_respects_the_document_url_fetcher(tmp_path):
+    """CVE-2026-55073: stylesheet arguments must not bypass resource policy."""
+    stylesheet = tmp_path / 'blocked.css'
+    stylesheet.write_text('@page { size: 1234px 5678px }')
+    requested = []
+
+    class BlockedResources(URLFetcher):
+        def fetch(self, url, headers=None):
+            requested.append(url)
+            raise ValueError('Resource blocked by the document policy')
+
+    with pytest.raises(URLFetchingError, match='Resource blocked by the document policy'):
+        HTML(string='<p>Safe content</p>', url_fetcher=BlockedResources()).render(
+            stylesheets=[stylesheet.as_uri()])
+
+    assert requested == [stylesheet.as_uri()]

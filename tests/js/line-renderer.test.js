@@ -1,6 +1,3 @@
-const fs = require('fs');
-const path = require('path');
-
 describe('LineRenderer production component', () => {
   let layer;
 

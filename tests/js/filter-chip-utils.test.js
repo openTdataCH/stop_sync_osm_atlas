@@ -1,10 +1,10 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 describe('FilterChipUtils', () => {
   beforeAll(() => {
-    window.eval(fs.readFileSync(path.join(__dirname, '../../static/js/shared/utils.js'), 'utf8'));
-    window.eval(fs.readFileSync(path.join(__dirname, '../../static/js/components/filter-chip-utils.js'), 'utf8'));
+    loadBrowserScript(path.join(__dirname, '../../static/js/shared/utils.js'));
+    loadBrowserScript(path.join(__dirname, '../../static/js/components/filter-chip-utils.js'));
   });
 
   test('supports an accessible label on removable chip actions', () => {

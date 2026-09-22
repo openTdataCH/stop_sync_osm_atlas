@@ -1,0 +1,6 @@
+target-version = "py313"
+extend-exclude = ["engine", "static/vendor", "node_modules", "data", "documentation/generated"]
+
+[lint]
+# Start with correctness and provably unused imports/locals; avoid a style rewrite.
+select = ["E9", "F63", "F7", "F82", "F401", "F841"]

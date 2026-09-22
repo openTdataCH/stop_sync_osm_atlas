@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: transport_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d transport_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Quality data is disposable and never shares the deployment database.
+    tmpfs:
+      - /var/lib/postgresql/data
+  quality:
+    build:
+      context: .
+      dockerfile: Dockerfile.quality
+      additional_contexts:
+        engine: ${ENGINE_ROOT:-../engine}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URI: sqlite://
+      TEST_POSTGRES_URI: postgresql+psycopg://test:test@postgres:5432/transport_test
+      STATE_BACKEND: memory
+      ENGINE_DIR: /workspace/engine
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: /workspace/app
+      GIT_CONFIG_KEY_1: safe.directory
+      GIT_CONFIG_VALUE_1: /workspace/engine
+    volumes:
+      - .:/workspace/app
+      - ${ENGINE_ROOT:-../engine}:/workspace/engine:ro
+      # Anonymous volume is refreshed from the image and removed with --rm.
+      - /workspace/app/node_modules

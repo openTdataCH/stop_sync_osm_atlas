@@ -205,12 +205,12 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
 
     initial_phase = {
         'full': 'source_check',
-        'match-import': 'osm',
+        'match-import': 'matching_inputs',
         'import': 'database',
     }.get(mode, 'source_check')
     initial_message = {
         'full': 'Checking source freshness',
-        'match-import': 'Preparing OpenStreetMap data',
+        'match-import': 'Loading matching inputs',
         'import': 'Validating the result bundle',
     }.get(mode, 'Starting pipeline run')
     run_id = start_run(trigger=trigger, initial_phase=initial_phase, message=initial_message)
@@ -221,10 +221,9 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
             raise ValueError(f'Unsupported mode: {mode}')
         if mode == 'match-import':
             set_phase_outcome('source_check', 'skipped')
-            set_phase_outcome('atlas', 'reused')
-            set_phase_outcome('timetable', 'reused')
+            set_phase_outcome('source_files', 'reused')
         elif mode == 'import':
-            for phase in ('source_check', 'atlas', 'timetable', 'osm', 'stop_matching', 'route_matching'):
+            for phase in ('source_check', 'source_files', 'matching_inputs', 'stop_matching', 'route_matching'):
                 set_phase_outcome(phase, 'skipped')
             set_phase_outcome('bundle', 'reused')
         run_type = PipelineRunType.COMPLETE

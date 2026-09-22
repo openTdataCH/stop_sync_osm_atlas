@@ -1,4 +1,4 @@
-import geoalchemy2
+import geoalchemy2  # noqa: F401 -- registers PostGIS types with SQLAlchemy.
 import logging
 from logging.config import fileConfig
 

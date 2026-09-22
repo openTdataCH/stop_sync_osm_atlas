@@ -1,16 +1,12 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 describe('GTFS/SLOID popup route controls', () => {
   beforeAll(() => {
-    window.eval(fs.readFileSync(
-      path.join(__dirname, '../../static/js/components/popup-utils.js'),
-      'utf8'
-    ));
-    window.eval(fs.readFileSync(
-      path.join(__dirname, '../../static/js/components/popup-renderer.js'),
-      'utf8'
-    ));
+    loadBrowserScript(
+      path.join(__dirname, '../../static/js/components/popup-utils.js'));
+    loadBrowserScript(
+      path.join(__dirname, '../../static/js/components/popup-renderer.js'));
   });
 
   test('SLOID popups use the shared collapsible Routes list without Index-only actions', () => {

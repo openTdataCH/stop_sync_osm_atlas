@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 function createMiniDollar() {
@@ -84,8 +84,7 @@ describe('report request params', () => {
     global.OperatorDropdown = function () {};
 
     const scriptPath = path.join(__dirname, '../../static/js/pages/report.js');
-    const scriptContent = fs.readFileSync(scriptPath, 'utf8');
-    window.eval(scriptContent);
+    loadBrowserScript(scriptPath);
   });
 
   beforeEach(() => {

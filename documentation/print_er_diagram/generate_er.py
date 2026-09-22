@@ -19,7 +19,7 @@ def generate(landscape=True):
     print("Importing backend models...")
     try:
         from backend.extensions import db
-        import backend.models
+        import backend.models  # noqa: F401 -- registers tables for the diagram.
     except ImportError as e:
         print(f"Error: Could not import project modules. Details: {e}")
         sys.exit(1)

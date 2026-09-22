@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "source": [
+    {
+      "pattern": "**/__pycache__/**",
+      "reason": "Python bytecode"
+    },
+    {
+      "pattern": "static/css/main.css",
+      "reason": "Generated CSS bundle"
+    },
+    {
+      "pattern": "static/vendor/**",
+      "reason": "Pinned upstream vendor assets"
+    },
+    {
+      "pattern": "documentation/generated/**",
+      "reason": "Generated documentation"
+    },
+    {
+      "pattern": "quality/raw/**",
+      "reason": "Generated analyzer evidence"
+    },
+    {
+      "pattern": "quality/latest.json",
+      "reason": "Generated quality artifact"
+    },
+    {
+      "pattern": "quality/quality-map.json",
+      "reason": "Generated graph"
+    },
+    {
+      "pattern": "quality/report.md",
+      "reason": "Generated report"
+    },
+    {
+      "pattern": "tests/**",
+      "reason": "Tests and fixtures have evidence associations, not production coverage ownership"
+    },
+    {
+      "pattern": "node_modules/**",
+      "reason": "Installed dependencies"
+    },
+    {
+      "pattern": ".venv/**",
+      "reason": "Installed Python dependencies"
+    },
+    {
+      "pattern": "data/**",
+      "reason": "Runtime data"
+    },
+    {
+      "pattern": "mutants/**",
+      "reason": "Generated mutation worktree"
+    }
+  ],
+  "duplication": [
+    {
+      "pattern": "migrations/**",
+      "reason": "Historical immutable migration steps"
+    },
+    {
+      "pattern": "**/tests/**",
+      "reason": "Tests and fixtures are tracked separately from production clone budgets"
+    }
+  ]
+}

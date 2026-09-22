@@ -10,6 +10,7 @@ memoire/
 !requirements-web.txt
 !requirements-scheduler.txt
 !requirements-test.txt
+!requirements-quality.txt
 
 requirements.txt.backup
 
@@ -109,3 +110,10 @@ docs_to_read
 !engine/tests/fixtures/**/*.txt
 docs_to_read/*
 
+# Generated quality evidence (manual catalog, schemas and baseline are versioned)
+quality/raw/
+quality/latest.json
+quality/quality-map.json
+quality/report.md
+.ruff_cache/
+.hypothesis/

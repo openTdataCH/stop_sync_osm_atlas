@@ -191,6 +191,11 @@ def parse_filter_params(request_args):
     osm_operator_str = request_args.get('osm_operator')
     if osm_operator_str:
         filters['osm_operators'] = [op.strip() for op in osm_operator_str.split(',') if op.strip()]
+    if request_args.get('missing_osm_operator_wikidata', '').lower() == 'true':
+        filters['missing_osm_operator_wikidata'] = True
+    wikidata_str = request_args.get('osm_operator_wikidata')
+    if wikidata_str:
+        filters['osm_operator_wikidata'] = [value.strip() for value in wikidata_str.split(',') if value.strip()]
     station_filter_str = request_args.get('station_filter')
     if station_filter_str:
         filters['filter_values'] = [val.strip() for val in station_filter_str.split(',') if val.strip()]

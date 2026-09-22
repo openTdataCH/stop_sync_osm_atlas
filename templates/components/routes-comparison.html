@@ -1,0 +1,85 @@
+{% macro stop_cell(stop) %}
+<div class="comparison-stop{{ ' comparison-stop--missing' if not stop }}">
+  {% if stop %}
+  <span class="comparison-stop__sequence">{{ stop.stop_sequence }}</span>
+  <div>
+    <span class="comparison-stop__name">{{ stop.stop_label or 'Unnamed stop' }}</span>
+    <span class="comparison-stop__id">{{ stop.stop_ids|join(', ') or 'No stop identifier' }}{% if stop.uic_ref %} · UIC {{ stop.uic_ref }}{% endif %}</span>
+  </div>
+  {% else %}
+  <span>No corresponding stop</span>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro aligned_stops(comparison) %}
+<div class="comparison-columns" aria-hidden="true"><span>{{ review_config.source_label }}</span><span></span><span>OpenStreetMap</span></div>
+<div class="comparison-stop-list" role="list" aria-label="Stops aligned in route order">
+  {% for row in comparison.rows %}
+  <div class="comparison-stop-row{{ ' comparison-stop-row--matched' if row.match_type }}" role="listitem">
+    {{ stop_cell(row.atlas) }}
+    <span class="comparison-link{{ ' comparison-link--matched' if row.match_type }}" {% if row.match_type %}title="{{ 'Same resolved stop' if row.match_type == 'resolved_sloid_match' else 'Same UIC' }}"{% endif %}>
+      {% if row.match_type %}<span>{{ 'Stop' if row.match_type == 'resolved_sloid_match' else 'UIC' }} <span aria-hidden="true">↔</span></span><span class="visually-hidden">matched</span>{% endif %}
+    </span>
+    {{ stop_cell(row.osm) }}
+  </div>
+  {% else %}
+  <p class="stops-empty">No stop sequence is available for these routes.</p>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro variant_comparison(direction, key) %}
+{% set fixed_source = 'atlas' if direction.has_atlas_variant else 'osm' %}
+{% set fixed_label = review_config.source_label if direction.has_atlas_variant else 'OpenStreetMap' %}
+{% set candidate_label = 'OpenStreetMap' if direction.has_atlas_variant else review_config.source_label %}
+{% set fixed_id = direction.atlas_itinerary_id if direction.has_atlas_variant else direction.osm_itinerary_id %}
+<section class="variant-comparison variant-comparison--fixed-{{ fixed_source }}"
+         aria-label="Compare {{ fixed_label }} variant {{ direction.direction_label or fixed_id }}"
+         data-fixed-source="{{ fixed_source }}" data-fixed-itinerary-id="{{ fixed_id }}"
+         data-options-url="/api/routes/comparison/options" data-comparison-url="/api/routes/comparison"
+         data-best-url="/api/routes/comparison/best" data-source-label="{{ review_config.source_label }}">
+  <div class="variant-comparison__controls">
+    <div class="variant-comparison__fixed">
+      <span class="comparison-picker__label">{{ fixed_label }}</span>
+      <strong>{{ direction.direction_label or direction.representative_headsign or fixed_id }}</strong>
+      <span class="variant-comparison__fixed-note">This variant stays in place</span>
+      {% if direction.osm_relation_id %}
+      <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ direction.osm_relation_id }}" target="_blank" rel="noopener noreferrer">View itinerary relation {{ direction.osm_relation_id }} on OSM</a>
+      {% endif %}
+    </div>
+    <div class="comparison-picker">
+      <label class="comparison-picker__label" for="comparison-select-{{ key }}">Compare {{ candidate_label }} variant</label>
+      <div class="comparison-picker__navigation">
+        <button type="button" data-comparison-prev class="comparison-icon-button" aria-label="Previous {{ candidate_label }} variant" disabled><span aria-hidden="true">←</span></button>
+        <select id="comparison-select-{{ key }}" data-comparison-select disabled><option value="">Finding highest overlap…</option></select>
+        <button type="button" data-comparison-next class="comparison-icon-button" aria-label="Next {{ candidate_label }} variant" disabled><span aria-hidden="true">→</span></button>
+      </div>
+      <label class="visually-hidden" for="comparison-search-{{ key }}">Search {{ candidate_label }} variants</label>
+      <input id="comparison-search-{{ key }}" data-comparison-search type="search" class="comparison-picker__search" placeholder="Search route, destination or operator…" maxlength="255" autocomplete="off">
+      <span data-comparison-position class="comparison-picker__position" aria-live="polite">Candidates are ordered by highest stop overlap.</span>
+      <span data-comparison-candidate-name class="comparison-picker__candidate"></span>
+    </div>
+  </div>
+  <div data-comparison-status class="comparison-status" role="status" aria-live="polite"></div>
+  <div data-comparison-summary class="comparison-summary" aria-live="polite" hidden></div>
+  <div data-comparison-empty class="comparison-empty" hidden></div>
+  <div class="comparison-columns" aria-hidden="true"><span>{{ review_config.source_label }}</span><span>Stop links</span><span>OpenStreetMap</span></div>
+  <div data-comparison-results class="comparison-stop-list" role="list" aria-label="Stops aligned in route order"></div>
+  <div data-comparison-fallback class="comparison-stop-list" role="list" aria-label="Stops in the selected variant">
+    {% set groups = direction.atlas_uic_groups if direction.has_atlas_variant else direction.osm_uic_groups %}
+    {% for group in groups %}
+      {% for member in group.members %}
+      <div class="comparison-stop-row" role="listitem">
+        {% if not direction.has_atlas_variant %}{{ stop_cell(None) }}<span class="comparison-link"></span>{% endif %}
+        {{ stop_cell(member) }}
+        {% if direction.has_atlas_variant %}<span class="comparison-link"></span>{{ stop_cell(None) }}{% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="stops-empty">No stops are available for this variant.</p>
+    {% endfor %}
+  </div>
+  <p class="comparison-footnote">Stop overlap follows route order. Comparing a candidate leaves the saved matches unchanged.</p>
+</section>
+{% endmacro %}

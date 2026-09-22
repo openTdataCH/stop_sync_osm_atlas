@@ -1,4 +1,4 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 describe('MapRenderer production component', () => {
@@ -26,8 +26,8 @@ describe('MapRenderer production component', () => {
   });
 
   test('reconciles adapter output through the real marker registry and updates its display position', () => {
-    window.eval(fs.readFileSync(path.join(__dirname,
-      '../../static/js/components/map-layer-registry.js'), 'utf8'));
+    loadBrowserScript(path.join(__dirname,
+      '../../static/js/components/map-layer-registry.js'));
     const group = { addLayer: jest.fn(), removeLayer: jest.fn() };
     const registry = window.MapComponents.MapLayerRegistry.create({
       layerGroup: group,

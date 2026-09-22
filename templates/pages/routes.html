@@ -1,6 +1,7 @@
 {% extends "layouts/base.html" %}
 
 {% from "components/_components.html" import stats_overlay with context %}
+{% from "components/routes-comparison.html" import aligned_stops, variant_comparison with context %}
 {% block title %}{% if active_view == 'non_gtfs_routes' %}Non-GTFS Routes{% elif active_view == 'gtfs_stop_id_sloid' %}GTFS stop_id and SLOID{% else %}Public Transport Routes{% endif %} | {{ review_config.title }}{% endblock %}
 {% block meta_description %}{% if active_view == 'non_gtfs_routes' %}Inspect OpenStreetMap public transport routes that are absent from the configured {{ review_config.source_label }} route dataset.{% elif active_view == 'gtfs_stop_id_sloid' %}Compare GTFS stop identifiers with Swiss ATLAS service location identifiers and inspect their map coverage.{% else %}Compare matched and unmatched public transport routes from OpenStreetMap and {{ review_config.source_label }}.{% endif %}{% endblock %}
 
@@ -12,12 +13,16 @@
 <!-- Shared filters/overlay CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/shared-filters.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/routes.css') }}">
+{% if active_view == 'routes' %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/routes-comparison.css') }}">
+{% endif %}
 {% endblock %}
 
 {% macro render_route_meta(route, side, solo=False) %}
 {% set is_atlas = side == 'atlas' %}
 {% set title = review_config.source_label if is_atlas else 'OSM' %}
 {% set base_class = 'route-meta route-meta--atlas' if is_atlas else 'route-meta route-meta--osm' %}
+{% set base_class = base_class + (' route-meta--matched' if route.is_matched else ' route-meta--unmatched') %}
 {% if solo %}{% set base_class = base_class + ' route-meta--solo' %}{% endif %}
 {% set display_name = (route.atlas_route_short_name or route.atlas_route_name or (review_config.source_label ~ ' route')) if is_atlas else (route.osm_route_name or 'OSM route') %}
 {% set secondary_name = route.atlas_route_long_name if is_atlas else route.osm_ref %}
@@ -120,14 +125,13 @@
       {% elif active_view == 'non_gtfs_routes' %}
       <p>These are OSM public transport routes that do not appear in the configured {{ review_config.source_label }} route dataset but we still display them. We do not attempt to match these routes.</p>
       {% else %}
-      <p>Filter matched and unmatched routes, then unfold each card to inspect stops or preview route position on the map.</p>
-      <div class="routes-header__note" role="note">
-        <strong>Subroutes and itineraries are experimental.</strong>
-        OSM route relations should ideally represent public-facing or service-level variants that passengers would recognize,
-        but we do not yet have a stable rule for deriving those variants from {{ review_config.source_label }} route data.
-        For now, the itinerary layer is only a heuristic reduction based mainly on GTFS headsign grouping,
-        so these variant buckets are useful for inspection but should not yet be treated as a canonical OSM mapping target.
+      <div class="routes-heading-row">
+        <div><h1>Explore route matches</h1><p>Expand an unmatched variant to compare stop sequences. Each variant keeps its own comparison.</p></div>
       </div>
+      <details class="routes-header__note">
+        <summary>About itinerary variants</summary>
+        <p>Variants are experimental and are derived mainly from GTFS headsigns. They are useful for comparing stop patterns, but are not yet a canonical OSM mapping target.</p>
+      </details>
       {% endif %}
     </header>
 
@@ -317,11 +321,28 @@
               {% endif %}
             </span>
             <span class="route-card__panel-summary-badge">
+              {% if direction.stop_comparison and direction.stop_comparison.percentage is not none %}
+              <span class="route-card__overlap">{{ direction.stop_comparison.percentage|round(1) }}% stop overlap</span>
+              {% elif active_view == 'routes' and not direction.is_matched and (direction.atlas_itinerary_id or direction.osm_itinerary_id) %}
+              <span class="route-card__overlap route-card__overlap--suggested" data-best-overlap aria-live="polite">Finding highest overlap…</span>
+              {% endif %}
               <span class="route-card__badge route-card__badge--{{ direction.match_status }}">{{ direction.match_label }}</span>
             </span>
           </summary>
           <div class="route-card__panel-content">
             <section class="direction-block">
+              {% if direction.stop_comparison %}
+              <div class="comparison-inline-summary">
+                <strong>{{ direction.stop_comparison.matched_stop_count }} shared stops in order</strong>
+                <span>{{ direction.stop_comparison.atlas_stop_count }} {{ review_config.source_label }} stops · {{ direction.stop_comparison.osm_stop_count }} OSM stops</span>
+                {% if direction.osm_relation_id %}
+                <a href="https://www.openstreetmap.org/relation/{{ direction.osm_relation_id }}" target="_blank" rel="noopener noreferrer">View itinerary relation {{ direction.osm_relation_id }} on OSM</a>
+                {% endif %}
+              </div>
+              {{ aligned_stops(direction.stop_comparison) }}
+              {% elif active_view == 'routes' and not direction.is_matched and (direction.atlas_itinerary_id or direction.osm_itinerary_id) %}
+              {{ variant_comparison(direction, route_index|string ~ '-' ~ loop.index|string) }}
+              {% else %}
               <div class="direction-block__columns">
                 <div class="stops-column">
                   <div class="stops-column-header">
@@ -376,6 +397,7 @@
                   {% endif %}
                 </div>
               </div>
+              {% endif %}
             </section>
             
             {% if route.map_filter %}
@@ -601,6 +623,9 @@
 window.routesPageConfig = JSON.parse(document.getElementById('routesPageConfig').textContent);
 </script>
 <script src="{{ url_for('static', filename='js/pages/routes.js') }}"></script>
+{% if active_view == 'routes' %}
+<script src="{{ url_for('static', filename='js/pages/routes-comparison.js') }}"></script>
+{% endif %}
 {% else %}
 <script type="application/json" id="routesGtfsStopIdSloidConfig">
 {

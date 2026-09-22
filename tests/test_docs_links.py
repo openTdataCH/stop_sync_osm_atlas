@@ -1,17 +1,27 @@
-import os
 from pathlib import Path
 import re
 from urllib.parse import unquote
 import pytest
 
+
+def _documentation_roots():
+    from backend.blueprints.docs import _engine_root
+
+    return Path(__file__).resolve().parents[1] / 'documentation', Path(_engine_root()) / 'documentation'
+
+
+def _document_id(path):
+    app_docs, engine_docs = _documentation_roots()
+    if path.is_relative_to(engine_docs):
+        return 'engine/documentation/' + str(path.relative_to(engine_docs))
+    return 'documentation/' + str(path.relative_to(app_docs))
+
+
 def test_documentation_links():
     """
     Scans app- and engine-owned Markdown and validates relative links.
     """
-    # Assuming code is running from repo root. If not, adjust or use conftest to set root.
-    # Currently GitHub Action runs from repo root.
-    repo_root = Path.cwd()
-    docs_dirs = [repo_root / "documentation", repo_root / "engine" / "documentation"]
+    docs_dirs = _documentation_roots()
     missing_dirs = [str(path) for path in docs_dirs if not path.exists()]
     if missing_dirs:
         pytest.fail(f"Documentation directories not found: {', '.join(missing_dirs)}")
@@ -22,7 +32,7 @@ def test_documentation_links():
     # Sort for consistent checking order
     md_files = sorted(
         (path for docs_dir in docs_dirs for path in docs_dir.glob("*.md")),
-        key=lambda path: str(path.relative_to(repo_root)).lower(),
+        key=lambda path: _document_id(path).lower(),
     )
     
     for md_file in md_files:
@@ -41,11 +51,16 @@ def test_documentation_links():
             # Clean URL: decode URL encoding (e.g., %20 -> space) and remove anchors
             clean_link = unquote(link.split('#')[0])
             
-            target = md_file.parent / clean_link
+            target = (md_file.parent / clean_link).resolve()
+            # Markdown uses the portal's logical engine/ path in both nested
+            # CI checkouts and the supported sibling/ENGINE_DIR layout.
+            logical_engine = docs_dirs[0].parent / 'engine'
+            if target.is_relative_to(logical_engine):
+                target = docs_dirs[1].parent / target.relative_to(logical_engine)
             
             if not target.exists():
                 broken_links.append({
-                    'file': str(md_file.relative_to(repo_root)),
+                    'file': _document_id(md_file),
                     'link': link,
                     'target': str(target)
                 })
@@ -67,9 +82,8 @@ def test_hard_coded_app_doc_links_use_canonical_slugs():
     """Catch template/JavaScript links that bypass Markdown link rewriting."""
     repo_root = Path(__file__).parent.parent
     docs_files = sorted(
-        list((repo_root / "documentation").glob("*.md"))
-        + list((repo_root / "engine" / "documentation").glob("*.md")),
-        key=lambda path: str(path.relative_to(repo_root)).lower(),
+        [path for root in _documentation_roots() for path in root.glob('*.md')],
+        key=lambda path: _document_id(path).lower(),
     )
 
     slugs = set()
@@ -386,7 +400,7 @@ def test_pdf_document_selection_keeps_engine_and_app_sections_distinct():
     from documentation.pdf_generator.build_docs_pdf import _prepare_document, _sorted_docs
 
     all_docs = _sorted_docs()
-    relative = [str(path.relative_to(Path.cwd())) for path in all_docs]
+    relative = [_document_id(path) for path in all_docs]
     assert relative[0] == 'documentation/0. Intro.md'
     assert 'engine/documentation/2. Matching process.md' in relative
     assert 'documentation/2. Web app.md' in relative
@@ -394,12 +408,12 @@ def test_pdf_document_selection_keeps_engine_and_app_sections_distinct():
 
     engine_only = _sorted_docs(['engine:2'])
     assert engine_only
-    assert all('engine/documentation' in str(path) for path in engine_only)
+    assert all(path.parent == _documentation_roots()[1] for path in engine_only)
     assert {path.name for path in engine_only} >= {'2. Matching process.md', '2.1 Exact matching.md'}
 
     app_only = _sorted_docs(['app:2'])
     assert app_only
-    assert all(path.parent == Path.cwd() / 'documentation' for path in app_only)
+    assert all(path.parent == _documentation_roots()[0] for path in app_only)
     assert {path.name for path in app_only} >= {'2. Web app.md', '2.8 Documentation Page Delivery.md'}
 
     changelogs = _sorted_docs(['app:extra-changelog', 'engine:extra-changelog'])

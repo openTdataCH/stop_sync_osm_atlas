@@ -70,6 +70,30 @@ def test_build_direction_group_keeps_variant_sloids_and_osm_relation_id():
     assert direction_group['atlas_uic_groups'][0]['members'][0]['stop_ids'] == ['ch:1:sloid:A', 'ch:1:sloid:C']
 
 
+def test_route_variants_place_matches_before_earlier_unmatched_directions(monkeypatch):
+    def itinerary(identifier, direction, label):
+        return SimpleNamespace(id=identifier, direction_id=direction, display_name=label,
+                               representative_headsign=label, source_itinerary_id=str(identifier))
+
+    unmatched_atlas = itinerary(1, '0', 'A first alphabetically')
+    matched_atlas = itinerary(2, '1', 'Z saved match')
+    matched_osm = itinerary(3, '1', 'Z saved match')
+    unmatched_osm = itinerary(4, '0', 'B unmatched OSM')
+    monkeypatch.setattr(routes_module, '_load_detail_maps', lambda _items: (
+        {2: matched_atlas, 3: matched_osm}, {},
+        {9: [SimpleNamespace(atlas_itinerary_id=2, osm_itinerary_id=3)]},
+        {10: [unmatched_atlas, matched_atlas], 20: [matched_osm, unmatched_osm]}, {},
+    ))
+    row = routes_module._build_route_rows([
+        {'line_family_match_id': 9, 'atlas_family_id': 10, 'osm_family_id': 20}
+    ])[0]
+
+    assert [group['is_matched'] for group in row['direction_groups']] == [True, False, False]
+    assert row['direction_groups'][0]['atlas_itinerary_id'] == 2
+    assert row['atlas_variant_count'] == 2
+    assert row['osm_variant_count'] == 2
+
+
 @pytest.mark.parametrize("source_label,source_id_label", [("ATLAS", "SLOID"), ("City GTFS", "Stop ID")])
 def test_routes_template_uses_route_master_link_and_itinerary_relation(app, source_label, source_id_label):
     app.config["REVIEW_CONFIG"].update({
@@ -182,8 +206,8 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app, sour
     if source_label != "ATLAS":
         assert '>ATLAS Stops<' not in rendered
         assert 'href="/routes/gtfs-stop-id-sloid"' not in rendered
-    assert 'Subroutes and itineraries are experimental.' in rendered
-    assert 'should not yet be treated as a canonical OSM mapping target.' in rendered
+    assert 'Variants are experimental' in rendered
+    assert 'are not yet a canonical OSM mapping target.' in rendered
     assert 'OSM to_name:' in rendered
     assert 'js/components/map-core.js' in rendered
     assert 'js/components/header-summary.js' in rendered

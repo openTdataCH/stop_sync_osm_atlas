@@ -10,6 +10,8 @@ var activeFilters = {
     matchMethods: [],
     atlasOperators: [],
     osmOperators: [],
+    osmOperatorWikidata: [],
+    missingOsmOperatorWikidata: false,
     matchedOptions: {
         allSelected: true,
         methods: { exact: false, name: false },
@@ -166,6 +168,27 @@ const SIMPLE_ARRAY_FILTER_DEFINITIONS = [
             }
             return true;
         }
+    },
+    {
+        stateKey: 'osmOperatorWikidata',
+        filterType: 'osmOperatorWikidata',
+        renderGroup: function (values) {
+            return window.FilterChipUtils.generateOperatorChipsHtml(values, {
+                context: 'index',
+                labelPrefix: 'OSM Operator Wikidata',
+                chipType: 'osmOperatorWikidata',
+                badgeClass: 'filter-chip-osm'
+            });
+        },
+        remove: function (value) {
+            if (!removeValueFromArray(activeFilters.osmOperatorWikidata, value)) {
+                return true;
+            }
+            if (window.osmOperatorWikidataDropdown) {
+                window.osmOperatorWikidataDropdown.setSelection(activeFilters.osmOperatorWikidata);
+            }
+            return true;
+        }
     }
 ];
 
@@ -306,6 +329,7 @@ function getActiveFilterCount() {
 
     count += activeFilters.station.length;
     count += countSimpleArrayFilters();
+    if (activeFilters.missingOsmOperatorWikidata) count += 1;
 
     if (activeFilters.osmGroups && activeFilters.osmGroups.length > 0) {
         count += activeFilters.osmGroups.includes('all') ? 1 : activeFilters.osmGroups.length;
@@ -687,6 +711,13 @@ function updateFiltersUI() {
     const stationIdGroupHtml = buildOrGroup(stationIdChips);
     if (stationIdGroupHtml) finalGroupStrings.push(stationIdGroupHtml);
 
+    if (activeFilters.missingOsmOperatorWikidata) {
+        finalGroupStrings.push(buildRemovableChip({
+            label: 'No Wikidata tag', badgeClass: 'filter-chip-osm',
+            data: { type: 'missingOsmOperatorWikidata', target: '#filterMissingOsmOperatorWikidata' }
+        }));
+    }
+
     appendSimpleArrayFilterGroups(finalGroupStrings, {
         buildRemovableChip: buildRemovableChip,
         buildOrGroup: buildOrGroup
@@ -726,6 +757,8 @@ function clearAllFilters() {
     $('#masterUnmatchedAtlasCheckbox').prop('checked', false);
     $('#masterUnmatchedOsmCheckbox').prop('checked', false);
     $('#filterDuplicatesOnly').prop('checked', false);
+    $('#filterMissingOsmOperatorWikidata').prop('checked', false);
+    activeFilters.missingOsmOperatorWikidata = false;
     $('.filter-match-method, .filter-distance-method, .filter-route-method').prop('checked', false);
     $('#masterDistanceMatchingCheckbox, #masterRouteMatchingCheckbox').prop('checked', false);
     $('.filter-unmatched-method').prop('checked', false);
@@ -746,6 +779,11 @@ function clearAllFilters() {
     activeFilters.osmOperators = [];
     if (window.osmOperatorDropdown) {
         window.osmOperatorDropdown.setSelection([]);
+    }
+
+    activeFilters.osmOperatorWikidata = [];
+    if (window.osmOperatorWikidataDropdown) {
+        window.osmOperatorWikidataDropdown.setSelection([]);
     }
 
     // Clear top N
@@ -818,6 +856,7 @@ function updateActiveFilters() {
     if ($('#masterUnmatchedOsmCheckbox').is(':checked')) activeFilters.stopType.push('osm_unmatched');
 
     activeFilters.showDuplicatesOnly = $('#filterDuplicatesOnly').is(':checked');
+    activeFilters.missingOsmOperatorWikidata = $('#filterMissingOsmOperatorWikidata').is(':checked');
     activeFilters.transportTypes = $('.filter-transport-type:checked').map(function () { return this.value; }).get();
     activeFilters.osmEntityTypes = $('.filter-osm-entity-type:checked').map(function () { return this.value; }).get();
 
@@ -976,6 +1015,15 @@ function toggleDirectionDropdown(index) {
 
 // Initialize filter-related event handlers
 function initFilterEventHandlers() {
+    $('#filterMissingOsmOperatorWikidata').on('change', function () {
+        if (this.checked) {
+            activeFilters.osmOperatorWikidata = [];
+            if (window.osmOperatorWikidataDropdown) window.osmOperatorWikidataDropdown.setSelection([]);
+        }
+        updateActiveFilters();
+        updateHeaderSummary();
+    });
+
     // Remove filter badge and update filters
     $(document).on('click', '.remove-filter', function (e) {
         e.preventDefault();

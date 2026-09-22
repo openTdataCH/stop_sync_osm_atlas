@@ -27,13 +27,15 @@ The projects share the engine-owned versioned result format, with no cross-proje
 With Python 3.10 or later:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
+python -m venv ../engine/.venv
+source ../engine/.venv/bin/activate
 python -m pip install -e '../engine[gtfs,test]'
 transport-matcher gtfs --source ../engine/examples/gtfs --namespace demo --osm ../engine/examples/osm.xml --output /tmp/transport-demo
 ```
 
 The example is synthetic and uses no Swiss identifiers. The core library only needs NumPy/SciPy; curated integrations install through optional extras. Other datasets can use external adapters implementing the public adapter contract without adding code to this repository. See the sibling engine repository README for its Python API and Swiss workflow.
+
+Run `deactivate` before setting up a separate application environment.
 
 ## Pin the engine checkout
 
@@ -77,7 +79,7 @@ docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mo
 
 The scheduler invokes the independent `transport-matcher` executable, writes a complete result bundle, and asks the app importer to publish it. Daily runs use `PIPELINE_SCHEDULE_INTERVAL_HOURS` and `PIPELINE_TIMEZONE`.
 
-The scheduler owns only the next-run timestamp; the active runner owns execution status and phase history. Shared status updates are atomic, so scheduler startup or schedule refresh cannot overwrite an active manual run. The Data page polls this state and animates nine meaningful stages from source checks through atomic dataset publication. Engine progress records provide live details; reused caches and mode-specific omissions appear as `Reused` or `Skipped`. See [Deployment Scheduling](documentation/3.3%20Background%20Scheduler.md) for the stage definitions, state-ownership, heartbeat-recovery and live-timeline contracts.
+The scheduler owns only the next-run timestamp; the active runner owns execution status and phase history. Shared status updates are atomic, so scheduler startup or schedule refresh cannot overwrite an active manual run. The Data page polls this state and animates the pipeline phases from source checks through atomic dataset publication. Engine progress records provide live details; reused caches and mode-specific omissions appear as `Reused` or `Skipped`. See [Deployment Scheduling](documentation/3.3%20Background%20Scheduler.md) for the stage definitions, state-ownership, heartbeat-recovery and live-timeline contracts.
 
 The VS Code Docker tasks build their required images before starting services. A source bind mount does not update installed packages in an existing container. If an older scheduler reports `No such file or directory: transport-matcher`, rebuild and replace it:
 
@@ -95,21 +97,19 @@ The engine requires no database credentials. The importer validates files and re
 
 Copy `env.example` to `.env` to override settings. Source snapshots and runtime state live under `data/`; PostGIS persists in the Compose volume. Long-running services restart unless manually stopped. Database migrations run through the one-shot `migrator` service.
 
+Run the supported quality workflow from this repository with Docker Desktop, Compose v2 and the sibling engine checkout available:
+
 ```bash
-# Review application tests: engine package is not required.
-python -m pip install -r requirements-base.txt -r requirements-web.txt -r requirements-scheduler.txt -r requirements-test.txt
-DATABASE_URI=sqlite:// python -m pytest tests -q
-
-# Engine tests: website and database are not required.
-python -m pip install -e '../engine[swiss,gtfs,acquisition,test]'
-python -m pytest ../engine/tests -q
-
-# Browser tests.
-npm ci
-npm test -- --runInBand
+make quality-fast-container # lint, ownership, architecture and focused contract checks
+make quality                # full suites, real PostGIS, coverage, structural debt and report
+make quality-down           # remove the disposable quality services and volumes
 ```
 
-Real publication tests require `TEST_POSTGRES_URI` pointing to a disposable PostGIS database whose name ends in `_test`; those tests reset its public schema. Without it, only these database integration cases are skipped.
+The full command builds Python 3.13 and Node 22 tooling, keeps app and engine Python environments isolated, and starts its own disposable PostGIS database. It writes the module report to `quality/report.md`, machine-readable evidence to `quality/latest.json`, and individual results to `quality/raw/`. The generated evidence also appears in the documentation portal's **Code Quality** page when these files are present.
+
+For fast native iteration, use `make quality-fast` after installing the supported toolchain. The [quality guide](quality/README.md) contains native setup, command and artifact references, module ownership, baseline/exception review, CI configuration, and troubleshooting. [Backend tests](documentation/4.1%20Backend%20tests.md) and [browser tests](documentation/4.2%20JavaScript%20tests.md) describe focused runs and test design. Install the engine in a separate virtual environment; the app suite verifies that it works without the engine package.
+
+Outside `make quality`, real publication tests require `TEST_POSTGRES_URI` pointing to a disposable PostGIS database whose name ends in `_test`; those tests reset its public schema. Producer/consumer checks also require an explicit engine environment. Missing prerequisites produce skips in an ordinary app-only run; that run is not equivalent to the full quality gate.
 
 ## Contributing and documentation
 
@@ -122,6 +122,7 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md). A predicate contribution can use 
 - [Engine and app architecture](documentation/3.%20System%20Architecture.md)
 - [Bundle import and publication](documentation/1.1%20Import%20Process.md)
 - [Tests and CI](documentation/4.%20Test.md)
+- [Quality workflow and maintenance](quality/README.md)
 - [Contribution tutorials](documentation/Contributing.md)
 - [Related tools and collaboration](../engine/documentation/Related%20projects.md)
 

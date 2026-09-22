@@ -1,12 +1,11 @@
-const fs = require('fs');
+const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
 describe('ProblemsUI route contradiction rendering', () => {
   beforeAll(() => {
     const scriptPath = path.join(__dirname, '../../static/js/pages/problems-ui.js');
-    const scriptContent = fs.readFileSync(scriptPath, 'utf8');
 
-    window.eval(scriptContent);
+    loadBrowserScript(scriptPath);
     global.ProblemsUI = window.ProblemsUI;
   });
 

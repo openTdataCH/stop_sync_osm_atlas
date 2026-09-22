@@ -16,8 +16,6 @@ if (window.mermaid) {
   const successSubtle = style.getPropertyValue('--color-success-subtle').trim() || '#eaf4ec';
   const warning = style.getPropertyValue('--color-warning').trim() || '#ffc107';
   const warningSubtle = style.getPropertyValue('--color-warning-subtle').trim() || '#fff3cd';
-  const info = style.getPropertyValue('--color-info').trim() || '#17a2b8';
-  const radiusMd = style.getPropertyValue('--radius-md').trim() || '8px';
   
   mermaid.initialize({
     startOnLoad: true,

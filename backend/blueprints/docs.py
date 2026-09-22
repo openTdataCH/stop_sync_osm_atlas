@@ -10,9 +10,10 @@ from functools import lru_cache
 from typing import List, Tuple, Dict, Optional
 from urllib.parse import unquote
 
-from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file, redirect, current_app
+from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file, current_app
 from werkzeug.utils import safe_join
 from backend.services.docs_stats import replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html
+from backend.services.quality_report import replace_quality_placeholder
 from backend.services.repo_scanner import RepoScanner
 from backend.services.request_payload import read_request_payload
 from backend.version import APP_VERSION
@@ -307,7 +308,9 @@ def ensure_docs_pdf_generated() -> bool:
                 'pdf_generator',
                 'mermaid_render_config.json',
             ))
-            for render_dependency in (generator_script, stats_renderer, css_path, mermaid_config):
+            quality_renderer = os.path.join(_repo_root(), 'backend', 'services', 'quality_report.py')
+            quality_evidence = os.path.join(_repo_root(), 'quality', 'latest.json')
+            for render_dependency in (generator_script, stats_renderer, quality_renderer, quality_evidence, css_path, mermaid_config):
                 if (
                     os.path.exists(render_dependency)
                     and os.path.getmtime(render_dependency) > pdf_mtime
@@ -936,6 +939,7 @@ def _convert_markdown_to_html(
 
     # Replace stats placeholders with actual values from stats.json
     markdown_text = replace_stats_placeholders(markdown_text)
+    markdown_text = replace_quality_placeholder(markdown_text, _repo_root())
 
     # Restore mermaid blocks and replace stats inside them without spans
     markdown_text = _restore_mermaid_blocks(
@@ -1219,6 +1223,16 @@ def docs_page(page: str = ''):
             url_for('docs.docs_page', page=active_slug),
         ),
     )
+
+
+@docs_bp.route('/docs/quality-artifacts/<path:filename>')
+def quality_artifact(filename):
+    """Serve only public generated evidence, never the manually curated catalog."""
+    allowed = filename in {'latest.json', 'quality-map.json', 'report.md'}
+    allowed |= filename.startswith('raw/') and filename.endswith(('.json', '.xml', '.txt'))
+    if not allowed or any(part.startswith('.') for part in filename.split('/')):
+        abort(404)
+    return send_from_directory(os.path.join(_repo_root(), 'quality'), filename)
 
 
 @docs_bp.route('/docs/assets/<path:filename>')
