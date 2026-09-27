@@ -82,6 +82,27 @@ def _minimal_empty_stats(source_downloads=None):
     }
 
 
+def test_source_dates_render_in_zurich_with_seconds():
+    from backend.services.time_utils import format_zurich_display_timestamp
+    from backend.services.stats_export import _build_source_download_stats
+
+    env = Environment(loader=FileSystemLoader('templates'))
+    env.globals['url_for'] = lambda endpoint, **values: '/static/'
+    env.filters['format_zurich_display_timestamp'] = format_zurich_display_timestamp
+    stats = _minimal_empty_stats(_build_source_download_stats({'acquisition': {'sources': {
+        'atlas': {'downloaded_at': '2026-09-20T12:34:56Z'},
+        'gtfs': {'downloaded_at': '2026-09-21T13:45:57Z'},
+    }}}))
+    stats.update(last_pipeline_data_import_ended_at='2026-09-27T15:04:05+02:00',
+                 last_overpass_query_at='2026-09-27T12:55:49Z')
+    html = env.get_template('components/stats_data.html').render(stats=stats, problem_breakdown={})
+    for label, value in [('Pipeline completed', '2026-09-27 15:04:05'),
+                         ('Last ATLAS Downloaded', '2026-09-20 14:34:56'),
+                         ('Last GTFS Downloaded', '2026-09-21 15:45:57'),
+                         ('Overpass queried', '2026-09-27 14:55:49')]:
+        assert f'<span>{label}</span><strong>{value}</strong>' in html
+
+
 def test_stats_data_template_handles_missing_source_downloads():
     env = Environment(loader=FileSystemLoader("templates"))
     env.globals["url_for"] = lambda endpoint, **values: "/static/"
@@ -101,7 +122,10 @@ def test_stats_data_template_handles_missing_source_downloads():
     assert 'class="stats-section-nav__indicator"' in html
     assert 'id="pipelineRunCard"' in html
     assert 'id="pipelineStageDetails"' in html
-    assert html.index('aria-label="Source freshness"') < html.index('class="stats-section-nav"')
+    assert html.index('class="stats-section-nav"') < html.index('id="pipelineRunCard"')
+    assert html.index('id="pipelineRunCard"') < html.index('aria-label="Source freshness"')
+    assert 'href="#pipelineRunCard" aria-current="location">Pipeline</a>' in html
+    assert 'class="stats-section-nav-shell"' in html
     assert html.index('class="stats-section-nav"') < html.index('id="stops-matching"')
     assert "The analytics below reflect the latest published dataset." not in html
     assert html.count('data-pipeline-stage=') == 8

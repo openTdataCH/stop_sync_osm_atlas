@@ -13,6 +13,23 @@
 SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
 ══════════════════════════════════════════ #}
 {% if not is_pdf %}
+<div class="stats-section-nav-shell">
+  <nav class="stats-section-nav" aria-label="Analytics sections">
+    <span class="stats-section-nav__indicator" aria-hidden="true"></span>
+    <a class="stats-section-nav__link is-active" href="#pipelineRunCard" aria-current="location">Pipeline</a>
+    {% if stats_available %}
+    <a class="stats-section-nav__link" href="#stops-matching">Matching</a>
+    <a class="stats-section-nav__link" href="#osm-stops">OSM stops</a>
+    <a class="stats-section-nav__link" href="#unmatched">Unmatched</a>
+    <a class="stats-section-nav__link" href="#atlas">ATLAS</a>
+    <a class="stats-section-nav__link" href="#problems">Problems</a>
+    <a class="stats-section-nav__link" href="#routes">Routes</a>
+    {% endif %}
+  </nav>
+</div>
+{% endif %}
+
+{% if not is_pdf %}
 <section class="pipeline-run-card{% if pipeline_is_running %} is-running{% elif pipeline_has_failed %} is-failed{% endif %}" id="pipelineRunCard" aria-live="polite"
   data-last-completed="{{ pipeline_completed_at }}">
   <div class="pipeline-run-card__header">
@@ -63,11 +80,11 @@ SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
     </div>
     <div class="source-freshness__item">
       <img src="{{ static_prefix }}atlas.svg" alt="">
-      <div><span>Last ATLAS Downloaded</span><strong>{{ (atlas_download.atlas_downloaded_at|default(atlas_download.downloaded_at, true))|format_zurich_display_timestamp(include_seconds=True) or 'Unknown' }}</strong></div>
+      <div><span>Last ATLAS Downloaded</span><strong>{{ (atlas_download.atlas_downloaded_at|default(atlas_download.downloaded_at, true))|format_zurich_display_timestamp(include_seconds=True) or 'Not recorded' }}</strong></div>
     </div>
     <div class="source-freshness__item">
       <img src="{{ static_prefix }}opentransportdata.svg" alt="">
-      <div><span>Last GTFS Downloaded</span><strong>{{ (gtfs_download.gtfs_downloaded_at|default(gtfs_download.downloaded_at, true))|format_zurich_display_timestamp(include_seconds=True) or 'Unknown' }}</strong></div>
+      <div><span>Last GTFS Downloaded</span><strong>{{ (gtfs_download.gtfs_downloaded_at|default(gtfs_download.downloaded_at, true))|format_zurich_display_timestamp(include_seconds=True) or 'Not recorded' }}</strong></div>
     </div>
     <div class="source-freshness__item">
       <img src="{{ static_prefix }}osm.svg" alt="">
@@ -76,17 +93,7 @@ SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
   </div>
 </section>
 
-{% if not is_pdf %}
-<nav class="stats-section-nav" aria-label="Analytics sections">
-  <span class="stats-section-nav__indicator" aria-hidden="true"></span>
-  <a class="stats-section-nav__link is-active" href="#stops-matching" aria-current="location">Matching</a>
-  <a class="stats-section-nav__link" href="#osm-stops">OSM stops</a>
-  <a class="stats-section-nav__link" href="#unmatched">Unmatched</a>
-  <a class="stats-section-nav__link" href="#atlas">ATLAS</a>
-  <a class="stats-section-nav__link" href="#problems">Problems</a>
-  <a class="stats-section-nav__link" href="#routes">Routes</a>
-</nav>
-{% endif %}
+
 
 {# ══════════════════════════════════════════
 SECTION 1 — STOPS MATCHING

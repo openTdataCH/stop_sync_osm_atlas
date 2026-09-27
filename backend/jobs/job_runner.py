@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import Optional
 
 from backend.services import data_meta
+from backend.services.stats_export import refresh_stats_metadata
 from backend.services.pipeline_status import (
     acquire_run_lock,
     finish_failure,
@@ -257,6 +258,11 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
         rewritten, reused = get_refresh_scope_tables(run_type)
         _record_data_updated_timestamp(run_type, rewritten, reused)
         data_meta.update_data_meta(active_run_id=manifest['run_id'], result_schema_version=manifest['schema_version'])
+        try:
+            refresh_stats_metadata()
+        except OSError as exc:
+            warnings.append(f"Could not update analytics timestamps: {exc}")
+            LOGGER.warning("Could not update analytics timestamps: %s", exc)
 
         finish_success(
             warnings=warnings,

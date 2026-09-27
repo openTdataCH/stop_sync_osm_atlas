@@ -139,6 +139,44 @@ def test_mixed_cache_reuse_and_execution_is_not_a_reused_phase(store):
     assert 'matching_inputs' not in finished['phase_outcomes']
 
 
+def test_reused_source_starts_phase_while_other_caches_are_checked(state):
+    children = [dict(SPEC, id=stage_id, parent_id='source_files', phase='source_files', order=order)
+                for order, stage_id in enumerate(('atlas.prepare', 'timetable.download', 'timetable.patterns'))]
+    state.update(apply_progress_event(state, event('pipeline_plan', stages=children), NOW))
+    first = '2026-09-21T10:00:02+00:00'
+    later = '2026-09-21T10:00:59+00:00'
+    def reuse(stage_id, at):
+        state.update(apply_progress_event(state, dict(event('stage_outcome', outcome='reused'),
+                                                     stage_id=stage_id), at, owner='engine'))
+
+    reuse('atlas.prepare', first)
+    assert state['phase'] == 'source_files'
+    assert state['phase_started_at'] == first
+    assert state['stage_states']['source_files'] == dict(status='running', started_at=first)
+    assert state['stage_states']['atlas.prepare']['status'] == 'reused'
+    assert state['stage_states']['timetable.download']['status'] == 'waiting'
+    assert state['phase_history'][0]['phase'] == 'source_check'
+    assert state['phase_history'][0]['duration_seconds'] == 2
+
+    reuse('timetable.download', later)
+    assert state['phase_started_at'] == first
+    assert state['stage_states']['source_files']['status'] == 'running'
+    reuse('timetable.patterns', later)
+    assert state['stage_states']['source_files']['status'] == 'reused'
+    assert state['phase_outcomes']['source_files'] == 'reused'
+    assert [entry['phase'] for entry in state['phase_history']] == ['source_check', 'source_files']
+
+
+def test_late_reuse_does_not_move_active_phase_backwards(state):
+    state.update(phase='matching_inputs', phase_started_at=NOW)
+    source = dict(SPEC, id='atlas.prepare', parent_id='source_files', phase='source_files')
+    state.update(apply_progress_event(state, dict(event('stage_outcome', outcome='reused'),
+                                                 stage_id=source['id'], stage_spec=source), NOW))
+    assert state['phase'] == 'matching_inputs'
+    assert state['phase_started_at'] == NOW
+    assert state['stage_states']['atlas.prepare']['status'] == 'reused'
+
+
 def test_runner_ignores_malformed_telemetry_and_keeps_consuming(store):
     from backend.jobs.job_runner import _handle_engine_progress
     _handle_engine_progress(event('stage_finished', seconds={'bad': 1}), run_id='run-1')

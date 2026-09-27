@@ -347,10 +347,6 @@
   padding: 0 clamp(1rem, 3vw, 2.5rem);
 }
 
-.stats-page-header {
-  padding-top: 1rem;
-}
-
 .stats-page-header__row {
   display: flex;
   align-items: flex-end;
@@ -391,16 +387,35 @@
   padding: 1.15rem;
 }
 
-.stats-section-nav {
+.stats-section-nav-shell {
   position: sticky;
-  top: 3.75rem;
-  z-index: 100;
+  top: calc(var(--page-tabs-top, var(--navbar-height)) + var(--page-tabs-height, 54px));
+  z-index: 1019;
+  padding: var(--space-2) 0;
+  margin-bottom: 1rem;
+  background: var(--color-bg-subtle);
+}
+
+/* Ease scrolling content beneath the sticky navigation without blocking clicks. */
+.stats-section-nav-shell::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: var(--space-4);
+  background: linear-gradient(to bottom, var(--color-bg-subtle), transparent);
+  pointer-events: none;
+}
+
+.stats-section-nav {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.2rem;
   width: max-content;
   max-width: 100%;
-  margin: 0 0 1.75rem;
+  margin: 0;
   padding: 0.28rem;
   overflow-x: auto;
   overflow-y: hidden;
@@ -467,6 +482,10 @@
 .stats-section-nav__link:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
+}
+
+#pipelineRunCard {
+  scroll-margin-top: var(--stats-section-scroll-offset, 8rem);
 }
 
 .stats-section-title {
@@ -1520,6 +1539,7 @@
 }
 
 @media print {
+  .stats-section-nav-shell,
   .stats-section-nav,
   .pipeline-run-card { display: none !important; }
   .stats-page { background: #fff; }

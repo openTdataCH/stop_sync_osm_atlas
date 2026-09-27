@@ -790,14 +790,11 @@ def import_bundle(directory, *, progress_callback=None, stage_event_callback=Non
         report(progress_callback, 'publish', 'Generating analytics for the published dataset')
         with progress_stage('publish.analytics', stage_event_callback):
             with stage('import.statistics'):
+                from backend.services.data_meta import record_bundle_metadata
+                record_bundle_metadata(bundle['manifest'])
                 _write_gtfs_atlas_stats(base_data.gtfs_atlas_stats)
                 if export_stats_after_import(base_data, base_data.duplicate_sloid_map, no_nearby) is None:
                     raise RuntimeError("Analytics export returned no result")
-                from backend.services.data_meta import update_data_meta
-                update_data_meta(
-                    active_run_id=bundle['manifest']['run_id'],
-                    source_capabilities=bundle['manifest']['metadata'].get('capabilities', []),
-                )
     except Exception as exc:
         raise PublishedDatasetError(bundle['manifest'], exc) from exc
     return bundle['manifest']

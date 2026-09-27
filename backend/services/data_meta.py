@@ -38,3 +38,18 @@ def update_data_meta(**fields: Any) -> Dict[str, Any]:
     payload.update(fields)
     save_data_meta(payload)
     return payload
+
+
+def record_bundle_metadata(manifest: Dict[str, Any]) -> Dict[str, Any]:
+    """Record provenance from the published bundle, never a newer workspace feed."""
+    metadata = manifest.get('metadata') or {}
+    acquisition = metadata.get('acquisition') or {}
+    if not isinstance(acquisition, dict):
+        acquisition = {}
+    return update_data_meta(
+        active_run_id=manifest['run_id'],
+        source_capabilities=metadata.get('capabilities', []),
+        acquisition={key: acquisition[key] for key in ('sources', 'last_overpass_query_at', 'acquired_at')
+                     if key in acquisition},
+        last_overpass_query_at=acquisition.get('last_overpass_query_at'),
+    )
