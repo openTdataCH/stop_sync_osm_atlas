@@ -6,6 +6,13 @@ import pytest
 from backend.jobs import job_runner
 
 
+@pytest.fixture(autouse=True)
+def isolated_metadata(monkeypatch, tmp_path):
+    from backend.services import data_meta, stats_export
+    monkeypatch.setattr(data_meta, 'DATA_META_PATH', str(tmp_path / 'data_meta.json'))
+    monkeypatch.setattr(stats_export, 'STATS_FILE_PATH', str(tmp_path / 'stats.json'))
+
+
 def test_timed_step_logs_success(caplog):
     with caplog.at_level(logging.INFO, logger="backend.jobs.job_runner"):
         with job_runner._timed_step("osm_download"):
@@ -46,7 +53,10 @@ def test_import_bundle_reports_projection_and_analytics(monkeypatch):
         gtfs_atlas_stats={},
         duplicate_sloid_map={},
     )
-    manifest = {'run_id': 'run-1', 'metadata': {'capabilities': []}}
+    manifest = {'run_id': 'run-1', 'metadata': {'capabilities': [], 'acquisition': {
+        'sources': {'atlas': {'downloaded_at': '2026-09-27T10:11:12Z'}},
+        'last_overpass_query_at': '2026-09-27T12:55:49Z',
+    }}}
     monkeypatch.setattr(importer, 'read_bundle', lambda directory: {'manifest': manifest})
     monkeypatch.setattr(importer, 'project_bundle', lambda bundle: (base_data, {}, {}))
     monkeypatch.setattr(importer, 'build_fast_insert_payloads', lambda *args: {})
@@ -57,8 +67,13 @@ def test_import_bundle_reports_projection_and_analytics(monkeypatch):
 
     monkeypatch.setattr(importer, 'import_to_database', import_to_database)
     monkeypatch.setattr(importer, '_write_gtfs_atlas_stats', lambda payload: None)
-    monkeypatch.setattr(importer, 'export_stats_after_import', lambda *args: {'summary': {}})
-    monkeypatch.setattr(data_meta, 'update_data_meta', lambda **kwargs: None)
+    def export(*args):
+        meta = data_meta.load_data_meta()
+        assert meta['active_run_id'] == 'run-1'
+        assert meta['acquisition'] == manifest['metadata']['acquisition']
+        assert meta['last_overpass_query_at'] == '2026-09-27T12:55:49Z'
+        return {'summary': {}}
+    monkeypatch.setattr(importer, 'export_stats_after_import', export)
 
     importer.import_bundle(
         'bundle',
@@ -122,6 +137,30 @@ def test_progress_delivery_never_masks_work_outcome():
     with pytest.raises(ValueError, match='work failed'):
         with progress_stage('database.load', broken_report):
             raise ValueError('work failed')
+
+
+def test_completed_run_updates_already_exported_stats(monkeypatch):
+    from backend.services import data_meta, pipeline_status, stats_export
+    from backend.services.pipeline_state_store import MemoryPipelineStateStore
+
+    store = MemoryPipelineStateStore()
+    monkeypatch.setattr(pipeline_status, 'get_pipeline_state_store', lambda: store)
+    monkeypatch.setenv('PIPELINE_BUNDLE', '/test-bundle')
+    def imported(*args, **kwargs):
+        manifest = dict(run_id='published', schema_version=1, metadata={'acquisition': {
+            'sources': {'gtfs': {'downloaded_at': '2026-09-20T11:22:33Z'}},
+            'last_overpass_query_at': '2026-09-27T12:55:49Z',
+        }})
+        data_meta.record_bundle_metadata(manifest)
+        stats_export.save_stats_to_file(dict(active_run_id='published', summary={},
+                                            last_pipeline_data_import_ended_at=None))
+        return manifest
+    monkeypatch.setattr(job_runner, 'import_bundle', imported)
+    assert job_runner.run_pipeline('import') == 0
+    stats = stats_export.load_stats_from_file()
+    assert stats['last_pipeline_data_import_ended_at']
+    assert stats['last_pipeline_data_import_ended_at'] == store.read_status()['last_pipeline_data_import_ended_at']
+    assert stats['source_downloads']['gtfs']['downloaded_at'] == '2026-09-20T11:22:33Z'
 
 
 def test_runner_reports_published_dataset_with_analytics_warning(monkeypatch):

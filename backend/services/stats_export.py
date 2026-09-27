@@ -21,7 +21,6 @@ from typing import Dict, Any, List, Optional
 
 from backend.services.data_meta import load_data_meta
 from backend.services.time_utils import (
-    format_zurich_display_timestamp,
     format_zurich_timestamp,
     get_zurich_now,
 )
@@ -69,11 +68,16 @@ def _build_source_download_stats(meta: Optional[Dict[str, Any]]) -> Optional[Dic
     if not meta:
         return None
 
-    preprocessing_sources = meta.get('preprocessing_sources') or {}
+    if 'acquisition' in meta:
+        acquisition = meta.get('acquisition') or {}
+        if not isinstance(acquisition, dict):
+            return None
+        preprocessing_sources = acquisition.get('sources') or {}
+    else:
+        preprocessing_sources = meta.get('preprocessing_sources') or {}
     if not isinstance(preprocessing_sources, dict):
         return None
 
-    default_downloaded_at = preprocessing_sources.get('preprocessing_completed_at')
     source_downloads: Dict[str, Any] = {}
 
     for source_name in ('atlas', 'gtfs'):
@@ -81,9 +85,9 @@ def _build_source_download_stats(meta: Optional[Dict[str, Any]]) -> Optional[Dic
         if not isinstance(snapshot, dict):
             continue
 
-        downloaded_at = format_zurich_display_timestamp(
-            snapshot.get(f'{source_name}_downloaded_at') or snapshot.get('downloaded_at') or default_downloaded_at
-        )
+        # Keep timezone and seconds until presentation. Checking or preprocessing
+        # cached files is not a download and must not manufacture a timestamp.
+        downloaded_at = snapshot.get(f'{source_name}_downloaded_at') or snapshot.get('downloaded_at')
         source_download = {
             'downloaded_at': downloaded_at,
             f'{source_name}_downloaded_at': downloaded_at,
@@ -377,6 +381,7 @@ def export_pipeline_stats(
     last_pipeline_data_import_ended_at = None
     last_overpass_query_at = None
     source_downloads = None
+    meta = {}
     try:
         meta = load_data_meta()
         last_pipeline_data_import_ended_at = meta.get('last_pipeline_data_import_ended_at') or meta.get('data_updated_at')
@@ -390,6 +395,7 @@ def export_pipeline_stats(
  
     # Build the stats object
     stats = {
+        "active_run_id": meta.get('active_run_id'),
         "generated_at": stats_computed_at,
         "stats_computed_at": stats_computed_at,
         "last_pipeline_data_import_ended_at": last_pipeline_data_import_ended_at,
@@ -582,6 +588,23 @@ def save_stats_to_file(stats: Dict[str, Any], filepath: str = None) -> str:
     os.replace(temp_path, filepath)
     
     return filepath
+
+
+def refresh_stats_metadata(meta: Optional[Dict[str, Any]] = None, filepath: str = None) -> bool:
+    """Update freshness after completion without regenerating database analytics."""
+    meta = load_data_meta() if meta is None else meta
+    stats = load_stats_from_file(filepath)
+    if not isinstance(stats, dict):
+        return False
+    if meta.get('active_run_id') and stats.get('active_run_id') != meta['active_run_id']:
+        return False
+    stats.update(
+        last_pipeline_data_import_ended_at=meta.get('last_pipeline_data_import_ended_at') or meta.get('data_updated_at'),
+        last_overpass_query_at=meta.get('last_overpass_query_at'),
+        source_downloads=_build_source_download_stats(meta),
+    )
+    save_stats_to_file(stats, filepath)
+    return True
 
 
 def load_stats_from_file(filepath: str = None) -> Optional[Dict[str, Any]]:

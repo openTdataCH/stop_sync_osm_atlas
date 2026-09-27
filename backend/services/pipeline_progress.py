@@ -285,6 +285,15 @@ def apply_progress_event(current: dict, payload: dict, now: str, *, owner=None, 
             kind == "stage_started" and previous["status"] in {"reused", "skipped"}):
             return {}
         state = dict(previous)
+        if kind == "stage_outcome":
+            roots = {item["id"]: item for item in plan if item["parent_id"] is None}
+            phase = roots[spec["phase"]]
+            active = roots.get(current.get("phase"))
+            # Reuse still reaches a phase: remaining cache checks can take time
+            # before any child emits stage_started. Do not rewind for late outcomes.
+            if active is None or phase["order"] > active["order"]:
+                fields.update(phase_fields(current, spec["phase"], phase["label"], now,
+                                           processed=None, total=None, eta_seconds=None))
         if kind in {"stage_started", "stage_progress"}:
             state = dict(status="running", started_at=(previous.get("started_at") if previous["status"] == "running" else None) or now)
             state.update({key: previous[key] for key in ("processed", "total", "counters") if key in previous})
@@ -309,8 +318,8 @@ def apply_progress_event(current: dict, payload: dict, now: str, *, owner=None, 
         siblings = [states[s["id"]]["status"] for s in plan if s["parent_id"] == spec["phase"]]
         if kind == "stage_outcome" and set(siblings) == {event["outcome"]}:
             phase = spec["phase"]
-            fields["phase_outcomes"] = dict(current.get("phase_outcomes") or {}, **{phase: event["outcome"]})
-            fields["phase_history"] = [h for h in current.get("phase_history", []) if h.get("phase") != phase or h.get("status") not in {"reused", "skipped"}]
+            fields["phase_outcomes"] = dict(fields.get("phase_outcomes", current.get("phase_outcomes")) or {}, **{phase: event["outcome"]})
+            fields["phase_history"] = [h for h in fields.get("phase_history", current.get("phase_history", [])) if h.get("phase") != phase or h.get("status") not in {"reused", "skipped"}]
             fields["phase_history"].append(dict(phase=phase, **state))
     fields["stage_states"] = project_stage_states(dict(current, **fields))
     return fields

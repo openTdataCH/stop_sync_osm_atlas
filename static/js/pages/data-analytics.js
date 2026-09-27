@@ -536,6 +536,7 @@
         if (!nav) return;
         var links = Array.prototype.slice.call(nav.querySelectorAll('.stats-section-nav__link'));
         if (!links.length) return;
+        var stickyShell = nav.closest('.stats-section-nav-shell') || nav;
         var indicator = nav.querySelector('.stats-section-nav__indicator');
         var prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var scrollTimer = null;
@@ -546,11 +547,11 @@
         }).filter(Boolean);
 
         function syncSectionScrollOffset() {
-            var stickyTop = parseFloat(window.getComputedStyle(nav).top) || 0;
+            var stickyTop = parseFloat(window.getComputedStyle(stickyShell).top) || 0;
             var offsetOwner = nav.closest('.stats-page') || document.documentElement;
             offsetOwner.style.setProperty(
                 '--stats-section-scroll-offset',
-                Math.ceil(stickyTop + nav.offsetHeight + 16) + 'px'
+                Math.ceil(stickyTop + stickyShell.offsetHeight + 16) + 'px'
             );
         }
 
@@ -603,6 +604,7 @@
                 if (!target) return;
                 event.preventDefault();
                 if (scrollTimer) window.clearTimeout(scrollTimer);
+                syncSectionScrollOffset();
                 setActiveLink(link, {animate: true});
                 observerLockedUntil = Date.now() + (prefersReducedMotion ? 0 : 700);
                 window.history.replaceState(null, '', link.getAttribute('href'));

@@ -17,6 +17,26 @@
   padding: 0 clamp(1rem, 3vw, 2.5rem);
 }
 
+/* Keep the fade outside the tabs' horizontal scroll area on mobile. */
+.routes-page-tabs {
+  margin-bottom: var(--space-2);
+}
+
+.routes-page-tabs > .c-page-tabs {
+  margin-bottom: 0;
+}
+
+.routes-page-tabs::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: var(--space-4);
+  background: linear-gradient(to bottom, var(--color-bg-subtle), transparent);
+  pointer-events: none;
+}
+
 /* The GTFS↔SLOID view is a map workspace, like Index and Problems. Keep only
    the normal page-edge spacing and let the map use the viewport below tabs. */
 .routes-page.routes-page--gtfs-map {
@@ -38,21 +58,16 @@
   padding: 0 var(--space-2);
 }
 
-.routes-container--gtfs-map .routes-header {
+.routes-container--gtfs-map > .routes-page-tabs {
   flex: 0 0 auto;
   align-self: center;
   width: min(1400px, calc(100% + var(--space-4)));
   margin-bottom: var(--space-1);
-  padding: 0 var(--space-4);
-}
-
-.routes-container--gtfs-map .routes-header .c-page-tabs {
-  margin-bottom: 0;
+  padding: 0 var(--space-4) var(--space-2);
 }
 
 .routes-header {
   margin-bottom: var(--space-2);
-  padding-top: var(--space-4);
 }
 
 .routes-header h1 {
