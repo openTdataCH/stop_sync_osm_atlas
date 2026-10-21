@@ -3,7 +3,8 @@ Database import orchestrator.
 
 Projects a validated result bundle into the review app's PostGIS schema.
 Matching, grouping, route comparison and diagnostic decisions are already
-complete in the bundle. Only application persistence happens here.
+complete in the bundle. Only application persistence happens here, plus one
+derived review aid: each itinerary's best stop overlap with the other source.
 """
 import os
 import argparse
@@ -40,7 +41,9 @@ from backend.models import (
     StopCall,
     LineFamilyMatch,
     ItineraryMatch,
+    ItineraryBestOverlap,
 )
+from backend.services.route_comparison import compute_best_overlaps
 from backend.services.stats_export import (
     export_pipeline_stats,
     save_stats_to_file,
@@ -66,6 +69,7 @@ def _ensure_import_schema_exists(db_session) -> None:
         'stop_calls',
         'line_family_matches',
         'itinerary_matches',
+        'itinerary_best_overlaps',
         'problems',
         'stops_matched',
         'dataset_publication',
@@ -84,6 +88,7 @@ def _ensure_import_schema_exists(db_session) -> None:
 
 
 FULL_REFRESH_TABLES = [
+    'itinerary_best_overlaps',
     'itinerary_matches',
     'line_family_matches',
     'stop_calls',
@@ -493,6 +498,12 @@ def build_fast_insert_payloads(
     line_family_match_dicts = table_rows(LineFamilyMatch, 'line_family_matches')
     itinerary_match_dicts = table_rows(ItineraryMatch, 'itinerary_matches')
 
+    # Review aid, not a match decision: each itinerary's highest stop overlap
+    # with any itinerary of the other source. Stored so route cards need no
+    # per-request scan of every itinerary.
+    with stage('import.itinerary_best_overlaps', itineraries=len(itinerary_dicts)):
+        itinerary_best_overlap_dicts = compute_best_overlaps(line_family_dicts, itinerary_dicts, stop_call_dicts)
+
     skipped_sloids = int(route_write_payload.get('skipped_sloids', 0) or 0)
 
     if skipped_sloids:
@@ -533,6 +544,7 @@ def build_fast_insert_payloads(
         'stop_calls': stop_call_dicts,
         'line_family_matches': line_family_match_dicts,
         'itinerary_matches': itinerary_match_dicts,
+        'itinerary_best_overlaps': itinerary_best_overlap_dicts,
         'matched_routes': route_write_payload.get('matched_routes', 0),
         'no_nearby_osm_sloids': no_nearby_osm_sloids,
     }
@@ -612,6 +624,8 @@ def _write_rows(db_session, db_payloads):
     _bulk_insert_rows(StopCall, db_payloads.get('stop_calls', []), 'stop calls', db_session=db_session)
     _bulk_insert_rows(LineFamilyMatch, db_payloads.get('line_family_matches', []), 'line family matches', db_session=db_session)
     _bulk_insert_rows(ItineraryMatch, db_payloads.get('itinerary_matches', []), 'itinerary matches', db_session=db_session)
+    _bulk_insert_rows(ItineraryBestOverlap, db_payloads.get('itinerary_best_overlaps', []),
+                      'itinerary best overlaps', db_session=db_session)
 
 
 def import_to_database(

@@ -196,11 +196,14 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app, sour
 
     assert 'View route master 999 on OSM' in rendered
     assert 'https://www.openstreetmap.org/relation/999' in rendered
-    assert 'View itinerary relation 777 on OSM' in rendered
     assert 'GTFS ID: 91-1-A-j26-1' in rendered
     assert 'Route master ID' in rendered
     assert 'Operator Wikidata' in rendered
-    assert f'{source_id_label}s: ch:1:sloid:A, ch:1:sloid:C' in rendered
+    # routes-comparison.js renders the saved alignment and its relation link from the variant data.
+    assert 'data-mode="saved" data-variant-data="variantData1_1"' in rendered
+    assert 'id="variantData1_1"' in rendered
+    assert '"osm_relation_id": "777"' in rendered
+    assert f'data-source-label="{source_label}"' in rendered
     assert f'{source_label} variants: 1 | OSM variants: 1 | Matched: 1' in rendered
     assert f'{source_label} Operator' in rendered
     if source_label != "ATLAS":
@@ -212,6 +215,8 @@ def test_routes_template_uses_route_master_link_and_itinerary_relation(app, sour
     assert 'js/components/map-core.js' in rendered
     assert 'js/components/header-summary.js' in rendered
     assert 'js/pages/routes.js' in rendered
+    # Stop rows render before the map measures its card.
+    assert rendered.index('js/pages/routes-comparison.js') < rendered.index('js/pages/routes.js')
 
 
 def test_routes_template_labels_variant_direction_and_headsign(app):
@@ -566,3 +571,88 @@ def test_uic_grouping_preserves_all_marker_metadata_and_route_order():
     members = {member['stop_id']: member for group in groups for member in group['members']}
     for stop in stops:
         assert {key: members[stop['stop_id']][key] for key in stop} == stop
+
+
+def _unmatched_osm_group(itinerary_id, label, best_overlap):
+    return {
+        'direction_id': '0', 'direction_label': label, 'representative_headsign': label,
+        'atlas_headsign': None, 'osm_to_name': None, 'osm_relation_id': str(itinerary_id),
+        'atlas_itinerary_id': None, 'osm_itinerary_id': itinerary_id,
+        'has_atlas_variant': False, 'has_osm_variant': True, 'is_matched': False,
+        'atlas_uic_groups': [], 'osm_uic_groups': [], 'stop_comparison': None,
+        'best_overlap': best_overlap, 'match_status': 'unmatched-osm', 'match_label': 'Unmatched OSM variant',
+    }
+
+
+def test_routes_template_renders_stored_best_overlap_states_without_client_loading(app):
+    route_rows = [{
+        'display_mode': 'osm_only', 'is_matched': False, 'match_label': 'Unmatched OSM',
+        'atlas_route_id': None, 'atlas_route_short_name': None, 'atlas_route_long_name': None,
+        'atlas_route_name': None, 'atlas_operators_summary': None, 'osm_route_name': 'Route 31',
+        'osm_gtfs_route_id': '31', 'osm_route_display_id': '31', 'osm_route_id_label': 'GTFS ID',
+        'osm_route_master_id': None, 'osm_route_id': '300', 'is_non_gtfs': False,
+        'variant_count': 4, 'atlas_variant_count': 0, 'osm_variant_count': 4, 'matched_variant_count': 0,
+        'direction_groups': [
+            _unmatched_osm_group(1, 'Stored', {'percentage': 88.9, 'matched_stop_count': 8,
+                                               'candidate_label': '31 · Lake line · Central'}),
+            _unmatched_osm_group(2, 'Isolated', {'percentage': None, 'matched_stop_count': 0,
+                                                 'candidate_label': None}),
+            _unmatched_osm_group(3, 'Old import', None),
+            _unmatched_osm_group(4, 'Single stop', {'percentage': 20.0, 'matched_stop_count': 1,
+                                                    'candidate_label': '31 · Lake line · Harbour'}),
+        ],
+        'map_filter': None,
+    }]
+
+    with app.test_request_context('/routes'):
+        rendered = render_template(
+            'pages/routes.html', active_view='routes', listing_endpoint='routes.routes_page',
+            route_rows=route_rows, pagination=_TemplatePagination(), range_start=1, range_end=1,
+            atlas_operator_query='', osm_operator_query='', matched_filter='all',
+            match_filter_labels={'all': 'All'}, q='', search_placeholder='Search route',
+            per_page=10, per_page_options=[10], available_atlas_operators=[],
+            selected_atlas_operators=[], available_osm_operators=[], selected_osm_operators=[],
+        )
+
+    assert 'Highest overlap: 88.9%' in rendered
+    assert 'title="Best ATLAS variant: 31 · Lake line · Central (8 stops shared in order)"' in rendered
+    assert '(1 stop shared in order)">Highest overlap: 20.0%' in rendered
+    assert 'No shared stops' in rendered
+    assert 'Overlap not computed' in rendered
+    assert 'data-best-url' not in rendered
+    assert 'data-best-overlap' not in rendered
+
+
+def test_attach_best_overlaps_reads_stored_values_for_unmatched_variants_only(monkeypatch):
+    requested = []
+    monkeypatch.setattr(routes_module, 'load_best_overlaps', lambda ids: requested.append(ids) or {
+        11: {'percentage': 50.0, 'matched_stop_count': 2, 'candidate_label': 'Line'},
+    })
+    matched = {'is_matched': True, 'atlas_itinerary_id': 1, 'osm_itinerary_id': 2, 'best_overlap': None}
+    atlas_only = {'is_matched': False, 'atlas_itinerary_id': 11, 'osm_itinerary_id': None, 'best_overlap': None}
+    osm_only = {'is_matched': False, 'atlas_itinerary_id': None, 'osm_itinerary_id': 22, 'best_overlap': None}
+
+    routes_module._attach_best_overlaps([{'direction_groups': [matched, atlas_only]},
+                                         {'direction_groups': [osm_only]}])
+
+    assert requested == [{11, 22}]
+    assert matched['best_overlap'] is None
+    assert atlas_only['best_overlap']['percentage'] == 50.0
+    assert osm_only['best_overlap'] is None
+
+
+def test_unmatched_direction_group_carries_its_stops_as_a_one_sided_alignment():
+    itinerary = SimpleNamespace(id=7, direction_id='1', display_name='Lake', representative_headsign='Lake',
+                                source_itinerary_id='atlas-7')
+    calls = [SimpleNamespace(id=index, stop_sequence=index * 2, source_sloid=f'sloid-{index}',
+                             source_sloid_variants=None, source_stop_id=None, source_node_id=None,
+                             uic_ref=None, stop_label=f'Stop {index}', stop_lat=47.0, stop_lon=8.0)
+             for index in (1, 2)]
+
+    group = _build_direction_group(itinerary, None, calls, [])
+
+    comparison = group['stop_comparison']
+    assert comparison['percentage'] is None
+    assert comparison['matched_stop_count'] == 0
+    assert [row['atlas']['position'] for row in comparison['rows']] == [1, 2]
+    assert all(row['osm'] is None and row['match_type'] is None for row in comparison['rows'])

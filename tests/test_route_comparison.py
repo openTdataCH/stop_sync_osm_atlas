@@ -5,13 +5,15 @@ import pytest
 
 from backend.blueprints import routes as routes_module
 from backend.extensions import db
-from backend.models import Itinerary, ItineraryMatch, LineFamily, StopCall
+from backend.models import Itinerary, ItineraryBestOverlap, ItineraryMatch, LineFamily, StopCall
 from backend.services.route_comparison import (
     _identity,
     _identity_index,
     _matching_positions,
     _ordered_match_count,
     compare_stop_calls,
+    compute_best_overlaps,
+    load_best_overlaps,
 )
 
 
@@ -43,6 +45,15 @@ def test_alignment_preserves_order_gaps_and_every_stop_occurrence():
     assert [row['osm']['id'] for row in result['rows'] if row['osm']] == [1, 2, 3, 4, 5]
     assert sum(row['match_type'] is not None for row in result['rows']) == 3
     assert all(row['match_type'] is not None for row in result['rows'] if row['atlas'] and row['osm'])
+
+
+def test_alignment_numbers_stops_by_position_not_raw_sequence():
+    atlas = [_call(sequence, name) for sequence, name in [(1, 'A'), (2, 'B')]]
+    osm = [_call(sequence, name) for sequence, name in [(0, 'A'), (4, 'X'), (6, 'B')]]
+    rows = _compare(atlas, osm)['rows']
+    assert [(row['atlas'] or {}).get('position') for row in rows] == [1, None, 2]
+    assert [row['osm']['position'] for row in rows] == [1, 2, 3]
+    assert [row['osm']['stop_sequence'] for row in rows] == [0, 4, 6]
 
 
 def test_reversed_order_does_not_count_every_shared_stop():
@@ -118,7 +129,7 @@ def test_empty_sequences_and_single_selection_have_no_misleading_percentage():
 def comparison_db(app, monkeypatch):
     monkeypatch.setattr(routes_module, 'get_status', lambda: {'blocking_maintenance': False})
     with app.app_context():
-        for model in (LineFamily, Itinerary, StopCall, ItineraryMatch):
+        for model in (LineFamily, Itinerary, StopCall, ItineraryMatch, ItineraryBestOverlap):
             model.__table__.create(db.engine)
         db.session.add_all([
             LineFamily(id=1, source='atlas', source_family_id='atlas-north', display_route_id='A',
@@ -158,9 +169,11 @@ def test_api_compares_arbitrary_unmatched_pair(comparison_db):
     result = response.json
     assert result['atlas'] == {
         'id': 102, 'family_id': 1, 'route_name': 'North line', 'route_id': 'A',
-        'display_name': 'Variant 2', 'direction_id': '0', 'is_matched': False,
+        'display_name': 'Variant 2', 'direction_id': '0', 'source_itinerary_id': 'atlas-2',
+        'is_matched': False, 'matched_with': [],
     }
     assert result['osm']['id'] == 202
+    assert result['osm']['source_itinerary_id'] == 'osm-2'
     assert result['matched_stop_count'] == 2
     assert result['atlas_stop_count'] == 3
     assert result['osm_stop_count'] == 2
@@ -181,6 +194,30 @@ def test_api_distinguishes_saved_match_from_preview_and_supports_one_side(compar
     assert one_side['percentage'] is None
     assert len(one_side['rows']) == 2
     assert all(row['atlas'] is None for row in one_side['rows'])
+
+
+def test_matched_variants_name_every_saved_counterpart(comparison_db):
+    with comparison_db.application.app_context():
+        db.session.add(ItineraryMatch(id=2, atlas_itinerary_id=103, osm_itinerary_id=201))
+        db.session.commit()
+    preview = comparison_db.get('/api/routes/comparison?atlas_itinerary_id=102&osm_itinerary_id=201').json
+    assert preview['atlas']['matched_with'] == []
+    first, second = preview['osm']['matched_with']
+    assert first == {
+        'id': 101, 'family_id': 1, 'route_name': 'North line', 'route_id': 'A',
+        'display_name': 'Variant 1', 'direction_id': '0', 'source_itinerary_id': 'atlas-1',
+        'is_matched': True, 'label': 'A · North line · Variant 1 · Direction 0',
+    }
+    assert second['id'] == 103
+
+    ranked = comparison_db.get('/api/routes/comparison/options?source=osm&fixed_itinerary_id=102').json
+    by_id = {item['id']: item for item in ranked['items']}
+    assert [counterpart['id'] for counterpart in by_id[201]['matched_with']] == [101, 103]
+    assert by_id[202]['matched_with'] == []
+    listed = comparison_db.get('/api/routes/comparison/options?source=atlas&unmatched=0').json
+    assert [[counterpart['id'] for counterpart in item['matched_with']] for item in listed['items']] == [
+        [201], [], [201], [],
+    ]
 
 
 def test_options_filter_by_itinerary_and_page_in_sql(comparison_db):
@@ -285,18 +322,19 @@ def test_ranked_options_include_saved_candidates_and_allow_unmatched_filter(comp
         '/api/routes/comparison/options?source=osm&fixed_itinerary_id=101',
     ).json
     assert all_candidates['total'] == 4
-    assert all_candidates['best']['id'] == 201
-    assert all_candidates['best']['percentage'] == 100
-    assert all_candidates['best']['is_matched'] is True
+    assert 'best' not in all_candidates
+    assert all_candidates['items'][0]['id'] == 201
+    assert all_candidates['items'][0]['percentage'] == 100
+    assert all_candidates['items'][0]['is_matched'] is True
     unmatched = comparison_db.get(
         '/api/routes/comparison/options?source=osm&fixed_itinerary_id=101&unmatched=1',
     ).json
     assert unmatched['total'] == 3
-    assert unmatched['best']['id'] == 202
-    assert unmatched['best']['percentage'] == 50
+    assert unmatched['items'][0]['id'] == 202
+    assert unmatched['items'][0]['percentage'] == 50
 
 
-def test_ranked_options_find_global_best_beyond_first_alphabetical_page(comparison_db):
+def test_ranked_options_find_highest_overlap_beyond_first_alphabetical_page(comparison_db):
     for candidate_id in range(300, 335):
         _add_candidate(comparison_db, candidate_id, ['unrelated'], name=f'A candidate {candidate_id}')
     _add_candidate(comparison_db, 399, ['A', 'B', 'C'], name='ZZZ best', direction='1')
@@ -306,25 +344,47 @@ def test_ranked_options_find_global_best_beyond_first_alphabetical_page(comparis
     ).json
     assert result['total'] == 40
     assert [item['id'] for item in result['items']] == [399, 202]
-    assert result['best']['id'] == 399
-    assert result['best']['percentage'] == 100
-    assert result['best']['direction_id'] == '1'
+    assert result['items'][0]['percentage'] == 100
+    assert result['items'][0]['direction_id'] == '1'
     next_page = comparison_db.get(
         '/api/routes/comparison/options?source=osm&fixed_itinerary_id=102&per_page=2&page=2',
     ).json
     assert [item['id'] for item in next_page['items']] == [201, 203]
-    assert next_page['best'] == result['best']
 
 
-def test_ranked_search_preserves_global_best_and_reports_empty_result(comparison_db):
+def test_shared_only_lists_and_counts_only_candidates_sharing_a_stop(comparison_db):
+    for candidate_id in range(300, 335):
+        _add_candidate(comparison_db, candidate_id, ['unrelated'], name=f'A candidate {candidate_id}')
+    _add_candidate(comparison_db, 399, ['A', 'B', 'C'], name='ZZZ best')
+
+    first = comparison_db.get('/api/routes/comparison/options', query_string={
+        'source': 'osm', 'fixed_itinerary_id': 102, 'shared_only': 1, 'per_page': 2,
+    }).json
+    assert (first['total'], first['pages'], first['page']) == (3, 2, 1)
+    assert [item['id'] for item in first['items']] == [399, 202]
+    second = comparison_db.get('/api/routes/comparison/options', query_string={
+        'source': 'osm', 'fixed_itinerary_id': 102, 'shared_only': 1, 'per_page': 2, 'page': 9,
+    }).json
+    assert second['page'] == 2
+    assert [(item['id'], item['matched_stop_count']) for item in second['items']] == [(201, 1)]
+    searched = comparison_db.get('/api/routes/comparison/options', query_string={
+        'source': 'osm', 'fixed_itinerary_id': 102, 'shared_only': 1, 'q': 'candidate',
+    }).json
+    assert searched == {'items': [], 'page': 1, 'pages': 0, 'total': 0}
+    anchored = comparison_db.get('/api/routes/comparison/options', query_string={
+        'source': 'osm', 'fixed_itinerary_id': 102, 'shared_only': 1, 'per_page': 1, 'anchor_id': 201,
+    }).json
+    assert (anchored['page'], anchored['items'][0]['id']) == (3, 201)
+
+
+def test_ranked_search_ranks_only_matching_candidates_and_reports_empty_result(comparison_db):
     _add_candidate(comparison_db, 399, ['A', 'B', 'C'], name='Best express')
-    for query in ('Variant 2', 'no results anywhere'):
+    for query, expected in (('Variant 2', [202]), ('express', [399]), ('no results anywhere', [])):
         response = comparison_db.get('/api/routes/comparison/options', query_string={
             'source': 'osm', 'fixed_itinerary_id': 102, 'q': query,
         }).json
-        assert response['best']['id'] == 399
-        assert response['best']['percentage'] == 100
-        assert [item['id'] for item in response['items']] == ([202] if query == 'Variant 2' else [])
+        assert [item['id'] for item in response['items']] == expected
+        assert response['total'] == len(expected)
 
 
 def test_ranking_prioritizes_ratio_then_matched_count_then_stable_id(comparison_db):
@@ -346,7 +406,6 @@ def test_ranked_anchor_locates_candidate_after_scoring(comparison_db):
     }).json
     assert result['page'] == 2
     assert result['items'][0]['id'] == 201
-    assert result['best']['id'] == 202
 
 
 def test_ranking_variants_and_uic_follow_comparison_identity_rules(comparison_db):
@@ -364,7 +423,7 @@ def test_ranking_variants_and_uic_follow_comparison_identity_rules(comparison_db
     assert scores[210] == 0
     assert scores[211] == 100
     assert scores[212] == 100
-    assert result['best']['id'] == 211
+    assert result['items'][0]['id'] == 211
     for item in result['items']:
         comparison = comparison_db.get('/api/routes/comparison', query_string={
             'atlas_itinerary_id': 102, 'osm_itinerary_id': item['id'],
@@ -392,38 +451,26 @@ def test_sparse_lcs_matches_alignment_on_repetitions_conflicts_and_variants():
         assert score == _compare(atlas, osm)['matched_stop_count']
 
 
-def test_batch_best_matches_ranked_options_on_both_sides(comparison_db):
-    response = comparison_db.get('/api/routes/comparison/best', query_string={
-        'itinerary_id': [101, 102, 202, 104],
-    })
-    assert response.status_code == 200
-    for fixed_id, source in [(101, 'osm'), (102, 'osm'), (202, 'atlas'), (104, 'osm')]:
-        options = comparison_db.get('/api/routes/comparison/options', query_string={
-            'source': source, 'fixed_itinerary_id': fixed_id,
-        }).json
-        assert response.json['items'][str(fixed_id)] == options['best']
-
-
 def test_ranked_empty_calls_and_no_candidates_have_explicit_empty_scores(comparison_db):
     with comparison_db.application.app_context():
         db.session.query(StopCall).delete()
         db.session.commit()
     result = comparison_db.get('/api/routes/comparison/options?source=osm&fixed_itinerary_id=102').json
-    assert result['best']['id'] == 201
-    assert result['best']['percentage'] is None
-    assert result['best']['matched_stop_count'] == 0
+    assert result['items'][0]['id'] == 201
+    assert result['items'][0]['percentage'] is None
+    assert result['items'][0]['matched_stop_count'] == 0
     with comparison_db.application.app_context():
         db.session.query(Itinerary).filter(Itinerary.source == 'osm').delete()
         db.session.commit()
     result = comparison_db.get('/api/routes/comparison/options?source=osm&fixed_itinerary_id=102').json
-    assert result['best'] is None
     assert result['items'] == []
     assert result['total'] == 0
-    assert comparison_db.get('/api/routes/comparison/best?itinerary_id=102').json == {'items': {'102': None}}
 
 
 @pytest.mark.parametrize(('query', 'status'), [
     ('source=osm&fixed_itinerary_id=201', 400),
+    ('source=osm&shared_only=1', 400),
+    ('source=osm&fixed_itinerary_id=102&shared_only=yes', 400),
     ('source=osm&fixed_itinerary_id=0', 400),
     ('source=osm&fixed_itinerary_id=nope', 400),
     ('source=osm&fixed_itinerary_id=99999', 404),
@@ -433,32 +480,117 @@ def test_ranked_fixed_selection_validation(comparison_db, query, status):
     assert comparison_db.get(f'/api/routes/comparison/options?{query}').status_code == status
 
 
-@pytest.mark.parametrize(('ids', 'status'), [
-    ([], 400), (['nope'], 400), ([0], 400), ([101] * 101, 400), ([99999], 404), ([299], 404),
-])
-def test_batch_best_validates_bounded_ids(comparison_db, ids, status):
-    response = comparison_db.get('/api/routes/comparison/best', query_string={'itinerary_id': ids})
-    assert response.status_code == status
 
 
-def test_batch_best_does_not_query_each_candidate(comparison_db):
-    from sqlalchemy import event
+def _payload_rows(app):
+    """Read the fixture back in the shape of the importer's payload rows."""
+    with app.app_context():
+        families = [{'id': row.id, 'source': row.source, 'is_non_gtfs': row.is_non_gtfs}
+                    for row in db.session.query(LineFamily)]
+        itineraries = [{'id': row.id, 'source': row.source, 'line_family_id': row.line_family_id}
+                       for row in db.session.query(Itinerary)]
+        calls = [{'id': row.id, 'itinerary_id': row.itinerary_id, 'stop_sequence': row.stop_sequence,
+                  'source_sloid': row.source_sloid, 'source_sloid_variants': row.source_sloid_variants,
+                  'uic_ref': row.uic_ref} for row in db.session.query(StopCall)]
+    return families, itineraries, calls
 
-    for candidate_id in range(300, 350):
-        _add_candidate(comparison_db, candidate_id, ['A', 'B', 'C'])
-    statements = []
 
-    def record_query(_conn, _cursor, statement, _parameters, _context, _executemany):
-        statements.append(statement)
+def _store_best_overlaps(client):
+    rows = compute_best_overlaps(*_payload_rows(client.application))
+    with client.application.app_context():
+        db.session.query(ItineraryBestOverlap).delete()
+        db.session.add_all([ItineraryBestOverlap(**row) for row in rows])
+        db.session.commit()
+    return {row['itinerary_id']: row for row in rows}
 
+
+def test_stored_best_overlap_equals_top_live_ranked_candidate(comparison_db):
+    _add_candidate(comparison_db, 210, ['A', 'B', 'C', 'X'])
+    _add_candidate(comparison_db, 211, ['A', 'B', 'X', 'X', 'X', 'X'])
+    _add_candidate(comparison_db, 212, ['C', 'B', 'A'])
+    stored = _store_best_overlaps(comparison_db)
+
+    assert stored[102]['best_itinerary_id'] == 210
+    assert stored[212]['best_itinerary_id'] == 101
+    for fixed_id, source in [(101, 'osm'), (102, 'osm'), (103, 'osm'), (104, 'osm'),
+                             (201, 'atlas'), (202, 'atlas'), (210, 'atlas'), (212, 'atlas')]:
+        top = comparison_db.get('/api/routes/comparison/options', query_string={
+            'source': source, 'fixed_itinerary_id': fixed_id,
+        }).json['items'][0]
+        if top['matched_stop_count']:
+            assert (stored[fixed_id]['best_itinerary_id'], stored[fixed_id]['matched_stop_count'],
+                    stored[fixed_id]['stop_ratio']) == (top['id'], top['matched_stop_count'], top['stop_ratio'])
+        else:
+            assert stored[fixed_id] == {'itinerary_id': fixed_id, 'best_itinerary_id': None,
+                                        'matched_stop_count': 0, 'stop_ratio': None}
+    assert 299 not in stored
+
+
+def test_best_overlap_search_equals_brute_force_alignment_of_every_pair():
+    import random
+
+    randomizer = random.Random(4127)
+    families = [{'id': 1, 'source': 'atlas'}, {'id': 2, 'source': 'osm'},
+                {'id': 3, 'source': 'osm', 'is_non_gtfs': True}]
+    for _ in range(40):
+        itineraries, rows, sequences = [], [], {}
+        for itinerary_id in range(1, 13):
+            family_id = 1 if itinerary_id <= 5 else 2 if itinerary_id <= 11 else 3
+            itineraries.append({'id': itinerary_id, 'source': families[family_id - 1]['source'],
+                                'line_family_id': family_id})
+            sequences[itinerary_id] = [
+                _call(sequence, randomizer.choice(['A', 'B', 'C', 'D', None]),
+                      uic=randomizer.choice(['1', '2', None]), variants=randomizer.choice([None, ['B', 'C']]))
+                for sequence in range(1, randomizer.randrange(8) + 1)
+            ]
+            rows.extend({'id': itinerary_id * 100 + call.stop_sequence, 'itinerary_id': itinerary_id,
+                         'stop_sequence': call.stop_sequence, 'source_sloid': call.source_sloid,
+                         'source_sloid_variants': call.source_sloid_variants, 'uic_ref': call.uic_ref}
+                        for call in sequences[itinerary_id])
+        randomizer.shuffle(rows)
+
+        expected = []
+        for fixed_id in range(1, 12):
+            fixed_is_atlas = fixed_id <= 5
+            best = None
+            for candidate_id in (range(6, 12) if fixed_is_atlas else range(1, 6)):
+                atlas_id, osm_id = (fixed_id, candidate_id) if fixed_is_atlas else (candidate_id, fixed_id)
+                matched = _compare(sequences[atlas_id], sequences[osm_id])['matched_stop_count']
+                longer = max(len(sequences[fixed_id]), len(sequences[candidate_id]))
+                if matched and (best is None or (matched / longer, matched, -candidate_id) > best):
+                    best = (matched / longer, matched, -candidate_id)
+            expected.append({'itinerary_id': fixed_id, 'best_itinerary_id': -best[2] if best else None,
+                             'matched_stop_count': best[1] if best else 0,
+                             'stop_ratio': best[0] if best else None})
+        assert compute_best_overlaps(families, itineraries, rows) == expected
+
+
+def test_best_overlap_accepts_decoded_variants_and_requires_a_same_source_gtfs_family():
+    families = [{'id': 1, 'source': 'atlas'}, {'id': 2, 'source': 'osm'},
+                {'id': 3, 'source': 'osm', 'is_non_gtfs': True}]
+    itineraries = [{'id': 1, 'source': 'atlas', 'line_family_id': 1},
+                   {'id': 2, 'source': 'osm', 'line_family_id': 2},
+                   {'id': 3, 'source': 'osm', 'line_family_id': 3},
+                   {'id': 4, 'source': 'osm', 'line_family_id': 1}]
+    calls = [{'itinerary_id': 1, 'stop_sequence': 1, 'source_sloid': 'X', 'source_sloid_variants': ['A']}]
+    calls += [{'itinerary_id': itinerary_id, 'stop_sequence': 1, 'source_sloid': 'A'} for itinerary_id in (2, 3, 4)]
+
+    assert compute_best_overlaps(families, itineraries, calls) == [
+        {'itinerary_id': 1, 'best_itinerary_id': 2, 'matched_stop_count': 1, 'stop_ratio': 1.0},
+        {'itinerary_id': 2, 'best_itinerary_id': 1, 'matched_stop_count': 1, 'stop_ratio': 1.0},
+    ]
+
+
+def test_load_best_overlaps_labels_candidate_and_distinguishes_missing_rows(comparison_db):
+    _store_best_overlaps(comparison_db)
     with comparison_db.application.app_context():
-        event.listen(db.engine, 'before_cursor_execute', record_query)
-        try:
-            response = comparison_db.get('/api/routes/comparison/best', query_string={
-                'itinerary_id': [101, 102, 103, 104],
-            })
-        finally:
-            event.remove(db.engine, 'before_cursor_execute', record_query)
-    assert response.status_code == 200
-    assert len(statements) <= 8
-    assert response.json['items']['102']['id'] == 300
+        db.session.query(ItineraryBestOverlap).filter(ItineraryBestOverlap.itinerary_id == 104).delete()
+        db.session.commit()
+        overlaps = load_best_overlaps({102, 103, 104})
+        assert load_best_overlaps(set()) == {}
+
+    assert overlaps == {
+        102: {'candidate_id': 202, 'percentage': 66.7, 'matched_stop_count': 2,
+              'candidate_label': 'A · OSM North · Variant 2 · Direction 0'},
+        103: {'candidate_id': None, 'percentage': None, 'matched_stop_count': 0, 'candidate_label': None},
+    }
