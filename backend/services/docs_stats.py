@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import re
-from html import escape
+from html import escape, unescape
 from typing import Any, Optional
 
 from backend.services.stats_export import load_stats_from_file
@@ -42,12 +42,18 @@ def get_nested_stat_value(stats: Optional[dict], key_path: str) -> Any:
     return value
 
 
-def format_stat_value(value: Any) -> str:
-    """Format a stats value for docs display."""
+def format_stat_value(value: Any, key_path: str = '') -> str:
+    """Format a stats value for docs display.
+
+    Keys ending in ``_percent`` already hold percentages (``89.5`` means
+    89.5 %), so they keep their value and gain the unit.
+    """
     if value is None:
         return "—"
     if isinstance(value, bool):
         return "Yes" if value else "No"
+    if key_path.endswith('_percent') and isinstance(value, (int, float)):
+        return f"{value:,.1f}%"
     if isinstance(value, float):
         if 0 < value < 1:
             return f"{value:.1%}"
@@ -69,7 +75,7 @@ def replace_stats_placeholders(content: str, stats: Optional[dict] = None, *, ht
     def replace(match: re.Match[str]) -> str:
         key_path = match.group(1)
         value = get_nested_stat_value(stats, key_path)
-        formatted = format_stat_value(value)
+        formatted = format_stat_value(value, key_path)
 
         if no_span:
             if html_escape:
@@ -93,6 +99,17 @@ def replace_stats_placeholders(content: str, stats: Optional[dict] = None, *, ht
         )
 
     return _STATS_PATTERN.sub(replace, content)
+
+
+def heading_slug(heading_html: str) -> str:
+    """Return GitHub's anchor for a rendered heading.
+
+    Lowercase the text, drop characters other than letters, digits, spaces,
+    hyphens and underscores, then turn spaces into hyphens. Using GitHub's rule
+    lets ``page.md#section`` links work on GitHub, in the portal and in PDFs.
+    """
+    text = unescape(re.sub(r'<[^>]+>', '', heading_html)).strip().lower()
+    return re.sub(r'[^\w\- ]', '', text).replace(' ', '-')
 
 
 def convert_github_alerts_to_html(markdown_text: str) -> str:

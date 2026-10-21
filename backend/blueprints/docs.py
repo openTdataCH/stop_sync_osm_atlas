@@ -12,7 +12,9 @@ from urllib.parse import unquote
 
 from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file, current_app
 from werkzeug.utils import safe_join
-from backend.services.docs_stats import replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html
+from backend.services.docs_stats import (
+    replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html, heading_slug,
+)
 from backend.services.quality_report import replace_quality_placeholder
 from backend.services.repo_scanner import RepoScanner
 from backend.services.request_payload import read_request_payload
@@ -359,13 +361,43 @@ def _github_blob_base() -> str:
 
     Can be overridden with DOCS_GITHUB_BLOB_BASE (must end with '/').
     """
-    base = os.environ.get(
-        'DOCS_GITHUB_BLOB_BASE',
-        'https://github.com/openTdataCH/stop_sync_osm_atlas/blob/main/',
+    base = (
+        os.environ.get('DOCS_GITHUB_BLOB_BASE', '').strip()
+        or 'https://github.com/openTdataCH/stop_sync_osm_atlas/blob/main/'
     )
     if not base.endswith('/'):
         base += '/'
     return base
+
+
+def _engine_blob_base() -> Optional[str]:
+    """Optional public base URL for files of the separate engine repository.
+
+    The engine repository can be private, so its source files are linked only
+    when DOCS_ENGINE_BLOB_BASE is set (for example
+    ``https://github.com/<owner>/<engine>/blob/<commit>/``). Without it, links
+    to engine files that are not documentation pages render as plain text
+    instead of URLs that would return 404.
+    """
+    base = os.environ.get('DOCS_ENGINE_BLOB_BASE', '').strip()
+    if not base:
+        return None
+    return base if base.endswith('/') else base + '/'
+
+
+def _code_file_url(repo_path: str) -> Optional[str]:
+    """Return a public URL for a path in the portal's logical layout.
+
+    Paths below ``engine/`` belong to the engine repository; every other path
+    belongs to this repository.
+    """
+    normalized = repo_path.replace(os.sep, '/')
+    if normalized == 'engine' or normalized.startswith('engine/'):
+        base = _engine_blob_base()
+        if base is None:
+            return None
+        return f"{base}{normalized[len('engine/'):]}".replace(' ', '%20')
+    return f"{_github_blob_base()}{normalized}".replace(' ', '%20')
 
 
 _CODE_FILE_EXTENSIONS = {
@@ -374,6 +406,15 @@ _CODE_FILE_EXTENSIONS = {
 }
 
 _MERMAID_FENCE_PATTERN = re.compile(r'```mermaid(.*?)```', re.DOTALL | re.IGNORECASE)
+# Fenced code blocks, including Mermaid. The closing fence repeats the opener.
+_FENCED_CODE_PATTERN = re.compile(
+    r'^[ \t]*(?P<fence>`{3,}|~{3,})(?P<info>[^\n]*)\n.*?^[ \t]*(?P=fence)[ \t]*$',
+    re.DOTALL | re.MULTILINE,
+)
+_MARKDOWN_LINK_PATTERN = re.compile(r'!?\[[^\]\n]*\]\([^)\n]*\)')
+_HTML_TAG_PATTERN = re.compile(r'<[^>\n]+>')
+_BARE_URL_PATTERN = re.compile(r'https?://[^\s)<>\]]+')
+_INLINE_CODE_PATTERN = re.compile(r'(?<!`)(?P<ticks>`+)(?!`)(?P<code>.+?)(?<!`)(?P=ticks)(?!`)')
 _MERMAID_NODE_START_PATTERN = re.compile(
     r'(?P<node_id>[A-Za-z][A-Za-z0-9_]*)'
     r'(?P<open>\[\[|\[\(|\[\{|\["|\[\'|\[|\(\(|\(|\{\{|\{)'
@@ -394,16 +435,20 @@ _MERMAID_NODE_CLOSERS = {
 
 
 def _rewrite_repo_links_to_github(markdown_text: str, current_doc: str) -> str:
-    """Rewrite remaining links to real repository files as GitHub blob links.
+    """Rewrite remaining links to repository files as public source links.
 
     Documentation-to-documentation links are converted to local routes first.
-    Resolving from the current Markdown file keeps links correct in both source
-    trees and after the engine directory becomes its own repository.
+    Links are resolved in the portal's logical layout, where the engine tree
+    lives below ``engine/``. Files of this repository become GitHub links.
+    Engine files use DOCS_ENGINE_BLOB_BASE when it is configured; otherwise
+    the link label is kept as plain text, because a relative URL would return
+    404 on the documentation site.
     """
 
     # Match standard markdown links: [text](href "optional title").  The
     # negative lookbehind is anchored before ``[`` so image syntax is excluded.
     pattern = re.compile(r'(?<!!)\[([^\]]*)\]\(([^\s)]+)(\s+"[^"]*")?\)')
+    repo_root = os.path.realpath(_repo_root())
 
     def repl(match: re.Match) -> str:
         label = match.group(1)
@@ -414,14 +459,21 @@ def _rewrite_repo_links_to_github(markdown_text: str, current_doc: str) -> str:
 
         base_part, frag = (href.split('#', 1) + [''])[:2]
         base_part, query = (base_part.split('?', 1) + [''])[:2]
-        current_path = os.path.join(_repo_root(), current_doc)
-        candidate = os.path.realpath(os.path.join(os.path.dirname(current_path), unquote(base_part)))
-        repo_root = os.path.realpath(_repo_root())
-        if not candidate.startswith(repo_root + os.sep) or not os.path.isfile(candidate):
+        logical = os.path.normpath(
+            os.path.join(os.path.dirname(current_doc), unquote(base_part))
+        ).replace(os.sep, '/')
+        if logical == '..' or logical.startswith('../'):
             return match.group(0)
 
-        normalized = os.path.relpath(candidate, repo_root).replace(os.sep, '/')
-        new_href = f"{_github_blob_base()}{normalized}".replace(' ', '%20')
+        if logical == 'engine' or logical.startswith('engine/'):
+            new_href = _code_file_url(logical)
+            if new_href is None:
+                return label or logical
+        else:
+            candidate = os.path.realpath(os.path.join(repo_root, logical))
+            if not candidate.startswith(repo_root + os.sep) or not os.path.isfile(candidate):
+                return match.group(0)
+            new_href = _code_file_url(os.path.relpath(candidate, repo_root))
         if query:
             new_href += f'?{query}'
         if frag:
@@ -474,7 +526,7 @@ def _normalize_mermaid_node_label(label: str) -> str:
     return normalized.strip()
 
 
-def _append_mermaid_click_links(mermaid_block: str, scanner: RepoScanner, github_base: str) -> str:
+def _append_mermaid_click_links(mermaid_block: str, scanner: RepoScanner) -> str:
     existing_click_ids = set(_MERMAID_EXISTING_CLICK_PATTERN.findall(mermaid_block))
     click_commands: List[str] = []
 
@@ -498,10 +550,10 @@ def _append_mermaid_click_links(mermaid_block: str, scanner: RepoScanner, github
             continue
 
         resolved = scanner.resolve_path(clean_label)
-        if not resolved:
+        link = _code_file_url(resolved) if resolved else None
+        if not link:
             continue
 
-        link = f"{github_base}{resolved}".replace(' ', '%20')
         click_commands.append(f'    click {node_id} "{link}"')
         existing_click_ids.add(node_id)
 
@@ -517,35 +569,71 @@ def _append_mermaid_click_links(mermaid_block: str, scanner: RepoScanner, github
     return f"{body}\n" + "\n".join(click_commands) + f"\n{closing_fence}"
 
 
+def _protect_spans(pattern: re.Pattern, text: str, store: List[str], transform=None, tag: str = 'S') -> str:
+    """Replace every match with a ``tag``-scoped placeholder.
+
+    ``transform`` may rewrite the saved text. Different stores must use
+    different tags so that their placeholders can be restored independently.
+    """
+
+    def save(match: re.Match) -> str:
+        store.append(transform(match) if transform else match.group(0))
+        return f'{tag}{len(store) - 1}'
+
+    return pattern.sub(save, text)
+
+
+def _restore_spans(text: str, store: List[str], tag: str = 'S') -> str:
+    pattern = re.compile(f'{re.escape(tag)}(\\d+)')
+    # A saved span can itself contain placeholders, so restore until stable.
+    while True:
+        restored = pattern.sub(lambda match: store[int(match.group(1))], text)
+        if restored == text:
+            return restored
+        text = restored
+
+
 def _auto_link_code_files(markdown_text: str) -> str:
-    """Detect code file names or paths and turn them into GitHub links."""
+    """Link mentions of repository code files.
+
+    Inline code that is exactly a file path (``backend/app.py``, optionally
+    followed by ``::symbol``) and bare paths in prose become links. Mermaid
+    nodes named after a file receive ``click`` commands. Text inside fenced
+    code blocks, existing links, raw HTML and URLs is never changed.
+    """
     scanner = _get_repo_scanner()
-    github_base = _github_blob_base()
-
-    # 1. Handle standard text/backticks for paths like 'path/to/file.py' or 'file.py'
-    # Pattern: words, slashes, dots, ending in .py etc.
-    # Capture optional backticks so we can put them inside the link brackets: [`path.py`](url)
     ext_pattern = '|'.join(re.escape(ext.lstrip('.')) for ext in _CODE_FILE_EXTENSIONS)
-    path_regex = re.compile(rf'(?<![\[\(])(`?)\b([\w\-/]+\.(?:{ext_pattern}))\b(`?)(?![\)\]])')
+    bare_path = re.compile(rf'(?<![\w./\\-])[\w-]+(?:/[\w.-]+)*\.(?:{ext_pattern})(?![\w/-])')
+    code_path = re.compile(rf'(?P<path>[\w./-]+\.(?:{ext_pattern}))(?P<suffix>::[\w.]+(?:\(\))?)?')
 
-    def text_repl(match: re.Match) -> str:
-        open_tick = match.group(1)
-        path_query = match.group(2)
-        close_tick = match.group(3)
+    def link_for(path_query: str) -> Optional[str]:
         resolved = scanner.resolve_path(path_query)
-        if resolved:
-            link = f"{github_base}{resolved}".replace(' ', '%20')
-            return f"[{open_tick}{path_query}{close_tick}]({link})"
-        return match.group(0)
+        return _code_file_url(resolved) if resolved else None
 
-    protected_text, mermaid_blocks = _protect_mermaid_blocks(markdown_text, 'MERMAID_AUTOLINK')
-    protected_text = path_regex.sub(text_repl, protected_text)
+    def fenced(match: re.Match) -> str:
+        block = match.group(0)
+        if match.group('info').strip().lower() == 'mermaid':
+            return _append_mermaid_click_links(block, scanner)
+        return block
 
-    processed_blocks = [
-        _append_mermaid_click_links(block, scanner, github_base)
-        for block in mermaid_blocks
-    ]
-    return _restore_mermaid_blocks(protected_text, 'MERMAID_AUTOLINK', processed_blocks)
+    def inline_code(match: re.Match) -> str:
+        code = match.group('code')
+        target = code_path.fullmatch(code.strip())
+        link = link_for(target.group('path')) if target else None
+        return f'[{match.group(0)}]({link})' if link else match.group(0)
+
+    def prose_path(match: re.Match) -> str:
+        link = link_for(match.group(0))
+        return f'[{match.group(0)}]({link})' if link else match.group(0)
+
+    store: List[str] = []
+    text = _protect_spans(_FENCED_CODE_PATTERN, markdown_text, store, fenced)
+    text = _protect_spans(_MARKDOWN_LINK_PATTERN, text, store)
+    text = _protect_spans(_HTML_TAG_PATTERN, text, store)
+    text = _protect_spans(_BARE_URL_PATTERN, text, store)
+    text = _protect_spans(_INLINE_CODE_PATTERN, text, store, inline_code)
+    text = bare_path.sub(prose_path, text)
+    return _restore_spans(text, store)
 
 
 def _rewrite_internal_doc_links_to_routes(
@@ -693,9 +781,48 @@ def _derive_title(filename: str) -> str:
     return os.path.splitext(os.path.basename(filename))[0].replace('_', ' ').title()
 
 
+_ATX_H1_PATTERN = re.compile(r'#[ \t]+(?P<title>.+?)[ \t]*#*[ \t]*$')
+
+
+@lru_cache(maxsize=256)
+def _cached_page_heading(path: str, mtime: float) -> Optional[str]:
+    """Return the first level-one heading of a Markdown file outside code."""
+    try:
+        with open(path, 'r', encoding='utf-8') as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        return None
+    in_fence = False
+    for line in lines:
+        if line.lstrip().startswith(('```', '~~~')):
+            in_fence = not in_fence
+            continue
+        match = None if in_fence else _ATX_H1_PATTERN.fullmatch(line)
+        if match:
+            return match.group('title').replace('`', '').replace('*', '').strip() or None
+    return None
+
+
+def _page_heading(doc_id: str) -> Optional[str]:
+    source_key = _doc_source_key(doc_id)
+    logical_root = _DOC_SOURCES[source_key]['root'].rstrip('/')
+    path = os.path.join(_get_docs_dirs()[source_key], doc_id[len(logical_root):].lstrip('/'))
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return None
+    return _cached_page_heading(path, mtime)
+
+
 def _display_title(filename: str) -> str:
-    """Return the project-scoped title shown in navigation and page metadata."""
+    """Return the project-scoped title shown in navigation and page metadata.
+
+    Section roots use the curated labels above. Every other page uses its own
+    level-one heading, so navigation and article titles always agree; the
+    filename is only a fallback.
+    """
     derived = _derive_title(filename)
+    heading = _page_heading(filename)
     stem = os.path.splitext(os.path.basename(filename))[0]
     first_token, separator, remainder = stem.partition(' ')
     numeric_token = first_token.rstrip('.')
@@ -704,16 +831,20 @@ def _display_title(filename: str) -> str:
     section_label = _DOC_SECTION_LABELS.get(source_key, {}).get(section_key)
 
     if not section_label:
-        return derived
+        return heading or derived
 
     prefix, root_title = section_label
     if '.' not in numeric_token:
         return f'{prefix} {root_title}'.strip()
 
     suffix = numeric_token.split('.', 1)[1]
-    subsection_prefix = f'{prefix}.{suffix}'
+    subsection_prefix = f"{prefix.rstrip('.')}.{suffix}"
 
-    title = remainder.replace('_', ' ').title() if separator else ''
+    if heading:
+        # Drop the page's own number ("E1.2 ", "0.1 ") from its heading.
+        title = re.sub(rf'^[A-Z]?{re.escape(numeric_token)}\.?\s+', '', heading, count=1)
+    else:
+        title = remainder.replace('_', ' ').title() if separator else ''
     return f'{subsection_prefix} {title}'.strip()
 
 
@@ -925,34 +1056,38 @@ def _convert_markdown_to_html(
     # Auto-link code files (plain text and mermaid)
     markdown_text = _auto_link_code_files(markdown_text)
 
+    # Code keeps its text: the link, alert, placeholder and asset passes
+    # below must not rewrite examples. Fenced blocks, Mermaid diagrams and
+    # inline code are set aside until those passes are done.
+    code_blocks: List[str] = []
+
+    def keep_code_block(match: re.Match) -> str:
+        if match.group('info').strip().lower() == 'mermaid':
+            return match.group(0)
+        code_blocks.append(match.group(0))
+        return f'F{len(code_blocks) - 1}'
+
+    markdown_text = _FENCED_CODE_PATTERN.sub(keep_code_block, markdown_text)
+
+    # Mermaid receives statistics as plain values when it is restored.
+    markdown_text, mermaid_blocks = _protect_mermaid_blocks(markdown_text, 'MERMAID_BLOCK')
+    inline_code: List[str] = []
+    markdown_text = _protect_spans(_INLINE_CODE_PATTERN, markdown_text, inline_code, tag='C')
+
     # Rewrite internal .md links to Flask /docs/ routes
     markdown_text = _rewrite_internal_doc_links_to_routes(markdown_text, file_to_slug, current_doc)
 
     # Remaining links to source files or non-served Markdown belong on GitHub.
     markdown_text = _rewrite_repo_links_to_github(markdown_text, current_doc)
-    
+
     # Convert GitHub-style alerts to HTML before markdown processing
     markdown_text = convert_github_alerts_to_html(markdown_text)
 
-    # Protect mermaid blocks from stats replacement spans
-    markdown_text, mermaid_blocks = _protect_mermaid_blocks(markdown_text, 'MERMAID_BLOCK')
-
-    # Replace stats placeholders with actual values from stats.json
+    # Replace stats placeholders with actual values from stats.json.
     markdown_text = replace_stats_placeholders(markdown_text)
     markdown_text = replace_quality_placeholder(markdown_text, _repo_root())
-
-    # Restore mermaid blocks and replace stats inside them without spans
-    markdown_text = _restore_mermaid_blocks(
-        markdown_text,
-        'MERMAID_BLOCK',
-        [replace_stats_placeholders(block, no_span=True) for block in mermaid_blocks],
-    )
-
-    # Inject canonical palette grid if placeholder is present
     if '[[canonical_palette]]' in markdown_text:
-        palette_html = get_canonical_palette_html()
-        markdown_text = markdown_text.replace('[[canonical_palette]]', palette_html)
-
+        markdown_text = markdown_text.replace('[[canonical_palette]]', get_canonical_palette_html())
 
     # Rewrite repo-relative image/asset paths to the docs assets route
     # Example: ![...](images/foo.png) -> ![...](/docs/assets/images/foo.png)
@@ -964,14 +1099,22 @@ def _convert_markdown_to_html(
     ):
         source_key = _doc_source_key(current_doc)
         prefix = url_for("docs.docs_asset", filename=f"{source_key}/")
-        
+
         # Markdown image/link paths
         markdown_text = markdown_text.replace('](documentation/', f']({prefix}')
         markdown_text = markdown_text.replace('](images/', f']({prefix}images/')
-        
+
         # Raw HTML img tags inside markdown
         markdown_text = markdown_text.replace('src="documentation/', f'src="{prefix}')
         markdown_text = markdown_text.replace('src="images/', f'src="{prefix}images/')
+
+    markdown_text = _restore_spans(markdown_text, inline_code, tag='C')
+    markdown_text = _restore_mermaid_blocks(
+        markdown_text,
+        'MERMAID_BLOCK',
+        [replace_stats_placeholders(block, no_span=True) for block in mermaid_blocks],
+    )
+    markdown_text = _restore_spans(markdown_text, code_blocks, tag='F')
 
     if mistune is None:
         return '<p>Markdown renderer not available. Please install dependencies.</p>'
@@ -986,7 +1129,9 @@ def _convert_markdown_to_html(
     # and not preceded or followed by other dollars. Supports single char like $B$.
     markdown_text = re.sub(r'(?<!\$)\$[^\s$](?:.*?[^\s$])?\$(?!\$)', _protect_math, markdown_text)
 
-    md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table'], hard_wrap=True)
+    # A single newline is a space, as on GitHub and in the PDF, so wrapped
+    # source lines do not break sentences.
+    md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table'])
     html = md(markdown_text)
     
     # Convert mermaid code blocks to mermaid divs for client-side rendering
@@ -999,7 +1144,7 @@ def _convert_markdown_to_html(
     )
 
     if bleach is None:
-        return _decorate_scoped_heading(html, current_doc)
+        return _add_heading_ids(_decorate_scoped_heading(html, current_doc))
 
     allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + [
         'p', 'pre', 'code', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'span', 'div', 'i',
@@ -1034,9 +1179,51 @@ def _convert_markdown_to_html(
         sanitized = bleach.clean(html, **clean_kwargs)
 
     sanitized, mermaid_divs = _protect_rendered_mermaid_divs(sanitized)
-    sanitized = bleach.linkify(sanitized)
+    # Code is shown as written, without links. (Bleach's skip_tags option
+    # would escape the entities inside it a second time.)
+    code_html: List[str] = []
+
+    def save_code(match: re.Match) -> str:
+        code_html.append(match.group(0))
+        return f'<!--CODE_HTML_{len(code_html) - 1}-->'
+
+    sanitized = re.sub(r'<pre\b.*?</pre>|<code\b.*?</code>', save_code, sanitized, flags=re.DOTALL)
+    sanitized = bleach.linkify(
+        sanitized,
+        callbacks=[*bleach.linkifier.DEFAULT_CALLBACKS, _keep_explicit_urls],
+    )
+    sanitized = _restore_mermaid_blocks(sanitized, 'CODE_HTML', code_html)
     sanitized = _restore_mermaid_blocks(sanitized, 'MERMAID_HTML', mermaid_divs)
-    return _decorate_scoped_heading(sanitized, current_doc)
+    return _add_heading_ids(_decorate_scoped_heading(sanitized, current_doc))
+
+
+def _keep_explicit_urls(attrs, new=False):
+    """Linkify only URLs written with a scheme.
+
+    Bleach otherwise reads file names such as ``build.py`` or ``SourceStop.name``
+    as domains, because ``.py`` and ``.name`` are top-level domains.
+    """
+    if new and not attrs.get('_text', '').startswith(('http://', 'https://')):
+        return None
+    return attrs
+
+
+_SECTION_HEADING_PATTERN = re.compile(r'<h(?P<level>[2-6])>(?P<content>.*?)</h(?P=level)>', re.DOTALL)
+
+
+def _add_heading_ids(html: str) -> str:
+    """Give section headings stable ``id`` anchors (duplicates get ``-1``…)."""
+    seen: Dict[str, int] = {}
+
+    def replace(match: re.Match) -> str:
+        slug = heading_slug(match.group('content')) or 'section'
+        count = seen.get(slug, 0)
+        seen[slug] = count + 1
+        anchor = slug if count == 0 else f'{slug}-{count}'
+        level = match.group('level')
+        return f'<h{level} id="{anchor}">{match.group("content")}</h{level}>'
+
+    return _SECTION_HEADING_PATTERN.sub(replace, html)
 
 
 def _decorate_scoped_heading(html: str, current_doc: str) -> str:

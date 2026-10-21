@@ -20,7 +20,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from backend.services.docs_stats import load_stats_for_docs, replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html
+from backend.services.docs_stats import (
+    load_stats_for_docs, replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html,
+    heading_slug,
+)
 from backend.services.quality_report import replace_quality_placeholder
 
 
@@ -157,6 +160,11 @@ def _doc_anchor_map(doc_paths: list[Path]) -> dict[str, str]:
     }
 
 
+def _section_anchor(doc_anchor: str, fragment: str) -> str:
+    """Anchor of a heading inside one document of the combined PDF."""
+    return f'{doc_anchor}--{fragment}' if fragment else doc_anchor
+
+
 def _rewrite_internal_doc_links(
     content: str,
     anchor_map: dict[str, str],
@@ -167,6 +175,7 @@ def _rewrite_internal_doc_links(
     def replace(match: re.Match[str]) -> str:
         label = match.group(1)
         href = match.group(2)
+        fragment = href.split('#', 1)[1] if '#' in href else ''
         app_docs_prefix = (
             'https://github.com/openTdataCH/stop_sync_osm_atlas/'
             'blob/main/documentation/'
@@ -185,9 +194,26 @@ def _rewrite_internal_doc_links(
         anchor = anchor_map.get(str(target))
         if not anchor:
             return match.group(0)
-        return f'[{label}](#{anchor})'
+        return f'[{label}](#{_section_anchor(anchor, fragment)})'
 
     return pattern.sub(replace, content)
+
+
+def _rewrite_same_page_links(content: str, doc_anchor: str) -> str:
+    """Point ``[text](#section)`` at that document's heading in the bundle."""
+    return re.sub(
+        r'(?<!!)(\[[^\]]+\])\(#([^)\s]+)\)',
+        lambda match: f'{match.group(1)}(#{_section_anchor(doc_anchor, match.group(2))})',
+        content,
+    )
+
+
+def _logical_doc_path(current_doc: Path) -> str:
+    """Path of a source page in the portal's logical layout (engine/ nested)."""
+    resolved = current_doc.resolve()
+    if resolved.is_relative_to(ENGINE_ROOT.resolve()):
+        return f'engine/{resolved.relative_to(ENGINE_ROOT.resolve()).as_posix()}'
+    return resolved.relative_to(REPO_ROOT.resolve()).as_posix()
 
 
 def _rewrite_repo_links(content: str, current_doc: Path) -> str:
@@ -196,19 +222,32 @@ def _rewrite_repo_links(content: str, current_doc: Path) -> str:
         '.py', '.sql', '.sh', '.yml', '.yaml', '.json', '.toml', '.ini', '.cfg',
         '.js', '.ts', '.tsx', '.jsx', '.css', '.html', '.txt', '.xml'
     }
+    engine_base = os.getenv('DOCS_ENGINE_BLOB_BASE', '').strip()
+    if engine_base and not engine_base.endswith('/'):
+        engine_base += '/'
 
     def replace(match: re.Match[str]) -> str:
         label = match.group(1)
         href = match.group(2)
         if href.startswith(('http://', 'https://', '/', '#', 'mailto:')):
             return match.group(0)
-        if href.lower().endswith('.md') or '.md#' in href.lower():
-            return match.group(0)
         if href.startswith(('images/', 'diagrams/', 'documentation/')):
             return match.group(0)
+        # Links to served pages are already anchors. Any other link to a
+        # repository file becomes a public source link, or plain text when the
+        # file belongs to the (possibly private) engine repository.
 
         base = unquote(href.split('#', 1)[0].split('?', 1)[0])
-        candidate = (current_doc.parent / base).resolve()
+        logical = os.path.normpath(os.path.join(
+            os.path.dirname(_logical_doc_path(current_doc)), base,
+        )).replace(os.sep, '/')
+        if logical == 'engine' or logical.startswith('engine/'):
+            # Engine source lives in a separate, possibly private repository.
+            if not engine_base:
+                return label
+            return f'[{label}]({engine_base}{logical[len("engine/"):].replace(" ", "%20")})'
+
+        candidate = (REPO_ROOT / logical).resolve()
         try:
             normalized = candidate.relative_to(REPO_ROOT.resolve()).as_posix()
         except ValueError:
@@ -483,17 +522,22 @@ def _process_markdown_headers(content: str, filename: str) -> str:
     processed_lines = []
     first_heading_processed = False
     
+    in_fence = False
     for line in lines:
-        match = re.match(r'^(#+)\s+(.*)$', line)
+        if line.lstrip().startswith(('```', '~~~')):
+            in_fence = not in_fence
+        match = None if in_fence else re.match(r'^(#+)\s+(.*)$', line)
         if match:
             hashes = match.group(1)
             title = match.group(2)
-            
+
             if shift > 0:
                 hashes += '#' * shift
-            
+
             if not first_heading_processed:
-                if not title.startswith(prefix):
+                # Headings already carry their owner-scoped number ("E1.2 …",
+                # "A3 …"); only add the plain number when it is missing.
+                if not re.match(rf'[A-Z]?{re.escape(prefix)}(?![\d.])|[A-Z]?{re.escape(prefix)}\.', title):
                     title = f"{prefix} {title}"
                 first_heading_processed = True
                 
@@ -536,16 +580,27 @@ def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
             return f"<!--MERMAID_BLOCK_{len(mermaid_blocks)-1}-->"
 
         content = re.sub(r'```mermaid.*?```', save_mermaid, content, flags=re.DOTALL)
-        
+
+        # Code shows placeholders, links and paths literally; rewrite only prose.
+        literal_code = []
+
+        def save_code(match: re.Match[str]) -> str:
+            literal_code.append(match.group(0))
+            return f'{len(literal_code) - 1}'
+
+        content = re.sub(r'^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$', save_code, content,
+                         flags=re.DOTALL | re.MULTILINE)
+        content = re.sub(r'(?<!`)(`+)(?!`).+?(?<!`)\1(?!`)', save_code, content)
         content = replace_stats_placeholders(content, stats, html_escape=True)
         # A PDF has no application origin. Preserve evidence paths without
         # turning root-relative portal URLs into misleading file:// links.
         content = replace_quality_placeholder(content, REPO_ROOT, artifact_prefix=None)
+        if '[[canonical_palette]]' in content:
+            content = content.replace('[[canonical_palette]]', get_canonical_palette_html())
+        content = _rewrite_same_page_links(content, anchor_map[str(doc_path.resolve())])
         content = _rewrite_internal_doc_links(content, anchor_map, doc_path)
         content = _rewrite_repo_links(content, doc_path)
         content = convert_github_alerts_to_html(content)
-        if '[[canonical_palette]]' in content:
-            content = content.replace('[[canonical_palette]]', get_canonical_palette_html())
             
         def restore_mermaid(match: re.Match[str]) -> str:
             idx = int(match.group(1))
@@ -556,6 +611,7 @@ def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
         
         content = _rewrite_mermaid_blocks(content)
         content = _rewrite_markdown_asset_paths(content, doc_path.parent)
+        content = re.sub('(\\d+)', lambda match: literal_code[int(match.group(1))], content)
         content = _process_markdown_headers(content, doc_path.name)
         parts.append(content.strip())
         parts.append('')
@@ -565,6 +621,36 @@ def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
 
 def _protect_math(match: re.Match[str]) -> str:
     return match.group(0).replace('\\', '\\\\')
+
+
+def _add_section_heading_ids(body_html: str) -> str:
+    """Give headings ``<document anchor>--<GitHub slug>`` ids in the bundle.
+
+    Each source page starts with its ``doc-anchor`` marker; links rewritten by
+    ``_section_anchor`` point at these ids.
+    """
+    token = re.compile(
+        r'<div id="(?P<doc>doc-[^"]+)" class="doc-anchor"></div>'
+        r'|<h(?P<level>[1-6])>(?P<content>.*?)</h(?P=level)>',
+        re.DOTALL,
+    )
+    current = {'doc': None, 'seen': {}}
+
+    def replace(match: re.Match[str]) -> str:
+        if match.group('doc'):
+            current['doc'] = match.group('doc')
+            current['seen'] = {}
+            return match.group(0)
+        if current['doc'] is None:
+            return match.group(0)
+        slug = heading_slug(match.group('content')) or 'section'
+        count = current['seen'].get(slug, 0)
+        current['seen'][slug] = count + 1
+        anchor = _section_anchor(current['doc'], slug if count == 0 else f'{slug}-{count}')
+        level = match.group('level')
+        return f'<h{level} id="{anchor}">{match.group("content")}</h{level}>'
+
+    return token.sub(replace, body_html)
 
 
 def _build_pdf(included_sections: list[str] = None, include_cover: bool = True, output_path: Path = None) -> Path:
@@ -590,6 +676,7 @@ def _build_pdf(included_sections: list[str] = None, include_cover: bool = True, 
     
     md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table', 'url'])
     body_html = md(combined_md)
+    body_html = _add_section_heading_ids(body_html)
     body_html = _rewrite_svg_img_tags_in_html(body_html, source_dir=DOCS_DIR)
     
     # Wrap in standard HTML template

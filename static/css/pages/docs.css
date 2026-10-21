@@ -339,8 +339,18 @@
   border-color: var(--color-docs-shared-border);
 }
 
-.docs-content .card-body {
+/* Cap the card itself (not just its body) so it hugs the article, and
+   centre it with the prev/next links in the column on wide screens.
+   width: 100% is needed because auto margins stop the flex column
+   (.col-md-9) from stretching them. */
+.docs-content .docs-article-card,
+.docs-content .docs-nav {
+  width: 100%;
   max-width: 1100px;
+  margin-inline: auto;
+}
+
+.docs-content .card-body {
   padding: clamp(1.25rem, 2.5vw, 2.5rem);
 }
 
@@ -422,7 +432,8 @@
   display: block;
   max-width: 100%;
   height: auto;
-  margin: var(--space-4) auto;
+  /* Left-aligned so figures share the text's left edge. */
+  margin: var(--space-4) 0;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
 }
@@ -434,6 +445,16 @@
 
 .docs-content p:last-child {
   margin-bottom: 0;
+}
+
+/* Keep running text to about 110 characters per line (82ch measured with
+   the 16px system font). Diagrams (960px), tables and code keep the full
+   card width, so paragraphs that wrap an image are left uncapped. */
+#docs-content-html > p:not(:has(img)),
+#docs-content-html > ul,
+#docs-content-html > ol,
+#docs-content-html > .github-alert {
+  max-width: 82ch;
 }
 
 .docs-content pre {
@@ -988,6 +1009,14 @@
     top: calc(var(--navbar-height) + var(--space-4));
     height: calc(100vh - var(--navbar-height) - var(--space-8));
     overflow: hidden; /* prevents sidebar itself from scrolling, child #docs-sections will scroll */
+  }
+
+  /* The sidebar is capped at 320px, so col-md-3 + col-md-9 no longer add
+     up to the row width on large screens. Let the article column take
+     all the remaining space instead of Bootstrap's fixed 75%. */
+  .docs-container .docs-content {
+    flex: 1 1 0;
+    width: auto;
   }
 
   .mobile-sidebar-toggle,

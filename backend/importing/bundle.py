@@ -1,7 +1,7 @@
 """Read the public result contract without importing the matching engine.
 
 This implementation deliberately belongs to the consumer. The wire schema,
-documented in engine/RESULT_FORMAT.md, is the only shared dependency.
+documented in engine/documentation/Result bundle format.md, is the only shared dependency.
 """
 
 from __future__ import annotations
