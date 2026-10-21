@@ -53,7 +53,7 @@ Before building, verify that the sibling checkout has the configured origin, is 
 ./scripts/verify_engine_checkout.sh
 ```
 
-Git credentials are never passed into Docker and the private repository URL is not committed. The complete meaning of package versions, Git tags, SHA pins and schema versions is documented in [Dependencies and Builds](documentation/3.1%20Dependency%20Management%20&%20Build%20Strategy.md#engine-release-identity-and-deployment-pin).
+Git credentials are never passed into Docker and the private repository URL is not committed. The complete meaning of package versions, Git tags, SHA pins and schema versions is documented in [Dependencies and builds](documentation/3.1%20Dependency%20Management%20&%20Build%20Strategy.md#engine-release-identity-and-deployment-pin).
 
 ## Run the review app with example results
 
@@ -79,7 +79,7 @@ docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mo
 
 The scheduler invokes the independent `transport-matcher` executable, writes a complete result bundle, and asks the app importer to publish it. Daily runs use `PIPELINE_SCHEDULE_INTERVAL_HOURS` and `PIPELINE_TIMEZONE`.
 
-The scheduler owns only the next-run timestamp; the active runner owns execution status and phase history. Shared status updates are atomic, so scheduler startup or schedule refresh cannot overwrite an active manual run. The Data page polls this state and animates the pipeline phases from source checks through atomic dataset publication. Engine progress records provide live details; reused caches and mode-specific omissions appear as `Reused` or `Skipped`. See [Deployment Scheduling](documentation/3.3%20Background%20Scheduler.md) for the stage definitions, state-ownership, heartbeat-recovery and live-timeline contracts.
+The scheduler owns only the next-run timestamp; the active runner owns execution status and phase history. Shared status updates are atomic, so scheduler startup or schedule refresh cannot overwrite an active manual run. The Data page polls this state and animates the pipeline phases from source checks through atomic dataset publication. Engine progress records provide live details; reused caches and mode-specific omissions appear as `Reused` or `Skipped`. See [Background scheduler](documentation/3.3%20Background%20Scheduler.md) for the stage definitions, state-ownership, heartbeat-recovery and live-timeline contracts.
 
 The VS Code Docker tasks build their required images before starting services. A source bind mount does not update installed packages in an existing container. If an older scheduler reports `No such file or directory: transport-matcher`, rebuild and replace it:
 
@@ -113,19 +113,22 @@ Outside `make quality`, real publication tests require `TEST_POSTGRES_URI` point
 
 ## Contributing and documentation
 
-Start with [CONTRIBUTING.md](CONTRIBUTING.md). A predicate contribution can use a tiny offline fixture; a UI contribution can use the precomputed bundle. No national download is required to begin.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). A matching-rule contribution can use a tiny offline fixture; a UI contribution can use the precomputed bundle. No national download is required to begin.
 
 - [Documentation overview](documentation/0.%20Intro.md)
+- [Glossary](documentation/0.1%20Glossary.md)
 - [Engine documentation](../engine/documentation/1.%20Download%20and%20process%20data.md)
 - [Review application changelog](documentation/Changelog.md)
 - [Matching engine changelog](../engine/documentation/Changelog.md)
 - [Engine and app architecture](documentation/3.%20System%20Architecture.md)
+- [Result bundle format](../engine/documentation/Result%20bundle%20format.md)
 - [Bundle import and publication](documentation/1.1%20Import%20Process.md)
 - [Tests and CI](documentation/4.%20Test.md)
 - [Quality workflow and maintenance](quality/README.md)
 - [Contribution tutorials](documentation/Contributing.md)
+- [Documentation style guide](documentation/Documentation%20style%20guide.md)
 - [Related tools and collaboration](../engine/documentation/Related%20projects.md)
 
 Code remains AGPL-3.0-or-later. Source dataset attribution is recorded separately in result metadata.
 
-For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline Performance](../engine/documentation/5.2%20Pipeline%20Performance.md).
+For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline performance](../engine/documentation/5.2%20Pipeline%20Performance.md).
