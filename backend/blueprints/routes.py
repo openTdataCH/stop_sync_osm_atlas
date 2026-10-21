@@ -28,10 +28,10 @@ from backend.services.gtfs_stop_id_sloid import (
 )
 from backend.services.pipeline_status import get_status
 from backend.services.route_comparison import (
-    best_comparison_options,
     build_route_comparison,
     compare_stop_calls,
     list_comparison_options,
+    load_best_overlaps,
 )
 from backend.services.url_query import canonical_query_redirect
 
@@ -1106,9 +1106,9 @@ def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_call
         'osm_relation_id': _clean_text(osm_itinerary.source_itinerary_id) if osm_itinerary is not None else None,
         'atlas_itinerary_id': getattr(atlas_itinerary, 'id', None),
         'osm_itinerary_id': getattr(osm_itinerary, 'id', None),
-        'stop_comparison': compare_stop_calls(
-            atlas_calls, osm_calls, atlas_itinerary, osm_itinerary,
-        ) if is_matched else None,
+        # One-sided for an unmatched variant: its own stops, with no percentage.
+        'stop_comparison': compare_stop_calls(atlas_calls, osm_calls, atlas_itinerary, osm_itinerary),
+        'best_overlap': None,
         'atlas_uic_groups': _group_stops_by_uic(atlas_stops),
         'osm_uic_groups': _group_stops_by_uic(osm_stops),
         'has_atlas_variant': atlas_itinerary is not None,
@@ -1208,6 +1208,14 @@ def _build_route_rows(page_items):
     return route_rows
 
 
+def _attach_best_overlaps(route_rows):
+    """Give each unmatched variant its stored best overlap with the other source."""
+    groups = [group for row in route_rows for group in row['direction_groups'] if not group['is_matched']]
+    overlaps = load_best_overlaps({group['atlas_itinerary_id'] or group['osm_itinerary_id'] for group in groups})
+    for group in groups:
+        group['best_overlap'] = overlaps.get(group['atlas_itinerary_id'] or group['osm_itinerary_id'])
+
+
 @routes_bp.route('/routes')
 def routes_page():
     page = _bounded_int(request.args.get('page', 1), 1, minimum=1)
@@ -1265,6 +1273,7 @@ def routes_page():
         available_atlas_operators = _load_available_atlas_operators()
         available_osm_operators = _load_available_osm_route_operators()
         route_rows = _build_route_rows(page_items)
+        _attach_best_overlaps(route_rows)
     except Exception as exc:
         busy_response = _handle_route_database_error(exc)
         if busy_response is not None:
@@ -1428,35 +1437,19 @@ def routes_comparison_options_api():
         page = _comparison_integer('page', default=1)
         per_page = _comparison_integer('per_page', default=30, maximum=100)
         anchor_id = _comparison_integer('anchor_id')
+        shared_only = request.args.get('shared_only', '0')
+        if shared_only not in {'0', '1'} or (shared_only == '1' and fixed_id is None):
+            raise ValueError('Invalid shared filter')
     except (TypeError, ValueError):
         return jsonify({'error': 'Invalid comparison source, search, filter, page, or itinerary ID.'}), 400
 
     try:
         return jsonify(list_comparison_options(
             source, q=q, unmatched=unmatched == '1', page=page, per_page=per_page, anchor_id=anchor_id,
-            fixed_itinerary_id=fixed_id,
+            fixed_itinerary_id=fixed_id, shared_only=shared_only == '1',
         ))
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
-    except LookupError as exc:
-        return jsonify({'error': str(exc)}), 404
-    except Exception as exc:
-        return _comparison_database_error(exc)
-
-
-@routes_bp.route('/api/routes/comparison/best')
-def routes_comparison_best_api():
-    try:
-        raw_ids = request.args.getlist('itinerary_id')
-        if not raw_ids or len(raw_ids) > 100:
-            raise ValueError('Select between 1 and 100 itineraries.')
-        itinerary_ids = list(dict.fromkeys(int(value) for value in raw_ids))
-        if any(value < 1 or value > 2_147_483_647 for value in itinerary_ids):
-            raise ValueError('Invalid itinerary ID')
-    except (TypeError, ValueError):
-        return jsonify({'error': 'Select between 1 and 100 valid itinerary IDs.'}), 400
-    try:
-        return jsonify(best_comparison_options(itinerary_ids))
     except LookupError as exc:
         return jsonify({'error': str(exc)}), 404
     except Exception as exc:

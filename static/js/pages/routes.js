@@ -6,6 +6,8 @@
   var headerSummaryController = null;
   var routeMaps = new Map();
   var removeRouteMapListeners = [];
+  // Pixel padding keeps a variant large in a narrow map; pad() scales with the route.
+  var FIT_OPTIONS = { padding: [28, 28], maxZoom: 17 };
 
   function getMultiValueParams(params, paramName) {
     var values = [];
@@ -397,6 +399,35 @@
   }
 
 
+  // The page scrolls past a preview map; the wheel zooms it only after a click
+  // on the map, until the pointer leaves. A hint explains this on wheel.
+  function guardWheelZoom(map, mapElement) {
+    var shell = mapElement.closest('.route-card__map-shell');
+    var hintTimer = null;
+    if (!map.scrollWheelZoom) return function () {};
+    function enable() {
+      map.scrollWheelZoom.enable();
+      if (shell) shell.classList.remove('is-wheel-hint');
+    }
+    function disable() {
+      map.scrollWheelZoom.disable();
+    }
+    function hint() {
+      if (map.scrollWheelZoom.enabled() || !shell) return;
+      shell.classList.add('is-wheel-hint');
+      clearTimeout(hintTimer);
+      hintTimer = setTimeout(function () { shell.classList.remove('is-wheel-hint'); }, 1500);
+    }
+    mapElement.addEventListener('click', enable);
+    mapElement.addEventListener('mouseleave', disable);
+    mapElement.addEventListener('wheel', hint, { passive: true });
+    return function () {
+      clearTimeout(hintTimer);
+      mapElement.removeEventListener('click', enable);
+      mapElement.removeEventListener('mouseleave', disable);
+      mapElement.removeEventListener('wheel', hint);
+    };
+  }
 
   function createRouteMap(mapElement) {
     var defaultCenter = AppConstants.MAP.DEFAULT_CENTER;
@@ -417,7 +448,8 @@
         maxZoom: maxZoom,
         maxBounds: maxBounds,
         maxBoundsViscosity: 1.0,
-        zoomControl: true
+        zoomControl: true,
+        scrollWheelZoom: false
       },
       baseLayers: function () {
         var layers = window.MapShared.createBaseTileLayers();
@@ -429,7 +461,8 @@
       },
       layerGroups: {
         markers: true,
-        lines: true
+        lines: true,
+        highlight: true
       },
       controls: {
         layers: { position: 'bottomleft' }
@@ -443,6 +476,7 @@
       map: mapInstance,
       markersLayer: core.layers.markers,
       linesLayer: core.layers.lines,
+      highlightLayer: core.layers.highlight || null,
       loaded: false,
       loading: false,
       requestSequence: 0,
@@ -464,11 +498,34 @@
 
     mapState.markerMode = getMarkerMode(mapInstance.getZoom());
     mapInstance.on('zoomend', refreshMarkersAtZoomThreshold);
+    var removeWheelGuard = guardWheelZoom(mapInstance, mapElement);
+    // The map card follows the height of the stop list, e.g. when a fold opens.
+    var resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(function () { mapInstance.invalidateSize(); }) : null;
+    if (resizeObserver) resizeObserver.observe(mapElement);
     mapState.removeZoomListener = function () {
       mapInstance.off('zoomend', refreshMarkersAtZoomThreshold);
+      removeWheelGuard();
+      if (resizeObserver) resizeObserver.disconnect();
     };
 
     return mapState;
+  }
+
+  /** Ring the stops of a hovered comparison row; a click also zooms to them. */
+  function highlightStops(mapState, points, reveal) {
+    if (!mapState.highlightLayer) return;
+    mapState.highlightLayer.clearLayers();
+    (points || []).forEach(function (point) {
+      mapState.highlightLayer.addLayer(L.circleMarker(point, {
+        radius: 14, weight: 3, color: (AppConstants.COLORS || {}).GTFS_MATCHED || '#F0AD4E',
+        fill: false, interactive: false
+      }));
+    });
+    if (reveal && points && points.length) {
+      var center = L.latLngBounds(points).getCenter();
+      mapState.map.setView(center, Math.max(mapState.map.getZoom(), 16));
+    }
   }
 
   function parseRouteMapPayload(responseData) {
@@ -557,7 +614,7 @@
       max_lat: bounds.getNorth() + pad,
       min_lon: bounds.getWest() - pad,
       max_lon: bounds.getEast() + pad,
-      limit: 100
+      limit: 'all'
     };
     
     var query = buildQueryString(params);
@@ -595,10 +652,9 @@
     mapState.showContext = !mapState.showContext;
     
     if (mapState.showContext) {
-      btn.innerHTML = '<i class="fas fa-eye-slash"></i> Hide other markers';
-      btn.classList.add('btn-secondary');
-      btn.classList.remove('btn-outline-secondary');
-      
+      btn.innerHTML = '<i class="fas fa-eye-slash" aria-hidden="true"></i> Hide other markers';
+      btn.setAttribute('aria-pressed', 'true');
+
       if (mapState.source && mapState.source.type === 'variant') {
         var directionData = mapState.source.data;
         var points = [];
@@ -619,10 +675,8 @@
       }
       mapState.contextStops = [];
       setMapStatus(mapElement, '', false);
-      btn.innerHTML = '<i class="fas fa-eye"></i> See other markers';
-      btn.classList.remove('btn-secondary');
-      btn.classList.add('btn-outline-secondary');
-      
+      btn.innerHTML = '<i class="fas fa-eye" aria-hidden="true"></i> See other markers';
+      btn.setAttribute('aria-pressed', 'false');
       renderMapSnapshot(mapState);
     }
   }
@@ -703,7 +757,7 @@
             } else {
               setMapStatus(mapElement, '', false);
               var bounds = L.latLngBounds(points);
-              mapState.map.fitBounds(bounds.pad(0.2));
+              mapState.map.fitBounds(bounds, FIT_OPTIONS);
             }
             mapState.loaded = true;
         } catch (e) {
@@ -741,7 +795,7 @@
 
         setMapStatus(mapElement, '', false);
         var bounds = L.latLngBounds(points);
-        mapState.map.fitBounds(bounds.pad(0.2));
+        mapState.map.fitBounds(bounds, FIT_OPTIONS);
         mapState.loaded = true;
       })
       .catch(function (error) {
@@ -787,7 +841,7 @@
     mapState.map.invalidateSize();
 
     if (mapState.comparisonBounds) {
-      mapState.map.fitBounds(mapState.comparisonBounds);
+      mapState.map.fitBounds(mapState.comparisonBounds, FIT_OPTIONS);
       mapState.comparisonBounds = null;
     }
 
@@ -861,8 +915,8 @@
       var points = renderMapSnapshot(mapState);
       setMapStatus(mapElement, points.length ? '' : 'No geolocated stops in this comparison.', false);
       if (points.length) {
-        var bounds = L.latLngBounds(points).pad(0.2);
-        if (panel.open) mapState.map.fitBounds(bounds);
+        var bounds = L.latLngBounds(points);
+        if (panel.open) mapState.map.fitBounds(bounds, FIT_OPTIONS);
         else mapState.comparisonBounds = bounds;
         if (mapState.showContext) loadContextMarkers(mapElement, mapState, points);
       }
@@ -870,6 +924,26 @@
     document.addEventListener('routecomparisonchange', onComparisonChange);
     removeRouteMapListeners.push(function () {
       document.removeEventListener('routecomparisonchange', onComparisonChange);
+    });
+
+    function panelMapState(event) {
+      var panel = event.target.closest('.route-card__panel--map');
+      var mapElement = panel && panel.querySelector('.route-card__map');
+      return mapElement ? routeMaps.get(mapElement) : null;
+    }
+    function onComparisonHover(event) {
+      var mapState = panelMapState(event);
+      if (mapState) highlightStops(mapState, event.detail, false);
+    }
+    function onComparisonFocus(event) {
+      var mapState = panelMapState(event);
+      if (mapState) highlightStops(mapState, event.detail, true);
+    }
+    document.addEventListener('routecomparisonhover', onComparisonHover);
+    document.addEventListener('routecomparisonfocus', onComparisonFocus);
+    removeRouteMapListeners.push(function () {
+      document.removeEventListener('routecomparisonhover', onComparisonHover);
+      document.removeEventListener('routecomparisonfocus', onComparisonFocus);
     });
   }
 

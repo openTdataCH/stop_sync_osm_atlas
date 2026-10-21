@@ -239,3 +239,42 @@ def test_failed_secondary_index_keeps_previous_snapshot(postgres, monkeypatch):
     with postgres.connect() as connection:
         assert connection.execute(text('SELECT run_id FROM dataset_publication')).scalar() == manifest['run_id']
         assert not connection.execute(text("SELECT nspname FROM pg_namespace WHERE nspname LIKE 'import_%' OR nspname LIKE 'previous_%'")).all()
+
+
+def test_best_overlap_migration_and_rows_published_with_the_snapshot(postgres):
+    import importlib
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import inspect
+
+    migration = importlib.import_module('migrations.versions.20261017_000007_itinerary_best_overlaps')
+    with postgres.begin() as connection, Operations.context(MigrationContext.configure(connection)):
+        # The baseline already creates every model table, so this must be a no-op.
+        migration.upgrade()
+        migration.downgrade()
+        assert not inspect(connection).has_table('itinerary_best_overlaps')
+        migration.upgrade()
+        assert inspect(connection).has_table('itinerary_best_overlaps')
+
+    bundle = read_bundle(Path(__file__).resolve().parents[1] / 'tests/fixtures/result-v1')
+    calls = [(1, 1, '1'), (1, 2, '2'), (1, 3, '3'), (2, 1, '1'), (2, 2, '3')]
+    bundle['routes'] = [
+        {'kind': 'line_families', 'value': [{'id': 1, 'source': 'atlas', 'source_family_id': 'atlas-line'},
+                                            {'id': 2, 'source': 'osm', 'source_family_id': 'osm-line'}]},
+        {'kind': 'itineraries', 'value': [
+            {'id': 1, 'source': 'atlas', 'line_family_id': 1, 'source_itinerary_id': 'trip'},
+            {'id': 2, 'source': 'osm', 'line_family_id': 2, 'source_itinerary_id': '42'},
+        ]},
+        {'kind': 'stop_calls', 'value': [
+            {'id': index, 'itinerary_id': itinerary_id, 'stop_sequence': sequence, 'uic_ref': uic}
+            for index, (itinerary_id, sequence, uic) in enumerate(calls, 1)
+        ]},
+    ]
+    payload = build_fast_insert_payloads(*project_bundle(bundle))
+    publish_snapshot(postgres, payload, _write_rows, manifest=bundle['manifest'])
+
+    with postgres.connect() as connection:
+        rows = [tuple(row) for row in connection.execute(text(
+            'SELECT itinerary_id, best_itinerary_id, matched_stop_count, stop_ratio '
+            'FROM itinerary_best_overlaps ORDER BY itinerary_id'))]
+    assert rows == [(1, 2, 2, pytest.approx(2 / 3)), (2, 1, 2, pytest.approx(2 / 3))]

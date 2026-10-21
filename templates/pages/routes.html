@@ -1,7 +1,7 @@
 {% extends "layouts/base.html" %}
 
 {% from "components/_components.html" import stats_overlay with context %}
-{% from "components/routes-comparison.html" import aligned_stops, variant_comparison with context %}
+{% from "components/routes-comparison.html" import variant_comparison with context %}
 {% block title %}{% if active_view == 'non_gtfs_routes' %}Non-GTFS Routes{% elif active_view == 'gtfs_stop_id_sloid' %}GTFS stop_id and SLOID{% else %}Public Transport Routes{% endif %} | {{ review_config.title }}{% endblock %}
 {% block meta_description %}{% if active_view == 'non_gtfs_routes' %}Inspect OpenStreetMap public transport routes that are absent from the configured {{ review_config.source_label }} route dataset.{% elif active_view == 'gtfs_stop_id_sloid' %}Compare GTFS stop identifiers with Swiss ATLAS service location identifiers and inspect their map coverage.{% else %}Compare matched and unmatched public transport routes from OpenStreetMap and {{ review_config.source_label }}.{% endif %}{% endblock %}
 
@@ -294,7 +294,9 @@
         {% set direction_label = direction.direction_label %}
         {% set atlas_headsign = direction.atlas_headsign or (direction.representative_headsign if direction.has_atlas_variant else None) %}
         {% set osm_to_name = direction.osm_to_name %}
-        <details class="route-card__panel route-card__panel--map" aria-label="Stops list panel for variant">
+        <details class="route-card__panel route-card__panel--map" aria-label="Stops list panel for variant"
+                 {%- if direction.atlas_itinerary_id %} data-atlas-itinerary-id="{{ direction.atlas_itinerary_id }}"{% endif %}
+                 {%- if direction.osm_itinerary_id %} data-osm-itinerary-id="{{ direction.osm_itinerary_id }}"{% endif %}>
           <summary>
             <span class="route-card__panel-summary-main">
               <span class="route-card__panel-summary-prefix">Dir: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}</span>
@@ -323,108 +325,113 @@
               {% endif %}
             </span>
             <span class="route-card__panel-summary-badge">
-              {% if direction.stop_comparison and direction.stop_comparison.percentage is not none %}
+              {% if direction.is_matched and direction.stop_comparison and direction.stop_comparison.percentage is not none %}
               <span class="route-card__overlap">{{ direction.stop_comparison.percentage|round(1) }}% stop overlap</span>
               {% elif active_view == 'routes' and not direction.is_matched and (direction.atlas_itinerary_id or direction.osm_itinerary_id) %}
-              <span class="route-card__overlap route-card__overlap--suggested" data-best-overlap aria-live="polite">Finding highest overlap…</span>
+              {# Precomputed at import: itinerary_best_overlaps (see the Routes Pages documentation). #}
+              {% set best = direction.best_overlap %}
+              {% set other_label = 'OSM' if direction.has_atlas_variant else review_config.source_label %}
+              {% if best and best.candidate_label %}
+              <span class="route-card__overlap route-card__overlap--suggested" title="Best {{ other_label }} variant: {{ best.candidate_label }} ({{ best.matched_stop_count }} stop{{ '' if best.matched_stop_count == 1 else 's' }} shared in order)">Highest overlap: {{ best.percentage|round(1) }}%</span>
+              {% elif best %}
+              <span class="route-card__overlap route-card__overlap--none" title="No {{ other_label }} variant shares a stop with this one.">No shared stops</span>
+              {% else %}
+              <span class="route-card__overlap route-card__overlap--none" title="This dataset was imported before overlaps were stored. The next import computes them.">Overlap not computed</span>
+              {% endif %}
               {% endif %}
               <span class="route-card__badge route-card__badge--{{ direction.match_status }}">{{ direction.match_label }}</span>
             </span>
           </summary>
+          {% set map_index = route_index ~ '_' ~ loop.index %}
           <div class="route-card__panel-content">
-            <section class="direction-block">
-              {% if direction.stop_comparison %}
-              <div class="comparison-inline-summary">
-                <strong>{{ direction.stop_comparison.matched_stop_count }} shared stops in order</strong>
-                <span>{{ direction.stop_comparison.atlas_stop_count }} {{ review_config.source_label }} stops · {{ direction.stop_comparison.osm_stop_count }} OSM stops</span>
-                {% if direction.osm_relation_id %}
-                <a href="https://www.openstreetmap.org/relation/{{ direction.osm_relation_id }}" target="_blank" rel="noopener noreferrer">View itinerary relation {{ direction.osm_relation_id }} on OSM</a>
-                {% endif %}
-              </div>
-              {{ aligned_stops(direction.stop_comparison) }}
-              {% elif active_view == 'routes' and not direction.is_matched and (direction.atlas_itinerary_id or direction.osm_itinerary_id) %}
-              {{ variant_comparison(direction, route_index|string ~ '-' ~ loop.index|string) }}
+            <div class="variant-workspace{{ ' variant-workspace--with-map' if route.map_filter }}">
+              {% if active_view == 'routes' and (direction.is_matched or direction.atlas_itinerary_id or direction.osm_itinerary_id) %}
+              {{ variant_comparison(direction, map_index) }}
               {% else %}
-              <div class="direction-block__columns">
-                <div class="stops-column">
-                  <div class="stops-column-header">
-                    <h4>{{ review_config.source_label }} Stops</h4>
-                  </div>
-                  {% if direction.atlas_uic_groups %}
-                  <ol class="stops-list">
-                    {% for group in direction.atlas_uic_groups %}
-                    <li>
-                      <div class="stop-primary">
-                        <span class="stop-label">{{ group.stop_label or '-' }}</span>
-                        <span class="stop-uic">UIC: {{ group.uic_ref if group.uic_ref else '-' }}{% if group.member_count > 1 %} {{ group.member_count }} stops{% endif %}</span>
-                      </div>
-                      <ul class="stops-list stops-list--nested">
-                        {% for member in group.members %}
-                        <li><div class="stop-id stop-id--secondary">{{ review_config.source_id_label }}{{ 's' if member.stop_ids|length > 1 else '' }}: {{ member.stop_ids|join(', ') if member.stop_ids else (member.stop_id or '-') }}</div></li>
-                        {% endfor %}
-                      </ul>
-                    </li>
-                    {% endfor %}
-                  </ol>
-                  {% else %}
-                  <p class="stops-empty">No {{ review_config.source_label }} stops in this direction.</p>
-                  {% endif %}
-                </div>
-
-                <div class="stops-column">
-                  <div class="stops-column-header">
-                    <h4>OSM Stops</h4>
-                    {% if direction.osm_relation_id %}
-                    <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ direction.osm_relation_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View itinerary relation {{ direction.osm_relation_id }} on OSM</a>
+              <section class="direction-block">
+                <div class="direction-block__columns{{ ' direction-block__columns--single' if not (direction.has_atlas_variant and direction.has_osm_variant) }}">
+                  {% if direction.has_atlas_variant %}
+                  <div class="stops-column">
+                    <div class="stops-column-header">
+                      <h4>{{ review_config.source_label }} Stops</h4>
+                    </div>
+                    {% if direction.atlas_uic_groups %}
+                    <ol class="stops-list">
+                      {% for group in direction.atlas_uic_groups %}
+                      <li>
+                        <div class="stop-primary">
+                          <span class="stop-label">{{ group.stop_label or '-' }}</span>
+                          <span class="stop-uic">UIC: {{ group.uic_ref if group.uic_ref else '-' }}{% if group.member_count > 1 %} {{ group.member_count }} stops{% endif %}</span>
+                        </div>
+                        <ul class="stops-list stops-list--nested">
+                          {% for member in group.members %}
+                          <li><div class="stop-id stop-id--secondary">{{ review_config.source_id_label }}{{ 's' if member.stop_ids|length > 1 else '' }}: {{ member.stop_ids|join(', ') if member.stop_ids else (member.stop_id or '-') }}</div></li>
+                          {% endfor %}
+                        </ul>
+                      </li>
+                      {% endfor %}
+                    </ol>
+                    {% else %}
+                    <p class="stops-empty">No {{ review_config.source_label }} stops in this direction.</p>
                     {% endif %}
                   </div>
-                  {% if direction.osm_uic_groups %}
-                  <ol class="stops-list">
-                    {% for group in direction.osm_uic_groups %}
-                    <li>
-                      <div class="stop-primary">
-                        <span class="stop-label">{{ group.stop_label or '-' }}</span>
-                        <span class="stop-uic">UIC: {{ group.uic_ref if group.uic_ref else '-' }}{% if group.member_count > 1 %} {{ group.member_count }} nodes{% endif %}</span>
-                      </div>
-                      <ul class="stops-list stops-list--nested">
-                        {% for member in group.members %}
-                        <li><div class="stop-id stop-id--secondary">{{ 'Nodes' if member.stop_ids|length > 1 else 'Node' }}: {{ member.stop_ids|join(', ') if member.stop_ids else (member.stop_id or '-') }}</div></li>
-                        {% endfor %}
-                      </ul>
-                    </li>
-                    {% endfor %}
-                  </ol>
-                  {% else %}
-                  <p class="stops-empty">No OSM stops in this direction.</p>
+                  {% endif %}
+
+                  {% if direction.has_osm_variant %}
+                  <div class="stops-column">
+                    <div class="stops-column-header">
+                      <h4>OSM Stops</h4>
+                      {% if direction.osm_relation_id %}
+                      <a class="route-meta__link" href="https://www.openstreetmap.org/relation/{{ direction.osm_relation_id }}" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> View itinerary relation {{ direction.osm_relation_id }} on OSM</a>
+                      {% endif %}
+                    </div>
+                    {% if direction.osm_uic_groups %}
+                    <ol class="stops-list">
+                      {% for group in direction.osm_uic_groups %}
+                      <li>
+                        <div class="stop-primary">
+                          <span class="stop-label">{{ group.stop_label or '-' }}</span>
+                          <span class="stop-uic">UIC: {{ group.uic_ref if group.uic_ref else '-' }}{% if group.member_count > 1 %} {{ group.member_count }} nodes{% endif %}</span>
+                        </div>
+                        <ul class="stops-list stops-list--nested">
+                          {% for member in group.members %}
+                          <li><div class="stop-id stop-id--secondary">{{ 'Nodes' if member.stop_ids|length > 1 else 'Node' }}: {{ member.stop_ids|join(', ') if member.stop_ids else (member.stop_id or '-') }}</div></li>
+                          {% endfor %}
+                        </ul>
+                      </li>
+                      {% endfor %}
+                    </ol>
+                    {% else %}
+                    <p class="stops-empty">No OSM stops in this direction.</p>
+                    {% endif %}
+                  </div>
                   {% endif %}
                 </div>
-              </div>
+              </section>
               {% endif %}
-            </section>
-            
-            {% if route.map_filter %}
-            <div class="route-card__map-shell mt-4" style="position: relative;">
-              <button class="btn btn-sm btn-outline-secondary toggle-context-btn" 
-                      style="position: absolute; top: 10px; right: 10px; z-index: 1000; background: white;"
-                      data-map-index="{{ route_index }}_{{ loop.index }}">
-                <i class="fas fa-eye"></i> See other markers
-              </button>
-              <div
-                id="routeMap{{ route_index }}_{{ loop.index }}"
-                class="route-card__map"
-                data-station-filter="{{ route.map_filter.station_filter }}"
-                data-filter-types="{{ route.map_filter.filter_types }}"
-                data-route-directions="{{ direction.direction_id if direction.direction_id is not none else '' }}"
-                data-atlas-operators="{{ atlas_operator_query }}"
-                data-route-id="{{ route.primary_route_id }}"
-                data-map-index="{{ route_index }}_{{ loop.index }}"
-                style="height: 300px; border-radius: 8px;"
-              ></div>
-              <script type="application/json" class="variant-data" data-map-index="{{ route_index }}_{{ loop.index }}">
-                {{ direction | tojson | safe }}
-              </script>
+
+              {% if route.map_filter %}
+              <aside class="variant-map route-card__map-shell" aria-label="Map of the compared stops">
+                <button type="button" class="variant-map__context toggle-context-btn" data-map-index="{{ map_index }}" aria-pressed="false">
+                  <i class="fas fa-eye" aria-hidden="true"></i> See other markers
+                </button>
+                <div
+                  id="routeMap{{ map_index }}"
+                  class="route-card__map"
+                  data-station-filter="{{ route.map_filter.station_filter }}"
+                  data-filter-types="{{ route.map_filter.filter_types }}"
+                  data-route-directions="{{ direction.direction_id if direction.direction_id is not none else '' }}"
+                  data-atlas-operators="{{ atlas_operator_query }}"
+                  data-route-id="{{ route.primary_route_id }}"
+                  data-map-index="{{ map_index }}"
+                ></div>
+                <p class="variant-map__hint" aria-hidden="true">Click the map to zoom with the scroll wheel</p>
+              </aside>
+              {% endif %}
             </div>
-            {% endif %}
+            <script type="application/json" class="variant-data" id="variantData{{ map_index }}" data-map-index="{{ map_index }}">
+              {{ direction | tojson | safe }}
+            </script>
           </div>
         </details>
         {% endfor %}
@@ -624,10 +631,11 @@
 <script>
 window.routesPageConfig = JSON.parse(document.getElementById('routesPageConfig').textContent);
 </script>
-<script src="{{ url_for('static', filename='js/pages/routes.js') }}"></script>
 {% if active_view == 'routes' %}
+{# Before routes.js: a variant's stop rows render before its map measures the card. #}
 <script src="{{ url_for('static', filename='js/pages/routes-comparison.js') }}"></script>
 {% endif %}
+<script src="{{ url_for('static', filename='js/pages/routes.js') }}"></script>
 {% else %}
 <script type="application/json" id="routesGtfsStopIdSloidConfig">
 {

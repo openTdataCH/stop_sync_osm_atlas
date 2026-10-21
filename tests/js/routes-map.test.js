@@ -113,3 +113,62 @@ test('inline comparisons update only their own map and restore the fixed variant
     window.dispatchEvent(new Event('pagehide'));
     await new Promise(resolve => setTimeout(resolve, 0));
 });
+
+test('preview maps leave the wheel to the page until clicked and ring the stops of hovered rows', async () => {
+    const direction = { atlas_uic_groups: [{ members: [{ stop_id: 'fixed', lat: 47, lon: 8, stop_type: 'matched' }] }], osm_uic_groups: [] };
+    document.body.innerHTML = `
+        <details class="route-card__panel--map"><section class="variant-comparison"></section>
+          <aside class="route-card__map-shell"><div id="routeMap0" class="route-card__map" data-map-index="0"></div></aside>
+          <script class="variant-data" data-map-index="0" type="application/json">${JSON.stringify(direction)}</script>
+        </details>`;
+    window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null } };
+    require('./load-map-components')();
+    const layer = () => ({ markers: [], addLayer(value) { this.markers.push(value); }, clearLayers() { this.markers = []; } });
+    let wheelZoom = false;
+    const map = {
+        getZoom: () => 12, on: jest.fn(), off: jest.fn(), fitBounds: jest.fn(), invalidateSize: jest.fn(), setView: jest.fn(),
+        scrollWheelZoom: { enabled: () => wheelZoom, enable: jest.fn(() => { wheelZoom = true; }), disable: jest.fn(() => { wheelZoom = false; }) }
+    };
+    const layers = { markers: layer(), lines: layer(), highlight: layer() };
+    window.MapComponents.MapCore = { create: jest.fn(() => ({ map, layers, destroy: jest.fn() })) };
+    window.L = global.L = {
+        circleMarker: jest.fn((position, options) => ({ position, options })),
+        latLngBounds: jest.fn(points => ({ points, getCenter: () => points[0] }))
+    };
+    loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    const panel = document.querySelector('details');
+    panel.open = true;
+    panel.dispatchEvent(new Event('toggle'));
+
+    const options = window.MapComponents.MapCore.create.mock.calls[0][0];
+    expect(options.mapOptions.scrollWheelZoom).toBe(false);
+    expect(options.layerGroups.highlight).toBe(true);
+    expect(map.fitBounds).toHaveBeenCalledWith(expect.anything(), { padding: [28, 28], maxZoom: 17 });
+
+    const shell = document.querySelector('aside');
+    const mapElement = document.getElementById('routeMap0');
+    mapElement.dispatchEvent(new Event('wheel'));
+    expect(shell.classList).toContain('is-wheel-hint');
+    mapElement.click();
+    expect(map.scrollWheelZoom.enable).toHaveBeenCalled();
+    expect(shell.classList).not.toContain('is-wheel-hint');
+    mapElement.dispatchEvent(new Event('wheel'));
+    expect(shell.classList).not.toContain('is-wheel-hint');
+    mapElement.dispatchEvent(new Event('mouseleave'));
+    expect(wheelZoom).toBe(false);
+
+    const section = document.querySelector('section');
+    section.dispatchEvent(new CustomEvent('routecomparisonhover', { bubbles: true, detail: [[47.1, 8.1], [47.2, 8.2]] }));
+    expect(layers.highlight.markers.map(marker => [marker.position, marker.options.radius])).toEqual([[[47.1, 8.1], 14], [[47.2, 8.2], 14]]);
+    expect(map.setView).not.toHaveBeenCalled();
+    section.dispatchEvent(new CustomEvent('routecomparisonhover', { bubbles: true, detail: null }));
+    expect(layers.highlight.markers).toHaveLength(0);
+    section.dispatchEvent(new CustomEvent('routecomparisonfocus', { bubbles: true, detail: [[47.1, 8.1]] }));
+    expect(map.setView).toHaveBeenCalledWith([47.1, 8.1], 16);
+
+    window.dispatchEvent(new Event('pagehide'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    mapElement.dispatchEvent(new Event('wheel'));
+    expect(shell.classList).not.toContain('is-wheel-hint');
+});

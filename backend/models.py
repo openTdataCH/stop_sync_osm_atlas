@@ -411,3 +411,19 @@ class ItineraryMatch(db.Model):
     geometry_score = db.Column(db.Float)
     overall_score = db.Column(db.Float)
     match_reason = db.Column(db.String(255))
+
+
+class ItineraryBestOverlap(db.Model):
+    """Highest stop overlap with any itinerary of the other source.
+
+    A review aid computed by the importer, not a match decision. Every
+    comparable itinerary gets one row; a NULL ``best_itinerary_id`` means no
+    itinerary on the other side shares a single stop with it.
+    """
+    __tablename__ = 'itinerary_best_overlaps'
+
+    itinerary_id = db.Column(db.Integer, db.ForeignKey('itineraries.id', ondelete='CASCADE'), primary_key=True,
+                             autoincrement=False)
+    best_itinerary_id = db.Column(db.Integer, db.ForeignKey('itineraries.id', ondelete='CASCADE'))
+    matched_stop_count = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    stop_ratio = db.Column(db.Float)
