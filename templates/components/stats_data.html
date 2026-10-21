@@ -470,19 +470,19 @@ SECTION 1 — STOPS MATCHING
     <div class="row">
       <div class="col-md-6">
         <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(mto.atlas_to_multiple_osm.count) }}</div>
+          <div class="stat-card__value">{{ "{:,}".format(mto.source_to_multiple_osm.count) }}</div>
           <div class="stat-card__label">ATLAS platforms matched to multiple OSM stops</div>
-          {% if mto.atlas_to_multiple_osm.max_per_atlas > 0 %}
-          <small class="text-muted">Max: {{ mto.atlas_to_multiple_osm.max_per_atlas }} OSM stops per ATLAS</small>
+          {% if mto.source_to_multiple_osm.max_per_source > 0 %}
+          <small class="text-muted">Max: {{ mto.source_to_multiple_osm.max_per_source }} OSM stops per ATLAS</small>
           {% endif %}
         </div>
       </div>
       <div class="col-md-6">
         <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(mto.osm_to_multiple_atlas.count) }}</div>
+          <div class="stat-card__value">{{ "{:,}".format(mto.osm_to_multiple_source.count) }}</div>
           <div class="stat-card__label">OSM stops matched to multiple ATLAS platforms</div>
-          {% if mto.osm_to_multiple_atlas.max_per_osm > 0 %}
-          <small class="text-muted">Max: {{ mto.osm_to_multiple_atlas.max_per_osm }} ATLAS per OSM stop</small>
+          {% if mto.osm_to_multiple_source.max_per_osm > 0 %}
+          <small class="text-muted">Max: {{ mto.osm_to_multiple_source.max_per_osm }} ATLAS per OSM stop</small>
           {% endif %}
         </div>
       </div>
@@ -533,27 +533,27 @@ SECTION 1 — STOPS MATCHING
         <div class="comparison-panel__header">
           <div>
             <span class="comparison-panel__eyebrow">One ATLAS → many OSM</span>
-            <h6 id="atlasToOsmTitle">{{ "{:,}".format(mto.atlas_to_multiple_osm.count) }} ATLAS platforms</h6>
+            <h6 id="atlasToOsmTitle">{{ "{:,}".format(mto.source_to_multiple_osm.count) }} ATLAS platforms</h6>
           </div>
           <span class="comparison-panel__key">1A : nO</span>
         </div>
         <p class="comparison-panel__help"><strong>1A:2O</strong> means one ATLAS platform is linked to two OSM stops.</p>
-        {% set d1 = mto.atlas_to_multiple_osm.distribution if mto.atlas_to_multiple_osm.distribution is defined
+        {% set d1 = mto.source_to_multiple_osm.distribution if mto.source_to_multiple_osm.distribution is defined
         else [] %}
         {% if d1 %}
         {% set max_d1 = (d1|max(attribute='count')).count %}
         <div class="distribution-chart" role="img" aria-label="Distribution of one ATLAS platform to many OSM stops">
           {% for row in d1 %}
           <div class="distribution-chart__row">
-            <strong>{{ row.ratio }}</strong>
+            <strong>1A:{{ row.osm_count }}O</strong>
             <div class="distribution-chart__track"><span style="width: {{ (row.count / max_d1 * 100)|round(1) }}%"></span></div>
             <span>{{ "{:,}".format(row.count) }}</span>
-            <small>{{ "%.1f"|format(row.count / mto.atlas_to_multiple_osm.count * 100) }}%</small>
+            <small>{{ "%.1f"|format(row.count / mto.source_to_multiple_osm.count * 100) }}%</small>
           </div>
           {% endfor %}
         </div>
         {% else %}
-        {% if mto.atlas_to_multiple_osm.count > 0 %}
+        {% if mto.source_to_multiple_osm.count > 0 %}
         <p class="text-muted mb-0">Detailed ratio breakdown not available for this run.</p>
         {% else %}
         <p class="text-muted mb-0">No ATLAS platform is matched to more than one OSM stop.</p>
@@ -564,27 +564,27 @@ SECTION 1 — STOPS MATCHING
         <div class="comparison-panel__header">
           <div>
             <span class="comparison-panel__eyebrow">Many ATLAS → one OSM</span>
-            <h6 id="osmToAtlasTitle">{{ "{:,}".format(mto.osm_to_multiple_atlas.count) }} OSM stops</h6>
+            <h6 id="osmToAtlasTitle">{{ "{:,}".format(mto.osm_to_multiple_source.count) }} OSM stops</h6>
           </div>
           <span class="comparison-panel__key">nA : 1O</span>
         </div>
         <p class="comparison-panel__help"><strong>2A:1O</strong> means two ATLAS platforms are linked to one OSM stop.</p>
-        {% set d2 = mto.osm_to_multiple_atlas.distribution if mto.osm_to_multiple_atlas.distribution is defined
+        {% set d2 = mto.osm_to_multiple_source.distribution if mto.osm_to_multiple_source.distribution is defined
         else [] %}
         {% if d2 %}
         {% set max_d2 = (d2|max(attribute='count')).count %}
         <div class="distribution-chart" role="img" aria-label="Distribution of many ATLAS platforms to one OSM stop">
           {% for row in d2 %}
           <div class="distribution-chart__row">
-            <strong>{{ row.ratio }}</strong>
+            <strong>{{ row.source_count }}A:1O</strong>
             <div class="distribution-chart__track"><span style="width: {{ (row.count / max_d2 * 100)|round(1) }}%"></span></div>
             <span>{{ "{:,}".format(row.count) }}</span>
-            <small>{{ "%.1f"|format(row.count / mto.osm_to_multiple_atlas.count * 100) }}%</small>
+            <small>{{ "%.1f"|format(row.count / mto.osm_to_multiple_source.count * 100) }}%</small>
           </div>
           {% endfor %}
         </div>
         {% else %}
-        {% if mto.osm_to_multiple_atlas.count > 0 %}
+        {% if mto.osm_to_multiple_source.count > 0 %}
         <p class="text-muted mb-0">Detailed ratio breakdown not available for this run.</p>
         {% else %}
         <p class="text-muted mb-0">No OSM stop is matched to more than one ATLAS platform.</p>
@@ -1102,7 +1102,7 @@ SECTION 6 — ROUTES
     <table class="table table-sm table-hover">
       <tr>
         <td>ATLAS stops matched by GTFS routes</td>
-        <td class="text-end">{{ "{:,}".format(ga.atlas.touched_by_gtfs_routes|default(0)) }} / {{ "{:,}".format(ga.atlas.total|default(0)) }}</td>
+        <td class="text-end">{{ "{:,}".format(ga.atlas.resolved_by_gtfs|default(0)) }} / {{ "{:,}".format(ga.atlas.total|default(0)) }}</td>
         <td class="text-end">{{ ga.atlas.coverage_percent|default(0) }}%</td>
       </tr>
       <tr>
@@ -1428,7 +1428,7 @@ SECTION 6 — ROUTES
       </div>
       <div class="col-md-4 col-sm-6 mb-3">
         <div class="stat-card stat-card--sm stat-card--success">
-          <div class="stat-card__value">{{ "{:,}".format(ga.atlas.touched_by_gtfs_routes|default(0)) }}</div>
+          <div class="stat-card__value">{{ "{:,}".format(ga.atlas.resolved_by_gtfs|default(0)) }}</div>
           <div class="stat-card__label">ATLAS stops matched</div>
         </div>
       </div>

@@ -18,51 +18,67 @@ from kit import (
 
 def overview_big_picture() -> Diagram:
     d = Diagram(
-        960, 420,
+        960, 500,
         'How the project works',
-        'Public sources (ATLAS, GTFS, OpenStreetMap) flow into the matching engine, which writes a '
-        'versioned result bundle. The review application imports the bundle and shows it on a website. '
-        'The review application starts the engine on a schedule. Reviewers use the findings to fix '
-        'OpenStreetMap and report ATLAS issues.',
+        'Public sources enter the matching engine, a separate repository, through format adapters and a '
+        'dataset profile. Its source-neutral core matches stops, compares routes and detects problems, then '
+        'writes a versioned result bundle. The review application in this repository runs a pinned engine '
+        'release on a schedule, imports each bundle and shows it on a website; other sites and scripts can '
+        'use the same bundle. Reviewers use the findings to fix OpenStreetMap and report ATLAS issues.',
     )
 
-    d.add(zone(30, 112, 182, 214, EXTERNAL, 'Sources'))
+    d.add(zone(20, 104, 160, 262, EXTERNAL, 'Sources'))
     for index, (title, line) in enumerate((
         ('ATLAS', 'Swiss stop registry'),
-        ('GTFS', 'Swiss timetable'),
-        ('OpenStreetMap', 'via Overpass API'),
+        ('Swiss GTFS', 'timetable'),
+        ('Any GTFS feed', 'other datasets'),
+        ('OpenStreetMap', 'XML extract'),
     )):
-        d.add(box(44, 130 + index * 64, 154, 54, EXTERNAL, title, [line], title_size=14))
+        d.add(box(32, 122 + index * 60, 136, 50, EXTERNAL, title, [line], title_size=13.5, line_size=12, gap=3,
+                  pad=6))
 
-    d.add(box(256, 128, 190, 184, ENGINE, 'Matching engine', [
-        code('transport-matcher'), 'Python package and CLI',
-        'Matches stops, compares', 'routes, detects problems',
-    ]))
-    d.add(document(500, 150, 164, 140, CONTRACT, 'Result bundle', [
-        'Versioned files:', 'matches, unmatched,', 'problems, routes and', 'diagnostics',
-    ], align='center', line_size=12.5))
-    d.add(box(718, 128, 212, 184, APP, 'Review application', [
-        code('stop_sync_osm_atlas'), 'Flask, PostGIS, map UI',
-        'Imports each bundle and', 'publishes it as one', 'database snapshot',
-    ]))
+    d.add(zone(202, 104, 372, 262, ENGINE, 'Matching engine', 'separate repository'))
+    d.add(box(216, 128, 156, 128, ENGINE, 'Format adapters', [
+        'ATLAS · GTFS · OSM', 'parse files into', 'common records', '+ your own adapter',
+    ], title_size=14, line_size=12, gap=4, filled=False, pad=6))
+    d.add(box(216, 270, 156, 80, ENGINE, 'Dataset profiles', ['Swiss · generic', 'rules, thresholds'],
+              title_size=14, line_size=12, gap=4, filled=False, pad=6))
+    d.add(box(398, 128, 162, 222, ENGINE, 'Source-neutral core', [
+        'matches stops', 'compares routes', 'detects problems', '', 'no files, network', 'or database',
+    ], title_size=14, line_size=12.5, gap=5, pad=4))
+    for y in (147, 207, 267, 327):
+        d.add(arrow([(168, y), (190, y), (190, 192), (214, 192)], corner=8))
+    d.add(arrow([(372, 192), (396, 192)], color=ENGINE.stroke))
+    d.add(arrow([(372, 310), (396, 310)], color=ENGINE.stroke))
 
-    for y in (157, 221, 285):
-        d.add(arrow([(198, y), (226, y), (226, 220), (254, 220)], corner=8))
-    d.add(arrow([(446, 220), (498, 220)]))
-    d.add(text(472, 210, 'writes', size=12, color=MUTED, anchor='middle'))
-    d.add(arrow([(664, 220), (716, 220)]))
-    d.add(text(690, 210, 'imports', size=12, color=MUTED, anchor='middle'))
-    d.add(arrow([(824, 128), (824, 90), (351, 90), (351, 126)], kind='invoke', color=APP.stroke,
-                label='starts the engine on a schedule', label_at=(588, 90), label_tone=APP))
-    d.add(arrow([(824, 312), (824, 358), (121, 358), (121, 328)], kind='optional', color=INK,
-                label='reviewers fix OpenStreetMap and report ATLAS data issues', label_at=(472, 358)))
+    d.add(document(594, 174, 132, 126, CONTRACT, 'Result bundle', [
+        'versioned files', 'stops, routes,', 'problems',
+    ], align='center', title_size=13.5, line_size=11.5))
+    d.add(arrow([(560, 237), (592, 237)], color=CONTRACT.stroke))
 
-    legend_svg, _ = legend(258, 396, [
+    d.add(box(752, 112, 188, 52, EXTERNAL, 'Other sites', ['other datasets or countries'],
+              title_size=13.5, line_size=12, gap=3, dashed=True, filled=False))
+    d.add(box(752, 176, 188, 42, EXTERNAL, 'Scripts and research', [],
+              title_size=13.5, dashed=True, filled=False))
+    d.add(box(752, 238, 188, 120, APP, 'Review application', [
+        code('stop_sync_osm_atlas', size=12), 'this repository', 'Flask, PostGIS, map UI',
+        'imports each bundle',
+    ], title_size=14, line_size=12, gap=4, pad=6))
+    for y in (138, 197, 298):
+        d.add(arrow([(726, 237), (738, 237), (738, y), (750, y)], corner=5))
+
+    d.add(arrow([(800, 358), (800, 400), (479, 400), (479, 368)], kind='invoke', color=APP.stroke,
+                label='runs a pinned engine release on a schedule', label_at=(640, 400), label_tone=APP))
+    d.add(arrow([(900, 358), (900, 432), (100, 432), (100, 368)], kind='optional', color=INK,
+                label='reviewers fix OpenStreetMap and report ATLAS data issues', label_at=(318, 432)))
+
+    legend_svg, width = legend(32, 474, [
         ('flow', MUTED, 'data flow'),
         ('invoke', APP.stroke, 'starts or calls'),
         ('optional', INK, 'people act on the findings'),
     ])
     d.add(legend_svg)
+    d.add(note(32 + width + 28, 468, ['Dashed boxes: possible further uses of the bundle.'], size=12, color=MUTED))
     return d
 
 
@@ -146,7 +162,7 @@ def architecture_deployment() -> Diagram:
         'Deployment with Docker Compose',
         'Docker Compose runs the app, scheduler, db and one-shot migrator services. The app container serves '
         'the website on port 5001 and reads the database. The scheduler container runs the pipeline runner, '
-        'which starts the installed transport-matcher CLI as a subprocess, then imports the bundle in the same '
+        'which starts the installed public-transport-matcher CLI as a subprocess, then imports the bundle in the same '
         'process and switches the database snapshot. The db container runs PostgreSQL with PostGIS on the '
         'postgres_data volume; the migrator upgrades its schema before the other services start. The host '
         'folder ./data is mounted into every application container and holds the engine workspace, result '
@@ -171,11 +187,11 @@ def architecture_deployment() -> Diagram:
     d.add(box(592, 206, 320, 196, APP, 'scheduler', [code('target: scheduler-stage', size=12)], valign='top', gap=4))
     d.add(box(608, 260, 288, 44, APP, None, [code('python -m backend.jobs.service', size=12),
                                              'APScheduler and pipeline runner'], line_size=12, gap=3, pad=6))
-    d.add(box(606, 324, 144, 62, ENGINE, code('transport-matcher', size=11.5), ['CLI subprocess'],
+    d.add(box(606, 324, 200, 62, ENGINE, code('public-transport-matcher', size=11.5), ['CLI subprocess'],
               title_size=11.5, line_size=12, gap=4, pad=6))
-    d.add(box(758, 324, 138, 62, APP, 'Importer', ['same process'], title_size=13, line_size=12, gap=4, pad=6))
-    d.add(arrow([(678, 304), (678, 322)], kind='invoke', color=APP.stroke))
-    d.add(arrow([(827, 304), (827, 322)], kind='invoke', color=APP.stroke))
+    d.add(box(814, 324, 82, 62, APP, 'Importer', ['in-process'], title_size=13, line_size=12, gap=4, pad=4))
+    d.add(arrow([(706, 304), (706, 322)], kind='invoke', color=APP.stroke))
+    d.add(arrow([(855, 304), (855, 322)], kind='invoke', color=APP.stroke))
 
     d.add(store(48, 436, 864, 196, APP, code('./data', size=14), ['host folder, mounted at /app/data in every application container'],
                 valign='top', line_size=12.5))
@@ -573,7 +589,7 @@ def pipeline_phases_and_modes() -> Diagram:
         d.add(chevron(x, 100, width, 52, tone, lines, tip=tip, first=index == 0, size=11))
     engine_end = xs[5] + width - tip / 2
     d.add(divider(xs[0], 168, engine_end - 6, 168, color=ENGINE.stroke, dash=None, width=2))
-    d.add(text((xs[0] + engine_end) / 2, 186, 'engine: transport-matcher CLI', size=12, bold=True,
+    d.add(text((xs[0] + engine_end) / 2, 186, 'engine: public-transport-matcher CLI', size=12, bold=True,
                color=ENGINE.text, anchor='middle'))
     d.add(divider(xs[6] + 6, 168, xs[7] + width, 168, color=APP.stroke, dash=None, width=2))
     d.add(text((xs[6] + xs[7] + width) / 2, 186, 'application: importer', size=12, bold=True,

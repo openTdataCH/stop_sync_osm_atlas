@@ -58,7 +58,7 @@ def test_full_run_requires_postgis_and_app_engine_isolation(supported_checkout, 
         run_quality.preflight(True, supported_checkout, 'engine-python')
     monkeypatch.setenv('TEST_POSTGRES_URI', 'postgresql://test/transport_test')
     monkeypatch.setattr(run_quality.importlib.util, 'find_spec', lambda name: object())
-    with pytest.raises(RuntimeError, match='must not have transport_matcher installed'):
+    with pytest.raises(RuntimeError, match='must not have public_transport_matcher installed'):
         run_quality.preflight(True, supported_checkout, 'engine-python')
 
 

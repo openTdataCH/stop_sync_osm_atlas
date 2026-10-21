@@ -1,11 +1,64 @@
 """Project normalized wire records onto the review application's SQL model.
 
-Legacy ATLAS column names stay local to this consumer. Generic feeds use their
-namespaced keys; the Swiss deployment retains existing SLOID URLs.
+The bundle is source-neutral; the application's tables use the Swiss names of
+its first deployment (``atlas_*``, ``sloid``). Swiss ``atlas:<sloid>`` keys
+become plain SLOIDs, so stop URLs stay stable; other feeds keep their
+namespaced keys.
 """
 
 from types import SimpleNamespace as Record
 import json
+
+_SIDE = {"source": "atlas", "osm": "osm"}
+
+
+def _renamed(row, names):
+    return {names.get(key, key): value for key, value in row.items()}
+
+
+def _project_routes(routes, ids):
+    """Map the bundle's route records onto the application's route tables."""
+    def source_id(key):
+        return ids.get(key, key)
+
+    def stop_call(row):
+        values = _renamed(row, {
+            "source_stop_key": "source_sloid", "source_stop_key_variants": "source_sloid_variants",
+            "osm_node_id": "source_node_id", "station_ref": "uic_ref",
+        })
+        for field in ("source_sloid", "canonical_stop_key"):
+            if values.get(field):
+                values[field] = source_id(values[field])
+        variants = values.get("source_sloid_variants")
+        if variants:
+            keys = json.loads(variants) if isinstance(variants, str) else variants
+            values["source_sloid_variants"] = json.dumps([source_id(key) for key in keys])
+        return values
+
+    def family(row):
+        values = _renamed(row, {"key": "source_family_id"})
+        values["source"] = _SIDE[values.pop("side")]
+        values["atlas_line_id"] = row["key"] if row["side"] == "source" else None
+        return values
+
+    def itinerary(row):
+        values = _renamed(row, {"key": "source_itinerary_id"})
+        values["source"] = _SIDE[values.pop("side")]
+        return values
+
+    return {
+        "atlas_line_families": [_renamed(row, {"route_id": "atlas_line_id"}) for row in routes.get("source_routes", [])],
+        "osm_route_relations": routes.get("osm_route_relations", []),
+        "line_families": [family(row) for row in routes.get("line_families", [])],
+        "itineraries": [itinerary(row) for row in routes.get("itineraries", [])],
+        "stop_calls": [stop_call(row) for row in routes.get("stop_calls", [])],
+        "line_family_matches": [_renamed(row, {"source_line_family_id": "atlas_line_family_id"})
+                                for row in routes.get("line_family_matches", [])],
+        "itinerary_matches": [_renamed(row, {"source_itinerary_id": "atlas_itinerary_id"})
+                              for row in routes.get("itinerary_matches", [])],
+        "matched_routes": routes.get("matched_routes", 0),
+        "unknown_source_stop_references": routes.get("unknown_source_stop_references", 0),
+    }
 
 
 def project_bundle(bundle):
@@ -100,21 +153,7 @@ def project_bundle(bundle):
             if row.get("effectively_matched"):
                 effectively_matched.add(str(node.node_id))
     extensions = {row["kind"]: row["value"] for row in bundle["extensions"]}
-    routes = {row["kind"]: row["value"] for row in bundle["routes"]}
-    # Resolve exported source keys only in known source-reference fields.
-    for values in routes.values():
-        if isinstance(values, list):
-            for row in values:
-                if isinstance(row, dict):
-                    for field in ("resolved_sloid", "source_sloid", "canonical_stop_key"):
-                        if row.get(field) in ids:
-                            row[field] = ids[row[field]]
-                    for field in ("source_sloid_variants", "resolved_sloid_variants"):
-                        value = row.get(field)
-                        if value:
-                            variants = json.loads(value) if isinstance(value, str) else value
-                            mapped = [ids.get(key, key) for key in variants]
-                            row[field] = json.dumps(mapped) if isinstance(value, str) else mapped
+    routes = _project_routes({row["kind"]: row["value"] for row in bundle["routes"]}, ids)
     result = Record(
         matched=matches, unmatched_atlas=unmatched_source, unmatched_osm=unmatched_osm,
         duplicate_sloid_map=duplicates, osm_stop_units=units, all_osm_nodes=list(osm.values()),

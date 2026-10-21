@@ -24,7 +24,9 @@ def test_example_projects_complete_entities_problems_and_groups():
     assert result.matched[0].osm_node.node_id == '101'
     assert problems['unmatched_atlas_problem_map'][id(result.unmatched_atlas[0])]['problems']
     assert len(result.osm_stop_units) == 2
-    assert routes == {'route_write_payload': {}}
+    payload = routes['route_write_payload']
+    assert all(payload[name] == [] for name in ('atlas_line_families', 'line_families', 'itineraries', 'stop_calls'))
+    assert payload['matched_routes'] == 0
 
 
 @pytest.mark.parametrize('mutation, message', [
@@ -64,7 +66,7 @@ def test_consumer_has_no_engine_imports():
     for path in backend.rglob('*.py'):
         for node in ast.walk(ast.parse(path.read_text())):
             names = [node.module or ''] if isinstance(node, ast.ImportFrom) else [a.name for a in node.names] if isinstance(node, ast.Import) else []
-            assert all(not name.startswith(('transport_matcher', 'matching_and_import_db')) for name in names), path
+            assert all(not name.startswith(('public_transport_matcher', 'matching_and_import_db')) for name in names), path
 
 
 def test_consumer_reads_bundle_when_engine_import_is_forbidden():
@@ -72,7 +74,7 @@ def test_consumer_reads_bundle_when_engine_import_is_forbidden():
 import sys
 class BlockEngine:
     def find_spec(self, fullname, *args):
-        if fullname.startswith('transport_matcher'):
+        if fullname.startswith('public_transport_matcher'):
             raise ImportError('engine deliberately unavailable')
 sys.meta_path.insert(0, BlockEngine())
 from backend.importing.bundle import read_bundle

@@ -202,10 +202,10 @@ Use mocked HTTP responses, tiny local CSV/ZIP/XML/GeoJSON fixtures, and syntheti
 ## Relevant code and documentation
 
 - [Engine progress contract](../engine/documentation/5.3%20Pipeline%20Progress%20Contract.md)
-- [Engine progress catalog](../engine/src/transport_matcher/progress.py) and [timing/error emission](../engine/src/transport_matcher/timing.py)
-- [Swiss acquisition and cache checkpoints](../engine/src/transport_matcher/adapters/acquisition.py)
-- [Overpass acquisition](../engine/src/transport_matcher/acquisition/overpass.py)
-- [Source freshness probes](../engine/src/transport_matcher/adapters/source_freshness.py)
+- [Engine progress catalog](../engine/src/public_transport_matcher/progress.py) and [timing/error emission](../engine/src/public_transport_matcher/timing.py)
+- [Swiss acquisition and cache checkpoints](../engine/src/public_transport_matcher/adapters/acquisition.py)
+- [Overpass acquisition](../engine/src/public_transport_matcher/acquisition/overpass.py)
+- [Source freshness probes](../engine/src/public_transport_matcher/adapters/source_freshness.py)
 - [Application subprocess runner](../backend/jobs/job_runner.py)
 - [Application progress validation and state projection](../backend/services/pipeline_progress.py)
 - [Application run status](../backend/services/pipeline_status.py)

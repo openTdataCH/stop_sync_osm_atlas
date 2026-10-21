@@ -504,10 +504,10 @@ def build_fast_insert_payloads(
     with stage('import.itinerary_best_overlaps', itineraries=len(itinerary_dicts)):
         itinerary_best_overlap_dicts = compute_best_overlaps(line_family_dicts, itinerary_dicts, stop_call_dicts)
 
-    skipped_sloids = int(route_write_payload.get('skipped_sloids', 0) or 0)
+    unknown_stop_references = int(route_write_payload.get('unknown_source_stop_references', 0) or 0)
 
-    if skipped_sloids:
-        print(f"  Skipped {skipped_sloids} atlas itinerary stop calls with non-imported SLOIDs")
+    if unknown_stop_references:
+        print(f"  {unknown_stop_references} source stop calls reference stops outside this bundle")
 
     atlas_operator_dicts = sorted(
         atlas_operator_rows_by_abbr.values(),

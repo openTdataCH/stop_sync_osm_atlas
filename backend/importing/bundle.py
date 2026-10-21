@@ -69,28 +69,32 @@ def _validate_routes(routes, source_keys):
     itinerary_matches = _rows_by_id(routes.get('itinerary_matches', []), 'itinerary match')
     for row in itineraries.values():
         _require(row.get('line_family_id') in families, 'Itinerary references unknown route family')
+    for row in families.values():
+        _require(row.get('side') in ('source', 'osm'), 'Route family has an unknown side')
+    for row in itineraries.values():
+        _require(row.get('side') in ('source', 'osm'), 'Itinerary has an unknown side')
     for row in calls.values():
         _require(row.get('itinerary_id') in itineraries, 'Stop call references unknown itinerary')
-        source_key = row.get('source_sloid')
+        source_key = row.get('source_stop_key')
         _require(source_key is None or source_key in source_keys, 'Stop call references unknown source stop')
-        variants = row.get('source_sloid_variants') or []
+        variants = row.get('source_stop_key_variants') or []
         if isinstance(variants, str):
             try:
                 variants = json.loads(variants)
             except ValueError as exc:
                 raise InvalidBundle('Invalid source variants in stop call') from exc
         _require(isinstance(variants, list) and set(variants) <= source_keys, 'Stop call variants reference unknown source stop')
-        # Raw OSM members and unresolved GTFS keys can legitimately be outside
+        # Raw OSM members and unresolved timetable stops can legitimately be outside
         # the selected stop extract. Only resolved source references are FKs.
     for row in family_matches.values():
-        left, right = row.get('atlas_line_family_id'), row.get('osm_line_family_id')
+        left, right = row.get('source_line_family_id'), row.get('osm_line_family_id')
         _require(left in families and right in families, 'Route match references unknown family')
-        _require(families[left].get('source') in ('atlas', 'source') and families[right].get('source') == 'osm', 'Route match has incompatible sides')
+        _require(families[left]['side'] == 'source' and families[right]['side'] == 'osm', 'Route match has incompatible sides')
     for row in itinerary_matches.values():
         parent = family_matches.get(row.get('line_family_match_id'))
-        left, right = itineraries.get(row.get('atlas_itinerary_id')), itineraries.get(row.get('osm_itinerary_id'))
+        left, right = itineraries.get(row.get('source_itinerary_id')), itineraries.get(row.get('osm_itinerary_id'))
         _require(parent is not None and left is not None and right is not None, 'Itinerary match references unknown entities')
-        _require(left['line_family_id'] == parent['atlas_line_family_id'] and right['line_family_id'] == parent['osm_line_family_id'], 'Itinerary match belongs to another route family')
+        _require(left['line_family_id'] == parent['source_line_family_id'] and right['line_family_id'] == parent['osm_line_family_id'], 'Itinerary match belongs to another route family')
 
 
 def _validate_records(records):

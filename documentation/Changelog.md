@@ -12,6 +12,11 @@ the producer side.
 
 ## Unreleased
 
+### Result bundle
+
+- **Source-neutral route records** — The importer reads the engine 0.2.0 bundle: `source_routes`, a `side` and stable `key` on families and itineraries, `source_stop_key`, `osm_node_id` and `station_ref` on stop calls, `source_line_family_id` and `source_itinerary_id` on matches, and the `unknown_source_stop_references` counter. `projection.py` maps them onto the existing tables, so no migration is needed. The `quality_metrics` many-to-one block (`source_to_multiple_osm`, `osm_to_multiple_source`) and the GTFS coverage counter `atlas.resolved_by_gtfs` use the engine's new names. Import a new bundle after upgrading.
+- **Engine package renamed** — The engine is now the `public-transport-matcher` package and command. The default `MATCHER_COMMAND` follows; a deployment that sets `MATCHER_COMMAND=transport-matcher` in its `.env` must update it, together with `ENGINE_REF`.
+
 ### Operators
 
 - **Simpler operator cards** — Each card now stacks the ATLAS operator above a breakdown of its matched OSM stops by `operator` value: a stacked bar plus one row per value, including a "Not tagged" row, so the counts add up to the total. `operator:wikidata` uses the same rows. A status pill (Consistent, Partly tagged, N different values, Not tagged) summarises each operator. The connector arrows, nested boxes and repeated labels are gone, and "See on map" buttons are now compact "Map" links.

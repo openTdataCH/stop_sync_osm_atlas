@@ -149,10 +149,10 @@ def architecture(roots, ownership):
         if not path.endswith('.py'):
             continue
         for name, line in import_names(ast.parse((roots[repo] / path).read_text()), import_context(path)):
-            forbidden = repo == 'app' and name.split('.')[0] in {'transport_matcher', 'matching_and_import_db'}
+            forbidden = repo == 'app' and name.split('.')[0] in {'public_transport_matcher', 'matching_and_import_db'}
             forbidden |= repo == 'engine' and name.split('.')[0] in {'backend', 'flask', 'sqlalchemy', 'geoalchemy2'}
             forbidden |= owner == 'engine.core-matching' and any(name == prefix or name.startswith(prefix + '.') for prefix in (
-                'transport_matcher.acquisition', 'transport_matcher.adapters', 'transport_matcher.integrations', 'transport_matcher.profiles', 'transport_matcher.results',
+                'public_transport_matcher.acquisition', 'public_transport_matcher.adapters', 'public_transport_matcher.integrations', 'public_transport_matcher.profiles', 'public_transport_matcher.results',
             ))
             if forbidden:
                 violations.append({'module': owner, 'file': path, 'line': line, 'import': name})
@@ -224,7 +224,7 @@ def relative_report_path(name, root):
             return path.relative_to(root).as_posix()
         except ValueError:
             # CI checkout prefixes differ from the computer rendering the report.
-            for marker in ('/backend/', '/static/js/', '/src/transport_matcher/', '/tests/'):
+            for marker in ('/backend/', '/static/js/', '/src/public_transport_matcher/', '/tests/'):
                 if marker in name:
                     return marker[1:] + name.split(marker, 1)[1]
             return None
@@ -365,7 +365,7 @@ def mutation_evidence(path, engine_root):
         if not isinstance(data.get('source_path'), str) or not isinstance(data.get('tests_sha256'), dict) or not data['tests_sha256']:
             raise ValueError('Missing mutation source/test provenance')
         scope = data.get('scope')
-        if not isinstance(scope, str) or not scope.startswith('transport_matcher.results.validation.'):
+        if not isinstance(scope, str) or not scope.startswith('public_transport_matcher.results.validation.'):
             raise ValueError('Mutation evidence belongs to another module')
         expected = {data['source_path']: data.get('source_sha256'), **data['tests_sha256']}
         if len(expected) != 1 + len(data['tests_sha256']) or any(not isinstance(name, str) or not name or not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest) for name, digest in expected.items()):

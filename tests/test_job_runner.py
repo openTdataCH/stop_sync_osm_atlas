@@ -38,7 +38,7 @@ def test_missing_engine_explains_how_to_rebuild_scheduler(monkeypatch):
 
     monkeypatch.setattr(job_runner.subprocess, 'Popen', missing_executable)
     with pytest.raises(RuntimeError, match='docker compose build scheduler') as error:
-        job_runner._run_subprocess(['transport-matcher', 'swiss'], 'matching', 'Matching')
+        job_runner._run_subprocess(['public-transport-matcher', 'swiss'], 'matching', 'Matching')
     assert '--force-recreate scheduler' in str(error.value)
     assert 'MATCHER_COMMAND' in str(error.value)
 

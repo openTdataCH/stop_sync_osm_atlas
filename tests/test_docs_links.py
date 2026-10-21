@@ -245,7 +245,7 @@ def test_docs_portal_labels_engine_and_application_boundaries():
             node.get_text(' ', strip=True)
             for node in soup.select('.docs-owner-badge--engine')
         }
-        assert engine_badges == {'Engine v0.1.1'}
+        assert engine_badges == {'Engine v0.2.0'}
 
         app_badges = {
             node.get_text(' ', strip=True)
@@ -321,7 +321,7 @@ def test_docs_portal_uses_project_scoped_section_numbers():
 
         for href, expected, owner_class, expanded_label in (
             ('/docs/download_and_process_data', 'E.1 Input integrations & acquisition', 'docs-nav-owner--engine', 'E'),
-            ('/docs/atlas_cached_import_optimization', 'E.5.1 Source snapshot caching', 'docs-nav-owner--engine', 'E'),
+            ('/docs/source_snapshot_caching', 'E.5.1 Source snapshot caching', 'docs-nav-owner--engine', 'E'),
             ('/docs/pipeline_tests', 'E.6 Engine tests', 'docs-nav-owner--engine', 'E'),
             ('/docs/database', 'A.1 Database & bundle import', 'docs-nav-owner--app', 'A'),
             ('/docs/frontend_asset_management', 'A.3.4 Frontend asset management', 'docs-nav-owner--app', 'A'),

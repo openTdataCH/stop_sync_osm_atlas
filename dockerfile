@@ -63,7 +63,7 @@ FROM app-stage AS scheduler-stage
 USER root
 COPY requirements-scheduler.txt ./
 RUN pip install --no-cache-dir -r requirements-scheduler.txt
-COPY --from=engine / /opt/transport-matcher
-RUN pip install --no-cache-dir '/opt/transport-matcher[swiss,acquisition]' \
-    && transport-matcher --help > /dev/null
+COPY --from=engine / /opt/public-transport-matcher
+RUN pip install --no-cache-dir '/opt/public-transport-matcher[swiss,acquisition]' \
+    && public-transport-matcher --help > /dev/null
 USER app

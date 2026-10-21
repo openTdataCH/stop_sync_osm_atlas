@@ -50,9 +50,9 @@ def preflight(full: bool, engine: Path, engine_python: str) -> None:
     if full:
         if not os.getenv("TEST_POSTGRES_URI"):
             raise RuntimeError("Full quality requires a disposable TEST_POSTGRES_URI; make quality provisions it.")
-        if importlib.util.find_spec("transport_matcher") is not None:
-            raise RuntimeError("The app quality interpreter must not have transport_matcher installed.")
-        subprocess.run([engine_python, "-c", "import transport_matcher; import pytest"], check=True)
+        if importlib.util.find_spec("public_transport_matcher") is not None:
+            raise RuntimeError("The app quality interpreter must not have public_transport_matcher installed.")
+        subprocess.run([engine_python, "-c", "import public_transport_matcher; import pytest"], check=True)
     # Source is bind-mounted in Docker; reject stale images after dependency edits.
     from packaging.requirements import Requirement
 
