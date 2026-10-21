@@ -85,6 +85,7 @@
 			"description": "Choose a documentation action",
 			"options": [
 				{ "label": "Build PDF", "value": "docs-pdf" },
+				{ "label": "Regenerate SVG diagrams", "value": "docs-diagrams" },
 				{ "label": "Generate ER diagram", "value": "docs-er-diagram" }
 			]
 		},

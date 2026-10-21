@@ -263,7 +263,7 @@ def test_docs_portal_labels_engine_and_application_boundaries():
 
         article_heading = soup.select_one('#docs-content-html > h1')
         assert article_heading is not None
-        assert article_heading.get_text(' ', strip=True).endswith('2.1 Exact Matching')
+        assert article_heading.get_text(' ', strip=True).endswith('2.1 Exact matching')
 
         pills = soup.select('#docs-owner-pill')
         assert len(pills) == 1
@@ -321,12 +321,12 @@ def test_docs_portal_uses_project_scoped_section_numbers():
 
         for href, expected, owner_class, expanded_label in (
             ('/docs/download_and_process_data', 'E.1 Input integrations & acquisition', 'docs-nav-owner--engine', 'E'),
-            ('/docs/atlas_cached_import_optimization', 'E.5.1 Atlas-Cached Import Optimization', 'docs-nav-owner--engine', 'E'),
+            ('/docs/atlas_cached_import_optimization', 'E.5.1 Source snapshot caching', 'docs-nav-owner--engine', 'E'),
             ('/docs/pipeline_tests', 'E.6 Engine tests', 'docs-nav-owner--engine', 'E'),
             ('/docs/database', 'A.1 Database & bundle import', 'docs-nav-owner--app', 'A'),
-            ('/docs/frontend_asset_management', 'A.3.4 Frontend Asset Management', 'docs-nav-owner--app', 'A'),
+            ('/docs/frontend_asset_management', 'A.3.4 Frontend asset management', 'docs-nav-owner--app', 'A'),
             ('/docs/test', 'A.4 Web app tests', 'docs-nav-owner--app', 'A'),
-            ('/docs/backend_tests', 'A.4.1 Backend Tests', 'docs-nav-owner--app', 'A'),
+            ('/docs/backend_tests', 'A.4.1 Backend tests', 'docs-nav-owner--app', 'A'),
         ):
             label, owner = scoped_nav_label(href)
             assert label == expected
@@ -347,7 +347,7 @@ def test_docs_portal_uses_project_scoped_section_numbers():
         assert web_tests_heading is not None
         assert web_tests_heading.select_one('.docs-heading-owner-label').get('aria-label') == 'App'
         assert web_tests_heading.select_one('.docs-heading-number').get_text(strip=True) == '4'
-        assert 'Web App Tests' in web_tests_heading.get_text(' ', strip=True)
+        assert 'Web app tests' in web_tests_heading.get_text(' ', strip=True)
 
         contributing_response = client.get('/docs/contributing')
         assert contributing_response.status_code == 200
@@ -368,7 +368,7 @@ def test_app_and_engine_changelogs_have_distinct_canonical_routes():
         app_soup = BeautifulSoup(app_response.data.decode('utf-8'), 'html.parser')
         assert app_soup.select_one('#docs-owner-pill').get_text(strip=True) == 'App'
         assert not app_soup.select_one('#docs-owner-pill').has_attr('hidden')
-        assert app_soup.select_one('h1').get_text(strip=True) == 'Review Application Changelog'
+        assert app_soup.select_one('h1').get_text(strip=True) == 'Review application changelog'
         assert app_soup.find('a', href='/docs/engine_changelog') is not None
 
         engine_response = client.get('/docs/engine_changelog')
@@ -376,7 +376,7 @@ def test_app_and_engine_changelogs_have_distinct_canonical_routes():
         engine_soup = BeautifulSoup(engine_response.data.decode('utf-8'), 'html.parser')
         assert engine_soup.select_one('#docs-owner-pill').get_text(strip=True) == 'Engine'
         assert not engine_soup.select_one('#docs-owner-pill').has_attr('hidden')
-        assert engine_soup.select_one('h1').get_text(strip=True) == 'Matching Engine Changelog'
+        assert engine_soup.select_one('h1').get_text(strip=True) == 'Matching engine changelog'
         assert engine_soup.find('a', href='/docs/changelog') is not None
 
 
@@ -457,8 +457,8 @@ def test_auto_linking_of_repo_files():
         repo_scanner_link = next((a for a in github_links if a['href'].endswith('/backend/services/repo_scanner.py')), None)
         assert repo_scanner_link is not None, "repo_scanner.py was not automatically linked"
 
-        # 2. Check Mermaid diagram links
-        response = client.get('/docs/download_and_process_data')
+        # 2. Mermaid nodes named after files must not receive Markdown links
+        response = client.get('/docs/osm_data')
         assert response.status_code == 200
         html = response.data.decode('utf-8')
         soup = BeautifulSoup(html, 'html.parser')

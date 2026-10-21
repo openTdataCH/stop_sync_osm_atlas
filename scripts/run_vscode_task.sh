@@ -59,6 +59,7 @@ case "$action" in
     docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// test python -m pytest tests/test_result_bundle.py -v
     ;;
   docs-pdf) npm run docs:build-pdf ;;
+  docs-diagrams) npm run docs:diagrams ;;
   docs-er-diagram) docker exec stop_sync_osm_atlas_app python3 documentation/print_er_diagram/generate_er.py ;;
   sync-vendor-libraries) npm run vendor:sync ;;
   *)

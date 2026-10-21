@@ -10,10 +10,11 @@ CODE_EXTENSIONS = {
     '.js', '.ts', '.tsx', '.jsx', '.css', '.html',
 }
 
-# Directories to ignore during scanning
+# Directories to ignore during scanning. Code below documentation/ (the PDF
+# generator and the diagram kit) is indexed; generated output is not.
 IGNORE_DIRS = {
-    '.git', 'node_modules', 'venv', '.venv', '__pycache__', 
-    'htmlcov', '.pytest_cache', 'documentation', 'data', 'coverage', '.gemini',
+    '.git', 'node_modules', 'venv', '.venv', '__pycache__',
+    'htmlcov', '.pytest_cache', 'generated', 'data', 'coverage', '.gemini',
     'vendor', 'dist', 'build'
 }
 

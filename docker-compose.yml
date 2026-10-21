@@ -64,6 +64,8 @@ services:
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}
       STATE_BACKEND: file
       STATE_DIR: ${STATE_DIR:-data/runtime}
+      # Public base URL for engine source links in the docs; unset = plain text.
+      DOCS_ENGINE_BLOB_BASE: ${DOCS_ENGINE_BLOB_BASE:-}
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 2g # Web app stays lighter, pipeline runs in scheduler service
     # mem_reservation: 1g # Optional: guarantee 1g
