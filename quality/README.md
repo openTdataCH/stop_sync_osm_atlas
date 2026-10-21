@@ -90,7 +90,7 @@ pytest, or treating those packages as optional quality extras, is insufficient.
 runner. See [dependency management](../documentation/3.1%20Dependency%20Management%20%26%20Build%20Strategy.md)
 for the app's dependency groups.
 
-Do not install `transport-matcher` into the app interpreter. Full verification
+Do not install `public-transport-matcher` into the app interpreter. Full verification
 checks this boundary explicitly. To run the full command natively, create a
 separate engine environment and supply a database dedicated to tests:
 
@@ -435,7 +435,7 @@ catalog declarations, not proof that every test executes every owned symbol.
 |---|---|
 | Unsupported Python/Node or missing package | Use the supported versions and all requirement files, or rebuild/run the container |
 | Engine catalog missing | Set `ENGINE_ROOT`/`--engine-root` to a quality-enabled checkout and update CI's pinned `ENGINE_REF` |
-| App interpreter contains `transport_matcher` | Recreate an isolated app environment; use `ENGINE_PYTHON` for engine tests |
+| App interpreter contains `public_transport_matcher` | Recreate an isolated app environment; use `ENGINE_PYTHON` for engine tests |
 | PostGIS test missing/skipped | Use `make quality` or provide a dedicated `TEST_POSTGRES_URI`; SQLite does not establish publication safety |
 | Coverage all zero or missing JS files | Use `load-browser-script`, keep production roots included in Jest, and run the coverage sanity command |
 | Unexpected console/error or leaked timer | Fix the cause or lifecycle cleanup; assert expected errors only within their test, as shown in the JS guide |

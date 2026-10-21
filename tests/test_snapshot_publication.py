@@ -156,16 +156,15 @@ def test_long_source_identifiers_survive_migration_and_atomic_import_with_foreig
     bundle['groups'].append({'side': 'source', 'key': source_key, 'kind': 'duplicate',
                              'members': [source_key, 'demo:b']})
     route_payload = {
-        'atlas_line_families': [{'atlas_line_id': route_id, 'route_id_normalized': route_id, 'agency_id': agency_id}],
-        'line_families': [{'id': 1, 'source': 'atlas', 'source_family_id': route_id,
-                           'atlas_line_id': route_id, 'gtfs_route_id': route_id,
+        'source_routes': [{'route_id': route_id, 'route_id_normalized': route_id, 'agency_id': agency_id}],
+        'line_families': [{'id': 1, 'side': 'source', 'key': route_id, 'gtfs_route_id': route_id,
                            'display_route_id': route_id, 'normalized_route_id': route_id,
                            'public_name': route_id, 'operator': agency_id}],
-        'itineraries': [{'id': 1, 'source': 'atlas', 'line_family_id': 1,
-                        'source_itinerary_id': route_id + '/trip', 'display_name': route_id + '/trip'}],
+        'itineraries': [{'id': 1, 'side': 'source', 'line_family_id': 1,
+                        'key': route_id + '/trip', 'display_name': route_id + '/trip'}],
         'stop_calls': [{'id': 1, 'itinerary_id': 1, 'stop_sequence': 1, 'source_stop_id': raw_stop_id,
-                        'source_sloid': source_key, 'canonical_stop_key': source_key, 'uic_ref': station_ref,
-                        'source_sloid_variants': json.dumps([source_key]), 'stop_label': raw_stop_id}],
+                        'source_stop_key': source_key, 'canonical_stop_key': source_key, 'station_ref': station_ref,
+                        'source_stop_key_variants': json.dumps([source_key]), 'stop_label': raw_stop_id}],
     }
     bundle['routes'] = [{'kind': kind, 'value': value} for kind, value in route_payload.items()]
     bundle['extensions'].extend([
@@ -259,14 +258,14 @@ def test_best_overlap_migration_and_rows_published_with_the_snapshot(postgres):
     bundle = read_bundle(Path(__file__).resolve().parents[1] / 'tests/fixtures/result-v1')
     calls = [(1, 1, '1'), (1, 2, '2'), (1, 3, '3'), (2, 1, '1'), (2, 2, '3')]
     bundle['routes'] = [
-        {'kind': 'line_families', 'value': [{'id': 1, 'source': 'atlas', 'source_family_id': 'atlas-line'},
-                                            {'id': 2, 'source': 'osm', 'source_family_id': 'osm-line'}]},
+        {'kind': 'line_families', 'value': [{'id': 1, 'side': 'source', 'key': 'source-line'},
+                                            {'id': 2, 'side': 'osm', 'key': 'osm-line'}]},
         {'kind': 'itineraries', 'value': [
-            {'id': 1, 'source': 'atlas', 'line_family_id': 1, 'source_itinerary_id': 'trip'},
-            {'id': 2, 'source': 'osm', 'line_family_id': 2, 'source_itinerary_id': '42'},
+            {'id': 1, 'side': 'source', 'line_family_id': 1, 'key': 'trip'},
+            {'id': 2, 'side': 'osm', 'line_family_id': 2, 'key': '42'},
         ]},
         {'kind': 'stop_calls', 'value': [
-            {'id': index, 'itinerary_id': itinerary_id, 'stop_sequence': sequence, 'uic_ref': uic}
+            {'id': index, 'itinerary_id': itinerary_id, 'stop_sequence': sequence, 'station_ref': uic}
             for index, (itinerary_id, sequence, uic) in enumerate(calls, 1)
         ]},
     ]

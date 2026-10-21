@@ -58,7 +58,7 @@ def _load_gtfs_atlas_stats(total_atlas_platforms: int | None = None) -> Optional
 
     if total_atlas_platforms and stats.get('atlas', {}).get('total') in (None, 0):
         stats.setdefault('atlas', {})['total'] = total_atlas_platforms
-        touched = int(stats['atlas'].get('touched_by_gtfs_routes') or 0)
+        touched = int(stats['atlas'].get('resolved_by_gtfs') or 0)
         stats['atlas']['coverage_percent'] = round((touched / total_atlas_platforms) * 100, 1) if total_atlas_platforms > 0 else 0.0
 
     return stats

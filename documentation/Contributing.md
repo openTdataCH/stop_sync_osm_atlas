@@ -5,7 +5,7 @@ Work on the smallest part your change needs: the matching engine can be improved
 | Contribution | Start here | Verify |
 |---|---|---|
 | A matching rule or [dataset profile](../engine/documentation/2.%20Matching%20process.md#dataset-profiles) | The engine's contributor guide, `CONTRIBUTING.md` in the engine repository | Engine offline tests |
-| GTFS, ATLAS or OSM parsing | `src/transport_matcher/adapters/` in the engine repository | Adapter fixtures and regression tests |
+| GTFS, ATLAS or OSM parsing | `src/public_transport_matcher/adapters/` in the engine repository | Adapter fixtures and regression tests |
 | A map component | `static/js/components/` and the page adapters | Jest tests; all map pages share the same entity model |
 | Import, API or reports | `backend/` | Application tests, and the PostGIS publication tests when publication is affected |
 | A reproducible bad match | Report the source and OSM IDs, the expected result and a minimal public example | Add it as a small engine fixture |

@@ -179,7 +179,7 @@ def _record_data_updated_timestamp(
 
 
 def _engine_command(mode, destination):
-    command = shlex.split(os.getenv('MATCHER_COMMAND', 'transport-matcher'))
+    command = shlex.split(os.getenv('MATCHER_COMMAND', 'public-transport-matcher'))
     if not command:
         raise ValueError('MATCHER_COMMAND cannot be empty')
     workspace = Path(os.getenv('PIPELINE_WORKSPACE', '.')).resolve()

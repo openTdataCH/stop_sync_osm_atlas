@@ -6,7 +6,7 @@ This repository is the review application. It is developed beside an independent
 
 | Project | Purpose | Start here |
 |---|---|---|
-| Sibling `engine/` — `transport-matcher` | Producer package: source-neutral core, curated input integrations, profiles and result-bundle production. | Engine repository README |
+| Sibling `engine/` — `public-transport-matcher` | Producer package: source-neutral core, curated input integrations, profiles and result-bundle production. | Engine repository README |
 | Review application — repository root | Flask API, PostGIS importer, map, problems, routes and reports. Reads versioned bundles without installing the engine. | Instructions below |
 
 ```mermaid
@@ -30,7 +30,7 @@ With Python 3.10 or later:
 python -m venv ../engine/.venv
 source ../engine/.venv/bin/activate
 python -m pip install -e '../engine[gtfs,test]'
-transport-matcher gtfs --source ../engine/examples/gtfs --namespace demo --osm ../engine/examples/osm.xml --output /tmp/transport-demo
+public-transport-matcher gtfs --source ../engine/examples/gtfs --namespace demo --osm ../engine/examples/osm.xml --output /tmp/transport-demo
 ```
 
 The example is synthetic and uses no Swiss identifiers. The core library only needs NumPy/SciPy; curated integrations install through optional extras. Other datasets can use external adapters implementing the public adapter contract without adding code to this repository. See the sibling engine repository README for its Python API and Swiss workflow.
@@ -77,16 +77,16 @@ docker compose up --build -d
 docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode full --trigger manual
 ```
 
-The scheduler invokes the independent `transport-matcher` executable, writes a complete result bundle, and asks the app importer to publish it. Daily runs use `PIPELINE_SCHEDULE_INTERVAL_HOURS` and `PIPELINE_TIMEZONE`.
+The scheduler invokes the independent `public-transport-matcher` executable, writes a complete result bundle, and asks the app importer to publish it. Daily runs use `PIPELINE_SCHEDULE_INTERVAL_HOURS` and `PIPELINE_TIMEZONE`.
 
 The scheduler owns only the next-run timestamp; the active runner owns execution status and phase history. Shared status updates are atomic, so scheduler startup or schedule refresh cannot overwrite an active manual run. The Data page polls this state and animates the pipeline phases from source checks through atomic dataset publication. Engine progress records provide live details; reused caches and mode-specific omissions appear as `Reused` or `Skipped`. See [Background scheduler](documentation/3.3%20Background%20Scheduler.md) for the stage definitions, state-ownership, heartbeat-recovery and live-timeline contracts.
 
-The VS Code Docker tasks build their required images before starting services. A source bind mount does not update installed packages in an existing container. If an older scheduler reports `No such file or directory: transport-matcher`, rebuild and replace it:
+The VS Code Docker tasks build their required images before starting services. A source bind mount does not update installed packages in an existing container. If an older scheduler reports `No such file or directory: public-transport-matcher`, rebuild and replace it:
 
 ```bash
 docker compose build scheduler
 docker compose up -d --no-deps --force-recreate scheduler
-docker exec stop_sync_osm_atlas_scheduler transport-matcher --help
+docker exec stop_sync_osm_atlas_scheduler public-transport-matcher --help
 ```
 
 Use `--mode match-import` to reuse existing source snapshots. An app-only deployment can import a result from elsewhere with `PIPELINE_BUNDLE=/path/to/result python -m backend.jobs.job_runner --mode import`. `MATCHER_COMMAND` selects a separately installed engine executable for matching modes.

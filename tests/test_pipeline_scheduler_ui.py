@@ -653,11 +653,11 @@ def test_format_zurich_display_timestamp_formats_iso_strings():
 
 def test_engine_command_reuses_source_snapshots_without_engine_import(monkeypatch, tmp_path):
     from backend.jobs import job_runner
-    monkeypatch.setenv('MATCHER_COMMAND', '/path/to/engine/bin/transport-matcher')
+    monkeypatch.setenv('MATCHER_COMMAND', '/path/to/engine/bin/public-transport-matcher')
     monkeypatch.setenv('PIPELINE_WORKSPACE', str(tmp_path))
     destination = tmp_path / 'result'
     command = job_runner._engine_command('match-import', destination)
-    assert command[0] == '/path/to/engine/bin/transport-matcher'
+    assert command[0] == '/path/to/engine/bin/public-transport-matcher'
     assert '--download' not in command
     assert str(destination) in command
     assert '--download' in job_runner._engine_command('full', destination)
@@ -687,7 +687,7 @@ def test_engine_process_does_not_receive_application_credentials(monkeypatch):
         captured.update(kwargs)
         return Process()
     monkeypatch.setattr(job_runner.subprocess, 'Popen', popen)
-    job_runner._run_subprocess(['transport-matcher', '--help'], 'matching', 'Matching')
+    job_runner._run_subprocess(['public-transport-matcher', '--help'], 'matching', 'Matching')
     assert 'DATABASE_URI' not in captured['env']
     assert 'SECRET_KEY' not in captured['env']
     assert captured['env']['SOURCE_API_TOKEN'] == 'source-token'

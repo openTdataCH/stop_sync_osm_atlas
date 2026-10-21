@@ -74,12 +74,12 @@ def test_single_newlines_do_not_break_sentences(app):
 
 
 def test_engine_source_links_need_a_public_base(app, monkeypatch):
-    markdown = '[profile](../engine/src/transport_matcher/core/profile.py)'
+    markdown = '[profile](../engine/src/public_transport_matcher/core/profile.py)'
     monkeypatch.delenv('DOCS_ENGINE_BLOB_BASE', raising=False)
     assert '<a ' not in _render(app, markdown)
 
     monkeypatch.setenv('DOCS_ENGINE_BLOB_BASE', 'https://example.org/engine/blob/abc')
-    assert 'href="https://example.org/engine/blob/abc/src/transport_matcher/core/profile.py"' in _render(app, markdown)
+    assert 'href="https://example.org/engine/blob/abc/src/public_transport_matcher/core/profile.py"' in _render(app, markdown)
 
 
 def test_every_portal_link_reaches_a_page_and_anchor(app):

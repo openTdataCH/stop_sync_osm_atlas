@@ -26,7 +26,7 @@ def test_engine_events_are_accepted_and_resolve_in_consumer(mode, tmp_path):
         if mode == 'swiss-local-gtfs':
             args += ['--gtfs', str(examples / 'gtfs')]
     output = tmp_path / 'result'
-    result = subprocess.run([sys.executable, '-m', 'transport_matcher.cli', *args, '--output', str(output)],
+    result = subprocess.run([sys.executable, '-m', 'public_transport_matcher.cli', *args, '--output', str(output)],
                             env={**os.environ, 'PYTHONPATH': str(engine / 'src')}, capture_output=True, text=True, check=True)
     events = []
     for line in result.stdout.splitlines():

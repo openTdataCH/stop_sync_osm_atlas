@@ -76,16 +76,16 @@ def test_javascript_coverage_counts_never_executed_statements(tmp_path):
 
 
 def test_architecture_rejects_hidden_engine_import(tmp_path):
-    (tmp_path / 'app.py').write_text('def run():\n    from transport_matcher import match\n')
+    (tmp_path / 'app.py').write_text('def run():\n    from public_transport_matcher import match\n')
     findings = quality.architecture({'app': tmp_path}, {('app', 'app.py'): 'app.query-api'})
     assert findings and findings[0]['line'] == 2
 
 
 def test_core_architecture_resolves_relative_imports(tmp_path):
-    file = tmp_path / 'src/transport_matcher/core/matching.py'
+    file = tmp_path / 'src/public_transport_matcher/core/matching.py'
     file.parent.mkdir(parents=True)
     file.write_text('from ..adapters import gtfs\n')
-    assert quality.architecture({'engine': tmp_path}, {('engine', 'src/transport_matcher/core/matching.py'): 'engine.core-matching'})
+    assert quality.architecture({'engine': tmp_path}, {('engine', 'src/public_transport_matcher/core/matching.py'): 'engine.core-matching'})
 
 
 def test_expired_exceptions_fail(tmp_path, monkeypatch):
@@ -215,7 +215,7 @@ def test_malformed_optional_mutation_evidence_is_invalid_without_breaking_report
 
 
 def test_mutation_evidence_is_measured_only_for_matching_sources_and_valid_totals(tmp_path):
-    source = tmp_path / 'src/transport_matcher/results/validation.py'
+    source = tmp_path / 'src/public_transport_matcher/results/validation.py'
     test = tmp_path / 'tests/test_results.py'
     source.parent.mkdir(parents=True)
     test.parent.mkdir(parents=True)
@@ -224,7 +224,7 @@ def test_mutation_evidence_is_measured_only_for_matching_sources_and_valid_total
     data = dict(schema_version=1, started_at=datetime.now(timezone.utc).isoformat(),
                 source_path=source.relative_to(tmp_path).as_posix(), source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
                 tests_sha256={test.relative_to(tmp_path).as_posix(): hashlib.sha256(test.read_bytes()).hexdigest()},
-                scope='transport_matcher.results.validation.*_position*', total_mutants=2, counts={'killed': 1, 'survived': 1})
+                scope='public_transport_matcher.results.validation.*_position*', total_mutants=2, counts={'killed': 1, 'survived': 1})
     artifact = tmp_path / 'mutation.json'
     artifact.write_text(json.dumps(data))
     assert quality.mutation_evidence(artifact, tmp_path)['score'] == 50
