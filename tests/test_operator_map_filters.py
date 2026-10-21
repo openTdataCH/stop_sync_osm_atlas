@@ -40,22 +40,19 @@ def test_wikidata_filter_selects_exact_values_and_combines_with_osm_operator():
 def test_operator_cards_link_to_matching_map_filters(client, monkeypatch):
     operator = operators_module._build_operator_row(
         type('Operator', (), {'atlas_business_org_abbr': 'EX', 'atlas_business_org_name': 'Example', 'sboid': None})(),
-        {'EX': 3}, {'EX': {'matched_stop_count': 3, 'missing_osm_operator_wikidata_count': 2}},
+        {'EX': 3}, {'EX': {'matched_atlas_stop_count': 3, 'matched_osm_stop_count': 3, 'missing_osm_operator_wikidata_count': 2}},
         {'EX': [{'osm_operator': 'Example & Co', 'matched_stop_count': 3}]},
         {'EX': [{'osm_operator_wikidata': 'Q1', 'matched_stop_count': 3}]}, True,
     )
     monkeypatch.setattr(operators_module, '_load_operators_view', lambda **kwargs: ([operator], _DummyPagination(), True))
     response = client.get('/operators')
     assert response.status_code == 200
-    links = re.findall(r'class="operator-node__map-link" href="([^"]+)"', response.text)
+    links = re.findall(r'class="operator-breakdown__map-link" href="([^"]+)"', response.text)
     assert [parse_qs(urlparse(html.unescape(link)).query) for link in links] == [
         {'osm_operator': ['Example & Co']}, {'osm_operator_wikidata': ['Q1']},
+        {'atlas_operator': ['EX'], 'missing_osm_operator_wikidata': ['true']},
     ]
     assert 'https://www.wikidata.org/wiki/Q1' in response.text
-    missing_link = re.search(r'class="operator-card__coverage-link" href="([^"]+)"', response.text)
-    assert parse_qs(urlparse(html.unescape(missing_link.group(1))).query) == {
-        'atlas_operator': ['EX'], 'missing_osm_operator_wikidata': ['true'],
-    }
 
 
 def test_wikidata_options_are_distinct_sorted_and_nonempty(app, client):

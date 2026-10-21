@@ -136,34 +136,30 @@ def _load_atlas_stop_counts(operator_abbrs: list[str]) -> dict[str, int]:
     return {abbr: int(count or 0) for abbr, count in rows if abbr}
 
 
+def _distinct_osm_stop_count(condition=None):
+    """Count each matched OSM stop once, even when it matches several ATLAS stops."""
+    if condition is None:
+        return func.count(func.distinct(StopsMatched.osm_node_id))
+    return func.count(func.distinct(case((condition, StopsMatched.osm_node_id))))
+
+
 def _load_match_counts(operator_abbrs: list[str], supports_osm_operator_wikidata: bool) -> dict[str, dict[str, int]]:
     if not operator_abbrs:
         return {}
 
     missing_osm_operator_wikidata_count = literal(0)
     if supports_osm_operator_wikidata:
-        missing_osm_operator_wikidata_count = func.sum(
-            case(
-                (
-                    or_(OsmNode.osm_operator_wikidata.is_(None), OsmNode.osm_operator_wikidata == ''),
-                    1,
-                ),
-                else_=0,
-            )
+        missing_osm_operator_wikidata_count = _distinct_osm_stop_count(
+            or_(OsmNode.osm_operator_wikidata.is_(None), OsmNode.osm_operator_wikidata == '')
         )
 
     rows = (
         db.session.query(
             AtlasStop.atlas_business_org_abbr.label('atlas_business_org_abbr'),
-            func.count(StopsMatched.id).label('matched_stop_count'),
-            func.sum(
-                case(
-                    (
-                        or_(OsmNode.osm_operator.is_(None), OsmNode.osm_operator == ''),
-                        1,
-                    ),
-                    else_=0,
-                )
+            func.count(func.distinct(StopsMatched.sloid)).label('matched_atlas_stop_count'),
+            _distinct_osm_stop_count().label('matched_osm_stop_count'),
+            _distinct_osm_stop_count(
+                or_(OsmNode.osm_operator.is_(None), OsmNode.osm_operator == '')
             ).label('missing_osm_operator_count'),
             missing_osm_operator_wikidata_count.label('missing_osm_operator_wikidata_count'),
         )
@@ -181,7 +177,8 @@ def _load_match_counts(operator_abbrs: list[str], supports_osm_operator_wikidata
         if not abbr:
             continue
         result[abbr] = {
-            'matched_stop_count': int(row.matched_stop_count or 0),
+            'matched_atlas_stop_count': int(row.matched_atlas_stop_count or 0),
+            'matched_osm_stop_count': int(row.matched_osm_stop_count or 0),
             'missing_osm_operator_count': int(row.missing_osm_operator_count or 0),
             'missing_osm_operator_wikidata_count': int(row.missing_osm_operator_wikidata_count or 0),
         }
@@ -192,11 +189,12 @@ def _load_osm_operators(operator_abbrs: list[str]) -> dict[str, list[dict[str, i
     if not operator_abbrs:
         return {}
 
+    osm_stop_count = _distinct_osm_stop_count()
     rows = (
         db.session.query(
             AtlasStop.atlas_business_org_abbr.label('atlas_business_org_abbr'),
             OsmNode.osm_operator.label('osm_operator'),
-            func.count(StopsMatched.id).label('matched_stop_count'),
+            osm_stop_count.label('matched_stop_count'),
         )
         .join(StopsMatched, AtlasStop.sloid == StopsMatched.sloid)
         .join(OsmNode, StopsMatched.osm_node_id == OsmNode.osm_node_id)
@@ -207,7 +205,7 @@ def _load_osm_operators(operator_abbrs: list[str]) -> dict[str, list[dict[str, i
         .group_by(AtlasStop.atlas_business_org_abbr, OsmNode.osm_operator)
         .order_by(
             AtlasStop.atlas_business_org_abbr.asc(),
-            func.count(StopsMatched.id).desc(),
+            osm_stop_count.desc(),
             OsmNode.osm_operator.asc(),
         )
         .all()
@@ -229,11 +227,12 @@ def _load_osm_operators_wikidata(operator_abbrs: list[str], supports_osm_operato
     if not operator_abbrs or not supports_osm_operator_wikidata:
         return {}
 
+    osm_stop_count = _distinct_osm_stop_count()
     rows = (
         db.session.query(
             AtlasStop.atlas_business_org_abbr.label('atlas_business_org_abbr'),
             OsmNode.osm_operator_wikidata.label('osm_operator_wikidata'),
-            func.count(StopsMatched.id).label('matched_stop_count'),
+            osm_stop_count.label('matched_stop_count'),
         )
         .join(StopsMatched, AtlasStop.sloid == StopsMatched.sloid)
         .join(OsmNode, StopsMatched.osm_node_id == OsmNode.osm_node_id)
@@ -244,7 +243,7 @@ def _load_osm_operators_wikidata(operator_abbrs: list[str], supports_osm_operato
         .group_by(AtlasStop.atlas_business_org_abbr, OsmNode.osm_operator_wikidata)
         .order_by(
             AtlasStop.atlas_business_org_abbr.asc(),
-            func.count(StopsMatched.id).desc(),
+            osm_stop_count.desc(),
             OsmNode.osm_operator_wikidata.asc(),
         )
         .all()
@@ -262,15 +261,34 @@ def _load_osm_operators_wikidata(operator_abbrs: list[str], supports_osm_operato
     return dict(grouped_rows)
 
 
+def _operator_tag_status(matched_osm_stop_count: int, osm_operator_count: int, missing_osm_operator_count: int) -> tuple[str, str]:
+    """Summarize how consistently matched OSM stops carry an operator tag."""
+    if matched_osm_stop_count == 0:
+        return 'no-matches', 'No matched stops'
+    if osm_operator_count == 0:
+        return 'untagged', 'Not tagged'
+    if osm_operator_count > 1:
+        return 'mixed', f'{osm_operator_count} different values'
+    if missing_osm_operator_count > 0:
+        return 'partial', 'Partly tagged'
+    return 'consistent', 'Consistent'
+
+
 def _build_operator_row(operator, stop_counts, match_counts, osm_operators, osm_operators_wikidata, supports_osm_operator_wikidata):
     abbr = operator.atlas_business_org_abbr
     operator_matches = osm_operators.get(abbr, [])
     wikidata_matches = osm_operators_wikidata.get(abbr, [])
     match_summary = match_counts.get(abbr, {})
     atlas_stop_count = stop_counts.get(abbr, 0)
-    matched_stop_count = match_summary.get('matched_stop_count', 0)
+    matched_atlas_stop_count = match_summary.get('matched_atlas_stop_count', 0)
+    matched_osm_stop_count = match_summary.get('matched_osm_stop_count', 0)
     missing_osm_operator_count = match_summary.get('missing_osm_operator_count', 0)
     missing_osm_operator_wikidata_count = match_summary.get('missing_osm_operator_wikidata_count', 0)
+    tag_status, tag_status_label = _operator_tag_status(
+        matched_osm_stop_count,
+        len(operator_matches),
+        missing_osm_operator_count,
+    )
 
     return {
         'atlas_business_org_abbr': abbr,
@@ -278,15 +296,18 @@ def _build_operator_row(operator, stop_counts, match_counts, osm_operators, osm_
         'atlas_business_org_name_secondary': operator.atlas_business_org_name if operator.atlas_business_org_name and operator.atlas_business_org_name != abbr else None,
         'sboid': operator.sboid,
         'atlas_stop_count': atlas_stop_count,
-        'matched_stop_count': matched_stop_count,
-        'unmatched_atlas_stop_count': max(atlas_stop_count - matched_stop_count, 0),
+        'matched_atlas_stop_count': matched_atlas_stop_count,
+        'matched_osm_stop_count': matched_osm_stop_count,
+        'unmatched_atlas_stop_count': max(atlas_stop_count - matched_atlas_stop_count, 0),
         'missing_osm_operator_count': missing_osm_operator_count,
         'missing_osm_operator_wikidata_count': missing_osm_operator_wikidata_count,
         'osm_operator_count': len(operator_matches),
         'osm_operator_wikidata_count': len(wikidata_matches),
         'supports_osm_operator_wikidata': supports_osm_operator_wikidata,
         'has_osm_matches': bool(operator_matches) or bool(wikidata_matches),
-        'has_matched_stops': matched_stop_count > 0,
+        'has_matched_stops': matched_osm_stop_count > 0,
+        'tag_status': tag_status,
+        'tag_status_label': tag_status_label,
         'osm_operators': operator_matches,
         'osm_operators_wikidata': wikidata_matches,
     }

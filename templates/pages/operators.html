@@ -98,116 +98,117 @@
     </section>
 
     {% if operator_rows %}
+    {% macro map_link(href, label) -%}
+    <a class="operator-breakdown__map-link" href="{{ href }}" aria-label="{{ label }}">Map <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+    {%- endmacro %}
+    {# Share of dark green in a value's shade: 100% for the most common value, 0% (OSM green) for the least common. #}
+    {% macro value_shade(loop) -%}
+    --operator-value-shade: {{ (100 * loop.revindex0 / (loop.length - 1)) | round | int if loop.length > 1 else 100 }}%;
+    {%- endmacro %}
+    {% set status_icons = {
+      'consistent': 'fa-check-circle',
+      'partial': 'fa-adjust',
+      'mixed': 'fa-exclamation-triangle',
+      'untagged': 'fa-question-circle',
+      'no-matches': 'fa-unlink',
+    } %}
     <section class="operators-list" aria-label="Operators list">
       {% for operator in operator_rows %}
-      <article class="operator-card {{ 'operator-card--has-matches' if operator.has_osm_matches else 'operator-card--no-matches' }}">
-        <div class="operator-card__mapping">
-          <svg class="operator-card__connectors" aria-hidden="true" focusable="false"></svg>
+      {% set card_id = 'operator-' ~ loop.index %}
+      <article class="operator-card" aria-labelledby="{{ card_id }}-title">
+        <header class="operator-card__header">
+          <div class="operator-card__identity">
+            <h2 class="operator-card__title" id="{{ card_id }}-title">{{ operator.atlas_business_org_name }}</h2>
+            <p class="operator-card__ids">
+              <span><span class="operator-card__id-label">Abbreviation:</span> {{ operator.atlas_business_org_abbr }}</span>
+              {% if operator.sboid %}
+              <span><abbr class="operator-card__id-label" title="Swiss Business Organisation ID">SBOID</abbr><span class="operator-card__id-label">:</span> {{ operator.sboid }}</span>
+              {% endif %}
+            </p>
+          </div>
+          <div class="operator-card__summary">
+            <p class="operator-card__metrics" aria-label="ATLAS stop totals">
+              <span><strong>{{ operator.atlas_stop_count }}</strong> stops</span>
+              <span><strong>{{ operator.matched_atlas_stop_count }}</strong> matched</span>
+              {% if operator.unmatched_atlas_stop_count > 0 %}
+              <span class="operator-card__metric--muted">{{ operator.unmatched_atlas_stop_count }} unmatched</span>
+              {% endif %}
+            </p>
+            <span class="operator-status operator-status--{{ operator.tag_status }}">
+              <i class="fas {{ status_icons[operator.tag_status] }}" aria-hidden="true"></i>
+              {{ operator.tag_status_label }}
+            </span>
+          </div>
+        </header>
 
-          <section class="operator-source-group" aria-labelledby="operator-{{ loop.index }}-title">
-            <div class="operator-target-group__header operator-target-group__header--atlas">
-              <span>ATLAS operator</span>
+        {% if operator.has_matched_stops %}
+        <div class="operator-card__tags">
+          <section class="operator-breakdown" aria-labelledby="{{ card_id }}-operator">
+            <h3 class="operator-breakdown__title" id="{{ card_id }}-operator">
+              <code>operator</code> on {{ operator.matched_osm_stop_count }} matched OSM stop{{ 's' if operator.matched_osm_stop_count != 1 }}
+            </h3>
+            <div class="operator-breakdown__bar" aria-hidden="true">
+              {% for osm_operator in operator.osm_operators %}
+              <span class="operator-breakdown__segment operator-swatch--value" style="flex-grow: {{ osm_operator.matched_stop_count }}; {{ value_shade(loop) }}" title="{{ osm_operator.osm_operator }}: {{ osm_operator.matched_stop_count }}"></span>
+              {% endfor %}
+              {% if operator.missing_osm_operator_count > 0 %}
+              <span class="operator-breakdown__segment operator-swatch--missing" style="flex-grow: {{ operator.missing_osm_operator_count }};" title="Not tagged: {{ operator.missing_osm_operator_count }}"></span>
+              {% endif %}
             </div>
-            <div class="operator-node operator-node--atlas">
-              <h2 class="operator-node__title" id="operator-{{ loop.index }}-title">{{ operator.atlas_business_org_name }}</h2>
-              <div class="operator-node__identifiers">
-                <span><span class="operator-node__identifier-label">Abbreviation</span>{{ operator.atlas_business_org_abbr }}</span>
-                {% if operator.sboid %}
-                <span><span class="operator-node__identifier-label">SBOID</span>{{ operator.sboid }}</span>
-                {% endif %}
-              </div>
-              <div class="operator-node__metrics" aria-label="ATLAS stop totals">
-                <span><strong>{{ operator.atlas_stop_count }}</strong> total stops</span>
-                <span><strong>{{ operator.matched_stop_count }}</strong> matched</span>
-                {% if operator.unmatched_atlas_stop_count > 0 %}
-                <span class="operator-node__metric--muted"><strong>{{ operator.unmatched_atlas_stop_count }}</strong> unmatched</span>
-                {% endif %}
-              </div>
-            </div>
+            <ul class="operator-breakdown__list">
+              {% for osm_operator in operator.osm_operators %}
+              <li class="operator-breakdown__row">
+                <span class="operator-breakdown__label">
+                  <span class="operator-breakdown__swatch operator-swatch--value" style="{{ value_shade(loop) }}" aria-hidden="true"></span>
+                  <span class="operator-breakdown__value">{{ osm_operator.osm_operator }}</span>
+                </span>
+                <span class="operator-breakdown__count">{{ osm_operator.matched_stop_count }}</span>
+                {{ map_link(url_for('index', osm_operator=osm_operator.osm_operator), 'See ' ~ osm_operator.osm_operator ~ ' on map') }}
+              </li>
+              {% endfor %}
+              {% if operator.missing_osm_operator_count > 0 %}
+              <li class="operator-breakdown__row operator-breakdown__row--missing">
+                <span class="operator-breakdown__label">
+                  <span class="operator-breakdown__swatch operator-swatch--missing" aria-hidden="true"></span>
+                  <span class="operator-breakdown__value">Not tagged</span>
+                </span>
+                <span class="operator-breakdown__count">{{ operator.missing_osm_operator_count }}</span>
+              </li>
+              {% endif %}
+            </ul>
           </section>
 
-          <div class="operator-card__branch" aria-hidden="true"></div>
-
-          <div class="operator-card__destinations">
-            {% if operator.has_osm_matches %}
-              {% if operator.osm_operators %}
-              <section class="operator-target-group" aria-label="Matched OSM operator values">
-                <div class="operator-target-group__header">
-                  <span>OSM <code>operator</code></span>
-                  <span>{{ operator.osm_operator_count }} value{{ 's' if operator.osm_operator_count != 1 }}</span>
-                </div>
-                <ul class="operator-target-list">
-                  {% for osm_operator in operator.osm_operators %}
-                  <li class="operator-node operator-node--osm">
-                    <span class="operator-node__target-icon" aria-hidden="true"><i class="fas fa-map-marker-alt"></i></span>
-                    <span class="operator-node__target-copy">
-                      <strong>{{ osm_operator.osm_operator }}</strong>
-                      <span>OSM operator value</span>
-                    </span>
-                    <span class="operator-node__actions">
-                      <span class="operator-node__count"><strong>{{ osm_operator.matched_stop_count }}</strong> matched stop{{ 's' if osm_operator.matched_stop_count != 1 }}</span>
-                      <a class="operator-node__map-link" href="{{ url_for('index', osm_operator=osm_operator.osm_operator) }}" aria-label="See {{ osm_operator.osm_operator }} on map"><i class="fas fa-map-marked-alt" aria-hidden="true"></i> See on map</a>
-                    </span>
-                  </li>
-                  {% endfor %}
-                </ul>
-              </section>
-              {% endif %}
-
-              {% if supports_osm_operator_wikidata and operator.osm_operators_wikidata %}
-              <section class="operator-target-group operator-target-group--wikidata" aria-label="Matched OSM operator Wikidata values">
-                <div class="operator-target-group__header">
-                  <span>OSM <code>operator:wikidata</code></span>
-                  <span>{{ operator.osm_operator_wikidata_count }} value{{ 's' if operator.osm_operator_wikidata_count != 1 }}</span>
-                </div>
-                <ul class="operator-target-list">
-                  {% for osm_wikidata in operator.osm_operators_wikidata %}
-                  <li class="operator-node operator-node--wikidata">
-                    <span class="operator-node__target-icon" aria-hidden="true"><i class="fas fa-link"></i></span>
-                    <span class="operator-node__target-copy">
-                      <strong><a href="https://www.wikidata.org/wiki/{{ osm_wikidata.osm_operator_wikidata }}" target="_blank" rel="noopener noreferrer">{{ osm_wikidata.osm_operator_wikidata }} <i class="fas fa-external-link-alt" aria-hidden="true"></i></a></strong>
-                      <span>Wikidata identifier</span>
-                    </span>
-                    <span class="operator-node__actions">
-                      <span class="operator-node__count"><strong>{{ osm_wikidata.matched_stop_count }}</strong> matched stop{{ 's' if osm_wikidata.matched_stop_count != 1 }}</span>
-                      <a class="operator-node__map-link" href="{{ url_for('index', osm_operator_wikidata=osm_wikidata.osm_operator_wikidata) }}" aria-label="See {{ osm_wikidata.osm_operator_wikidata }} on map"><i class="fas fa-map-marked-alt" aria-hidden="true"></i> See on map</a>
-                    </span>
-                  </li>
-                  {% endfor %}
-                </ul>
-              </section>
-              {% endif %}
-            {% else %}
-              <section class="operator-node operator-node--empty">
-                <span class="operator-node__target-icon" aria-hidden="true"><i class="fas fa-unlink"></i></span>
-                <span class="operator-node__target-copy">
-                  <strong>No OSM operator value</strong>
-                  {% if operator.has_matched_stops %}
-                  <span>Matched stops exist, but their OSM stops do not carry an <code>operator</code>{% if supports_osm_operator_wikidata %} or <code>operator:wikidata</code>{% endif %} tag.</span>
-                  {% else %}
-                  <span>No stop for this operator is currently matched to an OSM stop with an operator value.</span>
-                  {% endif %}
+          {% if supports_osm_operator_wikidata %}
+          <section class="operator-breakdown" aria-labelledby="{{ card_id }}-wikidata">
+            <h3 class="operator-breakdown__title" id="{{ card_id }}-wikidata">
+              <code>operator:wikidata</code> on {{ operator.matched_osm_stop_count }} matched OSM stop{{ 's' if operator.matched_osm_stop_count != 1 }}
+            </h3>
+            <ul class="operator-breakdown__list">
+              {% for osm_wikidata in operator.osm_operators_wikidata %}
+              <li class="operator-breakdown__row">
+                <span class="operator-breakdown__label">
+                  <a class="operator-breakdown__value" href="https://www.wikidata.org/wiki/{{ osm_wikidata.osm_operator_wikidata }}" target="_blank" rel="noopener noreferrer">{{ osm_wikidata.osm_operator_wikidata }} <i class="fas fa-external-link-alt" aria-hidden="true"></i></a>
                 </span>
-              </section>
-            {% endif %}
-
-            {% if operator.missing_osm_operator_count > 0 or (supports_osm_operator_wikidata and operator.missing_osm_operator_wikidata_count > 0) %}
-            <div class="operator-card__coverage-note">
-              <i class="fas fa-info-circle" aria-hidden="true"></i>
-              <span>
-                {% if operator.missing_osm_operator_count > 0 %}
-                  {{ operator.missing_osm_operator_count }} matched OSM stop{{ 's' if operator.missing_osm_operator_count != 1 }} without <code>operator</code>
-                {% endif %}
-                {% if supports_osm_operator_wikidata and operator.missing_osm_operator_wikidata_count > 0 %}
-                  {% if operator.missing_osm_operator_count > 0 %}<span aria-hidden="true"> · </span>{% endif %}
-                  {{ operator.missing_osm_operator_wikidata_count }} without <code>operator:wikidata</code>
-                  <a class="operator-card__coverage-link" href="{{ url_for('index', atlas_operator=operator.atlas_business_org_abbr, missing_osm_operator_wikidata='true') }}" aria-label="See {{ operator.atlas_business_org_abbr }} stops without operator:wikidata on map">See on map</a>
-                {% endif %}
-              </span>
-            </div>
-            {% endif %}
-          </div>
+                <span class="operator-breakdown__count">{{ osm_wikidata.matched_stop_count }}</span>
+                {{ map_link(url_for('index', osm_operator_wikidata=osm_wikidata.osm_operator_wikidata), 'See ' ~ osm_wikidata.osm_operator_wikidata ~ ' on map') }}
+              </li>
+              {% endfor %}
+              {% if operator.missing_osm_operator_wikidata_count > 0 %}
+              <li class="operator-breakdown__row operator-breakdown__row--missing">
+                <span class="operator-breakdown__label">
+                  <span class="operator-breakdown__value">Not tagged</span>
+                </span>
+                <span class="operator-breakdown__count">{{ operator.missing_osm_operator_wikidata_count }}</span>
+                {{ map_link(url_for('index', atlas_operator=operator.atlas_business_org_abbr, missing_osm_operator_wikidata='true'), 'See ' ~ operator.atlas_business_org_abbr ~ ' stops without operator:wikidata on map') }}
+              </li>
+              {% endif %}
+            </ul>
+          </section>
+          {% endif %}
         </div>
+        {% else %}
+        <p class="operator-card__empty">None of this operator's stops are matched to an OSM stop yet.</p>
+        {% endif %}
       </article>
       {% endfor %}
     </section>
