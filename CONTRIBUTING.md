@@ -7,7 +7,7 @@ Choose the part you want to improve:
 - **API, import or reports:** work in `backend/`. Run the app suite without installing the engine. Test publication changes against a disposable PostGIS database.
 - **A bad match:** include source/OSM identifiers, expected behavior and a small reproducible example. A minimal public-data fixture is more useful than a national download.
 
-See [the walkthroughs](documentation/Contributing.md) and [result contract](../engine/RESULT_FORMAT.md). Keep source-format parsing in adapters, downloads in acquisition clients, dataset composition in integrations, matching policy in profiles, domain decisions in the core, and presentation/persistence in the app. Add a regression that captures the observed failure rather than reproducing the implementation.
+See [the walkthroughs](documentation/Contributing.md) and [result bundle format](../engine/documentation/Result%20bundle%20format.md). Keep source-format parsing in adapters, downloads in acquisition clients, dataset composition in integrations, matching policy in profiles, domain decisions in the core, and presentation/persistence in the app. Add a regression that captures the observed failure rather than reproducing the implementation.
 
 The application and engine have separate repositories, installation and tests,
 and communicate through a versioned file format. Keep their checkouts together
