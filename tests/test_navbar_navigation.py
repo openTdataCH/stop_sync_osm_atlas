@@ -22,7 +22,7 @@ def test_data_subpages_use_page_tabs_without_navbar_dropdown(client):
     assert response.status_code == 200
     html = response.get_data(as_text=True)
 
-    assert '<nav class="c-page-tabs" aria-label="Data pages" style="--page-tabs-count: 2">' in html
+    assert '<nav class="c-page-tabs c-page-tabs--sticky" aria-label="Data pages" style="--page-tabs-count: 2">' in html
     assert html.count('c-page-tabs__tab') == 2
     assert 'c-page-tabs__tab is-active' in html
     assert 'aria-current="page"' in html
