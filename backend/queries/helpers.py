@@ -66,6 +66,7 @@ def resolve_stop_type_match_filters(stop_filter_str, match_method_str):
             unmatched_reason_filters['osm_within_50m']
         ),
         'include_osm_unmatched': 'osm_unmatched' in current_stop_types,
+        'include_osm_disused': 'osm_disused' in current_stop_types,
         'unmatched_reason_filters': unmatched_reason_filters,
         'has_scope_filter': bool(current_stop_types) or bool(current_match_methods),
     }
@@ -164,6 +165,9 @@ def build_stop_scope_condition(stop_model, resolved_filters):
 
     if resolved_filters['include_osm_unmatched']:
         scope_conditions.append(stop_model.stop_type == 'osm_unmatched')
+
+    if resolved_filters['include_osm_disused']:
+        scope_conditions.append(stop_model.stop_type == 'osm_disused')
 
     if scope_conditions:
         return db.or_(*scope_conditions) if len(scope_conditions) > 1 else scope_conditions[0]

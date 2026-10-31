@@ -38,6 +38,9 @@ describe('Index map adapter', () => {
             getEast: () => 8
         };
         map = {
+            on: jest.fn(),
+            off: jest.fn(),
+            getContainer: () => document.getElementById('map'),
             getZoom: jest.fn(() => currentZoom),
             getBounds: jest.fn(() => bounds),
             setView: jest.fn(),
@@ -151,6 +154,7 @@ describe('Index map adapter', () => {
         jquery.getJSON = jest.fn();
         window.$ = global.$ = jquery;
 
+        loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
         loadBrowserScript(SCRIPT_PATH);
         window.IndexMapPage.init();
     });

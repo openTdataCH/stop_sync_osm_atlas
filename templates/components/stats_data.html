@@ -935,12 +935,14 @@ SECTION 5 — PROBLEMS
       'unmatched': 'Unmatched — Isolated ATLAS / OSM node',
       'attributes': 'Attributes — Missing or mismatched data',
       'duplicates': 'Duplicates — OSM or ATLAS side collisions',
+      'disused': 'Disused — OSM stop out of service but still referenced',
       } %}
       {% set type_dots = {
       'distance': '#F0AD4E',
       'unmatched': '#DC3545',
       'attributes': '#174092',
       'duplicates': '#174092',
+      'disused': '#6C757D',
       } %}
       {% for prio, label, css_id, severity in priority_meta %}
       {% set prio_data = problem_breakdown.get(prio, {}) %}
@@ -966,7 +968,7 @@ SECTION 5 — PROBLEMS
                 </tr>
               </thead>
               <tbody>
-                {% for ptype in ['distance', 'unmatched', 'attributes', 'duplicates'] %}
+                {% for ptype in ['distance', 'unmatched', 'attributes', 'duplicates', 'disused'] %}
                 {% set cnt = prio_data.get(ptype, 0) %}
                 {% if cnt > 0 %}
                 <tr>

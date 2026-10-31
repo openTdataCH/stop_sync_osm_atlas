@@ -8,15 +8,17 @@
 
   function stopEntity(type, stop, options = {}) {
     const atlas = type === 'atlas';
+    // OSM elements that OSM marks as out of service (disused:highway=bus_stop).
+    const disused = !atlas && stop.stop_type === 'osm_disused';
     const position = options.position || (atlas
       ? [stop.atlas_lat ?? stop.lat, stop.atlas_lon ?? stop.lon]
       : [stop.osm_lat, stop.osm_lon]);
     return shared.createEntity(type, options.identifier ?? (atlas
       ? firstIdentifier(stop.sloid, stop.representative_sloid, stop.id) : firstIdentifier(stop.osm_node_id, stop.node_id, stop.id)), position, {
-      status: options.status || stop.match_status || stop.stop_type,
+      status: disused ? 'disused' : (options.status || stop.match_status || stop.stop_type),
       emphasis: options.emphasis,
       label: atlas ? (isDuplicate(stop.has_atlas_duplicate) ? 'D' : null)
-        : ({ platform: 'P', railway_station: 'S' }[stop.osm_node_type] || null),
+        : disused ? 'U' : ({ platform: 'P', railway_station: 'S' }[stop.osm_node_type] || null),
       popupRef: options.popupRef || { id: stop.id }
     });
   }

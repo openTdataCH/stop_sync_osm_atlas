@@ -9,13 +9,14 @@
         const duplicate = problem.problem === 'duplicates';
         const matched = ['distance', 'attributes', 'contradicts_route_matching'].includes(problem.problem)
             && problem.stop_type === 'matched';
-        if (!duplicate && !matched && problem.problem !== 'unmatched') return;
+        const disused = problem.problem === 'disused';
+        if (!duplicate && !matched && !disused && problem.problem !== 'unmatched') return;
         const models = new Map();
         const entities = [];
         const rows = duplicate ? (problem.members || []) : [problem];
         rows.forEach(stop => ['atlas', 'osm'].forEach(type => {
             if (duplicate && problem.group_type && problem.group_type !== type) return;
-            if (!duplicate && !matched && problem.stop_type !== type + '_unmatched') return;
+            if (!duplicate && !matched && problem.stop_type !== type + (disused ? '_disused' : '_unmatched')) return;
             const entity = global.MapEntityAdapters.stopEntity(type, stop, { emphasis: 'focused' });
             if (!entity || models.has(entity.key)) return;
             entities.push(entity);

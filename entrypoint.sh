@@ -27,7 +27,9 @@ python backend/importing/init.py
 echo "Starting Flask application on port 5001..."
 # Start the Flask application
 if [ "$FLASK_DEBUG" = "1" ]; then
-    exec python backend/app.py
+    # The CLI keeps the reloader alive if an edit introduces an import/syntax
+    # error, so fixing the file recovers without restarting the container.
+    exec flask --app backend.app:app run --debug --host=0.0.0.0 --port=5001
 else
     exec gunicorn -w 2 -b 0.0.0.0:5001 backend.app:app
 fi

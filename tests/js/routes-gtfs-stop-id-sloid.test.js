@@ -96,6 +96,7 @@ function createRegistryFactory(registries) {
           entries.delete(key);
         });
       }),
+      get: jest.fn(key => (entries.has(key) ? entries.get(key).layer : null)),
       destroy: jest.fn(() => {
         Array.from(entries.values()).forEach((current) => {
           if (options.onRemove) options.onRemove(current.layer, current.descriptor, { reason: 'destroy' });
@@ -150,6 +151,9 @@ function installPage() {
     contains: jest.fn(() => true)
   };
   const map = {
+    on: jest.fn(),
+    off: jest.fn(),
+    getCenter: jest.fn(() => ({ lat: 46.8, lng: 8.2 })),
     getBounds: jest.fn(() => bounds),
     getZoom: jest.fn(() => 12),
     setView: jest.fn(),
@@ -172,6 +176,7 @@ function installPage() {
     destroy: jest.fn()
   };
   const popupController = {
+    open: jest.fn(() => Promise.resolve({ status: 'loaded' })),
     attach: jest.fn(),
     detach: jest.fn(),
     transfer: jest.fn(() => Promise.resolve({ status: 'transferred' })),
@@ -248,6 +253,7 @@ function installPage() {
     MapPopupController: { create: jest.fn(() => popupController) }
   };
 
+  loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
   loadBrowserScript(SCRIPT_PATH);
 
   return {
@@ -811,5 +817,75 @@ describe('Routes GTFS stop_id/SLOID map adapter', () => {
     expect(second.status).toBe('found');
     expect((await first).status).toBe('stale');
     expect(window.RoutesGtfsStopIdSloidMap.getSearch().value).toBe('second');
+  });
+  describe('permalinks', () => {
+    const fire = (page, name, event) => page.map.on.mock.calls
+      .filter(call => call[0] === name)
+      .forEach(call => call[1](event));
+    const popupWith = (type, ref) => {
+      const element = document.createElement('div');
+      element.innerHTML = `<button class="popup-copy-link" data-permalink-type="${type}" data-permalink-ref="${ref}">Copy link</button>`;
+      return { getElement: () => element };
+    };
+
+    afterEach(() => {
+      history.replaceState(null, '', '/');
+    });
+
+    test('start at the #map= view and name the open stop popup in the query', () => {
+      history.replaceState(null, '', '/routes/gtfs-stop-id-sloid?keep=1#map=15/46.9/7.4');
+      const page = installPage();
+      expect(window.MapComponents.MapCore.create).toHaveBeenCalledWith(expect.objectContaining({
+        view: { center: [46.9, 7.4], zoom: 15 }
+      }));
+      const atlasPopup = popupWith('atlas', 'ch:1:sloid:1');
+      const gtfsPopup = popupWith('gtfs', '8500:0:1');
+
+      fire(page, 'popupopen', { popup: atlasPopup });
+      expect(window.location.search).toBe('?keep=1&sloid=ch:1:sloid:1');
+      fire(page, 'popupopen', { popup: gtfsPopup });
+      expect(window.location.search).toBe('?keep=1&gtfs_stop_id=8500:0:1');
+      fire(page, 'popupclose', { popup: gtfsPopup });
+      expect(window.location.search).toBe('?keep=1&sloid=ch:1:sloid:1');
+
+      window.RoutesGtfsStopIdSloidMap.destroy();
+      expect(page.map.off).toHaveBeenCalledWith('popupclose', expect.any(Function));
+      expect(window.location.search).toBe('?keep=1&sloid=ch:1:sloid:1');
+    });
+
+    test('a linked stop is searched, then its marker popup opens', async () => {
+      const page = installPage();
+      history.replaceState(null, '', '/routes/gtfs-stop-id-sloid?gtfs_stop_id=8500:0:1');
+      const viewportOptions = page.getViewportOptions();
+      page.viewportController.reload.mockImplementation(() => {
+        viewportOptions.onData(samplePayload(), { zoom: 17 });
+        return Promise.resolve({ status: 'loaded' });
+      });
+      window.fetch.mockImplementation(url => (url.startsWith('/search?')
+        ? response({ targets: [{ entity_type: 'gtfs', identifier: '8500:0:1', lat: 46.6, lon: 7.6 }] })
+        : response({})));
+
+      await expect(window.RoutesGtfsStopIdSloidMap.openLinkedStop()).resolves.toEqual({ status: 'opened' });
+
+      const searchUrl = new URL(window.fetch.mock.calls.find(call => call[0].startsWith('/search?'))[0], 'https://example.test');
+      expect(searchUrl.searchParams.get('kind')).toBe('gtfs_stop_id');
+      expect(searchUrl.searchParams.get('value')).toBe('8500:0:1');
+      expect(page.popupController.open).toHaveBeenCalledWith(page.registries[1].entries.get('gtfs:8500:0:1').layer);
+      expect(window.location.search).toBe('?gtfs_stop_id=8500:0:1');
+    });
+
+    test('a linked stop that is not found keeps the default view and is dropped', async () => {
+      const page = installPage();
+      history.replaceState(null, '', '/routes/gtfs-stop-id-sloid?sloid=ch:1:sloid:404#map=12/46.9/7.4');
+      window.fetch.mockImplementation(url => (url.startsWith('/search?')
+        ? errorResponse(404, { error: 'Not found' })
+        : response({})));
+
+      await expect(window.RoutesGtfsStopIdSloidMap.openLinkedStop()).resolves.toEqual({ status: 'missing' });
+
+      expect(page.popupController.open).not.toHaveBeenCalled();
+      expect(window.location.search + window.location.hash).toBe('#map=12/46.9/7.4');
+      expect(document.getElementById('routesGtfsStopIdSloidSearchFeedback').textContent).toContain('No mappable stop');
+    });
   });
 });

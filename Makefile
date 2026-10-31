@@ -3,7 +3,11 @@ ENGINE_ROOT ?= ../engine
 ENGINE_PYTHON ?= /opt/engine-venv/bin/python
 QUALITY_COMPOSE = docker compose -p osm-atlas-quality -f compose.quality.yml
 
-.PHONY: quality-fast quality quality-ci quality-fast-container quality-down
+.PHONY: dev quality-fast quality quality-ci quality-fast-container quality-down
+
+# Reconcile bind mounts with this checkout and enable Flask's source reloader.
+dev:
+	FLASK_DEBUG=1 docker compose up --build -d db migrator app
 
 # Native fast checks use Python 3.13, Node 22, requirements-quality.txt and npm ci.
 quality-fast:

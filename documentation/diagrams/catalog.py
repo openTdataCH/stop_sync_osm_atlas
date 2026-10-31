@@ -20,9 +20,9 @@ def overview_big_picture() -> Diagram:
     d = Diagram(
         960, 500,
         'How the project works',
-        'Public sources enter the matching engine, a separate repository, through format adapters and a '
+        'Public sources enter the matching engine (osm-public-transport-matcher) through format adapters and a '
         'dataset profile. Its source-neutral core matches stops, compares routes and detects problems, then '
-        'writes a versioned result bundle. The review application in this repository runs a pinned engine '
+        'writes a versioned result bundle. The review application (stop_sync_osm_atlas) runs a pinned engine '
         'release on a schedule, imports each bundle and shows it on a website; other sites and scripts can '
         'use the same bundle. Reviewers use the findings to fix OpenStreetMap and report ATLAS issues.',
     )
@@ -37,7 +37,7 @@ def overview_big_picture() -> Diagram:
         d.add(box(32, 122 + index * 60, 136, 50, EXTERNAL, title, [line], title_size=13.5, line_size=12, gap=3,
                   pad=6))
 
-    d.add(zone(202, 104, 372, 262, ENGINE, 'Matching engine', 'separate repository'))
+    d.add(zone(202, 104, 372, 262, ENGINE, 'Matching engine', 'public-transport-matcher'))
     d.add(box(216, 128, 156, 128, ENGINE, 'Format adapters', [
         'ATLAS · GTFS · OSM', 'parse files into', 'common records', '+ your own adapter',
     ], title_size=14, line_size=12, gap=4, filled=False, pad=6))
@@ -61,7 +61,7 @@ def overview_big_picture() -> Diagram:
     d.add(box(752, 176, 188, 42, EXTERNAL, 'Scripts and research', [],
               title_size=13.5, dashed=True, filled=False))
     d.add(box(752, 238, 188, 120, APP, 'Review application', [
-        code('stop_sync_osm_atlas', size=12), 'this repository', 'Flask, PostGIS, map UI',
+        code('stop_sync_osm_atlas', size=12), 'own repository', 'Flask, PostGIS, map UI',
         'imports each bundle',
     ], title_size=14, line_size=12, gap=4, pad=6))
     for y in (138, 197, 298):
@@ -98,7 +98,7 @@ def architecture_system() -> Diagram:
         'ATLAS · GTFS · OpenStreetMap (Overpass) ·', 'Swiss boundary GeoJSON',
     ], title_size=14, line_size=12.5))
 
-    d.add(zone(24, 200, 320, 426, ENGINE, 'Matching engine', 'separate repository'))
+    d.add(zone(24, 200, 320, 426, ENGINE, 'Matching engine', 'own repository'))
     d.add(box(44, 228, 280, 62, ENGINE, 'Acquisition (optional)', ['freshness checks, downloads, caches'],
               line_size=12.5))
     d.add(store(44, 310, 280, 82, ENGINE, 'Engine workspace', [
@@ -113,7 +113,7 @@ def architecture_system() -> Diagram:
     for top, bottom in ((166, 226), (290, 308), (392, 410), (514, 532)):
         d.add(arrow([(184, top), (184, bottom)]))
 
-    d.add(zone(560, 200, 376, 426, APP, 'Review application', 'this repository'))
+    d.add(zone(560, 200, 376, 426, APP, 'Review application', 'own repository'))
     d.add(box(578, 228, 160, 92, APP, 'Pipeline runner', [code('backend/jobs', size=12), 'schedule, run lease,', 'status updates'],
               title_size=14, line_size=12.5, gap=4))
     d.add(store(606, 374, 132, 80, APP, 'Runtime state', [code('data/runtime', size=12)], title_size=13.5))

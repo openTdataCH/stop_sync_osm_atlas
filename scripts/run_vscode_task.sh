@@ -5,6 +5,11 @@
 # commands developers already use.
 set -euo pipefail
 
+# Resolve Compose and bind mounts from this checkout, including when the task
+# is launched from the parent multi-repository workspace.
+app_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$app_root"
+
 action="${1:?Expected a VS Code task action}"
 
 case "$action" in

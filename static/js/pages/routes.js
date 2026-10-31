@@ -947,6 +947,73 @@
     });
   }
 
+  // Permalinks (static/js/shared/permalinks.js): the open variant is kept in
+  // ?atlas_variant= (ATLAS itinerary id) and ?osm_variant= (OSM relation id).
+  // The server renders the page that holds a linked variant; this opens it.
+  var VARIANT_KEYS = ['atlas_variant', 'osm_variant'];
+
+  // Encoded as the server's canonical URLs (safe=','), so a reload does not
+  // redirect.
+  function variantQuery(panel) {
+    return Permalinks.encodeParams({
+      atlas_variant: panel.dataset.atlasVariant || null,
+      osm_variant: panel.dataset.osmVariant || null
+    }, ',');
+  }
+
+  function findLinkedVariant(panels) {
+    var params = new URLSearchParams(window.location.search);
+    var atlasVariant = params.get('atlas_variant');
+    var osmVariant = params.get('osm_variant');
+    if (!atlasVariant && !osmVariant) return { requested: false, panel: null };
+    var panel = panels.find(function (candidate) {
+      return (!atlasVariant || candidate.dataset.atlasVariant === atlasVariant) &&
+        (!osmVariant || candidate.dataset.osmVariant === osmVariant);
+    });
+    return { requested: true, panel: panel || null };
+  }
+
+  function initVariantPermalinks() {
+    var panels = Array.prototype.slice.call(document.querySelectorAll('details.route-card__panel--map'))
+      .filter(function (panel) { return panel.dataset.atlasVariant || panel.dataset.osmVariant; });
+    var tracker = Permalinks.createSelectionTracker(VARIANT_KEYS);
+
+    panels.forEach(function (panel) {
+      var button = panel.querySelector('.route-copy-link');
+      function onToggle() {
+        if (panel.open) tracker.open(panel, variantQuery(panel));
+        else tracker.close(panel);
+      }
+      function onCopy() {
+        var search = Permalinks.buildSearch(window.location.search, VARIANT_KEYS, variantQuery(panel));
+        Permalinks.copyLink(button, Permalinks.pageUrl(search, ''));
+      }
+      panel.addEventListener('toggle', onToggle);
+      if (button) button.addEventListener('click', onCopy);
+      removeRouteMapListeners.push(function () {
+        panel.removeEventListener('toggle', onToggle);
+        if (button) button.removeEventListener('click', onCopy);
+      });
+    });
+    removeRouteMapListeners.push(function () {
+      tracker.clear();
+      Permalinks.cancelCopyFeedback();
+    });
+
+    var linked = findLinkedVariant(panels);
+    if (linked.panel) {
+      linked.panel.open = true;
+      if (linked.panel.scrollIntoView) linked.panel.scrollIntoView({ block: 'start' });
+    } else if (linked.requested) {
+      Permalinks.replaceUrl({ search: Permalinks.buildSearch(window.location.search, VARIANT_KEYS, '') });
+      SharedUtils.showTemporaryMessage(
+        'The linked route variant is not in this list: it does not match these filters, or a newer import changed it.',
+        'warning',
+        6000
+      );
+    }
+  }
+
   function destroyRouteMaps() {
     removeRouteMapListeners.forEach(function (remove) { remove(); });
     removeRouteMapListeners = [];
@@ -985,6 +1052,7 @@
     handleChipRemoval();
     headerSummaryController = initSummaryToggle();
     initRouteMapPanels();
+    initVariantPermalinks();
     window.addEventListener('pagehide', function (event) {
       if (!event.persisted) destroyRouteMaps();
     }, { once: true });

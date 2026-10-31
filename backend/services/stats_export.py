@@ -679,6 +679,7 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
         'attributes': type_counts.get('attributes', 0),
         'contradicts_route_matching': type_counts.get('contradicts_route_matching', 0),
         'duplicates': type_counts.get('duplicates', 0),
+        'disused': type_counts.get('disused', 0),
         'multiple_problems': multiple_problems,
         'stops_with_problems': stops_with_problems,
         'clean_entries': max(0, total_stops - stops_with_problems),
@@ -957,9 +958,11 @@ def compute_summary_from_db(db_session) -> Dict[str, Any]:
     ).filter(StopsMatched.sloid.isnot(None)).scalar() or 0
 
     total_osm_stops = db_session.query(func.count(OsmStop.id)).scalar() or 0
-    total_osm_nodes = db_session.query(func.count(OsmNode.osm_node_id)).scalar() or 0
+    # Disused OSM elements are not stops; they have no stop unit either.
+    active_osm_node = OsmNode.osm_lifecycle.is_(None)
+    total_osm_nodes = db_session.query(func.count(OsmNode.osm_node_id)).filter(active_osm_node).scalar() or 0
     osm_stations = db_session.query(func.count(OsmNode.osm_node_id)).filter(
-        (OsmNode.osm_public_transport == 'station') | (OsmNode.osm_railway == 'station')
+        active_osm_node, (OsmNode.osm_public_transport == 'station') | (OsmNode.osm_railway == 'station')
     ).scalar() or 0
 
     matched_type_condition = StopsMatched.stop_type.in_(['matched', 'effectively_matched'])

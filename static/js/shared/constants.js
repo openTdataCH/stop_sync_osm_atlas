@@ -221,6 +221,7 @@
         GTFS_MATCHED: '#F0AD4E',
         ATLAS_UNMATCHED: '#DC3545',
         OSM_UNMATCHED: '#6C757D',
+        OSM_DISUSED: '#6C757D', // drawn as a hollow ring
         GTFS_UNMATCHED: '#6C757D',
         LINE_ATLAS_OSM: '#174092',
         LINE_OSM_GROUP: '#4CAF50',

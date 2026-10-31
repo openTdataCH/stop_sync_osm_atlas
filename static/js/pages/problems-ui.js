@@ -201,6 +201,10 @@ window.ProblemsUI = (function () {
                 // Info is already shown in the resolution actions banner, no need for bottom banner
                 return '';
             }
+            case 'disused': {
+                // Reason and action are rendered together by generateDisusedDetailsHtml
+                return '';
+            }
         }
 
         // Fallback generic banner
@@ -216,6 +220,19 @@ window.ProblemsUI = (function () {
         const distance = problem.distance_m ? Math.round(problem.distance_m) : null;
         const distanceText = distance != null ? `${distance}` : 'unknown';
         return `<div class="problem-section-item"><div class="alert alert-info mb-0"><small><i class="fas fa-info-circle"></i> The matched ${SharedUtils.sourceLabelHtml()} and OSM points are ${distanceText} m apart.</small></div></div>`;
+    }
+
+    function generateDisusedDetailsHtml(problem) {
+        const source = SharedUtils.sourceLabelHtml();
+        const lifecycle = SharedUtils.escapeHtml(problem.osm_lifecycle || 'disused');
+        const isConflict = Number(problem.priority) === 1;
+        const reason = isConflict
+            ? `${source} still lists a stop with the same UIC reference, and that stop has no OSM partner.`
+            : 'Apps still treat it as a stop: it keeps an unprefixed stop tag (such as <code>public_transport=platform</code>), or a route relation still lists it.';
+        const action = isConflict
+            ? `Check on the ground. If the stop is in service, remove the lifecycle prefix in OSM; if it is gone, the ${source} entry is outdated.`
+            : 'Prefix or remove the remaining stop tags, and remove the element from route relations that no longer serve it. All its tags are listed in the OSM popup.';
+        return `<div class="problem-section-item"><div class="alert ${isConflict ? 'alert-danger' : 'alert-warning'} mb-0"><small><i class="fas fa-${isConflict ? 'exclamation-circle' : 'exclamation-triangle'}"></i> OSM marks this element as <strong>${lifecycle}</strong>. ${reason} ${action}</small></div></div>`;
     }
 
     function generateUnmatchedDetailsHtml(problem) {
@@ -389,6 +406,8 @@ window.ProblemsUI = (function () {
             actionButtonsHtml += generateDistanceDetailsHtml(problem);
         } else if (problem.problem === 'unmatched') {
             actionButtonsHtml += generateUnmatchedDetailsHtml(problem);
+        } else if (problem.problem === 'disused') {
+            actionButtonsHtml += generateDisusedDetailsHtml(problem);
         }
         html += actionButtonsHtml;
 
@@ -471,11 +490,13 @@ window.ProblemsUI = (function () {
         const problemText = problemCount > 1 ? 'Problems' : 'Problem';
         const firstProblemForHeader = currentEntryProblems[0];
         const isDuplicatesGroupHeader = firstProblemForHeader && firstProblemForHeader.problem === 'duplicates';
+        const entryNumber = window.ProblemsData && ProblemsData.entryNumber ? ProblemsData.entryNumber(index) : index + 1;
         if (isDuplicatesGroupHeader) {
-            $('#problemTypeDisplay').text(`Group ${index + 1}/${totalProblems}`);
+            $('#problemTypeDisplay').text(`Group ${entryNumber}/${totalProblems}`);
         } else {
-            $('#problemTypeDisplay').text(`Entry ${index + 1}/${totalProblems} · ${problemCount} ${problemText}`);
+            $('#problemTypeDisplay').text(`Entry ${entryNumber}/${totalProblems} · ${problemCount} ${problemText}`);
         }
+        if (window.ProblemsPermalink) ProblemsPermalink.sync();
 
         // Clear previous content
         const container = $('#actionButtonsContent');
@@ -553,14 +574,12 @@ window.ProblemsUI = (function () {
      */
     function updateNavButtons() {
         const currentProblemIndex = ProblemsState.getCurrentProblemIndex();
-        const currentPage = ProblemsState.getCurrentPage();
-        const allProblems = ProblemsState.getAllProblems();
-        const totalProblems = ProblemsState.getTotalProblems();
         const problemsByEntry = ProblemsState.getProblemsByEntry();
 
-        // Navigation should be disabled only if we are at the very beginning, or at the very end of ALL problems
-        $('#prevProblemBtn').prop('disabled', currentProblemIndex <= 0 && currentPage === 1);
-        $('#nextProblemBtn').prop('disabled', allProblems.length === totalProblems && currentProblemIndex >= problemsByEntry.length - 1);
+        // Disabled only at the very beginning or the very end of the whole
+        // list; a permalink can load a window that starts on a later page.
+        $('#prevProblemBtn').prop('disabled', currentProblemIndex <= 0 && ProblemsState.getFirstLoadedPage() === 1);
+        $('#nextProblemBtn').prop('disabled', !ProblemsData.hasMorePages() && currentProblemIndex >= problemsByEntry.length - 1);
     }
 
     /**

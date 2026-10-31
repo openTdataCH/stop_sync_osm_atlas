@@ -44,6 +44,16 @@ describe('Canonical map entities and page adapters', () => {
     expect(window.MapEntityAdapters.stopEntity('atlas', { ...stop, has_atlas_duplicate: value }).label).toBeNull();
   });
 
+  test('disused OSM stops get the U label and a hollow ring, whatever their element type', () => {
+    const disused = { id: 3, osm_node_id: '9', stop_type: 'osm_disused', osm_lat: 47, osm_lon: 8, osm_node_type: 'platform' };
+    const entity = window.MapEntityAdapters.stopEntity('osm', disused);
+    expect(entity).toEqual(expect.objectContaining({ status: 'disused', label: 'U' }));
+    const style = window.MapRenderer.getEntityStyle(entity);
+    expect(style.fillColor).toBe('#FFFFFF');
+    expect(style.textColor).toBe(style.color);
+    expect(window.MapShared.createEntity('atlas', '1', [0, 0], { label: 'U' }).label).toBeNull();
+  });
+
   test('label validation keeps GTFS circular and restricts labels to their entity type', () => {
     expect(window.MapEntityAdapters.stopEntity('osm', { ...stop, osm_node_type: 'railway_station' }).label).toBe('S');
     expect(window.MapShared.createEntity('gtfs', '1', [0, 0], { label: 'D' }).label).toBeNull();

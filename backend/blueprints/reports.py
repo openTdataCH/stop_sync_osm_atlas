@@ -35,6 +35,7 @@ PROBLEM_REPORT_TYPES = (
     'attributes',
     'contradicts_route_matching',
     'duplicates',
+    'disused',
 )
 
 

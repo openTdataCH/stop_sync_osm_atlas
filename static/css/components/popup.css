@@ -453,6 +453,31 @@
   text-decoration: underline;
 }
 
+/* Styled like the iD link beside it, overriding the generic popup button. */
+.leaflet-popup-content .popup-copy-link,
+.leaflet-popup-content .popup-copy-link:hover {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--text-xs);
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.leaflet-popup-content .osm-editor-link + .popup-copy-link {
+  margin-left: var(--space-3);
+}
+
+.leaflet-popup-content .popup-copy-link:hover {
+  text-decoration: underline;
+}
+
+.leaflet-popup-content .popup-copy-link.is-copied,
+.leaflet-popup-content .popup-copy-link.is-copied:hover {
+  color: var(--color-success);
+}
+
 /* -------------------------------------------------------------------------
    Popup Drag Handle
    ------------------------------------------------------------------------- */
@@ -543,4 +568,26 @@
 .customPopup .leaflet-popup-close-button:hover {
   color: var(--color-dark);
   background-color: rgba(255, 255, 255, 1);
+}
+
+/* -------------------------------------------------------------------------
+   OSM Tag List (collapsible, single-stop popups)
+   ------------------------------------------------------------------------- */
+.popup-osm-tags {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.popup-osm-tags td {
+  padding: 1px 3px;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  overflow-wrap: anywhere;
+}
+
+.popup-osm-tags td:first-child {
+  color: var(--color-fg-muted);
+  padding-right: var(--space-2);
 }

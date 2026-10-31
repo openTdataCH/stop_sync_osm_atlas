@@ -85,6 +85,10 @@ def project_bundle(bundle):
             and (row.get("public_transport") == "station" or row.get("railway") == "station")
         )
         osm[row["key"]] = Record(**values)
+    # Disused OSM elements are not stops: they keep their node rows for the
+    # popup, but stay out of the stop units, unmatched lists and counts.
+    disused_keys = {row["key"] for row in bundle["unmatched"] if row.get("disused")}
+    disused_ids = {str(osm[key].node_id) for key in disused_keys}
     matches = [Record(
         atlas_node=sources[row["source_key"]], osm_node=osm[row["osm_key"]],
         match_type=row["method"], distance_m=row["distance_m"], notes=row.get("notes", ""),
@@ -101,7 +105,7 @@ def project_bundle(bundle):
         if row["side"] == "source":
             members = [ids[key] for key in row["members"]]
             duplicates.update({member: members for member in members})
-        else:
+        elif str(row["representative_node_id"]) not in disused_ids:
             units.append(Record(
                 stop_kind=row["stop_kind"], group_kind=row.get("group_kind"),
                 representative_node_id=row["representative_node_id"],
@@ -131,7 +135,7 @@ def project_bundle(bundle):
         if not row.get("source_keys"):
             for node_id in row.get("osm_ids", []):
                 osm_problems.setdefault(str(node_id), []).append(problem)
-    unmatched_source, unmatched_osm = [], []
+    unmatched_source, unmatched_osm, disused_osm = [], [], []
     source_map, osm_map, isolated_source, isolated_osm, effectively_matched = {}, {}, set(), set(), set()
     for row in bundle["unmatched"]:
         if row["side"] == "source":
@@ -146,7 +150,7 @@ def project_bundle(bundle):
                 isolated_source.add(node.sloid)
         else:
             node = osm[row["key"]]
-            unmatched_osm.append(node)
+            (disused_osm if row["key"] in disused_keys else unmatched_osm).append(node)
             osm_map[id(node)] = osm_problems.get(str(node.node_id), [])
             if row.get("isolated"):
                 isolated_osm.add(str(node.node_id))
@@ -156,8 +160,9 @@ def project_bundle(bundle):
     routes = _project_routes({row["kind"]: row["value"] for row in bundle["routes"]}, ids)
     result = Record(
         matched=matches, unmatched_atlas=unmatched_source, unmatched_osm=unmatched_osm,
-        duplicate_sloid_map=duplicates, osm_stop_units=units, all_osm_nodes=list(osm.values()),
-        effectively_matched_osm_ids=effectively_matched, isolated_osm_ids=isolated_osm,
+        duplicate_sloid_map=duplicates, osm_stop_units=units,
+        all_osm_nodes=[node for key, node in osm.items() if key not in disused_keys],
+        effectively_matched_osm_ids=effectively_matched, isolated_osm_ids=isolated_osm, disused_osm=disused_osm,
         osm_node_routes=extensions.get("route_evidence", {}).get("osm", {}),
         gtfs_stops=extensions.get("gtfs_stops", []), gtfs_atlas_state=extensions.get("gtfs_atlas_state", []),
         gtfs_atlas_stats=extensions.get("gtfs_atlas_stats", {}),

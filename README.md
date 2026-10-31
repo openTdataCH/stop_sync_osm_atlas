@@ -2,6 +2,8 @@
 
 Compare official public transport stops and routes with OpenStreetMap, explain discrepancies, and inspect the results on a map. The Swiss deployment uses ATLAS and GTFS at [atlas.osm.ch](https://atlas.osm.ch).
 
+![The map page of atlas.osm.ch: matched and unmatched ATLAS and OSM stops around Rapperswil-Jona, with the details of one matched stop open](documentation/images/review-app-map-screenshot.png)
+
 This repository is the review application. It is developed beside an independently runnable matching-engine checkout:
 
 | Project | Purpose | Start here |
@@ -42,7 +44,7 @@ Run `deactivate` before setting up a separate application environment.
 Keep the private repository location, sibling path and immutable revision in the ignored `.env`:
 
 ```dotenv
-ENGINE_REPO=https://github.com/your-account/matching-engine.git
+ENGINE_REPO=https://github.com/openTdataCH/osm-public-transport-matcher.git
 ENGINE_DIR=../engine
 ENGINE_REF=<full-commit-sha>
 ```
@@ -96,6 +98,16 @@ The engine requires no database credentials. The importer validates files and re
 ## Configuration and development
 
 Copy `env.example` to `.env` to override settings. Source snapshots and runtime state live under `data/`; PostGIS persists in the Compose volume. Long-running services restart unless manually stopped. Database migrations run through the one-shot `migrator` service.
+
+For day-to-day web development, run this from the application checkout:
+
+```bash
+make dev
+```
+
+Open [localhost:5001](http://localhost:5001). The development Compose override mounts this checkout into `/app`: Python edits reload Flask automatically, and template, JavaScript and CSS edits appear when you refresh the browser. The Flask CLI reloader also recovers after you fix a syntax error. Dependency or Dockerfile changes still require another `make dev` to rebuild the image. The scheduler and its installed engine need rebuilding/restarting separately when their code changes.
+
+After moving or renaming the workspace, run `make dev` from its new location. Docker Desktop's Start button reuses the container's old absolute bind paths; `docker compose up` recreates containers with the current paths while retaining the PostGIS volume. To also update the scheduler's paths, run `docker compose up --build -d scheduler`.
 
 Run the supported quality workflow from this repository with Docker Desktop, Compose v2 and the sibling engine checkout available:
 

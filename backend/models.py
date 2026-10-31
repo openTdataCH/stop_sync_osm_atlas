@@ -27,7 +27,7 @@ class StopsMatched(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     sloid = db.Column(db.Text, index=True)
-    # Valid values: 'matched', 'effectively_matched', 'atlas_unmatched', 'osm_unmatched'
+    # Valid values: 'matched', 'effectively_matched', 'atlas_unmatched', 'osm_unmatched', 'osm_disused'
     stop_type = db.Column(db.String(50))
     match_type = db.Column(db.String(50))
     # Core location and linking attributes
@@ -195,6 +195,11 @@ class OsmNode(db.Model):
     osm_node_type = db.Column(db.String(50))
     # JSONB array of all OSM node IDs in the duplicate group (e.g. ["123", "456"])
     duplicate_group_node_ids = db.Column(JSONB)
+    # Prefix of a retired stop tag, such as 'disused' for disused:highway=bus_stop
+    osm_lifecycle = db.Column(db.String(20))
+    # Every tag of the element. Deferred: only the stop popup reads it, so map
+    # queries that join this table never fetch or decode it.
+    osm_tags = db.deferred(db.Column(JSONB))
 
 
 class OsmStop(db.Model):

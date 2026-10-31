@@ -326,6 +326,7 @@ function getActiveFilterCount() {
     }
 
     if (activeFilters.stopType.includes('osm_unmatched')) count += 1;
+    if (activeFilters.stopType.includes('osm_disused')) count += 1;
 
     count += activeFilters.station.length;
     count += countSimpleArrayFilters();
@@ -672,10 +673,16 @@ function updateFiltersUI() {
         unmatchedOsmString = buildRemovableChip({ label: 'Unmatched OSM', badgeClass: 'filter-chip-unmatched', data: { type: 'masterUnmatchedOsm', target: '#masterUnmatchedOsmCheckbox' } });
     }
 
+    let disusedOsmString = '';
+    if (activeFilters.stopType.includes('osm_disused')) {
+        disusedOsmString = buildRemovableChip({ label: 'Disused OSM', badgeClass: 'filter-chip-unmatched', data: { type: 'masterDisusedOsm', target: '#masterDisusedOsmCheckbox' } });
+    }
+
     let visibilityChips = [];
     if (matchedDisplayString) visibilityChips.push(matchedDisplayString);
     if (unmatchedAtlasString) visibilityChips.push(unmatchedAtlasString);
     if (unmatchedOsmString) visibilityChips.push(unmatchedOsmString);
+    if (disusedOsmString) visibilityChips.push(disusedOsmString);
     if (visibilityChips.length > 0) finalGroupStrings.push(buildOrGroup(visibilityChips));
 
     let stationIdChips = [];
@@ -756,6 +763,7 @@ function clearAllFilters() {
     $('#masterMatchedCheckbox').prop('checked', false);
     $('#masterUnmatchedAtlasCheckbox').prop('checked', false);
     $('#masterUnmatchedOsmCheckbox').prop('checked', false);
+    $('#masterDisusedOsmCheckbox').prop('checked', false);
     $('#filterDuplicatesOnly').prop('checked', false);
     $('#filterMissingOsmOperatorWikidata').prop('checked', false);
     activeFilters.missingOsmOperatorWikidata = false;
@@ -854,6 +862,7 @@ function updateActiveFilters() {
     if ($('#masterMatchedCheckbox').is(':checked')) activeFilters.stopType.push('matched');
     if ($('#masterUnmatchedAtlasCheckbox').is(':checked')) activeFilters.stopType.push('atlas_unmatched');
     if ($('#masterUnmatchedOsmCheckbox').is(':checked')) activeFilters.stopType.push('osm_unmatched');
+    if ($('#masterDisusedOsmCheckbox').is(':checked')) activeFilters.stopType.push('osm_disused');
 
     activeFilters.showDuplicatesOnly = $('#filterDuplicatesOnly').is(':checked');
     activeFilters.missingOsmOperatorWikidata = $('#filterMissingOsmOperatorWikidata').is(':checked');
@@ -1150,7 +1159,7 @@ function initFilterEventHandlers() {
     setupMasterCheckbox('#masterMatchedCheckbox', '.filter-match-method, .filter-distance-method, .filter-route-method');
 
     // Attach change handlers to filter checkboxes and input elements.
-    $('.master-filter-checkbox, .visibility-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-entity-type, .filter-osm-group, .filter-osm-pair-master, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox').on('change', function () {
+    $('.master-filter-checkbox, .visibility-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-entity-type, .filter-osm-group, .filter-osm-pair-master, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox, #masterDisusedOsmCheckbox').on('change', function () {
         if (isBulkCheckboxSyncDepth > 0) {
             return;
         }

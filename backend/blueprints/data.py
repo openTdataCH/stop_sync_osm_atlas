@@ -222,6 +222,7 @@ def get_data():
                 (StopsMatched.stop_type == 'osm_unmatched', 1),
                 (StopsMatched.stop_type == 'effectively_matched', 2),
                 (StopsMatched.stop_type == 'matched', 3),
+                (StopsMatched.stop_type == 'osm_disused', 4),
                 else_=9,
             )
             query = query.order_by(stop_type_rank.asc(), StopsMatched.id.asc())
@@ -431,14 +432,14 @@ def get_stop_popup():
             return jsonify({"error": "stop_id is required"}), 400
         stop = StopsMatched.query.options(
             joinedload(StopsMatched.atlas_stop_details),
-            joinedload(StopsMatched.osm_node_details)
+            joinedload(StopsMatched.osm_node_details).undefer(OsmNode.osm_tags)
         ).filter(StopsMatched.id == stop_id).first()
         if not stop:
             return jsonify({"error": "StopsMatched not found"}), 404
-        enriched = format_stop_data(stop, include_routes=True)
+        enriched = format_stop_data(stop, include_routes=True, include_osm_tags=True)
         if stop.stop_type == 'matched' and stop.sloid:
             matched_rows = StopsMatched.query.options(
-                joinedload(StopsMatched.osm_node_details),
+                joinedload(StopsMatched.osm_node_details).undefer(OsmNode.osm_tags),
                 joinedload(StopsMatched.atlas_stop_details)
             ).filter(StopsMatched.sloid == stop.sloid, StopsMatched.stop_type == 'matched').all()
             atlas_lat = stop.atlas_lat
@@ -473,6 +474,7 @@ def get_stop_popup():
                         "match_type": r.match_type,
                         "has_osm_duplicate": bool(osm_details and osm_details.duplicate_group_node_ids),
                         "osm_node_type": osm_details.osm_node_type if osm_details else None,
+                        "osm_tags": osm_details.osm_tags if osm_details else None,
                         "routes_osm": get_osm_routes_for_node(r.osm_node_id),
                     })
             if osm_matches:

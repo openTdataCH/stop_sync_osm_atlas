@@ -20,9 +20,12 @@ function getCachedDivIcon(key, html, className, size, anchor) {
 }
 
 // Helper to build and cache a labeled circle SVG icon
-function getCachedLabeledCircleIcon(keyPrefix, color, letter, size, radius, weight, fillOpacity) {
-    const key = `${keyPrefix}|${color}|${letter}|${size}|${weight}|${fillOpacity}`;
-    const html = `\n            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">\n                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>\n                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="white" font-size="${radius + 2}" font-weight="bold">${letter}</text>\n            </svg>`;
+function getCachedLabeledCircleIcon(keyPrefix, style, letter) {
+    const { color, fillColor, fillOpacity, weight, radius } = style;
+    const textColor = style.textColor || 'white';
+    const size = radius * 2;
+    const key = `${keyPrefix}|${color}|${fillColor}|${textColor}|${letter}|${size}|${weight}|${fillOpacity}`;
+    const html = `\n            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">\n                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${fillColor}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>\n                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="${textColor}" font-size="${radius + 2}" font-weight="bold">${letter}</text>\n            </svg>`;
     return getCachedDivIcon(key, html, 'custom-div-icon', [size, size], [radius, radius]);
 }
 
@@ -245,8 +248,19 @@ function getEntityStyle(entity) {
         osm: [colors.OSM_MATCHED || '#4CAF50', colors.OSM_UNMATCHED || '#6C757D'],
         gtfs: [colors.GTFS_MATCHED || '#F0AD4E', colors.GTFS_UNMATCHED || '#6C757D']
     };
-    const color = palette[entity.entityType][entity.status === 'unmatched' ? 1 : 0];
     const isGtfs = entity.entityType === 'gtfs';
+    if (entity.status === 'disused') {
+        // A hollow ring: present in OSM, but out of service.
+        const color = colors.OSM_DISUSED || '#6C757D';
+        return {
+            color, fillColor: '#FFFFFF', textColor: color,
+            radius: AppConstants.MARKERS.DEFAULT_RADIUS,
+            weight: AppConstants.MARKERS.DEFAULT_WEIGHT,
+            opacity: entity.emphasis === 'subdued' ? 0.4 : entity.emphasis === 'context' ? 0.6 : 1,
+            fillOpacity: entity.emphasis === 'subdued' ? 0.2 : 0.9
+        };
+    }
+    const color = palette[entity.entityType][entity.status === 'unmatched' ? 1 : 0];
     return {
         color, fillColor: color,
         radius: isGtfs ? 5 : AppConstants.MARKERS.DEFAULT_RADIUS,
@@ -259,7 +273,7 @@ function getEntityStyle(entity) {
 function getEntityRenderSignature(entity, zoom) {
     const style = getEntityStyle(entity);
     const label = zoom >= MAP_RENDERER_LABEL_ICON_MIN_ZOOM ? entity.label : null;
-    return [entity.entityType, style.color, label || 'circle', entity.emphasis].join('|');
+    return [entity.entityType, style.color, style.fillColor, label || 'circle', entity.emphasis].join('|');
 }
 
 function layoutEntities(entities, options = {}) {
@@ -285,8 +299,7 @@ function createEntityMarker(descriptor) {
     const { entity, displayPosition, zoom } = descriptor;
     const style = getEntityStyle(entity);
     if (entity.label && zoom >= MAP_RENDERER_LABEL_ICON_MIN_ZOOM) {
-        const icon = getCachedLabeledCircleIcon(entity.entityType, style.color, entity.label,
-            style.radius * 2, style.radius, style.weight, style.fillOpacity);
+        const icon = getCachedLabeledCircleIcon(entity.entityType, style, entity.label);
         return L.marker(displayPosition, { icon, opacity: style.opacity });
     }
     return L.circleMarker(displayPosition, style);

@@ -7,7 +7,7 @@ const browserEntrypoints = Object.fromEntries([
     'MapComponents', 'MapCore', 'MapEntityAdapters', 'MapLayerRegistry',
     'MapPopupController', 'MapRenderer', 'MapShared', 'MapViewportLoader',
     'MobileFilters', 'OperatorDropdown', 'PopupRenderer', 'PopupUtils',
-    'ProblemsData', 'ProblemsMap', 'ProblemsRenderer', 'ProblemsState', 'ProblemsUI',
+    'Permalinks', 'ProblemsData', 'ProblemsMap', 'ProblemsPermalink', 'ProblemsRenderer', 'ProblemsState', 'ProblemsUI',
     'SharedUtils', 'activeFilters', 'topNLayer', 'stopsById',
     'fetchAndCenterSpecificStop', 'loadDataForViewport', 'updateHeaderSummary',
     'loadTopNMatches', 'initFilterEventHandlers', 'updateFiltersUI',

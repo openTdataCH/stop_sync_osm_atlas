@@ -33,6 +33,12 @@ var headerSummaryFiltersExpanded = false;
 var headerSummaryCollapsed = false;
 var mobileFiltersOpen = false;
 
+// Permalinks (see the "Permalinks" section below).
+var INDEX_STOP_KEYS = ['sloid', 'osm'];
+var INDEX_POPUP_OPTIONS = { permalinks: true };
+var indexMapHash = null;
+var indexPopupLinks = null;
+
 /**
  * Invalidate the viewport cache, forcing the next load to fetch fresh data.
  * Call this when filters change or when you need to force a refresh.
@@ -86,10 +92,10 @@ function fetchJson(url, params, signal) {
 function initMap() {
     indexMapCore = window.MapComponents.MapCore.create({
         container: 'map',
-        view: {
+        view: Permalinks.initialMapView({
             center: AppConstants.MAP.DEFAULT_CENTER,
             zoom: AppConstants.MAP.DEFAULT_ZOOM
-        },
+        }),
         mapOptions: {
             closePopupOnClick: false,
             preferCanvas: false,
@@ -120,6 +126,7 @@ function initMap() {
     popupController = createIndexPopupController();
     markerRegistry = createIndexMarkerRegistry();
     viewportLoader = createIndexViewportLoader();
+    bindIndexPermalinks();
 }
 
 function showZoomBanner(show, delayMs = 0) {
@@ -588,10 +595,10 @@ function popupContentForMarker(payload, markerData) {
     var enriched = payload && (payload.stop || payload);
     if (enriched && enriched.stop_type === 'atlas_unmatched') {
         return markerData.entityType === 'atlas'
-            ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true)
-            : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true);
+            ? PopupRenderer.generateSingleAtlasBubbleHtml(enriched, true, INDEX_POPUP_OPTIONS)
+            : PopupRenderer.generateSingleOsmBubbleHtml(enriched, true, INDEX_POPUP_OPTIONS);
     }
-    return PopupRenderer.generatePopupHtml(enriched, markerData.entityType);
+    return PopupRenderer.generatePopupHtml(enriched, markerData.entityType, INDEX_POPUP_OPTIONS);
 }
 
 function attachIndexPopup(marker, descriptor) {
@@ -782,7 +789,7 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
         stopsById[stopData.id] = stopData;
 
         // Generate the appropriate popup HTML
-        const popupHtml = PopupRenderer.generatePopupHtml(stopData, popupViewType);
+        const popupHtml = PopupRenderer.generatePopupHtml(stopData, popupViewType, INDEX_POPUP_OPTIONS);
         const popup = window.MapRenderer.createPopupWithOptions(popupHtml).setLatLng([centerLat, centerLon]);
 
         const entity = window.MapEntityAdapters.stopEntity(popupViewType, stopData, {
@@ -883,11 +890,104 @@ function fetchAndCenterSpecificStop(identifier, identifierType) {
     });
 }
 
+// ==========================================
+// Permalinks
+// ==========================================
+// The view is kept in #map=<zoom>/<lat>/<lon> and the stop whose popup is open
+// in ?sloid=<sloid> or ?osm=node|way/<id> (static/js/shared/permalinks.js).
+
+// Reads ?sloid= / ?osm= into the identifier /api/stop_by_id expects. OSM ways
+// are stored as "way_<id>" and nodes as the bare number.
+function parseStopPermalink(search) {
+    var params = new URLSearchParams(search);
+    var sloid = (params.get('sloid') || '').trim();
+    if (sloid) return { type: 'atlas', identifier: sloid };
+
+    var osm = /^(node|way)\/(\d+)$/.exec((params.get('osm') || '').trim());
+    if (!osm) return null;
+    return { type: 'osm', identifier: osm[1] === 'way' ? 'way_' + osm[2] : osm[2] };
+}
+
+// The inverse: a stop side and stored id as URL parameters.
+function stopPermalinkParams(type, ref) {
+    if (!ref) return null;
+    if (type === 'atlas') return { sloid: String(ref) };
+    if (type !== 'osm') return null;
+    var element = PopupRenderer.parseOsmElementRef(ref);
+    if (!element || !/^\d+$/.test(element.id)) return null;
+    return { osm: element.type + '/' + element.id };
+}
+
+function stopParamsFromButton(button) {
+    if (!button) return null;
+    return stopPermalinkParams(button.getAttribute('data-permalink-type'), button.getAttribute('data-permalink-ref'));
+}
+
+// Sets (or, with null, removes) the stop parameter, keeping the others.
+function replaceIndexStop(params) {
+    Permalinks.replaceUrl({
+        search: Permalinks.buildSearch(window.location.search, INDEX_STOP_KEYS, Permalinks.encodeParams(params))
+    });
+}
+
+function handleIndexMapClick(event) {
+    var button = event.target && event.target.closest ? event.target.closest('.popup-copy-link') : null;
+    var params = stopParamsFromButton(button);
+    if (!params) return;
+    var search = Permalinks.buildSearch(window.location.search, INDEX_STOP_KEYS, Permalinks.encodeParams(params));
+    Permalinks.copyLink(button, Permalinks.pageUrl(search, Permalinks.currentMapHash(map)));
+}
+
+// Opens the stop named in the query string. Called once per page load; the
+// stop's own view wins over a #map= hash. When the stop cannot be opened the
+// map keeps the hash or default view and the stop parameter is dropped.
+function openStopFromUrl() {
+    var params = new URLSearchParams(window.location.search);
+    var linkedKey = params.has('sloid') ? 'sloid' : (params.has('osm') ? 'osm' : null);
+    if (!linkedKey) return Promise.resolve(false);
+
+    var stop = parseStopPermalink(window.location.search);
+    var request = stop
+        ? fetchAndCenterSpecificStop(stop.identifier, stop.type)
+        : Promise.reject(new Error('Invalid stop link.'));
+    return request.then(function () {
+        return true;
+    }, function () {
+        replaceIndexStop(null);
+        SharedUtils.showTemporaryMessage(
+            'Could not open the linked stop (' + SharedUtils.escapeHtml(linkedKey + '=' + params.get(linkedKey)) + ').',
+            'warning',
+            6000
+        );
+        return false;
+    });
+}
+
+function bindIndexPermalinks() {
+    indexMapHash = Permalinks.bindMapHash(map);
+    indexPopupLinks = Permalinks.trackPopups(map, INDEX_STOP_KEYS, function (popup) {
+        return Permalinks.encodeParams(stopParamsFromButton(Permalinks.popupCopyButton(popup)));
+    });
+    map.getContainer().addEventListener('click', handleIndexMapClick);
+}
+
+function unbindIndexPermalinks() {
+    if (indexMapHash) indexMapHash.destroy();
+    if (indexPopupLinks) indexPopupLinks.destroy();
+    indexMapHash = null;
+    indexPopupLinks = null;
+    if (map) map.getContainer().removeEventListener('click', handleIndexMapClick);
+    Permalinks.cancelCopyFeedback();
+}
+
 function handleIndexResize() {
     applyMobileLayoutState();
 }
 
 function destroyIndexPage() {
+    // First, so popups closed below do not strip ?sloid=/?osm= from the
+    // history entry that Back returns to.
+    unbindIndexPermalinks();
     window.removeEventListener('resize', handleIndexResize);
     if (currentGlobalStatsRequest && currentGlobalStatsRequest.readyState !== 4) {
         try { currentGlobalStatsRequest.abort(); } catch (error) { }
@@ -1054,6 +1154,7 @@ $(document).ready(function () {
     updateAccordionIcons();
     updateActiveFilters(); // This will call loadDataForViewport and updateFiltersUI
     updateHeaderSummary(); // Initial summary update
+    openStopFromUrl();
 
     // Remove the old, duplicated event listener for new search type dropdown options
     // The initSearchTypeModal handles the new modal-based selector.

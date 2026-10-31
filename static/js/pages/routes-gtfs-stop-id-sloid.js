@@ -365,10 +365,10 @@
 
   var mapCore = components.MapCore.create({
     container: mapElement,
-    view: {
+    view: global.Permalinks.initialMapView({
       center: defaultCenter,
       zoom: defaultZoom
-    },
+    }),
     mapOptions: {
       closePopupOnClick: false,
       preferCanvas: false,
@@ -401,7 +401,8 @@
   function renderPopup(payload) {
     return global.PopupRenderer.generateGtfsStopIdSloidPopupHtml(payload, {
       enableFilterLinks: false,
-      enableRouteLinks: false
+      enableRouteLinks: false,
+      permalinks: true
     });
   }
 
@@ -478,6 +479,34 @@
     update: updateMarker,
     onRemove: handleMarkerRemoval
   });
+
+  // Permalinks (static/js/shared/permalinks.js): the view is kept in
+  // #map=<zoom>/<lat>/<lon> and the stop whose popup is open in ?sloid= or
+  // ?gtfs_stop_id=.
+  var STOP_KEYS = ['sloid', 'gtfs_stop_id'];
+  var permalinks = global.Permalinks;
+
+  function stopParamsFromButton(button) {
+    var ref = button ? button.getAttribute('data-permalink-ref') : null;
+    if (!ref) return null;
+    var type = button.getAttribute('data-permalink-type');
+    if (type === 'atlas') return { sloid: ref };
+    if (type === 'gtfs') return { gtfs_stop_id: ref };
+    return null;
+  }
+
+  var mapHash = permalinks.bindMapHash(map);
+  var popupLinks = permalinks.trackPopups(map, STOP_KEYS, function (popup) {
+    return permalinks.encodeParams(stopParamsFromButton(permalinks.popupCopyButton(popup)));
+  });
+
+  function handleMapClick(event) {
+    var button = event.target && event.target.closest ? event.target.closest('.popup-copy-link') : null;
+    var params = stopParamsFromButton(button);
+    if (!params) return;
+    var search = permalinks.buildSearch(global.location.search, STOP_KEYS, permalinks.encodeParams(params));
+    permalinks.copyLink(button, permalinks.pageUrl(search, permalinks.currentMapHash(map)));
+  }
 
   function renderPayload(rawPayload, context) {
     var payload = normalizePayload(rawPayload);
@@ -957,9 +986,37 @@
     return viewportLoader.reload({ force: true, reason: 'filters-change' });
   }
 
+  // Opens the stop named in the query string: the identifier search centres
+  // and filters the map on it, then its popup opens. A failed search shows its
+  // usual message under the search box; the parameter is then dropped.
+  function openLinkedStop() {
+    var params = new URLSearchParams(global.location.search);
+    var sloid = (params.get('sloid') || '').trim();
+    var stopId = (params.get('gtfs_stop_id') || '').trim();
+    if (!sloid && !stopId) return Promise.resolve({ status: 'none' });
+
+    return submitIdentifierSearch(sloid ? 'sloid:' + sloid : 'stop_id:' + stopId).then(function (result) {
+      if (destroyed || (result && result.status === 'stale')) return { status: 'stale' };
+      var marker = result && result.status === 'found'
+        ? (sloid ? atlasRegistry.get('atlas:' + sloid) : gtfsRegistry.get('gtfs:' + stopId))
+        : null;
+      if (marker) {
+        return popupController.open(marker).then(function () { return { status: 'opened' }; });
+      }
+      permalinks.replaceUrl({ search: permalinks.buildSearch(global.location.search, STOP_KEYS, '') });
+      return { status: 'missing' };
+    });
+  }
+
   function destroy() {
     if (destroyed) return;
     destroyed = true;
+    // First, so popups closed below do not strip the stop from the history
+    // entry that Back returns to.
+    mapHash.destroy();
+    popupLinks.destroy();
+    mapElement.removeEventListener('click', handleMapClick);
+    permalinks.cancelCopyFeedback();
     cancelIdentifierLookup();
     global.removeEventListener('resize', handleResize);
     global.removeEventListener('beforeunload', destroy);
@@ -1002,6 +1059,7 @@
     filterControls.addEventListener('hidden.bs.dropdown', handleFilterDropdownHidden);
   }
   if (activeFiltersElement) activeFiltersElement.addEventListener('click', handleActiveFiltersClick);
+  mapElement.addEventListener('click', handleMapClick);
 
   global.RoutesGtfsStopIdSloidMap = Object.freeze({
     setFilters: setFilters,
@@ -1014,6 +1072,7 @@
     clearSearch: clearIdentifierSearch,
     getSearch: identifierSearch.getState,
     reload: function () { return viewportLoader.reload({ force: true, reason: 'api' }); },
+    openLinkedStop: openLinkedStop,
     destroy: destroy
   });
 
@@ -1022,4 +1081,5 @@
   renderActiveFilterChips();
   loadSummary();
   viewportLoader.reload({ reason: 'initial' });
+  openLinkedStop();
 })(window);

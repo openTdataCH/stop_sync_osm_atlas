@@ -170,3 +170,24 @@ def test_scope_condition_osm_unmatched_excludes_trio_middle_effective_matches():
 
     assert "stop_type = 'osm_unmatched'" in sql
     assert "stop_type = 'effectively_matched'" not in sql
+
+def test_scope_condition_osm_disused_is_its_own_stop_type():
+    resolved = resolve_stop_type_match_filters('osm_disused', None)
+
+    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
+
+    assert resolved['include_osm_disused'] is True
+    assert resolved['include_osm_unmatched'] is False
+    assert sql == "stops_matched.stop_type = 'osm_disused'"
+
+
+def test_global_stats_leave_disused_osm_out_unless_selected():
+    from backend.services.global_stats import _build_scoped_global_stats_query
+
+    with backend_app.app_context():
+        unfiltered = str(_build_scoped_global_stats_query({}).statement.compile(compile_kwargs={"literal_binds": True}))
+        selected = str(_build_scoped_global_stats_query({'stop_filter': 'osm_disused'}).statement.compile(
+            compile_kwargs={"literal_binds": True}))
+
+    assert "stops_matched.stop_type != 'osm_disused'" in unfiltered
+    assert "!= 'osm_disused'" not in selected

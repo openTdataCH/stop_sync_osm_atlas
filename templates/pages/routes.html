@@ -294,9 +294,12 @@
         {% set direction_label = direction.direction_label %}
         {% set atlas_headsign = direction.atlas_headsign or (direction.representative_headsign if direction.has_atlas_variant else None) %}
         {% set osm_to_name = direction.osm_to_name %}
+        {# Stable ids for permalinks (?atlas_variant= / ?osm_variant=); the numeric itinerary ids change with each import. #}
         <details class="route-card__panel route-card__panel--map" aria-label="Stops list panel for variant"
                  {%- if direction.atlas_itinerary_id %} data-atlas-itinerary-id="{{ direction.atlas_itinerary_id }}"{% endif %}
-                 {%- if direction.osm_itinerary_id %} data-osm-itinerary-id="{{ direction.osm_itinerary_id }}"{% endif %}>
+                 {%- if direction.osm_itinerary_id %} data-osm-itinerary-id="{{ direction.osm_itinerary_id }}"{% endif %}
+                 {%- if direction.atlas_source_itinerary_id and active_view == 'routes' %} data-atlas-variant="{{ direction.atlas_source_itinerary_id }}"{% endif %}
+                 {%- if direction.osm_relation_id %} data-osm-variant="{{ direction.osm_relation_id }}"{% endif %}>
           <summary>
             <span class="route-card__panel-summary-main">
               <span class="route-card__panel-summary-prefix">Dir: {{ direction.direction_id if direction.direction_id else 'Unspecified' }}</span>
@@ -344,6 +347,13 @@
           </summary>
           {% set map_index = route_index ~ '_' ~ loop.index %}
           <div class="route-card__panel-content">
+            {% if direction.osm_relation_id or (direction.atlas_source_itinerary_id and active_view == 'routes') %}
+            <div class="route-card__panel-actions">
+              <button type="button" class="route-copy-link" title="Copy a link that opens this variant">
+                <i class="fas fa-link" aria-hidden="true"></i> Copy link
+              </button>
+            </div>
+            {% endif %}
             <div class="variant-workspace{{ ' variant-workspace--with-map' if route.map_filter }}">
               {% if active_view == 'routes' and (direction.is_matched or direction.atlas_itinerary_id or direction.osm_itinerary_id) %}
               {{ variant_comparison(direction, map_index) }}
@@ -601,6 +611,7 @@
 <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
+<script src="{{ url_for('static', filename='js/shared/permalinks.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-shared.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-entity-adapters.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-core.js') }}"></script>

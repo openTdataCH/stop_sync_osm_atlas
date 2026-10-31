@@ -24,6 +24,9 @@ def _build_scoped_global_stats_query(args):
     resolved_filters = resolve_stop_type_match_filters(stop_filter_str, match_method_str)
     scope_condition = build_stop_scope_condition(StopsMatched, resolved_filters)
     query = base_query.filter(scope_condition) if scope_condition is not None else base_query
+    # Disused OSM elements are not stops: count them only when asked for.
+    if not resolved_filters['include_osm_disused']:
+        query = query.filter(StopsMatched.stop_type != 'osm_disused')
 
     if show_duplicates_only:
         duplicate_condition = build_atlas_duplicate_membership_condition()

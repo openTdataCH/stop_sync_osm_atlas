@@ -9,6 +9,7 @@ describe('Routes operator filters', () => {
   beforeAll(() => {
     loadScript('static/js/shared/utils.js');
     loadScript('static/js/components/filter-chip-utils.js');
+    loadScript('static/js/shared/permalinks.js');
     loadScript('static/js/pages/routes.js');
   });
 

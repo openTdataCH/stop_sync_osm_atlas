@@ -915,6 +915,34 @@
   background: var(--color-bg-subtle);
 }
 
+/* A permalink scrolls its variant to the top, below the sticky tabs. */
+.route-card__panel--map {
+  scroll-margin-top: calc(var(--routes-sticky-top) + var(--space-3));
+}
+
+.route-card__panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: calc(-1 * var(--space-2));
+}
+
+.route-copy-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--text-xs);
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.route-copy-link:hover {
+  text-decoration: underline;
+}
+
+.route-copy-link.is-copied {
+  color: var(--color-success);
+}
+
 .route-card__panel-summary-main {
   display: flex;
   align-items: center;

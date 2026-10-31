@@ -17,6 +17,7 @@ describe('operator map filters', () => {
         }, jquery);
         window.L = { layerGroup: () => ({ clearLayers: jest.fn() }) };
         window.AppConstants = { MAP: {}, DATA_LOADING: {}, COLORS: {} };
+        loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/pages/main.js'));
     });
 
@@ -80,6 +81,23 @@ describe('operator map filters', () => {
         updateFiltersUI();
         expect(document.getElementById('activeFilters').textContent).toContain('No Wikidata tag');
         expect(document.querySelector('[data-target="#filterMissingOsmOperatorWikidata"]')).not.toBeNull();
+    });
+
+    test('permalink URL rewrites keep the operator links byte for byte', () => {
+        const operators = '?atlas_operator=EX&osm_operator=Example+%26+Co' +
+            '&osm_operator_wikidata=Q1%2CQ2&missing_osm_operator_wikidata=true';
+        history.replaceState({}, '', '/' + operators + '&sloid=old#map=12/47/8');
+
+        window.replaceIndexStop({ osm: 'node/42' });
+        expect(window.location.search).toBe(operators + '&osm=node/42');
+        expect(window.location.hash).toBe('#map=12/47/8');
+
+        window.replaceIndexStop(null);
+        expect(window.location.search).toBe(operators);
+        window.restoreOperatorFiltersFromUrl();
+        expect(window.appendCurrentFilterParams({})).toEqual({
+            atlas_operator: 'EX', osm_operator: 'Example & Co', missing_osm_operator_wikidata: 'true'
+        });
     });
 
     test('toggling missing tags replaces specific Wikidata values and refreshes the map', () => {

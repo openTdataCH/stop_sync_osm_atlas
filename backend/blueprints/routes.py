@@ -618,17 +618,16 @@ def _route_item_from_summary(row, atlas_operator_map):
     }
 
 
-def _query_route_page(
+def _route_listing_statement(
+    summary,
     *,
-    page,
-    per_page,
     q='',
     matched_filter=ROUTE_MATCH_ALL,
     atlas_operators=None,
     osm_operators=None,
     non_gtfs_only=False,
 ):
-    summary = _build_route_summary_subquery()
+    """The route cards a listing shows, before ordering and paging."""
     statement = select(summary)
 
     if non_gtfs_only:
@@ -660,6 +659,22 @@ def _query_route_page(
 
     if q:
         statement = statement.where(_route_search_condition(summary, q))
+    return statement
+
+
+def _route_listing_order(summary):
+    return (
+        summary.c.sort_priority.asc(),
+        func.lower(summary.c.sort_route_id).asc(),
+        summary.c.display_mode.asc(),
+        summary.c.atlas_family_id.asc(),
+        summary.c.osm_family_id.asc(),
+    )
+
+
+def _query_route_page(*, page, per_page, **filters):
+    summary = _build_route_summary_subquery()
+    statement = _route_listing_statement(summary, **filters)
 
     total = db.session.execute(
         select(func.count()).select_from(statement.order_by(None).subquery())
@@ -667,13 +682,7 @@ def _query_route_page(
 
     page_rows = db.session.execute(
         statement
-        .order_by(
-            summary.c.sort_priority.asc(),
-            func.lower(summary.c.sort_route_id).asc(),
-            summary.c.display_mode.asc(),
-            summary.c.atlas_family_id.asc(),
-            summary.c.osm_family_id.asc(),
-        )
+        .order_by(*_route_listing_order(summary))
         .offset((page - 1) * per_page)
         .limit(per_page)
     ).all()
@@ -688,6 +697,74 @@ def _query_route_page(
         _route_item_from_summary(row, atlas_operator_map)
         for row in page_rows
     ], total
+
+
+def _parse_variant_params():
+    """A permalink's variant: ATLAS itinerary id and OSM relation id, as stored."""
+    def value(name):
+        return (request.args.get(name) or '').strip()[:255] or None
+    return value('atlas_variant'), value('osm_variant')
+
+
+def _locate_route_variant_page(*, atlas_variant, osm_variant, per_page, **filters):
+    """The listing page whose card shows the linked variant, or None.
+
+    A variant belongs to the card of its line family; a matched variant names
+    both families and so the matched card.
+    """
+    family_ids = {}
+    for source, source_itinerary_id in (('atlas', atlas_variant), ('osm', osm_variant)):
+        if not source_itinerary_id:
+            continue
+        family_id = db.session.execute(
+            select(Itinerary.line_family_id).where(
+                Itinerary.source == source,
+                Itinerary.source_itinerary_id == source_itinerary_id,
+            )
+        ).scalar()
+        if family_id is None:
+            return None
+        family_ids[source] = family_id
+    if not family_ids:
+        return None
+
+    summary = _build_route_summary_subquery()
+    ranked = (
+        _route_listing_statement(summary, **filters)
+        .add_columns(func.row_number().over(order_by=_route_listing_order(summary)).label('position'))
+        .subquery()
+    )
+    conditions = []
+    if 'atlas' in family_ids:
+        conditions.append(ranked.c.atlas_family_id == family_ids['atlas'])
+    if 'osm' in family_ids:
+        conditions.append(ranked.c.osm_family_id == family_ids['osm'])
+    position = db.session.execute(
+        select(ranked.c.position).where(*conditions).order_by(ranked.c.position).limit(1)
+    ).scalar()
+    return None if position is None else (position - 1) // per_page + 1
+
+
+def _page_for_variant(page, per_page, atlas_variant, osm_variant, **filters):
+    """The requested page, or the one holding the linked variant.
+
+    Returns (page, error_response); a database timeout answers 503.
+    """
+    if not (atlas_variant or osm_variant):
+        return page, None
+    try:
+        located = _locate_route_variant_page(
+            atlas_variant=atlas_variant,
+            osm_variant=osm_variant,
+            per_page=per_page,
+            **filters,
+        )
+    except Exception as exc:
+        busy_response = _handle_route_database_error(exc)
+        if busy_response is not None:
+            return page, busy_response
+        located = None
+    return (located or page), None
 
 
 def _load_line_family_rows(source: str):
@@ -1103,6 +1180,7 @@ def _build_direction_group(atlas_itinerary, osm_itinerary, atlas_calls, osm_call
         'representative_headsign': representative_headsign,
         'atlas_headsign': atlas_headsign,
         'osm_to_name': osm_to_name,
+        'atlas_source_itinerary_id': _clean_text(getattr(atlas_itinerary, 'source_itinerary_id', None)),
         'osm_relation_id': _clean_text(osm_itinerary.source_itinerary_id) if osm_itinerary is not None else None,
         'atlas_itinerary_id': getattr(atlas_itinerary, 'id', None),
         'osm_itinerary_id': getattr(osm_itinerary, 'id', None),
@@ -1234,6 +1312,19 @@ def routes_page():
     matched_filter = _normalize_route_match_filter(request.args.get('matched'))
     selected_atlas_operators = _parse_multi_filter('atlas_operator')
     selected_osm_operators = _parse_multi_filter('osm_operator')
+    atlas_variant, osm_variant = _parse_variant_params()
+    page, busy_response = _page_for_variant(
+        page,
+        per_page,
+        atlas_variant,
+        osm_variant,
+        q=q,
+        matched_filter=matched_filter,
+        atlas_operators=selected_atlas_operators,
+        osm_operators=selected_osm_operators,
+    )
+    if busy_response is not None:
+        return busy_response
 
     canonical_redirect = canonical_query_redirect(
         'routes.routes_page',
@@ -1256,6 +1347,8 @@ def routes_page():
                 _serialize_filter(selected_osm_operators) or None,
             ),
             ('q', q or None),
+            ('atlas_variant', atlas_variant),
+            ('osm_variant', osm_variant),
         ),
     )
     if canonical_redirect is not None:
@@ -1322,6 +1415,10 @@ def non_gtfs_routes_page():
         if requested_per_page in ROUTES_PER_PAGE_OPTIONS
         else ROUTES_DEFAULT_PER_PAGE
     )
+    _, osm_variant = _parse_variant_params()
+    page, busy_response = _page_for_variant(page, per_page, None, osm_variant, non_gtfs_only=True)
+    if busy_response is not None:
+        return busy_response
 
     canonical_redirect = canonical_query_redirect(
         'routes.non_gtfs_routes_page',
@@ -1331,6 +1428,7 @@ def non_gtfs_routes_page():
                 'per_page',
                 per_page if per_page != ROUTES_DEFAULT_PER_PAGE else None,
             ),
+            ('osm_variant', osm_variant),
         ),
     )
     if canonical_redirect is not None:
@@ -1377,9 +1475,15 @@ def non_gtfs_routes_page():
 
 @routes_bp.route('/routes/gtfs-stop-id-sloid')
 def routes_gtfs_stop_id_sloid_page():
+    # A permalink's stop: the page opens its popup. The map view is in the
+    # #map= hash, which the server never sees.
     canonical_redirect = canonical_query_redirect(
         'routes.routes_gtfs_stop_id_sloid_page',
-        (),
+        (
+            ('sloid', (request.args.get('sloid') or '').strip()[:255] or None),
+            ('gtfs_stop_id', (request.args.get('gtfs_stop_id') or '').strip()[:255] or None),
+        ),
+        safe=',:/',
     )
     if canonical_redirect is not None:
         return canonical_redirect

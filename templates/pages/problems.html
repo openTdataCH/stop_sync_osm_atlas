@@ -99,6 +99,14 @@
                       <span class="badge filter-count-badge ms-2" id="typeCountUnmatched">0</span>
                     </label>
                   </div>
+
+                  <div class="form-check">
+                    <input type="checkbox" class="filter-problem-type form-check-input" id="filterProblemTypeDisused" value="disused">
+                    <label class="form-check-label" for="filterProblemTypeDisused">
+                      Disused OSM
+                      <span class="badge filter-count-badge ms-2" id="typeCountDisused">0</span>
+                    </label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -164,6 +172,10 @@
         <div class="problem-floating-meta">
           <span id="problemTypeDisplay" class="problem-meta-chip">Loading...</span>
           <span id="problemPriorityDisplay" class="problem-meta-chip d-none"></span>
+          <button id="copyProblemLinkBtn" type="button" class="problem-meta-chip problem-copy-link"
+            title="Copy a link that opens this problem with the current filters">
+            <i class="fas fa-link" aria-hidden="true"></i> Copy link
+          </button>
         </div>
 
         <div id="actionButtonsContent" class="problem-floating-content">
@@ -191,6 +203,7 @@
 <script src="{{ url_for('static', filename='js/pages/problems-map.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/problems-data.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/problems-ui.js') }}"></script>
+<script src="{{ url_for('static', filename='js/pages/problems-permalink.js') }}"></script>
 
 <!-- Main problems page coordinator -->
 <script src="{{ url_for('static', filename='js/pages/problems.js') }}"></script>

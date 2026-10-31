@@ -279,6 +279,22 @@
   border-width: 1px;
 }
 
+.problem-copy-link {
+  gap: 0.3rem;
+  margin-left: auto;
+  color: var(--color-primary);
+  cursor: pointer;
+}
+
+.problem-copy-link:hover {
+  border-color: var(--color-primary);
+}
+
+.problem-copy-link.is-copied {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
 .problem-floating-content {
   pointer-events: auto;
   overflow-y: auto;

@@ -151,3 +151,51 @@ def test_malformed_manifest_file_descriptor_is_reported_as_invalid_bundle(tmp_pa
     manifest_path.write_text(json.dumps(manifest))
     with pytest.raises(InvalidBundle, match='Invalid file descriptor'):
         read_bundle(directory)
+
+
+def _with_disused_element(bundle):
+    """Add an element OSM marks as disused, as the engine reports it."""
+    tags = {'disused:highway': 'bus_stop', 'public_transport': 'platform', 'name': 'Old stop'}
+    bundle['osm_nodes'].append({**bundle['osm_nodes'][0], 'key': 'osm:node:103', 'node_id': '103', 'lat': 51.6,
+                                'name': 'Old stop', 'tags': tags, 'lifecycle': 'disused'})
+    bundle['unmatched'].append({'side': 'osm', 'key': 'osm:node:103', 'isolated': False,
+                                'effectively_matched': False, 'disused': True})
+    bundle['groups'].append({'side': 'osm', 'stop_kind': 'single', 'group_kind': None, 'representative_node_id': '103',
+                             'members': [{'node_id': '103', 'member_role': 'single'}]})
+    bundle['problems'].append({'problem_id': 'disused-103', 'problem_type': 'disused', 'priority': 2,
+                               'source_keys': [], 'osm_ids': ['103'], 'evidence': {'lifecycle': 'disused'}})
+    return bundle
+
+
+def test_disused_elements_are_projected_apart_from_stops_and_keep_their_tags():
+    from backend.importing import importer as importer_mod
+
+    bundle = _with_disused_element(deepcopy(read_bundle(EXAMPLE)))
+    validate_records(bundle)
+    result, problems, routes = project_bundle(bundle)
+    assert [node.node_id for node in result.disused_osm] == ['103']
+    assert '103' not in {node.node_id for node in [*result.unmatched_osm, *result.all_osm_nodes]}
+    assert '103' not in {unit.representative_node_id for unit in result.osm_stop_units}
+
+    payload = importer_mod.build_fast_insert_payloads(result, problems, routes)
+    node_row = next(row for row in payload['osm_nodes'] if row['osm_node_id'] == '103')
+    assert node_row['osm_lifecycle'] == 'disused'
+    assert node_row['osm_tags']['disused:highway'] == 'bus_stop'
+    assert next(row for row in payload['osm_nodes'] if row['osm_node_id'] == '101')['osm_lifecycle'] is None
+    stop_row = next(row for row in payload['stops_matched'] if row['osm_node_id'] == '103')
+    assert stop_row['stop_type'] == 'osm_disused'
+    assert (stop_row['_idx'], 'disused', 2) in payload['problem_rows']
+    assert '103' not in {row['representative_node_id'] for row in payload['osm_stops']}
+
+
+@pytest.mark.parametrize('mutation, message', [
+    (lambda b: b['osm_nodes'][-1].update(lifecycle=None), 'Disused status disagrees'),
+    (lambda b: b['unmatched'][-1].update(disused='yes'), 'boolean disused status'),
+    (lambda b: b['problems'][-1].update(osm_ids=['102']), 'Disused problem references an active element'),
+    (lambda b: b['problems'].pop(1), 'unmatched detection coverage'),
+])
+def test_consumer_rejects_inconsistent_disused_elements(mutation, message):
+    bundle = _with_disused_element(deepcopy(read_bundle(EXAMPLE)))
+    mutation(bundle)
+    with pytest.raises(InvalidBundle, match=message):
+        validate_records(bundle)

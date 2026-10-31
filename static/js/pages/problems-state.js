@@ -28,7 +28,9 @@ window.ProblemsState = (function () {
     let selectedProblemTypes = []; // Current problem type filters
     let selectedAtlasOperators = []; // Current operator filter
     let selectedPriorities = []; // Current priority filters (1 | 2 | 3)
-    let currentPage = 1;
+    let currentPage = 1; // Last loaded page
+    let firstLoadedPage = 1; // A permalink can start the list on a later page
+    let entryNumberOffset = 0; // Entries before the first loaded one, for "Entry N/Total"
     let totalProblems = 0;
     let isLoadingMore = false;
 
@@ -93,6 +95,12 @@ window.ProblemsState = (function () {
         getCurrentPage: () => currentPage,
         setCurrentPage: (page) => { currentPage = page; },
 
+        getFirstLoadedPage: () => firstLoadedPage,
+        setFirstLoadedPage: (page) => { firstLoadedPage = page; },
+
+        getEntryNumberOffset: () => entryNumberOffset,
+        setEntryNumberOffset: (offset) => { entryNumberOffset = offset; },
+
         getTotalProblems: () => totalProblems,
         setTotalProblems: (total) => { totalProblems = total; },
 
@@ -117,6 +125,8 @@ window.ProblemsState = (function () {
         resetPaginationState: () => {
             allProblems = [];
             currentPage = 1;
+            firstLoadedPage = 1;
+            entryNumberOffset = 0;
             totalProblems = 0;
             currentProblemIndex = -1;
         },

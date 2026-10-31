@@ -20,9 +20,9 @@
     if (!sourcePosition) return null;
     return Object.freeze({
       key, entityType, identifier: String(identifier), sourcePosition,
-      status: ['matched', 'effectively_matched'].includes(options.status) ? options.status : 'unmatched',
+      status: ['matched', 'effectively_matched', 'disused'].includes(options.status) ? options.status : 'unmatched',
       emphasis: ['context', 'focused', 'subdued'].includes(options.emphasis) ? options.emphasis : 'normal',
-      label: (entityType === 'atlas' ? ['D'] : entityType === 'osm' ? ['P', 'S'] : []).includes(options.label) ? options.label : null,
+      label: (entityType === 'atlas' ? ['D'] : entityType === 'osm' ? ['P', 'S', 'U'] : []).includes(options.label) ? options.label : null,
       popupRef: options.popupRef || null
     });
   }

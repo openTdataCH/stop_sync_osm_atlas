@@ -99,7 +99,7 @@ def _validate_routes(routes, source_keys):
 
 def _validate_records(records):
     """Validate iterable wire sections; keep identity indexes rather than full snapshots."""
-    source, osm, osm_by_id = {}, {}, {}
+    source, osm, osm_by_id, retired = {}, {}, {}, set()
     for row in records['source_stops']:
         key, namespace, source_id = row.get('key'), row.get('namespace'), row.get('source_id')
         _require(isinstance(namespace, str) and namespace and ':' not in namespace, 'Invalid source namespace')
@@ -115,6 +115,8 @@ def _validate_records(records):
         _require(key == f"osm:{kind}:{node_id.removeprefix(f'{kind}_')}", 'Inconsistent OSM key')
         _require(key not in osm and node_id not in osm_by_id and _position(row), 'Duplicate OSM identity or invalid coordinates')
         osm[key], osm_by_id[node_id] = node_id, key
+        if row.get('lifecycle'):
+            retired.add(node_id)
     _require(source or osm, 'Refusing an empty result bundle')
     matched_source, matched_osm, pairs, expected_match_problems = set(), set(), set(), set()
     for row in records['matches']:
@@ -132,7 +134,7 @@ def _validate_records(records):
             _problem(problem)
             expected_match_problems.add((problem['problem_type'], problem['priority'], left, osm[right]))
     unmatched = {'source': set(), 'osm': set()}
-    effective = set()
+    effective, disused = set(), set()
     for row in records['unmatched']:
         side, key = row.get('side'), row.get('key')
         _require(side in unmatched and key in (source if side == 'source' else osm), 'Unknown unmatched entity')
@@ -143,9 +145,15 @@ def _validate_records(records):
             _require(type(row.get('effectively_matched')) is bool, 'OSM unmatched entity needs effective-match status')
             if row['effectively_matched']:
                 effective.add(osm[key])
+            # Optional for bundles written before disused elements were reported.
+            _require(type(row.get('disused', False)) is bool, 'OSM unmatched entity needs a boolean disused status')
+            if row.get('disused', False):
+                _require(not row['effectively_matched'], 'A disused OSM element cannot be effectively matched')
+                disused.add(osm[key])
     _require(not matched_source & unmatched['source'] and not matched_osm & unmatched['osm'], 'Entity marked both matched and unmatched')
     _require(matched_source | unmatched['source'] == set(source), 'Source match coverage is incomplete')
     _require(matched_osm | unmatched['osm'] == set(osm), 'OSM match coverage is incomplete')
+    _require(disused == retired, 'Disused status disagrees with lifecycle tags')
     grouped_source, grouped_osm, valid_effective = set(), set(), set()
     matched_osm_ids = {osm[key] for key in matched_osm}
     for row in records['groups']:
@@ -188,9 +196,11 @@ def _validate_records(records):
         if row['problem_type'] == 'unmatched':
             source_unmatched_problems.update(left)
             osm_unmatched_problems.update(right)
+        if row['problem_type'] == 'disused':
+            _require(not left and set(right) <= disused, 'Disused problem references an active element')
     _require(expected_match_problems <= actual_match_problems, 'Matched problem is absent from complete detection results')
     _require(source_unmatched_problems == unmatched['source'], 'Source unmatched detection coverage is incomplete')
-    _require(osm_unmatched_problems == {osm[key] for key in unmatched['osm']} - effective, 'OSM unmatched detection coverage is incomplete')
+    _require(osm_unmatched_problems == {osm[key] for key in unmatched['osm']} - effective - disused, 'OSM unmatched detection coverage is incomplete')
     for section in ('routes', 'extensions'):
         values = {}
         for row in records[section]:

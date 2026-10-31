@@ -139,6 +139,13 @@
         ];
     }
 
+    // The Index page turns this into a permalink; the raw id keeps the
+    // URL format in one place (main.js).
+    function buildCopyLinkButtonHtml(type, ref) {
+        const safeRef = SharedUtils.escapeHtml(ref).replace(/"/g, '&quot;');
+        return `<button type="button" class="popup-copy-link" data-permalink-type="${type}" data-permalink-ref="${safeRef}" title="Copy a link that opens the map on this stop"><i class="fas fa-link"></i> Copy link</button>`;
+    }
+
     function renderBubbleCard(options) {
         const {
             type,
@@ -148,12 +155,18 @@
             sectionsHtml = '',
             footerHtml = '',
             osmEditorUrl = null,
+            permalinkRef = null,
         } = options;
 
         const bubbleClass = getBubbleClass(type);
         const unmatchedClass = unmatched ? ' unmatched' : '';
-        const osmEditorLinkHtml = type === 'osm' && osmEditorUrl
-            ? `<div class="osm-editor-link-container mt-2"><a href="${osmEditorUrl}" class="osm-editor-link" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Edit in OSM iD Editor</a></div>`
+        const links = [];
+        if (type === 'osm' && osmEditorUrl) {
+            links.push(`<a href="${osmEditorUrl}" class="osm-editor-link" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Edit in OSM iD Editor</a>`);
+        }
+        if (hasValue(permalinkRef)) links.push(buildCopyLinkButtonHtml(type, permalinkRef));
+        const osmEditorLinkHtml = links.length
+            ? `<div class="osm-editor-link-container mt-2">${links.join('')}</div>`
             : '';
 
         return `
@@ -193,7 +206,8 @@
     }
 
     function buildBubbleHeader(data, type, unmatched) {
-        let headerText = unmatched ? 'Unmatched ' : '';
+        const disused = type === 'osm' && data.stop_type === 'osm_disused';
+        let headerText = disused ? 'Disused ' : (unmatched ? 'Unmatched ' : '');
         let linkHtml = '';
 
         if (type === 'atlas') {
@@ -220,24 +234,34 @@
         return `<h5>${unmatched ? 'Unmatched ' : ''}GTFS Stop</h5>`;
     }
 
-    function buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml, options = {}) {
-        if (hideRoutesAndNotes || !SharedUtils.hasCapability('routes')) {
-            return actionButtonHtml ? `<div class="bubble-footer"><div class="bubble-btn-row">${actionButtonHtml}</div></div>` : '';
+    function buildOsmTagsCollapsible(tags) {
+        const keys = tags && typeof tags === 'object' ? Object.keys(tags).sort() : [];
+        if (keys.length === 0) return null;
+        const rows = keys.map(key => `<tr><td>${SharedUtils.escapeHtml(key)}</td><td>${SharedUtils.escapeHtml(String(tags[key]))}</td></tr>`).join('');
+        return PopupUtils.createCollapsible(`OSM tags (${keys.length})`, `<table class="popup-osm-tags">${rows}</table>`, false);
+    }
+
+    function buildBubbleFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml, options = {}) {
+        const collapsibles = [];
+        if (!hideRoutesAndNotes && SharedUtils.hasCapability('routes')) {
+            const routes = type === 'atlas' ? data.routes_atlas : data.routes_osm;
+            const formattedRoutes = type === 'atlas'
+                ? PopupUtils.formatAtlasRouteList(routes, { enableRouteLink: !(options.enableRouteLinks === false) })
+                : PopupUtils.formatRouteList(routes, { enableRouteLink: !(options.enableRouteLinks === false) });
+            collapsibles.push(PopupUtils.createCollapsible('Routes', formattedRoutes, COLLAPSIBLE_DEFAULT_EXPANDED));
         }
+        // Single-stop endpoints send every OSM tag; list payloads do not.
+        const tags = !hideRoutesAndNotes && type === 'osm' ? buildOsmTagsCollapsible(data.osm_tags) : null;
+        if (tags) collapsibles.push(tags);
 
-        const routes = type === 'atlas' ? data.routes_atlas : data.routes_osm;
-        const formattedRoutes = type === 'atlas'
-            ? PopupUtils.formatAtlasRouteList(routes, { enableRouteLink: !(options.enableRouteLinks === false) })
-            : PopupUtils.formatRouteList(routes, { enableRouteLink: !(options.enableRouteLinks === false) });
-        const collapsible = PopupUtils.createCollapsible('Routes', formattedRoutes, COLLAPSIBLE_DEFAULT_EXPANDED);
-        const buttons = `${collapsible.buttonHtml || ''}${actionButtonHtml || ''}`;
-
-        if (!buttons && !collapsible.panelHtml) return '';
+        const buttons = collapsibles.map(collapsible => collapsible.buttonHtml || '').join('') + (actionButtonHtml || '');
+        const panels = collapsibles.map(collapsible => collapsible.panelHtml || '').join('');
+        if (!buttons && !panels) return '';
 
         return `
             <div class="bubble-footer">
                 ${buttons ? `<div class="bubble-btn-row">${buttons}</div>` : ''}
-                ${collapsible.panelHtml || ''}
+                ${panels}
             </div>`;
     }
 
@@ -272,6 +296,9 @@
             : '';
 
         rows.push(['Node ID', unmatched ? (data.osm_node_id || 'N/A') : buildFilterText(data.osm_node_id, 'osm', options)]);
+        if (hasValue(data.osm_lifecycle)) {
+            rows.push(['Status', `Out of service in OSM (<code>${SharedUtils.escapeHtml(data.osm_lifecycle)}:</code> prefix); never matched`]);
+        }
 
         if (unmatched) {
             if (hasValue(data.uic_ref)) rows.push(['UIC Ref', buildFilterText(data.uic_ref, 'station', options)]);
@@ -323,7 +350,7 @@
         const rows = type === 'atlas'
             ? buildAtlasRows(data, unmatched, opts)
             : buildOsmRows(data, unmatched, opts);
-        const footerHtml = buildRoutesFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml, opts);
+        const footerHtml = buildBubbleFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml, opts);
 
         return renderBubbleCard({
             type,
@@ -332,6 +359,7 @@
             rows,
             footerHtml,
             osmEditorUrl: type === 'osm' ? buildOsmEditorUrl(data.osm_node_id) : null,
+            permalinkRef: opts.permalinks ? (type === 'atlas' ? data.sloid : data.osm_node_id) : null,
         });
     }
 
@@ -410,6 +438,8 @@
                 distance_m: firstAtlas ? firstAtlas.distance_m : stop.distance_m,
                 match_type: stop.match_type || (firstAtlas ? firstAtlas.match_type : null),
                 routes_osm: stop.routes_osm,
+                osm_tags: stop.osm_tags,
+                osm_lifecycle: stop.osm_lifecycle,
                 stop_type: stop.stop_type,
                 isOperatorMismatch: stop.isOperatorMismatch
             };
@@ -438,6 +468,7 @@
                 distance_m: representative.distance_m || stop.distance_m,
                 match_type: representative.match_type || stop.match_type,
                 routes_osm: representative.routes_osm || stop.routes_osm,
+                osm_tags: representative.osm_tags || stop.osm_tags,
                 stop_type: stop.stop_type,
                 isOperatorMismatch: stop.isOperatorMismatch
             };
@@ -464,6 +495,8 @@
             distance_m: stop.distance_m,
             match_type: stop.match_type,
             routes_osm: stop.routes_osm,
+            osm_tags: stop.osm_tags,
+            osm_lifecycle: stop.osm_lifecycle,
             stop_type: stop.stop_type,
             isOperatorMismatch: stop.isOperatorMismatch
         };
@@ -592,7 +625,8 @@
             unmatched,
             headerHtml: buildBubbleHeader(data, 'atlas', unmatched),
             rows: buildAtlasReferenceRows(data, unmatched, options),
-            footerHtml: buildRoutesFooterHtml(data, 'atlas', unmatched, false, actionButtonHtml, options),
+            footerHtml: buildBubbleFooterHtml(data, 'atlas', unmatched, false, actionButtonHtml, options),
+            permalinkRef: options.permalinks ? data.sloid : null,
         });
     }
 
@@ -602,7 +636,8 @@
             unmatched: false,
             headerHtml: buildBubbleHeader(data, 'atlas', false),
             rows: buildAtlasReferenceMatchRows(data, options),
-            footerHtml: buildRoutesFooterHtml(data, 'atlas', false, false, '', options),
+            footerHtml: buildBubbleFooterHtml(data, 'atlas', false, false, '', options),
+            permalinkRef: options.permalinks ? data.sloid : null,
         });
     }
 
@@ -619,7 +654,8 @@
             rows: buildGtfsReferenceRows(data),
             // OpenTransportData GTFS is the source behind ATLAS itineraries,
             // so its route payload uses the same routes_atlas contract.
-            footerHtml: buildRoutesFooterHtml(data, 'atlas', unmatched, false, actionButtonHtml, options),
+            footerHtml: buildBubbleFooterHtml(data, 'atlas', unmatched, false, actionButtonHtml, options),
+            permalinkRef: options.permalinks ? data.stop_id : null,
         });
     }
 
@@ -629,7 +665,8 @@
             unmatched: false,
             headerHtml: buildGtfsBubbleHeader(false),
             rows: buildGtfsReferenceMatchRows(data),
-            footerHtml: buildRoutesFooterHtml(data, 'atlas', false, false, '', options),
+            footerHtml: buildBubbleFooterHtml(data, 'atlas', false, false, '', options),
+            permalinkRef: options.permalinks ? data.stop_id : null,
         });
     }
 
@@ -718,7 +755,7 @@
     }
 
     function generateInitialBubbleHtml(stop, initialViewType, options = {}) {
-        const isUnmatched = stop.stop_type === 'atlas_unmatched' || stop.stop_type === 'osm_unmatched';
+        const isUnmatched = ['atlas_unmatched', 'osm_unmatched', 'osm_disused'].includes(stop.stop_type);
         const actionButtonHtml = stopHasMatches(stop)
             ? buildPopupToggleButtonHtml(true)
             : '';
@@ -815,6 +852,7 @@
     PopupRenderer.generateGtfsStopIdSloidPopupHtml = generateGtfsStopIdSloidPopupHtml;
     PopupRenderer.showMatches = showMatches;
     PopupRenderer.hideMatches = hideMatches;
+    PopupRenderer.parseOsmElementRef = parseOsmElementRef;
     global.PopupRenderer = PopupRenderer;
     global.MapComponents = global.MapComponents || {};
     global.MapComponents.PopupRenderer = PopupRenderer;

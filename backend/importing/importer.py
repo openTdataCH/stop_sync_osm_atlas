@@ -262,7 +262,7 @@ def build_fast_insert_payloads(
 
     # ---- 0. OSM nodes ----
     osm_node_dicts = []
-    for node in base_data.all_osm_nodes:
+    for node in [*base_data.all_osm_nodes, *getattr(base_data, 'disused_osm', ())]:
         osm_node_dicts.append({
             'osm_node_id': str(node.node_id),
             'osm_local_ref': node.local_ref,
@@ -279,6 +279,8 @@ def build_fast_insert_payloads(
             'osm_aerialway': node.aerialway,
             'osm_node_type': get_osm_node_type(node.tags, is_osm_unmatched=True) if node.tags else None,
             'duplicate_group_node_ids': problem_ctx.duplicate_osm_group_map.get(str(node.node_id)),
+            'osm_lifecycle': getattr(node, 'lifecycle', None),
+            'osm_tags': node.tags or None,
         })
 
     # ---- 0a. OSM stop units + members (assign sequential IDs in memory) ----
@@ -424,10 +426,12 @@ def build_fast_insert_payloads(
 
         stop_idx += 1
 
-    # ---- 3. Unmatched OSM ----
+    # ---- 3. Unmatched and disused OSM ----
     trio_middles_effectively_matched = set(base_data.effectively_matched_osm_ids)
+    disused_osm = list(getattr(base_data, 'disused_osm', ()))
+    disused_osm_ids = {str(node.node_id) for node in disused_osm}
 
-    for osm_node in base_data.unmatched_osm:
+    for osm_node in [*base_data.unmatched_osm, *disused_osm]:
         osm_lat, osm_lon = osm_node.lat, osm_node.lon
 
         osm_node_id = str(osm_node.node_id)
@@ -436,6 +440,8 @@ def build_fast_insert_payloads(
         if osm_node_id in trio_middles_effectively_matched:
             stop_type = 'effectively_matched'
             match_type = 'distance_matching_trio'
+        elif osm_node_id in disused_osm_ids:
+            stop_type = 'osm_disused'
 
         problems = unmatched_osm_problem_map[id(osm_node)]
 

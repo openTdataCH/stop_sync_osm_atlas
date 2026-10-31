@@ -175,8 +175,27 @@ $(document).ready(function () {
     bindFilterEvents();
     applyHeaderSummaryLayoutState();
 
+    // A permalink sets the filters and the entry to open (problems-permalink.js).
+    const linked = ProblemsPermalink.parse(window.location.search);
+    ProblemsState.setSelectedProblemTypes(linked.problemTypes);
+    ProblemsState.setSelectedPriorities(linked.priorities);
+    ProblemsState.setSelectedAtlasOperators(linked.atlasOperators);
+    window.operatorDropdownProblems.setSelection(linked.atlasOperators);
+
+    function warnLinkedStopMissing() {
+        const params = new URLSearchParams(window.location.search);
+        const named = ['sloid', 'osm'].filter(key => params.has(key))
+            .map(key => key + '=' + params.get(key)).join(', ');
+        SharedUtils.showTemporaryMessage(
+            'No problem found for the linked stop (' + SharedUtils.escapeHtml(named) + ') with these filters. Showing the first entry.',
+            'warning',
+            6000
+        );
+    }
+
+    if (linked.invalidStop) warnLinkedStopMissing();
     ProblemsData.initializeProblemTypeFilter();
-    ProblemsData.fetchProblems();
+    ProblemsData.fetchProblems(1, linked.focus ? { focus: linked.focus, onFocusMissing: warnLinkedStopMissing } : {});
     renderFiltersSummary();
 
     ProblemsMap.initializeResize();
@@ -200,7 +219,8 @@ $(document).ready(function () {
         if (window.ProblemsMap) window.ProblemsMap.destroyProblemMap();
         $(document).off('.problemsPage');
         $(window).off('.problemsPage');
-        $('#prevProblemBtn, #nextProblemBtn, #toggleContextBtn').off('.problemsPage');
+        $('#prevProblemBtn, #nextProblemBtn, #toggleContextBtn, #copyProblemLinkBtn').off('.problemsPage');
+        Permalinks.cancelCopyFeedback();
         $('#activeFilters').off('.filterchips');
     }, { once: true });
 
@@ -209,13 +229,11 @@ $(document).ready(function () {
     }, 300);
 
     $('#prevProblemBtn').on('click.problemsPage', function () {
-        const currentIndex = ProblemsState.getCurrentProblemIndex();
-        if (currentIndex > 0) {
-            ProblemsState.setCurrentProblemIndex(currentIndex - 1);
-            ProblemsState.setCurrentEntryProblemIndex(0);
-            ProblemsUI.displayProblem(ProblemsState.getCurrentProblemIndex());
-            ProblemsUI.updateNavButtons();
-        }
+        ProblemsData.navigateToPreviousProblem();
+    });
+
+    $('#copyProblemLinkBtn').on('click.problemsPage', function () {
+        ProblemsPermalink.copyCurrentLink(this);
     });
 
     $('#nextProblemBtn').on('click.problemsPage', function () {

@@ -82,4 +82,17 @@ describe('GTFS/SLOID popup route controls', () => {
     expect(html).not.toContain('filterByRoute(');
     expect(html).not.toContain('addCustomFilter(');
   });
+
+  test('GTFS map popups offer Copy link for each stop only when the page asks for it', () => {
+    const atlas = { entity_type: 'atlas', sloid: 'ch:1:sloid:92000', matched_gtfs_count: 1,
+      matched_gtfs: [{ stop_id: '8592000:0:1', stop_name: 'Bern' }] };
+    const gtfs = { entity_type: 'gtfs', stop_id: '8592000:0:1', matched_sloid_count: 0 };
+
+    const atlasHtml = window.PopupRenderer.generateGtfsStopIdSloidPopupHtml(atlas, { permalinks: true });
+    expect(atlasHtml).toContain('data-permalink-type="atlas" data-permalink-ref="ch:1:sloid:92000"');
+    expect(atlasHtml).toContain('data-permalink-type="gtfs" data-permalink-ref="8592000:0:1"');
+    expect(window.PopupRenderer.generateGtfsStopIdSloidPopupHtml(gtfs, { permalinks: true }))
+      .toContain('data-permalink-type="gtfs" data-permalink-ref="8592000:0:1"');
+    expect(window.PopupRenderer.generateGtfsStopIdSloidPopupHtml(atlas)).not.toContain('popup-copy-link');
+  });
 });

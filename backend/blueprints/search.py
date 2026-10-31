@@ -260,7 +260,7 @@ def get_stop_by_id():
         else:
             return jsonify({"error": "Invalid identifier_type"}), 400
         if stop:
-            stop_data = format_stop_data(stop, include_routes=True)
+            stop_data = format_stop_data(stop, include_routes=True, include_osm_tags=True)
             center_lat = getattr(stop, lat_col_name, None)
             center_lon = getattr(stop, lon_col_name, None)
             if center_lat is None or center_lon is None:

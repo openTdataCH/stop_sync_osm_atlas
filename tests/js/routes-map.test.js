@@ -37,6 +37,7 @@ test('route previews preserve grouped order, refresh labels at zoom 18, and togg
         { id: 99, sloid: 'context', atlas_lat: 47.2, atlas_lon: 8.2, stop_type: 'atlas_unmatched' },
         { id: 2, sloid: 'source:a', atlas_lat: 47.1, atlas_lon: 8.1, stop_type: 'matched' }
     ]) }));
+    loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
     loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
     document.dispatchEvent(new Event('DOMContentLoaded'));
     const panel = document.querySelector('details');
@@ -89,6 +90,7 @@ test('inline comparisons update only their own map and restore the fixed variant
         polyline: jest.fn((positions, options) => ({ positions, options })),
         latLngBounds: jest.fn(() => ({ pad() { return this; } }))
     };
+    loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
     loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
     document.dispatchEvent(new Event('DOMContentLoaded'));
     const panels = [...document.querySelectorAll('details')];
@@ -135,6 +137,7 @@ test('preview maps leave the wheel to the page until clicked and ring the stops 
         circleMarker: jest.fn((position, options) => ({ position, options })),
         latLngBounds: jest.fn(points => ({ points, getCenter: () => points[0] }))
     };
+    loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
     loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
     document.dispatchEvent(new Event('DOMContentLoaded'));
     const panel = document.querySelector('details');

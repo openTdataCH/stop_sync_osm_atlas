@@ -8,9 +8,9 @@
 <text x="184" y="133.5" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12.5" fill="#343a40" text-anchor="middle">ATLAS · GTFS · OpenStreetMap (Overpass) ·</text>
 <text x="184" y="151" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12.5" fill="#343a40" text-anchor="middle">Swiss boundary GeoJSON</text></g>
 <g><rect x="24" y="200" width="320" height="426" rx="16" fill="#f6fbf6" stroke="#4caf50" stroke-width="1.5"/>
-<rect x="40" y="189" width="292.71" height="22" rx="11" fill="#ffffff" stroke="#4caf50" stroke-width="1.2"/>
+<rect x="40" y="189" width="265.07" height="22" rx="11" fill="#ffffff" stroke="#4caf50" stroke-width="1.2"/>
 <text x="51" y="204.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#1f5e22" font-weight="600" letter-spacing="1.2">MATCHING ENGINE</text>
-<text x="204.68" y="204.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#6c757d">separate repository</text></g>
+<text x="204.68" y="204.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#6c757d">own repository</text></g>
 <g><rect x="44" y="228" width="280" height="62" rx="10" fill="#eaf4ec" stroke="#4caf50" stroke-width="1.5"/>
 <text x="184" y="254.75" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="15" fill="#1f5e22" font-weight="600" text-anchor="middle">Acquisition (optional)</text>
 <text x="184" y="272.75" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12.5" fill="#343a40" text-anchor="middle">freshness checks, downloads, caches</text></g>
@@ -38,9 +38,9 @@
 <g><path d="M184 514 L184 532" fill="none" stroke="#6c757d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M180.05 523.91 L184 532 L187.95 523.91 Z" fill="#6c757d" stroke="#6c757d" stroke-width="1" stroke-linejoin="round"/></g>
 <g><rect x="560" y="200" width="376" height="426" rx="16" fill="#f7f9fd" stroke="#174092" stroke-width="1.5"/>
-<rect x="576" y="189" width="285.1" height="22" rx="11" fill="#ffffff" stroke="#174092" stroke-width="1.2"/>
+<rect x="576" y="189" width="288.84" height="22" rx="11" fill="#ffffff" stroke="#174092" stroke-width="1.2"/>
 <text x="587" y="204.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#174092" font-weight="600" letter-spacing="1.2">REVIEW APPLICATION</text>
-<text x="764.45" y="204.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#6c757d">this repository</text></g>
+<text x="764.45" y="204.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#6c757d">own repository</text></g>
 <g><rect x="578" y="228" width="160" height="92" rx="10" fill="#eef3fb" stroke="#174092" stroke-width="1.5"/>
 <text x="658" y="253.7" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="14" fill="#174092" font-weight="600" text-anchor="middle">Pipeline runner</text>
 <text x="658" y="270.1" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12" fill="#343a40" text-anchor="middle">backend/jobs</text>
