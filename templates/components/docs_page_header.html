@@ -1,0 +1,17 @@
+{#- Documentation page header: collection and number, title, PDF export.
+    Rendered with the full page and for partial page loads (docs.py). #}
+{% if page_header.collection %}
+<p class="docs-page-eyebrow" data-owner="{{ page_header.owner }}">
+  <span class="docs-owner-dot" aria-hidden="true"></span>{{ page_header.collection }}{% if page_header.number %} <span aria-hidden="true">·</span> {{ page_header.number }}{% endif %}
+</p>
+{% endif %}
+{% if page_header.title_html %}
+<h1>{{ page_header.title_html | safe }}</h1>
+{% endif %}
+<div class="docs-page-actions">
+  <button type="button" class="docs-page-action" data-bs-toggle="modal" data-bs-target="#docsPdfModal"
+    data-pdf-scope="page" data-page-slug="{{ page_header.slug }}" data-page-section="{{ page_header.section or '' }}"
+    data-page-label="{{ page_header.label }}">
+    <i class="fas fa-file-pdf" aria-hidden="true"></i>Download PDF
+  </button>
+</div>

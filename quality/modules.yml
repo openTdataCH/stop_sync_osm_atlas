@@ -287,6 +287,8 @@
           "documentation/**/*.py",
           "documentation/**/*.css",
           "templates/pages/docs.html",
+          "templates/components/docs_page_header.html",
+          "static/js/docs/**",
           "static/js/shared/mermaid-config.js",
           "scripts/render_docs_mermaid.mjs",
           "documentation/**/*.json"
@@ -294,7 +296,8 @@
         "tests": [
           "tests/test_docs*.py",
           "tests/test_dependency_docs_sync.py",
-          "tests/test_quality_report.py"
+          "tests/test_quality_report.py",
+          "tests/js/docs-portal.test.js"
         ]
       },
       "docs": {

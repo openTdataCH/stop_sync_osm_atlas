@@ -1,14 +1,7 @@
 {% extends "layouts/base.html" %}
 
-{% macro docs_nav_title(entry, suffix_key) -%}
-  {% if entry.owner_prefix %}
-  <span class="docs-nav-owner docs-nav-owner--{{ entry.owner_key }}" aria-hidden="true">
-    <span class="docs-nav-owner-label">{{ entry.owner_prefix }}</span><span class="docs-owner-separator">.</span><span class="docs-nav-owner-number">{{ entry.owner_number }}</span>
-  </span>
-  <span class="visually-hidden">{{ entry.owner_label }}.{{ entry.owner_number }} </span><span class="docs-section-title-text">{{ entry[suffix_key] }}</span>
-  {% else %}
-  <span class="docs-section-title-text">{{ entry[suffix_key] }}</span>
-  {% endif %}
+{% macro docs_nav_title(entry) -%}
+  {% if entry.nav_number %}<span class="docs-nav-number">{{ entry.nav_number }}</span> {% endif %}<span class="docs-nav-title">{{ entry.nav_title }}</span>
 {%- endmacro %}
 
 {% block title %}{{ active_title }} | OSM &amp; ATLAS Documentation{% endblock %}
@@ -43,614 +36,181 @@
 <div id="docsSidebarBackdrop" class="docs-sidebar-backdrop"></div>
 
 <button type="button" id="mobileSidebarToggle" class="btn mobile-sidebar-toggle shadow-lg d-md-none"
-  aria-label="Toggle documentation menu">
-  <i class="fas fa-list-ul"></i>
+  aria-label="Toggle documentation menu" aria-controls="docsSidebar">
+  <i class="fas fa-list-ul" aria-hidden="true"></i>
 </button>
 
-<div class="container-fluid docs-container">
-  <div class="row">
-    <div class="col-md-3 docs-sidebar pe-0" id="docsSidebar">
-      <div class="mobile-sidebar-header d-none">
-        <h5>Documentation</h5>
-        <button type="button" class="btn btn-link p-0 text-dark" id="closeMobileSidebar">
-          <i class="fas fa-times fa-lg"></i>
-        </button>
-      </div>
-      <div class="list-group list-group-flush" id="docs-sections">
-        {% for collection in collections %}
-        <div class="docs-collection docs-collection--{{ collection.key }}">
-          {% if collection.key != 'overview' %}
-          <div class="docs-collection-heading">
-            <span class="docs-collection-label">{{ collection.label }}</span>
-            <span class="docs-owner-badge docs-owner-badge--{{ collection.badge_key }}">{{ collection.badge_label }}{% if collection.version %} v{{ collection.version }}{% endif %}</span>
-            <p>{{ collection.description }}</p>
+<div class="docs-layout" id="docsPage" data-docs-root="{{ url_for('docs.docs_page') }}"
+  data-active-section="{{ active_section or '' }}" data-active-slug="{{ active_slug or '' }}">
+  <nav class="docs-sidebar" id="docsSidebar" aria-label="Documentation">
+    <div class="mobile-sidebar-header d-none">
+      <h5>Documentation</h5>
+      <button type="button" class="btn btn-link p-0 text-dark" id="closeMobileSidebar" aria-label="Close documentation menu">
+        <i class="fas fa-times fa-lg" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="docs-sidebar-filter">
+      <input type="search" class="form-control form-control-sm" id="docsSidebarFilter" placeholder="Filter sidebar"
+        aria-label="Filter sidebar" aria-keyshortcuts="/" autocomplete="off" spellcheck="false">
+      <kbd aria-hidden="true">/</kbd>
+    </div>
+    <div id="docs-sections">
+      {% for collection in collections %}
+      <div class="docs-collection docs-collection--{{ collection.key }}" data-owner="{{ collection.owner }}">
+        {% if collection.key != 'overview' %}
+        <div class="docs-collection-heading">
+          <span class="docs-collection-label"><span class="docs-owner-dot" aria-hidden="true"></span>{{ collection.label }}</span>
+          {% if collection.version %}<span class="docs-collection-version">v{{ collection.version }}</span>{% endif %}
+        </div>
+        {% endif %}
+        {% for sec in collection.sections %}
+        {% set root_active = sec.root_slug and sec.root_slug == active_slug %}
+        <div class="docs-section" data-section="{{ sec.key }}">
+          <div class="docs-section-header{% if active_section == sec.key %} is-current{% endif %}{% if root_active %} active{% endif %}">
+            {% if sec.root_title and sec.root_slug %}
+            <a class="docs-nav-link docs-section-link{% if root_active %} active{% endif %}"
+              href="{{ url_for('docs.docs_page', page=sec.root_slug) }}" data-section-link="{{ sec.key }}"
+              data-doc-slug="{{ sec.root_slug }}"{% if root_active %} aria-current="page"{% endif %}>{{ docs_nav_title(sec) }}</a>
+            {% elif sec.root_title %}
+            <span class="docs-section-link">{{ docs_nav_title(sec) }}</span>
+            {% else %}
+            <span class="docs-section-link">Section {{ sec.number }}</span>
+            {% endif %}
+            {% if sec['items'] %}
+            <button class="docs-toggle" type="button" data-section="{{ sec.key }}" aria-expanded="false"
+              aria-controls="sec-{{ sec.key }}-items" aria-label="Pages in {{ sec.nav_title or 'section ' ~ sec.number }}">
+              <i class="fas fa-chevron-right" aria-hidden="true"></i>
+            </button>
+            {% endif %}
+          </div>
+          {% if sec['items'] %}
+          <div id="sec-{{ sec.key }}-items" class="docs-subitems collapse">
+            {% for item in sec['items'] %}
+            <a class="docs-nav-link level-{{ item.level }}{% if item.slug == active_slug %} active{% endif %}"
+              href="{{ url_for('docs.docs_page', page=item.slug) }}" data-doc-slug="{{ item.slug }}"
+              {%- if item.slug == active_slug %} aria-current="page"{% endif %}>{{ docs_nav_title(item) }}</a>
+            {% endfor %}
           </div>
           {% endif %}
-          {% for sec in collection.sections %}
-          <div class="docs-section" data-section="{{ sec.key }}">
-            <div
-              class="list-group-item d-flex align-items-center justify-content-between docs-section-header shadow-sm mb-2{% if active_section == sec.key %} active{% endif %}"
-              {% if sec.root_slug %} data-root-href="{{ url_for('docs.docs_page', page=sec.root_slug) }}" {% endif %}>
-              <div class="d-flex align-items-center">
-                {% if sec['items']|length > 0 %}
-                <button class="btn btn-sm btn-link p-0 me-2 docs-toggle" type="button" data-section="{{ sec.key }}"
-                  aria-expanded="false" aria-controls="sec-{{ sec.key }}-items">
-                  <i class="fas fa-chevron-right chevron"></i>
-                </button>
-                {% else %}
-                <span class="me-2 docs-toggle-spacer"></span>
-                {% endif %}
-                {% if sec.root_title %}
-                {% if sec.root_slug %}
-                <a class="docs-section-link" href="{{ url_for('docs.docs_page', page=sec.root_slug) }}"
-                  data-section-link="{{ sec.key }}" data-doc-slug="{{ sec.root_slug }}" title="{{ sec.root_title }}">{{ docs_nav_title(sec, 'root_title_suffix') }}</a>
-                {% else %}
-                <span class="docs-section-link" data-section-link="{{ sec.key }}">{{ docs_nav_title(sec, 'root_title_suffix') }}</span>
-                {% endif %}
-                {% else %}
-                <span class="docs-section-link" data-section-link="{{ sec.key }}">Section {{ sec.number }}</span>
-                {% endif %}
-              </div>
-            </div>
-            <div id="sec-{{ sec.key }}-items" class="docs-subitems collapse" data-subitems="{{ sec.key }}">
-              <div class="list-group list-group-flush">
-                {% for item in sec['items'] %}
-                <a class="list-group-item list-group-item-action level-{{ item.level }}{% if item.slug == active_slug %} active{% endif %}"
-                  href="{{ url_for('docs.docs_page', page=item.slug) }}" data-doc-slug="{{ item.slug }}" title="{{ item.title }}">{{ docs_nav_title(item, 'title_suffix') }}</a>
-                {% endfor %}
-              </div>
-            </div>
-          </div>
-          {% endfor %}
         </div>
         {% endfor %}
       </div>
-      <div class="docs-sidebar-footer mt-auto pt-3 border-top px-2">
-        <div class="d-flex justify-content-center align-items-center pb-2">
-          <a href="https://github.com/openTdataCH/stop_sync_osm_atlas" target="_blank"
-            class="btn btn-sm btn-outline-primary repo-btn shadow-sm fw-bold py-2 px-2 me-1 flex-grow-1 text-nowrap"
-            style="height: fit-content; line-height: 1.2;">
-            <i class="fas fa-code-branch me-1"></i> Repo
-          </a>
-          <button type="button" data-bs-toggle="modal" data-bs-target="#docsPdfModal"
-            class="btn btn-sm btn-outline-danger shadow-sm fw-bold py-2 px-2 ms-1 flex-grow-1 text-nowrap"
-            title="Download documentation as PDF" style="height: fit-content; line-height: 1.2;">
-            <i class="fas fa-file-pdf me-1"></i> Download doc
-          </button>
-        </div>
-      </div>
+      {% endfor %}
+      <p class="docs-filter-empty" id="docsFilterEmpty" hidden>No pages match.</p>
     </div>
-    <div class="col-md-9 docs-content">
-      <div class="card docs-article-card">
-        <span class="docs-owner-pill docs-owner-pill--{{ active_context.key }}" id="docs-owner-pill"
-          aria-label="{{ active_context.short_label }} documentation"{% if not active_context.show_owner_pill %} hidden{% endif %}>
-          <span id="docs-owner-label">{{ active_context.short_label }}</span>
-        </span>
-        <div class="card-body" id="docs-content-html">
-          {{ content_html | safe }}
-        </div>
+    <div class="docs-sidebar-footer">
+      <button type="button" class="docs-sidebar-download" data-bs-toggle="modal" data-bs-target="#docsPdfModal" data-pdf-scope="all">
+        <i class="fas fa-file-pdf" aria-hidden="true"></i>Download the documentation (PDF)
+      </button>
+    </div>
+  </nav>
+
+  <div class="docs-content">
+    <article class="docs-article">
+      <header class="docs-page-header" id="docs-page-header">
+        {% include "components/docs_page_header.html" %}
+      </header>
+      {#- Narrow screens: the page's sections above the article. docs.js fills both lists. #}
+      <details class="docs-toc docs-toc--inline" id="docsTocInline" hidden>
+        <summary>On this page</summary>
+        <ul class="docs-toc-list"></ul>
+      </details>
+      <div id="docs-content-html">
+        {{ content_html | safe }}
       </div>
-      <div class="d-flex justify-content-between align-items-stretch mt-3 docs-nav" id="docs-nav">
+      <div class="docs-nav" id="docs-nav">
         {% if prev_page %}
-        <a id="docs-prev" href="{{ url_for('docs.docs_page', page=prev_page['slug']) }}"
-          class="docs-nav-btn d-flex align-items-center shadow-sm">
-          <i class="fas fa-arrow-left me-2"></i>
+        <a id="docs-prev" href="{{ url_for('docs.docs_page', page=prev_page['slug']) }}" class="docs-nav-btn">
+          <i class="fas fa-arrow-left" aria-hidden="true"></i>
           <span class="text-start">
-            <div class="nav-label">Previous</div>
-            <div class="nav-title">{{ prev_page['title'] }}</div>
+            <span class="nav-label">Previous</span>
+            <span class="nav-title">{{ prev_page['title'] }}</span>
           </span>
         </a>
         {% else %}
         <span></span>
         {% endif %}
         {% if next_page %}
-        <a id="docs-next" href="{{ url_for('docs.docs_page', page=next_page['slug']) }}"
-          class="docs-nav-btn d-flex align-items-center shadow-sm">
-          <span class="text-end me-2">
-            <div class="nav-label">Next</div>
-            <div class="nav-title">{{ next_page['title'] }}</div>
+        <a id="docs-next" href="{{ url_for('docs.docs_page', page=next_page['slug']) }}" class="docs-nav-btn">
+          <span class="text-end">
+            <span class="nav-label">Next</span>
+            <span class="nav-title">{{ next_page['title'] }}</span>
           </span>
-          <i class="fas fa-arrow-right"></i>
+          <i class="fas fa-arrow-right" aria-hidden="true"></i>
         </a>
         {% endif %}
       </div>
-    </div>
+    </article>
+    {#- Wide screens: the page's sections beside the article. #}
+    <nav class="docs-toc docs-toc--rail" id="docsTocRail" aria-labelledby="docsTocRailTitle" hidden>
+      <p class="docs-toc-title" id="docsTocRailTitle">On this page</p>
+      <ul class="docs-toc-list"></ul>
+    </nav>
   </div>
 </div>
 
-<!-- Documentation PDF Modal -->
-<div class="modal fade" id="docsPdfModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
+{#- PDF export. The page header opens it on "This page", the sidebar on
+    "Whole documentation"; docs/portal.js reads the choice. #}
+<div class="modal fade docs-pdf-modal" id="docsPdfModal" tabindex="-1" aria-labelledby="docsPdfTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <form class="modal-content" id="docsPdfForm" novalidate>
       <div class="modal-header">
-        <h5 class="modal-title"><i class="fas fa-file-pdf me-2 text-danger"></i>Download Documentation</h5>
+        <h2 class="modal-title" id="docsPdfTitle">Download PDF</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p>Select which sections to include in the PDF export.</p>
-        <div class="form-check mb-3 border-bottom pb-2">
-          <input class="form-check-input" type="checkbox" id="selectAllDocsBtn" checked>
-          <label class="form-check-label fw-bold" for="selectAllDocsBtn">All Sections</label>
-        </div>
-        <div id="docsSectionCheckboxes">
+        <fieldset class="docs-pdf-scopes">
+          <legend class="visually-hidden">What to include</legend>
+          <label class="docs-pdf-scope">
+            <input class="form-check-input" type="radio" name="scope" value="page">
+            <span>
+              <span class="docs-pdf-scope-title">This page</span>
+              <span class="docs-pdf-scope-detail" data-pdf-page-label></span>
+            </span>
+          </label>
+          <label class="docs-pdf-scope">
+            <input class="form-check-input" type="radio" name="scope" value="all">
+            <span>
+              <span class="docs-pdf-scope-title">Whole documentation</span>
+              <span class="docs-pdf-scope-detail">Every page of both projects, with a cover</span>
+            </span>
+          </label>
+          <label class="docs-pdf-scope">
+            <input class="form-check-input" type="radio" name="scope" value="sections">
+            <span>
+              <span class="docs-pdf-scope-title">Chosen sections</span>
+              <span class="docs-pdf-scope-detail">Each section with all its pages</span>
+            </span>
+          </label>
+        </fieldset>
+        <div class="docs-pdf-sections" data-pdf-sections hidden>
           {% for collection in collections %}
-          <fieldset class="docs-export-group">
-            <legend>{{ collection.label }}</legend>
+          <fieldset class="docs-pdf-group" data-owner="{{ collection.owner }}">
+            <legend class="docs-collection-label"><span class="docs-owner-dot" aria-hidden="true"></span>{{ collection.label }}</legend>
             {% for sec in collection.sections %}
-            <div class="form-check">
-              <input class="form-check-input doc-section-checkbox" type="checkbox" value="{{ sec.export_key }}" id="docSec{{ sec.key }}" checked>
-              <label class="form-check-label" for="docSec{{ sec.key }}">{{ sec.root_title or 'Additional pages' }}</label>
-            </div>
+            <label class="docs-pdf-section">
+              <input class="form-check-input" type="checkbox" name="section" value="{{ sec.export_key }}" data-section="{{ sec.key }}">
+              {{ docs_nav_title(sec) if sec.nav_title else 'Additional pages' }}
+            </label>
             {% endfor %}
           </fieldset>
           {% endfor %}
         </div>
+        <p class="docs-pdf-error" data-pdf-error role="alert" hidden>Choose at least one section.</p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-danger" id="startDocsPdfBtn">
-          <i class="fas fa-download me-1"></i> Generate PDF
+        <button type="button" class="btn btn-link docs-pdf-cancel" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">
+          <i class="fas fa-download me-1" aria-hidden="true"></i>Download
         </button>
       </div>
-    </div>
+    </form>
   </div>
 </div>
 
 {% endblock %}
 
-
-
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/pages/report.js') }}"></script>
-<script>
-  (function () {
-    var STORAGE_KEY = 'docsSidebarExpanded';
-    var DOCS_ROOT_PATH = '{{ url_for("docs.docs_page") }}';
-
-    function getExpanded() {
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch (e) { return []; }
-    }
-    function setExpanded(arr) {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); } catch (e) { }
-    }
-    function isExpanded(arr, key) { return arr.indexOf(key) !== -1; }
-    function addExpanded(arr, key) { if (!isExpanded(arr, key)) arr.push(key); }
-    function removeExpanded(arr, key) { var i = arr.indexOf(key); if (i !== -1) arr.splice(i, 1); }
-
-    function updateSectionVisual(sectionEl, expanded) {
-      var chevron = sectionEl.querySelector('.chevron');
-      var sub = sectionEl.querySelector('.docs-subitems');
-      if (expanded) {
-        if (chevron) chevron.classList.add('rotate');
-        if (sub) sub.classList.add('show');
-      } else {
-        if (chevron) chevron.classList.remove('rotate');
-        if (sub) sub.classList.remove('show');
-      }
-    }
-
-    function applyExpandedState() {
-      var expanded = getExpanded();
-      document.querySelectorAll('.docs-section').forEach(function (sec) {
-        var key = sec.getAttribute('data-section');
-        updateSectionVisual(sec, isExpanded(expanded, key));
-      });
-    }
-
-    function markActiveDoc(activeSlug, activeSection) {
-      document.querySelectorAll('.docs-subitems .list-group-item.active').forEach(function (el) {
-        el.classList.remove('active');
-      });
-      document.querySelectorAll('.docs-section-header.active').forEach(function (el) {
-        el.classList.remove('active');
-      });
-
-      if (activeSlug) {
-        document.querySelectorAll('.docs-subitems .list-group-item[data-doc-slug]').forEach(function (el) {
-          if (el.getAttribute('data-doc-slug') === activeSlug) {
-            el.classList.add('active');
-          }
-        });
-      }
-
-      if (activeSection) {
-        var sectionEl = document.querySelector('.docs-section[data-section="' + activeSection + '"]');
-        if (sectionEl) {
-          var header = sectionEl.querySelector('.docs-section-header');
-          if (header) {
-            header.classList.add('active');
-          }
-        }
-
-        var expanded = getExpanded();
-        addExpanded(expanded, activeSection);
-        setExpanded(expanded);
-      }
-
-      applyExpandedState();
-    }
-
-    function createNavButton(id, page, direction) {
-      if (!page || !page.slug) return null;
-
-      var anchor = document.createElement('a');
-      anchor.id = id;
-      anchor.href = DOCS_ROOT_PATH + '/' + page.slug;
-      anchor.className = 'docs-nav-btn d-flex align-items-center shadow-sm';
-
-      if (direction === 'prev') {
-        var leftIcon = document.createElement('i');
-        leftIcon.className = 'fas fa-arrow-left me-2';
-        anchor.appendChild(leftIcon);
-
-        var leftText = document.createElement('span');
-        leftText.className = 'text-start';
-        var prevLabel = document.createElement('div');
-        prevLabel.className = 'nav-label';
-        prevLabel.textContent = 'Previous';
-        var prevTitle = document.createElement('div');
-        prevTitle.className = 'nav-title';
-        prevTitle.textContent = page.title || '';
-        leftText.appendChild(prevLabel);
-        leftText.appendChild(prevTitle);
-        anchor.appendChild(leftText);
-        return anchor;
-      }
-
-      var rightText = document.createElement('span');
-      rightText.className = 'text-end me-2';
-      var nextLabel = document.createElement('div');
-      nextLabel.className = 'nav-label';
-      nextLabel.textContent = 'Next';
-      var nextTitle = document.createElement('div');
-      nextTitle.className = 'nav-title';
-      nextTitle.textContent = page.title || '';
-      rightText.appendChild(nextLabel);
-      rightText.appendChild(nextTitle);
-      anchor.appendChild(rightText);
-
-      var rightIcon = document.createElement('i');
-      rightIcon.className = 'fas fa-arrow-right';
-      anchor.appendChild(rightIcon);
-      return anchor;
-    }
-
-    function renderNav(prevPage, nextPage) {
-      var nav = document.getElementById('docs-nav');
-      if (!nav) return;
-
-      nav.innerHTML = '';
-
-      var prevEl = createNavButton('docs-prev', prevPage, 'prev');
-      if (prevEl) {
-        nav.appendChild(prevEl);
-      } else {
-        nav.appendChild(document.createElement('span'));
-      }
-
-      var nextEl = createNavButton('docs-next', nextPage, 'next');
-      if (nextEl) {
-        nav.appendChild(nextEl);
-      }
-    }
-
-    function renderMermaid() {
-      if (!window.mermaid || typeof window.mermaid.run !== 'function') {
-        return;
-      }
-
-      var nodes = document.querySelectorAll('#docs-content-html .mermaid');
-      if (!nodes.length) {
-        return;
-      }
-
-      try {
-        window.mermaid.run({ nodes: nodes });
-      } catch (err) {
-        console.warn('Mermaid render failed:', err);
-      }
-    }
-
-    function renderMath() {
-      if (window.MathJax && window.MathJax.typesetPromise) {
-        window.MathJax.typesetPromise([document.getElementById('docs-content-html')]).catch(function (err) {
-          console.warn('MathJax typeset failed:', err);
-        });
-      }
-    }
-
-    function renderContext(context) {
-      if (!context) return;
-      var pill = document.getElementById('docs-owner-pill');
-      var label = document.getElementById('docs-owner-label');
-      var owner = context.short_label || '';
-      if (label) label.textContent = owner;
-      if (pill) {
-        pill.hidden = context.show_owner_pill === false;
-        pill.classList.remove('docs-owner-pill--shared', 'docs-owner-pill--app', 'docs-owner-pill--engine');
-        pill.classList.add('docs-owner-pill--' + (context.key || 'shared'));
-        pill.setAttribute('aria-label', owner + ' documentation');
-      }
-    }
-
-    function isDocsPagePath(pathname) {
-      return pathname === DOCS_ROOT_PATH || pathname.indexOf(DOCS_ROOT_PATH + '/') === 0;
-    }
-
-    function isRoutableDocsPath(pathname) {
-      if (!isDocsPagePath(pathname)) return false;
-      if (pathname.indexOf(DOCS_ROOT_PATH + '/assets/') === 0) return false;
-      if (pathname.indexOf(DOCS_ROOT_PATH + '/data/') === 0) return false;
-      return true;
-    }
-
-    function fetchDocsPage(urlObj, pushState) {
-      return fetch(urlObj.pathname + urlObj.search, {
-        headers: {
-          'X-Docs-Partial': '1'
-        }
-      })
-        .then(function (response) {
-          if (!response.ok) throw new Error('Failed to load documentation page');
-          return response.json();
-        })
-        .then(function (payload) {
-          if (!payload || typeof payload.content_html !== 'string') {
-            throw new Error('Invalid documentation payload');
-          }
-
-          var content = document.getElementById('docs-content-html');
-          if (!content) throw new Error('Documentation content element not found');
-          content.innerHTML = payload.content_html;
-
-          markActiveDoc(payload.active_slug || '', payload.active_section || '');
-          renderContext(payload.active_context || null);
-          renderNav(payload.prev_page, payload.next_page);
-          renderMermaid();
-          renderMath();
-          if (payload.title) {
-            document.title = payload.title + ' | OSM & ATLAS Documentation';
-          }
-
-          var canonicalUrl = payload.canonical_url || (urlObj.pathname + urlObj.search);
-          var canonicalLink = document.querySelector('link[rel="canonical"]');
-          if (canonicalLink) {
-            canonicalLink.href = new URL(canonicalUrl, window.location.origin).href;
-          }
-          if (urlObj.hash) {
-            canonicalUrl += urlObj.hash;
-          }
-          if (pushState) {
-            history.pushState({ docs: true }, '', canonicalUrl);
-          }
-
-          if (urlObj.hash) {
-            var target = document.getElementById(urlObj.hash.slice(1));
-            if (target) {
-              target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              return;
-            }
-          }
-
-          window.scrollTo({ top: 0, behavior: 'auto' });
-        });
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-      var expanded = getExpanded();
-      var activeSection = '{{ active_section or '' }}';
-      var activeSlug = '{{ active_slug or '' }}';
-      if (activeSection) {
-        addExpanded(expanded, activeSection);
-        setExpanded(expanded);
-      }
-
-      applyExpandedState();
-      markActiveDoc(activeSlug, activeSection);
-      renderMath();
-
-      if (!history.state || !history.state.docs) {
-        history.replaceState({ docs: true }, '', window.location.href);
-      }
-
-      document.querySelectorAll('.docs-toggle').forEach(function (btn) {
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          var key = btn.getAttribute('data-section');
-          var sections = getExpanded();
-          if (isExpanded(sections, key)) {
-            removeExpanded(sections, key);
-          } else {
-            addExpanded(sections, key);
-          }
-          setExpanded(sections);
-          var secEl = btn.closest('.docs-section');
-          updateSectionVisual(secEl, isExpanded(sections, key));
-        });
-      });
-
-      // Make the entire header clickable to navigate to the root page
-      document.querySelectorAll('.docs-section-header').forEach(function (header) {
-        header.addEventListener('click', function (e) {
-          // Ignore if the toggle button itself was clicked
-          if (e.target.closest('.docs-toggle')) return;
-          var href = header.getAttribute('data-root-href');
-          if (!href) return;
-
-          var url = new URL(href, window.location.href);
-          fetchDocsPage(url, true).catch(function () {
-            window.location.href = href;
-          });
-        });
-      });
-
-      // Clicking the main section link should keep the section expanded.
-      document.querySelectorAll('[data-section-link]').forEach(function (a) {
-        a.addEventListener('click', function () {
-          var key = a.getAttribute('data-section-link');
-          var sections = getExpanded();
-          addExpanded(sections, key);
-          setExpanded(sections);
-        });
-      });
-
-      document.addEventListener('click', function (e) {
-        if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
-          return;
-        }
-
-        var link = e.target.closest('a[href]');
-        if (!link) return;
-        if (link.target && link.target !== '_self') return;
-
-        var url;
-        try {
-          url = new URL(link.href, window.location.href);
-        } catch (_) {
-          return;
-        }
-
-        if (url.origin !== window.location.origin) return;
-        if (!isRoutableDocsPath(url.pathname)) return;
-
-        // Keep same-page hash navigation native for heading jumps.
-        if (url.pathname === window.location.pathname && url.hash) {
-          return;
-        }
-
-        e.preventDefault();
-        fetchDocsPage(url, true).catch(function () {
-          window.location.href = url.pathname + url.search + url.hash;
-        });
-      });
-
-      window.addEventListener('popstate', function () {
-        var url = new URL(window.location.href);
-        if (!isRoutableDocsPath(url.pathname)) {
-          return;
-        }
-        fetchDocsPage(url, false).catch(function () {
-          window.location.reload();
-        });
-      });
-
-      // Mobile Sidebar Toggle Logic
-      var sidebar = document.getElementById('docsSidebar');
-      var toggle = document.getElementById('mobileSidebarToggle');
-      var closeBtn = document.getElementById('closeMobileSidebar');
-      var backdrop = document.getElementById('docsSidebarBackdrop');
-
-      function toggleSidebar(show) {
-        if (typeof show === 'undefined') {
-          show = !sidebar.classList.contains('mobile-expanded');
-        }
-        sidebar.classList.toggle('mobile-expanded', show);
-        backdrop.classList.toggle('active', show);
-        document.body.style.overflow = show ? 'hidden' : '';
-      }
-
-      if (toggle) {
-        toggle.addEventListener('click', function () {
-          toggleSidebar(true);
-        });
-      }
-
-      if (closeBtn) {
-        closeBtn.addEventListener('click', function () {
-          toggleSidebar(false);
-        });
-      }
-
-      if (backdrop) {
-        backdrop.addEventListener('click', function () {
-          toggleSidebar(false);
-        });
-      }
-
-      // Close sidebar when a link is clicked on mobile
-      document.addEventListener('click', function (e) {
-        if (window.innerWidth >= 768) return;
-
-        var link = e.target.closest('.docs-sidebar a');
-        if (link) {
-          // Small delay to allow the fetch to start before closing
-          setTimeout(function () {
-            toggleSidebar(false);
-          }, 150);
-        }
-      });
-      
-      // PDF Modal logic
-      const selectAllCb = document.getElementById('selectAllDocsBtn');
-      const sectionCbs = document.querySelectorAll('.doc-section-checkbox');
-      
-      if (selectAllCb) {
-        selectAllCb.addEventListener('change', function() {
-          sectionCbs.forEach(function(cb) {
-             cb.checked = selectAllCb.checked;
-          });
-        });
-        
-        sectionCbs.forEach(function(cb) {
-           cb.addEventListener('change', function() {
-              const allChecked = Array.from(sectionCbs).every(function(c) { return c.checked; });
-              selectAllCb.checked = allChecked;
-           });
-        });
-      }
-      
-      const startDocsBtn = document.getElementById('startDocsPdfBtn');
-      if (startDocsBtn) {
-        startDocsBtn.addEventListener('click', function(e) {
-           if (e) e.preventDefault();
-           const selectedCbs = Array.from(sectionCbs).filter(function(cb) { return cb.checked; });
-           const totalSections = sectionCbs.length;
-           const allChecked = totalSections > 0 && selectedCbs.length === totalSections;
-           let included_sections = null;
-           let include_cover = true;
-           let selected_only = false;
-           
-           if (!allChecked) {
-             included_sections = selectedCbs
-                                      .map(function(cb) {
-                                        var value = (cb.value || '').trim();
-                                        if (!value) return '';
-                                        return value;
-                                      })
-                                      .filter(function(value) { return value !== ''; });
-             include_cover = false;
-             selected_only = true;
-             
-             if (included_sections.length === 0) {
-               alert("Please select at least one section");
-               return;
-             }
-           }
-           
-           // Hide Modal
-           try {
-               var docsModalEl = document.getElementById('docsPdfModal');
-               if (docsModalEl && window.bootstrap && window.bootstrap.Modal) {
-                   var modalInstance = window.bootstrap.Modal.getInstance(docsModalEl) || new window.bootstrap.Modal(docsModalEl);
-                   modalInstance.hide();
-               }
-           } catch (e) {}
-           
-           if (window.resetProgressOverlay) { window.resetProgressOverlay('Generating Documentation PDF'); }
-           document.getElementById('reportLoadingOverlay').style.display = 'flex';
-           if (window.startAsyncTask) {
-             window.startAsyncTask({
-               generateUrl: '/api/docs/generate_pdf_async',
-               checkUrl: '/api/docs/pdf_progress/',
-               downloadUrl: '/api/docs/download_pdf/',
-               cancelUrl: '/api/docs/cancel_pdf/',
-               params: { included_sections: included_sections, include_cover: include_cover, selected_only: selected_only }
-             });
-           }
-        });
-      }
-    });
-  })();
-</script>
+<script src="{{ url_for('static', filename='js/docs/portal.js') }}"></script>
 {% endblock %}

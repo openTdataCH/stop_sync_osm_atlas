@@ -220,8 +220,21 @@ def test_docs_canonical_slug_urls():
         assert '/docs/exact_matching' in docs_hrefs
 
 
+def _page_header(soup):
+    """Return the eyebrow (collection and number) and title of a docs page."""
+    header = soup.select_one('#docs-page-header')
+    assert header is not None
+    eyebrow = header.select_one('.docs-page-eyebrow')
+    return (
+        eyebrow.get_text(' ', strip=True) if eyebrow else None,
+        header.select_one('h1').get_text(' ', strip=True),
+    )
+
+
 def test_docs_portal_labels_engine_and_application_boundaries():
     from backend.app import create_app
+    from backend.blueprints.docs import _engine_version
+    from backend.version import APP_VERSION
     from bs4 import BeautifulSoup
 
     app = create_app()
@@ -234,68 +247,66 @@ def test_docs_portal_labels_engine_and_application_boundaries():
 
         collection_labels = {
             node.get_text(' ', strip=True)
-            for node in soup.select('.docs-collection-label')
+            for node in soup.select('#docsSidebar .docs-collection-label')
         }
         assert 'Engine input integrations' in collection_labels
         assert 'Matching engine core' in collection_labels
         assert 'Review application & deployment' in collection_labels
         assert 'Project overview' not in collection_labels
 
-        engine_badges = {
-            node.get_text(' ', strip=True)
-            for node in soup.select('.docs-owner-badge--engine')
+        # Each project's collections show the version of that project.
+        versions = {
+            node.find_parent(class_='docs-collection').select_one('.docs-collection-label').get_text(strip=True):
+                node.get_text(strip=True)
+            for node in soup.select('.docs-collection-version')
         }
-        assert engine_badges == {'Engine v0.2.0'}
-
-        app_badges = {
-            node.get_text(' ', strip=True)
-            for node in soup.select('.docs-owner-badge--app')
+        assert versions == {
+            'Engine input integrations': f'v{_engine_version()}',
+            'Matching engine core': f'v{_engine_version()}',
+            'Review application & deployment': f'v{APP_VERSION}',
         }
-        assert app_badges == {'App v0.6.0'}
 
         navbar_version = soup.select_one('.navbar-version--brand')
         assert navbar_version is not None
-        assert navbar_version.get_text(' ', strip=True) == 'Version 0.6.0'
+        assert navbar_version.get_text(' ', strip=True) == f'Version {APP_VERSION}'
 
         overview_link = soup.find('a', href='/docs/intro')
         assert overview_link is not None
-        assert overview_link.get_text(' ', strip=True) == '0. Project overview'
+        assert overview_link.get_text(' ', strip=True) == '0 Project overview'
 
-        article_heading = soup.select_one('#docs-content-html > h1')
-        assert article_heading is not None
-        assert article_heading.get_text(' ', strip=True).endswith('2.1 Exact matching')
+        # Each collection carries its owner, which sets its colour.
+        owners = {
+            node.get('data-owner')
+            for node in soup.select('.docs-collection')
+        }
+        assert owners == {'shared', 'engine', 'app'}
+        assert soup.select_one('.docs-collection--engine')['data-owner'] == 'engine'
+        assert soup.select_one('.docs-collection--app')['data-owner'] == 'app'
 
-        pills = soup.select('#docs-owner-pill')
-        assert len(pills) == 1
-        assert pills[0].get_text(' ', strip=True) == 'Engine'
-        assert 'docs-owner-pill--engine' in pills[0].get('class', [])
-        assert pills[0].has_attr('hidden')
-        heading_owner = soup.select_one('h1 .docs-heading-owner--engine')
-        assert heading_owner is not None
-        assert heading_owner.select_one('.docs-heading-owner-label').get('aria-label') == 'Engine'
-        assert heading_owner.select_one('.docs-heading-number').get_text(strip=True) == '2.1'
-        assert heading_owner.get_text('', strip=True) == 'Engine.2.1'
-        assert soup.select_one('#docs-context') is None
+        # The heading leaves the article for the page header, which names
+        # the collection, in its owner's colour, and the owner-scoped number.
+        assert _page_header(soup) == ('Matching engine core · E.2.1', 'Exact matching')
+        assert soup.select_one('.docs-page-eyebrow')['data-owner'] == 'engine'
+        assert soup.select_one('#docs-content-html h1') is None
+        pdf = soup.select_one('#docs-page-header [data-pdf-scope="page"]')
+        assert (pdf['data-page-slug'], pdf['data-page-section'], pdf['data-page-label']) == (
+            'exact_matching', 'engine-2', 'E.2.1 Exact matching',
+        )
+        assert soup.select('#docs-page-header a') == []
 
-        for path, label, modifier in (
-            ('/docs', 'Shared', 'docs-owner-pill--shared'),
-            ('/docs/database', 'App', 'docs-owner-pill--app'),
-        ):
-            owner_response = client.get(path)
-            assert owner_response.status_code == 200
-            owner_soup = BeautifulSoup(owner_response.data.decode('utf-8'), 'html.parser')
-            owner_pill = owner_soup.select_one('#docs-owner-pill')
-            assert owner_pill is not None
-            assert owner_pill.get_text(' ', strip=True) == label
-            assert modifier in owner_pill.get('class', [])
-            assert owner_pill.has_attr('hidden')
+        overview = BeautifulSoup(client.get('/docs').data.decode('utf-8'), 'html.parser')
+        assert _page_header(overview) == ('Project overview · 0', 'Project overview')
+        assert overview.select_one('.docs-page-eyebrow')['data-owner'] == 'shared'
 
         partial = client.get('/docs/database', headers={'X-Docs-Partial': '1'})
         assert partial.status_code == 200
         payload = partial.get_json()
-        assert payload['active_context']['key'] == 'app'
-        assert payload['active_context']['repo_path'] == 'documentation/'
-        assert payload['active_context']['show_owner_pill'] is False
+        header = BeautifulSoup(payload['header_html'], 'html.parser')
+        assert header.select_one('.docs-page-eyebrow').get_text(' ', strip=True) == 'Review application & deployment · A.1'
+        assert header.select_one('h1').get_text(strip=True) == 'Database & bundle import'
+        assert header.select_one('.docs-page-eyebrow')['data-owner'] == 'app'
+        assert header.select_one('[data-pdf-scope="page"]')['data-page-label'] == 'A.1 Database & bundle import'
+        assert '<h1' not in payload['content_html']
 
 
 def test_docs_portal_uses_project_scoped_section_numbers():
@@ -310,49 +321,52 @@ def test_docs_portal_uses_project_scoped_section_numbers():
         assert response.status_code == 200
         soup = BeautifulSoup(response.data.decode('utf-8'), 'html.parser')
 
-        def scoped_nav_label(href):
-            node = soup.find('a', href=href)
-            assert node is not None
-            owner = node.select_one('.docs-nav-owner')
-            suffix = node.select_one('.docs-section-title-text').get_text(strip=True)
-            prefix = owner.select_one('.docs-nav-owner-label').get_text(strip=True) if owner else ''
-            number = owner.select_one('.docs-nav-owner-number').get_text(strip=True) if owner else ''
-            return f'{prefix}.{number} {suffix}'.strip(), owner
-
-        for href, expected, owner_class, expanded_label in (
-            ('/docs/download_and_process_data', 'E.1 Input integrations & acquisition', 'docs-nav-owner--engine', 'E'),
-            ('/docs/source_snapshot_caching', 'E.5.1 Source snapshot caching', 'docs-nav-owner--engine', 'E'),
-            ('/docs/pipeline_tests', 'E.6 Engine tests', 'docs-nav-owner--engine', 'E'),
-            ('/docs/database', 'A.1 Database & bundle import', 'docs-nav-owner--app', 'A'),
-            ('/docs/frontend_asset_management', 'A.3.4 Frontend asset management', 'docs-nav-owner--app', 'A'),
-            ('/docs/test', 'A.4 Web app tests', 'docs-nav-owner--app', 'A'),
-            ('/docs/backend_tests', 'A.4.1 Backend tests', 'docs-nav-owner--app', 'A'),
+        for href, number, title in (
+            ('/docs/download_and_process_data', 'E.1', 'Input integrations & acquisition'),
+            ('/docs/source_snapshot_caching', 'E.5.1', 'Source snapshot caching'),
+            ('/docs/pipeline_tests', 'E.6', 'Engine tests'),
+            ('/docs/database', 'A.1', 'Database & bundle import'),
+            ('/docs/frontend_asset_management', 'A.3.4', 'Frontend asset management'),
+            ('/docs/test', 'A.4', 'Web app tests'),
+            ('/docs/backend_tests', 'A.4.1', 'Backend tests'),
+            ('/docs/glossary', '0.1', 'Glossary'),
         ):
-            label, owner = scoped_nav_label(href)
-            assert label == expected
-            assert owner_class in owner.get('class', [])
-            assert owner.select_one('.docs-nav-owner-label').get_text('', strip=True) == expanded_label
-            assert owner.select_one('.docs-nav-owner-number').get_text(strip=True)
-            assert owner.find_parent('a').get('href') == href
+            node = soup.find('a', href=href)
+            assert node is not None, href
+            assert node.select_one('.docs-nav-number').get_text(strip=True) == number
+            assert node.select_one('.docs-nav-title').get_text(strip=True) == title
+            assert node.get_text(' ', strip=True) == f'{number} {title}'
 
         contributing = soup.find('a', href='/docs/contributing')
         assert contributing is not None
-        assert contributing.select_one('.docs-nav-owner') is None
+        assert contributing.select_one('.docs-nav-number') is None
         assert contributing.get_text(' ', strip=True) == 'Contributing'
 
-        web_tests_response = client.get('/docs/test')
-        assert web_tests_response.status_code == 200
-        web_tests_soup = BeautifulSoup(web_tests_response.data.decode('utf-8'), 'html.parser')
-        web_tests_heading = web_tests_soup.select_one('h1.docs-scoped-heading')
-        assert web_tests_heading is not None
-        assert web_tests_heading.select_one('.docs-heading-owner-label').get('aria-label') == 'App'
-        assert web_tests_heading.select_one('.docs-heading-number').get_text(strip=True) == '4'
-        assert 'Web app tests' in web_tests_heading.get_text(' ', strip=True)
+        web_tests = BeautifulSoup(client.get('/docs/test').data.decode('utf-8'), 'html.parser')
+        assert _page_header(web_tests) == ('Review application & deployment · A.4', 'Web app tests')
 
-        contributing_response = client.get('/docs/contributing')
-        assert contributing_response.status_code == 200
-        contributing_soup = BeautifulSoup(contributing_response.data.decode('utf-8'), 'html.parser')
-        assert contributing_soup.select_one('h1').get_text(' ', strip=True) == 'Contributing'
+        contributing_page = BeautifulSoup(client.get('/docs/contributing').data.decode('utf-8'), 'html.parser')
+        assert _page_header(contributing_page) == ('Review application & deployment', 'Contributing')
+
+
+def test_docs_sidebar_marks_the_page_being_read():
+    from backend.app import create_app
+    from bs4 import BeautifulSoup
+
+    app = create_app()
+    app.config['TESTING'] = True
+
+    with app.test_client() as client:
+        soup = BeautifulSoup(client.get('/docs/source_snapshot_caching').data.decode('utf-8'), 'html.parser')
+
+    current = soup.select('#docsSidebar [aria-current="page"]')
+    assert [link['href'] for link in current] == ['/docs/source_snapshot_caching']
+    assert 'active' in current[0]['class']
+    # Its section is marked as the current one, but only the page is highlighted.
+    header = current[0].find_parent(class_='docs-section').select_one('.docs-section-header')
+    assert 'is-current' in header['class']
+    assert 'active' not in header['class']
+    assert soup.select('.docs-section-header.is-current') == [header]
 
 
 def test_app_and_engine_changelogs_have_distinct_canonical_routes():
@@ -366,17 +380,13 @@ def test_app_and_engine_changelogs_have_distinct_canonical_routes():
         app_response = client.get('/docs/changelog')
         assert app_response.status_code == 200
         app_soup = BeautifulSoup(app_response.data.decode('utf-8'), 'html.parser')
-        assert app_soup.select_one('#docs-owner-pill').get_text(strip=True) == 'App'
-        assert not app_soup.select_one('#docs-owner-pill').has_attr('hidden')
-        assert app_soup.select_one('h1').get_text(strip=True) == 'Review application changelog'
+        assert _page_header(app_soup) == ('Review application & deployment', 'Review application changelog')
         assert app_soup.find('a', href='/docs/engine_changelog') is not None
 
         engine_response = client.get('/docs/engine_changelog')
         assert engine_response.status_code == 200
         engine_soup = BeautifulSoup(engine_response.data.decode('utf-8'), 'html.parser')
-        assert engine_soup.select_one('#docs-owner-pill').get_text(strip=True) == 'Engine'
-        assert not engine_soup.select_one('#docs-owner-pill').has_attr('hidden')
-        assert engine_soup.select_one('h1').get_text(strip=True) == 'Matching engine changelog'
+        assert _page_header(engine_soup) == ('Matching engine core', 'Matching engine changelog')
         assert engine_soup.find('a', href='/docs/changelog') is not None
 
 
@@ -415,6 +425,14 @@ def test_pdf_document_selection_keeps_engine_and_app_sections_distinct():
     assert app_only
     assert all(path.parent == _documentation_roots()[0] for path in app_only)
     assert {path.name for path in app_only} >= {'2. Web app.md', '2.8 Documentation Page Delivery.md'}
+
+    # A single page, alone or with sections, keeps the sidebar order.
+    page = _sorted_docs(included_pages=['engine/documentation/2.1 Exact matching.md'])
+    assert [_document_id(path) for path in page] == ['engine/documentation/2.1 Exact matching.md']
+    mixed = _sorted_docs(['app:2'], ['engine/documentation/2.1 Exact matching.md'])
+    assert _document_id(mixed[0]) == 'engine/documentation/2.1 Exact matching.md'
+    assert mixed[1:] == app_only
+    assert _sorted_docs(included_pages=['documentation/No such page.md']) == []
 
     changelogs = _sorted_docs(['app:extra-changelog', 'engine:extra-changelog'])
     assert len(changelogs) == 2

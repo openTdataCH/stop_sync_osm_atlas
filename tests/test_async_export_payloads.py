@@ -1,4 +1,5 @@
 import os
+import threading
 from types import SimpleNamespace
 
 import backend.blueprints.docs as docs_blueprint
@@ -155,6 +156,45 @@ def test_generate_docs_pdf_async_selected_only_requires_sections(client, monkeyp
     assert payload.get('error') == 'No sections selected for partial documentation export.'
 
 
+def test_generate_docs_pdf_async_exports_one_page_under_its_address(client, monkeypatch):
+    _patch_async_helpers(monkeypatch, docs_blueprint)
+    started = []
+    finished = threading.Event()
+
+    def background(*args):
+        started.append(args)
+        finished.set()
+
+    monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', background)
+
+    response = client.post('/api/docs/generate_pdf_async', json={
+        'included_pages': ['exact_matching'],
+        'include_cover': False,
+        'selected_only': True,
+    })
+
+    assert response.status_code == 200
+    assert finished.wait(5)
+    _, _, included_sections, include_cover, included_pages, download_name = started[0]
+    assert included_sections is None
+    assert include_cover is False
+    assert included_pages == ['engine/documentation/2.1 Exact matching.md']
+    assert download_name == 'exact_matching.pdf'
+
+
+def test_generate_docs_pdf_async_rejects_unknown_pages(client, monkeypatch):
+    _patch_async_helpers(monkeypatch, docs_blueprint)
+    monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', lambda *args, **kwargs: None)
+
+    response = client.post('/api/docs/generate_pdf_async', json={
+        'included_pages': ['exact_matching', 'no_such_page'],
+        'selected_only': True,
+    })
+
+    assert response.status_code == 400
+    assert response.get_json()['error'] == 'Unknown documentation page: no_such_page'
+
+
 def test_generate_docs_pdf_async_ignores_non_dict_raw_json(client, monkeypatch):
     _patch_async_helpers(monkeypatch, docs_blueprint)
     monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', lambda *args, **kwargs: None)
@@ -178,6 +218,12 @@ def test_docs_payload_parsing_helpers():
     assert docs_blueprint._to_sections_list('engine:1,app:2') == ['engine:1', 'app:2']
     assert docs_blueprint._to_sections_list('app:extra-changelog') == ['app:extra-changelog']
     assert docs_blueprint._to_sections_list('') is None
+    assert docs_blueprint._to_sections_list(['engine:1', 'nonsense']) == ['engine:1']
+    assert docs_blueprint._to_sections_list(7) is None
+
+    assert docs_blueprint._to_pages_list(' exact_matching , ') == ['exact_matching']
+    assert docs_blueprint._to_pages_list('["glossary", ""]') == ['glossary']
+    assert docs_blueprint._to_pages_list(None) is None
 
     assert docs_blueprint._to_bool('false') is False
     assert docs_blueprint._to_bool('true') is True

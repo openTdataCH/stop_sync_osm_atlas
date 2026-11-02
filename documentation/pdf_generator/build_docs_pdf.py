@@ -127,7 +127,12 @@ def _doc_section_key(path: Path) -> str:
     return f'{source_key}:extra-{_slugify(path.stem)}'
 
 
-def _sorted_docs(included_sections: list[str] = None) -> list[Path]:
+def _sorted_docs(included_sections: list[str] = None, included_pages: list[str] = None) -> list[Path]:
+    """Documentation pages in sidebar order, optionally only the selected ones.
+
+    Sections are owner-qualified keys (``engine:2``); pages are paths in the
+    portal's logical layout (``engine/documentation/2.1 Exact matching.md``).
+    """
     app_docs = [path for path in DOCS_DIR.glob('*.md') if path.is_file()]
     engine_docs = [path for path in ENGINE_DOCS_DIR.glob('*.md') if path.is_file()]
     overview = [path for path in app_docs if _top_level_section_key(path.name) == '0']
@@ -137,22 +142,19 @@ def _sorted_docs(included_sections: list[str] = None) -> list[Path]:
         + sorted(engine_docs, key=lambda path: doc_sort_key(path.name))
         + sorted(app_reference, key=lambda path: doc_sort_key(path.name))
     )
-    if included_sections is not None:
-        normalized_sections = {
-            key for key in (_normalize_section_key(section) for section in included_sections)
-            if key is not None
-        }
-        if not normalized_sections:
-            return []
-
-        filtered_docs = []
-        for doc in docs:
-            section_key = _doc_section_key(doc)
-            legacy_key = _top_level_section_key(doc.name)
-            if section_key in normalized_sections or legacy_key in normalized_sections:
-                filtered_docs.append(doc)
-        return filtered_docs
-    return docs
+    if included_sections is None and included_pages is None:
+        return docs
+    normalized_sections = {
+        key for key in (_normalize_section_key(section) for section in included_sections or ())
+        if key is not None
+    }
+    pages = set(included_pages or ())
+    return [
+        doc for doc in docs
+        if _doc_section_key(doc) in normalized_sections
+        or _top_level_section_key(doc.name) in normalized_sections
+        or _logical_doc_path(doc) in pages
+    ]
 
 
 def _doc_anchor_map(doc_paths: list[Path]) -> dict[str, str]:
@@ -648,10 +650,15 @@ def _add_section_heading_ids(body_html: str) -> str:
     return token.sub(replace, body_html)
 
 
-def _build_pdf(included_sections: list[str] = None, include_cover: bool = True, output_path: Path = None) -> Path:
+def _build_pdf(
+    included_sections: list[str] = None,
+    include_cover: bool = True,
+    output_path: Path = None,
+    included_pages: list[str] = None,
+) -> Path:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     DIAGRAMS_DIR.mkdir(parents=True, exist_ok=True)
-    doc_paths = _sorted_docs(included_sections)
+    doc_paths = _sorted_docs(included_sections, included_pages)
     if not doc_paths:
         raise RuntimeError('No documentation markdown files found for the given selection.')
 

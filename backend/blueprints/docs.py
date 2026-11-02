@@ -12,6 +12,7 @@ from typing import List, Tuple, Dict, Optional
 from urllib.parse import unquote
 
 from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file, current_app
+from markupsafe import Markup
 from werkzeug.utils import safe_join
 from backend.services.docs_order import doc_sort_key
 from backend.services.docs_stats import (
@@ -62,47 +63,34 @@ logger = logging.getLogger(__name__)
 _DOC_SOURCES = {
     'app': {
         'root': 'documentation',
-        'label': 'Review application',
         'short_label': 'App',
-        'description': 'Bundle import, PostGIS, the Flask API, browser UI and deployment.',
-        'boundary': 'Consumes versioned result bundles; it does not run or reimplement matching rules.',
-        'repo_path': 'documentation/',
     },
     'engine': {
         'root': 'engine/documentation',
-        'label': 'Engine producer',
         'short_label': 'Engine',
-        'description': 'Curated input integrations, source-neutral matching and result production.',
-        'boundary': 'Produces versioned result bundles; it has no Flask, SQLAlchemy or application-database dependency.',
-        'repo_path': 'engine/documentation/',
     },
 }
 
+# The sidebar groups. Their descriptions are on the overview page
+# (documentation/0. Intro.md, "How to read this documentation"). A
+# collection's owner (its source unless stated) sets its colour.
 _DOC_COLLECTIONS = (
     {
         'key': 'overview',
         'label': 'Project overview',
-        'description': 'How the engine and review application work together.',
-        'badge_label': 'Shared',
-        'badge_key': 'shared',
         'source': 'app',
+        'owner': 'shared',
         'sections': {'0'},
     },
     {
         'key': 'engine-inputs',
         'label': 'Engine input integrations',
-        'description': 'Curated format adapters, acquisition clients and the maintained Swiss integration. These are outside the source-neutral matching core.',
-        'badge_label': 'Engine',
-        'badge_key': 'engine',
         'source': 'engine',
         'sections': {'1'},
     },
     {
         'key': 'engine',
         'label': 'Matching engine core',
-        'description': 'Source-neutral matching, route comparison, problem detection, result production and engine operations.',
-        'badge_label': 'Engine',
-        'badge_key': 'engine',
         'source': 'engine',
         'sections': None,
         'exclude_sections': {'1'},
@@ -110,9 +98,6 @@ _DOC_COLLECTIONS = (
     {
         'key': 'app',
         'label': 'Review application & deployment',
-        'description': _DOC_SOURCES['app']['description'],
-        'badge_label': 'App',
-        'badge_key': 'app',
         'source': 'app',
         'sections': None,
         'exclude_sections': {'0'},
@@ -193,30 +178,31 @@ def _normalize_section_key(value) -> Optional[str]:
     return None
 
 
-def _to_sections_list(value) -> Optional[List[str]]:
-    if value is None:
-        return None
-    if isinstance(value, list):
-        sections = [_normalize_section_key(str(item)) for item in value]
-        sections = [item for item in sections if item is not None]
-        return sections or None
+def _payload_list(value) -> Optional[List[str]]:
+    """Read a list from JSON, a JSON-encoded string or a comma-separated field."""
     if isinstance(value, str):
         stripped = value.strip()
-        if not stripped:
-            return None
+        parsed = None
         if stripped.startswith('['):
             try:
                 parsed = json.loads(stripped)
-                if isinstance(parsed, list):
-                    sections = [_normalize_section_key(str(item)) for item in parsed]
-                    sections = [item for item in sections if item is not None]
-                    return sections or None
-            except Exception:
+            except ValueError:
                 pass
-        sections = [_normalize_section_key(item) for item in stripped.split(',')]
-        sections = [item for item in sections if item is not None]
-        return sections or None
-    return None
+        value = parsed if isinstance(parsed, list) else (stripped.split(',') if stripped else [])
+    if not isinstance(value, list):
+        return None
+    return [str(item).strip() for item in value]
+
+
+def _to_sections_list(value) -> Optional[List[str]]:
+    sections = [key for key in map(_normalize_section_key, _payload_list(value) or []) if key is not None]
+    return sections or None
+
+
+def _to_pages_list(value) -> Optional[List[str]]:
+    """Page addresses (``exact_matching``) for a single-page export."""
+    pages = [page for page in _payload_list(value) or [] if page]
+    return pages or None
 
 
 def _repo_root() -> str:
@@ -700,11 +686,6 @@ def _doc_source_key(doc_id: str) -> str:
     raise ValueError(f'Unknown documentation source for {doc_id!r}')
 
 
-def _doc_source(doc_id: str) -> Dict:
-    source_key = _doc_source_key(doc_id)
-    return {'key': source_key, **_DOC_SOURCES[source_key]}
-
-
 def _list_markdown_files() -> List[str]:
     """Return stable logical IDs for app- and engine-owned Markdown pages."""
     files: List[str] = []
@@ -828,12 +809,33 @@ def _display_title(filename: str) -> str:
     return f'{subsection_prefix} {title}'.strip()
 
 
-def _split_scoped_title(title: str, owner_prefix: Optional[str]) -> Tuple[Optional[str], str]:
-    """Split ``A3.1 Page`` into its pill number and page-title suffix."""
-    if not owner_prefix or not title.startswith(owner_prefix):
+_NUMBERED_TITLE_PATTERN = re.compile(r'(?P<prefix>[A-Z]?)(?P<number>\d+(?:\.\d+)*)\.?\s+(?P<title>.+)', re.DOTALL)
+
+
+def _owner_prefix(doc_id: str) -> Optional[str]:
+    """Return the letter that scopes the page's number (``E``, ``A``).
+
+    The shared project overview (section 0) has no letter.
+    """
+    if _top_level_section_key(doc_id) == '0':
+        return None
+    return _DOC_SOURCES[_doc_source_key(doc_id)]['short_label'][0]
+
+
+def _split_nav_number(title: str, owner_prefix: Optional[str]) -> Tuple[Optional[str], str]:
+    """Split ``E2.1 Exact matching`` into ``E.2.1`` and ``Exact matching``.
+
+    The sidebar and the page header show the number apart from the title.
+    Titles without their owner's numbering, such as the changelogs, have no
+    number.
+    """
+    match = _NUMBERED_TITLE_PATTERN.fullmatch(title)
+    if not match or match.group('prefix') != (owner_prefix or ''):
         return None, title
-    scoped_token, separator, suffix = title.partition(' ')
-    return scoped_token[1:], suffix if separator else ''
+    number = match.group('number')
+    if owner_prefix:
+        number = f'{owner_prefix}.{number}'
+    return number, match.group('title')
 
 
 def _derive_level(filename: str) -> int:
@@ -896,50 +898,37 @@ def _group_files_by_section(
             continue
         level = _derive_level(f)
         title = _display_title(f)
+        nav_number, nav_title = _split_nav_number(title, _owner_prefix(f))
         if key not in sections_map:
-            owner_label = _DOC_SOURCES[source_key]['short_label'] if key != '0' else None
             sections_map[key] = {
                 'key': f'{collection_key}-{key}',
                 'export_key': f'{source_key}:{key}',
                 'number': int(key),
-                'owner_key': source_key if owner_label else None,
-                'owner_label': owner_label,
-                'owner_prefix': owner_label[0] if owner_label else None,
-                'owner_number': None,
+                'nav_number': None,
+                'nav_title': None,
                 'root_file': None,
                 'root_slug': None,
                 'root_title': None,
-                'root_title_suffix': None,
                 'items': []
             }
         if level <= 1:
             sections_map[key]['root_file'] = f
             sections_map[key]['root_title'] = title
             sections_map[key]['root_slug'] = file_to_slug.get(f, '')
+            sections_map[key]['nav_number'] = nav_number
+            sections_map[key]['nav_title'] = nav_title
         else:
-            owner_number, title_suffix = _split_scoped_title(
-                title,
-                sections_map[key]['owner_prefix'],
-            )
             sections_map[key]['items'].append({
                 'file': f,
                 'slug': file_to_slug.get(f, ''),
                 'title': title,
-                'title_suffix': title_suffix,
-                'owner_key': sections_map[key]['owner_key'],
-                'owner_label': sections_map[key]['owner_label'],
-                'owner_prefix': sections_map[key]['owner_prefix'],
-                'owner_number': owner_number,
+                'nav_number': nav_number,
+                'nav_title': nav_title,
                 'level': level,
             })
 
     for sec in sections_map.values():
         sec['items'].sort(key=lambda it: doc_sort_key(it['file']))
-        if sec['root_title']:
-            sec['owner_number'], sec['root_title_suffix'] = _split_scoped_title(
-                sec['root_title'],
-                sec['owner_prefix'],
-            )
 
     sections = sorted(sections_map.values(), key=lambda s: s['number'])
 
@@ -956,14 +945,11 @@ def _group_files_by_section(
             'key': extra_key,
             'export_key': f'{source_key}:extra-{slug}',
             'number': None,
-            'owner_key': None,
-            'owner_label': None,
-            'owner_prefix': None,
-            'owner_number': None,
+            'nav_number': None,
+            'nav_title': title,
             'root_file': f,
             'root_slug': slug,
             'root_title': title,
-            'root_title_suffix': title,
             'items': [],
         })
 
@@ -990,8 +976,8 @@ def _build_doc_collections(files: List[str], file_to_slug: Dict[str, str]) -> Li
             continue
 
         collection = {
+            'owner': definition['source'],
             **definition,
-            'source_info': {'key': definition['source'], **_DOC_SOURCES[definition['source']]},
             'sections': _group_files_by_section(
                 selected,
                 file_to_slug,
@@ -1126,7 +1112,7 @@ def _convert_markdown_to_html(
     )
 
     if bleach is None:
-        return _add_heading_ids(_decorate_scoped_heading(_inline_svg_images(html), current_doc))
+        return _add_heading_ids(_inline_svg_images(html))
 
     allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + [
         'p', 'pre', 'code', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'span', 'div', 'i',
@@ -1178,7 +1164,7 @@ def _convert_markdown_to_html(
     sanitized = _restore_mermaid_blocks(sanitized, 'MERMAID_HTML', mermaid_divs)
     # Diagrams join the page after sanitizing: Bleach would strip the SVG.
     sanitized = _inline_svg_images(sanitized)
-    return _add_heading_ids(_decorate_scoped_heading(sanitized, current_doc))
+    return _add_heading_ids(sanitized)
 
 
 _IMG_TAG_PATTERN = re.compile(r'<img\b[^>]*\bsrc="(?P<src>[^"]+)"[^>]*>')
@@ -1268,36 +1254,32 @@ def _add_heading_ids(html: str) -> str:
     return _SECTION_HEADING_PATTERN.sub(replace, html)
 
 
-def _decorate_scoped_heading(html: str, current_doc: str) -> str:
-    """Turn an A/E heading prefix into the page-level owner indicator."""
-    source_key = _doc_source_key(current_doc)
-    source = _DOC_SOURCES.get(source_key)
-    if not source:
-        return html
+_PAGE_TITLE_PATTERN = re.compile(r'\s*<h1>(?P<title>.*?)</h1>\s*', re.DOTALL)
 
-    owner_label = source['short_label']
-    prefix = owner_label[0]
-    pattern = re.compile(
-        rf'<h1>{re.escape(prefix)}(?P<number>\d+(?:\.\d+)*)\s+(?P<title>.*?)</h1>',
-        flags=re.DOTALL,
-    )
 
-    def replace(match: re.Match) -> str:
-        return (
-            '<h1 class="docs-scoped-heading">'
-            f'<span class="docs-heading-owner docs-heading-owner--{source_key}">'
-            f'<span class="docs-heading-owner-label" aria-label="{owner_label}">'
-            f'<span>{prefix}</span>'
-            f'<span class="docs-heading-owner-expansion">{owner_label[1:]}</span>'
-            '</span>'
-            '<span class="docs-owner-separator">.</span>'
-            f'<span class="docs-heading-number">{match.group("number")}</span>'
-            '</span>'
-            f'{match.group("title")}'
-            '</h1>'
-        )
+def _page_header(html: str, doc_id: str, collection: Optional[Dict], slug: str, section: Optional[str]) -> Tuple[Dict, str]:
+    """Move the page's ``#`` heading from the article into the page header.
 
-    return pattern.sub(replace, html, count=1)
+    The header shows the collection, in its owner's colour, and the page
+    number above the title. Its PDF link carries the page's address,
+    section and label for the export dialog. Returns the header and the
+    article without its heading.
+    """
+    number, title_html = None, None
+    match = _PAGE_TITLE_PATTERN.match(html)
+    if match:
+        number, title_html = _split_nav_number(match.group('title').strip(), _owner_prefix(doc_id))
+        html = html[match.end():]
+    title_text = Markup(title_html).striptags() if title_html else _display_title(doc_id)
+    return {
+        'collection': collection['label'] if collection else None,
+        'owner': collection['owner'] if collection else None,
+        'number': number,
+        'title_html': title_html,
+        'slug': slug,
+        'section': section,
+        'label': f'{number} {title_text}' if number else title_text,
+    }, html
 
 
 @docs_bp.route('/docs')
@@ -1398,36 +1380,17 @@ def docs_page(page: str = ''):
         if active_collection:
             break
 
-    source_info = _doc_source(active_file)
-    if active_collection and active_collection['key'] == 'overview':
-        active_context = {
-            'key': 'shared',
-            'label': 'Engine + review application',
-            'short_label': 'Shared',
-            'description': active_collection['description'],
-            'boundary': 'The engine produces a versioned result bundle; the review application validates, imports and presents it.',
-            'repo_path': source_info['repo_path'],
-        }
-    else:
-        active_context = source_info
-
-    active_context = {
-        **active_context,
-        # The project overview introduces both parts of the system, so it has
-        # no single owner to repeat in the article chrome.
-        'show_owner_pill': (
-            active_collection is None
-            or active_collection['key'] != 'overview'
-        ) and 'docs-heading-owner' not in html_content,
-    }
+    page_header, html_content = _page_header(
+        html_content, active_file, active_collection, active_slug, active_section,
+    )
 
     if is_partial:
         return jsonify({
             'content_html': html_content,
+            'header_html': render_template('components/docs_page_header.html', page_header=page_header),
             'active_file': active_file,
             'active_slug': active_slug,
             'active_section': active_section,
-            'active_context': active_context,
             'title': active_title,
             'prev_page': prev_page,
             'next_page': next_page,
@@ -1444,7 +1407,7 @@ def docs_page(page: str = ''):
         active_slug=active_slug,
         active_section=active_section,
         active_title=active_title,
-        active_context=active_context,
+        page_header=page_header,
         content_html=html_content,
         prev_page=prev_page,
         next_page=next_page,
@@ -1471,11 +1434,22 @@ def generate_docs_pdf_async():
     
     data = read_request_payload(request, include_query_args=False)
     included_sections = _to_sections_list(data.get('included_sections'))  # None means all
+    included_pages = _to_pages_list(data.get('included_pages'))
     include_cover = _to_bool(data.get('include_cover'), default=True)
     selected_only = _to_bool(data.get('selected_only'), default=False)
 
-    if selected_only and not included_sections:
+    page_files = None
+    if included_pages:
+        _, slug_to_file = _build_doc_slug_maps(_list_markdown_files())
+        unknown = [page for page in included_pages if page not in slug_to_file]
+        if unknown:
+            return jsonify({"error": f"Unknown documentation page: {unknown[0]}"}), 400
+        page_files = [slug_to_file[page] for page in included_pages]
+
+    if selected_only and not included_sections and not page_files:
         return jsonify({"error": "No sections selected for partial documentation export."}), 400
+    # A single page downloads under its own address.
+    download_name = f'{included_pages[0]}.pdf' if page_files and len(page_files) == 1 and not included_sections else None
     
     task_id = str(uuid.uuid4())
     init_task(task_id)
@@ -1484,7 +1458,7 @@ def generate_docs_pdf_async():
     
     thread = threading.Thread(
         target=_background_docs_pdf,
-        args=(app_obj, task_id, included_sections, include_cover)
+        args=(app_obj, task_id, included_sections, include_cover, page_files, download_name)
     )
     thread.daemon = True
     thread.start()
@@ -1492,7 +1466,7 @@ def generate_docs_pdf_async():
     return jsonify({"task_id": task_id})
 
 
-def _background_docs_pdf(flask_app, task_id, included_sections, include_cover):
+def _background_docs_pdf(flask_app, task_id, included_sections, include_cover, included_pages=None, download_name=None):
     from pathlib import Path
     
     with flask_app.app_context():
@@ -1502,7 +1476,7 @@ def _background_docs_pdf(flask_app, task_id, included_sections, include_cover):
             set_task_status(task_id, 'processing')
             
             # Caching check if "All sections" are selected
-            if not included_sections:
+            if not included_sections and not included_pages:
                 if ensure_docs_pdf_generated():
                     cached_path = _existing_docs_pdf_path()
                     if cached_path:
@@ -1522,10 +1496,11 @@ def _background_docs_pdf(flask_app, task_id, included_sections, include_cover):
             _build_pdf(
                 included_sections=included_sections, 
                 include_cover=include_cover, 
-                output_path=Path(dest_path)
+                output_path=Path(dest_path),
+                included_pages=included_pages,
             )
             
-            complete_task(task_id, dest_path, filename)
+            complete_task(task_id, dest_path, download_name or filename)
             ae_update_progress(task_id, 1, 1)
         except Exception as e:
             set_task_status(task_id, 'error', str(e))
