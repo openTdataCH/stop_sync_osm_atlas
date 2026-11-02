@@ -10,7 +10,6 @@ portal scales to the article column. Keep text at 12 units or larger.
 from __future__ import annotations
 
 from kit import (
-    linked,
     APP, ATLAS, CONTRACT, ENGINE, EXTERNAL, FAINT, GTFS, INK, MUTED, OSM, UNMATCHED,
     Diagram, Line, arrow, box, browser, chevron, code, divider, document, legend, node, note, pill, step,
     store, text, zone,
