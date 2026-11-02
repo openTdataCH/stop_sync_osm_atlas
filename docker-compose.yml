@@ -18,7 +18,7 @@ services:
       retries: 2
 
   migrator:
-    image: ghcr.io/opentdatach/stop_sync_osm_atlas-migrator:latest
+    image: stop_sync_osm_atlas-migrator
     container_name: stop_sync_osm_atlas_migrator
     restart: "no"
     entrypoint: ["/bin/bash", "-lc"]
@@ -35,7 +35,7 @@ services:
       RATELIMIT_STORAGE_URI: memory://
 
   app:
-    image: ghcr.io/opentdatach/stop_sync_osm_atlas-app:latest
+    image: stop_sync_osm_atlas-app
     container_name: stop_sync_osm_atlas_app
     restart: unless-stopped
     ports:
@@ -69,7 +69,7 @@ services:
     # mem_reservation: 1g # Optional: guarantee 1g
 
   test:
-    image: ghcr.io/opentdatach/stop_sync_osm_atlas-test:latest
+    image: stop_sync_osm_atlas-test
     container_name: stop_sync_osm_atlas_test
     restart: "no"
     volumes:
@@ -81,7 +81,7 @@ services:
       STATE_DIR: ${STATE_DIR:-data/runtime}
 
   scheduler:
-    image: ghcr.io/opentdatach/stop_sync_osm_atlas-scheduler:latest
+    image: stop_sync_osm_atlas-scheduler
     container_name: stop_sync_osm_atlas_scheduler
     restart: unless-stopped
     command: ["scheduler"]
