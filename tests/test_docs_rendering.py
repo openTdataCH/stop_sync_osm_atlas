@@ -82,6 +82,22 @@ def test_engine_source_links_need_a_public_base(app, monkeypatch):
     assert 'href="https://example.org/engine/blob/abc/src/public_transport_matcher/core/profile.py"' in _render(app, markdown)
 
 
+def test_svg_diagrams_are_inlined_so_their_links_work(app):
+    html = _render(app, '![Overview](images/overview-big-picture.svg)', doc='documentation/0. Intro.md')
+    assert '<span class="docs-diagram"><svg ' in html
+    assert '<img' not in html
+    assert 'href="https://github.com/openTdataCH/osm-public-transport-matcher"' in html
+
+    # Other images, SVGs not drawn by the kit (they may carry stylesheets)
+    # and SVGs outside an images/ directory stay images.
+    for markdown in ('![Map](images/review-app-map-screenshot.png)',
+                     '![Overlap](images/dependency_overlap.svg)',
+                     '![Logo](images/../../static/osm.svg)',
+                     '![Missing](images/no-such-diagram.svg)'):
+        html = _render(app, markdown, doc='documentation/0. Intro.md')
+        assert '<img' in html and '<svg' not in html, markdown
+
+
 def test_every_portal_link_reaches_a_page_and_anchor(app):
     from backend.blueprints.docs import _build_doc_slug_maps, _list_markdown_files
 
@@ -96,6 +112,9 @@ def test_every_portal_link_reaches_a_page_and_anchor(app):
 
     problems = []
     for slug, html in pages.items():
+        # Inlined diagrams share the page's ID namespace.
+        all_ids = _ID.findall(html)
+        problems += [f'{slug}: duplicate id {value}' for value in sorted(set(all_ids)) if all_ids.count(value) > 1]
         for href in map(unescape, _HREF.findall(html)):
             if href.startswith(('http://', 'https://', 'mailto:')):
                 continue

@@ -61,9 +61,16 @@ def test_diagram_is_self_contained_and_accessible(name, tree, path, svg):
     assert title is not None and title.text and title.text.strip()
     assert description is not None and description.text and len(description.text.split()) >= 8
     assert float(root.get('width')) <= 960
+    # The portal inlines the file, so its IDs must be unique within a page.
+    assert root.get('aria-labelledby') == f'{name}-title {name}-desc'
+    assert title.get('id') == f'{name}-title' and description.get('id') == f'{name}-desc'
     # Portal, GitHub and PDF must render the file identically.
-    for forbidden in ('<style', '<script', '<foreignObject', 'href=', '@font-face', 'url('):
+    for forbidden in ('<style', '<script', '<foreignObject', '@font-face', 'url('):
         assert forbidden not in svg, f'{name} contains {forbidden}'
+    # Links work only in the portal, so they leave it for a public page.
+    for link in root.iter(f'{SVG_NS}a'):
+        assert link.get('href', '').startswith('https://'), f'{name} links {link.get("href")!r}'
+        assert link.get('target') == '_blank', f'{name} links {link.get("href")!r} in place'
 
 
 def _markdown_images(path):

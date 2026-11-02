@@ -62,10 +62,10 @@ def overview_big_picture() -> Diagram:
               title_size=13.5, line_size=12, gap=3, dashed=True, filled=False))
     d.add(box(752, 176, 188, 42, EXTERNAL, 'Scripts and research', [],
               title_size=13.5, dashed=True, filled=False))
-    d.add(linked('https://github.com/openTdataCH/stop_sync_osm_atlas', box(752, 238, 188, 120, APP, 'Review application', [
-        code('stop_sync_osm_atlas', size=12), 'own repository', 'Flask, PostGIS, map UI',
-        'imports each bundle',
-    ], title_size=14, line_size=12, gap=4, pad=6)))
+    d.add(box(752, 238, 188, 120, APP, 'Review application', [
+        code('stop_sync_osm_atlas', size=12, href='https://github.com/openTdataCH/stop_sync_osm_atlas'),
+        'own repository', 'Flask, PostGIS, map UI', 'imports each bundle',
+    ], title_size=14, line_size=12, gap=4, pad=6))
     for y in (138, 197, 298):
         d.add(arrow([(726, 237), (738, 237), (738, y), (750, y)], corner=5))
 

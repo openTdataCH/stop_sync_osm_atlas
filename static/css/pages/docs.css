@@ -453,7 +453,8 @@
   scroll-margin-top: calc(var(--navbar-height) + var(--space-4));
 }
 
-.docs-content img {
+.docs-content img,
+.docs-content .docs-diagram {
   display: block;
   max-width: 100%;
   height: auto;
@@ -461,6 +462,24 @@
   margin: var(--space-4) 0;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
+}
+
+/* Inlined SVG diagrams (see 2.8 Documentation Page Delivery), so their
+   links work. The wrapper takes the image frame; the SVG scales inside it. */
+.docs-content .docs-diagram {
+  width: fit-content;
+  overflow: hidden;
+}
+
+.docs-content .docs-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.docs-content .docs-diagram a:hover text,
+.docs-content .docs-diagram a:focus-visible text {
+  text-decoration: underline;
 }
 
 .docs-content p {
@@ -475,7 +494,7 @@
 /* Keep running text to about 110 characters per line (82ch measured with
    the 16px system font). Diagrams (960px), tables and code keep the full
    card width, so paragraphs that wrap an image are left uncapped. */
-#docs-content-html > p:not(:has(img)),
+#docs-content-html > p:not(:has(img, .docs-diagram)),
 #docs-content-html > ul,
 #docs-content-html > ol,
 #docs-content-html > .github-alert {

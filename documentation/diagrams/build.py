@@ -51,7 +51,7 @@ def render_all(only=None):
     for name, tree, build in DIAGRAMS:
         if only and name not in only:
             continue
-        yield name, tree, output_path(tree, name), build().render()
+        yield name, tree, output_path(tree, name), build().render(name)
 
 
 def main(argv=None) -> int:
