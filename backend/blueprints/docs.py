@@ -313,7 +313,7 @@ def ensure_docs_pdf_generated() -> bool:
                 'mermaid_render_config.json',
             ))
             quality_renderer = os.path.join(_repo_root(), 'backend', 'services', 'quality_report.py')
-            quality_evidence = os.path.join(_repo_root(), 'quality', 'latest.json')
+            quality_evidence = os.path.join(_repo_root(), 'quality', 'published', 'publication.json')
             for render_dependency in (generator_script, stats_renderer, quality_renderer, quality_evidence, css_path, mermaid_config):
                 if (
                     os.path.exists(render_dependency)
@@ -1060,12 +1060,14 @@ def _convert_markdown_to_html(
     # Remaining links to source files or non-served Markdown belong on GitHub.
     markdown_text = _rewrite_repo_links_to_github(markdown_text, current_doc)
 
+    # The quality report can open with a warning alert, so it goes in before alert conversion.
+    markdown_text = replace_quality_placeholder(markdown_text, _repo_root())
+
     # Convert GitHub-style alerts to HTML before markdown processing
     markdown_text = convert_github_alerts_to_html(markdown_text)
 
     # Replace stats placeholders with actual values from stats.json.
     markdown_text = replace_stats_placeholders(markdown_text)
-    markdown_text = replace_quality_placeholder(markdown_text, _repo_root())
     if '[[canonical_palette]]' in markdown_text:
         markdown_text = markdown_text.replace('[[canonical_palette]]', get_canonical_palette_html())
 
@@ -1450,16 +1452,6 @@ def docs_page(page: str = ''):
             url_for('docs.docs_page', page=active_slug),
         ),
     )
-
-
-@docs_bp.route('/docs/quality-artifacts/<path:filename>')
-def quality_artifact(filename):
-    """Serve only public generated evidence, never the manually curated catalog."""
-    allowed = filename in {'latest.json', 'quality-map.json', 'report.md'}
-    allowed |= filename.startswith('raw/') and filename.endswith(('.json', '.xml', '.txt'))
-    if not allowed or any(part.startswith('.') for part in filename.split('/')):
-        abort(404)
-    return send_from_directory(os.path.join(_repo_root(), 'quality'), filename)
 
 
 @docs_bp.route('/docs/assets/<path:filename>')

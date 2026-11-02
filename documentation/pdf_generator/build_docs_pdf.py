@@ -589,9 +589,7 @@ def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
                          flags=re.DOTALL | re.MULTILINE)
         content = re.sub(r'(?<!`)(`+)(?!`).+?(?<!`)\1(?!`)', save_code, content)
         content = replace_stats_placeholders(content, stats, html_escape=True)
-        # A PDF has no application origin. Preserve evidence paths without
-        # turning root-relative portal URLs into misleading file:// links.
-        content = replace_quality_placeholder(content, REPO_ROOT, artifact_prefix=None)
+        content = replace_quality_placeholder(content, REPO_ROOT)
         if '[[canonical_palette]]' in content:
             content = content.replace('[[canonical_palette]]', get_canonical_palette_html())
         content = _rewrite_same_page_links(content, anchor_map[str(doc_path.resolve())])

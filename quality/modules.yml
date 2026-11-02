@@ -345,6 +345,7 @@
           "quality/**",
           "scripts/quality.py",
           "scripts/run_quality.py",
+          "scripts/deploy_report.py",
           "scripts/quality*.mjs",
           "scripts/check-js-coverage.*",
           "scripts/run_vscode_task.sh",
@@ -355,7 +356,8 @@
         "tests": [
           "tests/test_db_connection_options.py",
           "tests/test_quality_system.py",
-          "tests/test_quality_runner.py"
+          "tests/test_quality_runner.py",
+          "tests/test_deploy_report.py"
         ]
       },
       "docs": {

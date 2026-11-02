@@ -122,7 +122,7 @@ def test_every_portal_link_reaches_a_page_and_anchor(app):
                 target, fragment = slug, href[1:]
             elif href.startswith('/docs/'):
                 target, _, fragment = href[len('/docs/'):].partition('#')
-                if target.startswith(('assets/', 'quality-artifacts/')):
+                if target.startswith('assets/'):
                     continue
                 if target not in pages:
                     problems.append(f'{slug}: {href} is not a documentation page')

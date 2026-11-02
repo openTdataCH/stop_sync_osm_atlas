@@ -15,6 +15,7 @@ renders that evidence in the documentation portal.
 | `make quality-fast` | Same fast checks using installed local tools | Python 3.13, Node 22.x at least 22.13, all app/test/quality dependencies |
 | `make quality-ci` | Full checks with an existing disposable database and separate engine interpreter | Same supported tools, `TEST_POSTGRES_URI`, `ENGINE_PYTHON` |
 | `make quality-down` | Remove the dedicated quality Compose stack and its disposable data | Docker Compose |
+| `make deploy-report` | Commit and push the passing CI report of the pushed `HEAD` for the next deployment ([details](#publish-the-report-for-a-deployment)) | `git`, an authenticated `gh` CLI |
 
 A fast pass does not execute the complete browser or application suite and does
 not replace full verification. Dependency audits and CodeQL are separate CI
@@ -276,11 +277,8 @@ age is seven days, with a five-minute tolerance for future clock skew. Running
 `report` again does not make an old raw run fresh. Editing a document or test
 after collection also makes the earlier evidence stale.
 
-The portal rechecks available app and engine checkout fingerprints and report
-age. When a deployed image has no usable Git checkout, it explicitly says the
-inputs cannot be verified. That warning must not be interpreted as verification
-against the deployment. Publish matching raw evidence and revisions when
-shipping a measured dashboard.
+The portal applies a different check to the report it shows, described in
+[Publish the report for a deployment](#publish-the-report-for-a-deployment).
 
 ### How to read statuses
 
@@ -300,24 +298,63 @@ means some measurements are absent or invalid; it can be the honest result of a
 passing required run while security/mutation measurements are not integrated for
 every module. `complete` describes available measurements and is not a combined
 quality score. `stale` means the recorded run does not establish current quality.
-Missing or unreadable deployed reports are shown as **unavailable**.
+A missing or unreadable published report is shown as **unavailable**.
 
 Missing declared test files or skipped scenarios never become a clean module
 pass. The docs count measures required catalog slots, not the editorial quality
 or exhaustive correctness of those documents. Read the source documents when
 reviewing behavior and invariants.
 
-### Publish or inspect the report
+### Publish the report for a deployment
 
-Open `quality/report.md` locally, or retrieve the matching CI artifact. To deploy
-it, copy `latest.json`, `quality-map.json`, `report.md` and the required `raw/`
-files into the app's `quality/` directory. The portal reads the JSON aggregate;
-do not hand-edit the rendered table. Its `/docs/quality-artifacts/` endpoint
-serves allowed generated evidence, and rejects manual catalog and hidden files.
-Copy evidence from one identifiable run, not a mixture of unrelated revisions.
-Copying coverage files alone does not establish a matching full-run manifest.
-Never manufacture or edit `checks.json` to endorse a manually assembled run;
-collect a supported full run when valid provenance is missing.
+The [Code Quality page](../documentation/4.3%20Code%20Quality.md) shows only the
+report committed in `quality/published/`, never a local run. The deployment is
+built from a Git checkout of `main`, so a report reaches it only by being
+committed. A local `make quality` writes `quality/report.md`; open that file to
+read your own run.
+
+Before asking for a deployment:
+
+1. Push your commits to `main` and wait for **Required quality** to pass, about
+   four minutes.
+2. Run `make deploy-report`.
+3. Ask for the deployment.
+
+`make deploy-report` runs [scripts/deploy_report.py](../scripts/deploy_report.py),
+which uses `git` and an authenticated `gh` CLI. It refuses unless local `HEAD` is
+`origin/main` and the CI run for that commit has passed. It then downloads that
+run's `quality-<SHA>` artifact and writes three files to `quality/published/`:
+
+| File | Contents |
+|---|---|
+| `latest.json` | The CI aggregate, unchanged |
+| `report.md` | The same report as Markdown, linking to the CI run for raw evidence |
+| `publication.json` | The measured commit, the CI run URL and a fingerprint of the shipped code |
+
+Finally it commits only those files as "Record quality report for <SHA>" and
+pushes. CI and CodeQL ignore pushes that only change `quality/published/`, so
+the report commit does not start another run.
+
+The page cannot compare commit IDs. The report commit is always one commit after
+the commit it measured, and the app image contains no `.git`. Instead,
+`publication.json` stores a hash of the shipped code at the measured commit: the
+paths the [dockerfile](../dockerfile) copies into the app image (`backend/`,
+`templates/`, `static/`, `migrations/`, `config/`, `documentation/`, `README.md`,
+`LICENSE`, `entrypoint.sh` and `engine.ref`, without `documentation/generated/`
+or bytecode). The page hashes the same files where it runs, and compares the
+report's engine revision with `engine.ref`. If either differs, it opens with a
+warning naming the measured commit and marks every result **stale**. The report
+files are not in the hash, so the report commit itself never triggers the
+warning.
+
+In a development checkout, uncommitted edits to those paths also change the hash
+and show the warning. On a deployment built from `main`, the warning means the
+code was deployed without running `make deploy-report` first. Nothing else
+breaks. Run it and deploy again.
+
+GitHub keeps CI artifacts for 30 days, so the raw-evidence link of an older
+report stops working. The committed `latest.json` remains. Never edit the
+published files by hand or assemble them from different runs.
 
 ## Coverage sanity and advisory targets
 

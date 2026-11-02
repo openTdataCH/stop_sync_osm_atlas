@@ -44,6 +44,8 @@ COPY --from=engine --chown=app:app /documentation ./engine/documentation
 COPY --from=engine --chown=app:app /pyproject.toml ./engine/pyproject.toml
 COPY --from=docs-diagram-stage --chown=app:app /app/documentation/generated/diagrams ./documentation/generated/diagrams
 COPY --chown=app:app README.md LICENSE entrypoint.sh engine.ref ./
+# The committed report from `make deploy-report`; the docs page checks it against this code.
+COPY --chown=app:app quality/published ./quality/published
 RUN mkdir -p data .cache && chown app:app data .cache && chmod +x entrypoint.sh
 USER app
 EXPOSE 5001

@@ -2,6 +2,8 @@ name: Quality
 on:
   push:
     branches: [main, master, develop]
+    # A `make deploy-report` commit adds only the report of a commit CI already measured.
+    paths-ignore: ['quality/published/**']
   pull_request:
   workflow_dispatch:
 permissions:

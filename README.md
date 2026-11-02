@@ -109,7 +109,7 @@ make quality                # full suites, real PostGIS, coverage, structural de
 make quality-down           # remove the disposable quality services and volumes
 ```
 
-The full command builds Python 3.13 and Node 22 tooling, keeps app and engine Python environments isolated, and starts its own disposable PostGIS database. It writes the module report to `quality/report.md`, machine-readable evidence to `quality/latest.json`, and individual results to `quality/raw/`. The generated evidence also appears in the documentation portal's **Code Quality** page when these files are present.
+The full command builds Python 3.13 and Node 22 tooling, keeps app and engine Python environments isolated, and starts its own disposable PostGIS database. It writes the module report to `quality/report.md`, machine-readable evidence to `quality/latest.json`, and individual results to `quality/raw/`. The documentation portal's **Code Quality** page shows the report committed in `quality/published/` by `make deploy-report`. Run it before each deployment, once CI has passed on the latest commit. See [Publish the report for a deployment](quality/README.md#publish-the-report-for-a-deployment).
 
 For fast native iteration, use `make quality-fast` after installing the supported toolchain. The [quality guide](quality/README.md) contains native setup, command and artifact references, module ownership, baseline/exception review, CI configuration, and troubleshooting. [Backend tests](documentation/4.1%20Backend%20tests.md) and [browser tests](documentation/4.2%20JavaScript%20tests.md) describe focused runs and test design. Install the engine in a separate virtual environment; the app suite verifies that it works without the engine package.
 

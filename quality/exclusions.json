@@ -34,6 +34,10 @@
       "reason": "Generated report"
     },
     {
+      "pattern": "quality/published/**",
+      "reason": "Committed copy of a CI report, written by make deploy-report"
+    },
+    {
       "pattern": "tests/**",
       "reason": "Tests and fixtures have evidence associations, not production coverage ownership"
     },

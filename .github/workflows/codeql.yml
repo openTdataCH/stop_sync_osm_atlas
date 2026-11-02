@@ -2,6 +2,7 @@ name: CodeQL
 on:
   push:
     branches: [main, master]
+    paths-ignore: ['quality/published/**']
   pull_request:
   schedule:
     - cron: '41 4 * * 1'

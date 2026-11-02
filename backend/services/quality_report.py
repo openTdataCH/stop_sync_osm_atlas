@@ -1,15 +1,44 @@
 """Render generated quality evidence without turning missing measurements green."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
 import hashlib
-import os
 from pathlib import Path
 import subprocess
 from urllib.parse import quote
 
 PLACEHOLDER = '{{CODE_QUALITY_REPORT}}'
+# Written by `make deploy-report` and committed, so a deployment built from the checkout carries it.
+PUBLISHED = 'quality/published'
+# What the dockerfile copies into the app image: the code a deployment runs.
+SHIPPED_ROOTS = ('backend', 'templates', 'static', 'migrations', 'config', 'documentation')
+SHIPPED_FILES = ('README.md', 'LICENSE', 'entrypoint.sh', 'engine.ref')
+
+
+def _is_shipped(name):
+    parts = name.split('/')
+    if name not in SHIPPED_FILES and parts[0] not in SHIPPED_ROOTS:
+        return False
+    return not (name.startswith('documentation/generated/') or '__pycache__' in parts
+                or parts[-1] == '.DS_Store' or name.endswith('.pyc'))
+
+
+def shipped_fingerprint(files):
+    """Hash (name, content) pairs of shipped files, read from a commit, a checkout or an image."""
+    digest = hashlib.sha256()
+    for name, content in sorted(item for item in files if _is_shipped(item[0])):
+        digest.update(name.encode() + b'\0' + content + b'\0')
+    return digest.hexdigest()
+
+
+def shipped_files(root):
+    """Shipped files on disk. Needs no Git, because images omit .git."""
+    root = Path(root)
+    for top in (*SHIPPED_ROOTS, *SHIPPED_FILES):
+        base = root / top
+        for path in [base] if base.is_file() else base.rglob('*'):
+            if path.is_file() and not path.is_symlink():
+                yield path.relative_to(root).as_posix(), path.read_bytes()
 
 
 def source_fingerprint(root):
@@ -24,7 +53,7 @@ def source_fingerprint(root):
     digest = hashlib.sha256()
     generated = {'quality/latest.json', 'quality/quality-map.json', 'quality/report.md'}
     for name in sorted(set(result.stdout.decode().rstrip('\0').split('\0'))):
-        if not name or name in generated or name.startswith(('quality/raw/', 'documentation/generated/')):
+        if not name or name in generated or name.startswith(('quality/raw/', f'{PUBLISHED}/', 'documentation/generated/')):
             continue
         path = root / name
         if path.is_file() and not path.is_symlink():
@@ -44,8 +73,11 @@ def _metric(item, field=None):
     return f'{value}%' if value is not None else 'not applicable'
 
 
-def render_report(report, artifact_prefix=''):
-    """Plain Markdown: usable as an artifact and in the existing docs reader."""
+def render_report(report, artifact_prefix='', evidence_url=None):
+    """Plain Markdown: usable as an artifact and in the existing docs reader.
+
+    ``evidence_url`` replaces the raw file list with a link to the CI run that holds those files.
+    """
     revisions = report.get('revision', {})
     prefix = artifact_prefix
     lines = [f"Evidence: **{report.get('completeness', 'unavailable')}**. Generated: {report.get('generated_at', 'unknown')}.", '',
@@ -68,10 +100,14 @@ def render_report(report, artifact_prefix=''):
     for check in checks:
         lines.append(f"- **{_cell(check.get('name', 'unknown'))}**: {_cell(check.get('status', 'not_measured'))}")
     lines.extend(['', 'Raw evidence:', ''])
-    for path in report.get('artifacts', []):
-        lines.append(f'- `{_cell(path)}`' if prefix is None else f'- [{_cell(path)}]({prefix}{quote(path, safe="/")})')
-    if not report.get('artifacts'):
-        lines.append('Not measured.')
+    if evidence_url:
+        lines.append(f"Test results, coverage and analyzer outputs are in the [CI run]({evidence_url}) that produced this report, "
+                     f"as the artifact `quality-{_cell(revisions.get('app'))}`. GitHub keeps it for 30 days.")
+    else:
+        for path in report.get('artifacts', []):
+            lines.append(f'- `{_cell(path)}`' if prefix is None else f'- [{_cell(path)}]({prefix}{quote(path, safe="/")})')
+        if not report.get('artifacts'):
+            lines.append('Not measured.')
     lines.extend(['', 'For invariants, tests, documentation and dependency context, run `python scripts/quality.py context MODULE_ID`. '
                   'Use `impact PATH` or `symbol NAME --depth 1` for bounded navigation. Python imports are syntax evidence; dynamic calls and JavaScript symbols are heuristic.', ''])
     return '\n'.join(lines)
@@ -97,40 +133,36 @@ def _validate_render_shape(report):
                 raise ValueError(f'Invalid quality {lane} measurement')
 
 
-def replace_quality_placeholder(text, repo_root, artifact_prefix='/docs/quality-artifacts/'):
+def replace_quality_placeholder(text, repo_root):
+    """Show the published report, with a warning when the running code is not what it measured."""
     if PLACEHOLDER not in text:
         return text
     root = Path(repo_root)
-    path = root / 'quality/latest.json'
     try:
-        report = json.loads(path.read_text())
+        report = json.loads((root / PUBLISHED / 'latest.json').read_text())
         _validate_render_shape(report)
-        age = datetime.now(timezone.utc) - datetime.fromisoformat(report['generated_at'])
-        stale = age.total_seconds() > 7 * 86400 or age.total_seconds() < -300
-        # Images may omit .git. Be explicit about that verification limitation.
-        fingerprint = source_fingerprint(root)
+        publication = json.loads((root / PUBLISHED / 'publication.json').read_text())
+        changed = []
+        # The report commit itself only touches quality/published, which is not shipped code.
+        if publication['shipped_fingerprint'] != shipped_fingerprint(shipped_files(root)):
+            changed.append('the application code')
+        if report['revision'].get('engine') != (root / 'engine.ref').read_text().strip():
+            changed.append('the pinned engine')
         warning = ''
-        if fingerprint is not None:
-            stale |= fingerprint != report.get('fingerprints', {}).get('app')
-        else:
-            warning = 'Checkout inputs cannot be verified in this deployment. The recorded revisions identify this evidence.\n\n'
-        configured = Path(os.environ['ENGINE_DIR']) if os.environ.get('ENGINE_DIR') else None
-        if configured is not None and not configured.is_absolute():
-            configured = (root / configured).resolve()
-        engine = next((candidate for candidate in (configured, root / 'engine', root.parent / 'engine')
-                       if candidate is not None and (candidate / 'pyproject.toml').is_file()), None)
-        engine_fingerprint = source_fingerprint(engine) if engine else None
-        if engine_fingerprint is not None:
-            stale |= engine_fingerprint != report.get('fingerprints', {}).get('engine')
-        elif any(mid.startswith('engine.') for mid in report['modules']):
-            warning += 'Engine checkout inputs cannot be verified in this deployment.\n\n'
-        if stale:
+        if changed:
+            measured = str(report['revision'].get('app'))[:7]
+            warning = (f"> [!WARNING]\n> This report was measured on app commit `{measured}`. Since then "
+                       f"{' and '.join(changed)} changed, so it may not describe the code running here. "
+                       'Run `make deploy-report` once CI has passed on the latest commit.\n\n')
             report['completeness'] = 'stale'
             for row in report['modules'].values():
                 for lane in ('tests', 'coverage', 'mutation', 'duplication', 'dead_code', 'architecture', 'trend'):
                     if lane in row and row[lane].get('status') not in {'not_measured', 'not_applicable'}:
                         row[lane]['status'] = 'stale'
-        rendered = warning + render_report(report, artifact_prefix)
-    except (OSError, ValueError, KeyError, TypeError):
-        rendered = '**Quality evidence unavailable.** Run `make quality` and publish its generated artifacts. Missing evidence is not a passing result.'
+            for check in report.get('checks', []):
+                check['status'] = 'stale'
+        rendered = warning + render_report(report, None, publication.get('run_url'))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        rendered = ('**Quality evidence unavailable.** Run `make deploy-report` once CI has passed on the latest commit. '
+                    'Missing evidence is not a passing result.')
     return text.replace(PLACEHOLDER, rendered)
