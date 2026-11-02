@@ -44,9 +44,9 @@ jobs:
       - name: Checkout pinned engine
         uses: actions/checkout@v4
         with:
-          repository: ${{ vars.ENGINE_REPOSITORY }}
+          # The engine repository is public, so the default token can read it.
+          repository: openTdataCH/osm-public-transport-matcher
           ref: ${{ vars.ENGINE_REF }}
-          token: ${{ secrets.ENGINE_REPOSITORY_TOKEN }}
           path: engine
       - uses: actions/setup-python@v5
         with:

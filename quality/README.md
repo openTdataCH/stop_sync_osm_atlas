@@ -116,11 +116,11 @@ producer/consumer check use the separate engine interpreter.
 
 Repository administrators must configure:
 
-- `ENGINE_REPOSITORY`: the engine repository in `owner/repository` form.
 - `ENGINE_REF`: a reviewed engine revision containing its quality catalog and
   commands. A commit SHA gives an immutable producer/consumer test pairing.
-- `ENGINE_REPOSITORY_TOKEN`: credentials with read access for the engine
-  checkout used by the workflows.
+  The workflows check it out from the public
+  `openTdataCH/osm-public-transport-matcher` repository, so no access token is
+  needed.
 - Branch protection or rulesets requiring **Required quality**, **Dependency
   security audit**, and the applicable **Security analysis** checks for Python
   and JavaScript/TypeScript. Confirm the exact check names after the first run.
