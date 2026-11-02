@@ -66,7 +66,7 @@ def test_consumer_has_no_engine_imports():
     for path in backend.rglob('*.py'):
         for node in ast.walk(ast.parse(path.read_text())):
             names = [node.module or ''] if isinstance(node, ast.ImportFrom) else [a.name for a in node.names] if isinstance(node, ast.Import) else []
-            assert all(not name.startswith(('public_transport_matcher', 'matching_and_import_db')) for name in names), path
+            assert all(not name.startswith(('osm_public_transport_matcher', 'matching_and_import_db')) for name in names), path
 
 
 def test_consumer_reads_bundle_when_engine_import_is_forbidden():
@@ -74,7 +74,7 @@ def test_consumer_reads_bundle_when_engine_import_is_forbidden():
 import sys
 class BlockEngine:
     def find_spec(self, fullname, *args):
-        if fullname.startswith('public_transport_matcher'):
+        if fullname.startswith('osm_public_transport_matcher'):
             raise ImportError('engine deliberately unavailable')
 sys.meta_path.insert(0, BlockEngine())
 from backend.importing.bundle import read_bundle

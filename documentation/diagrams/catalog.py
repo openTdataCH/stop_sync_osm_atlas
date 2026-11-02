@@ -163,7 +163,7 @@ def architecture_deployment() -> Diagram:
         'Deployment with Docker Compose',
         'Docker Compose runs the app, scheduler, db and one-shot migrator services. The app container serves '
         'the website on port 5001 and reads the database. The scheduler container runs the pipeline runner, '
-        'which starts the installed public-transport-matcher CLI as a subprocess, then imports the bundle in the same '
+        'which starts the installed osm-public-transport-matcher CLI as a subprocess, then imports the bundle in the same '
         'process and switches the database snapshot. The db container runs PostgreSQL with PostGIS on the '
         'postgres_data volume; the migrator upgrades its schema before the other services start. The host '
         'folder ./data is mounted into every application container and holds the engine workspace, result '
@@ -180,19 +180,19 @@ def architecture_deployment() -> Diagram:
     d.add(box(48, 334, 176, 64, APP, 'migrator (one-shot)', ['upgrades the db schema'], title_size=13.5,
               line_size=12.5, gap=4, dashed=True))
 
-    d.add(box(310, 206, 240, 196, EXTERNAL, 'db', ['PostgreSQL 16 + PostGIS 3.4', 'port 5432'],
+    d.add(box(300, 206, 240, 196, EXTERNAL, 'db', ['PostgreSQL 16 + PostGIS 3.4', 'port 5432'],
               valign='top', gap=5))
-    d.add(store(334, 284, 192, 100, EXTERNAL, code('postgres_data', size=13), ['named volume:', 'the app database'],
+    d.add(store(324, 284, 192, 100, EXTERNAL, code('postgres_data', size=13), ['named volume:', 'the app database'],
                 title_size=13, line_size=12.5))
 
-    d.add(box(592, 206, 320, 196, APP, 'scheduler', [code('target: scheduler-stage', size=12)], valign='top', gap=4))
-    d.add(box(608, 260, 288, 44, APP, None, [code('python -m backend.jobs.service', size=12),
+    d.add(box(572, 206, 340, 196, APP, 'scheduler', [code('target: scheduler-stage', size=12)], valign='top', gap=4))
+    d.add(box(588, 260, 308, 44, APP, None, [code('python -m backend.jobs.service', size=12),
                                              'APScheduler and pipeline runner'], line_size=12, gap=3, pad=6))
-    d.add(box(606, 324, 200, 62, ENGINE, code('public-transport-matcher', size=11.5), ['CLI subprocess'],
+    d.add(box(588, 324, 230, 62, ENGINE, code('osm-public-transport-matcher', size=11.5), ['CLI subprocess'],
               title_size=11.5, line_size=12, gap=4, pad=6))
-    d.add(box(814, 324, 82, 62, APP, 'Importer', ['in-process'], title_size=13, line_size=12, gap=4, pad=4))
-    d.add(arrow([(706, 304), (706, 322)], kind='invoke', color=APP.stroke))
-    d.add(arrow([(855, 304), (855, 322)], kind='invoke', color=APP.stroke))
+    d.add(box(826, 324, 70, 62, APP, 'Importer', ['in-process'], title_size=13, line_size=12, gap=4, pad=4))
+    d.add(arrow([(703, 304), (703, 322)], kind='invoke', color=APP.stroke))
+    d.add(arrow([(861, 304), (861, 322)], kind='invoke', color=APP.stroke))
 
     d.add(store(48, 436, 864, 196, APP, code('./data', size=14), ['host folder, mounted at /app/data in every application container'],
                 valign='top', line_size=12.5))
@@ -208,12 +208,12 @@ def architecture_deployment() -> Diagram:
     d.add(text(166, 165, 'HTTP :5001', size=12, color=MUTED))
     d.add(arrow([(820, 148), (820, 206)], color=ENGINE.stroke))
     d.add(text(828, 165, 'downloads', size=12, color=ENGINE.text))
-    d.add(arrow([(268, 250), (308, 250)], color=MUTED))
-    d.add(text(288, 240, 'SQL', size=12, color=MUTED, anchor='middle'))
-    d.add(arrow([(592, 250), (552, 250)], color=MUTED))
-    d.add(text(572, 240, 'SQL', size=12, color=MUTED, anchor='middle'))
+    d.add(arrow([(268, 250), (298, 250)], color=MUTED))
+    d.add(text(283, 240, 'SQL', size=12, color=MUTED, anchor='middle'))
+    d.add(arrow([(572, 250), (542, 250)], color=MUTED))
+    d.add(text(557, 240, 'SQL', size=12, color=MUTED, anchor='middle'))
     d.add(arrow([(246, 316), (246, 434)], start_head=True, color=MUTED))
-    d.add(arrow([(752, 402), (752, 434)], start_head=True, color=MUTED))
+    d.add(arrow([(742, 402), (742, 434)], start_head=True, color=MUTED))
 
     legend_svg, _ = legend(48, 676, [
         ('box', APP, 'review application'), ('box', ENGINE, 'engine (installed package)'),
@@ -590,7 +590,7 @@ def pipeline_phases_and_modes() -> Diagram:
         d.add(chevron(x, 100, width, 52, tone, lines, tip=tip, first=index == 0, size=11))
     engine_end = xs[5] + width - tip / 2
     d.add(divider(xs[0], 168, engine_end - 6, 168, color=ENGINE.stroke, dash=None, width=2))
-    d.add(text((xs[0] + engine_end) / 2, 186, 'engine: public-transport-matcher CLI', size=12, bold=True,
+    d.add(text((xs[0] + engine_end) / 2, 186, 'engine: osm-public-transport-matcher CLI', size=12, bold=True,
                color=ENGINE.text, anchor='middle'))
     d.add(divider(xs[6] + 6, 168, xs[7] + width, 168, color=APP.stroke, dash=None, width=2))
     d.add(text((xs[6] + xs[7] + width) / 2, 186, 'application: importer', size=12, bold=True,
