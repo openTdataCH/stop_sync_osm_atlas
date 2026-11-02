@@ -491,14 +491,24 @@
   margin-bottom: 0;
 }
 
-/* Keep running text to about 110 characters per line (82ch measured with
-   the 16px system font). Diagrams (960px), tables and code keep the full
-   card width, so paragraphs that wrap an image are left uncapped. */
+/* Keep running text to roughly 100 characters per line (76ch with the
+   16px system font; the actual count varies by text). Diagrams (960px),
+   tables and code keep the full card width, so paragraphs that wrap an
+   image are left uncapped. */
 #docs-content-html > p:not(:has(img, .docs-diagram)),
 #docs-content-html > ul,
 #docs-content-html > ol,
 #docs-content-html > .github-alert {
-  max-width: 82ch;
+  max-width: 76ch;
+}
+
+/* Separate explanations while keeping nested lists more compact. */
+#docs-content-html li + li {
+  margin-top: 0.75em;
+}
+
+#docs-content-html li li + li {
+  margin-top: 0.5em;
 }
 
 .docs-content pre {
