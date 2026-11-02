@@ -20,7 +20,7 @@ from backend.services.docs_stats import (
 from backend.services.quality_report import replace_quality_placeholder
 from backend.services.repo_scanner import RepoScanner
 from backend.services.request_payload import read_request_payload
-from backend.version import APP_VERSION
+from backend.version import APP_VERSION, engine_blob_base
 import uuid
 import threading
 import tempfile
@@ -372,33 +372,15 @@ def _github_blob_base() -> str:
     return base
 
 
-def _engine_blob_base() -> Optional[str]:
-    """Optional public base URL for files of the separate engine repository.
-
-    The engine repository can be private, so its source files are linked only
-    when DOCS_ENGINE_BLOB_BASE is set (for example
-    ``https://github.com/<owner>/<engine>/blob/<commit>/``). Without it, links
-    to engine files that are not documentation pages render as plain text
-    instead of URLs that would return 404.
-    """
-    base = os.environ.get('DOCS_ENGINE_BLOB_BASE', '').strip()
-    if not base:
-        return None
-    return base if base.endswith('/') else base + '/'
-
-
-def _code_file_url(repo_path: str) -> Optional[str]:
+def _code_file_url(repo_path: str) -> str:
     """Return a public URL for a path in the portal's logical layout.
 
-    Paths below ``engine/`` belong to the engine repository; every other path
-    belongs to this repository.
+    Paths below ``engine/`` belong to the engine repository and link to the
+    commit pinned in engine.ref; every other path belongs to this repository.
     """
     normalized = repo_path.replace(os.sep, '/')
     if normalized == 'engine' or normalized.startswith('engine/'):
-        base = _engine_blob_base()
-        if base is None:
-            return None
-        return f"{base}{normalized[len('engine/'):]}".replace(' ', '%20')
+        return f"{engine_blob_base()}{normalized[len('engine/'):]}".replace(' ', '%20')
     return f"{_github_blob_base()}{normalized}".replace(' ', '%20')
 
 
@@ -441,10 +423,8 @@ def _rewrite_repo_links_to_github(markdown_text: str, current_doc: str) -> str:
 
     Documentation-to-documentation links are converted to local routes first.
     Links are resolved in the portal's logical layout, where the engine tree
-    lives below ``engine/``. Files of this repository become GitHub links.
-    Engine files use DOCS_ENGINE_BLOB_BASE when it is configured; otherwise
-    the link label is kept as plain text, because a relative URL would return
-    404 on the documentation site.
+    lives below ``engine/``. Files of this repository become GitHub links;
+    engine files link to the engine commit pinned in engine.ref.
     """
 
     # Match standard markdown links: [text](href "optional title").  The
@@ -469,8 +449,6 @@ def _rewrite_repo_links_to_github(markdown_text: str, current_doc: str) -> str:
 
         if logical == 'engine' or logical.startswith('engine/'):
             new_href = _code_file_url(logical)
-            if new_href is None:
-                return label or logical
         else:
             candidate = os.path.realpath(os.path.join(repo_root, logical))
             if not candidate.startswith(repo_root + os.sep) or not os.path.isfile(candidate):

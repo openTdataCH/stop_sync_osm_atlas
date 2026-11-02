@@ -26,6 +26,7 @@ from backend.services.docs_stats import (
     heading_slug,
 )
 from backend.services.quality_report import replace_quality_placeholder
+from backend.version import engine_blob_base
 
 
 DOCS_DIR = REPO_ROOT / 'documentation'
@@ -223,9 +224,7 @@ def _rewrite_repo_links(content: str, current_doc: Path) -> str:
         '.py', '.sql', '.sh', '.yml', '.yaml', '.json', '.toml', '.ini', '.cfg',
         '.js', '.ts', '.tsx', '.jsx', '.css', '.html', '.txt', '.xml'
     }
-    engine_base = os.getenv('DOCS_ENGINE_BLOB_BASE', '').strip()
-    if engine_base and not engine_base.endswith('/'):
-        engine_base += '/'
+    engine_base = engine_blob_base()
 
     def replace(match: re.Match[str]) -> str:
         label = match.group(1)
@@ -235,17 +234,14 @@ def _rewrite_repo_links(content: str, current_doc: Path) -> str:
         if href.startswith(('images/', 'diagrams/', 'documentation/')):
             return match.group(0)
         # Links to served pages are already anchors. Any other link to a
-        # repository file becomes a public source link, or plain text when the
-        # file belongs to the (possibly private) engine repository.
+        # repository file becomes a public source link; engine files link to
+        # the engine commit pinned in engine.ref.
 
         base = unquote(href.split('#', 1)[0].split('?', 1)[0])
         logical = os.path.normpath(os.path.join(
             os.path.dirname(_logical_doc_path(current_doc)), base,
         )).replace(os.sep, '/')
         if logical == 'engine' or logical.startswith('engine/'):
-            # Engine source lives in a separate, possibly private repository.
-            if not engine_base:
-                return label
             return f'[{label}]({engine_base}{logical[len("engine/"):].replace(" ", "%20")})'
 
         candidate = (REPO_ROOT / logical).resolve()

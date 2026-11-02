@@ -109,25 +109,19 @@ command for connecting to a production database. For engine-only work, use the
 ## CI and repository setup
 
 [Required quality](../.github/workflows/tests.yml) runs on pull requests and
-selected branch pushes. It checks out the engine separately, installs matching
-toolchains, supplies a disposable PostGIS service, and invokes `make quality-ci`.
-The app suite runs without an engine installation; the engine suite and explicit
-producer/consumer check use the separate engine interpreter.
+selected branch pushes. It checks out the engine commit pinned in `engine.ref`,
+installs matching toolchains, supplies a disposable PostGIS service, and invokes
+`make quality-ci`. The app suite runs without an engine installation; the engine
+suite and explicit producer/consumer check use the separate engine interpreter.
 
-Repository administrators must configure:
+Repository administrators must configure branch protection or rulesets requiring
+**Required quality**, **Dependency security audit**, and the applicable
+**Security analysis** checks for Python and JavaScript/TypeScript. Confirm the
+exact check names after the first run.
 
-- `ENGINE_REF`: a reviewed engine revision containing its quality catalog and
-  commands. A commit SHA gives an immutable producer/consumer test pairing.
-  The workflows check it out from the public
-  `openTdataCH/osm-public-transport-matcher` repository, so no access token is
-  needed.
-- Branch protection or rulesets requiring **Required quality**, **Dependency
-  security audit**, and the applicable **Security analysis** checks for Python
-  and JavaScript/TypeScript. Confirm the exact check names after the first run.
-
-Committing workflow files does not configure repository protection, grant access
-to another repository, or publish engine changes. Update the engine revision as
-part of a reviewed cross-repository contract change.
+Committing workflow files does not configure repository protection or publish
+engine changes. Update `engine.ref` as part of a reviewed cross-repository
+contract change.
 
 The required workflow always uploads `quality-<app SHA>` evidence, including
 failed-run outputs, with 30-day retention. Inspect job output alongside the
@@ -434,7 +428,7 @@ catalog declarations, not proof that every test executes every owned symbol.
 | Symptom | What to check |
 |---|---|
 | Unsupported Python/Node or missing package | Use the supported versions and all requirement files, or rebuild/run the container |
-| Engine catalog missing | Set `ENGINE_ROOT`/`--engine-root` to a quality-enabled checkout and update CI's pinned `ENGINE_REF` |
+| Engine catalog missing | Set `ENGINE_ROOT`/`--engine-root` to a quality-enabled checkout and update `engine.ref` |
 | App interpreter contains `osm_public_transport_matcher` | Recreate an isolated app environment; use `ENGINE_PYTHON` for engine tests |
 | PostGIS test missing/skipped | Use `make quality` or provide a dedicated `TEST_POSTGRES_URI`; SQLite does not establish publication safety |
 | Coverage all zero or missing JS files | Use `load-browser-script`, keep production roots included in Jest, and run the coverage sanity command |

@@ -31,12 +31,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Read the engine pin
+        id: engine
+        run: echo "ref=$(cat engine.ref)" >> "$GITHUB_OUTPUT"
       - name: Checkout pinned engine
         uses: actions/checkout@v4
         with:
           # The engine repository is public, so the default token can read it.
           repository: openTdataCH/osm-public-transport-matcher
-          ref: ${{ vars.ENGINE_REF }}
+          ref: ${{ steps.engine.outputs.ref }}
           path: engine
       - uses: actions/setup-python@v5
         with:

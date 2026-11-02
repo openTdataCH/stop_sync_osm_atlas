@@ -39,23 +39,15 @@ The example is synthetic and uses no Swiss identifiers. The core library only ne
 
 Run `deactivate` before setting up a separate application environment.
 
-## Pin the engine checkout
+## Pin the engine version
 
-Keep the private repository location, sibling path and immutable revision in the ignored `.env`:
-
-```dotenv
-ENGINE_REPO=https://github.com/openTdataCH/osm-public-transport-matcher.git
-ENGINE_DIR=../engine
-ENGINE_REF=<full-commit-sha>
-```
-
-Before building, verify that the sibling checkout has the configured origin, is clean and is exactly at that revision:
+`engine.ref` holds the full commit SHA of the engine this app is built and tested with. CI checks out that commit. Docker builds install your local checkout from `ENGINE_DIR` (default `../engine`; set it in `.env` if yours lives elsewhere), so before building, check that it is clean and exactly at the pin:
 
 ```bash
 ./scripts/verify_engine_checkout.sh
 ```
 
-Git credentials are never passed into Docker and the private repository URL is not committed. The complete meaning of package versions, Git tags, SHA pins and schema versions is documented in [Dependencies and builds](documentation/3.1%20Dependency%20Management%20&%20Build%20Strategy.md#engine-release-identity-and-deployment-pin).
+To upgrade the engine, put the new SHA in `engine.ref` and commit it. The meaning of package versions, Git tags, SHA pins and schema versions is documented in [Dependencies and builds](documentation/3.1%20Dependency%20Management%20&%20Build%20Strategy.md#engine-release-identity-and-deployment-pin).
 
 ## Run the review app with example results
 

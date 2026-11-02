@@ -43,7 +43,7 @@ COPY --chown=app:app documentation ./documentation
 COPY --from=engine --chown=app:app /documentation ./engine/documentation
 COPY --from=engine --chown=app:app /pyproject.toml ./engine/pyproject.toml
 COPY --from=docs-diagram-stage --chown=app:app /app/documentation/generated/diagrams ./documentation/generated/diagrams
-COPY --chown=app:app README.md LICENSE entrypoint.sh ./
+COPY --chown=app:app README.md LICENSE entrypoint.sh engine.ref ./
 RUN mkdir -p data .cache && chown app:app data .cache && chmod +x entrypoint.sh
 USER app
 EXPOSE 5001

@@ -73,13 +73,13 @@ def test_single_newlines_do_not_break_sentences(app):
     assert '<br' not in _render(app, 'The first half of a sentence\ncontinues on the next line.')
 
 
-def test_engine_source_links_need_a_public_base(app, monkeypatch):
-    markdown = '[profile](../engine/src/osm_public_transport_matcher/core/profile.py)'
-    monkeypatch.delenv('DOCS_ENGINE_BLOB_BASE', raising=False)
-    assert '<a ' not in _render(app, markdown)
+def test_engine_source_links_point_at_the_pinned_commit(app):
+    from backend.version import engine_blob_base
 
-    monkeypatch.setenv('DOCS_ENGINE_BLOB_BASE', 'https://example.org/engine/blob/abc')
-    assert 'href="https://example.org/engine/blob/abc/src/osm_public_transport_matcher/core/profile.py"' in _render(app, markdown)
+    markdown = '[profile](../engine/src/osm_public_transport_matcher/core/profile.py)'
+    href = f'{engine_blob_base()}src/osm_public_transport_matcher/core/profile.py'
+    assert href.startswith('https://github.com/openTdataCH/osm-public-transport-matcher/blob/')
+    assert f'href="{href}"' in _render(app, markdown)
 
 
 def test_svg_diagrams_are_inlined_so_their_links_work(app):
