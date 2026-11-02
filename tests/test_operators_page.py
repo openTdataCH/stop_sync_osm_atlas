@@ -1,10 +1,9 @@
 import re
 
 import pytest
-from sqlalchemy import text
 
 from backend.blueprints import operators as operators_module
-from backend.extensions import db
+from backend.models import AtlasStop, OsmNode, StopsMatched
 
 
 class _DummyPagination:
@@ -77,23 +76,19 @@ def test_operator_card_breaks_down_matched_stops_by_operator_value(client, monke
     assert response.text.count('operator-breakdown__row--missing') == 2
 
 
-def test_match_counts_count_each_atlas_and_osm_stop_once(app):
-    with app.app_context():
-        db.session.execute(text('CREATE TABLE atlas_stops (sloid TEXT, atlas_business_org_abbr TEXT)'))
-        db.session.execute(text('CREATE TABLE stops_matched (id INTEGER, sloid TEXT, osm_node_id TEXT, stop_type TEXT)'))
-        db.session.execute(text('CREATE TABLE osm_nodes (osm_node_id TEXT, osm_operator TEXT, osm_operator_wikidata TEXT)'))
-        db.session.execute(text("INSERT INTO atlas_stops VALUES ('s1', 'EX'), ('s2', 'EX')"))
-        # s1 matches two OSM stops; OSM stop "b" matches both ATLAS stops.
-        db.session.execute(text("""
-            INSERT INTO stops_matched VALUES
-                (1, 's1', 'a', 'matched'), (2, 's1', 'b', 'matched'),
-                (3, 's2', 'b', 'matched'), (4, 's2', 'c', 'matched')
-        """))
-        db.session.execute(text("INSERT INTO osm_nodes VALUES ('a', 'Example', 'Q1'), ('b', 'Example', NULL), ('c', '', NULL)"))
-        db.session.commit()
+def test_match_counts_count_each_atlas_and_osm_stop_once(sqlite_tables):
+    session = sqlite_tables(AtlasStop, StopsMatched, OsmNode)
+    session.add_all([AtlasStop(sloid=sloid, atlas_business_org_abbr='EX') for sloid in ('s1', 's2')])
+    # s1 matches two OSM stops; OSM stop "b" matches both ATLAS stops.
+    session.add_all([StopsMatched(id=id_, sloid=sloid, osm_node_id=node, stop_type='matched')
+                     for id_, sloid, node in ((1, 's1', 'a'), (2, 's1', 'b'), (3, 's2', 'b'), (4, 's2', 'c'))])
+    session.add_all([OsmNode(osm_node_id='a', osm_operator='Example', osm_operator_wikidata='Q1'),
+                     OsmNode(osm_node_id='b', osm_operator='Example'),
+                     OsmNode(osm_node_id='c', osm_operator='')])
+    session.commit()
 
-        counts = operators_module._load_match_counts(['EX'], True)
-        values = operators_module._load_osm_operators(['EX'])
+    counts = operators_module._load_match_counts(['EX'], True)
+    values = operators_module._load_osm_operators(['EX'])
 
     assert counts == {'EX': {
         'matched_atlas_stop_count': 2,

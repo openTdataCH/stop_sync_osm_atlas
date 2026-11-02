@@ -17,11 +17,27 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Ensure tests are independent from external Redis availability.
 os.environ['RATELIMIT_STORAGE_URI'] = 'memory://'
 os.environ['STATE_BACKEND'] = 'memory'
+# The importer opens its connection at import time; never let it reach a real
+# database. PostGIS tests use their own TEST_POSTGRES_URI.
+os.environ['DATABASE_URI'] = 'sqlite://'
 
 
 # =============================================================================
 # Backend / Flask Fixtures
 # =============================================================================
+
+
+@pytest.fixture(autouse=True)
+def _restore_model_indexes():
+    """GeoAlchemy2's SQLite DDL removes geometry indexes from the shared tables; put them back."""
+    import backend.models  # noqa: F401
+    from backend.extensions import db
+
+    saved = {table: set(table.indexes) for table in db.Model.metadata.tables.values()}
+    yield
+    for table, indexes in saved.items():
+        table.indexes.clear()
+        table.indexes.update(indexes)
 
 
 @pytest.fixture
@@ -53,12 +69,38 @@ def client(app):
 
 
 @pytest.fixture
-def problems_db(app, monkeypatch):
-    """SQLite stand-in for the stop, problem and snapshot tables (geometry columns become text)."""
+def postgres():
+    """A disposable PostGIS database from TEST_POSTGRES_URI, with a fresh schema."""
+    from sqlalchemy import create_engine, text
+
+    import backend.models  # noqa: F401 -- registers tables used by metadata.create_all.
+    from backend.extensions import db
+
+    uri = os.getenv('TEST_POSTGRES_URI')
+    if not uri:
+        pytest.skip('TEST_POSTGRES_URI must identify a disposable PostGIS database')
+    engine = create_engine(uri)
+    with engine.begin() as connection:
+        database = connection.execute(text('SELECT current_database()')).scalar()
+        if not database.endswith('_test') and database != 'transport_test':
+            pytest.fail('Database name must end in _test to permit resetting the test schema')
+        connection.execute(text('DROP SCHEMA public CASCADE'))
+        connection.execute(text('CREATE SCHEMA public'))
+        connection.execute(text('CREATE EXTENSION IF NOT EXISTS postgis'))
+        db.Model.metadata.create_all(connection)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture
+def sqlite_tables(app, monkeypatch):
+    """Create model tables in the app's SQLite database and return the session.
+
+    Call it with the models a test needs. Geometry columns become text.
+    """
     import sqlalchemy.dialects.sqlite.base as sqlite_base
 
     from backend.extensions import db
-    from backend.models import AtlasStop, DatasetPublication, OsmNode, Problem, StopsMatched
 
     orig_do_execute = sqlite_base.SQLiteDialect.do_execute
 
@@ -77,16 +119,30 @@ def problems_db(app, monkeypatch):
                 except Exception:
                     pass
             return
-        orig_do_execute(self, cursor, statement.replace('GeomFromEWKT(?)', '?'), parameters, context)
+        orig_do_execute(self, cursor, statement, parameters, context)
 
     monkeypatch.setattr(sqlite_base.SQLiteDialect, 'do_execute', do_execute)
     with app.app_context():
-        # Loading a StopsMatched row selects its geometry through AsEWKB().
-        db.session.connection().connection.dbapi_connection.create_function('AsEWKB', 1, lambda value: value)
-        for model in (AtlasStop, OsmNode, StopsMatched, Problem, DatasetPublication):
-            model.__table__.create(bind=db.engine, checkfirst=True)
-        yield db.session
+        # Geometry is written through GeomFromEWKT() and read through AsEWKB().
+        connection = db.session.connection().connection.dbapi_connection
+        for function in ('GeomFromEWKT', 'AsEWKB'):
+            connection.create_function(function, 1, lambda value: value)
+
+        def create(*models):
+            for model in models:
+                model.__table__.create(bind=db.engine, checkfirst=True)
+            return db.session
+
+        yield create
         db.session.remove()
+
+
+@pytest.fixture
+def problems_db(sqlite_tables):
+    """SQLite stand-in for the stop, problem and snapshot tables."""
+    from backend.models import AtlasStop, DatasetPublication, OsmNode, Problem, StopsMatched
+
+    return sqlite_tables(AtlasStop, OsmNode, StopsMatched, Problem, DatasetPublication)
 
 
 @pytest.fixture

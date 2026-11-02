@@ -1,40 +1,35 @@
 import html
 import re
-import sqlite3
 
 import pytest
 from urllib.parse import parse_qs, urlparse
 
-from sqlalchemy import text
-from backend.extensions import db
-
-from backend.app import app as backend_app
 from backend.blueprints import operators as operators_module
-from backend.models import StopsMatched
+from backend.models import AtlasStop, OsmNode, StopsMatched
 from backend.queries.helpers import parse_filter_params
 from backend.query_builder import QueryBuilder
 from tests.test_operators_page import _DummyPagination
 
 
-def test_wikidata_filter_selects_exact_values_and_combines_with_osm_operator():
+def _matching_stop_ids(filters):
+    query = QueryBuilder(None).apply_common_filters(StopsMatched.query.with_entities(StopsMatched.id), filters)
+    return sorted(stop_id for (stop_id,) in query.all())
+
+
+def test_wikidata_filter_selects_exact_values_and_combines_with_osm_operator(sqlite_tables):
     filters = parse_filter_params({
         'osm_operator_wikidata': ' Q1, ,Q2 ', 'osm_operator': 'Example',
     })
     assert filters['osm_operator_wikidata'] == ['Q1', 'Q2']
-    with backend_app.app_context():
-        query = QueryBuilder(None).apply_common_filters(
-            StopsMatched.query.with_entities(StopsMatched.id), filters,
-        )
-        sql = str(query.statement.compile(compile_kwargs={'literal_binds': True}))
-    with sqlite3.connect(':memory:') as connection:
-        connection.executescript('''
-            CREATE TABLE stops_matched (id INTEGER, osm_node_id TEXT);
-            CREATE TABLE osm_nodes (osm_node_id TEXT, osm_operator TEXT, osm_operator_wikidata TEXT);
-            INSERT INTO stops_matched VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, NULL), (6, 'e');
-            INSERT INTO osm_nodes VALUES ('a', 'Example', 'Q1'), ('b', 'Example', 'Q2'),
-                ('c', 'Other', 'Q1'), ('d', 'Example', 'Q10'), ('e', 'Example', NULL);
-        ''')
-        assert connection.execute(sql).fetchall() == [(1,), (2,)]
+    session = sqlite_tables(StopsMatched, OsmNode)
+    session.add_all([StopsMatched(id=id_, osm_node_id=node)
+                     for id_, node in ((1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, None), (6, 'e'))])
+    session.add_all([OsmNode(osm_node_id=node, osm_operator=operator, osm_operator_wikidata=wikidata)
+                     for node, operator, wikidata in (('a', 'Example', 'Q1'), ('b', 'Example', 'Q2'),
+                                                      ('c', 'Other', 'Q1'), ('d', 'Example', 'Q10'),
+                                                      ('e', 'Example', None))])
+    session.commit()
+    assert _matching_stop_ids(filters) == [1, 2]
 
 
 def test_operator_cards_link_to_matching_map_filters(client, monkeypatch):
@@ -55,11 +50,11 @@ def test_operator_cards_link_to_matching_map_filters(client, monkeypatch):
     assert 'https://www.wikidata.org/wiki/Q1' in response.text
 
 
-def test_wikidata_options_are_distinct_sorted_and_nonempty(app, client):
-    with app.app_context():
-        db.session.execute(text('CREATE TABLE osm_nodes (osm_operator_wikidata TEXT)'))
-        db.session.execute(text("INSERT INTO osm_nodes VALUES ('Q2'), ('Q1'), ('Q2'), (NULL), ('')"))
-        db.session.commit()
+def test_wikidata_options_are_distinct_sorted_and_nonempty(sqlite_tables, client):
+    session = sqlite_tables(OsmNode)
+    session.add_all([OsmNode(osm_node_id=str(index), osm_operator_wikidata=value)
+                     for index, value in enumerate(('Q2', 'Q1', 'Q2', None, ''))])
+    session.commit()
     response = client.get('/api/osm_operator_wikidata')
     assert response.status_code == 200
     assert response.json == {'operators': ['Q1', 'Q2'], 'total': 2}
@@ -72,29 +67,23 @@ def test_wikidata_options_tolerate_uninitialized_database(client):
 
 
 @pytest.mark.parametrize(('operator_filter', 'expected'), [
-    ({'atlas_operator': 'EX'}, [(1,), (2,)]),
-    ({'osm_operator': 'Example'}, [(1,), (2,), (6,)]),
+    ({'atlas_operator': 'EX'}, [1, 2]),
+    ({'osm_operator': 'Example'}, [1, 2, 6]),
 ])
-def test_missing_wikidata_combines_with_operator_and_excludes_source_only_stops(operator_filter, expected):
+def test_missing_wikidata_combines_with_operator_and_excludes_source_only_stops(sqlite_tables, operator_filter, expected):
     filters = parse_filter_params({'missing_osm_operator_wikidata': 'true', **operator_filter})
-    with backend_app.app_context():
-        query = QueryBuilder(None).apply_common_filters(
-            StopsMatched.query.with_entities(StopsMatched.id), filters,
-        )
-        sql = str(query.statement.compile(compile_kwargs={'literal_binds': True}))
-    with sqlite3.connect(':memory:') as connection:
-        connection.executescript("""
-            CREATE TABLE stops_matched (id INTEGER, osm_node_id TEXT, sloid TEXT);
-            CREATE TABLE osm_nodes (osm_node_id TEXT, osm_operator TEXT, osm_operator_wikidata TEXT);
-            CREATE TABLE atlas_stops (sloid TEXT, atlas_business_org_abbr TEXT);
-            INSERT INTO stops_matched VALUES (1, 'a', 's1'), (2, 'b', 's2'), (3, 'c', 's3'),
-                (4, 'd', 's4'), (5, NULL, 's5'), (6, 'e', NULL);
-            INSERT INTO osm_nodes VALUES ('a', 'Example', NULL), ('b', 'Example', ''),
-                ('c', 'Example', 'Q1'), ('d', 'Other', NULL), ('e', 'Example', '');
-            INSERT INTO atlas_stops VALUES ('s1', 'EX'), ('s2', 'EX'), ('s3', 'EX'),
-                ('s4', 'OTHER'), ('s5', 'EX');
-        """)
-        assert connection.execute(sql).fetchall() == expected
+    session = sqlite_tables(StopsMatched, OsmNode, AtlasStop)
+    session.add_all([StopsMatched(id=id_, osm_node_id=node, sloid=sloid)
+                     for id_, node, sloid in ((1, 'a', 's1'), (2, 'b', 's2'), (3, 'c', 's3'),
+                                              (4, 'd', 's4'), (5, None, 's5'), (6, 'e', None))])
+    session.add_all([OsmNode(osm_node_id=node, osm_operator=operator, osm_operator_wikidata=wikidata)
+                     for node, operator, wikidata in (('a', 'Example', None), ('b', 'Example', ''),
+                                                      ('c', 'Example', 'Q1'), ('d', 'Other', None),
+                                                      ('e', 'Example', ''))])
+    session.add_all([AtlasStop(sloid=sloid, atlas_business_org_abbr=operator)
+                     for sloid, operator in (('s1', 'EX'), ('s2', 'EX'), ('s3', 'EX'), ('s4', 'OTHER'), ('s5', 'EX'))])
+    session.commit()
+    assert _matching_stop_ids(filters) == expected
 
 
 def test_missing_wikidata_false_does_not_activate_filter():

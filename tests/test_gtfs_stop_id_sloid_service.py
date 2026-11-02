@@ -4,7 +4,7 @@ from unittest.mock import Mock
 from sqlalchemy import text
 
 from backend.extensions import db
-from backend.models import StopCall
+from backend.models import AtlasStop, GtfsStopIdentityResolution, GtfsStopRaw, StopCall, StopsMatched
 from backend.services import gtfs_stop_id_sloid as service
 from backend.services import transport_routes
 
@@ -56,55 +56,10 @@ def test_gtfs_popup_routes_union_direct_and_matched_sloid_routes(monkeypatch):
     assert routes_by_sloid['sloid-1'][0]['route_id'] == 'route-a'
 
 
-def test_typed_searches_also_find_exact_gtfs_stop_ids_with_recognized_syntax(app):
+def test_typed_searches_also_find_exact_gtfs_stop_ids_with_recognized_syntax(app, sqlite_tables):
     """A GTFS stop_id may itself look like a SLOID or UIC."""
     with app.app_context():
-        for statement in (
-            '''
-            CREATE TABLE gtfs_stops_raw (
-                stop_id TEXT PRIMARY KEY,
-                stop_name TEXT,
-                stop_lat FLOAT NOT NULL,
-                stop_lon FLOAT NOT NULL,
-                uic_number TEXT NOT NULL,
-                local_ref TEXT,
-                normalized_local_ref TEXT
-            )
-            ''',
-            '''
-            CREATE TABLE atlas_stops (
-                sloid TEXT PRIMARY KEY,
-                uic_ref TEXT,
-                atlas_designation TEXT,
-                atlas_designation_official TEXT,
-                atlas_business_org_abbr TEXT,
-                duplicate_group_sloids TEXT
-            )
-            ''',
-            '''
-            CREATE TABLE stops_matched (
-                id INTEGER PRIMARY KEY,
-                sloid TEXT,
-                stop_type TEXT,
-                atlas_lat FLOAT,
-                atlas_lon FLOAT
-            )
-            ''',
-            '''
-            CREATE TABLE gtfs_stop_identity_resolution (
-                id INTEGER PRIMARY KEY,
-                stop_id TEXT NOT NULL,
-                resolved_sloid TEXT,
-                resolution_method TEXT NOT NULL,
-                distance_m FLOAT,
-                gtfs_stop_lat FLOAT,
-                gtfs_stop_lon FLOAT,
-                atlas_lat FLOAT,
-                atlas_lon FLOAT
-            )
-            ''',
-        ):
-            db.session.execute(text(statement))
+        sqlite_tables(GtfsStopRaw, AtlasStop, StopsMatched, GtfsStopIdentityResolution)
 
         identifier = 'ch:1:sloid:10'
         db.session.execute(

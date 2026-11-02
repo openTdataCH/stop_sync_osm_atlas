@@ -1,38 +1,18 @@
 """Real PostGIS transaction tests, enabled with TEST_POSTGRES_URI.
 
-Use a disposable database: this fixture resets its public schema.
+Use a disposable database: the ``postgres`` fixture resets its public schema.
 """
 
-import os
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 from backend.extensions import db
 from backend.importing.bundle import read_bundle
 from backend.importing.projection import project_bundle
 from backend.importing.importer import build_fast_insert_payloads, _write_rows
 from backend.importing.publication import publish_snapshot
-import backend.models  # noqa: F401 -- registers tables used by metadata.create_all.
-
-
-@pytest.fixture
-def postgres():
-    uri = os.getenv('TEST_POSTGRES_URI')
-    if not uri:
-        pytest.skip('TEST_POSTGRES_URI must identify a disposable PostGIS database')
-    engine = create_engine(uri)
-    with engine.begin() as connection:
-        database = connection.execute(text('SELECT current_database()')).scalar()
-        if not database.endswith('_test') and database != 'transport_test':
-            pytest.fail('Database name must end in _test to permit resetting the test schema')
-        connection.execute(text('DROP SCHEMA public CASCADE'))
-        connection.execute(text('CREATE SCHEMA public'))
-        connection.execute(text('CREATE EXTENSION IF NOT EXISTS postgis'))
-        db.Model.metadata.create_all(connection)
-    yield engine
-    engine.dispose()
 
 
 def _example():
@@ -258,6 +238,7 @@ def test_best_overlap_migration_and_rows_published_with_the_snapshot(postgres):
     bundle = read_bundle(Path(__file__).resolve().parents[1] / 'tests/fixtures/result-v1')
     calls = [(1, 1, '1'), (1, 2, '2'), (1, 3, '3'), (2, 1, '1'), (2, 2, '3')]
     bundle['routes'] = [
+        {'kind': 'source_routes', 'value': [{'route_id': 'source-line'}]},
         {'kind': 'line_families', 'value': [{'id': 1, 'side': 'source', 'key': 'source-line'},
                                             {'id': 2, 'side': 'osm', 'key': 'osm-line'}]},
         {'kind': 'itineraries', 'value': [

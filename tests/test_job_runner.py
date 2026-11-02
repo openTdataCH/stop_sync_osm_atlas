@@ -13,6 +13,12 @@ def isolated_metadata(monkeypatch, tmp_path):
     monkeypatch.setattr(stats_export, 'STATS_FILE_PATH', str(tmp_path / 'stats.json'))
 
 
+@pytest.fixture(autouse=True)
+def no_published_snapshot(monkeypatch):
+    from backend.importing import importer
+    monkeypatch.setattr(importer, '_published_manifest', lambda: None)
+
+
 def test_timed_step_logs_success(caplog):
     with caplog.at_level(logging.INFO, logger="backend.jobs.job_runner"):
         with job_runner._timed_step("osm_download"):
