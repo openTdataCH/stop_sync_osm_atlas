@@ -148,7 +148,8 @@ class GtfsStopRaw(db.Model):
     original_stop_id = db.Column(db.Text)
     location_type = db.Column(db.String(20))
     parent_station = db.Column(db.Text)
-    uic_number = db.Column(db.String(64), nullable=False)
+    # Generic GTFS feeds carry no UIC station numbers.
+    uic_number = db.Column(db.String(64))
     local_ref = db.Column(db.String(64))
     normalized_local_ref = db.Column(db.String(64))
 

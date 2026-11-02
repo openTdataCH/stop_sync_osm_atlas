@@ -319,19 +319,6 @@ def test_results(path, javascript=False, root=None):
              'skipped': int(row.find('skipped') is not None), 'count': 1} for row in ET.parse(path).iter('testcase')]
 
 
-def merge_test_results(original, additional, root):
-    """Use isolated contract outcomes for matching skips without hiding failures."""
-    merged = {}
-    for row in original + additional:
-        # A testcase without a name cannot safely replace another observation.
-        identity = row.get('test_id') or id(row)
-        key = (relative_report_path(row['file'], root), identity)
-        previous = merged.get(key)
-        if previous is None or row['failed'] or (not previous['failed'] and previous['skipped'] and not row['skipped']):
-            merged[key] = row
-    return list(merged.values())
-
-
 def changed_lines(root, base):
     if not base:
         return None
@@ -417,7 +404,6 @@ def report(roots, catalogs, ownership, base=None):
     exceptions = active_exceptions({module['id'] for _, module in module_items(catalogs)})
     violations = architecture(roots, ownership)
     tests = {repo: test_results(raw_dir / f'{repo}-tests.xml', root=roots[repo]) for repo in roots}
-    tests['app'] = merge_test_results(tests['app'], test_results(raw_dir / 'contract-tests.xml', root=roots['app']), roots['app'])
     tests['app'] += test_results(raw_dir / 'javascript-tests.json', True)
     changes = {repo: changed_lines(root, base if repo == 'app' else None) for repo, root in roots.items()}
     modules = {}

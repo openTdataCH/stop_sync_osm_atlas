@@ -112,7 +112,8 @@ command for connecting to a production database. For engine-only work, use the
 selected branch pushes. It checks out the engine commit pinned in `engine.ref`,
 installs matching toolchains, supplies a disposable PostGIS service, and invokes
 `make quality-ci`. The app suite runs without an engine installation; the engine
-suite and explicit producer/consumer check use the separate engine interpreter.
+suite uses the separate engine interpreter, which the app's engine import
+contract also runs as a subprocess.
 
 Repository administrators must configure branch protection or rulesets requiring
 **Required quality**, **Dependency security audit**, and the applicable
@@ -252,7 +253,6 @@ report is not equivalent to passing the run.
 | `raw/checks.json` | Full-run manifest and check results |
 | `raw/fast-checks.json` | Fast-run manifest; does not certify earlier full-run evidence |
 | `raw/app-tests.xml`, `raw/engine-tests.xml` | Pytest JUnit test outcomes |
-| `raw/contract-tests.xml` | Explicit producer/consumer progress contract outcomes |
 | `raw/app-python-coverage.json`, `raw/app-python-coverage.xml` | App line/branch coverage in JSON and XML |
 | `raw/engine-python-coverage.json`, `raw/engine-python-coverage.xml` | Engine line/branch coverage in JSON and XML |
 | `raw/javascript-tests.json` | Jest test outcomes |
@@ -268,11 +268,6 @@ for their raw reports. Coverage paths from another checkout are normalized for
 module association, and pytest class-based test names are attributed to their
 source test file. A shared test can count as evidence for multiple modules;
 module counts are not additive suite totals.
-
-The three producer/consumer cases skipped in the engine-free app suite are
-matched by file and test identity to their separately executed contract results.
-A real contract result replaces the matching skip; any recorded failure is
-retained. An unrelated passing test cannot cancel a skipped or failing case.
 
 Freshness requires a recent full-run manifest, matching app/engine Git revisions,
 and matching source fingerprints. Fingerprints hash tracked and new nonignored

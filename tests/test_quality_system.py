@@ -184,29 +184,6 @@ def test_junit_prefers_existing_module_prefix_over_class_name(tmp_path):
     assert quality.testcase_file({'classname': 'ignored.Class', 'file': 'explicit.py'}, tmp_path) == 'explicit.py'
 
 
-def test_isolated_contract_results_replace_matching_skips_but_keep_failures(tmp_path):
-    app = tmp_path / 'app.xml'
-    contract = tmp_path / 'contract.xml'
-    app.write_text('''<testsuites><testsuite>
-        <testcase classname="tests.test_contract" name="test_bundle[gtfs]"><skipped/></testcase>
-        <testcase classname="tests.test_contract" name="test_bundle[swiss]"><failure/></testcase>
-        <testcase classname="tests.test_contract" name="test_bundle[unrun]"><skipped/></testcase>
-        <testcase classname="tests.test_contract" name="test_bundle[regressed]"/>
-        </testsuite></testsuites>''')
-    contract.write_text('''<testsuites><testsuite>
-        <testcase classname="tests.test_contract" name="test_bundle[gtfs]"/>
-        <testcase classname="tests.test_contract" name="test_bundle[swiss]"/>
-        <testcase classname="tests.test_contract" name="test_bundle[regressed]"><failure/></testcase>
-        </testsuite></testsuites>''')
-    merged = quality.merge_test_results(quality.test_results(app), quality.test_results(contract), tmp_path)
-    assert len(merged) == 4
-    by_name = {row['test_id'].split('::')[1]: row for row in merged}
-    assert not by_name['test_bundle[gtfs]']['skipped']
-    assert by_name['test_bundle[swiss]']['failed']
-    assert by_name['test_bundle[regressed]']['failed']
-    assert by_name['test_bundle[unrun]']['skipped']
-
-
 @pytest.mark.parametrize('content', ['not JSON', 'null', '[]', '{}', '{"schema_version": 1, "tests_sha256": []}'])
 def test_malformed_optional_mutation_evidence_is_invalid_without_breaking_report(tmp_path, content):
     artifact = tmp_path / 'mutation.json'

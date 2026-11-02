@@ -157,8 +157,9 @@ def main() -> int:
     run("engine-fast", ["make", "-C", str(engine), "quality-fast", f"PYTHON={args.engine_python if full else python}"], env=engine_environment)
     if full:
         run("structural-debt", [python, "scripts/quality.py", "debt", *engine_option])
-        app_environment = {**os.environ, "DATABASE_URI": "sqlite://", "STATE_BACKEND": "memory", "ENGINE_DIR": str(engine)}
-        app_environment.pop("PROGRESS_CONTRACT_ENGINE", None)
+        # The engine import contract runs the engine through ENGINE_PYTHON as a subprocess.
+        app_environment = {**os.environ, "DATABASE_URI": "sqlite://", "STATE_BACKEND": "memory", "ENGINE_DIR": str(engine),
+                           "ENGINE_PYTHON": args.engine_python}
         run("app-python-tests", [
             python, "-m", "pytest", "tests", "-q", "--cov=backend", "--cov-branch",
             "--cov-report=term-missing:skip-covered", "--cov-report=json:quality/raw/app-python-coverage.json",
@@ -166,10 +167,6 @@ def main() -> int:
         ], env=app_environment)
         run("javascript-tests", ["npm", "run", "test:coverage"], env={**os.environ, "CI": "true"})
         run("engine-python-tests", ["make", "-C", str(engine), "quality-test", f"PYTHON={args.engine_python}", f"OUTPUT_DIR={RAW}"], env=engine_environment)
-        run("producer-consumer-contract", [
-            args.engine_python, "-m", "pytest", "tests/test_engine_progress_contract.py", "-q",
-            "--junitxml=quality/raw/contract-tests.xml",
-        ], env={**engine_environment, "PROGRESS_CONTRACT_ENGINE": str(engine)})
         run("coverage-sanity", [python, "scripts/quality.py", "coverage", *engine_option])
         # Report even failed gates; partial evidence must remain visible.
         comparison = ["--base", os.environ["QUALITY_BASE"]] if os.getenv("QUALITY_BASE") else []

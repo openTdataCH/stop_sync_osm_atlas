@@ -37,7 +37,7 @@ def test_full_run_discards_old_evidence_and_preserves_failed_gates(tmp_path, mon
     assert old_file_exists is False
     assert report_manifest['fingerprints'] == {'app': 'before', 'engine': 'before'}
     assert any(check['name'] == 'javascript-lint' and check['status'] == 'fail' for check in report_manifest['checks'])
-    assert any(check['name'] == 'producer-consumer-contract' for check in report_manifest['checks'])
+    assert any(check['name'] == 'app-python-tests' for check in report_manifest['checks'])
 
 
 @pytest.fixture

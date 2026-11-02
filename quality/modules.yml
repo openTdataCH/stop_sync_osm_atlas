@@ -53,7 +53,7 @@
           "tests/test_bundle_properties.py",
           "tests/test_import_projection.py",
           "tests/test_snapshot_publication.py",
-          "tests/test_database_safety.py"
+          "tests/test_db_connection_options.py"
         ]
       },
       "docs": {
@@ -108,7 +108,7 @@
         "tests": [
           "tests/test_job_runner.py",
           "tests/test_pipeline_progress.py",
-          "tests/test_engine_progress_contract.py",
+          "tests/test_engine_import_contract.py",
           "tests/test_pipeline_scheduler_ui.py"
         ]
       },
@@ -353,7 +353,7 @@
           ".vscode/**"
         ],
         "tests": [
-          "tests/test_database_safety.py",
+          "tests/test_db_connection_options.py",
           "tests/test_quality_system.py",
           "tests/test_quality_runner.py"
         ]
@@ -454,7 +454,7 @@
         "app.pipeline-orchestration"
       ],
       "tests": [
-        "tests/test_engine_progress_contract.py"
+        "tests/test_engine_import_contract.py"
       ],
       "docs": [
         "documentation/3.5 Pipeline Progress.md"

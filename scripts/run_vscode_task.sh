@@ -57,11 +57,11 @@ case "$action" in
     ;;
   test-all)
     docker compose build test
-    docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// test python -m pytest tests/
+    docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// test python -m pytest -rs tests/  # -rs lists the PostGIS and engine tests that need make quality
     ;;
   test-result-contract)
     docker compose build test
-    docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// -e USER_INPUT_DATABASE_URI=sqlite:// test python -m pytest tests/test_result_bundle.py -v
+    docker compose run --rm --no-deps --entrypoint '' -e DATABASE_URI=sqlite:// test python -m pytest tests/test_result_bundle.py -v
     ;;
   docs-pdf) npm run docs:build-pdf ;;
   docs-diagrams) npm run docs:diagrams ;;
