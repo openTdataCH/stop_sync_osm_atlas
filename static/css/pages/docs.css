@@ -68,10 +68,35 @@
 }
 
 .docs-collection-heading p {
-  margin: var(--space-1) 0 var(--space-2);
+  margin: 0;
   color: var(--color-fg-muted);
   font-size: 0.75rem;
   line-height: 1.4;
+  /* Collapsed by default so the sidebar stays scannable; expands on hover/focus. */
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  /* Collapse lingers briefly (delay) and eases out slowly so a passing pointer doesn't make the list jump. */
+  transition: max-height 0.35s ease 0.25s, opacity 0.35s ease 0.25s, margin 0.35s ease 0.25s;
+}
+
+.docs-collection-heading:hover p,
+.docs-collection-heading:focus-within p {
+  max-height: 8rem;
+  margin: var(--space-1) 0 var(--space-2);
+  opacity: 1;
+  /* Expand immediately and quickly. */
+  transition-duration: 0.2s;
+  transition-delay: 0s;
+}
+
+/* Touch devices have no hover, so keep the description visible. */
+@media (hover: none) {
+  .docs-collection-heading p {
+    max-height: none;
+    margin: var(--space-1) 0 var(--space-2);
+    opacity: 1;
+  }
 }
 
 .docs-owner-badge {

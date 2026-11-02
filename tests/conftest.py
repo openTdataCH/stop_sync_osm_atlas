@@ -7,6 +7,7 @@ This module provides:
 """
 
 import os
+import re
 import sys
 import pytest
 
@@ -49,6 +50,43 @@ def app():
 def client(app):
     """Create a test client for the Flask application."""
     return app.test_client()
+
+
+@pytest.fixture
+def problems_db(app, monkeypatch):
+    """SQLite stand-in for the stop, problem and snapshot tables (geometry columns become text)."""
+    import sqlalchemy.dialects.sqlite.base as sqlite_base
+
+    from backend.extensions import db
+    from backend.models import AtlasStop, DatasetPublication, OsmNode, Problem, StopsMatched
+
+    orig_do_execute = sqlite_base.SQLiteDialect.do_execute
+
+    def do_execute(self, cursor, statement, parameters=None, context=None):
+        spatial_cmds = ('RecoverGeometryColumn', 'CreateSpatialIndex', 'CheckSpatialMetaData',
+                        'InitSpatialMetaData', 'CheckSpatialIndex')
+        if any(cmd in statement for cmd in spatial_cmds) or 'USING gist' in statement.lower():
+            return
+        if 'CREATE INDEX idx_stops_geom_gist' in statement:
+            return
+        if 'AddGeometryColumn' in statement:
+            match = re.search(r"AddGeometryColumn\s*\('(\w+)',\s*'(\w+)'", statement)
+            if match:
+                try:
+                    orig_do_execute(self, cursor, f'ALTER TABLE {match.group(1)} ADD COLUMN {match.group(2)} TEXT', None, context)
+                except Exception:
+                    pass
+            return
+        orig_do_execute(self, cursor, statement.replace('GeomFromEWKT(?)', '?'), parameters, context)
+
+    monkeypatch.setattr(sqlite_base.SQLiteDialect, 'do_execute', do_execute)
+    with app.app_context():
+        # Loading a StopsMatched row selects its geometry through AsEWKB().
+        db.session.connection().connection.dbapi_connection.create_function('AsEWKB', 1, lambda value: value)
+        for model in (AtlasStop, OsmNode, StopsMatched, Problem, DatasetPublication):
+            model.__table__.create(bind=db.engine, checkfirst=True)
+        yield db.session
+        db.session.remove()
 
 
 @pytest.fixture

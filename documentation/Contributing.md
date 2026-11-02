@@ -28,7 +28,3 @@ The engine and the review application are separate repositories, each with its o
 ## Improve the documentation
 
 Follow the [documentation style guide](Documentation%20style%20guide.md): it defines the page structure, the terms, the link conventions and the diagram kit. Regenerate the diagrams with `python3 documentation/diagrams/build.py` after changing their source, and commit the generated SVGs.
-
-## Related projects
-
-For possible work with neighbouring projects, see [related projects and collaboration opportunities](../engine/documentation/Related%20projects.md).

@@ -71,6 +71,13 @@
             data-data-updated-at="{{ last_pipeline_data_import_ended_at or '' }}"
             data-default-label="{% if last_pipeline_data_import_ended_at %}Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}{% else %}Data not imported yet{% endif %}"
             data-running-label="Pipeline running in the background" data-blocking-label="Pipeline running" tabindex="0">
+            {% set data_warning = pipeline_status.data_warning if pipeline_status is defined else None %}
+            <button type="button" id="navbarDataWarning"
+              class="btn btn-link btn-sm p-0 border-0 me-1 align-baseline navbar-data-warning"
+              data-bs-toggle="tooltip" data-bs-trigger="hover focus" data-bs-placement="bottom"
+              {% if data_warning %}title="{{ data_warning }}" aria-label="{{ data_warning }}"{% else %}hidden{% endif %}>
+              <span class="navbar-data-warning__dot" aria-hidden="true"></span>
+            </button>
             <button type="button" id="navbarNextRunInfo"
               class="btn btn-link btn-sm text-muted text-decoration-none p-0 border-0 me-1 align-baseline"
               aria-label="Next pipeline run information" data-bs-toggle="tooltip" data-bs-trigger="hover focus"

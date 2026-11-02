@@ -10,6 +10,7 @@ portal scales to the article column. Keep text at 12 units or larger.
 from __future__ import annotations
 
 from kit import (
+    linked,
     APP, ATLAS, CONTRACT, ENGINE, EXTERNAL, FAINT, GTFS, INK, MUTED, OSM, UNMATCHED,
     Diagram, Line, arrow, box, browser, chevron, code, divider, document, legend, node, note, pill, step,
     store, text, zone,
@@ -37,7 +38,8 @@ def overview_big_picture() -> Diagram:
         d.add(box(32, 122 + index * 60, 136, 50, EXTERNAL, title, [line], title_size=13.5, line_size=12, gap=3,
                   pad=6))
 
-    d.add(zone(202, 104, 372, 262, ENGINE, 'Matching engine', 'public-transport-matcher'))
+    d.add(zone(202, 104, 372, 262, ENGINE, 'Matching engine', 'osm-public-transport-matcher',
+          tab_x=210, href='https://github.com/openTdataCH/osm-public-transport-matcher'))
     d.add(box(216, 128, 156, 128, ENGINE, 'Format adapters', [
         'ATLAS · GTFS · OSM', 'parse files into', 'common records', '+ your own adapter',
     ], title_size=14, line_size=12, gap=4, filled=False, pad=6))
@@ -60,10 +62,10 @@ def overview_big_picture() -> Diagram:
               title_size=13.5, line_size=12, gap=3, dashed=True, filled=False))
     d.add(box(752, 176, 188, 42, EXTERNAL, 'Scripts and research', [],
               title_size=13.5, dashed=True, filled=False))
-    d.add(box(752, 238, 188, 120, APP, 'Review application', [
+    d.add(linked('https://github.com/openTdataCH/stop_sync_osm_atlas', box(752, 238, 188, 120, APP, 'Review application', [
         code('stop_sync_osm_atlas', size=12), 'own repository', 'Flask, PostGIS, map UI',
         'imports each bundle',
-    ], title_size=14, line_size=12, gap=4, pad=6))
+    ], title_size=14, line_size=12, gap=4, pad=6)))
     for y in (138, 197, 298):
         d.add(arrow([(726, 237), (738, 237), (738, y), (750, y)], corner=5))
 

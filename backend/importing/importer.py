@@ -13,9 +13,11 @@ import json
 from collections import Counter
 from typing import Any
 
-from sqlalchemy import inspect, insert
+from sqlalchemy import inspect, insert, text
+from sqlalchemy.exc import SQLAlchemyError
 
 # --- Internal modules -------------------------------------------------------
+from backend.db_errors import is_missing_table_error
 from backend.importing.session import session
 from backend.importing.helpers import safe_value, get_osm_node_type
 from backend.jobs.job_types import PipelineRunType
@@ -584,6 +586,46 @@ def _bulk_insert_rows(model, rows: list[dict], label: str | None = None, *, db_s
     return len(rows)
 
 
+# Bundle sections whose row counts must not collapse between two publications.
+GUARDED_COUNTS = (('source_stops', 'ATLAS platforms'), ('osm_nodes', 'OSM elements'), ('matches', 'matches'))
+
+
+def _max_drop_percent() -> float:
+    value = float(os.getenv('PIPELINE_MAX_DROP_PERCENT', '20'))
+    if not 0 <= value <= 100:
+        raise ValueError('PIPELINE_MAX_DROP_PERCENT must be between 0 and 100')
+    return value
+
+
+def _published_manifest() -> dict | None:
+    try:
+        return session.execute(text("SELECT manifest FROM dataset_publication WHERE id = 1")).scalar()
+    except SQLAlchemyError as exc:
+        # Before the first migration there is nothing to compare with; the
+        # schema check reports the missing tables later.
+        if not is_missing_table_error(exc):
+            raise
+        return None
+    finally:
+        session.rollback()
+
+
+def check_against_published(manifest: dict, published: dict | None, max_drop_percent: float) -> None:
+    """Refuse a snapshot that lost more than ``max_drop_percent`` of a published count.
+
+    Broken inputs often still parse, but yield far fewer records; this keeps
+    such a run from replacing a good dataset.
+    """
+    if not published:
+        return
+    for section, label in GUARDED_COUNTS:
+        before = (published.get('files', {}).get(section) or {}).get('rows') or 0
+        after = manifest['files'][section]['rows']
+        if before and (before - after) * 100 > max_drop_percent * before:
+            raise ValueError(f"Refused to publish: {label} fell from {before:,} to {after:,}, "
+                             f"more than the {max_drop_percent:g}% allowed")
+
+
 def _validate_refresh_payloads(db_payloads: dict) -> None:
     """Refuse destructive refreshes that would publish an empty map."""
     if not db_payloads.get('stops_matched'):
@@ -792,6 +834,7 @@ def import_bundle(directory, *, progress_callback=None, stage_event_callback=Non
     with progress_stage('database.validate', stage_event_callback):
         with stage('import.validate_bundle'):
             bundle = read_bundle(directory)
+            check_against_published(bundle['manifest'], _published_manifest(), _max_drop_percent())
     report(progress_callback, 'database', 'Preparing application records')
     with progress_stage('database.prepare', stage_event_callback):
         with stage('import.project'):

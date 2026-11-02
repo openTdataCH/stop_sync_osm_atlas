@@ -16,6 +16,7 @@ from backend.blueprints.routes import routes_bp
 from backend.blueprints.seo import seo_bp, seo_template_context
 from backend.services.time_utils import format_zurich_display_timestamp
 from backend.services.source_config import load_review_config, effective_review_config
+from backend.services.stop_lookup import linked_stop
 from backend.version import APP_VERSION
 
 
@@ -131,11 +132,11 @@ def create_app():
 
     @app.route('/')
     def index():
-        return render_template('pages/index.html')
+        return render_template('pages/index.html', linked_stop=linked_stop(request.args))
 
     @app.route('/problems')
     def problems():
-        return render_template('pages/problems.html')
+        return render_template('pages/problems.html', linked_stop=linked_stop(request.args))
 
     @app.route('/data')
     def data_index():

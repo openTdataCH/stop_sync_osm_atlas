@@ -19,7 +19,7 @@ PIPELINE_WATCHDOG_INTERVAL_SECONDS = int(os.getenv("PIPELINE_WATCHDOG_INTERVAL_S
 
 
 def _load_schedule_interval_hours() -> float:
-    interval_hours = float(os.getenv("PIPELINE_SCHEDULE_INTERVAL_HOURS", "24"))
+    interval_hours = float(os.getenv("PIPELINE_SCHEDULE_INTERVAL_HOURS", "1"))
     if interval_hours <= 0:
         raise ValueError("PIPELINE_SCHEDULE_INTERVAL_HOURS must be > 0")
     return interval_hours
@@ -39,7 +39,7 @@ def _create_interval_trigger(interval_hours: Optional[float] = None) -> Interval
 
 
 def _update_next_run_timestamp() -> None:
-    job = scheduler.get_job("daily_pipeline_update")
+    job = scheduler.get_job("scheduled_pipeline_update")
     if not job:
         set_next_run(None)
         return
@@ -50,7 +50,8 @@ def _update_next_run_timestamp() -> None:
         next_run = getattr(job, "next_fire_time", None)
 
     if next_run:
-        set_next_run(next_run.astimezone(timezone.utc).isoformat())
+        # The web app reads the interval here to tell when the data is overdue.
+        set_next_run(next_run.astimezone(timezone.utc).isoformat(), interval_hours=PIPELINE_SCHEDULE_INTERVAL_HOURS)
         return
 
     set_next_run(None)
@@ -98,7 +99,7 @@ def main() -> None:
     scheduler.add_job(
         _scheduled_job,
         trigger=trigger,
-        id="daily_pipeline_update",
+        id="scheduled_pipeline_update",
         name="Recurring data pipeline update",
         max_instances=1,
         coalesce=True,

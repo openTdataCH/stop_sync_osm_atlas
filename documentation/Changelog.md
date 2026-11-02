@@ -27,8 +27,15 @@ the producer side.
 
 - **Stored highest overlap for unmatched variants** — The import now computes, for every ATLAS and OSM itinerary, the itinerary of the other source sharing the most stops in order, and publishes it with the snapshot in the new `itinerary_best_overlaps` table. Route cards render the "Highest overlap" figure directly instead of scanning every itinerary after each page load (previously about 9 seconds for 20 unmatched OSM variants on the Swiss dataset). Variants without any shared stop now say so instead of showing an arbitrary 0% route. The batch endpoint `/api/routes/comparison/best` and the `best` field of `/api/routes/comparison/options` are removed. Run migrations, then import a bundle to fill the table. See [A2.6 Routes pages](2.6%20Routes%20Pages.md).
 
+### Public API
+
+- **Stop lookup for scripts and AI agents** — `/api/lookup` returns every match of a stop as JSON, with distances, match types, problems, OSM tags and the snapshot's attribution. It takes the permalink identifiers (`osm=node/<id>`, `osm=way/<id>`, `sloid=`) plus `uic_ref=` for a whole station, never database row numbers, and it is the only `/api/` endpoint whose fields are kept stable. See [A2.10 Public API](2.10%20Public%20API.md).
+- **Stop links readable without JavaScript** — Map and Problems links with `sloid` or `osm` name the stop in their title, description and `og:` tags, link to its lookup and carry a visually hidden summary, so link previews and fetch tools see the stop.
+- **`/llms.txt` and `robots.txt`** — A new `/llms.txt` explains the site and the lookup to AI agents. `robots.txt` allows `/api/lookup` and puts its most specific rule first, so parsers that apply the first matching rule no longer read `Allow: /` as permission for every `/api/` path.
+
 ### Reliability and interface
 
+- **Hourly updates by default** — `PIPELINE_SCHEDULE_INTERVAL_HOURS` now defaults to `1` instead of `24` in the scheduler, `docker-compose.yml` and `env.example`, so a new deployment publishes fresh data every hour. Unchanged sources are not downloaded again ([E5.1](../engine/documentation/5.1%20Source%20snapshot%20caching.md)). The "no update" warning in the navbar now appears after two hours instead of two days. A deployment whose `.env` sets the variable keeps its own interval.
 - **Race-safe pipeline status** — Scheduler startup no longer resets an active manual run, and shared status fields are patched atomically for both file and Redis backends.
 - **Heartbeat recovery** — A live pipeline lease can recover the web view from an unfinished legacy status record incorrectly marked idle.
 - **Orphaned-run recovery** — Pipeline leases now record process/container ownership and heartbeat time. A scheduler watchdog marks killed runners failed and releases their stale locks at startup or within the configured heartbeat grace period, so restarting services cannot leave the UI claiming a nonexistent background run.
@@ -42,6 +49,7 @@ the producer side.
 - **Generated diagrams** — Overview, architecture, deployment, publication and pipeline figures are SVGs generated from `documentation/diagrams/` with one shared visual vocabulary. `python3 documentation/diagrams/build.py` regenerates them, and the engine's figures as well.
 - **Portal rendering fixes** — Automatic code links no longer alter code blocks, inline code or existing links; placeholders inside code stay literal; file names such as `build.py` no longer become `http://` links; wrapped source lines no longer break sentences; headings have stable anchors; navigation titles come from each page's heading. Links to engine source files need `DOCS_ENGINE_BLOB_BASE`, which Compose now passes to the web service, instead of producing 404s.
 - **PDF fixes** — Links to sections of other pages resolve inside the PDF, section numbers are no longer doubled, and `#` comments in code blocks are no longer read as headings.
+- **Numeric page order** — The portal and the PDF sort pages by section number, so A2.10 follows A2.9 instead of A2.1.
 
 ## Version 0.6.0
 

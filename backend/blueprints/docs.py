@@ -12,6 +12,7 @@ from urllib.parse import unquote
 
 from flask import Blueprint, render_template, abort, send_from_directory, request, url_for, jsonify, send_file, current_app
 from werkzeug.utils import safe_join
+from backend.services.docs_order import doc_sort_key
 from backend.services.docs_stats import (
     replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html, heading_slug,
 )
@@ -738,7 +739,7 @@ def _list_markdown_files() -> List[str]:
                 if os.path.isfile(absolute):
                     logical_root = _DOC_SOURCES[source_key]['root'].rstrip('/')
                     files.append(f'{logical_root}/{filename}')
-    files.sort(key=lambda value: (_doc_source_key(value), os.path.basename(value).lower()))
+    files.sort(key=lambda value: (_doc_source_key(value), doc_sort_key(value)))
     return files
 
 
@@ -954,7 +955,7 @@ def _group_files_by_section(
             })
 
     for sec in sections_map.values():
-        sec['items'].sort(key=lambda it: it['file'].lower())
+        sec['items'].sort(key=lambda it: doc_sort_key(it['file']))
         if sec['root_title']:
             sec['owner_number'], sec['root_title_suffix'] = _split_scoped_title(
                 sec['root_title'],

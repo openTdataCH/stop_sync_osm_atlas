@@ -101,6 +101,22 @@
         });
     }
 
+    function setTooltipButton(element, tooltipText) {
+        if (!tooltipText) {
+            element.hidden = true;
+            element.removeAttribute('title');
+            element.removeAttribute('data-bs-original-title');
+            element.removeAttribute('data-bs-title');
+            syncBootstrapTooltip(element, '');
+            return;
+        }
+
+        element.hidden = false;
+        element.setAttribute('data-bs-title', tooltipText);
+        element.setAttribute('title', tooltipText);
+        syncBootstrapTooltip(element, tooltipText);
+    }
+
     function syncNextRunInfo() {
         var dataUpdatedElement = getDataUpdatedElement();
         var infoElement = getNextRunInfoElement();
@@ -108,20 +124,23 @@
             return;
         }
 
-        var tooltipText = buildNextRunTooltipText(dataUpdatedElement);
-        if (!tooltipText) {
-            infoElement.hidden = true;
-            infoElement.removeAttribute('title');
-            infoElement.removeAttribute('data-bs-original-title');
-            infoElement.removeAttribute('data-bs-title');
-            syncBootstrapTooltip(infoElement, '');
+        setTooltipButton(infoElement, buildNextRunTooltipText(dataUpdatedElement));
+    }
+
+    // The backend derives the warning: the latest run failed or the data is overdue.
+    function syncDataWarning() {
+        var element = document.getElementById('navbarDataWarning');
+        if (!element) {
             return;
         }
 
-        infoElement.hidden = false;
-        infoElement.setAttribute('data-bs-title', tooltipText);
-        infoElement.setAttribute('title', tooltipText);
-        syncBootstrapTooltip(infoElement, tooltipText);
+        var warning = (latestStatus && latestStatus.data_warning) || '';
+        setTooltipButton(element, warning);
+        if (warning) {
+            element.setAttribute('aria-label', warning);
+        } else {
+            element.removeAttribute('aria-label');
+        }
     }
 
     function syncNavbarStatusLabel() {
@@ -235,6 +254,7 @@
         }
         syncNavbarStatusLabel();
         syncNextRunInfo();
+        syncDataWarning();
 
         updateTimerFields();
         setOverlayVisible(blocking);

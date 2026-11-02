@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify, current_app as app
 import random
 from sqlalchemy import func, text
+from sqlalchemy.exc import SQLAlchemyError
 from backend.models import StopsMatched, AtlasStop, OsmNode
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
+from backend.services.stop_lookup import InvalidLookup, lookup_payload, parse_lookup
 from backend.services.transport_routes import get_stops_for_route
 from backend.queries.helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint, resolve_stop_type_match_filters, build_stop_scope_condition, build_match_method_conditions
 from backend.queries.helpers import build_atlas_duplicate_membership_condition
@@ -208,6 +210,23 @@ def get_random_stop():
     except Exception as e:
         app.logger.error(f"Error fetching random stop: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+@search_bp.route('/api/lookup', methods=['GET'])
+@limiter.limit("60/minute")
+def lookup():
+    """The public lookup: every match of a stop. See documentation/2.10 Public API.md."""
+    try:
+        query = parse_lookup(request.args)
+    except InvalidLookup as error:
+        return jsonify({"error": f"{error} See /docs/public_api."}), 400
+    try:
+        return jsonify(lookup_payload(query))
+    except SQLAlchemyError:
+        app.logger.warning("Lookup failed", exc_info=True)
+        response = jsonify({"error": "The database is busy or unavailable, for example during a data update. Retry in a minute."})
+        response.headers['Retry-After'] = '60'
+        return response, 503
 
 
 @search_bp.route('/api/stop_by_id', methods=['GET'])

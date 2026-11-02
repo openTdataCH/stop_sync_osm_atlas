@@ -4,8 +4,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>{% block title %}{{ review_config.title }}{% endblock %}</title>
-  <meta name="description" content="{% block meta_description %}Explore and compare public transport stops and routes from OpenStreetMap and {{ review_config.source_label }}.{% endblock %}">
+  {#- A page opened from a stop link names the stop, for clients that run no JavaScript (documentation/2.10 Public API.md). #}
+  {% set linked_stop_prefix = linked_stop.title ~ ' | ' if linked_stop else '' %}
+  <title>{{ linked_stop_prefix }}{% block title %}{{ review_config.title }}{% endblock %}</title>
+  <meta name="description" content="{% if linked_stop %}{{ linked_stop.description }}{% else %}{% block meta_description %}Explore and compare public transport stops and routes from OpenStreetMap and {{ review_config.source_label }}.{% endblock %}{% endif %}">
+  <meta property="og:title" content="{{ linked_stop_prefix }}{{ self.title() }}">
+  <meta property="og:description" content="{% if linked_stop %}{{ linked_stop.description }}{% else %}{{ self.meta_description() }}{% endif %}">
+  {% if linked_stop %}<link rel="alternate" type="application/json" href="{{ linked_stop.api_url }}">{% endif %}
   <meta name="robots" content="{{ seo_robots }}">
   <meta name="google-site-verification" content="1oq4u6R95VEOWIUskIdKad2-SvkUHVrDvXR2fikSISI">
   <link rel="canonical" href="{{ seo_canonical_url }}">
@@ -35,6 +40,9 @@
   {% endif %}
   {% endwith %}
   <main class="flex-grow-1 d-flex flex-column">
+    {% if linked_stop %}
+    <p class="visually-hidden">{{ linked_stop.description }} As JSON: <a href="{{ linked_stop.api_url }}">{{ linked_stop.api_url }}</a></p>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
 

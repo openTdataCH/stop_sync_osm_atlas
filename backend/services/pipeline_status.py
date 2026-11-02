@@ -16,6 +16,7 @@ from backend.services.pipeline_progress import (
     finalize_stage_states,
 )
 from backend.services.pipeline_state_store import get_pipeline_state_store
+from backend.services.time_utils import format_zurich_display_timestamp
 
 _DEFAULT_LOCK_TTL_SECONDS = int(os.getenv("PIPELINE_LOCK_TTL_SECONDS", "14400"))
 _DEFAULT_HEARTBEAT_SECONDS = int(
@@ -155,8 +156,10 @@ def _base_status() -> Dict[str, Any]:
         "warnings": [],
         "dataset_published": False,
         "failed_phase": None,
+        "failed_stage": None,
         "last_pipeline_data_import_ended_at": None,
         "next_run_at": None,
+        "schedule_interval_hours": None,
         "run_type": None,
         "refresh_scope_tables_rewritten": [],
         "refresh_scope_tables_reused": [],
@@ -215,6 +218,20 @@ def _infer_active_phase(data: Dict[str, Any]) -> str:
     return "publish"
 
 
+def _data_warning(data: Dict[str, Any]) -> str | None:
+    """Say in one line when the public data is not what the schedule promises."""
+    published = data.get("last_pipeline_data_import_ended_at")
+    shown = f"showing data from {format_zurich_display_timestamp(published)}" if published else "no data is published yet"
+    if data.get("status") == "failed" and not data.get("dataset_published"):
+        return f"Latest update failed; {shown}"
+    published_at = _parse_iso_timestamp(published)
+    interval = data.get("schedule_interval_hours")
+    if published_at and isinstance(interval, (int, float)) and interval > 0:
+        if datetime.now(timezone.utc) - published_at > timedelta(hours=2 * interval):
+            return f"No update for more than {2 * interval:g} hours; {shown}"
+    return None
+
+
 def get_status() -> Dict[str, Any]:
     raw = _read_raw_status()
     data = _base_status()
@@ -247,6 +264,8 @@ def get_status() -> Dict[str, Any]:
             started_at=data.get("started_at") or data.get("phase_started_at"),
         )
     data["stage_states"] = project_stage_states(data)
+    # Derived on every read and never stored, so it ages without a writer.
+    data["data_warning"] = _data_warning(data)
     return data
 
 
@@ -310,6 +329,7 @@ def start_run(
         finished_at=None,
         last_error=None,
         failed_phase=None,
+        failed_stage=None,
         warnings=[],
         dataset_published=False,
     )
@@ -437,7 +457,18 @@ def finish_success(message: str = "Pipeline update completed", *, warnings=None,
     )
 
 
+def _reported_failure(current: Dict[str, Any]) -> tuple[str | None, str | None]:
+    """Return the first failed stage that reported its own error, with that error."""
+    states = current.get("stage_states") or {}
+    for spec in current.get("stage_plan") or []:
+        state = states.get(spec["id"]) or {}
+        if state.get("status") == "failed" and state.get("error"):
+            return spec["id"], f"{spec['label']}: {state['error']}"
+    return None, None
+
+
 def finish_failure(error_message: str, *, run_id=None) -> Dict[str, Any]:
+    """Fail the run; ``error_message`` is used only when no stage reported a cause."""
     ts = _now_iso()
     current = get_status()
     if current.get("finished_at") or (run_id is not None and current.get("run_id") != run_id):
@@ -456,6 +487,7 @@ def finish_failure(error_message: str, *, run_id=None) -> Dict[str, Any]:
             "duration_seconds": round(duration, 3) if duration is not None else None,
             "status": "failed",
         })
+    failed_stage, stage_error = _reported_failure(current)
     states, _ = finalize_stage_states(current, ts, failed=True)
     return set_status(
         expected_run_id=run_id,
@@ -468,17 +500,18 @@ def finish_failure(error_message: str, *, run_id=None) -> Dict[str, Any]:
         phase_started_at=None,
         phase_history=history,
         failed_phase=active_phase,
-        last_error=error_message,
+        failed_stage=failed_stage,
+        last_error=stage_error or error_message,
     )
 
 
-def set_next_run(next_run_at: Optional[str]) -> Dict[str, Any]:
+def set_next_run(next_run_at: Optional[str], *, interval_hours: Optional[float] = None) -> Dict[str, Any]:
     # Scheduling metadata has a separate writer from execution state. Patch
     # only its own fields so a scheduler refresh cannot change an active run.
-    stored = _patch_raw_status({
-        "next_run_at": next_run_at,
-        "schedule_updated_at": _now_iso(),
-    })
+    fields: Dict[str, Any] = {"next_run_at": next_run_at, "schedule_updated_at": _now_iso()}
+    if interval_hours is not None:
+        fields["schedule_interval_hours"] = interval_hours
+    stored = _patch_raw_status(fields)
     result = _base_status()
     result.update(stored)
     return result

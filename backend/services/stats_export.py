@@ -380,12 +380,14 @@ def export_pipeline_stats(
     # Load data meta if available to get the actual data source update time
     last_pipeline_data_import_ended_at = None
     last_overpass_query_at = None
+    osm_data_at = None
     source_downloads = None
     meta = {}
     try:
         meta = load_data_meta()
         last_pipeline_data_import_ended_at = meta.get('last_pipeline_data_import_ended_at') or meta.get('data_updated_at')
         last_overpass_query_at = meta.get('last_overpass_query_at')
+        osm_data_at = meta.get('osm_data_at')
         source_downloads = _build_source_download_stats(meta)
     except Exception as e:
         logger.warning(f"Could not load data_meta.json: {e}")
@@ -400,6 +402,7 @@ def export_pipeline_stats(
         "stats_computed_at": stats_computed_at,
         "last_pipeline_data_import_ended_at": last_pipeline_data_import_ended_at,
         "last_overpass_query_at": last_overpass_query_at,
+        "osm_data_at": osm_data_at,
         "source_downloads": source_downloads,
         "version": "1.1",
         
@@ -601,6 +604,7 @@ def refresh_stats_metadata(meta: Optional[Dict[str, Any]] = None, filepath: str 
     stats.update(
         last_pipeline_data_import_ended_at=meta.get('last_pipeline_data_import_ended_at') or meta.get('data_updated_at'),
         last_overpass_query_at=meta.get('last_overpass_query_at'),
+        osm_data_at=meta.get('osm_data_at'),
         source_downloads=_build_source_download_stats(meta),
     )
     save_stats_to_file(stats, filepath)

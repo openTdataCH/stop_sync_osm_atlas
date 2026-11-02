@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 
-from flask import Blueprint, Response, current_app, request, url_for
+from flask import Blueprint, Response, current_app, render_template, request, url_for
 
 
 seo_bp = Blueprint('seo', __name__)
@@ -67,14 +67,23 @@ def _sitemap_paths() -> list[str]:
 
 @seo_bp.route('/robots.txt')
 def robots_txt():
+    # The specific Allow comes first: some parsers apply the first matching rule.
     body = '\n'.join((
         'User-agent: *',
-        'Allow: /',
+        'Allow: /api/lookup',
         'Disallow: /api/',
         f'Sitemap: {site_url("/sitemap.xml")}',
         '',
     ))
     response = Response(body, content_type='text/plain; charset=utf-8')
+    response.headers['Cache-Control'] = 'public, max-age=3600'
+    return response
+
+
+@seo_bp.route('/llms.txt')
+def llms_txt():
+    """A guide for AI agents (https://llmstxt.org). See documentation/2.10 Public API.md."""
+    response = Response(render_template('llms.txt') + '\n', content_type='text/plain; charset=utf-8')
     response.headers['Cache-Control'] = 'public, max-age=3600'
     return response
 

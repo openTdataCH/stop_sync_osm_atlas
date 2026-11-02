@@ -146,10 +146,9 @@ def _run_subprocess(command: list[str], phase: str, message: str, maintenance: b
     returncode = process.wait()
     elapsed = time.perf_counter() - started
     if returncode != 0:
-        LOGGER.error("Step %s command exited with code %s after %.2fs", phase, returncode, elapsed)
-        raise RuntimeError(
-            f"Step {phase} failed: command exited with code {returncode}: {' '.join(command)}"
-        )
+        LOGGER.error("Step %s command exited with code %s after %.2fs: %s", phase, returncode, elapsed, shlex.join(command))
+        # Public fallback for when no engine stage reported its own cause.
+        raise RuntimeError(f"The matching engine exited with code {returncode}")
     LOGGER.info("Step %s completed successfully in %.2fs", phase, elapsed)
 
 
@@ -254,6 +253,8 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
                 manifest = exc.manifest
                 warnings.append(str(exc))
                 LOGGER.warning("%s", exc)
+        # Input problems the engine reported without stopping the run.
+        warnings[:0] = [str(warning) for warning in (manifest.get('metadata') or {}).get('warnings') or []]
         set_status(expected_run_id=run_id, dataset_published=True)
         rewritten, reused = get_refresh_scope_tables(run_type)
         _record_data_updated_timestamp(run_type, rewritten, reused)

@@ -1,45 +1,8 @@
 """Problem permalinks: /api/problems serves the page holding a linked stop."""
 
-import re
-
 import pytest
 
-from backend.extensions import db
 from backend.models import AtlasStop, OsmNode, Problem, StopsMatched
-
-
-@pytest.fixture
-def problems_db(app, monkeypatch):
-    """SQLite stand-in for the problem tables (geometry columns become text)."""
-    import sqlalchemy.dialects.sqlite.base as sqlite_base
-
-    orig_do_execute = sqlite_base.SQLiteDialect.do_execute
-
-    def do_execute(self, cursor, statement, parameters=None, context=None):
-        spatial_cmds = ('RecoverGeometryColumn', 'CreateSpatialIndex', 'CheckSpatialMetaData',
-                        'InitSpatialMetaData', 'CheckSpatialIndex')
-        if any(cmd in statement for cmd in spatial_cmds) or 'USING gist' in statement.lower():
-            return
-        if 'CREATE INDEX idx_stops_geom_gist' in statement:
-            return
-        if 'AddGeometryColumn' in statement:
-            match = re.search(r"AddGeometryColumn\s*\('(\w+)',\s*'(\w+)'", statement)
-            if match:
-                try:
-                    orig_do_execute(self, cursor, f'ALTER TABLE {match.group(1)} ADD COLUMN {match.group(2)} TEXT', None, context)
-                except Exception:
-                    pass
-            return
-        orig_do_execute(self, cursor, statement.replace('GeomFromEWKT(?)', '?'), parameters, context)
-
-    monkeypatch.setattr(sqlite_base.SQLiteDialect, 'do_execute', do_execute)
-    with app.app_context():
-        # Loading a StopsMatched row selects its geometry through AsEWKB().
-        db.session.connection().connection.dbapi_connection.create_function('AsEWKB', 1, lambda value: value)
-        for model in (AtlasStop, OsmNode, StopsMatched, Problem):
-            model.__table__.create(bind=db.engine, checkfirst=True)
-        yield db.session
-        db.session.remove()
 
 
 def add_stop(session, sloid=None, osm_node_id=None, problems=(), **atlas):

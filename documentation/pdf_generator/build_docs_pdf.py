@@ -20,6 +20,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from backend.services.docs_order import doc_sort_key
 from backend.services.docs_stats import (
     load_stats_for_docs, replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html,
     heading_slug,
@@ -131,9 +132,9 @@ def _sorted_docs(included_sections: list[str] = None) -> list[Path]:
     overview = [path for path in app_docs if _top_level_section_key(path.name) == '0']
     app_reference = [path for path in app_docs if path not in overview]
     docs = (
-        sorted(overview, key=lambda path: path.name.lower())
-        + sorted(engine_docs, key=lambda path: path.name.lower())
-        + sorted(app_reference, key=lambda path: path.name.lower())
+        sorted(overview, key=lambda path: doc_sort_key(path.name))
+        + sorted(engine_docs, key=lambda path: doc_sort_key(path.name))
+        + sorted(app_reference, key=lambda path: doc_sort_key(path.name))
     )
     if included_sections is not None:
         normalized_sections = {

@@ -414,6 +414,22 @@
         syncStageHighlight();
     }
 
+    // The failed stage's label names the dependency; the first line of its error is the reason.
+    function failureDetails(status) {
+        var state = status.failed_stage ? (status.stage_states || {})[status.failed_stage] : null;
+        if (!state || !state.error) return null;
+        var plan = Array.isArray(status.stage_plan) ? status.stage_plan : [];
+        var spec = plan.find(function (item) { return item.id === status.failed_stage; }) || {};
+        var phase = plan.find(function (item) { return item.id === spec.parent_id; }) || {};
+        var error = String(state.error);
+        return {
+            reason: error.split('\n')[0],
+            error: error,
+            where: [spec.label || status.failed_stage, phase.label].filter(Boolean).join(' · ') +
+                ' · failed at ' + formatTime(state.finished_at || status.finished_at)
+        };
+    }
+
     function renderPipeline(status) {
         var card = document.getElementById('pipelineRunCard');
         if (!card || !status) return;
@@ -433,6 +449,8 @@
         var message = document.getElementById('analyticsPipelineMessage');
         var badge = document.getElementById('analyticsPipelineStatus');
         var elapsed = document.getElementById('analyticsPipelineElapsed');
+        var detail = document.getElementById('analyticsPipelineDetail');
+        var failure = failed ? failureDetails(status) : null;
 
         function setMessage(text) {
             if (!message) return;
@@ -451,7 +469,7 @@
             elapsed.textContent = runStarted ? 'Elapsed ' + formatDuration((Date.now() - runStarted.getTime()) / 1000) : 'Running';
         } else if (failed) {
             setTextIfChanged(title, status.dataset_published ? 'Dataset published; follow-up failed' : 'Latest pipeline run failed');
-            setMessage(status.last_error || status.message || 'The previous analytics snapshot remains available below.');
+            setMessage(failure ? failure.reason : (status.last_error || status.message || 'The previous analytics snapshot remains available below.'));
             setHtmlIfChanged(badge, '<span class="pipeline-run-card__dot"></span>Needs attention');
             elapsed.textContent = status.finished_at ? 'Stopped ' + formatTime(status.finished_at) : 'Stopped';
         } else if (successful) {
@@ -464,6 +482,14 @@
             setMessage('');
             setHtmlIfChanged(badge, '<span class="pipeline-run-card__dot"></span>Waiting');
             elapsed.textContent = 'Not started';
+        }
+        if (message) {
+            if (failure) message.title = failure.error;
+            else message.removeAttribute('title');
+        }
+        if (detail) {
+            setTextIfChanged(detail, failure ? failure.where : '');
+            detail.hidden = !failure;
         }
 
         card.querySelectorAll('[data-pipeline-stage]').forEach(function (stageElement) {

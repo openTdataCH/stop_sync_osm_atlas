@@ -31,6 +31,7 @@ describe('analytics pipeline timeline', () => {
       <section id="pipelineRunCard" data-last-completed="2026-09-20T10:00:00Z">
         <h2 id="analyticsPipelineTitle"></h2>
         <p id="analyticsPipelineMessage"></p>
+        <p id="analyticsPipelineDetail" hidden></p>
         <span id="analyticsPipelineStatus"></span>
         <span id="analyticsPipelineElapsed"></span>
         ${stages.map(stageMarkup).join('')}
@@ -370,6 +371,42 @@ describe('analytics pipeline timeline', () => {
     expect(matching.classList.contains('is-failed')).toBe(true);
     expect(matching.classList.contains('is-complete')).toBe(false);
     expect(parseFloat(matching.querySelector('.pipeline-timeline__fill').style.width)).toBeGreaterThan(0);
+  });
+
+  test('shows the failed stage, its one-line reason and the full error on the card', () => {
+    const error = 'Overpass request failed: https://overpass-api.de/api/interpreter: HTTP 504 (3 attempts)\nmore detail';
+    document.dispatchEvent(new CustomEvent('pipeline-status:update', {
+      detail: {
+        status: 'failed',
+        phase: 'failed',
+        failed_phase: 'source_files',
+        failed_stage: 'osm.download',
+        last_error: 'Download OSM data from Overpass: ' + error,
+        finished_at: '2026-10-07T03:20:00Z',
+        stage_plan: [
+          {id: 'source_files', parent_id: null, phase: 'source_files', label: 'Prepare source files', order: 20},
+          {id: 'osm.download', parent_id: 'source_files', phase: 'source_files',
+            label: 'Download OSM data from Overpass', order: 50}
+        ],
+        stage_states: {
+          source_files: {status: 'failed'},
+          'osm.download': {status: 'failed', error: error, finished_at: '2026-10-07T03:19:30Z'}
+        }
+      }
+    }));
+
+    const message = document.getElementById('analyticsPipelineMessage');
+    const detail = document.getElementById('analyticsPipelineDetail');
+    expect(message.textContent).toBe('Overpass request failed: https://overpass-api.de/api/interpreter: HTTP 504 (3 attempts)');
+    expect(message.title).toBe(error);
+    expect(detail.hidden).toBe(false);
+    expect(detail.textContent).toMatch(/^Download OSM data from Overpass · Prepare source files · failed at \S/);
+
+    document.dispatchEvent(new CustomEvent('pipeline-status:update', {
+      detail: {status: 'running', phase: 'source_check', started_at: new Date().toISOString()}
+    }));
+    expect(detail.hidden).toBe(true);
+    expect(message.hasAttribute('title')).toBe(false);
   });
 
   test('shows cached and inapplicable stages as reused or skipped', () => {

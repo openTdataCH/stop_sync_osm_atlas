@@ -19,9 +19,9 @@
 <text x="100" y="323.55" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="13.5" fill="#343a40" font-weight="600" text-anchor="middle">OpenStreetMap</text>
 <text x="100" y="338.85" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#343a40" text-anchor="middle">XML extract</text></g>
 <g><rect x="202" y="104" width="372" height="262" rx="16" fill="#f6fbf6" stroke="#4caf50" stroke-width="1.5"/>
-<rect x="218" y="93" width="323.32" height="22" rx="11" fill="#ffffff" stroke="#4caf50" stroke-width="1.2"/>
-<text x="229" y="108.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#1f5e22" font-weight="600" letter-spacing="1.2">MATCHING ENGINE</text>
-<text x="382.68" y="108.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#6c757d">public-transport-matcher</text></g>
+<rect x="210" y="93" width="353.18" height="22" rx="11" fill="#ffffff" stroke="#4caf50" stroke-width="1.2"/>
+<text x="221" y="108.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#1f5e22" font-weight="600" letter-spacing="1.2">MATCHING ENGINE</text>
+<a href="https://github.com/openTdataCH/osm-public-transport-matcher" target="_blank"><text x="374.68" y="108.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#6c757d">osm-public-transport-matcher</text></a></g>
 <g><rect x="216" y="128" width="156" height="128" rx="10" fill="#ffffff" stroke="#4caf50" stroke-width="1.5"/>
 <text x="294" y="164.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="14" fill="#1f5e22" font-weight="600" text-anchor="middle">Format adapters</text>
 <text x="294" y="180.6" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#343a40" text-anchor="middle">ATLAS · GTFS · OSM</text>
@@ -65,12 +65,12 @@
 <text x="846" y="149.85" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#343a40" text-anchor="middle">other datasets or countries</text></g>
 <g><rect x="752" y="176" width="188" height="42" rx="10" fill="#ffffff" stroke="#6c757d" stroke-width="1.5" stroke-dasharray="6 4"/>
 <text x="846" y="201.05" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="13.5" fill="#343a40" font-weight="600" text-anchor="middle">Scripts and research</text></g>
-<g><rect x="752" y="238" width="188" height="120" rx="10" fill="#eef3fb" stroke="#174092" stroke-width="1.5"/>
+<a href="https://github.com/openTdataCH/stop_sync_osm_atlas" target="_blank"><g><rect x="752" y="238" width="188" height="120" rx="10" fill="#eef3fb" stroke="#174092" stroke-width="1.5"/>
 <text x="846" y="270.2" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="14" fill="#174092" font-weight="600" text-anchor="middle">Review application</text>
 <text x="846" y="286.6" font-family="'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace" font-size="12" fill="#343a40" text-anchor="middle">stop_sync_osm_atlas</text>
 <text x="846" y="302.6" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#343a40" text-anchor="middle">own repository</text>
 <text x="846" y="318.6" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#343a40" text-anchor="middle">Flask, PostGIS, map UI</text>
-<text x="846" y="334.6" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#343a40" text-anchor="middle">imports each bundle</text></g>
+<text x="846" y="334.6" font-family="'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#343a40" text-anchor="middle">imports each bundle</text></g></a>
 <g><path d="M726 237 L733 237 Q738 237 738 232 L738 143 Q738 138 743 138 L750 138" fill="none" stroke="#6c757d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M741.91 141.95 L750 138 L741.91 134.05 Z" fill="#6c757d" stroke="#6c757d" stroke-width="1" stroke-linejoin="round"/></g>
 <g><path d="M726 237 L733 237 Q738 237 738 232 L738 202 Q738 197 743 197 L750 197" fill="none" stroke="#6c757d" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>

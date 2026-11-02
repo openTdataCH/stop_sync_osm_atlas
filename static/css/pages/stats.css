@@ -551,6 +551,12 @@
   font-size: 0.84rem;
 }
 
+.pipeline-run-card__detail {
+  margin: 0.15rem 0 0;
+  color: var(--color-fg-subtle);
+  font-size: 0.75rem;
+}
+
 .pipeline-run-card__meta {
   display: flex;
   align-items: flex-end;

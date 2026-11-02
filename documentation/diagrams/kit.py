@@ -256,12 +256,19 @@ def box(x: float, y: float, w: float, h: float, tone: Tone, title: Optional[Text
     return f'<g>{shape}\n{label}</g>'
 
 
+def linked(href: str, fragment: str) -> str:
+    """Wrap an SVG fragment in a hyperlink (clickable only when the SVG is inlined or opened on its own)."""
+    return f'<a href="{escape(href, {chr(34): "&quot;"})}" target="_blank">{fragment}</a>'
+
+
 def zone(x: float, y: float, w: float, h: float, tone: Tone, label: str,
-         sublabel: Optional[str] = None, *, dashed: bool = False, tab_x: Optional[float] = None) -> str:
+         sublabel: Optional[str] = None, *, dashed: bool = False, tab_x: Optional[float] = None,
+         href: Optional[str] = None) -> str:
     """An ownership area. The label sits on the top border, like a tab.
 
     ``tab_x`` moves the tab (default: near the left corner) out of the way
-    of arrows that cross the top border.
+    of arrows that cross the top border. ``href`` turns the sublabel into a
+    link (it only works when the SVG is inlined or opened on its own).
     """
     shape = _rect(x, y, w, h, fill=tone.tint, stroke=tone.stroke, radius=16, width=1.5,
                   dash='8 5' if dashed else None)
@@ -278,7 +285,10 @@ def zone(x: float, y: float, w: float, h: float, tone: Tone, label: str,
     parts.append(_rect(left, y - 11, tab_w, 22, fill=SURFACE, stroke=tone.stroke, radius=11, width=1.2))
     parts.append(text(left + 11, y + 4.2, caption, size=SMALL_SIZE, bold=True, color=tone.text, letter_spacing=1.2))
     if sublabel:
-        parts.append(text(left + 11 + caption_w + 8, y + 4.2, sublabel, size=SMALL_SIZE, color=MUTED))
+        link = text(left + 11 + caption_w + 8, y + 4.2, sublabel, size=SMALL_SIZE, color=MUTED)
+        if href:
+            link = linked(href, link)
+        parts.append(link)
     return '<g>' + '\n'.join(parts) + '</g>'
 
 

@@ -79,7 +79,7 @@ docker compose up --build -d
 docker exec stop_sync_osm_atlas_scheduler python -m backend.jobs.job_runner --mode full --trigger manual
 ```
 
-The scheduler invokes the independent `public-transport-matcher` executable, writes a complete result bundle, and asks the app importer to publish it. Daily runs use `PIPELINE_SCHEDULE_INTERVAL_HOURS` and `PIPELINE_TIMEZONE`.
+The scheduler invokes the independent `public-transport-matcher` executable, writes a complete result bundle, and asks the app importer to publish it. Scheduled runs (hourly by default) use `PIPELINE_SCHEDULE_INTERVAL_HOURS` and `PIPELINE_TIMEZONE`.
 
 The scheduler owns only the next-run timestamp; the active runner owns execution status and phase history. Shared status updates are atomic, so scheduler startup or schedule refresh cannot overwrite an active manual run. The Data page polls this state and animates the pipeline phases from source checks through atomic dataset publication. Engine progress records provide live details; reused caches and mode-specific omissions appear as `Reused` or `Skipped`. See [Background scheduler](documentation/3.3%20Background%20Scheduler.md) for the stage definitions, state-ownership, heartbeat-recovery and live-timeline contracts.
 
@@ -139,7 +139,6 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md). A matching-rule contribution can 
 - [Quality workflow and maintenance](quality/README.md)
 - [Contribution tutorials](documentation/Contributing.md)
 - [Documentation style guide](documentation/Documentation%20style%20guide.md)
-- [Related tools and collaboration](../engine/documentation/Related%20projects.md)
 
 Code remains AGPL-3.0-or-later. Source dataset attribution is recorded separately in result metadata.
 

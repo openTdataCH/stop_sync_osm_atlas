@@ -37,6 +37,7 @@ SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
       <div class="pipeline-run-card__eyebrow">Pipeline</div>
       <h2 class="pipeline-run-card__title" id="analyticsPipelineTitle">{% if pipeline_is_running %}Pipeline update in progress{% elif pipeline_has_failed %}Latest pipeline run failed{% elif pipeline_has_completed %}Latest run complete{% else %}Waiting for first pipeline run{% endif %}</h2>
       <p class="pipeline-run-card__message" id="analyticsPipelineMessage"{% if not pipeline_is_running and not pipeline_has_failed %} hidden{% endif %}>{% if pipeline_is_running %}{{ current_pipeline_status.message or 'Preparing the next analytics snapshot.' }}{% elif pipeline_has_failed %}{{ current_pipeline_status.last_error or current_pipeline_status.message or 'The previous analytics snapshot remains available below.' }}{% endif %}</p>
+      <p class="pipeline-run-card__detail" id="analyticsPipelineDetail" hidden></p>
     </div>
     <div class="pipeline-run-card__meta">
       <span class="pipeline-run-card__status" id="analyticsPipelineStatus"><span class="pipeline-run-card__dot"></span>{% if pipeline_is_running %}Running{% elif pipeline_has_failed %}Needs attention{% elif pipeline_has_completed %}Complete{% else %}Waiting{% endif %}</span>
@@ -86,9 +87,14 @@ SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
       <img src="{{ static_prefix }}opentransportdata.svg" alt="">
       <div><span>Last GTFS Downloaded</span><strong>{{ (gtfs_download.gtfs_downloaded_at|default(gtfs_download.downloaded_at, true))|format_zurich_display_timestamp(include_seconds=True) or 'Not recorded' }}</strong></div>
     </div>
-    <div class="source-freshness__item">
+    {# osm_data_at is Overpass's osm_base: how current the OSM data was, not when we asked. #}
+    <div class="source-freshness__item"{% if stats.osm_data_at and stats.last_overpass_query_at %} title="Overpass queried {{ stats.last_overpass_query_at|format_zurich_display_timestamp(include_seconds=True) }}"{% endif %}>
       <img src="{{ static_prefix }}osm.svg" alt="">
+      {% if stats.osm_data_at %}
+      <div><span>OSM data as of</span><strong>{{ stats.osm_data_at|format_zurich_display_timestamp(include_seconds=True) }}</strong></div>
+      {% else %}
       <div><span>Overpass queried</span><strong>{{ stats.last_overpass_query_at|format_zurich_display_timestamp(include_seconds=True) or 'Unknown' }}</strong></div>
+      {% endif %}
     </div>
   </div>
 </section>

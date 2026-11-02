@@ -326,3 +326,13 @@
     padding: 0.15rem 0.35rem;
   }
 }
+
+/* Beside "Data updated" when the latest run failed or the data is overdue. */
+.navbar-data-warning__dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-warning);
+  vertical-align: middle;
+}

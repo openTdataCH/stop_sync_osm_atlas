@@ -43,6 +43,47 @@ def test_missing_engine_explains_how_to_rebuild_scheduler(monkeypatch):
     assert 'MATCHER_COMMAND' in str(error.value)
 
 
+def test_engine_exit_fallback_keeps_the_command_in_the_log_only(monkeypatch, caplog):
+    import sys
+    monkeypatch.setattr(job_runner, 'set_phase', lambda **kwargs: None)
+    monkeypatch.setattr(job_runner, 'get_status', lambda: {'run_id': 'run-1'})
+
+    with pytest.raises(RuntimeError) as error:
+        job_runner._run_subprocess([sys.executable, '-c', 'raise SystemExit(3)'], 'source_check', 'Checking sources')
+
+    assert str(error.value) == 'The matching engine exited with code 3'
+    assert 'raise SystemExit(3)' in caplog.text
+
+
+def test_publication_guard_refuses_a_large_drop_against_the_published_snapshot():
+    from backend.importing.importer import check_against_published
+
+    def manifest(atlas, osm, matches):
+        return {'files': {'source_stops': {'rows': atlas}, 'osm_nodes': {'rows': osm}, 'matches': {'rows': matches}}}
+
+    published = manifest(100, 61204, 90)
+    check_against_published(manifest(100, 0, 0), None, 20)
+    check_against_published(manifest(80, 61204, 90), published, 20)
+    with pytest.raises(ValueError, match=r'^Refused to publish: OSM elements fell from 61,204 to 0, more than the 20% allowed$'):
+        check_against_published(manifest(100, 0, 90), published, 20)
+    check_against_published(manifest(0, 0, 0), published, 100)
+
+
+def test_refused_publication_fails_the_validate_stage(monkeypatch):
+    from backend.importing import importer
+
+    def rows(count):
+        return {'files': {section: {'rows': count} for section in ('source_stops', 'osm_nodes', 'matches')}}
+
+    monkeypatch.setattr(importer, 'read_bundle', lambda directory: {'manifest': rows(0)})
+    monkeypatch.setattr(importer, '_published_manifest', lambda: rows(10))
+    events = []
+    with pytest.raises(ValueError, match='Refused to publish: ATLAS platforms fell from 10 to 0'):
+        importer.import_bundle('bundle', stage_event_callback=events.append)
+    assert [(event['event'], event['stage_id']) for event in events] == [
+        ('stage_started', 'database.validate'), ('stage_failed', 'database.validate')]
+
+
 def test_import_bundle_reports_projection_and_analytics(monkeypatch):
     from backend.importing import importer
     from backend.services import data_meta
@@ -189,6 +230,25 @@ def test_runner_reports_published_dataset_with_analytics_warning(monkeypatch):
     assert status['stage_states']['publish.analytics']['status'] == 'failed'
     assert status['stage_states']['publish']['status'] == 'failed'
     assert status['status'] == 'idle'
+
+
+def test_runner_reports_engine_input_warnings(monkeypatch):
+    from backend.services import pipeline_status
+    from backend.services.pipeline_state_store import MemoryPipelineStateStore
+
+    store = MemoryPipelineStateStore()
+    monkeypatch.setattr(pipeline_status, 'get_pipeline_state_store', lambda: store)
+    monkeypatch.setenv('PIPELINE_BUNDLE', '/unused-test-bundle')
+    monkeypatch.setattr(job_runner, '_record_data_updated_timestamp', lambda *args: None)
+    monkeypatch.setattr(job_runner.data_meta, 'update_data_meta', lambda **kw: None)
+    warning = 'ATLAS CSV lacks trafficPointElementType; all traffic point types were kept, not only boarding platforms'
+    monkeypatch.setattr(job_runner, 'import_bundle', lambda directory, stage_event_callback: {
+        'run_id': 'published-run', 'schema_version': 1, 'metadata': {'warnings': [warning]}})
+
+    assert job_runner.run_pipeline('import') == 0
+    status = store.read_status()
+    assert status['warnings'][0] == warning
+    assert status['message'] == 'Dataset published with warnings'
 
 
 @pytest.mark.parametrize('mode', ['match-import', 'import'])

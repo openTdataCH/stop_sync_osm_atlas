@@ -162,6 +162,7 @@
           "backend/services/gtfs_stop_id_sloid.py",
           "backend/services/async_export*.py",
           "backend/services/url_query.py",
+          "backend/services/stop_lookup.py",
           "backend/services/time_utils.py",
           "backend/services/transport_routes.py",
           "backend/services/route_comparison.py",
@@ -182,6 +183,7 @@
         "tests": [
           "tests/test_validators.py",
           "tests/test_search_security.py",
+          "tests/test_public_api.py",
           "tests/test_filter_semantics.py",
           "tests/test_routes_blueprint.py",
           "tests/test_route_comparison.py",
@@ -193,7 +195,8 @@
       },
       "docs": {
         "explanation": [
-          "documentation/2.2 Filters and Search logic.md"
+          "documentation/2.2 Filters and Search logic.md",
+          "documentation/2.10 Public API.md"
         ],
         "reference": [
           "documentation/3.2 Security and Rate Limits.md"
@@ -224,6 +227,7 @@
           "static/js/shared/utils.js",
           "static/js/shared/jquery-lite.js",
           "static/js/shared/constants.js",
+          "static/js/shared/permalinks.js",
           "templates/pages/index.html",
           "templates/pages/problems.html",
           "templates/pages/routes.html",
@@ -277,6 +281,7 @@
           "backend/blueprints/docs.py",
           "backend/services/repo_scanner.py",
           "backend/services/docs_stats.py",
+          "backend/services/docs_order.py",
           "backend/services/quality_report.py",
           "documentation/**/*.py",
           "documentation/**/*.css",

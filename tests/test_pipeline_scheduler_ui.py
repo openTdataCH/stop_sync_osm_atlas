@@ -23,15 +23,15 @@ def test_update_next_run_timestamp_serializes_utc_iso(monkeypatch):
 
     class DummyScheduler:
         def get_job(self, job_id):
-            assert job_id == "daily_pipeline_update"
+            assert job_id == "scheduled_pipeline_update"
             return DummyJob()
 
     monkeypatch.setattr(service, "scheduler", DummyScheduler())
-    monkeypatch.setattr(service, "set_next_run", lambda value: captured.setdefault("value", value))
+    monkeypatch.setattr(service, "set_next_run", lambda value, **kwargs: captured.update(value=value, **kwargs))
 
     service._update_next_run_timestamp()
 
-    assert captured["value"] == expected.isoformat()
+    assert captured == {"value": expected.isoformat(), "interval_hours": service.PIPELINE_SCHEDULE_INTERVAL_HOURS}
 
 
 def test_scheduler_started_listener_refreshes_next_run(monkeypatch):
@@ -82,7 +82,7 @@ def test_scheduler_startup_preserves_an_active_pipeline_status(monkeypatch, tmp_
             return None
 
         def get_job(self, job_id):
-            assert job_id == "daily_pipeline_update"
+            assert job_id == "scheduled_pipeline_update"
             return DummyJob()
 
         def start(self):
@@ -192,6 +192,54 @@ def test_pipeline_status_records_phase_history(monkeypatch):
 
     assert failed["failed_phase"] == "stop_matching"
     assert failed["phase_history"][-1]["status"] == "failed"
+
+
+def test_failure_reports_the_failed_stage_and_its_own_cause(monkeypatch):
+    from backend.services import pipeline_status
+
+    stored = {}
+    monkeypatch.setattr(pipeline_status, "_read_raw_status", lambda: dict(stored))
+    monkeypatch.setattr(pipeline_status, "_patch_raw_status", lambda fields: stored.update(fields) or dict(stored))
+    spec = {"id": "osm.download", "parent_id": "source_files", "phase": "source_files",
+            "label": "Download OSM data from Overpass", "description": "Request the OSM snapshot.",
+            "order": 50, "progress_kind": "indeterminate"}
+    cause = "Overpass request failed: https://overpass-api.de/api/interpreter: HTTP 504 (3 attempts)"
+
+    pipeline_status.start_run(trigger="manual", run_id="run-overpass")
+    pipeline_status.record_progress_event({"event": "pipeline_plan", "progress_schema_version": 2, "stages": [spec]})
+    for event in ({"event": "stage_started"}, {"event": "stage_failed", "error": cause}):
+        pipeline_status.record_progress_event(
+            {**event, "progress_schema_version": 2, "stage_id": spec["id"], "stage_spec": spec, "seconds": 1})
+    failed = pipeline_status.finish_failure("The matching engine exited with code 1")
+
+    assert failed["failed_stage"] == "osm.download"
+    assert failed["failed_phase"] == "source_files"
+    assert failed["last_error"] == f"Download OSM data from Overpass: {cause}"
+
+    pipeline_status.start_run(trigger="manual", run_id="run-killed")
+    killed = pipeline_status.finish_failure("The matching engine exited with code -9")
+    assert killed["failed_stage"] is None
+    assert killed["last_error"] == "The matching engine exited with code -9"
+
+
+def test_data_warning_reports_a_failed_or_overdue_update():
+    from backend.services.pipeline_status import _data_warning
+
+    published = "2026-10-30T03:00:00+01:00"
+    assert _data_warning({"status": "failed", "last_pipeline_data_import_ended_at": published}) == (
+        "Latest update failed; showing data from 2026-10-30 03:00")
+    assert _data_warning({"status": "failed"}) == "Latest update failed; no data is published yet"
+    # A failure after the switch still shows the newest data.
+    assert _data_warning({"status": "failed", "dataset_published": True,
+                          "last_pipeline_data_import_ended_at": published}) is None
+
+    now = datetime.now(timezone.utc)
+    recent = {"status": "idle", "schedule_interval_hours": 24,
+              "last_pipeline_data_import_ended_at": (now - timedelta(hours=47)).isoformat()}
+    overdue = dict(recent, last_pipeline_data_import_ended_at=(now - timedelta(hours=49)).isoformat())
+    assert _data_warning(recent) is None
+    assert _data_warning(overdue).startswith("No update for more than 48 hours; showing data from ")
+    assert _data_warning(dict(overdue, schedule_interval_hours=None)) is None
 
 
 def test_pipeline_status_records_and_clears_reused_phase_outcomes(monkeypatch):
