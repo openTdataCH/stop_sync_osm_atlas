@@ -3,9 +3,10 @@ data/
 
 memoire/
 
-# Text files (except requirements variants)
+# Text files (except requirements variants and the llms.txt template)
 *.txt
 !requirements.txt
+!templates/llms.txt
 !requirements-base.txt
 !requirements-web.txt
 !requirements-scheduler.txt

@@ -1,0 +1,30 @@
+# {{ review_config.title }}
+
+> Compares the public transport stops in OpenStreetMap (OSM) with {{ review_config.source_label }}, the reference stop list, and lists the differences as problems to fix. Read-only and public; no account is needed.
+
+The data is one published snapshot, refreshed by a scheduled pipeline. The map and list pages draw their content with JavaScript, so a client that does not run it sees no stop data there. Use the lookup below instead.
+
+## Look up a stop
+
+`GET /api/lookup` returns every match of a stop as JSON, with distances, match types, problems and OSM tags. Give one of:
+
+- `osm=node/<id>` or `osm=way/<id>`: an OSM element, written as on openstreetmap.org
+- `sloid=<id>`: a {{ review_config.source_label }} stop, by its {{ review_config.source_id_label }}
+- `uic_ref=<station number>`: every stop of a station, on both sides
+
+A stop can be matched to several stops of the other source; the response lists them all, closest first. An unknown stop returns `"count": 0`. Limit: 60 requests per minute.
+
+Page links use the same identifiers: `/?osm=node/<id>` and `/?sloid=<id>` open the map on a stop, and `/problems?osm=node/<id>` opens its first problem. Their HTML names the stop and links to its lookup.
+
+The other `/api/` endpoints serve the web pages and change without notice; do not rely on them.
+
+## Documentation
+
+- [Public API](/docs/public_api): the lookup's parameters, response fields and stability rules
+- [Permalinks](/docs/permalinks): the link format of every page
+- [Glossary](/docs/glossary): stop types, match types and other terms
+- [Stop problems](/docs/stop_problems): what each problem type means
+
+## Data licences
+
+OSM data © OpenStreetMap contributors, available under the Open Database License (ODbL). Each lookup response names the sources of its snapshot in `snapshot.attribution`.
