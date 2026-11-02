@@ -1,0 +1,113 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Code quality | {{ review_config.title }}{% endblock %}
+{% block meta_description %}How the engine and review application modules depend on each other, and the latest test, coverage and structural evidence for each.{% endblock %}
+
+{% block head_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/quality.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="quality-page" id="qualityDashboard" data-api-url="{{ url_for('quality.quality_data') }}">
+  <header class="quality-header">
+    <div class="quality-header__text">
+      <h1>Code quality</h1>
+      <p>
+        The module catalog divides both repositories into modules, each with one responsibility. The map shows how
+        their code depends on each other; the table shows the evidence from the CI run of the deployed commit.
+        <a href="{{ url_for('docs.docs_page', page='code_quality') }}">How this is measured</a>
+      </p>
+    </div>
+    <dl class="quality-summary" id="qualitySummary" aria-live="polite"></dl>
+  </header>
+
+  <div class="alert alert-warning quality-alert" id="qualityWarning" role="alert" hidden>
+    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+    <span id="qualityWarningText"></span> Every result below is marked stale.
+  </div>
+
+  <div class="alert alert-secondary quality-alert" id="qualityUnavailable" hidden>
+    <strong>Quality evidence unavailable.</strong> Run <code>make deploy-report</code> once CI has passed on the latest commit.
+    Missing evidence is not a passing result.
+  </div>
+
+  <div id="qualityContent" hidden>
+    <section class="quality-card" id="qualityMapSection" aria-labelledby="qualityMapTitle">
+      <div class="quality-toolbar">
+        <h2 class="quality-card__title" id="qualityMapTitle">Module map <span class="quality-breadcrumb" id="qualityBreadcrumb"></span></h2>
+        <div class="quality-toolbar__controls">
+          <div class="btn-group btn-group-sm" role="group" aria-label="Map view">
+            <button type="button" class="btn btn-outline-primary active" data-view-toggle="modules" aria-pressed="true">Modules</button>
+            <button type="button" class="btn btn-outline-primary" data-view-toggle="files" aria-pressed="false">All files</button>
+          </div>
+          <label class="quality-toolbar__field">
+            Color by
+            <select class="form-select form-select-sm" id="qualityColorBy">
+              <option value="criticality">Criticality</option>
+              <option value="coverage">Branch coverage</option>
+              <option value="repository">Repository</option>
+            </select>
+          </label>
+          <label class="form-check quality-toolbar__field">
+            <input class="form-check-input" type="checkbox" id="qualityUnusedToggle" checked>
+            <span class="form-check-label">Declared dependencies without code</span>
+          </label>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="qualityFit">
+            <i class="fas fa-expand" aria-hidden="true"></i> Fit
+          </button>
+        </div>
+      </div>
+      <div class="quality-map-layout">
+        <div class="quality-map-wrap">
+          <div class="quality-map" id="qualityMap" role="img" aria-label="Module dependency map. The findings and module table below list the same information as text."></div>
+          <div class="quality-tooltip" id="qualityTooltip" hidden></div>
+        </div>
+        <aside class="quality-panel" id="qualityPanel" aria-live="polite"></aside>
+      </div>
+      <ul class="quality-legend" id="qualityLegend"></ul>
+    </section>
+
+    <section class="quality-card" id="qualityFindingsSection" aria-labelledby="qualityFindingsTitle">
+      <h2 class="quality-card__title" id="qualityFindingsTitle">Module boundaries</h2>
+      <div class="quality-findings" id="qualityFindings"></div>
+    </section>
+
+    <section class="quality-card" aria-labelledby="qualityTableTitle">
+      <h2 class="quality-card__title" id="qualityTableTitle">Evidence by module</h2>
+      <p class="quality-muted">
+        Criticality is declared in the catalog from the impact of a failure, not measured. Duplicated blocks are code
+        clones of at least 10 lines; Python dead code is Vulture's certain findings. For both, the status says whether
+        any is new since the reviewed baseline. There is no combined quality score.
+      </p>
+      <div class="table-responsive">
+        <table class="table table-sm quality-table">
+          <thead>
+            <tr>
+              <th scope="col">Module</th>
+              <th scope="col">Criticality</th>
+              <th scope="col">Tests</th>
+              <th scope="col">Branch coverage</th>
+              <th scope="col">Mutation</th>
+              <th scope="col">Duplicated blocks</th>
+              <th scope="col">Python dead code</th>
+              <th scope="col">Docs</th>
+              <th scope="col">Architecture</th>
+            </tr>
+          </thead>
+          <tbody id="qualityTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="quality-card" aria-labelledby="qualityChecksTitle">
+      <h2 class="quality-card__title" id="qualityChecksTitle">Required checks</h2>
+      <div id="qualityChecks"></div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/cytoscape/cytoscape.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/quality/dashboard.js') }}"></script>
+{% endblock %}

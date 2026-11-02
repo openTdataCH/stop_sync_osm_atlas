@@ -51,7 +51,7 @@ def source_fingerprint(root):
     if result.returncode:
         return None
     digest = hashlib.sha256()
-    generated = {'quality/latest.json', 'quality/quality-map.json', 'quality/report.md'}
+    generated = {'quality/latest.json', 'quality/quality-map.json', 'quality/code-map.json', 'quality/report.md'}
     for name in sorted(set(result.stdout.decode().rstrip('\0').split('\0'))):
         if not name or name in generated or name.startswith(('quality/raw/', f'{PUBLISHED}/', 'documentation/generated/')):
             continue
@@ -83,15 +83,17 @@ def render_report(report, artifact_prefix='', evidence_url=None):
     lines = [f"Evidence: **{report.get('completeness', 'unavailable')}**. Generated: {report.get('generated_at', 'unknown')}.", '',
              f"App revision: `{revisions.get('app')}`. Engine revision: `{revisions.get('engine')}`.", '',
              'Tools: ' + (', '.join(f'{_cell(name)} {_cell(version)}' for name, version in sorted(report.get('tools', {}).items())) or 'not recorded') + '.', '',
-             'Missing measurements are explicit. Coverage targets and trends are advisory during baseline collection. There is no combined quality score.', '',
-             '| Module | Risk | Tests | Branch coverage | Mutation | Clones | Python dead code | Docs | Architecture | Trend |',
-             '|---|---|---|---|---|---|---|---|---|---|']
+             'Missing measurements are explicit. Criticality is declared in the module catalog from the impact of a failure, not measured. '
+             'Duplicated blocks counts code clones of at least 10 lines; "pass" means none is new since the reviewed baseline. '
+             'There is no combined quality score.', '',
+             '| Module | Criticality | Tests | Branch coverage | Mutation | Duplicated blocks | Python dead code | Docs | Architecture |',
+             '|---|---|---|---|---|---|---|---|---|']
     for mid, row in sorted(report.get('modules', {}).items()):
         docs = row['docs']
         values = [mid, row['criticality'], _metric(row['tests']), _metric(row['coverage'], 'branches'), _metric(row['mutation']),
                   f"{row['duplication']['count']} ({_metric(row['duplication'])})" if row['duplication'].get('count') is not None else _metric(row['duplication']),
                   f"{row['dead_code']['count']} ({_metric(row['dead_code'])})" if row['dead_code'].get('count') is not None else _metric(row['dead_code']),
-                  f"{docs.get('satisfied', 0)}/{docs.get('required', 0)}", _metric(row['architecture']), _metric(row.get('trend', {}))]
+                  f"{docs.get('satisfied', 0)}/{docs.get('required', 0)}", _metric(row['architecture'])]
         lines.append('| ' + ' | '.join(_cell(value) for value in values) + ' |')
     lines.extend(['', 'Required check results from the recorded run:', ''])
     checks = report.get('checks', [])
@@ -127,40 +129,58 @@ def _validate_render_shape(report):
     for row in report['modules'].values():
         if not isinstance(row, dict):
             raise ValueError('Invalid quality module')
-        for lane in ('tests', 'coverage', 'mutation', 'duplication', 'dead_code', 'docs', 'architecture', 'trend'):
-            measurement = row.get(lane, {} if lane == 'trend' else None)
+        for lane in ('tests', 'coverage', 'mutation', 'duplication', 'dead_code', 'docs', 'architecture'):
+            measurement = row.get(lane)
             if not isinstance(measurement, dict) or not isinstance(measurement.get('status', 'not_measured'), str):
                 raise ValueError(f'Invalid quality {lane} measurement')
+
+
+def load_published(repo_root):
+    """The published report and code map, marked stale when the running code is not what they measured.
+
+    Returns ``(report, code_map, publication, changed)``; ``code_map`` is None for a report published without one.
+    Raises OSError, ValueError, KeyError or TypeError when the published evidence is missing or malformed.
+    """
+    root = Path(repo_root)
+    report = json.loads((root / PUBLISHED / 'latest.json').read_text())
+    _validate_render_shape(report)
+    publication = json.loads((root / PUBLISHED / 'publication.json').read_text())
+    try:
+        code_map = json.loads((root / PUBLISHED / 'code-map.json').read_text())
+    except FileNotFoundError:
+        code_map = None
+    if code_map is not None and (not isinstance(code_map, dict) or code_map.get('schema_version') != 1):
+        raise ValueError('unsupported code map')
+    changed = []
+    # The report commit itself only touches quality/published, which is not shipped code.
+    if publication['shipped_fingerprint'] != shipped_fingerprint(shipped_files(root)):
+        changed.append('the application code')
+    if report['revision'].get('engine') != (root / 'engine.ref').read_text().strip():
+        changed.append('the pinned engine')
+    if changed:
+        report['completeness'] = 'stale'
+        for row in report['modules'].values():
+            for lane in ('tests', 'coverage', 'mutation', 'duplication', 'dead_code', 'architecture'):
+                if lane in row and row[lane].get('status') not in {'not_measured', 'not_applicable'}:
+                    row[lane]['status'] = 'stale'
+        for check in report.get('checks', []):
+            check['status'] = 'stale'
+    return report, code_map, publication, changed
+
+
+def stale_warning(report, changed):
+    measured = str(report['revision'].get('app'))[:7]
+    return (f"This report was measured on app commit `{measured}`. Since then {' and '.join(changed)} changed, "
+            'so it may not describe the code running here. Run `make deploy-report` once CI has passed on the latest commit.')
 
 
 def replace_quality_placeholder(text, repo_root):
     """Show the published report, with a warning when the running code is not what it measured."""
     if PLACEHOLDER not in text:
         return text
-    root = Path(repo_root)
     try:
-        report = json.loads((root / PUBLISHED / 'latest.json').read_text())
-        _validate_render_shape(report)
-        publication = json.loads((root / PUBLISHED / 'publication.json').read_text())
-        changed = []
-        # The report commit itself only touches quality/published, which is not shipped code.
-        if publication['shipped_fingerprint'] != shipped_fingerprint(shipped_files(root)):
-            changed.append('the application code')
-        if report['revision'].get('engine') != (root / 'engine.ref').read_text().strip():
-            changed.append('the pinned engine')
-        warning = ''
-        if changed:
-            measured = str(report['revision'].get('app'))[:7]
-            warning = (f"> [!WARNING]\n> This report was measured on app commit `{measured}`. Since then "
-                       f"{' and '.join(changed)} changed, so it may not describe the code running here. "
-                       'Run `make deploy-report` once CI has passed on the latest commit.\n\n')
-            report['completeness'] = 'stale'
-            for row in report['modules'].values():
-                for lane in ('tests', 'coverage', 'mutation', 'duplication', 'dead_code', 'architecture', 'trend'):
-                    if lane in row and row[lane].get('status') not in {'not_measured', 'not_applicable'}:
-                        row[lane]['status'] = 'stale'
-            for check in report.get('checks', []):
-                check['status'] = 'stale'
+        report, _, publication, changed = load_published(repo_root)
+        warning = f'> [!WARNING]\n> {stale_warning(report, changed)}\n\n' if changed else ''
         rendered = warning + render_report(report, None, publication.get('run_url'))
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         rendered = ('**Quality evidence unavailable.** Run `make deploy-report` once CI has passed on the latest commit. '

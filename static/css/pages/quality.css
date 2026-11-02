@@ -1,0 +1,378 @@
+/* ==========================================================================
+   CODE QUALITY DASHBOARD
+   Module map, boundary findings and evidence table.
+   ========================================================================== */
+
+.quality-page {
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.quality-muted {
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+}
+
+/* -------------------------------------------------------------------------
+   Header and run summary
+   ------------------------------------------------------------------------- */
+.quality-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.quality-header__text {
+  flex: 1 1 420px;
+  max-width: 760px;
+}
+
+.quality-header h1 {
+  font-size: var(--text-3xl);
+  margin-bottom: var(--space-2);
+}
+
+.quality-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(130px, auto));
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.quality-summary__item dt {
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  color: var(--color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.quality-summary__item dd {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.quality-alert {
+  margin: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Cards
+   ------------------------------------------------------------------------- */
+.quality-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  padding: var(--space-4);
+}
+
+.quality-card__title {
+  font-size: var(--text-xl);
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--space-3);
+}
+
+.quality-breadcrumb {
+  font-size: var(--text-sm);
+  font-weight: var(--font-normal);
+  color: var(--color-fg-muted);
+  margin-left: var(--space-2);
+}
+
+/* -------------------------------------------------------------------------
+   Map
+   ------------------------------------------------------------------------- */
+.quality-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.quality-toolbar__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+
+.quality-toolbar__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.quality-toolbar__field .form-check-input {
+  margin: 0;
+}
+
+.quality-map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: var(--space-4);
+}
+
+.quality-map-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.quality-map {
+  height: 640px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.quality-tooltip {
+  position: absolute;
+  z-index: 5;
+  max-width: 320px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  font-size: var(--text-sm);
+  pointer-events: none;
+}
+
+.quality-panel {
+  max-height: 640px;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.quality-panel__eyebrow {
+  margin-bottom: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  color: var(--color-fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.quality-panel__title {
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--space-2);
+}
+
+.quality-panel__subtitle {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.quality-panel code,
+.quality-findings code {
+  word-break: break-word;
+}
+
+.quality-lanes {
+  width: 100%;
+}
+
+.quality-lanes th {
+  width: 40%;
+  padding: var(--space-1) var(--space-2) var(--space-1) 0;
+  font-weight: var(--font-medium);
+  vertical-align: top;
+}
+
+.quality-lanes td {
+  padding: var(--space-1) 0;
+}
+
+.quality-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+}
+
+.quality-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.quality-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: var(--radius-full);
+  flex: none;
+}
+
+.quality-swatch--entry {
+  background: var(--color-bg);
+  border: 3px solid var(--color-quality-crossing);
+}
+
+.quality-ramp {
+  display: inline-block;
+  width: 72px;
+  height: 10px;
+  border-radius: var(--radius-sm);
+}
+
+.quality-line {
+  display: inline-block;
+  width: 28px;
+  border-top: 3px solid;
+}
+
+.quality-line--declared { border-top-color: var(--color-quality-declared); }
+.quality-line--undeclared { border-top-color: var(--color-quality-undeclared); border-top-style: dashed; }
+.quality-line--unused { border-top-color: var(--color-quality-unused); border-top-style: dotted; }
+.quality-line--contract { border-top-color: var(--color-quality-contract); border-top-style: dotted; }
+.quality-line--internal { border-top-color: var(--color-quality-internal); }
+.quality-line--crossing { border-top-color: var(--color-quality-crossing); }
+
+/* -------------------------------------------------------------------------
+   Shared text pieces
+   ------------------------------------------------------------------------- */
+.quality-list {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.quality-list li + li {
+  margin-top: var(--space-1);
+}
+
+.quality-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font: inherit;
+}
+
+.quality-link:hover {
+  color: var(--color-primary-hover);
+}
+
+.quality-tag {
+  display: inline-block;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-muted);
+  color: var(--color-fg);
+  font-size: var(--text-xs);
+}
+
+.quality-tag--warn {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-fg);
+}
+
+.quality-warn-text {
+  color: var(--color-warning-fg);
+}
+
+.quality-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.quality-status--good i { color: var(--color-success); }
+.quality-status--bad i { color: var(--color-danger); }
+.quality-status--warn i { color: var(--color-warning-hover); }
+.quality-status--neutral i { color: var(--color-primary); }
+.quality-status--muted { color: var(--color-fg-muted); }
+
+.quality-criticality {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-transform: capitalize;
+}
+
+/* -------------------------------------------------------------------------
+   Findings and table
+   ------------------------------------------------------------------------- */
+.quality-findings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-4);
+}
+
+.quality-findings__group h3 {
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--space-1);
+}
+
+.quality-findings__group > p {
+  margin-bottom: var(--space-2);
+}
+
+.quality-table {
+  font-size: var(--text-sm);
+  margin-bottom: 0;
+}
+
+.quality-table th,
+.quality-table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* -------------------------------------------------------------------------
+   Narrow screens
+   ------------------------------------------------------------------------- */
+@media (max-width: 991.98px) {
+  .quality-map-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .quality-map {
+    height: 60vh;
+    min-height: 380px;
+  }
+
+  .quality-panel {
+    max-height: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .quality-page {
+    padding: var(--space-3);
+  }
+
+  .quality-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

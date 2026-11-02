@@ -2,12 +2,12 @@ import globals from 'globals';
 
 // Classic browser scripts publish these entry points across ordered script tags.
 const browserEntrypoints = Object.fromEntries([
-    '$', 'L', 'bootstrap', 'mermaid',
+    '$', 'L', 'bootstrap', 'mermaid', 'cytoscape',
     'AppConstants', 'FilterChipUtils', 'HeaderSummary', 'LineRenderer',
     'MapComponents', 'MapCore', 'MapEntityAdapters', 'MapLayerRegistry',
     'MapPopupController', 'MapRenderer', 'MapShared', 'MapViewportLoader',
     'MobileFilters', 'OperatorDropdown', 'PopupRenderer', 'PopupUtils',
-    'Permalinks', 'ProblemsData', 'ProblemsMap', 'ProblemsPermalink', 'ProblemsRenderer', 'ProblemsState', 'ProblemsUI',
+    'Permalinks', 'ProblemsData', 'ProblemsMap', 'ProblemsPermalink', 'ProblemsRenderer', 'ProblemsState', 'ProblemsUI', 'QualityDashboard',
     'SharedUtils', 'activeFilters', 'topNLayer', 'stopsById',
     'fetchAndCenterSpecificStop', 'loadDataForViewport', 'updateHeaderSummary',
     'loadTopNMatches', 'initFilterEventHandlers', 'updateFiltersUI',

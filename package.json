@@ -19,6 +19,7 @@
   "devDependencies": {
     "@fortawesome/fontawesome-free": "5.15.3",
     "bootstrap": "5.3.3",
+    "cytoscape": "3.34.3",
     "eslint": "^10.11.0",
     "globals": "^16.5.0",
     "istanbul-lib-instrument": "^6.0.3",

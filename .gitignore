@@ -115,6 +115,7 @@ docs_to_read/*
 quality/raw/
 quality/latest.json
 quality/quality-map.json
+quality/code-map.json
 quality/report.md
 .ruff_cache/
 .hypothesis/

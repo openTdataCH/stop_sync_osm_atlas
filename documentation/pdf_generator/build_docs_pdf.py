@@ -231,7 +231,11 @@ def _rewrite_repo_links(content: str, current_doc: Path) -> str:
     def replace(match: re.Match[str]) -> str:
         label = match.group(1)
         href = match.group(2)
-        if href.startswith(('http://', 'https://', '/', '#', 'mailto:')):
+        if href.startswith('/') and not href.startswith('//'):
+            # A page of the web app, such as /quality, resolves against whichever
+            # site serves the portal. A PDF has no site, so it keeps the words only.
+            return label
+        if href.startswith(('http://', 'https://', '#', 'mailto:', '//')):
             return match.group(0)
         if href.startswith(('images/', 'diagrams/', 'documentation/')):
             return match.group(0)

@@ -60,6 +60,10 @@ const copyPlan = [
     target: "mermaid/mermaid.min.js",
   },
   {
+    source: "cytoscape/dist/cytoscape.min.js",
+    target: "cytoscape/cytoscape.min.js",
+  },
+  {
     source: "mathjax/es5/tex-mml-chtml.js",
     target: "mathjax/es5/tex-mml-chtml.js",
   },
@@ -225,6 +229,7 @@ function writeVersionsManifest() {
     "font-awesome": devDeps["@fortawesome/fontawesome-free"] || null,
     leaflet: devDeps.leaflet || null,
     mermaid: devDeps.mermaid || null,
+    cytoscape: devDeps.cytoscape || null,
     mathjax: devDeps.mathjax || null,
   };
 

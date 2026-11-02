@@ -62,12 +62,17 @@ def main():
     with tempfile.TemporaryDirectory() as directory:
         run('gh', 'run', 'download', str(ci['databaseId']), '--name', f'quality-{sha}', '--dir', directory)
         report_text = (Path(directory) / 'latest.json').read_text()
+        code_map = Path(directory) / 'code-map.json'
+        if not code_map.is_file():
+            fail(f"the CI artifact of {short} has no code-map.json, which the dashboard draws. Rerun CI on this commit.")
+        code_map_text = code_map.read_text()
     report = json.loads(report_text)
     if report.get('revision', {}).get('app') != sha:
         fail(f"the CI report measured {report.get('revision', {}).get('app')}, not {sha}.")
     published = ROOT / PUBLISHED
     published.mkdir(parents=True, exist_ok=True)
     (published / 'latest.json').write_text(report_text)
+    (published / 'code-map.json').write_text(code_map_text)
     (published / 'report.md').write_text(render_report(report, None, ci['url']))
     publication = {'app_revision': sha, 'run_url': ci['url'], 'shipped_fingerprint': shipped_fingerprint(committed_files(sha))}
     (published / 'publication.json').write_text(json.dumps(publication, indent=2, sort_keys=True) + '\n')

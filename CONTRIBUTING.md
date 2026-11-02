@@ -16,7 +16,7 @@ for combined verification, but do not add imports across that boundary.
 Run `make quality-fast` for local correctness checks or `make quality` for the
 supported Python 3.13 / Node 22 container and disposable PostGIS suite. The full
 command keeps the engine in a separate interpreter and writes raw evidence,
-module coverage and a code map under `quality/`. See the [quality guide](quality/README.md)
+module coverage and a code map under `quality/`. See [Running the quality checks](documentation/4.4%20Running%20Quality%20Checks.md)
 for setup, baselines and verification limits. Retrieve a module's invariants,
 tests and documentation with `python scripts/quality.py context MODULE_ID`.
 
@@ -39,7 +39,7 @@ Before requesting review:
    missing or stale evidence explicitly. A generated report is not proof that
    all measurements passed.
 
-The [quality operating guide](quality/README.md) covers native/container setup,
+[Running the quality checks](documentation/4.4%20Running%20Quality%20Checks.md) covers native/container setup,
 all commands and artifacts, CI configuration, baseline review, temporary
 exceptions and troubleshooting. Never refresh a debt baseline or suppress an
 unexpected browser error merely to make the checks green.

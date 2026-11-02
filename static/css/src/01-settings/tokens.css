@@ -77,6 +77,14 @@
    --color-map-line-osm-group: #4caf50;
    --color-map-temp-marker: #174092;
 
+   /* Code quality map edges (static/js/quality/dashboard.js draws the same values) */
+   --color-quality-declared: #7d838c;
+   --color-quality-undeclared: #d9822b;
+   --color-quality-unused: #b9bec6;
+   --color-quality-internal: #c9cdd3;
+   --color-quality-crossing: #2a78d6;
+   --color-quality-contract: #6250d6;
+
    /* Surface accents */
    --color-surface-atlas: #eef3fb;
    --color-surface-osm: #ecf8ed;

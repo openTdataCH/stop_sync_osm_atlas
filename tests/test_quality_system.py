@@ -230,3 +230,42 @@ def test_required_coverage_gate_rejects_source_changed_during_run(tmp_path, monk
     monkeypatch.setattr(quality, 'repository_fingerprint', lambda root: 'after')
     with pytest.raises(ValueError, match='current source inputs'):
         quality.coverage_sanity({'app': tmp_path}, {})
+
+
+def test_map_resolves_calls_through_imports_and_reports_each_module_interface(tmp_path, monkeypatch):
+    monkeypatch.setattr(quality, 'ROOT', tmp_path)
+    sources = {
+        'backend/__init__.py': '',
+        'backend/services/__init__.py': 'from backend.services.store import save\n',
+        'backend/services/store.py': 'def save():\n    return _private()\n\n\ndef _private():\n    return 1\n',
+        'backend/api.py': 'from backend.services import store\nfrom backend.services import save as persist\n\n\ndef handle():\n    store.save()\n    return persist()\n',
+        'static/js/shared.js': 'function formatValue(value) {\n    function inner() {}\n    return value;\n}\n',
+        'static/js/page.js': 'formatValue(inner());\n',
+    }
+    for name, text in sources.items():
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / name).write_text(text)
+    store_files = {'backend/services/__init__.py', 'backend/services/store.py', 'static/js/shared.js'}
+    ownership = {('app', name): 'app.store' if name in store_files else 'app.api' for name in sources}
+    def module(mid, entrypoints=()):
+        return dict(id=mid, title=mid, criticality='high', responsibility='r', owner='o', reviewed='2026-11-02', invariants=[],
+                    entrypoints=list(entrypoints), dependencies=[], paths={'source': [], 'tests': []}, docs={})
+    catalogs = {'app': {'modules': [module('app.api'), module('app.store', ['backend.services:save'])], 'contracts': []}}
+    graph = quality.build_map({'app': tmp_path}, catalogs, ownership)
+    edges = {(item['source'], item['target'], item['kind']) for item in graph['edges']}
+    api, package = 'app:backend/api.py', 'app:backend/services/__init__.py'
+    save = 'app:backend/services/store.py:save@1'
+    assert (api, 'app:backend/services/store.py', 'imports') in edges
+    # Importing a submodule does not import the package's __init__; importing a name from it does.
+    assert [item['line'] for item in graph['edges'] if (item['source'], item['target'], item['kind']) == (api, package, 'imports')] == [2]
+    assert (api, save, 'uses') in edges
+    assert ('app:backend/api.py:handle@5', save, 'calls') in edges
+    assert (save, 'app:backend/services/store.py:_private@5', 'calls') in edges
+    # Only top-level browser declarations are visible to other scripts.
+    assert ('app:static/js/page.js', 'app:static/js/shared.js:formatValue@1', 'uses') in edges
+    assert not any(target.endswith(':inner@2') for _, target, kind in edges if kind == 'uses')
+
+    code_map = json.loads((tmp_path / 'quality/code-map.json').read_text())
+    assert [(row['name'], row['used_by']) for row in code_map['interface']['app.store']] == [('save', ['app.api']), ('formatValue', ['app.api'])]
+    assert code_map['modules'][1]['entrypoints'] == [{'entry': 'backend.services:save', 'symbol': save}]
+    assert {'source': api, 'target': 'app:backend/services/store.py', 'kind': 'calls', 'count': 2} in code_map['links']

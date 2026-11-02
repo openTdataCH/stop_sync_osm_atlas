@@ -50,7 +50,7 @@
             href="{{ url_for('data_analytics') }}">Data</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint and request.endpoint.startswith('docs.') %} active{%- endif %}"
+          <a class="nav-link {%- if request.endpoint and request.endpoint.startswith(('docs.', 'quality.')) %} active{%- endif %}"
             href="{{ url_for('docs.docs_page') }}">Docs</a>
         </li>
         <li class="nav-item navbar-mobile-version d-lg-none">

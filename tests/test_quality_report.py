@@ -120,7 +120,9 @@ def test_pdf_export_expands_quality_evidence(tmp_path, monkeypatch):
     from documentation.pdf_generator import build_docs_pdf
 
     document = build_docs_pdf.DOCS_DIR / '4.3 Code Quality.md'
-    monkeypatch.setattr(build_docs_pdf, 'REPO_ROOT', tmp_path)
+    # Read the evidence from an empty folder; the rest of the bundle uses the real checkout.
+    monkeypatch.setattr(build_docs_pdf, 'replace_quality_placeholder',
+                        lambda text, root: quality_report.replace_quality_placeholder(text, tmp_path))
     markdown = build_docs_pdf._prepare_document([document], include_cover=False)
     assert '{{CODE_QUALITY_REPORT}}' not in markdown
     assert 'Quality evidence unavailable' in markdown

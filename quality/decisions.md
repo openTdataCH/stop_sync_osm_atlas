@@ -24,4 +24,19 @@ module and expiry; baseline refreshes are deliberate reviewable changes.
 
 Static import edges are exact syntax evidence. Dynamic call edges are heuristic;
 script ordering and declared cross-process contracts remain separate relations.
-Avoid a global function diagram. Use module context and bounded symbol views.
+
+## A module map, not a function diagram
+
+Status: accepted. Owner: OSM Atlas maintainers. Reviewed: 2026-11-02.
+
+The dashboard draws modules and the code references between them, and opens one
+module at a time as files. It never draws every function: thousands of symbols
+make an unreadable diagram, and the boundary is what reviewers act on. Each
+module's actual interface is the set of its names used from other modules,
+compared with its declared entry points. A code dependency the catalog does not
+declare is shown as a finding, not a failure, because the map cannot see HTTP,
+database or template dependencies and its Python call edges miss dynamic dispatch.
+
+Criticality stays a declared judgment of the worst defect's impact, chosen with
+the rubric in `documentation/4.3 Code Quality.md`. It is not derived from coverage or size, which
+would let weak tests lower the bar.

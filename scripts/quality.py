@@ -17,7 +17,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 CODE_SUFFIXES = {'.py', '.js', '.mjs', '.cjs', '.css', '.html', '.sql', '.sh', '.yml', '.yaml', '.json', '.toml'}
-GENERATED = {'quality/latest.json', 'quality/quality-map.json', 'quality/report.md'}
+GENERATED = {'quality/latest.json', 'quality/quality-map.json', 'quality/code-map.json', 'quality/report.md'}
 
 
 def read_json(path, default=None):
@@ -94,20 +94,29 @@ def load_catalogs(engine_root=None):
     return roots, catalogs, ownership
 
 
-def import_names(tree, module_name):
+def import_bindings(tree, module_name):
+    """Yield (bound name, module, imported attribute, line) for every Python import."""
     package = module_name.rsplit('.', 1)[0]
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                yield alias.name, node.lineno
+                yield alias.asname, alias.name, None, node.lineno
         elif isinstance(node, ast.ImportFrom):
             prefix = node.module or ''
             if node.level:
                 parents = package.split('.')
                 prefix = '.'.join(parents[:len(parents) - node.level + 1] + ([prefix] if prefix else []))
-            yield prefix, node.lineno
             for alias in node.names:
-                yield f'{prefix}.{alias.name}', node.lineno
+                yield alias.asname or alias.name, prefix, alias.name, node.lineno
+
+
+def import_names(tree, module_name):
+    seen = set()
+    for _, module, attribute, line in import_bindings(tree, module_name):
+        for name in [module] + ([f'{module}.{attribute}'] if attribute else []):
+            if (name, line) not in seen:
+                seen.add((name, line))
+                yield name, line
 
 
 def python_module(path):
@@ -460,15 +469,11 @@ def report(roots, catalogs, ownership, base=None):
                 total += len(lines)
                 covered += len(lines & set(data.get('executed_lines', [])))
             changed = {'status': 'stale' if not fresh else 'attention' if missing else 'measured' if total else 'not_applicable', 'lines': percent(covered, total), 'covered': covered, 'total': total, 'target': 90, 'policy': 'advisory'}
-        old = baseline.get('coverage', {}).get(mid)
-        trend = {'status': 'not_measured'}
-        if cov.get('status') == 'measured' and cov.get('branches') is not None and old is not None:
-            trend = {'status': 'attention' if cov['branches'] < old else 'pass', 'branch_delta': round(cov['branches'] - old, 2), 'baseline_branches': old, 'policy': 'advisory'}
         mutation = mutation_evidence(raw_dir / 'engine-mutation.json', roots.get('engine')) if mid == 'engine.result-producer' else {'status': 'not_measured'}
         modules[mid] = dict(criticality=module['criticality'], tests={'status': test_status, 'count': sum(row['count'] for row in cases), 'skipped': sum(row['skipped'] for row in cases), 'missing_files': missing_tests},
                             coverage=cov, mutation=mutation, **lanes, docs=docs,
                             architecture={'status': 'fail' if any(row['module'] == mid for row in violations) else 'pass', 'violations': [row for row in violations if row['module'] == mid]},
-                            security={'status': 'not_measured'}, changed_coverage=changed, trend=trend, exceptions=[item for item in exceptions if item['module'] == mid])
+                            security={'status': 'not_measured'}, changed_coverage=changed, exceptions=[item for item in exceptions if item['module'] == mid])
     artifact = dict(schema_version=1, revision=revisions, fingerprints=fingerprints, generated_at=datetime.now(timezone.utc).isoformat(),
                     completeness='stale' if manifest and not fresh else 'partial' if any(row[lane]['status'] in {'not_measured', 'invalid'} for row in modules.values() for lane in ('tests', 'coverage', 'mutation', 'security')) else 'complete',
                     checks=manifest.get('checks', []), modules=modules, artifacts=sorted(path.relative_to(ROOT / 'quality').as_posix() for path in raw_dir.rglob('*') if path.is_file() and path.suffix in {'.json', '.xml', '.txt'} and not any(part.startswith('.') for part in path.relative_to(raw_dir).parts)), tools=manifest.get('tool_versions', manifest.get('tools', {})))
@@ -479,6 +484,11 @@ def report(roots, catalogs, ownership, base=None):
     from backend.services.quality_report import render_report
     (ROOT / 'quality/report.md').write_text(render_report(artifact))
     return artifact
+
+
+JS_SYMBOL = re.compile(r'\b(?:function\s+|class\s+|(?:const|let|var)\s+)([A-Za-z_$][\w$]*)\s*(?:\(|\{|=\s*(?:async\s*)?(?:\([^)]*\)|[\w$]+)\s*=>)|\bwindow\.([A-Z][\w$]*)\s*=[^=]')
+JS_REFERENCE = re.compile(r'(?<![\w$.])([A-Za-z_$][\w$]*)\s*[(.]')
+DEFINITIONS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 
 
 def build_map(roots, catalogs, ownership):
@@ -500,40 +510,42 @@ def build_map(roots, catalogs, ownership):
                 tid = f'{repo}:{path.relative_to(roots[repo]).as_posix()}'
                 nodes.append(dict(id=tid, kind='test', path=path.relative_to(roots[repo]).as_posix()))
                 edge(mid, tid, 'tested-by')
+    texts = {(repo, path): (roots[repo] / path).read_text() for repo, path in ownership}
     for (repo, path), mid in ownership.items():
         fid = f'{repo}:{path}'
-        nodes.append(dict(id=fid, kind='file', path=path, module=mid))
+        nodes.append(dict(id=fid, kind='file', path=path, module=mid, lines=len(texts[(repo, path)].splitlines())))
         edge(mid, fid, 'contains', 'static-exact')
         if path.endswith('.py'):
             file_ids[(repo, python_module(path))] = fid
+    python, scripts, top = {}, {}, {}
     for (repo, path), mid in ownership.items():
         fid = f'{repo}:{path}'
-        text = (roots[repo] / path).read_text()
+        text = texts[(repo, path)]
         if path.endswith('.py'):
             tree = ast.parse(text)
             local = {}
             for node in ast.walk(tree):
-                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                if isinstance(node, DEFINITIONS):
                     sid = f'{fid}:{node.name}@{node.lineno}'
                     local.setdefault(node.name, []).append(sid)
                     nodes.append(dict(id=sid, kind='symbol', name=node.name, path=path, line=node.lineno, module=mid, provenance='static-exact'))
                     edge(fid, sid, 'contains', 'static-exact')
                     symbols[sid] = node
-            for name, line in import_names(tree, import_context(path)):
-                target = file_ids.get((repo, name))
-                if target:
-                    edge(fid, target, 'imports', 'static-exact', line=line)
-            for sid in [key for values in local.values() for key in values]:
-                for call in ast.walk(symbols[sid]):
-                    if isinstance(call, ast.Call) and isinstance(call.func, ast.Name):
-                        for target in local.get(call.func.id, []):
-                            edge(sid, target, 'calls', 'static-heuristic', line=call.lineno)
+            top[fid] = {node.name: f'{fid}:{node.name}@{node.lineno}' for node in tree.body if isinstance(node, DEFINITIONS)}
+            python[fid] = (repo, path, tree, local)
         elif path.endswith('.js'):
-            for match in re.finditer(r'\b(?:function\s+|(?:const|let|var)\s+)([A-Za-z_$][\w$]*)\s*(?:\(|=\s*(?:async\s*)?(?:\([^)]*\)|[\w$]+)\s*=>)', text):
+            names, globals_ = {}, {}
+            for match in JS_SYMBOL.finditer(text):
+                name = match[1] or match[2]
                 line = text.count('\n', 0, match.start()) + 1
-                sid = f'{fid}:{match[1]}@{line}'
-                nodes.append(dict(id=sid, kind='symbol', name=match[1], path=path, line=line, module=mid, provenance='static-heuristic'))
+                sid = f'{fid}:{name}@{line}'
+                names.setdefault(name, sid)
+                # Only top-level declarations and window properties are visible to other scripts.
+                if match[2] or text.rfind('\n', 0, match.start()) == match.start() - 1:
+                    globals_.setdefault(name, sid)
+                nodes.append(dict(id=sid, kind='symbol', name=name, path=path, line=line, module=mid, provenance='static-heuristic'))
                 edge(fid, sid, 'contains', 'static-heuristic')
+            scripts[fid] = (text, names, globals_)
         elif path.endswith('.html'):
             for order, script in enumerate(re.findall(r'<script\b[^>]*\bsrc\s*=\s*(["\'])(.*?)\1', text, re.S)):
                 src = script[1]
@@ -545,6 +557,52 @@ def build_map(roots, catalogs, ownership):
             for order, target in enumerate(re.findall(r'<script[^>]*filename=["\'](js/[^"\']+)', text)):
                 if (repo, 'static/' + target) in ownership:
                     edge(fid, f'{repo}:static/{target}', 'loads', 'static-exact', order=order)
+    imports = {fid: list(import_bindings(tree, import_context(path))) for fid, (repo, path, tree, _) in python.items()}
+    # A package re-exports what its __init__ imports, as `results:write_bundle` does.
+    exports = {fid: {**{name: top[target][attribute] for name, module, attribute, _ in imports[fid]
+                        if attribute and (target := file_ids.get((python[fid][0], module))) and attribute in top[target]}, **top[fid]}
+               for fid in python}
+    for fid, (repo, path, tree, local) in python.items():
+        # `from package import submodule` reaches the submodule, not the package's __init__.
+        bound_modules, bound_symbols = {}, {}
+        for name, module, attribute, line in imports[fid]:
+            submodule = file_ids.get((repo, f'{module}.{attribute}')) if attribute else None
+            target = submodule or file_ids.get((repo, module))
+            if not target:
+                continue
+            edge(fid, target, 'imports', 'static-exact', line=line)
+            if submodule or (name and not attribute):
+                bound_modules[name] = target
+            elif attribute in exports[target]:
+                bound_symbols[name] = exports[target][attribute]
+                edge(fid, bound_symbols[name], 'uses', 'static-exact', line=line)
+        for sid in [key for values in local.values() for key in values]:
+            for call in ast.walk(symbols[sid]):
+                if not isinstance(call, ast.Call):
+                    continue
+                if isinstance(call.func, ast.Name):
+                    targets = local.get(call.func.id) or ([bound_symbols[call.func.id]] if call.func.id in bound_symbols else [])
+                elif isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name) and call.func.value.id in bound_modules:
+                    target = exports.get(bound_modules[call.func.value.id], {}).get(call.func.attr)
+                    targets = [target] if target else []
+                else:
+                    targets = []
+                for target in targets:
+                    edge(sid, target, 'calls', 'static-heuristic', line=call.lineno)
+    # Browser scripts share one global scope: a name defined in exactly one file is that file's export.
+    definitions = {}
+    for fid, (_, names, _) in scripts.items():
+        for name, sid in names.items():
+            definitions.setdefault(name, []).append(sid)
+    exported = {name: sids[0] for name, sids in definitions.items()
+                if len(sids) == 1 and len(name) > 3 and any(name in globals_ for _, _, globals_ in scripts.values())}
+    for fid, (text, names, _) in scripts.items():
+        text = text.replace('window.', ' ')
+        for match in JS_REFERENCE.finditer(text):
+            target = exported.get(match[1])
+            # Lowercase names followed by `.` are usually local variables, not another script's export.
+            if target and match[1] not in names and (match[0].endswith('(') or match[1][0].isupper()):
+                edge(fid, target, 'uses', 'static-heuristic', line=text.count('\n', 0, match.start()) + 1)
     for repo, catalog in catalogs.items():
         for contract in catalog.get('contracts', []):
             cid = 'contract.' + contract['id']
@@ -554,10 +612,61 @@ def build_map(roots, catalogs, ownership):
             for mid in contract['consumers']:
                 edge(cid, mid, 'consumes')
     graph = dict(schema_version=1, generated_at=datetime.now(timezone.utc).isoformat(),
-                 limitations=['Python import syntax is exact; runtime resolution can differ.', 'JavaScript symbol discovery and all call edges are heuristic.', 'Dynamic dispatch, fetch routes and external calls are not a complete call graph.'],
+                 limitations=['Python import syntax is exact; runtime resolution can differ.',
+                              'Python calls resolve through local definitions and imports only; calls through objects, attributes of instances and dynamic dispatch are missing.',
+                              'JavaScript symbols and their uses are heuristic: a global name defined in exactly one browser script counts as that script\'s export.',
+                              'Fetch routes, templates rendering data and external calls are not a complete call graph.'],
                  nodes=list({node['id']: node for node in nodes}.values()), edges=list({json.dumps(item, sort_keys=True): item for item in edges}.values()))
     write_json(ROOT / 'quality/quality-map.json', graph)
+    write_json(ROOT / 'quality/code-map.json', code_map(graph, catalogs))
     return graph
+
+
+def code_map(graph, catalogs):
+    """Module, file and boundary view of the map: what the code-quality dashboard draws."""
+    nodes = {node['id']: node for node in graph['nodes']}
+    def file_of(node_id):
+        return node_id if nodes[node_id]['kind'] == 'file' else node_id.rsplit(':', 1)[0]
+    links, used_by, reexports = {}, {}, {}
+    for item in graph['edges']:
+        source, target = nodes.get(item['source']), nodes.get(item['target'])
+        if item['kind'] not in {'imports', 'loads', 'uses', 'calls'} or not source or not target or 'module' not in source or 'module' not in target:
+            continue
+        if item['kind'] == 'uses' and source['kind'] == 'file':
+            reexports.setdefault(source['id'], []).append(target['id'])
+        key = (file_of(source['id']), file_of(target['id']), item['kind'])
+        if key[0] != key[1]:
+            links[key] = links.get(key, 0) + 1
+        if source['module'] != target['module'] and target['kind'] == 'symbol':
+            used_by.setdefault(target['id'], set()).add(source['module'])
+    symbols = {}
+    for node in graph['nodes']:
+        if node['kind'] == 'symbol':
+            symbols.setdefault(file_of(node['id']), []).append(node)
+    modules, interface = [], {}
+    for repo, module in module_items(catalogs):
+        declared = []
+        for entry in module['entrypoints']:
+            name, _, symbol = entry.partition(':')
+            files = [fid for fid in symbols.keys() | reexports.keys() if fid.startswith(f'{repo}:') and python_module(fid.split(':', 1)[1]) == name]
+            match = next((node['id'] for fid in files for node in symbols.get(fid, []) if node['name'] == symbol.split('.')[0]), None)
+            match = match or next((sid for fid in files for sid in reexports.get(fid, []) if nodes[sid]['name'] == symbol.split('.')[0]), None)
+            declared.append(dict(entry=entry, symbol=match))
+        modules.append(dict(id=module['id'], repository=repo, title=module['title'], criticality=module['criticality'],
+                            responsibility=module['responsibility'], owner=module['owner'], reviewed=module['reviewed'],
+                            invariants=module['invariants'], entrypoints=declared, dependencies=module.get('dependencies', []),
+                            tests=module['paths']['tests'], docs=module['docs']))
+        interface[module['id']] = []
+    for sid, users in sorted(used_by.items()):
+        node = nodes[sid]
+        interface[node['module']].append(dict(id=sid, name=node['name'], file=file_of(sid), line=node['line'], used_by=sorted(users)))
+    contracts = [dict(id=contract['id'], title=contract.get('title', contract['id']), producers=contract['producers'], consumers=contract['consumers'])
+                 for catalog in catalogs.values() for contract in catalog.get('contracts', [])]
+    files = [dict(id=node['id'], module=node['module'], lines=node.get('lines', 0), symbols=len(symbols.get(node['id'], [])))
+             for node in graph['nodes'] if node['kind'] == 'file']
+    return dict(schema_version=1, generated_at=graph['generated_at'], limitations=graph['limitations'], modules=modules, contracts=contracts,
+                files=sorted(files, key=lambda row: row['id']), interface=interface,
+                links=[dict(source=source, target=target, kind=kind, count=count) for (source, target, kind), count in sorted(links.items())])
 
 
 def context(module_id, roots, catalogs, ownership):
@@ -643,7 +752,6 @@ def debt(roots, catalogs, ownership, write_baseline=False):
     baseline_path = ROOT / 'quality/baseline.json'
     baseline = read_json(baseline_path, {})
     if write_baseline:
-        evidence['coverage'] = baseline.get('coverage', {})
         write_json(baseline_path, evidence)
         return f'Wrote reviewable baseline: {len(findings)} findings'
     exceptions = active_exceptions({module['id'] for _, module in module_items(catalogs)})

@@ -109,9 +109,9 @@ make quality                # full suites, real PostGIS, coverage, structural de
 make quality-down           # remove the disposable quality services and volumes
 ```
 
-The full command builds Python 3.13 and Node 22 tooling, keeps app and engine Python environments isolated, and starts its own disposable PostGIS database. It writes the module report to `quality/report.md`, machine-readable evidence to `quality/latest.json`, and individual results to `quality/raw/`. The documentation portal's **Code Quality** page shows the report committed in `quality/published/` by `make deploy-report`. Run it before each deployment, once CI has passed on the latest commit. See [Publish the report for a deployment](quality/README.md#publish-the-report-for-a-deployment).
+The full command builds Python 3.13 and Node 22 tooling, keeps app and engine Python environments isolated, and starts its own disposable PostGIS database. It writes the module report to `quality/report.md`, machine-readable evidence to `quality/latest.json`, and individual results to `quality/raw/`. The documentation portal's **Code Quality** page shows the report committed in `quality/published/` by `make deploy-report`. Run it before each deployment, once CI has passed on the latest commit. See [how the report reaches the site](documentation/4.3%20Code%20Quality.md#how-the-report-reaches-the-site).
 
-For fast native iteration, use `make quality-fast` after installing the supported toolchain. The [quality guide](quality/README.md) contains native setup, command and artifact references, module ownership, baseline/exception review, CI configuration, and troubleshooting. [Backend tests](documentation/4.1%20Backend%20tests.md) and [browser tests](documentation/4.2%20JavaScript%20tests.md) describe focused runs and test design. Install the engine in a separate virtual environment; the app suite verifies that it works without the engine package.
+For fast native iteration, use `make quality-fast` after installing the supported toolchain. [Running the quality checks](documentation/4.4%20Running%20Quality%20Checks.md) contains native setup, command and artifact references, module ownership, baseline/exception review, CI configuration, and troubleshooting. [Backend tests](documentation/4.1%20Backend%20tests.md) and [browser tests](documentation/4.2%20JavaScript%20tests.md) describe focused runs and test design. Install the engine in a separate virtual environment; the app suite verifies that it works without the engine package.
 
 Outside `make quality`, real publication tests require `TEST_POSTGRES_URI` pointing to a disposable PostGIS database whose name ends in `_test`; those tests reset its public schema. Producer/consumer checks also require an explicit engine environment. Missing prerequisites produce skips in an ordinary app-only run; that run is not equivalent to the full quality gate.
 
@@ -128,7 +128,8 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md). A matching-rule contribution can 
 - [Result bundle format](../engine/documentation/Result%20bundle%20format.md)
 - [Bundle import and publication](documentation/1.1%20Import%20Process.md)
 - [Tests and CI](documentation/4.%20Test.md)
-- [Quality workflow and maintenance](quality/README.md)
+- [Code quality and the dashboard](documentation/4.3%20Code%20Quality.md)
+- [Running the quality checks](documentation/4.4%20Running%20Quality%20Checks.md)
 - [Contribution tutorials](documentation/Contributing.md)
 - [Documentation style guide](documentation/Documentation%20style%20guide.md)
 

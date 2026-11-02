@@ -13,7 +13,7 @@ SHA = 'a' * 40
 RUN = {'databaseId': 7, 'status': 'completed', 'conclusion': 'success', 'url': 'https://github.com/example/actions/runs/7'}
 
 
-def _fake_git_and_gh(monkeypatch, tmp_path, ci_run=RUN, touched='backend/app.py', measured=SHA):
+def _fake_git_and_gh(monkeypatch, tmp_path, ci_run=RUN, touched='backend/app.py', measured=SHA, code_map=True):
     calls = []
 
     def run(*command):
@@ -28,6 +28,8 @@ def _fake_git_and_gh(monkeypatch, tmp_path, ci_run=RUN, touched='backend/app.py'
             directory = Path(command[command.index('--dir') + 1])
             report = {'schema_version': 1, 'revision': {'app': measured, 'engine': 'e'}, 'modules': {}}
             (directory / 'latest.json').write_text(json.dumps(report))
+            if code_map:
+                (directory / 'code-map.json').write_text(json.dumps({'schema_version': 1}))
         return ''
 
     monkeypatch.setattr(deploy_report, 'ROOT', tmp_path)
@@ -44,6 +46,7 @@ def test_publishes_the_passing_report_and_commits_only_the_published_folder(tmp_
     assert publication == {'app_revision': SHA, 'run_url': RUN['url'],
                            'shipped_fingerprint': quality_report.shipped_fingerprint([('backend/app.py', b'app')])}
     assert json.loads((published / 'latest.json').read_text())['revision']['app'] == SHA
+    assert json.loads((published / 'code-map.json').read_text()) == {'schema_version': 1}
     assert f"[CI run]({RUN['url']})" in (published / 'report.md').read_text()
     commit = next(command for command in calls if command[:2] == ('git', 'commit'))
     assert commit[-2:] == ('--', quality_report.PUBLISHED)
@@ -66,6 +69,13 @@ def test_refuses_without_a_passing_ci_run(tmp_path, monkeypatch, ci_run, message
 def test_refuses_a_report_for_another_commit(tmp_path, monkeypatch):
     _fake_git_and_gh(monkeypatch, tmp_path, measured='b' * 40)
     with pytest.raises(SystemExit, match='measured'):
+        deploy_report.main()
+    assert not (tmp_path / quality_report.PUBLISHED).exists()
+
+
+def test_refuses_an_artifact_without_the_code_map(tmp_path, monkeypatch):
+    _fake_git_and_gh(monkeypatch, tmp_path, code_map=False)
+    with pytest.raises(SystemExit, match='no code-map.json'):
         deploy_report.main()
     assert not (tmp_path / quality_report.PUBLISHED).exists()
 

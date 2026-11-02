@@ -157,3 +157,12 @@ def test_every_pdf_link_reaches_an_anchor(monkeypatch):
         elif href[1:] not in ids:
             problems.add(f'{href} points to a missing section')
     assert not problems, '\n'.join(sorted(problems))
+
+
+def test_web_app_links_follow_the_serving_site_and_stay_text_in_the_pdf(app):
+    from documentation.pdf_generator import build_docs_pdf as pdf
+
+    html = _render(app, 'Open the [code quality dashboard](/quality).')
+    assert 'href="/quality"' in html
+    document = pdf.DOCS_DIR / '4.3 Code Quality.md'
+    assert pdf._rewrite_repo_links('Open the [code quality dashboard](/quality).', document) == 'Open the code quality dashboard.'

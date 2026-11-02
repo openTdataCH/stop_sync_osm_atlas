@@ -274,7 +274,7 @@
       "id": "app.docs-delivery",
       "title": "Documentation delivery and quality evidence",
       "criticality": "medium",
-      "responsibility": "Discover and render the app and engine manuals, diagrams, PDFs and generated quality evidence.",
+      "responsibility": "Discover and render the app and engine manuals, diagrams, PDFs, generated quality evidence and the code quality dashboard.",
       "owner": "OSM Atlas maintainers",
       "reviewed": "2026-09-22",
       "paths": {
@@ -284,6 +284,9 @@
           "backend/services/docs_stats.py",
           "backend/services/docs_order.py",
           "backend/services/quality_report.py",
+          "backend/blueprints/quality.py",
+          "templates/pages/quality.html",
+          "static/js/quality/**",
           "documentation/**/*.py",
           "documentation/**/*.css",
           "templates/pages/docs.html",
@@ -297,6 +300,8 @@
           "tests/test_docs*.py",
           "tests/test_dependency_docs_sync.py",
           "tests/test_quality_report.py",
+          "tests/test_quality_dashboard.py",
+          "tests/js/quality-dashboard.test.js",
           "tests/js/docs-portal.test.js"
         ]
       },
@@ -371,7 +376,8 @@
           "documentation/3.1 Dependency Management & Build Strategy.md"
         ],
         "operations": [
-          "documentation/3.3 Background Scheduler.md"
+          "documentation/3.3 Background Scheduler.md",
+          "documentation/4.4 Running Quality Checks.md"
         ],
         "decision": [
           "quality/decisions.md"

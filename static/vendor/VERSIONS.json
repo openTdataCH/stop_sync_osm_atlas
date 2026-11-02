@@ -1,8 +1,9 @@
 {
-  "generatedAtUtc": "2026-09-22T16:00:02.839Z",
+  "generatedAtUtc": "2026-11-02T15:42:49.107Z",
   "bootstrap": "5.3.3",
   "font-awesome": "5.15.3",
   "leaflet": "1.9.4",
   "mermaid": "10.9.8",
+  "cytoscape": "3.34.3",
   "mathjax": "3.2.2"
 }
