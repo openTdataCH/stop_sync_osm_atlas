@@ -368,10 +368,22 @@ claim.
 Baseline identities include content and participating files. Distinct physical
 occurrences are counted: adding another identical copy within an already
 baselined file pair still creates a new finding. Ordinary line movement does not
-change the content identity. Deleting one clone does not buy permission for a
-different new clone.
+change the content identity, but editing the code inside an accepted clone does:
+the edited clone is reported as new and the old baseline entry no longer matches.
+Deleting one clone does not buy permission for a different new clone.
 
-When removing existing debt, run:
+When the gate reports a new finding, read both copies in `raw/debt.json` and
+decide:
+
+- **Refactor** when both copies do the same job in one repository: move the
+  shared code into one function and let the finding disappear.
+- **Accept** when the duplication is intentional, such as the bundle contract
+  validated independently by the app and the engine, or when an accepted clone
+  only changed content: re-record the baseline as below.
+- **Except** when a real duplicate must stay for now: add an expiring entry to
+  `exceptions.json` (see below).
+
+To re-record the baseline after removing or accepting findings, run:
 
 ```sh
 python scripts/quality.py debt --engine-root ../engine

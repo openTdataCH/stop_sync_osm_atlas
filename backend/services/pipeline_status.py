@@ -418,24 +418,31 @@ def set_phase(
     return set_status(**fields)
 
 
-def finish_success(message: str = "Pipeline update completed", *, warnings=None, run_id=None) -> Dict[str, Any]:
-    ts = _now_iso()
-    current = get_status()
-    if current.get("finished_at") or (run_id is not None and current.get("run_id") != run_id):
-        return current
+def _closed_phase_history(current: Dict[str, Any], ts: str, **extra: Any) -> list:
+    """Return the phase history with the active phase closed at ``ts``."""
     history = list(current.get("phase_history") or [])
     phase_started_at = current.get("phase_started_at")
     active_phase = current.get("phase")
-    started = _parse_iso_timestamp(phase_started_at)
-    ended = _parse_iso_timestamp(ts)
     if active_phase and active_phase not in {"idle", "failed"} and phase_started_at:
+        started = _parse_iso_timestamp(phase_started_at)
+        ended = _parse_iso_timestamp(ts)
         duration = max(0.0, (ended - started).total_seconds()) if started and ended else None
         history.append({
             "phase": active_phase,
             "started_at": phase_started_at,
             "finished_at": ts,
             "duration_seconds": round(duration, 3) if duration is not None else None,
+            **extra,
         })
+    return history
+
+
+def finish_success(message: str = "Pipeline update completed", *, warnings=None, run_id=None) -> Dict[str, Any]:
+    ts = _now_iso()
+    current = get_status()
+    if current.get("finished_at") or (run_id is not None and current.get("run_id") != run_id):
+        return current
+    history = _closed_phase_history(current, ts)
     states, stage_warnings = finalize_stage_states(current, ts, failed=False)
     all_warnings = list(dict.fromkeys([*(warnings or []), *stage_warnings]))
     return set_status(
@@ -473,20 +480,7 @@ def finish_failure(error_message: str, *, run_id=None) -> Dict[str, Any]:
     current = get_status()
     if current.get("finished_at") or (run_id is not None and current.get("run_id") != run_id):
         return current
-    history = list(current.get("phase_history") or [])
-    phase_started_at = current.get("phase_started_at")
-    active_phase = current.get("phase")
-    started = _parse_iso_timestamp(phase_started_at)
-    ended = _parse_iso_timestamp(ts)
-    if active_phase and active_phase not in {"idle", "failed"} and phase_started_at:
-        duration = max(0.0, (ended - started).total_seconds()) if started and ended else None
-        history.append({
-            "phase": active_phase,
-            "started_at": phase_started_at,
-            "finished_at": ts,
-            "duration_seconds": round(duration, 3) if duration is not None else None,
-            "status": "failed",
-        })
+    history = _closed_phase_history(current, ts, status="failed")
     failed_stage, stage_error = _reported_failure(current)
     states, _ = finalize_stage_states(current, ts, failed=True)
     return set_status(
@@ -499,7 +493,7 @@ def finish_failure(error_message: str, *, run_id=None) -> Dict[str, Any]:
         finished_at=ts,
         phase_started_at=None,
         phase_history=history,
-        failed_phase=active_phase,
+        failed_phase=current.get("phase"),
         failed_stage=failed_stage,
         last_error=stage_error or error_message,
     )
