@@ -106,10 +106,10 @@ describe('QualityDashboard', () => {
   test('node colors follow the chosen encoding', () => {
     const module = codeMap().modules[0];
     const color = window.QualityDashboard.nodeColor;
-    expect(color(module, report(), 'criticality')).toBe('#1c5cab');
-    expect(color(module, report(), 'coverage')).toBe('#104281');
-    expect(color(module, { modules: {} }, 'coverage')).toBe('#d5d8dd');
-    expect(color(module, report(), 'repository')).toBe('#2a78d6');
+    expect(color(module, report(), 'criticality')).toBe('#617db5');
+    expect(color(module, report(), 'coverage')).toBe('#2d529c');
+    expect(color(module, { modules: {} }, 'coverage')).toBe('#e9ecef');
+    expect(color(module, report(), 'repository')).toBe('#174092');
   });
 
   test('escapes catalog text before it reaches the page', () => {
@@ -127,9 +127,9 @@ describe('QualityDashboard', () => {
             <section id="qualityMapSection">
               <span id="qualityBreadcrumb"></span>
               <button data-view-toggle="modules"></button><button data-view-toggle="files"></button>
-              <select id="qualityColorBy"><option value="criticality">c</option><option value="coverage">b</option></select>
+              <div id="qualityColorBy"><button data-color-by="criticality"></button><button data-color-by="coverage"></button></div>
               <input type="checkbox" id="qualityUnusedToggle" checked>
-              <button id="qualityFit"></button>
+              <button id="qualityFit"></button><div id="qualityZoomHint"></div>
               <div id="qualityMap"></div><div id="qualityTooltip" hidden></div>
               <aside id="qualityPanel"></aside>
               <ul id="qualityLegend"></ul>

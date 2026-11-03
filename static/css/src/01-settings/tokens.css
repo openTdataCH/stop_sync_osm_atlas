@@ -75,13 +75,13 @@
   --color-map-line-osm-group: #4caf50;
   --color-map-temp-marker: #174092;
 
-  /* Code quality map edges (static/js/quality/dashboard.js draws the same values) */
-  --color-quality-declared: #7d838c;
-  --color-quality-undeclared: #d9822b;
-  --color-quality-unused: #b9bec6;
-  --color-quality-internal: #c9cdd3;
-  --color-quality-crossing: #2a78d6;
-  --color-quality-contract: #6250d6;
+  /* Code quality map edges: palette values only (static/js/quality/dashboard.js draws the same values) */
+  --color-quality-declared: #6c757d;
+  --color-quality-undeclared: #e08e0b;
+  --color-quality-unused: #adb5bd;
+  --color-quality-internal: #ced4da;
+  --color-quality-crossing: #174092;
+  --color-quality-contract: #6b21a8;
 
   /* Documentation ownership semantics */
   --color-docs-shared: #6b21a8;
