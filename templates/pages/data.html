@@ -11,28 +11,18 @@
 {% block content %}
 {% include "components/export_overlay.html" %}
 
-<div class="stats-page">
+<div class="stats-page{{ ' stats-page--export' if active_view == 'reports' }}">
   <div class="stats-container">
 
     {% include "components/data_page_tabs.html" %}
 
+    {% if active_view == 'analytics' %}
     <header class="stats-page-header mb-2">
       <div class="stats-page-header__row mt-3">
-        {% if active_view == 'reports' %}
-          <div>
-            <h1 class="stats-page-header__title">Export data</h1>
-            <p class="c-page-tabs__description mb-0">Build a focused report of synchronization quality and problems.</p>
-          </div>
-        {% else %}
-        {% endif %}
-        
-        <div class="d-flex align-items-center">
-          {% if active_view == 'analytics' and stats and not is_pdf %}
-            <button id="downloadStatsSummaryBtn" type="button"
-               class="btn btn-sm btn-outline-primary shadow-sm fw-bold me-4"
-               title="Download Analytics as PDF"
-               style="height: fit-content; line-height: 1.2;">
-              <i class="fas fa-file-pdf me-1"></i> Download Analytics PDF
+        <div class="d-flex align-items-center gap-4">
+          {% if stats and not is_pdf %}
+            <button id="downloadStatsSummaryBtn" type="button" class="stats-page-action">
+              <i class="fas fa-file-pdf" aria-hidden="true"></i>Download PDF
             </button>
           {% endif %}
           
@@ -45,231 +35,136 @@
       </div>
     </header>
 
-    {% if active_view == 'analytics' %}
     <div id="insights-data-tab">
       {% include "components/stats_data.html" %}
     </div>
     {% else %}
     <div id="insights-export-tab">
-      <!-- Info Banner -->
-      <div class="info-banner mb-4">
-        <i class="fas fa-info-circle info-banner__icon"></i>
-        <span class="info-banner__text">Downloads are limited to 20 reports per IP address per day to ensure fair
-          use.</span>
-      </div>
-
-      <form id="reportForm">
-        <div class="reports-layout">
-          <!-- Left Column: Filters -->
-          <div class="reports-card">
-            <div class="reports-card__header">
-              <div class="reports-card__header-icon">
-                <i class="fas fa-filter"></i>
-              </div>
-              <h2>Data Selection</h2>
+      {#- The Export tab names the page, so the heading is for screen readers only.
+          One form, one surface: what to export on the left, each type with its
+          own options; operators and output on the right; then a bar that stays
+          in view with the summary and the download button. On desktop it fits
+          one screen. report.js reads the ids and names. #}
+      <h1 class="visually-hidden">Export data</h1>
+      <form id="reportForm" class="export-form">
+        <section class="export-step export-step--what" aria-labelledby="exportWhatTitle">
+          <h2 class="export-step__title" id="exportWhatTitle">What to export</h2>
+          <div class="export-choices">
+            <div class="export-choice">
+              <label class="export-choice__head">
+                <input class="form-check-input" type="radio" id="categoryDistance" name="reportCategory" value="distance" checked>
+                <span>
+                  <span class="export-choice__title">Matched pairs</span>
+                  <span class="export-choice__detail">Each ATLAS–OSM match with its distance</span>
+                </span>
+              </label>
             </div>
-            <div class="reports-card__body">
-              <!-- Report Category -->
-              <div class="filter-section">
-                <label class="filter-section__label">Report Category</label>
-                <div class="option-group">
-                  <label class="option-card">
-                    <input type="radio" id="categoryDistance" name="reportCategory" value="distance" checked>
-                    <div class="option-card__content">
-                      <span class="option-card__indicator"></span>
-                      <span class="option-card__title">Matched pairs</span>
-                    </div>
-                  </label>
-                  <label class="option-card">
-                    <input type="radio" id="categoryUnmatched" name="reportCategory" value="unmatched">
-                    <div class="option-card__content">
-                      <span class="option-card__indicator"></span>
-                      <span class="option-card__title">Unmatched entries</span>
-                    </div>
-                  </label>
-                  <label class="option-card">
-                    <input type="radio" id="categoryProblems" name="reportCategory" value="problems">
-                    <div class="option-card__content">
-                      <span class="option-card__indicator"></span>
-                      <span class="option-card__title">Problems</span>
-                    </div>
-                  </label>
+            <div class="export-choice">
+              <label class="export-choice__head">
+                <input class="form-check-input" type="radio" id="categoryUnmatched" name="reportCategory" value="unmatched">
+                <span>
+                  <span class="export-choice__title">Unmatched entries</span>
+                  <span class="export-choice__detail">Stops without a match, from ATLAS, OSM or both</span>
+                </span>
+              </label>
+              <fieldset class="export-options" id="unmatchedOptions" hidden>
+                <legend class="export-field__label">Sources</legend>
+                <div class="export-checks">
+                  <label class="export-check"><input class="form-check-input" type="checkbox" id="sourceAtlas" checked>ATLAS</label>
+                  <label class="export-check"><input class="form-check-input" type="checkbox" id="sourceOsm" checked>OSM</label>
                 </div>
-              </div>
-
-              <!-- Unmatched specific options -->
-              <div class="filter-section" id="unmatchedOptions" style="display: none;">
-                <label class="filter-section__label">Include sources</label>
-                <div class="chip-group">
-                  <label class="chip-option">
-                    <input type="checkbox" id="sourceAtlas" checked>
-                    <span>ATLAS</span>
-                  </label>
-                  <label class="chip-option">
-                    <input type="checkbox" id="sourceOsm" checked>
-                    <span>OSM</span>
-                  </label>
-                </div>
-              </div>
-
-              <!-- Problems specific options -->
-              <div class="filter-section" id="problemsOptions" style="display: none;">
-                <div class="filter-subsection">
-                  <label class="filter-subsection__label"><i class="fas fa-tag"></i> Problem types</label>
-                  <div class="chip-group">
-                    <label class="chip-option">
-                      <input type="checkbox" id="ptypeDistance" value="distance" checked>
-                      <span>Distance</span>
-                    </label>
-                    <label class="chip-option">
-                      <input type="checkbox" id="ptypeUnmatched" value="unmatched" checked>
-                      <span>Unmatched</span>
-                    </label>
-                    <label class="chip-option">
-                      <input type="checkbox" id="ptypeAttributes" value="attributes" checked>
-                      <span>Attributes</span>
-                    </label>
-                    <label class="chip-option">
-                      <input type="checkbox" id="ptypeContradictsRouteMatching" value="contradicts_route_matching" checked>
-                      <span>Route Contradiction</span>
-                    </label>
-                    <label class="chip-option">
-                      <input type="checkbox" id="ptypeDuplicates" value="duplicates" checked>
-                      <span>Duplicates</span>
-                    </label>
-                    <label class="chip-option">
-                      <input type="checkbox" id="ptypeDisused" value="disused" checked>
-                      <span>Disused OSM</span>
-                    </label>
+              </fieldset>
+            </div>
+            <div class="export-choice">
+              <label class="export-choice__head">
+                <input class="form-check-input" type="radio" id="categoryProblems" name="reportCategory" value="problems">
+                <span>
+                  <span class="export-choice__title">Problems</span>
+                  <span class="export-choice__detail">Detected problems, by type and priority</span>
+                </span>
+              </label>
+              <div class="export-options" id="problemsOptions" hidden>
+                <fieldset>
+                  <legend class="export-field__label">Problem types</legend>
+                  <div class="export-checks">
+                    <label class="export-check"><input class="form-check-input" type="checkbox" id="ptypeDistance" value="distance" checked>Distance</label>
+                    <label class="export-check"><input class="form-check-input" type="checkbox" id="ptypeUnmatched" value="unmatched" checked>Unmatched</label>
+                    <label class="export-check"><input class="form-check-input" type="checkbox" id="ptypeAttributes" value="attributes" checked>Attributes</label>
+                    <label class="export-check"><input class="form-check-input" type="checkbox" id="ptypeContradictsRouteMatching" value="contradicts_route_matching" checked>Route contradiction</label>
+                    <label class="export-check"><input class="form-check-input" type="checkbox" id="ptypeDuplicates" value="duplicates" checked>Duplicates</label>
+                    <label class="export-check"><input class="form-check-input" type="checkbox" id="ptypeDisused" value="disused" checked>Disused OSM</label>
                   </div>
-                </div>
-
-                <div class="filter-subsection">
-                  <label class="filter-subsection__label"><i class="fas fa-exclamation-triangle"></i> Priorities</label>
-                  <div class="chip-group">
-                    <label class="chip-option">
-                      <input type="checkbox" id="priority1" value="1" checked>
-                      <span>P1</span>
-                    </label>
-                    <label class="chip-option">
-                      <input type="checkbox" id="priority2" value="2" checked>
-                      <span>P2</span>
-                    </label>
-                    <label class="chip-option">
-                      <input type="checkbox" id="priority3" value="3" checked>
-                      <span>P3</span>
-                    </label>
+                </fieldset>
+                <fieldset>
+                  <legend class="export-field__label">Priorities</legend>
+                  <div class="export-checks">
+                    <label class="export-check"><input class="form-check-input" type="checkbox" id="priority1" value="1" checked>P1</label>
+                    <label class="export-check"><input class="form-check-input" type="checkbox" id="priority2" value="2" checked>P2</label>
+                    <label class="export-check"><input class="form-check-input" type="checkbox" id="priority3" value="3" checked>P3</label>
                   </div>
-                </div>
-
-              </div>
-
-              <div class="section-divider"></div>
-
-              <!-- Operator filter -->
-              <div class="filter-section">
-                <label class="filter-section__label">ATLAS Operator</label>
-                <p class="filter-section__description">Filter results by one or more operators. Leave empty for all.</p>
-                <div id="atlasOperatorFilterReports"></div>
-              </div>
-
-              <div class="section-divider"></div>
-
-              <!-- Additional columns -->
-              <div class="filter-section">
-                <label class="filter-section__label">Additional Columns</label>
-                <div class="chip-group">
-                  <label class="chip-option">
-                    <input type="checkbox" id="includeAtlasCoords">
-                    <span>ATLAS lat/lon</span>
-                  </label>
-                  <label class="chip-option">
-                    <input type="checkbox" id="includeOsmCoords">
-                    <span>OSM lat/lon</span>
-                  </label>
-                </div>
+                </fieldset>
               </div>
             </div>
           </div>
+        </section>
 
-          <!-- Right Column: Output Options -->
+        <div class="export-column">
+          <section class="export-step" aria-labelledby="exportOperatorsTitle">
+            <h2 class="export-step__title" id="exportOperatorsTitle">ATLAS operators</h2>
+            <p class="export-step__help">Only stops of the chosen operators. Leave empty for all operators.</p>
+            <div id="atlasOperatorFilterReports"></div>
+          </section>
+
+          <section class="export-step" aria-labelledby="exportOutputTitle">
+            <h2 class="export-step__title" id="exportOutputTitle">Output</h2>
+            <div class="export-fields">
+              <div class="export-field">
+                <label class="export-field__label" for="reportFormatModal">Format</label>
+                <select class="form-select form-select-sm" id="reportFormatModal">
+                  <option value="csv" selected>CSV spreadsheet</option>
+                  <option value="pdf">PDF document</option>
+                </select>
+                <p class="export-field__help" id="pdfLimitWarning" style="display: none;">A PDF holds at most 2,000 entries.</p>
+              </div>
+              <div class="export-field">
+                <label class="export-field__label" for="sortOrderModal">Sort order</label>
+                <select class="form-select form-select-sm" id="sortOrderModal">
+                  <option value="operator_asc" selected>Operator (A → Z)</option>
+                  <option value="operator_desc">Operator (Z → A)</option>
+                  <option value="distance_desc">Distance, largest first</option>
+                  <option value="distance_asc">Distance, smallest first</option>
+                  <option value="priority_desc">Priority, highest first</option>
+                  <option value="priority_asc">Priority, lowest first</option>
+                </select>
+              </div>
+              <fieldset class="export-field">
+                <legend class="export-field__label">Entries</legend>
+                <div class="export-limit">
+                  <label class="export-check"><input class="form-check-input" type="radio" id="limitAll" name="limitMode" value="all" checked>All</label>
+                  <label class="export-check"><input class="form-check-input" type="radio" id="limitUpTo" name="limitMode" value="upto"><span id="limitModeLabelUpto">First</span></label>
+                  <input class="form-control form-control-sm" type="number" id="reportLimitModal" value="50" min="1" max="10000" disabled aria-label="Number of entries">
+                </div>
+                <p class="export-field__help" id="limitHelpText">entries (max 10,000)</p>
+              </fieldset>
+              <fieldset class="export-field">
+                <legend class="export-field__label">Extra columns</legend>
+                <div class="export-checks">
+                  <label class="export-check"><input class="form-check-input" type="checkbox" id="includeAtlasCoords">ATLAS lat/lon</label>
+                  <label class="export-check"><input class="form-check-input" type="checkbox" id="includeOsmCoords">OSM lat/lon</label>
+                </div>
+              </fieldset>
+            </div>
+          </section>
+        </div>
+
+        <div class="export-submit">
           <div>
-            <div class="reports-card">
-              <div class="reports-card__header">
-                <div class="reports-card__header-icon">
-                  <i class="fas fa-cog"></i>
-                </div>
-                <h2>Output Options</h2>
-              </div>
-              <div class="reports-card__body">
-                <!-- Report Format -->
-                <div class="filter-section">
-                  <label class="filter-section__label" for="reportFormatModal">Report Format</label>
-                  <select class="form-select-custom" id="reportFormatModal">
-                      <option value="csv" selected>CSV Spreadsheet</option>
-                      <option value="pdf">PDF Document</option>
-                    </select>
-                    <div id="pdfLimitWarning" class="alert alert-warning mt-2 mb-0 py-1 px-2 small" style="display: none;">
-                      <i class="fas fa-exclamation-triangle me-1"></i>Max 2000 entries
-                    </div>
-                <!-- Sort Order -->
-                <div class="filter-section">
-                  <label class="filter-section__label" for="sortOrderModal">Sort Order</label>
-                  <select id="sortOrderModal" class="form-select-custom">
-                    <option value="operator_asc" selected>Operator (A → Z)</option>
-                    <option value="operator_desc">Operator (Z → A)</option>
-                    <option value="distance_desc">Distance (Descending)</option>
-                    <option value="distance_asc">Distance (Ascending)</option>
-                    <option value="priority_desc">Priority (Descending)</option>
-                    <option value="priority_asc">Priority (Ascending)</option>
-                  </select>
-                  <p class="filter-section__description" id="sortHelp"></p>
-                </div>
-
-                <div class="section-divider"></div>
-
-                <!-- Number of Entries -->
-                <div class="filter-section">
-                  <label class="filter-section__label">Number of Entries</label>
-                  <div class="option-group">
-                    <label class="option-card">
-                      <input type="radio" id="limitAll" name="limitMode" value="all" checked>
-                      <div class="option-card__content">
-                        <span class="option-card__indicator"></span>
-                        <span class="option-card__title">All entries</span>
-                      </div>
-                    </label>
-                    <label class="option-card">
-                      <input type="radio" id="limitUpTo" name="limitMode" value="upto">
-                      <div class="option-card__content">
-                        <span class="option-card__indicator"></span>
-                        <span class="option-card__title"><span id="limitModeLabelUpto">First</span> N entries</span>
-                      </div>
-                    </label>
-                  </div>
-                  <div class="limit-input-group">
-                    <label for="reportLimitModal" class="sr-only">Number</label>
-                    <input type="number" id="reportLimitModal" value="50" min="1" max="10000" disabled>
-                      <span class="text-muted small" id="limitHelpText">entries (max 10,000)</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Summary Card -->
-            <div class="summary-card">
-              <div class="summary-card__title">Selection Summary</div>
-              <div class="summary-card__text" id="selectionSummary">Matched pairs sorted by operator (ascending)</div>
-            </div>
-
-            <!-- Generate Button -->
-            <div class="generate-btn-wrapper">
-              <button type="submit" class="generate-btn">
-                <i class="fas fa-file-export"></i>
-                Generate Report
-              </button>
-            </div>
+            <p class="export-submit__summary" id="selectionSummary" aria-live="polite">Matched pairs sorted by operator (ascending)</p>
+            <p class="export-submit__note">Up to 20 reports per IP address per day.</p>
           </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-download me-1" aria-hidden="true"></i>Download report
+          </button>
         </div>
       </form>
     </div>
@@ -323,30 +218,4 @@
   })();
 </script>
 
-<script>
-  // Original Stats Accordion Toggle
-  function toggleAccordion(id) {
-    const item = document.getElementById('accordion-' + id);
-    const panel = document.getElementById('panel-' + id);
-    if (!item || !panel) return;
-    
-    const trigger = item.querySelector('.accordion-trigger');
-    const isOpen = item.classList.contains('is-open');
-
-    if (isOpen) {
-      panel.style.maxHeight = panel.scrollHeight + 'px';
-      requestAnimationFrame(() => { panel.style.maxHeight = '0'; });
-      item.classList.remove('is-open');
-      trigger.setAttribute('aria-expanded', 'false');
-    } else {
-      item.classList.add('is-open');
-      trigger.setAttribute('aria-expanded', 'true');
-      panel.style.maxHeight = panel.scrollHeight + 'px';
-      panel.addEventListener('transitionend', function handler() {
-        if (item.classList.contains('is-open')) panel.style.maxHeight = 'none';
-        panel.removeEventListener('transitionend', handler);
-      });
-    }
-  }
-</script>
 {% endblock %}

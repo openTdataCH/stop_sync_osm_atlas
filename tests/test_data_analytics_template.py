@@ -19,8 +19,6 @@ def _minimal_empty_stats(source_downloads=None):
             "match_rate_percent": 0,
             "atlas_with_osm_within_50m": 0,
             "matched_atlas_with_osm_within_50m_percent": 0,
-            "osm_operator_wikidata": 0,
-            "osm_network_wikidata": 0,
         },
         "matching_stages": {
             "exact": {"count": 0, "mto": 0},
@@ -73,11 +71,6 @@ def _minimal_empty_stats(source_downloads=None):
                 "has_nearby_atlas": 0,
                 "matrix": {},
             },
-        },
-        "duplicates": {
-            "total_duplicate_sloids": 0,
-            "matched_duplicates": 0,
-            "unmatched_duplicates": 0,
         },
     }
 
@@ -133,8 +126,10 @@ def test_stats_data_template_handles_missing_source_downloads():
     assert 'data-stage-label-full="Prepare source files"' in html
     assert 'id="stops-matching"' in html
     assert 'id="unmatched"' in html
-    assert 'class="osm-overview-card"' in html
-    assert 'class="osm-inventory-strip"' in html
+    assert html.count('class="stats-figures"') >= 1
+    # Sections without per-source statistics say so instead of failing.
+    assert "OSM stop statistics are not available" in html
+    assert "Route matching statistics are not available" in html
 
 
 def test_stats_data_template_handles_partial_stats_without_summary():
@@ -202,7 +197,68 @@ def test_analytics_design_does_not_use_left_accent_borders():
     assert "border-left" not in css
     assert "inset 3px 0" not in css
     assert ".stats-page .stat-card--primary::after" not in css
-    assert "--card-accent: var(--color-primary)" in css
     assert "#2563eb" not in css
     assert 'class="mapping-paths"' in template
     assert 'class="mapping-path__step"' in template
+
+
+def test_problem_priorities_read_stored_breakdowns_and_list_every_type():
+    env = Environment(loader=FileSystemLoader("templates"))
+    env.globals["url_for"] = lambda endpoint, **values: "/static/"
+    env.filters["format_zurich_display_timestamp"] = lambda value, include_seconds=False: value
+    stats = _minimal_empty_stats()
+    stats["problems"] = {
+        "total_stops": 20, "clean_entries": 12, "stops_with_problems": 8, "multiple_problems": 1,
+    }
+
+    # stats.json stores the priorities as strings; the PDF passes them on unchanged.
+    html = env.get_template("components/stats_data.html").render(
+        stats=stats,
+        problem_breakdown={"2": {"contradicts_route_matching": 5, "distance": 3}},
+    )
+
+    significant = html[html.index("Significant"):html.index("Minor")]
+    assert "<td>8</td>" in significant
+    assert "Route contradiction" in significant
+    assert "<td>5</td>" in significant
+    assert "No problems at this priority" not in significant
+
+
+def test_sections_follow_the_navigation_and_name_their_units():
+    import json
+
+    env = Environment(loader=FileSystemLoader("templates"))
+    env.globals["url_for"] = lambda endpoint, **values: "/static/"
+    env.filters["format_zurich_display_timestamp"] = lambda value, include_seconds=False: value
+    stats = _minimal_empty_stats()
+    stats["summary"].update(atlas_platforms=10, distinct_matched_atlas=8, osm_stops=6, matched_osm_stops=3,
+                            unmatched_osm=2)
+    stats["unmatched_analysis"]["osm"].update(total=4)
+    stats["route_links"] = {
+        "line_links": 2,
+        "gtfs_lines": {"total": 4, "linked": 2, "unlinked": {"no_osm_line": 2, "osm_line_already_linked": 0}},
+        "osm_lines": {"total": 5, "public_transport": 4, "linked": 2, "unlinked": {
+            "not_public_transport": 1, "non_gtfs": 0, "no_route_id": 1, "route_id_not_in_gtfs": 1,
+            "gtfs_line_already_linked": 0}},
+        "by_mode": [{"mode": "bus", "gtfs_lines": 4, "gtfs_linked": 2, "osm_lines": 4, "osm_linked": 2}],
+        "by_match_method": {"exact_gtfs_route_id": 2},
+        "itineraries": {"links": 1, "gtfs_in_linked_lines": 4, "gtfs_linked": 1, "osm_in_linked_lines": 2,
+                        "osm_linked": 1, "osm_in_linked_lines_without_direction": 0},
+        "itineraries_per_line": {"gtfs": {"mean": 2, "median": 2}, "osm": {"mean": 1, "median": 1}},
+        "linked_line_itinerary_gap": {"mean": 1, "median": 1, "gtfs_has_more": 2, "same": 0, "osm_has_more": 0},
+    }
+
+    html = env.get_template("components/stats_data.html").render(stats=stats, problem_breakdown={})
+
+    anchors = ["stops-matching", "unmatched", "route-matching", "problems", "atlas", "gtfs", "osm-stops", "osm-routes"]
+    for anchor in anchors:
+        assert f'href="#{anchor}"' in html
+    positions = [html.index(f'id="{anchor}"') for anchor in anchors]
+    assert positions == sorted(positions)
+    assert "4 unmatched elements" in html
+    assert "2 stop units have no matched element." in html
+    # One-to-one links: the link count appears once as a figure, coverage per side next to it.
+    assert html.count(">Linked line pairs<") == 1
+    assert "2 / 4 public transport lines" in html
+    assert "Route problems" not in html
+    json.dumps(stats)

@@ -567,6 +567,7 @@
         var prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         var scrollTimer = null;
         var indicatorFrame = null;
+        var positionFrame = null;
         var observerLockedUntil = 0;
         var sections = links.map(function (link) {
             return document.querySelector(link.getAttribute('href'));
@@ -645,27 +646,50 @@
             syncSectionScrollOffset();
             moveIndicator(active, false);
         }
+        function isScrolledToBottom() {
+            // The page scrolls in <body> (base.css) or, elsewhere, in the viewport.
+            return [document.scrollingElement, document.body].some(function (element) {
+                return !!element && element.scrollTop > 0
+                    && element.scrollHeight - element.scrollTop - element.clientHeight < 2;
+            });
+        }
+
+        // The current section is the last one whose heading has passed under
+        // the sticky navigation, or the last section at the bottom of the
+        // page. Reading positions, rather than watching headings cross a
+        // band, keeps jumps (End key, scrollbar, restored scroll) right too.
+        function syncActiveSection() {
+            positionFrame = null;
+            if (Date.now() < observerLockedUntil || !sections.length) return;
+            var line = stickyShell.getBoundingClientRect().bottom + 24;
+            var current = sections[0];
+            if (isScrolledToBottom()) {
+                current = sections[sections.length - 1];
+            } else {
+                sections.forEach(function (section) {
+                    if (section.getBoundingClientRect().top <= line) current = section;
+                });
+            }
+            var activeLink = links.find(function (link) {
+                return link.getAttribute('href') === '#' + current.id;
+            });
+            if (activeLink && !activeLink.classList.contains('is-active')) setActiveLink(activeLink, {animate: true});
+        }
+
+        function onScroll() {
+            if (positionFrame === null) positionFrame = window.requestAnimationFrame(syncActiveSection);
+        }
+
+        // Capture: scroll events do not bubble, and the page scrolls in <body>.
+        document.addEventListener('scroll', onScroll, {capture: true, passive: true});
         window.addEventListener('resize', onResize);
         window.addEventListener('pagehide', function () {
             window.clearTimeout(scrollTimer);
             window.cancelAnimationFrame(indicatorFrame);
+            window.cancelAnimationFrame(positionFrame);
+            document.removeEventListener('scroll', onScroll, {capture: true, passive: true});
             window.removeEventListener('resize', onResize);
-            if (observer) observer.disconnect();
         }, {once: true});
-
-        if (!('IntersectionObserver' in window)) return;
-        var observer = new IntersectionObserver(function (entries) {
-            if (Date.now() < observerLockedUntil) return;
-            var visible = entries.filter(function (entry) { return entry.isIntersecting; })
-                .sort(function (a, b) { return a.boundingClientRect.top - b.boundingClientRect.top; });
-            if (!visible.length) return;
-            var activeId = '#' + visible[0].target.id;
-            var activeLink = links.find(function (link) {
-                return link.getAttribute('href') === activeId;
-            });
-            if (activeLink && !activeLink.classList.contains('is-active')) setActiveLink(activeLink, {animate: true});
-        }, {rootMargin: '-20% 0px -70% 0px', threshold: 0});
-        sections.forEach(function (section) { observer.observe(section); });
     }
 
     function start() {

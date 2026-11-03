@@ -170,6 +170,7 @@
           "backend/services/request_payload.py",
           "backend/services/validators.py",
           "backend/services/stats_export.py",
+          "backend/services/dataset_stats.py",
           "backend/blueprints/data.py",
           "backend/blueprints/operators.py",
           "backend/blueprints/problems.py",
@@ -191,6 +192,7 @@
           "tests/test_operator_map_filters.py",
           "tests/test_global_stats_service.py",
           "tests/test_stats_export.py",
+          "tests/test_dataset_stats.py",
           "tests/test_async_export*.py"
         ]
       },

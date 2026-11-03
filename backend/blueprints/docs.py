@@ -1010,6 +1010,84 @@ def _read_markdown(doc_id: str) -> str:
         return f.read()
 
 
+_TABLE_BLOCK_PATTERN = re.compile(
+    r'<table>\s*<thead>(?P<thead>.*?)</thead>\s*<tbody>(?P<tbody>.*?)</tbody>\s*</table>',
+    re.DOTALL,
+)
+_TABLE_ROW_PATTERN = re.compile(r'<tr>(.*?)</tr>', re.DOTALL)
+_TABLE_CELL_PATTERN = re.compile(r'<t[hd](?P<attrs>[^>]*)>(?P<body>.*?)</t[hd]>', re.DOTALL)
+_TAG_STRIP_PATTERN = re.compile(r'<[^>]+>')
+
+
+def _cell_visible_length(cell_html: str) -> int:
+    text = _TAG_STRIP_PATTERN.sub('', cell_html)
+    return len(unescape(text).strip())
+
+
+def _column_widths(avg_lengths: List[float], min_pct: float = 7.0) -> List[float]:
+    """Proportional column width percentages from average cell text length.
+
+    A square-root-ish weighting keeps one long prose column from squeezing
+    the others down to a sliver, and a floor keeps narrow columns (``#``)
+    from disappearing. Without this, the browser's automatic table layout
+    gives short code/badge columns their full preferred width and makes the
+    one prose column absorb nearly all of the shrinkage, wrapping it across
+    many lines while the short columns sit mostly blank.
+    """
+    weights = [max(length, 1) ** 0.6 for length in avg_lengths]
+    total = sum(weights)
+    pct = [w / total * 100 for w in weights]
+
+    below_floor = [i for i, p in enumerate(pct) if p < min_pct]
+    if below_floor and len(below_floor) < len(pct):
+        reserved = min_pct * len(below_floor)
+        remaining_pct = 100 - reserved
+        remaining_weight = sum(w for i, w in enumerate(weights) if i not in below_floor)
+        pct = [
+            min_pct if i in below_floor
+            else (
+                weights[i] / remaining_weight * remaining_pct
+                if remaining_weight
+                else remaining_pct / (len(pct) - len(below_floor))
+            )
+            for i in range(len(pct))
+        ]
+    return pct
+
+
+def _add_table_colgroups(html: str) -> str:
+    """Give each rendered table a ``<colgroup>`` sized to its content.
+
+    Paired with ``table-layout: fixed`` in docs.css, this replaces the
+    browser's automatic column sizing (see ``_column_widths``) with
+    predictable widths based on what each column actually holds.
+    """
+
+    def add_colgroup(match: re.Match) -> str:
+        thead, tbody = match.group('thead'), match.group('tbody')
+        header_row = _TABLE_ROW_PATTERN.search(thead)
+        if not header_row:
+            return match.group(0)
+
+        header_cells = _TABLE_CELL_PATTERN.findall(header_row.group(1))
+        column_count = len(header_cells)
+        if column_count < 2 or any('colspan' in attrs.lower() for attrs, _ in header_cells):
+            return match.group(0)
+
+        lengths = [[_cell_visible_length(body)] for _, body in header_cells]
+        for row_match in _TABLE_ROW_PATTERN.finditer(tbody):
+            cells = _TABLE_CELL_PATTERN.findall(row_match.group(1))
+            if len(cells) != column_count or any('colspan' in attrs.lower() for attrs, _ in cells):
+                return match.group(0)
+            for idx, (_, body) in enumerate(cells):
+                lengths[idx].append(_cell_visible_length(body))
+
+        avg_lengths = [sum(col) / len(col) for col in lengths]
+        widths = _column_widths(avg_lengths)
+        colgroup = '<colgroup>' + ''.join(f'<col width="{w:.1f}%">' for w in widths) + '</colgroup>'
+        return f'<table>\n{colgroup}\n<thead>{thead}</thead>\n<tbody>{tbody}</tbody>\n</table>'
+
+    return _TABLE_BLOCK_PATTERN.sub(add_colgroup, html)
 
 
 
@@ -1101,7 +1179,8 @@ def _convert_markdown_to_html(
     # source lines do not break sentences.
     md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table'])
     html = md(markdown_text)
-    
+    html = _add_table_colgroups(html)
+
     # Convert mermaid code blocks to mermaid divs for client-side rendering
     # Pattern matches: <pre><code class="language-mermaid">...</code></pre>
     html = re.sub(
@@ -1115,11 +1194,12 @@ def _convert_markdown_to_html(
         return _add_heading_ids(_inline_svg_images(html))
 
     allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + [
-        'p', 'pre', 'code', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'span', 'div', 'i',
+        'p', 'pre', 'code', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'table', 'colgroup', 'col', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'span', 'div', 'i',
         'details', 'summary', 'br'
     ]
     allowed_attrs = {
         **bleach.sanitizer.ALLOWED_ATTRIBUTES,
+        'col': ['width'],
         'img': ['src', 'alt', 'title'],
         'a': ['href', 'title', 'name', 'target', 'rel'],
         'span': ['class', 'data-stat-key', 'title', 'style'],

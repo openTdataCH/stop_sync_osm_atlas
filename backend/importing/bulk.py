@@ -31,4 +31,6 @@ def copy_rows(session, model, rows):
             json_keys = {key for key in keys if isinstance(columns[key].type, JSON)}
             with cursor.copy(statement) as copier:
                 for row in group:
-                    copier.write_row(tuple(Jsonb(row[key]) if key in json_keys else row[key] for key in keys))
+                    # None is SQL NULL, as with none_as_null on the models, never JSON null.
+                    copier.write_row(tuple(Jsonb(row[key]) if key in json_keys and row[key] is not None else row[key]
+                                           for key in keys))

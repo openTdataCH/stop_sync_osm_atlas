@@ -18,6 +18,7 @@ if root_dir not in sys.path:
     sys.path.append(root_dir)
 
 from backend.importing.session import session
+from backend.services.dataset_stats import add_dataset_stats
 from backend.services.stats_export import (
     load_stats_from_file,
     save_stats_to_file,
@@ -47,8 +48,12 @@ def main():
         # 3. Update problem stats from DB
         logger.info("Computing problem statistics...")
         stats['problems'] = compute_db_stats(session)
-        
-        # 4. Save back to file
+
+        # 4. Update the per-source sections (stops, routes, GTFS, route links)
+        logger.info("Computing per-source statistics...")
+        add_dataset_stats(stats, session)
+
+        # 5. Save back to file
         import datetime
         stats['generated_at'] = datetime.datetime.utcnow().isoformat() + "Z"
         
@@ -60,7 +65,7 @@ def main():
         logger.info(f"Summary: {s['matched_pairs']} matched pairs ({s['match_rate_percent']}%)")
         logger.info(f"OSM coverage: {s['atlas_with_osm_within_50m_percent']}% of ATLAS has nearby OSM")
         
-        # 5. Generate PDF report
+        # 6. Generate PDF report
         logger.info("Generating PDF summary report...")
         app = create_app()
         with app.app_context():

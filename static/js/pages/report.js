@@ -450,8 +450,8 @@ function initReportGeneration() {
     // Toggle sections based on category selection
     function updateCategoryVisibility() {
         var cat = $('input[name="reportCategory"]:checked').val();
-        $('#unmatchedOptions').toggle(cat === 'unmatched');
-        $('#problemsOptions').toggle(cat === 'problems');
+        $('#unmatchedOptions').prop('hidden', cat !== 'unmatched');
+        $('#problemsOptions').prop('hidden', cat !== 'problems');
         // Constrain sort options by category
         var $sort = $('#sortOrderModal');
         $sort.find('option').prop('disabled', false).show();

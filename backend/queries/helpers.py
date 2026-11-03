@@ -127,8 +127,6 @@ def build_atlas_duplicate_membership_condition():
     Duplicate ATLAS membership is defined structurally:
     - non-representative members have ``representative_sloid`` set
     - representative members are referenced by at least one sibling row
-
-    This avoids relying on JSONB null semantics from ``duplicate_group_sloids``.
     """
     from sqlalchemy.orm import aliased
     from backend.models import AtlasStop

@@ -125,7 +125,7 @@ class AtlasStop(db.Model):
     # FK to the representative SLOID (NULL if this IS the representative or not in a group)
     representative_sloid = db.Column(db.Text, nullable=True, index=True)
     # JSONB array of all SLOIDs in the duplicate group (e.g. ["sloid1", "sloid2"])
-    duplicate_group_sloids = db.Column(JSONB)
+    duplicate_group_sloids = db.Column(JSONB(none_as_null=True))
 
     atlas_operator = db.relationship('AtlasOperator', back_populates='atlas_stops', lazy='select')
 
@@ -175,7 +175,7 @@ class GtfsStopIdentityResolution(db.Model):
     gtfs_stop_lon = db.Column(db.Float)
     atlas_lat = db.Column(db.Float)
     atlas_lon = db.Column(db.Float)
-    details_json = db.Column(JSONB)
+    details_json = db.Column(JSONB(none_as_null=True))
 
 class OsmNode(db.Model):
     __tablename__ = 'osm_nodes'
@@ -195,12 +195,12 @@ class OsmNode(db.Model):
     osm_network_wikidata = db.Column(db.String(100))
     osm_node_type = db.Column(db.String(50))
     # JSONB array of all OSM node IDs in the duplicate group (e.g. ["123", "456"])
-    duplicate_group_node_ids = db.Column(JSONB)
+    duplicate_group_node_ids = db.Column(JSONB(none_as_null=True))
     # Prefix of a retired stop tag, such as 'disused' for disused:highway=bus_stop
     osm_lifecycle = db.Column(db.String(20))
     # Every tag of the element. Deferred: only the stop popup reads it, so map
     # queries that join this table never fetch or decode it.
-    osm_tags = db.deferred(db.Column(JSONB))
+    osm_tags = db.deferred(db.Column(JSONB(none_as_null=True)))
 
 
 class OsmStop(db.Model):

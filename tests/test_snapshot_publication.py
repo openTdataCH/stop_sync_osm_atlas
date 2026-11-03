@@ -201,6 +201,12 @@ def test_copy_matches_insert_json_geometry_defaults_indexes_and_sequences(postgr
                                                 {'name': table.name}).scalars())
                 assert expected <= actual
             assert connection.execute(text('SELECT ST_SRID(geom) FROM stops_matched WHERE geom IS NOT NULL LIMIT 1')).scalar() == 4326
+            # An absent JSON value is SQL NULL on both paths, so IS NULL selects it.
+            for table, column in (('osm_nodes', 'duplicate_group_node_ids'), ('atlas_stops', 'duplicate_group_sloids')):
+                counts = connection.execute(text(
+                    f"SELECT count(*) FILTER (WHERE {column} IS NULL), "
+                    f"count(*) FILTER (WHERE jsonb_typeof({column}) = 'null') FROM {table}")).one()
+                assert counts[0] > 0 and counts[1] == 0
             maximum = connection.execute(text('SELECT max(id) FROM stops_matched')).scalar()
             following = connection.execute(text("SELECT nextval(pg_get_serial_sequence('stops_matched', 'id'))")).scalar()
             assert following == maximum + 1

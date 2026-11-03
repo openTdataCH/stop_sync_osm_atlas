@@ -79,3 +79,48 @@ describe('Routes operator filters', () => {
     expect(parsed.searchParams.getAll('atlas_operator')).toEqual(['AAGL']);
   });
 });
+
+describe('Routes detail cards', () => {
+  beforeAll(() => {
+    loadScript('static/js/shared/utils.js');
+    loadScript('static/js/components/filter-chip-utils.js');
+    loadScript('static/js/shared/permalinks.js');
+    loadScript('static/js/pages/routes.js');
+  });
+
+  function toggle(details, open) {
+    details.open = open;
+    details.dispatchEvent(new Event('toggle'));
+  }
+
+  test('opening one side of a matched route opens the other side too', () => {
+    document.body.innerHTML = `
+      <header class="route-card__header route-card__header--matched">
+        <details class="route-meta route-meta--atlas"></details>
+        <details class="route-meta route-meta--osm"></details>
+      </header>
+    `;
+    const [atlas, osm] = document.querySelectorAll('.route-meta');
+
+    toggle(osm, true);
+    expect(atlas.open).toBe(true);
+
+    toggle(atlas, false);
+    expect(osm.open).toBe(false);
+  });
+
+  test('a single-sided route card opens on its own', () => {
+    document.body.innerHTML = `
+      <header class="route-card__header route-card__header--atlas_only">
+        <details class="route-meta route-meta--atlas route-meta--solo"></details>
+      </header>
+      <header class="route-card__header route-card__header--osm_only">
+        <details class="route-meta route-meta--osm route-meta--solo"></details>
+      </header>
+    `;
+    const [atlas, osm] = document.querySelectorAll('.route-meta');
+
+    toggle(atlas, true);
+    expect(osm.open).toBe(false);
+  });
+});

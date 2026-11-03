@@ -30,79 +30,68 @@
 {% endblock %}
 
 {% block extra_css %}
-/* Force compact grid for PDF (ignore breakpoints) */
-.stats-container .row > div[class*="col-"] {
-    margin-bottom: 0.4rem !important;
-}
-.stats-container .row > .col-lg-4, 
-.stats-container .row > .col-md-4 { 
-    flex: 0 0 auto !important; width: 33.333% !important; 
-}
-.stats-container .row > .col-md-6, 
-.stats-container .row > .col-sm-6 { 
-    flex: 0 0 auto !important; width: 50% !important; 
-}
-.stats-container .row > .col-md-3 { 
-    flex: 0 0 auto !important; width: 25% !important; 
-}
-
-/* Tighten general spacing */
-.stats-page { padding-top: 0 !important; }
+/* Compact print layout for the analytics sections (stats.css). */
+.stats-page { padding: 0 !important; background: #fff !important; }
 .stats-container { max-width: 100% !important; padding: 0 !important; }
 
 .stats-section-title {
-    margin: 0.6rem 0 0.3rem !important;
-    font-size: 0.85rem !important;
-    border-bottom-width: 1px !important;
-    padding-bottom: 2px !important;
+    margin: 0.7rem 0 0.3rem !important;
+    font-size: 0.9rem !important;
 }
 
-.mb-3, .mb-4 { margin-bottom: 0.4rem !important; }
-.mt-3, .mt-4 { margin-top: 0.4rem !important; }
-
-/* Stat Cards tightening */
-.stat-card {
-    padding: 0.4rem 0.6rem !important;
-    margin-bottom: 0 !important;
+/* Blocks may span pages; their small parts may not. */
+.stats-block {
+    margin-bottom: 0.4rem !important;
+    padding: 0.45rem 0.6rem !important;
     border-radius: 6px !important;
-    height: auto !important;
-    min-height: 0 !important;
 }
-.stat-card__value { 
-    font-size: 1.2rem !important; 
-    line-height: 1.1 !important;
+.stats-figures, .stats-panel, .stats-table tr, .stats-kv > div, .mapping-path, .attribute-matrix__item { break-inside: avoid; }
+.stats-block__title, .stats-block__subtitle, .stats-section-title { break-after: avoid; }
+.stats-block__title { margin-bottom: 0.25rem !important; font-size: 0.75rem !important; }
+.stats-block__subtitle { margin: 0.4rem 0 0.2rem !important; font-size: 0.7rem !important; }
+.stats-block__lead, .stats-note, .stats-panel__help { margin-bottom: 0.25rem !important; font-size: 0.62rem !important; }
+
+/* WeasyPrint does not size auto-fit grid tracks; wrap the figures instead. */
+.stats-figures {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.8rem !important;
+    margin-bottom: 0.35rem !important;
+    padding: 0.35rem 0.5rem !important;
 }
-.stat-card__label { 
-    font-size: 0.65rem !important; 
-    margin-top: 2px !important;
-    line-height: 1.1 !important;
-}
+.stats-figure { flex: 1 1 6rem; }
+.stats-figure__value { font-size: 0.95rem !important; }
+.stats-figure__label, .stats-figure__note { font-size: 0.58rem !important; }
 
-/* Compact Tables */
-.table { margin-bottom: 0.5rem !important; }
-.table-sm th, .table-sm td {
-    padding: 3px 6px !important;
-    font-size: 0.72rem !important;
-}
-.table thead th { font-size: 0.65rem !important; text-transform: uppercase; letter-spacing: 0.02em; }
+.stats-columns { gap: 0.4rem 0.8rem !important; }
+.stats-columns--3 { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+.stats-columns--2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+.stats-panel__head { margin-bottom: 0.2rem !important; }
+.stats-panel__head h4 { font-size: 0.7rem !important; }
 
-/* Diagrams (SVGs) */
-.diagram-wrap { padding: 4px !important; margin-bottom: 0.5rem !important; border-radius: 6px !important; }
-.diagram-svg { height: auto !important; max-height: 110px !important; }
-.diagram-text { font-size: 10px !important; }
+.stats-table, .stats-kv dt, .stats-kv dd, .stats-legend dt, .stats-legend dd, .stats-bar { font-size: 0.62rem !important; }
+.stats-table th, .stats-table td { padding: 2px 6px !important; }
+.stats-table thead th { font-size: 0.52rem !important; letter-spacing: 0 !important; }
+.stats-eyebrow, .stats-key, .distribution-chart__row, .distribution-chart__row small, .attribute-matrix__item span, .attribute-matrix__item small { font-size: 0.55rem !important; }
+.attribute-matrix__item strong, .stats-panel__head > strong { font-size: 0.72rem !important; }
+.attribute-matrix__item { padding: 0.25rem 0.4rem !important; }
+.priority-badge { display: inline-block !important; min-width: 0 !important; padding: 2px 6px !important; font-size: 0.55rem !important; }
+.stats-meters__label, .stats-meters small, .stats-details summary, .stats-bar small,
+.mapping-path__copy p, .mapping-paths__header p, .mapping-paths__total span { font-size: 0.58rem !important; }
+.mapping-path__copy h5, .mapping-path__count, .mapping-paths__total strong { font-size: 0.68rem !important; }
+.mapping-path__step { width: 1.1rem !important; height: 1.1rem !important; font-size: 0.55rem !important; }
+.source-freshness__item span, .source-freshness__item strong { overflow: visible !important; white-space: normal !important; text-overflow: clip !important; }
+/* Bootstrap colours inline code pink; the site uses the text colour. */
+code { color: inherit !important; }
+.stats-kv > div { padding: 2px 0 !important; }
+.stats-split, .stats-meter { height: 0.4rem !important; }
+.mapping-path { min-height: 0 !important; padding: 0.2rem 0 !important; }
+.mapping-path:not(:last-child) .mapping-path__step::after { display: none; }
 
-/* General Cards (Containers) */
-.card { margin-bottom: 0.5rem !important; border-radius: 6px !important; border-color: #eee !important; }
-.card-header { padding: 5px 10px !important; background-color: #fcfcfc !important; }
-.card-header h5 { font-size: 0.75rem !important; font-weight: 700 !important; color: #444 !important; }
-.card-body { padding: 6px 10px !important; }
-.card-body.p-0 { padding: 0 !important; }
-
-/* Alerts and Info boxes */
-.alert { 
-    padding: 6px 10px !important; 
-    margin-bottom: 0.5rem !important; 
-    font-size: 0.7rem !important; 
-    border-radius: 6px !important; 
+.alert {
+    padding: 6px 10px !important;
+    margin-bottom: 0.5rem !important;
+    font-size: 0.7rem !important;
+    border-radius: 6px !important;
 }
 {% endblock %}

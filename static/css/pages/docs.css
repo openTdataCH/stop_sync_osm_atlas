@@ -509,6 +509,11 @@
   max-width: 100%;
   overflow-x: auto;
   border-collapse: collapse;
+  /* Columns get a <colgroup> sized to their content server-side (see
+     _add_table_colgroups in docs.py); fixed layout makes that sizing
+     authoritative instead of letting one long prose column get squeezed
+     down to a sliver by the browser's automatic column sizing. */
+  table-layout: fixed;
   font-size: var(--text-sm);
   margin-bottom: var(--space-4);
 }
@@ -517,6 +522,7 @@
 .docs-content td {
   border: var(--border-width) solid var(--color-border);
   padding: var(--space-2) var(--space-3);
+  overflow-wrap: break-word;
 }
 
 .docs-content thead th {

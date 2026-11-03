@@ -620,7 +620,8 @@
 .route-card__header--matched {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  align-items: start;
+  /* Both cards open together (routes.js), so keep them the same height. */
+  align-items: stretch;
   gap: var(--space-2);
 }
 

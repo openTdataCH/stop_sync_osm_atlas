@@ -497,6 +497,36 @@ describe('analytics pipeline timeline', () => {
     window.getComputedStyle.mockRestore();
   });
 
+  test('marks the section under the navigation after any scroll, including jumps', () => {
+    jest.advanceTimersByTime(1000); // past the lock that follows a navigation click
+    const nav = document.querySelector('.stats-section-nav');
+    const matching = document.getElementById('stops-matching');
+    const routes = document.getElementById('routes');
+    const link = (href) => document.querySelector(`.stats-section-nav__link[href="${href}"]`);
+    nav.getBoundingClientRect = () => ({bottom: 100});
+    const place = (matchingTop, routesTop) => {
+      matching.getBoundingClientRect = () => ({top: matchingTop});
+      routes.getBoundingClientRect = () => ({top: routesTop});
+      // The page scrolls inside <body>, whose scroll events do not bubble.
+      document.body.dispatchEvent(new Event('scroll'));
+      jest.advanceTimersByTime(20);
+    };
+
+    place(-400, 900);
+    expect(link('#stops-matching').classList.contains('is-active')).toBe(true);
+
+    // A jump straight into Routes, as with the End key or the scrollbar.
+    place(-6000, -2000);
+    expect(link('#routes').classList.contains('is-active')).toBe(true);
+    expect(link('#stops-matching').hasAttribute('aria-current')).toBe(false);
+
+    place(-400, 900);
+    expect(link('#stops-matching').classList.contains('is-active')).toBe(true);
+    delete nav.getBoundingClientRect;
+    delete matching.getBoundingClientRect;
+    delete routes.getBoundingClientRect;
+  });
+
   test('keeps historical plans readable and switches to eight sequential phases on the next run', () => {
     const timeline = document.createElement('div');
     timeline.id = 'analyticsPipelineTimeline';

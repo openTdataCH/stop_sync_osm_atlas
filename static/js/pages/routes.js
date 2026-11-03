@@ -369,6 +369,19 @@
     });
   }
 
+  // A matched route compares both sides, so its two detail cards open and close together.
+  function bindPairedRouteMeta() {
+    document.addEventListener('toggle', function (event) {
+      var meta = event.target;
+      if (!meta || !meta.classList || !meta.classList.contains('route-meta')) return;
+      var header = meta.closest('.route-card__header--matched');
+      if (!header) return;
+      header.querySelectorAll('.route-meta').forEach(function (other) {
+        if (other !== meta && other.open !== meta.open) other.open = meta.open;
+      });
+    }, true);
+  }
+
   function bindSearchHint() {
     var input = document.getElementById('routesSearchInput');
     var hint = document.getElementById('routesSearchHint');
@@ -1044,6 +1057,7 @@
     }
 
     bindSearchHint();
+    bindPairedRouteMeta();
     initOperatorDropdown();
     initOsmOperatorDropdown();
     initStatusFilter();

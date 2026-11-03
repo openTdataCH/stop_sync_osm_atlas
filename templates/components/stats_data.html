@@ -18,12 +18,14 @@ SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
     <span class="stats-section-nav__indicator" aria-hidden="true"></span>
     <a class="stats-section-nav__link is-active" href="#pipelineRunCard" aria-current="location">Pipeline</a>
     {% if stats_available %}
-    <a class="stats-section-nav__link" href="#stops-matching">Matching</a>
-    <a class="stats-section-nav__link" href="#osm-stops">OSM stops</a>
+    <a class="stats-section-nav__link" href="#stops-matching">Stop matching</a>
     <a class="stats-section-nav__link" href="#unmatched">Unmatched</a>
-    <a class="stats-section-nav__link" href="#atlas">ATLAS</a>
+    <a class="stats-section-nav__link" href="#route-matching">Route matching</a>
     <a class="stats-section-nav__link" href="#problems">Problems</a>
-    <a class="stats-section-nav__link" href="#routes">Routes</a>
+    <a class="stats-section-nav__link" href="#atlas">ATLAS stops</a>
+    <a class="stats-section-nav__link" href="#gtfs">Swiss GTFS</a>
+    <a class="stats-section-nav__link" href="#osm-stops">OSM stops</a>
+    <a class="stats-section-nav__link" href="#osm-routes">OSM routes</a>
     {% endif %}
   </nav>
 </div>
@@ -102,1466 +104,826 @@ SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
 
 
 {# ══════════════════════════════════════════
+SHARED FORMATS AND PARTS
+One container level per block: a section heading, then flat blocks. Colour
+marks the data source only (ATLAS navy, OSM green) and problem severity.
+══════════════════════════════════════════ #}
+{% macro num(value) %}{{ "{:,}".format(value or 0) }}{% endmacro %}
+{% macro pct(value) %}{{ "%.1f"|format((value or 0)|float) }}%{% endmacro %}
+{% macro share(part, whole) %}{{ "%.1f"|format(((part or 0) / whole * 100) if whole else 0) }}%{% endmacro %}
+{% macro dec(value) %}{% if value is none or value is undefined %}–{% else %}{{ "%.1f"|format(value|float) }}{% endif %}{% endmacro %}
+{% macro of(part, whole) %}{{ num(part) }} / {{ num(whole) }}{% endmacro %}
+{% set mode_labels = {
+  'rail': 'Rail', 'tram': 'Tram and light rail', 'metro': 'Metro', 'bus': 'Bus, trolleybus and coach',
+  'ferry': 'Ferry', 'aerialway': 'Aerial lift', 'funicular': 'Funicular', 'other': 'Other',
+  'not_public_transport': 'Not public transport',
+} %}
+{% macro figure(label, value, note=none) -%}
+<div class="stats-figure">
+  <strong class="stats-figure__value">{{ value }}</strong>
+  <span class="stats-figure__label">{{ label }}</span>
+  {%- if note %}<small class="stats-figure__note">{{ note }}</small>{% endif %}
+</div>
+{%- endmacro %}
+{% macro kv(label, value, detail=none) -%}
+<div><dt>{{ label }}</dt><dd>{{ value }}{% if detail %} <small>{{ detail }}</small>{% endif %}</dd></div>
+{%- endmacro %}
+{% macro legend_row(swatch, label, value, detail=none) -%}
+<div><dt><i class="stats-swatch {{ swatch }}" aria-hidden="true"></i>{{ label }}</dt><dd>{{ value }}{% if detail %} <small>{{ detail }}</small>{% endif %}</dd></div>
+{%- endmacro %}
+{% macro priority_table(breakdown, types, empty_text) -%}
+<div class="stats-table-wrap">
+  <table class="stats-table stats-table--priorities stats-table--compact">
+    <thead><tr><th scope="col">Problem type</th><th scope="col">Count</th></tr></thead>
+    {% for prio, label, severity in [(1, 'Critical', 'danger'), (2, 'Significant', 'warning'), (3, 'Minor', 'minor')] %}
+    {#- stats.json stores the priorities as strings ("1"), live queries as numbers. #}
+    {% set prio_data = breakdown.get(prio) or breakdown.get(prio|string) or {} %}
+    {% set prio_total = prio_data.values()|sum if prio_data else 0 %}
+    <tbody>
+      <tr class="is-group">
+        <th scope="rowgroup"><span class="priority-badge priority-badge--{{ severity }}">P{{ prio }}</span>{{ label }}</th>
+        <td>{{ num(prio_total) }}</td>
+      </tr>
+      {% for ptype, plabel in types %}
+      {% set cnt = prio_data.get(ptype, 0) %}
+      {% if cnt > 0 %}
+      <tr class="is-level-1"><th scope="row">{{ plabel }}</th><td>{{ num(cnt) }}</td></tr>
+      {% endif %}
+      {% endfor %}
+      {% if prio_total == 0 %}
+      <tr class="is-level-1 is-empty"><td colspan="2">{{ empty_text }}</td></tr>
+      {% endif %}
+    </tbody>
+    {% endfor %}
+  </table>
+</div>
+{%- endmacro %}
+
+{# ══════════════════════════════════════════
 SECTION 1 — STOPS MATCHING
 ══════════════════════════════════════════ #}
-<div class="mb-3">
-  <h2 class="stats-section-title mb-0" id="stops-matching">Stops matching</h2>
+<h2 class="stats-section-title" id="stops-matching">Stop matching</h2>
+
+{% set s = stats.summary %}
+{% set isolated_atlas = stats.unmatched_analysis.atlas.no_osm_within_50m|default(0) %}
+<div class="stats-figures">
+  {{ figure('Matched ATLAS platforms', num(s.distinct_matched_atlas), pct(s.match_rate_percent) ~ ' of ' ~ num(s.atlas_platforms) ~ ' platforms') }}
+  {{ figure('Match rate without isolated platforms', pct(s.matched_atlas_with_osm_within_50m_percent), 'Leaves out ' ~ num(isolated_atlas) ~ ' unmatched platforms with no OSM stop within 50 m') }}
+  {{ figure('Matched OSM stop units', num(s.matched_osm_stops), share(s.matched_osm_stops, s.osm_stops) ~ ' of ' ~ num(s.osm_stops) ~ ' stop units') }}
+  {{ figure('Matched pairs', num(s.matched_pairs), 'ATLAS platform ↔ OSM element links') }}
 </div>
 
-{# Summary Cards #}
-<div class="row mb-3">
-  <div class="col-lg-4 col-md-6 col-sm-6 mb-3">
-    <div class="stat-card">
-      <div class="stat-card__value">{{ "{:,}".format(stats.summary.atlas_platforms) }}</div>
-      <div class="stat-card__label">ATLAS Platforms</div>
-    </div>
-  </div>
-  <div class="col-lg-4 col-md-6 col-sm-6 mb-3">
-    <div class="stat-card">
-      <div class="stat-card__value">{{ "{:,}".format(stats.summary.osm_stops) }}</div>
-      <div class="stat-card__label">OSM Stops</div>
-    </div>
-  </div>
-  <div class="col-lg-4 col-md-6 col-sm-6 mb-3">
-    <div class="stat-card">
-      <div class="stat-card__value">{{ "{:,}".format(stats.summary.osm_nodes) }}</div>
-      <div class="stat-card__label">OSM Nodes</div>
-    </div>
-  </div>
-</div>
+{% set total = stats.summary.matched_pairs %}
+{% set total_denom = total if total > 0 else 1 %}
+{% set stages = stats.matching_stages %}
+{% set qm = stats.quality_metrics if stats.quality_metrics is defined else {} %}
+{% set dq_by_stage = qm.distance_quality.by_stage if qm and qm.distance_quality and qm.distance_quality.by_stage else {} %}
+{% set nmc_by_stage = qm.distance_quality.not_matched_to_closest_by_stage if qm and qm.distance_quality and qm.distance_quality.not_matched_to_closest_by_stage else {} %}
+{% set nmc_stage1 = nmc_by_stage.get('distance_stage1_uic_ref', 0) + nmc_by_stage.get('distance_stage1_uic_name', 0) + nmc_by_stage.get('distance_stage1_name', 0) + nmc_by_stage.get('distance_stage1', 0) %}
+{% set nmc_stage1b = nmc_by_stage.get('distance_stage1b_uic_ref', 0) + nmc_by_stage.get('distance_stage1b_uic_name', 0) + nmc_by_stage.get('distance_stage1b_name', 0) + nmc_by_stage.get('distance_stage1b', 0) %}
+{% set nmc_stage3a = nmc_by_stage.get('distance_stage3a_pass1', 0) + nmc_by_stage.get('distance_stage3a_pass2', 0) %}
+{% set nmc_distance = nmc_by_stage.get('distance_trio', 0) + nmc_stage1 + nmc_stage1b + nmc_by_stage.get('distance_stage2', 0) + nmc_stage3a + nmc_by_stage.get('distance_stage3b', 0) %}
 
-<div class="row mb-4">
-  <div class="col-lg-4 col-md-6 col-sm-6 mb-3">
-    <div class="stat-card stat-card--primary">
-      <div class="stat-card__value">{{ stats.summary.match_rate_percent }}%</div>
-      <div class="stat-card__label">Matched ATLAS (%)</div>
-    </div>
-  </div>
-  <div class="col-lg-4 col-md-6 col-sm-6 mb-3">
-    <div class="stat-card stat-card--success">
-      <div class="stat-card__value">{{ "{:,}".format(stats.summary.atlas_with_osm_within_50m|default(0)) }}</div>
-      <div class="stat-card__label">ATLAS with OSM ≤ 50m</div>
-    </div>
-  </div>
-  <div class="col-lg-4 col-md-6 col-sm-6 mb-3">
-    <div class="stat-card stat-card--primary">
-      <div class="stat-card__value">{{ stats.summary.matched_atlas_with_osm_within_50m_percent|default(0) }}%</div>
-      <div class="stat-card__label">Matched ATLAS with OSM ≤ 50m (%)</div>
-    </div>
-  </div>
-</div>
+{% macro stage_row(label, count, mto, not_closest, distance_key=none, level=0, is_total=false) -%}
+{% set sd = dq_by_stage.get(distance_key) if distance_key else none %}
+<tr class="{{ 'is-total' if is_total }}{{ ' is-level-' ~ level if level }}">
+  <th scope="row">{{ label }}</th>
+  <td>{{ num(count) }}</td>
+  <td>{{ share(count, total_denom) }}</td>
+  <td>{{ num(mto) }}</td>
+  <td>{{ num(not_closest) }}</td>
+  <td class="is-secondary">{{ dec(sd.mean_m) if sd else '–' }}</td>
+  <td class="is-secondary">{{ dec(sd.median_m) if sd else '–' }}</td>
+  <td class="is-secondary">{{ dec(sd.p95_m) if sd else '–' }}</td>
+</tr>
+{%- endmacro %}
 
-{# Matching Stages #}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">Matching Stages</h5>
-  </div>
-  <div class="card-body p-0">
-    <table class="table table-sm table-hover mb-0">
-      <thead class="thead-light">
+<section class="stats-block" aria-labelledby="matchingStagesTitle">
+  <h3 class="stats-block__title" id="matchingStagesTitle">Matches by stage</h3>
+  <div class="stats-table-wrap">
+    <table class="stats-table">
+      <thead>
         <tr>
-          <th>Stage</th>
-          <th class="text-end">Count</th>
-          <th class="text-end">% of Total</th>
-          <th class="text-end">Many-to-One</th>
-          <th class="text-end" title="Not matched to closest OSM node">Not Closest</th>
-          <th class="text-end" title="Mean distance between matched pairs">Mean (m)</th>
-          <th class="text-end" title="Median distance between matched pairs">Median (m)</th>
-          <th class="text-end" title="95th percentile distance">P95 (m)</th>
+          <th scope="col">Stage</th>
+          <th scope="col">Count</th>
+          <th scope="col">Share</th>
+          <th scope="col">Many-to-one</th>
+          <th scope="col" title="Not matched to the closest OSM node">Not closest</th>
+          <th scope="col" title="Mean distance between matched pairs">Mean (m)</th>
+          <th scope="col" title="Median distance between matched pairs">Median (m)</th>
+          <th scope="col" title="95th percentile distance">P95 (m)</th>
         </tr>
       </thead>
       <tbody>
-        {% set total = stats.summary.matched_pairs %}
-        {% set total_denom = total if total > 0 else 1 %}
-        {% set stages = stats.matching_stages %}
-        {% set qm = stats.quality_metrics if stats.quality_metrics is defined else {} %}
-        {% set dq_by_stage = qm.distance_quality.by_stage if qm and qm.distance_quality and qm.distance_quality.by_stage else {} %}
-        {% set nmc_by_stage = qm.distance_quality.not_matched_to_closest_by_stage if qm and qm.distance_quality and qm.distance_quality.not_matched_to_closest_by_stage else {} %}
-
-        {% macro distance_cols(key) %}
-          {% set sd = dq_by_stage.get(key) %}
-          <td class="text-end text-muted">{{ sd.mean_m if sd and sd.mean_m is not none else '-' }}</td>
-          <td class="text-end text-muted">{{ sd.median_m if sd and sd.median_m is not none else '-' }}</td>
-          <td class="text-end text-muted">{{ sd.p95_m if sd and sd.p95_m is not none else '-' }}</td>
-        {% endmacro %}
-        <tr>
-          <td>Exact (UIC ref)</td>
-          <td class="text-end">{{ "{:,}".format(stages.exact.count) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stages.exact.count / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stages.exact.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('exact', 0)) }}</td>
-          {{ distance_cols('exact') }}
-        </tr>
-        <tr>
-          <td>Name matching</td>
-          <td class="text-end">{{ "{:,}".format(stages.name.count) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stages.name.count / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stages.name.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('name', 0)) }}</td>
-          {{ distance_cols('name') }}
-        </tr>
-        <tr class="fw-bold">
-          <td>Route matching (total)</td>
-          <td class="text-end">{{ "{:,}".format(stages.route.count) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stages.route.count / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stages.route.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
-          {{ distance_cols('route_gtfs') }}
-        </tr>
-        {% set rb = stages.route.breakdown %}
-        <tr class="text-muted">
-          <td class="ps-4">GTFS</td>
-          <td class="text-end">{{ "{:,}".format(rb.gtfs) }}</td>
-          <td class="text-end">{{ "%.1f"|format(rb.gtfs / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(rb.gtfs_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('route_gtfs', 0)) }}</td>
-          {{ distance_cols('route_gtfs') }}
-        </tr>
-        <tr class="fw-bold">
-          <td>Distance (total)</td>
-          <td class="text-end">{{ "{:,}".format(stages.distance.count) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stages.distance.count / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stages.distance.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_trio', 0) + nmc_by_stage.get('distance_stage1_uic_ref', 0) + nmc_by_stage.get('distance_stage1_uic_name', 0) + nmc_by_stage.get('distance_stage1_name', 0) + nmc_by_stage.get('distance_stage1', 0) + nmc_by_stage.get('distance_stage1b_uic_ref', 0) + nmc_by_stage.get('distance_stage1b_uic_name', 0) + nmc_by_stage.get('distance_stage1b_name', 0) + nmc_by_stage.get('distance_stage1b', 0) + nmc_by_stage.get('distance_stage2', 0) + nmc_by_stage.get('distance_stage3a_pass1', 0) + nmc_by_stage.get('distance_stage3a_pass2', 0) + nmc_by_stage.get('distance_stage3b', 0)) }}</td>
-          <td class="text-end text-muted">-</td><td class="text-end text-muted">-</td><td class="text-end text-muted">-</td>
-        </tr>
         {% set db = stages.distance.breakdown %}
-        <tr class="text-muted">
-          <td class="ps-4">Stage 0: Trio side matching</td>
-          <td class="text-end">{{ "{:,}".format(db.stage0_trio|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format((db.stage0_trio|default(0)) / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(db.stage0_trio_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_trio', 0)) }}</td>
-          {{ distance_cols('distance_trio') }}
-        </tr>
-        <tr class="text-muted">
-          <td class="ps-4">Stage 1: Group proximity (50m)</td>
-          <td class="text-end">{{ "{:,}".format(db.stage1_group) }}</td>
-          <td class="text-end">{{ "%.1f"|format(db.stage1_group / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(db.stage1_group_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_uic_ref', 0) + nmc_by_stage.get('distance_stage1_uic_name', 0) + nmc_by_stage.get('distance_stage1_name', 0) + nmc_by_stage.get('distance_stage1', 0)) }}</td>
-          {{ distance_cols('distance_stage1') }}
-        </tr>
         {% set stage1k = db.stage1_group_by_key if db.stage1_group_by_key is defined else {} %}
-        {% if stage1k.uic_ref is defined and stage1k.uic_ref.count > 0 %}
-        <tr class="text-muted">
-          <td class="ps-5">Stage 1a: UIC ref</td>
-          <td class="text-end">{{ "{:,}".format(stage1k.uic_ref.count) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stage1k.uic_ref.count / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stage1k.uic_ref.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_uic_ref', 0)) }}</td>
-          {{ distance_cols('distance_stage1_uic_ref') }}
-        </tr>
-        {% endif %}
-        {% if stage1k.uic_name is defined and stage1k.uic_name.count > 0 %}
-        <tr class="text-muted">
-          <td class="ps-5">Stage 1b: UIC name</td>
-          <td class="text-end">{{ "{:,}".format(stage1k.uic_name.count) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stage1k.uic_name.count / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stage1k.uic_name.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_uic_name', 0)) }}</td>
-          {{ distance_cols('distance_stage1_uic_name') }}
-        </tr>
-        {% endif %}
-        {% if stage1k.name is defined and stage1k.name.count > 0 %}
-        <tr class="text-muted">
-          <td class="ps-5">Stage 1c: Name</td>
-          <td class="text-end">{{ "{:,}".format(stage1k.name.count) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stage1k.name.count / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stage1k.name.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1_name', 0)) }}</td>
-          {{ distance_cols('distance_stage1_name') }}
-        </tr>
-        {% endif %}
-        {% if (db.stage1b_long_group|default(0)) > 0 %}
-        <tr class="text-muted">
-          <td class="ps-4">Stage 1b: Group proximity (150m)</td>
-          <td class="text-end">{{ "{:,}".format(db.stage1b_long_group|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format((db.stage1b_long_group|default(0)) / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(db.stage1b_long_group_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_uic_ref', 0) + nmc_by_stage.get('distance_stage1b_uic_name', 0) + nmc_by_stage.get('distance_stage1b_name', 0) + nmc_by_stage.get('distance_stage1b', 0)) }}</td>
-          {{ distance_cols('distance_stage1b') }}
-        </tr>
-        {% endif %}
         {% set stage1bk = db.stage1b_long_group_by_key if db.stage1b_long_group_by_key is defined else {} %}
-        {% if stage1bk.uic_ref is defined and stage1bk.uic_ref.count > 0 %}
-        <tr class="text-muted">
-          <td class="ps-5">Stage 1d: UIC ref (150m)</td>
-          <td class="text-end">{{ "{:,}".format(stage1bk.uic_ref.count) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stage1bk.uic_ref.count / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stage1bk.uic_ref.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_uic_ref', 0)) }}</td>
-          {{ distance_cols('distance_stage1b_uic_ref') }}
-        </tr>
-        {% endif %}
-        {% if stage1bk.uic_name is defined and stage1bk.uic_name.count > 0 %}
-        <tr class="text-muted">
-          <td class="ps-5">Stage 1e: UIC name (150m)</td>
-          <td class="text-end">{{ "{:,}".format(stage1bk.uic_name.count) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stage1bk.uic_name.count / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stage1bk.uic_name.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_uic_name', 0)) }}</td>
-          {{ distance_cols('distance_stage1b_uic_name') }}
-        </tr>
-        {% endif %}
-        {% if stage1bk.name is defined and stage1bk.name.count > 0 %}
-        <tr class="text-muted">
-          <td class="ps-5">Stage 1f: Name (150m)</td>
-          <td class="text-end">{{ "{:,}".format(stage1bk.name.count) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stage1bk.name.count / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(stage1bk.name.mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage1b_name', 0)) }}</td>
-          {{ distance_cols('distance_stage1b_name') }}
-        </tr>
-        {% endif %}
-        <tr class="text-muted">
-          <td class="ps-4">Stage 2: Local ref</td>
-          <td class="text-end">{{ "{:,}".format(db.stage2_local_ref) }}</td>
-          <td class="text-end">{{ "%.1f"|format(db.stage2_local_ref / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(db.stage2_local_ref_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage2', 0)) }}</td>
-          {{ distance_cols('distance_stage2') }}
-        </tr>
-        <tr class="text-muted">
-          <td class="ps-4">Stage 3a: Single candidate</td>
-          <td class="text-end">{{ "{:,}".format(db.stage3a_single) }}</td>
-          <td class="text-end">{{ "%.1f"|format(db.stage3a_single / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(db.stage3a_single_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a_pass1', 0) + nmc_by_stage.get('distance_stage3a_pass2', 0)) }}</td>
-          <td class="text-end text-muted">-</td><td class="text-end text-muted">-</td><td class="text-end text-muted">-</td>
-        </tr>
-        {% if (db.stage3a_single_pass1|default(0)) > 0 %}
-        <tr class="text-muted">
-          <td class="ps-5">3a pass 1</td>
-          <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass1|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format((db.stage3a_single_pass1|default(0)) / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass1_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a_pass1', 0)) }}</td>
-          {{ distance_cols('distance_stage3a_pass1') }}
-        </tr>
-        {% endif %}
-        {% if (db.stage3a_single_pass2|default(0)) > 0 %}
-        <tr class="text-muted">
-          <td class="ps-5">3a pass 2</td>
-          <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass2|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format((db.stage3a_single_pass2|default(0)) / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(db.stage3a_single_pass2_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3a_pass2', 0)) }}</td>
-          {{ distance_cols('distance_stage3a_pass2') }}
-        </tr>
-        {% endif %}
-        {% if (db.stage3b_relative|default(0)) > 0 %}
-        <tr class="text-muted">
-          <td class="ps-4">Stage 3b: Ratio test</td>
-          <td class="text-end">{{ "{:,}".format(db.stage3b_relative) }}</td>
-          <td class="text-end">{{ "%.1f"|format(db.stage3b_relative / total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(db.stage3b_relative_mto|default(0)) }}</td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('distance_stage3b', 0)) }}</td>
-          {{ distance_cols('distance_stage3b') }}
-        </tr>
-        {% endif %}
-        <tr>
-          <td>Post-processing: ATLAS Duplicate propagation</td>
-          <td class="text-end">{{ "{:,}".format(stages.post_processing.duplicate_propagation) }}</td>
-          <td class="text-end">{{ "%.1f"|format(stages.post_processing.duplicate_propagation / total_denom * 100) }}%
-          </td>
-          <td class="text-end">{{ "{:,}".format(stages.post_processing.duplicate_propagation_mto|default(0)) }}
-          </td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('post_duplicate_propagation', 0)) }}</td>
-          {{ distance_cols('post_duplicate_propagation') }}
-        </tr>
-        <tr>
-          <td>Post-processing: OSM stop partner propagation</td>
-          <td class="text-end">{{ "{:,}".format(stages.post_processing.osm_group_propagation|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format((stages.post_processing.osm_group_propagation|default(0)) /
-            total_denom * 100) }}%
-          </td>
-          <td class="text-end">{{ "{:,}".format(stages.post_processing.osm_group_propagation_mto|default(0)) }}
-          </td>
-          <td class="text-end">{{ "{:,}".format(nmc_by_stage.get('post_osm_group_propagation', 0)) }}</td>
-          {{ distance_cols('post_osm_group_propagation') }}
-        </tr>
+        {{ stage_row('Exact (UIC ref)', stages.exact.count, stages.exact.mto, nmc_by_stage.get('exact', 0), 'exact') }}
+        {{ stage_row('Name matching', stages.name.count, stages.name.mto, nmc_by_stage.get('name', 0), 'name') }}
+        {{ stage_row('Route matching (GTFS)', stages.route.count, stages.route.mto, nmc_by_stage.get('route_gtfs', 0), 'route_gtfs') }}
+        {{ stage_row('Distance', stages.distance.count, stages.distance.mto, nmc_distance, is_total=true) }}
+        {{ stage_row('Stage 0: Trio side matching', db.stage0_trio, db.stage0_trio_mto, nmc_by_stage.get('distance_trio', 0), 'distance_trio', level=1) }}
+        {{ stage_row('Stage 1: Group proximity (50 m)', db.stage1_group, db.stage1_group_mto, nmc_stage1, 'distance_stage1', level=1) }}
+        {% if stage1k.uic_ref is defined and stage1k.uic_ref.count > 0 %}{{ stage_row('By UIC ref', stage1k.uic_ref.count, stage1k.uic_ref.mto, nmc_by_stage.get('distance_stage1_uic_ref', 0), 'distance_stage1_uic_ref', level=2) }}{% endif %}
+        {% if stage1k.uic_name is defined and stage1k.uic_name.count > 0 %}{{ stage_row('By UIC name', stage1k.uic_name.count, stage1k.uic_name.mto, nmc_by_stage.get('distance_stage1_uic_name', 0), 'distance_stage1_uic_name', level=2) }}{% endif %}
+        {% if stage1k.name is defined and stage1k.name.count > 0 %}{{ stage_row('By name', stage1k.name.count, stage1k.name.mto, nmc_by_stage.get('distance_stage1_name', 0), 'distance_stage1_name', level=2) }}{% endif %}
+        {% if (db.stage1b_long_group|default(0)) > 0 %}{{ stage_row('Stage 1b: Group proximity (150 m)', db.stage1b_long_group, db.stage1b_long_group_mto, nmc_stage1b, 'distance_stage1b', level=1) }}{% endif %}
+        {% if stage1bk.uic_ref is defined and stage1bk.uic_ref.count > 0 %}{{ stage_row('By UIC ref', stage1bk.uic_ref.count, stage1bk.uic_ref.mto, nmc_by_stage.get('distance_stage1b_uic_ref', 0), 'distance_stage1b_uic_ref', level=2) }}{% endif %}
+        {% if stage1bk.uic_name is defined and stage1bk.uic_name.count > 0 %}{{ stage_row('By UIC name', stage1bk.uic_name.count, stage1bk.uic_name.mto, nmc_by_stage.get('distance_stage1b_uic_name', 0), 'distance_stage1b_uic_name', level=2) }}{% endif %}
+        {% if stage1bk.name is defined and stage1bk.name.count > 0 %}{{ stage_row('By name', stage1bk.name.count, stage1bk.name.mto, nmc_by_stage.get('distance_stage1b_name', 0), 'distance_stage1b_name', level=2) }}{% endif %}
+        {{ stage_row('Stage 2: Local ref', db.stage2_local_ref, db.stage2_local_ref_mto, nmc_by_stage.get('distance_stage2', 0), 'distance_stage2', level=1) }}
+        {{ stage_row('Stage 3a: Single candidate', db.stage3a_single, db.stage3a_single_mto, nmc_stage3a, level=1) }}
+        {% if (db.stage3a_single_pass1|default(0)) > 0 %}{{ stage_row('3a pass 1', db.stage3a_single_pass1, db.stage3a_single_pass1_mto, nmc_by_stage.get('distance_stage3a_pass1', 0), 'distance_stage3a_pass1', level=2) }}{% endif %}
+        {% if (db.stage3a_single_pass2|default(0)) > 0 %}{{ stage_row('3a pass 2', db.stage3a_single_pass2, db.stage3a_single_pass2_mto, nmc_by_stage.get('distance_stage3a_pass2', 0), 'distance_stage3a_pass2', level=2) }}{% endif %}
+        {% if (db.stage3b_relative|default(0)) > 0 %}{{ stage_row('Stage 3b: Ratio test', db.stage3b_relative, db.stage3b_relative_mto, nmc_by_stage.get('distance_stage3b', 0), 'distance_stage3b', level=1) }}{% endif %}
+        {{ stage_row('Post-processing: ATLAS duplicate propagation', stages.post_processing.duplicate_propagation, stages.post_processing.duplicate_propagation_mto, nmc_by_stage.get('post_duplicate_propagation', 0), 'post_duplicate_propagation') }}
+        {{ stage_row('Post-processing: OSM stop partner propagation', stages.post_processing.osm_group_propagation, stages.post_processing.osm_group_propagation_mto, nmc_by_stage.get('post_osm_group_propagation', 0), 'post_osm_group_propagation') }}
       </tbody>
     </table>
-    {% if (stages.distance.breakdown.stage3b_relative|default(0)) == 0 %}
-    <div class="px-3 py-2 text-muted small border-top">
-      Stage 3b ratio test is still active in the pipeline, but produced 0 matches in this run.
-    </div>
-    {% endif %}
   </div>
-</div>
-
-{# Quality Metrics #}
-{% if stats.quality_metrics is defined and stats.quality_metrics %}
-{% set qm = stats.quality_metrics %}
-
-{# Distance Quality #}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">Distance Quality</h5>
-  </div>
-  <div class="card-body">
-    {% set dq = qm.distance_quality %}
-    {% if dq.overall and dq.overall.mean_m is not none %}
-    <div class="row mb-3">
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ dq.overall.mean_m }}m</div>
-          <div class="stat-card__label">Mean Distance</div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ dq.overall.median_m }}m</div>
-          <div class="stat-card__label">Median Distance</div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ dq.overall.p95_m }}m</div>
-          <div class="stat-card__label">95th Percentile</div>
-        </div>
-      </div>
-    </div>
-    {% endif %}
-
-    {% if dq.by_stage %}
-    {% endif %}
-
-
-  </div>
-</div>
-
-{# Cross-Predicate Consistency #}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">Cross-Predicate Consistency</h5>
-  </div>
-  <div class="card-body">
-    {% set cp = qm.cross_predicate_consistency %}
-    <p>If we had matched every pair to its nearest OSM node instead:</p>
-    <div class="row">
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm stat-card--success">
-          <div class="stat-card__value">{{ cp.consistency_percent }}%</div>
-          <div class="stat-card__label">Consistent with Nearest</div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(cp.consistent_with_nearest) }}</div>
-          <div class="stat-card__label">Same as Nearest</div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm stat-card--warning">
-          <div class="stat-card__value">{{ "{:,}".format(cp.would_differ_by_nearest) }}</div>
-          <div class="stat-card__label">Would Differ</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-{# Many-to-One #}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">Many-to-One Analysis</h5>
-  </div>
-  <div class="card-body">
-    {% set mto = qm.many_to_one %}
-    <p class="text-muted small mb-3">
-      OSM platform/stop_position groups are counted as one OSM stop in this section.
-    </p>
-    <div class="row">
-      <div class="col-md-6">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(mto.source_to_multiple_osm.count) }}</div>
-          <div class="stat-card__label">ATLAS platforms matched to multiple OSM stops</div>
-          {% if mto.source_to_multiple_osm.max_per_source > 0 %}
-          <small class="text-muted">Max: {{ mto.source_to_multiple_osm.max_per_source }} OSM stops per ATLAS</small>
-          {% endif %}
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(mto.osm_to_multiple_source.count) }}</div>
-          <div class="stat-card__label">OSM stops matched to multiple ATLAS platforms</div>
-          {% if mto.osm_to_multiple_source.max_per_osm > 0 %}
-          <small class="text-muted">Max: {{ mto.osm_to_multiple_source.max_per_osm }} ATLAS per OSM stop</small>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    {% set overlap = mto.uic_exhaustion_overlap if mto.uic_exhaustion_overlap is defined else {} %}
-    {% if overlap and overlap.mto_pairs_total > 0 %}
-    <h6 class="mt-4">Many-to-One vs UIC Exhaustion</h6>
-    <p class="text-muted mb-2">Many-to-one pairs grouped by whether their UIC group is already capacity-limited on
-      ATLAS, OSM, both, or neither side.</p>
-    {% set total_pairs = overlap.mto_pairs_total %}
-    {% set atlas_only = overlap.atlas_only_exhausted_pairs|default(0) %}
-    {% set both_exh = overlap.both_sides_exhausted_pairs|default(0) %}
-    {% set osm_only = overlap.osm_only_exhausted_pairs|default(0) %}
-    {% set neutral = overlap.neither_side_exhausted_pairs|default(0) %}
-    <div class="diagram-wrap mb-3">
-      <svg class="diagram-svg" viewBox="0 0 760 112" role="img" aria-label="Many to one overlap with UIC exhaustion">
-        <rect x="0" y="16" width="760" height="28" rx="8" fill="#f8f9fa"></rect>
-        <rect x="0" y="16" width="{{ (atlas_only / total_pairs * 760)|round(0, 'floor')|int }}" height="28" rx="8"
-          fill="#DC3545"></rect>
-        <rect x="{{ (atlas_only / total_pairs * 760)|round(0, 'floor')|int }}" y="16"
-          width="{{ (both_exh / total_pairs * 760)|round(0, 'floor')|int }}" height="28" fill="#174092"></rect>
-        <rect x="{{ ((atlas_only + both_exh) / total_pairs * 760)|round(0, 'floor')|int }}" y="16"
-          width="{{ (osm_only / total_pairs * 760)|round(0, 'floor')|int }}" height="28" fill="#F0AD4E"></rect>
-        <rect x="{{ ((atlas_only + both_exh + osm_only) / total_pairs * 760)|round(0, 'floor')|int }}" y="16"
-          width="{{ (neutral / total_pairs * 760)|round(0, 'floor')|int }}" height="28" fill="#6C757D"></rect>
-
-        <text x="0" y="68" class="diagram-text">Total many-to-one pairs: {{ "{:,}".format(total_pairs) }}</text>
-        <text x="0" y="86" class="diagram-text">ATLAS-only exhausted: {{ "{:,}".format(atlas_only) }} ({{
-          overlap.atlas_only_exhausted_percent|default(0) }}%)</text>
-        <text x="280" y="86" class="diagram-text">Both exhausted: {{ "{:,}".format(both_exh) }} ({{
-          overlap.both_sides_exhausted_percent|default(0) }}%)</text>
-        <text x="520" y="86" class="diagram-text">OSM-only exhausted: {{ "{:,}".format(osm_only) }} ({{
-          overlap.osm_only_exhausted_percent|default(0) }}%)</text>
-        <text x="0" y="104" class="diagram-text">Neither exhausted: {{ "{:,}".format(neutral) }} ({{
-          overlap.neither_side_exhausted_percent|default(0) }}%)</text>
-      </svg>
-    </div>
-    <p class="text-muted small mb-0">
-      ATLAS exhausted means a UIC group has more ATLAS entries than OSM entries and OSM capacity is fully consumed
-      by matches.
-      OSM exhausted is the symmetric case. "Both" means the pair satisfies both conditions.
-    </p>
-    {% endif %}
-
-    <div class="comparison-grid mt-4">
-      <section class="comparison-panel" aria-labelledby="atlasToOsmTitle">
-        <div class="comparison-panel__header">
-          <div>
-            <span class="comparison-panel__eyebrow">One ATLAS → many OSM</span>
-            <h6 id="atlasToOsmTitle">{{ "{:,}".format(mto.source_to_multiple_osm.count) }} ATLAS platforms</h6>
-          </div>
-          <span class="comparison-panel__key">1A : nO</span>
-        </div>
-        <p class="comparison-panel__help"><strong>1A:2O</strong> means one ATLAS platform is linked to two OSM stops.</p>
-        {% set d1 = mto.source_to_multiple_osm.distribution if mto.source_to_multiple_osm.distribution is defined
-        else [] %}
-        {% if d1 %}
-        {% set max_d1 = (d1|max(attribute='count')).count %}
-        <div class="distribution-chart" role="img" aria-label="Distribution of one ATLAS platform to many OSM stops">
-          {% for row in d1 %}
-          <div class="distribution-chart__row">
-            <strong>1A:{{ row.osm_count }}O</strong>
-            <div class="distribution-chart__track"><span style="width: {{ (row.count / max_d1 * 100)|round(1) }}%"></span></div>
-            <span>{{ "{:,}".format(row.count) }}</span>
-            <small>{{ "%.1f"|format(row.count / mto.source_to_multiple_osm.count * 100) }}%</small>
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        {% if mto.source_to_multiple_osm.count > 0 %}
-        <p class="text-muted mb-0">Detailed ratio breakdown not available for this run.</p>
-        {% else %}
-        <p class="text-muted mb-0">No ATLAS platform is matched to more than one OSM stop.</p>
-        {% endif %}
-        {% endif %}
-      </section>
-      <section class="comparison-panel comparison-panel--green" aria-labelledby="osmToAtlasTitle">
-        <div class="comparison-panel__header">
-          <div>
-            <span class="comparison-panel__eyebrow">Many ATLAS → one OSM</span>
-            <h6 id="osmToAtlasTitle">{{ "{:,}".format(mto.osm_to_multiple_source.count) }} OSM stops</h6>
-          </div>
-          <span class="comparison-panel__key">nA : 1O</span>
-        </div>
-        <p class="comparison-panel__help"><strong>2A:1O</strong> means two ATLAS platforms are linked to one OSM stop.</p>
-        {% set d2 = mto.osm_to_multiple_source.distribution if mto.osm_to_multiple_source.distribution is defined
-        else [] %}
-        {% if d2 %}
-        {% set max_d2 = (d2|max(attribute='count')).count %}
-        <div class="distribution-chart" role="img" aria-label="Distribution of many ATLAS platforms to one OSM stop">
-          {% for row in d2 %}
-          <div class="distribution-chart__row">
-            <strong>{{ row.source_count }}A:1O</strong>
-            <div class="distribution-chart__track"><span style="width: {{ (row.count / max_d2 * 100)|round(1) }}%"></span></div>
-            <span>{{ "{:,}".format(row.count) }}</span>
-            <small>{{ "%.1f"|format(row.count / mto.osm_to_multiple_source.count * 100) }}%</small>
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        {% if mto.osm_to_multiple_source.count > 0 %}
-        <p class="text-muted mb-0">Detailed ratio breakdown not available for this run.</p>
-        {% else %}
-        <p class="text-muted mb-0">No OSM stop is matched to more than one ATLAS platform.</p>
-        {% endif %}
-        {% endif %}
-      </section>
-    </div>
-  </div>
-</div>
-
-{% endif %}{# end quality_metrics #}
-
-{# ══════════════════════════════════════════
-SECTION 2 — OSM STOPS
-══════════════════════════════════════════ #}
-<h2 class="stats-section-title" id="osm-stops">OSM Stops</h2>
-
-{% set osm_node_total = stats.summary.osm_nodes|default(0) %}
-{% set osm_node_denom = osm_node_total if osm_node_total > 0 else 1 %}
-{% set way_stats = stats.osm_way_stops if stats.osm_way_stops is defined and stats.osm_way_stops else {} %}
-{% set og = stats.quality_metrics.osm_groups if stats.quality_metrics is defined and stats.quality_metrics and stats.quality_metrics.osm_groups is defined else {} %}
-<section class="osm-overview-card" aria-labelledby="osmOverviewTitle">
-  <div class="osm-overview-card__header">
-    <div>
-      <h3 id="osmOverviewTitle">OSM dataset overview</h3>
-      <p>Inventory, metadata coverage, and grouped stop structures in one view.</p>
-    </div>
-    <img src="{{ static_prefix }}osm.svg" alt="OpenStreetMap">
-  </div>
-
-  <div class="osm-inventory-strip" aria-label="OSM inventory">
-    <div><span>Nodes</span><strong>{{ "{:,}".format(osm_node_total) }}</strong><small>Raw stop-related points</small></div>
-    <div><span>Stops</span><strong>{{ "{:,}".format(stats.summary.osm_stops|default(0)) }}</strong><small>Grouped matching entities</small></div>
-    <div><span>Stations</span><strong>{{ "{:,}".format(stats.summary.osm_stations|default(0)) }}</strong><small>Station-level entities</small></div>
-  </div>
-
-  <div class="osm-insight-grid">
-    <section class="osm-insight-panel">
-      <div class="osm-insight-panel__heading">
-        <div><span>Metadata</span><h4>Wikidata coverage</h4></div>
-        <strong>{{ "%.1f"|format((stats.summary.osm_network_wikidata|default(0)) / osm_node_denom * 100) }}%</strong>
-      </div>
-      <div class="osm-coverage-list">
-        <div>
-          <div><code>operator:wikidata</code><span>{{ "{:,}".format(stats.summary.osm_operator_wikidata|default(0)) }}</span></div>
-          <div class="osm-meter"><span style="width: {{ (stats.summary.osm_operator_wikidata|default(0)) / osm_node_denom * 100 }}%"></span></div>
-          <small>{{ "%.1f"|format((stats.summary.osm_operator_wikidata|default(0)) / osm_node_denom * 100) }}% of nodes</small>
-        </div>
-        <div>
-          <div><code>network:wikidata</code><span>{{ "{:,}".format(stats.summary.osm_network_wikidata|default(0)) }}</span></div>
-          <div class="osm-meter"><span style="width: {{ (stats.summary.osm_network_wikidata|default(0)) / osm_node_denom * 100 }}%"></span></div>
-          <small>{{ "%.1f"|format((stats.summary.osm_network_wikidata|default(0)) / osm_node_denom * 100) }}% of nodes</small>
-        </div>
-      </div>
-    </section>
-
-    {% if way_stats %}
-    {% set way_denom = way_stats.total if way_stats.total > 0 else 1 %}
-    <section class="osm-insight-panel">
-      <div class="osm-insight-panel__heading">
-        <div><span>Geometry</span><h4>Stops mapped as ways</h4></div>
-        <strong>{{ "{:,}".format(way_stats.total) }}</strong>
-      </div>
-      <div class="osm-split-bar" aria-label="Way stop match status">
-        <span class="is-matched" style="width: {{ way_stats.matched / way_denom * 100 }}%"></span>
-        <span class="is-unmatched" style="width: {{ way_stats.unmatched / way_denom * 100 }}%"></span>
-      </div>
-      <dl class="osm-legend">
-        <div><dt><i class="is-matched"></i>Matched</dt><dd>{{ "{:,}".format(way_stats.matched) }} <small>{{ way_stats.match_rate_percent }}%</small></dd></div>
-        <div><dt><i class="is-unmatched"></i>Unmatched</dt><dd>{{ "{:,}".format(way_stats.unmatched) }} <small>{{ "%.1f"|format(way_stats.unmatched / way_denom * 100) }}%</small></dd></div>
-      </dl>
-    </section>
-    {% endif %}
-
-    {% if og %}
-    {% set group_denom = og.total_groups if og.total_groups > 0 else 1 %}
-    {% set one_member_matched = [og.total_groups - og.both_members_matched - og.neither_matched, 0]|max %}
-    <section class="osm-insight-panel">
-      <div class="osm-insight-panel__heading">
-        <div><span>Structure</span><h4>Platform / stop-position groups</h4></div>
-        <strong>{{ "{:,}".format(og.total_groups) }}</strong>
-      </div>
-      <div class="osm-split-bar" aria-label="OSM group match status">
-        <span class="is-matched" style="width: {{ og.both_members_matched / group_denom * 100 }}%"></span>
-        <span class="is-partial" style="width: {{ one_member_matched / group_denom * 100 }}%"></span>
-        <span class="is-unmatched" style="width: {{ og.neither_matched / group_denom * 100 }}%"></span>
-      </div>
-      <dl class="osm-legend">
-        <div><dt><i class="is-matched"></i>Both matched</dt><dd>{{ "{:,}".format(og.both_members_matched) }}</dd></div>
-        <div><dt><i class="is-partial"></i>One matched</dt><dd>{{ "{:,}".format(one_member_matched) }}</dd></div>
-        <div><dt><i class="is-unmatched"></i>Neither matched</dt><dd>{{ "{:,}".format(og.neither_matched) }}</dd></div>
-      </dl>
-    </section>
-    {% endif %}
-  </div>
-
-  {% if og and og.by_type %}
-  <details class="osm-group-details">
-    <summary>Group types <span>{{ og.by_type|length }} types</span></summary>
-    <div class="osm-group-details__body">
-      {% for gtype, gcount in og.by_type.items() %}
-      <div><code>{{ gtype }}</code><strong>{{ "{:,}".format(gcount) }}</strong></div>
-      {% endfor %}
-    </div>
-  </details>
+  {% if (db.stage3b_relative|default(0)) == 0 %}
+  <p class="stats-note">Stage 3b, the ratio test, still runs but produced no matches in this run.</p>
   {% endif %}
 </section>
 
-{# ══════════════════════════════════════════
-SECTION 3 — UNMATCHED
-══════════════════════════════════════════ #}
-<h2 class="stats-section-title" id="unmatched">Unmatched</h2>
-
-{# Unmatched Analysis #}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">Unmatched Analysis</h5>
+{% if stats.quality_metrics is defined and stats.quality_metrics %}
+{% set qm = stats.quality_metrics %}
+{% set dq = qm.distance_quality %}
+{% set cp = qm.cross_predicate_consistency %}
+<section class="stats-block" aria-labelledby="distanceTitle">
+  <h3 class="stats-block__title" id="distanceTitle">Distance between matched stops</h3>
+  {% if dq.overall and dq.overall.mean_m is not none %}
+  <div class="stats-figures">
+    {{ figure('Mean', dec(dq.overall.mean_m) ~ ' m') }}
+    {{ figure('Median', dec(dq.overall.median_m) ~ ' m') }}
+    {{ figure('95th percentile', dec(dq.overall.p95_m) ~ ' m') }}
   </div>
-  <div class="card-body">
-    {% set ua = stats.unmatched_analysis %}
-    {% set atlas_unmatched_denom = ua.atlas.total if ua.atlas.total > 0 else 1 %}
-    {% set osm_unmatched_denom = ua.osm.total if ua.osm.total > 0 else 1 %}
-    <div class="unmatched-overview">
-      <section class="unmatched-panel">
-        <div class="unmatched-panel__header">
-          <div><span>ATLAS</span><strong>{{ "{:,}".format(ua.atlas.total) }}</strong></div>
-          <small>unmatched platforms</small>
-        </div>
-        <div class="unmatched-panel__bar" aria-label="ATLAS unmatched proximity split">
-          <span style="width: {{ ua.atlas.no_osm_within_50m / atlas_unmatched_denom * 100 }}%"></span>
-          <span style="width: {{ ua.atlas.has_nearby_osm / atlas_unmatched_denom * 100 }}%"></span>
-        </div>
-        <dl class="unmatched-panel__legend">
-          <div><dt><i></i>No OSM within 50m</dt><dd>{{ "{:,}".format(ua.atlas.no_osm_within_50m) }} <small>{{ "%.1f"|format(ua.atlas.no_osm_within_50m / atlas_unmatched_denom * 100) }}%</small></dd></div>
-          <div><dt><i></i>Has nearby OSM</dt><dd>{{ "{:,}".format(ua.atlas.has_nearby_osm) }} <small>{{ "%.1f"|format(ua.atlas.has_nearby_osm / atlas_unmatched_denom * 100) }}%</small></dd></div>
-        </dl>
-      </section>
-      <section class="unmatched-panel unmatched-panel--osm">
-        <div class="unmatched-panel__header">
-          <div><span>OSM</span><strong>{{ "{:,}".format(ua.osm.total) }}</strong></div>
-          <small>unmatched stops</small>
-        </div>
-        <div class="unmatched-panel__bar" aria-label="OSM unmatched proximity split">
-          <span style="width: {{ (ua.osm.no_atlas_within_50m|default(0)) / osm_unmatched_denom * 100 }}%"></span>
-          <span style="width: {{ (ua.osm.has_nearby_atlas|default(0)) / osm_unmatched_denom * 100 }}%"></span>
-        </div>
-        <dl class="unmatched-panel__legend">
-          <div><dt><i></i>No ATLAS within 50m</dt><dd>{{ "{:,}".format(ua.osm.no_atlas_within_50m|default(0)) }} <small>{{ "%.1f"|format((ua.osm.no_atlas_within_50m|default(0)) / osm_unmatched_denom * 100) }}%</small></dd></div>
-          <div><dt><i></i>Has nearby ATLAS</dt><dd>{{ "{:,}".format(ua.osm.has_nearby_atlas|default(0)) }} <small>{{ "%.1f"|format((ua.osm.has_nearby_atlas|default(0)) / osm_unmatched_denom * 100) }}%</small></dd></div>
-        </dl>
-      </section>
-    </div>
+  {% endif %}
+  <h4 class="stats-block__subtitle">Compared with the nearest OSM stop</h4>
+  <p class="stats-block__lead">If every pair had been matched to its nearest OSM node instead:</p>
+  <div class="stats-figures">
+    {{ figure('Pairs that would stay the same', num(cp.consistent_with_nearest), pct(cp.consistency_percent) ~ ' of compared pairs') }}
+    {{ figure('Pairs that would differ', num(cp.would_differ_by_nearest)) }}
+  </div>
+</section>
 
-    {% set mat = ua.osm.matrix if ua.osm.matrix is defined else {} %}
-    <section class="attribute-matrix mt-4" aria-labelledby="attributeMatrixTitle">
-      <div class="attribute-matrix__header">
-        <div><h6 id="attributeMatrixTitle">What data do unmatched OSM stops have?</h6><p>Attribute combinations can help prioritize records that are most likely to match.</p></div>
-        <span>{{ "{:,}".format(ua.osm.total) }} stops</span>
+{% set mto = qm.many_to_one %}
+<section class="stats-block" aria-labelledby="manyToOneTitle">
+  <h3 class="stats-block__title" id="manyToOneTitle">Many-to-one matches</h3>
+  <p class="stats-block__lead">OSM platform/stop_position groups count as one OSM stop here.</p>
+  <div class="stats-columns stats-columns--2">
+    <section class="stats-panel" data-source="atlas" aria-labelledby="atlasToOsmTitle">
+      <div class="stats-panel__head">
+        <div>
+          <span class="stats-eyebrow">One ATLAS → many OSM</span>
+          <h4 id="atlasToOsmTitle">{{ num(mto.source_to_multiple_osm.count) }} ATLAS platforms</h4>
+        </div>
+        <span class="stats-key">1A : nO</span>
       </div>
-      <div class="attribute-matrix__grid">
-        {% set attribute_rows = [
-          ('UIC + local ref + routes', mat.all_three|default(0)),
-          ('UIC + local ref', mat.uic_and_local|default(0)),
-          ('UIC + routes', mat.uic_and_routes|default(0)),
-          ('Local ref + routes', mat.local_and_routes|default(0)),
-          ('UIC only', mat.uic_only|default(0)),
-          ('Local ref only', mat.local_ref_only|default(0)),
-          ('Routes only', mat.routes_only|default(0)),
-          ('No matching attributes', mat.none|default(0))
-        ] %}
-        {% for label, count in attribute_rows %}
-        <div class="attribute-matrix__item{{ ' attribute-matrix__item--muted' if loop.last }}">
-          <span>{{ label }}</span><strong>{{ "{:,}".format(count) }}</strong><small>{{ "%.1f"|format(count / osm_unmatched_denom * 100) }}%</small>
+      <p class="stats-panel__help"><strong>1A:2O</strong> means one ATLAS platform is linked to two OSM stops.{% if mto.source_to_multiple_osm.max_per_source > 0 %} At most {{ mto.source_to_multiple_osm.max_per_source }} OSM stops per platform.{% endif %}</p>
+      {% set d1 = mto.source_to_multiple_osm.distribution if mto.source_to_multiple_osm.distribution is defined else [] %}
+      {% if d1 %}
+      {% set max_d1 = (d1|max(attribute='count')).count %}
+      <div class="distribution-chart" role="img" aria-label="Distribution of one ATLAS platform to many OSM stops">
+        {% for row in d1 %}
+        <div class="distribution-chart__row">
+          <strong>1A:{{ row.osm_count }}O</strong>
+          <div class="distribution-chart__track"><span style="width: {{ (row.count / max_d1 * 100)|round(1) }}%"></span></div>
+          <span>{{ num(row.count) }}</span>
+          <small>{{ share(row.count, mto.source_to_multiple_osm.count) }}</small>
         </div>
         {% endfor %}
       </div>
+      {% elif mto.source_to_multiple_osm.count > 0 %}
+      <p class="stats-note">Detailed ratio breakdown not available for this run.</p>
+      {% else %}
+      <p class="stats-note">No ATLAS platform is matched to more than one OSM stop.</p>
+      {% endif %}
     </section>
-
-    {% if ua.uic_exhaustion is defined and ua.uic_exhaustion %}
-    {% set uex = ua.uic_exhaustion %}
-    <hr>
-    <h6 class="mb-2">UIC Exhaustion in Unmatched Cases</h6>
-    <p class="text-muted">These are cases where one side has more entries for the same UIC and the opposite side
-      is fully consumed by matches.</p>
-    <div class="row mb-3">
-      <div class="col-md-6 mb-2">
-        <div class="stat-card stat-card--sm stat-card--warning">
-          <div class="stat-card__value">{{ "{:,}".format(uex.atlas_side_exhausted.unmatched_entries|default(0)) }}
-          </div>
-          <div class="stat-card__label">Unmatched ATLAS due to OSM-side exhaustion</div>
-          <small class="text-muted">
-            {{ "{:,}".format(uex.atlas_side_exhausted.affected_uics|default(0)) }} UIC groups,
-            opposite capacity {{ "{:,}".format(uex.atlas_side_exhausted.opposite_capacity|default(0)) }}
-          </small>
+    <section class="stats-panel" data-source="osm" aria-labelledby="osmToAtlasTitle">
+      <div class="stats-panel__head">
+        <div>
+          <span class="stats-eyebrow">Many ATLAS → one OSM</span>
+          <h4 id="osmToAtlasTitle">{{ num(mto.osm_to_multiple_source.count) }} OSM stops</h4>
         </div>
+        <span class="stats-key">nA : 1O</span>
       </div>
-      <div class="col-md-6 mb-2">
-        <div class="stat-card stat-card--sm stat-card--warning">
-          <div class="stat-card__value">{{ "{:,}".format(uex.osm_side_exhausted.unmatched_entries|default(0)) }}
-          </div>
-          <div class="stat-card__label">Unmatched OSM due to ATLAS-side exhaustion</div>
-          <small class="text-muted">
-            {{ "{:,}".format(uex.osm_side_exhausted.affected_uics|default(0)) }} UIC groups,
-            opposite capacity {{ "{:,}".format(uex.osm_side_exhausted.opposite_capacity|default(0)) }}
-          </small>
+      <p class="stats-panel__help"><strong>2A:1O</strong> means two ATLAS platforms are linked to one OSM stop.{% if mto.osm_to_multiple_source.max_per_osm > 0 %} At most {{ mto.osm_to_multiple_source.max_per_osm }} platforms per OSM stop.{% endif %}</p>
+      {% set d2 = mto.osm_to_multiple_source.distribution if mto.osm_to_multiple_source.distribution is defined else [] %}
+      {% if d2 %}
+      {% set max_d2 = (d2|max(attribute='count')).count %}
+      <div class="distribution-chart" role="img" aria-label="Distribution of many ATLAS platforms to one OSM stop">
+        {% for row in d2 %}
+        <div class="distribution-chart__row">
+          <strong>{{ row.source_count }}A:1O</strong>
+          <div class="distribution-chart__track"><span style="width: {{ (row.count / max_d2 * 100)|round(1) }}%"></span></div>
+          <span>{{ num(row.count) }}</span>
+          <small>{{ share(row.count, mto.osm_to_multiple_source.count) }}</small>
         </div>
+        {% endfor %}
       </div>
-    </div>
-
-    <div class="row">
-      <div class="col-md-6">
-        <h6 class="mb-2">Top ATLAS-extra UIC groups</h6>
-        {% set exa = uex.atlas_side_exhausted.examples if uex.atlas_side_exhausted.examples is defined else [] %}
-        <table class="table table-sm table-hover">
-          <thead class="thead-light">
-            <tr>
-              <th>UIC</th>
-              <th class="text-end">ATLAS</th>
-              <th class="text-end">OSM</th>
-              <th class="text-end">Unmatched A</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in exa[:8] %}
-            <tr>
-              <td>{{ row.uic_ref }}</td>
-              <td class="text-end">{{ row.atlas_total }}</td>
-              <td class="text-end">{{ row.osm_total }}</td>
-              <td class="text-end">{{ row.unmatched_atlas }}</td>
-            </tr>
-            {% else %}
-            <tr>
-              <td colspan="4" class="text-muted text-center">No UIC exhaustion cases</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-      <div class="col-md-6">
-        <h6 class="mb-2">Top OSM-extra UIC groups</h6>
-        {% set exo = uex.osm_side_exhausted.examples if uex.osm_side_exhausted.examples is defined else [] %}
-        <table class="table table-sm table-hover">
-          <thead class="thead-light">
-            <tr>
-              <th>UIC</th>
-              <th class="text-end">ATLAS</th>
-              <th class="text-end">OSM</th>
-              <th class="text-end">Unmatched O</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in exo[:8] %}
-            <tr>
-              <td>{{ row.uic_ref }}</td>
-              <td class="text-end">{{ row.atlas_total }}</td>
-              <td class="text-end">{{ row.osm_total }}</td>
-              <td class="text-end">{{ row.unmatched_osm }}</td>
-            </tr>
-            {% else %}
-            <tr>
-              <td colspan="4" class="text-muted text-center">No UIC exhaustion cases</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
+      {% elif mto.osm_to_multiple_source.count > 0 %}
+      <p class="stats-note">Detailed ratio breakdown not available for this run.</p>
+      {% else %}
+      <p class="stats-note">No OSM stop is matched to more than one ATLAS platform.</p>
+      {% endif %}
+    </section>
   </div>
-</div>
+</section>
+{% endif %}{# end quality_metrics #}
 
 {# ══════════════════════════════════════════
-SECTION 4 — ATLAS
+SECTION 2 — UNMATCHED
 ══════════════════════════════════════════ #}
-<h2 class="stats-section-title" id="atlas">ATLAS</h2>
+<h2 class="stats-section-title" id="unmatched">Unmatched</h2>
 
-{# ATLAS Duplicates #}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">ATLAS Duplicates</h5>
+{% set ua = stats.unmatched_analysis %}
+{% set atlas_unmatched_denom = ua.atlas.total if ua.atlas.total > 0 else 1 %}
+{% set osm_unmatched_denom = ua.osm.total if ua.osm.total > 0 else 1 %}
+<section class="stats-block" aria-label="Unmatched stops">
+  <p class="stats-block__lead">Isolated entries have nothing from the other source within 50 m; they usually need mapping, not a better match.</p>
+  <div class="stats-columns stats-columns--2">
+    {% for source, label, title, help, count, far_label, far, near_label, near, denom in [
+      ('atlas', 'ATLAS', num(ua.atlas.total) ~ ' unmatched platforms', none, ua.atlas.total, 'No OSM stop within 50 m', ua.atlas.no_osm_within_50m, 'OSM stop within 50 m', ua.atlas.has_nearby_osm, atlas_unmatched_denom),
+      ('osm', 'OSM', num(ua.osm.total) ~ ' unmatched elements', num(stats.summary.unmatched_osm) ~ ' stop units have no matched element.', ua.osm.total, 'No ATLAS platform within 50 m', ua.osm.no_atlas_within_50m|default(0), 'ATLAS platform within 50 m', ua.osm.has_nearby_atlas|default(0), osm_unmatched_denom),
+    ] %}
+    <section class="stats-panel" data-source="{{ source }}">
+      <div class="stats-panel__head">
+        <div><span class="stats-eyebrow">{{ label }}</span><h4>{{ title }}</h4></div>
+      </div>
+      {% if help %}<p class="stats-panel__help">{{ help }}</p>{% endif %}
+      <div class="stats-split" aria-label="{{ label }} unmatched by distance">
+        <span class="is-strong" style="width: {{ far / denom * 100 }}%"></span>
+        <span class="is-soft" style="width: {{ near / denom * 100 }}%"></span>
+      </div>
+      <dl class="stats-legend">
+        {{ legend_row('is-strong', far_label, num(far), share(far, denom)) }}
+        {{ legend_row('is-soft', near_label, num(near), share(near, denom)) }}
+      </dl>
+    </section>
+    {% endfor %}
   </div>
-  <div class="card-body">
-    {% set dup = stats.duplicates %}
-    <table class="table table-sm table-hover mb-0">
-      <tr>
-        <td>Total duplicate SLOIDs</td>
-        <td class="text-end">{{ "{:,}".format(dup.total_duplicate_sloids) }}</td>
-      </tr>
-      <tr>
-        <td>Matched duplicates</td>
-        <td class="text-end">{{ "{:,}".format(dup.matched_duplicates) }}</td>
-      </tr>
-      <tr>
-        <td>Unmatched duplicates</td>
-        <td class="text-end">{{ "{:,}".format(dup.unmatched_duplicates) }}</td>
-      </tr>
+</section>
+
+{% set mat = ua.osm.matrix if ua.osm.matrix is defined else {} %}
+<section class="stats-block" data-source="osm" aria-labelledby="attributeMatrixTitle">
+  <h3 class="stats-block__title" id="attributeMatrixTitle">What data do unmatched OSM elements have?</h3>
+  <p class="stats-block__lead">Identifier combinations of the {{ num(ua.osm.total) }} unmatched OSM elements. <em>Routes</em> means the element belongs to a route relation. Elements with identifiers are the most likely to match.</p>
+  <div class="attribute-matrix__grid">
+    {% for label, count in [
+      ('UIC + local ref + routes', mat.all_three|default(0)),
+      ('UIC + local ref', mat.uic_and_local|default(0)),
+      ('UIC + routes', mat.uic_and_routes|default(0)),
+      ('Local ref + routes', mat.local_and_routes|default(0)),
+      ('UIC only', mat.uic_only|default(0)),
+      ('Local ref only', mat.local_ref_only|default(0)),
+      ('Routes only', mat.routes_only|default(0)),
+      ('None of these', mat.none|default(0))
+    ] %}
+    <div class="attribute-matrix__item{{ ' attribute-matrix__item--muted' if loop.last }}">
+      <span>{{ label }}</span><strong>{{ num(count) }}</strong><small>{{ share(count, osm_unmatched_denom) }}</small>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{# ══════════════════════════════════════════
+SECTION 3 — ROUTE MATCHING
+══════════════════════════════════════════ #}
+<h2 class="stats-section-title" id="route-matching">Route matching</h2>
+
+{% if stats.route_links is defined and stats.route_links %}
+{% set rl = stats.route_links %}
+{% set rli = rl.itineraries %}
+<p class="stats-block__lead">GTFS lines and OSM lines are linked one to one through the GTFS route ID, so each link uses one line from each side. Inside a linked pair, itineraries are linked one to one when their directions agree and at least 80% of their stops match in order.</p>
+<div class="stats-figures">
+  {{ figure('Linked line pairs', num(rl.line_links)) }}
+  {{ figure('GTFS lines linked', share(rl.gtfs_lines.linked, rl.gtfs_lines.total), of(rl.gtfs_lines.linked, rl.gtfs_lines.total) ~ ' lines') }}
+  {{ figure('OSM lines linked', share(rl.osm_lines.linked, rl.osm_lines.public_transport), of(rl.osm_lines.linked, rl.osm_lines.public_transport) ~ ' public transport lines') }}
+  {{ figure('Linked itinerary pairs', num(rli.links), share(rli.gtfs_linked, rli.gtfs_in_linked_lines) ~ ' of the GTFS itineraries in linked lines') }}
+</div>
+
+<section class="stats-block" aria-labelledby="linesByModeTitle">
+  <h3 class="stats-block__title" id="linesByModeTitle">Lines by mode</h3>
+  <div class="stats-table-wrap">
+    <table class="stats-table">
+      <thead>
+        <tr><th scope="col">Mode</th><th scope="col">GTFS lines</th><th scope="col">Linked</th><th scope="col">Share</th><th scope="col">OSM lines</th><th scope="col">Linked</th><th scope="col">Share</th></tr>
+      </thead>
+      <tbody>
+        {% for row in rl.by_mode %}
+        <tr>
+          <th scope="row">{{ mode_labels.get(row.mode, row.mode) }}</th>
+          <td>{{ num(row.gtfs_lines) }}</td><td>{{ num(row.gtfs_linked) }}</td><td class="is-secondary">{{ share(row.gtfs_linked, row.gtfs_lines) if row.gtfs_lines else '–' }}</td>
+          <td>{{ num(row.osm_lines) }}</td><td>{{ num(row.osm_linked) }}</td><td class="is-secondary">{{ share(row.osm_linked, row.osm_lines) if row.osm_lines else '–' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="is-total">
+          <th scope="row">Total</th>
+          <td>{{ num(rl.gtfs_lines.total) }}</td><td>{{ num(rl.gtfs_lines.linked) }}</td><td>{{ share(rl.gtfs_lines.linked, rl.gtfs_lines.total) }}</td>
+          <td>{{ num(rl.osm_lines.public_transport) }}</td><td>{{ num(rl.osm_lines.linked) }}</td><td>{{ share(rl.osm_lines.linked, rl.osm_lines.public_transport) }}</td>
+        </tr>
+      </tfoot>
     </table>
   </div>
-</div>
+  <p class="stats-note">The mode of a GTFS line comes from its route type, the mode of an OSM line from the <code>route</code> tag of its relations. Light rail counts as tram.</p>
+</section>
+
+{% set gu = rl.gtfs_lines.unlinked %}
+{% set ou = rl.osm_lines.unlinked %}
+{% set bmr = rl.by_match_method %}
+{% set bmr_total = rl.line_links if rl.line_links > 0 else 1 %}
+<section class="stats-block" aria-labelledby="unlinkedLinesTitle">
+  <h3 class="stats-block__title" id="unlinkedLinesTitle">Why lines stay unlinked</h3>
+  <div class="stats-columns stats-columns--2">
+    <div>
+      <h4 class="stats-block__subtitle">{{ num(rl.gtfs_lines.total - rl.gtfs_lines.linked) }} GTFS lines</h4>
+      <dl class="stats-kv stats-kv--single">
+        {{ kv('No OSM line carries the route ID', num(gu.no_osm_line)) }}
+        {% if gu.osm_line_already_linked %}{{ kv('The OSM line with the route ID is linked to another GTFS line', num(gu.osm_line_already_linked)) }}{% endif %}
+      </dl>
+      <h4 class="stats-block__subtitle">How the {{ num(rl.line_links) }} linked pairs were linked</h4>
+      <div class="stats-bars">
+        {% for label, key in [
+          ('Equal GTFS route ID', 'exact_gtfs_route_id'),
+          ('Equal route ID without the timetable year', 'normalized_gtfs_route_id'),
+          ('OSM display ID equals the GTFS route ID', 'display_route_id_match'),
+          ('Other', 'other'),
+        ] if key in ('exact_gtfs_route_id', 'normalized_gtfs_route_id') or bmr.get(key) %}
+        <div class="stats-bar">
+          <span class="stats-bar__label">{{ label }}</span>
+          <span class="stats-bar__track"><span style="width: {{ bmr.get(key, 0) / bmr_total * 100 }}%"></span></span>
+          <strong>{{ num(bmr.get(key, 0)) }}</strong>
+          <small>{{ share(bmr.get(key, 0), bmr_total) }}</small>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <h4 class="stats-block__subtitle">{{ num(rl.osm_lines.total - rl.osm_lines.linked) }} OSM lines</h4>
+      <dl class="stats-kv stats-kv--single">
+        {{ kv('No gtfs:route_id', num(ou.no_route_id)) }}
+        {{ kv('Its gtfs:route_id is not in the current GTFS', num(ou.route_id_not_in_gtfs)) }}
+        {{ kv('Its GTFS line is linked to another OSM line', num(ou.gtfs_line_already_linked)) }}
+        {% if ou.several_route_ids %}{{ kv('Several IDs in gtfs:route_id', num(ou.several_route_ids)) }}{% endif %}
+        {{ kv('Not in GTFS by design (FlixBus)', num(ou.non_gtfs)) }}
+        {% if ou.not_public_transport %}{{ kv('Not public transport (piste, mtb, …)', num(ou.not_public_transport)) }}{% endif %}
+      </dl>
+      <p class="stats-note">A Swiss route ID contains the timetable year (<code>-j26-</code>), and the year is ignored when IDs are compared. The rest of an ID can still change from one year to the next, and an ID can pass to another line: a line linked to another OSM line usually means that this OSM line carries an outdated ID that now belongs to a different line.</p>
+    </div>
+  </div>
+</section>
+
+{% set ipl = rl.itineraries_per_line %}
+{% set gap = rl.linked_line_itinerary_gap %}
+<section class="stats-block" aria-labelledby="itineraryLinksTitle">
+  <h3 class="stats-block__title" id="itineraryLinksTitle">Itineraries in linked lines</h3>
+  <p class="stats-block__lead">An itinerary is one stop pattern of a line: one per distinct GTFS stop sequence, one per OSM route relation. Only itineraries of linked lines can be linked.</p>
+  <dl class="stats-kv">
+    {{ kv('GTFS itineraries linked', of(rli.gtfs_linked, rli.gtfs_in_linked_lines), share(rli.gtfs_linked, rli.gtfs_in_linked_lines)) }}
+    {{ kv('OSM itineraries linked', of(rli.osm_linked, rli.osm_in_linked_lines), share(rli.osm_linked, rli.osm_in_linked_lines)) }}
+    {{ kv('OSM itineraries without a direction, never linked', num(rli.osm_in_linked_lines_without_direction)) }}
+  </dl>
+  <div class="stats-columns stats-columns--2">
+    <div>
+      <h4 class="stats-block__subtitle">Itineraries per line</h4>
+      <div class="stats-table-wrap">
+        <table class="stats-table">
+          <thead><tr><th scope="col">Lines</th><th scope="col">Mean</th><th scope="col">Median</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">GTFS</th><td>{{ dec(ipl.gtfs.mean) }}</td><td>{{ dec(ipl.gtfs.median) }}</td></tr>
+            <tr><th scope="row">OSM, public transport</th><td>{{ dec(ipl.osm.mean) }}</td><td>{{ dec(ipl.osm.median) }}</td></tr>
+            <tr><th scope="row">Difference in linked pairs (GTFS − OSM)</th><td>{{ dec(gap.mean) }}</td><td>{{ dec(gap.median) }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h4 class="stats-block__subtitle">Linked line pairs compared</h4>
+      <dl class="stats-kv stats-kv--single">
+        {{ kv('GTFS has more itineraries', num(gap.gtfs_has_more), share(gap.gtfs_has_more, rl.line_links)) }}
+        {{ kv('Same number of itineraries', num(gap.same), share(gap.same, rl.line_links)) }}
+        {{ kv('OSM has more itineraries', num(gap.osm_has_more), share(gap.osm_has_more, rl.line_links)) }}
+      </dl>
+    </div>
+  </div>
+</section>
+{% else %}
+<p class="stats-empty">Route matching statistics are not available for this run.</p>
+{% endif %}
 
 {# ══════════════════════════════════════════
-SECTION 5 — PROBLEMS
+SECTION 4 — PROBLEMS
 ══════════════════════════════════════════ #}
 <h2 class="stats-section-title" id="problems">Problems</h2>
 
 {% if stats.problems is defined and stats.problems %}
 {% set probs = stats.problems %}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">Problem Detection Statistics</h5>
+<section class="stats-block" aria-labelledby="stopProblemsTitle">
+  <h3 class="stats-block__title" id="stopProblemsTitle">Stop problems</h3>
+  <p class="stats-block__lead">An entry is one row of the stop list: a matched pair, an unmatched platform or an unmatched OSM element.</p>
+  <div class="stats-figures">
+    {{ figure('Entries without problems', num(probs.clean_entries), share(probs.clean_entries, probs.total_stops) ~ ' of ' ~ num(probs.total_stops)) }}
+    {{ figure('Entries with problems', num(probs.stops_with_problems), share(probs.stops_with_problems, probs.total_stops) ~ ' of ' ~ num(probs.total_stops)) }}
+    {{ figure('Entries with several problem types', num(probs.multiple_problems)) }}
   </div>
-  <div class="card-body">
-    <div class="row mb-4">
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm stat-card--success">
-          <div class="stat-card__value">{{ "{:,}".format(probs.clean_entries) }}</div>
-          <div class="stat-card__label">Clean Entries (No Problems)</div>
-          <small class="text-muted">{{ "%.1f"|format(probs.clean_entries / probs.total_stops * 100) }}% of total
-            {{ "{:,}".format(probs.total_stops) }}</small>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm stat-card--danger">
-          <div class="stat-card__value">{{ "{:,}".format(probs.stops_with_problems) }}</div>
-          <div class="stat-card__label">Entries with Problems</div>
-          <small class="text-muted">{{ "%.1f"|format(probs.stops_with_problems / probs.total_stops * 100) }}% of
-            total {{ "{:,}".format(probs.total_stops) }}</small>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="stat-card stat-card--sm stat-card--warning">
-          <div class="stat-card__value">{{ "{:,}".format(probs.multiple_problems) }}</div>
-          <div class="stat-card__label">Multiple Problems Output</div>
-          <small class="text-muted">Entries with &gt;1 problem types</small>
-        </div>
-      </div>
-    </div>
-
-    {# Priority accordion #}
-    <div class="priority-accordion">
-      {% set priority_meta = [
-      (1, 'Critical', 'p1', 'danger'),
-      (2, 'Significant', 'p2', 'warning'),
-      (3, 'Minor', 'p3', 'minor'),
-      ] %}
-      {% set type_labels = {
-      'distance': 'Distance — Too far from OSM node',
-      'unmatched': 'Unmatched — Isolated ATLAS / OSM node',
-      'attributes': 'Attributes — Missing or mismatched data',
-      'duplicates': 'Duplicates — OSM or ATLAS side collisions',
-      'disused': 'Disused — OSM stop out of service but still referenced',
-      } %}
-      {% set type_dots = {
-      'distance': '#F0AD4E',
-      'unmatched': '#DC3545',
-      'attributes': '#174092',
-      'duplicates': '#174092',
-      'disused': '#6C757D',
-      } %}
-      {% for prio, label, css_id, severity in priority_meta %}
-      {% set prio_data = problem_breakdown.get(prio, {}) %}
-      {% set prio_total = prio_data.values()|sum if prio_data else 0 %}
-      <div class="accordion-item accordion-item--{{ severity }} is-open"
-        id="accordion-{{ css_id }}">
-        <div class="accordion-trigger">
-          <span class="accordion-trigger__left">
-            <span class="priority-badge priority-badge--{{ severity }}">P{{ prio }}</span>
-            <span class="accordion-trigger__label">{{ label }}</span>
-          </span>
-          <span class="accordion-trigger__right">
-            <span class="accordion-trigger__count">{{ "{:,}".format(prio_total) }}</span>
-          </span>
-        </div>
-        <div class="accordion-panel" id="panel-{{ css_id }}" style="max-height: none;">
-          <div class="accordion-panel__inner">
-            <table class="table table-sm mb-0">
-              <thead class="thead-light">
-                <tr>
-                  <th>Problem Type</th>
-                  <th class="text-end">Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for ptype in ['distance', 'unmatched', 'attributes', 'duplicates', 'disused'] %}
-                {% set cnt = prio_data.get(ptype, 0) %}
-                {% if cnt > 0 %}
-                <tr>
-                  <td>
-                    <span class="type-dot" style="background:{{ type_dots[ptype] }}"></span>
-                    {{ type_labels[ptype] }}
-                  </td>
-                  <td class="text-end">{{ "{:,}".format(cnt) }}</td>
-                </tr>
-                {% endif %}
-                {% endfor %}
-                {% if prio_total == 0 %}
-                <tr>
-                  <td colspan="2" class="text-muted text-center">No problems at this priority</td>
-                </tr>
-                {% endif %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-
-  </div>
-</div>
+  {{ priority_table(problem_breakdown, [
+    ('distance', 'Distance — too far from the OSM node'),
+    ('unmatched', 'Unmatched — isolated ATLAS or OSM node'),
+    ('attributes', 'Attributes — missing or mismatched data'),
+    ('contradicts_route_matching', 'Route contradiction — the match disagrees with route matching'),
+    ('duplicates', 'Duplicates — collisions on the OSM or ATLAS side'),
+    ('disused', 'Disused — OSM stop out of service but still referenced'),
+  ], 'No problems at this priority') }}
+</section>
 {% else %}
-<div class="alert alert-secondary">No problem statistics available.</div>
+<p class="stats-empty">No problem statistics available.</p>
 {% endif %}
-{% if stats.route_problems is defined and stats.route_problems %}
-{% set rprobs = stats.route_problems %}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">Route Problem Detection Statistics</h5>
-  </div>
-  <div class="card-body">
-    <div class="row mb-4">
-      <div class="col-md-6">
-        <div class="stat-card stat-card--sm stat-card--primary">
-          <div class="stat-card__value">{{ "{:,}".format(rprobs.total_routes_matched) }}</div>
-          <div class="stat-card__label">Total Routes Matched</div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="stat-card stat-card--sm stat-card--danger">
-          <div class="stat-card__value">{{ "{:,}".format(rprobs.total_problems) }}</div>
-          <div class="stat-card__label">Route Problems Detected</div>
-        </div>
-      </div>
-    </div>
-
-    {# Route Priority accordion #}
-    <div class="priority-accordion">
-      {% set rpriority_meta = [
-      (1, 'Critical', 'rp1', 'danger'),
-      (2, 'Significant', 'rp2', 'warning'),
-      (3, 'Minor', 'rp3', 'minor'),
-      ] %}
-      {% set rtype_labels = {
-      'route_metadata_mismatch': 'Metadata Mismatch — Mode or Name discrepancy',
-      } %}
-      {% set rtype_dots = {
-      'route_metadata_mismatch': '#DC3545',
-      } %}
-      {% for prio, label, css_id, severity in rpriority_meta %}
-      {% set rprio_data = route_problem_breakdown.get(prio, {}) %}
-      {% set rprio_total = rprio_data.values()|sum if rprio_data else 0 %}
-      <div class="accordion-item accordion-item--{{ severity }} is-open"
-        id="accordion-{{ css_id }}">
-        <div class="accordion-trigger">
-          <span class="accordion-trigger__left">
-            <span class="priority-badge priority-badge--{{ severity }}">P{{ prio }}</span>
-            <span class="accordion-trigger__label">{{ label }}</span>
-          </span>
-          <span class="accordion-trigger__right">
-            <span class="accordion-trigger__count">{{ "{:,}".format(rprio_total) }}</span>
-          </span>
-        </div>
-        <div class="accordion-panel" id="panel-{{ css_id }}" style="max-height: none;">
-          <div class="accordion-panel__inner">
-            <table class="table table-sm mb-0">
-              <thead class="thead-light">
-                <tr>
-                  <th>Problem Type</th>
-                  <th class="text-end">Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for ptype, plabel in rtype_labels.items() %}
-                {% set cnt = rprio_data.get(ptype, 0) %}
-                {% if cnt > 0 %}
-                <tr>
-                  <td>
-                    <span class="type-dot" style="background:{{ rtype_dots[ptype] }}"></span>
-                    {{ plabel }}
-                  </td>
-                  <td class="text-end">{{ "{:,}".format(cnt) }}</td>
-                </tr>
-                {% endif %}
-                {% endfor %}
-                {% if rprio_total == 0 %}
-                <tr>
-                  <td colspan="2" class="text-muted text-center">No route problems at this priority</td>
-                </tr>
-                {% endif %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-
-  </div>
-</div>
-{% endif %}{# end route problem stats #}
-
 
 {# ══════════════════════════════════════════
-SECTION 6 — ROUTES
+SECTION 5 — ATLAS STOPS
 ══════════════════════════════════════════ #}
-<h2 class="stats-section-title" id="routes">Routes</h2>
+<h2 class="stats-section-title" id="atlas">ATLAS stops</h2>
 
-{# Route Coverage #}
-{% if stats.routes is defined and stats.routes %}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">Route Coverage</h5>
-  </div>
-  <div class="card-body">
-    {% set rt = stats.routes %}
-    {% set ga = stats.gtfs_atlas %}
-    <table class="table table-sm table-hover">
-      <tr>
-        <td>ATLAS stops matched by GTFS routes</td>
-        <td class="text-end">{{ "{:,}".format(ga.atlas.resolved_by_gtfs|default(0)) }} / {{ "{:,}".format(ga.atlas.total|default(0)) }}</td>
-        <td class="text-end">{{ ga.atlas.coverage_percent|default(0) }}%</td>
-      </tr>
-      <tr>
-        <td>OSM stops with routes coverage</td>
-        <td class="text-end">{{ "{:,}".format(rt.osm_with_routes|default(0)) }}</td>
-        <td class="text-end">{{ rt.osm_with_routes_percent|default(0) }}%</td>
-      </tr>
-    </table>
-    <div class="text-muted small mt-2">
-      ATLAS coverage here is stop-side route coverage. The GTFS mapping block below reports the separate GTFS stop_id to ATLAS sloid mapping coverage.
-    </div>
-  </div>
+{% set af = stats.atlas_filtering if stats.atlas_filtering is defined and stats.atlas_filtering else {} %}
+{% set at = stats.atlas_stops if stats.atlas_stops is defined and stats.atlas_stops else {} %}
+{% if at %}
+<div class="stats-figures">
+  {{ figure('Platforms', num(at.platforms), 'Boarding platforms in Switzerland, valid today') }}
+  {{ figure('Matched platforms', num(at.matched), share(at.matched, at.platforms)) }}
+  {% if stats.gtfs is defined and stats.gtfs %}{{ figure('Referenced by GTFS', num(stats.gtfs.atlas_platforms.referenced), share(stats.gtfs.atlas_platforms.referenced, at.platforms) ~ ' have a GTFS stop ID') }}{% endif %}
 </div>
 {% endif %}
 
-{% if stats.route_route_matching is defined and stats.route_route_matching %}
-{% set rr = stats.route_route_matching %}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">Route-Route Matching</h5>
+{% if af %}
+<section class="stats-block" data-source="atlas" aria-labelledby="atlasFilteringTitle">
+  <h3 class="stats-block__title" id="atlasFilteringTitle">From the ATLAS download to platforms</h3>
+  <div class="stats-table-wrap">
+    <table class="stats-table stats-table--compact">
+      <thead><tr><th scope="col">Step</th><th scope="col">Removed</th><th scope="col">Kept</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Traffic points in the download</th><td class="is-secondary">–</td><td>{{ num(af.raw_total) }}</td></tr>
+        <tr><th scope="row">Swiss UIC country code (85)</th><td>{{ num(af.eliminated_by_uic_number) }}</td><td>{{ num(af.after_uic_number_filter) }}</td></tr>
+        <tr><th scope="row">Inside the Swiss border</th><td>{{ num(af.eliminated_by_geo) }}</td><td>{{ num(af.after_geo_filter) }}</td></tr>
+        <tr><th scope="row">Valid today</th><td>{{ num(af.eliminated_by_validity) }}</td><td>{{ num(af.after_validity_filter) }}</td></tr>
+        <tr class="is-total"><th scope="row">Boarding platforms (boarding areas removed)</th><td>{{ num(af.eliminated_by_type) }}</td><td>{{ num(af.after_type_filter) }}</td></tr>
+      </tbody>
+    </table>
   </div>
-  <div class="card-body">
-    <table class="table table-sm table-hover mb-3">
-      <thead class="thead-light">
-        <tr>
-          <th>Metric</th>
-          <th class="text-end">Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Route-route links (ATLAS ↔ OSM)</td>
-          <td class="text-end">{{ "{:,}".format(rr.total_links|default(0)) }}</td>
-        </tr>
-        <tr>
-          <td>Linked ATLAS route IDs</td>
-          <td class="text-end">{{ "{:,}".format(rr.atlas_routes_linked|default(0)) }}</td>
-        </tr>
-        <tr>
-          <td>Linked OSM route IDs</td>
-          <td class="text-end">{{ "{:,}".format(rr.osm_routes_linked|default(0)) }}</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <table class="table table-sm table-hover mb-3">
-      <thead class="thead-light">
-        <tr>
-          <th>Coverage</th>
-          <th class="text-end">Count</th>
-          <th class="text-end">Percent</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>ATLAS route IDs with link</td>
-          <td class="text-end">{{ "{:,}".format(rr.atlas_routes_linked|default(0)) }} / {{ "{:,}".format(rr.atlas_route_ids_total|default(0)) }}</td>
-          <td class="text-end">{{ rr.atlas_link_coverage_percent|default(0) }}%</td>
-        </tr>
-        <tr>
-          <td>OSM route IDs with link</td>
-          <td class="text-end">{{ "{:,}".format(rr.osm_routes_linked|default(0)) }} / {{ "{:,}".format(rr.osm_route_ids_total|default(0)) }}</td>
-          <td class="text-end">{{ rr.osm_link_coverage_percent|default(0) }}%</td>
-        </tr>
-        <tr>
-          <td>ATLAS itineraries with link</td>
-          <td class="text-end">{{ "{:,}".format(rr.atlas_itineraries_linked|default(0)) }} / {{ "{:,}".format(rr.atlas_itineraries_total|default(0)) }}</td>
-          <td class="text-end">{{ rr.atlas_itinerary_link_coverage_percent|default(0) }}%</td>
-        </tr>
-        <tr>
-          <td>OSM itineraries with link</td>
-          <td class="text-end">{{ "{:,}".format(rr.osm_itineraries_linked|default(0)) }} / {{ "{:,}".format(rr.osm_itineraries_total|default(0)) }}</td>
-          <td class="text-end">{{ rr.osm_itinerary_link_coverage_percent|default(0) }}%</td>
-        </tr>
-        <tr>
-          <td>ATLAS route directions (total)</td>
-          <td class="text-end">{{ "{:,}".format(rr.atlas_route_directions_total|default(0)) }}</td>
-          <td class="text-end">-</td>
-        </tr>
-        <tr>
-          <td>OSM route directions (total)</td>
-          <td class="text-end">{{ "{:,}".format(rr.osm_route_directions_total|default(0)) }}</td>
-          <td class="text-end">-</td>
-        </tr>
-      </tbody>
-    </table>
-
-    {% if rr.by_match_method is defined and rr.by_match_method %}
-    {% set bmr = rr.by_match_method %}
-    {% set bmr_total = rr.total_links if rr.total_links > 0 else 1 %}
-    <h6 class="mt-3 mb-2">Match Method Breakdown</h6>
-    <table class="table table-sm table-hover mb-0">
-      <thead class="thead-light">
-        <tr>
-          <th>Method</th>
-          <th class="text-end">Count</th>
-          <th class="text-end">% of Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Exact GTFS route ID</td>
-          <td class="text-end">{{ "{:,}".format(bmr.exact_gtfs_route_id|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format(bmr.exact_gtfs_route_id|default(0) / bmr_total * 100) }}%</td>
-        </tr>
-        <tr>
-          <td>Normalized GTFS route ID</td>
-          <td class="text-end">{{ "{:,}".format(bmr.normalized_gtfs_route_id|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format(bmr.normalized_gtfs_route_id|default(0) / bmr_total * 100) }}%</td>
-        </tr>
-        <tr>
-          <td>OSM display route ID matches ATLAS route ID</td>
-          <td class="text-end">{{ "{:,}".format(bmr.display_route_id_match|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format(bmr.display_route_id_match|default(0) / bmr_total * 100) }}%</td>
-        </tr>
-        {% if (bmr.other|default(0)) > 0 %}
-        <tr class="text-muted">
-          <td>Other (unknown method)</td>
-          <td class="text-end">{{ "{:,}".format(bmr.other|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format(bmr.other|default(0) / bmr_total * 100) }}%</td>
-        </tr>
-        {% endif %}
-      </tbody>
-    </table>
-    {% endif %}
-
-    <div class="text-muted small mt-2">
-      This section reports route-route links from import DB route tables, not stop-level predicate matches.
-    </div>
-
-    {% if rr.variant_density is defined %}
-    {% set vd = rr.variant_density %}
-    {% set gap = rr.matched_family_variant_gap if rr.matched_family_variant_gap is defined else {} %}
-    <h6 class="mt-4 mb-2">Route Pipeline Shape</h6>
-    <table class="table table-sm table-hover mb-0">
-      <thead class="thead-light">
-        <tr>
-          <th>Metric</th>
-          <th class="text-end">Mean</th>
-          <th class="text-end">Median</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>ATLAS itineraries per family</td>
-          <td class="text-end">{{ vd.atlas_itineraries_per_family.mean|default(0) }}</td>
-          <td class="text-end">{{ vd.atlas_itineraries_per_family.median|default(0) }}</td>
-        </tr>
-        <tr>
-          <td>OSM itineraries per family</td>
-          <td class="text-end">{{ vd.osm_itineraries_per_family.mean|default(0) }}</td>
-          <td class="text-end">{{ vd.osm_itineraries_per_family.median|default(0) }}</td>
-        </tr>
-        <tr>
-          <td>GTFS trips collapsed into one ATLAS itinerary</td>
-          <td class="text-end">{{ vd.atlas_trip_count_per_itinerary.mean|default(0) }}</td>
-          <td class="text-end">{{ vd.atlas_trip_count_per_itinerary.median|default(0) }}</td>
-        </tr>
-        <tr>
-          <td>Matched family itinerary gap (ATLAS - OSM)</td>
-          <td class="text-end">{{ gap.mean|default(0) }}</td>
-          <td class="text-end">{{ gap.median|default(0) }}</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <table class="table table-sm table-hover mt-3 mb-0">
-      <thead class="thead-light">
-        <tr>
-          <th>Matched Family Comparison</th>
-          <th class="text-end">Count</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Matched families where ATLAS has more itineraries</td>
-          <td class="text-end">{{ "{:,}".format(gap.atlas_has_more_count|default(0)) }}</td>
-        </tr>
-        <tr>
-          <td>Matched families with equal itinerary counts</td>
-          <td class="text-end">{{ "{:,}".format(gap.same_count|default(0)) }}</td>
-        </tr>
-        <tr>
-          <td>Matched families where OSM has more itineraries</td>
-          <td class="text-end">{{ "{:,}".format(gap.osm_has_more_count|default(0)) }}</td>
-        </tr>
-      </tbody>
-    </table>
-    {% endif %}
-  </div>
-</div>
+</section>
 {% endif %}
 
-{# OSM Route Family Grouping Methods #}
-{% if stats.route_route_matching is defined and stats.route_route_matching.osm_family_origin is defined %}
-{% set fo = stats.route_route_matching.osm_family_origin %}
-{% set fo_relations = stats.route_route_matching.osm_relations_by_origin if stats.route_route_matching.osm_relations_by_origin is defined else {} %}
-{% set fo_total = fo.values()|sum %}
-{% set fo_total_denom = fo_total if fo_total > 0 else 1 %}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">OSM Route Family Grouping Method</h5>
+{% if at %}
+{% set dup = at.duplicates %}
+<section class="stats-block" data-source="atlas" aria-labelledby="atlasDuplicatesTitle">
+  <h3 class="stats-block__title" id="atlasDuplicatesTitle">Duplicate platforms</h3>
+  <p class="stats-block__lead">Platforms with the same UIC number and the same designation form a duplicate group. Counts are SLOIDs.</p>
+  <div class="stats-figures">
+    {{ figure('Duplicate groups', num(dup.groups)) }}
+    {{ figure('SLOIDs in a group', num(dup.sloids)) }}
+    {{ figure('Matched', num(dup.matched_sloids), share(dup.matched_sloids, dup.sloids)) }}
+    {{ figure('Unmatched', num(dup.unmatched_sloids), share(dup.unmatched_sloids, dup.sloids)) }}
   </div>
-  <div class="card-body">
-    <p class="text-muted small mb-3">
-      How OSM route relations are grouped into line families. Priority order:
-      route_master → GTFS route ID → (route, ref, operator, network) → per-relation fallback.
-    </p>
-    <table class="table table-sm table-hover mb-0">
-      <thead class="thead-light">
-        <tr>
-          <th>Grouping Method</th>
-          <th class="text-end">Families</th>
-          <th class="text-end">% of Families</th>
-          <th class="text-end">Relations</th>
-        </tr>
+</section>
+{% else %}
+<p class="stats-empty">ATLAS statistics are not available for this run.</p>
+{% endif %}
+
+{# ══════════════════════════════════════════
+SECTION 6 — SWISS GTFS
+══════════════════════════════════════════ #}
+<h2 class="stats-section-title" id="gtfs">Swiss GTFS</h2>
+
+{% set gs = stats.gtfs if stats.gtfs is defined and stats.gtfs else {} %}
+{% if gs %}
+{% set gstops = gs.stops %}
+<div class="stats-figures">
+  {{ figure('GTFS stop IDs', num(gstops.total)) }}
+  {{ figure('Used by trips', num(gstops.used), share(gstops.used, gstops.total) ~ ' of the stop IDs') }}
+  {{ figure('Used stop IDs resolved to a SLOID', share(gstops.used_resolved, gstops.used), of(gstops.used_resolved, gstops.used)) }}
+  {{ figure('Lines', num(gs.routes.lines), num(gs.routes.itineraries) ~ ' itineraries') }}
+</div>
+
+<section class="stats-block" data-source="atlas" aria-labelledby="gtfsStopsTitle">
+  <h3 class="stats-block__title" id="gtfsStopsTitle">GTFS stop IDs → ATLAS SLOIDs</h3>
+  <p class="stats-block__lead">Route matching works on SLOIDs, so every GTFS stop a trip calls at must resolve to one. Trips never call parent stations, so their low share does not affect matching.</p>
+  <div class="stats-table-wrap">
+    <table class="stats-table">
+      <thead>
+        <tr><th scope="col">Kind of stop ID</th><th scope="col">Stop IDs</th><th scope="col">Resolved</th><th scope="col">Share</th><th scope="col">Used by trips</th><th scope="col">Resolved</th><th scope="col">Share</th></tr>
       </thead>
       <tbody>
+        {% set level_labels = {
+          'platform': 'Platforms (platform code or local ref)',
+          'child_stop': 'Stops in a station, without platform code',
+          'stop': 'Stops outside a station',
+          'station': 'Parent stations',
+        } %}
+        {% for row in gstops.by_level %}
         <tr>
-          <td>
-            <span class="type-dot" style="background:#198754"></span>
-            route_master (explicit OSM grouping)
-          </td>
-          <td class="text-end">{{ "{:,}".format(fo.route_master|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format(fo.route_master|default(0) / fo_total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(fo_relations.route_master|default(0)) }}</td>
+          <th scope="row">{{ level_labels.get(row.level, row.level) }}</th>
+          <td>{{ num(row.total) }}</td><td>{{ num(row.resolved) }}</td><td class="is-secondary">{{ share(row.resolved, row.total) }}</td>
+          <td>{{ num(row.used) }}</td><td>{{ num(row.used_resolved) }}</td><td class="is-secondary">{{ share(row.used_resolved, row.used) if row.used else '–' }}</td>
         </tr>
-        <tr>
-          <td>
-            <span class="type-dot" style="background:#174092"></span>
-            Normalized GTFS route ID
-          </td>
-          <td class="text-end">{{ "{:,}".format(fo.synthetic_gtfs_route_id|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format(fo.synthetic_gtfs_route_id|default(0) / fo_total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(fo_relations.synthetic_gtfs_route_id|default(0)) }}</td>
-        </tr>
-        <tr>
-          <td>
-            <span class="type-dot" style="background:#F0AD4E"></span>
-            Synthetic key (route, ref, operator, network)
-          </td>
-          <td class="text-end">{{ "{:,}".format(fo.synthetic_ref_operator|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format(fo.synthetic_ref_operator|default(0) / fo_total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(fo_relations.synthetic_ref_operator|default(0)) }}</td>
-        </tr>
-        <tr>
-          <td>
-            <span class="type-dot" style="background:#6C757D"></span>
-            Per-relation fallback (no grouping key)
-          </td>
-          <td class="text-end">{{ "{:,}".format(fo.synthetic_relation|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format(fo.synthetic_relation|default(0) / fo_total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(fo_relations.synthetic_relation|default(0)) }}</td>
-        </tr>
-        {% if (fo.other|default(0)) > 0 %}
-        <tr class="text-muted">
-          <td>Other / unknown</td>
-          <td class="text-end">{{ "{:,}".format(fo.other|default(0)) }}</td>
-          <td class="text-end">{{ "%.1f"|format(fo.other|default(0) / fo_total_denom * 100) }}%</td>
-          <td class="text-end">{{ "{:,}".format(fo_relations.other|default(0)) }}</td>
-        </tr>
-        {% endif %}
+        {% endfor %}
       </tbody>
       <tfoot>
-        <tr class="fw-bold">
-          <td>Total</td>
-          <td class="text-end">{{ "{:,}".format(fo_total) }}</td>
-          <td class="text-end">100%</td>
-          <td class="text-end">{{ "{:,}".format(fo_relations.values()|sum) }}</td>
+        <tr class="is-total">
+          <th scope="row">Total</th>
+          <td>{{ num(gstops.total) }}</td><td>{{ num(gstops.resolved) }}</td><td>{{ share(gstops.resolved, gstops.total) }}</td>
+          <td>{{ num(gstops.used) }}</td><td>{{ num(gstops.used_resolved) }}</td><td>{{ share(gstops.used_resolved, gstops.used) }}</td>
         </tr>
       </tfoot>
     </table>
-
-    {# Visual bar breakdown removed #}
   </div>
-</div>
-{% endif %}
 
-
-{# GTFS stop_id → ATLAS sloid Mapping #}
-{% if stats.gtfs_atlas is defined and stats.gtfs_atlas %}
-{% set ga = stats.gtfs_atlas %}
-<div class="card mb-4">
-  <div class="card-header">
-    <h5 class="mb-0">GTFS stop_id → ATLAS sloid Mapping</h5>
+  {% if stats.gtfs_atlas is defined and stats.gtfs_atlas %}
+  {% set ga = stats.gtfs_atlas %}
+  {% set assignment_total = ga.assignments.total|default(0) %}
+  {% set assignment_denom = assignment_total if assignment_total > 0 else 1 %}
+  <div class="mapping-paths">
+    <div class="mapping-paths__header">
+      <div>
+        <span class="stats-eyebrow">Ordered fallback sequence</span>
+        <h4 class="stats-block__subtitle">How GTFS stop IDs reach an ATLAS SLOID</h4>
+        <p>Each unresolved stop ID continues to the next method. The bar shows that method's share of all assignments.</p>
+      </div>
+      <div class="mapping-paths__total"><strong>{{ num(assignment_total) }}</strong><span>assignments</span></div>
+    </div>
+    <div class="mapping-paths__list">
+      {% for title, help, count in [
+        ('Direct SLOID', '<code>original_stop_id</code> already contains a valid ATLAS SLOID.', ga.assignments.original_stop_id|default(0)),
+        ('Strict identifiers', '<code>UIC number + local ref</code> equals the ATLAS <code>number + designation</code>.', ga.assignments.strict|default(0)),
+        ('Coordinate proximity', 'Same UIC number, within 0.5 m, with one unambiguous ATLAS candidate.', ga.assignments.coordinate_proximity|default(0)),
+        ('Unique-number fallback', 'The UIC number resolves to exactly one remaining ATLAS row.', ga.assignments.unique_number_fallback|default(0)),
+      ] %}
+      <div class="mapping-path">
+        <span class="mapping-path__step">{{ loop.index }}</span>
+        <div class="mapping-path__copy"><h5>{{ title }}</h5><p>{{ help|safe }}</p></div>
+        <div class="mapping-path__measure"><div><span style="width: {{ count / assignment_denom * 100 }}%"></span></div><small>{{ share(count, assignment_denom) }}</small></div>
+        <strong class="mapping-path__count">{{ num(count) }}</strong>
+      </div>
+      {% endfor %}
+    </div>
   </div>
-  <div class="card-body">
 
-    {# ── Overview ── #}
-    <div class="row mb-3">
-      <div class="col-md-3 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(ga.gtfs_stop_ids.total|default(0)) }}</div>
-          <div class="stat-card__label">Total GTFS stop_ids</div>
-        </div>
-      </div>
-      <div class="col-md-3 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm stat-card--success">
-          <div class="stat-card__value">{{ "{:,}".format(ga.gtfs_stop_ids.matched_to_atlas|default(0)) }}</div>
-          <div class="stat-card__label">Matched stop_ids</div>
-        </div>
-      </div>
-      <div class="col-md-3 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm stat-card--warning">
-          <div class="stat-card__value">{{ "{:,}".format(ga.gtfs_stop_ids.unmatched|default(0)) }}</div>
-          <div class="stat-card__label">Unmatched stop_ids</div>
-        </div>
-      </div>
-      <div class="col-md-3 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm stat-card--primary">
-          <div class="stat-card__value">{{ ga.gtfs_stop_ids.coverage_percent|default(0) }}%</div>
-          <div class="stat-card__label">GTFS stop_id Coverage</div>
-        </div>
-      </div>
+  <div class="stats-columns stats-columns--2">
+    <div>
+      <h4 class="stats-block__subtitle">Cardinality</h4>
+      <dl class="stats-kv stats-kv--single">
+        {{ kv('GTFS stop ID → one SLOID', num(ga.cardinality.stop_to_sloid.one_to_one)) }}
+        {{ kv('GTFS stop ID → several SLOIDs', num(ga.cardinality.stop_to_sloid.one_to_many)) }}
+        {{ kv('SLOID ← one GTFS stop ID', num(ga.cardinality.sloid_to_stop.one_to_one)) }}
+        {{ kv('SLOID ← several GTFS stop IDs', num(ga.cardinality.sloid_to_stop.many_to_one)) }}
+      </dl>
     </div>
-
-    <div class="row mb-4">
-      <div class="col-md-4 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm">
-          <div class="stat-card__value">{{ "{:,}".format(ga.atlas.total|default(0)) }}</div>
-          <div class="stat-card__label">Total ATLAS stops</div>
-        </div>
-      </div>
-      <div class="col-md-4 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm stat-card--success">
-          <div class="stat-card__value">{{ "{:,}".format(ga.atlas.resolved_by_gtfs|default(0)) }}</div>
-          <div class="stat-card__label">ATLAS stops matched</div>
-        </div>
-      </div>
-      <div class="col-md-4 col-sm-6 mb-3">
-        <div class="stat-card stat-card--sm stat-card--primary">
-          <div class="stat-card__value">{{ ga.atlas.coverage_percent|default(0) }}%</div>
-          <div class="stat-card__label">ATLAS stop Coverage</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="mapping-paths">
-      {% set assignment_total = ga.assignments.total|default(0) %}
-      {% set assignment_denom = assignment_total if assignment_total > 0 else 1 %}
-      <div class="mapping-paths__header">
-        <div>
-          <span>Ordered fallback sequence</span>
-          <h6>How GTFS stop IDs reach an ATLAS SLOID</h6>
-          <p>Each unmatched stop continues to the next method. The bar shows that method's share of all assignments.</p>
-        </div>
-        <div class="mapping-paths__total"><strong>{{ "{:,}".format(assignment_total) }}</strong><span>Total assignments</span></div>
-      </div>
-
-      <div class="mapping-paths__list">
-        <div class="mapping-path">
-          <span class="mapping-path__step">1</span>
-          <div class="mapping-path__copy"><h6>Direct SLOID</h6><p><code>original_stop_id</code> already contains a valid ATLAS SLOID.</p></div>
-          <div class="mapping-path__measure"><div><span style="width: {{ (ga.assignments.original_stop_id|default(0)) / assignment_denom * 100 }}%"></span></div><small>{{ "%.1f"|format((ga.assignments.original_stop_id|default(0)) / assignment_denom * 100) }}%</small></div>
-          <strong class="mapping-path__count">{{ "{:,}".format(ga.assignments.original_stop_id|default(0)) }}</strong>
-        </div>
-        <div class="mapping-path">
-          <span class="mapping-path__step">2</span>
-          <div class="mapping-path__copy"><h6>Strict identifiers</h6><p><code>UIC number + local ref</code> equals the ATLAS <code>number + designation</code>.</p></div>
-          <div class="mapping-path__measure"><div><span style="width: {{ (ga.assignments.strict|default(0)) / assignment_denom * 100 }}%"></span></div><small>{{ "%.1f"|format((ga.assignments.strict|default(0)) / assignment_denom * 100) }}%</small></div>
-          <strong class="mapping-path__count">{{ "{:,}".format(ga.assignments.strict|default(0)) }}</strong>
-        </div>
-        <div class="mapping-path">
-          <span class="mapping-path__step">3</span>
-          <div class="mapping-path__copy"><h6>Coordinate proximity</h6><p>Same UIC number, within 0.5m, with one unambiguous ATLAS candidate.</p></div>
-          <div class="mapping-path__measure"><div><span style="width: {{ (ga.assignments.coordinate_proximity|default(0)) / assignment_denom * 100 }}%"></span></div><small>{{ "%.1f"|format((ga.assignments.coordinate_proximity|default(0)) / assignment_denom * 100) }}%</small></div>
-          <strong class="mapping-path__count">{{ "{:,}".format(ga.assignments.coordinate_proximity|default(0)) }}</strong>
-        </div>
-        <div class="mapping-path">
-          <span class="mapping-path__step">4</span>
-          <div class="mapping-path__copy"><h6>Unique-number fallback</h6><p>The UIC number resolves to exactly one remaining ATLAS row.</p></div>
-          <div class="mapping-path__measure"><div><span style="width: {{ (ga.assignments.unique_number_fallback|default(0)) / assignment_denom * 100 }}%"></span></div><small>{{ "%.1f"|format((ga.assignments.unique_number_fallback|default(0)) / assignment_denom * 100) }}%</small></div>
-          <strong class="mapping-path__count">{{ "{:,}".format(ga.assignments.unique_number_fallback|default(0)) }}</strong>
-        </div>
-      </div>
-    </div>
-
-    <hr>
-
-    {# ── Cardinality ── #}
-    <h6 class="mb-3">Cardinality</h6>
-    <div class="row mb-4">
-      <div class="col-lg-6 mb-3">
-        <h6 class="text-muted small mb-2">GTFS stop_id side</h6>
-        <div class="row">
-          <div class="col-6">
-            <div class="stat-card stat-card--sm">
-              <div class="stat-card__value">{{ "{:,}".format(ga.cardinality.stop_to_sloid.one_to_one|default(0)) }}</div>
-              <div class="stat-card__label">1 → 1</div>
-            </div>
-          </div>
-          <div class="col-6">
-            <div class="stat-card stat-card--sm stat-card--warning">
-              <div class="stat-card__value">{{ "{:,}".format(ga.cardinality.stop_to_sloid.one_to_many|default(0)) }}</div>
-              <div class="stat-card__label">1 → many</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-6 mb-3">
-        <h6 class="text-muted small mb-2">ATLAS sloid side</h6>
-        <div class="row">
-          <div class="col-6">
-            <div class="stat-card stat-card--sm">
-              <div class="stat-card__value">{{ "{:,}".format(ga.cardinality.sloid_to_stop.one_to_one|default(0)) }}</div>
-              <div class="stat-card__label">1 → 1</div>
-            </div>
-          </div>
-          <div class="col-6">
-            <div class="stat-card stat-card--sm stat-card--warning">
-              <div class="stat-card__value">{{ "{:,}".format(ga.cardinality.sloid_to_stop.many_to_one|default(0)) }}</div>
-              <div class="stat-card__label">many → 1</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    {# ── Unmatched Reasons ── #}
     {% if ga.unmatched_reasons is defined and ga.unmatched_reasons %}
     {% set ur = ga.unmatched_reasons %}
-    <hr>
-    <h6 class="mb-3">Unmatched Reasons</h6>
-    <table class="table table-sm table-hover mb-0">
-      <thead class="thead-light">
-        <tr>
-          <th>Reason</th>
-          <th class="text-end">Count</th>
-        </tr>
+    <div>
+      <h4 class="stats-block__subtitle">Why stop IDs stay unresolved</h4>
+      <dl class="stats-kv stats-kv--single">
+        {{ kv('Several ATLAS platforms share the UIC number', num(ur.non_unique_atlas_number_after_strict_miss)) }}
+        {{ kv('No ATLAS platform has the UIC number', num(ur.no_atlas_candidate_for_uic_number)) }}
+        {% if ur.coordinate_proximity_conflicting_gtfs_stop_ids is defined and ur.coordinate_proximity_conflicting_gtfs_stop_ids > 0 %}
+        {{ kv('Several candidates within the proximity radius', num(ur.coordinate_proximity_conflicting_gtfs_stop_ids)) }}
+        {% endif %}
+      </dl>
+      <p class="stats-note">Counts include parent stations, which share their UIC number with all their platforms.</p>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+
+{% set gr = gs.routes %}
+<section class="stats-block" data-source="atlas" aria-labelledby="gtfsRoutesTitle">
+  <h3 class="stats-block__title" id="gtfsRoutesTitle">Lines and itineraries</h3>
+  <p class="stats-block__lead">A GTFS route is one line. Its trips are grouped into itineraries, one per distinct stop sequence.</p>
+  <dl class="stats-kv">
+    {{ kv('Lines', num(gr.lines)) }}
+    {{ kv('Line directions', num(gr.directions)) }}
+    {{ kv('Itineraries', num(gr.itineraries)) }}
+    {{ kv('Trips per itinerary', dec(gr.trips_per_itinerary.median) ~ ' median', dec(gr.trips_per_itinerary.mean) ~ ' mean') }}
+    {{ kv('Stop calls resolved to a SLOID', of(gr.resolved_stop_calls, gr.stop_calls), share(gr.resolved_stop_calls, gr.stop_calls)) }}
+  </dl>
+</section>
+{% else %}
+<p class="stats-empty">GTFS statistics are not available for this run.</p>
+{% endif %}
+
+{# ══════════════════════════════════════════
+SECTION 7 — OSM STOPS
+══════════════════════════════════════════ #}
+<h2 class="stats-section-title" id="osm-stops">OSM stops</h2>
+
+{% set os = stats.osm_stops if stats.osm_stops is defined and stats.osm_stops else {} %}
+{% if os %}
+{% set el = os.elements %}
+{% set su = os.stop_units %}
+<div class="stats-figures" data-source="osm">
+  {{ figure('Elements', num(el.total), 'Nodes and ways tagged as a stop') }}
+  {{ figure('Stop units', num(su.total), 'An element, or a group matched as one stop') }}
+  {{ figure('Matched stop units', num(su.matched), share(su.matched, su.total)) }}
+  {{ figure('Served by a route', num(su.served_by_routes), share(su.served_by_routes, su.total) ~ ' of stop units are in a route relation') }}
+</div>
+
+<section class="stats-block" data-source="osm" aria-labelledby="osmGeometryTitle">
+  <h3 class="stats-block__title" id="osmGeometryTitle">Geometry</h3>
+  <p class="stats-block__lead">Most stops are mapped as nodes; a way (an area or line) is matched at its centre. Before matching, the elements of one physical stop are grouped into a stop unit.</p>
+  <div class="stats-columns stats-columns--2">
+    <div>
+      <h4 class="stats-block__subtitle">Elements by type</h4>
+      <div class="stats-table-wrap">
+        <table class="stats-table">
+          <thead><tr><th scope="col">Type</th><th scope="col">Elements</th><th scope="col">Ways</th><th scope="col">Matched</th><th scope="col">Share</th></tr></thead>
+          <tbody>
+            {% set type_labels = {
+              'stop_position': 'Stop positions', 'platform': 'Platforms', 'railway_station': 'Railway stations',
+              'aerialway': 'Aerial lift stations', 'ferry_terminal': 'Ferry terminals', 'other': 'Other stations and halts',
+            } %}
+            {% for row in el.by_type %}
+            <tr><th scope="row">{{ type_labels.get(row.type, row.type) }}</th><td>{{ num(row.elements) }}</td><td>{{ num(row.ways) }}</td><td>{{ num(row.matched) }}</td><td class="is-secondary">{{ share(row.matched, row.elements) }}</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="is-total"><th scope="row">Total</th><td>{{ num(el.total) }}</td><td>{{ num(el.ways) }}</td><td>{{ num(el.matched) }}</td><td>{{ share(el.matched, el.total) }}</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h4 class="stats-block__subtitle">Stop units by size</h4>
+      <div class="stats-table-wrap">
+        <table class="stats-table">
+          <thead><tr><th scope="col">Stop unit</th><th scope="col">Units</th><th scope="col">Elements</th><th scope="col">Matched</th><th scope="col">Share</th></tr></thead>
+          <tbody>
+            {% for kind, label in [('single', 'Single element'), ('pair', 'Pair'), ('trio', 'Trio')] %}
+            {% set row = su.by_kind.get(kind, {}) %}
+            <tr><th scope="row">{{ label }}</th><td>{{ num(row.units) }}</td><td>{{ num(row.elements) }}</td><td>{{ num(row.matched) }}</td><td class="is-secondary">{{ share(row.matched, row.units) }}</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="is-total"><th scope="row">Total</th><td>{{ num(su.total) }}</td><td>{{ num(el.total) }}</td><td>{{ num(su.matched) }}</td><td>{{ share(su.matched, su.total) }}</td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+  <p class="stats-note">An element or stop unit counts as matched when it, or one of its elements, is matched to an ATLAS platform. Not counted: {{ num(el.retired.total) }} retired elements with a lifecycle prefix such as <code>disused:</code>.</p>
+</section>
+
+{% set og = os.groups %}
+<section class="stats-block" data-source="osm" aria-labelledby="osmGroupsTitle">
+  <h3 class="stats-block__title" id="osmGroupsTitle">Groups</h3>
+  <p class="stats-block__lead">A pair joins a platform and its stop position; a trio joins a stop position and the platforms on both sides. When one element of a group matches, the match is passed on to the others.</p>
+  {% set group_labels = {
+    'osm_pair_uic_equal_15m': 'Same UIC ref, equal counts on both sides, within 15 m',
+    'osm_pair_uic': 'Same UIC ref, mutual nearest within 12 m',
+    'osm_pair_name_equal_15m': 'Same name, equal counts on both sides, within 15 m',
+    'osm_pair_name': 'Same name, mutual nearest',
+    'osm_pair_tram_equal_15m': 'Tram stop, equal counts on both sides, within 15 m',
+    'osm_pair_tram': 'Tram stop, mutual nearest',
+    'osm_trio': 'Stop position between two platforms with one UIC ref',
+  } %}
+  <div class="stats-table-wrap">
+    <table class="stats-table">
+      <thead>
+        <tr><th scope="col">Group type</th><th scope="col">Groups</th><th scope="col">All matched</th>{% if og.partly_matched %}<th scope="col">Partly matched</th>{% endif %}<th scope="col">None matched</th><th scope="col">Share matched</th></tr>
       </thead>
       <tbody>
+        {% for row in og.by_kind %}
         <tr>
-          <td>No ATLAS candidate for this UIC number</td>
-          <td class="text-end">{{ "{:,}".format(ur.no_atlas_candidate_for_uic_number|default(0)) }}</td>
+          <th scope="row"><code>{{ row.group_kind }}</code><br><small class="is-secondary">{{ group_labels.get(row.group_kind, '') }}</small></th>
+          <td>{{ num(row.units) }}</td><td>{{ num(row.all_matched) }}</td>{% if og.partly_matched %}<td>{{ num(row.partly_matched) }}</td>{% endif %}<td>{{ num(row.none_matched) }}</td>
+          <td class="is-secondary">{{ share(row.units - row.none_matched, row.units) }}</td>
         </tr>
-        <tr>
-          <td>Non-unique ATLAS number (strict miss, fallback not applicable)</td>
-          <td class="text-end">{{ "{:,}".format(ur.non_unique_atlas_number_after_strict_miss|default(0)) }}</td>
-        </tr>
-        {% if ur.coordinate_proximity_conflicting_gtfs_stop_ids is defined and ur.coordinate_proximity_conflicting_gtfs_stop_ids > 0 %}
-        <tr>
-          <td>Coordinate proximity conflict (multiple candidates within radius)</td>
-          <td class="text-end">{{ "{:,}".format(ur.coordinate_proximity_conflicting_gtfs_stop_ids) }}</td>
-        </tr>
-        {% endif %}
+        {% endfor %}
       </tbody>
+      <tfoot>
+        <tr class="is-total"><th scope="row">Total</th><td>{{ num(og.total) }}</td><td>{{ num(og.all_matched) }}</td>{% if og.partly_matched %}<td>{{ num(og.partly_matched) }}</td>{% endif %}<td>{{ num(og.none_matched) }}</td><td>{{ share(og.total - og.none_matched, og.total) }}</td></tr>
+      </tfoot>
     </table>
-    {% endif %}
-
   </div>
+</section>
+
+{% set tg = os.tags %}
+<section class="stats-block" data-source="osm" aria-labelledby="osmTagsTitle">
+  <h3 class="stats-block__title" id="osmTagsTitle">Tags</h3>
+  <p class="stats-block__lead">Share of elements with each tag. Amenities belong on platforms, so read them in the platform column.</p>
+  <div class="stats-table-wrap">
+    <table class="stats-table">
+      <thead>
+        <tr><th scope="col">Tag</th><th scope="col">All elements <small>{{ num(tg.elements) }}</small></th><th scope="col">Platforms <small>{{ num(tg.platforms) }}</small></th><th scope="col">Stop positions <small>{{ num(tg.stop_positions) }}</small></th></tr>
+      </thead>
+      {% set tag_group_labels = {'identifiers': 'Identifiers', 'operator_network': 'Operator and network', 'accessibility_amenities': 'Accessibility and amenities'} %}
+      {% for group in tg.groups %}
+      <tbody>
+        <tr class="is-group"><th scope="rowgroup" colspan="4">{{ tag_group_labels.get(group.group, group.group) }}</th></tr>
+        {% for row in group['keys'] %}
+        <tr class="is-level-1">
+          <th scope="row"><code>{{ row.key }}</code></th>
+          <td title="{{ num(row.elements) }}">{{ share(row.elements, tg.elements) }}</td>
+          <td title="{{ num(row.platforms) }}">{{ share(row.platforms, tg.platforms) }}</td>
+          <td title="{{ num(row.stop_positions) }}">{{ share(row.stop_positions, tg.stop_positions) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      {% endfor %}
+    </table>
+  </div>
+</section>
+{% else %}
+<p class="stats-empty">OSM stop statistics are not available for this run.</p>
+{% endif %}
+
+{# ══════════════════════════════════════════
+SECTION 8 — OSM ROUTES
+══════════════════════════════════════════ #}
+<h2 class="stats-section-title" id="osm-routes">OSM routes</h2>
+
+{% set orr = stats.osm_routes if stats.osm_routes is defined and stats.osm_routes else {} %}
+{% if orr %}
+{% set rel = orr.relations %}
+{% set lines = orr.lines %}
+{% set oit = orr.itineraries %}
+<div class="stats-figures" data-source="osm">
+  {{ figure('Route relations', num(rel.total), num(rel.public_transport) ~ ' public transport') }}
+  {{ figure('Lines', num(lines.public_transport), 'Public transport lines, from ' ~ num(lines.total) ~ ' in total') }}
+  {{ figure('Relations with a direction', share(oit.with_direction, oit.total), of(oit.with_direction, oit.total) ~ ', from ref_trips') }}
+  {{ figure('Stop members resolved to a SLOID', share(oit.resolved_stop_calls, oit.stop_calls), of(oit.resolved_stop_calls, oit.stop_calls)) }}
 </div>
+
+<section class="stats-block" data-source="osm" aria-labelledby="osmRouteModesTitle">
+  <h3 class="stats-block__title" id="osmRouteModesTitle">Relations and lines by mode</h3>
+  <div class="stats-table-wrap">
+    <table class="stats-table stats-table--compact">
+      <thead><tr><th scope="col">Mode</th><th scope="col">Relations</th><th scope="col">Lines</th></tr></thead>
+      <tbody>
+        {% for mode, count in rel.by_mode.items() %}
+        <tr{% if mode == 'not_public_transport' %} class="is-secondary"{% endif %}><th scope="row">{{ mode_labels.get(mode, mode) }}</th><td>{{ num(count) }}</td><td>{{ num(lines.by_mode.get(mode, 0)) }}</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="is-total"><th scope="row">Total</th><td>{{ num(rel.total) }}</td><td>{{ num(lines.total) }}</td></tr>
+      </tfoot>
+    </table>
+  </div>
+  {% if rel.not_public_transport_by_route %}
+  <p class="stats-note">Not public transport: {% for route, count in rel.not_public_transport_by_route.items() %}<code>route={{ route or '(empty)' }}</code> {{ num(count) }}{{ ', ' if not loop.last }}{% endfor %}. They are not services, so the other route figures leave them out.</p>
+  {% endif %}
+</section>
+
+{% set fo = lines.by_origin %}
+{% set fo_relations = lines.relations_by_origin %}
+<section class="stats-block" data-source="osm" aria-labelledby="familyGroupingTitle">
+  <h3 class="stats-block__title" id="familyGroupingTitle">How relations are grouped into lines</h3>
+  <p class="stats-block__lead">Each route relation joins the first grouping that applies: its <code>route_master</code>, then its GTFS route ID, then the (route, ref, operator, network) key, then the relation on its own.</p>
+  <div class="stats-table-wrap">
+    <table class="stats-table stats-table--compact">
+      <thead><tr><th scope="col">Grouping</th><th scope="col">Lines</th><th scope="col">Share</th><th scope="col">Relations</th></tr></thead>
+      <tbody>
+        {% for label, key in [
+          ('route_master', 'route_master'),
+          ('Normalized GTFS route ID', 'synthetic_gtfs_route_id'),
+          ('Key (route, ref, operator, network)', 'synthetic_ref_operator'),
+          ('Relation on its own', 'synthetic_relation'),
+          ('Other', 'other'),
+        ] if key != 'other' or fo.get(key) %}
+        <tr><th scope="row">{{ label }}</th><td>{{ num(fo.get(key, 0)) }}</td><td class="is-secondary">{{ share(fo.get(key, 0), lines.total) }}</td><td>{{ num(fo_relations.get(key, 0)) }}</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="is-total"><th scope="row">Total</th><td>{{ num(lines.total) }}</td><td>100.0%</td><td>{{ num(fo_relations.values()|sum) }}</td></tr>
+      </tfoot>
+    </table>
+  </div>
+</section>
+
+<section class="stats-block" data-source="osm" aria-labelledby="osmRouteTagsTitle">
+  <h3 class="stats-block__title" id="osmRouteTagsTitle">Tags on public transport relations</h3>
+  {% set pt_denom = rel.public_transport %}
+  <div class="stats-bars">
+    {% for label, count in [('Member of a route_master', rel.in_route_master), ('public_transport:version=2', rel.ptv2)] %}
+    <div class="stats-bar">
+      <span class="stats-bar__label">{{ label }}</span>
+      <span class="stats-bar__track"><span style="width: {{ (count / pt_denom * 100) if pt_denom else 0 }}%"></span></span>
+      <strong>{{ num(count) }}</strong><small>{{ share(count, pt_denom) }}</small>
+    </div>
+    {% endfor %}
+    {% for row in rel.tags %}
+    <div class="stats-bar">
+      <span class="stats-bar__label"><code>{{ row.key }}</code></span>
+      <span class="stats-bar__track"><span style="width: {{ (row.count / pt_denom * 100) if pt_denom else 0 }}%"></span></span>
+      <strong>{{ num(row.count) }}</strong><small>{{ share(row.count, pt_denom) }}</small>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="stats-note">The direction of an OSM itinerary comes from the <code>.H</code> or <code>.R</code> suffix in <code>ref_trips</code>. Without it, the itinerary cannot be linked to a GTFS itinerary.</p>
+</section>
+{% else %}
+<p class="stats-empty">OSM route statistics are not available for this run.</p>
 {% endif %}
 
 {% endif %}{# end stats #}

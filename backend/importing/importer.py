@@ -45,12 +45,12 @@ from backend.models import (
     ItineraryMatch,
     ItineraryBestOverlap,
 )
+from backend.services.dataset_stats import add_dataset_stats
 from backend.services.route_comparison import compute_best_overlaps
 from backend.services.stats_export import (
     export_pipeline_stats,
     save_stats_to_file,
     compute_db_stats,
-    compute_route_route_stats,
 )
 
 
@@ -736,17 +736,23 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
     try:
         matched_records = getattr(base_data, 'matched', [])
         unmatched_atlas = getattr(base_data, 'unmatched_atlas', [])
-        unmatched_osm = getattr(base_data, 'unmatched_osm', [])
-        
+        # A trio middle whose two sides are matched counts as matched, not unmatched.
+        effectively_matched = {str(node_id) for node_id in getattr(base_data, 'effectively_matched_osm_ids', ())}
+        unmatched_osm = [
+            node for node in getattr(base_data, 'unmatched_osm', [])
+            if str(node.node_id) not in effectively_matched
+        ]
+        isolated_osm = {str(node_id) for node_id in base_data.isolated_osm_ids} - effectively_matched
+
         # Calculate total ATLAS platforms from records
         matched_sloids = {r.atlas_node.sloid for r in matched_records if getattr(r, 'atlas_node', None) and r.atlas_node.sloid}
         unmatched_sloids = {r.sloid for r in unmatched_atlas if getattr(r, 'sloid', None)}
         total_atlas = len(matched_sloids | unmatched_sloids)
-        
+
         # Calculate OSM stop counts from canonical stop units
         osm_stop_units = getattr(base_data, 'osm_stop_units', [])
         total_osm_stops = len(osm_stop_units)
-        
+
         # Calculate raw OSM nodes count
         all_osm_nodes = getattr(base_data, 'all_osm_nodes', [])
         total_osm_nodes = len(all_osm_nodes)
@@ -764,23 +770,11 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
             and str(r.osm_node.node_id) in node_to_stop_id
         })
         unmatched_osm_stops = max(0, total_osm_stops - matched_osm_stops)
-        
-        nodes_with_routes = set(base_data.osm_node_routes)
-        osm_with_routes_count = sum(
-            1 for unit in osm_stop_units
-            if any(str(member.node_id) in nodes_with_routes for member in unit.members)
-        )
-        osm_route_stats = {'osm_with_routes': osm_with_routes_count}
-
-        # Calculate Wikidata tag counts
-        osm_operator_wikidata_count = sum(1 for node in all_osm_nodes if node.tags.get('operator:wikidata'))
-        osm_network_wikidata_count = sum(1 for node in all_osm_nodes if node.tags.get('network:wikidata'))
 
         stats = export_pipeline_stats(
             matched_records=matched_records,
             unmatched_atlas=unmatched_atlas,
             unmatched_osm=unmatched_osm,
-            duplicate_sloid_map=duplicate_sloid_map,
             no_nearby_osm_sloids=no_nearby_sloids,
             osm_stop_units=osm_stop_units,
             total_atlas_platforms=total_atlas,
@@ -789,21 +783,16 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
             total_osm_stations=total_osm_stations,
             total_matched_osm_stops=matched_osm_stops,
             total_unmatched_osm_stops=unmatched_osm_stops,
-            osm_route_stats=osm_route_stats,
-            osm_nodes_with_routes=nodes_with_routes if 'nodes_with_routes' in locals() else set(),
-            total_osm_operator_wikidata=osm_operator_wikidata_count,
-            total_osm_network_wikidata=osm_network_wikidata_count,
-            no_nearby_atlas_osm_ids=set(base_data.isolated_osm_ids)
+            osm_nodes_with_routes=set(base_data.osm_node_routes),
+            no_nearby_atlas_osm_ids=isolated_osm,
         )
 
         stats['quality_metrics'] = base_data.quality_metrics
 
-        # Compute problem statistics from DB
+        # Problem and per-source statistics come from the published tables.
         from backend.importing.session import session
         stats['problems'] = compute_db_stats(session)
-
-        # Compute route-route statistics from DB route tables
-        stats['route_route_matching'] = compute_route_route_stats(session)
+        add_dataset_stats(stats, session)
 
         if base_data.atlas_filtering:
             stats['atlas_filtering'] = base_data.atlas_filtering

@@ -13,7 +13,6 @@ Statistics are divided into two categories:
 import json
 import logging
 import os
-import statistics
 import tempfile
 import time
 from collections import defaultdict
@@ -120,7 +119,6 @@ def export_pipeline_stats(
     matched_records: list,
     unmatched_atlas: list,
     unmatched_osm: list,
-    duplicate_sloid_map: dict,
     no_nearby_osm_sloids: set,
     osm_stop_units: list | None = None,
     total_atlas_platforms: int = None,
@@ -129,11 +127,8 @@ def export_pipeline_stats(
     total_osm_stations: int = None,
     total_matched_osm_stops: int = None,
     total_unmatched_osm_stops: int = None,
-    osm_route_stats: Dict[str, int] = None,
     osm_nodes_with_routes: set = None,
     no_nearby_atlas_osm_ids: set = None,
-    total_osm_operator_wikidata: int = 0,
-    total_osm_network_wikidata: int = 0,
     db_session=None,
 ) -> Dict[str, Any]:
     """
@@ -145,8 +140,7 @@ def export_pipeline_stats(
     Args:
         matched_records: List of matched record dictionaries
         unmatched_atlas: List of unmatched ATLAS entries
-        unmatched_osm: List of unmatched OSM nodes
-        duplicate_sloid_map: Map of duplicate ATLAS sloids
+        unmatched_osm: Unmatched OSM elements, without effectively matched trio middles
         no_nearby_osm_sloids: Set of ATLAS sloids with no OSM within 50m
         osm_stop_units: Canonical OSM stop units (optional, used for stop-level many-to-one)
         total_atlas_platforms: Total ATLAS platforms (optional, calculated if not provided)
@@ -296,17 +290,6 @@ def export_pipeline_stats(
         if atlas_with_osm_within_50m > 0 else 0
     )
     
-    # Duplicate counts
-    total_duplicate_sloids = len(duplicate_sloid_map) if duplicate_sloid_map else 0
-    matched_duplicate_items = sum(
-        1 for r in matched_records
-        if getattr(r.atlas_node, 'sloid', None) and str(r.atlas_node.sloid) in duplicate_sloid_map
-    )
-    unmatched_duplicate_items = sum(
-        1 for r in unmatched_atlas
-        if getattr(r, 'sloid', None) and str(r.sloid) in duplicate_sloid_map
-    )
-    
     # Calculate Many-to-One metrics per stage
     mto_pairs_by_type = defaultdict(int)
     osm_stop_units = osm_stop_units or []
@@ -356,27 +339,6 @@ def export_pipeline_stats(
         else:
             route_method_counts['other'] += 1
 
-    # Way-based OSM stops analysis
-    matched_ways = {
-        str(r.osm_node.node_id)
-        for r in matched_records
-        if getattr(r, 'osm_node', None) and str(r.osm_node.node_id).startswith('way_')
-    }
-    unmatched_ways = {
-        str(n.node_id)
-        for n in unmatched_osm
-        if str(n.node_id).startswith('way_')
-    }
-    total_way_stops = len(matched_ways | unmatched_ways)
-    way_match_rate = (len(matched_ways) / total_way_stops * 100) if total_way_stops > 0 else 0
-    osm_way_stops = {
-        "total": total_way_stops,
-        "matched": len(matched_ways),
-        "unmatched": len(unmatched_ways),
-        "match_rate_percent": round(way_match_rate, 1)
-    }
-
-    
     # Load data meta if available to get the actual data source update time
     last_pipeline_data_import_ended_at = None
     last_overpass_query_at = None
@@ -422,8 +384,6 @@ def export_pipeline_stats(
             "atlas_with_osm_within_50m": atlas_with_osm_within_50m,
             "atlas_with_osm_within_50m_percent": round((atlas_with_osm_within_50m / total_atlas_platforms * 100), 1) if total_atlas_platforms > 0 else 0,
             "matched_atlas_with_osm_within_50m_percent": matched_atlas_with_osm_within_50m_percent,
-            "osm_operator_wikidata": total_osm_operator_wikidata,
-            "osm_network_wikidata": total_osm_network_wikidata,
         },
         
         # Matching stage breakdown
@@ -521,16 +481,6 @@ def export_pipeline_stats(
             }
         },
         
-        # Duplicate information
-        "duplicates": {
-            "total_duplicate_sloids": total_duplicate_sloids,
-            "matched_duplicates": matched_duplicate_items,
-            "unmatched_duplicates": unmatched_duplicate_items,
-        },
-        
-        # Non-node OSM stops (Ways)
-        "osm_way_stops": osm_way_stops,
-        
         # Raw match type counts for debugging/advanced use
         "match_type_counts": match_type_counts,
 
@@ -548,12 +498,6 @@ def export_pipeline_stats(
         },
     }
     
-    if osm_route_stats:
-        stats['routes'] = dict(osm_route_stats)
-        if total_osm_stops and total_osm_stops > 0:
-            osm_with_routes = osm_route_stats.get('osm_with_routes', 0)
-            stats['routes']['osm_with_routes_percent'] = round((osm_with_routes / total_osm_stops * 100), 1)
-
     gtfs_atlas_stats = _load_gtfs_atlas_stats(total_atlas_platforms)
     if gtfs_atlas_stats:
         stats['gtfs_atlas'] = gtfs_atlas_stats
@@ -689,264 +633,6 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
         'clean_entries': max(0, total_stops - stops_with_problems),
         'by_priority': by_priority,
     }
-
-
-def _summarize_numeric_values(values: List[int | float]) -> Dict[str, float]:
-    if not values:
-        return {'mean': 0.0, 'median': 0.0}
-    return {
-        'mean': round(float(statistics.mean(values)), 2),
-        'median': round(float(statistics.median(values)), 2),
-    }
-
-def compute_route_route_stats(db_session) -> Dict[str, Any]:
-    """Compute route-route linking statistics from route tables in the import DB."""
-    from backend.models import Itinerary, ItineraryMatch, LineFamily, LineFamilyMatch
-    from sqlalchemy import inspect, func
-
-    total_links = db_session.query(LineFamilyMatch).count()
-    inspector = inspect(db_session.get_bind())
-    itinerary_links_total = db_session.query(ItineraryMatch).count() if inspector.has_table(ItineraryMatch.__tablename__) else 0
-
-    atlas_routes_linked = (
-        db_session.query(LineFamilyMatch.atlas_line_family_id)
-        .filter(LineFamilyMatch.atlas_line_family_id.isnot(None))
-        .distinct()
-        .count()
-    )
-    osm_routes_linked = (
-        db_session.query(LineFamilyMatch.osm_line_family_id)
-        .filter(LineFamilyMatch.osm_line_family_id.isnot(None))
-        .distinct()
-        .count()
-    )
-
-    atlas_route_ids_total = (
-        db_session.query(LineFamily.id)
-        .filter(LineFamily.source == 'atlas')
-        .count()
-    )
-    osm_route_ids_total = (
-        db_session.query(LineFamily.id)
-        .filter(LineFamily.source == 'osm')
-        .count()
-    )
-
-    atlas_route_directions_total = (
-        db_session.query(Itinerary.line_family_id, Itinerary.direction_id)
-        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
-        .filter(LineFamily.source == 'atlas')
-        .distinct()
-        .count()
-    )
-    osm_route_directions_total = (
-        db_session.query(Itinerary.line_family_id, Itinerary.direction_id)
-        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
-        .filter(LineFamily.source == 'osm')
-        .distinct()
-        .count()
-    )
-
-    atlas_itineraries_total = (
-        db_session.query(Itinerary.id)
-        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
-        .filter(LineFamily.source == 'atlas')
-        .count()
-    )
-    osm_itineraries_total = (
-        db_session.query(Itinerary.id)
-        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
-        .filter(LineFamily.source == 'osm')
-        .count()
-    )
-
-    atlas_routes_without_link = max(atlas_route_ids_total - atlas_routes_linked, 0)
-    osm_routes_without_link = max(osm_route_ids_total - osm_routes_linked, 0)
-
-    atlas_link_coverage_percent = (
-        round((atlas_routes_linked / atlas_route_ids_total) * 100, 1)
-        if atlas_route_ids_total > 0 else 0.0
-    )
-    osm_link_coverage_percent = (
-        round((osm_routes_linked / osm_route_ids_total) * 100, 1)
-        if osm_route_ids_total > 0 else 0.0
-    )
-
-    itinerary_count_rows = (
-        db_session.query(LineFamily.source, Itinerary.line_family_id, func.count(Itinerary.id))
-        .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
-        .group_by(LineFamily.source, Itinerary.line_family_id)
-        .all()
-    )
-    atlas_itinerary_counts_by_family: Dict[int, int] = {}
-    osm_itinerary_counts_by_family: Dict[int, int] = {}
-    atlas_itinerary_counts: List[int] = []
-    osm_itinerary_counts: List[int] = []
-    for source, line_family_id, count in itinerary_count_rows:
-        count = int(count or 0)
-        if source == 'atlas':
-            atlas_itinerary_counts_by_family[line_family_id] = count
-            atlas_itinerary_counts.append(count)
-        elif source == 'osm':
-            osm_itinerary_counts_by_family[line_family_id] = count
-            osm_itinerary_counts.append(count)
-
-    atlas_trip_count_values = [
-        int(value)
-        for (value,) in (
-            db_session.query(Itinerary.trip_count)
-            .join(LineFamily, LineFamily.id == Itinerary.line_family_id)
-            .filter(LineFamily.source == 'atlas', Itinerary.trip_count.isnot(None))
-            .all()
-        )
-        if value is not None
-    ]
-
-    atlas_itineraries_linked = 0
-    osm_itineraries_linked = 0
-    if inspector.has_table(ItineraryMatch.__tablename__):
-        atlas_itineraries_linked = (
-            db_session.query(ItineraryMatch.atlas_itinerary_id)
-            .filter(ItineraryMatch.atlas_itinerary_id.isnot(None))
-            .distinct()
-            .count()
-        )
-        osm_itineraries_linked = (
-            db_session.query(ItineraryMatch.osm_itinerary_id)
-            .filter(ItineraryMatch.osm_itinerary_id.isnot(None))
-            .distinct()
-            .count()
-        )
-
-    atlas_itinerary_link_coverage_percent = (
-        round((atlas_itineraries_linked / atlas_itineraries_total) * 100, 1)
-        if atlas_itineraries_total > 0 else 0.0
-    )
-    osm_itinerary_link_coverage_percent = (
-        round((osm_itineraries_linked / osm_itineraries_total) * 100, 1)
-        if osm_itineraries_total > 0 else 0.0
-    )
-
-    matched_family_variant_gaps: List[int] = []
-    atlas_has_more_variants_count = 0
-    same_variant_count = 0
-    osm_has_more_variants_count = 0
-    for atlas_line_family_id, osm_line_family_id in (
-        db_session.query(
-            LineFamilyMatch.atlas_line_family_id,
-            LineFamilyMatch.osm_line_family_id,
-        ).all()
-    ):
-        atlas_variants = atlas_itinerary_counts_by_family.get(atlas_line_family_id, 0)
-        osm_variants = osm_itinerary_counts_by_family.get(osm_line_family_id, 0)
-        gap = atlas_variants - osm_variants
-        matched_family_variant_gaps.append(gap)
-        if gap > 0:
-            atlas_has_more_variants_count += 1
-        elif gap < 0:
-            osm_has_more_variants_count += 1
-        else:
-            same_variant_count += 1
-
-    # Per-method match counts from the match_method column.
-    reason_rows = (
-        db_session.query(LineFamilyMatch.match_method, func.count(LineFamilyMatch.id))
-        .group_by(LineFamilyMatch.match_method)
-        .all()
-    )
-    _known_reasons = {'exact_gtfs_route_id', 'normalized_gtfs_route_id', 'display_route_id_match'}
-    by_match_method: Dict[str, int] = {
-        'exact_gtfs_route_id': 0,
-        'normalized_gtfs_route_id': 0,
-        'display_route_id_match': 0,
-        'other': 0,
-    }
-    for reason, cnt in reason_rows:
-        if reason in _known_reasons:
-            by_match_method[reason] = cnt
-        else:
-            by_match_method['other'] += cnt
-
-    # OSM route family grouping method breakdown (family_origin)
-    osm_family_origin_rows = (
-        db_session.query(LineFamily.family_origin, func.count(LineFamily.id))
-        .filter(LineFamily.source == 'osm')
-        .group_by(LineFamily.family_origin)
-        .all()
-    )
-    _known_origins = {
-        'route_master', 'synthetic_gtfs_route_id',
-        'synthetic_ref_operator', 'synthetic_relation',
-    }
-    osm_family_origin_counts: Dict[str, int] = {
-        'route_master': 0,
-        'synthetic_gtfs_route_id': 0,
-        'synthetic_ref_operator': 0,
-        'synthetic_relation': 0,
-        'other': 0,
-    }
-    for origin, cnt in osm_family_origin_rows:
-        if origin in _known_origins:
-            osm_family_origin_counts[origin] = cnt
-        else:
-            osm_family_origin_counts['other'] += cnt
-
-    # Count distinct OSM route relations per family_origin
-    osm_relations_by_origin_rows = (
-        db_session.query(LineFamily.family_origin, func.count(Itinerary.id))
-        .join(Itinerary, Itinerary.line_family_id == LineFamily.id)
-        .filter(LineFamily.source == 'osm')
-        .group_by(LineFamily.family_origin)
-        .all()
-    )
-    osm_relations_by_origin: Dict[str, int] = {
-        'route_master': 0,
-        'synthetic_gtfs_route_id': 0,
-        'synthetic_ref_operator': 0,
-        'synthetic_relation': 0,
-        'other': 0,
-    }
-    for origin, cnt in osm_relations_by_origin_rows:
-        if origin in _known_origins:
-            osm_relations_by_origin[origin] = cnt
-        else:
-            osm_relations_by_origin['other'] += cnt
-
-    return {
-        'total_links': total_links,
-        'atlas_routes_linked': atlas_routes_linked,
-        'osm_routes_linked': osm_routes_linked,
-        'atlas_route_ids_total': atlas_route_ids_total,
-        'osm_route_ids_total': osm_route_ids_total,
-        'atlas_route_directions_total': atlas_route_directions_total,
-        'osm_route_directions_total': osm_route_directions_total,
-        'atlas_itineraries_total': atlas_itineraries_total,
-        'osm_itineraries_total': osm_itineraries_total,
-        'itinerary_links_total': itinerary_links_total,
-        'atlas_routes_without_link': atlas_routes_without_link,
-        'osm_routes_without_link': osm_routes_without_link,
-        'atlas_link_coverage_percent': atlas_link_coverage_percent,
-        'osm_link_coverage_percent': osm_link_coverage_percent,
-        'atlas_itineraries_linked': atlas_itineraries_linked,
-        'osm_itineraries_linked': osm_itineraries_linked,
-        'atlas_itinerary_link_coverage_percent': atlas_itinerary_link_coverage_percent,
-        'osm_itinerary_link_coverage_percent': osm_itinerary_link_coverage_percent,
-        'variant_density': {
-            'atlas_itineraries_per_family': _summarize_numeric_values(atlas_itinerary_counts),
-            'osm_itineraries_per_family': _summarize_numeric_values(osm_itinerary_counts),
-            'atlas_trip_count_per_itinerary': _summarize_numeric_values(atlas_trip_count_values),
-        },
-        'matched_family_variant_gap': {
-            **_summarize_numeric_values(matched_family_variant_gaps),
-            'atlas_has_more_count': atlas_has_more_variants_count,
-            'same_count': same_variant_count,
-            'osm_has_more_count': osm_has_more_variants_count,
-        },
-        'by_match_method': by_match_method,
-        'osm_family_origin': osm_family_origin_counts,
-        'osm_relations_by_origin': osm_relations_by_origin,
-    }
-
 
 
 def compute_summary_from_db(db_session) -> Dict[str, Any]:
