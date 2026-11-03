@@ -35,8 +35,8 @@
         <div class="operators-toolbar__inline d-flex align-items-center flex-wrap gap-2">
           <div class="operators-toolbar__inline-item operators-toolbar__inline-item--search position-relative">
             <label class="visually-hidden" for="operatorsSearchInput">Search operators</label>
-            <div class="input-group input-group-sm smart-search-input-group bg-white shadow-sm">
-              <span class="input-group-text bg-white border-0" id="operators-search-icon"><i class="fas fa-search text-muted"></i></span>
+            <div class="input-group input-group-sm smart-search-input-group bg-body shadow-sm">
+              <span class="input-group-text bg-body border-0" id="operators-search-icon"><i class="fas fa-search text-muted"></i></span>
               <input
                 id="operatorsSearchInput"
                 name="q"
@@ -51,7 +51,7 @@
           </div>
 
           <div class="dropdown operators-toolbar__inline-item">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="coverageDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="coverageDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
               Coverage: {{ coverage_labels[coverage_filter] }}
             </button>
             <div class="dropdown-menu shadow-lg border-0 p-2" aria-labelledby="coverageDropdown" style="min-width: 250px;">
@@ -65,7 +65,7 @@
           </div>
 
           <div class="dropdown operators-toolbar__inline-item">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="operatorsPerPageDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="operatorsPerPageDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
               {{ per_page }} per page
             </button>
             <div class="dropdown-menu shadow-lg border-0 p-2" aria-labelledby="operatorsPerPageDropdown" style="min-width: 110px;">

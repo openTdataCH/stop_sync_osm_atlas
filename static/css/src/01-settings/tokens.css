@@ -3,14 +3,20 @@
    Centralized design system variables for consistent styling across the app.
    ========================================================================== */
 
-:root {
-  /* -------------------------------------------------------------------------
-     COLORS - Semantic color palette
-     Every colour in authored CSS is defined here; other files reference these
-     tokens and never a literal (atlas/no-undocumented-colors). Tints are
-     literal rgba() values because WeasyPrint renders this file into the PDF
-     reports and does not support color-mix().
-     ------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------
+   COLORS - Semantic color palette
+   Every colour in authored CSS is defined here; other files reference these
+   tokens and never a literal (atlas/no-undocumented-colors). Tints are
+   literal rgba() values because WeasyPrint renders this file into the PDF
+   reports and does not support color-mix().
+
+   static/js/shared/theme.js sets data-bs-theme on <html>. An element with
+   data-bs-theme="light" stays light inside the dark theme, for canvases that
+   draw their own light palette. The PDF reports never set the attribute.
+   ------------------------------------------------------------------------- */
+:root,
+[data-bs-theme="light"] {
+  color-scheme: light;
 
   /* Surfaces */
   --color-bg: #ffffff;
@@ -18,8 +24,9 @@
   --color-bg-muted: #e9ecef;
   --color-surface-glass: rgba(255, 255, 255, 0.92);  /* translucent panel over the map or a tinted page */
   --color-surface-veil: rgba(255, 255, 255, 0.5);    /* lightens what lies beneath: hover and open states */
-  --color-surface-inverse: rgba(17, 17, 17, 0.8);    /* dark hints, banners and tooltips */
+  --color-surface-inverse: rgba(17, 17, 17, 0.8);    /* hints, banners and tooltips in the opposite theme */
   --color-overlay: rgba(0, 0, 0, 0.5);               /* backdrop behind modals and drawers */
+  --color-on-overlay: #ffffff;                       /* text on the backdrop, which is dark in both themes */
 
   /* Text */
   --color-fg: #111111;
@@ -28,6 +35,7 @@
   --color-on-accent: #ffffff;                        /* text and icons on a filled colour or an inverse surface */
   --color-on-accent-subtle: rgba(255, 255, 255, 0.2);
   --color-on-accent-muted: rgba(255, 255, 255, 0.35);
+  --color-on-warning: #653a00;                       /* on-accent fails on the light warning fill */
 
   /* Lines */
   --color-border: #e5e7eb;
@@ -35,8 +43,8 @@
   --color-focus-ring: rgba(23, 64, 146, 0.25);
 
   /* Status families: base, hover, subtle background, border and, where the
-     base is too light for text, a foreground. Primary navy also carries
-     information. */
+     base is too light for text, a foreground for text on the subtle
+     background. Primary navy also carries information. */
   --color-primary: #174092;
   --color-primary-hover: #123d90;
   --color-primary-subtle: #eef3fb;
@@ -86,7 +94,97 @@
   /* Documentation ownership semantics */
   --color-docs-shared: #6b21a8;
   --color-docs-shared-subtle: #faf5ff;
-  
+
+  /* Bootstrap channels of the tokens above, for its rgba() utilities */
+  --bs-body-bg-rgb: 255, 255, 255;
+  --bs-body-color-rgb: 17, 17, 17;
+  --bs-emphasis-color-rgb: 17, 17, 17;
+  --bs-tertiary-bg-rgb: 248, 249, 250;
+  --bs-link-color-rgb: 23, 64, 146;
+  --bs-link-hover-color-rgb: 18, 61, 144;
+}
+
+/* The same roles on dark surfaces. Fills are lighter than in the light theme,
+   so text on them (on-accent) turns dark and the inverse surface turns light.
+   The map and code quality colours keep their meaning and their values. */
+[data-bs-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #171c24;
+  --color-bg-subtle: #10141a;
+  --color-bg-muted: #232a35;
+  --color-surface-glass: rgba(23, 28, 36, 0.92);
+  --color-surface-veil: rgba(255, 255, 255, 0.06);
+  --color-surface-inverse: rgba(230, 234, 240, 0.94);
+  --color-overlay: rgba(0, 0, 0, 0.6);
+
+  --color-fg: #e6e9ee;
+  --color-fg-muted: #9ba5b3;
+  --color-fg-subtle: #6b7583;
+  --color-on-accent: #0d1117;
+  --color-on-accent-subtle: rgba(13, 17, 23, 0.15);
+  --color-on-accent-muted: rgba(13, 17, 23, 0.3);
+  --color-on-warning: #0d1117;
+
+  --color-border: #2a313c;
+  --color-border-emphasis: #3a4350;
+  --color-focus-ring: rgba(122, 162, 247, 0.45);
+
+  --color-primary: #7aa2f7;
+  --color-primary-hover: #9bb9fa;
+  --color-primary-subtle: rgba(122, 162, 247, 0.14);
+  --color-primary-border: rgba(122, 162, 247, 0.4);
+
+  --color-secondary: #9ba5b3;
+  --color-secondary-hover: #b5bdc8;
+  --color-secondary-subtle: #232a35;
+  --color-secondary-border: rgba(155, 165, 179, 0.35);
+
+  --color-success: #5cc163;
+  --color-success-hover: #7ad07f;
+  --color-success-subtle: rgba(92, 193, 99, 0.14);
+  --color-success-border: rgba(92, 193, 99, 0.4);
+  --color-success-fg: #8fdc93;
+
+  --color-warning: #f0ad4e;
+  --color-warning-hover: #f5c272;
+  --color-warning-subtle: rgba(240, 173, 78, 0.14);
+  --color-warning-border: rgba(240, 173, 78, 0.4);
+  --color-warning-fg: #f5c77e;
+
+  --color-danger: #f0707c;
+  --color-danger-hover: #f48f98;
+  --color-danger-subtle: rgba(240, 112, 124, 0.16);
+  --color-danger-border: rgba(240, 112, 124, 0.4);
+  --color-danger-fg: #f6a3ab;
+
+  --color-docs-shared: #c084fc;
+  --color-docs-shared-subtle: rgba(192, 132, 252, 0.12);
+
+  --bs-body-bg-rgb: 23, 28, 36;
+  --bs-body-color-rgb: 230, 233, 238;
+  --bs-emphasis-color-rgb: 230, 233, 238;
+  --bs-tertiary-bg-rgb: 16, 20, 26;
+  --bs-link-color-rgb: 122, 162, 247;
+  --bs-link-hover-color-rgb: 155, 185, 250;
+}
+
+/* Bootstrap reads its own variables: point them at the tokens so that its
+   components, forms and tables follow the theme. */
+:root,
+[data-bs-theme] {
+  --bs-body-bg: var(--color-bg);
+  --bs-body-color: var(--color-fg);
+  --bs-emphasis-color: var(--color-fg);
+  --bs-secondary-color: var(--color-fg-muted);
+  --bs-secondary-bg: var(--color-bg-muted);
+  --bs-tertiary-bg: var(--color-bg-subtle);
+  --bs-border-color: var(--color-border);
+  --bs-link-color: var(--color-primary);
+  --bs-link-hover-color: var(--color-primary-hover);
+}
+
+:root {
   /* -------------------------------------------------------------------------
      SPACING - Consistent spacing scale (based on 0.25rem = 4px)
      ------------------------------------------------------------------------- */

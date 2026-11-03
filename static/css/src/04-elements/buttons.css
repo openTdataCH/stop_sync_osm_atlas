@@ -119,13 +119,13 @@
 .btn-warning {
   background-color: var(--color-warning);
   border-color: var(--color-warning);
-  color: var(--color-warning-fg);
+  color: var(--color-on-warning);
 }
 
 .btn-warning:hover {
   background-color: var(--color-warning-hover);
   border-color: var(--color-warning-hover);
-  color: var(--color-warning-fg);
+  color: var(--color-on-warning);
 }
 
 .btn-info {
@@ -200,7 +200,7 @@
 .btn-outline-warning:hover {
   background-color: var(--color-warning);
   border-color: var(--color-warning);
-  color: var(--color-warning-fg);
+  color: var(--color-on-warning);
 }
 
 .btn-outline-info {

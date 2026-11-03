@@ -111,31 +111,31 @@
 .osm-match {
   --bubble-bg: var(--color-success-subtle);
   --bubble-border: var(--color-success-border);
-  --bubble-fg: var(--color-map-osm-matched);
+  --bubble-fg: var(--color-success-fg);
 }
 
 .atlas-match {
   --bubble-bg: var(--color-primary-subtle);
   --bubble-border: var(--color-primary-border);
-  --bubble-fg: var(--color-map-atlas-matched);
+  --bubble-fg: var(--color-primary);
 }
 
 .gtfs-match {
   --bubble-bg: var(--color-warning-subtle);
   --bubble-border: var(--color-warning-border);
-  --bubble-fg: var(--color-map-gtfs-matched);
+  --bubble-fg: var(--color-warning-fg);
 }
 
 .atlas-match.unmatched {
   --bubble-bg: var(--color-danger-subtle);
   --bubble-border: var(--color-danger-border);
-  --bubble-fg: var(--color-map-atlas-unmatched);
+  --bubble-fg: var(--color-danger);
 }
 
 .osm-match.unmatched {
   --bubble-bg: var(--color-secondary-subtle);
   --bubble-border: var(--color-secondary-border);
-  --bubble-fg: var(--color-map-osm-unmatched);
+  --bubble-fg: var(--color-secondary);
 }
 
 .gtfs-match.unmatched {

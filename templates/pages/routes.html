@@ -5,8 +5,11 @@
 {% block title %}{% if active_view == 'non_gtfs_routes' %}Non-GTFS Routes{% elif active_view == 'gtfs_stop_id_sloid' %}GTFS stop_id and SLOID{% else %}Public Transport Routes{% endif %} | {{ review_config.title }}{% endblock %}
 {% block meta_description %}{% if active_view == 'non_gtfs_routes' %}Inspect OpenStreetMap public transport routes that are absent from the configured {{ review_config.source_label }} route dataset.{% elif active_view == 'gtfs_stop_id_sloid' %}Compare GTFS stop identifiers with Swiss ATLAS service location identifiers and inspect their map coverage.{% else %}Compare matched and unmatched public transport routes from OpenStreetMap and {{ review_config.source_label }}.{% endif %}{% endblock %}
 
-{% block head_css %}
+{% block vendor_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+{% endblock %}
+
+{% block head_css %}
 {% if active_view == 'gtfs_stop_id_sloid' %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
 {% endif %}
@@ -149,8 +152,8 @@
           <!-- Search -->
           <div class="routes-toolbar__inline-item routes-toolbar__inline-item--search position-relative">
             <label class="visually-hidden" for="routesSearchInput">Search route ID</label>
-            <div class="input-group input-group-sm smart-search-input-group bg-white shadow-sm">
-              <span class="input-group-text bg-white border-0" id="routes-search-icon"><i class="fas fa-search text-muted"></i></span>
+            <div class="input-group input-group-sm smart-search-input-group bg-body shadow-sm">
+              <span class="input-group-text bg-body border-0" id="routes-search-icon"><i class="fas fa-search text-muted"></i></span>
               <input
                 id="routesSearchInput"
                 name="q"
@@ -170,7 +173,7 @@
 
           <!-- ATLAS dropdown -->
           <div class="dropdown routes-toolbar__inline-item">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="routesAtlasDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="routesAtlasDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
               {{ review_config.source_label }} Operator
             </button>
             <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="routesAtlasDropdown" style="width: 280px; max-height: 60vh; overflow-y: auto;">
@@ -183,7 +186,7 @@
 
           <!-- OSM Operator dropdown -->
           <div class="dropdown routes-toolbar__inline-item">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="routesOsmDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="routesOsmDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
               OSM Route Operator
             </button>
             <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="routesOsmDropdown" style="width: 280px; max-height: 60vh; overflow-y: auto;">
@@ -196,7 +199,7 @@
 
           <!-- Matched Status dropdown -->
           <div class="dropdown routes-toolbar__inline-item">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="matchedDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="matchedDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
               Status: {{ match_filter_labels[matched_filter] }}
             </button>
             <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="matchedDropdown" style="width: 260px;">
@@ -231,7 +234,7 @@
 
           <!-- Per Page dropdown -->
           <div class="dropdown routes-toolbar__inline-item">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="perPageDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold" type="button" id="perPageDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
               {{ per_page }} per page
             </button>
             <div class="dropdown-menu shadow-lg border-0 p-2" aria-labelledby="perPageDropdown" style="min-width: 100px;">
@@ -523,11 +526,11 @@
         <div id="routesGtfsStopIdSloidControls" class="routes-gtfs-map-controls">
           <form id="routesGtfsStopIdSloidSearchForm" class="routes-gtfs-map-search" role="search" novalidate>
             <label class="visually-hidden" for="routesGtfsStopIdSloidSearchInput">Search by SLOID, UIC, or GTFS stop_id</label>
-            <div class="input-group input-group-sm smart-search-input-group bg-white shadow-sm">
+            <div class="input-group input-group-sm smart-search-input-group bg-body shadow-sm">
               <button
                 id="routesGtfsStopIdSloidSearchButton"
                 type="submit"
-                class="input-group-text bg-white border-0"
+                class="input-group-text bg-body border-0"
                 aria-label="Search stops"
               >
                 <i class="fas fa-search text-muted" aria-hidden="true"></i>
@@ -551,7 +554,7 @@
           </form>
 
           <div class="dropdown filter-item">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
               type="button" id="routesGtfsMatchedDropdown" data-bs-toggle="dropdown" aria-haspopup="true"
               aria-expanded="false" data-bs-auto-close="outside">
               Matched
@@ -569,7 +572,7 @@
           </div>
 
           <div class="dropdown filter-item">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
               type="button" id="routesGtfsUnmatchedDropdown" data-bs-toggle="dropdown" aria-haspopup="true"
               aria-expanded="false" data-bs-auto-close="outside">
               Unmatched

@@ -14,10 +14,14 @@
   <meta name="robots" content="{{ seo_robots }}">
   <meta name="google-site-verification" content="1oq4u6R95VEOWIUskIdKad2-SvkUHVrDvXR2fikSISI">
   <link rel="canonical" href="{{ seo_canonical_url }}">
+  <!-- Sets the colour theme before the first paint -->
+  <script src="{{ url_for('static', filename='js/shared/theme.js') }}"></script>
   <!-- Bootstrap CSS for UI elements -->
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/css/bootstrap.min.css') }}">
   <!-- Font Awesome for icons -->
   <link rel="stylesheet" href="{{ url_for('static', filename='vendor/font-awesome/css/all.min.css') }}">
+  {#- Vendor styles load before the app's, so the app's token overrides win at equal specificity. #}
+  {% block vendor_css %}{% endblock %}
   <!-- Layered CSS entry -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   <link rel="icon" type="image/svg+xml" sizes="any" href="{{ url_for('static', filename='favicon.svg') }}">

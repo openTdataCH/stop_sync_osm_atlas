@@ -35,7 +35,7 @@
 }
 
 .priority-badge--danger  { background: var(--color-danger); }
-.priority-badge--warning { background: var(--color-warning); color: var(--color-warning-fg); }
+.priority-badge--warning { background: var(--color-warning); color: var(--color-on-warning); }
 .priority-badge--minor   { background: var(--color-secondary); }
 
 /* -------------------------------------------------------------------------

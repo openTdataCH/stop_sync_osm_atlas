@@ -1,4 +1,4 @@
-<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
+<nav class="navbar navbar-expand-lg bg-body border-bottom sticky-top">
   <div class="container-fluid">
     <!-- Brand -->
     <div class="navbar-brand d-flex text-nowrap mt-1">
@@ -88,6 +88,17 @@
             </button>
             <span id="navbarDataUpdatedText">{% if pipeline_is_running %}{% if pipeline_status.blocking_maintenance %}Pipeline running{% else %}Pipeline running in the background{% endif %}{% elif last_pipeline_data_import_ended_at %}Data updated: {{ last_pipeline_data_import_ended_at|format_zurich_display_timestamp }}{% else %}Data not imported yet{% endif %}</span>
           </span>
+        </li>
+        <li class="nav-item dropdown navbar-theme">
+          <button type="button" class="btn btn-link nav-link navbar-theme__toggle" id="themeMenuButton"
+            data-bs-toggle="dropdown" aria-expanded="false" aria-label="Colour theme" title="Colour theme">
+            <i class="fas fa-adjust" data-theme-icon aria-hidden="true"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end navbar-theme__menu" role="menu" aria-labelledby="themeMenuButton">
+            <li><button type="button" class="dropdown-item" role="menuitemradio" data-theme-choice="system"><i class="fas fa-adjust fa-fw me-2" aria-hidden="true"></i>System</button></li>
+            <li><button type="button" class="dropdown-item" role="menuitemradio" data-theme-choice="light"><i class="fas fa-sun fa-fw me-2" aria-hidden="true"></i>Light</button></li>
+            <li><button type="button" class="dropdown-item" role="menuitemradio" data-theme-choice="dark"><i class="fas fa-moon fa-fw me-2" aria-hidden="true"></i>Dark</button></li>
+          </ul>
         </li>
       </ul>
     </div>

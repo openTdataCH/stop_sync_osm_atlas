@@ -4,9 +4,11 @@
 {% block title %}Public Transport Data Problems | {{ review_config.title }}{% endblock %}
 {% block meta_description %}Explore missing, duplicate, distant, and contradictory public transport stop data between OpenStreetMap and {{ review_config.source_label }}.{% endblock %}
 
-{% block head_css %}
-<!-- Leaflet CSS -->
+{% block vendor_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+{% endblock %}
+
+{% block head_css %}
 <!-- Popup CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
 <!-- Shared filters/overlay CSS -->
@@ -27,7 +29,7 @@
 
             <!-- Priority -->
             <div class="dropdown filter-item mx-1">
-              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+              <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
                 type="button" id="priorityDropdownProblems" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
                 Priority
               </button>
@@ -43,7 +45,7 @@
 
             <!-- Type -->
             <div class="dropdown filter-item mx-1">
-              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+              <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
                 type="button" id="typeFilterButtonProblems" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
                 Type: All
               </button>
@@ -113,7 +115,7 @@
 
             <!-- {{ review_config.source_label }} Operator -->
             <div class="dropdown filter-item mx-1">
-              <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+              <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
                 type="button" id="atlasDropdownProblems" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
                 {{ review_config.source_label }} Operator
               </button>
@@ -134,10 +136,10 @@
 
             <div id="problemsNavOverlay" class="d-flex align-items-center mx-1"
               style="pointer-events: auto; gap: 0.5rem;">
-              <button id="prevProblemBtn" class="btn btn-light btn-sm shadow-sm rounded-pill px-3">
+              <button id="prevProblemBtn" class="btn bg-body text-body btn-sm shadow-sm rounded-pill px-3">
                 <i class="fas fa-chevron-left"></i> Prev
               </button>
-              <button id="nextProblemBtn" class="btn btn-light btn-sm shadow-sm rounded-pill px-3">
+              <button id="nextProblemBtn" class="btn bg-body text-body btn-sm shadow-sm rounded-pill px-3">
                 Next <i class="fas fa-chevron-right"></i>
               </button>
             </div>

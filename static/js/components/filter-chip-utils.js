@@ -53,7 +53,7 @@
       : '';
 
     return '<span class="' + FILTER_CHIP_BADGE_CLASS + ' ' + extraBadgeClass + '">' + label +
-           ' <a href="#" class="text-dark ' + removeClass + '"' + dataAttrs + accessibilityAttrs + '>' + escapeHtml(closeChar) + '</a></span>';
+           ' <a href="#" class="text-body ' + removeClass + '"' + dataAttrs + accessibilityAttrs + '>' + escapeHtml(closeChar) + '</a></span>';
   }
 
   function generateOperatorChipsHtml(operators, options = {}) {
@@ -93,12 +93,12 @@
     selectedTypes.forEach(function(problemType) {
       const displayType = String(problemType || '').replace(/_/g, ' ').replace(/\b\w/g, function(l){return l.toUpperCase();});
       typeChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' filter-chip-problem-type">' + escapeHtml(displayType) +
-                 ' <a href="#" class="text-dark remove-type-chip" data-type="' + escapeHtml(problemType) + '">x</a></span>');
+                 ' <a href="#" class="text-body remove-type-chip" data-type="' + escapeHtml(problemType) + '">x</a></span>');
     });
 
     selectedPriorities.forEach(function(prio) {
-      priorityChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' text-bg-light border">Priority P' + escapeHtml(prio) +
-                 ' <a href="#" class="text-dark remove-priority-chip" data-priority="' + escapeHtml(prio) + '">x</a></span>');
+      priorityChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' bg-body-tertiary text-body border">Priority P' + escapeHtml(prio) +
+                 ' <a href="#" class="text-body remove-priority-chip" data-priority="' + escapeHtml(prio) + '">x</a></span>');
     });
 
     const typeGroup = buildOrGroupHtml(typeChips);
@@ -157,7 +157,7 @@
     
     let chipContent = (routeLabel ? escapeHtml(routeLabel) + ' ' : '') + dropdownHtml;
     if (showClose) {
-        chipContent += ' <a href="#" class="remove-filter text-dark text-decoration-none ms-1" data-type="station" data-index="' + escapeHtml(String(mapIndex)) + '">×</a>';
+        chipContent += ' <a href="#" class="remove-filter text-body text-decoration-none ms-1" data-type="station" data-index="' + escapeHtml(String(mapIndex)) + '">×</a>';
     }
         
     return '<span class="' + FILTER_CHIP_BADGE_CLASS + ' filter-chip-secondary shadow-sm" style="pointer-events: auto;">' + chipContent + '</span>';

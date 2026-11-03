@@ -50,6 +50,7 @@
 .navbar .navbar-brand img {
   display: block;
   height: calc(var(--navbar-height) - (var(--space-1) * 2));
+  border-radius: var(--radius-sm); /* the logo has a white background, visible in the dark theme */
 }
 
 .navbar .navbar-brand span {
@@ -203,6 +204,27 @@
 .navbar .navbar-toggler {
   padding-top: 0;
   padding-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------
+   Theme Menu
+   ------------------------------------------------------------------------- */
+.navbar-theme__toggle {
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  color: var(--color-fg-muted);
+  line-height: var(--leading-none);
+}
+
+.navbar-theme__toggle:hover,
+.navbar-theme__toggle:focus-visible,
+.navbar-theme__toggle[aria-expanded="true"] {
+  color: var(--color-fg);
+}
+
+.navbar-theme__menu {
+  min-width: 9rem;
+  font-size: var(--text-sm);
 }
 
 /* -------------------------------------------------------------------------

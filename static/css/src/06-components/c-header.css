@@ -117,6 +117,18 @@
   margin-top: var(--space-1);
 }
 
+.header-summary__rate {
+  font-weight: var(--font-bold);
+}
+
+.header-summary__rate--primary {
+  color: var(--color-primary);
+}
+
+.header-summary__rate--success {
+  color: var(--color-success-fg);
+}
+
 .header-summary__stat-icon {
   width: 16px;
   height: 16px;

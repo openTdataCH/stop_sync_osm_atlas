@@ -633,14 +633,14 @@ window.ProblemsMap = (function() {
         const button = $('#toggleContextBtn');
         
         if (showContext) {
-            button.removeClass('bg-white text-dark').addClass('btn-secondary');
+            button.removeClass('bg-body text-body').addClass('btn-secondary');
             button.html('<i class="fas fa-eye-slash"></i> Hide other markers');
             const currentProblem = ProblemsState.getCurrentProblem();
             if (currentProblem) {
                 loadContextData(currentProblem);
             }
         } else {
-            button.removeClass('btn-secondary').addClass('bg-white text-dark');
+            button.removeClass('btn-secondary').addClass('bg-body text-body');
             button.html('<i class="fas fa-eye"></i> See other markers');
             clearContextData();
         }

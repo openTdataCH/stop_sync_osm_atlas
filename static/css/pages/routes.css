@@ -646,26 +646,26 @@
 
 .route-meta--atlas {
   background: var(--color-primary-subtle);
-  border-color: var(--color-map-atlas-matched);
+  border-color: var(--color-primary);
 }
 
 .route-meta--osm {
   background: var(--color-success-subtle);
-  border-color: var(--color-map-osm-matched);
+  border-color: var(--color-success);
 }
 
 .route-meta--atlas.route-meta--unmatched {
   background: var(--color-danger-subtle);
-  border-color: var(--color-map-atlas-unmatched);
+  border-color: var(--color-danger);
 }
 
 .route-meta--osm.route-meta--unmatched {
   background: var(--color-secondary-subtle);
-  border-color: var(--color-map-osm-unmatched);
+  border-color: var(--color-secondary);
 }
 
 .route-meta--atlas.route-meta--matched .route-meta__title {
-  color: var(--color-map-atlas-matched);
+  color: var(--color-primary);
 }
 
 .route-meta--osm.route-meta--matched .route-meta__title {
@@ -677,7 +677,7 @@
 }
 
 .route-meta--osm.route-meta--unmatched .route-meta__title {
-  color: var(--color-map-osm-unmatched);
+  color: var(--color-secondary);
 }
 
 .route-meta__title {
@@ -1082,7 +1082,7 @@
   margin: 0;
   padding: var(--space-4);
   background: var(--color-overlay);
-  color: var(--color-on-accent);
+  color: var(--color-on-overlay);
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
   text-align: center;

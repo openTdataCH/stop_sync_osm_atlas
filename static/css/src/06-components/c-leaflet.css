@@ -1,0 +1,97 @@
+/* ==========================================================================
+   C-LEAFLET COMPONENT
+   Leaflet's own controls and popups drawn with the design tokens,
+   so they follow the colour theme. The selectors match the specificity of
+   static/vendor/leaflet/leaflet.css. Tiles keep their colours; the dark
+   theme dims them so that the map does not glare beside dark panels.
+   ========================================================================== */
+
+.leaflet-container {
+  background: var(--color-bg-muted);
+}
+
+.leaflet-container a {
+  color: var(--color-primary);
+}
+
+[data-bs-theme="dark"] .leaflet-tile-pane {
+  filter: brightness(0.8) contrast(1.1);
+}
+
+/* -------------------------------------------------------------------------
+   Zoom Bar and Layer Control
+   ------------------------------------------------------------------------- */
+.leaflet-bar,
+.leaflet-control-layers {
+  box-shadow: var(--shadow-md);
+}
+
+.leaflet-touch .leaflet-control-layers,
+.leaflet-touch .leaflet-bar {
+  border-color: var(--color-border-emphasis);
+}
+
+.leaflet-bar a {
+  border-bottom-color: var(--color-border);
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+}
+
+.leaflet-bar a:hover,
+.leaflet-bar a:focus {
+  background-color: var(--color-bg-subtle);
+}
+
+.leaflet-bar a.leaflet-disabled {
+  background-color: var(--color-bg-subtle);
+  color: var(--color-fg-subtle);
+}
+
+.leaflet-control-layers,
+.leaflet-control-layers-expanded {
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+.leaflet-control-layers-separator {
+  border-top-color: var(--color-border);
+}
+
+/* The toggle is a dark bitmap icon. */
+[data-bs-theme="dark"] .leaflet-control-layers-toggle {
+  filter: invert(1);
+}
+
+/* -------------------------------------------------------------------------
+   Attribution and Scale
+   ------------------------------------------------------------------------- */
+.leaflet-container .leaflet-control-attribution,
+.leaflet-control-scale-line {
+  background: var(--color-surface-glass);
+  color: var(--color-fg-muted);
+}
+
+.leaflet-control-scale-line,
+.leaflet-control-scale-line:not(:first-child),
+.leaflet-control-scale-line:not(:first-child):not(:last-child) {
+  border-color: var(--color-fg-muted);
+  text-shadow: none;
+}
+
+/* -------------------------------------------------------------------------
+   Popups
+   ------------------------------------------------------------------------- */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--color-fg-muted);
+}
+
+.leaflet-container a.leaflet-popup-close-button:hover,
+.leaflet-container a.leaflet-popup-close-button:focus {
+  color: var(--color-fg);
+}

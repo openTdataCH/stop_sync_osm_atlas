@@ -4,9 +4,11 @@
 {% block title %}Public Transport Stop Map | {{ review_config.title }}{% endblock %}
 {% block meta_description %}Compare public transport stops from OpenStreetMap with {{ review_config.source_label }}, inspect matches, and find synchronization gaps.{% endblock %}
 
-{% block head_css %}
-<!-- Leaflet CSS -->
+{% block vendor_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+{% endblock %}
+
+{% block head_css %}
 <!-- Popup CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
 <!-- Shared filters/overlay CSS -->
@@ -25,8 +27,8 @@
 
           <!-- Search -->
           <div class="filter-item mx-1 position-relative mobile-filter-item--search">
-            <div class="input-group input-group-sm smart-search-input-group bg-white shadow-sm">
-              <span class="input-group-text bg-white border-0" id="search-icon"><i
+            <div class="input-group input-group-sm smart-search-input-group bg-body shadow-sm">
+              <span class="input-group-text bg-body border-0" id="search-icon"><i
                   class="fas fa-search text-muted"></i></span>
               <input type="text" id="smartSearchInput" class="form-control form-control-sm border-0 ps-0"
                 placeholder="Search location..." aria-describedby="search-icon" style="box-shadow: none;">
@@ -51,7 +53,7 @@
 
           <!-- ATLAS dropdown -->
           <div class="dropdown filter-item mx-1">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
               type="button" id="atlasDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
               {{ review_config.source_label }}
             </button>
@@ -74,7 +76,7 @@
 
           <!-- OSM dropdown -->
           <div class="dropdown filter-item mx-1">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
               type="button" id="osmDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
               OSM
             </button>
@@ -199,7 +201,7 @@
 
           <!-- Matched dropdown -->
           <div class="dropdown filter-item mx-1">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
               type="button" id="matchedDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
               Matched
             </button>
@@ -309,7 +311,7 @@
 
           <!-- Unmatched dropdown -->
           <div class="dropdown filter-item mx-1">
-            <button class="btn bg-white text-dark btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
               type="button" id="unmatchedDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
               Unmatched
             </button>
@@ -347,7 +349,7 @@
 
           <!-- Random button -->
           <div class="filter-item mx-1 position-relative mobile-filter-item--random">
-            <button class="btn bg-white text-dark btn-sm rounded-pill px-3 shadow-sm fw-bold random-stop-btn"
+            <button class="btn bg-body text-body btn-sm rounded-pill px-3 shadow-sm fw-bold random-stop-btn"
               type="button" id="randomStopBtn" onclick="focusOnRandomFilteredStop()" aria-describedby="randomStopHint"
               aria-label="Pick random stop from current filters">
               <i class="fas fa-random"></i> Random

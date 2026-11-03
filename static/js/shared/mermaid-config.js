@@ -21,6 +21,9 @@ if (window.mermaid) {
     startOnLoad: true,
     theme: 'base',
     themeVariables: {
+      // Derived shades follow the colour theme set by theme.js
+      darkMode: document.documentElement.getAttribute('data-bs-theme') === 'dark',
+
       // Primary elements use the app's primary color
       primaryColor: primarySubtle,
       primaryTextColor: primary,

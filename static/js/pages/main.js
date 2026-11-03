@@ -20,9 +20,6 @@ var stopsById = {};   // Global store for stops by id.
 // Performance tuning constants (from AppConstants)
 var ZOOM_LINE_THRESHOLD = AppConstants.MAP.ZOOM_LINE_THRESHOLD;
 var VIEW_DEBOUNCE_MS = AppConstants.DATA_LOADING.VIEW_DEBOUNCE_MS;
-var MAIN_PAGE_COLORS = AppConstants.COLORS || {};
-var MAIN_COLOR_ATLAS_MATCHED = MAIN_PAGE_COLORS.ATLAS_MATCHED || '#174092';
-var MAIN_COLOR_OSM_MATCHED = MAIN_PAGE_COLORS.OSM_MATCHED || '#4CAF50';
 
 // Request management unrelated to viewport loading.
 var currentGlobalStatsRequest = null; // jqXHR of in-flight /api/global_stats
@@ -1229,10 +1226,10 @@ function updateHeaderSummary() {
 
         // Always show both lines if data is available, colorize percentages
         if (totalOSM > 0) {
-            summaryHtml += `<div class="header-summary__stat"><img class="header-summary__stat-icon" src="/static/osm.svg" alt="OSM icon">${totalOSM} OSM stops, <span style="color: ${MAIN_COLOR_OSM_MATCHED}; font-weight: bold;">${osmPercentage}% matched</span></div>`;
+            summaryHtml += `<div class="header-summary__stat"><img class="header-summary__stat-icon" src="/static/osm.svg" alt="OSM icon">${totalOSM} OSM stops, <span class="header-summary__rate header-summary__rate--success">${osmPercentage}% matched</span></div>`;
         }
         if (totalATLAS > 0) {
-            summaryHtml += `<div class="header-summary__stat">${totalATLAS} ${SharedUtils.sourceLabelHtml()} stops, <span style="color: ${MAIN_COLOR_ATLAS_MATCHED}; font-weight: bold;">${atlasPercentage}% matched</span></div>`;
+            summaryHtml += `<div class="header-summary__stat">${totalATLAS} ${SharedUtils.sourceLabelHtml()} stops, <span class="header-summary__rate header-summary__rate--primary">${atlasPercentage}% matched</span></div>`;
         }
 
         if (!summaryHtml) { // Fallback if both counts are zero for some reason based on filters

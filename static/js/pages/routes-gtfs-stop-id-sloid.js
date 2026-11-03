@@ -681,8 +681,8 @@
     renderMatchingMethodOptions(summary.match_methods);
     if (!summaryElement) return;
     summaryElement.innerHTML = [
-      '<div class="header-summary__stat"><strong>' + String(summary.total_gtfs_stops || 0) + '</strong> <span>GTFS (<span style="color:#2f9e44;font-weight:bold;">' + String(summary.gtfs_coverage_percent || 0) + '% matched</span>)</span></div>',
-      '<div class="header-summary__stat"><strong>' + String(summary.total_atlas_stops || 0) + '</strong> <span>ATLAS (<span style="color:#174092;font-weight:bold;">' + String(summary.atlas_coverage_percent || 0) + '% matched</span>)</span></div>'
+      '<div class="header-summary__stat"><strong>' + String(summary.total_gtfs_stops || 0) + '</strong> <span>GTFS (<span class="header-summary__rate header-summary__rate--success">' + String(summary.gtfs_coverage_percent || 0) + '% matched</span>)</span></div>',
+      '<div class="header-summary__stat"><strong>' + String(summary.total_atlas_stops || 0) + '</strong> <span>ATLAS (<span class="header-summary__rate header-summary__rate--primary">' + String(summary.atlas_coverage_percent || 0) + '% matched</span>)</span></div>'
     ].join('');
   }
 
