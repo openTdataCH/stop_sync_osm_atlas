@@ -78,7 +78,7 @@ main {
   top: calc(100% + 4px);
   left: 0;
   z-index: 1002;
-  background: rgba(255, 255, 255, 0.97);
+  background: var(--color-surface-glass);
   backdrop-filter: blur(8px);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -87,7 +87,7 @@ main {
   min-width: 250px;
   font-family: var(--font-sans);
   font-size: var(--text-xs);
-  color: var(--color-dark);
+  color: var(--color-fg);
   pointer-events: none;
 }
 
@@ -112,7 +112,7 @@ main {
   height: 0;
   border-left: 6px solid transparent;
   border-right: 6px solid transparent;
-  border-bottom: 6px solid rgba(255, 255, 255, 0.97);
+  border-bottom: 6px solid var(--color-surface-glass);
   filter: drop-shadow(0 -1px 0 var(--color-border));
 }
 
@@ -186,6 +186,13 @@ main {
   width: 100%;
 }
 
+.smart-search-input-group {
+  width: 250px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+}
+
 @media (max-width: 768px) {
   .top-filters-bar {
     gap: var(--space-2);
@@ -250,7 +257,7 @@ main {
   display: block;
   text-align: center;
   text-decoration: none;
-  color: var(--color-dark);
+  color: var(--color-fg);
   transition: all var(--transition-fast);
 }
 
@@ -260,7 +267,7 @@ main {
 
 .osm-query-button.active {
   background-color: var(--color-primary);
-  color: var(--color-white);
+  color: var(--color-on-accent);
 }
 
 .osm-query-button i {

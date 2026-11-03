@@ -70,7 +70,7 @@
   font-size: var(--text-xs);
   line-height: var(--leading-tight);
   text-decoration: underline;
-  text-decoration-color: var(--color-primary-muted);
+  text-decoration-color: var(--color-primary-border);
   text-underline-offset: 0.15em;
   transition: color var(--transition-fast), text-decoration-color var(--transition-fast);
 }
@@ -177,14 +177,14 @@
 }
 
 .navbar .text-bg-info {
-  color: var(--color-info);
-  border-color: var(--color-info);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
   background-color: var(--color-bg);
 }
 
 .navbar .text-bg-dark {
-  color: var(--color-dark);
-  border-color: var(--color-dark);
+  color: var(--color-fg);
+  border-color: var(--color-fg);
   background-color: var(--color-bg);
 }
 

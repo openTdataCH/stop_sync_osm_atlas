@@ -13,7 +13,7 @@
 }
 
 .gradient-primary {
-  background: linear-gradient(135deg, var(--color-primary-subtle) 0%, var(--color-primary-muted) 100%);
+  background: linear-gradient(135deg, var(--color-primary-subtle) 0%, var(--color-primary-border) 100%);
 }
 
 /* Card shadow pattern */

@@ -38,7 +38,7 @@
 
 .c-dropdown__trigger:focus {
   outline: none;
-  border-color: var(--color-focus-border);
+  border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 
@@ -199,7 +199,7 @@
 
 .dropdown-item.active,
 .dropdown-item:active {
-  color: var(--color-white);
+  color: var(--color-on-accent);
   text-decoration: none;
   background-color: var(--color-primary);
 }

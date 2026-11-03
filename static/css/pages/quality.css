@@ -291,7 +291,7 @@
 }
 
 .quality-tag--warn {
-  background: var(--color-warning-bg);
+  background: var(--color-warning-subtle);
   color: var(--color-warning-fg);
 }
 

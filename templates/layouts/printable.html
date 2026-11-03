@@ -11,8 +11,7 @@
         /* Inject the combined CSS from backend */
         {{ css_content|safe }}
 
-        /* PDF-specific layout overrides from printable_core.css are already in css_content 
-           if we update the service correctly. Any page-specific overrides go here: */
+        /* Page-specific overrides: */
         {% block extra_css %}{% endblock %}
     </style>
 </head>

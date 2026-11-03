@@ -98,7 +98,7 @@
 }
 
 .c-card--info {
-  border-color: var(--color-info);
+  border-color: var(--color-primary);
 }
 
 /* -------------------------------------------------------------------------
@@ -107,7 +107,7 @@
 .card-header {
   padding: var(--space-3) var(--space-4);
   background-color: var(--color-bg-muted);
-  border-bottom: var(--border-width) solid var(--color-border-muted);
+  border-bottom: var(--border-width) solid var(--color-border);
   font-weight: var(--font-semibold);
   color: var(--color-fg);
   border-radius: var(--radius-md) var(--radius-md) 0 0 !important;
@@ -124,7 +124,7 @@
 .card-footer {
   padding: var(--space-3) var(--space-4);
   background-color: var(--color-bg-subtle);
-  border-top: var(--border-width) solid var(--color-border-muted);
+  border-top: var(--border-width) solid var(--color-border);
   border-radius: 0 0 var(--radius-md) var(--radius-md) !important;
   flex-shrink: 0;
 }

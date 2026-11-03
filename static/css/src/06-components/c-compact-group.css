@@ -24,7 +24,7 @@
   display: block;
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
-  color: var(--color-dark);
+  color: var(--color-fg);
   margin-bottom: var(--space-2);
   line-height: var(--leading-normal);
   letter-spacing: 0.01em;
@@ -61,7 +61,7 @@
 .compact-group .matching-subcategory-header > a {
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
-  color: var(--color-dark);
+  color: var(--color-fg);
   text-decoration: none;
   transition: color var(--transition-fast);
 }

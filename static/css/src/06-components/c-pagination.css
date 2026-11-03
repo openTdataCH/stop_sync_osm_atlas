@@ -28,7 +28,7 @@
 .c-pagination .page-link:hover {
   background-color: var(--color-bg-subtle);
   color: var(--color-primary);
-  border-color: var(--color-primary-muted);
+  border-color: var(--color-primary-border);
   z-index: 2;
 }
 
@@ -41,7 +41,7 @@
 .c-pagination .page-item.active .page-link {
   background-color: var(--color-primary);
   border-color: var(--color-primary);
-  color: var(--color-white);
+  color: var(--color-on-accent);
   z-index: 4;
 }
 

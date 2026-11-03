@@ -604,7 +604,7 @@
 }
 
 .docs-pdf-scope:has(input:checked) {
-  border-color: var(--color-primary-muted);
+  border-color: var(--color-primary-border);
   background: var(--color-primary-subtle);
 }
 
@@ -727,7 +727,7 @@
    ------------------------------------------------------------------------- */
 .dynamic-stat {
   font-weight: var(--font-semibold);
-  color: var(--color-accent);
+  color: var(--color-primary);
   background: var(--color-bg-subtle);
   padding: 0 var(--space-1);
   border-radius: var(--radius-sm);
@@ -803,7 +803,7 @@
 .normalizations-table {
   background: var(--color-bg);
   border-radius: var(--radius-md);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
@@ -847,7 +847,7 @@
 
 .info-box {
   background-color: var(--color-primary-subtle);
-  border: 1px solid var(--color-info-border);
+  border: 1px solid var(--color-primary-border);
   padding: var(--space-4);
   margin-bottom: var(--space-4);
   border-radius: var(--radius-sm);
@@ -895,8 +895,8 @@
 
 /* Note - Blue/Info */
 .github-alert.alert-note {
-  background-color: rgba(23, 64, 146, 0.1);
-  border-color: var(--color-info-border);
+  background-color: var(--color-primary-subtle);
+  border-color: var(--color-primary-border);
 }
 
 .github-alert.alert-note .alert-title {
@@ -905,42 +905,42 @@
 
 /* Tip - Green */
 .github-alert.alert-tip {
-  background-color: rgba(76, 175, 80, 0.1);
+  background-color: var(--color-success-subtle);
   border-color: var(--color-success-border);
 }
 
 .github-alert.alert-tip .alert-title {
-  color: var(--color-success, #4caf50);
+  color: var(--color-success);
 }
 
 /* Important - Red (matches app danger color) */
 .github-alert.alert-important {
-  background-color: var(--color-danger-subtle, rgba(220, 53, 69, 0.1));
+  background-color: var(--color-danger-subtle);
   border-color: var(--color-danger-border);
 }
 
 .github-alert.alert-important .alert-title {
-  color: var(--color-danger, #dc3545);
+  color: var(--color-danger);
 }
 
 /* Warning - Yellow/Orange */
 .github-alert.alert-warning {
-  background-color: rgba(240, 173, 78, 0.1);
+  background-color: var(--color-warning-subtle);
   border-color: var(--color-warning-border);
 }
 
 .github-alert.alert-warning .alert-title {
-  color: var(--color-warning, #f0ad4e);
+  color: var(--color-warning);
 }
 
 /* Caution - Red */
 .github-alert.alert-caution {
-  background-color: var(--color-danger-subtle, rgba(220, 53, 69, 0.1));
+  background-color: var(--color-danger-subtle);
   border-color: var(--color-danger-border);
 }
 
 .github-alert.alert-caution .alert-title {
-  color: var(--color-danger, #dc3545);
+  color: var(--color-danger);
 }
 
 /* -------------------------------------------------------------------------
@@ -961,12 +961,12 @@
 
 .doc-expandable-section[open] {
   box-shadow: var(--shadow-md);
-  border-color: rgba(23, 64, 146, 0.3);
+  border-color: var(--color-primary-border);
 }
 
 .doc-expandable-summary {
   padding: var(--space-3) var(--space-4);
-  background: linear-gradient(to right, var(--color-primary-subtle, rgba(23, 64, 146, 0.05)), transparent);
+  background: linear-gradient(to right, var(--color-primary-subtle), transparent);
   color: var(--color-primary);
   font-weight: var(--font-semibold);
   cursor: pointer;
@@ -1021,7 +1021,7 @@
 .palette-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
-  border-color: var(--color-primary-muted);
+  border-color: var(--color-primary-border);
 }
 
 .palette-swatch {
@@ -1029,8 +1029,7 @@
   aspect-ratio: 1 / 1;
   border-radius: var(--radius-lg);
   margin-bottom: var(--space-4);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--color-border);
 }
 
 .palette-details {
@@ -1092,7 +1091,7 @@
   transition: transform var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
   padding: 0;
   background-color: var(--color-primary) !important;
-  color: white !important;
+  color: var(--color-on-accent) !important;
   border: none !important;
   box-shadow: var(--shadow-lg) !important;
 }
@@ -1143,7 +1142,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--color-overlay);
     backdrop-filter: blur(2px);
     z-index: 1055;
     opacity: 0;

@@ -56,7 +56,7 @@
   right: var(--c-filter-panel-toggle-inset, 0);
   transform: translateY(-50%);
   background: var(--color-bg);
-  color: var(--color-text-muted);
+  color: var(--color-fg-muted);
   border: 1px solid var(--color-border);
   border-radius: 14px;
   width: 28px;
@@ -70,7 +70,7 @@
   justify-content: center;
   gap: 4px;
   font-size: 11px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -78,7 +78,7 @@
   background: var(--color-bg-subtle);
   color: var(--color-primary);
   border-color: var(--color-primary);
-  box-shadow: 0 3px 12px rgba(23, 64, 146, 0.15);
+  box-shadow: var(--shadow-primary);
 }
 
 .c-filter-panel__toggle:active {
@@ -134,7 +134,7 @@
 /* Active filters in scrolling body */
 #activeFilters {
   padding: var(--space-3);
-  border-top: var(--border-width) solid var(--color-border-muted);
+  border-top: var(--border-width) solid var(--color-border);
   background-color: var(--color-bg-subtle);
   flex-shrink: 0;
 }
@@ -151,7 +151,7 @@
   line-height: 1;
   background-color: var(--color-bg);
   border: 1.5px solid var(--color-fg-muted);
-  color: var(--color-dark, #343a40);
+  color: var(--color-fg);
   cursor: pointer;
   margin: 0;
   transition: opacity var(--transition-fast);
@@ -186,7 +186,7 @@
 
 #activeFilters .text-bg-info,
 #problemsActiveFilters .text-bg-info {
-  border-color: var(--color-info);
+  border-color: var(--color-primary);
 }
 
 #activeFilters .text-bg-danger,

@@ -196,7 +196,7 @@ def _render_report_pdf_bytes(data_for_report, report_type, include_fields, sort_
         'problems': 'Problems Report',
     }
     from backend.services.stats_export import get_report_css_content
-    css_content = get_report_css_content(['static/css/pages/reports.css'])
+    css_content = get_report_css_content(['static/css/src/01-settings/tokens.css', 'static/css/pages/reports.css'])
     
     report_title = report_title_map.get(report_type, 'OSM & ATLAS Report')
 

@@ -70,7 +70,7 @@
 }
 
 .export-choice:has(> .export-choice__head input:checked) {
-  border-color: var(--color-primary-muted);
+  border-color: var(--color-primary-border);
   background: var(--color-primary-subtle);
 }
 
@@ -255,7 +255,7 @@ fieldset.export-field {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--color-overlay);
   backdrop-filter: blur(4px);
   z-index: var(--z-modal);
   display: flex;

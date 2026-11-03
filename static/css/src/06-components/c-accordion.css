@@ -9,7 +9,7 @@
 .accordion .card {
   margin-bottom: var(--space-2);
   border-radius: var(--radius-sm);
-  border: var(--border-width) solid var(--color-border-muted);
+  border: var(--border-width) solid var(--color-border);
   box-shadow: var(--shadow-xs);
   overflow: hidden;
 }
@@ -31,7 +31,7 @@
 .accordion .card-header {
   cursor: pointer;
   background-color: var(--color-bg-subtle);
-  border-bottom: var(--border-width) solid var(--color-border-muted);
+  border-bottom: var(--border-width) solid var(--color-border);
   padding: var(--space-3) var(--space-4);
   transition: background-color var(--transition-base);
 }
@@ -51,7 +51,7 @@
    Accordion Button/Link
    ------------------------------------------------------------------------- */
 .accordion .card-header .btn-link {
-  color: var(--color-dark);
+  color: var(--color-fg);
   text-decoration: none;
   width: 100%;
   text-align: left;
@@ -193,7 +193,7 @@ input[type="checkbox"].master-filter-checkbox:checked {
 }
 
 input[type="checkbox"].master-filter-checkbox:focus {
-  border-color: var(--color-focus-border);
+  border-color: var(--color-primary);
   outline: 0;
   box-shadow: 0 0 0 3px var(--color-focus-ring);
 }

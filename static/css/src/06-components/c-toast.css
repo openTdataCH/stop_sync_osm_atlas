@@ -36,30 +36,30 @@
    ------------------------------------------------------------------------- */
 .temporary-message.alert-success,
 .c-toast--success {
-  background: linear-gradient(135deg, var(--color-success-subtle, #eaf4ec) 0%, #ffffff 100%);
-  color: var(--color-success-fg, #1f5e22);
+  background: linear-gradient(135deg, var(--color-success-subtle) 0%, var(--color-bg) 100%);
+  color: var(--color-success-fg);
   border-color: var(--color-success-border);
 }
 
 .temporary-message.alert-error,
 .c-toast--error {
-  background: linear-gradient(135deg, var(--color-danger-subtle, #f8d7da) 0%, #ffffff 100%);
-  color: var(--color-danger-fg, #721c24);
+  background: linear-gradient(135deg, var(--color-danger-subtle) 0%, var(--color-bg) 100%);
+  color: var(--color-danger-fg);
   border-color: var(--color-danger-border);
 }
 
 .temporary-message.alert-warning,
 .c-toast--warning {
-  background: linear-gradient(135deg, var(--color-warning-subtle, #fdf8ef) 0%, #ffffff 100%);
-  color: var(--color-warning-fg, #653a00);
+  background: linear-gradient(135deg, var(--color-warning-subtle) 0%, var(--color-bg) 100%);
+  color: var(--color-warning-fg);
   border-color: var(--color-warning-border);
 }
 
 .temporary-message.alert-info,
 .c-toast--info {
-  background: linear-gradient(135deg, var(--color-info-subtle, #eef3fb) 0%, #ffffff 100%);
-  color: var(--color-info-fg, #174092);
-  border-color: var(--color-info-border);
+  background: linear-gradient(135deg, var(--color-primary-subtle) 0%, var(--color-bg) 100%);
+  color: var(--color-primary);
+  border-color: var(--color-primary-border);
 }
 
 /* -------------------------------------------------------------------------

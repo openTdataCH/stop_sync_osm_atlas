@@ -11,7 +11,7 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: var(--space-3);
   font-weight: var(--font-semibold);
   line-height: var(--leading-tight);
-  color: var(--color-dark);
+  color: var(--color-fg);
 }
 
 h1 { font-size: var(--text-3xl); }
@@ -25,7 +25,7 @@ h6 { font-size: var(--text-sm); }
 h1.display-4 {
   font-size: var(--text-3xl);
   font-weight: var(--font-semibold);
-  color: var(--color-dark);
+  color: var(--color-fg);
   margin: var(--space-2) 0;
   background-color: transparent;
 }
@@ -79,7 +79,7 @@ small,
 .text-success { color: var(--color-success) !important; }
 .text-warning { color: var(--color-warning) !important; }
 .text-danger { color: var(--color-danger) !important; }
-.text-info { color: var(--color-info) !important; }
+.text-info { color: var(--color-primary) !important; }
 
 /* -------------------------------------------------------------------------
    Font Weights

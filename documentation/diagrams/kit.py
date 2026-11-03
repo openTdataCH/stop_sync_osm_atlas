@@ -28,7 +28,7 @@ FONT = "'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-seri
 MONO = "'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace"
 
 # Ink and surfaces, from static/css/src/01-settings/tokens.css.
-INK = '#343a40'        # --color-dark: body text, numbered steps
+INK = '#343a40'        # body text, numbered steps; softer than --color-fg on a canvas
 MUTED = '#6c757d'      # --color-fg-muted: secondary text, plain arrows
 FAINT = '#adb5bd'      # --color-fg-subtle: rails, dividers
 SURFACE = '#ffffff'    # --color-bg: canvas

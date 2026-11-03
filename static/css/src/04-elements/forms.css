@@ -26,7 +26,7 @@
 }
 
 .form-control:focus {
-  border-color: var(--color-focus-border);
+  border-color: var(--color-primary);
   outline: 0;
   box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
@@ -141,7 +141,7 @@ select.form-control {
 }
 
 .form-check-input:focus {
-  border-color: var(--color-focus-border);
+  border-color: var(--color-primary);
   outline: 0;
   box-shadow: 0 0 0 3px var(--color-focus-ring);
 }

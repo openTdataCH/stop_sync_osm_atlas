@@ -9,8 +9,8 @@
   padding: 1rem 0 5rem;
   overflow-x: hidden;
   background:
-    radial-gradient(circle at 8% 0%, rgba(23, 64, 146, 0.055), transparent 28rem),
-    radial-gradient(circle at 94% 8%, rgba(76, 175, 80, 0.05), transparent 25rem),
+    radial-gradient(circle at 8% 0%, var(--color-primary-subtle), transparent 28rem),
+    radial-gradient(circle at 94% 8%, var(--color-success-subtle), transparent 25rem),
     var(--color-bg-subtle);
 }
 
@@ -57,7 +57,7 @@
   padding: 0.12em 0.35em;
   border: 1px solid var(--color-border);
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--color-surface-glass);
   color: var(--color-fg-muted);
   font-family: var(--font-mono);
   font-size: 0.84em;
@@ -90,7 +90,7 @@
   overflow: visible;
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--color-surface-glass);
   box-shadow: var(--shadow-xs);
 }
 
@@ -129,7 +129,7 @@
 
 .operators-toolbar .btn:hover,
 .operators-toolbar .btn:focus-visible {
-  border-color: rgba(23, 64, 146, 0.28);
+  border-color: var(--color-primary-border);
   background: var(--color-primary-subtle) !important;
 }
 
@@ -144,7 +144,7 @@
 }
 
 .smart-search-input-group:focus-within {
-  border-color: var(--color-focus-border);
+  border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-focus-ring) !important;
 }
 
@@ -261,7 +261,7 @@ abbr.operator-card__id-label[title] {
   gap: 0.35rem;
   padding: 0.18rem 0.6rem;
   border-radius: 999px;
-  background: var(--color-warning-bg);
+  background: var(--color-warning-subtle);
   color: var(--color-warning-fg);
   font-size: var(--text-xs);
   font-weight: 600;
@@ -270,7 +270,7 @@ abbr.operator-card__id-label[title] {
 }
 
 .operator-status--consistent {
-  background: var(--color-success-bg);
+  background: var(--color-success-subtle);
   color: var(--color-success-fg);
 }
 
@@ -446,7 +446,7 @@ a.operator-breakdown__value i {
   padding: 3rem 1.5rem;
   border: 1px dashed var(--color-border-emphasis);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--color-surface-glass);
   text-align: center;
 }
 
@@ -478,9 +478,9 @@ a.operator-breakdown__value i {
   width: 26px;
   height: 26px;
   padding: 0;
-  border: 1px solid rgba(23, 64, 146, 0.18);
+  border: 1px solid var(--color-border);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--color-surface-glass);
   color: var(--color-primary);
   cursor: help;
   font-size: 0.78rem;
@@ -504,7 +504,7 @@ a.operator-breakdown__value i {
   padding: var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.98);
+  background: var(--color-surface-glass);
   box-shadow: var(--shadow-lg);
   color: var(--color-fg);
   font-family: var(--font-sans);

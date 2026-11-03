@@ -25,15 +25,15 @@
 }
 
 .solution-card.attributes {
-  border-color: var(--color-info-border);
+  border-color: var(--color-primary-border);
 }
 
 .solution-card.atlas_note {
-  border-color: var(--color-info-border);
+  border-color: var(--color-primary-border);
 }
 
 .solution-card.osm_note {
-  border-color: var(--color-info-border);
+  border-color: var(--color-primary-border);
 }
 
 .solution-header {
@@ -146,32 +146,32 @@
 }
 
 .manage-data-page .text-bg-success {
-  color: var(--color-white);
+  color: var(--color-on-accent);
   background-color: var(--color-success);
 }
 
 .manage-data-page .text-bg-info {
-  color: var(--color-white);
-  background-color: var(--color-info);
+  color: var(--color-on-accent);
+  background-color: var(--color-primary);
 }
 
 .manage-data-page .text-bg-primary {
-  color: var(--color-white);
+  color: var(--color-on-accent);
   background-color: var(--color-primary);
 }
 
 .manage-data-page .text-bg-warning {
-  color: var(--color-dark);
+  color: var(--color-fg);
   background-color: var(--color-warning);
 }
 
 .manage-data-page .text-bg-danger {
-  color: var(--color-white);
+  color: var(--color-on-accent);
   background-color: var(--color-danger);
 }
 
 .manage-data-page .text-bg-secondary {
-  color: var(--color-white);
+  color: var(--color-on-accent);
   background-color: var(--color-secondary);
 }
 

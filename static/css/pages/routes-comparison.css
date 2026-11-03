@@ -84,7 +84,7 @@
   cursor: pointer;
   box-shadow: var(--shadow-xs);
 }
-.comparison-picker__trigger:hover { border-color: var(--color-primary-muted); }
+.comparison-picker__trigger:hover { border-color: var(--color-primary-border); }
 .comparison-picker__trigger[aria-expanded="true"] { border-color: var(--color-primary); }
 .comparison-picker__score { flex: none; font-size: .85rem; font-weight: var(--font-bold); color: var(--color-primary); font-variant-numeric: tabular-nums; }
 .comparison-picker__chevron { flex: none; font-size: .65rem; color: var(--color-fg-muted); }
@@ -150,7 +150,7 @@
 .comparison-option:hover,
 .comparison-option.is-active { background: var(--color-bg-subtle); }
 .comparison-option[aria-selected="true"] { background: var(--color-primary-subtle); }
-.comparison-option.is-active { box-shadow: inset 0 0 0 1px var(--color-primary-muted); }
+.comparison-option.is-active { box-shadow: inset 0 0 0 1px var(--color-primary-border); }
 .comparison-option__score { display: flex; flex-direction: column; gap: .25rem; }
 .comparison-option__percent { font-size: .8rem; font-weight: var(--font-bold); color: var(--color-fg); font-variant-numeric: tabular-nums; }
 .comparison-option__bar { display: block; height: 4px; border-radius: var(--radius-full); background: var(--color-bg-muted); overflow: hidden; }
@@ -161,7 +161,7 @@
 .comparison-option__title { font-size: .82rem; font-weight: var(--font-semibold); }
 .comparison-option__line { display: inline-block; margin-right: .4rem; padding: 0 .35rem; border-radius: var(--radius-sm); background: var(--color-bg-muted); font-size: .72rem; font-weight: var(--font-bold); }
 .comparison-option__meta { font-size: .72rem; color: var(--color-fg-muted); }
-.comparison-option__flag { font-size: .65rem; font-weight: var(--font-bold); color: var(--color-success-fg); background: var(--color-success-bg); padding: .1rem .45rem; border-radius: var(--radius-full); }
+.comparison-option__flag { font-size: .65rem; font-weight: var(--font-bold); color: var(--color-success-fg); background: var(--color-success-subtle); padding: .1rem .45rem; border-radius: var(--radius-full); }
 .comparison-options__loading { padding: .5rem; font-size: .75rem; color: var(--color-fg-muted); }
 .comparison-popover__more { display: block; width: 100%; margin-top: .25rem; padding: .4rem; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-primary); font-size: .78rem; font-weight: var(--font-semibold); cursor: pointer; }
 .comparison-popover__more:hover { background: var(--color-bg-subtle); }
@@ -181,8 +181,8 @@
 .comparison-score__text > strong { font-size: .8rem; font-weight: var(--font-semibold); color: var(--color-fg); }
 .comparison-score__badges { display: flex; flex-wrap: wrap; gap: .35rem; }
 .comparison-badge { display: inline-flex; align-items: center; padding: .15rem .55rem; border: 1px solid var(--color-border); border-radius: var(--radius-full); background: var(--color-bg-subtle); color: var(--color-fg-muted); font-size: .7rem; font-weight: var(--font-semibold); }
-.comparison-badge--saved { background: var(--color-success-bg); border-color: var(--color-success-border); color: var(--color-success-fg); }
-.comparison-badge--warning { background: var(--color-warning-bg); border-color: var(--color-warning-border); color: var(--color-warning-fg); }
+.comparison-badge--saved { background: var(--color-success-subtle); border-color: var(--color-success-border); color: var(--color-success-fg); }
+.comparison-badge--warning { background: var(--color-warning-subtle); border-color: var(--color-warning-border); color: var(--color-warning-fg); }
 /* Inline flow keeps the space between the text and the counterpart name. */
 .comparison-badge--taken { display: inline-block; max-width: 100%; }
 .comparison-badge--linked:hover { border-color: var(--color-primary); }
@@ -238,7 +238,7 @@ button.comparison-badge__target:focus-visible { outline: 2px solid var(--color-p
 .comparison-row--atlas-only,
 .comparison-row--osm-only { --row-bg: var(--color-warning-subtle); }
 .comparison-row--atlas-only:hover,
-.comparison-row--osm-only:hover { --row-bg: var(--color-warning-bg); }
+.comparison-row--osm-only:hover { --row-bg: var(--color-warning-subtle); }
 .comparison-rows--single .comparison-row { --row-bg: var(--color-bg); }
 .comparison-rows--single .comparison-row:hover { --row-bg: var(--color-bg-subtle); }
 
@@ -265,7 +265,7 @@ button.comparison-badge__target:focus-visible { outline: 2px solid var(--color-p
 .comparison-row--matched .comparison-stop--atlas .comparison-stop__position { background: var(--color-primary-subtle); color: var(--color-primary); }
 .comparison-row--matched .comparison-stop--osm .comparison-stop__position { background: var(--color-success-subtle); color: var(--color-success-fg); }
 .comparison-row--atlas-only .comparison-stop__position,
-.comparison-row--osm-only .comparison-stop__position { background: var(--color-warning-bg); color: var(--color-warning-fg); }
+.comparison-row--osm-only .comparison-stop__position { background: var(--color-warning-subtle); color: var(--color-warning-fg); }
 .comparison-rows--single .comparison-stop__position { background: var(--color-bg-muted); color: var(--color-fg-muted); }
 .comparison-stop__missing { padding: .1rem .55rem; border: 1px dashed var(--color-border-emphasis); border-radius: var(--radius-full); font-size: .7rem; font-style: italic; color: var(--color-fg-muted); white-space: nowrap; }
 

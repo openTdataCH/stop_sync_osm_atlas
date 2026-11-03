@@ -8,7 +8,7 @@
 /* Alerts using brand blue */
 .stats-page .alert-info {
   background-color: var(--color-primary-subtle);
-  border-color: var(--color-primary-muted);
+  border-color: var(--color-primary-border);
   color: var(--color-primary);
   border-radius: var(--radius-md);
 }
@@ -30,13 +30,13 @@
   letter-spacing: 0.03em;
   padding: 3px 8px;
   border-radius: 999px;
-  color: #fff;
+  color: var(--color-on-accent);
   min-width: 28px;
 }
 
-.priority-badge--danger  { background: #dc3545; }
-.priority-badge--warning { background: #f0ad4e; color: #653a00; }
-.priority-badge--minor   { background: #6c757d; }
+.priority-badge--danger  { background: var(--color-danger); }
+.priority-badge--warning { background: var(--color-warning); color: var(--color-warning-fg); }
+.priority-badge--minor   { background: var(--color-secondary); }
 
 /* -------------------------------------------------------------------------
    Analytics dashboard hierarchy
@@ -153,14 +153,13 @@
 
 .stats-section-nav__link:hover {
   color: var(--color-fg);
-  background: rgba(255, 255, 255, 0.34);
+  background: var(--color-surface-veil);
   transform: translateY(-1px);
 }
 
 .stats-section-nav__link.is-active {
-  color: var(--color-primary, #174092);
+  color: var(--color-primary);
   background: transparent;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .stats-section-nav__link:focus-visible {
@@ -185,9 +184,9 @@
 .pipeline-run-card {
   margin-bottom: 1rem;
   padding: clamp(0.75rem, 1.4vw, 1rem);
-  border: 1px solid var(--color-border-muted);
+  border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--color-bg);
   box-shadow: var(--shadow-xs);
 }
 
@@ -310,7 +309,7 @@
 .pipeline-timeline__label span.is-truncated {
   cursor: help;
   text-decoration: underline dotted;
-  text-decoration-color: var(--color-border-muted);
+  text-decoration-color: var(--color-border);
   text-underline-offset: 0.16rem;
 }
 
@@ -321,15 +320,15 @@
   justify-content: flex-end;
   height: 1.5rem;
   overflow: hidden;
-  border: 1px solid var(--color-border-muted);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: var(--color-bg-emphasis);
+  background: var(--color-primary-subtle);
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .pipeline-timeline__stage.is-highlighted .pipeline-timeline__track {
-  border-color: var(--color-primary-muted);
-  box-shadow: inset 0 0 0 1px var(--color-primary-muted);
+  border-color: var(--color-primary-border);
+  box-shadow: inset 0 0 0 1px var(--color-primary-border);
 }
 
 .pipeline-timeline__stage.is-highlighted .pipeline-timeline__label { color: var(--color-primary); }
@@ -358,7 +357,7 @@
   flex: 0 0 0.82rem;
   margin-right: 0.42rem;
   border-radius: 50%;
-  color: #fff;
+  color: var(--color-on-accent);
   font-size: 0.56rem;
   font-weight: 800;
   line-height: 1;
@@ -367,7 +366,7 @@
 .pipeline-timeline__state.is-complete { background: var(--color-success-fg); }
 .pipeline-timeline__state.is-failed { background: var(--color-danger-fg); }
 .pipeline-timeline__state.is-active {
-  border: 2px solid var(--color-border-muted);
+  border: 2px solid var(--color-border);
   border-top-color: var(--color-primary);
   animation: pipeline-stage-spin 0.9s linear infinite;
 }
@@ -386,13 +385,13 @@
   background: var(--color-primary-subtle);
 }
 
-.pipeline-timeline__stage.is-active .pipeline-timeline__track { border-color: var(--color-primary-muted); }
+.pipeline-timeline__stage.is-active .pipeline-timeline__track { border-color: var(--color-primary-border); }
 .pipeline-timeline__stage.is-active .pipeline-timeline__track strong { color: var(--color-primary); }
 
 .pipeline-timeline__stage.is-active .pipeline-timeline__fill::after {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  background: linear-gradient(90deg, transparent, var(--color-surface-veil), transparent);
   content: "";
   transform: translateX(-100%);
   animation: pipeline-shimmer 1.8s infinite;
@@ -419,7 +418,7 @@
 
 .pipeline-stage-detail {
   min-width: 0;
-  border: 1px solid var(--color-border-muted);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-bg-subtle);
   transition: background-color 160ms ease, box-shadow 160ms ease;
@@ -432,7 +431,7 @@
   box-shadow: 0 0 0 2px var(--color-primary-subtle), var(--shadow-sm);
 }
 
-.pipeline-stage-detail.is-active { border-color: var(--color-primary-muted); }
+.pipeline-stage-detail.is-active { border-color: var(--color-primary-border); }
 .pipeline-stage-detail.is-complete { border-color: var(--color-success-border); }
 .pipeline-stage-detail.is-failed { border-color: var(--color-danger-fg); }
 
@@ -473,9 +472,9 @@
   width: 0.82rem;
   height: 0.82rem;
   margin-top: 0.1rem;
-  border: 1px solid var(--color-border-muted);
+  border: 1px solid var(--color-border);
   border-radius: 50%;
-  color: #fff;
+  color: var(--color-on-accent);
   font-size: 0.58rem;
   font-weight: 800;
   line-height: 1;
@@ -488,7 +487,7 @@
 .pipeline-substage__status-meta { color: inherit; }
 .pipeline-substage.is-running { color: var(--color-primary); }
 .pipeline-substage.is-running .pipeline-substage__marker {
-  border: 2px solid var(--color-border-muted);
+  border: 2px solid var(--color-border);
   border-top-color: var(--color-primary);
   animation: pipeline-stage-spin 0.9s linear infinite;
 }
@@ -528,7 +527,7 @@
   padding: 1rem 1.15rem;
   border: 1px solid var(--color-border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--color-bg);
 }
 
 .source-freshness__grid {
@@ -573,7 +572,7 @@
 }
 
 .source-freshness__item strong {
-  color: var(--color-dark);
+  color: var(--color-fg);
   font-size: 0.9rem;
   font-weight: 650;
   font-variant-numeric: tabular-nums;

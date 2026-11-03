@@ -50,7 +50,7 @@
    ------------------------------------------------------------------------- */
 .c-button--primary {
   background: var(--color-primary);
-  color: var(--color-white);
+  color: var(--color-on-accent);
   border-color: transparent;
 }
 
@@ -60,7 +60,7 @@
 
 .c-button--secondary {
   background: var(--color-secondary);
-  color: var(--color-white);
+  color: var(--color-on-accent);
   border-color: transparent;
 }
 
@@ -70,7 +70,7 @@
 
 .c-button--success {
   background: var(--color-success);
-  color: var(--color-white);
+  color: var(--color-on-accent);
   border-color: transparent;
 }
 
@@ -80,7 +80,7 @@
 
 .c-button--danger {
   background: var(--color-danger);
-  color: var(--color-white);
+  color: var(--color-on-accent);
   border-color: transparent;
 }
 

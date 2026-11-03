@@ -20,9 +20,9 @@
 .u-text-success { color: var(--color-success) !important; }
 .u-text-warning { color: var(--color-warning) !important; }
 .u-text-danger { color: var(--color-danger) !important; }
-.u-text-info { color: var(--color-info) !important; }
-.u-text-white { color: var(--color-white) !important; }
-.u-text-dark { color: var(--color-dark) !important; }
+.u-text-info { color: var(--color-primary) !important; }
+.u-text-white { color: var(--color-on-accent) !important; }
+.u-text-dark { color: var(--color-fg) !important; }
 
 /* -------------------------------------------------------------------------
    Text Size

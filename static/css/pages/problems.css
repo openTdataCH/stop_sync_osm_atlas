@@ -15,9 +15,9 @@
 /* Info banner using brand blue */
 .problems-page-root .problem-info-banner.alert-info,
 .problems-page-root .alert-info {
-  background-color: var(--color-primary-subtle, #eef3fb) !important;
-  border-color: var(--color-primary-muted, rgba(23, 64, 146, 0.2)) !important;
-  color: var(--color-primary, #174092) !important;
+  background-color: var(--color-primary-subtle) !important;
+  border-color: var(--color-primary-border) !important;
+  color: var(--color-primary) !important;
   box-shadow: var(--shadow-sm);
 }
 
@@ -60,7 +60,7 @@
 
 #problemsNavOverlay .btn {
   border: 1px solid var(--color-border);
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--color-surface-glass);
 }
 
 .top-filters-bar #problemsNavOverlay {
@@ -210,7 +210,7 @@
 }
 
 .resize-divider:hover .resize-handle {
-  color: var(--color-white);
+  color: var(--color-on-accent);
 }
 
 /* -------------------------------------------------------------------------
@@ -250,7 +250,7 @@
   height: 24px;
   padding: 0 0.75rem;
   border-radius: var(--radius-full, 999px);
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--color-surface-glass);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   color: var(--color-fg);
@@ -262,20 +262,20 @@
 }
 
 .problem-meta-chip--p1 {
-  border-color: var(--color-danger, #dc3545);
-  color: var(--color-danger, #dc3545);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
   border-width: 1.5px;
 }
 
 .problem-meta-chip--p2 {
-  border-color: #f0ad4e;
+  border-color: var(--color-warning);
   color: var(--color-warning-fg);
   border-width: 1.5px;
 }
 
 .problem-meta-chip--p3 {
-  border-color: #6c757d;
-  color: #6c757d;
+  border-color: var(--color-secondary);
+  color: var(--color-secondary);
   border-width: 1px;
 }
 
@@ -307,7 +307,7 @@
 .problem-section-item {
   margin-bottom: var(--space-4);
   padding: var(--space-3);
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--color-surface-glass);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-radius: var(--radius-lg);
@@ -321,7 +321,7 @@
 }
 
 .problem-section-item .alert-info {
-  background-color: rgba(238, 243, 251, 0.6) !important;
+  background-color: var(--color-primary-subtle) !important;
 }
 
 .problem-section-item .alert-danger {
@@ -356,7 +356,7 @@
   text-transform: uppercase;
   letter-spacing: 0.02em;
   padding: 0.5rem 0.4rem;
-  border-bottom: 1px solid var(--color-border-muted);
+  border-bottom: 1px solid var(--color-border);
   font-size: 0.65rem;
 }
 
@@ -378,7 +378,7 @@
   border-radius: 999px;
   font-size: 0.65rem;
   font-weight: 700;
-  background: var(--color-white);
+  background: var(--color-bg);
   border: 1px solid var(--color-border);
   color: var(--color-fg-muted);
 }
@@ -551,9 +551,9 @@
 }
 
 .temporary-message.alert-info {
-  background: var(--color-info-subtle);
-  color: var(--color-info-fg);
-  border: 1px solid var(--color-info-border);
+  background: var(--color-primary-subtle);
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary-border);
 }
 
 /* -------------------------------------------------------------------------
@@ -583,7 +583,7 @@
 .clear-solution-btn:hover {
   background-color: var(--color-secondary);
   border-color: var(--color-secondary);
-  color: var(--color-white);
+  color: var(--color-on-accent);
   transform: translateY(-1px);
 }
 
@@ -594,8 +594,8 @@
   position: fixed;
   bottom: 80px;
   right: var(--space-5);
-  background: rgba(0, 0, 0, 0.8);
-  color: var(--color-white);
+  background: var(--color-surface-inverse);
+  color: var(--color-on-accent);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
@@ -679,15 +679,15 @@
 }
 
 .priority-circle.pr-1 {
-  color: #dc3545;
+  color: var(--color-danger);
 }
 
 .priority-circle.pr-2 {
-  color: #f0ad4e;
+  color: var(--color-warning);
 }
 
 .priority-circle.pr-3 {
-  color: #6c757d;
+  color: var(--color-secondary);
 }
 
 .priority-circle .pc-text {
@@ -710,30 +710,30 @@
 
 /* Hover states */
 .priority-circle.pr-1:hover {
-  border-color: #dc3545;
-  background-color: rgba(220, 53, 69, 0.08);
+  border-color: var(--color-danger);
+  background-color: var(--color-danger-subtle);
 }
 
 .priority-circle.pr-2:hover {
-  border-color: #f0ad4e;
-  background-color: rgba(240, 173, 78, 0.1);
+  border-color: var(--color-warning);
+  background-color: var(--color-warning-subtle);
 }
 
 .priority-circle.pr-3:hover {
-  border-color: #6c757d;
-  background-color: rgba(108, 117, 125, 0.1);
+  border-color: var(--color-secondary);
+  background-color: var(--color-secondary-subtle);
 }
 
 .priority-circle.pr-all:hover {
   border-color: var(--color-secondary);
-  background-color: rgba(108, 117, 125, 0.08);
+  background-color: var(--color-bg-subtle);
 }
 
 /* Selected state */
 .priority-circle.selected {
-  border-color: var(--color-dark);
-  background-color: rgba(52, 58, 64, 0.06);
-  box-shadow: 0 0 0 3px rgba(52, 58, 64, 0.12);
+  border-color: var(--color-fg);
+  background-color: var(--color-bg-subtle);
+  box-shadow: 0 0 0 3px var(--color-bg-muted);
 }
 
 /* Ensure priority row aligns items to the left */
@@ -753,19 +753,19 @@
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-1,
 .problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-1,
 .problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-1 {
-  color: #dc3545 !important;
+  color: var(--color-danger) !important;
 }
 
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-2,
 .problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-2,
 .problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-2 {
-  color: #f0ad4e !important;
+  color: var(--color-warning) !important;
 }
 
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-3,
 .problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-3,
 .problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-3 {
-  color: #6c757d !important;
+  color: var(--color-secondary) !important;
 }
 
 .problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-all,
@@ -804,7 +804,7 @@
 
 /* Problem count badges in filters */
 .filter-count-badge {
-  background-color: #ffffff !important;
+  background-color: var(--color-bg) !important;
   color: var(--color-fg-muted) !important;
   border: 1px solid var(--color-border) !important;
   font-size: 0.7rem !important;
@@ -812,5 +812,5 @@
   font-weight: 700 !important;
   border-radius: 20px !important;
   vertical-align: middle;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+  box-shadow: var(--shadow-xs) !important;
 }

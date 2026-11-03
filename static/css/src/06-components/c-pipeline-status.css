@@ -5,7 +5,7 @@
   display: none;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--color-overlay);
   backdrop-filter: blur(1px);
   padding: 1rem;
 }
@@ -16,10 +16,10 @@
 
 .pipeline-maintenance-card {
   width: min(540px, 100%);
-  background: #ffffff;
+  background: var(--color-bg);
   border-radius: 0.85rem;
   border: 1px solid var(--color-border);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-xl);
   overflow: hidden;
 }
 
@@ -29,9 +29,9 @@
   gap: 0.85rem;
   padding: 0.9rem 1.1rem;
   font-weight: 700;
-  color: var(--color-warning-fg, #653a00);
-  background: var(--color-warning-subtle, #fdf8ef);
-  border-bottom: 1px solid var(--color-warning-border, rgba(240, 173, 78, 0.2));
+  color: var(--color-warning-fg);
+  background: var(--color-warning-subtle);
+  border-bottom: 1px solid var(--color-warning-border);
 }
 
 .pipeline-maintenance-card__body {
@@ -40,7 +40,7 @@
 
 .pipeline-maintenance-card__status {
   margin-bottom: 0.65rem;
-  color: var(--color-dark, #343a40);
+  color: var(--color-fg);
 }
 
 
@@ -57,9 +57,9 @@
   gap: 0.35rem;
   padding: 0.25rem 0.55rem;
   border-radius: 999px;
-  background: var(--color-bg-subtle, #f8f9fa);
-  border: 1px solid var(--color-border, #e5e7eb);
-  color: var(--color-dark, #343a40);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border);
+  color: var(--color-fg);
   font-size: 0.85rem;
 }
 

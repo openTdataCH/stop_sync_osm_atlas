@@ -27,13 +27,13 @@
   justify-content: center;
   box-shadow: var(--shadow-sm);
   z-index: var(--z-dropdown);
-  border: 2px solid var(--color-white);
+  border: 2px solid var(--color-on-accent);
   font-size: 10px;
   font-weight: var(--font-bold);
-  color: var(--color-white);
+  color: var(--color-on-accent);
   pointer-events: none;
   transition: all var(--transition-base);
-  text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+  text-shadow: var(--shadow-text);
   animation: clusterPulse var(--transition-slow) ease-out;
 }
 
@@ -45,20 +45,20 @@
 /* -------------------------------------------------------------------------
    Cluster Count Colors
    ------------------------------------------------------------------------- */
-.cluster-indicator[title*="2 markers"] { background-color: var(--color-primary, #174092); }
-.cluster-indicator[title*="3 markers"] { background-color: var(--color-primary, #174092); }
-.cluster-indicator[title*="4 markers"] { background-color: var(--color-primary, #174092); }
-.cluster-indicator[title*="5 markers"] { background-color: var(--color-primary, #174092); }
+.cluster-indicator[title*="2 markers"] { background-color: var(--color-primary); }
+.cluster-indicator[title*="3 markers"] { background-color: var(--color-primary); }
+.cluster-indicator[title*="4 markers"] { background-color: var(--color-primary); }
+.cluster-indicator[title*="5 markers"] { background-color: var(--color-primary); }
 
 .cluster-indicator[title*="6 markers"],
 .cluster-indicator[title*="7 markers"],
 .cluster-indicator[title*="8 markers"],
 .cluster-indicator[title*="9 markers"] { 
-  background-color: var(--color-primary, #174092); 
+  background-color: var(--color-primary); 
 }
 
 .cluster-indicator:not([title*="2 markers"]):not([title*="3 markers"]):not([title*="4 markers"]):not([title*="5 markers"]):not([title*="6 markers"]):not([title*="7 markers"]):not([title*="8 markers"]):not([title*="9 markers"]) { 
-  background-color: var(--color-primary, #174092); 
+  background-color: var(--color-primary); 
 }
 
 /* -------------------------------------------------------------------------
@@ -85,7 +85,7 @@
   height: 8px;
   background-color: var(--color-danger);
   border-radius: 50%;
-  border: 1px solid var(--color-white);
+  border: 1px solid var(--color-on-accent);
   box-shadow: var(--shadow-xs);
 }
 

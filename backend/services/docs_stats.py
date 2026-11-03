@@ -175,8 +175,8 @@ def get_canonical_palette_html() -> str:
         {"name": "OSM Unmatched Gray", "hex": "#6C757D", "desc": "Muted color, used for unmatched OSM markers.", "token": "--color-secondary"},
         
         # Neutral Scale
-        {"name": "Neutral Dark", "hex": "#343a40", "desc": "Heading and primary text accent.", "token": "--color-dark"},
-        {"name": "Neutral Muted", "hex": "#6C757D", "desc": "Secondary text and low-priority elements.", "token": "--color-fg-muted"},
+        {"name": "Text", "hex": "#111111", "desc": "Body text and headings.", "token": "--color-fg"},
+        {"name": "Muted Text", "hex": "#6C757D", "desc": "Secondary text and low-priority elements.", "token": "--color-fg-muted"},
         {"name": "System Border", "hex": "#E5E7EB", "desc": "Standard card and container borders.", "token": "--color-border"},
         {"name": "Subtle Surface", "hex": "#F8F9FA", "desc": "Subtle background for list headers and sections.", "token": "--color-bg-subtle"},
         {"name": "Primary Subtle", "hex": "#eef3fb", "desc": "Subtle background for info banners.", "token": "--color-primary-subtle"},

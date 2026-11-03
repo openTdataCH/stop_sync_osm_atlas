@@ -19,7 +19,7 @@
 
 .filter-item .dropdown-toggle:hover {
   background: var(--color-bg-subtle);
-  border-color: var(--color-primary-muted);
+  border-color: var(--color-primary-border);
 }
 
 .filter-item .dropdown-menu {
@@ -38,8 +38,8 @@
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.97);
-  color: var(--color-danger, #dc3545);
+  background: var(--color-surface-glass);
+  color: var(--color-danger);
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(8px);
   font-family: var(--font-sans);
@@ -99,7 +99,7 @@
     align-items: flex-start !important;
     width: 100%;
     border-radius: var(--radius-lg);
-    background: rgba(255, 255, 255, 0.96);
+    background: var(--color-surface-glass);
     border: 1px solid var(--color-border);
     box-shadow: var(--shadow-md);
     overflow-y: auto;
@@ -122,7 +122,7 @@
    ========================================================================== */
 
 .filter-chip-badge {
-  background-color: var(--color-white, #ffffff) !important;
+  background-color: var(--color-bg) !important;
   color: var(--color-fg) !important;
   border: 1px solid var(--color-border) !important;
   font-weight: 600 !important;
@@ -132,14 +132,14 @@
   display: inline-flex !important;
   align-items: center !important;
   gap: 0.2rem !important;
-  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0,0,0,0.05)) !important;
+  box-shadow: var(--shadow-sm) !important;
   margin-right: 0.2rem !important;
   margin-bottom: 0.2rem !important;
   transition: all 0.2s ease !important;
 }
 
 .filter-chip-badge:hover {
-  box-shadow: var(--shadow-md, 0 2px 4px rgba(0,0,0,0.08)) !important;
+  box-shadow: var(--shadow-md) !important;
   transform: translateY(-1px);
 }
 
@@ -165,15 +165,15 @@
 /* ATLAS / Primary category (Navy) */
 .filter-chip-atlas,
 .filter-chip-operator {
-  border-color: var(--color-primary, #174092) !important;
-  color: var(--color-primary, #174092) !important;
+  border-color: var(--color-primary) !important;
+  color: var(--color-primary) !important;
 }
 
 /* OSM / Success category (Green) */
 .filter-chip-osm,
 .filter-chip-transport {
-  border-color: var(--color-success, #4CAF50) !important;
-  color: var(--color-success-fg, #1f5e22) !important;
+  border-color: var(--color-success) !important;
+  color: var(--color-success-fg) !important;
 }
 
 /* Matched / Warning category (Yellow/Gold) */
@@ -185,8 +185,8 @@
 
 /* Unmatched / Danger category (Red) */
 .filter-chip-unmatched {
-  border-color: var(--color-danger, #DC3545) !important;
-  color: var(--color-danger, #DC3545) !important;
+  border-color: var(--color-danger) !important;
+  color: var(--color-danger) !important;
 }
 
 /* Generic / Secondary category */

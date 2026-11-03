@@ -6,8 +6,10 @@ import valueParser from "postcss-value-parser";
 
 const ruleName = "atlas/no-undocumented-colors";
 const messages = stylelint.utils.ruleMessages(ruleName, {
-  rejected: (colors) =>
-    `Unexpected undocumented color ${colors}; add a design token or use a color defined by the documented token source`,
+  literal: (colors) =>
+    `Unexpected colour literal ${colors}; use a --color-* or --shadow-* token from the token file`,
+  unknownToken: (tokens) =>
+    `Unknown colour token ${tokens}; use a --color-* token defined in the token file`,
 });
 
 const colorFunctionNames = new Set([
@@ -23,54 +25,17 @@ const colorFunctionNames = new Set([
   "color",
 ]);
 const allowedKeywords = new Set(["currentcolor", "transparent"]);
-const colorPattern = /#[\da-f]{3,8}\b|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^)]*\)/gi;
+const tokenDefinitionPattern = /^\s*(--color-[a-z\d-]+)\s*:/gim;
 
-function normalizeColor(color) {
-  const compact = color.toLowerCase().replace(/\s+/g, "");
-  const hex = compact.match(/^#([\da-f]{3,4})$/);
-
-  if (!hex) return compact;
-
-  return `#${[...hex[1]].map((character) => character.repeat(2)).join("")}`;
-}
-
-function colorBase(color) {
-  const normalized = normalizeColor(color);
-  const hex = normalized.match(/^#([\da-f]{6})(?:[\da-f]{2})?$/);
-  if (hex) {
-    return [0, 2, 4]
-      .map((offset) => Number.parseInt(hex[1].slice(offset, offset + 2), 16))
-      .join(",");
-  }
-
-  const rgb = normalized.match(/^rgba?\((\d+),(\d+),(\d+)(?:,.*)?\)$/);
-  if (rgb) return `${rgb[1]},${rgb[2]},${rgb[3]}`;
-
-  const named = colorNames[normalized];
-  return named ? named.join(",") : null;
-}
-
-function loadDocumentedColors(tokenFiles) {
-  const exact = new Set();
-  const bases = new Set();
+function loadColorTokens(tokenFiles) {
+  const tokens = new Set();
 
   for (const tokenFile of tokenFiles) {
     const contents = fs.readFileSync(path.resolve(process.cwd(), tokenFile), "utf8");
-    for (const match of contents.matchAll(colorPattern)) {
-      const normalized = normalizeColor(match[0]);
-      const base = colorBase(normalized);
-      exact.add(normalized);
-      if (base) bases.add(base);
-    }
+    for (const match of contents.matchAll(tokenDefinitionPattern)) tokens.add(match[1]);
   }
 
-  return { exact, bases };
-}
-
-function isDocumentedColor(color, documentedColors) {
-  const normalized = normalizeColor(color);
-  const base = colorBase(normalized);
-  return documentedColors.exact.has(normalized) || (base && documentedColors.bases.has(base));
+  return tokens;
 }
 
 const ruleFunction = (primaryOption, secondaryOptions = {}) => (root, result) => {
@@ -82,7 +47,7 @@ const ruleFunction = (primaryOption, secondaryOptions = {}) => (root, result) =>
   if (!validOptions) return;
 
   const tokenFiles = secondaryOptions.tokenFiles || [];
-  const documentedColors = loadDocumentedColors(tokenFiles);
+  const colorTokens = loadColorTokens(tokenFiles);
   const sourceFile = root.source && root.source.input.file;
   const isTokenFile = tokenFiles.some(
     (tokenFile) => sourceFile && path.resolve(process.cwd(), tokenFile) === path.resolve(sourceFile),
@@ -91,40 +56,57 @@ const ruleFunction = (primaryOption, secondaryOptions = {}) => (root, result) =>
   if (isTokenFile) return;
 
   root.walkDecls((declaration) => {
-    const undocumented = new Set();
-    const parsedValue = valueParser(declaration.value);
+    const literals = new Set();
+    const unknownTokens = new Set();
 
-    parsedValue.walk((node) => {
+    valueParser(declaration.value).walk((node) => {
       if (node.type === "function") {
         const functionName = node.value.toLowerCase();
         if (functionName === "url") return false;
-        if (!colorFunctionNames.has(functionName)) return undefined;
 
-        const color = valueParser.stringify(node);
-        if (!isDocumentedColor(color, documentedColors)) undocumented.add(color);
-        return false;
+        if (functionName === "var") {
+          const name = node.nodes[0] && node.nodes[0].value;
+          if (name && name.startsWith("--color-") && !colorTokens.has(name)) unknownTokens.add(name);
+          return undefined;
+        }
+
+        if (colorFunctionNames.has(functionName)) {
+          literals.add(valueParser.stringify(node));
+          return false;
+        }
+
+        return undefined;
       }
 
       if (node.type !== "word") return undefined;
 
       const word = node.value.toLowerCase();
-      if (word.startsWith("#")) {
-        if (!isDocumentedColor(word, documentedColors)) undocumented.add(node.value);
+      if (/^#[\da-f]{3,8}$/.test(word)) {
+        literals.add(node.value);
       } else if (Object.hasOwn(colorNames, word) && !allowedKeywords.has(word)) {
-        if (!isDocumentedColor(word, documentedColors)) undocumented.add(node.value);
+        literals.add(node.value);
       }
 
       return undefined;
     });
 
-    if (undocumented.size === 0) return;
+    if (literals.size > 0) {
+      stylelint.utils.report({
+        ruleName,
+        result,
+        node: declaration,
+        message: messages.literal([...literals].join(", ")),
+      });
+    }
 
-    stylelint.utils.report({
-      ruleName,
-      result,
-      node: declaration,
-      message: messages.rejected([...undocumented].join(", ")),
-    });
+    if (unknownTokens.size > 0) {
+      stylelint.utils.report({
+        ruleName,
+        result,
+        node: declaration,
+        message: messages.unknownToken([...unknownTokens].join(", ")),
+      });
+    }
   });
 };
 

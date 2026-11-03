@@ -6,104 +6,86 @@
 :root {
   /* -------------------------------------------------------------------------
      COLORS - Semantic color palette
+     Every colour in authored CSS is defined here; other files reference these
+     tokens and never a literal (atlas/no-undocumented-colors). Tints are
+     literal rgba() values because WeasyPrint renders this file into the PDF
+     reports and does not support color-mix().
      ------------------------------------------------------------------------- */
-  
-  /* Base colors */
-  --color-white: #ffffff;
-  --color-black: #111111;
-  
-  /* Background colors */
+
+  /* Surfaces */
   --color-bg: #ffffff;
   --color-bg-subtle: #f8f9fa;
   --color-bg-muted: #e9ecef;
-  --color-bg-emphasis: #f0f4f8;
-  
-  /* Foreground/Text colors */
+  --color-surface-glass: rgba(255, 255, 255, 0.92);  /* translucent panel over the map or a tinted page */
+  --color-surface-veil: rgba(255, 255, 255, 0.5);    /* lightens what lies beneath: hover and open states */
+  --color-surface-inverse: rgba(17, 17, 17, 0.8);    /* dark hints, banners and tooltips */
+  --color-overlay: rgba(0, 0, 0, 0.5);               /* backdrop behind modals and drawers */
+
+  /* Text */
   --color-fg: #111111;
   --color-fg-muted: #6c757d;
   --color-fg-subtle: #adb5bd;
-  
-  /* Brand colors */
+  --color-on-accent: #ffffff;                        /* text and icons on a filled colour or an inverse surface */
+  --color-on-accent-subtle: rgba(255, 255, 255, 0.2);
+  --color-on-accent-muted: rgba(255, 255, 255, 0.35);
+
+  /* Lines */
+  --color-border: #e5e7eb;
+  --color-border-emphasis: #ced4da;
+  --color-focus-ring: rgba(23, 64, 146, 0.25);
+
+  /* Status families: base, hover, subtle background, border and, where the
+     base is too light for text, a foreground. Primary navy also carries
+     information. */
   --color-primary: #174092;
   --color-primary-hover: #123d90;
   --color-primary-subtle: #eef3fb;
-  --color-primary-muted: rgba(23, 64, 146, 0.4);
-  
+  --color-primary-border: rgba(23, 64, 146, 0.3);
+
   --color-secondary: #6c757d;
   --color-secondary-hover: #5a6268;
-  --color-secondary-subtle: #f8f9fa;
-  
-  /* Semantic colors */
+  --color-secondary-subtle: #e9ecef;
+  --color-secondary-border: rgba(108, 117, 125, 0.3);
+
   --color-success: #4caf50;
   --color-success-hover: #2ea043;
   --color-success-subtle: #eaf4ec;
-  --color-success-bg: rgba(76, 175, 80, 0.1);
+  --color-success-border: rgba(76, 175, 80, 0.3);
   --color-success-fg: #1f5e22;
-  --color-success-border: rgba(76, 175, 80, 0.2);
-  
+
   --color-warning: #f0ad4e;
   --color-warning-hover: #e08e0b;
   --color-warning-subtle: #fdf8ef;
-  --color-warning-bg: rgba(240, 173, 78, 0.12);
+  --color-warning-border: rgba(240, 173, 78, 0.3);
   --color-warning-fg: #653a00;
-  --color-warning-border: rgba(240, 173, 78, 0.2);
-  
+
   --color-danger: #dc3545;
   --color-danger-hover: #c82333;
   --color-danger-subtle: #f8d7da;
-  --color-danger-bg: rgba(220, 53, 69, 0.1);
+  --color-danger-border: rgba(220, 53, 69, 0.3);
   --color-danger-fg: #721c24;
-  --color-danger-border: rgba(220, 53, 69, 0.2);
-  
-  --color-info: #174092; /* Using primary for info by default */
-  --color-info-hover: #123d90;
-  --color-info-subtle: #eef3fb;
-  --color-info-bg: rgba(23, 64, 146, 0.08);
-  --color-info-fg: #174092;
-  --color-info-border: rgba(23, 64, 146, 0.15);
-  
-  /* Additional semantic colors */
-  --color-orange: #f0ad4e;
-  --color-dark: #343a40;
-  --color-light: #f8f9fa;
 
-   /* Map semantics */
-   --color-map-atlas-matched: #174092;
-   --color-map-osm-matched: #4caf50;
-   --color-map-gtfs-matched: #f0ad4e;
-   --color-map-atlas-unmatched: #dc3545;
-   --color-map-osm-unmatched: #6c757d;
-   --color-map-line-atlas-osm: #174092;
-   --color-map-line-osm-group: #4caf50;
-   --color-map-temp-marker: #174092;
+  /* Map semantics (static/js/shared/constants.js draws the same values) */
+  --color-map-atlas-matched: #174092;
+  --color-map-osm-matched: #4caf50;
+  --color-map-gtfs-matched: #f0ad4e;
+  --color-map-atlas-unmatched: #dc3545;
+  --color-map-osm-unmatched: #6c757d;
+  --color-map-line-atlas-osm: #174092;
+  --color-map-line-osm-group: #4caf50;
+  --color-map-temp-marker: #174092;
 
-   /* Code quality map edges (static/js/quality/dashboard.js draws the same values) */
-   --color-quality-declared: #7d838c;
-   --color-quality-undeclared: #d9822b;
-   --color-quality-unused: #b9bec6;
-   --color-quality-internal: #c9cdd3;
-   --color-quality-crossing: #2a78d6;
-   --color-quality-contract: #6250d6;
+  /* Code quality map edges (static/js/quality/dashboard.js draws the same values) */
+  --color-quality-declared: #7d838c;
+  --color-quality-undeclared: #d9822b;
+  --color-quality-unused: #b9bec6;
+  --color-quality-internal: #c9cdd3;
+  --color-quality-crossing: #2a78d6;
+  --color-quality-contract: #6250d6;
 
-   /* Surface accents */
-   --color-surface-atlas: #eef3fb;
-   --color-surface-osm: #ecf8ed;
-   --color-surface-accent-navy: rgba(23, 64, 146, 0.14);
-   --color-surface-accent-osm: rgba(76, 175, 80, 0.12);
-
-   /* Documentation ownership semantics */
-   --color-docs-shared: #6b21a8;
-   --color-docs-shared-subtle: #faf5ff;
-   --color-docs-shared-border: #e9d5ff;
-  
-  /* Border colors */
-  --color-border: #e5e7eb;
-  --color-border-muted: #dee2e6;
-  --color-border-emphasis: #ced4da;
-  
-  /* Focus colors */
-   --color-focus-ring: rgba(23, 64, 146, 0.25);
-   --color-focus-border: #174092;
+  /* Documentation ownership semantics */
+  --color-docs-shared: #6b21a8;
+  --color-docs-shared-subtle: #faf5ff;
   
   /* -------------------------------------------------------------------------
      SPACING - Consistent spacing scale (based on 0.25rem = 4px)
@@ -171,10 +153,9 @@
   --shadow-lg: 0 4px 15px rgba(0, 0, 0, 0.15);
   --shadow-xl: 0 10px 25px rgba(0, 0, 0, 0.2);
   
-  /* Colored shadows */
-   --shadow-primary: 0 4px 12px rgba(23, 64, 146, 0.25);
-   --shadow-success: 0 4px 12px rgba(76, 175, 80, 0.25);
-  --shadow-danger: 0 4px 12px rgba(220, 53, 69, 0.25);
+  --shadow-inset: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-primary: 0 4px 12px rgba(23, 64, 146, 0.25);
+  --shadow-text: 0 0 2px rgba(0, 0, 0, 0.5);           /* legibility of text on a filled colour */
   
   /* -------------------------------------------------------------------------
      TRANSITIONS
