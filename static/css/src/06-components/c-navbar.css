@@ -34,6 +34,7 @@
 .navbar .navbar-brand {
   display: flex;
   align-items: center;
+  min-width: 0; /* a crowded navbar shrinks the logo, below */
   padding-top: 0;
   padding-bottom: 0;
   line-height: var(--leading-none);
@@ -47,13 +48,64 @@
   text-decoration: none;
 }
 
-.navbar .navbar-brand img {
-  display: block;
-  height: calc(var(--navbar-height) - (var(--space-1) * 2));
-  border-radius: var(--radius-sm); /* the logo has a white background, visible in the dark theme */
+/* The OSM and atlas logos with their names as text, so the names follow the
+   theme. Everything is sized in em: the font size scales the whole lockup.
+   The link is a container the navbar can shrink when crowded, and the lockup
+   then scales down to its width, as the image it replaces did. */
+.navbar .navbar-brand-logo {
+  --brand-lockup-height: calc(var(--navbar-height) - (var(--space-1) * 2));
+  --brand-lockup-ems: 17; /* the lockup's natural width in em */
+  container-type: inline-size;
+  width: calc(var(--brand-lockup-height) / 4 * var(--brand-lockup-ems));
+  margin-right: var(--space-2);
 }
 
-.navbar .navbar-brand span {
+.navbar .brand-lockup {
+  display: flex;
+  align-items: center;
+  height: var(--brand-lockup-height);
+  font-family: var(--font-sans);
+  font-size: min(var(--brand-lockup-height) / 4, 100cqi / var(--brand-lockup-ems));
+  line-height: var(--leading-none);
+}
+
+.navbar .brand-lockup > * {
+  flex: none;
+}
+
+.navbar .brand-lockup img {
+  display: block;
+  width: auto;
+}
+
+.navbar .brand-lockup__osm-logo {
+  height: 3.2em;
+}
+
+.navbar .brand-lockup__osm-name {
+  margin: 0 0.3em 0 0.15em;
+  color: var(--color-fg);
+  font-size: 0.95em;
+  font-weight: var(--font-bold);
+}
+
+.navbar .brand-lockup__sync {
+  height: 2.4em;
+}
+
+.navbar .brand-lockup__atlas-logo {
+  height: 3.3em;
+  margin-left: 0.25em;
+}
+
+.navbar .brand-lockup__atlas-name {
+  margin-left: 0.15em;
+  color: var(--color-primary);
+  font-size: 2em;
+  font-weight: var(--font-normal);
+}
+
+.navbar .navbar-brand-title span {
   line-height: var(--leading-none);
   font-size: var(--text-lg);
   font-weight: var(--font-bold);
@@ -331,9 +383,9 @@
     align-items: flex-start;
   }
 
-  .navbar .navbar-brand img {
-    height: 30px;
-    margin-right: 0 !important;
+  .navbar .navbar-brand-logo {
+    --brand-lockup-height: 30px;
+    margin-right: 0;
   }
 
   .navbar .navbar-brand-meta {

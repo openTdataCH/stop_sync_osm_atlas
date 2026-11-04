@@ -1,12 +1,3 @@
-{% macro header_chip(title_text) %}
-<div class="header-container">
-  <div class="header-chip">
-    <object type="image/svg+xml" data="{{ url_for('static', filename='header/header.svg') }}" class="header-icon" aria-label="OSM &amp; ATLAS Logo"></object>
-    <span class="header-title">{{ title_text }}</span>
-  </div>
-</div>
-{% endmacro %}
-
 {% macro stats_overlay(show_filters=True) %}
 <div id="headerSummaryInfo" class="header-summary">
   <div class="header-summary__mobile-bar">

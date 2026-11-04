@@ -4,59 +4,6 @@
    ========================================================================== */
 
 /* -------------------------------------------------------------------------
-   Header Container
-   ------------------------------------------------------------------------- */
-.header-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  gap: var(--space-3);
-}
-
-/* -------------------------------------------------------------------------
-   Header Icon
-   ------------------------------------------------------------------------- */
-.header-icon {
-  height: 88px;
-  width: auto;
-  vertical-align: middle;
-  position: relative;
-  z-index: 1;
-  margin-right: var(--space-4);
-}
-
-/* -------------------------------------------------------------------------
-   Header Title
-   ------------------------------------------------------------------------- */
-.header-title {
-  position: relative;
-  z-index: 2;
-  background: transparent;
-  padding: 0 var(--space-2);
-  white-space: nowrap;
-  border-radius: var(--radius-md);
-}
-
-/* -------------------------------------------------------------------------
-   Header Chip
-   Decorative chip container for header elements.
-   ------------------------------------------------------------------------- */
-.header-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  background: var(--color-bg);
-  border-radius: var(--radius-lg);
-  padding: var(--space-2) var(--space-3);
-}
-
-.header-chip .header-icon {
-  margin-right: 0;
-}
-
-/* -------------------------------------------------------------------------
    Auth Controls
    ------------------------------------------------------------------------- */
 .auth-controls {

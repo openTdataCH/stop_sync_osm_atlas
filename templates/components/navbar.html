@@ -3,8 +3,16 @@
     <!-- Brand -->
     <div class="navbar-brand d-flex text-nowrap mt-1">
       <a class="navbar-brand-logo" href="{{ url_for('index') }}" title="{{ review_config.title }}">
-        <img src="{{ url_for('static', filename='header/header.svg') }}" alt="OSM &amp; ATLAS"
-          class="d-inline-block align-top me-2">
+        <span class="brand-lockup" role="img" aria-label="OSM &amp; ATLAS">
+          <img src="{{ url_for('static', filename='header/osm-logo.svg') }}" alt="" width="256" height="256"
+            class="brand-lockup__osm-logo">
+          <span class="brand-lockup__osm-name">Open<br>Street<br>Map</span>
+          <img src="{{ url_for('static', filename='header/sync-badge.svg') }}" alt="" width="472" height="495"
+            class="brand-lockup__sync">
+          <img src="{{ url_for('static', filename='atlas.svg') }}" alt="" width="76" height="76"
+            class="brand-lockup__atlas-logo">
+          <span class="brand-lockup__atlas-name">atlas</span>
+        </span>
       </a>
       <div class="navbar-brand-meta d-flex flex-column mt-1">
         <a href="{{ url_for('index') }}" title="{{ review_config.title }}"
