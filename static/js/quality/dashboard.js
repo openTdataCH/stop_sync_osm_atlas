@@ -1,5 +1,6 @@
 /**
- * Code quality dashboard: the published report and code map, drawn as an interactive module graph.
+ * Code quality dashboard: the published report and code map, drawn as an interactive module graph, with its files
+ * and functions, and as a functions map of every function and class.
  *
  * Arrows point from the code that uses to the code it uses. In the module view a module sits above the
  * modules it declares as dependencies, so an arrow pointing upwards goes against the declared layering.
@@ -37,6 +38,9 @@
     const NOT_MEASURED_COLOR = '#e9ecef';
     // The same values as the --color-quality-* tokens.
     const EDGE_COLORS = { declared: MUTED, undeclared: '#e08e0b', unused: '#adb5bd', internal: '#ced4da', crossing: NAVY, contract: PURPLE };
+    // The --color-quality-module-1 to -10 tokens: a categorical palette for white, in the order that keeps neighbouring
+    // regions of the functions map apart, including the last slot beside the first.
+    const MODULE_PALETTE = ['#2a78d6', '#eb6834', '#17a173', '#99631f', '#d6558a', '#c98500', '#6250d6', '#008300', '#0e93a8', '#e34948'];
     const LINK_KINDS = {
         imports: 'imports', uses: 'names imported or referenced', calls: 'calls', loads: 'script loads', requests: 'HTTP requests',
         renders: 'templates rendered', extends: 'templates extended', includes: 'templates included', links: 'links to pages'
@@ -74,6 +78,20 @@
     // A tooltip waits for the cursor to rest, so sweeping across the map shows nothing.
     const HOVER_DELAY = 250;
     const TOOLTIP_GRACE = 120;
+    // Functions map: steps of the force layout, space between dots, how much larger than its dots a module's region
+    // starts, and the space between regions.
+    const SYMBOL_TICKS = 120;
+    const SYMBOL_GAP = 1.6;
+    const SYMBOL_SPREAD = 1.15;
+    const REGION_GAP = 10;
+    const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+    const SEARCH_LIMIT = 8;
+    // A function found by search opens at least this close, where its neighbours' names can be read.
+    const FOCUS_ZOOM = 1.6;
+    // A name on the functions map shows once it is at least this tall on screen: at first only on the largest dots.
+    // Around a selection every name may show, at least NAMED_FONT map units tall.
+    const LABEL_PX = 10;
+    const NAMED_FONT = 9;
 
     function escapeHtml(value) {
         const replacements = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -485,6 +503,403 @@
         return positions;
     }
 
+    /**
+     * Every function and class as one node. ``users`` counts the distinct functions and files that use it, ``uses`` the
+     * functions it uses; links join two functions, summed over kinds. A link to a page draws nothing, as in the other views.
+     */
+    function symbolGraph(codeMap) {
+        const owners = fileOwners(codeMap);
+        const declared = declaredDependencies(codeMap);
+        const symbols = (codeMap.symbols || []).filter((symbol) => owners[symbol.file]);
+        const known = indexBy(symbols, 'id');
+        const users = {};
+        const uses = {};
+        const pairs = {};
+        (codeMap.symbol_links || []).filter(drawn).forEach((link) => {
+            const target = known[link.target];
+            if (!target || link.source === link.target) return;
+            (users[link.target] = users[link.target] || new Set()).add(link.source);
+            const source = known[link.source];
+            if (!source) return;
+            (uses[link.source] = uses[link.source] || new Set()).add(link.target);
+            const sourceModule = owners[source.file];
+            const targetModule = owners[target.file];
+            const key = link.source + '>' + link.target;
+            const entry = pairs[key] || (pairs[key] = {
+                source: link.source, target: link.target, count: 0, kinds: {},
+                crossing: sourceModule !== targetModule, declared: sourceModule === targetModule || declared.has(sourceModule + '>' + targetModule)
+            });
+            entry.count += link.count;
+            addCount(entry.kinds, link.kind, link.count);
+        });
+        const size = (sets, id) => (sets[id] ? sets[id].size : 0);
+        return {
+            nodes: symbols.map((symbol) => ({
+                id: symbol.id, name: symbol.name, file: symbol.file, line: symbol.line, module: owners[symbol.file],
+                users: size(users, symbol.id), uses: size(uses, symbol.id)
+            })),
+            links: Object.values(pairs)
+        };
+    }
+
+    /** Dot diameter. The area grows with the number of users, so a dot used ten times is not ten times as wide. */
+    function symbolSize(users) {
+        return Math.round((6 + 4.5 * Math.sqrt(users)) * 10) / 10;
+    }
+
+    /** Font size of a dot's name, in map units: a larger dot has a larger name, which shows from further away. */
+    function symbolFont(users) {
+        return Math.round((4 + symbolSize(users) * 0.45) * 10) / 10;
+    }
+
+    /** The modules around the functions map, repository by repository, with connected modules side by side. */
+    function moduleRing(codeMap) {
+        const levels = moduleLevels(codeMap);
+        return repositoriesOf(codeMap).flatMap((repository) => moduleOrder(codeMap,
+            codeMap.modules.filter((module) => module.repository === repository).map((module) => module.id), levels));
+    }
+
+    /**
+     * Each module's colour on the functions map: the palette in ring order, starting from the module with the most
+     * functions, so neighbouring regions get neighbouring slots and the largest region the first colour.
+     */
+    function moduleColors(codeMap) {
+        const ring = moduleRing(codeMap);
+        const owners = fileOwners(codeMap);
+        const counts = {};
+        (codeMap.symbols || []).forEach((symbol) => addCount(counts, owners[symbol.file], 1));
+        const first = ring.reduce((best, id, index) => ((counts[id] || 0) > (counts[ring[best]] || 0) ? index : best), 0);
+        const colors = {};
+        ring.forEach((id, index) => { colors[id] = MODULE_PALETTE[((index - first + ring.length) % ring.length) % MODULE_PALETTE.length]; });
+        return colors;
+    }
+
+    /**
+     * Centres for discs of ``radii`` packed into one cluster with ``gap`` between them: the discs start side by side on
+     * a ring, in the given order, and fall towards the middle until they touch, faster vertically so the cluster comes
+     * out wider than tall, like the map. Discs do not deform, so the dots placed in them start without pressure;
+     * neighbours on the ring mostly stay neighbours.
+     */
+    function packRegions(radii, gap = REGION_GAP) {
+        const count = radii.length;
+        const circumference = radii.reduce((sum, r) => sum + 2 * r + gap, 0);
+        const ringRadius = circumference / (2 * Math.PI);
+        let arc = 0;
+        const centres = radii.map((r) => {
+            const angle = (arc + r + gap / 2) / circumference * 2 * Math.PI - Math.PI / 2;
+            arc += 2 * r + gap;
+            return { x: count > 1 ? Math.cos(angle) * ringRadius : 0, y: count > 1 ? Math.sin(angle) * ringRadius : 0 };
+        });
+        for (let step = 0; step < 240; step++) {
+            centres.forEach((centre) => {
+                centre.x *= 0.98;
+                centre.y *= 0.96;
+            });
+            for (let round = 0; round < 4; round++) {
+                for (let a = 0; a < count; a++) {
+                    for (let b = a + 1; b < count; b++) {
+                        const dx = centres[b].x - centres[a].x;
+                        const dy = centres[b].y - centres[a].y;
+                        const distance = Math.sqrt(dx * dx + dy * dy) || 1e-6;
+                        const overlap = radii[a] + radii[b] + gap - distance;
+                        if (overlap <= 0) continue;
+                        // The smaller disc gives way more.
+                        const share = radii[b] * radii[b] / (radii[a] * radii[a] + radii[b] * radii[b] || 1);
+                        centres[a].x -= dx / distance * overlap * share;
+                        centres[a].y -= dy / distance * overlap * share;
+                        centres[b].x += dx / distance * overlap * (1 - share);
+                        centres[b].y += dy / distance * overlap * (1 - share);
+                    }
+                }
+            }
+        }
+        // Centred on the middle of the cluster's area.
+        const area = radii.reduce((sum, r) => sum + r * r, 0) || 1;
+        const middleX = centres.reduce((sum, centre, k) => sum + centre.x * radii[k] * radii[k], 0) / area;
+        const middleY = centres.reduce((sum, centre, k) => sum + centre.y * radii[k] * radii[k], 0) / area;
+        return centres.map((centre) => ({ x: centre.x - middleX, y: centre.y - middleY }));
+    }
+
+    /**
+     * Positions of the functions map from a small force layout, run to the end before anything is drawn.
+     *
+     * Each module is a disc: its files, largest first, on a sunflower spiral, and each file's functions on a smaller
+     * spiral around the file, so a file starts in one piece. The discs are packed into one round cloud and each is held
+     * at its place as a whole; links pull functions that use each other closer, more strongly inside a module, and
+     * collisions keep the dots apart. Collisions are found on a grid of cells as wide as the largest pair of dots,
+     * so a step costs about as much as there are dots. There is no randomness: the same code map gives the same map.
+     */
+    function symbolPositions(codeMap, graph, ticks = SYMBOL_TICKS) {
+        // A region moves as a whole towards its anchor, so the pull does not crush it; each dot is held only lightly.
+        const ANCHOR = 0.08;
+        const HOLD = 0.008;
+        const SETTLE = 0.6;
+        const LINK_INSIDE = 0.3;
+        const LINK_ACROSS = 0.01;
+        const LINK_GAP = 8;
+        const COLLIDE = 0.7;
+        const FRICTION = 0.45;
+        const ALPHA_END = 0.02;
+        const count = graph.nodes.length;
+        const positions = {};
+        if (!count) return positions;
+        const radius = new Float64Array(count);
+        const x = new Float64Array(count);
+        const y = new Float64Array(count);
+        const vx = new Float64Array(count);
+        const vy = new Float64Array(count);
+        const region = new Int32Array(count);
+        const index = {};
+        const byModule = {};
+        graph.nodes.forEach((node, i) => {
+            index[node.id] = i;
+            radius[i] = symbolSize(node.users) / 2;
+            const files = byModule[node.module] || (byModule[node.module] = {});
+            (files[node.file] = files[node.file] || []).push(i);
+        });
+        const footprint = (i) => Math.PI * (radius[i] + SYMBOL_GAP) * (radius[i] + SYMBOL_GAP) * SYMBOL_SPREAD;
+        const listed = moduleRing(codeMap);
+        const ring = listed.concat(Object.keys(byModule).filter((id) => !listed.includes(id)).sort()).filter((id) => byModule[id]);
+        const discs = {};
+        ring.forEach((moduleId) => {
+            const files = byModule[moduleId];
+            let area = 0;
+            Object.keys(files).sort((a, b) => files[b].length - files[a].length || a.localeCompare(b)).forEach((file, fileIndex) => {
+                const members = files[file].sort((a, b) => graph.nodes[b].users - graph.nodes[a].users || graph.nodes[a].line - graph.nodes[b].line);
+                const fileArea = members.reduce((sum, i) => sum + footprint(i), 0);
+                const distance = fileIndex ? Math.sqrt((area + fileArea / 2) / Math.PI) : 0;
+                let inner = 0;
+                members.forEach((i, k) => {
+                    const at = k ? Math.sqrt((inner + footprint(i) / 2) / Math.PI) : 0;
+                    inner += footprint(i);
+                    x[i] = Math.cos(fileIndex * GOLDEN_ANGLE) * distance + Math.cos(k * GOLDEN_ANGLE) * at;
+                    y[i] = Math.sin(fileIndex * GOLDEN_ANGLE) * distance + Math.sin(k * GOLDEN_ANGLE) * at;
+                });
+                area += fileArea;
+            });
+            discs[moduleId] = Math.sqrt(area / Math.PI);
+        });
+        const centres = packRegions(ring.map((moduleId) => discs[moduleId]));
+        const anchorX = Float64Array.from(centres, (centre) => centre.x);
+        const anchorY = Float64Array.from(centres, (centre) => centre.y);
+        ring.forEach((moduleId, m) => Object.values(byModule[moduleId]).forEach((members) => members.forEach((i) => {
+            x[i] += anchorX[m];
+            y[i] += anchorY[m];
+            region[i] = m;
+        })));
+
+        const links = graph.links.filter((link) => index[link.source] !== undefined && index[link.target] !== undefined);
+        const sources = new Int32Array(links.length);
+        const targets = new Int32Array(links.length);
+        const degree = new Float64Array(count);
+        links.forEach((link, k) => {
+            sources[k] = index[link.source];
+            targets[k] = index[link.target];
+            degree[sources[k]] += 1;
+            degree[targets[k]] += 1;
+        });
+        // As in d3-force: a link moves the end with fewer links more, and a busy node is held by each link less.
+        const strength = new Float64Array(links.length);
+        const bias = new Float64Array(links.length);
+        const rest = new Float64Array(links.length);
+        links.forEach((link, k) => {
+            const source = sources[k];
+            const target = targets[k];
+            strength[k] = (link.crossing ? LINK_ACROSS : LINK_INSIDE) / Math.min(degree[source], degree[target]);
+            bias[k] = degree[source] / (degree[source] + degree[target]);
+            rest[k] = radius[source] + radius[target] + LINK_GAP;
+        });
+
+        let reach = 0;
+        for (let i = 0; i < count; i++) reach = Math.max(reach, radius[i] + SYMBOL_GAP);
+        const cellOf = new Int32Array(count);
+        const byCell = new Int32Array(count);
+        function collide() {
+            let left = Infinity;
+            let top = Infinity;
+            let right = -Infinity;
+            let bottom = -Infinity;
+            for (let i = 0; i < count; i++) {
+                left = Math.min(left, x[i] + vx[i]);
+                right = Math.max(right, x[i] + vx[i]);
+                top = Math.min(top, y[i] + vy[i]);
+                bottom = Math.max(bottom, y[i] + vy[i]);
+            }
+            // Cells at least as wide as the widest pair of touching dots, and never more than 512 a side.
+            const cell = Math.max(2 * reach, (right - left) / 512, (bottom - top) / 512);
+            const columns = Math.floor((right - left) / cell) + 1;
+            const rows = Math.floor((bottom - top) / cell) + 1;
+            const start = new Int32Array(columns * rows + 1);
+            for (let i = 0; i < count; i++) {
+                cellOf[i] = Math.floor((x[i] + vx[i] - left) / cell) + Math.floor((y[i] + vy[i] - top) / cell) * columns;
+                start[cellOf[i] + 1] += 1;
+            }
+            for (let c = 0; c < columns * rows; c++) start[c + 1] += start[c];
+            const fill = start.slice();
+            for (let i = 0; i < count; i++) byCell[fill[cellOf[i]]++] = i;
+            for (let i = 0; i < count; i++) {
+                const px = x[i] + vx[i];
+                const py = y[i] + vy[i];
+                const column = cellOf[i] % columns;
+                const row = (cellOf[i] - column) / columns;
+                for (let r = Math.max(0, row - 1); r <= Math.min(rows - 1, row + 1); r++) {
+                    for (let c = Math.max(0, column - 1); c <= Math.min(columns - 1, column + 1); c++) {
+                        for (let s = start[r * columns + c]; s < start[r * columns + c + 1]; s++) {
+                            const j = byCell[s];
+                            if (j <= i) continue;
+                            let dx = px - x[j] - vx[j];
+                            let dy = py - y[j] - vy[j];
+                            const least = radius[i] + radius[j] + 2 * SYMBOL_GAP;
+                            let length = dx * dx + dy * dy;
+                            if (length >= least * least) continue;
+                            if (!length) {
+                                dx = (j - i) * 1e-3;
+                                dy = 1e-3;
+                                length = dx * dx + dy * dy;
+                            }
+                            length = Math.sqrt(length);
+                            const push = (least - length) / length * COLLIDE;
+                            // The smaller dot gives way more.
+                            const share = radius[j] * radius[j] / (radius[i] * radius[i] + radius[j] * radius[j]);
+                            vx[i] += dx * push * share;
+                            vy[i] += dy * push * share;
+                            vx[j] -= dx * push * (1 - share);
+                            vy[j] -= dy * push * (1 - share);
+                        }
+                    }
+                }
+            }
+        }
+
+        const centreX = new Float64Array(ring.length);
+        const centreY = new Float64Array(ring.length);
+        const regionSize = new Float64Array(ring.length);
+        for (let i = 0; i < count; i++) regionSize[region[i]] += 1;
+        for (let tick = 0; tick < ticks; tick++) {
+            const alpha = Math.pow(ALPHA_END, tick / Math.max(1, ticks - 1));
+            centreX.fill(0);
+            centreY.fill(0);
+            for (let i = 0; i < count; i++) {
+                centreX[region[i]] += x[i] / regionSize[region[i]];
+                centreY[region[i]] += y[i] / regionSize[region[i]];
+            }
+            // The last steps only settle: without the anchors' pressure, collisions part every dot.
+            const pull = tick < ticks * SETTLE ? alpha : 0;
+            for (let i = 0; pull && i < count; i++) {
+                const m = region[i];
+                vx[i] += ((anchorX[m] - centreX[m]) * ANCHOR + (anchorX[m] - x[i]) * HOLD) * pull;
+                vy[i] += ((anchorY[m] - centreY[m]) * ANCHOR + (anchorY[m] - y[i]) * HOLD) * pull;
+            }
+            for (let k = 0; k < links.length; k++) {
+                const source = sources[k];
+                const target = targets[k];
+                let dx = x[target] + vx[target] - x[source] - vx[source];
+                let dy = y[target] + vy[target] - y[source] - vy[source];
+                const length = Math.sqrt(dx * dx + dy * dy) || 1e-3;
+                const pull = (length - rest[k]) / length * alpha * strength[k];
+                dx *= pull;
+                dy *= pull;
+                vx[target] -= dx * bias[k];
+                vy[target] -= dy * bias[k];
+                vx[source] += dx * (1 - bias[k]);
+                vy[source] += dy * (1 - bias[k]);
+            }
+            collide();
+            for (let i = 0; i < count; i++) {
+                vx[i] *= 1 - FRICTION;
+                vy[i] *= 1 - FRICTION;
+                x[i] += vx[i];
+                y[i] += vy[i];
+            }
+        }
+        graph.nodes.forEach((node, i) => { positions[node.id] = { x: Math.round(x[i] * 10) / 10, y: Math.round(y[i] * 10) / 10 }; });
+        return positions;
+    }
+
+    /**
+     * Functions, classes and files whose name matches ``query``, best first: the exact name, a name starting with it, a
+     * name containing it, then a path containing it. Ties go to the most used function and the file with most functions.
+     */
+    function matchSymbols(graph, query, limit = SEARCH_LIMIT) {
+        const text = String(query || '').trim().toLowerCase();
+        if (!text) return [];
+        const rank = (name, path) => (name === text ? 0 : name.startsWith(text) ? 1 : name.includes(text) ? 2 : path.includes(text) ? 3 : -1);
+        const matches = [];
+        const files = {};
+        graph.nodes.forEach((node) => {
+            const score = rank(node.name.toLowerCase(), (pathOf(node.file) + ':' + node.name).toLowerCase());
+            if (score >= 0) matches.push({ kind: 'symbol', id: node.id, name: node.name, detail: pathOf(node.file) + ':' + node.line, score, weight: node.users });
+            addCount(files, node.file, 1);
+        });
+        Object.keys(files).forEach((file) => {
+            const score = rank(baseName(file).toLowerCase(), pathOf(file).toLowerCase());
+            if (score >= 0) {
+                matches.push({ kind: 'file', id: file, name: baseName(file), score, weight: files[file],
+                    detail: pathOf(file) + ' · ' + plural(files[file], 'function or class', 'functions and classes') });
+            }
+        });
+        return matches.sort((a, b) => a.score - b.score || b.weight - a.weight || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+            .slice(0, limit).map(({ kind, id, name, detail }) => ({ kind, id, name, detail }));
+    }
+
+    /**
+     * The names to show on the functions map at ``zoom``: largest dots first, each name at least LABEL_PX tall on
+     * screen and kept only if its box, below the dot or else above it, does not overlap a name already kept. With
+     * ``only``, the names of those dots whatever their size, ``first`` before the others, as for a selection and its
+     * neighbours. ``measure(label, size)`` gives a label's width at a font size. A kept name has ``above`` set when it
+     * goes above its dot.
+     */
+    function labelPlaces(map, zoom, options = {}) {
+        const measure = options.measure || ((label, size) => labelWidth(label, size, 600));
+        const only = options.only || null;
+        const fontOf = (node) => (only ? Math.max(symbolFont(node.users), NAMED_FONT) : symbolFont(node.users));
+        const least = LABEL_PX / zoom;
+        const margin = 2 / zoom;
+        const cell = 80 / zoom;
+        const placed = new Map();
+        const kept = [];
+        const candidates = map.graph.nodes.filter((node) => (only ? only.has(node.id) : symbolFont(node.users) >= least))
+            .sort((a, b) => (b.id === options.first) - (a.id === options.first) || b.users - a.users || a.id.localeCompare(b.id));
+        const cellsOf = (box) => {
+            const keys = [];
+            for (let column = Math.floor(box.x1 / cell); column <= Math.floor(box.x2 / cell); column++) {
+                for (let row = Math.floor(box.y1 / cell); row <= Math.floor(box.y2 / cell); row++) keys.push(column + ':' + row);
+            }
+            return keys;
+        };
+        const add = (box) => cellsOf(box).forEach((key) => (placed.get(key) || placed.set(key, []).get(key)).push(box));
+        const body = (node) => {
+            const position = map.positions[node.id];
+            const half = symbolSize(node.users) / 2;
+            return { x1: position.x - half, x2: position.x + half, y1: position.y - half, y2: position.y + half };
+        };
+        // A named dot is drawn above the smaller ones, so its own disc is an obstacle for their names.
+        const place = (node, always) => {
+            const font = fontOf(node);
+            const position = map.positions[node.id];
+            const width = measure(node.name, font) + 2 * margin;
+            const half = symbolSize(node.users) / 2;
+            const height = font * 1.25 + margin;
+            const boxes = [false, true].map((above) => ({
+                id: node.id, above, x1: position.x - width / 2, x2: position.x + width / 2,
+                y1: above ? position.y - half - height : position.y + half, y2: above ? position.y - half : position.y + half + height
+            }));
+            const free = (box) => !cellsOf(box).some((key) => (placed.get(key) || [])
+                .some((other) => box.x1 < other.x2 && other.x1 < box.x2 && box.y1 < other.y2 && other.y1 < box.y2));
+            const box = always ? boxes[0] : boxes.find(free);
+            if (!box) return;
+            add(box);
+            if (!only) add(body(node));
+            kept.push(box);
+        };
+        // The selected dot is always named. Around it, all the dots that stay lit are obstacles, so no name covers one.
+        const first = candidates.length && candidates[0].id === options.first ? candidates.shift() : null;
+        if (first) place(first, true);
+        if (only) candidates.forEach((node) => add(body(node)));
+        candidates.forEach((node) => place(node, false));
+        return kept;
+    }
+
     function moduleLines(codeMap) {
         const lines = {};
         codeMap.files.forEach((file) => addCount(lines, file.module, file.lines || 0));
@@ -496,7 +911,9 @@
         return COVERAGE_RAMP[Math.min(COVERAGE_RAMP.length - 1, Math.floor(measurement.branches / 10))];
     }
 
-    function nodeColor(module, report, colorBy) {
+    /** ``colors`` gives each module its own colour when ``colorBy`` is ``module``, as on the functions map. */
+    function nodeColor(module, report, colorBy, colors) {
+        if (colorBy === 'module') return (colors || {})[module.id] || NOT_MEASURED_COLOR;
         if (colorBy === 'repository') return (REPOSITORIES[module.repository] || {}).color || NOT_MEASURED_COLOR;
         if (colorBy === 'coverage') return coverageColor(((report.modules || {})[module.id] || {}).coverage);
         return (CRITICALITY[module.criticality] || {}).color || NOT_MEASURED_COLOR;
@@ -646,6 +1063,27 @@
         return elements;
     }
 
+    /** Every function and class as a dot, sized by its users; the name sits below, larger on a larger dot. */
+    function symbolElements(codeMap, report, options) {
+        const map = options.symbolMap;
+        const modules = indexBy(codeMap.modules, 'id');
+        const elements = map.graph.nodes.map((node) => {
+            const size = symbolSize(node.users);
+            return {
+                group: 'nodes', classes: 'symbol', position: map.positions[node.id],
+                data: {
+                    id: node.id, label: node.name, kind: 'symbol', module: node.module, size, users: node.users,
+                    font: symbolFont(node.users), color: nodeColor(modules[node.module], report, options.symbolColorBy, map.colors)
+                }
+            };
+        });
+        map.graph.links.forEach((link) => elements.push({
+            group: 'edges', classes: 'symbol-link ' + (!link.crossing ? 'internal' : link.declared ? 'crossing' : 'crossing undeclared'),
+            data: { id: 'symbol-link:' + link.source + '>' + link.target, source: link.source, target: link.target, kind: 'symbol-link', kinds: kindsText(link.kinds) }
+        }));
+        return elements;
+    }
+
     /** Box width that fits a label: measured on a canvas once per label, estimated where there is no canvas. */
     const labelWidths = new Map();
     let measuring = null;
@@ -729,6 +1167,25 @@
         { selector: 'edge.contract-link', style: {
             width: 1.5, 'line-color': EDGE_COLORS.contract, 'line-style': 'dotted', 'target-arrow-shape': 'none', 'curve-style': 'straight', 'line-opacity': 0.6
         } },
+        // Functions map. Only dots marked .labelled show their name, which the script sets from the zoom (LABEL_PX), so
+        // at first only the largest dots are named and every name appears when zoomed in. Lines are thin and faint, and
+        // let clicks through to the dots.
+        { selector: 'node.symbol', style: {
+            shape: 'ellipse', width: 'data(size)', height: 'data(size)', 'background-color': 'data(color)', 'border-width': 0,
+            label: '', 'font-size': 'data(font)', 'font-weight': 600, color: INK, 'text-valign': 'bottom', 'text-halign': 'center',
+            'text-margin-y': 1, 'text-outline-color': '#ffffff', 'text-outline-width': 1.5, 'text-outline-opacity': 0.9,
+            'z-index': 'data(users)', 'underlay-color': NAVY, 'underlay-opacity': 0, 'underlay-padding': 3,
+            'underlay-shape': 'ellipse', 'transition-duration': 0
+        } },
+        // A named dot is drawn above the unnamed ones, so no dot covers a name.
+        { selector: 'node.symbol.labelled', style: { label: 'data(label)', 'z-index': (node) => 500 + node.data('users') } },
+        { selector: 'node.symbol.above', style: { 'text-valign': 'top', 'text-margin-y': -1 } },
+        { selector: 'node.symbol.unlabelled', style: { label: '' } },
+        { selector: 'edge.symbol-link', style: {
+            'curve-style': 'haystack', 'haystack-radius': 0, width: 0.6, 'line-color': EDGE_COLORS.unused, 'line-style': 'solid',
+            'line-opacity': 0.4, 'target-arrow-shape': 'none', events: 'no', 'transition-duration': 0
+        } },
+        { selector: 'edge.symbol-link.hidden', style: { display: 'none' } },
         // Focus, from a click: the rest of the graph steps back but stays readable.
         { selector: '.faded', style: { opacity: 0.35 } },
         { selector: 'edge.lit', style: { 'line-opacity': 1, 'z-index': 10 } },
@@ -740,16 +1197,38 @@
         // Hover only marks: a darker outline on the box and thicker arrows of its own. Nothing else changes.
         { selector: 'node.hover', style: { 'underlay-opacity': 0.14, 'border-width': 2, 'border-color': INK } },
         { selector: 'edge.hover', style: { width: (edge) => (edge.data('width') || 1.5) + 1.5, 'line-opacity': 1, 'z-index': 9 } },
+        // A selected function's own lines keep their meaning: grey inside its module, navy or orange across a boundary.
+        { selector: 'edge.symbol-link.lit, edge.symbol-link.hover', style: {
+            display: 'element', 'curve-style': 'straight', 'target-arrow-shape': 'triangle', 'arrow-scale': 0.5, width: 1.1,
+            'line-color': EDGE_COLORS.declared, 'target-arrow-color': EDGE_COLORS.declared, 'line-opacity': 0.85, 'z-index': 10
+        } },
+        { selector: 'edge.symbol-link.lit.crossing', style: { 'line-color': NAVY, 'target-arrow-color': NAVY } },
+        { selector: 'edge.symbol-link.lit.undeclared', style: {
+            'line-color': EDGE_COLORS.undeclared, 'target-arrow-color': EDGE_COLORS.undeclared, 'line-style': 'dashed', 'line-dash-pattern': [5, 3]
+        } },
+        // Faded dots drop their names, so the names of the selection and its neighbours stand out.
+        { selector: 'node.symbol.faded', style: { opacity: 0.16, label: '' } },
+        { selector: 'edge.symbol-link.faded', style: { opacity: 0.08 } },
+        { selector: 'node.symbol.named', style: { label: 'data(label)', 'font-size': (node) => Math.max(node.data('font'), NAMED_FONT), 'z-index': 1000 } },
+        { selector: 'node.symbol.hover', style: { 'border-width': 1.5, 'border-color': INK, 'underlay-opacity': 0.18 } },
         { selector: 'node:selected', style: { 'underlay-opacity': 0.3, 'underlay-padding': 6 } },
         { selector: 'edge:selected', style: { 'underlay-color': NAVY, 'underlay-opacity': 0.2, 'underlay-padding': 5 } }
     ];
 
+    /** The colour encoding the current view uses: the functions map keeps its own, by module unless changed. */
+    function colorChoice(state) {
+        return state.view === 'symbols' ? state.symbolColorBy : state.colorBy;
+    }
+
     function legendHtml(state) {
         const items = [];
         const swatch = (color, label) => '<li><span class="quality-swatch" style="background:' + color + '" aria-hidden="true"></span>' + label + '</li>';
-        if (state.colorBy === 'criticality') {
+        const colorBy = colorChoice(state);
+        if (colorBy === 'module') {
+            items.push('<li>Dot colour: the module, as in the list beside the map</li>');
+        } else if (colorBy === 'criticality') {
             Object.keys(CRITICALITY).forEach((level) => items.push('<li>' + criticalityBadge(level) + '</li>'));
-        } else if (state.colorBy === 'coverage') {
+        } else if (colorBy === 'coverage') {
             items.push('<li><span class="quality-ramp" style="background:linear-gradient(90deg,' + COVERAGE_RAMP.join(',') + ')" aria-hidden="true"></span>Branch coverage 0% to 100%</li>');
             items.push(swatch(NOT_MEASURED_COLOR, 'No runtime code or not measured'));
         } else {
@@ -757,7 +1236,15 @@
         }
         items.push('<li class="quality-legend__break" aria-hidden="true"></li>');
         const line = (kind, label) => '<li><span class="quality-line quality-line--' + kind + '" aria-hidden="true"></span>' + label + '</li>';
-        if (state.view === 'modules') {
+        if (state.view === 'symbols') {
+            items.push(line('symbol', 'A call or reference between two functions'));
+            items.push(line('declared', 'Selected: inside one module'));
+            items.push(line('crossing', 'Selected: across a declared module dependency'));
+            items.push(line('undeclared', 'Selected: across an undeclared one'));
+            items.push('<li class="quality-legend__break" aria-hidden="true"></li>');
+            items.push('<li><span class="quality-dots" aria-hidden="true"><span></span><span></span><span></span></span>Dot size: how many functions and files use it</li>');
+            items.push('<li>Names show on the largest dots; zoom in for all of them.</li>');
+        } else if (state.view === 'modules') {
             items.push(line('declared', 'Code dependency the catalog declares'));
             items.push(line('undeclared', 'Code dependency the catalog does not declare'));
             if (state.showUnused) items.push(line('unused', 'Declared, but no code reference found'));
@@ -801,6 +1288,18 @@
     const CLOSE_BUTTON = '<button type="button" class="quality-panel__close" data-clear-selection title="Close (Esc)" aria-label="Close details"><i class="fas fa-times" aria-hidden="true"></i></button>';
 
     function overviewHtml(state) {
+        if (state.view === 'symbols') {
+            return '<p class="quality-eyebrow">Functions map</p>'
+                + '<h2 class="quality-panel__title">How to read the functions map</h2>'
+                + '<ol class="quality-steps">'
+                + '<li>Each dot is a function or class of either repository, coloured by its module, so each module forms its own region. A file\'s functions start side by side.</li>'
+                + '<li>A larger dot is used by more functions and files. Names show on the largest dots; zoom in to see them all.</li>'
+                + '<li>A line joins a function to one it calls or references. Calls through objects, such as <code>self.save()</code>, are not seen.</li>'
+                + '<li>Click a module in the list to pick out its functions, and click it again or <strong>Reset</strong> to clear.</li>'
+                + '<li>Select a dot for its callers and callees; double-click it to open its file. Search finds a function, class or file by name.</li>'
+                + '<li>The module map stays the place to review boundaries: this map is for exploring.</li>'
+                + '</ol>';
+        }
         if (state.view === 'functions') {
             return '<p class="quality-eyebrow">File functions</p>'
                 + '<h2 class="quality-panel__title">How to read the functions</h2>'
@@ -958,10 +1457,16 @@
         const rows = (side, other) => links.filter((link) => link[side] === symbolId)
             .sort((a, b) => a[other].localeCompare(b[other]) || a.kind.localeCompare(b.kind))
             .map((link) => [end(link[other]), escapeHtml(kindsText({ [link.kind]: link.count }))]);
+        // On the functions map the file is one double-click away; this is the same step for the keyboard.
+        const open = context.state.view !== 'symbols' ? ''
+            : '<p class="quality-muted">In module ' + moduleButton(moduleId) + '.</p>'
+                + '<p><button type="button" class="quality-button" data-open-file="' + escapeHtml(symbol.file) + '" data-open-symbol="' + escapeHtml(symbolId) + '">'
+                + '<i class="fas fa-code" aria-hidden="true"></i> Open file functions</button></p>';
         return CLOSE_BUTTON
             + '<p class="quality-eyebrow">Function in ' + escapeHtml(baseName(symbol.file)) + '</p>'
             + '<h2 class="quality-panel__title"><code>' + escapeHtml(symbol.name) + '</code></h2>'
             + '<p>' + sourceLink(context.data, symbol.file, symbol.line) + '</p>'
+            + open
             + (route ? '<p>Answers <code>' + escapeHtml(route.methods.join(', ') + ' ' + route.pattern) + '</code>.</p>' : '')
             + (usedBy ? '<p class="quality-muted">Used from ' + usedBy.used_by.map(shortName).map(escapeHtml).join(', ') + '.</p>' : '')
             + '<h3 class="quality-panel__subtitle">Used by</h3>' + list(rows('target', 'source'), 'Nothing the map can see.')
@@ -1096,13 +1601,26 @@
 
     function init(root) {
         const element = (selector) => root.querySelector(selector);
-        const state = { view: 'modules', focus: null, file: null, colorBy: 'criticality', showUnused: true };
+        const state = {
+            view: 'modules', focus: null, file: null, colorBy: 'criticality', showUnused: true,
+            // The functions map: its colour encoding, the module picked from its list, its line and name switches, and
+            // the function to select again when going back to it from a file.
+            symbolColorBy: 'module', symbolModule: null, showEdges: true, showLabels: true, from: null, returnTo: null,
+            expanded: false
+        };
         const mapElement = element('#qualityMap');
+        const explorer = element('#qualityExplorer');
+        const search = element('#qualitySearch');
+        const searchResults = element('#qualitySearchResults');
         let context = null;
         let cy = null;
         let hintTimer = null;
         let tooltipTimer = null;
         let tooltipShown = false;
+        let matches = [];
+        let activeMatch = -1;
+        // The selection on the functions map whose names are placed, as ids and the selected dot.
+        let symbolFocus = null;
 
         function setPanel(html) {
             element('#qualityPanel').innerHTML = html;
@@ -1110,24 +1628,47 @@
         }
 
         function showOverview() {
-            setPanel(overviewHtml(state));
+            if (state.view === 'symbols' && state.symbolModule) setPanel(moduleHtml(context, state.symbolModule));
+            else setPanel(overviewHtml(state));
         }
 
         function selected() {
             return cy ? cy.$(':selected') : null;
         }
 
-        /** Fades everything but ``target`` and its direct neighbours, and labels the arrows that stay lit. */
+        /** The functions map's graph and positions, laid out once on first use. */
+        function symbolMap() {
+            if (!context.symbolMap) {
+                const codeMap = context.data.code_map;
+                const graph = symbolGraph(codeMap);
+                context.symbolMap = { graph, positions: symbolPositions(codeMap, graph), colors: moduleColors(codeMap), nodes: indexBy(graph.nodes, 'id') };
+            }
+            return context.symbolMap;
+        }
+
+        /**
+         * Fades everything but ``target`` and its direct neighbours, and labels the arrows that stay lit. On the
+         * functions map the neighbours are also named; without a target, a module picked from the list stays picked out.
+         */
         function highlight(target) {
             if (!cy) return;
+            const focused = target && target.length;
+            const members = focused && target.isNode() ? target.union(target.descendants()) : target;
+            const keep = !focused ? null : target.isNode() ? members.closedNeighborhood().union(target.ancestors()) : target.connectedNodes().union(target);
             cy.batch(() => {
-                cy.elements().removeClass('faded lit');
-                if (!target || !target.length) return;
-                const members = target.isNode() ? target.union(target.descendants()) : target;
-                const keep = target.isNode() ? members.closedNeighborhood().union(target.ancestors()) : target.connectedNodes().union(target);
-                cy.elements().not(keep).not(keep.ancestors()).addClass('faded');
-                keep.edges().addClass('lit');
+                cy.elements().removeClass('faded lit named');
+                if (keep) {
+                    cy.elements().not(keep).not(keep.ancestors()).addClass('faded');
+                    keep.edges().addClass('lit');
+                } else if (state.view === 'symbols' && state.symbolModule) {
+                    const outside = cy.nodes('.symbol').filter((node) => node.data('module') !== state.symbolModule);
+                    outside.addClass('faded');
+                    outside.connectedEdges().addClass('faded');
+                }
             });
+            symbolFocus = keep && state.view === 'symbols'
+                ? { ids: new Set(keep.nodes().map((node) => node.id())), first: target.length === 1 ? target.id() : null } : null;
+            nameSymbols();
         }
 
         function select(target) {
@@ -1146,7 +1687,7 @@
             else if (data.kind === 'file') setPanel(fileHtml(context, data.id));
             else if (data.kind === 'file-link') setPanel(fileHtml(context, data.source));
             else if (data.kind === 'contract') setPanel(contractHtml(context, data.id));
-            else if (data.kind === 'function') setPanel(functionHtml(context, data.id));
+            else if (data.kind === 'function' || data.kind === 'symbol') setPanel(functionHtml(context, data.id));
             else if (data.kind === 'function-file') setPanel(fileHtml(context, data.id));
             else if (data.kind === 'function-link') {
                 // The end in the opened file, which is what the link is listed under.
@@ -1156,9 +1697,9 @@
         }
 
         /** Brings ``target`` into the middle of the map, for selections made outside it. */
-        function reveal(target) {
+        function reveal(target, zoom) {
             if (!target || !target.length || typeof cy.animate !== 'function') return;
-            cy.animate({ center: { eles: target } }, { duration: 300, easing: 'ease-in-out-cubic' });
+            cy.animate(Object.assign({ center: { eles: target } }, zoom ? { zoom: Math.max(cy.zoom(), zoom) } : {}), { duration: 300, easing: 'ease-in-out-cubic' });
         }
 
         function crumbsHtml() {
@@ -1166,6 +1707,11 @@
             const separator = '<span class="quality-crumbs__sep" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>';
             const home = '<button type="button" data-view="modules"' + (state.view === 'files' ? ' title="Back to all modules (Esc)"' : '')
                 + '><i class="fas fa-arrow-left" aria-hidden="true"></i> All modules</button>' + separator;
+            if (state.view === 'symbols') return home + '<span>All functions</span>';
+            if (state.view === 'functions' && state.from === 'symbols') {
+                return '<button type="button" data-view-toggle="symbols" title="Back to all functions (Esc)"><i class="fas fa-arrow-left" aria-hidden="true"></i> All functions</button>'
+                    + separator + '<span>' + escapeHtml(baseName(state.file)) + '</span>';
+            }
             if (state.view === 'functions') {
                 return home + '<button type="button" data-open-module="' + escapeHtml(state.focus) + '" title="Back to the module\'s files (Esc)">'
                     + escapeHtml(shortName(state.focus)) + '</button>' + separator + '<span>' + escapeHtml(baseName(state.file)) + '</span>';
@@ -1181,13 +1727,81 @@
             });
         }
 
+        /** Which of Modules, Files and Functions the current view belongs to. */
+        function level() {
+            if (state.view === 'symbols' || (state.view === 'functions' && state.from === 'symbols')) return 'symbols';
+            return state.view === 'files' && !state.focus ? 'files' : 'modules';
+        }
+
+        /** The functions map's module list: colour as on the map, most functions first. */
+        function renderExplorer() {
+            const list = element('#qualityExplorerModules');
+            if (!list) return;
+            const map = symbolMap();
+            const counts = {};
+            map.graph.nodes.forEach((node) => addCount(counts, node.module, 1));
+            list.innerHTML = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b)).map((moduleId) => {
+                const module = context.modules[moduleId];
+                const on = state.symbolModule === moduleId;
+                return '<li><button type="button" class="quality-explorer__module' + (on ? ' is-active' : '') + '" data-symbol-module="' + escapeHtml(moduleId)
+                    + '" aria-pressed="' + on + '" title="' + escapeHtml(module ? module.title : moduleId) + '">'
+                    + '<span class="quality-swatch quality-swatch--dot" style="background:' + nodeColor(module, context.data.report, state.symbolColorBy, map.colors) + '" aria-hidden="true"></span>'
+                    + '<span class="quality-explorer__name">' + escapeHtml(shortName(moduleId)) + '</span>'
+                    + '<span class="quality-explorer__count">' + counts[moduleId].toLocaleString('en') + '</span></button></li>';
+            }).join('');
+            const reset = element('#qualityExplorerReset');
+            if (reset) reset.disabled = !state.symbolModule && !(selected() && selected().length) && !(search && search.value);
+        }
+
+        /**
+         * Names the dots whose name is at least LABEL_PX tall at the current zoom and does not cover a name already
+         * placed, largest dots first; around a selection, the selection and as many neighbours as fit. Only dots that
+         * change are restyled.
+         */
+        function nameSymbols() {
+            if (state.view !== 'symbols' || !cy) return;
+            const zoom = cy.zoom();
+            const shown = new Map(labelPlaces(symbolMap(), zoom, symbolFocus ? { only: symbolFocus.ids, first: symbolFocus.first } : {}).map((place) => [place.id, place]));
+            const name = symbolFocus ? 'named' : 'labelled';
+            cy.batch(() => cy.nodes('.symbol').forEach((node) => {
+                const place = shown.get(node.id());
+                if (Boolean(place) !== node.hasClass(name)) node.toggleClass(name, Boolean(place));
+                if (Boolean(place && place.above) !== node.hasClass('above')) node.toggleClass('above', Boolean(place && place.above));
+                if (symbolFocus && node.hasClass('labelled')) node.removeClass('labelled');
+            }));
+        }
+
+        let naming = false;
+        function scheduleNames() {
+            if (naming || state.view !== 'symbols') return;
+            naming = true;
+            global.requestAnimationFrame(() => {
+                naming = false;
+                nameSymbols();
+            });
+        }
+
+        /** Applies the Edges and Labels switches to the functions map. */
+        function applySymbolSwitches() {
+            if (state.view !== 'symbols') return;
+            cy.batch(() => {
+                cy.edges('.symbol-link').toggleClass('hidden', !state.showEdges);
+                cy.nodes('.symbol').toggleClass('unlabelled', !state.showLabels);
+            });
+        }
+
         function render() {
-            const options = Object.assign({ moduleLinks: context.moduleLinks }, state);
-            const build = { modules: moduleElements, files: fileElements, functions: functionElements }[state.view];
+            // The module list is a column of the map: showing or hiding it changes the map's width.
+            if (explorer && explorer.hidden !== (state.view !== 'symbols')) {
+                explorer.hidden = state.view !== 'symbols';
+                if (typeof cy.resize === 'function') cy.resize();
+            }
+            const options = Object.assign({ moduleLinks: context.moduleLinks, symbolMap: state.view === 'symbols' ? symbolMap() : null }, state);
+            const build = { modules: moduleElements, files: fileElements, functions: functionElements, symbols: symbolElements }[state.view];
             const elements = build(context.data.code_map, context.data.report, options);
             cy.elements().remove();
             cy.add(elements);
-            cy.layout({ name: 'preset', fit: true, padding: 48 }).run();
+            cy.layout({ name: 'preset', fit: true, padding: state.view === 'symbols' ? 24 : 48 }).run();
             // Open a module close enough to read its file names, and never shrink the module view to unreadable boxes.
             const readable = state.focus ? READABLE_ZOOM : state.view === 'modules' ? MODULE_ZOOM : 0;
             if (readable && typeof cy.zoom === 'function' && cy.zoom() < readable) {
@@ -1196,10 +1810,18 @@
             }
             element('#qualityLegend').innerHTML = legendHtml(state);
             element('#qualityBreadcrumb').innerHTML = crumbsHtml();
-            setPressed('[data-view-toggle]', (button) => button.dataset.viewToggle === (state.view === 'files' && !state.focus ? 'files' : 'modules'));
+            setPressed('[data-view-toggle]', (button) => button.dataset.viewToggle === level());
+            // Colouring by module only exists on the functions map, where the regions need it.
+            root.querySelectorAll('[data-color-by="module"]').forEach((button) => { button.hidden = state.view !== 'symbols'; });
+            setPressed('[data-color-by]', (button) => button.dataset.colorBy === colorChoice(state));
             element('#qualityUnusedToggle').disabled = state.view !== 'modules';
+            if (state.view === 'symbols') {
+                applySymbolSwitches();
+                renderExplorer();
+            }
             if (state.view === 'files' && state.focus) select(cy.getElementById(state.focus));
             else if (state.view === 'functions') setPanel(fileHtml(context, state.file));
+            else if (state.view === 'symbols') select(null);
             else showOverview();
         }
 
@@ -1220,6 +1842,7 @@
                 state.view = 'files';
                 state.focus = moduleId;
                 state.file = null;
+                state.from = null;
                 switchView();
             };
             if (node && node.length && typeof cy.animate === 'function') {
@@ -1229,7 +1852,7 @@
             }
         }
 
-        /** Opens one file's functions, and selects ``symbolId`` there when given. */
+        /** Opens one file's functions, and selects ``symbolId`` there when given. From the functions map, Esc goes back to it. */
         function openFile(fileId, symbolId) {
             const chosen = () => {
                 if (!symbolId) return;
@@ -1239,6 +1862,12 @@
             if (state.view === 'functions' && state.file === fileId) {
                 chosen();
                 return;
+            }
+            if (state.view === 'symbols') {
+                state.from = 'symbols';
+                state.returnTo = symbolId || null;
+            } else if (state.view !== 'functions') {
+                state.from = null;
             }
             state.view = 'functions';
             state.focus = context.owners[fileId];
@@ -1250,16 +1879,60 @@
             state.view = 'modules';
             state.focus = null;
             state.file = null;
+            state.from = null;
             switchView(() => {
                 if (selectedId) select(cy.getElementById(selectedId));
             });
         }
 
+        /** The functions map, with ``symbolId`` selected again when coming back from its file. */
+        function showSymbols(symbolId) {
+            state.view = 'symbols';
+            state.focus = null;
+            state.file = null;
+            state.from = null;
+            switchView(() => {
+                if (symbolId && cy.getElementById(symbolId).length) select(cy.getElementById(symbolId));
+            });
+        }
+
+        /** Picks out one module's functions on the functions map and shows the module in the panel; null clears it. */
+        function focusModule(moduleId) {
+            state.symbolModule = moduleId;
+            cy.elements().unselect();
+            highlight(null);
+            showOverview();
+            renderExplorer();
+        }
+
+        /** Selects a function on the functions map and zooms in far enough to read its neighbours' names. */
+        function focusSymbol(symbolId) {
+            const node = cy.getElementById(symbolId);
+            if (!node.length) return;
+            select(node);
+            reveal(node, FOCUS_ZOOM);
+            renderExplorer();
+        }
+
+        /** Selects every function of one file on the functions map and shows the file in the panel. */
+        function focusFile(fileId) {
+            const nodes = cy.nodes('.symbol').filter((node) => context.symbols[node.id()].file === fileId);
+            if (!nodes.length) return;
+            cy.elements().unselect();
+            nodes.select();
+            highlight(nodes);
+            setPanel(fileHtml(context, fileId));
+            if (typeof cy.animate === 'function') {
+                cy.animate({ fit: { eles: nodes.closedNeighborhood(), padding: 60 } }, { duration: 300, easing: 'ease-in-out-cubic' });
+            }
+            renderExplorer();
+        }
+
         function zoomBy(factor) {
             if (!cy) return;
             const extent = cy.extent();
-            const level = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), cy.zoom() * factor));
-            cy.animate({ zoom: { level, position: { x: (extent.x1 + extent.x2) / 2, y: (extent.y1 + extent.y2) / 2 } } }, { duration: 180 });
+            const zoomLevel = Math.max(cy.minZoom(), Math.min(cy.maxZoom(), cy.zoom() * factor));
+            cy.animate({ zoom: { level: zoomLevel, position: { x: (extent.x1 + extent.x2) / 2, y: (extent.y1 + extent.y2) / 2 } } }, { duration: 180 });
         }
 
         function flashHint() {
@@ -1339,6 +2012,11 @@
                 const symbol = context.symbols[data.id];
                 return '<strong>' + escapeHtml(symbol.name) + '</strong><span>' + escapeHtml(pathOf(symbol.file) + ':' + symbol.line) + '</span>';
             }
+            if (data.kind === 'symbol') {
+                const node = symbolMap().nodes[data.id];
+                return '<strong>' + escapeHtml(node.name) + '</strong><span>' + escapeHtml(pathOf(node.file) + ':' + node.line) + '<br>'
+                    + escapeHtml(shortName(node.module)) + ' · used by ' + plural(node.users, 'function or file', 'functions and files') + '</span>';
+            }
             if (data.kind === 'file-link' || data.kind === 'function-link') {
                 const name = (id) => escapeHtml(context.symbols[id] ? context.symbols[id].name : baseName(id));
                 return '<strong>' + name(data.source) + ' → ' + name(data.target) + '</strong><span>' + escapeHtml(data.kinds) + '</span>';
@@ -1361,6 +2039,7 @@
                 state.view = 'modules';
                 state.focus = null;
                 state.file = null;
+                state.from = null;
                 switchView(go);
             } else {
                 go();
@@ -1368,52 +2047,140 @@
         }
 
         function scrollToMap() {
-            element('#qualityMapSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            if (!state.expanded) element('#qualityMapSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function recolor() {
+            setPressed('[data-color-by]', (button) => button.dataset.colorBy === colorChoice(state));
+            const colors = state.view === 'symbols' ? symbolMap().colors : null;
+            cy.batch(() => cy.nodes('.module, .file, .function, .symbol').forEach((node) => {
+                const moduleId = node.data('module') || (node.data('kind') === 'module' ? node.id() : node.data('parent'));
+                const color = nodeColor(context.modules[moduleId], context.data.report, colorChoice(state), colors);
+                node.data(node.data('kind') === 'symbol' ? { color } : paint(color));
+            }));
+            element('#qualityLegend').innerHTML = legendHtml(state);
+            if (state.view === 'symbols') renderExplorer();
+        }
+
+        // Search on the functions map: a list of matches under the box, chosen with a click or the arrow keys and Enter.
+        function renderMatches() {
+            const text = search.value.trim();
+            searchResults.innerHTML = matches.map((match, index) => '<li role="option" id="qualitySearchOption' + index + '" class="quality-search__option'
+                + (index === activeMatch ? ' is-active' : '') + '" aria-selected="' + (index === activeMatch) + '" data-search-index="' + index + '">'
+                + '<i class="fas ' + (match.kind === 'file' ? 'fa-file-code' : 'fa-code') + '" aria-hidden="true"></i>'
+                + '<span><strong>' + escapeHtml(match.name) + '</strong><small>' + escapeHtml(match.detail) + '</small></span></li>').join('')
+                || (text ? '<li class="quality-search__empty">No function, class or file matches.</li>' : '');
+            searchResults.hidden = !text;
+            search.setAttribute('aria-expanded', String(!searchResults.hidden));
+            if (activeMatch >= 0) search.setAttribute('aria-activedescendant', 'qualitySearchOption' + activeMatch);
+            else search.removeAttribute('aria-activedescendant');
+        }
+
+        function closeMatches() {
+            searchResults.hidden = true;
+            search.setAttribute('aria-expanded', 'false');
+            search.removeAttribute('aria-activedescendant');
+        }
+
+        function chooseMatch(match) {
+            if (!match) return;
+            closeMatches();
+            if (match.kind === 'file') focusFile(match.id);
+            else focusSymbol(match.id);
+        }
+
+        if (search && searchResults) {
+            search.addEventListener('input', () => {
+                matches = context ? matchSymbols(symbolMap().graph, search.value) : [];
+                activeMatch = matches.length ? 0 : -1;
+                renderMatches();
+            });
+            search.addEventListener('focus', () => {
+                if (search.value.trim() && matches.length) renderMatches();
+            });
+            search.addEventListener('blur', closeMatches);
+            search.addEventListener('keydown', (event) => {
+                if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && matches.length) {
+                    event.preventDefault();
+                    activeMatch = (activeMatch + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length;
+                    renderMatches();
+                } else if (event.key === 'Enter') {
+                    event.preventDefault();
+                    chooseMatch(matches[activeMatch] || matches[0]);
+                } else if (event.key === 'Escape' && search.value) {
+                    // Esc first empties the box; with the box empty it acts on the map as anywhere else.
+                    event.preventDefault();
+                    search.value = '';
+                    matches = [];
+                    closeMatches();
+                }
+            });
+            // Pressing a match must not blur the box first, which would close the list before the click lands.
+            searchResults.addEventListener('mousedown', (event) => event.preventDefault());
+            searchResults.addEventListener('click', (event) => {
+                const option = event.target.closest('[data-search-index]');
+                if (option) chooseMatch(matches[Number(option.dataset.searchIndex)]);
+            });
         }
 
         root.addEventListener('click', (event) => {
-            const target = event.target.closest('[data-select-module], [data-select-link], [data-open-module], [data-open-file], [data-select-function], [data-view], [data-view-toggle], [data-color-by], [data-zoom], [data-clear-selection]');
+            const target = event.target.closest('[data-select-module], [data-select-link], [data-open-module], [data-open-file], [data-select-function], [data-symbol-module], [data-view], [data-view-toggle], [data-color-by], [data-zoom], [data-clear-selection], [data-symbol-reset]');
             if (!target) return;
             event.preventDefault();
+            const inPanel = Boolean(target.closest('#qualityPanel'));
             if (target.dataset.selectModule) {
-                const inMap = !target.closest('#qualityPanel');
-                if (state.view === 'modules') {
+                if (state.view === 'symbols' && inPanel) {
+                    focusModule(target.dataset.selectModule);
+                } else if (state.view === 'modules') {
                     select(cy.getElementById(target.dataset.selectModule));
-                    if (inMap) reveal(cy.getElementById(target.dataset.selectModule));
+                    if (!inPanel) reveal(cy.getElementById(target.dataset.selectModule));
                 } else {
                     showModules(target.dataset.selectModule);
                 }
-                if (inMap) scrollToMap();
+                if (!inPanel) scrollToMap();
             } else if (target.dataset.selectLink) {
                 selectLink(target.dataset.selectLink);
-                if (!target.closest('#qualityPanel')) scrollToMap();
+                if (!inPanel) scrollToMap();
             } else if (target.dataset.openModule) {
                 openModule(target.dataset.openModule);
             } else if (target.dataset.openFile) {
-                openFile(target.dataset.openFile);
+                openFile(target.dataset.openFile, target.dataset.openSymbol);
             } else if (target.dataset.selectFunction) {
                 const symbol = context.symbols[target.dataset.selectFunction];
-                if (symbol) openFile(symbol.file, symbol.id);
+                if (symbol && state.view === 'symbols') focusSymbol(symbol.id);
+                else if (symbol) openFile(symbol.file, symbol.id);
+            } else if (target.dataset.symbolModule) {
+                focusModule(state.symbolModule === target.dataset.symbolModule ? null : target.dataset.symbolModule);
+            } else if (target.hasAttribute('data-symbol-reset')) {
+                if (search) {
+                    search.value = '';
+                    matches = [];
+                    closeMatches();
+                }
+                focusModule(null);
+                if (typeof cy.animate === 'function') cy.animate({ fit: { eles: cy.elements(), padding: 24 } }, { duration: 260, easing: 'ease-in-out-cubic' });
             } else if (target.dataset.view === 'modules' || target.dataset.viewToggle === 'modules') {
-                if (state.view !== 'modules') showModules(state.focus);
+                if (state.view !== 'modules') showModules(state.view === 'symbols' ? null : state.focus);
             } else if (target.dataset.viewToggle === 'files') {
                 if (state.view === 'files' && !state.focus) return;
                 state.view = 'files';
                 state.focus = null;
                 state.file = null;
+                state.from = null;
                 switchView();
+            } else if (target.dataset.viewToggle === 'symbols') {
+                if (state.view !== 'symbols') showSymbols(state.view === 'functions' && state.from === 'symbols' ? state.returnTo : null);
             } else if (target.dataset.colorBy) {
-                state.colorBy = target.dataset.colorBy;
-                setPressed('[data-color-by]', (button) => button.dataset.colorBy === state.colorBy);
-                cy.nodes('.module, .file, .function').forEach((node) => {
-                    const moduleId = node.data('module') || (node.data('kind') === 'module' ? node.id() : node.data('parent'));
-                    node.data(paint(nodeColor(context.modules[moduleId], context.data.report, state.colorBy)));
-                });
-                element('#qualityLegend').innerHTML = legendHtml(state);
+                if (state.view === 'symbols') state.symbolColorBy = target.dataset.colorBy;
+                else state.colorBy = target.dataset.colorBy;
+                recolor();
             } else if (target.dataset.zoom) {
                 zoomBy(target.dataset.zoom === 'in' ? 1.3 : 1 / 1.3);
             } else if (target.hasAttribute('data-clear-selection')) {
-                select(null);
+                // The panel of a module picked from the list closes by un-picking it.
+                if (state.view === 'symbols' && state.symbolModule && !selected().length) focusModule(null);
+                else select(null);
+                if (state.view === 'symbols') renderExplorer();
             }
         });
         element('#qualityUnusedToggle').addEventListener('change', (event) => {
@@ -1422,41 +2189,61 @@
             render();
             if (keep && keep.length && keep.isNode()) select(cy.getElementById(keep.id()));
         });
-        element('#qualityFit').addEventListener('click', () => {
-            if (cy) cy.animate({ fit: { eles: cy.elements(), padding: 48 } }, { duration: 260, easing: 'ease-in-out-cubic' });
-        });
-        // Full screen holds the toolbar, map, panel and legend; the map redraws for its new size.
-        const workspace = root.querySelector('.quality-workspace');
-        const fullscreenButton = element('#qualityFullscreen');
-        const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
-        if (workspace && fullscreenButton) {
-            const enter = workspace.requestFullscreen || workspace.webkitRequestFullscreen;
-            const exit = document.exitFullscreen || document.webkitExitFullscreen;
-            fullscreenButton.hidden = !enter;
-            fullscreenButton.addEventListener('click', () => {
-                const request = fullscreenElement() ? exit.call(document) : enter.call(workspace);
-                if (request && typeof request.catch === 'function') request.catch(() => {});
+        [['#qualityEdgesToggle', 'showEdges'], ['#qualityLabelsToggle', 'showLabels']].forEach(([selector, key]) => {
+            const toggle = element(selector);
+            if (!toggle) return;
+            toggle.addEventListener('change', () => {
+                state[key] = toggle.checked;
+                if (cy) applySymbolSwitches();
             });
-            const changed = () => {
-                const on = fullscreenElement() === workspace;
-                const label = on ? 'Exit full screen' : 'Full screen';
-                fullscreenButton.title = label;
-                fullscreenButton.setAttribute('aria-label', label);
-                fullscreenButton.setAttribute('aria-pressed', String(on));
-                fullscreenButton.querySelector('i').className = 'fas ' + (on ? 'fa-compress' : 'fa-expand');
-                if (cy) {
-                    cy.resize();
-                    cy.fit(cy.elements(), 48);
-                }
-            };
-            document.addEventListener('fullscreenchange', changed);
-            document.addEventListener('webkitfullscreenchange', changed);
+        });
+        element('#qualityFit').addEventListener('click', () => {
+            if (cy) cy.animate({ fit: { eles: cy.elements(), padding: state.view === 'symbols' ? 24 : 48 } }, { duration: 260, easing: 'ease-in-out-cubic' });
+        });
+
+        // Expanded view: the workspace (toolbar, map, panel and legend) fills the window below the navbar, which stays
+        // usable, and the page behind it stops scrolling. It is a class, not the browser's full screen.
+        const workspace = root.querySelector('.quality-workspace');
+        const expandButton = element('#qualityFullscreen');
+        function placeExpanded() {
+            const navbar = document.querySelector('.navbar');
+            const top = navbar ? Math.max(0, navbar.getBoundingClientRect().bottom) : 0;
+            workspace.style.setProperty('--quality-expanded-top', Math.round(top) + 'px');
         }
+        function setExpanded(on) {
+            if (!workspace || !expandButton || state.expanded === on) return;
+            state.expanded = on;
+            // The section keeps its height, so the page under the expanded view does not jump.
+            const section = workspace.parentElement;
+            section.style.minHeight = on ? section.offsetHeight + 'px' : '';
+            if (on) placeExpanded();
+            workspace.classList.toggle('is-expanded', on);
+            document.documentElement.classList.toggle('quality-scroll-locked', on);
+            const label = on ? 'Back to the page' : 'Expand the map to the window';
+            expandButton.title = on ? label + ' (Esc)' : label;
+            expandButton.setAttribute('aria-label', label);
+            expandButton.setAttribute('aria-pressed', String(on));
+            const icon = expandButton.querySelector('i');
+            if (icon) icon.className = 'fas ' + (on ? 'fa-compress' : 'fa-expand');
+            if (cy) {
+                hideTooltip();
+                cy.resize();
+                cy.fit(cy.elements(), state.view === 'symbols' ? 24 : 48);
+            }
+        }
+        if (workspace && expandButton) {
+            expandButton.addEventListener('click', () => setExpanded(!state.expanded));
+            global.addEventListener('resize', () => {
+                if (state.expanded) placeExpanded();
+            });
+        }
+
         // The page scrolls with the wheel: a plain wheel event is stopped before it reaches the map, which then zooms
-        // only with Ctrl or ⌘ held (also what a trackpad pinch sends). Touch pinch-zoom is untouched.
+        // only with Ctrl or ⌘ held (also what a trackpad pinch sends). Touch pinch-zoom is untouched. In the expanded
+        // view there is no page to scroll, so the wheel zooms the map.
         mapElement.parentElement.addEventListener('wheel', (event) => {
             if (!cy) return;
-            if (event.ctrlKey || event.metaKey) {
+            if (event.ctrlKey || event.metaKey || state.expanded) {
                 event.preventDefault();
                 return;
             }
@@ -1464,10 +2251,16 @@
             flashHint();
         }, { capture: true, passive: false });
         document.addEventListener('keydown', (event) => {
-            if (event.key !== 'Escape' || !cy || event.target.closest('input, select, textarea')) return;
-            if (selected().length && !(state.view === 'files' && state.focus && selected().id() === state.focus)) select(null);
+            if (event.key !== 'Escape' || !cy || event.defaultPrevented || !root.isConnected) return;
+            const typing = event.target.closest && event.target.closest('select, textarea, input:not([type="checkbox"])');
+            if (typing && typing !== search) return;
+            if (state.expanded) setExpanded(false);
+            else if (selected().length && !(state.view === 'files' && state.focus && selected().id() === state.focus)) select(null);
+            else if (state.view === 'symbols' && state.symbolModule) focusModule(null);
+            else if (state.view === 'functions' && state.from === 'symbols') showSymbols(state.returnTo);
             else if (state.view === 'functions') openModule(state.focus);
             else if (state.view === 'files') showModules(state.focus);
+            if (state.view === 'symbols') renderExplorer();
         });
 
         return fetch(root.dataset.apiUrl, { headers: { Accept: 'application/json' } })
@@ -1509,14 +2302,17 @@
                 });
                 // A click focuses: it fades the rest until Esc or a click on the background.
                 const selectable = (target) => !target.isParent() || ['module', 'function-file'].includes(target.data('kind'));
-                cy.on('tap', (event) => select(event.target === cy || (event.target.isNode() && !selectable(event.target)) ? null : event.target));
+                cy.on('tap', (event) => {
+                    select(event.target === cy || (event.target.isNode() && !selectable(event.target)) ? null : event.target);
+                    if (state.view === 'symbols') renderExplorer();
+                });
                 cy.on('dbltap', 'node.module', (event) => openModule(event.target.id()));
                 cy.on('dbltap', 'node.file', (event) => openFile(event.target.id()));
-                cy.on('dbltap', 'node.function, node.function-file.outside', (event) => {
+                cy.on('dbltap', 'node.function, node.function-file.outside, node.symbol', (event) => {
                     const symbol = context.symbols[event.target.id()];
                     openFile(symbol ? symbol.file : event.target.id(), symbol ? symbol.id : undefined);
                 });
-                const hoverable = 'node.module, node.file-module, node.file, node.contract, node.function, node.function-file, edge';
+                const hoverable = 'node.module, node.file-module, node.file, node.contract, node.function, node.function-file, node.symbol, edge';
                 cy.on('mouseover', hoverable, (event) => {
                     mapElement.style.cursor = 'pointer';
                     hoverStart(event.target);
@@ -1526,6 +2322,7 @@
                     hoverEnd();
                 });
                 cy.on('viewport', hideTooltip);
+                cy.on('zoom', scheduleNames);
                 render();
             })
             .catch(() => {
@@ -1541,6 +2338,14 @@
         modulePositions,
         fileGraph,
         functionGraph,
+        symbolGraph,
+        symbolSize,
+        symbolPositions,
+        moduleRing,
+        moduleColors,
+        packRegions,
+        matchSymbols,
+        labelPlaces,
         laneSummary,
         nodeColor,
         escapeHtml,

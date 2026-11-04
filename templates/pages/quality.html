@@ -49,11 +49,13 @@
           <div class="quality-toolbar">
             <div class="quality-segmented" role="group" aria-label="Map view">
               <button type="button" class="quality-segmented__option is-active" data-view-toggle="modules" aria-pressed="true">Modules</button>
-              <button type="button" class="quality-segmented__option" data-view-toggle="files" aria-pressed="false">All files</button>
+              <button type="button" class="quality-segmented__option" data-view-toggle="files" aria-pressed="false">Files</button>
+              <button type="button" class="quality-segmented__option" data-view-toggle="symbols" aria-pressed="false">Functions</button>
             </div>
             <div class="quality-toolbar__group">
               <span class="quality-toolbar__label" id="qualityColorByLabel">Colour by</span>
               <div class="quality-segmented" role="group" aria-labelledby="qualityColorByLabel" id="qualityColorBy">
+                <button type="button" class="quality-segmented__option" data-color-by="module" aria-pressed="false" hidden>Module</button>
                 <button type="button" class="quality-segmented__option is-active" data-color-by="criticality" aria-pressed="true">Criticality</button>
                 <button type="button" class="quality-segmented__option" data-color-by="coverage" aria-pressed="false">Branch coverage</button>
                 <button type="button" class="quality-segmented__option" data-color-by="repository" aria-pressed="false">Repository</button>
@@ -67,16 +69,43 @@
           </div>
           <div class="quality-workspace__body">
             <div class="quality-map-wrap" data-bs-theme="light">
-              <div class="quality-map" id="qualityMap" role="img" aria-label="Module dependency map. The findings and module table below list the same information as text."></div>
-              <nav class="quality-crumbs" id="qualityBreadcrumb" aria-label="Map level"></nav>
-              <div class="quality-zoom" role="group" aria-label="Zoom">
-                <button type="button" data-zoom="in" title="Zoom in" aria-label="Zoom in"><i class="fas fa-plus" aria-hidden="true"></i></button>
-                <button type="button" data-zoom="out" title="Zoom out" aria-label="Zoom out"><i class="fas fa-minus" aria-hidden="true"></i></button>
-                <button type="button" id="qualityFit" title="Fit the map" aria-label="Fit the map"><i class="fas fa-crosshairs" aria-hidden="true"></i></button>
-                <button type="button" id="qualityFullscreen" title="Full screen" aria-label="Full screen" aria-pressed="false"><i class="fas fa-expand" aria-hidden="true"></i></button>
+              <aside class="quality-explorer" id="qualityExplorer" aria-label="Functions map: search and modules" hidden>
+                <div class="quality-search">
+                  <i class="fas fa-search quality-search__icon" aria-hidden="true"></i>
+                  <input type="search" class="quality-search__input" id="qualitySearch" placeholder="Search functions and files" autocomplete="off" spellcheck="false"
+                         role="combobox" aria-label="Search functions, classes and files" aria-expanded="false" aria-controls="qualitySearchResults" aria-autocomplete="list">
+                  <ul class="quality-search__results" id="qualitySearchResults" role="listbox" aria-label="Matches" hidden></ul>
+                </div>
+                <div class="quality-explorer__switches">
+                  <label class="quality-switch">
+                    <input type="checkbox" id="qualityEdgesToggle" checked>
+                    <span class="quality-switch__track" aria-hidden="true"></span>
+                    Edges
+                  </label>
+                  <label class="quality-switch">
+                    <input type="checkbox" id="qualityLabelsToggle" checked>
+                    <span class="quality-switch__track" aria-hidden="true"></span>
+                    Labels
+                  </label>
+                </div>
+                <div class="quality-explorer__head">
+                  <h3 class="quality-explorer__title">Modules</h3>
+                  <button type="button" class="quality-explorer__reset" id="qualityExplorerReset" data-symbol-reset>Reset</button>
+                </div>
+                <ul class="quality-explorer__modules" id="qualityExplorerModules"></ul>
+              </aside>
+              <div class="quality-map-stage">
+                <div class="quality-map" id="qualityMap" role="img" aria-label="Code map. The findings and module table below list the module dependencies as text."></div>
+                <nav class="quality-crumbs" id="qualityBreadcrumb" aria-label="Map level"></nav>
+                <div class="quality-zoom" role="group" aria-label="Zoom">
+                  <button type="button" data-zoom="in" title="Zoom in" aria-label="Zoom in"><i class="fas fa-plus" aria-hidden="true"></i></button>
+                  <button type="button" data-zoom="out" title="Zoom out" aria-label="Zoom out"><i class="fas fa-minus" aria-hidden="true"></i></button>
+                  <button type="button" id="qualityFit" title="Fit the map" aria-label="Fit the map"><i class="fas fa-crosshairs" aria-hidden="true"></i></button>
+                  <button type="button" id="qualityFullscreen" title="Expand the map to the window" aria-label="Expand the map to the window" aria-pressed="false"><i class="fas fa-expand" aria-hidden="true"></i></button>
+                </div>
+                <div class="quality-hint" id="qualityZoomHint" aria-hidden="true">Hold <kbd>Ctrl</kbd> or <kbd>⌘</kbd> and scroll to zoom</div>
+                <div class="quality-tooltip" id="qualityTooltip" hidden></div>
               </div>
-              <div class="quality-hint" id="qualityZoomHint" aria-hidden="true">Hold <kbd>Ctrl</kbd> or <kbd>⌘</kbd> and scroll to zoom</div>
-              <div class="quality-tooltip" id="qualityTooltip" hidden></div>
             </div>
             <aside class="quality-panel" id="qualityPanel" aria-live="polite"></aside>
           </div>

@@ -92,6 +92,19 @@
   --color-quality-crossing: #174092;
   --color-quality-contract: #6b21a8;
 
+  /* Code quality functions map: one colour per module, a categorical palette for white in its validated order
+     (static/js/quality/dashboard.js draws the same values) */
+  --color-quality-module-1: #2a78d6;
+  --color-quality-module-2: #eb6834;
+  --color-quality-module-3: #17a173;
+  --color-quality-module-4: #99631f;
+  --color-quality-module-5: #d6558a;
+  --color-quality-module-6: #c98500;
+  --color-quality-module-7: #6250d6;
+  --color-quality-module-8: #008300;
+  --color-quality-module-9: #0e93a8;
+  --color-quality-module-10: #e34948;
+
   /* Documentation ownership semantics */
   --color-docs-shared: #6b21a8;
   --color-docs-shared-subtle: #faf5ff;

@@ -31,6 +31,17 @@ def test_page_loads_the_graph_library_and_dashboard(client):
     assert 'nav-link active' in html.split('>Docs</a>')[0].rsplit('<a', 1)[1]
 
 
+def test_page_offers_modules_files_and_functions_with_the_functions_controls(client):
+    html = client.get('/quality').get_data(as_text=True)
+    toggles = [part.split('"', 1)[0] for part in html.split('data-view-toggle="')[1:]]
+    assert toggles == ['modules', 'files', 'symbols']
+    assert '>Functions</button>' in html
+    for control in ('id="qualityExplorer"', 'id="qualitySearch"', 'id="qualityEdgesToggle"', 'id="qualityLabelsToggle"', 'data-color-by="module"'):
+        assert control in html
+    # The expand button is a class on the workspace, not the browser's full screen.
+    assert 'id="qualityFullscreen" title="Expand the map to the window"' in html
+
+
 def test_missing_evidence_is_unavailable(client, published):
     assert client.get('/api/quality').get_json() == {'available': False}
 
