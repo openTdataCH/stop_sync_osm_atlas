@@ -2,7 +2,7 @@
   <div class="container-fluid">
     <!-- Brand -->
     <div class="navbar-brand d-flex text-nowrap mt-1">
-      <a class="navbar-brand-logo" href="{{ url_for('index') }}" title="{{ review_config.title }}">
+      <a class="navbar-brand-logo" href="{{ url_for('pages.index') }}" title="{{ review_config.title }}">
         <span class="brand-lockup" role="img" aria-label="OSM &amp; ATLAS">
           <img src="{{ url_for('static', filename='header/osm-logo.svg') }}" alt="" width="256" height="256"
             class="brand-lockup__osm-logo">
@@ -15,7 +15,7 @@
         </span>
       </a>
       <div class="navbar-brand-meta d-flex flex-column mt-1">
-        <a href="{{ url_for('index') }}" title="{{ review_config.title }}"
+        <a href="{{ url_for('pages.index') }}" title="{{ review_config.title }}"
           class="navbar-brand-title text-decoration-none">
           <span class="fw-bold navbar-brand-text">{{ review_config.title }}</span>
         </a>
@@ -35,12 +35,12 @@
       <!-- Main navigation links -->
       <ul class="navbar-nav me-auto">
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint == 'index' %} active{%- endif %}"
-            href="{{ url_for('index') }}">Map</a>
+          <a class="nav-link {%- if request.endpoint == 'pages.index' %} active{%- endif %}"
+            href="{{ url_for('pages.index') }}">Map</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint == 'problems' %} active{%- endif %}"
-            href="{{ url_for('problems') }}">Problems</a>
+          <a class="nav-link {%- if request.endpoint == 'pages.problems' %} active{%- endif %}"
+            href="{{ url_for('pages.problems') }}">Problems</a>
         </li>
 
         {% if review_config.capabilities.routes %}
@@ -54,8 +54,8 @@
             href="{{ url_for('operators.operators_page') }}">Operators</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {%- if request.endpoint in ('data_analytics', 'data_reports') %} active{%- endif %}"
-            href="{{ url_for('data_analytics') }}">Data</a>
+          <a class="nav-link {%- if request.endpoint in ('pages.data_analytics', 'pages.data_reports') %} active{%- endif %}"
+            href="{{ url_for('pages.data_analytics') }}">Data</a>
         </li>
         <li class="nav-item">
           <a class="nav-link {%- if request.endpoint and request.endpoint.startswith(('docs.', 'quality.')) %} active{%- endif %}"

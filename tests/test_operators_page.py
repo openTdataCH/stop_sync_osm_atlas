@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from backend.blueprints import operators as operators_module
+from backend.services import operator_coverage
 from backend.models import AtlasStop, OsmNode, StopsMatched
 
 
@@ -28,7 +28,7 @@ def test_operators_page_forwards_filters_to_loader(client, monkeypatch):
         captured.update(kwargs)
         return [], _DummyPagination(page=kwargs['page'], per_page=kwargs['per_page'], total=0)
 
-    monkeypatch.setattr(operators_module, '_load_operators_view', _fake_loader)
+    monkeypatch.setattr(operator_coverage, 'load_operators_view', _fake_loader)
 
     response = client.get('/operators?q=SBB&coverage=no_osm_matches&per_page=50&page=2')
 
@@ -49,11 +49,11 @@ def test_operators_page_forwards_filters_to_loader(client, monkeypatch):
     (5, 1, 0, ('consistent', 'Consistent')),
 ])
 def test_operator_tag_status(matched, values, missing, expected):
-    assert operators_module._operator_tag_status(matched, values, missing) == expected
+    assert operator_coverage._operator_tag_status(matched, values, missing) == expected
 
 
 def test_operator_card_breaks_down_matched_stops_by_operator_value(client, monkeypatch):
-    operator = operators_module._build_operator_row(
+    operator = operator_coverage._build_operator_row(
         type('Operator', (), {'atlas_business_org_abbr': 'ASM', 'atlas_business_org_name': 'Aare Seeland mobil', 'sboid': 'ch:1:sboid:100020'})(),
         {'ASM': 38},
         {'ASM': {'matched_atlas_stop_count': 32, 'matched_osm_stop_count': 32, 'missing_osm_operator_count': 15, 'missing_osm_operator_wikidata_count': 32}},
@@ -64,7 +64,7 @@ def test_operator_card_breaks_down_matched_stops_by_operator_value(client, monke
         {},
         True,
     )
-    monkeypatch.setattr(operators_module, '_load_operators_view', lambda **kwargs: ([operator], _DummyPagination(), True))
+    monkeypatch.setattr(operator_coverage, 'load_operators_view', lambda **kwargs: ([operator], _DummyPagination(), True))
 
     response = client.get('/operators')
 
@@ -87,8 +87,8 @@ def test_match_counts_count_each_atlas_and_osm_stop_once(sqlite_tables):
                      OsmNode(osm_node_id='c', osm_operator='')])
     session.commit()
 
-    counts = operators_module._load_match_counts(['EX'], True)
-    values = operators_module._load_osm_operators(['EX'])
+    counts = operator_coverage._load_match_counts(['EX'], True)
+    values = operator_coverage._load_osm_operators(['EX'])
 
     assert counts == {'EX': {
         'matched_atlas_stop_count': 2,

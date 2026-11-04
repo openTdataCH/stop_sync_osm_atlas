@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, request, redirect
 import logging
 import os
 
@@ -12,12 +12,13 @@ from backend.blueprints.problems import problems_bp
 from backend.blueprints.docs import docs_bp
 from backend.blueprints.quality import quality_bp
 from backend.blueprints.system import system_bp
-from backend.blueprints.operators import operators_bp
 from backend.blueprints.routes import routes_bp
 from backend.blueprints.seo import seo_bp, seo_template_context
+from backend.pages.main import pages_bp
+from backend.pages.operators import operators_bp
+from backend.pages.routes import route_pages_bp
 from backend.services.time_utils import format_zurich_display_timestamp
 from backend.services.source_config import load_review_config, effective_review_config
-from backend.services.stop_lookup import linked_stop
 from backend.version import APP_VERSION
 
 
@@ -98,6 +99,8 @@ def create_app():
     app.register_blueprint(operators_bp)
     app.register_blueprint(routes_bp)
     app.register_blueprint(seo_bp)
+    app.register_blueprint(pages_bp)
+    app.register_blueprint(route_pages_bp)
 
     @app.before_request
     def enforce_https():
@@ -131,55 +134,6 @@ def create_app():
         ):
             response.headers['X-Robots-Tag'] = 'noindex, nofollow'
         return response
-
-    @app.route('/')
-    def index():
-        return render_template('pages/index.html', linked_stop=linked_stop(request.args))
-
-    @app.route('/problems')
-    def problems():
-        return render_template('pages/problems.html', linked_stop=linked_stop(request.args))
-
-    @app.route('/data')
-    def data_index():
-        return redirect(url_for('data_analytics'))
-
-    @app.route('/data/analytics', endpoint='data_analytics')
-    @app.route('/data/export', endpoint='data_reports')
-    def data_page():
-        from backend.services.stats_export import load_stats_from_file
-        stats = load_stats_from_file()
-
-        # Determine which view to show based on the URL
-        active_view = 'reports' if request.path.endswith('/export') else 'analytics'
-
-        # Read priority breakdown from stats.json (populated by pipeline)
-        problem_breakdown = {}
-        if stats and 'problems' in stats and 'by_priority' in stats['problems']:
-            raw = stats['problems']['by_priority']
-            # JSON keys are strings; convert to int for template usage
-            problem_breakdown = {int(k): v for k, v in raw.items()}
-
-        return render_template(
-            'pages/data.html',
-            stats=stats,
-            problem_breakdown=problem_breakdown,
-            active_view=active_view
-        )
-
-    @app.errorhandler(404)
-    def not_found(e):
-        return render_template(
-            'errors/404.html',
-            seo_robots='noindex,nofollow',
-        ), 404
-
-    @app.errorhandler(500)
-    def server_error(e):
-        return render_template(
-            'errors/500.html',
-            seo_robots='noindex,nofollow',
-        ), 500
 
     return app
 

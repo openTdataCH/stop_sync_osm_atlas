@@ -4,7 +4,9 @@ import pytest
 from flask import render_template
 
 from backend.blueprints import routes as routes_module
-from backend.blueprints.routes import _build_direction_group, _partition_route_items, _route_sort_key
+from backend.pages import routes as route_pages
+from backend.services import route_listing
+from backend.services.route_listing import _build_direction_group, _partition_route_items, _route_sort_key
 from backend.extensions import db
 from backend.models import LineFamily, LineFamilyMatch
 
@@ -79,12 +81,12 @@ def test_route_variants_place_matches_before_earlier_unmatched_directions(monkey
     matched_atlas = itinerary(2, '1', 'Z saved match')
     matched_osm = itinerary(3, '1', 'Z saved match')
     unmatched_osm = itinerary(4, '0', 'B unmatched OSM')
-    monkeypatch.setattr(routes_module, '_load_detail_maps', lambda _items: (
+    monkeypatch.setattr(route_listing, '_load_detail_maps', lambda _items: (
         {2: matched_atlas, 3: matched_osm}, {},
         {9: [SimpleNamespace(atlas_itinerary_id=2, osm_itinerary_id=3)]},
         {10: [unmatched_atlas, matched_atlas], 20: [matched_osm, unmatched_osm]}, {},
     ))
-    row = routes_module._build_route_rows([
+    row = route_listing.build_route_rows([
         {'line_family_match_id': 9, 'atlas_family_id': 10, 'osm_family_id': 20}
     ])[0]
 
@@ -315,11 +317,11 @@ def test_load_line_family_rows_queries_only_required_columns(monkeypatch):
         captured['args'] = args
         return _FakeQuery()
 
-    monkeypatch.setattr(routes_module.db.session, 'query', _fake_query)
+    monkeypatch.setattr(route_listing.db.session, 'query', _fake_query)
 
-    routes_module._load_line_family_rows('atlas')
+    route_listing._load_line_family_rows('atlas')
 
-    assert captured['args'][0] is not routes_module.LineFamily
+    assert captured['args'][0] is not route_listing.LineFamily
     assert len(captured['args']) > 1
 
 
@@ -368,21 +370,21 @@ def test_query_route_page_filters_orders_and_paginates_in_sql(app, monkeypatch):
             ),
         ])
         db.session.commit()
-        monkeypatch.setattr(routes_module, '_load_atlas_operator_map', lambda _ids: {})
+        monkeypatch.setattr(route_listing, '_load_atlas_operator_map', lambda _ids: {})
 
-        first_page, total = routes_module._query_route_page(page=1, per_page=2)
-        second_page, second_total = routes_module._query_route_page(page=2, per_page=2)
-        osm_filtered, filtered_total = routes_module._query_route_page(
+        first_page, total = route_listing.query_route_page(page=1, per_page=2)
+        second_page, second_total = route_listing.query_route_page(page=2, per_page=2)
+        osm_filtered, filtered_total = route_listing.query_route_page(
             page=1,
             per_page=10,
             osm_operators=['BLS'],
         )
-        osm_or_filtered, osm_or_total = routes_module._query_route_page(
+        osm_or_filtered, osm_or_total = route_listing.query_route_page(
             page=1,
             per_page=10,
             osm_operators=['BLS', 'SBB'],
         )
-        non_gtfs, non_gtfs_total = routes_module._query_route_page(
+        non_gtfs, non_gtfs_total = route_listing.query_route_page(
             page=1,
             per_page=10,
             non_gtfs_only=True,
@@ -404,7 +406,7 @@ def test_parse_multi_filter_splits_comma_separated_and_repeated_values(app):
     with app.test_request_context(
         '/routes?atlas_operator=AAGL,AAGR&atlas_operator=AAGL'
     ):
-        selected = routes_module._parse_multi_filter('atlas_operator')
+        selected = route_listing.parse_multi_filter('atlas_operator')
 
     assert selected == ['AAGL', 'AAGR']
 
@@ -416,11 +418,11 @@ def test_routes_page_uses_sql_page_loader(client, monkeypatch):
         captured.update(kwargs)
         return [], 321
 
-    monkeypatch.setattr(routes_module, 'get_status', lambda: {'blocking_maintenance': False})
-    monkeypatch.setattr(routes_module, '_query_route_page', _fake_query_route_page)
-    monkeypatch.setattr(routes_module, '_load_available_atlas_operators', lambda: [])
-    monkeypatch.setattr(routes_module, '_load_available_osm_route_operators', lambda: [])
-    monkeypatch.setattr(routes_module, '_build_route_rows', lambda items: items)
+    monkeypatch.setattr(route_pages, 'get_status', lambda: {'blocking_maintenance': False})
+    monkeypatch.setattr(route_listing, 'query_route_page', _fake_query_route_page)
+    monkeypatch.setattr(route_listing, 'load_available_atlas_operators', lambda: [])
+    monkeypatch.setattr(route_listing, 'load_available_osm_route_operators', lambda: [])
+    monkeypatch.setattr(route_listing, 'build_route_rows', lambda items: items)
 
     response = client.get(
         '/routes?page=7&per_page=20&matched=unmatched_osm'
@@ -439,14 +441,16 @@ def test_routes_page_uses_sql_page_loader(client, monkeypatch):
 
 
 def test_routes_return_503_before_database_access_during_maintenance(client, monkeypatch):
-    monkeypatch.setattr(routes_module, 'get_status', lambda: {
-        'blocking_maintenance': True,
-        'phase': 'import',
-        'message': 'Replacing route tables',
-    })
+    # The pages answer with the maintenance page and the API with JSON; each guards itself.
+    for module in (route_pages, routes_module):
+        monkeypatch.setattr(module, 'get_status', lambda: {
+            'blocking_maintenance': True,
+            'phase': 'import',
+            'message': 'Replacing route tables',
+        })
     monkeypatch.setattr(
-        routes_module,
-        '_query_route_page',
+        route_listing,
+        'query_route_page',
         lambda **_kwargs: (_ for _ in ()).throw(AssertionError('database queried')),
     )
 
@@ -468,10 +472,10 @@ def test_routes_return_controlled_503_for_database_timeout(client, monkeypatch):
     class _LockTimeout(Exception):
         sqlstate = '55P03'
 
-    monkeypatch.setattr(routes_module, 'get_status', lambda: {'blocking_maintenance': False})
+    monkeypatch.setattr(route_pages, 'get_status', lambda: {'blocking_maintenance': False})
     monkeypatch.setattr(
-        routes_module,
-        '_query_route_page',
+        route_listing,
+        'query_route_page',
         lambda **_kwargs: (_ for _ in ()).throw(_LockTimeout()),
     )
 
@@ -564,7 +568,7 @@ def test_uic_grouping_preserves_all_marker_metadata_and_route_order():
         {'stop_id': 'c', 'uic_ref': 'second', 'stop_sequence': 3, 'lat': 47.1, 'lon': 8.1,
          'stop_type': 'effectively_matched', 'stop_ids': ['c', 'd'], 'atlas_lat': 47.2, 'atlas_lon': 8.2},
     ]
-    groups = routes_module._group_stops_by_uic(stops)
+    groups = route_listing._group_stops_by_uic(stops)
     assert [group['uic_ref'] for group in groups] == ['second', 'first']
     assert [member['stop_id'] for member in groups[0]['members']] == ['a', 'c']
     assert groups[0]['member_count'] == 3
@@ -625,14 +629,14 @@ def test_routes_template_renders_stored_best_overlap_states_without_client_loadi
 
 def test_attach_best_overlaps_reads_stored_values_for_unmatched_variants_only(monkeypatch):
     requested = []
-    monkeypatch.setattr(routes_module, 'load_best_overlaps', lambda ids: requested.append(ids) or {
+    monkeypatch.setattr(route_listing, 'load_best_overlaps', lambda ids: requested.append(ids) or {
         11: {'percentage': 50.0, 'matched_stop_count': 2, 'candidate_label': 'Line'},
     })
     matched = {'is_matched': True, 'atlas_itinerary_id': 1, 'osm_itinerary_id': 2, 'best_overlap': None}
     atlas_only = {'is_matched': False, 'atlas_itinerary_id': 11, 'osm_itinerary_id': None, 'best_overlap': None}
     osm_only = {'is_matched': False, 'atlas_itinerary_id': None, 'osm_itinerary_id': 22, 'best_overlap': None}
 
-    routes_module._attach_best_overlaps([{'direction_groups': [matched, atlas_only]},
+    route_listing.attach_best_overlaps([{'direction_groups': [matched, atlas_only]},
                                          {'direction_groups': [osm_only]}])
 
     assert requested == [{11, 22}]

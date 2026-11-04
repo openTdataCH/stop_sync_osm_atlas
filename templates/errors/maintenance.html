@@ -9,6 +9,6 @@
   {% endif %}
   <p>Please retry in about {{ retry_after_seconds }} seconds.</p>
   <a href="{{ request.url }}" class="btn btn-primary">Retry</a>
-  <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">Go Home</a>
+  <a href="{{ url_for('pages.index') }}" class="btn btn-outline-secondary">Go Home</a>
 </div>
 {% endblock %}

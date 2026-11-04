@@ -1,10 +1,10 @@
 <nav class="c-page-tabs c-page-tabs--sticky" aria-label="Data pages" style="--page-tabs-count: 2">
-  <a href="{{ url_for('data_analytics') }}"
+  <a href="{{ url_for('pages.data_analytics') }}"
      class="c-page-tabs__tab{{ ' is-active' if active_view == 'analytics' }}"
      {% if active_view == 'analytics' %}aria-current="page"{% endif %}>
     Analytics
   </a>
-  <a href="{{ url_for('data_reports') }}"
+  <a href="{{ url_for('pages.data_reports') }}"
      class="c-page-tabs__tab{{ ' is-active' if active_view == 'reports' }}"
      {% if active_view == 'reports' %}aria-current="page"{% endif %}>
     Export

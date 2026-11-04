@@ -3,7 +3,8 @@
 import pytest
 from flask import render_template
 
-from backend.blueprints import routes as routes_module
+from backend.pages import routes as route_pages
+from backend.services import route_listing
 from backend.extensions import db
 from backend.models import Itinerary, LineFamily, LineFamilyMatch
 from tests.test_routes_blueprint import _TemplatePagination
@@ -31,18 +32,18 @@ def route_list(app, monkeypatch):
             Itinerary(id=5, source='osm', line_family_id=12, source_itinerary_id='1012'),
         ])
         db.session.commit()
-        monkeypatch.setattr(routes_module, '_load_atlas_operator_map', lambda _ids: {})
+        monkeypatch.setattr(route_listing, '_load_atlas_operator_map', lambda _ids: {})
         yield
 
 
 def locate(atlas_variant=None, osm_variant=None, per_page=1, **filters):
-    return routes_module._locate_route_variant_page(
+    return route_listing.locate_route_variant_page(
         atlas_variant=atlas_variant, osm_variant=osm_variant, per_page=per_page, **filters,
     )
 
 
 def test_a_variant_is_found_on_the_page_of_its_card_in_list_order(route_list):
-    order = [item['display_mode'] for item in routes_module._query_route_page(page=1, per_page=10)[0]]
+    order = [item['display_mode'] for item in route_listing.query_route_page(page=1, per_page=10)[0]]
     assert order == ['matched', 'atlas_only', 'osm_only']
 
     assert locate(atlas_variant=MATCHED_ATLAS, osm_variant='1010') == 1
@@ -68,24 +69,24 @@ def fake_listing(monkeypatch):
         captured.update(kwargs)
         return [], 30
 
-    monkeypatch.setattr(routes_module, 'get_status', lambda: {'blocking_maintenance': False})
-    monkeypatch.setattr(routes_module, '_query_route_page', query_route_page)
-    monkeypatch.setattr(routes_module, '_load_available_atlas_operators', lambda: [])
-    monkeypatch.setattr(routes_module, '_load_available_osm_route_operators', lambda: [])
-    monkeypatch.setattr(routes_module, '_build_route_rows', lambda items: items)
+    monkeypatch.setattr(route_pages, 'get_status', lambda: {'blocking_maintenance': False})
+    monkeypatch.setattr(route_listing, 'query_route_page', query_route_page)
+    monkeypatch.setattr(route_listing, 'load_available_atlas_operators', lambda: [])
+    monkeypatch.setattr(route_listing, 'load_available_osm_route_operators', lambda: [])
+    monkeypatch.setattr(route_listing, 'build_route_rows', lambda items: items)
     return captured
 
 
 def test_the_server_redirects_a_variant_link_to_the_page_that_holds_it(client, monkeypatch, fake_listing):
     calls = []
-    monkeypatch.setattr(routes_module, '_locate_route_variant_page', lambda **kwargs: calls.append(kwargs) or 3)
+    monkeypatch.setattr(route_listing, 'locate_route_variant_page', lambda **kwargs: calls.append(kwargs) or 3)
 
     response = client.get('/routes?matched=unmatched_osm&osm_variant=1011')
 
     assert response.status_code == 308
     assert response.headers['Location'].endswith('/routes?page=3&matched=unmatched_osm&osm_variant=1011')
     assert calls[0]['matched_filter'] == 'unmatched_osm'
-    assert calls[0]['per_page'] == routes_module.ROUTES_DEFAULT_PER_PAGE
+    assert calls[0]['per_page'] == route_pages.ROUTES_DEFAULT_PER_PAGE
 
     response = client.get('/routes?page=3&matched=unmatched_osm&osm_variant=1011')
     assert response.status_code == 200
@@ -93,7 +94,7 @@ def test_the_server_redirects_a_variant_link_to_the_page_that_holds_it(client, m
 
 
 def test_a_missing_variant_keeps_the_requested_page(client, monkeypatch, fake_listing):
-    monkeypatch.setattr(routes_module, '_locate_route_variant_page', lambda **kwargs: None)
+    monkeypatch.setattr(route_listing, 'locate_route_variant_page', lambda **kwargs: None)
 
     response = client.get('/routes?page=2&osm_variant=999')
 
@@ -102,7 +103,7 @@ def test_a_missing_variant_keeps_the_requested_page(client, monkeypatch, fake_li
 
 
 def test_variant_parameters_use_the_canonical_encoding(client, monkeypatch, fake_listing):
-    monkeypatch.setattr(routes_module, '_locate_route_variant_page', lambda **kwargs: None)
+    monkeypatch.setattr(route_listing, 'locate_route_variant_page', lambda **kwargs: None)
 
     response = client.get('/routes?atlas_variant=91-1-Z-j26-1:0:Zürich HB&utm=x')
 
@@ -116,7 +117,7 @@ def test_variant_parameters_use_the_canonical_encoding(client, monkeypatch, fake
 
 
 def test_the_gtfs_map_keeps_readable_stop_parameters(client, monkeypatch):
-    monkeypatch.setattr(routes_module, 'get_status', lambda: {'blocking_maintenance': False})
+    monkeypatch.setattr(route_pages, 'get_status', lambda: {'blocking_maintenance': False})
 
     redirected = client.get('/routes/gtfs-stop-id-sloid?sloid=ch%3A1%3Asloid%3A7&other=1')
     assert redirected.status_code == 308
@@ -127,7 +128,7 @@ def test_the_gtfs_map_keeps_readable_stop_parameters(client, monkeypatch):
 
 
 def test_variant_panels_carry_stable_ids_and_a_copy_link(app):
-    group = routes_module._build_direction_group(
+    group = route_listing._build_direction_group(
         Itinerary(id=7, source='atlas', source_itinerary_id=MATCHED_ATLAS, direction_id='0'),
         Itinerary(id=8, source='osm', source_itinerary_id='2169538', direction_id='0'),
         [], [],

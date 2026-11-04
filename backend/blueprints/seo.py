@@ -6,10 +6,10 @@ from flask import Blueprint, Response, current_app, render_template, request, ur
 seo_bp = Blueprint('seo', __name__)
 
 PUBLIC_HTML_ENDPOINTS = {
-    'index',
-    'problems',
-    'data_analytics',
-    'data_reports',
+    'pages.index',
+    'pages.problems',
+    'pages.data_analytics',
+    'pages.data_reports',
     'operators.operators_page',
     'routes.routes_page',
     'routes.non_gtfs_routes_page',
@@ -18,14 +18,14 @@ PUBLIC_HTML_ENDPOINTS = {
 }
 
 SITEMAP_ENDPOINTS = (
-    'index',
-    'problems',
+    'pages.index',
+    'pages.problems',
     'routes.routes_page',
     'routes.non_gtfs_routes_page',
     'routes.routes_gtfs_stop_id_sloid_page',
     'operators.operators_page',
-    'data_analytics',
-    'data_reports',
+    'pages.data_analytics',
+    'pages.data_reports',
 )
 
 

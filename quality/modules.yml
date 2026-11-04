@@ -167,12 +167,13 @@
           "backend/services/time_utils.py",
           "backend/services/transport_routes.py",
           "backend/services/route_comparison.py",
+          "backend/services/route_listing.py",
+          "backend/services/operator_coverage.py",
           "backend/services/request_payload.py",
           "backend/services/validators.py",
           "backend/services/stats_export.py",
           "backend/services/dataset_stats.py",
           "backend/blueprints/data.py",
-          "backend/blueprints/operators.py",
           "backend/blueprints/problems.py",
           "backend/blueprints/reports.py",
           "backend/blueprints/routes.py",
@@ -224,6 +225,7 @@
       "reviewed": "2026-09-22",
       "paths": {
         "source": [
+          "backend/pages/**",
           "static/js/components/**",
           "static/js/pages/**",
           "static/js/shared/utils.js",
@@ -394,7 +396,8 @@
         "app.snapshot-publication",
         "app.pipeline-orchestration",
         "app.query-api",
-        "app.docs-delivery"
+        "app.docs-delivery",
+        "app.review-ui"
       ],
       "contracts": {}
     },

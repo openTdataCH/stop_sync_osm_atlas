@@ -327,7 +327,7 @@ def test_docs_portal_uses_project_scoped_section_numbers():
             ('/docs/pipeline_tests', 'E.6', 'Engine tests'),
             ('/docs/database', 'A.1', 'Database & bundle import'),
             ('/docs/frontend_asset_management', 'A.3.4', 'Frontend asset management'),
-            ('/docs/test', 'A.4', 'Web app tests'),
+            ('/docs/test', 'A.4', 'Tests & code quality'),
             ('/docs/backend_tests', 'A.4.1', 'Backend tests'),
             ('/docs/glossary', '0.1', 'Glossary'),
         ):
@@ -343,7 +343,7 @@ def test_docs_portal_uses_project_scoped_section_numbers():
         assert contributing.get_text(' ', strip=True) == 'Contributing'
 
         web_tests = BeautifulSoup(client.get('/docs/test').data.decode('utf-8'), 'html.parser')
-        assert _page_header(web_tests) == ('Review application & deployment · A.4', 'Web app tests')
+        assert _page_header(web_tests) == ('Review application & deployment · A.4', 'Tests & code quality')
 
         contributing_page = BeautifulSoup(client.get('/docs/contributing').data.decode('utf-8'), 'html.parser')
         assert _page_header(contributing_page) == ('Review application & deployment', 'Contributing')

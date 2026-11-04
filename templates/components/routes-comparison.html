@@ -18,8 +18,8 @@
          data-source-label="{{ source_label }}"
          {%- if not saved %}
          data-fixed-source="{{ fixed_source }}" data-fixed-itinerary-id="{{ fixed_id }}"
-         data-options-url="{{ url_for('routes.routes_comparison_options_api') }}"
-         data-comparison-url="{{ url_for('routes.routes_comparison_api') }}"
+         data-options-url="{{ url_for('routes_api.routes_comparison_options_api') }}"
+         data-comparison-url="{{ url_for('routes_api.routes_comparison_api') }}"
          {%- if best and best.candidate_id %}
          data-best-id="{{ best.candidate_id }}" data-best-label="{{ best.candidate_label }}"
          data-best-percentage="{{ best.percentage }}" data-best-matched-stops="{{ best.matched_stop_count }}"

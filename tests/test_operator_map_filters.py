@@ -4,7 +4,7 @@ import re
 import pytest
 from urllib.parse import parse_qs, urlparse
 
-from backend.blueprints import operators as operators_module
+from backend.services import operator_coverage
 from backend.models import AtlasStop, OsmNode, StopsMatched
 from backend.queries.helpers import parse_filter_params
 from backend.query_builder import QueryBuilder
@@ -33,13 +33,13 @@ def test_wikidata_filter_selects_exact_values_and_combines_with_osm_operator(sql
 
 
 def test_operator_cards_link_to_matching_map_filters(client, monkeypatch):
-    operator = operators_module._build_operator_row(
+    operator = operator_coverage._build_operator_row(
         type('Operator', (), {'atlas_business_org_abbr': 'EX', 'atlas_business_org_name': 'Example', 'sboid': None})(),
         {'EX': 3}, {'EX': {'matched_atlas_stop_count': 3, 'matched_osm_stop_count': 3, 'missing_osm_operator_wikidata_count': 2}},
         {'EX': [{'osm_operator': 'Example & Co', 'matched_stop_count': 3}]},
         {'EX': [{'osm_operator_wikidata': 'Q1', 'matched_stop_count': 3}]}, True,
     )
-    monkeypatch.setattr(operators_module, '_load_operators_view', lambda **kwargs: ([operator], _DummyPagination(), True))
+    monkeypatch.setattr(operator_coverage, 'load_operators_view', lambda **kwargs: ([operator], _DummyPagination(), True))
     response = client.get('/operators')
     assert response.status_code == 200
     links = re.findall(r'class="operator-breakdown__map-link" href="([^"]+)"', response.text)

@@ -18,7 +18,7 @@
             <i class="fas fa-info-circle" aria-hidden="true"></i>
           </button>
           <div class="operators-info__tooltip" role="note">
-            <p>Discrepancies between ATLAS and OSM operators can be explored on the <a href="{{ url_for('problems') }}">Problems</a> page by selecting <strong>Attributes</strong> problems (Priority 3). Check the <a href="{{ url_for('docs.docs_page', page='stop_problems') }}">Stop Problems documentation</a> for more details.</p>
+            <p>Discrepancies between ATLAS and OSM operators can be explored on the <a href="{{ url_for('pages.problems') }}">Problems</a> page by selecting <strong>Attributes</strong> problems (Priority 3). Check the <a href="{{ url_for('docs.docs_page', page='stop_problems') }}">Stop Problems documentation</a> for more details.</p>
           </div>
         </div>
       </div>
@@ -163,7 +163,7 @@
                   <span class="operator-breakdown__value">{{ osm_operator.osm_operator }}</span>
                 </span>
                 <span class="operator-breakdown__count">{{ osm_operator.matched_stop_count }}</span>
-                {{ map_link(url_for('index', osm_operator=osm_operator.osm_operator), 'See ' ~ osm_operator.osm_operator ~ ' on map') }}
+                {{ map_link(url_for('pages.index', osm_operator=osm_operator.osm_operator), 'See ' ~ osm_operator.osm_operator ~ ' on map') }}
               </li>
               {% endfor %}
               {% if operator.missing_osm_operator_count > 0 %}
@@ -190,7 +190,7 @@
                   <a class="operator-breakdown__value" href="https://www.wikidata.org/wiki/{{ osm_wikidata.osm_operator_wikidata }}" target="_blank" rel="noopener noreferrer">{{ osm_wikidata.osm_operator_wikidata }} <i class="fas fa-external-link-alt" aria-hidden="true"></i></a>
                 </span>
                 <span class="operator-breakdown__count">{{ osm_wikidata.matched_stop_count }}</span>
-                {{ map_link(url_for('index', osm_operator_wikidata=osm_wikidata.osm_operator_wikidata), 'See ' ~ osm_wikidata.osm_operator_wikidata ~ ' on map') }}
+                {{ map_link(url_for('pages.index', osm_operator_wikidata=osm_wikidata.osm_operator_wikidata), 'See ' ~ osm_wikidata.osm_operator_wikidata ~ ' on map') }}
               </li>
               {% endfor %}
               {% if operator.missing_osm_operator_wikidata_count > 0 %}
@@ -199,7 +199,7 @@
                   <span class="operator-breakdown__value">Not tagged</span>
                 </span>
                 <span class="operator-breakdown__count">{{ operator.missing_osm_operator_wikidata_count }}</span>
-                {{ map_link(url_for('index', atlas_operator=operator.atlas_business_org_abbr, missing_osm_operator_wikidata='true'), 'See ' ~ operator.atlas_business_org_abbr ~ ' stops without operator:wikidata on map') }}
+                {{ map_link(url_for('pages.index', atlas_operator=operator.atlas_business_org_abbr, missing_osm_operator_wikidata='true'), 'See ' ~ operator.atlas_business_org_abbr ~ ' stops without operator:wikidata on map') }}
               </li>
               {% endif %}
             </ul>

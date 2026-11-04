@@ -653,10 +653,10 @@ window.routesPageConfig = JSON.parse(document.getElementById('routesPageConfig')
 {% else %}
 <script type="application/json" id="routesGtfsStopIdSloidConfig">
 {
-  "summaryUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_summary_api') | tojson }},
-  "mapUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_map_api') | tojson }},
-  "searchUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_search_api') | tojson }},
-  "popupUrl": {{ url_for('routes.routes_gtfs_stop_id_sloid_popup_api') | tojson }}
+  "summaryUrl": {{ url_for('routes_api.routes_gtfs_stop_id_sloid_summary_api') | tojson }},
+  "mapUrl": {{ url_for('routes_api.routes_gtfs_stop_id_sloid_map_api') | tojson }},
+  "searchUrl": {{ url_for('routes_api.routes_gtfs_stop_id_sloid_search_api') | tojson }},
+  "popupUrl": {{ url_for('routes_api.routes_gtfs_stop_id_sloid_popup_api') | tojson }}
 }
 </script>
 <script src="{{ url_for('static', filename='js/pages/routes-gtfs-stop-id-sloid.js') }}"></script>
