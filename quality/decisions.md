@@ -34,8 +34,11 @@ module at a time as files. It never draws every function: thousands of symbols
 make an unreadable diagram, and the boundary is what reviewers act on. Each
 module's actual interface is the set of its names used from other modules,
 compared with its declared entry points. A code dependency the catalog does not
-declare is shown as a finding, not a failure, because the map cannot see HTTP,
-database or template dependencies and its Python call edges miss dynamic dispatch.
+declare is shown as a finding, not a failure, because the map cannot see database
+dependencies or URLs built at runtime, and its Python call edges miss dynamic dispatch.
+HTTP requests and templates are linked from their URL text and names; what cannot
+be resolved is listed on the dashboard instead of silently missing. A link to a page
+draws no arrow, because following a link does not use the page's code.
 
 Criticality stays a declared judgment of the worst defect's impact, chosen with
 the rubric in `documentation/4.3 Code Quality.md`. It is not derived from coverage or size, which

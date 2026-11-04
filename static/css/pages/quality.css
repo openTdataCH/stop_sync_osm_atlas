@@ -446,6 +446,28 @@ a.quality-figure:hover .quality-figure__label {
   opacity: 0;
 }
 
+/* Full screen: toolbar and legend keep their height, map and panel share the rest. */
+.quality-workspace:fullscreen {
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+}
+
+.quality-workspace:fullscreen .quality-workspace__body {
+  flex: 1;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.quality-workspace:fullscreen .quality-map {
+  height: 100%;
+}
+
+.quality-workspace:fullscreen .quality-panel {
+  max-height: none;
+}
+
 .quality-crumbs {
   position: absolute;
   top: var(--space-3);
@@ -1043,6 +1065,11 @@ a.quality-figure:hover .quality-figure__label {
 
   .quality-switch {
     margin-left: 0;
+  }
+
+  /* Stacked, the map keeps two thirds of the screen and the panel scrolls below it. */
+  .quality-workspace:fullscreen .quality-workspace__body {
+    grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
   }
 }
 

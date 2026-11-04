@@ -411,6 +411,7 @@
           "templates/layouts/**",
           "templates/errors/**",
           "templates/components/navbar.html",
+          "static/js/shared/theme.js",
           "scripts/stylelint/**",
           "scripts/sync_vendor_assets.mjs",
           "scripts/check_no_cdn_templates.mjs",

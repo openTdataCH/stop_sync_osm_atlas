@@ -26,7 +26,34 @@ function codeMap() {
       { source: 'app:backend/importer.py', target: 'app:backend/api.py', kind: 'imports', count: 2 },
       { source: 'app:backend/importer.py', target: 'app:backend/api.py', kind: 'calls', count: 3 },
       { source: 'app:backend/api.py', target: 'app:backend/importer.py', kind: 'uses', count: 1 },
-      { source: 'app:backend/api.py', target: 'app:backend/api_helpers.py', kind: 'imports', count: 1 }
+      { source: 'app:backend/api.py', target: 'app:backend/api_helpers.py', kind: 'imports', count: 1 },
+      { source: 'app:static/js/ui.js', target: 'app:backend/api.py', kind: 'requests', count: 2 },
+      { source: 'app:backend/importer.py', target: 'app:static/js/ui.js', kind: 'links', count: 4 }
+    ],
+    routes: [
+      { pattern: '/api/serve', methods: ['GET'], endpoint: 'api.serve', symbol: 'app:backend/api.py:serve@3', file: 'app:backend/api.py', line: 3,
+        requested_by: ['app:static/js/ui.js'], linked_by: [] },
+      { pattern: '/api/old', methods: ['POST'], endpoint: 'api.old', symbol: 'app:backend/api.py:old@20', file: 'app:backend/api.py', line: 20,
+        requested_by: [], linked_by: [] }
+    ],
+    blind_spots: {
+      unmatched: [{ file: 'app:static/js/ui.js', line: 7, kind: 'url', reference: '/api/missing' }],
+      dynamic: [{ file: 'app:static/js/ui.js', line: 9, kind: 'request', expression: 'config.url' }],
+      shared_names: [{ name: 'helper', symbols: ['app:static/js/ui.js:helper@1', 'app:static/js/other.js:helper@4'] }]
+    },
+    limitations: ['Static reading only.'],
+    symbols: [
+      { id: 'app:backend/api.py:serve@3', name: 'serve', file: 'app:backend/api.py', line: 3 },
+      { id: 'app:backend/api.py:helper@10', name: 'helper', file: 'app:backend/api.py', line: 10 },
+      { id: 'app:backend/api_helpers.py:fmt@2', name: 'fmt', file: 'app:backend/api_helpers.py', line: 2 },
+      { id: 'app:backend/importer.py:run@5', name: 'run', file: 'app:backend/importer.py', line: 5 }
+    ],
+    symbol_links: [
+      { source: 'app:backend/importer.py:run@5', target: 'app:backend/api.py:serve@3', kind: 'calls', count: 2 },
+      { source: 'app:backend/api.py:serve@3', target: 'app:backend/api.py:helper@10', kind: 'calls', count: 1 },
+      { source: 'app:backend/api.py:serve@3', target: 'app:backend/api_helpers.py:fmt@2', kind: 'calls', count: 1 },
+      { source: 'app:static/js/ui.js', target: 'app:backend/api.py:serve@3', kind: 'requests', count: 2 },
+      { source: 'app:backend/importer.py', target: 'app:backend/api.py:helper@10', kind: 'links', count: 1 }
     ],
     interface: {
       'app.api': [{ id: 'app:backend/api.py:serve@3', name: 'serve', file: 'app:backend/api.py', line: 3, used_by: ['app.import'] }],
@@ -64,10 +91,42 @@ describe('QualityDashboard', () => {
     expect(links.some((link) => link.source === link.target)).toBe(false);
   });
 
+  test('HTTP requests draw arrows, links to pages do not', () => {
+    const links = window.QualityDashboard.aggregateModuleLinks(codeMap());
+    const byKey = Object.fromEntries(links.map((link) => [link.source + '>' + link.target, link]));
+    expect(byKey['app.ui>app.api']).toMatchObject({ count: 2, declared: false, kinds: { requests: 2 } });
+    expect(byKey['app.import>app.ui']).toMatchObject({ count: 0, declared: true });
+    const files = window.QualityDashboard.fileGraph(codeMap(), 'app.ui');
+    expect(files.links.map((link) => link.source + '>' + link.target)).toEqual(['app:static/js/ui.js>app:backend/api.py']);
+  });
+
+  test('a file\'s function graph puts its functions in line order between their users and what they use', () => {
+    const graph = window.QualityDashboard.functionGraph(codeMap(), 'app:backend/api.py');
+    expect(graph.inside).toEqual(['app:backend/api.py:serve@3', 'app:backend/api.py:helper@10']);
+    // A file-level user, as a script's request, has no function of its own; a page link draws nothing.
+    expect(graph.users).toEqual({ 'app:backend/importer.py': ['app:backend/importer.py:run@5'], 'app:static/js/ui.js': [] });
+    expect(graph.used).toEqual({ 'app:backend/api_helpers.py': ['app:backend/api_helpers.py:fmt@2'] });
+    expect(Array.from(graph.entries)).toEqual(['app:backend/api.py:serve@3']);
+    const byKey = Object.fromEntries(graph.links.map((link) => [link.source + '>' + link.target, link]));
+    expect(byKey['app:backend/importer.py:run@5>app:backend/api.py:serve@3']).toMatchObject({ crossing: true, declared: true, count: 2 });
+    expect(byKey['app:static/js/ui.js>app:backend/api.py:serve@3']).toMatchObject({ crossing: true, declared: false, kinds: { requests: 2 } });
+    expect(byKey['app:backend/api.py:serve@3>app:backend/api.py:helper@10']).toMatchObject({ crossing: false });
+    expect(byKey['app:backend/importer.py>app:backend/api.py:helper@10']).toBeUndefined();
+  });
+
+  test('blind spots list unmatched references, unreached routes, runtime URLs and shared names', () => {
+    const spots = window.QualityDashboard.blindSpots(codeMap());
+    expect(spots.unmatched.map((row) => row.reference)).toEqual(['/api/missing']);
+    expect(spots.unreached.map((route) => route.pattern)).toEqual(['/api/old']);
+    expect(spots.dynamic.map((row) => row.expression)).toEqual(['config.url']);
+    expect(spots.sharedNames.map((row) => row.name)).toEqual(['helper']);
+    expect(window.QualityDashboard.blindSpots({ files: [], links: [] })).toEqual({ unmatched: [], unreached: [], dynamic: [], sharedNames: [] });
+  });
+
   test('findings report undeclared links, cycles, private names and unused declarations', () => {
     const map = codeMap();
     const findings = window.QualityDashboard.boundaryFindings(map, window.QualityDashboard.aggregateModuleLinks(map));
-    expect(findings.undeclared.map((link) => link.source + '>' + link.target)).toEqual(['app.api>app.import']);
+    expect(findings.undeclared.map((link) => link.source + '>' + link.target)).toEqual(['app.ui>app.api', 'app.api>app.import']);
     expect(findings.cycles.map((link) => [link.source, link.target])).toEqual([['app.api', 'app.import']]);
     expect(findings.privateNames.map((symbol) => symbol.name)).toEqual(['_private']);
     expect(findings.unused.map((link) => link.target)).toEqual(['app.ui']);
@@ -85,7 +144,7 @@ describe('QualityDashboard', () => {
 
   test('a focused file graph keeps the whole module and marks files entered from outside', () => {
     const graph = window.QualityDashboard.fileGraph(codeMap(), 'app.api');
-    expect(graph.files.map((file) => file.id)).toEqual(['app:backend/api.py', 'app:backend/api_helpers.py', 'app:backend/importer.py']);
+    expect(graph.files.map((file) => file.id)).toEqual(['app:backend/api.py', 'app:backend/api_helpers.py', 'app:backend/importer.py', 'app:static/js/ui.js']);
     expect(Array.from(graph.entries)).toEqual(['app:backend/api.py']);
     const crossing = graph.links.find((link) => link.source === 'app:backend/api.py' && link.target === 'app:backend/importer.py');
     expect(crossing).toMatchObject({ crossing: true, declared: false });
@@ -135,6 +194,7 @@ describe('QualityDashboard', () => {
               <ul id="qualityLegend"></ul>
             </section>
             <section id="qualityFindingsSection"><div id="qualityFindings"></div></section>
+            <section id="qualityBlindSpotsSection"><div id="qualityBlindSpots"></div></section>
             <table><tbody id="qualityTable"></tbody></table>
             <div id="qualityChecks"></div>
           </div>
@@ -178,6 +238,11 @@ describe('QualityDashboard', () => {
       expect(document.getElementById('qualitySummary').textContent).toContain('1 of 2 passed');
       expect(document.querySelector('#qualitySummary a[href="https://github.com/x/app/commit/' + 'a'.repeat(40) + '"]')).not.toBeNull();
       expect(document.getElementById('qualityFindings').textContent).toContain('_private');
+      const spots = document.getElementById('qualityBlindSpots').textContent;
+      expect(spots).toContain('/api/missing');
+      expect(spots).toContain('/api/old');
+      expect(spots).toContain('config.url');
+      expect(spots).toContain('Static reading only.');
       expect(document.querySelectorAll('#qualityTable tr')).toHaveLength(2);
       expect(document.getElementById('qualityTable').textContent).toContain('87.5%');
       expect(document.getElementById('qualityPanel').textContent).toContain('How to read the map');

@@ -486,9 +486,71 @@ def report(roots, catalogs, ownership, base=None):
     return artifact
 
 
-JS_SYMBOL = re.compile(r'\b(?:function\s+|class\s+|(?:const|let|var)\s+)([A-Za-z_$][\w$]*)\s*(?:\(|\{|=\s*(?:async\s*)?(?:\([^)]*\)|[\w$]+)\s*=>)|\bwindow\.([A-Z][\w$]*)\s*=[^=]')
-JS_REFERENCE = re.compile(r'(?<![\w$.])([A-Za-z_$][\w$]*)\s*[(.]')
+JS_FACTS = Path(__file__).resolve().parent / 'quality_js_symbols.mjs'
 DEFINITIONS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+ROUTE_DECORATORS = {'route', 'get', 'post', 'put', 'patch', 'delete'}
+TEMPLATE_TAG = re.compile(r'{%-?\s*(extends|include|import|from)\s+(["\'])(.+?)\2')
+TEMPLATE_URL_FOR = re.compile(r'url_for\(\s*(["\'])([\w.]+)\1')
+TEMPLATE_PATH = re.compile(r'(["\'])(/[^"\'\s<>{}]+)\1')
+URL_PLACEHOLDER = '{}'
+CODE_LINK_KINDS = {'imports', 'loads', 'uses', 'calls', 'requests', 'links', 'renders', 'extends', 'includes'}
+
+
+def javascript_facts(paths):
+    """Parse browser scripts with espree, the parser ESLint uses: symbols, shared globals, references, URLs and requests."""
+    if not paths:
+        return {}
+    result = subprocess.run(['node', str(JS_FACTS)], input=json.dumps([str(path) for path in paths]), capture_output=True, text=True)
+    if result.returncode:
+        raise ValueError(f'JavaScript parsing failed: {result.stderr.strip()}')
+    return json.loads(result.stdout)
+
+
+def flask_routes(fid, tree):
+    """The routes a Python file registers on a Flask app or blueprint it creates, each pointing at its view function."""
+    owners = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+            constructor = getattr(node.value.func, 'id', getattr(node.value.func, 'attr', None))
+            if constructor in {'Flask', 'Blueprint'}:
+                name = node.value.args[0].value if constructor == 'Blueprint' and node.value.args and isinstance(node.value.args[0], ast.Constant) else None
+                owners.update({target.id: name for target in node.targets if isinstance(target, ast.Name)})
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for decorator in node.decorator_list:
+            if not (isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute) and decorator.func.attr in ROUTE_DECORATORS
+                    and isinstance(decorator.func.value, ast.Name) and decorator.func.value.id in owners
+                    and decorator.args and isinstance(decorator.args[0], ast.Constant)):
+                continue
+            keywords = {keyword.arg: keyword.value for keyword in decorator.keywords}
+            methods = ['GET'] if decorator.func.attr == 'route' else [decorator.func.attr.upper()]
+            if isinstance(keywords.get('methods'), (ast.List, ast.Tuple)):
+                methods = [item.value.upper() for item in keywords['methods'].elts if isinstance(item, ast.Constant)]
+            endpoint = keywords['endpoint'].value if isinstance(keywords.get('endpoint'), ast.Constant) else node.name
+            blueprint = owners[decorator.func.value.id]
+            yield dict(pattern=decorator.args[0].value, methods=sorted(methods), endpoint=f'{blueprint}.{endpoint}' if blueprint else endpoint,
+                       symbol=f'{fid}:{node.name}@{node.lineno}', file=fid, line=node.lineno)
+
+
+def route_regex(pattern):
+    """A Flask URL rule as a regular expression: ``<path:name>`` spans segments, every other converter is one segment."""
+    regex = re.sub(r'<path:[^>]+>', '.+', re.escape(pattern))
+    return re.compile('^' + re.sub(r'<[^>]+>', '[^/]+', regex) + '$')
+
+
+def match_route(url, routes):
+    """The route a URL string reaches, or None. Runtime parts match any segment; a string ending in ``/`` expects one more."""
+    path = re.split(r'[?#]', url, maxsplit=1)[0].replace(URL_PLACEHOLDER, 'x')
+    candidates = [path] + ([path + 'x'] if path.endswith('/') else [])
+    found = [route for route in routes if any(route['regex'].match(candidate) for candidate in candidates)]
+    # Flask prefers the rule with the most fixed text, as `/docs/assets/<path>` over `/docs/<path>`.
+    return max(found, key=lambda route: len(re.sub(r'<[^>]+>', '', route['pattern'])), default=None)
+
+
+def unique_rows(rows):
+    """Rows without repeats, in file and line order. A nested function's call is seen from its enclosing function too."""
+    return sorted({json.dumps(row, sort_keys=True): row for row in rows}.values(), key=lambda row: (row['file'], row['line'], json.dumps(row, sort_keys=True)))
 
 
 def build_map(roots, catalogs, ownership):
@@ -518,11 +580,17 @@ def build_map(roots, catalogs, ownership):
         if path.endswith('.py'):
             file_ids[(repo, python_module(path))] = fid
     python, scripts, top = {}, {}, {}
+    javascript = javascript_facts([roots[repo] / path for repo, path in ownership if path.endswith('.js')])
+    # Route references, resolved once every route is known: (source, file, URL or endpoint, line, link kind).
+    routes, urls, endpoints, rendered, unmatched, dynamic = [], [], [], [], [], []
+    def line_of(text, offset):
+        return text.count('\n', 0, offset) + 1
     for (repo, path), mid in ownership.items():
         fid = f'{repo}:{path}'
         text = texts[(repo, path)]
         if path.endswith('.py'):
             tree = ast.parse(text)
+            routes.extend(flask_routes(fid, tree))
             local = {}
             for node in ast.walk(tree):
                 if isinstance(node, DEFINITIONS):
@@ -534,19 +602,28 @@ def build_map(roots, catalogs, ownership):
             top[fid] = {node.name: f'{fid}:{node.name}@{node.lineno}' for node in tree.body if isinstance(node, DEFINITIONS)}
             python[fid] = (repo, path, tree, local)
         elif path.endswith('.js'):
-            names, globals_ = {}, {}
-            for match in JS_SYMBOL.finditer(text):
-                name = match[1] or match[2]
-                line = text.count('\n', 0, match.start()) + 1
-                sid = f'{fid}:{name}@{line}'
-                names.setdefault(name, sid)
-                # Only top-level declarations and window properties are visible to other scripts.
-                if match[2] or text.rfind('\n', 0, match.start()) == match.start() - 1:
-                    globals_.setdefault(name, sid)
-                nodes.append(dict(id=sid, kind='symbol', name=name, path=path, line=line, module=mid, provenance='static-heuristic'))
-                edge(fid, sid, 'contains', 'static-heuristic')
-            scripts[fid] = (text, names, globals_)
+            facts = javascript[str(roots[repo] / path)]
+            for symbol in facts['symbols']:
+                sid = f"{fid}:{symbol['name']}@{symbol['line']}"
+                nodes.append(dict(id=sid, kind='symbol', name=symbol['name'], path=path, line=symbol['line'], module=mid, provenance='static-exact'))
+                edge(fid, sid, 'contains', 'static-exact')
+            scripts[fid] = facts
+            requested = {item['url'] for item in facts['requests'] if item['url']}
+            for item in facts['requests']:
+                if not item['url']:
+                    dynamic.append(dict(file=fid, line=item['line'], kind='request', expression=item['expression']))
+            for item in facts['strings']:
+                urls.append((fid, fid, item['value'], item['line'], item['value'] in requested))
         elif path.endswith('.html'):
+            for match in TEMPLATE_TAG.finditer(text):
+                rendered.append((fid, fid, match[3], line_of(text, match.start()), 'extends' if match[1] == 'extends' else 'includes'))
+            for match in TEMPLATE_URL_FOR.finditer(text):
+                if match[2] != 'static':
+                    endpoints.append((fid, fid, match[2], line_of(text, match.start())))
+            for match in re.finditer(r'url_for\(\s*([A-Za-z_]\w*)', text):
+                dynamic.append(dict(file=fid, line=line_of(text, match.start()), kind='url_for', expression=match[1]))
+            for match in TEMPLATE_PATH.finditer(text):
+                urls.append((fid, fid, match[2], line_of(text, match.start()), False))
             for order, script in enumerate(re.findall(r'<script\b[^>]*\bsrc\s*=\s*(["\'])(.*?)\1', text, re.S)):
                 src = script[1]
                 match = re.search(r'filename=["\']([^"\']+)', src)
@@ -580,6 +657,16 @@ def build_map(roots, catalogs, ownership):
             for call in ast.walk(symbols[sid]):
                 if not isinstance(call, ast.Call):
                     continue
+                flask_helper = getattr(call.func, 'id', getattr(call.func, 'attr', None))
+                if flask_helper in {'render_template', 'url_for'} and call.args:
+                    argument = call.args[0]
+                    if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+                        if flask_helper == 'render_template':
+                            rendered.append((sid, fid, argument.value, call.lineno, 'renders'))
+                        elif argument.value != 'static':
+                            endpoints.append((sid, fid, argument.value, call.lineno))
+                    else:
+                        dynamic.append(dict(file=fid, line=call.lineno, kind=flask_helper, expression=ast.unparse(argument)))
                 if isinstance(call.func, ast.Name):
                     targets = local.get(call.func.id) or ([bound_symbols[call.func.id]] if call.func.id in bound_symbols else [])
                 elif isinstance(call.func, ast.Attribute) and isinstance(call.func.value, ast.Name) and call.func.value.id in bound_modules:
@@ -589,20 +676,43 @@ def build_map(roots, catalogs, ownership):
                     targets = []
                 for target in targets:
                     edge(sid, target, 'calls', 'static-heuristic', line=call.lineno)
-    # Browser scripts share one global scope: a name defined in exactly one file is that file's export.
-    definitions = {}
-    for fid, (_, names, _) in scripts.items():
-        for name, sid in names.items():
-            definitions.setdefault(name, []).append(sid)
-    exported = {name: sids[0] for name, sids in definitions.items()
-                if len(sids) == 1 and len(name) > 3 and any(name in globals_ for _, _, globals_ in scripts.values())}
-    for fid, (text, names, _) in scripts.items():
-        text = text.replace('window.', ' ')
-        for match in JS_REFERENCE.finditer(text):
-            target = exported.get(match[1])
-            # Lowercase names followed by `.` are usually local variables, not another script's export.
-            if target and match[1] not in names and (match[0].endswith('(') or match[1][0].isupper()):
-                edge(fid, target, 'uses', 'static-heuristic', line=text.count('\n', 0, match.start()) + 1)
+    # Browser scripts share one global scope: a name a script reads but does not declare is the export of the one
+    # script that shares it. A name shared by several scripts is ambiguous, so it is reported instead of linked.
+    shared = {}
+    for fid, facts in scripts.items():
+        for name, line in facts['globals'].items():
+            shared.setdefault(name, []).append(f'{fid}:{name}@{line}')
+    for fid, facts in scripts.items():
+        for reference in facts['references']:
+            targets = shared.get(reference['name'], [])
+            if len(targets) == 1 and reference['name'] not in facts['globals']:
+                edge(fid, targets[0], 'uses', 'static-exact', line=reference['line'])
+    # Requests and links reach a view function through its URL rule or its endpoint name. Asking an API route, or
+    # sending a request, uses the view's code. Any other reference to a page is a link, recorded but drawing no
+    # module arrow: following a link does not use the page's code.
+    for route in routes:
+        route['regex'] = route_regex(route['pattern'])
+    by_endpoint = {route['endpoint']: route for route in routes}
+    def route_kind(route, request=False):
+        return 'requests' if request or route['pattern'].startswith('/api/') else 'links'
+    for source, fid, url, line, request in urls:
+        route = match_route(url, routes)
+        if route:
+            edge(source, route['symbol'], route_kind(route, request), 'static-heuristic', line=line)
+        elif request or url.startswith('/api/'):
+            unmatched.append(dict(file=fid, line=line, kind='url', reference=url))
+    for source, fid, endpoint, line in endpoints:
+        if endpoint in by_endpoint:
+            edge(source, by_endpoint[endpoint]['symbol'], route_kind(by_endpoint[endpoint]), 'static-exact', line=line)
+        else:
+            unmatched.append(dict(file=fid, line=line, kind='endpoint', reference=endpoint))
+    for source, fid, name, line, kind in rendered:
+        repo = fid.split(':', 1)[0]
+        if (repo, f'templates/{name}') in ownership:
+            edge(source, f'{repo}:templates/{name}', kind, 'static-exact', line=line)
+        elif not (roots[repo] / 'templates' / name).is_file():
+            unmatched.append(dict(file=fid, line=line, kind='template', reference=name))
+        # A template that exists but is no code file, as llms.txt, has no node to link to.
     for repo, catalog in catalogs.items():
         for contract in catalog.get('contracts', []):
             cid = 'contract.' + contract['id']
@@ -614,8 +724,12 @@ def build_map(roots, catalogs, ownership):
     graph = dict(schema_version=1, generated_at=datetime.now(timezone.utc).isoformat(),
                  limitations=['Python import syntax is exact; runtime resolution can differ.',
                               'Python calls resolve through local definitions and imports only; calls through objects, attributes of instances and dynamic dispatch are missing.',
-                              'JavaScript symbols and their uses are heuristic: a global name defined in exactly one browser script counts as that script\'s export.',
-                              'Fetch routes, templates rendering data and external calls are not a complete call graph.'],
+                              'JavaScript is parsed with espree. A global a script reads is linked to the one script that shares it; whether both load on the same page is not checked.',
+                              'HTTP requests and page links reach a Flask route through its URL text or url_for endpoint. A URL built at runtime is listed as a blind spot, not linked.',
+                              'Shared database tables, external services and the data a view passes to its template are not links.'],
+                 routes=[{key: value for key, value in route.items() if key != 'regex'} for route in routes],
+                 blind_spots=dict(unmatched=unique_rows(unmatched), dynamic=unique_rows(dynamic),
+                                  shared_names=[dict(name=name, symbols=sorted(sids)) for name, sids in sorted(shared.items()) if len(sids) > 1]),
                  nodes=list({node['id']: node for node in nodes}.values()), edges=list({json.dumps(item, sort_keys=True): item for item in edges}.values()))
     write_json(ROOT / 'quality/quality-map.json', graph)
     write_json(ROOT / 'quality/code-map.json', code_map(graph, catalogs))
@@ -627,17 +741,24 @@ def code_map(graph, catalogs):
     nodes = {node['id']: node for node in graph['nodes']}
     def file_of(node_id):
         return node_id if nodes[node_id]['kind'] == 'file' else node_id.rsplit(':', 1)[0]
-    links, used_by, reexports = {}, {}, {}
+    links, used_by, reexports, route_users, symbol_links = {}, {}, {}, {}, {}
     for item in graph['edges']:
         source, target = nodes.get(item['source']), nodes.get(item['target'])
-        if item['kind'] not in {'imports', 'loads', 'uses', 'calls'} or not source or not target or 'module' not in source or 'module' not in target:
+        if item['kind'] not in CODE_LINK_KINDS or not source or not target or 'module' not in source or 'module' not in target:
             continue
         if item['kind'] == 'uses' and source['kind'] == 'file':
             reexports.setdefault(source['id'], []).append(target['id'])
         key = (file_of(source['id']), file_of(target['id']), item['kind'])
         if key[0] != key[1]:
             links[key] = links.get(key, 0) + 1
-        if source['module'] != target['module'] and target['kind'] == 'symbol':
+        # The function view: every link with a function or class at one end, including links inside one file.
+        if 'symbol' in (source['kind'], target['kind']) and source['id'] != target['id']:
+            key = (source['id'], target['id'], item['kind'])
+            symbol_links[key] = symbol_links.get(key, 0) + 1
+        if item['kind'] in {'requests', 'links'}:
+            route_users.setdefault((target['id'], item['kind']), set()).add(file_of(source['id']))
+        # Following a link to a page does not use its code, so links are no part of a module's interface.
+        if source['module'] != target['module'] and target['kind'] == 'symbol' and item['kind'] != 'links':
             used_by.setdefault(target['id'], set()).add(source['module'])
     symbols = {}
     for node in graph['nodes']:
@@ -664,8 +785,15 @@ def code_map(graph, catalogs):
                  for catalog in catalogs.values() for contract in catalog.get('contracts', [])]
     files = [dict(id=node['id'], module=node['module'], lines=node.get('lines', 0), symbols=len(symbols.get(node['id'], [])))
              for node in graph['nodes'] if node['kind'] == 'file']
+    routes = [dict(route, requested_by=sorted(route_users.get((route['symbol'], 'requests'), ())),
+                   linked_by=sorted(route_users.get((route['symbol'], 'links'), ())))
+              for route in sorted(graph.get('routes', []), key=lambda route: (route['pattern'], route['endpoint']))]
     return dict(schema_version=1, generated_at=graph['generated_at'], limitations=graph['limitations'], modules=modules, contracts=contracts,
-                files=sorted(files, key=lambda row: row['id']), interface=interface,
+                files=sorted(files, key=lambda row: row['id']), interface=interface, routes=routes,
+                symbols=sorted((dict(id=node['id'], name=node['name'], file=file_of(node['id']), line=node['line'])
+                                for node in graph['nodes'] if node['kind'] == 'symbol'), key=lambda row: (row['file'], row['line'], row['name'])),
+                symbol_links=[dict(source=source, target=target, kind=kind, count=count) for (source, target, kind), count in sorted(symbol_links.items())],
+                blind_spots=graph.get('blind_spots', dict(unmatched=[], dynamic=[], shared_names=[])),
                 links=[dict(source=source, target=target, kind=kind, count=count) for (source, target, kind), count in sorted(links.items())])
 
 

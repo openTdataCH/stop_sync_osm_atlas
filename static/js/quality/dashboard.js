@@ -37,7 +37,12 @@
     const NOT_MEASURED_COLOR = '#e9ecef';
     // The same values as the --color-quality-* tokens.
     const EDGE_COLORS = { declared: MUTED, undeclared: '#e08e0b', unused: '#adb5bd', internal: '#ced4da', crossing: NAVY, contract: PURPLE };
-    const LINK_KINDS = { imports: 'imports', uses: 'names imported or referenced', calls: 'calls', loads: 'script loads' };
+    const LINK_KINDS = {
+        imports: 'imports', uses: 'names imported or referenced', calls: 'calls', loads: 'script loads', requests: 'HTTP requests',
+        renders: 'templates rendered', extends: 'templates extended', includes: 'templates included', links: 'links to pages'
+    };
+    const UNMATCHED_KINDS = { url: 'URL', endpoint: 'url_for endpoint', template: 'template' };
+    const DYNAMIC_KINDS = { request: 'request', url_for: 'url_for', render_template: 'render_template' };
     const STATUS = {
         pass: { label: 'Pass', icon: 'fa-check-circle', tone: 'good' },
         measured: { label: 'Measured', icon: '', tone: 'neutral' },
@@ -60,9 +65,15 @@
     const FILE_ROW_SPACING = 46;
     const MAX_FILE_ROWS = 12;
     const BOX_GAP = 80;
+    const FUNCTION_COLUMN_SPACING = 210;
+    const FUNCTION_ROW_SPACING = 34;
+    const MAX_FUNCTION_ROWS = 16;
     // Below this zoom file names are too small to read, so a module opens at least this close.
     const READABLE_ZOOM = 0.8;
     const MODULE_ZOOM = 0.5;
+    // A tooltip waits for the cursor to rest, so sweeping across the map shows nothing.
+    const HOVER_DELAY = 250;
+    const TOOLTIP_GRACE = 120;
 
     function escapeHtml(value) {
         const replacements = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -98,6 +109,19 @@
         return owners;
     }
 
+    /** A link to a page is listed with its file but draws no arrow: following a link does not use the page's code. */
+    function drawn(link) {
+        return link.kind !== 'links';
+    }
+
+    function symbolFile(symbolId) {
+        return symbolId.slice(0, symbolId.lastIndexOf(':'));
+    }
+
+    function symbolLine(symbolId) {
+        return Number(symbolId.slice(symbolId.lastIndexOf('@') + 1));
+    }
+
     function declaredDependencies(codeMap) {
         const declared = new Set();
         codeMap.modules.forEach((module) => (module.dependencies || []).forEach((dependency) => declared.add(module.id + '>' + dependency)));
@@ -117,7 +141,7 @@
         const owners = fileOwners(codeMap);
         const declared = declaredDependencies(codeMap);
         const result = {};
-        codeMap.links.forEach((link) => {
+        codeMap.links.filter(drawn).forEach((link) => {
             const source = owners[link.source];
             const target = owners[link.target];
             if (!source || !target || source === target) return;
@@ -149,6 +173,17 @@
             cycles: used.filter((link) => link.source < link.target && keys.has(link.target + '>' + link.source)),
             unused: moduleLinks.filter((link) => link.count === 0),
             privateNames
+        };
+    }
+
+    /** Where reading the code is not enough: references that reach nothing, routes nothing reaches, runtime URLs and ambiguous names. */
+    function blindSpots(codeMap) {
+        const spots = codeMap.blind_spots || {};
+        return {
+            unmatched: spots.unmatched || [],
+            unreached: (codeMap.routes || []).filter((route) => !route.requested_by.length && !route.linked_by.length),
+            dynamic: spots.dynamic || [],
+            sharedNames: spots.shared_names || []
         };
     }
 
@@ -186,7 +221,7 @@
         };
         const owners = fileOwners(codeMap);
         codeMap.modules.forEach((module) => (module.dependencies || []).forEach((dependency) => connect(module.id, dependency)));
-        codeMap.links.forEach((link) => connect(owners[link.source], owners[link.target]));
+        codeMap.links.filter(drawn).forEach((link) => connect(owners[link.source], owners[link.target]));
         let order = ids.slice().sort((a, b) => levels[b] - levels[a] || a.localeCompare(b));
         for (let round = 0; round < 4; round++) {
             const index = {};
@@ -250,7 +285,7 @@
         const files = indexBy(codeMap.files, 'id');
         const declared = declaredDependencies(codeMap);
         const pairs = {};
-        codeMap.links.forEach((link) => {
+        codeMap.links.filter(drawn).forEach((link) => {
             const source = owners[link.source];
             const target = owners[link.target];
             if (!source || !target || (focusId && source !== focusId && target !== focusId)) return;
@@ -332,6 +367,79 @@
         };
         side(users, -2 * FILE_COLUMN_SPACING, -1);
         side(Array.from(used).filter((moduleId) => !users.has(moduleId)), x + FILE_COLUMN_SPACING, 1);
+        return positions;
+    }
+
+    /**
+     * One file's functions and classes, and the functions and files at the other end of their links: those that use
+     * them (``users``) and those they use (``used``), each keyed by file. A file-level end, such as a module-level
+     * import, is the file itself and has no member.
+     */
+    function functionGraph(codeMap, fileId) {
+        const owners = fileOwners(codeMap);
+        const declared = declaredDependencies(codeMap);
+        const symbols = indexBy(codeMap.symbols || [], 'id');
+        const fileOf = (id) => (symbols[id] ? symbols[id].file : id);
+        const inside = (codeMap.symbols || []).filter((symbol) => symbol.file === fileId)
+            .sort((a, b) => a.line - b.line || a.name.localeCompare(b.name)).map((symbol) => symbol.id);
+        const pairs = {};
+        (codeMap.symbol_links || []).filter(drawn).forEach((link) => {
+            if (fileOf(link.source) !== fileId && fileOf(link.target) !== fileId) return;
+            const key = link.source + '>' + link.target;
+            const sourceModule = owners[fileOf(link.source)];
+            const targetModule = owners[fileOf(link.target)];
+            const entry = pairs[key] || (pairs[key] = {
+                source: link.source, target: link.target, count: 0, kinds: {},
+                crossing: sourceModule !== targetModule, declared: sourceModule === targetModule || declared.has(sourceModule + '>' + targetModule)
+            });
+            entry.count += link.count;
+            addCount(entry.kinds, link.kind, link.count);
+        });
+        const links = Object.values(pairs);
+        const users = {};
+        const used = {};
+        const add = (side, id) => {
+            const members = side[fileOf(id)] || (side[fileOf(id)] = []);
+            if (symbols[id] && !members.includes(id)) members.push(id);
+        };
+        links.forEach((link) => {
+            if (fileOf(link.target) === fileId && fileOf(link.source) !== fileId) add(users, link.source);
+        });
+        links.forEach((link) => {
+            const other = fileOf(link.target);
+            if (fileOf(link.source) !== fileId || other === fileId) return;
+            add(users[other] ? users : used, link.target);
+        });
+        [users, used].forEach((side) => Object.values(side).forEach((members) => members.sort((a, b) => symbols[a].line - symbols[b].line)));
+        const entries = new Set(links.filter((link) => link.crossing && fileOf(link.target) === fileId).map((link) => link.target));
+        return { file: fileId, inside, users, used, links, entries, symbols };
+    }
+
+    /** The opened file's functions in line order in the middle; files that use them on the left, files they use on the right. */
+    function functionPositions(graph) {
+        const positions = {};
+        const rows = Math.max(1, Math.min(graph.inside.length, MAX_FUNCTION_ROWS));
+        graph.inside.forEach((id, index) => {
+            positions[id] = { x: Math.floor(index / MAX_FUNCTION_ROWS) * FUNCTION_COLUMN_SPACING, y: (index % MAX_FUNCTION_ROWS) * FUNCTION_ROW_SPACING };
+        });
+        if (!graph.inside.length) positions[graph.file] = { x: 0, y: 0 };
+        const right = Math.max(0, Math.ceil(graph.inside.length / MAX_FUNCTION_ROWS) - 1) * FUNCTION_COLUMN_SPACING;
+        const middle = (rows - 1) * FUNCTION_ROW_SPACING / 2;
+        const side = (files, start, direction) => {
+            const boxes = Object.keys(files).sort().map((file) => [file, files[file]]);
+            const boxRows = (ids) => Math.max(1, Math.min(ids.length, MAX_FUNCTION_ROWS));
+            const height = boxes.reduce((sum, [, ids]) => sum + boxRows(ids) * FUNCTION_ROW_SPACING, 0) + Math.max(0, boxes.length - 1) * BOX_GAP;
+            let y = middle - height / 2;
+            boxes.forEach(([file, ids]) => {
+                if (!ids.length) positions[file] = { x: start, y };
+                ids.forEach((id, index) => {
+                    positions[id] = { x: start + direction * Math.floor(index / MAX_FUNCTION_ROWS) * FUNCTION_COLUMN_SPACING, y: y + (index % MAX_FUNCTION_ROWS) * FUNCTION_ROW_SPACING };
+                });
+                y += boxRows(ids) * FUNCTION_ROW_SPACING + BOX_GAP;
+            });
+        };
+        side(graph.users, -2 * FUNCTION_COLUMN_SPACING, -1);
+        side(graph.used, right + 2 * FUNCTION_COLUMN_SPACING, 1);
         return positions;
     }
 
@@ -505,7 +613,35 @@
         }));
         graph.links.forEach((link) => elements.push({
             group: 'edges', classes: !link.crossing ? 'internal' : link.declared ? 'crossing' : 'crossing undeclared',
-            data: { id: 'file-link:' + link.source + '>' + link.target, source: link.source, target: link.target, kind: 'file-link', width: edgeWidth(link.count) / 1.5 }
+            data: { id: 'file-link:' + link.source + '>' + link.target, source: link.source, target: link.target, kind: 'file-link', kinds: kindsText(link.kinds), width: edgeWidth(link.count) / 1.5 }
+        }));
+        return elements;
+    }
+
+    function functionElements(codeMap, report, options) {
+        const graph = functionGraph(codeMap, options.file);
+        const positions = functionPositions(graph);
+        const modules = indexBy(codeMap.modules, 'id');
+        const owners = fileOwners(codeMap);
+        const elements = [];
+        const box = (file, outside) => elements.push({
+            group: 'nodes', classes: 'function-file' + (outside ? ' outside' : ' focus'), position: positions[file],
+            data: { id: file, label: baseName(file) + (owners[file] !== owners[graph.file] ? ' · ' + shortName(owners[file]) : ''), kind: 'function-file', module: owners[file] }
+        });
+        const member = (id, file) => elements.push({
+            group: 'nodes', classes: 'function' + (graph.entries.has(id) ? ' entry' : ''), position: positions[id],
+            data: Object.assign({ id, parent: file, label: graph.symbols[id].name, kind: 'function', module: owners[file] },
+                paint(nodeColor(modules[owners[file]], report, options.colorBy)))
+        });
+        box(graph.file, false);
+        graph.inside.forEach((id) => member(id, graph.file));
+        [graph.users, graph.used].forEach((side) => Object.keys(side).forEach((file) => {
+            box(file, true);
+            side[file].forEach((id) => member(id, file));
+        }));
+        graph.links.forEach((link) => elements.push({
+            group: 'edges', classes: !link.crossing ? 'internal' : link.declared ? 'crossing' : 'crossing undeclared',
+            data: { id: 'function-link:' + link.source + '>' + link.target, source: link.source, target: link.target, kind: 'function-link', kinds: kindsText(link.kinds), width: edgeWidth(link.count) / 1.5 }
         }));
         return elements;
     }
@@ -545,7 +681,14 @@
             width: (node) => labelWidth(node.data('label'), 11, 500) + 16, height: 24, 'corner-radius': 6,
             'font-size': 11, 'font-weight': 500, 'min-zoomed-font-size': 7
         } },
-        { selector: 'node.file.entry', style: { 'outline-width': 1.5, 'outline-color': INK, 'outline-opacity': 0.6, 'outline-offset': 2 } },
+        { selector: 'node.function', style: {
+            shape: 'round-rectangle', 'background-color': 'data(color)', 'border-width': 1, 'border-color': 'data(borderColor)',
+            label: 'data(label)', color: 'data(textColor)', 'text-valign': 'center', 'text-halign': 'center',
+            width: (node) => labelWidth(node.data('label'), 11, 500) + 14, height: 22, 'corner-radius': 5,
+            'font-size': 11, 'font-weight': 500, 'min-zoomed-font-size': 7,
+            'underlay-color': NAVY, 'underlay-opacity': 0, 'underlay-padding': 5, 'underlay-shape': 'round-rectangle'
+        } },
+        { selector: 'node.file.entry, node.function.entry', style: { 'outline-width': 1.5, 'outline-color': INK, 'outline-opacity': 0.6, 'outline-offset': 2 } },
         { selector: 'node.repository, node.file-module', style: {
             label: 'data(label)', 'text-valign': 'top', 'text-halign': 'center', 'text-margin-y': -8, 'text-transform': 'uppercase',
             'font-size': 12, 'font-weight': 700, color: MUTED, 'background-color': '#f8f9fa', 'background-opacity': 1,
@@ -555,6 +698,17 @@
         { selector: 'node.file-module', style: { 'font-size': 14, padding: 18 } },
         { selector: 'node.file-module.overview', style: { 'font-size': 30, color: INK, 'text-margin-y': -12 } },
         { selector: 'node.file-module.outside', style: { 'background-color': '#ffffff', 'border-style': 'dashed', 'border-color': '#ced4da' } },
+        { selector: 'node.function-file', style: {
+            label: 'data(label)', 'text-valign': 'top', 'text-halign': 'center', 'text-margin-y': -6,
+            'font-size': 12, 'font-weight': 600, color: MUTED, 'background-color': '#f8f9fa', 'background-opacity': 1,
+            'border-width': 1, 'border-color': '#e5e7eb', shape: 'round-rectangle', 'corner-radius': 10, padding: 14
+        } },
+        { selector: 'node.function-file.outside', style: { 'background-color': '#ffffff', 'border-style': 'dashed', 'border-color': '#ced4da' } },
+        // A file reached only at module level has no functions to hold: it is a plain box with its name inside.
+        { selector: 'node.function-file:childless', style: {
+            width: (node) => labelWidth(node.data('label'), 11, 500) + 16, height: 24, 'text-valign': 'center', 'text-margin-y': 0,
+            'font-size': 11, 'font-weight': 500, color: INK
+        } },
         { selector: 'node.contract', style: {
             shape: 'diamond', width: 22, height: 22, 'background-color': PURPLE, label: 'data(label)',
             'text-valign': 'bottom', 'text-margin-y': 6, 'text-wrap': 'wrap', 'text-max-width': 120, 'font-size': 11, 'font-weight': 600, color: PURPLE,
@@ -575,14 +729,17 @@
         { selector: 'edge.contract-link', style: {
             width: 1.5, 'line-color': EDGE_COLORS.contract, 'line-style': 'dotted', 'target-arrow-shape': 'none', 'curve-style': 'straight', 'line-opacity': 0.6
         } },
-        { selector: '.faded', style: { opacity: 0.12 } },
+        // Focus, from a click: the rest of the graph steps back but stays readable.
+        { selector: '.faded', style: { opacity: 0.35 } },
         { selector: 'edge.lit', style: { 'line-opacity': 1, 'z-index': 10 } },
         { selector: 'edge.lit[label]', style: {
             label: 'data(label)', 'font-family': FONT, 'font-size': 11, 'font-weight': 600, color: INK, 'text-rotation': 'none',
             'text-background-color': '#ffffff', 'text-background-opacity': 1, 'text-background-padding': 3, 'text-background-shape': 'round-rectangle',
             'text-border-width': 1, 'text-border-color': '#e5e7eb', 'text-border-opacity': 1
         } },
-        { selector: 'node.hover', style: { 'underlay-opacity': 0.14 } },
+        // Hover only marks: a darker outline on the box and thicker arrows of its own. Nothing else changes.
+        { selector: 'node.hover', style: { 'underlay-opacity': 0.14, 'border-width': 2, 'border-color': INK } },
+        { selector: 'edge.hover', style: { width: (edge) => (edge.data('width') || 1.5) + 1.5, 'line-opacity': 1, 'z-index': 9 } },
         { selector: 'node:selected', style: { 'underlay-opacity': 0.3, 'underlay-padding': 6 } },
         { selector: 'edge:selected', style: { 'underlay-color': NAVY, 'underlay-opacity': 0.2, 'underlay-padding': 5 } }
     ];
@@ -610,7 +767,8 @@
             items.push(line('internal', 'Inside one module'));
             items.push(line('crossing', 'Across a declared module dependency'));
             items.push(line('undeclared', 'Across an undeclared module dependency'));
-            items.push('<li><span class="quality-swatch quality-swatch--entry" aria-hidden="true"></span>Ringed: file used from another module</li>');
+            items.push('<li><span class="quality-swatch quality-swatch--entry" aria-hidden="true"></span>Ringed: '
+                + (state.view === 'functions' ? 'function' : 'file') + ' used from another module</li>');
         }
         return items.join('');
     }
@@ -643,6 +801,18 @@
     const CLOSE_BUTTON = '<button type="button" class="quality-panel__close" data-clear-selection title="Close (Esc)" aria-label="Close details"><i class="fas fa-times" aria-hidden="true"></i></button>';
 
     function overviewHtml(state) {
+        if (state.view === 'functions') {
+            return '<p class="quality-eyebrow">File functions</p>'
+                + '<h2 class="quality-panel__title">How to read the functions</h2>'
+                + '<ol class="quality-steps">'
+                + '<li>The opened file\'s functions and classes are in the middle, in line order. What uses them is on the left, what they use on the right, grouped by file.</li>'
+                + '<li>Arrows are calls, imported or shared names, HTTP requests and templates rendered. A box holding no function is reached at file level, such as a module-level import.</li>'
+                + '<li>Calls through objects, such as <code>self.save()</code>, are not seen.</li>'
+                + '<li>A ringed function is used from another module.</li>'
+                + '<li>Select a function for its callers and callees. Double-click one on either side to open its file.</li>'
+                + '<li>Press <kbd>Esc</kbd> or use the module name at the top left to go back to the module\'s files.</li>'
+                + '</ol>';
+        }
         if (state.view === 'files') {
             return '<p class="quality-eyebrow">' + (state.focus ? 'Module files' : 'All files') + '</p>'
                 + '<h2 class="quality-panel__title">How to read the files</h2>'
@@ -652,7 +822,7 @@
                         + '<li>Inside, files are ordered by how far they are from where calls enter the module.</li>'
                     : '<li>Every module\'s files, with the modules in the layers of the module view.</li>')
                 + '<li>A ringed file is used from another module: the arrows crossing a border are the module\'s actual interface.</li>'
-                + '<li>Hover a file to trace its links; select it for details.</li>'
+                + '<li>Select a file to focus on its links and see its details; double-click it to open its functions.</li>'
                 + '<li>Press <kbd>Esc</kbd> or use <strong>All modules</strong> at the top left to go back.</li>'
                 + '</ol>';
         }
@@ -660,9 +830,10 @@
             + '<h2 class="quality-panel__title">How to read the map</h2>'
             + '<ol class="quality-steps">'
             + '<li>Each box is a module: a group of files with one responsibility in the module catalog.</li>'
-            + '<li>An arrow goes from the module whose code uses another module to the module it uses. A module sits above the modules it declares, so declared dependencies point down.</li>'
+            + '<li>An arrow goes from the module whose code uses another module to the module it uses: imports, calls, shared browser names, script loads, HTTP requests and templates. A link to a page draws no arrow.</li>'
+            + '<li>A module sits above the modules it lists as dependencies in the catalog, so declared dependencies point down.</li>'
             + '<li>An orange dashed arrow is a code dependency the catalog does not declare.</li>'
-            + '<li>Hover a module to trace its dependencies, select it for details, and double-click it to open its files.</li>'
+            + '<li>Select a module to focus on its dependencies and see its details, and double-click it to open its files. <kbd>Esc</kbd> or a click on the background clears the focus.</li>'
             + '<li>Drag to move. Zoom with the buttons or <kbd>Ctrl</kbd>/<kbd>⌘</kbd> and scroll.</li>'
             + '</ol>';
     }
@@ -704,7 +875,7 @@
             + '<h3 class="quality-panel__subtitle">Used by</h3>' + list(incoming.map((link) => dependencyItem(link, link.source)), 'No other module.')
             + '<h3 class="quality-panel__subtitle">Declared entry points</h3>' + list(entrypoints, 'None declared.')
             + '<h3 class="quality-panel__subtitle">Used from other modules (' + interfaceRows.length + ')</h3>'
-            + list(used, 'No function or class is referenced from another module\'s code. Use may go through HTTP, the database or templates, which the map does not see.')
+            + list(used, 'No function or class is referenced from another module\'s code. Use may go through the database or a URL built at runtime, which the map does not see.')
             + '<h3 class="quality-panel__subtitle">Invariants</h3>' + list(module.invariants.map(escapeHtml), 'None recorded.')
             + '<h3 class="quality-panel__subtitle">Documentation</h3>' + list(docs, 'None declared.')
             + '<p class="quality-panel__note">Owner: ' + escapeHtml(module.owner) + '. Catalog entry reviewed ' + escapeHtml(module.reviewed) + '.</p>';
@@ -719,7 +890,7 @@
             addCount(entry.kinds, item.kind, item.count);
         });
         const status = link.count === 0
-            ? 'The catalog declares this dependency, but no code reference was found. It may go through HTTP, the database or templates, which the map does not see.'
+            ? 'The catalog declares this dependency, but no code reference was found. It may go through the database or a URL built at runtime, which the map does not see, or the declaration is out of date.'
             : link.declared ? 'The catalog declares this dependency.'
                 : '<strong class="quality-warn-text">The catalog does not declare this dependency.</strong> Either declare it in <code>quality/modules.yml</code> or remove the reference.';
         return CLOSE_BUTTON
@@ -743,15 +914,58 @@
         const outgoing = graph.links.filter((link) => link.source === fileId);
         const incoming = graph.links.filter((link) => link.target === fileId);
         const used = ((context.data.code_map.interface || {})[file.module] || []).filter((symbol) => symbol.file === fileId);
+        const routes = (context.data.code_map.routes || []).filter((route) => route.file === fileId);
+        const pageLinks = {};
+        context.data.code_map.links.filter((link) => !drawn(link) && link.source === fileId).forEach((link) => addCount(pageLinks, link.target, link.count));
+        const open = context.state.view === 'functions' && context.state.file === fileId ? ''
+            : '<p><button type="button" class="quality-button" data-open-file="' + escapeHtml(fileId) + '"><i class="fas fa-code" aria-hidden="true"></i> Open file functions</button></p>';
+        const reached = (route) => [route.requested_by.length ? 'requested by ' + route.requested_by.map(baseName).map(escapeHtml).join(', ') : '',
+            route.linked_by.length ? 'linked from ' + route.linked_by.map(baseName).map(escapeHtml).join(', ') : ''].filter(Boolean).join('; ')
+            || 'Nothing in the code reaches it';
         return CLOSE_BUTTON
             + '<p class="quality-eyebrow">File in ' + escapeHtml(shortName(file.module)) + '</p>'
             + '<h2 class="quality-panel__title">' + escapeHtml(baseName(fileId)) + '</h2>'
             + '<p>' + sourceLink(context.data, fileId) + '</p>'
             + '<p class="quality-muted">' + plural(file.lines || 0, 'line') + ', ' + plural(file.symbols || 0, 'function or class', 'functions and classes') + '.</p>'
+            + open
             + '<h3 class="quality-panel__subtitle">Used from other modules (' + used.length + ')</h3>'
             + list(used.map((symbol) => '<code>' + escapeHtml(symbol.name) + '</code><small>by ' + symbol.used_by.map(shortName).map(escapeHtml).join(', ') + '</small>'), 'Nothing in this file.')
+            + (routes.length ? '<h3 class="quality-panel__subtitle">Routes (' + routes.length + ')</h3>'
+                + list(routes.map((route) => ['<code>' + escapeHtml(route.pattern) + '</code>', escapeHtml(route.methods.join(', ')), reached(route)]), '') : '')
             + '<h3 class="quality-panel__subtitle">Uses</h3>' + list(lines(outgoing, 'target'), 'No other file.')
-            + '<h3 class="quality-panel__subtitle">Used by</h3>' + list(lines(incoming, 'source'), 'No other file.');
+            + '<h3 class="quality-panel__subtitle">Used by</h3>' + list(lines(incoming, 'source'), 'No other file.')
+            + (Object.keys(pageLinks).length ? '<h3 class="quality-panel__subtitle">Links to pages</h3>'
+                + list(Object.keys(pageLinks).sort().map((target) => [sourceLink(context.data, target), plural(pageLinks[target], 'link')]), '') : '');
+    }
+
+    /** A function's callers and callees, each a button that opens it in its file. */
+    function functionHtml(context, symbolId) {
+        const codeMap = context.data.code_map;
+        const symbol = context.symbols[symbolId];
+        const moduleId = context.owners[symbol.file];
+        const route = (codeMap.routes || []).find((item) => item.symbol === symbolId);
+        const usedBy = ((codeMap.interface || {})[moduleId] || []).find((item) => item.id === symbolId);
+        const links = (codeMap.symbol_links || []).filter((link) => link.source === symbolId || link.target === symbolId);
+        const end = (id) => {
+            const other = context.symbols[id];
+            const file = other ? other.file : id;
+            const tag = context.owners[file] !== moduleId ? ' <span class="quality-tag">' + escapeHtml(shortName(context.owners[file] || '')) + '</span>' : '';
+            const name = other
+                ? '<a href="#' + escapeHtml(id) + '" class="quality-link" data-select-function="' + escapeHtml(id) + '"><code>' + escapeHtml(other.name) + '</code></a>'
+                : '<a href="#' + escapeHtml(id) + '" class="quality-link" data-open-file="' + escapeHtml(id) + '">' + escapeHtml(baseName(id)) + '</a> (file level)';
+            return name + tag + '<small>' + sourceLink(context.data, file, other ? other.line : null) + '</small>';
+        };
+        const rows = (side, other) => links.filter((link) => link[side] === symbolId)
+            .sort((a, b) => a[other].localeCompare(b[other]) || a.kind.localeCompare(b.kind))
+            .map((link) => [end(link[other]), escapeHtml(kindsText({ [link.kind]: link.count }))]);
+        return CLOSE_BUTTON
+            + '<p class="quality-eyebrow">Function in ' + escapeHtml(baseName(symbol.file)) + '</p>'
+            + '<h2 class="quality-panel__title"><code>' + escapeHtml(symbol.name) + '</code></h2>'
+            + '<p>' + sourceLink(context.data, symbol.file, symbol.line) + '</p>'
+            + (route ? '<p>Answers <code>' + escapeHtml(route.methods.join(', ') + ' ' + route.pattern) + '</code>.</p>' : '')
+            + (usedBy ? '<p class="quality-muted">Used from ' + usedBy.used_by.map(shortName).map(escapeHtml).join(', ') + '.</p>' : '')
+            + '<h3 class="quality-panel__subtitle">Used by</h3>' + list(rows('target', 'source'), 'Nothing the map can see.')
+            + '<h3 class="quality-panel__subtitle">Uses</h3>' + list(rows('source', 'target'), 'Nothing the map can see.');
     }
 
     function contractHtml(context, contractId) {
@@ -765,11 +979,16 @@
             + '<h3 class="quality-panel__subtitle">Consumed by</h3>' + list(contract.consumers.map(moduleButton), 'Nobody.');
     }
 
-    function findingsHtml(context) {
-        const findings = context.findings;
-        const group = (title, lead, items, empty) => '<div class="quality-finding' + (items.length ? ' quality-finding--warn' : '') + '">'
+    /** A titled list with its count; ``warn`` marks a non-empty list as something to act on. */
+    function findingGroup(title, lead, items, empty, warn = true) {
+        return '<div class="quality-finding' + (warn && items.length ? ' quality-finding--warn' : '') + '">'
             + '<div class="quality-finding__head"><h3>' + title + '</h3><span class="quality-finding__count">' + items.length + '</span></div>'
             + '<p>' + lead + '</p>' + list(items, empty) + '</div>';
+    }
+
+    function findingsHtml(context) {
+        const findings = context.findings;
+        const group = findingGroup;
         const privateItems = findings.privateNames.map((symbol) => ['<code>' + escapeHtml(symbol.name) + '</code> in ' + moduleButton(symbol.module),
             'used by ' + symbol.used_by.map(shortName).map(escapeHtml).join(', '), sourceLink(context.data, symbol.file, symbol.line)]);
         return group('Undeclared module dependencies', 'Code in one module references another module the catalog does not list as a dependency.',
@@ -777,8 +996,25 @@
             + group('Modules that depend on each other', 'Each of the two modules references the other, so neither can change in isolation.',
                 findings.cycles.map((link) => moduleButton(link.source) + ' ⇄ ' + moduleButton(link.target)), 'None.')
             + group('Private names used across a boundary', 'A name starting with <code>_</code> is internal to its module, but another module uses it.', privateItems, 'None.')
-            + group('Declared dependencies without code references', 'These may go through HTTP, the database or templates, which the map does not see, or the declaration is out of date.',
+            + group('Declared dependencies without code references', 'These may go through the database or a URL built at runtime, which the map does not see, or the declaration is out of date.',
                 findings.unused.map(linkButton), 'None.');
+    }
+
+    function blindSpotsHtml(context) {
+        const data = context.data;
+        const spots = blindSpots(data.code_map);
+        const at = (row) => sourceLink(data, row.file, row.line);
+        return findingGroup('References that reach nothing', 'A URL, <code>url_for</code> endpoint or template name in the code that the app does not serve: a typo, or a route that was removed.',
+            spots.unmatched.map((row) => ['<code>' + escapeHtml(row.reference) + '</code>', escapeHtml(UNMATCHED_KINDS[row.kind] || row.kind), at(row)]), 'None.')
+            + findingGroup('Routes nothing in the code reaches', 'No script, template or view requests or links to these. They may serve outside clients, crawlers or links in the documentation, or be unused.',
+                spots.unreached.map((route) => ['<code>' + escapeHtml(route.pattern) + '</code>', escapeHtml(route.methods.join(', ')), sourceLink(data, route.file, route.line)]), 'None.', false)
+            + findingGroup('URLs and templates chosen at runtime', 'The code computes the URL, endpoint or template when it runs, so the map cannot tell which route or template it reaches.',
+                spots.dynamic.map((row) => ['<code>' + escapeHtml(row.expression) + '</code>', escapeHtml(DYNAMIC_KINDS[row.kind] || row.kind), at(row)]), 'None.', false)
+            + findingGroup('Browser names declared by several scripts', 'Scripts share one global scope, so a reference to one of these names cannot be linked to one script; on a page loading several, the last one wins.',
+                spots.sharedNames.map((row) => ['<code>' + escapeHtml(row.name) + '</code>', plural(row.symbols.length, 'script'),
+                    row.symbols.map((symbol) => sourceLink(data, symbolFile(symbol), symbolLine(symbol))).join('<br>')]), 'None.')
+            + findingGroup('Limits of the method', 'What reading the code cannot establish, whatever the code looks like.',
+                (data.code_map.limitations || []).map(escapeHtml), 'None recorded.', false);
     }
 
     function figuresHtml(context) {
@@ -852,6 +1088,7 @@
             data, moduleLinks, state,
             modules: indexBy(codeMap.modules, 'id'),
             files: indexBy(codeMap.files, 'id'),
+            symbols: indexBy(codeMap.symbols || [], 'id'),
             owners: fileOwners(codeMap),
             findings: boundaryFindings(codeMap, moduleLinks)
         };
@@ -859,11 +1096,13 @@
 
     function init(root) {
         const element = (selector) => root.querySelector(selector);
-        const state = { view: 'modules', focus: null, colorBy: 'criticality', showUnused: true };
+        const state = { view: 'modules', focus: null, file: null, colorBy: 'criticality', showUnused: true };
         const mapElement = element('#qualityMap');
         let context = null;
         let cy = null;
         let hintTimer = null;
+        let tooltipTimer = null;
+        let tooltipShown = false;
 
         function setPanel(html) {
             element('#qualityPanel').innerHTML = html;
@@ -907,7 +1146,13 @@
             else if (data.kind === 'file') setPanel(fileHtml(context, data.id));
             else if (data.kind === 'file-link') setPanel(fileHtml(context, data.source));
             else if (data.kind === 'contract') setPanel(contractHtml(context, data.id));
-            else showOverview();
+            else if (data.kind === 'function') setPanel(functionHtml(context, data.id));
+            else if (data.kind === 'function-file') setPanel(fileHtml(context, data.id));
+            else if (data.kind === 'function-link') {
+                // The end in the opened file, which is what the link is listed under.
+                const end = [data.target, data.source].find((id) => context.symbols[id] && context.symbols[id].file === state.file);
+                setPanel(end ? functionHtml(context, end) : fileHtml(context, state.file));
+            } else showOverview();
         }
 
         /** Brings ``target`` into the middle of the map, for selections made outside it. */
@@ -918,9 +1163,14 @@
 
         function crumbsHtml() {
             if (state.view === 'modules') return '<i class="fas fa-sitemap" aria-hidden="true"></i> All modules';
-            return '<button type="button" data-view="modules" title="Back to all modules (Esc)"><i class="fas fa-arrow-left" aria-hidden="true"></i> All modules</button>'
-                + '<span class="quality-crumbs__sep" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>'
-                + '<span>' + (state.focus ? escapeHtml(shortName(state.focus)) : 'All files') + '</span>';
+            const separator = '<span class="quality-crumbs__sep" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>';
+            const home = '<button type="button" data-view="modules"' + (state.view === 'files' ? ' title="Back to all modules (Esc)"' : '')
+                + '><i class="fas fa-arrow-left" aria-hidden="true"></i> All modules</button>' + separator;
+            if (state.view === 'functions') {
+                return home + '<button type="button" data-open-module="' + escapeHtml(state.focus) + '" title="Back to the module\'s files (Esc)">'
+                    + escapeHtml(shortName(state.focus)) + '</button>' + separator + '<span>' + escapeHtml(baseName(state.file)) + '</span>';
+            }
+            return home + '<span>' + (state.focus ? escapeHtml(shortName(state.focus)) : 'All files') + '</span>';
         }
 
         function setPressed(selector, active) {
@@ -933,7 +1183,8 @@
 
         function render() {
             const options = Object.assign({ moduleLinks: context.moduleLinks }, state);
-            const elements = state.view === 'modules' ? moduleElements(context.data.code_map, context.data.report, options) : fileElements(context.data.code_map, context.data.report, options);
+            const build = { modules: moduleElements, files: fileElements, functions: functionElements }[state.view];
+            const elements = build(context.data.code_map, context.data.report, options);
             cy.elements().remove();
             cy.add(elements);
             cy.layout({ name: 'preset', fit: true, padding: 48 }).run();
@@ -941,13 +1192,14 @@
             const readable = state.focus ? READABLE_ZOOM : state.view === 'modules' ? MODULE_ZOOM : 0;
             if (readable && typeof cy.zoom === 'function' && cy.zoom() < readable) {
                 cy.zoom(readable);
-                cy.center(state.focus ? cy.getElementById(state.focus) : undefined);
+                cy.center(state.focus ? cy.getElementById(state.view === 'functions' ? state.file : state.focus) : undefined);
             }
             element('#qualityLegend').innerHTML = legendHtml(state);
             element('#qualityBreadcrumb').innerHTML = crumbsHtml();
             setPressed('[data-view-toggle]', (button) => button.dataset.viewToggle === (state.view === 'files' && !state.focus ? 'files' : 'modules'));
             element('#qualityUnusedToggle').disabled = state.view !== 'modules';
             if (state.view === 'files' && state.focus) select(cy.getElementById(state.focus));
+            else if (state.view === 'functions') setPanel(fileHtml(context, state.file));
             else showOverview();
         }
 
@@ -967,6 +1219,7 @@
             const go = () => {
                 state.view = 'files';
                 state.focus = moduleId;
+                state.file = null;
                 switchView();
             };
             if (node && node.length && typeof cy.animate === 'function') {
@@ -976,9 +1229,27 @@
             }
         }
 
+        /** Opens one file's functions, and selects ``symbolId`` there when given. */
+        function openFile(fileId, symbolId) {
+            const chosen = () => {
+                if (!symbolId) return;
+                select(cy.getElementById(symbolId));
+                reveal(cy.getElementById(symbolId));
+            };
+            if (state.view === 'functions' && state.file === fileId) {
+                chosen();
+                return;
+            }
+            state.view = 'functions';
+            state.focus = context.owners[fileId];
+            state.file = fileId;
+            switchView(chosen);
+        }
+
         function showModules(selectedId) {
             state.view = 'modules';
             state.focus = null;
+            state.file = null;
             switchView(() => {
                 if (selectedId) select(cy.getElementById(selectedId));
             });
@@ -998,18 +1269,56 @@
             hintTimer = global.setTimeout(() => hint.classList.remove('is-visible'), 1400);
         }
 
-        function tooltip(event, html) {
+        function hideTooltip() {
+            global.clearTimeout(tooltipTimer);
+            element('#qualityTooltip').hidden = true;
+            tooltipShown = false;
+        }
+
+        /** Shows ``target``'s tooltip beside it, not at the cursor, so it stays put while the cursor moves. */
+        function showTooltip(target) {
             const box = element('#qualityTooltip');
+            const html = target.removed() ? '' : tooltipHtml(target);
             if (!html) {
-                box.hidden = true;
+                hideTooltip();
                 return;
             }
             box.innerHTML = html;
             box.hidden = false;
+            tooltipShown = true;
             const width = box.offsetWidth;
-            const x = event.renderedPosition.x;
-            box.style.left = Math.round(x + 16 + width > mapElement.clientWidth ? Math.max(8, x - 16 - width) : x + 16) + 'px';
-            box.style.top = Math.round(event.renderedPosition.y + 16) + 'px';
+            const height = box.offsetHeight;
+            const gap = 10;
+            let x;
+            let y;
+            if (target.isNode()) {
+                const bounds = target.renderedBoundingBox({ includeLabels: false, includeOverlays: false });
+                x = bounds.x2 + gap + width > mapElement.clientWidth ? bounds.x1 - gap - width : bounds.x2 + gap;
+                y = bounds.y1;
+            } else {
+                const middle = target.renderedMidpoint();
+                x = middle.x + gap + width > mapElement.clientWidth ? middle.x - gap - width : middle.x + gap;
+                y = middle.y + gap;
+            }
+            box.style.left = Math.round(Math.max(8, x)) + 'px';
+            box.style.top = Math.round(Math.max(8, Math.min(y, mapElement.clientHeight - height - 8))) + 'px';
+        }
+
+        /** Hover only marks: the element and its own arrows. Its tooltip follows once the cursor rests on it. */
+        function hoverStart(target) {
+            cy.elements('.hover').removeClass('hover');
+            target.addClass('hover');
+            if (target.isNode()) target.union(target.descendants()).connectedEdges().addClass('hover');
+            global.clearTimeout(tooltipTimer);
+            // While a tooltip is showing, moving straight to a neighbour shows the neighbour's at once.
+            if (tooltipShown) showTooltip(target);
+            else tooltipTimer = global.setTimeout(() => showTooltip(target), HOVER_DELAY);
+        }
+
+        function hoverEnd() {
+            cy.elements('.hover').removeClass('hover');
+            global.clearTimeout(tooltipTimer);
+            tooltipTimer = global.setTimeout(hideTooltip, TOOLTIP_GRACE);
         }
 
         function tooltipHtml(target) {
@@ -1025,7 +1334,15 @@
                 return '<strong>' + escapeHtml(shortName(link.source)) + ' → ' + escapeHtml(shortName(link.target)) + '</strong><span>'
                     + (link.count ? escapeHtml(kindsText(link.kinds)) : 'No code reference found') + (link.declared ? '' : '<br>Not declared in the catalog') + '</span>';
             }
-            if (data.kind === 'file') return '<strong>' + escapeHtml(baseName(data.id)) + '</strong><span>' + escapeHtml(pathOf(data.id)) + '</span>';
+            if (data.kind === 'file' || data.kind === 'function-file') return '<strong>' + escapeHtml(baseName(data.id)) + '</strong><span>' + escapeHtml(pathOf(data.id)) + '</span>';
+            if (data.kind === 'function') {
+                const symbol = context.symbols[data.id];
+                return '<strong>' + escapeHtml(symbol.name) + '</strong><span>' + escapeHtml(pathOf(symbol.file) + ':' + symbol.line) + '</span>';
+            }
+            if (data.kind === 'file-link' || data.kind === 'function-link') {
+                const name = (id) => escapeHtml(context.symbols[id] ? context.symbols[id].name : baseName(id));
+                return '<strong>' + name(data.source) + ' → ' + name(data.target) + '</strong><span>' + escapeHtml(data.kinds) + '</span>';
+            }
             if (data.kind === 'contract') return '<strong>' + escapeHtml(data.label) + '</strong><span>Contract between the repositories</span>';
             return '';
         }
@@ -1043,6 +1360,7 @@
             if (state.view !== 'modules') {
                 state.view = 'modules';
                 state.focus = null;
+                state.file = null;
                 switchView(go);
             } else {
                 go();
@@ -1054,7 +1372,7 @@
         }
 
         root.addEventListener('click', (event) => {
-            const target = event.target.closest('[data-select-module], [data-select-link], [data-open-module], [data-view], [data-view-toggle], [data-color-by], [data-zoom], [data-clear-selection]');
+            const target = event.target.closest('[data-select-module], [data-select-link], [data-open-module], [data-open-file], [data-select-function], [data-view], [data-view-toggle], [data-color-by], [data-zoom], [data-clear-selection]');
             if (!target) return;
             event.preventDefault();
             if (target.dataset.selectModule) {
@@ -1071,18 +1389,24 @@
                 if (!target.closest('#qualityPanel')) scrollToMap();
             } else if (target.dataset.openModule) {
                 openModule(target.dataset.openModule);
+            } else if (target.dataset.openFile) {
+                openFile(target.dataset.openFile);
+            } else if (target.dataset.selectFunction) {
+                const symbol = context.symbols[target.dataset.selectFunction];
+                if (symbol) openFile(symbol.file, symbol.id);
             } else if (target.dataset.view === 'modules' || target.dataset.viewToggle === 'modules') {
                 if (state.view !== 'modules') showModules(state.focus);
             } else if (target.dataset.viewToggle === 'files') {
                 if (state.view === 'files' && !state.focus) return;
                 state.view = 'files';
                 state.focus = null;
+                state.file = null;
                 switchView();
             } else if (target.dataset.colorBy) {
                 state.colorBy = target.dataset.colorBy;
                 setPressed('[data-color-by]', (button) => button.dataset.colorBy === state.colorBy);
-                cy.nodes('.module, .file').forEach((node) => {
-                    const moduleId = node.data('kind') === 'module' ? node.id() : node.data('parent');
+                cy.nodes('.module, .file, .function').forEach((node) => {
+                    const moduleId = node.data('module') || (node.data('kind') === 'module' ? node.id() : node.data('parent'));
                     node.data(paint(nodeColor(context.modules[moduleId], context.data.report, state.colorBy)));
                 });
                 element('#qualityLegend').innerHTML = legendHtml(state);
@@ -1101,6 +1425,33 @@
         element('#qualityFit').addEventListener('click', () => {
             if (cy) cy.animate({ fit: { eles: cy.elements(), padding: 48 } }, { duration: 260, easing: 'ease-in-out-cubic' });
         });
+        // Full screen holds the toolbar, map, panel and legend; the map redraws for its new size.
+        const workspace = root.querySelector('.quality-workspace');
+        const fullscreenButton = element('#qualityFullscreen');
+        const fullscreenElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+        if (workspace && fullscreenButton) {
+            const enter = workspace.requestFullscreen || workspace.webkitRequestFullscreen;
+            const exit = document.exitFullscreen || document.webkitExitFullscreen;
+            fullscreenButton.hidden = !enter;
+            fullscreenButton.addEventListener('click', () => {
+                const request = fullscreenElement() ? exit.call(document) : enter.call(workspace);
+                if (request && typeof request.catch === 'function') request.catch(() => {});
+            });
+            const changed = () => {
+                const on = fullscreenElement() === workspace;
+                const label = on ? 'Exit full screen' : 'Full screen';
+                fullscreenButton.title = label;
+                fullscreenButton.setAttribute('aria-label', label);
+                fullscreenButton.setAttribute('aria-pressed', String(on));
+                fullscreenButton.querySelector('i').className = 'fas ' + (on ? 'fa-compress' : 'fa-expand');
+                if (cy) {
+                    cy.resize();
+                    cy.fit(cy.elements(), 48);
+                }
+            };
+            document.addEventListener('fullscreenchange', changed);
+            document.addEventListener('webkitfullscreenchange', changed);
+        }
         // The page scrolls with the wheel: a plain wheel event is stopped before it reaches the map, which then zooms
         // only with Ctrl or ⌘ held (also what a trackpad pinch sends). Touch pinch-zoom is untouched.
         mapElement.parentElement.addEventListener('wheel', (event) => {
@@ -1115,6 +1466,7 @@
         document.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape' || !cy || event.target.closest('input, select, textarea')) return;
             if (selected().length && !(state.view === 'files' && state.focus && selected().id() === state.focus)) select(null);
+            else if (state.view === 'functions') openModule(state.focus);
             else if (state.view === 'files') showModules(state.focus);
         });
 
@@ -1141,33 +1493,39 @@
                 if (!data.code_map) {
                     element('#qualityMapSection').hidden = true;
                     element('#qualityFindingsSection').hidden = true;
+                    element('#qualityBlindSpotsSection').hidden = true;
                     element('#qualityTable').innerHTML = tableHtml({ data, modules: {} });
                     return;
                 }
                 context = createContext(data, state);
                 element('#qualityTable').innerHTML = tableHtml(context);
                 element('#qualityFindings').innerHTML = findingsHtml(context);
+                element('#qualityBlindSpots').innerHTML = blindSpotsHtml(context);
                 const figures = element('#qualityFigures');
                 if (figures) figures.innerHTML = figuresHtml(context);
                 cy = global.cytoscape({
                     container: mapElement, style: GRAPH_STYLE, minZoom: 0.15, maxZoom: 2.5,
                     wheelSensitivity: 0.4, boxSelectionEnabled: false, autoungrabify: true
                 });
-                cy.on('tap', (event) => select(event.target === cy ? null : event.target.isNode() && event.target.isParent() && event.target.data('kind') !== 'module' ? null : event.target));
+                // A click focuses: it fades the rest until Esc or a click on the background.
+                const selectable = (target) => !target.isParent() || ['module', 'function-file'].includes(target.data('kind'));
+                cy.on('tap', (event) => select(event.target === cy || (event.target.isNode() && !selectable(event.target)) ? null : event.target));
                 cy.on('dbltap', 'node.module', (event) => openModule(event.target.id()));
-                cy.on('mouseover', 'node.module, node.file, node.contract, edge.declared, edge.undeclared, edge.unused', (event) => {
+                cy.on('dbltap', 'node.file', (event) => openFile(event.target.id()));
+                cy.on('dbltap', 'node.function, node.function-file.outside', (event) => {
+                    const symbol = context.symbols[event.target.id()];
+                    openFile(symbol ? symbol.file : event.target.id(), symbol ? symbol.id : undefined);
+                });
+                const hoverable = 'node.module, node.file-module, node.file, node.contract, node.function, node.function-file, edge';
+                cy.on('mouseover', hoverable, (event) => {
                     mapElement.style.cursor = 'pointer';
-                    if (event.target.isNode()) event.target.addClass('hover');
-                    if (!selected().length) highlight(event.target);
-                    tooltip(event, tooltipHtml(event.target));
+                    hoverStart(event.target);
                 });
-                cy.on('mouseout', 'node, edge', (event) => {
+                cy.on('mouseout', hoverable, () => {
                     mapElement.style.cursor = '';
-                    event.target.removeClass('hover');
-                    if (!selected().length) highlight(null);
-                    tooltip(event, null);
+                    hoverEnd();
                 });
-                cy.on('viewport', () => { element('#qualityTooltip').hidden = true; });
+                cy.on('viewport', hideTooltip);
                 render();
             })
             .catch(() => {
@@ -1178,9 +1536,11 @@
     global.QualityDashboard = {
         aggregateModuleLinks,
         boundaryFindings,
+        blindSpots,
         moduleLevels,
         modulePositions,
         fileGraph,
+        functionGraph,
         laneSummary,
         nodeColor,
         escapeHtml,

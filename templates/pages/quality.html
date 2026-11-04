@@ -72,7 +72,8 @@
               <div class="quality-zoom" role="group" aria-label="Zoom">
                 <button type="button" data-zoom="in" title="Zoom in" aria-label="Zoom in"><i class="fas fa-plus" aria-hidden="true"></i></button>
                 <button type="button" data-zoom="out" title="Zoom out" aria-label="Zoom out"><i class="fas fa-minus" aria-hidden="true"></i></button>
-                <button type="button" id="qualityFit" title="Fit the map" aria-label="Fit the map"><i class="fas fa-expand" aria-hidden="true"></i></button>
+                <button type="button" id="qualityFit" title="Fit the map" aria-label="Fit the map"><i class="fas fa-crosshairs" aria-hidden="true"></i></button>
+                <button type="button" id="qualityFullscreen" title="Full screen" aria-label="Full screen" aria-pressed="false"><i class="fas fa-expand" aria-hidden="true"></i></button>
               </div>
               <div class="quality-hint" id="qualityZoomHint" aria-hidden="true">Hold <kbd>Ctrl</kbd> or <kbd>⌘</kbd> and scroll to zoom</div>
               <div class="quality-tooltip" id="qualityTooltip" hidden></div>
@@ -86,6 +87,15 @@
       <section id="qualityFindingsSection" aria-labelledby="qualityFindingsTitle">
         <h2 class="quality-section-title" id="qualityFindingsTitle">Module boundaries</h2>
         <div class="quality-findings" id="qualityFindings"></div>
+      </section>
+
+      <section id="qualityBlindSpotsSection" aria-labelledby="qualityBlindSpotsTitle">
+        <h2 class="quality-section-title" id="qualityBlindSpotsTitle">What the map cannot see</h2>
+        <p class="quality-lead">
+          The map links code by reading it, without running it. These are the places where reading is not enough, so a
+          missing arrow there does not prove that two modules are independent.
+        </p>
+        <div class="quality-findings" id="qualityBlindSpots"></div>
       </section>
 
       <section aria-labelledby="qualityTableTitle">
