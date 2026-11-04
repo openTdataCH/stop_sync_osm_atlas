@@ -63,6 +63,7 @@ the producer side.
 - **Clickable diagram links** — The portal inlines kit diagrams instead of showing them through `<img>`, so links drawn in them work, such as the repository links in the project overview. Each diagram's element IDs now start with its name, so several diagrams can share a page. Hand-drawn SVGs and other images are still shown as images, and GitHub and the PDF show every diagram as a static image. See [A2.8](2.8%20Documentation%20Page%20Delivery.md#diagrams).
 - **Portal rendering fixes** — Automatic code links no longer alter code blocks, inline code or existing links; placeholders inside code stay literal; file names such as `build.py` no longer become `http://` links; wrapped source lines no longer break sentences; headings have stable anchors; navigation titles come from each page's heading. Links to engine source files point at the engine commit pinned in `engine.ref` instead of producing 404s.
 - **PDF fixes** — Links to sections of other pages resolve inside the PDF, section numbers are no longer doubled, and `#` comments in code blocks are no longer read as headings.
+- **Tests & code quality section** — A4 "Web app tests" is now [A4 Tests & code quality](4.%20Test.md): its quality pages and `make quality` cover the engine as well as the application. The page now says which subpages cover which project.
 - **Numeric page order** — The portal and the PDF sort pages by section number, so A2.10 follows A2.9 instead of A2.1.
 
 ## Version 0.6.0
