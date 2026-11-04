@@ -9,9 +9,6 @@ all diagrams read as one system. ``build.py`` renders the catalog in
 The output deliberately uses only presentation attributes and plain shapes
 (no CSS, markers, filters, fonts or scripts). The same file therefore renders
 identically in the documentation portal, on GitHub and in the WeasyPrint PDF.
-
-The visual rules themselves are documented in ``documentation/Documentation
-style guide.md``. Keep that page and this module in step.
 """
 from __future__ import annotations
 

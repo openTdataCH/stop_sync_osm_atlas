@@ -9,7 +9,7 @@ Work on the smallest part your change needs: the matching engine can be improved
 | A map component | `static/js/components/` and the page adapters | Jest tests; all map pages share the same entity model |
 | Import, API or reports | `backend/` | Application tests, and the PostGIS publication tests when publication is affected |
 | A reproducible bad match | Report the source and OSM IDs, the expected result and a minimal public example | Add it as a small engine fixture |
-| Documentation | The [documentation style guide](Documentation%20style%20guide.md) | `python -m pytest tests/test_docs_links.py tests/test_docs_diagrams.py tests/test_docs_rendering.py -q` |
+| Documentation | `documentation/` and `documentation/diagrams/catalog.py` | `python -m pytest tests/test_docs_links.py tests/test_docs_diagrams.py tests/test_docs_rendering.py -q` |
 
 ## Run only the UI
 
@@ -27,4 +27,4 @@ The engine and the review application are separate repositories, each with its o
 
 ## Improve the documentation
 
-Follow the [documentation style guide](Documentation%20style%20guide.md): it defines the page structure, the terms, the link conventions and the diagram kit. Regenerate the diagrams with `python3 documentation/diagrams/build.py` after changing their source, and commit the generated SVGs.
+Use the terms of the [glossary](0.1%20Glossary.md) and describe current behaviour; history goes in the changelog. Regenerate the diagrams with `python3 documentation/diagrams/build.py` after changing their source, and commit the generated SVGs.

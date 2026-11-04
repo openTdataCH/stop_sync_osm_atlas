@@ -131,7 +131,6 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md). A matching-rule contribution can 
 - [Code quality and the dashboard](documentation/4.3%20Code%20Quality.md)
 - [Running the quality checks](documentation/4.4%20Running%20Quality%20Checks.md)
 - [Contribution tutorials](documentation/Contributing.md)
-- [Documentation style guide](documentation/Documentation%20style%20guide.md)
 
 Code remains AGPL-3.0-or-later. Source dataset attribution is recorded separately in result metadata.
 

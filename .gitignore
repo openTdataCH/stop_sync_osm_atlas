@@ -119,3 +119,6 @@ quality/code-map.json
 quality/report.md
 .ruff_cache/
 .hypothesis/
+
+# Internal documentation style guide (kept local, not published)
+documentation/Documentation style guide.md
