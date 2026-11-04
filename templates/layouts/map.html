@@ -1,0 +1,12 @@
+{% extends "layouts/base.html" %}
+{# Pages built around the stop map: Leaflet, popup and filter-overlay styles, then the page's own in page_css. #}
+
+{% block vendor_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+{% endblock %}
+
+{% block head_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/shared-filters.css') }}">
+{% block page_css %}{% endblock %}
+{% endblock %}

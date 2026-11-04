@@ -18,10 +18,10 @@ def app():
 
 
 def _render(app, markdown, doc='documentation/2.8 Documentation Page Delivery.md'):
-    from backend.blueprints.docs import _build_doc_slug_maps, _convert_markdown_to_html, _list_markdown_files
+    from backend.blueprints.docs import build_doc_slug_maps, _convert_markdown_to_html, list_markdown_files
 
     with app.test_request_context():
-        file_to_slug, _ = _build_doc_slug_maps(_list_markdown_files())
+        file_to_slug, _ = build_doc_slug_maps(list_markdown_files())
         return _convert_markdown_to_html(markdown, file_to_slug, doc)
 
 
@@ -99,9 +99,9 @@ def test_svg_diagrams_are_inlined_so_their_links_work(app):
 
 
 def test_every_portal_link_reaches_a_page_and_anchor(app):
-    from backend.blueprints.docs import _build_doc_slug_maps, _list_markdown_files
+    from backend.blueprints.docs import build_doc_slug_maps, list_markdown_files
 
-    file_to_slug, _ = _build_doc_slug_maps(_list_markdown_files())
+    file_to_slug, _ = build_doc_slug_maps(list_markdown_files())
     pages = {}
     with app.test_client() as client:
         for slug in sorted(file_to_slug.values()):

@@ -1,19 +1,10 @@
-{% extends "layouts/base.html" %}
+{% extends "layouts/map.html" %}
 
 {% from "components/_components.html" import stats_overlay, top_filters_overlay with context %}
 {% block title %}Public Transport Data Problems | {{ review_config.title }}{% endblock %}
 {% block meta_description %}Explore missing, duplicate, distant, and contradictory public transport stop data between OpenStreetMap and {{ review_config.source_label }}.{% endblock %}
 
-{% block vendor_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
-{% endblock %}
-
-{% block head_css %}
-<!-- Popup CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
-<!-- Shared filters/overlay CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/shared-filters.css') }}">
-<!-- Problems Page Specific CSS -->
+{% block page_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/problems.css') }}">
 {% endblock %}
 

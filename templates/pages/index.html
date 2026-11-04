@@ -1,19 +1,10 @@
-{% extends "layouts/base.html" %}
+{% extends "layouts/map.html" %}
 
 {% from "components/_components.html" import stats_overlay, top_filters_overlay with context %}
 {% block title %}Public Transport Stop Map | {{ review_config.title }}{% endblock %}
 {% block meta_description %}Compare public transport stops from OpenStreetMap with {{ review_config.source_label }}, inspect matches, and find synchronization gaps.{% endblock %}
 
-{% block vendor_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
-{% endblock %}
-
-{% block head_css %}
-<!-- Popup CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
-<!-- Shared filters/overlay CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/shared-filters.css') }}">
-<!-- Index page styles (moved out of template for maintainability) -->
+{% block page_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/index.css') }}">
 {% endblock %}
 

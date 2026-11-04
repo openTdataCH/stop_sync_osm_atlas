@@ -686,7 +686,7 @@ def _doc_source_key(doc_id: str) -> str:
     raise ValueError(f'Unknown documentation source for {doc_id!r}')
 
 
-def _list_markdown_files() -> List[str]:
+def list_markdown_files() -> List[str]:
     """Return stable logical IDs for app- and engine-owned Markdown pages."""
     files: List[str] = []
     for source_key in ('app', 'engine'):
@@ -715,7 +715,7 @@ def _slugify_doc_stem(stem: str) -> str:
     return slug or 'doc'
 
 
-def _build_doc_slug_maps(files: List[str]) -> Tuple[Dict[str, str], Dict[str, str]]:
+def build_doc_slug_maps(files: List[str]) -> Tuple[Dict[str, str], Dict[str, str]]:
     """Build deterministic filename<->slug maps for all docs files."""
     file_to_slug: Dict[str, str] = {}
     slug_to_file: Dict[str, str] = {}
@@ -1365,11 +1365,11 @@ def _page_header(html: str, doc_id: str, collection: Optional[Dict], slug: str, 
 @docs_bp.route('/docs')
 @docs_bp.route('/docs/<path:page>')
 def docs_page(page: str = ''):
-    files = _list_markdown_files()
+    files = list_markdown_files()
     if not files:
         abort(404)
 
-    file_to_slug, slug_to_file = _build_doc_slug_maps(files)
+    file_to_slug, slug_to_file = build_doc_slug_maps(files)
 
     def resolve_active_file(requested_page: str) -> Optional[str]:
         if not requested_page:
@@ -1520,7 +1520,7 @@ def generate_docs_pdf_async():
 
     page_files = None
     if included_pages:
-        _, slug_to_file = _build_doc_slug_maps(_list_markdown_files())
+        _, slug_to_file = build_doc_slug_maps(list_markdown_files())
         unknown = [page for page in included_pages if page not in slug_to_file]
         if unknown:
             return jsonify({"error": f"Unknown documentation page: {unknown[0]}"}), 400

@@ -53,10 +53,10 @@ def _sitemap_paths() -> list[str]:
 
     # Documentation is file-backed, so include every canonical documentation
     # slug rather than the duplicate /docs entry point.
-    from backend.blueprints.docs import _build_doc_slug_maps, _list_markdown_files
+    from backend.blueprints.docs import build_doc_slug_maps, list_markdown_files
 
-    files = _list_markdown_files()
-    file_to_slug, _ = _build_doc_slug_maps(files)
+    files = list_markdown_files()
+    file_to_slug, _ = build_doc_slug_maps(files)
     paths.extend(
         url_for('docs.docs_page', page=file_to_slug[filename])
         for filename in files

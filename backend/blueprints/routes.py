@@ -23,7 +23,7 @@ routes_bp = Blueprint('routes_api', __name__)
 GTFS_STOP_ID_SLOID_SEARCH_VALUE_MAX_LENGTH = 255
 
 
-def _routes_unavailable_response(message: str, *, phase: str | None = None):
+def _routes_unavailable_response(message: str, phase: str | None = None):
     response = make_response(jsonify({
         'error': message,
         'phase': phase,
@@ -35,22 +35,13 @@ def _routes_unavailable_response(message: str, *, phase: str | None = None):
 
 @routes_bp.before_request
 def _guard_routes_during_blocking_maintenance():
-    status = get_status()
-    if not status.get('blocking_maintenance'):
-        return None
-    return _routes_unavailable_response(
-        status.get('message') or 'Route data is being refreshed.',
-        phase=status.get('phase') or 'import',
-    )
+    reason = route_listing.maintenance_reason(get_status())
+    return _routes_unavailable_response(*reason) if reason else None
 
 
 def _handle_route_database_error(exc):
-    if route_listing.recover_database_error(exc) == 'busy':
-        return _routes_unavailable_response(
-            'Route data is temporarily busy. Please retry shortly.',
-            phase='database',
-        )
-    return None
+    reason = route_listing.database_busy_reason(exc)
+    return _routes_unavailable_response(*reason) if reason else None
 
 
 def _parse_gtfs_stop_id_sloid_search():

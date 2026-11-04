@@ -1069,3 +1069,17 @@ def recover_database_error(exc) -> str:
         db.session.rollback()
         return 'busy'
     raise exc
+
+
+def maintenance_reason(status: dict) -> tuple[str, str] | None:
+    """The (message, phase) to answer with while blocking maintenance hides the route data, else None."""
+    if not status.get('blocking_maintenance'):
+        return None
+    return status.get('message') or 'Route data is being refreshed.', status.get('phase') or 'import'
+
+
+def database_busy_reason(exc) -> tuple[str, str] | None:
+    """The (message, phase) to answer with when the database is busy, else None; see recover_database_error."""
+    if recover_database_error(exc) == 'busy':
+        return 'Route data is temporarily busy. Please retry shortly.', 'database'
+    return None
