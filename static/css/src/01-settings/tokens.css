@@ -24,9 +24,10 @@
   --color-bg-muted: #e9ecef;
   --color-surface-glass: rgba(255, 255, 255, 0.92);  /* translucent panel over the map or a tinted page */
   --color-surface-veil: rgba(255, 255, 255, 0.5);    /* lightens what lies beneath: hover and open states */
-  --color-surface-inverse: rgba(17, 17, 17, 0.8);    /* hints, banners and tooltips in the opposite theme */
-  --color-overlay: rgba(0, 0, 0, 0.5);               /* backdrop behind modals and drawers */
-  --color-on-overlay: #ffffff;                       /* text on the backdrop, which is dark in both themes */
+  --color-surface-dark: rgba(17, 17, 17, 0.8);       /* hints, banners and toggles over a map: dark in both themes */
+  --color-overlay: rgba(0, 0, 0, 0.5);               /* backdrop behind modals and drawers: dark in both themes */
+  --color-on-dark: #ffffff;                          /* text on the dark surface and the backdrop */
+  --color-on-dark-muted: rgba(255, 255, 255, 0.35);  /* borders and key caps on them */
 
   /* Text */
   --color-fg: #111111;
@@ -105,7 +106,8 @@
 }
 
 /* The same roles on dark surfaces. Fills are lighter than in the light theme,
-   so text on them (on-accent) turns dark and the inverse surface turns light.
+   so text on them (on-accent) turns dark. The dark surface and the backdrop
+   stay dark, keeping their light text.
    The map and code quality colours keep their meaning and their values. */
 [data-bs-theme="dark"] {
   color-scheme: dark;
@@ -115,7 +117,6 @@
   --color-bg-muted: #232a35;
   --color-surface-glass: rgba(23, 28, 36, 0.92);
   --color-surface-veil: rgba(255, 255, 255, 0.06);
-  --color-surface-inverse: rgba(230, 234, 240, 0.94);
   --color-overlay: rgba(0, 0, 0, 0.6);
 
   --color-fg: #e6e9ee;

@@ -525,8 +525,8 @@ a.quality-figure:hover .quality-figure__label {
   z-index: 4;
   padding: 0.4rem 0.8rem;
   border-radius: var(--radius-full);
-  background: var(--color-surface-inverse);
-  color: var(--color-on-accent);
+  background: var(--color-surface-dark);
+  color: var(--color-on-dark);
   font-size: 0.8rem;
   opacity: 0;
   pointer-events: none;
@@ -542,7 +542,7 @@ a.quality-figure:hover .quality-figure__label {
 .quality-hint kbd {
   padding: 0 0.3em;
   border-radius: 3px;
-  background: var(--color-on-accent-subtle);
+  background: var(--color-on-dark-muted);
   color: inherit;
   font-size: 0.85em;
 }

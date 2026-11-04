@@ -7,8 +7,8 @@
   max-width: calc(100vw - 2rem);
   padding: 0.5rem 1.25rem;
   border-radius: var(--radius-full, 999px);
-  background: var(--color-surface-inverse);
-  color: var(--color-on-accent);
+  background: var(--color-surface-dark);
+  color: var(--color-on-dark);
   box-shadow: var(--shadow-lg);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -30,7 +30,7 @@
 .zoom-banner__action {
   margin-left: var(--space-2, 0.5rem);
   padding: 0.15rem 0.55rem;
-  border: 1px solid var(--color-on-accent-muted);
+  border: 1px solid var(--color-on-dark-muted);
   border-radius: var(--radius-full, 999px);
   background: transparent;
   color: inherit;
@@ -44,7 +44,7 @@
 }
 
 .zoom-banner__action:focus-visible {
-  outline: 2px solid var(--color-on-accent);
+  outline: 2px solid var(--color-on-dark);
   outline-offset: 2px;
 }
 

@@ -1068,8 +1068,8 @@
 
 .variant-map__context[aria-pressed="true"] {
   border-color: var(--color-fg);
-  background: var(--color-surface-inverse);
-  color: var(--color-on-accent);
+  background: var(--color-surface-dark);
+  color: var(--color-on-dark);
 }
 
 .variant-map__hint {
@@ -1082,7 +1082,7 @@
   margin: 0;
   padding: var(--space-4);
   background: var(--color-overlay);
-  color: var(--color-on-overlay);
+  color: var(--color-on-dark);
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
   text-align: center;
