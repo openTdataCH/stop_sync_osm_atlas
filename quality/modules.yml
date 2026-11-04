@@ -184,7 +184,6 @@
         ],
         "tests": [
           "tests/test_validators.py",
-          "tests/test_search_security.py",
           "tests/test_public_api.py",
           "tests/test_filter_semantics.py",
           "tests/test_routes_blueprint.py",

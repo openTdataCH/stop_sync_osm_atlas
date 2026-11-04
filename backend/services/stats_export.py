@@ -717,7 +717,7 @@ def get_pipeline_stats() -> Optional[Dict[str, Any]]:
     return load_stats_from_file()
 
 
-def ensure_stats_summary_pdf_generated(force: bool = False, max_age_seconds: Optional[int] = None) -> str:
+def ensure_stats_summary_pdf_generated(max_age_seconds: Optional[int] = None) -> str:
     """Ensure the stats summary PDF exists and is up to date with stats.json.
 
     Must be called inside a Flask app context.
@@ -736,7 +736,7 @@ def ensure_stats_summary_pdf_generated(force: bool = False, max_age_seconds: Opt
     if is_fresh and max_age_seconds is not None:
         is_fresh = (time.time() - os.path.getmtime(output_path)) <= max_age_seconds
 
-    if force or not is_fresh:
+    if not is_fresh:
         generate_stats_summary_pdf(stats, output_path=output_path)
 
     return output_path

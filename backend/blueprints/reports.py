@@ -42,23 +42,11 @@ PROBLEM_REPORT_TYPES = (
 def _copy_summary_pdf_to_temp(task_id):
     from backend.services.stats_export import ensure_stats_summary_pdf_generated
 
-    source_path = ensure_stats_summary_pdf_generated(force=False)
+    source_path = ensure_stats_summary_pdf_generated()
     filename = f"stats_summary_{task_id[:8]}.pdf"
     dest_path = os.path.join(tempfile.gettempdir(), filename)
     shutil.copy2(source_path, dest_path)
     return dest_path, filename
-
-
-def _send_summary_pdf_response(download_name='summary_operator_asc.pdf'):
-    from backend.services.stats_export import ensure_stats_summary_pdf_generated
-
-    pdf_path = ensure_stats_summary_pdf_generated(force=False)
-    return send_file(
-        pdf_path,
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name=download_name,
-    )
 
 
 def _normalize_report_type(report_type):
@@ -566,41 +554,3 @@ def cancel_report(task_id):
     """Cancel report generation"""
     ae_cancel_task(task_id)
     return jsonify({"status": "cancelled"})
-
-
-@reports_bp.route('/api/generate_report', methods=['GET'])
-@limiter.limit("20/day")
-def generate_report():
-    try:
-        report_type = _normalize_report_type(request.args.get('report_type', 'distance'))
-        report_format = (request.args.get('format', 'pdf') or 'pdf').lower()
-        sort_param = _normalize_sort(report_type, request.args.get('sort', 'operator_asc'))
-        include_fields = _parse_include_fields(request.args.get('include_fields', ''))
-
-        if report_type == 'summary':
-            if report_format != 'pdf':
-                return jsonify({"status": "error", "message": "Summary report only supports PDF format"}), 400
-            return _send_summary_pdf_response(download_name=f"summary_{sort_param}.pdf")
-
-        result = generate_report_data(request.args)
-        if result is None:
-            return jsonify({"status": "error", "message": "Could not generate report data."}), 500
-
-        data_for_report, report_type = result
-        sort_param = _normalize_sort(report_type, request.args.get('sort', 'operator_asc'))
-
-        if report_format == 'csv':
-            output = _serialize_report_csv(data_for_report, report_type, include_fields)
-            response = app.response_class(output, mimetype='text/csv')
-            response.headers["Content-Disposition"] = f"attachment; filename={report_type}_{sort_param}.csv"
-            return response
-
-        pdf = _render_report_pdf_bytes(data_for_report, report_type, include_fields, sort_param)
-        response = app.response_class(pdf, mimetype='application/pdf')
-        response.headers["Content-Disposition"] = f"attachment; filename={report_type}_{sort_param}.pdf"
-        return response
-    except Exception as e:
-        app.logger.error(f"Error generating report: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
