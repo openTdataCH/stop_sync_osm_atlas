@@ -94,10 +94,10 @@ def test_report_for_another_engine_pin_warns(tmp_path):
     assert 'the pinned engine' in text and 'the application code' not in text
 
 
-def test_shipped_fingerprint_ignores_the_report_tests_and_generated_files(tmp_path):
+def test_shipped_fingerprint_ignores_the_report_tests_generated_and_local_only_files(tmp_path):
     _publish(tmp_path, _example_report())
     for name in ('quality/published/report.md', 'tests/test_new.py', 'backend/__pycache__/app.cpython-313.pyc',
-                 'static/.DS_Store', 'documentation/generated/docs.pdf'):
+                 'static/.DS_Store', 'documentation/generated/docs.pdf', 'documentation/Documentation style guide.md'):
         (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / name).write_text('generated')
     assert '[!WARNING]' not in _render(tmp_path)

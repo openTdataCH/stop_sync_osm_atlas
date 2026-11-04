@@ -13,11 +13,13 @@ PUBLISHED = 'quality/published'
 # What the dockerfile copies into the app image: the code a deployment runs.
 SHIPPED_ROOTS = ('backend', 'templates', 'static', 'migrations', 'config', 'documentation')
 SHIPPED_FILES = ('README.md', 'LICENSE', 'entrypoint.sh', 'engine.ref')
+# Kept in a developer checkout but ignored by Git and Docker, so never committed or shipped.
+LOCAL_ONLY_FILES = ('documentation/Documentation style guide.md',)
 
 
 def _is_shipped(name):
     parts = name.split('/')
-    if name not in SHIPPED_FILES and parts[0] not in SHIPPED_ROOTS:
+    if name in LOCAL_ONLY_FILES or (name not in SHIPPED_FILES and parts[0] not in SHIPPED_ROOTS):
         return False
     return not (name.startswith('documentation/generated/') or '__pycache__' in parts
                 or parts[-1] == '.DS_Store' or name.endswith('.pyc'))

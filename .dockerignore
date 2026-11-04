@@ -38,3 +38,5 @@ htmlcov/
 # Documentation and report assets
 memoire/
 documentation/generated/
+# Internal documentation style guide (kept local, not published)
+documentation/Documentation style guide.md
