@@ -2,7 +2,6 @@ from backend.importing import importer as importer_mod
 from backend.importing.bundle import read_bundle
 from backend.importing.projection import project_bundle
 from pathlib import Path
-import pytest
 
 
 def test_build_fast_insert_payloads_normalizes_blank_atlas_operator_abbr():
@@ -13,12 +12,6 @@ def test_build_fast_insert_payloads_normalizes_blank_atlas_operator_abbr():
     payload = importer_mod.build_fast_insert_payloads(result, problems, routes)
     assert all(row['atlas_business_org_abbr'] is None for row in payload['atlas_stops'])
     assert payload['atlas_operators'] == []
-
-
-def test_partial_database_publication_is_rejected():
-    from backend.jobs.job_types import PipelineRunType
-    with pytest.raises(ValueError, match='complete snapshot'):
-        importer_mod.import_to_database({}, PipelineRunType.ATLAS_CACHED)
 
 
 def test_validate_refresh_payloads_rejects_empty_stop_rows():

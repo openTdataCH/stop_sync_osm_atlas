@@ -15,6 +15,7 @@ from typing import Optional
 
 from backend.services import data_meta
 from backend.services.stats_export import refresh_stats_metadata
+from backend.services.pipeline_progress import PROGRESS_SCHEMA_VERSION
 from backend.services.pipeline_status import (
     acquire_run_lock,
     finish_failure,
@@ -61,8 +62,13 @@ def _handle_engine_output_line(line: str, *, run_id=None) -> None:
         _handle_engine_progress(payload, run_id=run_id)
 
 
+def _record_import_stage_event(event: dict, *, run_id=None) -> None:
+    """The importer's stage events carry no schema version; they are this pipeline's, so it stamps its own."""
+    record_progress_event({**event, "progress_schema_version": PROGRESS_SCHEMA_VERSION}, run_id=run_id)
+
+
 def _publish_refresh_scope(run_type: PipelineRunType) -> tuple[list[str], list[str]]:
-    rewritten_tables, reused_tables = get_refresh_scope_tables(run_type)
+    rewritten_tables, reused_tables = get_refresh_scope_tables()
     set_status(
         run_type=run_type.value,
         refresh_scope_tables_rewritten=rewritten_tables,
@@ -247,7 +253,7 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
             try:
                 manifest = import_bundle(
                     destination,
-                    stage_event_callback=lambda event: record_progress_event(event, run_id=run_id),
+                    stage_event_callback=lambda event: _record_import_stage_event(event, run_id=run_id),
                 )
             except PublishedDatasetError as exc:
                 manifest = exc.manifest
@@ -256,7 +262,7 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
         # Input problems the engine reported without stopping the run.
         warnings[:0] = [str(warning) for warning in (manifest.get('metadata') or {}).get('warnings') or []]
         set_status(expected_run_id=run_id, dataset_published=True)
-        rewritten, reused = get_refresh_scope_tables(run_type)
+        rewritten, reused = get_refresh_scope_tables()
         _record_data_updated_timestamp(run_type, rewritten, reused)
         data_meta.update_data_meta(active_run_id=manifest['run_id'], result_schema_version=manifest['schema_version'])
         try:

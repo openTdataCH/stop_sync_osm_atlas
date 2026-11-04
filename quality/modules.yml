@@ -95,21 +95,22 @@
       "id": "app.pipeline-orchestration",
       "title": "Pipeline orchestration and recovery",
       "criticality": "high",
-      "responsibility": "Schedule isolated engine processes and imports, reduce progress events, and persist recoverable job state.",
+      "responsibility": "Schedule isolated engine processes and imports, reduce progress events, persist recoverable job state and serve the pipeline status.",
       "owner": "OSM Atlas maintainers",
-      "reviewed": "2026-09-22",
+      "reviewed": "2026-11-04",
       "paths": {
         "source": [
           "backend/jobs/**",
           "backend/services/pipeline*.py",
-          "backend/services/state_backend_config.py",
+          "backend/blueprints/system.py",
           "static/js/shared/pipeline-status.js"
         ],
         "tests": [
           "tests/test_job_runner.py",
           "tests/test_pipeline_progress.py",
           "tests/test_engine_import_contract.py",
-          "tests/test_pipeline_scheduler_ui.py"
+          "tests/test_pipeline_scheduler_ui.py",
+          "tests/js/pipeline-status.test.js"
         ]
       },
       "docs": {
@@ -147,7 +148,7 @@
       "criticality": "high",
       "responsibility": "Expose validated filters, snapshot queries, serializers, aggregate statistics and report/export services.",
       "owner": "OSM Atlas maintainers",
-      "reviewed": "2026-09-22",
+      "reviewed": "2026-11-04",
       "paths": {
         "source": [
           "backend/models.py",
@@ -156,18 +157,21 @@
           "backend/serializers/**",
           "backend/db_errors.py",
           "backend/extensions.py",
+          "backend/version.py",
           "backend/services/__init__.py",
           "backend/services/data_meta.py",
           "backend/services/source_config.py",
           "backend/services/global_stats.py",
           "backend/services/gtfs_stop_id_sloid.py",
           "backend/services/async_export*.py",
+          "backend/services/state_backend_config.py",
           "backend/services/url_query.py",
           "backend/services/stop_lookup.py",
           "backend/services/time_utils.py",
           "backend/services/transport_routes.py",
           "backend/services/route_comparison.py",
           "backend/services/route_listing.py",
+          "backend/services/site_url.py",
           "backend/services/operator_coverage.py",
           "backend/services/request_payload.py",
           "backend/services/validators.py",
@@ -178,10 +182,9 @@
           "backend/blueprints/reports.py",
           "backend/blueprints/routes.py",
           "backend/blueprints/search.py",
-          "backend/blueprints/seo.py",
           "backend/blueprints/stats.py",
-          "backend/blueprints/system.py",
-          "scripts/regenerate_stats.py"
+          "templates/reports/**",
+          "templates/components/stats_data.html"
         ],
         "tests": [
           "tests/test_validators.py",
@@ -193,7 +196,9 @@
           "tests/test_global_stats_service.py",
           "tests/test_stats_export.py",
           "tests/test_dataset_stats.py",
-          "tests/test_async_export*.py"
+          "tests/test_async_export*.py",
+          "tests/test_stats_summary_pdf.py",
+          "tests/test_data_analytics_template.py"
         ]
       },
       "docs": {
@@ -222,14 +227,13 @@
       "criticality": "high",
       "responsibility": "Render stop, problem, route and operator workflows with shared map lifecycle and filter behavior.",
       "owner": "OSM Atlas maintainers",
-      "reviewed": "2026-09-22",
+      "reviewed": "2026-11-04",
       "paths": {
         "source": [
           "backend/pages/**",
           "static/js/components/**",
           "static/js/pages/**",
           "static/js/shared/utils.js",
-          "static/js/shared/jquery-lite.js",
           "static/js/shared/constants.js",
           "static/js/shared/permalinks.js",
           "templates/pages/index.html",
@@ -237,12 +241,10 @@
           "templates/pages/routes.html",
           "templates/pages/operators.html",
           "templates/pages/data.html",
-          "templates/reports/**",
           "templates/components/_components.html",
           "templates/components/_map_scripts.html",
           "templates/components/export_overlay.html",
           "templates/components/data_page_tabs.html",
-          "templates/components/stats_data.html",
           "templates/components/routes-comparison.html"
         ],
         "tests": [
@@ -279,7 +281,7 @@
       "criticality": "medium",
       "responsibility": "Discover and render the app and engine manuals, diagrams, PDFs, generated quality evidence and the code quality dashboard.",
       "owner": "OSM Atlas maintainers",
-      "reviewed": "2026-09-22",
+      "reviewed": "2026-11-04",
       "paths": {
         "source": [
           "backend/blueprints/docs.py",
@@ -322,7 +324,9 @@
       ],
       "entrypoints": [],
       "dependencies": [
-        "app.query-api"
+        "app.query-api",
+        "platform.styles-assets",
+        "app.review-ui"
       ],
       "contracts": {}
     },
@@ -332,13 +336,13 @@
       "criticality": "critical",
       "responsibility": "Own migrations, application wiring, deployment configuration and the checks protecting the producer/consumer boundary.",
       "owner": "OSM Atlas maintainers",
-      "reviewed": "2026-09-22",
+      "reviewed": "2026-11-04",
       "paths": {
         "source": [
           "migrations/**",
           "backend/__init__.py",
           "backend/app.py",
-          "backend/version.py",
+          "backend/blueprints/seo.py",
           ".github/**",
           "config/**",
           "docker*.yml",
@@ -357,6 +361,7 @@
           "scripts/quality.py",
           "scripts/run_quality.py",
           "scripts/deploy_report.py",
+          "scripts/regenerate_stats.py",
           "scripts/quality*.mjs",
           "scripts/check-js-coverage.*",
           "scripts/run_vscode_task.sh",
@@ -407,7 +412,7 @@
       "criticality": "medium",
       "responsibility": "Own CSS tokens, shared layouts, vendor provenance and asset lint rules.",
       "owner": "OSM Atlas maintainers",
-      "reviewed": "2026-09-22",
+      "reviewed": "2026-11-04",
       "paths": {
         "source": [
           "static/css/**",
@@ -415,6 +420,8 @@
           "templates/errors/**",
           "templates/components/navbar.html",
           "static/js/shared/theme.js",
+          "static/js/shared/jquery-lite.js",
+          "static/js/shared/page-tabs.js",
           "scripts/stylelint/**",
           "scripts/sync_vendor_assets.mjs",
           "scripts/check_no_cdn_templates.mjs",
@@ -438,7 +445,9 @@
         "Production templates load local pinned vendor assets."
       ],
       "entrypoints": [],
-      "dependencies": [],
+      "dependencies": [
+        "app.pipeline-orchestration"
+      ],
       "contracts": {}
     }
   ],

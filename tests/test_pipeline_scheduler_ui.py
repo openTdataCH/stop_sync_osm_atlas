@@ -675,18 +675,18 @@ def test_record_data_updated_timestamp_persists_run_type_and_refresh_scope(monke
     monkeypatch.setattr(job_runner, "set_status", lambda **kwargs: captured.setdefault("status", kwargs))
 
     result = job_runner._record_data_updated_timestamp(
-        run_type=PipelineRunType.ATLAS_CACHED,
+        run_type=PipelineRunType.COMPLETE,
         rewritten_tables=['osm_nodes', 'line_families'],
         reused_tables=['atlas_stops', 'gtfs_stops_raw'],
     )
 
     assert result == "2026-05-03T12:00:00+02:00"
     assert captured["value"] == "2026-05-03T12:00:00+02:00"
-    assert captured["status"]["run_type"] == "atlas_cached"
+    assert captured["status"]["run_type"] == "complete"
     assert captured["status"]["refresh_scope_tables_reused"] == ['atlas_stops', 'gtfs_stops_raw']
     assert json.loads((tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8")) == {
         "last_pipeline_data_import_ended_at": "2026-05-03T12:00:00+02:00",
-        "last_run_type": "atlas_cached",
+        "last_run_type": "complete",
         "refresh_scope_tables_rewritten": ['osm_nodes', 'line_families'],
         "refresh_scope_tables_reused": ['atlas_stops', 'gtfs_stops_raw'],
     }

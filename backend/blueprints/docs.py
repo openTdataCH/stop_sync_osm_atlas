@@ -21,6 +21,7 @@ from backend.services.docs_stats import (
 from backend.services.quality_report import replace_quality_placeholder
 from backend.services.repo_scanner import RepoScanner
 from backend.services.request_payload import read_request_payload
+from backend.services.site_url import site_url
 from backend.version import APP_VERSION, engine_blob_base
 import uuid
 import threading
@@ -1476,8 +1477,6 @@ def docs_page(page: str = ''):
             'next_page': next_page,
             'canonical_url': url_for('docs.docs_page', page=active_slug),
         })
-
-    from backend.blueprints.seo import site_url
 
     return render_template(
         'pages/docs.html',

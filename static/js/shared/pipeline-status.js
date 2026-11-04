@@ -1,6 +1,7 @@
 (function () {
     var POLL_MS_IDLE = 10000;
     var POLL_MS_ACTIVE = 1500;
+    var REQUEST_TIMEOUT_MS = 5000;
     var timerHandle = null;
     var latestStatus = window.initialPipelineStatus || null;
 
@@ -272,23 +273,23 @@
     }
 
     function fetchStatus() {
-        if (!window.$ || typeof window.$.ajax !== 'function') {
-            scheduleNextTick();
-            return;
-        }
-
-        window.$.ajax({
-            url: '/api/system/pipeline_status',
-            method: 'GET',
-            dataType: 'json',
-            cache: false,
-            timeout: 5000,
-            success: function (status) {
-                applyStatus(status);
-            },
-            complete: function () {
-                scheduleNextTick();
+        var controller = new AbortController();
+        var timeout = setTimeout(function () {
+            controller.abort();
+        }, REQUEST_TIMEOUT_MS);
+        fetch('/api/system/pipeline_status', {
+            cache: 'no-store',
+            signal: controller.signal
+        }).then(function (response) {
+            if (!response.ok) {
+                throw new Error('Pipeline status request failed with status ' + response.status);
             }
+            return response.json();
+        }).then(applyStatus, function () {
+            // A failed, timed-out or malformed answer keeps the last status until the next poll.
+        }).finally(function () {
+            clearTimeout(timeout);
+            scheduleNextTick();
         });
     }
 

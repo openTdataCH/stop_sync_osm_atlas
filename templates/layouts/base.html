@@ -96,7 +96,7 @@
   <script>window.initialPipelineStatus = {{ pipeline_status|default({}, true)|tojson }};</script>
   <script src="{{ url_for('static', filename='js/shared/pipeline-status.js') }}"></script>
   <script>window.ReviewConfig = {{ review_config | tojson }};</script>
-  <script src="{{ url_for('static', filename='js/components/page-tabs.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/shared/page-tabs.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 

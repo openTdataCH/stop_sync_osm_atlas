@@ -20,7 +20,6 @@ from sqlalchemy.exc import SQLAlchemyError
 from backend.db_errors import is_missing_table_error
 from backend.importing.session import session
 from backend.importing.helpers import safe_value, get_osm_node_type
-from backend.jobs.job_types import PipelineRunType
 from backend.importing.projection import project_bundle
 from backend.importing.bundle import read_bundle
 from backend.importing.progress import progress_stage, report
@@ -110,7 +109,7 @@ FULL_REFRESH_TABLES = [
 ]
 
 
-def get_refresh_scope_tables(run_type: PipelineRunType) -> tuple[list[str], list[str]]:
+def get_refresh_scope_tables() -> tuple[list[str], list[str]]:
     return list(FULL_REFRESH_TABLES), []
 
 
@@ -678,7 +677,6 @@ def _write_rows(db_session, db_payloads):
 
 def import_to_database(
     db_payloads=None,
-    run_type=PipelineRunType.COMPLETE,
     *,
     manifest=None,
     progress_callback=None,
@@ -691,8 +689,6 @@ def import_to_database(
     """
     if db_payloads is None:
         raise ValueError("db_payloads must be provided")
-    if run_type != PipelineRunType.COMPLETE:
-        raise ValueError("Result bundle imports require a complete snapshot")
     _validate_refresh_payloads(db_payloads)
     _ensure_import_schema_exists(session)
     session.rollback()

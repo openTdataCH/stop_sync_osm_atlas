@@ -1,11 +1,12 @@
-"""Optional structured progress around application-owned import work."""
+"""Optional structured progress around application-owned import work.
+
+The events carry no progress schema version: the pipeline that receives them stamps its own.
+"""
 from __future__ import annotations
 
 from contextlib import contextmanager
 import logging
 import time
-
-from backend.services.pipeline_progress import PROGRESS_SCHEMA_VERSION
 
 
 def report(callback, *args):
@@ -24,7 +25,6 @@ def progress_stage(stage_id, callback=None):
     def emit(event, **extra):
         report(callback, {
                 "event": event,
-                "progress_schema_version": PROGRESS_SCHEMA_VERSION,
                 "stage_id": stage_id,
                 "seconds": round(time.perf_counter() - started, 3),
                 **extra,

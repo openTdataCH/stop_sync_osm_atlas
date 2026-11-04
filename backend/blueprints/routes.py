@@ -13,7 +13,6 @@ from backend.services.gtfs_stop_id_sloid import (
     build_gtfs_stop_popup,
     find_gtfs_stop_id_sloid_targets,
 )
-from backend.services.pipeline_status import get_status
 from backend.services.route_comparison import build_route_comparison, list_comparison_options
 
 
@@ -23,7 +22,11 @@ routes_bp = Blueprint('routes_api', __name__)
 GTFS_STOP_ID_SLOID_SEARCH_VALUE_MAX_LENGTH = 255
 
 
-def _routes_unavailable_response(message: str, phase: str | None = None):
+def routes_unavailable_response(message: str, phase: str | None = None):
+    """The 503 JSON answer, with Retry-After, while the route data is unavailable.
+
+    The application factory also answers with it while blocking maintenance hides the route data.
+    """
     response = make_response(jsonify({
         'error': message,
         'phase': phase,
@@ -33,15 +36,9 @@ def _routes_unavailable_response(message: str, phase: str | None = None):
     return response
 
 
-@routes_bp.before_request
-def _guard_routes_during_blocking_maintenance():
-    reason = route_listing.maintenance_reason(get_status())
-    return _routes_unavailable_response(*reason) if reason else None
-
-
 def _handle_route_database_error(exc):
     reason = route_listing.database_busy_reason(exc)
-    return _routes_unavailable_response(*reason) if reason else None
+    return routes_unavailable_response(*reason) if reason else None
 
 
 def _parse_gtfs_stop_id_sloid_search():
@@ -105,7 +102,7 @@ def _comparison_integer(name, *, default=None, maximum=2_147_483_647):
 def _comparison_database_error(exc):
     if is_missing_table_error(exc):
         db.session.rollback()
-        return _routes_unavailable_response('Route tables are not initialized yet.', phase='database')
+        return routes_unavailable_response('Route tables are not initialized yet.', phase='database')
     return _handle_route_database_error(exc)
 
 

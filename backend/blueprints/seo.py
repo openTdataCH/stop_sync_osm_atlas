@@ -1,6 +1,9 @@
 import xml.etree.ElementTree as ET
 
-from flask import Blueprint, Response, current_app, render_template, request, url_for
+from flask import Blueprint, Response, render_template, request, url_for
+
+from backend.blueprints.docs import build_doc_slug_maps, list_markdown_files
+from backend.services.site_url import site_url
 
 
 seo_bp = Blueprint('seo', __name__)
@@ -29,13 +32,6 @@ SITEMAP_ENDPOINTS = (
 )
 
 
-def site_url(path: str) -> str:
-    configured_base = current_app.config.get('SITE_URL', '').rstrip('/')
-    base = configured_base or request.url_root.rstrip('/')
-    normalized_path = '/' + path.lstrip('/')
-    return f'{base}{normalized_path}'
-
-
 def seo_template_context() -> dict[str, str]:
     has_query_filters = bool(request.query_string)
     indexable = (
@@ -53,8 +49,6 @@ def _sitemap_paths() -> list[str]:
 
     # Documentation is file-backed, so include every canonical documentation
     # slug rather than the duplicate /docs entry point.
-    from backend.blueprints.docs import build_doc_slug_maps, list_markdown_files
-
     files = list_markdown_files()
     file_to_slug, _ = build_doc_slug_maps(files)
     paths.extend(

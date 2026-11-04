@@ -143,6 +143,8 @@ def test_import_bundle_reports_projection_and_analytics(monkeypatch):
         ('stage_started', 'publish.analytics'),
         ('stage_finished', 'publish.analytics'),
     ]
+    # The importer does not know the pipeline's progress schema; the runner stamps it.
+    assert not any('progress_schema_version' in event for event in stage_events)
 
 
 @pytest.mark.parametrize('failure', ['empty_result', 'exception'])
@@ -222,9 +224,10 @@ def test_runner_reports_published_dataset_with_analytics_warning(monkeypatch):
     monkeypatch.setattr(job_runner.data_meta, 'update_data_meta', lambda **kw: None)
 
     def imported(directory, stage_event_callback):
+        # As the importer emits them: without a schema version, which the runner stamps.
         for stage_id in ('database.validate', 'database.prepare', 'database.load', 'publish.swap', 'publish.analytics'):
             for kind in ('stage_started', 'stage_failed' if stage_id == 'publish.analytics' else 'stage_finished'):
-                stage_event_callback(dict(event=kind, progress_schema_version=2, stage_id=stage_id))
+                stage_event_callback(dict(event=kind, stage_id=stage_id))
         raise PublishedDatasetError({'run_id': 'published-run', 'schema_version': 1}, 'report disk unavailable')
 
     monkeypatch.setattr(job_runner, 'import_bundle', imported)

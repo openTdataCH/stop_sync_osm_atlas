@@ -3,9 +3,8 @@ from types import SimpleNamespace
 import pytest
 from flask import render_template
 
-from backend.blueprints import routes as routes_module
 from backend.pages import routes as route_pages
-from backend.services import route_listing
+from backend.services import pipeline_status, route_listing
 from backend.services.route_listing import _build_direction_group, _partition_route_items, _route_sort_key
 from backend.extensions import db
 from backend.models import LineFamily, LineFamilyMatch
@@ -441,8 +440,8 @@ def test_routes_page_uses_sql_page_loader(client, monkeypatch):
 
 
 def test_routes_return_503_before_database_access_during_maintenance(client, monkeypatch):
-    # The pages answer with the maintenance page and the API with JSON; each guards itself.
-    for module in (route_pages, routes_module):
+    # The pages guard themselves with the maintenance page; the application guards the API with JSON.
+    for module in (route_pages, pipeline_status):
         monkeypatch.setattr(module, 'get_status', lambda: {
             'blocking_maintenance': True,
             'phase': 'import',
