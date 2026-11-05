@@ -71,7 +71,7 @@
         "expression": "root.dataset.apiUrl",
         "file": "app:static/js/quality/dashboard.js",
         "kind": "request",
-        "line": 2297
+        "line": 2286
       },
       {
         "expression": "url",
@@ -966,7 +966,7 @@
     },
     {
       "id": "app:static/css/pages/quality.css",
-      "lines": 1488,
+      "lines": 1489,
       "module": "platform.styles-assets",
       "symbols": 0
     },
@@ -1416,7 +1416,7 @@
     },
     {
       "id": "app:static/js/quality/dashboard.js",
-      "lines": 2390,
+      "lines": 2379,
       "module": "app.docs-delivery",
       "symbols": 149
     },
@@ -1584,7 +1584,7 @@
     },
     {
       "id": "app:templates/pages/quality.html",
-      "lines": 180,
+      "lines": 175,
       "module": "app.docs-delivery",
       "symbols": 0
     },
@@ -2045,7 +2045,7 @@
       "symbols": 0
     }
   ],
-  "generated_at": "2026-11-05T09:14:36.333800+00:00",
+  "generated_at": "2026-11-05T09:31:24.921172+00:00",
   "interface": {
     "app.docs-delivery": [
       {
@@ -27941,13 +27941,13 @@
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js",
-      "target": "app:static/js/quality/dashboard.js:init@1605"
+      "target": "app:static/js/quality/dashboard.js:init@1606"
     },
     {
       "count": 4,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js",
-      "target": "app:static/js/quality/dashboard.js:labelWidth@1093"
+      "target": "app:static/js/quality/dashboard.js:labelWidth@1094"
     },
     {
       "count": 4,
@@ -27958,115 +27958,115 @@
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:aggregateModuleLinks@160"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:blindSpots@200"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:boundaryFindings@184"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:fileGraph@303"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:functionGraph@398"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
-      "target": "app:static/js/quality/dashboard.js:init@1605"
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
+      "target": "app:static/js/quality/dashboard.js:init@1606"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:labelPlaces@854"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:laneSummary@940"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:matchSymbols@825"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:moduleColors@568"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:moduleLevels@211"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:modulePositions@262"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:moduleRing@558"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:nodeColor@918"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:packRegions@585"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:symbolGraph@512"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:symbolPositions@634"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
+      "source": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
       "target": "app:static/js/quality/dashboard.js:symbolSize@548"
     },
     {
@@ -28126,8 +28126,8 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:at@1514",
-      "target": "app:static/js/quality/dashboard.js:sourceLink@1266"
+      "source": "app:static/js/quality/dashboard.js:at@1515",
+      "target": "app:static/js/quality/dashboard.js:sourceLink@1267"
     },
     {
       "count": 1,
@@ -28138,55 +28138,55 @@
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1511",
-      "target": "app:static/js/quality/dashboard.js:at@1514"
+      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1512",
+      "target": "app:static/js/quality/dashboard.js:at@1515"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1511",
+      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1512",
       "target": "app:static/js/quality/dashboard.js:blindSpots@200"
     },
     {
       "count": 4,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1511",
+      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1512",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1511",
+      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1512",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 5,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1511",
-      "target": "app:static/js/quality/dashboard.js:findingGroup@1491"
+      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1512",
+      "target": "app:static/js/quality/dashboard.js:findingGroup@1492"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1511",
+      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1512",
       "target": "app:static/js/quality/dashboard.js:plural@155"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1511",
-      "target": "app:static/js/quality/dashboard.js:sourceLink@1266"
+      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1512",
+      "target": "app:static/js/quality/dashboard.js:sourceLink@1267"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1511",
+      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1512",
       "target": "app:static/js/quality/dashboard.js:symbolFile@137"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1511",
+      "source": "app:static/js/quality/dashboard.js:blindSpotsHtml@1512",
       "target": "app:static/js/quality/dashboard.js:symbolLine@141"
     },
     {
@@ -28204,13 +28204,13 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:box@1047",
+      "source": "app:static/js/quality/dashboard.js:box@1048",
       "target": "app:static/js/quality/dashboard.js:baseName@115"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:box@1047",
+      "source": "app:static/js/quality/dashboard.js:box@1048",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
@@ -28222,31 +28222,31 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:checksHtml@1586",
+      "source": "app:static/js/quality/dashboard.js:checksHtml@1587",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:checksHtml@1586",
+      "source": "app:static/js/quality/dashboard.js:checksHtml@1587",
       "target": "app:static/js/quality/dashboard.js:statusBadge@970"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:chooseMatch@2095",
-      "target": "app:static/js/quality/dashboard.js:closeMatches@2089"
+      "source": "app:static/js/quality/dashboard.js:chooseMatch@2090",
+      "target": "app:static/js/quality/dashboard.js:closeMatches@2084"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:chooseMatch@2095",
+      "source": "app:static/js/quality/dashboard.js:chooseMatch@2090",
       "target": "app:static/js/quality/dashboard.js:focusFile@1928"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:chooseMatch@2095",
+      "source": "app:static/js/quality/dashboard.js:chooseMatch@2090",
       "target": "app:static/js/quality/dashboard.js:focusSymbol@1919"
     },
     {
@@ -28259,66 +28259,66 @@
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:chosen@1867",
-      "target": "app:static/js/quality/dashboard.js:reveal@1709"
+      "target": "app:static/js/quality/dashboard.js:reveal@1710"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:chosen@1867",
-      "target": "app:static/js/quality/dashboard.js:select@1677"
+      "target": "app:static/js/quality/dashboard.js:select@1678"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:commit@1570",
+      "source": "app:static/js/quality/dashboard.js:commit@1571",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:commit@1570",
-      "target": "app:static/js/quality/dashboard.js:summaryHtml@1563"
+      "source": "app:static/js/quality/dashboard.js:commit@1571",
+      "target": "app:static/js/quality/dashboard.js:summaryHtml@1564"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:contractHtml@1479",
+      "source": "app:static/js/quality/dashboard.js:contractHtml@1480",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:contractHtml@1479",
-      "target": "app:static/js/quality/dashboard.js:list@1284"
+      "source": "app:static/js/quality/dashboard.js:contractHtml@1480",
+      "target": "app:static/js/quality/dashboard.js:list@1285"
     },
     {
       "count": 2,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:contractHtml@1479",
-      "target": "app:static/js/quality/dashboard.js:moduleButton@1274"
+      "source": "app:static/js/quality/dashboard.js:contractHtml@1480",
+      "target": "app:static/js/quality/dashboard.js:moduleButton@1275"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:createContext@1592",
+      "source": "app:static/js/quality/dashboard.js:createContext@1593",
       "target": "app:static/js/quality/dashboard.js:aggregateModuleLinks@160"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:createContext@1592",
+      "source": "app:static/js/quality/dashboard.js:createContext@1593",
       "target": "app:static/js/quality/dashboard.js:boundaryFindings@184"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:createContext@1592",
+      "source": "app:static/js/quality/dashboard.js:createContext@1593",
       "target": "app:static/js/quality/dashboard.js:fileOwners@126"
     },
     {
       "count": 3,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:createContext@1592",
+      "source": "app:static/js/quality/dashboard.js:createContext@1593",
       "target": "app:static/js/quality/dashboard.js:indexBy@120"
     },
     {
@@ -28330,133 +28330,133 @@
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:crumbsHtml@1714",
+      "source": "app:static/js/quality/dashboard.js:crumbsHtml@1715",
       "target": "app:static/js/quality/dashboard.js:baseName@115"
     },
     {
       "count": 4,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:crumbsHtml@1714",
+      "source": "app:static/js/quality/dashboard.js:crumbsHtml@1715",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:crumbsHtml@1714",
+      "source": "app:static/js/quality/dashboard.js:crumbsHtml@1715",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:dependencyItem@1356",
-      "target": "app:static/js/quality/dashboard.js:moduleButton@1274"
+      "source": "app:static/js/quality/dashboard.js:dependencyItem@1357",
+      "target": "app:static/js/quality/dashboard.js:moduleButton@1275"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:dependencyItem@1356",
+      "source": "app:static/js/quality/dashboard.js:dependencyItem@1357",
       "target": "app:static/js/quality/dashboard.js:plural@155"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:element@1606",
-      "target": "app:static/js/quality/dashboard.js:init@1605"
+      "source": "app:static/js/quality/dashboard.js:element@1607",
+      "target": "app:static/js/quality/dashboard.js:init@1606"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:end@1451",
+      "source": "app:static/js/quality/dashboard.js:end@1452",
       "target": "app:static/js/quality/dashboard.js:baseName@115"
     },
     {
       "count": 3,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:end@1451",
+      "source": "app:static/js/quality/dashboard.js:end@1452",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 3,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:end@1451",
-      "target": "app:static/js/quality/dashboard.js:functionHtml@1444"
+      "source": "app:static/js/quality/dashboard.js:end@1452",
+      "target": "app:static/js/quality/dashboard.js:functionHtml@1445"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:end@1451",
+      "source": "app:static/js/quality/dashboard.js:end@1452",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:end@1451",
-      "target": "app:static/js/quality/dashboard.js:sourceLink@1266"
+      "source": "app:static/js/quality/dashboard.js:end@1452",
+      "target": "app:static/js/quality/dashboard.js:sourceLink@1267"
     },
     {
       "count": 5,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:figuresHtml@1528",
-      "target": "app:static/js/quality/dashboard.js:figure@1531"
+      "source": "app:static/js/quality/dashboard.js:figuresHtml@1529",
+      "target": "app:static/js/quality/dashboard.js:figure@1532"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileElements@1022",
+      "source": "app:static/js/quality/dashboard.js:fileElements@1023",
       "target": "app:static/js/quality/dashboard.js:allFilePositions@467"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileElements@1022",
+      "source": "app:static/js/quality/dashboard.js:fileElements@1023",
       "target": "app:static/js/quality/dashboard.js:baseName@115"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileElements@1022",
+      "source": "app:static/js/quality/dashboard.js:fileElements@1023",
       "target": "app:static/js/quality/dashboard.js:edgeWidth@935"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileElements@1022",
+      "source": "app:static/js/quality/dashboard.js:fileElements@1023",
       "target": "app:static/js/quality/dashboard.js:fileGraph@303"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileElements@1022",
+      "source": "app:static/js/quality/dashboard.js:fileElements@1023",
       "target": "app:static/js/quality/dashboard.js:focusPositions@331"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileElements@1022",
+      "source": "app:static/js/quality/dashboard.js:fileElements@1023",
       "target": "app:static/js/quality/dashboard.js:indexBy@120"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileElements@1022",
+      "source": "app:static/js/quality/dashboard.js:fileElements@1023",
       "target": "app:static/js/quality/dashboard.js:kindsText@984"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileElements@1022",
+      "source": "app:static/js/quality/dashboard.js:fileElements@1023",
       "target": "app:static/js/quality/dashboard.js:nodeColor@918"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileElements@1022",
+      "source": "app:static/js/quality/dashboard.js:fileElements@1023",
       "target": "app:static/js/quality/dashboard.js:paint@926"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileElements@1022",
+      "source": "app:static/js/quality/dashboard.js:fileElements@1023",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
@@ -28492,188 +28492,188 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
       "target": "app:static/js/quality/dashboard.js:addCount@151"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
       "target": "app:static/js/quality/dashboard.js:baseName@115"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
       "target": "app:static/js/quality/dashboard.js:drawn@133"
     },
     {
       "count": 5,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
       "target": "app:static/js/quality/dashboard.js:fileGraph@303"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
-      "target": "app:static/js/quality/dashboard.js:lines@1413"
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
+      "target": "app:static/js/quality/dashboard.js:lines@1414"
     },
     {
       "count": 5,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
-      "target": "app:static/js/quality/dashboard.js:list@1284"
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
+      "target": "app:static/js/quality/dashboard.js:list@1285"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
       "target": "app:static/js/quality/dashboard.js:plural@155"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
-      "target": "app:static/js/quality/dashboard.js:reached@1424"
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
+      "target": "app:static/js/quality/dashboard.js:reached@1425"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:fileHtml@1410",
-      "target": "app:static/js/quality/dashboard.js:sourceLink@1266"
+      "source": "app:static/js/quality/dashboard.js:fileHtml@1411",
+      "target": "app:static/js/quality/dashboard.js:sourceLink@1267"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:findingGroup@1491",
-      "target": "app:static/js/quality/dashboard.js:list@1284"
+      "source": "app:static/js/quality/dashboard.js:findingGroup@1492",
+      "target": "app:static/js/quality/dashboard.js:list@1285"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:findingsHtml@1497",
+      "source": "app:static/js/quality/dashboard.js:findingsHtml@1498",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:findingsHtml@1497",
+      "source": "app:static/js/quality/dashboard.js:findingsHtml@1498",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:findingsHtml@1497",
-      "target": "app:static/js/quality/dashboard.js:findingGroup@1491"
+      "source": "app:static/js/quality/dashboard.js:findingsHtml@1498",
+      "target": "app:static/js/quality/dashboard.js:findingGroup@1492"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:findingsHtml@1497",
-      "target": "app:static/js/quality/dashboard.js:linkButton@1278"
+      "source": "app:static/js/quality/dashboard.js:findingsHtml@1498",
+      "target": "app:static/js/quality/dashboard.js:linkButton@1279"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:findingsHtml@1497",
-      "target": "app:static/js/quality/dashboard.js:linkButton@1278"
+      "source": "app:static/js/quality/dashboard.js:findingsHtml@1498",
+      "target": "app:static/js/quality/dashboard.js:linkButton@1279"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:findingsHtml@1497",
-      "target": "app:static/js/quality/dashboard.js:moduleButton@1274"
+      "source": "app:static/js/quality/dashboard.js:findingsHtml@1498",
+      "target": "app:static/js/quality/dashboard.js:moduleButton@1275"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:findingsHtml@1497",
+      "source": "app:static/js/quality/dashboard.js:findingsHtml@1498",
       "target": "app:static/js/quality/dashboard.js:plural@155"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:findingsHtml@1497",
+      "source": "app:static/js/quality/dashboard.js:findingsHtml@1498",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:findingsHtml@1497",
-      "target": "app:static/js/quality/dashboard.js:sourceLink@1266"
+      "source": "app:static/js/quality/dashboard.js:findingsHtml@1498",
+      "target": "app:static/js/quality/dashboard.js:sourceLink@1267"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:flashHint@1948",
-      "target": "app:static/js/quality/dashboard.js:element@1606"
+      "target": "app:static/js/quality/dashboard.js:element@1607"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:focusFile@1928",
-      "target": "app:static/js/quality/dashboard.js:fileHtml@1410"
+      "target": "app:static/js/quality/dashboard.js:fileHtml@1411"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:focusFile@1928",
-      "target": "app:static/js/quality/dashboard.js:highlight@1656"
+      "target": "app:static/js/quality/dashboard.js:highlight@1657"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:focusFile@1928",
-      "target": "app:static/js/quality/dashboard.js:renderExplorer@1746"
+      "target": "app:static/js/quality/dashboard.js:renderExplorer@1747"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:focusFile@1928",
-      "target": "app:static/js/quality/dashboard.js:setPanel@1628"
+      "target": "app:static/js/quality/dashboard.js:setPanel@1629"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:focusModule@1910",
-      "target": "app:static/js/quality/dashboard.js:highlight@1656"
+      "target": "app:static/js/quality/dashboard.js:highlight@1657"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:focusModule@1910",
-      "target": "app:static/js/quality/dashboard.js:renderExplorer@1746"
+      "target": "app:static/js/quality/dashboard.js:renderExplorer@1747"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:focusModule@1910",
-      "target": "app:static/js/quality/dashboard.js:showOverview@1633"
+      "target": "app:static/js/quality/dashboard.js:showOverview@1634"
     },
     {
       "count": 1,
@@ -28691,19 +28691,19 @@
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:focusSymbol@1919",
-      "target": "app:static/js/quality/dashboard.js:renderExplorer@1746"
+      "target": "app:static/js/quality/dashboard.js:renderExplorer@1747"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:focusSymbol@1919",
-      "target": "app:static/js/quality/dashboard.js:reveal@1709"
+      "target": "app:static/js/quality/dashboard.js:reveal@1710"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:focusSymbol@1919",
-      "target": "app:static/js/quality/dashboard.js:select@1677"
+      "target": "app:static/js/quality/dashboard.js:select@1678"
     },
     {
       "count": 1,
@@ -28720,50 +28720,50 @@
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionElements@1041",
-      "target": "app:static/js/quality/dashboard.js:box@1047"
+      "source": "app:static/js/quality/dashboard.js:functionElements@1042",
+      "target": "app:static/js/quality/dashboard.js:box@1048"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionElements@1041",
+      "source": "app:static/js/quality/dashboard.js:functionElements@1042",
       "target": "app:static/js/quality/dashboard.js:edgeWidth@935"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionElements@1041",
+      "source": "app:static/js/quality/dashboard.js:functionElements@1042",
       "target": "app:static/js/quality/dashboard.js:fileOwners@126"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionElements@1041",
+      "source": "app:static/js/quality/dashboard.js:functionElements@1042",
       "target": "app:static/js/quality/dashboard.js:functionGraph@398"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionElements@1041",
+      "source": "app:static/js/quality/dashboard.js:functionElements@1042",
       "target": "app:static/js/quality/dashboard.js:functionPositions@439"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionElements@1041",
+      "source": "app:static/js/quality/dashboard.js:functionElements@1042",
       "target": "app:static/js/quality/dashboard.js:indexBy@120"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionElements@1041",
+      "source": "app:static/js/quality/dashboard.js:functionElements@1042",
       "target": "app:static/js/quality/dashboard.js:kindsText@984"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionElements@1041",
-      "target": "app:static/js/quality/dashboard.js:member@1051"
+      "source": "app:static/js/quality/dashboard.js:functionElements@1042",
+      "target": "app:static/js/quality/dashboard.js:member@1052"
     },
     {
       "count": 2,
@@ -28810,50 +28810,50 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionHtml@1444",
+      "source": "app:static/js/quality/dashboard.js:functionHtml@1445",
       "target": "app:static/js/quality/dashboard.js:baseName@115"
     },
     {
       "count": 4,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionHtml@1444",
+      "source": "app:static/js/quality/dashboard.js:functionHtml@1445",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:functionHtml@1444",
+      "source": "app:static/js/quality/dashboard.js:functionHtml@1445",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionHtml@1444",
-      "target": "app:static/js/quality/dashboard.js:list@1284"
+      "source": "app:static/js/quality/dashboard.js:functionHtml@1445",
+      "target": "app:static/js/quality/dashboard.js:list@1285"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionHtml@1444",
-      "target": "app:static/js/quality/dashboard.js:moduleButton@1274"
+      "source": "app:static/js/quality/dashboard.js:functionHtml@1445",
+      "target": "app:static/js/quality/dashboard.js:moduleButton@1275"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionHtml@1444",
-      "target": "app:static/js/quality/dashboard.js:rows@1460"
+      "source": "app:static/js/quality/dashboard.js:functionHtml@1445",
+      "target": "app:static/js/quality/dashboard.js:rows@1461"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:functionHtml@1444",
+      "source": "app:static/js/quality/dashboard.js:functionHtml@1445",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:functionHtml@1444",
-      "target": "app:static/js/quality/dashboard.js:sourceLink@1266"
+      "source": "app:static/js/quality/dashboard.js:functionHtml@1445",
+      "target": "app:static/js/quality/dashboard.js:sourceLink@1267"
     },
     {
       "count": 2,
@@ -28877,28 +28877,16 @@
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:go@2039",
-      "target": "app:static/js/quality/dashboard.js:element@1606"
+      "target": "app:static/js/quality/dashboard.js:reveal@1710"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:go@2039",
-      "target": "app:static/js/quality/dashboard.js:render@1803"
+      "target": "app:static/js/quality/dashboard.js:select@1678"
     },
     {
-      "count": 1,
-      "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:go@2039",
-      "target": "app:static/js/quality/dashboard.js:reveal@1709"
-    },
-    {
-      "count": 1,
-      "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:go@2039",
-      "target": "app:static/js/quality/dashboard.js:select@1677"
-    },
-    {
-      "count": 3,
+      "count": 2,
       "kind": "uses",
       "source": "app:static/js/quality/dashboard.js:go@2039",
       "target": "app:static/js/quality/dashboard.js:selectLink@2038"
@@ -28907,13 +28895,13 @@
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:hideTooltip@1955",
-      "target": "app:static/js/quality/dashboard.js:element@1606"
+      "target": "app:static/js/quality/dashboard.js:element@1607"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:highlight@1656",
-      "target": "app:static/js/quality/dashboard.js:nameSymbols@1770"
+      "source": "app:static/js/quality/dashboard.js:highlight@1657",
+      "target": "app:static/js/quality/dashboard.js:nameSymbols@1771"
     },
     {
       "count": 1,
@@ -28930,247 +28918,247 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:applySymbolSwitches@1795"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:applySymbolSwitches@1796"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:blindSpotsHtml@1511"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:blindSpotsHtml@1512"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:checksHtml@1586"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:checksHtml@1587"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:chooseMatch@2095"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:chooseMatch@2090"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:closeMatches@2089"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:closeMatches@2084"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:closeMatches@2089"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:closeMatches@2084"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:createContext@1592"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:createContext@1593"
     },
     {
-      "count": 25,
+      "count": 24,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:element@1606"
-    },
-    {
-      "count": 1,
-      "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:figuresHtml@1528"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:element@1607"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:findingsHtml@1497"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:figuresHtml@1529"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:findingsHtml@1498"
+    },
+    {
+      "count": 1,
+      "kind": "calls",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:flashHint@1948"
     },
     {
       "count": 5,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:focusModule@1910"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:focusSymbol@1919"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:hideTooltip@1955"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:hoverEnd@2001"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:hoverStart@1991"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:matchSymbols@825"
     },
     {
       "count": 4,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:openFile@1866"
     },
     {
       "count": 3,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:openModule@1849"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:placeExpanded@2218"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:placeExpanded@2207"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:recolor@2063"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:recolor@2058"
     },
     {
-      "count": 2,
+      "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:render@1803"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:render@1804"
     },
     {
       "count": 3,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:renderExplorer@1746"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:renderExplorer@1747"
     },
     {
       "count": 3,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:renderMatches@2076"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:renderMatches@2071"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:reveal@1709"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:reveal@1710"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:runStatus@1557"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:runStatus@1558"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:scheduleNames@1785"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:scheduleNames@1786"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:scrollToMap@2059"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:scrollToMap@2054"
     },
     {
-      "count": 5,
+      "count": 4,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:select@1677"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:select@1678"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:selectLink@2038"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:selectable@2335"
-    },
-    {
-      "count": 3,
-      "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:selected@1638"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:selectable@2324"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:setExpanded@2223"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:selected@1639"
+    },
+    {
+      "count": 2,
+      "kind": "calls",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:setExpanded@2212"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:setPanelOpen@2254"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:setPanelOpen@2243"
     },
     {
       "count": 3,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:showModules@1888"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:showSymbols@1899"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:summaryHtml@1563"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:summaryHtml@1564"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:switchView@1839"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:symbolMap@1643"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:symbolMap@1644"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
-      "target": "app:static/js/quality/dashboard.js:tableHtml@1541"
+      "source": "app:static/js/quality/dashboard.js:init@1606",
+      "target": "app:static/js/quality/dashboard.js:tableHtml@1542"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:init@1605",
+      "source": "app:static/js/quality/dashboard.js:init@1606",
       "target": "app:static/js/quality/dashboard.js:zoomBy@1941"
     },
     {
@@ -29189,7 +29177,7 @@
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:labelPlaces@854",
-      "target": "app:static/js/quality/dashboard.js:labelWidth@1093"
+      "target": "app:static/js/quality/dashboard.js:labelWidth@1094"
     },
     {
       "count": 2,
@@ -29212,67 +29200,67 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:legendHtml@1226",
-      "target": "app:static/js/quality/dashboard.js:colorChoice@1222"
+      "source": "app:static/js/quality/dashboard.js:legendHtml@1227",
+      "target": "app:static/js/quality/dashboard.js:colorChoice@1223"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:legendHtml@1226",
+      "source": "app:static/js/quality/dashboard.js:legendHtml@1227",
       "target": "app:static/js/quality/dashboard.js:criticalityBadge@977"
     },
     {
       "count": 10,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:legendHtml@1226",
-      "target": "app:static/js/quality/dashboard.js:line@1241"
+      "source": "app:static/js/quality/dashboard.js:legendHtml@1227",
+      "target": "app:static/js/quality/dashboard.js:line@1242"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:legendHtml@1226",
-      "target": "app:static/js/quality/dashboard.js:swatch@1228"
+      "source": "app:static/js/quality/dashboard.js:legendHtml@1227",
+      "target": "app:static/js/quality/dashboard.js:swatch@1229"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:lines@1413",
+      "source": "app:static/js/quality/dashboard.js:lines@1414",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:lines@1413",
-      "target": "app:static/js/quality/dashboard.js:fileHtml@1410"
+      "source": "app:static/js/quality/dashboard.js:lines@1414",
+      "target": "app:static/js/quality/dashboard.js:fileHtml@1411"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:lines@1413",
+      "source": "app:static/js/quality/dashboard.js:lines@1414",
       "target": "app:static/js/quality/dashboard.js:kindsText@984"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:lines@1413",
+      "source": "app:static/js/quality/dashboard.js:lines@1414",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:lines@1413",
-      "target": "app:static/js/quality/dashboard.js:sourceLink@1266"
+      "source": "app:static/js/quality/dashboard.js:lines@1414",
+      "target": "app:static/js/quality/dashboard.js:sourceLink@1267"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:linkButton@1278",
+      "source": "app:static/js/quality/dashboard.js:linkButton@1279",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:linkButton@1278",
+      "source": "app:static/js/quality/dashboard.js:linkButton@1279",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
@@ -29308,31 +29296,31 @@
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:member@1051",
-      "target": "app:static/js/quality/dashboard.js:functionElements@1041"
+      "source": "app:static/js/quality/dashboard.js:member@1052",
+      "target": "app:static/js/quality/dashboard.js:functionElements@1042"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:member@1051",
+      "source": "app:static/js/quality/dashboard.js:member@1052",
       "target": "app:static/js/quality/dashboard.js:nodeColor@918"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:member@1051",
+      "source": "app:static/js/quality/dashboard.js:member@1052",
       "target": "app:static/js/quality/dashboard.js:paint@926"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleButton@1274",
+      "source": "app:static/js/quality/dashboard.js:moduleButton@1275",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleButton@1274",
+      "source": "app:static/js/quality/dashboard.js:moduleButton@1275",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
@@ -29398,55 +29386,55 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleHtml@1343",
+      "source": "app:static/js/quality/dashboard.js:moduleHtml@1344",
       "target": "app:static/js/quality/dashboard.js:criticalityBadge@977"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleHtml@1343",
-      "target": "app:static/js/quality/dashboard.js:dependencyItem@1356"
+      "source": "app:static/js/quality/dashboard.js:moduleHtml@1344",
+      "target": "app:static/js/quality/dashboard.js:dependencyItem@1357"
     },
     {
       "count": 11,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleHtml@1343",
+      "source": "app:static/js/quality/dashboard.js:moduleHtml@1344",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 2,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:moduleHtml@1343",
+      "source": "app:static/js/quality/dashboard.js:moduleHtml@1344",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleHtml@1343",
+      "source": "app:static/js/quality/dashboard.js:moduleHtml@1344",
       "target": "app:static/js/quality/dashboard.js:laneSummary@940"
     },
     {
       "count": 6,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleHtml@1343",
-      "target": "app:static/js/quality/dashboard.js:list@1284"
+      "source": "app:static/js/quality/dashboard.js:moduleHtml@1344",
+      "target": "app:static/js/quality/dashboard.js:list@1285"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:moduleHtml@1343",
+      "source": "app:static/js/quality/dashboard.js:moduleHtml@1344",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleHtml@1343",
-      "target": "app:static/js/quality/dashboard.js:sourceLink@1266"
+      "source": "app:static/js/quality/dashboard.js:moduleHtml@1344",
+      "target": "app:static/js/quality/dashboard.js:sourceLink@1267"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleHtml@1343",
+      "source": "app:static/js/quality/dashboard.js:moduleHtml@1344",
       "target": "app:static/js/quality/dashboard.js:statusBadge@970"
     },
     {
@@ -29470,44 +29458,44 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1386",
+      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1387",
       "target": "app:static/js/quality/dashboard.js:addCount@151"
     },
     {
       "count": 3,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1386",
+      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1387",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1386",
+      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1387",
       "target": "app:static/js/quality/dashboard.js:kindsText@984"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1386",
-      "target": "app:static/js/quality/dashboard.js:list@1284"
+      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1387",
+      "target": "app:static/js/quality/dashboard.js:list@1285"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1386",
-      "target": "app:static/js/quality/dashboard.js:moduleButton@1274"
+      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1387",
+      "target": "app:static/js/quality/dashboard.js:moduleButton@1275"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1386",
+      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1387",
       "target": "app:static/js/quality/dashboard.js:plural@155"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1386",
-      "target": "app:static/js/quality/dashboard.js:sourceLink@1266"
+      "source": "app:static/js/quality/dashboard.js:moduleLinkHtml@1387",
+      "target": "app:static/js/quality/dashboard.js:sourceLink@1267"
     },
     {
       "count": 2,
@@ -29584,14 +29572,14 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:nameSymbols@1770",
+      "source": "app:static/js/quality/dashboard.js:nameSymbols@1771",
       "target": "app:static/js/quality/dashboard.js:labelPlaces@854"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:nameSymbols@1770",
-      "target": "app:static/js/quality/dashboard.js:symbolMap@1643"
+      "source": "app:static/js/quality/dashboard.js:nameSymbols@1771",
+      "target": "app:static/js/quality/dashboard.js:symbolMap@1644"
     },
     {
       "count": 1,
@@ -29668,308 +29656,308 @@
     {
       "count": 2,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:reached@1424",
+      "source": "app:static/js/quality/dashboard.js:reached@1425",
       "target": "app:static/js/quality/dashboard.js:baseName@115"
     },
     {
       "count": 2,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:reached@1424",
+      "source": "app:static/js/quality/dashboard.js:reached@1425",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:recolor@2063",
-      "target": "app:static/js/quality/dashboard.js:colorChoice@1222"
+      "source": "app:static/js/quality/dashboard.js:recolor@2058",
+      "target": "app:static/js/quality/dashboard.js:colorChoice@1223"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:recolor@2063",
-      "target": "app:static/js/quality/dashboard.js:element@1606"
+      "source": "app:static/js/quality/dashboard.js:recolor@2058",
+      "target": "app:static/js/quality/dashboard.js:element@1607"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:recolor@2063",
-      "target": "app:static/js/quality/dashboard.js:legendHtml@1226"
+      "source": "app:static/js/quality/dashboard.js:recolor@2058",
+      "target": "app:static/js/quality/dashboard.js:legendHtml@1227"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:recolor@2063",
+      "source": "app:static/js/quality/dashboard.js:recolor@2058",
       "target": "app:static/js/quality/dashboard.js:nodeColor@918"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:recolor@2063",
+      "source": "app:static/js/quality/dashboard.js:recolor@2058",
       "target": "app:static/js/quality/dashboard.js:paint@926"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:recolor@2063",
-      "target": "app:static/js/quality/dashboard.js:renderExplorer@1746"
+      "source": "app:static/js/quality/dashboard.js:recolor@2058",
+      "target": "app:static/js/quality/dashboard.js:renderExplorer@1747"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:recolor@2063",
-      "target": "app:static/js/quality/dashboard.js:setPressed@1731"
+      "source": "app:static/js/quality/dashboard.js:recolor@2058",
+      "target": "app:static/js/quality/dashboard.js:setPressed@1732"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:recolor@2063",
-      "target": "app:static/js/quality/dashboard.js:symbolMap@1643"
+      "source": "app:static/js/quality/dashboard.js:recolor@2058",
+      "target": "app:static/js/quality/dashboard.js:symbolMap@1644"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:applySymbolSwitches@1795"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:applySymbolSwitches@1796"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:colorChoice@1222"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:colorChoice@1223"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:crumbsHtml@1714"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:crumbsHtml@1715"
     },
     {
-      "count": 3,
+      "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:element@1606"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:element@1607"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:fileElements@1022"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:fileElements@1023"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:fileHtml@1410"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:fileHtml@1411"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:functionElements@1041"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:functionElements@1042"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:init@1605"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:init@1606"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:legendHtml@1226"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:legendHtml@1227"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:level@1740"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:level@1741"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
+      "source": "app:static/js/quality/dashboard.js:render@1804",
       "target": "app:static/js/quality/dashboard.js:moduleElements@988"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:renderExplorer@1746"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:renderExplorer@1747"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:select@1677"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:select@1678"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:setPanel@1628"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:setPanel@1629"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:setPressed@1731"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:setPressed@1732"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:showOverview@1633"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:showOverview@1634"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:symbolElements@1070"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:symbolElements@1071"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:render@1803",
-      "target": "app:static/js/quality/dashboard.js:symbolMap@1643"
+      "source": "app:static/js/quality/dashboard.js:render@1804",
+      "target": "app:static/js/quality/dashboard.js:symbolMap@1644"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:renderExplorer@1746",
+      "source": "app:static/js/quality/dashboard.js:renderExplorer@1747",
       "target": "app:static/js/quality/dashboard.js:addCount@151"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:renderExplorer@1746",
-      "target": "app:static/js/quality/dashboard.js:element@1606"
+      "source": "app:static/js/quality/dashboard.js:renderExplorer@1747",
+      "target": "app:static/js/quality/dashboard.js:element@1607"
     },
     {
       "count": 3,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:renderExplorer@1746",
+      "source": "app:static/js/quality/dashboard.js:renderExplorer@1747",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:renderExplorer@1746",
+      "source": "app:static/js/quality/dashboard.js:renderExplorer@1747",
       "target": "app:static/js/quality/dashboard.js:nodeColor@918"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:renderExplorer@1746",
-      "target": "app:static/js/quality/dashboard.js:selected@1638"
+      "source": "app:static/js/quality/dashboard.js:renderExplorer@1747",
+      "target": "app:static/js/quality/dashboard.js:selected@1639"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:renderExplorer@1746",
+      "source": "app:static/js/quality/dashboard.js:renderExplorer@1747",
       "target": "app:static/js/quality/dashboard.js:shortName@103"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:renderExplorer@1746",
-      "target": "app:static/js/quality/dashboard.js:symbolMap@1643"
+      "source": "app:static/js/quality/dashboard.js:renderExplorer@1747",
+      "target": "app:static/js/quality/dashboard.js:symbolMap@1644"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:renderMatches@2076",
+      "source": "app:static/js/quality/dashboard.js:renderMatches@2071",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:rows@1460",
-      "target": "app:static/js/quality/dashboard.js:end@1451"
+      "source": "app:static/js/quality/dashboard.js:rows@1461",
+      "target": "app:static/js/quality/dashboard.js:end@1452"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:rows@1460",
+      "source": "app:static/js/quality/dashboard.js:rows@1461",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:rows@1460",
-      "target": "app:static/js/quality/dashboard.js:functionHtml@1444"
+      "source": "app:static/js/quality/dashboard.js:rows@1461",
+      "target": "app:static/js/quality/dashboard.js:functionHtml@1445"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:rows@1460",
+      "source": "app:static/js/quality/dashboard.js:rows@1461",
       "target": "app:static/js/quality/dashboard.js:kindsText@984"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:scheduleNames@1785",
-      "target": "app:static/js/quality/dashboard.js:nameSymbols@1770"
+      "source": "app:static/js/quality/dashboard.js:scheduleNames@1786",
+      "target": "app:static/js/quality/dashboard.js:nameSymbols@1771"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:scrollToMap@2059",
-      "target": "app:static/js/quality/dashboard.js:element@1606"
+      "source": "app:static/js/quality/dashboard.js:scrollToMap@2054",
+      "target": "app:static/js/quality/dashboard.js:element@1607"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:select@1677",
-      "target": "app:static/js/quality/dashboard.js:contractHtml@1479"
+      "source": "app:static/js/quality/dashboard.js:select@1678",
+      "target": "app:static/js/quality/dashboard.js:contractHtml@1480"
     },
     {
       "count": 4,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:select@1677",
-      "target": "app:static/js/quality/dashboard.js:fileHtml@1410"
+      "source": "app:static/js/quality/dashboard.js:select@1678",
+      "target": "app:static/js/quality/dashboard.js:fileHtml@1411"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:select@1677",
-      "target": "app:static/js/quality/dashboard.js:functionHtml@1444"
+      "source": "app:static/js/quality/dashboard.js:select@1678",
+      "target": "app:static/js/quality/dashboard.js:functionHtml@1445"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:select@1677",
-      "target": "app:static/js/quality/dashboard.js:highlight@1656"
+      "source": "app:static/js/quality/dashboard.js:select@1678",
+      "target": "app:static/js/quality/dashboard.js:highlight@1657"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:select@1677",
-      "target": "app:static/js/quality/dashboard.js:moduleHtml@1343"
+      "source": "app:static/js/quality/dashboard.js:select@1678",
+      "target": "app:static/js/quality/dashboard.js:moduleHtml@1344"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:select@1677",
-      "target": "app:static/js/quality/dashboard.js:moduleLinkHtml@1386"
+      "source": "app:static/js/quality/dashboard.js:select@1678",
+      "target": "app:static/js/quality/dashboard.js:moduleLinkHtml@1387"
     },
     {
       "count": 8,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:select@1677",
-      "target": "app:static/js/quality/dashboard.js:setPanel@1628"
+      "source": "app:static/js/quality/dashboard.js:select@1678",
+      "target": "app:static/js/quality/dashboard.js:setPanel@1629"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:select@1677",
-      "target": "app:static/js/quality/dashboard.js:setPanelOpen@2254"
+      "source": "app:static/js/quality/dashboard.js:select@1678",
+      "target": "app:static/js/quality/dashboard.js:setPanelOpen@2243"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:select@1677",
-      "target": "app:static/js/quality/dashboard.js:showOverview@1633"
+      "source": "app:static/js/quality/dashboard.js:select@1678",
+      "target": "app:static/js/quality/dashboard.js:showOverview@1634"
     },
     {
       "count": 1,
@@ -29992,50 +29980,50 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:setExpanded@2223",
+      "source": "app:static/js/quality/dashboard.js:setExpanded@2212",
       "target": "app:static/js/quality/dashboard.js:hideTooltip@1955"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:setExpanded@2223",
-      "target": "app:static/js/quality/dashboard.js:placeExpanded@2218"
+      "source": "app:static/js/quality/dashboard.js:setExpanded@2212",
+      "target": "app:static/js/quality/dashboard.js:placeExpanded@2207"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:setPanel@1628",
-      "target": "app:static/js/quality/dashboard.js:element@1606"
+      "source": "app:static/js/quality/dashboard.js:setPanel@1629",
+      "target": "app:static/js/quality/dashboard.js:element@1607"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:setPanelOpen@2254",
-      "target": "app:static/js/quality/dashboard.js:element@1606"
+      "source": "app:static/js/quality/dashboard.js:setPanelOpen@2243",
+      "target": "app:static/js/quality/dashboard.js:element@1607"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:setPanelOpen@2254",
+      "source": "app:static/js/quality/dashboard.js:setPanelOpen@2243",
       "target": "app:static/js/quality/dashboard.js:hideTooltip@1955"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:setPanelOpen@2254",
-      "target": "app:static/js/quality/dashboard.js:init@1605"
+      "source": "app:static/js/quality/dashboard.js:setPanelOpen@2243",
+      "target": "app:static/js/quality/dashboard.js:init@1606"
     },
     {
       "count": 1,
       "kind": "uses",
-      "source": "app:static/js/quality/dashboard.js:setPressed@1731",
-      "target": "app:static/js/quality/dashboard.js:init@1605"
+      "source": "app:static/js/quality/dashboard.js:setPressed@1732",
+      "target": "app:static/js/quality/dashboard.js:init@1606"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:showModules@1888",
-      "target": "app:static/js/quality/dashboard.js:select@1677"
+      "target": "app:static/js/quality/dashboard.js:select@1678"
     },
     {
       "count": 1,
@@ -30046,26 +30034,26 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:showOverview@1633",
-      "target": "app:static/js/quality/dashboard.js:moduleHtml@1343"
+      "source": "app:static/js/quality/dashboard.js:showOverview@1634",
+      "target": "app:static/js/quality/dashboard.js:moduleHtml@1344"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:showOverview@1633",
-      "target": "app:static/js/quality/dashboard.js:overviewHtml@1293"
+      "source": "app:static/js/quality/dashboard.js:showOverview@1634",
+      "target": "app:static/js/quality/dashboard.js:overviewHtml@1294"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:showOverview@1633",
-      "target": "app:static/js/quality/dashboard.js:setPanel@1628"
+      "source": "app:static/js/quality/dashboard.js:showOverview@1634",
+      "target": "app:static/js/quality/dashboard.js:setPanel@1629"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:showSymbols@1899",
-      "target": "app:static/js/quality/dashboard.js:select@1677"
+      "target": "app:static/js/quality/dashboard.js:select@1678"
     },
     {
       "count": 1,
@@ -30077,7 +30065,7 @@
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:showTooltip@1962",
-      "target": "app:static/js/quality/dashboard.js:element@1606"
+      "target": "app:static/js/quality/dashboard.js:element@1607"
     },
     {
       "count": 1,
@@ -30106,19 +30094,19 @@
     {
       "count": 3,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:sourceLink@1266",
+      "source": "app:static/js/quality/dashboard.js:sourceLink@1267",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:sourceLink@1266",
+      "source": "app:static/js/quality/dashboard.js:sourceLink@1267",
       "target": "app:static/js/quality/dashboard.js:pathOf@111"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:sourceLink@1266",
+      "source": "app:static/js/quality/dashboard.js:sourceLink@1267",
       "target": "app:static/js/quality/dashboard.js:repositoryOf@107"
     },
     {
@@ -30130,61 +30118,61 @@
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:summaryHtml@1563",
-      "target": "app:static/js/quality/dashboard.js:commit@1570"
+      "source": "app:static/js/quality/dashboard.js:summaryHtml@1564",
+      "target": "app:static/js/quality/dashboard.js:commit@1571"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:summaryHtml@1563",
+      "source": "app:static/js/quality/dashboard.js:summaryHtml@1564",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 5,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:summaryHtml@1563",
-      "target": "app:static/js/quality/dashboard.js:item@1569"
+      "source": "app:static/js/quality/dashboard.js:summaryHtml@1564",
+      "target": "app:static/js/quality/dashboard.js:item@1570"
     },
     {
       "count": 3,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:summaryHtml@1563",
+      "source": "app:static/js/quality/dashboard.js:summaryHtml@1564",
       "target": "app:static/js/quality/dashboard.js:statusBadge@970"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:switchView@1839",
-      "target": "app:static/js/quality/dashboard.js:render@1803"
+      "target": "app:static/js/quality/dashboard.js:render@1804"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:symbolElements@1070",
+      "source": "app:static/js/quality/dashboard.js:symbolElements@1071",
       "target": "app:static/js/quality/dashboard.js:indexBy@120"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:symbolElements@1070",
+      "source": "app:static/js/quality/dashboard.js:symbolElements@1071",
       "target": "app:static/js/quality/dashboard.js:kindsText@984"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:symbolElements@1070",
+      "source": "app:static/js/quality/dashboard.js:symbolElements@1071",
       "target": "app:static/js/quality/dashboard.js:nodeColor@918"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:symbolElements@1070",
+      "source": "app:static/js/quality/dashboard.js:symbolElements@1071",
       "target": "app:static/js/quality/dashboard.js:symbolFont@553"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:symbolElements@1070",
+      "source": "app:static/js/quality/dashboard.js:symbolElements@1071",
       "target": "app:static/js/quality/dashboard.js:symbolSize@548"
     },
     {
@@ -30232,25 +30220,25 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:symbolMap@1643",
+      "source": "app:static/js/quality/dashboard.js:symbolMap@1644",
       "target": "app:static/js/quality/dashboard.js:indexBy@120"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:symbolMap@1643",
+      "source": "app:static/js/quality/dashboard.js:symbolMap@1644",
       "target": "app:static/js/quality/dashboard.js:moduleColors@568"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:symbolMap@1643",
+      "source": "app:static/js/quality/dashboard.js:symbolMap@1644",
       "target": "app:static/js/quality/dashboard.js:symbolGraph@512"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:symbolMap@1643",
+      "source": "app:static/js/quality/dashboard.js:symbolMap@1644",
       "target": "app:static/js/quality/dashboard.js:symbolPositions@634"
     },
     {
@@ -30286,31 +30274,31 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:tableHtml@1541",
+      "source": "app:static/js/quality/dashboard.js:tableHtml@1542",
       "target": "app:static/js/quality/dashboard.js:criticalityBadge@977"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:tableHtml@1541",
+      "source": "app:static/js/quality/dashboard.js:tableHtml@1542",
       "target": "app:static/js/quality/dashboard.js:escapeHtml@98"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:tableHtml@1541",
+      "source": "app:static/js/quality/dashboard.js:tableHtml@1542",
       "target": "app:static/js/quality/dashboard.js:laneSummary@940"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:tableHtml@1541",
-      "target": "app:static/js/quality/dashboard.js:moduleButton@1274"
+      "source": "app:static/js/quality/dashboard.js:tableHtml@1542",
+      "target": "app:static/js/quality/dashboard.js:moduleButton@1275"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "app:static/js/quality/dashboard.js:tableHtml@1541",
+      "source": "app:static/js/quality/dashboard.js:tableHtml@1542",
       "target": "app:static/js/quality/dashboard.js:statusBadge@970"
     },
     {
@@ -30377,7 +30365,7 @@
       "count": 1,
       "kind": "calls",
       "source": "app:static/js/quality/dashboard.js:tooltipHtml@2007",
-      "target": "app:static/js/quality/dashboard.js:symbolMap@1643"
+      "target": "app:static/js/quality/dashboard.js:symbolMap@1644"
     },
     {
       "count": 16,
@@ -45659,332 +45647,332 @@
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:fileElements@1022",
-      "line": 1022,
+      "id": "app:static/js/quality/dashboard.js:fileElements@1023",
+      "line": 1023,
       "name": "fileElements"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:functionElements@1041",
-      "line": 1041,
+      "id": "app:static/js/quality/dashboard.js:functionElements@1042",
+      "line": 1042,
       "name": "functionElements"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:box@1047",
-      "line": 1047,
+      "id": "app:static/js/quality/dashboard.js:box@1048",
+      "line": 1048,
       "name": "box"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:member@1051",
-      "line": 1051,
+      "id": "app:static/js/quality/dashboard.js:member@1052",
+      "line": 1052,
       "name": "member"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:symbolElements@1070",
-      "line": 1070,
+      "id": "app:static/js/quality/dashboard.js:symbolElements@1071",
+      "line": 1071,
       "name": "symbolElements"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:labelWidth@1093",
-      "line": 1093,
+      "id": "app:static/js/quality/dashboard.js:labelWidth@1094",
+      "line": 1094,
       "name": "labelWidth"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:colorChoice@1222",
-      "line": 1222,
+      "id": "app:static/js/quality/dashboard.js:colorChoice@1223",
+      "line": 1223,
       "name": "colorChoice"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:legendHtml@1226",
-      "line": 1226,
+      "id": "app:static/js/quality/dashboard.js:legendHtml@1227",
+      "line": 1227,
       "name": "legendHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:swatch@1228",
-      "line": 1228,
+      "id": "app:static/js/quality/dashboard.js:swatch@1229",
+      "line": 1229,
       "name": "swatch"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:line@1241",
-      "line": 1241,
+      "id": "app:static/js/quality/dashboard.js:line@1242",
+      "line": 1242,
       "name": "line"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:sourceLink@1266",
-      "line": 1266,
+      "id": "app:static/js/quality/dashboard.js:sourceLink@1267",
+      "line": 1267,
       "name": "sourceLink"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:moduleButton@1274",
-      "line": 1274,
+      "id": "app:static/js/quality/dashboard.js:moduleButton@1275",
+      "line": 1275,
       "name": "moduleButton"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:linkButton@1278",
-      "line": 1278,
+      "id": "app:static/js/quality/dashboard.js:linkButton@1279",
+      "line": 1279,
       "name": "linkButton"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:list@1284",
-      "line": 1284,
+      "id": "app:static/js/quality/dashboard.js:list@1285",
+      "line": 1285,
       "name": "list"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:overviewHtml@1293",
-      "line": 1293,
+      "id": "app:static/js/quality/dashboard.js:overviewHtml@1294",
+      "line": 1294,
       "name": "overviewHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:moduleHtml@1343",
-      "line": 1343,
+      "id": "app:static/js/quality/dashboard.js:moduleHtml@1344",
+      "line": 1344,
       "name": "moduleHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:dependencyItem@1356",
-      "line": 1356,
+      "id": "app:static/js/quality/dashboard.js:dependencyItem@1357",
+      "line": 1357,
       "name": "dependencyItem"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:moduleLinkHtml@1386",
-      "line": 1386,
+      "id": "app:static/js/quality/dashboard.js:moduleLinkHtml@1387",
+      "line": 1387,
       "name": "moduleLinkHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:fileHtml@1410",
-      "line": 1410,
+      "id": "app:static/js/quality/dashboard.js:fileHtml@1411",
+      "line": 1411,
       "name": "fileHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:lines@1413",
-      "line": 1413,
+      "id": "app:static/js/quality/dashboard.js:lines@1414",
+      "line": 1414,
       "name": "lines"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:reached@1424",
-      "line": 1424,
+      "id": "app:static/js/quality/dashboard.js:reached@1425",
+      "line": 1425,
       "name": "reached"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:functionHtml@1444",
-      "line": 1444,
+      "id": "app:static/js/quality/dashboard.js:functionHtml@1445",
+      "line": 1445,
       "name": "functionHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:end@1451",
-      "line": 1451,
+      "id": "app:static/js/quality/dashboard.js:end@1452",
+      "line": 1452,
       "name": "end"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:rows@1460",
-      "line": 1460,
+      "id": "app:static/js/quality/dashboard.js:rows@1461",
+      "line": 1461,
       "name": "rows"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:contractHtml@1479",
-      "line": 1479,
+      "id": "app:static/js/quality/dashboard.js:contractHtml@1480",
+      "line": 1480,
       "name": "contractHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:findingGroup@1491",
-      "line": 1491,
+      "id": "app:static/js/quality/dashboard.js:findingGroup@1492",
+      "line": 1492,
       "name": "findingGroup"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:findingsHtml@1497",
-      "line": 1497,
+      "id": "app:static/js/quality/dashboard.js:findingsHtml@1498",
+      "line": 1498,
       "name": "findingsHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:blindSpotsHtml@1511",
-      "line": 1511,
+      "id": "app:static/js/quality/dashboard.js:blindSpotsHtml@1512",
+      "line": 1512,
       "name": "blindSpotsHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:at@1514",
-      "line": 1514,
+      "id": "app:static/js/quality/dashboard.js:at@1515",
+      "line": 1515,
       "name": "at"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:figuresHtml@1528",
-      "line": 1528,
+      "id": "app:static/js/quality/dashboard.js:figuresHtml@1529",
+      "line": 1529,
       "name": "figuresHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:figure@1531",
-      "line": 1531,
+      "id": "app:static/js/quality/dashboard.js:figure@1532",
+      "line": 1532,
       "name": "figure"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:tableHtml@1541",
-      "line": 1541,
+      "id": "app:static/js/quality/dashboard.js:tableHtml@1542",
+      "line": 1542,
       "name": "tableHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:runStatus@1557",
-      "line": 1557,
+      "id": "app:static/js/quality/dashboard.js:runStatus@1558",
+      "line": 1558,
       "name": "runStatus"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:summaryHtml@1563",
-      "line": 1563,
+      "id": "app:static/js/quality/dashboard.js:summaryHtml@1564",
+      "line": 1564,
       "name": "summaryHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:item@1569",
-      "line": 1569,
+      "id": "app:static/js/quality/dashboard.js:item@1570",
+      "line": 1570,
       "name": "item"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:commit@1570",
-      "line": 1570,
+      "id": "app:static/js/quality/dashboard.js:commit@1571",
+      "line": 1571,
       "name": "commit"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:checksHtml@1586",
-      "line": 1586,
+      "id": "app:static/js/quality/dashboard.js:checksHtml@1587",
+      "line": 1587,
       "name": "checksHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:createContext@1592",
-      "line": 1592,
+      "id": "app:static/js/quality/dashboard.js:createContext@1593",
+      "line": 1593,
       "name": "createContext"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:init@1605",
-      "line": 1605,
+      "id": "app:static/js/quality/dashboard.js:init@1606",
+      "line": 1606,
       "name": "init"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:element@1606",
-      "line": 1606,
+      "id": "app:static/js/quality/dashboard.js:element@1607",
+      "line": 1607,
       "name": "element"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:setPanel@1628",
-      "line": 1628,
+      "id": "app:static/js/quality/dashboard.js:setPanel@1629",
+      "line": 1629,
       "name": "setPanel"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:showOverview@1633",
-      "line": 1633,
+      "id": "app:static/js/quality/dashboard.js:showOverview@1634",
+      "line": 1634,
       "name": "showOverview"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:selected@1638",
-      "line": 1638,
+      "id": "app:static/js/quality/dashboard.js:selected@1639",
+      "line": 1639,
       "name": "selected"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:symbolMap@1643",
-      "line": 1643,
+      "id": "app:static/js/quality/dashboard.js:symbolMap@1644",
+      "line": 1644,
       "name": "symbolMap"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:highlight@1656",
-      "line": 1656,
+      "id": "app:static/js/quality/dashboard.js:highlight@1657",
+      "line": 1657,
       "name": "highlight"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:select@1677",
-      "line": 1677,
+      "id": "app:static/js/quality/dashboard.js:select@1678",
+      "line": 1678,
       "name": "select"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:reveal@1709",
-      "line": 1709,
+      "id": "app:static/js/quality/dashboard.js:reveal@1710",
+      "line": 1710,
       "name": "reveal"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:crumbsHtml@1714",
-      "line": 1714,
+      "id": "app:static/js/quality/dashboard.js:crumbsHtml@1715",
+      "line": 1715,
       "name": "crumbsHtml"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:setPressed@1731",
-      "line": 1731,
+      "id": "app:static/js/quality/dashboard.js:setPressed@1732",
+      "line": 1732,
       "name": "setPressed"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:level@1740",
-      "line": 1740,
+      "id": "app:static/js/quality/dashboard.js:level@1741",
+      "line": 1741,
       "name": "level"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:renderExplorer@1746",
-      "line": 1746,
+      "id": "app:static/js/quality/dashboard.js:renderExplorer@1747",
+      "line": 1747,
       "name": "renderExplorer"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:nameSymbols@1770",
-      "line": 1770,
+      "id": "app:static/js/quality/dashboard.js:nameSymbols@1771",
+      "line": 1771,
       "name": "nameSymbols"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:scheduleNames@1785",
-      "line": 1785,
+      "id": "app:static/js/quality/dashboard.js:scheduleNames@1786",
+      "line": 1786,
       "name": "scheduleNames"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:applySymbolSwitches@1795",
-      "line": 1795,
+      "id": "app:static/js/quality/dashboard.js:applySymbolSwitches@1796",
+      "line": 1796,
       "name": "applySymbolSwitches"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:render@1803",
-      "line": 1803,
+      "id": "app:static/js/quality/dashboard.js:render@1804",
+      "line": 1804,
       "name": "render"
     },
     {
@@ -46109,62 +46097,62 @@
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:scrollToMap@2059",
-      "line": 2059,
+      "id": "app:static/js/quality/dashboard.js:scrollToMap@2054",
+      "line": 2054,
       "name": "scrollToMap"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:recolor@2063",
-      "line": 2063,
+      "id": "app:static/js/quality/dashboard.js:recolor@2058",
+      "line": 2058,
       "name": "recolor"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:renderMatches@2076",
-      "line": 2076,
+      "id": "app:static/js/quality/dashboard.js:renderMatches@2071",
+      "line": 2071,
       "name": "renderMatches"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:closeMatches@2089",
-      "line": 2089,
+      "id": "app:static/js/quality/dashboard.js:closeMatches@2084",
+      "line": 2084,
       "name": "closeMatches"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:chooseMatch@2095",
-      "line": 2095,
+      "id": "app:static/js/quality/dashboard.js:chooseMatch@2090",
+      "line": 2090,
       "name": "chooseMatch"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:placeExpanded@2218",
-      "line": 2218,
+      "id": "app:static/js/quality/dashboard.js:placeExpanded@2207",
+      "line": 2207,
       "name": "placeExpanded"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:setExpanded@2223",
-      "line": 2223,
+      "id": "app:static/js/quality/dashboard.js:setExpanded@2212",
+      "line": 2212,
       "name": "setExpanded"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:setPanelOpen@2254",
-      "line": 2254,
+      "id": "app:static/js/quality/dashboard.js:setPanelOpen@2243",
+      "line": 2243,
       "name": "setPanelOpen"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:selectable@2335",
-      "line": 2335,
+      "id": "app:static/js/quality/dashboard.js:selectable@2324",
+      "line": 2324,
       "name": "selectable"
     },
     {
       "file": "app:static/js/quality/dashboard.js",
-      "id": "app:static/js/quality/dashboard.js:QualityDashboard@2364",
-      "line": 2364,
+      "id": "app:static/js/quality/dashboard.js:QualityDashboard@2353",
+      "line": 2353,
       "name": "QualityDashboard"
     },
     {

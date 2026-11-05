@@ -22,7 +22,7 @@
         "--engine-root",
         "/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/engine"
       ],
-      "duration_seconds": 0.693,
+      "duration_seconds": 0.705,
       "name": "catalog-and-architecture",
       "returncode": 0,
       "status": "pass"
@@ -61,7 +61,7 @@
         "run",
         "lint:js"
       ],
-      "duration_seconds": 1.851,
+      "duration_seconds": 1.836,
       "name": "javascript-lint",
       "returncode": 0,
       "status": "pass"
@@ -72,7 +72,7 @@
         "run",
         "lint:css"
       ],
-      "duration_seconds": 1.252,
+      "duration_seconds": 1.301,
       "name": "css-lint",
       "returncode": 0,
       "status": "pass"
@@ -83,7 +83,7 @@
         "run",
         "vendor:check-cdn"
       ],
-      "duration_seconds": 0.14,
+      "duration_seconds": 0.139,
       "name": "vendor-cdn",
       "returncode": 0,
       "status": "pass"
@@ -96,7 +96,7 @@
         "quality-fast",
         "PYTHON=/home/runner/work/_temp/engine-venv/bin/python"
       ],
-      "duration_seconds": 0.323,
+      "duration_seconds": 0.331,
       "name": "engine-fast",
       "returncode": 0,
       "status": "pass"
@@ -109,7 +109,7 @@
         "--engine-root",
         "/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/engine"
       ],
-      "duration_seconds": 11.491,
+      "duration_seconds": 11.451,
       "name": "structural-debt",
       "returncode": 0,
       "status": "pass"
@@ -128,7 +128,7 @@
         "--cov-report=xml:quality/raw/app-python-coverage.xml",
         "--junitxml=quality/raw/app-tests.xml"
       ],
-      "duration_seconds": 74.223,
+      "duration_seconds": 73.245,
       "name": "app-python-tests",
       "returncode": 0,
       "status": "pass"
@@ -139,7 +139,7 @@
         "run",
         "test:coverage"
       ],
-      "duration_seconds": 30.378,
+      "duration_seconds": 30.268,
       "name": "javascript-tests",
       "returncode": 0,
       "status": "pass"
@@ -153,7 +153,7 @@
         "PYTHON=/home/runner/work/_temp/engine-venv/bin/python",
         "OUTPUT_DIR=/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/quality/raw"
       ],
-      "duration_seconds": 13.946,
+      "duration_seconds": 14.07,
       "name": "engine-python-tests",
       "returncode": 0,
       "status": "pass"
@@ -174,10 +174,10 @@
   ],
   "completeness": "partial",
   "fingerprints": {
-    "app": "c1304851c9c88e65ca19ebf34f4df50c85db056dff125f210712020162240d83",
+    "app": "5ea1770bd1adf2460a7b03a0a55794d768f95e55ab64e2589717238eff870aa7",
     "engine": "960403292fe5f373746ba47dbcbc8cdcff0b1b04027469aa222a1ae9d28cf77c"
   },
-  "generated_at": "2026-11-05T09:14:34.432849+00:00",
+  "generated_at": "2026-11-05T09:31:22.992920+00:00",
   "modules": {
     "app.docs-delivery": {
       "architecture": {
@@ -192,9 +192,9 @@
           "raw/app-python-coverage.json",
           "raw/javascript-coverage.json"
         ],
-        "branches": 63.08,
+        "branches": 63.36,
         "errors": [],
-        "lines": 79.99,
+        "lines": 80.2,
         "missing_files": [],
         "status": "measured"
       },
@@ -789,7 +789,7 @@
     }
   },
   "revision": {
-    "app": "783203d0c5f4c0a02ccebd41215bdfdb6125d319",
+    "app": "46b93b55964099e7d546701ecb6b94d7e76b2ac4",
     "engine": "f9ee4dc2be81d7e736c251b7c9bec7e215cffd58"
   },
   "schema_version": 1,
