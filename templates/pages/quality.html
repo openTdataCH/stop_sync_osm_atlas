@@ -66,6 +66,14 @@
               <span class="quality-switch__track" aria-hidden="true"></span>
               Declared dependencies without code
             </label>
+            <div class="quality-toolbar__actions">
+              <button type="button" class="quality-tool" id="qualityPanelToggle" aria-controls="qualityPanel" aria-pressed="true" title="Hide the details panel">
+                <i class="fas fa-columns" aria-hidden="true"></i><span>Details</span>
+              </button>
+              <button type="button" class="quality-tool quality-tool--expand" id="qualityFullscreen" title="Expand the map to the window" aria-label="Expand the map to the window" aria-pressed="false">
+                <i class="fas fa-expand" aria-hidden="true"></i><span class="quality-tool__text">Expand</span><kbd class="quality-tool__key" aria-hidden="true">Esc</kbd>
+              </button>
+            </div>
           </div>
           <div class="quality-workspace__body">
             <div class="quality-map-wrap" data-bs-theme="light">
@@ -101,7 +109,6 @@
                   <button type="button" data-zoom="in" title="Zoom in" aria-label="Zoom in"><i class="fas fa-plus" aria-hidden="true"></i></button>
                   <button type="button" data-zoom="out" title="Zoom out" aria-label="Zoom out"><i class="fas fa-minus" aria-hidden="true"></i></button>
                   <button type="button" id="qualityFit" title="Fit the map" aria-label="Fit the map"><i class="fas fa-crosshairs" aria-hidden="true"></i></button>
-                  <button type="button" id="qualityFullscreen" title="Expand the map to the window" aria-label="Expand the map to the window" aria-pressed="false"><i class="fas fa-expand" aria-hidden="true"></i></button>
                 </div>
                 <div class="quality-hint" id="qualityZoomHint" aria-hidden="true">Hold <kbd>Ctrl</kbd> or <kbd>⌘</kbd> and scroll to zoom</div>
                 <div class="quality-tooltip" id="qualityTooltip" hidden></div>

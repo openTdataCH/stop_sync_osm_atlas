@@ -305,6 +305,15 @@ describe('QualityDashboard', () => {
       expect(ids(places(map, 3, { measure }))).toContain('small');
       const selected = places(map, 0.2, { measure, only: new Set(['near', 'small']), first: 'small' });
       expect(ids(selected)).toEqual(['small', 'near']);
+      // Zoomed in, a name stays at most LABEL_MAX_PX on screen, so it takes less of the map and two crowded names fit.
+      const crowded = {
+        graph: { nodes: [node('one', 20, 'first_long_name'), node('two', 20, 'second_long_name')] },
+        positions: { one: { x: 0, y: 0 }, two: { x: 0, y: 10 } }
+      };
+      expect(ids(places(crowded, 1, { measure }))).toEqual(['one']);
+      const zoomed = places(crowded, 6, { measure });
+      expect(ids(zoomed)).toEqual(['one', 'two']);
+      expect(zoomed[0].font * 6).toBeCloseTo(13, 0);
     });
   });
 
@@ -322,6 +331,8 @@ describe('QualityDashboard', () => {
                 <button data-view-toggle="modules"></button><button data-view-toggle="files"></button><button data-view-toggle="symbols"></button>
                 <div id="qualityColorBy"><button data-color-by="module" hidden></button><button data-color-by="criticality"></button><button data-color-by="coverage"></button></div>
                 <input type="checkbox" id="qualityUnusedToggle" checked>
+                <button id="qualityPanelToggle" aria-pressed="true"></button>
+                <button id="qualityFullscreen" aria-pressed="false"><i class="fas fa-expand"></i><span class="quality-tool__text">Expand</span></button>
                 <aside id="qualityExplorer" hidden>
                   <input type="search" id="qualitySearch"><ul id="qualitySearchResults" hidden></ul>
                   <input type="checkbox" id="qualityEdgesToggle" checked><input type="checkbox" id="qualityLabelsToggle" checked>
@@ -329,7 +340,7 @@ describe('QualityDashboard', () => {
                 </aside>
                 <div class="quality-map-stage">
                   <div id="qualityMap"></div><div id="qualityTooltip" hidden></div><div id="qualityZoomHint"></div>
-                  <button id="qualityFit"></button><button id="qualityFullscreen" aria-pressed="false"><i class="fas fa-expand"></i></button>
+                  <button id="qualityFit"></button>
                 </div>
                 <aside id="qualityPanel"></aside>
                 <ul id="qualityLegend"></ul>
@@ -541,6 +552,25 @@ describe('QualityDashboard', () => {
         expect(document.getElementById('qualityPanel').textContent).toContain('How to read the functions map');
       });
 
+      test('the details panel hides to widen the map and opens again on a selection', async () => {
+        const cy = await openFunctions();
+        const workspace = document.querySelector('.quality-workspace');
+        const toggle = document.getElementById('qualityPanelToggle');
+        cy.resize.mockClear();
+        click('#qualityPanelToggle');
+        expect(workspace.classList.contains('is-panel-hidden')).toBe(true);
+        expect(toggle.getAttribute('aria-pressed')).toBe('false');
+        expect(toggle.title).toBe('Show the details panel');
+        expect(cy.resize).toHaveBeenCalledTimes(1);
+        const search = document.getElementById('qualitySearch');
+        search.value = 'serv';
+        search.dispatchEvent(new Event('input'));
+        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        expect(workspace.classList.contains('is-panel-hidden')).toBe(false);
+        expect(toggle.getAttribute('aria-pressed')).toBe('true');
+        expect(document.getElementById('qualityPanel').textContent).toContain('Open file functions');
+      });
+
       test('search selects the match and shows its callers and callees; Esc then clears it', async () => {
         const cy = await openFunctions();
         const search = document.getElementById('qualitySearch');
@@ -610,6 +640,7 @@ describe('QualityDashboard', () => {
       expect(button.getAttribute('aria-pressed')).toBe('true');
       expect(button.getAttribute('aria-label')).toBe('Back to the page');
       expect(button.querySelector('i').className).toBe('fas fa-compress');
+      expect(button.textContent).toBe('Exit');
       expect(cy.resize).toHaveBeenCalledTimes(1);
       expect(cy.fit).toHaveBeenCalled();
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
@@ -618,6 +649,7 @@ describe('QualityDashboard', () => {
       expect(button.getAttribute('aria-pressed')).toBe('false');
       expect(button.getAttribute('aria-label')).toBe('Expand the map to the window');
       expect(button.querySelector('i').className).toBe('fas fa-expand');
+      expect(button.textContent).toBe('Expand');
       click('#qualityFullscreen');
       click('#qualityFullscreen');
       expect(workspace.classList.contains('is-expanded')).toBe(false);

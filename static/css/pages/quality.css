@@ -353,6 +353,7 @@ a.quality-figure:hover .quality-figure__label {
 }
 
 .quality-segmented__option:focus-visible,
+.quality-tool:focus-visible,
 .quality-zoom button:focus-visible,
 .quality-crumbs button:focus-visible,
 .quality-panel__close:focus-visible {
@@ -419,6 +420,66 @@ a.quality-figure:hover .quality-figure__label {
   cursor: default;
 }
 
+/* The panel and expand buttons, at the toolbar's right end: the top-right corner of the expanded view. */
+.quality-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.quality-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.38rem 0.8rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  color: var(--color-fg-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.quality-tool:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-fg);
+}
+
+.quality-tool[aria-pressed="true"] {
+  color: var(--color-primary);
+}
+
+/* Expanded, the button is the way back, so it stands out, with its key beside it. */
+.quality-workspace.is-expanded .quality-tool--expand {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-on-accent);
+}
+
+.quality-workspace.is-expanded .quality-tool--expand:hover {
+  background: var(--color-primary-hover);
+}
+
+.quality-tool__key {
+  display: none;
+  padding: 0.05rem 0.35rem;
+  border: 1px solid currentcolor;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: var(--font-medium);
+  opacity: 0.8;
+}
+
+.quality-workspace.is-expanded .quality-tool__key {
+  display: inline-block;
+}
+
 /* The divider between map and panel is the grid gap over the border colour. */
 .quality-workspace__body {
   display: grid;
@@ -474,6 +535,15 @@ a.quality-figure:hover .quality-figure__label {
 
 .quality-workspace.is-expanded .quality-map {
   height: 100%;
+}
+
+/* With the panel hidden the map takes the whole width. */
+.quality-workspace.is-panel-hidden .quality-workspace__body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.quality-workspace.is-panel-hidden .quality-panel {
+  display: none;
 }
 
 .quality-workspace.is-expanded .quality-panel,
@@ -1351,6 +1421,10 @@ a.quality-figure:hover .quality-figure__label {
   /* Stacked, the map keeps two thirds of the window and the panel scrolls below it. */
   .quality-workspace.is-expanded .quality-workspace__body {
     grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
+  }
+
+  .quality-workspace.is-expanded.is-panel-hidden .quality-workspace__body {
+    grid-template-rows: minmax(0, 1fr);
   }
 }
 

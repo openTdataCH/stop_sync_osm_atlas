@@ -91,6 +91,8 @@
     // A name on the functions map shows once it is at least this tall on screen: at first only on the largest dots.
     // Around a selection every name may show, at least NAMED_FONT map units tall.
     const LABEL_PX = 10;
+    // The largest a name grows on screen: zoomed in, names keep this size and take less of the map, so more fit.
+    const LABEL_MAX_PX = 13;
     const NAMED_FONT = 9;
 
     function escapeHtml(value) {
@@ -852,7 +854,8 @@
     function labelPlaces(map, zoom, options = {}) {
         const measure = options.measure || ((label, size) => labelWidth(label, size, 600));
         const only = options.only || null;
-        const fontOf = (node) => (only ? Math.max(symbolFont(node.users), NAMED_FONT) : symbolFont(node.users));
+        const cap = Math.round((LABEL_MAX_PX / zoom) * 10) / 10;
+        const fontOf = (node) => Math.min(cap, only ? Math.max(symbolFont(node.users), NAMED_FONT) : symbolFont(node.users));
         const least = LABEL_PX / zoom;
         const margin = 2 / zoom;
         const cell = 80 / zoom;
@@ -890,7 +893,7 @@
             if (!box) return;
             add(box);
             if (!only) add(body(node));
-            kept.push(box);
+            kept.push(Object.assign(box, { font }));
         };
         // The selected dot is always named. Around it, all the dots that stay lit are obstacles, so no name covers one.
         const first = candidates.length && candidates[0].id === options.first ? candidates.shift() : null;
@@ -1168,7 +1171,7 @@
             width: 1.5, 'line-color': EDGE_COLORS.contract, 'line-style': 'dotted', 'target-arrow-shape': 'none', 'curve-style': 'straight', 'line-opacity': 0.6
         } },
         // Functions map. Only dots marked .labelled show their name, which the script sets from the zoom (LABEL_PX), so
-        // at first only the largest dots are named and every name appears when zoomed in. Lines are thin and faint, and
+        // at first only the largest dots are named and more names appear when zoomed in, at most LABEL_MAX_PX tall. Lines are thin and faint, and
         // let clicks through to the dots.
         { selector: 'node.symbol', style: {
             shape: 'ellipse', width: 'data(size)', height: 'data(size)', 'background-color': 'data(color)', 'border-width': 0,
@@ -1178,7 +1181,7 @@
             'underlay-shape': 'ellipse', 'transition-duration': 0
         } },
         // A named dot is drawn above the unnamed ones, so no dot covers a name.
-        { selector: 'node.symbol.labelled', style: { label: 'data(label)', 'z-index': (node) => 500 + node.data('users') } },
+        { selector: 'node.symbol.labelled', style: { label: 'data(label)', 'font-size': (node) => node.data('labelFont') || node.data('font'), 'z-index': (node) => 500 + node.data('users') } },
         { selector: 'node.symbol.above', style: { 'text-valign': 'top', 'text-margin-y': -1 } },
         { selector: 'node.symbol.unlabelled', style: { label: '' } },
         { selector: 'edge.symbol-link', style: {
@@ -1209,7 +1212,7 @@
         // Faded dots drop their names, so the names of the selection and its neighbours stand out.
         { selector: 'node.symbol.faded', style: { opacity: 0.16, label: '' } },
         { selector: 'edge.symbol-link.faded', style: { opacity: 0.08 } },
-        { selector: 'node.symbol.named', style: { label: 'data(label)', 'font-size': (node) => Math.max(node.data('font'), NAMED_FONT), 'z-index': 1000 } },
+        { selector: 'node.symbol.named', style: { label: 'data(label)', 'font-size': (node) => node.data('labelFont') || Math.max(node.data('font'), NAMED_FONT), 'z-index': 1000 } },
         { selector: 'node.symbol.hover', style: { 'border-width': 1.5, 'border-color': INK, 'underlay-opacity': 0.18 } },
         { selector: 'node:selected', style: { 'underlay-opacity': 0.3, 'underlay-padding': 6 } },
         { selector: 'edge:selected', style: { 'underlay-color': NAVY, 'underlay-opacity': 0.2, 'underlay-padding': 5 } }
@@ -1243,7 +1246,7 @@
             items.push(line('undeclared', 'Selected: across an undeclared one'));
             items.push('<li class="quality-legend__break" aria-hidden="true"></li>');
             items.push('<li><span class="quality-dots" aria-hidden="true"><span></span><span></span><span></span></span>Dot size: how many functions and files use it</li>');
-            items.push('<li>Names show on the largest dots; zoom in for all of them.</li>');
+            items.push('<li>Names show on the largest dots; zoom in for more, or hover a dot.</li>');
         } else if (state.view === 'modules') {
             items.push(line('declared', 'Code dependency the catalog declares'));
             items.push(line('undeclared', 'Code dependency the catalog does not declare'));
@@ -1293,8 +1296,8 @@
                 + '<h2 class="quality-panel__title">How to read the functions map</h2>'
                 + '<ol class="quality-steps">'
                 + '<li>Each dot is a function or class of either repository, coloured by its module, so each module forms its own region. A file\'s functions start side by side.</li>'
-                + '<li>A larger dot is used by more functions and files. Names show on the largest dots; zoom in to see them all.</li>'
-                + '<li>A line joins a function to one it calls or references. Calls through objects, such as <code>self.save()</code>, are not seen.</li>'
+                + '<li>A larger dot is used by more functions and files. Names show on the largest dots; zoom in for more, or hover a dot for its name.</li>'
+                + '<li>A line joins a function to one it calls or references. Calls through objects, such as <code>self.save()</code> or <code>this.render()</code>, are not seen.</li>'
                 + '<li>Click a module in the list to pick out its functions, and click it again or <strong>Reset</strong> to clear.</li>'
                 + '<li>Select a dot for its callers and callees; double-click it to open its file. Search finds a function, class or file by name.</li>'
                 + '<li>The module map stays the place to review boundaries: this map is for exploring.</li>'
@@ -1606,7 +1609,7 @@
             // The functions map: its colour encoding, the module picked from its list, its line and name switches, and
             // the function to select again when going back to it from a file.
             symbolColorBy: 'module', symbolModule: null, showEdges: true, showLabels: true, from: null, returnTo: null,
-            expanded: false
+            expanded: false, panelOpen: true
         };
         const mapElement = element('#qualityMap');
         const explorer = element('#qualityExplorer');
@@ -1681,6 +1684,12 @@
             }
             target.select();
             highlight(target);
+            // A selection asks for its details, so a hidden panel opens again, keeping the selection in view.
+            if (!state.panelOpen) {
+                setPanelOpen(true);
+                const box = typeof target.renderedBoundingBox === 'function' ? target.renderedBoundingBox() : null;
+                if (box && box.x2 > cy.width()) cy.animate({ center: { eles: target } }, { duration: 200 });
+            }
             const data = target.data();
             if (data.kind === 'module') setPanel(moduleHtml(context, data.id));
             else if (data.kind === 'module-link') setPanel(moduleLinkHtml(context, context.moduleLinks.find((link) => link.source === data.source && link.target === data.target)));
@@ -1765,6 +1774,7 @@
             const name = symbolFocus ? 'named' : 'labelled';
             cy.batch(() => cy.nodes('.symbol').forEach((node) => {
                 const place = shown.get(node.id());
+                if (place && node.data('labelFont') !== place.font) node.data('labelFont', place.font);
                 if (Boolean(place) !== node.hasClass(name)) node.toggleClass(name, Boolean(place));
                 if (Boolean(place && place.above) !== node.hasClass('above')) node.toggleClass('above', Boolean(place && place.above));
                 if (symbolFocus && node.hasClass('labelled')) node.removeClass('labelled');
@@ -2225,6 +2235,8 @@
             expandButton.setAttribute('aria-pressed', String(on));
             const icon = expandButton.querySelector('i');
             if (icon) icon.className = 'fas ' + (on ? 'fa-compress' : 'fa-expand');
+            const text = expandButton.querySelector('.quality-tool__text');
+            if (text) text.textContent = on ? 'Exit' : 'Expand';
             if (cy) {
                 hideTooltip();
                 cy.resize();
@@ -2237,6 +2249,25 @@
                 if (state.expanded) placeExpanded();
             });
         }
+
+        // The details panel can be hidden to give the map the whole width; selecting something opens it again.
+        function setPanelOpen(on) {
+            const box = root.querySelector('.quality-workspace');
+            const toggle = element('#qualityPanelToggle');
+            if (!box || state.panelOpen === on) return;
+            state.panelOpen = on;
+            box.classList.toggle('is-panel-hidden', !on);
+            if (toggle) {
+                toggle.setAttribute('aria-pressed', String(on));
+                toggle.title = on ? 'Hide the details panel' : 'Show the details panel';
+            }
+            if (cy) {
+                hideTooltip();
+                cy.resize();
+            }
+        }
+        const panelToggle = element('#qualityPanelToggle');
+        if (panelToggle) panelToggle.addEventListener('click', () => setPanelOpen(!state.panelOpen));
 
         // The page scrolls with the wheel: a plain wheel event is stopped before it reaches the map, which then zooms
         // only with Ctrl or ⌘ held (also what a trackpad pinch sends). Touch pinch-zoom is untouched. In the expanded
@@ -2297,7 +2328,7 @@
                 const figures = element('#qualityFigures');
                 if (figures) figures.innerHTML = figuresHtml(context);
                 cy = global.cytoscape({
-                    container: mapElement, style: GRAPH_STYLE, minZoom: 0.15, maxZoom: 2.5,
+                    container: mapElement, style: GRAPH_STYLE, minZoom: 0.15, maxZoom: 10,
                     wheelSensitivity: 0.4, boxSelectionEnabled: false, autoungrabify: true
                 });
                 // A click focuses: it fades the rest until Esc or a click on the background.
