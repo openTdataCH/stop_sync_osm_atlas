@@ -1008,7 +1008,8 @@
                 group: 'edges', classes: 'contract-link', data: { id: id + '~' + moduleId, source: moduleId, target: id, kind: 'contract-link' }
             }));
         });
-        options.moduleLinks.filter((link) => link.count > 0 || options.showUnused).forEach((link) => elements.push({
+        // A declared dependency without code is always drawn: it should not exist, so it is there to be seen and removed.
+        options.moduleLinks.forEach((link) => elements.push({
             group: 'edges',
             classes: link.count === 0 ? 'unused' : link.declared ? 'declared' : 'undeclared',
             data: {
@@ -1250,7 +1251,7 @@
         } else if (state.view === 'modules') {
             items.push(line('declared', 'Code dependency the catalog declares'));
             items.push(line('undeclared', 'Code dependency the catalog does not declare'));
-            if (state.showUnused) items.push(line('unused', 'Declared, but no code reference found'));
+            items.push(line('unused', 'Declared, but no code reference found'));
             items.push('<li><span class="quality-swatch quality-swatch--contract" aria-hidden="true"></span>Contract between repositories</li>');
             items.push('<li>Box height: lines of code. Hover an arrow for its code references.</li>');
         } else {
@@ -1334,7 +1335,7 @@
             + '<li>Each box is a module: a group of files with one responsibility in the module catalog.</li>'
             + '<li>An arrow goes from the module whose code uses another module to the module it uses: imports, calls, shared browser names, script loads, HTTP requests and templates. A link to a page draws no arrow.</li>'
             + '<li>A module sits above the modules it lists as dependencies in the catalog, so declared dependencies point down.</li>'
-            + '<li>An orange dashed arrow is a code dependency the catalog does not declare.</li>'
+            + '<li>An orange dashed arrow is a code dependency the catalog does not declare. A faint grey dashed arrow is a dependency the catalog declares but no code uses. Both should be fixed.</li>'
             + '<li>Select a module to focus on its dependencies and see its details, and double-click it to open its files. <kbd>Esc</kbd> or a click on the background clears the focus.</li>'
             + '<li>Drag to move. Zoom with the buttons or <kbd>Ctrl</kbd>/<kbd>⌘</kbd> and scroll.</li>'
             + '</ol>';
@@ -1605,7 +1606,7 @@
     function init(root) {
         const element = (selector) => root.querySelector(selector);
         const state = {
-            view: 'modules', focus: null, file: null, colorBy: 'criticality', showUnused: true,
+            view: 'modules', focus: null, file: null, colorBy: 'criticality',
             // The functions map: its colour encoding, the module picked from its list, its line and name switches, and
             // the function to select again when going back to it from a file.
             symbolColorBy: 'module', symbolModule: null, showEdges: true, showLabels: true, from: null, returnTo: null,
@@ -1824,7 +1825,6 @@
             // Colouring by module only exists on the functions map, where the regions need it.
             root.querySelectorAll('[data-color-by="module"]').forEach((button) => { button.hidden = state.view !== 'symbols'; });
             setPressed('[data-color-by]', (button) => button.dataset.colorBy === colorChoice(state));
-            element('#qualityUnusedToggle').disabled = state.view !== 'modules';
             if (state.view === 'symbols') {
                 applySymbolSwitches();
                 renderExplorer();
@@ -2037,11 +2037,6 @@
 
         function selectLink(key) {
             const go = () => {
-                if (!cy.getElementById('link:' + key).length && !state.showUnused) {
-                    state.showUnused = true;
-                    element('#qualityUnusedToggle').checked = true;
-                    render();
-                }
                 select(cy.getElementById('link:' + key));
                 reveal(cy.getElementById('link:' + key));
             };
@@ -2192,12 +2187,6 @@
                 else select(null);
                 if (state.view === 'symbols') renderExplorer();
             }
-        });
-        element('#qualityUnusedToggle').addEventListener('change', (event) => {
-            state.showUnused = event.target.checked;
-            const keep = selected();
-            render();
-            if (keep && keep.length && keep.isNode()) select(cy.getElementById(keep.id()));
         });
         [['#qualityEdgesToggle', 'showEdges'], ['#qualityLabelsToggle', 'showLabels']].forEach(([selector, key]) => {
             const toggle = element(selector);

@@ -330,7 +330,6 @@ describe('QualityDashboard', () => {
                 <span id="qualityBreadcrumb"></span>
                 <button data-view-toggle="modules"></button><button data-view-toggle="files"></button><button data-view-toggle="symbols"></button>
                 <div id="qualityColorBy"><button data-color-by="module" hidden></button><button data-color-by="criticality"></button><button data-color-by="coverage"></button></div>
-                <input type="checkbox" id="qualityUnusedToggle" checked>
                 <button id="qualityPanelToggle" aria-pressed="true"></button>
                 <button id="qualityFullscreen" aria-pressed="false"><i class="fas fa-expand"></i><span class="quality-tool__text">Expand</span></button>
                 <aside id="qualityExplorer" hidden>

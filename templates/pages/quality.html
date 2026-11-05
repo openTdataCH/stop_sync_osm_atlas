@@ -61,14 +61,9 @@
                 <button type="button" class="quality-segmented__option" data-color-by="repository" aria-pressed="false">Repository</button>
               </div>
             </div>
-            <label class="quality-switch">
-              <input type="checkbox" id="qualityUnusedToggle" checked>
-              <span class="quality-switch__track" aria-hidden="true"></span>
-              Declared dependencies without code
-            </label>
             <div class="quality-toolbar__actions">
-              <button type="button" class="quality-tool" id="qualityPanelToggle" aria-controls="qualityPanel" aria-pressed="true" title="Hide the details panel">
-                <i class="fas fa-columns" aria-hidden="true"></i><span>Details</span>
+              <button type="button" class="quality-tool quality-tool--icon" id="qualityPanelToggle" aria-controls="qualityPanel" aria-pressed="true" aria-label="Details panel" title="Hide the details panel">
+                <i class="fas fa-info-circle" aria-hidden="true"></i>
               </button>
               <button type="button" class="quality-tool quality-tool--expand" id="qualityFullscreen" title="Expand the map to the window" aria-label="Expand the map to the window" aria-pressed="false">
                 <i class="fas fa-expand" aria-hidden="true"></i><span class="quality-tool__text">Expand</span><kbd class="quality-tool__key" aria-hidden="true">Esc</kbd>

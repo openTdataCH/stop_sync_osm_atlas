@@ -365,7 +365,7 @@ a.quality-figure:hover .quality-figure__label {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  margin: 0 0 0 auto;
+  margin: 0;
   color: var(--color-fg);
   font-size: 0.82rem;
   font-weight: var(--font-medium);
@@ -425,6 +425,7 @@ a.quality-figure:hover .quality-figure__label {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  margin-left: auto;
 }
 
 .quality-tool {
@@ -441,6 +442,14 @@ a.quality-figure:hover .quality-figure__label {
   line-height: 1.2;
   white-space: nowrap;
   transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.quality-tool--icon {
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  font-size: 0.95rem;
 }
 
 .quality-tool:hover {
@@ -687,10 +696,6 @@ a.quality-figure:hover .quality-figure__label {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-5);
-}
-
-.quality-explorer .quality-switch {
-  margin: 0;
 }
 
 .quality-explorer__head {
@@ -1412,10 +1417,6 @@ a.quality-figure:hover .quality-figure__label {
 
   .quality-panel {
     max-height: none;
-  }
-
-  .quality-switch {
-    margin-left: 0;
   }
 
   /* Stacked, the map keeps two thirds of the window and the panel scrolls below it. */
