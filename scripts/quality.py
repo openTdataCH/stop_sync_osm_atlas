@@ -603,10 +603,14 @@ def build_map(roots, catalogs, ownership):
             python[fid] = (repo, path, tree, local)
         elif path.endswith('.js'):
             facts = javascript[str(roots[repo] / path)]
-            for symbol in facts['symbols']:
-                sid = f"{fid}:{symbol['name']}@{symbol['line']}"
+            sids = [f"{fid}:{symbol['name']}@{symbol['line']}" for symbol in facts['symbols']]
+            for symbol, sid in zip(facts['symbols'], sids):
                 nodes.append(dict(id=sid, kind='symbol', name=symbol['name'], path=path, line=symbol['line'], module=mid, provenance='static-exact'))
                 edge(fid, sid, 'contains', 'static-exact')
+            # A name read inside a function or class is read by it; outside any, by the file.
+            facts['sources'] = [fid if reference['symbol'] is None else sids[reference['symbol']] for reference in facts['references']]
+            for item in facts['links']:
+                edge(fid if item['source'] is None else sids[item['source']], sids[item['target']], item['kind'], 'static-exact', line=item['line'])
             scripts[fid] = facts
             requested = {item['url'] for item in facts['requests'] if item['url']}
             for item in facts['requests']:
@@ -683,10 +687,10 @@ def build_map(roots, catalogs, ownership):
         for name, line in facts['globals'].items():
             shared.setdefault(name, []).append(f'{fid}:{name}@{line}')
     for fid, facts in scripts.items():
-        for reference in facts['references']:
+        for reference, source in zip(facts['references'], facts['sources']):
             targets = shared.get(reference['name'], [])
             if len(targets) == 1 and reference['name'] not in facts['globals']:
-                edge(fid, targets[0], 'uses', 'static-exact', line=reference['line'])
+                edge(source, targets[0], 'uses', 'static-exact', line=reference['line'])
     # Requests and links reach a view function through its URL rule or its endpoint name. Asking an API route, or
     # sending a request, uses the view's code. Any other reference to a page is a link, recorded but drawing no
     # module arrow: following a link does not use the page's code.
@@ -725,6 +729,7 @@ def build_map(roots, catalogs, ownership):
                  limitations=['Python import syntax is exact; runtime resolution can differ.',
                               'Python calls resolve through local definitions and imports only; calls through objects, attributes of instances and dynamic dispatch are missing.',
                               'JavaScript is parsed with espree. A global a script reads is linked to the one script that shares it; whether both load on the same page is not checked.',
+                              'JavaScript calls resolve through the names in scope only; calls through objects, such as this.render(), and methods of objects passed around are missing.',
                               'HTTP requests and page links reach a Flask route through its URL text or url_for endpoint. A URL built at runtime is listed as a blind spot, not linked.',
                               'Shared database tables, external services and the data a view passes to its template are not links.'],
                  routes=[{key: value for key, value in route.items() if key != 'regex'} for route in routes],

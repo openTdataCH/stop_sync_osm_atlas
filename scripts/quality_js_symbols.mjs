@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * Parse browser scripts for the code map: the functions and classes each file defines, the names it shares with
- * other scripts, the names it reads from them, the URL strings it contains and the HTTP requests it makes.
+ * other scripts, the names it reads from them, the URL strings it contains and the HTTP requests it makes. A name
+ * read is placed in the function or class around it, and a call or reference to a function or class of the same
+ * file is a link between the two.
  *
  * Reads a JSON list of file paths on stdin and writes one JSON object keyed by path. A file that does not parse
  * fails the run: ESLint rejects it too, so the map never silently drops a script.
@@ -96,12 +98,33 @@ function analyze(text, ast, namespaces) {
     const references = [];
     const strings = [];
     const requests = [];
+    // Links inside the file: from a function or class (or the file, as null) to a function or class it calls or names.
+    const links = [];
     // Local names for a namespace, as ``var namespace = global.MapComponents = ...``.
     const aliases = {};
+    // Each symbol's source range and whether it is a function or class; the declaration node a scope variable is
+    // defined by, and the top-level declarations by name, for resolving references to symbols.
+    const ranges = [];
+    const callable = [];
+    const byNode = new Map();
+    const topLevelNames = {};
+    const parents = new Map();
     const line = (node) => node.loc.start.line;
-    const define = (name, node, shared) => {
-        symbols.push({ name, line: line(node) });
+    const define = (name, node, shared, options = {}) => {
+        const index = symbols.push({ name, line: line(node) }) - 1;
+        ranges.push(node.range);
+        callable.push(Boolean(options.callable));
+        if (options.declaration) byNode.set(options.declaration, index);
+        if (options.topLevel && topLevelNames[name] === undefined) topLevelNames[name] = index;
         if (shared && globals[name] === undefined) globals[name] = line(node);
+    };
+    /** The innermost symbol whose source holds ``node``, or null at file level. */
+    const enclosing = (node) => {
+        let found = null;
+        ranges.forEach((range, index) => {
+            if (range[0] <= node.range[0] && node.range[1] <= range[1] && (found === null || ranges[found][0] <= range[0])) found = index;
+        });
+        return found;
     };
     /** The namespace ``node`` names: ``MapComponents``, ``global.MapComponents`` or a local alias. */
     const namespaceOf = (node) => {
@@ -112,28 +135,30 @@ function analyze(text, ast, namespaces) {
     const member = (node) => node.type === 'MemberExpression' && !node.computed && node.property.type === 'Identifier' && namespaceOf(node.object)
         ? namespaceOf(node.object) + '.' + node.property.name : null;
     walk(ast, (node, parent) => {
+        parents.set(node, parent);
         const topLevel = parent && parent.type === 'Program';
         if (namespaceInit(node)) {
             if (parent && parent.type === 'VariableDeclarator' && parent.id.type === 'Identifier') aliases[parent.id.name] = namespaceInit(node);
         } else if (node.type === 'AssignmentExpression' && member(node.left)) {
-            define(member(node.left), node, true);
+            define(member(node.left), node, true, { callable: FUNCTIONS.has(node.right.type) });
         } else if (member(node) && !(parent && parent.type === 'AssignmentExpression' && parent.left === node)) {
-            references.push({ name: member(node), line: line(node) });
+            references.push({ name: member(node), line: line(node), node });
         } else if ((node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') && node.id) {
-            define(node.id.name, node, topLevel);
+            define(node.id.name, node, topLevel, { callable: true, declaration: node, topLevel });
         } else if (node.type === 'VariableDeclaration') {
             node.declarations.forEach((declarator) => {
                 if (declarator.id.type !== 'Identifier' || (declarator.init && namespaceInit(declarator.init))) return;
                 // Every top-level declaration is shared with other scripts; inside a function only functions count.
-                if (topLevel || (declarator.init && FUNCTIONS.has(declarator.init.type))) define(declarator.id.name, declarator, topLevel);
+                const isFunction = Boolean(declarator.init && FUNCTIONS.has(declarator.init.type));
+                if (topLevel || isFunction) define(declarator.id.name, declarator, topLevel, { callable: isFunction, declaration: declarator, topLevel });
             });
         } else if (node.type === 'MethodDefinition' && !node.computed && node.key.type === 'Identifier') {
-            define(node.key.name, node, false);
+            define(node.key.name, node, false, { callable: true });
         } else if (node.type === 'AssignmentExpression' && globalProperty(node.left)) {
-            define(globalProperty(node.left), node, true);
+            define(globalProperty(node.left), node, true, { callable: FUNCTIONS.has(node.right.type) });
         } else if (node.type === 'MemberExpression' && globalProperty(node) && !namespaces.has(globalProperty(node))
             && !(parent && parent.type === 'AssignmentExpression' && parent.left === node)) {
-            references.push({ name: globalProperty(node), line: line(node) });
+            references.push({ name: globalProperty(node), line: line(node), node });
         } else if (node.type === 'CallExpression') {
             const url = requestUrl(node);
             if (url) {
@@ -151,9 +176,27 @@ function analyze(text, ast, namespaces) {
     // Names a file reads but does not declare come from the shared global scope: another script, or the browser.
     // A namespace itself is no one script's export; its members are.
     scopes.globalScope.through.forEach((reference) => {
-        if (!namespaces.has(reference.identifier.name)) references.push({ name: reference.identifier.name, line: line(reference.identifier) });
+        if (!namespaces.has(reference.identifier.name)) references.push({ name: reference.identifier.name, line: line(reference.identifier), node: reference.identifier });
     });
-    return { symbols, globals, references, strings, requests };
+    // A read of a function or class declared in this file links the symbol around it to that declaration. Inside a
+    // function eslint-scope resolves the name; a script's top-level declarations are globals, left unresolved.
+    const link = (identifier, target) => {
+        const source = enclosing(identifier);
+        if (target === undefined || !callable[target] || source === target) return;
+        const parent = parents.get(identifier);
+        const called = parent && (parent.type === 'CallExpression' || parent.type === 'NewExpression') && parent.callee === identifier;
+        links.push({ source, target, kind: called ? 'calls' : 'uses', line: line(identifier) });
+    };
+    scopes.scopes.forEach((scope) => scope.references.forEach((reference) => {
+        if (reference.resolved && !reference.isWriteOnly() && reference.resolved.defs.length) link(reference.identifier, byNode.get(reference.resolved.defs[0].node));
+    }));
+    scopes.globalScope.through.forEach((reference) => {
+        if (!reference.isWriteOnly()) link(reference.identifier, topLevelNames[reference.identifier.name]);
+    });
+    return {
+        symbols, globals, strings, requests, links,
+        references: references.map(({ name, line: at, node }) => ({ name, line: at, symbol: enclosing(node) }))
+    };
 }
 
 const paths = JSON.parse(readFileSync(0, 'utf8'));

@@ -240,8 +240,8 @@ def test_map_resolves_calls_through_imports_and_reports_each_module_interface(tm
         'backend/services/__init__.py': 'from backend.services.store import save\n',
         'backend/services/store.py': 'def save():\n    return _private()\n\n\ndef _private():\n    return 1\n',
         'backend/api.py': 'from backend.services import store\nfrom backend.services import save as persist\n\n\ndef handle():\n    store.save()\n    return persist()\n',
-        'static/js/shared.js': 'function formatValue(value) {\n    function inner() {}\n    return value;\n}\n',
-        'static/js/page.js': 'formatValue(inner());\n',
+        'static/js/shared.js': 'function formatValue(value) {\n    function inner() {}\n    return inner(value);\n}\n',
+        'static/js/page.js': 'formatValue(inner());\nfunction render() {\n    return [formatValue(1), render];\n}\nrender();\n',
     }
     for name, text in sources.items():
         (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
@@ -265,6 +265,13 @@ def test_map_resolves_calls_through_imports_and_reports_each_module_interface(tm
     # Only top-level browser declarations are visible to other scripts.
     assert ('app:static/js/page.js', 'app:static/js/shared.js:formatValue@1', 'uses') in edges
     assert not any(target.endswith(':inner@2') for _, target, kind in edges if kind == 'uses')
+    # Inside a script, a call or reference links the function around it to the function of the same file it names,
+    # and a global read inside a function is read by that function.
+    render = 'app:static/js/page.js:render@2'
+    assert ('app:static/js/shared.js:formatValue@1', 'app:static/js/shared.js:inner@2', 'calls') in edges
+    assert ('app:static/js/page.js', render, 'calls') in edges
+    assert (render, 'app:static/js/shared.js:formatValue@1', 'uses') in edges
+    assert not any(source == target == render for source, target, _ in edges)
 
     code_map = json.loads((tmp_path / 'quality/code-map.json').read_text())
     assert [(row['name'], row['used_by']) for row in code_map['interface']['app.store']] == [('save', ['app.api']), ('formatValue', ['app.api'])]
