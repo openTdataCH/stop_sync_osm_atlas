@@ -16,6 +16,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 2
+      # A new volume first runs initdb and installs PostGIS, then restarts the server.
+      start_period: 90s
+      start_interval: 2s
 
   migrator:
     image: stop_sync_osm_atlas-migrator
