@@ -1,5 +1,6 @@
 from backend.extensions import db
 from backend.query_builder import QueryBuilder
+from backend.services.matching_rules import match_types_for_filter
 
 _query_builder_instance = None
 
@@ -34,12 +35,7 @@ def parse_match_method_values(match_method_str):
 
 
 def is_matched_method(value):
-    return (
-        value in ['exact', 'name'] or
-        value.startswith('distance_matching_') or
-        value.startswith('long_distance_group_proximity') or
-        value.startswith('route_')
-    )
+    return bool(match_types_for_filter(value))
 
 
 def resolve_stop_type_match_filters(stop_filter_str, match_method_str):
@@ -76,25 +72,14 @@ def build_match_method_conditions(stop_model, matched_methods):
     if not matched_methods:
         return None
 
-    method_conditions = []
-    for method in matched_methods:
-        if method.startswith('route_'):
-            method_conditions.append(stop_model.match_type.like(f'{method}%'))
-        elif method.startswith('long_distance_group_proximity'):
-            method_conditions.append(stop_model.match_type.like(f'{method}%'))
-        elif method.startswith('distance_matching_'):
-            method_conditions.append(stop_model.match_type.like(f'{method}%'))
-        else:
-            method_conditions.append(stop_model.match_type == method)
-
-    if not method_conditions:
+    match_types = sorted({match_type for method in matched_methods for match_type in match_types_for_filter(method)})
+    if not match_types:
         return None
+    return stop_model.match_type.in_(match_types)
 
-    return db.or_(*method_conditions) if len(method_conditions) > 1 else method_conditions[0]
 
-
-def build_trio_middle_with_matched_side_condition(stop_model):
-    """Return condition for trio middle nodes whose trio has both sides matched.
+def build_two_sided_middle_with_matched_sides_condition(stop_model):
+    """Return condition for two-sided stop middles whose two sides are both matched.
 
     These rows are stored as ``effectively_matched`` in ``stops_matched`` and 
     should be treated as matched for filtering/statistics semantics.
@@ -144,17 +129,17 @@ def build_atlas_duplicate_membership_condition():
 
 def build_stop_scope_condition(stop_model, resolved_filters):
     scope_conditions = []
-    trio_middle_matched_condition = build_trio_middle_with_matched_side_condition(stop_model)
+    two_sided_middle_matched_condition = build_two_sided_middle_with_matched_sides_condition(stop_model)
 
     if resolved_filters['include_matched']:
         matched_methods_condition = build_match_method_conditions(stop_model, resolved_filters['matched_methods'])
         if matched_methods_condition is not None:
             matched_scope = db.and_(stop_model.stop_type == 'matched', matched_methods_condition)
-            if 'distance_matching_trio' in resolved_filters['matched_methods']:
-                matched_scope = db.or_(matched_scope, trio_middle_matched_condition)
+            if any('uic_two_sided_stop' in match_types_for_filter(method) for method in resolved_filters['matched_methods']):
+                matched_scope = db.or_(matched_scope, two_sided_middle_matched_condition)
             scope_conditions.append(matched_scope)
         else:
-            scope_conditions.append(db.or_(stop_model.stop_type == 'matched', trio_middle_matched_condition))
+            scope_conditions.append(db.or_(stop_model.stop_type == 'matched', two_sided_middle_matched_condition))
 
     if resolved_filters['include_atlas_unmatched']:
         scope_conditions.append(

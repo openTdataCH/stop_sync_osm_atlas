@@ -1,6 +1,35 @@
 // Filter Management Module
 // This module handles all filter-related functionality
 
+// Matched-stop filters by group. Each value is a matching rule key or one match
+// type; backend/services/matching_rules.py expands it to match types.
+const MATCH_METHOD_FILTERS = {
+    methods: [
+        { value: 'two_sided_stop', selector: '#filterTwoSidedStop', label: 'UIC two-sided stop' },
+        { value: 'reference', selector: '#filterReference', label: 'UIC reference' },
+        { value: 'name', selector: '#filterName', label: 'Name' }
+    ],
+    distanceMatching: [
+        { value: 'group_distance', selector: '#distanceMethodGroup', label: 'Group distance (50 m)' },
+        { value: 'group_long_distance', selector: '#distanceMethodGroupLong', label: 'Group long distance (150 m)' },
+        { value: 'local_ref_distance', selector: '#distanceMethodLocalRef', label: 'local_ref distance' },
+        { value: 'distance_only_candidate', selector: '#distanceMethodOnlyCandidate', label: 'Only candidate' },
+        { value: 'distance_ratio', selector: '#distanceMethodRatio', label: 'Distance ratio' }
+    ],
+    routeMatching: [
+        { value: 'gtfs_shared_route', selector: '#routeMethodSharedRoute', label: 'Shared GTFS route' },
+        { value: 'gtfs_shared_direction', selector: '#routeMethodSharedDirection', label: 'Shared GTFS direction' }
+    ]
+};
+
+function matchMethodFlags(group, readChecked, withAllSelected) {
+    const flags = withAllSelected === undefined ? {} : { allSelected: withAllSelected };
+    MATCH_METHOD_FILTERS[group].forEach(function (filter) {
+        flags[filter.value] = readChecked ? $(filter.selector).is(':checked') : false;
+    });
+    return flags;
+}
+
 // Unified global filters object - Initialized to a "no filters active" state
 var activeFilters = {
     station: [],
@@ -14,9 +43,9 @@ var activeFilters = {
     missingOsmOperatorWikidata: false,
     matchedOptions: {
         allSelected: true,
-        methods: { exact: false, name: false },
-        distanceMatching: { allSelected: false, stage1: false, longGroup: false, stage2: false, stage3a: false, stage3b: false },
-        routeMatching: { allSelected: false, tokens: false, direction: false }
+        methods: matchMethodFlags('methods', false),
+        distanceMatching: matchMethodFlags('distanceMatching', false, false),
+        routeMatching: matchMethodFlags('routeMatching', false, false)
     },
     unmatchedOptions: {
         allSelected: true,
@@ -34,18 +63,8 @@ function smartSearchValidationMessage() {
         + (SharedUtils.hasCapability('gtfs_identity') ? ', UIC (8503000), SLOID (ch:1:sloid:…)' : '')
         + (SharedUtils.hasCapability('routes') ? ', route:… (optional dir:0 or dir:1)' : '');
 }
-const DISTANCE_METHOD_CHECKBOX_SELECTORS = [
-    '#distanceMethodTrio',
-    '#distanceMethodStage1',
-    '#distanceMethodLongGroup',
-    '#distanceMethodStage2',
-    '#distanceMethodStage3a',
-    '#distanceMethodStage3b'
-];
-const ROUTE_METHOD_CHECKBOX_SELECTORS = [
-    '#routeMethodTokens',
-    '#routeMethodDirection'
-];
+const DISTANCE_METHOD_CHECKBOX_SELECTORS = MATCH_METHOD_FILTERS.distanceMatching.map(function (filter) { return filter.selector; });
+const ROUTE_METHOD_CHECKBOX_SELECTORS = MATCH_METHOD_FILTERS.routeMatching.map(function (filter) { return filter.selector; });
 
 let isBulkCheckboxSyncDepth = 0;
 
@@ -57,13 +76,13 @@ function areAllFilterSelectorsChecked(selectors) {
 
 function formatOsmGroupTypeLabel(groupType) {
     const labels = {
-        osm_pair_uic: 'UIC-based pairs',
-        osm_pair_uic_equal_15m: 'UIC perfect-count pairs (15m)',
-        osm_pair_name: 'Name-based pairs',
-        osm_pair_name_equal_15m: 'Name perfect-count pairs (15m)',
-        osm_pair_tram: 'Tram pairs',
-        osm_pair_tram_equal_15m: 'Tram perfect-count pairs (15m)',
-        osm_trio: 'OSM trio'
+        ptv2_pair_uic_ref: 'UIC-based pairs',
+        ptv2_pair_uic_ref_equal_count: 'UIC equal-count pairs (15 m)',
+        ptv2_pair_name: 'Name-based pairs',
+        ptv2_pair_name_equal_count: 'Name equal-count pairs (15 m)',
+        tram_stop_pair: 'Tram stop pairs',
+        tram_stop_pair_equal_count: 'Tram stop equal-count pairs (15 m)',
+        ptv2_two_sided_stop: 'PTv2 two-sided stops'
     };
 
     return labels[groupType] || groupType;
@@ -228,28 +247,14 @@ function getSelectedMatchedMethodFiltersFromState() {
         return selectedMethods;
     }
 
-    Object.keys(activeFilters.matchedOptions.methods).forEach(function (method) {
-        if (activeFilters.matchedOptions.methods[method]) {
-            selectedMethods.push(method);
-        }
-    });
-
-    Object.keys(activeFilters.matchedOptions.distanceMatching).forEach(function (stage) {
-        if (stage !== 'allSelected' && activeFilters.matchedOptions.distanceMatching[stage]) {
-            if (stage === 'longGroup') {
-                selectedMethods.push('long_distance_group_proximity');
-                return;
+    Object.keys(MATCH_METHOD_FILTERS).forEach(function (group) {
+        const flags = activeFilters.matchedOptions[group] || {};
+        MATCH_METHOD_FILTERS[group].forEach(function (filter) {
+            if (flags[filter.value]) {
+                selectedMethods.push(filter.value);
             }
-            selectedMethods.push('distance_matching_' + stage.replace('stage', ''));
-        }
+        });
     });
-
-    if (activeFilters.matchedOptions.routeMatching.tokens) {
-        selectedMethods.push('route_gtfs_tokens');
-    }
-    if (activeFilters.matchedOptions.routeMatching.direction) {
-        selectedMethods.push('route_gtfs_direction');
-    }
 
     return selectedMethods;
 }
@@ -588,60 +593,29 @@ function updateFiltersUI() {
             });
         } else {
             let matchedSubConditionStrings = [];
-            let specificMethodChips = [];
-            for (const method in activeFilters.matchedOptions.methods) {
-                if (activeFilters.matchedOptions.methods[method]) {
-                    var dName = method.charAt(0).toUpperCase() + method.slice(1);
-                    specificMethodChips.push(buildRemovableChip({
-                        label: 'Match: ' + dName, badgeClass: 'filter-chip-matched',
-                        data: { type: 'specificMatch', target: '#filter' + dName }
-                    }));
-                }
-            }
-            const smGrp = buildOrGroup(specificMethodChips);
+            const chipsFor = function (group, type) {
+                const flags = activeFilters.matchedOptions[group];
+                return MATCH_METHOD_FILTERS[group].filter(function (filter) { return flags[filter.value]; }).map(function (filter) {
+                    return buildRemovableChip({
+                        label: 'Match: ' + filter.label, badgeClass: 'filter-chip-matched',
+                        data: { type: type, target: filter.selector }
+                    });
+                });
+            };
+            const smGrp = buildOrGroup(chipsFor('methods', 'specificMatch'));
             if (smGrp) matchedSubConditionStrings.push(smGrp);
 
             if (activeFilters.matchedOptions.distanceMatching.allSelected) {
-                matchedSubConditionStrings.push(buildRemovableChip({ label: 'Distance Match: All Stages', badgeClass: 'filter-chip-matched', data: { type: 'masterDistance', target: '#masterDistanceMatchingCheckbox' } }));
+                matchedSubConditionStrings.push(buildRemovableChip({ label: 'Distance Match: All Rules', badgeClass: 'filter-chip-matched', data: { type: 'masterDistance', target: '#masterDistanceMatchingCheckbox' } }));
             } else {
-                let distanceStageChips = [];
-                for (const stage in activeFilters.matchedOptions.distanceMatching) {
-                    if (stage !== 'allSelected' && activeFilters.matchedOptions.distanceMatching[stage]) {
-                        let stageNum = stage.replace('stage', '');
-                        var dLabel = 'Dist. Stage ' + stageNum;
-                        let target = '#distanceMethodStage' + stageNum;
-                        if (stage === 'trio') {
-                            dLabel = 'Dist: Trio distance';
-                            target = '#distanceMethodTrio';
-                        }
-                        if (stage === 'stage1') dLabel = 'Dist: Group Proximity';
-                        if (stage === 'longGroup') {
-                            dLabel = 'Dist: Long-distance Group';
-                            target = '#distanceMethodLongGroup';
-                        }
-                        if (stage === 'stage2') dLabel = 'Dist: Local Ref Match';
-                        if (stage === 'stage3a') dLabel = 'Dist: Single Candidate';
-                        if (stage === 'stage3b') dLabel = 'Dist: Relative Distance';
-                        distanceStageChips.push(buildRemovableChip({
-                            label: dLabel, badgeClass: 'filter-chip-matched', data: { type: 'specificDistance', target: target }
-                        }));
-                    }
-                }
-                const distGrp = buildOrGroup(distanceStageChips);
+                const distGrp = buildOrGroup(chipsFor('distanceMatching', 'specificDistance'));
                 if (distGrp) matchedSubConditionStrings.push(distGrp);
             }
 
             if (activeFilters.matchedOptions.routeMatching.allSelected) {
-                matchedSubConditionStrings.push(buildRemovableChip({ label: 'Route Match: All', badgeClass: 'filter-chip-matched', data: { type: 'masterRoute', target: '#masterRouteMatchingCheckbox' } }));
+                matchedSubConditionStrings.push(buildRemovableChip({ label: 'GTFS Route Match: All', badgeClass: 'filter-chip-matched', data: { type: 'masterRoute', target: '#masterRouteMatchingCheckbox' } }));
             } else {
-                let routeStageChips = [];
-                if (activeFilters.matchedOptions.routeMatching.tokens) {
-                    routeStageChips.push(buildRemovableChip({ label: 'Route: Tokens', badgeClass: 'filter-chip-matched', data: { type: 'specificRoute', target: '#routeMethodTokens' } }));
-                }
-                if (activeFilters.matchedOptions.routeMatching.direction) {
-                    routeStageChips.push(buildRemovableChip({ label: 'Route: Direction', badgeClass: 'filter-chip-matched', data: { type: 'specificRoute', target: '#routeMethodDirection' } }));
-                }
-                const rGrp = buildOrGroup(routeStageChips);
+                const rGrp = buildOrGroup(chipsFor('routeMatching', 'specificRoute'));
                 if (rGrp) matchedSubConditionStrings.push(rGrp);
             }
 
@@ -881,24 +855,9 @@ function updateActiveFilters() {
 
     activeFilters.matchedOptions = {
         allSelected: $('#masterMatchedCheckbox').is(':checked'),
-        methods: {
-            exact: $('#filterExact').is(':checked'),
-            name: $('#filterName').is(':checked')
-        },
-        distanceMatching: {
-            allSelected: allDistanceMethodsSelected,
-            trio: $('#distanceMethodTrio').is(':checked'),
-            stage1: $('#distanceMethodStage1').is(':checked'),
-            longGroup: $('#distanceMethodLongGroup').is(':checked'),
-            stage2: $('#distanceMethodStage2').is(':checked'),
-            stage3a: $('#distanceMethodStage3a').is(':checked'),
-            stage3b: $('#distanceMethodStage3b').is(':checked')
-        },
-        routeMatching: {
-            allSelected: allRouteMethodsSelected,
-            tokens: $('#routeMethodTokens').is(':checked'),
-            direction: $('#routeMethodDirection').is(':checked')
-        }
+        methods: matchMethodFlags('methods', true),
+        distanceMatching: matchMethodFlags('distanceMatching', true, allDistanceMethodsSelected),
+        routeMatching: matchMethodFlags('routeMatching', true, allRouteMethodsSelected)
     };
 
     activeFilters.unmatchedOptions = {
@@ -1048,11 +1007,7 @@ function initFilterEventHandlers() {
         if (targetCheckboxId) {
             // This covers most checkbox-driven filters linked by data-target
             // (masterMatched, specificMatch, masterDistance, specificDistance, masterRoute, specificRoute, specificUnmatched)
-            if (type === 'specificRoute') {
-                $(targetCheckboxId).prop('checked', false).trigger('change');
-            } else {
-                $(targetCheckboxId).prop('checked', false).trigger('change');
-            }
+            $(targetCheckboxId).prop('checked', false).trigger('change');
         } else {
             const simpleArrayRemoval = removeSimpleArrayFilter(type, filterValue);
             if (simpleArrayRemoval !== null) {

@@ -54,8 +54,8 @@ _GTFS_EXTENDED_MODES = (
 
 OSM_ELEMENT_TYPES = ('stop_position', 'platform', 'railway_station', 'aerialway', 'ferry_terminal', 'other')
 OSM_GROUP_KINDS = (
-    'osm_pair_uic_equal_15m', 'osm_pair_uic', 'osm_pair_name_equal_15m', 'osm_pair_name',
-    'osm_pair_tram_equal_15m', 'osm_pair_tram', 'osm_trio',
+    'ptv2_pair_uic_ref_equal_count', 'ptv2_pair_uic_ref', 'ptv2_pair_name_equal_count', 'ptv2_pair_name',
+    'tram_stop_pair_equal_count', 'tram_stop_pair', 'ptv2_two_sided_stop',
 )
 
 # Tags reported on stop elements, by purpose. Shares use the element counts of
@@ -227,7 +227,7 @@ def compute_osm_stop_stats(session) -> Dict[str, Any]:
         if relation_id in public_transport_relations:
             served_nodes.add(node_id)
 
-    by_kind = {kind: {'units': 0, 'elements': 0, 'matched': 0} for kind in ('single', 'pair', 'trio')}
+    by_kind = {kind: {'units': 0, 'elements': 0, 'matched': 0} for kind in ('single', 'pair', 'two_sided_stop')}
     groups = {kind: {'group_kind': kind, 'units': 0, 'all_matched': 0, 'partly_matched': 0, 'none_matched': 0}
               for kind in OSM_GROUP_KINDS}
     units = matched_units = served_units = 0

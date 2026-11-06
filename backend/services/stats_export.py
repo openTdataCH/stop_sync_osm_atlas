@@ -19,6 +19,7 @@ from collections import defaultdict
 from typing import Dict, Any, List, Optional
 
 from backend.services.data_meta import load_data_meta
+from backend.services.matching_rules import MATCHING_RULES, PROPAGATION_MATCH_TYPES
 from backend.services.time_utils import (
     format_zurich_timestamp,
     get_zurich_now,
@@ -115,6 +116,24 @@ def get_report_css_content(css_files: List[str]) -> str:
     return css_content
 
 
+def _matching_rule_stats(match_type_counts: Dict[str, int], mto_pairs_by_type: Dict[str, int]) -> List[Dict[str, Any]]:
+    """Count matches per rule and per match type, in rule order."""
+    rules = []
+    for rule in MATCHING_RULES:
+        match_types = [
+            {"match_type": match_type, "label": label,
+             "count": match_type_counts.get(match_type, 0), "mto": mto_pairs_by_type.get(match_type, 0)}
+            for match_type, label in rule.match_types
+        ]
+        rules.append({
+            "rule": rule.key, "label": rule.label, "group": rule.group,
+            "count": sum(row["count"] for row in match_types),
+            "mto": sum(row["mto"] for row in match_types),
+            "match_types": match_types,
+        })
+    return rules
+
+
 def export_pipeline_stats(
     matched_records: list,
     unmatched_atlas: list,
@@ -140,7 +159,7 @@ def export_pipeline_stats(
     Args:
         matched_records: List of matched record dictionaries
         unmatched_atlas: List of unmatched ATLAS entries
-        unmatched_osm: Unmatched OSM elements, without effectively matched trio middles
+        unmatched_osm: Unmatched OSM elements, without effectively matched two-sided stop middles
         no_nearby_osm_sloids: Set of ATLAS sloids with no OSM within 50m
         osm_stop_units: Canonical OSM stop units (optional, used for stop-level many-to-one)
         total_atlas_platforms: Total ATLAS platforms (optional, calculated if not provided)
@@ -198,42 +217,6 @@ def export_pipeline_stats(
     for record in matched_records:
         match_type = getattr(record, 'match_type', 'unknown') or 'unknown'
         match_type_counts[match_type] = match_type_counts.get(match_type, 0) + 1
-    
-    # Extract specific match counts
-    exact_matches = match_type_counts.get('exact', 0)
-    name_matches = match_type_counts.get('name', 0)
-    duplicate_propagation_matches = match_type_counts.get('duplicate_propagation', 0)
-    osm_group_propagation_matches = match_type_counts.get('osm_group_propagation', 0)
-    
-    # Distance matching breakdown
-    distance_stage0 = match_type_counts.get('distance_matching_trio', 0)
-    distance_stage1 = sum(
-        v for k, v in match_type_counts.items() 
-        if k.startswith('distance_matching_1_')
-    )
-    distance_stage1_uic_ref = match_type_counts.get('distance_matching_1_uic_ref', 0)
-    distance_stage1_uic_name = match_type_counts.get('distance_matching_1_uic_name', 0)
-    distance_stage1_name = match_type_counts.get('distance_matching_1_name', 0)
-    distance_stage1b = sum(
-        v for k, v in match_type_counts.items()
-        if k.startswith('long_distance_group_proximity_')
-    )
-    distance_stage1b_uic_ref = match_type_counts.get('long_distance_group_proximity_uic_ref', 0)
-    distance_stage1b_uic_name = match_type_counts.get('long_distance_group_proximity_uic_name', 0)
-    distance_stage1b_name = match_type_counts.get('long_distance_group_proximity_name', 0)
-    distance_stage2 = match_type_counts.get('distance_matching_2', 0)
-    distance_stage3a_pass1 = match_type_counts.get('distance_matching_3a', 0)
-    distance_stage3a_pass2 = match_type_counts.get('distance_matching_3a_second_pass', 0)
-    distance_stage3a = distance_stage3a_pass1 + distance_stage3a_pass2
-    distance_stage3b = match_type_counts.get('distance_matching_3b', 0)
-    total_distance_matches = distance_stage0 + distance_stage1 + distance_stage1b + distance_stage2 + distance_stage3a + distance_stage3b
-    
-    # Route matching breakdown
-    route_gtfs_matches = sum(
-        v for k, v in match_type_counts.items() 
-        if k.startswith('route_gtfs') or k.startswith('route_unified_gtfs')
-    )
-    total_route_matches = route_gtfs_matches
     
     # Compute "no ATLAS within 50m" for unmatched OSM nodes
     if no_nearby_atlas_osm_ids is not None:
@@ -322,23 +305,6 @@ def export_pipeline_stats(
                 mt = getattr(record, 'match_type', 'unknown') or 'unknown'
                 mto_pairs_by_type[mt] += 1
 
-    route_method_counts = {
-        'gtfs_tokens': 0,
-        'direction_name': 0,
-        'other': 0,
-    }
-    for record in matched_records:
-        mt = getattr(record, 'match_type', '') or ''
-        if not mt.startswith('route_'):
-            continue
-        evidence = (getattr(record, 'notes', '') or '').strip()
-        if evidence == 'gtfs_tokens':
-            route_method_counts['gtfs_tokens'] += 1
-        elif evidence == 'direction_name':
-            route_method_counts['direction_name'] += 1
-        else:
-            route_method_counts['other'] += 1
-
     # Load data meta if available to get the actual data source update time
     last_pipeline_data_import_ended_at = None
     last_overpass_query_at = None
@@ -386,86 +352,14 @@ def export_pipeline_stats(
             "matched_atlas_with_osm_within_50m_percent": matched_atlas_with_osm_within_50m_percent,
         },
         
-        # Matching stage breakdown
-        "matching_stages": {
-            "exact": {
-                "count": exact_matches,
-                "mto": mto_pairs_by_type.get('exact', 0),
-                "description": "UIC reference number equality"
-            },
-            "name": {
-                "count": name_matches,
-                "mto": mto_pairs_by_type.get('name', 0),
-                "description": "Official name string matching"
-            },
-            "distance": {
-                "count": total_distance_matches,
-                "mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching') or k.startswith('long_distance_group_proximity')),
-                "description": "Proximity-based spatial matching (50m and long-distance group fallback)",
-                "breakdown": {
-                    "stage0_trio": distance_stage0,
-                    "stage0_trio_mto": mto_pairs_by_type.get('distance_matching_trio', 0),
-                    "stage1_group": distance_stage1,
-                    "stage1_group_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('distance_matching_1_')),
-                    "stage1_group_by_key": {
-                        "uic_ref": {
-                            "count": distance_stage1_uic_ref,
-                            "mto": mto_pairs_by_type.get('distance_matching_1_uic_ref', 0),
-                        },
-                        "uic_name": {
-                            "count": distance_stage1_uic_name,
-                            "mto": mto_pairs_by_type.get('distance_matching_1_uic_name', 0),
-                        },
-                        "name": {
-                            "count": distance_stage1_name,
-                            "mto": mto_pairs_by_type.get('distance_matching_1_name', 0),
-                        },
-                    },
-                    "stage1b_long_group": distance_stage1b,
-                    "stage1b_long_group_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('long_distance_group_proximity_')),
-                    "stage1b_long_group_by_key": {
-                        "uic_ref": {
-                            "count": distance_stage1b_uic_ref,
-                            "mto": mto_pairs_by_type.get('long_distance_group_proximity_uic_ref', 0),
-                        },
-                        "uic_name": {
-                            "count": distance_stage1b_uic_name,
-                            "mto": mto_pairs_by_type.get('long_distance_group_proximity_uic_name', 0),
-                        },
-                        "name": {
-                            "count": distance_stage1b_name,
-                            "mto": mto_pairs_by_type.get('long_distance_group_proximity_name', 0),
-                        },
-                    },
-                    "stage2_local_ref": distance_stage2,
-                    "stage2_local_ref_mto": mto_pairs_by_type.get('distance_matching_2', 0),
-                    "stage3a_single": distance_stage3a,
-                    "stage3a_single_mto": mto_pairs_by_type.get('distance_matching_3a', 0) + mto_pairs_by_type.get('distance_matching_3a_second_pass', 0),
-                    "stage3a_single_pass1": distance_stage3a_pass1,
-                    "stage3a_single_pass1_mto": mto_pairs_by_type.get('distance_matching_3a', 0),
-                    "stage3a_single_pass2": distance_stage3a_pass2,
-                    "stage3a_single_pass2_mto": mto_pairs_by_type.get('distance_matching_3a_second_pass', 0),
-                    "stage3b_relative": distance_stage3b,
-                    "stage3b_relative_mto": mto_pairs_by_type.get('distance_matching_3b', 0),
-                }
-            },
-            "route": {
-                "count": total_route_matches,
-                "mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('route')),
-                "description": "Shared transit route validation",
-                "breakdown": {
-                    "gtfs": route_gtfs_matches,
-                    "gtfs_mto": sum(v for k, v in mto_pairs_by_type.items() if k.startswith('route_gtfs') or k.startswith('route_unified_gtfs')),
-                }
-            },
-            "post_processing": {
-                "duplicate_propagation": duplicate_propagation_matches,
-                "duplicate_propagation_mto": mto_pairs_by_type.get('duplicate_propagation', 0),
-                "osm_group_propagation": osm_group_propagation_matches,
-                "osm_group_propagation_mto": mto_pairs_by_type.get('osm_group_propagation', 0),
-            }
-        },
-        
+        # Matches per rule, in run order, with the match types each rule writes
+        "matching_rules": _matching_rule_stats(match_type_counts, mto_pairs_by_type),
+        "propagation": [
+            {"match_type": match_type, "label": label,
+             "count": match_type_counts.get(match_type, 0), "mto": mto_pairs_by_type.get(match_type, 0)}
+            for match_type, label in PROPAGATION_MATCH_TYPES
+        ],
+
         # Unmatched analysis
         "unmatched_analysis": {
             "atlas": {
@@ -483,19 +377,6 @@ def export_pipeline_stats(
         
         # Raw match type counts for debugging/advanced use
         "match_type_counts": match_type_counts,
-
-        # Route matching details for analytics table
-        "route_matching": {
-            "total": total_route_matches,
-            "by_source": {
-                "gtfs": route_gtfs_matches,
-            },
-            "by_method": {
-                "gtfs_tokens": route_method_counts['gtfs_tokens'],
-                "direction_name_fallback": route_method_counts['direction_name'],
-                "other_or_legacy": route_method_counts['other'],
-            },
-        },
     }
     
     gtfs_atlas_stats = _load_gtfs_atlas_stats(total_atlas_platforms)

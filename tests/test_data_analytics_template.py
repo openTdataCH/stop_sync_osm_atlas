@@ -2,6 +2,8 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
 
+from backend.services.stats_export import _matching_rule_stats
+
 
 def _minimal_empty_stats(source_downloads=None):
     return {
@@ -20,45 +22,8 @@ def _minimal_empty_stats(source_downloads=None):
             "atlas_with_osm_within_50m": 0,
             "matched_atlas_with_osm_within_50m_percent": 0,
         },
-        "matching_stages": {
-            "exact": {"count": 0, "mto": 0},
-            "name": {"count": 0, "mto": 0},
-            "route": {
-                "count": 0,
-                "mto": 0,
-                "breakdown": {"gtfs": 0, "gtfs_mto": 0},
-            },
-            "distance": {
-                "count": 0,
-                "mto": 0,
-                "breakdown": {
-                    "stage0_trio": 0,
-                    "stage0_trio_mto": 0,
-                    "stage1_group": 0,
-                    "stage1_group_mto": 0,
-                    "stage1_group_by_key": {},
-                    "stage1b_long_group": 0,
-                    "stage1b_long_group_mto": 0,
-                    "stage1b_long_group_by_key": {},
-                    "stage2_local_ref": 0,
-                    "stage2_local_ref_mto": 0,
-                    "stage3a_single": 0,
-                    "stage3a_single_mto": 0,
-                    "stage3a_single_pass1": 0,
-                    "stage3a_single_pass1_mto": 0,
-                    "stage3a_single_pass2": 0,
-                    "stage3a_single_pass2_mto": 0,
-                    "stage3b_relative": 0,
-                    "stage3b_relative_mto": 0,
-                },
-            },
-            "post_processing": {
-                "duplicate_propagation": 0,
-                "duplicate_propagation_mto": 0,
-                "osm_group_propagation": 0,
-                "osm_group_propagation_mto": 0,
-            },
-        },
+        "matching_rules": _matching_rule_stats({}, {}),
+        "propagation": [],
         "unmatched_analysis": {
             "atlas": {
                 "total": 0,
@@ -130,6 +95,23 @@ def test_stats_data_template_handles_missing_source_downloads():
     # Sections without per-source statistics say so instead of failing.
     assert "OSM stop statistics are not available" in html
     assert "Route matching statistics are not available" in html
+
+
+def test_matches_by_rule_lists_rules_in_run_order_with_their_branches():
+    env = Environment(loader=FileSystemLoader("templates"))
+    env.globals["url_for"] = lambda endpoint, **values: "/static/"
+    env.filters["format_zurich_display_timestamp"] = lambda value, include_seconds=False: value
+    stats = _minimal_empty_stats()
+    stats["summary"]["matched_pairs"] = 10
+    stats["matching_rules"] = _matching_rule_stats(
+        {"uic_two_sided_stop": 2, "uic_reference_one_osm": 5, "uic_reference_local_ref": 3}, {})
+
+    html = env.get_template("components/stats_data.html").render(stats=stats, problem_breakdown={})
+
+    assert html.index("UIC two-sided stop") < html.index("UIC reference") < html.index("GTFS route")
+    assert "<code>uic_reference_local_ref</code>" in html
+    assert "<code>uic_reference_one_source</code>" not in html  # empty branches are left out
+    assert "Name, GTFS route" in html  # rules without matches are named once below the table
 
 
 def test_stats_data_template_handles_partial_stats_without_summary():

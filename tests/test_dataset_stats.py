@@ -76,7 +76,7 @@ def test_osm_stop_stats_count_elements_units_groups_tags_and_route_service(sqlit
         OsmNode(osm_node_id='2', osm_node_type='stop_position', osm_tags={'name': 'A', 'uic_ref': '85'}),
         OsmNode(osm_node_id='way_3', osm_node_type='platform', osm_tags={'name': ''}),
         OsmNode(osm_node_id='4', osm_node_type='stop_position', osm_lifecycle='disused', osm_tags={}),
-        OsmStop(id=1, stop_kind='pair', group_kind='osm_pair_uic', representative_node_id='1'),
+        OsmStop(id=1, stop_kind='pair', group_kind='ptv2_pair_uic_ref', representative_node_id='1'),
         OsmStop(id=2, stop_kind='single', representative_node_id='way_3'),
         OsmStopMember(osm_stop_id=1, node_id='1', member_role='pair_a'),
         OsmStopMember(osm_stop_id=1, node_id='2', member_role='pair_b'),
@@ -106,9 +106,9 @@ def test_osm_stop_stats_count_elements_units_groups_tags_and_route_service(sqlit
         'total': 2, 'matched': 1, 'served_by_routes': 1,
         'by_kind': {'single': {'units': 1, 'elements': 1, 'matched': 0},
                     'pair': {'units': 1, 'elements': 2, 'matched': 1},
-                    'trio': {'units': 0, 'elements': 0, 'matched': 0}},
+                    'two_sided_stop': {'units': 0, 'elements': 0, 'matched': 0}},
     }
-    assert stats['groups']['by_kind'] == [{'group_kind': 'osm_pair_uic', 'units': 1, 'all_matched': 1,
+    assert stats['groups']['by_kind'] == [{'group_kind': 'ptv2_pair_uic_ref', 'units': 1, 'all_matched': 1,
                                            'partly_matched': 0, 'none_matched': 0}]
     keys = {row['key']: row for group in stats['tags']['groups'] for row in group['keys']}
     assert keys['name'] == {'key': 'name', 'elements': 2, 'platforms': 1, 'stop_positions': 1}

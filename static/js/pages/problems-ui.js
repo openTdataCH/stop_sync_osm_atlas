@@ -277,10 +277,10 @@ window.ProblemsUI = (function () {
     function generateRouteContradictionDetailsHtml(problem) {
         const atlasRoutes = formatRouteEvidenceItems(problem.routes_atlas, 'atlas');
         const osmRoutes = formatRouteEvidenceItems(problem.routes_osm, 'osm');
-        const matchMethod = problem.match_type === 'route_gtfs_direction'
-            ? 'direction-name route matching'
-            : problem.match_type === 'route_gtfs_tokens'
-                ? 'GTFS token route matching'
+        const matchMethod = problem.match_type === 'gtfs_shared_direction'
+            ? 'the gtfs_shared_direction match'
+            : problem.match_type === 'gtfs_shared_route'
+                ? 'the gtfs_shared_route match'
                 : 'the current matched pair';
 
         function buildRouteRows(identifierLabel, identifierValue, routes) {

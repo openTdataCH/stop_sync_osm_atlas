@@ -4,8 +4,8 @@
     "app:backend/app.py",
     "app:backend/blueprints/data.py",
     "app:backend/blueprints/docs.py",
-    "app:backend/blueprints/operators.py",
     "app:backend/blueprints/problems.py",
+    "app:backend/blueprints/quality.py",
     "app:backend/blueprints/reports.py",
     "app:backend/blueprints/routes.py",
     "app:backend/blueprints/search.py",
@@ -31,6 +31,10 @@
     "app:backend/jobs/job_types.py",
     "app:backend/jobs/service.py",
     "app:backend/models.py",
+    "app:backend/pages/__init__.py",
+    "app:backend/pages/main.py",
+    "app:backend/pages/operators.py",
+    "app:backend/pages/routes.py",
     "app:backend/queries/helpers.py",
     "app:backend/query_builder.py",
     "app:backend/serializers/__init__.py",
@@ -39,10 +43,13 @@
     "app:backend/services/async_export.py",
     "app:backend/services/async_export_state_store.py",
     "app:backend/services/data_meta.py",
+    "app:backend/services/dataset_stats.py",
     "app:backend/services/docs_order.py",
     "app:backend/services/docs_stats.py",
     "app:backend/services/global_stats.py",
     "app:backend/services/gtfs_stop_id_sloid.py",
+    "app:backend/services/matching_rules.py",
+    "app:backend/services/operator_coverage.py",
     "app:backend/services/pipeline_progress.py",
     "app:backend/services/pipeline_state_store.py",
     "app:backend/services/pipeline_status.py",
@@ -50,6 +57,8 @@
     "app:backend/services/repo_scanner.py",
     "app:backend/services/request_payload.py",
     "app:backend/services/route_comparison.py",
+    "app:backend/services/route_listing.py",
+    "app:backend/services/site_url.py",
     "app:backend/services/source_config.py",
     "app:backend/services/state_backend_config.py",
     "app:backend/services/stats_export.py",
@@ -69,6 +78,7 @@
     "app:documentation/scripts/generate_dependency_overlap.py",
     "app:documentation/scripts/generate_venn_diagram.py",
     "app:documentation/scripts/plot_filter_scope_overlap.py",
+    "app:scripts/deploy_report.py",
     "app:scripts/quality.py",
     "app:scripts/regenerate_stats.py",
     "app:scripts/run_quality.py",
@@ -101,10 +111,10 @@
     "engine:src/osm_public_transport_matcher/core/pipeline.py",
     "engine:src/osm_public_transport_matcher/core/predicates/__init__.py",
     "engine:src/osm_public_transport_matcher/core/predicates/distance_matching.py",
-    "engine:src/osm_public_transport_matcher/core/predicates/exact_matching.py",
+    "engine:src/osm_public_transport_matcher/core/predicates/gtfs_route_matching.py",
     "engine:src/osm_public_transport_matcher/core/predicates/name_matching.py",
-    "engine:src/osm_public_transport_matcher/core/predicates/route_matching_gtfs.py",
-    "engine:src/osm_public_transport_matcher/core/predicates/trio_distance_matching.py",
+    "engine:src/osm_public_transport_matcher/core/predicates/reference_matching.py",
+    "engine:src/osm_public_transport_matcher/core/predicates/two_sided_stop_matching.py",
     "engine:src/osm_public_transport_matcher/core/problem_detection/__init__.py",
     "engine:src/osm_public_transport_matcher/core/problem_detection/context.py",
     "engine:src/osm_public_transport_matcher/core/problem_detection/pipeline.py",
@@ -134,41 +144,10 @@
     "engine:src/osm_public_transport_matcher/routes.py",
     "engine:src/osm_public_transport_matcher/statistics.py",
     "engine:src/osm_public_transport_matcher/swiss.py",
-    "engine:src/osm_public_transport_matcher/timing.py"
+    "engine:src/osm_public_transport_matcher/timing.py",
+    "engine:src/osm_public_transport_matcher/version.py"
   ],
   "findings": [
-    {
-      "files": [
-        "app:backend/importing/bundle.py",
-        "engine:src/osm_public_transport_matcher/results/validation.py"
-      ],
-      "fingerprint": "398e82c46d1c24589892810a0f6e492aa65149d8955d940fba28ca3dc8c42c90",
-      "fragment": "('Unknown group side')\n    _require(grouped_osm == set(osm_by_id), 'OSM stop-unit coverage is incomplete')\n    _require(effective == valid_effective, 'Effective-match status disagrees with trio side matches')\n    problem_ids, actual_match_problems = set(), set()\n    source_unmatched_problems, osm_unmatched_problems = set(), set()\n    for row in records['problems']:\n        _problem(row)\n        key, left, right = row.get('problem_id'), row.get('source_keys', []), row.get('osm_ids', [])\n        _require(isinstance(key, str) and key and key not in problem_ids, 'Missing or duplicate problem ID')\n        _require((left or right) and set(left) <= source.keys() and set(right) <= osm_by_id.keys(), 'Problem references unknown entities')\n        problem_ids.add(key)\n        actual_match_problems.update((row['problem_type'], row['priority'], source_key, osm_id) for source_key in left for osm_id in right)\n        if row['problem_type'] == 'unmatched':\n            source_unmatched_problems.update(left)\n            osm_unmatched_problems.update(right)\n        if row['problem_type'] == 'disused':\n            _require(not left and set(right) <= disused, 'Disused problem references an active element')\n    _require(expected_match_problems <= actual_match_problems, 'Matched problem is absent from complete detection results')\n    _require(source_unmatched_problems == unmatched['source'], 'Source unmatched detection coverage is incomplete')\n    _require(osm_unmatched_problems == {osm[key] for key in unmatched['osm']} - effective - disused, 'OSM unmatched detection coverage is incomplete')\n    for section in ('routes', 'extensions'):\n        values = {}\n        for row in records[section]:\n            key = row.get('kind')\n            _require(isinstance(key, str) and key and key not in values, f'Invalid {section} entry')\n            _require",
-      "id": "00de3433965ee3976ebb44790e7495db05e133fde2186bb92bc8a7bf1ca38654",
-      "kind": "clone",
-      "lines": 26,
-      "locations": [
-        {
-          "end": 209,
-          "end_column": 21,
-          "file": "app:backend/importing/bundle.py",
-          "start": 184,
-          "start_column": 32
-        },
-        {
-          "end": 192,
-          "end_column": 19,
-          "file": "engine:src/osm_public_transport_matcher/results/validation.py",
-          "start": 167,
-          "start_column": 32
-        }
-      ],
-      "modules": [
-        "app.snapshot-publication",
-        "engine.result-producer"
-      ],
-      "occurrence": 1
-    },
     {
       "files": [
         "engine:src/osm_public_transport_matcher/adapters/osm.py",
@@ -181,17 +160,17 @@
       "lines": 20,
       "locations": [
         {
-          "end": 257,
+          "end": 259,
           "end_column": 6,
           "file": "engine:src/osm_public_transport_matcher/adapters/osm.py",
-          "start": 238,
+          "start": 240,
           "start_column": 5
         },
         {
-          "end": 130,
+          "end": 135,
           "end_column": 23,
           "file": "engine:src/osm_public_transport_matcher/core/state.py",
-          "start": 112,
+          "start": 117,
           "start_column": 9
         }
       ],
@@ -403,17 +382,17 @@
       "lines": 13,
       "locations": [
         {
-          "end": 417,
+          "end": 416,
           "end_column": 77,
           "file": "app:backend/importing/importer.py",
-          "start": 405,
+          "start": 404,
           "start_column": 35
         },
         {
-          "end": 358,
+          "end": 357,
           "end_column": 80,
           "file": "app:backend/importing/importer.py",
-          "start": 346,
+          "start": 345,
           "start_column": 50
         }
       ],
@@ -481,7 +460,39 @@
         }
       ],
       "modules": [
-        "app.review-ui"
+        "app.query-api"
+      ],
+      "occurrence": 1
+    },
+    {
+      "files": [
+        "app:backend/importing/bundle.py",
+        "engine:src/osm_public_transport_matcher/results/validation.py"
+      ],
+      "fingerprint": "4f9d28d7c9b6a99befd46b0c852dfc68461de7e15ad983fa2b9d44311d9aad18",
+      "fragment": ")\n        source[key] = namespace\n    for row in records['osm_nodes']:\n        key, kind, node_id = row.get('key'), row.get('element_type'), row.get('node_id')\n        _require(kind in ('node', 'way', 'relation') and isinstance(node_id, str) and node_id, 'Invalid OSM identity')\n        _require(kind == 'node' or node_id.startswith(f'{kind}_'), 'OSM non-node identity needs its type prefix')\n        _require(kind != 'node' or not node_id.startswith(('way_', 'relation_')), 'Conflicting OSM type prefix')\n        _require(key == f\"osm:{kind}:{node_id.removeprefix(f'{kind}_')}\", 'Inconsistent OSM key')\n        _require(key not in osm and node_id not in osm_by_id and _position(row), 'Duplicate OSM identity or invalid coordinates')\n        osm[key], osm_by_id[node_id] = node_id, key\n        if row.get('lifecycle'):\n            retired.add(node_id)\n    _require(source or osm, 'Refusing an empty result bundle')\n    matched_source, matched_osm, pairs, expected_match_problems = set(), set(), set(), set()\n    for row in records['matches']:\n        left, right = row.get('source_key'), row.get('osm_key')\n        _require(left in source and right in osm, 'Match references unknown entity')\n        _require((left, right) not in pairs, 'Duplicate match pair')\n        _require(isinstance(row.get('method'), str) and row['method'], 'Missing matching method')\n        distance = row.get('distance_m')\n        _require(type(distance) in (int, float) and math.isfinite(distance) and distance >= 0, 'Invalid match distance')\n        _require(isinstance(row.get('evidence'), dict), 'Missing structured match evidence')\n        pairs.add((left, right))\n        matched_source.add(left)\n        matched_osm.add(right)\n        for problem in row.get('problems', []):\n            _problem(problem)\n            expected_match_problems.add((problem['problem_type'], problem['priority'], left, osm[right]))\n    unmatched = {'source': set(), 'osm': set()}\n    effective, disused = set(), set()\n    for row in records['unmatched']:\n        side, key = row.get('side'), row.get('key')\n        _require(side in unmatched and key in (source if side == 'source' else osm), 'Unknown unmatched entity')\n        _require(key not in unmatched[side], 'Duplicate unmatched entity')\n        _require(type(row.get('isolated')) is bool, 'Unmatched entity needs an isolation status')\n        unmatched[side].add(key)\n        if side == 'osm':\n            _require(type(row.get('effectively_matched')) is bool, 'OSM unmatched entity needs effective-match status')\n            if row['effectively_matched']:\n                effective.add(osm[key])\n            # Optional for bundles written before disused elements were reported.\n            _require(type(row.get('disused', False)) is bool, 'OSM unmatched entity needs a boolean disused status')\n            if row.get('disused', False):\n                _require(not row['effectively_matched'], 'A disused OSM element cannot be effectively matched')\n                disused.add(osm[key])\n    _require(not matched_source & unmatched['source'] and not matched_osm & unmatched['osm'], 'Entity marked both matched and unmatched')\n    _require(matched_source | unmatched['source'] == set(source), 'Source match coverage is incomplete')\n    _require(matched_osm | unmatched['osm'] == set(osm), 'OSM match coverage is incomplete')\n    _require(disused == retired, 'Disused status disagrees with lifecycle tags')\n    grouped_source, grouped_osm, valid_effective = set(), set(), set()\n    matched_osm_ids = {osm[key] for key in matched_osm}\n    for row in records['groups']:\n        if row.get('side') == 'source':\n            members = row.get('members', [])\n            _require(len(members) >= 2 and len(members) == len(set(members)), 'Source duplicate group needs distinct members')\n            _require(set(members) <= source.keys() and row.get('key') in members, 'Unknown source group member')\n            _require(len({source[key] for key in members}) == 1, 'Source group crosses dataset namespaces')\n            _require(not grouped_source.intersection(members), 'Overlapping source groups')\n            grouped_source.update(members)\n        elif row.get('side') == 'osm':\n            members = row.get('members', [])\n            member_ids = [member.get('node_id') for member in members]\n            roles = [member.get('member_role') for member in members]\n            kind = row.get('stop_kind')\n            expected_roles = {'single': ['single'], 'pair': ['pair_a', 'pair_b'], 'two_sided_stop': ['middle', 'side', 'side']}\n            _require(kind in expected_roles and sorted(roles) == sorted(expected_roles[kind]), 'Invalid OSM stop-unit roles')\n            _require(set",
+      "id": "a9772d94711525b4fc8354240461c842ba95c8de165f7d1fbd38f2a719e40855",
+      "kind": "clone",
+      "lines": 67,
+      "locations": [
+        {
+          "end": 174,
+          "end_column": 25,
+          "file": "app:backend/importing/bundle.py",
+          "start": 108,
+          "start_column": 71
+        },
+        {
+          "end": 158,
+          "end_column": 25,
+          "file": "engine:src/osm_public_transport_matcher/results/validation.py",
+          "start": 92,
+          "start_column": 101
+        }
+      ],
+      "modules": [
+        "app.snapshot-publication",
+        "engine.result-producer"
       ],
       "occurrence": 1
     },
@@ -497,17 +508,17 @@
       "lines": 14,
       "locations": [
         {
-          "end": 186,
+          "end": 174,
           "end_column": 11,
           "file": "app:backend/blueprints/reports.py",
-          "start": 173,
+          "start": 161,
           "start_column": 13
         },
         {
-          "end": 126,
+          "end": 114,
           "end_column": 9,
           "file": "app:backend/blueprints/reports.py",
-          "start": 113,
+          "start": 101,
           "start_column": 13
         }
       ],
@@ -553,6 +564,38 @@
         "app:backend/importing/bundle.py",
         "engine:src/osm_public_transport_matcher/results/validation.py"
       ],
+      "fingerprint": "187c7c85d3aa565b629346a4ba1b8a54f8c6768b6bc2264675ee540288f24847",
+      "fragment": "('Unknown group side')\n    _require(grouped_osm == set(osm_by_id), 'OSM stop-unit coverage is incomplete')\n    _require(effective == valid_effective, 'Effective-match status disagrees with two-sided stop side matches')\n    problem_ids, actual_match_problems = set(), set()\n    source_unmatched_problems, osm_unmatched_problems = set(), set()\n    for row in records['problems']:\n        _problem(row)\n        key, left, right = row.get('problem_id'), row.get('source_keys', []), row.get('osm_ids', [])\n        _require(isinstance(key, str) and key and key not in problem_ids, 'Missing or duplicate problem ID')\n        _require((left or right) and set(left) <= source.keys() and set(right) <= osm_by_id.keys(), 'Problem references unknown entities')\n        problem_ids.add(key)\n        actual_match_problems.update((row['problem_type'], row['priority'], source_key, osm_id) for source_key in left for osm_id in right)\n        if row['problem_type'] == 'unmatched':\n            source_unmatched_problems.update(left)\n            osm_unmatched_problems.update(right)\n        if row['problem_type'] == 'disused':\n            _require(not left and set(right) <= disused, 'Disused problem references an active element')\n    _require(expected_match_problems <= actual_match_problems, 'Matched problem is absent from complete detection results')\n    _require(source_unmatched_problems == unmatched['source'], 'Source unmatched detection coverage is incomplete')\n    _require(osm_unmatched_problems == {osm[key] for key in unmatched['osm']} - effective - disused, 'OSM unmatched detection coverage is incomplete')\n    for section in ('routes', 'extensions'):\n        values = {}\n        for row in records[section]:\n            key = row.get('kind')\n            _require(isinstance(key, str) and key and key not in values, f'Invalid {section} entry')\n            _require",
+      "id": "d28a7e8fb07f219dfd764e47e4279cff9b2c7e3879554f30514b88883b4f77fb",
+      "kind": "clone",
+      "lines": 26,
+      "locations": [
+        {
+          "end": 209,
+          "end_column": 21,
+          "file": "app:backend/importing/bundle.py",
+          "start": 184,
+          "start_column": 32
+        },
+        {
+          "end": 192,
+          "end_column": 19,
+          "file": "engine:src/osm_public_transport_matcher/results/validation.py",
+          "start": 167,
+          "start_column": 32
+        }
+      ],
+      "modules": [
+        "app.snapshot-publication",
+        "engine.result-producer"
+      ],
+      "occurrence": 1
+    },
+    {
+      "files": [
+        "app:backend/importing/bundle.py",
+        "engine:src/osm_public_transport_matcher/results/validation.py"
+      ],
       "fingerprint": "37ae262819007611956ea71dc66867e96dc6a70ebadf383393c68fde1c7d6bd4",
       "fragment": "evidence = values.get('route_evidence') or {}\n            _require(set(evidence.get('source', {})) <= source.keys(), 'Route evidence references unknown source stop')\n            _require(set(evidence.get('osm', {})) <= osm_by_id.keys(), 'Route evidence references unknown OSM stop')\n            duplicates = values.get('duplicate_osm_group_map') or {}\n            for key, members in duplicates.items():\n                _require(key in members and len(set(members)) >= 2 and set(members) <= osm_by_id.keys(), 'Unknown OSM discrepancy group member')\n    for row in records['diagnostics']:\n        _require(isinstance(row, dict) and isinstance(row.get('code'), str), 'Diagnostic needs a stable code')\n\n\n\ndef validate_records",
       "id": "d8e34dbe47b9d82757e9dc84f0119f0fc715ca006817d8ae836778ceb177c4c7",
@@ -572,38 +615,6 @@
           "file": "engine:src/osm_public_transport_matcher/results/validation.py",
           "start": 196,
           "start_column": 13
-        }
-      ],
-      "modules": [
-        "app.snapshot-publication",
-        "engine.result-producer"
-      ],
-      "occurrence": 1
-    },
-    {
-      "files": [
-        "app:backend/importing/bundle.py",
-        "engine:src/osm_public_transport_matcher/results/validation.py"
-      ],
-      "fingerprint": "b09d5fba7898ff60005c54083ec9a16e253b9ebd5f69be0719abc0a78df079e9",
-      "fragment": ")\n        source[key] = namespace\n    for row in records['osm_nodes']:\n        key, kind, node_id = row.get('key'), row.get('element_type'), row.get('node_id')\n        _require(kind in ('node', 'way', 'relation') and isinstance(node_id, str) and node_id, 'Invalid OSM identity')\n        _require(kind == 'node' or node_id.startswith(f'{kind}_'), 'OSM non-node identity needs its type prefix')\n        _require(kind != 'node' or not node_id.startswith(('way_', 'relation_')), 'Conflicting OSM type prefix')\n        _require(key == f\"osm:{kind}:{node_id.removeprefix(f'{kind}_')}\", 'Inconsistent OSM key')\n        _require(key not in osm and node_id not in osm_by_id and _position(row), 'Duplicate OSM identity or invalid coordinates')\n        osm[key], osm_by_id[node_id] = node_id, key\n        if row.get('lifecycle'):\n            retired.add(node_id)\n    _require(source or osm, 'Refusing an empty result bundle')\n    matched_source, matched_osm, pairs, expected_match_problems = set(), set(), set(), set()\n    for row in records['matches']:\n        left, right = row.get('source_key'), row.get('osm_key')\n        _require(left in source and right in osm, 'Match references unknown entity')\n        _require((left, right) not in pairs, 'Duplicate match pair')\n        _require(isinstance(row.get('method'), str) and row['method'], 'Missing matching method')\n        distance = row.get('distance_m')\n        _require(type(distance) in (int, float) and math.isfinite(distance) and distance >= 0, 'Invalid match distance')\n        _require(isinstance(row.get('evidence'), dict), 'Missing structured match evidence')\n        pairs.add((left, right))\n        matched_source.add(left)\n        matched_osm.add(right)\n        for problem in row.get('problems', []):\n            _problem(problem)\n            expected_match_problems.add((problem['problem_type'], problem['priority'], left, osm[right]))\n    unmatched = {'source': set(), 'osm': set()}\n    effective, disused = set(), set()\n    for row in records['unmatched']:\n        side, key = row.get('side'), row.get('key')\n        _require(side in unmatched and key in (source if side == 'source' else osm), 'Unknown unmatched entity')\n        _require(key not in unmatched[side], 'Duplicate unmatched entity')\n        _require(type(row.get('isolated')) is bool, 'Unmatched entity needs an isolation status')\n        unmatched[side].add(key)\n        if side == 'osm':\n            _require(type(row.get('effectively_matched')) is bool, 'OSM unmatched entity needs effective-match status')\n            if row['effectively_matched']:\n                effective.add(osm[key])\n            # Optional for bundles written before disused elements were reported.\n            _require(type(row.get('disused', False)) is bool, 'OSM unmatched entity needs a boolean disused status')\n            if row.get('disused', False):\n                _require(not row['effectively_matched'], 'A disused OSM element cannot be effectively matched')\n                disused.add(osm[key])\n    _require(not matched_source & unmatched['source'] and not matched_osm & unmatched['osm'], 'Entity marked both matched and unmatched')\n    _require(matched_source | unmatched['source'] == set(source), 'Source match coverage is incomplete')\n    _require(matched_osm | unmatched['osm'] == set(osm), 'OSM match coverage is incomplete')\n    _require(disused == retired, 'Disused status disagrees with lifecycle tags')\n    grouped_source, grouped_osm, valid_effective = set(), set(), set()\n    matched_osm_ids = {osm[key] for key in matched_osm}\n    for row in records['groups']:\n        if row.get('side') == 'source':\n            members = row.get('members', [])\n            _require(len(members) >= 2 and len(members) == len(set(members)), 'Source duplicate group needs distinct members')\n            _require(set(members) <= source.keys() and row.get('key') in members, 'Unknown source group member')\n            _require(len({source[key] for key in members}) == 1, 'Source group crosses dataset namespaces')\n            _require(not grouped_source.intersection(members), 'Overlapping source groups')\n            grouped_source.update(members)\n        elif row.get('side') == 'osm':\n            members = row.get('members', [])\n            member_ids = [member.get('node_id') for member in members]\n            roles = [member.get('member_role') for member in members]\n            kind = row.get('stop_kind')\n            expected_roles = {'single': ['single'], 'pair': ['pair_a', 'pair_b'], 'trio': ['trio_middle', 'trio_side', 'trio_side']}\n            _require(kind in expected_roles and sorted(roles) == sorted(expected_roles[kind]), 'Invalid OSM stop-unit roles')\n            _require(set",
-      "id": "eba994b64486c69c1d57d2602a31d7fb58cacec0eb66232eaa348a342b9aea0a",
-      "kind": "clone",
-      "lines": 67,
-      "locations": [
-        {
-          "end": 174,
-          "end_column": 25,
-          "file": "app:backend/importing/bundle.py",
-          "start": 108,
-          "start_column": 71
-        },
-        {
-          "end": 158,
-          "end_column": 25,
-          "file": "engine:src/osm_public_transport_matcher/results/validation.py",
-          "start": 92,
-          "start_column": 101
         }
       ],
       "modules": [
@@ -644,6 +655,6 @@
       "occurrence": 1
     }
   ],
-  "generated_at": "2026-11-02T10:31:27.504376+00:00",
+  "generated_at": "2026-11-06T11:42:31.885573+00:00",
   "schema_version": 1
 }

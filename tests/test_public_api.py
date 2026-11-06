@@ -18,7 +18,7 @@ def add_entry(session, sloid=None, osm_node_id=None, distance_m=None, problems=(
         sloid=sloid,
         osm_node_id=osm_node_id,
         stop_type='matched' if sloid and osm_node_id else ('atlas_unmatched' if sloid else 'osm_unmatched'),
-        match_type='exact' if sloid and osm_node_id else None,
+        match_type='uic_reference_one_osm' if sloid and osm_node_id else None,
         distance_m=distance_m,
         atlas_lat=47.0 if sloid else None,
         atlas_lon=8.0 if sloid else None,

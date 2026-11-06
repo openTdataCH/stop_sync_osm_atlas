@@ -129,10 +129,10 @@ class FilterBuilder:
 
         # Default: all grouped OSM members.
         if osm_group_types is None or len(osm_group_types) == 0:
-            return query.filter(OsmStop.stop_kind.in_(['pair', 'trio']))
+            return query.filter(OsmStop.stop_kind.in_(['pair', 'two_sided_stop']))
 
-        pair_types = [group_type for group_type in osm_group_types if group_type.startswith('osm_pair_')]
-        include_trio = 'osm_trio' in osm_group_types
+        pair_types = [group_type for group_type in osm_group_types if group_type != 'ptv2_two_sided_stop']
+        include_two_sided = 'ptv2_two_sided_stop' in osm_group_types
 
         conditions = []
         if pair_types:
@@ -142,11 +142,11 @@ class FilterBuilder:
                     OsmStop.group_kind.in_(pair_types),
                 )
             )
-        if include_trio:
+        if include_two_sided:
             conditions.append(
                 db.and_(
-                    OsmStop.stop_kind == 'trio',
-                    OsmStop.group_kind == 'osm_trio',
+                    OsmStop.stop_kind == 'two_sided_stop',
+                    OsmStop.group_kind == 'ptv2_two_sided_stop',
                 )
             )
 

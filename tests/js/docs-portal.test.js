@@ -28,7 +28,7 @@ function sidebarHtml() {
     <div class="docs-collection" id="engine">
       <div class="docs-collection-heading"><span class="docs-collection-label">Matching engine core</span></div>
       ${section('engine-2', ['matching_process', 'E.2', 'Matching process'], [
-        ['exact_matching', 'E.2.1', 'Exact matching'],
+        ['reference_matching', 'E.2.1', 'Reference matching'],
         ['name_matching', 'E.2.2', 'Name matching'],
       ])}
       ${section('engine-3', ['routes', 'E.3', 'Routes'], [['route_pipeline_data_flow', 'E.3.1', 'Route pipeline data flow']])}
@@ -80,11 +80,11 @@ describe('DocsPage sidebar', () => {
   });
 
   test('marks the page being read and opens its section', () => {
-    sidebar.markActive('exact_matching', 'engine-2');
+    sidebar.markActive('reference_matching', 'engine-2');
 
     const current = Array.from(document.querySelectorAll('[aria-current="page"]'));
-    expect(current).toEqual([link('exact_matching')]);
-    expect(link('exact_matching').classList).toContain('active');
+    expect(current).toEqual([link('reference_matching')]);
+    expect(link('reference_matching').classList).toContain('active');
     expect(header('engine-2').classList).toContain('is-current');
     // Only the page is highlighted, not the section holding it.
     expect(header('engine-2').classList).not.toContain('active');
@@ -97,7 +97,7 @@ describe('DocsPage sidebar', () => {
     sidebar.markActive('routes', 'engine-3');
     expect(header('engine-3').classList).toContain('active');
     expect(header('engine-2').classList).not.toContain('is-current');
-    expect(link('exact_matching').hasAttribute('aria-current')).toBe(false);
+    expect(link('reference_matching').hasAttribute('aria-current')).toBe(false);
   });
 
   test('toggles open and close sections and remember them', () => {
@@ -117,11 +117,11 @@ describe('DocsPage sidebar', () => {
   });
 
   test('the filter shows only matching pages, with their sections open', () => {
-    type('  EXACT ');
+    type('  REFERENCE ');
 
     expect(visibleSections()).toEqual(['engine-2']);
     expect(isOpen('engine-2')).toBe(true);
-    expect(link('exact_matching').hidden).toBe(false);
+    expect(link('reference_matching').hidden).toBe(false);
     expect(link('name_matching').hidden).toBe(true);
     expect(document.getElementById('overview').hidden).toBe(true);
     expect(document.getElementById('engine').hidden).toBe(false);
@@ -132,7 +132,7 @@ describe('DocsPage sidebar', () => {
     type('e.2.2');
     expect(visibleSections()).toEqual(['engine-2']);
     expect(link('name_matching').hidden).toBe(false);
-    expect(link('exact_matching').hidden).toBe(true);
+    expect(link('reference_matching').hidden).toBe(true);
   });
 
   test('a section found by its own title keeps its pages, collapsed', () => {
@@ -158,7 +158,7 @@ describe('DocsPage sidebar', () => {
 
   test('Escape clears the filter and restores the remembered sections', () => {
     clickToggle('engine-3');
-    type('exact');
+    type('reference');
     expect(isOpen('engine-3')).toBe(false);
 
     const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
@@ -363,8 +363,8 @@ describe('DocsPage PDF dialog', () => {
 
   function setup({ withPage = true } = {}) {
     const pageButton = withPage
-      ? `<button data-pdf-scope="page" data-page-slug="exact_matching" data-page-section="engine-2"
-           data-page-label="E.2.1 Exact matching">Download PDF</button>`
+      ? `<button data-pdf-scope="page" data-page-slug="reference_matching" data-page-section="engine-2"
+           data-page-label="E.2.1 Reference matching">Download PDF</button>`
       : '';
     document.body.innerHTML = `
       <header id="docs-page-header">${pageButton}</header>
@@ -428,10 +428,10 @@ describe('DocsPage PDF dialog', () => {
     showFrom(document.querySelector('#docs-page-header button'));
 
     expect(scope()).toBe('page');
-    expect(modal.querySelector('[data-pdf-page-label]').textContent).toBe('E.2.1 Exact matching');
+    expect(modal.querySelector('[data-pdf-page-label]').textContent).toBe('E.2.1 Reference matching');
     expect(sectionList().hidden).toBe(true);
     submit();
-    expect(submitted).toEqual([{ included_pages: ['exact_matching'], include_cover: false, selected_only: true }]);
+    expect(submitted).toEqual([{ included_pages: ['reference_matching'], include_cover: false, selected_only: true }]);
   });
 
   test('the sidebar opens it on the whole documentation', () => {

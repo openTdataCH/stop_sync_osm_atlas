@@ -145,9 +145,9 @@
                 </div>
                 <div class="osm-group-subfilters mt-2 ps-3">
                   <div class="form-check">
-                    <input type="checkbox" class="filter-osm-group-type form-check-input" id="filterOsmTrio"
-                        value="osm_trio">
-                    <label class="form-check-label" for="filterOsmTrio">OSM Trios</label>
+                    <input type="checkbox" class="filter-osm-group-type form-check-input" id="filterOsmTwoSided"
+                        value="ptv2_two_sided_stop">
+                    <label class="form-check-label" for="filterOsmTwoSided">PTv2 two-sided stops</label>
                   </div>
                   <div class="form-check">
                     <input type="checkbox" class="filter-osm-pair-master form-check-input" id="filterOsmPairMaster">
@@ -156,33 +156,33 @@
                   <div class="osm-pair-subfilters ps-3">
                     <div class="form-check">
                       <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupUic"
-                          value="osm_pair_uic">
+                          value="ptv2_pair_uic_ref">
                       <label class="form-check-label" for="filterOsmGroupUic">UIC-based</label>
                     </div>
                     <div class="form-check">
                       <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupUicEqual"
-                          value="osm_pair_uic_equal_15m">
-                      <label class="form-check-label" for="filterOsmGroupUicEqual">UIC perfect-count (15m)</label>
+                          value="ptv2_pair_uic_ref_equal_count">
+                      <label class="form-check-label" for="filterOsmGroupUicEqual">UIC equal count (15 m)</label>
                     </div>
                     <div class="form-check">
                       <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupName"
-                          value="osm_pair_name">
+                          value="ptv2_pair_name">
                       <label class="form-check-label" for="filterOsmGroupName">Name-based</label>
                     </div>
                     <div class="form-check">
                       <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupNameEqual"
-                          value="osm_pair_name_equal_15m">
-                      <label class="form-check-label" for="filterOsmGroupNameEqual">Name perfect-count (15m)</label>
+                          value="ptv2_pair_name_equal_count">
+                      <label class="form-check-label" for="filterOsmGroupNameEqual">Name equal count (15 m)</label>
                     </div>
                     <div class="form-check">
                       <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupTram"
-                          value="osm_pair_tram">
-                      <label class="form-check-label" for="filterOsmGroupTram">Tram-based</label>
+                          value="tram_stop_pair">
+                      <label class="form-check-label" for="filterOsmGroupTram">Tram stop</label>
                     </div>
                     <div class="form-check">
                       <input type="checkbox" class="filter-osm-group-type filter-osm-pair-type form-check-input" id="filterOsmGroupTramEqual"
-                          value="osm_pair_tram_equal_15m">
-                      <label class="form-check-label" for="filterOsmGroupTramEqual">Tram perfect-count (15m)</label>
+                          value="tram_stop_pair_equal_count">
+                      <label class="form-check-label" for="filterOsmGroupTramEqual">Tram stop equal count (15 m)</label>
                     </div>
                   </div>
                 </div>
@@ -205,26 +205,42 @@
               </div>
 
               <div class="form-group">
-                <label class="fw-bold small text-uppercase text-muted">Matching Methods</label>
-                <div class="row">
-                  <div class="col-6">
-                    <div class="form-check">
-                      <input type="checkbox" class="filter-match-method form-check-input" id="filterExact"
-                        value="exact">
-                      <label class="form-check-label" for="filterExact">Exact</label>
-                    </div>
-                  </div>
-                  <div class="col-6">
-                    <div class="form-check">
-                      <input type="checkbox" class="filter-match-method form-check-input" id="filterName"
-                        value="name">
-                      <label class="form-check-label" for="filterName">Name</label>
-                    </div>
-                  </div>
+                <label class="fw-bold small text-uppercase text-muted">Identifier Matching</label>
+                <div class="form-check">
+                  <input type="checkbox" class="filter-match-method form-check-input" id="filterTwoSidedStop" value="two_sided_stop">
+                  <label class="form-check-label" for="filterTwoSidedStop">UIC two-sided stop</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" class="filter-match-method form-check-input" id="filterReference" value="reference">
+                  <label class="form-check-label" for="filterReference">UIC reference</label>
+                </div>
+                <div class="form-check">
+                  <input type="checkbox" class="filter-match-method form-check-input" id="filterName" value="name">
+                  <label class="form-check-label" for="filterName">Name</label>
                 </div>
               </div>
 
               <div class="form-group">
+                <div class="fw-bold small text-uppercase text-muted d-flex align-items-center mb-1">
+                  <div class="form-check d-inline-block">
+                    <input type="checkbox" id="masterRouteMatchingCheckbox"
+                      class="master-filter-checkbox form-check-input">
+                    <label class="form-check-label" for="masterRouteMatchingCheckbox">GTFS Route Matching</label>
+                  </div>
+                </div>
+                <div class="ps-3">
+                  <div class="form-check">
+                    <input type="checkbox" class="filter-route-method form-check-input" id="routeMethodSharedRoute" value="gtfs_shared_route">
+                    <label class="form-check-label" for="routeMethodSharedRoute">Shared GTFS route</label>
+                  </div>
+                  <div class="form-check">
+                    <input type="checkbox" class="filter-route-method form-check-input" id="routeMethodSharedDirection" value="gtfs_shared_direction">
+                    <label class="form-check-label" for="routeMethodSharedDirection">Shared GTFS direction name</label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group mb-0">
                 <div class="fw-bold small text-uppercase text-muted d-flex align-items-center mb-1">
                   <div class="form-check d-inline-block">
                     <input type="checkbox" id="masterDistanceMatchingCheckbox"
@@ -234,56 +250,24 @@
                 </div>
                 <div class="ps-3">
                   <div class="form-check">
-                    <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodTrio"
-                      value="distance_matching_trio">
-                    <label class="form-check-label" for="distanceMethodTrio">Stage 0: Trio distance</label>
+                    <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodGroup" value="group_distance">
+                    <label class="form-check-label" for="distanceMethodGroup">Group distance (50 m)</label>
                   </div>
                   <div class="form-check">
-                    <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodStage1"
-                      value="distance_matching_1">
-                    <label class="form-check-label" for="distanceMethodStage1">Stage 1: Group-based (50m)</label>
+                    <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodGroupLong" value="group_long_distance">
+                    <label class="form-check-label" for="distanceMethodGroupLong">Group long distance (150 m)</label>
                   </div>
                   <div class="form-check">
-                    <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodLongGroup"
-                      value="long_distance_group_proximity">
-                    <label class="form-check-label" for="distanceMethodLongGroup">Stage 1b: Group-based (150m)</label>
+                    <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodLocalRef" value="local_ref_distance">
+                    <label class="form-check-label" for="distanceMethodLocalRef">local_ref distance</label>
                   </div>
                   <div class="form-check">
-                    <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodStage2"
-                      value="distance_matching_2">
-                    <label class="form-check-label" for="distanceMethodStage2">Stage 2: Exact local_ref</label>
+                    <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodOnlyCandidate" value="distance_only_candidate">
+                    <label class="form-check-label" for="distanceMethodOnlyCandidate">Only candidate</label>
                   </div>
                   <div class="form-check">
-                    <input type="checkbox" class="filter-distance-method form-check-input"
-                      id="distanceMethodStage3a" value="distance_matching_3a">
-                    <label class="form-check-label" for="distanceMethodStage3a">Stage 3a: Single Candidate</label>
-                  </div>
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-distance-method form-check-input"
-                      id="distanceMethodStage3b" value="distance_matching_3b">
-                    <label class="form-check-label" for="distanceMethodStage3b">Stage 3b: Relative Distance</label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="form-group mb-0">
-                <div class="fw-bold small text-uppercase text-muted d-flex align-items-center mb-1">
-                  <div class="form-check d-inline-block">
-                    <input type="checkbox" id="masterRouteMatchingCheckbox"
-                      class="master-filter-checkbox form-check-input">
-                    <label class="form-check-label" for="masterRouteMatchingCheckbox">GTFS route matching</label>
-                  </div>
-                </div>
-                <div class="ps-3">
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-route-method form-check-input" id="routeMethodTokens"
-                      value="route_gtfs_tokens">
-                    <label class="form-check-label" for="routeMethodTokens">Route ID tokens</label>
-                  </div>
-                  <div class="form-check">
-                    <input type="checkbox" class="filter-route-method form-check-input" id="routeMethodDirection"
-                      value="route_gtfs_direction">
-                    <label class="form-check-label" for="routeMethodDirection">Direction name</label>
+                    <input type="checkbox" class="filter-distance-method form-check-input" id="distanceMethodRatio" value="distance_ratio">
+                    <label class="form-check-label" for="distanceMethodRatio">Distance ratio</label>
                   </div>
                 </div>
               </div>

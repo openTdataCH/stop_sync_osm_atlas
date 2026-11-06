@@ -203,7 +203,7 @@ def test_docs_canonical_slug_urls():
 
     with app.test_client() as client:
         # Canonical slug route must resolve.
-        canonical = client.get('/docs/exact_matching')
+        canonical = client.get('/docs/reference_matching')
         assert canonical.status_code == 200
 
         # Sidebar and docs navigation links should be slug-based.
@@ -217,7 +217,7 @@ def test_docs_canonical_slug_urls():
             if a['href'].startswith('/docs/') and '/docs/assets/' not in a['href'] and '/docs/data/' not in a['href']
         }
 
-        assert '/docs/exact_matching' in docs_hrefs
+        assert '/docs/reference_matching' in docs_hrefs
 
 
 def _page_header(soup):
@@ -241,7 +241,7 @@ def test_docs_portal_labels_engine_and_application_boundaries():
     app.config['TESTING'] = True
 
     with app.test_client() as client:
-        response = client.get('/docs/exact_matching')
+        response = client.get('/docs/reference_matching')
         assert response.status_code == 200
         soup = BeautifulSoup(response.data.decode('utf-8'), 'html.parser')
 
@@ -285,12 +285,12 @@ def test_docs_portal_labels_engine_and_application_boundaries():
 
         # The heading leaves the article for the page header, which names
         # the collection, in its owner's colour, and the owner-scoped number.
-        assert _page_header(soup) == ('Matching engine core · E.2.1', 'Exact matching')
+        assert _page_header(soup) == ('Matching engine core · E.2.1', 'Reference matching')
         assert soup.select_one('.docs-page-eyebrow')['data-owner'] == 'engine'
         assert soup.select_one('#docs-content-html h1') is None
         pdf = soup.select_one('#docs-page-header [data-pdf-scope="page"]')
         assert (pdf['data-page-slug'], pdf['data-page-section'], pdf['data-page-label']) == (
-            'exact_matching', 'engine-2', 'E.2.1 Exact matching',
+            'reference_matching', 'engine-2', 'E.2.1 Reference matching',
         )
         assert soup.select('#docs-page-header a') == []
 
@@ -399,9 +399,9 @@ def test_engine_documentation_assets_are_served_from_engine_tree():
     with app.test_client() as client:
         page = client.get('/docs/matching_process')
         assert page.status_code == 200
-        assert b'/docs/assets/engine/images/osm-trio-match-illustration.svg' in page.data
+        assert b'/docs/assets/engine/images/two-sided-stop-match-illustration.svg' in page.data
 
-        asset = client.get('/docs/assets/engine/images/osm-trio-match-illustration.svg')
+        asset = client.get('/docs/assets/engine/images/two-sided-stop-match-illustration.svg')
         assert asset.status_code == 200
         assert asset.mimetype == 'image/svg+xml'
 
@@ -419,7 +419,7 @@ def test_pdf_document_selection_keeps_engine_and_app_sections_distinct():
     engine_only = _sorted_docs(['engine:2'])
     assert engine_only
     assert all(path.parent == _documentation_roots()[1] for path in engine_only)
-    assert {path.name for path in engine_only} >= {'2. Matching process.md', '2.1 Exact matching.md'}
+    assert {path.name for path in engine_only} >= {'2. Matching process.md', '2.1 Reference matching.md'}
 
     app_only = _sorted_docs(['app:2'])
     assert app_only
@@ -427,10 +427,10 @@ def test_pdf_document_selection_keeps_engine_and_app_sections_distinct():
     assert {path.name for path in app_only} >= {'2. Web app.md', '2.8 Documentation Page Delivery.md'}
 
     # A single page, alone or with sections, keeps the sidebar order.
-    page = _sorted_docs(included_pages=['engine/documentation/2.1 Exact matching.md'])
-    assert [_document_id(path) for path in page] == ['engine/documentation/2.1 Exact matching.md']
-    mixed = _sorted_docs(['app:2'], ['engine/documentation/2.1 Exact matching.md'])
-    assert _document_id(mixed[0]) == 'engine/documentation/2.1 Exact matching.md'
+    page = _sorted_docs(included_pages=['engine/documentation/2.1 Reference matching.md'])
+    assert [_document_id(path) for path in page] == ['engine/documentation/2.1 Reference matching.md']
+    mixed = _sorted_docs(['app:2'], ['engine/documentation/2.1 Reference matching.md'])
+    assert _document_id(mixed[0]) == 'engine/documentation/2.1 Reference matching.md'
     assert mixed[1:] == app_only
     assert _sorted_docs(included_pages=['documentation/No such page.md']) == []
 

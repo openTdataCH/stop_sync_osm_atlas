@@ -105,9 +105,9 @@ describe('Canonical map entities and page adapters', () => {
     expect(snapshot.entities.every(entity => entity.sourcePosition[0] === 47 && entity.sourcePosition[1] === 8)).toBe(true);
   });
 
-  test('pair/trio links deduplicate both directions and retain hidden partner source positions', () => {
+  test('pair and two-sided stop links deduplicate both directions and retain hidden partner source positions', () => {
     const partner = { partner_node_id: '3', partner_osm_lat: 47.01, partner_osm_lon: 8.01 };
-    const snapshot = window.MapEntityAdapters.stops([{ ...stop, osm_group_partner: partner, osm_trio_links: [partner] }]);
+    const snapshot = window.MapEntityAdapters.stops([{ ...stop, osm_group_partner: partner, osm_two_sided_links: [partner] }]);
     expect(snapshot.relationships.filter(edge => edge.relationshipType === 'group_link')).toHaveLength(1);
     expect(snapshot.sourcePositionsByKey.get('osm:3')).toEqual([47.01, 8.01]);
     const layer = { addLayer: jest.fn() };

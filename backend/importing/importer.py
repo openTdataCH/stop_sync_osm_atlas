@@ -428,7 +428,7 @@ def build_fast_insert_payloads(
         stop_idx += 1
 
     # ---- 3. Unmatched and disused OSM ----
-    trio_middles_effectively_matched = set(base_data.effectively_matched_osm_ids)
+    two_sided_middles_effectively_matched = set(base_data.effectively_matched_osm_ids)
     disused_osm = list(getattr(base_data, 'disused_osm', ()))
     disused_osm_ids = {str(node.node_id) for node in disused_osm}
 
@@ -438,9 +438,9 @@ def build_fast_insert_payloads(
         osm_node_id = str(osm_node.node_id)
         stop_type = 'osm_unmatched'
         match_type = None
-        if osm_node_id in trio_middles_effectively_matched:
+        if osm_node_id in two_sided_middles_effectively_matched:
             stop_type = 'effectively_matched'
-            match_type = 'distance_matching_trio'
+            match_type = 'uic_two_sided_stop'
         elif osm_node_id in disused_osm_ids:
             stop_type = 'osm_disused'
 
@@ -732,7 +732,7 @@ def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
     try:
         matched_records = getattr(base_data, 'matched', [])
         unmatched_atlas = getattr(base_data, 'unmatched_atlas', [])
-        # A trio middle whose two sides are matched counts as matched, not unmatched.
+        # A two-sided stop middle whose two sides are matched counts as matched, not unmatched.
         effectively_matched = {str(node_id) for node_id in getattr(base_data, 'effectively_matched_osm_ids', ())}
         unmatched_osm = [
             node for node in getattr(base_data, 'unmatched_osm', [])

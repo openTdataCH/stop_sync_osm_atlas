@@ -9,10 +9,10 @@ def _compile_expression(expr):
 
 
 def test_matched_methods_apply_without_master_stop_type():
-    resolved = resolve_stop_type_match_filters(None, 'exact,name')
+    resolved = resolve_stop_type_match_filters(None, 'reference,name')
 
     assert resolved['include_matched'] is True
-    assert resolved['matched_methods'] == ['exact', 'name']
+    assert resolved['matched_methods'] == ['reference', 'name']
     assert resolved['include_atlas_unmatched'] is False
     assert resolved['include_osm_unmatched'] is False
 
@@ -43,14 +43,23 @@ def test_unknown_stop_type_or_method_still_registers_scope_filter():
     assert resolved['include_osm_unmatched'] is False
 
 
-def test_scope_condition_for_exact_only_targets_matched_exact_rows():
-    resolved = resolve_stop_type_match_filters(None, 'exact')
+def test_scope_condition_for_reference_rule_targets_each_of_its_match_types():
+    resolved = resolve_stop_type_match_filters(None, 'reference')
 
     sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
 
     assert "stop_type = 'matched'" in sql
-    assert "match_type = 'exact'" in sql
+    assert "match_type IN ('uic_reference_local_ref', 'uic_reference_one_osm', 'uic_reference_one_source')" in sql
     assert "atlas_unmatched" not in sql
+
+
+def test_two_sided_stop_rule_filter_also_includes_effectively_matched_middles():
+    resolved = resolve_stop_type_match_filters(None, 'two_sided_stop')
+
+    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
+
+    assert "match_type IN ('uic_two_sided_stop')" in sql
+    assert "stop_type = 'effectively_matched'" in sql
 
 
 def test_scope_condition_for_master_matched_without_methods_is_not_narrowed():
@@ -59,22 +68,29 @@ def test_scope_condition_for_master_matched_without_methods_is_not_narrowed():
     sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
 
     assert "stop_type = 'matched'" in sql
-    assert "match_type = 'exact'" not in sql
-    assert "distance_matching_" not in sql
-    assert "route_gtfs" not in sql
+    assert "match_type" not in sql
 
 
-def test_route_match_condition_targets_gtfs_prefix():
-    sql = _compile_expression(build_match_method_conditions(StopsMatched, ['route_gtfs']))
+def test_match_type_filter_selects_only_that_branch():
+    sql = _compile_expression(build_match_method_conditions(StopsMatched, ['gtfs_shared_route']))
 
-    assert "route_gtfs%" in sql
-    assert "route_unified_gtfs%" not in sql
+    assert "match_type IN ('gtfs_shared_route')" in sql
+
+
+def test_rule_filter_covers_every_pass_of_the_rule():
+    sql = _compile_expression(build_match_method_conditions(StopsMatched, ['distance_only_candidate']))
+
+    assert "match_type IN ('distance_only_candidate', 'distance_only_candidate_second_pass')" in sql
+
+
+def test_unknown_match_method_selects_nothing():
+    assert build_match_method_conditions(StopsMatched, ['distance_matching_1']) is None
 
 
 def test_parse_filter_params_uses_osm_group_types_without_gate():
-    filters = parse_filter_params({'osm_group_types': 'osm_pair_uic,osm_pair_name'})
+    filters = parse_filter_params({'osm_group_types': 'ptv2_pair_uic_ref,ptv2_pair_name'})
 
-    assert filters['osm_group_types'] == ['osm_pair_uic', 'osm_pair_name']
+    assert filters['osm_group_types'] == ['ptv2_pair_uic_ref', 'ptv2_pair_name']
 
 
 def test_parse_filter_params_normalizes_osm_group_all_selection():
@@ -84,15 +100,15 @@ def test_parse_filter_params_normalizes_osm_group_all_selection():
     assert filters['osm_group_types'] == []
 
 
-def test_parse_filter_params_keeps_perfect_count_pair_group_types():
+def test_parse_filter_params_keeps_equal_count_pair_group_types():
     filters = parse_filter_params(
-        {'osm_group_types': 'osm_pair_uic_equal_15m,osm_pair_name_equal_15m,osm_pair_tram_equal_15m'}
+        {'osm_group_types': 'ptv2_pair_uic_ref_equal_count,ptv2_pair_name_equal_count,tram_stop_pair_equal_count'}
     )
 
     assert filters['osm_group_types'] == [
-        'osm_pair_uic_equal_15m',
-        'osm_pair_name_equal_15m',
-        'osm_pair_tram_equal_15m',
+        'ptv2_pair_uic_ref_equal_count',
+        'ptv2_pair_name_equal_count',
+        'tram_stop_pair_equal_count',
     ]
 
 
@@ -101,7 +117,7 @@ def test_query_builder_osm_groups_apply_without_legacy_toggle():
 
     with backend_app.app_context():
         sql = _compile_expression(
-            query_builder.apply_common_filters(StopsMatched.query, {'osm_group_types': ['osm_pair_uic']}).statement
+            query_builder.apply_common_filters(StopsMatched.query, {'osm_group_types': ['ptv2_pair_uic_ref']}).statement
         )
 
     assert 'stops_matched.osm_node_id IN' in sql
@@ -116,7 +132,7 @@ def test_query_builder_combines_transport_and_osm_group_with_and():
         sql = _compile_expression(
             query_builder.apply_common_filters(
                 StopsMatched.query,
-                {'transport_types': ['platform'], 'osm_group_types': ['osm_pair_uic']}
+                {'transport_types': ['platform'], 'osm_group_types': ['ptv2_pair_uic_ref']}
             ).statement
         )
 
@@ -125,36 +141,36 @@ def test_query_builder_combines_transport_and_osm_group_with_and():
     assert ' AND ' in sql
 
 
-def test_query_builder_trio_only_filter_excludes_pair_type_predicate():
+def test_query_builder_two_sided_only_filter_excludes_pair_type_predicate():
     query_builder = QueryBuilder(None)
 
     with backend_app.app_context():
         sql = _compile_expression(
-            query_builder.apply_common_filters(StopsMatched.query, {'osm_group_types': ['osm_trio']}).statement
+            query_builder.apply_common_filters(StopsMatched.query, {'osm_group_types': ['ptv2_two_sided_stop']}).statement
         )
 
     assert 'stops_matched.osm_node_id IN' in sql
     assert "osm_stops.stop_kind = 'pair'" not in sql
-    assert "osm_stops.stop_kind = 'trio'" in sql
+    assert "osm_stops.stop_kind = 'two_sided_stop'" in sql
 
 
-def test_query_builder_supports_perfect_count_pair_group_types():
+def test_query_builder_supports_equal_count_pair_group_types():
     query_builder = QueryBuilder(None)
 
     with backend_app.app_context():
         sql = _compile_expression(
             query_builder.apply_common_filters(
                 StopsMatched.query,
-                {'osm_group_types': ['osm_pair_uic_equal_15m']}
+                {'osm_group_types': ['ptv2_pair_uic_ref_equal_count']}
             ).statement
         )
 
     assert 'stops_matched.osm_node_id IN' in sql
     assert 'osm_stops.group_kind IN' in sql
-    assert 'osm_pair_uic_equal_15m' in sql
+    assert 'ptv2_pair_uic_ref_equal_count' in sql
 
 
-def test_scope_condition_matched_includes_trio_middle_effective_matches():
+def test_scope_condition_matched_includes_two_sided_middle_effective_matches():
     resolved = resolve_stop_type_match_filters('matched', None)
 
     sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
@@ -163,7 +179,7 @@ def test_scope_condition_matched_includes_trio_middle_effective_matches():
     assert "stop_type = 'effectively_matched'" in sql
 
 
-def test_scope_condition_osm_unmatched_excludes_trio_middle_effective_matches():
+def test_scope_condition_osm_unmatched_excludes_two_sided_middle_effective_matches():
     resolved = resolve_stop_type_match_filters('osm_unmatched', None)
 
     sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))

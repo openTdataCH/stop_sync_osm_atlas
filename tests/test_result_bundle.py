@@ -90,8 +90,8 @@ assert app.test_client().get('/health').status_code in (200, 404)
 @pytest.mark.parametrize('mutation, message', [
     (lambda b: b['unmatched'][1].update(effectively_matched='false'), 'effective-match status'),
     (lambda b: b['unmatched'][0].update(isolated='false'), 'isolation status'),
-    (lambda b: b['unmatched'][1].update(effectively_matched=True), 'disagrees with trio'),
-    (lambda b: b['groups'][0].update(stop_kind='trio'), 'stop-unit roles'),
+    (lambda b: b['unmatched'][1].update(effectively_matched=True), 'disagrees with two-sided stop'),
+    (lambda b: b['groups'][0].update(stop_kind='two_sided_stop'), 'stop-unit roles'),
     (lambda b: b['groups'][0]['members'][0].update(member_role='pair_a'), 'stop-unit roles'),
     (lambda b: b['problems'].clear(), 'unmatched detection coverage'),
     (lambda b: b['matches'][0].update(problems=[None]), 'Problem must be an object'),

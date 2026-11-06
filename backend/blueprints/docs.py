@@ -201,7 +201,7 @@ def _to_sections_list(value) -> Optional[List[str]]:
 
 
 def _to_pages_list(value) -> Optional[List[str]]:
-    """Page addresses (``exact_matching``) for a single-page export."""
+    """Page addresses (``reference_matching``) for a single-page export."""
     pages = [page for page in _payload_list(value) or [] if page]
     return pages or None
 
@@ -824,7 +824,7 @@ def _owner_prefix(doc_id: str) -> Optional[str]:
 
 
 def _split_nav_number(title: str, owner_prefix: Optional[str]) -> Tuple[Optional[str], str]:
-    """Split ``E2.1 Exact matching`` into ``E.2.1`` and ``Exact matching``.
+    """Split ``E2.1 Reference matching`` into ``E.2.1`` and ``Reference matching``.
 
     The sidebar and the page header show the number apart from the title.
     Titles without their owner's numbering, such as the changelogs, have no

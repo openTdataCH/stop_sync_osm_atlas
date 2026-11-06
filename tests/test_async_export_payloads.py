@@ -138,7 +138,7 @@ def test_generate_docs_pdf_async_exports_one_page_under_its_address(client, monk
     monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', background)
 
     response = client.post('/api/docs/generate_pdf_async', json={
-        'included_pages': ['exact_matching'],
+        'included_pages': ['reference_matching'],
         'include_cover': False,
         'selected_only': True,
     })
@@ -148,8 +148,8 @@ def test_generate_docs_pdf_async_exports_one_page_under_its_address(client, monk
     _, _, included_sections, include_cover, included_pages, download_name = started[0]
     assert included_sections is None
     assert include_cover is False
-    assert included_pages == ['engine/documentation/2.1 Exact matching.md']
-    assert download_name == 'exact_matching.pdf'
+    assert included_pages == ['engine/documentation/2.1 Reference matching.md']
+    assert download_name == 'reference_matching.pdf'
 
 
 def test_generate_docs_pdf_async_rejects_unknown_pages(client, monkeypatch):
@@ -157,7 +157,7 @@ def test_generate_docs_pdf_async_rejects_unknown_pages(client, monkeypatch):
     monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', lambda *args, **kwargs: None)
 
     response = client.post('/api/docs/generate_pdf_async', json={
-        'included_pages': ['exact_matching', 'no_such_page'],
+        'included_pages': ['reference_matching', 'no_such_page'],
         'selected_only': True,
     })
 
@@ -191,7 +191,7 @@ def test_docs_payload_parsing_helpers():
     assert docs_blueprint._to_sections_list(['engine:1', 'nonsense']) == ['engine:1']
     assert docs_blueprint._to_sections_list(7) is None
 
-    assert docs_blueprint._to_pages_list(' exact_matching , ') == ['exact_matching']
+    assert docs_blueprint._to_pages_list(' reference_matching , ') == ['reference_matching']
     assert docs_blueprint._to_pages_list('["glossary", ""]') == ['glossary']
     assert docs_blueprint._to_pages_list(None) is None
 

@@ -131,7 +131,7 @@ def _sorted_docs(included_sections: list[str] = None, included_pages: list[str] 
     """Documentation pages in sidebar order, optionally only the selected ones.
 
     Sections are owner-qualified keys (``engine:2``); pages are paths in the
-    portal's logical layout (``engine/documentation/2.1 Exact matching.md``).
+    portal's logical layout (``engine/documentation/2.1 Reference matching.md``).
     """
     app_docs = [path for path in DOCS_DIR.glob('*.md') if path.is_file()]
     engine_docs = [path for path in ENGINE_DOCS_DIR.glob('*.md') if path.is_file()]

@@ -7,7 +7,7 @@ def test_compute_db_stats_includes_contradicts_route_matching(sqlite_tables):
     stop = StopsMatched(
         sloid='s1',
         stop_type='matched',
-        match_type='route_gtfs_tokens',
+        match_type='gtfs_shared_route',
         atlas_lat=47.0,
         atlas_lon=8.0,
         osm_node_id='n1',

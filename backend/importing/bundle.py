@@ -169,21 +169,21 @@ def _validate_records(records):
             member_ids = [member.get('node_id') for member in members]
             roles = [member.get('member_role') for member in members]
             kind = row.get('stop_kind')
-            expected_roles = {'single': ['single'], 'pair': ['pair_a', 'pair_b'], 'trio': ['trio_middle', 'trio_side', 'trio_side']}
+            expected_roles = {'single': ['single'], 'pair': ['pair_a', 'pair_b'], 'two_sided_stop': ['middle', 'side', 'side']}
             _require(kind in expected_roles and sorted(roles) == sorted(expected_roles[kind]), 'Invalid OSM stop-unit roles')
             _require(set(member_ids) <= osm_by_id.keys(), 'Unknown OSM group member')
             _require(len(member_ids) == len(set(member_ids)), 'Duplicate OSM group member')
             _require(row.get('representative_node_id') in member_ids, 'Unknown OSM group representative')
             _require(not grouped_osm.intersection(member_ids), 'Overlapping OSM stop units')
             grouped_osm.update(member_ids)
-            if kind == 'trio':
-                sides = {member['node_id'] for member in members if member['member_role'] == 'trio_side'}
+            if kind == 'two_sided_stop':
+                sides = {member['node_id'] for member in members if member['member_role'] == 'side'}
                 if sides <= matched_osm_ids:
-                    valid_effective.update(member['node_id'] for member in members if member['member_role'] == 'trio_middle')
+                    valid_effective.update(member['node_id'] for member in members if member['member_role'] == 'middle')
         else:
             raise InvalidBundle('Unknown group side')
     _require(grouped_osm == set(osm_by_id), 'OSM stop-unit coverage is incomplete')
-    _require(effective == valid_effective, 'Effective-match status disagrees with trio side matches')
+    _require(effective == valid_effective, 'Effective-match status disagrees with two-sided stop side matches')
     problem_ids, actual_match_problems = set(), set()
     source_unmatched_problems, osm_unmatched_problems = set(), set()
     for row in records['problems']:

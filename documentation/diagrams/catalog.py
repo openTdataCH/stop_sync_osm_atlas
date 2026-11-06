@@ -331,16 +331,16 @@ def engine_anatomy() -> Diagram:
 
 
 MATCHING_RULES = (
-    ('trio', 'two platforms ↔ the two sides of an OSM trio', 'distance_matching_trio'),
-    ('exact', 'same reference value, where the profile allows it', 'exact'),
-    ('name', 'same name; platform code = local_ref breaks ties', 'name'),
-    ('route', '≤ 50 m, shared route and direction, mutual best', 'route_gtfs_*'),
-    ('group_proximity', '≤ 50 m, best conflict-free assignment per group', 'distance_matching_1_*'),
-    ('long_distance_group_proximity', 'the same assignment, up to 150 m', 'long_distance_group_proximity_*'),
-    ('local_ref', '≤ 50 m and platform code = local_ref; closest', 'distance_matching_2'),
-    ('nearest_single', 'exactly one compatible candidate ≤ 50 m', 'distance_matching_3a'),
-    ('nearest_ratio', 'nearest is ≥ 4× closer than the second', 'distance_matching_3b'),
-    ('nearest_second', 'exactly one candidate again, after rule 9', 'distance_matching_3a_second_pass'),
+    ('two_sided_stop', 'two platforms ↔ the two sides of one stop', 'uic_two_sided_stop'),
+    ('reference', 'same reference, where the profile allows it', 'uic_reference_*'),
+    ('name', 'same name; local_ref breaks ties', 'name_one_osm, name_local_ref'),
+    ('gtfs_route', '≤ 50 m, shared GTFS route, mutual best', 'gtfs_shared_*'),
+    ('group_distance', '≤ 50 m, best assignment per group', '*_group_distance'),
+    ('group_long_distance', 'the same assignment, up to 150 m', '*_group_long_distance'),
+    ('local_ref_distance', '≤ 50 m, platform code = local_ref', 'local_ref_distance'),
+    ('distance_only_candidate', 'one compatible candidate ≤ 50 m', 'distance_only_candidate'),
+    ('distance_ratio', 'nearest is ≥ 4× closer than the second', 'distance_ratio'),
+    ('distance_only_candidate_second_pass', 'one candidate again, after rule 9', 'distance_only_candidate_second_pass'),
 )
 
 
@@ -351,33 +351,33 @@ def matching_rule_ladder() -> Diagram:
     d = Diagram(
         960, height,
         'The matching rules, in order',
-        'Before the rules run, OSM nodes are grouped into pairs and trios. Ten rule executions then run in a '
-        'fixed order: trio, exact reference, name, route, group proximity at 50 m and 150 m, local reference, '
-        'single nearest candidate, ratio test and a second single-candidate pass. Each rule only sees source '
+        'Before the rules run, OSM nodes are grouped into pairs and PTv2 two-sided stops. Ten rule executions '
+        'then run in a fixed order: two-sided stop, UIC reference, name, GTFS route, group distance at 50 m and '
+        '150 m, local_ref distance, only candidate, distance ratio and a second only-candidate pass. Each rule only sees source '
         'stops that are still unmatched, and every accepted pair is committed immediately, which locks both '
         'sides. Stops left at the end are unmatched and go to problem detection.',
     )
 
     d.add(arrow([(32, 112), (32, top + rows * pitch + 22)], color=INK, width=2.5, end_head=True))
-    d.add(box(60, 92, 600, 38, EXTERNAL, None, ['Before the rules: group OSM nodes into pairs and trios (profile grouping policy)'],
+    d.add(box(60, 92, 580, 38, EXTERNAL, None, ['Before the rules: group OSM nodes into pairs and two-sided stops (profile grouping policy)'],
               line_size=12.5, pad=8, dashed=True))
-    d.add(text(684, 116, 'match type recorded', size=12, bold=True, color=MUTED))
+    d.add(text(664, 116, 'match type recorded', size=12, bold=True, color=MUTED))
 
     for index, (rule, description, match_type) in enumerate(MATCHING_RULES):
         y = top + index * pitch
-        d.add(box(60, y, 600, 36, ENGINE, None, [], radius=8))
-        d.add(text(76, y + 23, rule, size=12, bold=True, color=ENGINE.text, mono=True, max_width=236))
-        d.add(text(320, y + 23, description, size=12.5, color=INK, max_width=330))
-        d.add(arrow([(660, y + 18), (680, y + 18)], color=MUTED, width=1.5))
-        tag, _ = pill(684, y + 18, code(match_type, size=11), ENGINE, size=11)
+        d.add(box(60, y, 580, 36, ENGINE, None, [], radius=8))
+        d.add(text(76, y + 23, rule, size=12, bold=True, color=ENGINE.text, mono=True, max_width=288))
+        d.add(text(372, y + 23, description, size=12.5, color=INK, max_width=262))
+        d.add(arrow([(640, y + 18), (660, y + 18)], color=MUTED, width=1.5))
+        tag, _ = pill(664, y + 18, code(match_type, size=11), ENGINE, size=11)
         d.add(tag)
         d.add(step(32, y + 18, index + 1))
 
     end = top + rows * pitch + 30
-    d.add(box(60, end, 600, 44, UNMATCHED, None, [
+    d.add(box(60, end, 580, 44, UNMATCHED, None, [
         'Still unmatched at the end: isolation is measured and unmatched problems are detected',
     ], line_size=12.5, pad=8))
-    d.add(note(684, end + 6, ['Every accepted pair goes through', 'ctx.commit(), which also matches', 'duplicate siblings and pair partners.'],
+    d.add(note(664, end + 6, ['Every accepted pair goes through', 'ctx.commit(), which also matches', 'duplicate siblings and pair partners.'],
                size=11.5))
     return d
 
@@ -386,7 +386,7 @@ BUNDLE_SECTIONS = (
     ('Entities', (
         ('source_stops', ['one row per source stop:', 'key, namespace, position,', 'name, references']),
         ('osm_nodes', ['one row per OSM element:', 'key, element type, position,', 'tags']),
-        ('groups', ['source duplicate groups;', 'OSM stop units: single,', 'pair or trio']),
+        ('groups', ['source duplicate groups;', 'OSM stop units: single,', 'pair or two-sided stop']),
     )),
     ('Decisions', (
         ('matches', ['one row per link:', 'source key, OSM key,', 'method, distance, evidence']),

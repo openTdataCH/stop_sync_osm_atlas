@@ -20,10 +20,10 @@
       "sha256": "e31f9fe811a5cf81ba58ef84f1dcc452777b7c80deeda315b7be168d2e998a3b"
     },
     "matches": {
-      "bytes": 169,
+      "bytes": 176,
       "name": "matches.jsonl.gz",
       "rows": 1,
-      "sha256": "b2fa3d1dd06f4f19e5b88663e44d48c03a1997cba0a75ac7e23f039ae9a9a146"
+      "sha256": "89ce96a900f0166bb038cd15989c21291f21c8bcfda8c33d9e911e5369b525a0"
     },
     "osm_nodes": {
       "bytes": 225,
@@ -79,7 +79,7 @@
         "perfect_count_distance": 15.0,
         "relaxed_ratio": 2.0,
         "strict_ratio": 1.5,
-        "trio_middle_distance": 15.0
+        "two_sided_middle_distance": 15.0
       },
       "isolation_radius": 50.0,
       "long_distance": 150.0,
@@ -87,16 +87,16 @@
       "name_match_max_distance": 1000.0,
       "osm_grouping": false,
       "predicate_names": [
-        "trio",
-        "exact",
+        "two_sided_stop",
+        "reference",
         "name",
-        "route",
-        "group_proximity",
-        "long_distance_group_proximity",
-        "local_ref",
-        "nearest_single",
-        "nearest_ratio",
-        "nearest_second"
+        "gtfs_route",
+        "group_distance",
+        "group_long_distance",
+        "local_ref_distance",
+        "distance_only_candidate",
+        "distance_ratio",
+        "distance_only_candidate_second_pass"
       ],
       "profile_id": "generic",
       "ratio_factor": 4.0,

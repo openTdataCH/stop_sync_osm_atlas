@@ -64,7 +64,7 @@
         }
       });
       const osm = stopEntity('osm', stop, options);
-      const links = [...(stop.osm_trio_links || []), ...(stop.osm_group_partner ? [stop.osm_group_partner] : [])];
+      const links = [...(stop.osm_two_sided_links || []), ...(stop.osm_group_partner ? [stop.osm_group_partner] : [])];
       links.forEach(link => result.link(osm, shared.createEntity('osm', link.partner_node_id,
         [link.partner_osm_lat, link.partner_osm_lon]), 'group_link'));
     });

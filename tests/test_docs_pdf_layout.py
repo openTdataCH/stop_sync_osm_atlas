@@ -29,8 +29,8 @@ def test_long_table_identifiers_stay_inside_printable_page():
       <tbody>
         <tr>
           <td>6</td>
-          <td><code>GroupProximityPredicate</code></td>
-          <td><code>long_distance_group_proximity_uic_name</code></td>
+          <td><code>GroupDistancePredicate</code></td>
+          <td><code>uic_name_group_long_distance</code></td>
           <td>Matches grouped candidates without widening the table.</td>
         </tr>
       </tbody>

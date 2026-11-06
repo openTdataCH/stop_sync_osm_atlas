@@ -59,7 +59,7 @@ def test_matching_report_renders_with_the_real_pdf_engine(app):
 
     stop = types.SimpleNamespace(
         sloid='source:8507000:1', osm_node_id='1234', distance_m=12.5,
-        match_type='exact', atlas_lat=46.948, atlas_lon=7.447,
+        match_type='uic_reference_one_osm', atlas_lat=46.948, atlas_lon=7.447,
         osm_lat=46.9481, osm_lon=7.4471,
         atlas_stop_details=types.SimpleNamespace(
             atlas_designation_official='Bern, Bahnhof', atlas_business_org_abbr='SBB'))

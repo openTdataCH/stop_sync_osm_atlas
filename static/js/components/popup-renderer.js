@@ -53,10 +53,10 @@
     function getMatchDocUrl(matchType) {
         if (!matchType) return null;
         const mt = String(matchType).toLowerCase();
-        if (mt.startsWith('exact')) return '/docs/exact_matching';
         if (mt.includes('distance')) return '/docs/distance_matching';
-        if (mt.includes('name')) return '/docs/name_matching';
-        if (mt.startsWith('route')) return '/docs/stop_stop_matching_using_routes';
+        if (mt.includes('_reference_') || mt.endsWith('_two_sided_stop')) return '/docs/reference_matching';
+        if (mt.startsWith('name_')) return '/docs/name_matching';
+        if (mt.startsWith('gtfs_')) return '/docs/gtfs_route_matching';
         return null;
     }
 

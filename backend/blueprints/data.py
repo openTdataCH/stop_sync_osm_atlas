@@ -257,7 +257,7 @@ def get_data():
                 "has_atlas_duplicate": bool(stop.atlas_stop_details and stop.atlas_stop_details.duplicate_group_sloids),
                 "osm_node_type": stop.osm_node_details.osm_node_type if stop.osm_node_details else None
             })
-        # Enrich any OSM-backed stop with pair partners and trio links.
+        # Enrich any OSM-backed stop with pair partners and two-sided stop links.
         osm_node_ids = [s['osm_node_id'] for s in regular_stops if s['osm_node_id']]
         if osm_node_ids:
             stop_rows = db.session.query(
@@ -320,17 +320,17 @@ def get_data():
                 for partner_row in partner_rows:
                     osm_coords[partner_row.osm_node_id] = (partner_row.osm_lat, partner_row.osm_lon)
 
-            trio_side_ids = []
+            two_sided_side_ids = []
             for stop_id, stop_members in members_by_stop.items():
                 if not stop_members:
                     continue
                 stop_info = node_to_stop.get(stop_members[0]['node_id'])
-                if stop_info and stop_info['stop_kind'] == 'trio':
-                    trio_side_ids.extend([
-                        member['node_id'] for member in stop_members if member['member_role'] == 'trio_side'
+                if stop_info and stop_info['stop_kind'] == 'two_sided_stop':
+                    two_sided_side_ids.extend([
+                        member['node_id'] for member in stop_members if member['member_role'] == 'side'
                     ])
 
-            # matched_side_ids block removed; trio match state is handled by effectively_matched db value
+            # A two-sided stop middle is matched through its effectively_matched row.
 
             for stop_entry in regular_stops:
                 node_id = stop_entry['osm_node_id']
@@ -351,8 +351,8 @@ def get_data():
                             'partner_osm_lon': partner_coords[1],
                         }
 
-                if stop_info['stop_kind'] == 'trio':
-                    middle_member = next((member for member in stop_members if member['member_role'] == 'trio_middle'), None)
+                if stop_info['stop_kind'] == 'two_sided_stop':
+                    middle_member = next((member for member in stop_members if member['member_role'] == 'middle'), None)
                     middle_node_id = middle_member['node_id'] if middle_member else None
 
                     links = []
@@ -373,9 +373,9 @@ def get_data():
                         })
 
                     if links:
-                        stop_entry['osm_trio_links'] = links
+                        stop_entry['osm_two_sided_links'] = links
 
-                    stop_entry['is_trio_middle_matched'] = (
+                    stop_entry['is_two_sided_middle_matched'] = (
                         node_id == middle_node_id and stop_entry['stop_type'] == 'effectively_matched'
                     )
 
@@ -468,7 +468,7 @@ def get_stop_popup():
                     })
             if osm_matches:
                 enriched["osm_matches"] = osm_matches
-            # Include OSM pair/trio partner data from stop-unit membership.
+            # Include OSM pair and two-sided stop partners from stop-unit membership.
             if stop.osm_node_id:
                 member_row = db.session.query(
                     OsmStopMember.osm_stop_id,
@@ -509,8 +509,8 @@ def get_stop_popup():
                                 'partner_osm_lon': partner_coords.osm_lon if partner_coords else None,
                             }
 
-                    if member_row.stop_kind == 'trio':
-                        middle_id = next((member.node_id for member in stop_members if member.member_role == 'trio_middle'), None)
+                    if member_row.stop_kind == 'two_sided_stop':
+                        middle_id = next((member.node_id for member in stop_members if member.member_role == 'middle'), None)
                         links = []
                         for member in stop_members:
                             partner_id = member.node_id
@@ -531,7 +531,7 @@ def get_stop_popup():
                                 'is_middle': stop.osm_node_id == middle_id,
                                 'partner_is_middle': partner_id == middle_id,
                             })
-                        enriched["osm_trio_links"] = links
+                        enriched["osm_two_sided_links"] = links
         if view_type == 'osm' and stop.osm_node_id:
             same_osm_rows = StopsMatched.query.options(
                 joinedload(StopsMatched.atlas_stop_details)

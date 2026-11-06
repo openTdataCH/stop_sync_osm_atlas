@@ -177,6 +177,7 @@
           "backend/services/validators.py",
           "backend/services/stats_export.py",
           "backend/services/dataset_stats.py",
+          "backend/services/matching_rules.py",
           "backend/blueprints/data.py",
           "backend/blueprints/problems.py",
           "backend/blueprints/reports.py",

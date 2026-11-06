@@ -26,7 +26,7 @@
         // Below this zoom level, connection lines between matches are not rendered
         ZOOM_LINE_THRESHOLD: 13,
 
-        // OSM group/trio connector lines are deferred to a higher zoom for performance
+        // OSM pair and two-sided stop connector lines are deferred to a higher zoom for performance
         ZOOM_OSM_GROUP_LINE_THRESHOLD: 17,
 
         // At or above this zoom level, markers may switch to labeled DOM icons (D/P/S)

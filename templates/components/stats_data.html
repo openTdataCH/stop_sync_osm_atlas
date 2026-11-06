@@ -175,19 +175,15 @@ SECTION 1 — STOPS MATCHING
 
 {% set total = stats.summary.matched_pairs %}
 {% set total_denom = total if total > 0 else 1 %}
-{% set stages = stats.matching_stages %}
+{% set rules = stats.matching_rules if stats.matching_rules is defined else [] %}
 {% set qm = stats.quality_metrics if stats.quality_metrics is defined else {} %}
-{% set dq_by_stage = qm.distance_quality.by_stage if qm and qm.distance_quality and qm.distance_quality.by_stage else {} %}
-{% set nmc_by_stage = qm.distance_quality.not_matched_to_closest_by_stage if qm and qm.distance_quality and qm.distance_quality.not_matched_to_closest_by_stage else {} %}
-{% set nmc_stage1 = nmc_by_stage.get('distance_stage1_uic_ref', 0) + nmc_by_stage.get('distance_stage1_uic_name', 0) + nmc_by_stage.get('distance_stage1_name', 0) + nmc_by_stage.get('distance_stage1', 0) %}
-{% set nmc_stage1b = nmc_by_stage.get('distance_stage1b_uic_ref', 0) + nmc_by_stage.get('distance_stage1b_uic_name', 0) + nmc_by_stage.get('distance_stage1b_name', 0) + nmc_by_stage.get('distance_stage1b', 0) %}
-{% set nmc_stage3a = nmc_by_stage.get('distance_stage3a_pass1', 0) + nmc_by_stage.get('distance_stage3a_pass2', 0) %}
-{% set nmc_distance = nmc_by_stage.get('distance_trio', 0) + nmc_stage1 + nmc_stage1b + nmc_by_stage.get('distance_stage2', 0) + nmc_stage3a + nmc_by_stage.get('distance_stage3b', 0) %}
+{% set dq_by_type = qm.distance_quality.by_stage if qm and qm.distance_quality and qm.distance_quality.by_stage else {} %}
+{% set nmc_by_type = qm.distance_quality.not_matched_to_closest_by_stage if qm and qm.distance_quality and qm.distance_quality.not_matched_to_closest_by_stage else {} %}
 
-{% macro stage_row(label, count, mto, not_closest, distance_key=none, level=0, is_total=false) -%}
-{% set sd = dq_by_stage.get(distance_key) if distance_key else none %}
+{% macro stage_row(label, count, mto, not_closest, distance_key=none, level=0, is_total=false, code=none) -%}
+{% set sd = dq_by_type.get(distance_key) if distance_key else none %}
 <tr class="{{ 'is-total' if is_total }}{{ ' is-level-' ~ level if level }}">
-  <th scope="row">{{ label }}</th>
+  <th scope="row">{{ label }}{% if code %} <code>{{ code }}</code>{% endif %}</th>
   <td>{{ num(count) }}</td>
   <td>{{ share(count, total_denom) }}</td>
   <td>{{ num(mto) }}</td>
@@ -199,12 +195,12 @@ SECTION 1 — STOPS MATCHING
 {%- endmacro %}
 
 <section class="stats-block" aria-labelledby="matchingStagesTitle">
-  <h3 class="stats-block__title" id="matchingStagesTitle">Matches by stage</h3>
+  <h3 class="stats-block__title" id="matchingStagesTitle">Matches by rule</h3>
   <div class="stats-table-wrap">
     <table class="stats-table">
       <thead>
         <tr>
-          <th scope="col">Stage</th>
+          <th scope="col">Rule, in run order</th>
           <th scope="col">Count</th>
           <th scope="col">Share</th>
           <th scope="col">Many-to-one</th>
@@ -215,34 +211,27 @@ SECTION 1 — STOPS MATCHING
         </tr>
       </thead>
       <tbody>
-        {% set db = stages.distance.breakdown %}
-        {% set stage1k = db.stage1_group_by_key if db.stage1_group_by_key is defined else {} %}
-        {% set stage1bk = db.stage1b_long_group_by_key if db.stage1b_long_group_by_key is defined else {} %}
-        {{ stage_row('Exact (UIC ref)', stages.exact.count, stages.exact.mto, nmc_by_stage.get('exact', 0), 'exact') }}
-        {{ stage_row('Name matching', stages.name.count, stages.name.mto, nmc_by_stage.get('name', 0), 'name') }}
-        {{ stage_row('Route matching (GTFS)', stages.route.count, stages.route.mto, nmc_by_stage.get('route_gtfs', 0), 'route_gtfs') }}
-        {{ stage_row('Distance', stages.distance.count, stages.distance.mto, nmc_distance, is_total=true) }}
-        {{ stage_row('Stage 0: Trio side matching', db.stage0_trio, db.stage0_trio_mto, nmc_by_stage.get('distance_trio', 0), 'distance_trio', level=1) }}
-        {{ stage_row('Stage 1: Group proximity (50 m)', db.stage1_group, db.stage1_group_mto, nmc_stage1, 'distance_stage1', level=1) }}
-        {% if stage1k.uic_ref is defined and stage1k.uic_ref.count > 0 %}{{ stage_row('By UIC ref', stage1k.uic_ref.count, stage1k.uic_ref.mto, nmc_by_stage.get('distance_stage1_uic_ref', 0), 'distance_stage1_uic_ref', level=2) }}{% endif %}
-        {% if stage1k.uic_name is defined and stage1k.uic_name.count > 0 %}{{ stage_row('By UIC name', stage1k.uic_name.count, stage1k.uic_name.mto, nmc_by_stage.get('distance_stage1_uic_name', 0), 'distance_stage1_uic_name', level=2) }}{% endif %}
-        {% if stage1k.name is defined and stage1k.name.count > 0 %}{{ stage_row('By name', stage1k.name.count, stage1k.name.mto, nmc_by_stage.get('distance_stage1_name', 0), 'distance_stage1_name', level=2) }}{% endif %}
-        {% if (db.stage1b_long_group|default(0)) > 0 %}{{ stage_row('Stage 1b: Group proximity (150 m)', db.stage1b_long_group, db.stage1b_long_group_mto, nmc_stage1b, 'distance_stage1b', level=1) }}{% endif %}
-        {% if stage1bk.uic_ref is defined and stage1bk.uic_ref.count > 0 %}{{ stage_row('By UIC ref', stage1bk.uic_ref.count, stage1bk.uic_ref.mto, nmc_by_stage.get('distance_stage1b_uic_ref', 0), 'distance_stage1b_uic_ref', level=2) }}{% endif %}
-        {% if stage1bk.uic_name is defined and stage1bk.uic_name.count > 0 %}{{ stage_row('By UIC name', stage1bk.uic_name.count, stage1bk.uic_name.mto, nmc_by_stage.get('distance_stage1b_uic_name', 0), 'distance_stage1b_uic_name', level=2) }}{% endif %}
-        {% if stage1bk.name is defined and stage1bk.name.count > 0 %}{{ stage_row('By name', stage1bk.name.count, stage1bk.name.mto, nmc_by_stage.get('distance_stage1b_name', 0), 'distance_stage1b_name', level=2) }}{% endif %}
-        {{ stage_row('Stage 2: Local ref', db.stage2_local_ref, db.stage2_local_ref_mto, nmc_by_stage.get('distance_stage2', 0), 'distance_stage2', level=1) }}
-        {{ stage_row('Stage 3a: Single candidate', db.stage3a_single, db.stage3a_single_mto, nmc_stage3a, level=1) }}
-        {% if (db.stage3a_single_pass1|default(0)) > 0 %}{{ stage_row('3a pass 1', db.stage3a_single_pass1, db.stage3a_single_pass1_mto, nmc_by_stage.get('distance_stage3a_pass1', 0), 'distance_stage3a_pass1', level=2) }}{% endif %}
-        {% if (db.stage3a_single_pass2|default(0)) > 0 %}{{ stage_row('3a pass 2', db.stage3a_single_pass2, db.stage3a_single_pass2_mto, nmc_by_stage.get('distance_stage3a_pass2', 0), 'distance_stage3a_pass2', level=2) }}{% endif %}
-        {% if (db.stage3b_relative|default(0)) > 0 %}{{ stage_row('Stage 3b: Ratio test', db.stage3b_relative, db.stage3b_relative_mto, nmc_by_stage.get('distance_stage3b', 0), 'distance_stage3b', level=1) }}{% endif %}
-        {{ stage_row('Post-processing: ATLAS duplicate propagation', stages.post_processing.duplicate_propagation, stages.post_processing.duplicate_propagation_mto, nmc_by_stage.get('post_duplicate_propagation', 0), 'post_duplicate_propagation') }}
-        {{ stage_row('Post-processing: OSM stop partner propagation', stages.post_processing.osm_group_propagation, stages.post_processing.osm_group_propagation_mto, nmc_by_stage.get('post_osm_group_propagation', 0), 'post_osm_group_propagation') }}
+        {% for rule in rules %}
+        {% set ns = namespace(not_closest=0) %}
+        {% for row in rule.match_types %}{% set ns.not_closest = ns.not_closest + nmc_by_type.get(row.match_type, 0) %}{% endfor %}
+        {% if rule.match_types|length == 1 %}
+        {{ stage_row(rule.label, rule.count, rule.mto, ns.not_closest, rule.match_types[0].match_type, code=rule.match_types[0].match_type) }}
+        {% else %}
+        {{ stage_row(rule.label, rule.count, rule.mto, ns.not_closest, is_total=true) }}
+        {% for row in rule.match_types if row.count > 0 %}
+        {{ stage_row(row.label, row.count, row.mto, nmc_by_type.get(row.match_type, 0), row.match_type, level=1, code=row.match_type) }}
+        {% endfor %}
+        {% endif %}
+        {% endfor %}
+        {% for row in (stats.propagation if stats.propagation is defined else []) %}
+        {{ stage_row(row.label, row.count, row.mto, nmc_by_type.get(row.match_type, 0), row.match_type, code=row.match_type) }}
+        {% endfor %}
       </tbody>
     </table>
   </div>
-  {% if (db.stage3b_relative|default(0)) == 0 %}
-  <p class="stats-note">Stage 3b, the ratio test, still runs but produced no matches in this run.</p>
+  {% set empty = rules|selectattr('count', 'equalto', 0)|map(attribute='label')|list %}
+  {% if empty %}
+  <p class="stats-note">{{ empty|join(', ') }} still {{ 'run' if empty|length > 1 else 'runs' }} but produced no matches in this run.</p>
   {% endif %}
 </section>
 
@@ -759,7 +748,7 @@ SECTION 7 — OSM STOPS
         <table class="stats-table">
           <thead><tr><th scope="col">Stop unit</th><th scope="col">Units</th><th scope="col">Elements</th><th scope="col">Matched</th><th scope="col">Share</th></tr></thead>
           <tbody>
-            {% for kind, label in [('single', 'Single element'), ('pair', 'Pair'), ('trio', 'Trio')] %}
+            {% for kind, label in [('single', 'Single element'), ('pair', 'Pair'), ('two_sided_stop', 'Two-sided stop')] %}
             {% set row = su.by_kind.get(kind, {}) %}
             <tr><th scope="row">{{ label }}</th><td>{{ num(row.units) }}</td><td>{{ num(row.elements) }}</td><td>{{ num(row.matched) }}</td><td class="is-secondary">{{ share(row.matched, row.units) }}</td></tr>
             {% endfor %}
@@ -777,15 +766,15 @@ SECTION 7 — OSM STOPS
 {% set og = os.groups %}
 <section class="stats-block" data-source="osm" aria-labelledby="osmGroupsTitle">
   <h3 class="stats-block__title" id="osmGroupsTitle">Groups</h3>
-  <p class="stats-block__lead">A pair joins a platform and its stop position; a trio joins a stop position and the platforms on both sides. When one element of a group matches, the match is passed on to the others.</p>
+  <p class="stats-block__lead">A pair joins a platform and its stop position; a PTv2 two-sided stop joins a stop position and the platforms on both sides. When one element of a group matches, the match is passed on to the others.</p>
   {% set group_labels = {
-    'osm_pair_uic_equal_15m': 'Same UIC ref, equal counts on both sides, within 15 m',
-    'osm_pair_uic': 'Same UIC ref, mutual nearest within 12 m',
-    'osm_pair_name_equal_15m': 'Same name, equal counts on both sides, within 15 m',
-    'osm_pair_name': 'Same name, mutual nearest',
-    'osm_pair_tram_equal_15m': 'Tram stop, equal counts on both sides, within 15 m',
-    'osm_pair_tram': 'Tram stop, mutual nearest',
-    'osm_trio': 'Stop position between two platforms with one UIC ref',
+    'ptv2_pair_uic_ref_equal_count': 'Same UIC ref, equal counts on both sides, within 15 m',
+    'ptv2_pair_uic_ref': 'Same UIC ref, mutual nearest within 12 m',
+    'ptv2_pair_name_equal_count': 'Same name, equal counts on both sides, within 15 m',
+    'ptv2_pair_name': 'Same name, mutual nearest',
+    'tram_stop_pair_equal_count': 'Tram stop, equal counts on both sides, within 15 m',
+    'tram_stop_pair': 'Tram stop, mutual nearest',
+    'ptv2_two_sided_stop': 'PTv2 two-sided stop: a stop position between two elements, all with one UIC ref',
   } %}
   <div class="stats-table-wrap">
     <table class="stats-table">

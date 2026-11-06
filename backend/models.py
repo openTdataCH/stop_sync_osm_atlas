@@ -212,12 +212,12 @@ class OsmStop(db.Model):
         db.Index('idx_osm_stops_group_kind', 'group_kind'),
         db.Index('idx_osm_stops_representative_node_id', 'representative_node_id'),
         db.CheckConstraint(
-            "stop_kind IN ('single', 'pair', 'trio')",
+            "stop_kind IN ('single', 'pair', 'two_sided_stop')",
             name='ck_osm_stops_stop_kind'
         ),
         db.CheckConstraint(
-            "group_kind IS NULL OR group_kind IN ('osm_pair_uic', 'osm_pair_name', 'osm_pair_tram', "
-            "'osm_pair_uic_equal_15m', 'osm_pair_name_equal_15m', 'osm_pair_tram_equal_15m', 'osm_trio')",
+            "group_kind IS NULL OR group_kind IN ('ptv2_pair_uic_ref', 'ptv2_pair_name', 'tram_stop_pair', "
+            "'ptv2_pair_uic_ref_equal_count', 'ptv2_pair_name_equal_count', 'tram_stop_pair_equal_count', 'ptv2_two_sided_stop')",
             name='ck_osm_stops_group_kind'
         ),
     )
@@ -241,7 +241,7 @@ class OsmStopMember(db.Model):
 
     __table_args__ = (
         db.CheckConstraint(
-            "member_role IN ('single', 'pair_a', 'pair_b', 'trio_middle', 'trio_side')",
+            "member_role IN ('single', 'pair_a', 'pair_b', 'middle', 'side')",
             name='ck_osm_stop_members_member_role'
         ),
         db.UniqueConstraint('node_id', name='uq_osm_stop_members_node_id'),
