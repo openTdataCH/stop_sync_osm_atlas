@@ -99,7 +99,10 @@
       <p class="docs-filter-empty" id="docsFilterEmpty" hidden>No pages match.</p>
     </div>
     <div class="docs-sidebar-footer">
-      <button type="button" class="docs-sidebar-download" data-bs-toggle="modal" data-bs-target="#docsPdfModal" data-pdf-scope="all">
+      <a class="docs-sidebar-action" href="{{ url_for('quality.quality_dashboard') }}">
+        <i class="fas fa-project-diagram" aria-hidden="true"></i>Code quality dashboard
+      </a>
+      <button type="button" class="docs-sidebar-action" data-bs-toggle="modal" data-bs-target="#docsPdfModal" data-pdf-scope="all">
         <i class="fas fa-file-pdf" aria-hidden="true"></i>Download the documentation (PDF)
       </button>
     </div>

@@ -1335,6 +1335,14 @@ def _add_heading_ids(html: str) -> str:
     return _SECTION_HEADING_PATTERN.sub(replace, html)
 
 
+# Pages that describe another page of the site link to it from their header,
+# next to the PDF export.
+_PAGE_HEADER_LINKS = {
+    'documentation/4.3 Code Quality.md': (
+        {'endpoint': 'quality.quality_dashboard', 'label': 'Open the dashboard', 'icon': 'fa-project-diagram'},
+    ),
+}
+
 _PAGE_TITLE_PATTERN = re.compile(r'\s*<h1>(?P<title>.*?)</h1>\s*', re.DOTALL)
 
 
@@ -1342,7 +1350,8 @@ def _page_header(html: str, doc_id: str, collection: Optional[Dict], slug: str, 
     """Move the page's ``#`` heading from the article into the page header.
 
     The header shows the collection, in its owner's colour, and the page
-    number above the title. Its PDF link carries the page's address,
+    number above the title, then the page's links to other pages of the
+    site (``_PAGE_HEADER_LINKS``). Its PDF link carries the page's address,
     section and label for the export dialog. Returns the header and the
     article without its heading.
     """
@@ -1360,6 +1369,7 @@ def _page_header(html: str, doc_id: str, collection: Optional[Dict], slug: str, 
         'slug': slug,
         'section': section,
         'label': f'{number} {title_text}' if number else title_text,
+        'links': _PAGE_HEADER_LINKS.get(doc_id, ()),
     }, html
 
 

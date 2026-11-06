@@ -570,6 +570,23 @@ describe('QualityDashboard', () => {
         expect(document.getElementById('qualityPanel').textContent).toContain('Open file functions');
       });
 
+      test('the guide hides the panel back into the Details button, which opens it again', async () => {
+        await openFunctions();
+        const workspace = document.querySelector('.quality-workspace');
+        const toggle = document.getElementById('qualityPanelToggle');
+        const panel = document.getElementById('qualityPanel');
+        expect(panel.textContent).toContain('How to read the functions map');
+        click('#qualityPanel [data-hide-panel]');
+        expect(workspace.classList.contains('is-panel-hidden')).toBe(true);
+        expect(toggle.getAttribute('aria-pressed')).toBe('false');
+        expect(toggle.classList.contains('is-nudged')).toBe(true);
+        expect(document.activeElement).toBe(toggle);
+        click('#qualityPanelToggle');
+        expect(workspace.classList.contains('is-panel-hidden')).toBe(false);
+        expect(toggle.classList.contains('is-nudged')).toBe(false);
+        expect(panel.classList.contains('is-opening')).toBe(true);
+      });
+
       test('search selects the match and shows its callers and callees; Esc then clears it', async () => {
         const cy = await openFunctions();
         const search = document.getElementById('qualitySearch');

@@ -1289,6 +1289,8 @@
             : item) + '</li>').join('') + '</ul>';
     }
 
+    // The guide's button hides the whole panel; the ⓘ Details button in the toolbar brings it back.
+    const HIDE_PANEL_BUTTON = '<button type="button" class="quality-panel__close" data-hide-panel title="Hide the details panel" aria-label="Hide the details panel"><i class="fas fa-times" aria-hidden="true"></i></button>';
     const CLOSE_BUTTON = '<button type="button" class="quality-panel__close" data-clear-selection title="Close (Esc)" aria-label="Close details"><i class="fas fa-times" aria-hidden="true"></i></button>';
 
     function overviewHtml(state) {
@@ -1633,7 +1635,7 @@
 
         function showOverview() {
             if (state.view === 'symbols' && state.symbolModule) setPanel(moduleHtml(context, state.symbolModule));
-            else setPanel(overviewHtml(state));
+            else setPanel(HIDE_PANEL_BUTTON + overviewHtml(state));
         }
 
         function selected() {
@@ -2129,7 +2131,7 @@
         }
 
         root.addEventListener('click', (event) => {
-            const target = event.target.closest('[data-select-module], [data-select-link], [data-open-module], [data-open-file], [data-select-function], [data-symbol-module], [data-view], [data-view-toggle], [data-color-by], [data-zoom], [data-clear-selection], [data-symbol-reset]');
+            const target = event.target.closest('[data-select-module], [data-select-link], [data-open-module], [data-open-file], [data-select-function], [data-symbol-module], [data-view], [data-view-toggle], [data-color-by], [data-zoom], [data-clear-selection], [data-hide-panel], [data-symbol-reset]');
             if (!target) return;
             event.preventDefault();
             const inPanel = Boolean(target.closest('#qualityPanel'));
@@ -2181,6 +2183,9 @@
                 recolor();
             } else if (target.dataset.zoom) {
                 zoomBy(target.dataset.zoom === 'in' ? 1.3 : 1 / 1.3);
+            } else if (target.hasAttribute('data-hide-panel')) {
+                setPanelOpen(false);
+                if (panelToggle) panelToggle.focus();
             } else if (target.hasAttribute('data-clear-selection')) {
                 // The panel of a module picked from the list closes by un-picking it.
                 if (state.view === 'symbols' && state.symbolModule && !selected().length) focusModule(null);
@@ -2239,24 +2244,37 @@
             });
         }
 
-        // The details panel can be hidden to give the map the whole width; selecting something opens it again.
+        // The details panel can be hidden to give the map the whole width; selecting something opens it again. Opening,
+        // it drops in below the Details button; closed, the button rings briefly, so both directions show which button
+        // the panel belongs to.
+        const panelToggle = element('#qualityPanelToggle');
+        function replay(node, className) {
+            node.classList.remove(className);
+            void node.offsetWidth;
+            node.classList.add(className);
+        }
         function setPanelOpen(on) {
             const box = root.querySelector('.quality-workspace');
-            const toggle = element('#qualityPanelToggle');
             if (!box || state.panelOpen === on) return;
             state.panelOpen = on;
             box.classList.toggle('is-panel-hidden', !on);
-            if (toggle) {
-                toggle.setAttribute('aria-pressed', String(on));
-                toggle.title = on ? 'Hide the details panel' : 'Show the details panel';
+            if (panelToggle) {
+                panelToggle.setAttribute('aria-pressed', String(on));
+                panelToggle.title = on ? 'Hide the details panel' : 'Show the details panel';
+                if (on) panelToggle.classList.remove('is-nudged');
+                else replay(panelToggle, 'is-nudged');
             }
+            if (on) replay(element('#qualityPanel'), 'is-opening');
             if (cy) {
                 hideTooltip();
                 cy.resize();
             }
         }
-        const panelToggle = element('#qualityPanelToggle');
-        if (panelToggle) panelToggle.addEventListener('click', () => setPanelOpen(!state.panelOpen));
+        if (panelToggle) {
+            panelToggle.addEventListener('click', () => setPanelOpen(!state.panelOpen));
+            panelToggle.addEventListener('animationend', () => panelToggle.classList.remove('is-nudged'));
+            element('#qualityPanel').addEventListener('animationend', (event) => event.target.classList.remove('is-opening'));
+        }
 
         // The page scrolls with the wheel: a plain wheel event is stopped before it reaches the map, which then zooms
         // only with Ctrl or ⌘ held (also what a trackpad pinch sends). Touch pinch-zoom is untouched. In the expanded

@@ -128,7 +128,7 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md). A matching-rule contribution can 
 - [Result bundle format](../engine/documentation/Result%20bundle%20format.md)
 - [Bundle import and publication](documentation/1.1%20Import%20Process.md)
 - [Tests and CI](documentation/4.%20Test.md)
-- [Code quality and the dashboard](documentation/4.3%20Code%20Quality.md)
+- [Code quality and the dashboard](documentation/4.3%20Code%20Quality.md) (the dashboard itself is at `/quality` on the running site)
 - [Running the quality checks](documentation/4.4%20Running%20Quality%20Checks.md)
 - [Contribution tutorials](documentation/Contributing.md)
 

@@ -352,8 +352,13 @@ a.quality-figure:hover .quality-figure__label {
   color: var(--color-primary);
 }
 
+/* A toolbar button's focus is one soft halo, not an outline beside its border. */
+.quality-tool:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
+}
+
 .quality-segmented__option:focus-visible,
-.quality-tool:focus-visible,
 .quality-zoom button:focus-visible,
 .quality-crumbs button:focus-visible,
 .quality-panel__close:focus-visible {
@@ -461,6 +466,31 @@ a.quality-figure:hover .quality-figure__label {
   color: var(--color-primary);
 }
 
+/* Open, the Details button is softly tinted. Closed, it rings once (.is-nudged), so a hidden panel is seen to go
+   back into it. */
+.quality-tool--panel[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--color-primary-subtle);
+}
+
+.quality-tool--panel.is-nudged {
+  animation: quality-tool-nudge 700ms ease-out;
+}
+
+@keyframes quality-tool-nudge {
+  from {
+    box-shadow: 0 0 0 0 var(--color-focus-ring);
+  }
+
+  40% {
+    box-shadow: 0 0 0 6px var(--color-focus-ring);
+  }
+
+  to {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+
 /* Expanded, the button is the way back, so it stands out, with its key beside it. */
 .quality-workspace.is-expanded .quality-tool--expand {
   border-color: var(--color-primary);
@@ -553,6 +583,18 @@ a.quality-figure:hover .quality-figure__label {
 
 .quality-workspace.is-panel-hidden .quality-panel {
   display: none;
+}
+
+/* Opening, the panel drops in from the toolbar. */
+.quality-panel.is-opening {
+  animation: quality-panel-in 180ms ease-out;
+}
+
+@keyframes quality-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
 }
 
 .quality-workspace.is-expanded .quality-panel,
@@ -1478,6 +1520,11 @@ a.quality-figure:hover .quality-figure__label {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .quality-tool--panel.is-nudged,
+  .quality-panel.is-opening {
+    animation: none;
+  }
+
   .quality-map,
   .quality-explorer__module,
   .quality-hint,

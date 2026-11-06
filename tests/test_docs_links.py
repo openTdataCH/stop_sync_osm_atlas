@@ -514,3 +514,26 @@ if __name__ == "__main__":
         import sys
         print(e)
         sys.exit(1)
+
+
+def test_docs_link_to_the_code_quality_dashboard():
+    """The sidebar of every page and the header of A4.3 lead to /quality."""
+    from backend.app import create_app
+    from bs4 import BeautifulSoup
+
+    app = create_app()
+    app.config['TESTING'] = True
+    with app.test_client() as client:
+        overview = BeautifulSoup(client.get('/docs').data.decode('utf-8'), 'html.parser')
+        sidebar_link = overview.select_one('.docs-sidebar-footer a[href="/quality"]')
+        assert sidebar_link is not None
+        assert sidebar_link.get_text(' ', strip=True) == 'Code quality dashboard'
+        assert overview.select_one('#docs-page-header a[href="/quality"]') is None
+
+        quality_page = BeautifulSoup(client.get('/docs/code_quality').data.decode('utf-8'), 'html.parser')
+        header_link = quality_page.select_one('#docs-page-header a.docs-page-action[href="/quality"]')
+        assert header_link is not None
+        assert header_link.get_text(' ', strip=True) == 'Open the dashboard'
+
+        partial = client.get('/docs/code_quality', headers={'X-Docs-Partial': '1'}).get_json()
+        assert 'href="/quality"' in partial['header_html']
