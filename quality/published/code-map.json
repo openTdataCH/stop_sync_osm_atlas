@@ -606,7 +606,7 @@
     },
     {
       "id": "app:docker-compose.yml",
-      "lines": 122,
+      "lines": 125,
       "module": "platform.schema-deployment",
       "symbols": 0
     },
@@ -2063,7 +2063,7 @@
       "symbols": 0
     }
   ],
-  "generated_at": "2026-11-06T11:53:14.068685+00:00",
+  "generated_at": "2026-11-06T17:25:26.898639+00:00",
   "interface": {
     "app.docs-delivery": [
       {

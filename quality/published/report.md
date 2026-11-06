@@ -1,6 +1,6 @@
-Evidence: **partial**. Generated: 2026-11-06T11:53:12.192771+00:00.
+Evidence: **partial**. Generated: 2026-11-06T17:25:25.663488+00:00.
 
-App revision: `dc4bec0568ee85c3e293a92c7b3354c361020784`. Engine revision: `a7482627fb631aebcb7a0f4bf41446093e64e198`.
+App revision: `584f554cd63045d7049ef5f68eac941076d224c5`. Engine revision: `a7482627fb631aebcb7a0f4bf41446093e64e198`.
 
 Tools: coverage 7.17.2, eslint 10.11.0, hypothesis 6.168.0, jest 29.7.0, jscpd 4.3.0, jsonschema 4.26.0, node v22.23.4, pytest 9.2.0, pytest-cov 7.1.0, python 3.13.18, ruff 0.15.7, stylelint 16.26.1, vulture 2.15.
 
@@ -36,6 +36,6 @@ Required check results from the recorded run:
 
 Raw evidence:
 
-Test results, coverage and analyzer outputs are in the [CI run](https://github.com/openTdataCH/stop_sync_osm_atlas/actions/runs/42213095236) that produced this report, as the artifact `quality-dc4bec0568ee85c3e293a92c7b3354c361020784`. GitHub keeps it for 30 days.
+Test results, coverage and analyzer outputs are in the [CI run](https://github.com/openTdataCH/stop_sync_osm_atlas/actions/runs/42261107296) that produced this report, as the artifact `quality-584f554cd63045d7049ef5f68eac941076d224c5`. GitHub keeps it for 30 days.
 
 For invariants, tests, documentation and dependency context, run `python scripts/quality.py context MODULE_ID`. Use `impact PATH` or `symbol NAME --depth 1` for bounded navigation. Python imports are syntax evidence; dynamic calls and JavaScript symbols are heuristic.
