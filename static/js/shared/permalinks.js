@@ -130,6 +130,16 @@
         return current.origin + current.pathname + (search || '') + (hash || '');
     }
 
+    // A stop side and stored id as the main map's stop parameters: ?sloid=
+    // or ?osm=node|way/<id>. OSM ways are stored as "way_<id>".
+    function stopParams(type, ref) {
+        if (!ref) return null;
+        if (type === 'atlas') return { sloid: String(ref) };
+        if (type !== 'osm') return null;
+        var element = /^(way_)?(\d+)$/.exec(String(ref));
+        return element ? { osm: (element[1] ? 'way' : 'node') + '/' + element[2] } : null;
+    }
+
     // Keeps the view in #map= while the map moves, and follows a hash edited
     // in the address bar: a link that differs only in its hash does not reload
     // the page. An unusable hash (such as a bare "#" from an href="#" link) is
@@ -302,6 +312,7 @@
         buildSearch: buildSearch,
         replaceUrl: replaceUrl,
         pageUrl: pageUrl,
+        stopParams: stopParams,
         bindMapHash: bindMapHash,
         createSelectionTracker: createSelectionTracker,
         trackPopups: trackPopups,

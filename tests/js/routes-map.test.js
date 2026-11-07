@@ -1,6 +1,27 @@
 const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
+// Leaflet markers as far as the stop popup controller uses them.
+function fakeMarker(fields) {
+    const handlers = {};
+    return {
+        ...fields, handlers, popup: null, open: false,
+        on(event, callback) { handlers[event] = callback; },
+        off(event) { delete handlers[event]; },
+        bindPopup(popup) { this.popup = popup; },
+        unbindPopup() { this.popup = null; },
+        getPopup() { return this.popup; },
+        openPopup() { this.open = true; },
+        closePopup() { this.open = false; },
+        isPopupOpen() { return this.open; }
+    };
+}
+
+function loadRouteMapComponents() {
+    require('./load-map-components')();
+    loadBrowserScript(path.join(__dirname, '../../static/js/components/map-popup-controller.js'));
+}
+
 test('route previews preserve grouped order, refresh labels at zoom 18, and toggle subdued context', async () => {
     const direction = {
         atlas_uic_groups: [{ members: [
@@ -16,7 +37,7 @@ test('route previews preserve grouped order, refresh labels at zoom 18, and togg
         <button class="toggle-context-btn" data-map-index="0"></button>
         <script class="variant-data" data-map-index="0" type="application/json">${JSON.stringify(direction)}</script>`;
     window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null } };
-    require('./load-map-components')();
+    loadRouteMapComponents();
     function layer() {
         return { markers: [], addLayer(value) { this.markers.push(value); }, clearLayers() { this.markers = []; } };
     }
@@ -27,8 +48,8 @@ test('route previews preserve grouped order, refresh labels at zoom 18, and togg
         off: jest.fn(), fitBounds: jest.fn(), invalidateSize: jest.fn() };
     window.MapComponents.MapCore = { create: jest.fn(() => ({ map, layers, destroy: jest.fn() })) };
     window.L = global.L = {
-        marker: jest.fn((position, options) => ({ kind: 'icon', position, options })),
-        circleMarker: jest.fn((position, options) => ({ kind: 'circle', position, options })),
+        marker: jest.fn((position, options) => fakeMarker({ kind: 'icon', position, options })),
+        circleMarker: jest.fn((position, options) => fakeMarker({ kind: 'circle', position, options })),
         divIcon: jest.fn(options => options),
         latLngBounds: jest.fn(() => ({ pad() { return this; }, getSouth: () => 46.9, getNorth: () => 47.2,
             getWest: () => 7.9, getEast: () => 8.2 }))
@@ -76,7 +97,7 @@ test('inline comparisons update only their own map and restore the fixed variant
           <script class="variant-data" data-map-index="${index}" type="application/json">${JSON.stringify(direction)}</script>
         </details>`).join('');
     window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null } };
-    require('./load-map-components')();
+    loadRouteMapComponents();
     const layer = () => ({ markers: [], addLayer(value) { this.markers.push(value); }, clearLayers() { this.markers = []; } });
     const maps = [];
     window.MapComponents.MapCore = { create: jest.fn(() => {
@@ -86,7 +107,7 @@ test('inline comparisons update only their own map and restore the fixed variant
         return core;
     }) };
     window.L = global.L = {
-        circleMarker: jest.fn((position, options) => ({ position, options })),
+        circleMarker: jest.fn((position, options) => fakeMarker({ position, options })),
         polyline: jest.fn((positions, options) => ({ positions, options })),
         latLngBounds: jest.fn(() => ({ pad() { return this; } }))
     };
@@ -96,17 +117,42 @@ test('inline comparisons update only their own map and restore the fixed variant
     const panels = [...document.querySelectorAll('details')];
     panels.forEach(panel => { panel.open = true; panel.dispatchEvent(new Event('toggle')); });
     const comparison = { rows: [
-        { atlas: { id: 1, stop_ids: ['fixed'], lat: 47, lon: 8 },
-            osm: { id: 2, stop_ids: ['osm:2'], lat: 47.0001, lon: 8.0001 }, match_type: 'resolved_sloid_match' },
-        { atlas: null, osm: { id: 3, stop_ids: ['osm:3'], lat: 47.1, lon: 8.1 }, match_type: null },
+        { atlas: { id: 1, stop_ids: ['fixed'], source_id: 'fixed', lat: 47, lon: 8,
+            partners: [{ stop_id: 'osm:2', lat: 47.0001, lon: 8.0001 }] },
+        osm: { id: 2, stop_ids: ['osm:2'], source_id: 'osm:2', lat: 47.0001, lon: 8.0001,
+            partners: [{ stop_id: 'fixed', lat: 47, lon: 8 }] }, match_type: 'resolved_sloid_match' },
+        { atlas: null, osm: { id: 3, stop_ids: ['osm:3'], source_id: 'osm:3', lat: 47.1, lon: 8.1, stop_type: 'matched' }, match_type: null },
         { atlas: { id: 4, stop_ids: ['missing'], lat: null, lon: null },
-            osm: { id: 5, stop_ids: ['osm:5'], lat: null, lon: null }, match_type: 'uic_match' }
+            osm: { id: 5, stop_ids: ['osm:5'], lat: null, lon: null }, match_type: 'uic_match' },
+        // Zürich Selnau: each platform is matched to a stop that only the other variants call at.
+        { atlas: { id: 6, stop_ids: ['platform-2'], source_id: 'platform-2', lat: 47.2, lon: 8.2, stop_type: 'matched',
+            partners: [{ stop_id: 'osm:8', lat: 47.3, lon: 8.3 }] },
+        osm: { id: 7, stop_ids: ['osm:7'], source_id: 'osm:7', lat: 47.2001, lon: 8.2001,
+            partners: [{ stop_id: 'platform-1', lat: 47.4, lon: 8.4 }] }, match_type: null, same_station: true }
     ] };
     const first = panels[0].querySelector('section');
     first.dispatchEvent(new CustomEvent('routecomparisonchange', { bubbles: true, detail: comparison }));
-    expect(maps[0].layers.markers.markers.map(marker => marker.position)).toEqual([[47, 8], [47.0001, 8.0001], [47.1, 8.1]]);
-    expect(maps[0].layers.lines.markers).toHaveLength(1);
-    expect(maps[0].layers.lines.markers[0].options.color).toBe('#174092');
+    const markers = maps[0].layers.markers.markers;
+    expect(markers.map(marker => marker.position)).toEqual([
+        [47, 8], [47.2, 8.2], [47.0001, 8.0001], [47.1, 8.1], [47.2001, 8.2001], [47.3, 8.3], [47.4, 8.4]
+    ]);
+    // Colours are stop matching, as on the main map, whatever the comparison says.
+    expect(markers.map(marker => marker.options.color)).toEqual(['#DC3545', '#174092', '#6C757D', '#4CAF50', '#6C757D', '#4CAF50', '#174092']);
+    // The partners neither variant calls at are faded.
+    expect(markers.map(marker => marker.options.opacity)).toEqual([1, 1, 1, 1, 1, 0.4, 0.4]);
+    // A solid line joins the same stop, a dashed line the same station at
+    // another platform, and a dashed ring circles each stop the other lacks.
+    // A thin line joins each stop to its own matches, unless the solid line already does.
+    const marks = maps[0].layers.lines.markers;
+    expect(marks.map(mark => mark.positions || mark.position)).toEqual([
+        [[47, 8], [47.0001, 8.0001]], [47.1, 8.1], [[47.2, 8.2], [47.2001, 8.2001]], [47.2, 8.2], [47.2001, 8.2001],
+        [[47.2, 8.2], [47.3, 8.3]], [[47.2001, 8.2001], [47.4, 8.4]]
+    ]);
+    expect(marks.map(mark => mark.options.dashArray || null)).toEqual([null, '3,3', '4,4', '3,3', '3,3', null, null]);
+    expect(marks.slice(5).map(mark => mark.options.weight)).toEqual([1.5, 1.5]);
+    expect(marks[0].options.color).toBe('#174092');
+    // Drawn over the stops: a click on a stop must reach its popup.
+    expect(marks.every(mark => mark.options.interactive === false)).toBe(true);
     expect(maps[1].layers.markers.markers.map(marker => marker.position)).toEqual([[47, 8]]);
     expect(maps[1].layers.lines.markers).toHaveLength(0);
     first.dispatchEvent(new CustomEvent('routecomparisonchange', { bubbles: true, detail: null }));
@@ -124,7 +170,7 @@ test('preview maps leave the wheel to the page until clicked and ring the stops 
           <script class="variant-data" data-map-index="0" type="application/json">${JSON.stringify(direction)}</script>
         </details>`;
     window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null } };
-    require('./load-map-components')();
+    loadRouteMapComponents();
     const layer = () => ({ markers: [], addLayer(value) { this.markers.push(value); }, clearLayers() { this.markers = []; } });
     let wheelZoom = false;
     const map = {
@@ -134,7 +180,7 @@ test('preview maps leave the wheel to the page until clicked and ring the stops 
     const layers = { markers: layer(), lines: layer(), highlight: layer() };
     window.MapComponents.MapCore = { create: jest.fn(() => ({ map, layers, destroy: jest.fn() })) };
     window.L = global.L = {
-        circleMarker: jest.fn((position, options) => ({ position, options })),
+        circleMarker: jest.fn((position, options) => fakeMarker({ position, options })),
         latLngBounds: jest.fn(points => ({ points, getCenter: () => points[0] }))
     };
     loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
@@ -174,4 +220,86 @@ test('preview maps leave the wheel to the page until clicked and ring the stops 
     await new Promise(resolve => setTimeout(resolve, 0));
     mapElement.dispatchEvent(new Event('wheel'));
     expect(shell.classList).not.toContain('is-wheel-hint');
+});
+
+test('route stops open their popup by source id, keep it open across a redraw and link to the main map', async () => {
+    const direction = {
+        atlas_uic_groups: [{ members: [{ stop_id: 'ch:1:sloid:7', lat: 47, lon: 8, stop_type: 'matched' }] }],
+        osm_uic_groups: [{ members: [{ stop_id: 'way_5', lat: 47.0001, lon: 8.0001, stop_type: 'matched' }] }]
+    };
+    document.body.innerHTML = `
+        <details class="route-card__panel--map" data-atlas-variant="91-10-A-j26-1:0:Zürich Selnau" data-osm-variant="1561015">
+          <section class="variant-comparison"></section>
+          <aside class="route-card__map-shell">
+            <a class="variant-map__main-map" href="/"></a>
+            <div id="routeMap0" class="route-card__map" data-map-index="0"></div>
+          </aside>
+          <script class="variant-data" data-map-index="0" type="application/json">${JSON.stringify(direction)}</script>
+        </details>`;
+    window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null } };
+    loadRouteMapComponents();
+    ['shared/utils', 'shared/permalinks', 'components/popup-utils', 'components/popup-renderer'].forEach(name => {
+        loadBrowserScript(path.join(__dirname, '../../static/js/' + name + '.js'));
+    });
+    const layer = () => ({ markers: [], addLayer(value) { this.markers.push(value); }, clearLayers() { this.markers = []; } });
+    const layers = { markers: layer(), lines: layer() };
+    let zoom = 17;
+    const handlers = {};
+    const map = {
+        getZoom: () => zoom, getCenter: () => ({ lat: 47.00005, lng: 8.00005 }), getSize: () => ({ x: 400, y: 500 }),
+        on: (event, callback) => { handlers[event] = callback; }, off: jest.fn(), fitBounds: jest.fn(), invalidateSize: jest.fn()
+    };
+    window.MapComponents.MapCore = { create: jest.fn(() => ({ map, layers, destroy: jest.fn() })) };
+    window.L = global.L = {
+        circleMarker: jest.fn((position, options) => fakeMarker({ position, options })),
+        marker: jest.fn((position, options) => fakeMarker({ position, options })),
+        divIcon: jest.fn(options => options),
+        latLngBounds: jest.fn(() => ({})),
+        popup: jest.fn(options => ({ options, setContent(content) { this.content = content; return this; } }))
+    };
+    window.fetch = global.fetch = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ stop: {
+        id: 11, sloid: 'ch:1:sloid:7', stop_type: 'atlas_unmatched', atlas_designation_official: 'Uetliberg'
+    } }) }));
+    loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    const panel = document.querySelector('details');
+    panel.open = true;
+    panel.dispatchEvent(new Event('toggle'));
+
+    const [atlasMarker, osmMarker] = layers.markers.markers;
+    atlasMarker.handlers.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(fetch).toHaveBeenCalledWith('/api/stop_popup?sloid=ch%3A1%3Asloid%3A7&view_type=atlas', expect.anything());
+    expect(atlasMarker.isPopupOpen()).toBe(true);
+    expect(atlasMarker.popup.options).toEqual(expect.objectContaining({ autoClose: true, autoPan: true, maxHeight: 408 }));
+    expect(atlasMarker.popup.content).toContain('href="/?sloid=ch:1:sloid:7"');
+    expect(atlasMarker.popup.content).toContain('Open in main map');
+    expect(osmMarker.handlers.click).toEqual(expect.any(Function));
+
+    zoom = 18;
+    handlers.zoomend();
+    const redrawn = layers.markers.markers[0];
+    expect(redrawn).not.toBe(atlasMarker);
+    expect(atlasMarker.isPopupOpen()).toBe(false);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(redrawn.isPopupOpen()).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    layers.markers.markers[1].handlers.click();
+    expect(fetch).toHaveBeenLastCalledWith('/api/stop_popup?osm_node_id=way_5&view_type=osm', expect.anything());
+
+    // The main map opens on the variants this map shows, where this map is.
+    const mainMap = document.querySelector('.variant-map__main-map');
+    handlers.moveend();
+    expect(mainMap.getAttribute('href')).toBe('/?atlas_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau&osm_variant=1561015#map=18/47.00005/8.00005');
+    // A comparison with another variant names that one; clearing it brings back the panel's own.
+    document.querySelector('section').dispatchEvent(new CustomEvent('routecomparisonchange', { bubbles: true, detail: {
+        atlas: { source_itinerary_id: '91-10-A-j26-1:0:Zürich HB' }, osm: null, rows: []
+    } }));
+    expect(mainMap.getAttribute('href')).toBe('/?atlas_variant=91-10-A-j26-1:0:Z%C3%BCrich+HB#map=18/47.00005/8.00005');
+    document.querySelector('section').dispatchEvent(new CustomEvent('routecomparisonchange', { bubbles: true, detail: null }));
+    expect(mainMap.getAttribute('href')).toContain('?atlas_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau&osm_variant=1561015#map=');
+
+    window.dispatchEvent(new Event('pagehide'));
+    await new Promise(resolve => setTimeout(resolve, 0));
 });

@@ -11,7 +11,8 @@ const browserEntrypoints = Object.fromEntries([
     'SharedUtils', 'activeFilters', 'topNLayer', 'stopsById',
     'fetchAndCenterSpecificStop', 'loadDataForViewport', 'updateHeaderSummary',
     'loadTopNMatches', 'initFilterEventHandlers', 'updateFiltersUI',
-    'updateActiveFilters', 'getActiveFilterCount', 'parseSmartSearchInput'
+    'updateActiveFilters', 'getActiveFilterCount', 'parseSmartSearchInput',
+    'routeVariantsParam', 'fetchRouteVariants', 'addRouteVariantFilter', 'syncRouteVariantUrl'
 ].map(name => [name, 'readonly']));
 
 const correctness = {

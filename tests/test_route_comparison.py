@@ -5,7 +5,7 @@ import pytest
 
 from backend.blueprints import routes as routes_module
 from backend.extensions import db
-from backend.models import Itinerary, ItineraryBestOverlap, ItineraryMatch, LineFamily, StopCall
+from backend.models import Itinerary, ItineraryBestOverlap, ItineraryMatch, LineFamily, StopCall, StopsMatched
 from backend.services import pipeline_status
 from backend.services.route_comparison import (
     _identity,
@@ -115,6 +115,26 @@ def test_direction_status_does_not_hide_stop_agreement(atlas_direction, osm_dire
     assert result['percentage'] == 100
 
 
+def test_same_station_at_another_platform_shares_a_row_but_is_not_counted():
+    # Zürich Selnau: the OSM relation ends at platform 1, the ATLAS variant at platform 2.
+    atlas = [_call(1, 'A', uic='1'), _call(2, 'X', uic='5'), _call(3, 'P2', uic='9')]
+    osm = [_call(1, 'A', uic='1'), _call(2, 'P1', uic='9')]
+    result = _compare(atlas, osm)
+
+    assert result['matched_stop_count'] == 1
+    assert result['percentage'] == 33.3
+    assert [((row['atlas'] or {}).get('id'), (row['osm'] or {}).get('id'), row['match_type'],
+             row.get('same_station', False)) for row in result['rows']] == [
+        (1, 1, 'resolved_sloid_match', False), (2, None, None, False), (3, 2, None, True),
+    ]
+
+
+def test_same_station_never_crosses_a_shared_stop():
+    result = _compare([_call(1, 'P2', uic='9'), _call(2, 'A', uic='1')],
+                      [_call(1, 'A', uic='1'), _call(2, 'P1', uic='9')])
+    assert not any(row.get('same_station') for row in result['rows'])
+
+
 def test_empty_sequences_and_single_selection_have_no_misleading_percentage():
     assert _compare([], [])['percentage'] is None
     assert _compare([], [_call(1, 'A')])['percentage'] == 0
@@ -127,11 +147,10 @@ def test_empty_sequences_and_single_selection_have_no_misleading_percentage():
 
 
 @pytest.fixture
-def comparison_db(app, monkeypatch):
+def comparison_db(app, monkeypatch, sqlite_tables):
     monkeypatch.setattr(pipeline_status, 'get_status', lambda: {'blocking_maintenance': False})
+    sqlite_tables(LineFamily, Itinerary, StopCall, ItineraryMatch, ItineraryBestOverlap, StopsMatched)
     with app.app_context():
-        for model in (LineFamily, Itinerary, StopCall, ItineraryMatch, ItineraryBestOverlap):
-            model.__table__.create(db.engine)
         db.session.add_all([
             LineFamily(id=1, source='atlas', source_family_id='atlas-north', display_route_id='A',
                        public_name='North line', operator='Metro North'),
@@ -160,6 +179,11 @@ def comparison_db(app, monkeypatch):
                     source_node_id=str(sequence) if itinerary_id > 200 else None,
                     stop_label=f'Stop {identity}', stop_lat=47.0, stop_lon=8.0,
                 ))
+        db.session.add_all([
+            StopsMatched(id=1, sloid='A', osm_node_id='1', stop_type='matched',
+                         atlas_lat=47.0, atlas_lon=8.0, osm_lat=47.001, osm_lon=8.001),
+            StopsMatched(id=2, sloid='B', stop_type='atlas_unmatched'),
+        ])
         db.session.commit()
     return app.test_client()
 
@@ -181,6 +205,16 @@ def test_api_compares_arbitrary_unmatched_pair(comparison_db):
     assert result['percentage'] == 66.7
     assert result['is_saved_match'] is False
     assert result['rows'][1]['osm'] is None
+    # Each stop keeps its stop-matching status, whatever the comparison says.
+    assert [(row['atlas'] and row['atlas']['stop_type'], row['osm'] and row['osm']['stop_type'])
+            for row in result['rows']] == [
+        ('matched', 'matched'), ('atlas_unmatched', None), ('atlas_unmatched', 'osm_unmatched'),
+    ]
+    # And the stops it is matched to, wherever they are, for the map's match lines.
+    first = result['rows'][0]
+    assert first['atlas']['partners'] == [{'stop_id': '1', 'lat': 47.001, 'lon': 8.001}]
+    assert first['osm']['partners'] == [{'stop_id': 'A', 'lat': 47.0, 'lon': 8.0}]
+    assert result['rows'][1]['atlas']['partners'] == []
 
 
 def test_api_distinguishes_saved_match_from_preview_and_supports_one_side(comparison_db):

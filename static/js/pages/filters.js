@@ -35,6 +35,9 @@ var activeFilters = {
     station: [],
     stationTypes: [],
     routeDirections: [],
+    // One entry per station filter: null, or for a route filter narrowed to
+    // variants { atlas, osm, label } (see setRouteVariants).
+    routeVariants: [],
     stopType: [],
     matchMethods: [],
     atlasOperators: [],
@@ -442,6 +445,7 @@ function addSearchToken(token) {
     activeFilters.station.push(filterValue);
     activeFilters.stationTypes.push(filterType);
     activeFilters.routeDirections.push(direction);
+    activeFilters.routeVariants.push(null);
 
     // Call the backend first to see if the entry exists
     fetchAndCenterSpecificStop(filterValue, filterType)
@@ -457,6 +461,7 @@ function addSearchToken(token) {
             activeFilters.station.pop();
             activeFilters.stationTypes.pop();
             activeFilters.routeDirections.pop();
+            activeFilters.routeVariants.pop();
 
             showSmartSearchError(errorMessage, false);
         });
@@ -534,6 +539,7 @@ function filterByRoute(routeId, directions) {
     activeFilters.station.push(routeId);
     activeFilters.stationTypes.push('route');
     activeFilters.routeDirections.push(directions || '');
+    activeFilters.routeVariants.push(null);
     activeFilters.filterType = 'route';
 
     updateFiltersUI();
@@ -565,6 +571,7 @@ function addCustomFilter(value, filterType) {
     activeFilters.station.push(value);
     activeFilters.stationTypes.push(filterType);
     activeFilters.routeDirections.push('');
+    activeFilters.routeVariants.push(null);
 
     updateFiltersUI();
     if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
@@ -678,11 +685,14 @@ function updateFiltersUI() {
         var badgeHtml;
         if (filterType === 'route') {
             var currentDirection = activeFilters.routeDirections[index] || '';
+            var variants = activeFilters.routeVariants[index];
             badgeHtml = window.FilterChipUtils.buildDirectionDropdownHtml({
                 direction: currentDirection,
                 mapIndex: index,
                 routeLabel: labelText + normalizedRoute,
-                showClose: true
+                showClose: true,
+                routeId: filter,
+                variantLabel: variants ? variants.label : ''
             });
         } else {
             badgeHtml = buildRemovableChip({ label: badgeHtmlContent, badgeClass: badgeClass, data: { type: 'station', index: index }, closeChar: '×' });
@@ -752,6 +762,8 @@ function clearAllFilters() {
     activeFilters.station = [];
     activeFilters.stationTypes = [];
     activeFilters.routeDirections = [];
+    activeFilters.routeVariants = [];
+    syncRouteVariantUrl();
 
     // Clear operators and reset dropdowns
     activeFilters.atlasOperators = [];
@@ -817,6 +829,7 @@ function filterByStation(stopId, stopCategory) {
     activeFilters.station.push(filterValue);
     activeFilters.stationTypes.push(filterType);
     activeFilters.routeDirections.push('');
+    activeFilters.routeVariants.push(null);
 
     updateFiltersUI();
     if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
@@ -947,6 +960,8 @@ function setupMasterCheckbox(masterCheckboxSelector, childCheckboxSelector) {
 function setRouteDirection(index, direction) {
     if (index >= 0 && index < activeFilters.routeDirections.length) {
         activeFilters.routeDirections[index] = direction;
+        activeFilters.routeVariants[index] = null;
+        syncRouteVariantUrl();
 
         updateFiltersUI();
         if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
@@ -975,10 +990,122 @@ function toggleDirectionDropdown(index) {
         });
 
         // Open this dropdown
+        loadRouteVariantOptions(dropdown);
         options.slideDown(200);
         arrow.addClass('rotated');
         dropdown.addClass('open');
     }
+}
+
+// ==========================================
+// Route variants
+// ==========================================
+// A route filter can be narrowed to exact variants: an ATLAS itinerary, an
+// OSM route relation, or both. They are named with the routes page's keys,
+// atlas_variant and osm_variant, which the address bar also carries.
+
+var ROUTE_VARIANT_KEYS = ['atlas_variant', 'osm_variant'];
+var routeVariantRequests = {};
+var loadedRouteVariants = {};  // route id -> variants, for the dropdown's options
+
+// GET /api/routes/variants, once per query.
+function fetchRouteVariants(params) {
+    var query = Object.keys(params).filter(function (key) { return params[key]; }).sort().map(function (key) {
+        return encodeURIComponent(key) + '=' + encodeURIComponent(params[key]);
+    }).join('&');
+    if (!routeVariantRequests[query]) {
+        routeVariantRequests[query] = fetch('/api/routes/variants?' + query, { headers: { Accept: 'application/json' } })
+            .then(function (response) {
+                if (!response.ok) throw new Error('Route variants request failed with HTTP ' + response.status);
+                return response.json();
+            })
+            .catch(function (error) {
+                delete routeVariantRequests[query];
+                throw error;
+            });
+    }
+    return routeVariantRequests[query];
+}
+
+// An engine pair reads "ATLAS name ⇄ OSM name"; a single variant names its source.
+function routeVariantLabel(atlas, osm) {
+    if (atlas && osm) return atlas.name + ' ⇄ OSM ' + osm.name;
+    if (atlas) return SharedUtils.sourceLabel() + ': ' + atlas.name;
+    return osm ? 'OSM: ' + osm.name : '';
+}
+
+// The request parameter: a JSON list aligned with station_filter, or null
+// when no route filter is narrowed (commas in headsigns rule out a comma list).
+function routeVariantsParam() {
+    if (!activeFilters.routeVariants.some(Boolean)) return null;
+    return JSON.stringify(activeFilters.station.map(function (value, index) {
+        var variants = activeFilters.routeVariants[index];
+        return variants ? { atlas: variants.atlas, osm: variants.osm } : null;
+    }));
+}
+
+// The address bar names the variants of the last narrowed route filter.
+function syncRouteVariantUrl() {
+    if (!window.Permalinks) return;
+    var last = null;
+    activeFilters.routeVariants.forEach(function (variants) { if (variants) last = variants; });
+    Permalinks.replaceUrl({
+        search: Permalinks.buildSearch(window.location.search, ROUTE_VARIANT_KEYS,
+            last ? Permalinks.encodeParams({ atlas_variant: last.atlas, osm_variant: last.osm }) : '')
+    });
+}
+
+// atlas and osm: variant summaries from /api/routes/variants, or null.
+function setRouteVariants(index, atlas, osm) {
+    if (index < 0 || index >= activeFilters.station.length || (!atlas && !osm)) return;
+    activeFilters.routeDirections[index] = '';
+    activeFilters.routeVariants[index] = {
+        atlas: atlas ? atlas.key : null,
+        osm: osm ? osm.key : null,
+        label: routeVariantLabel(atlas, osm)
+    };
+    syncRouteVariantUrl();
+    updateFiltersUI();
+    if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
+    loadDataForViewport();
+    updateHeaderSummary();
+}
+
+// Adds the route filter a variant link names (data: /api/routes/variants).
+function addRouteVariantFilter(data) {
+    activeFilters.station.push(data.route_id);
+    activeFilters.stationTypes.push('route');
+    activeFilters.routeDirections.push('');
+    activeFilters.routeVariants.push(null);
+    setRouteVariants(activeFilters.station.length - 1, data.selected.atlas, data.selected.osm);
+}
+
+// Fills a route chip's dropdown with the route's variants, grouped by direction.
+function loadRouteVariantOptions(dropdown) {
+    var container = dropdown.find('.direction-variants');
+    var routeId = dropdown.attr('data-route-id');
+    if (!container.length || !routeId || container.attr('data-state')) return;
+    container.attr('data-state', 'loading').html('<div class="direction-group">Loading variants…</div>');
+    var selected = activeFilters.routeVariants[Number(dropdown.attr('data-index'))];
+    fetchRouteVariants({ route_id: routeId }).then(function (data) {
+        var html = '';
+        data.variants.forEach(function (entry, i) {
+            if (i === 0 || entry.direction_id !== data.variants[i - 1].direction_id) {
+                html += '<div class="direction-group">' +
+                    (entry.direction_id != null ? 'Direction ' + SharedUtils.escapeHtml(entry.direction_id) : 'No direction') + '</div>';
+            }
+            var isCurrent = selected && selected.atlas === (entry.atlas && entry.atlas.key) &&
+                selected.osm === (entry.osm && entry.osm.key);
+            var label = SharedUtils.escapeHtml(routeVariantLabel(entry.atlas, entry.osm));
+            html += '<div class="direction-option direction-option--variant' + (isCurrent ? ' is-current' : '') +
+                '" data-variant="' + i + '" title="' + label + '">' + label + '</div>';
+        });
+        loadedRouteVariants[routeId] = data.variants;
+        container.attr('data-state', 'loaded').html(html || '<div class="direction-group">No variants</div>');
+    }).catch(function () {
+        // Opening the list again retries.
+        container.attr('data-state', '').html('<div class="direction-group">Could not load the variants</div>');
+    });
 }
 
 // Initialize filter-related event handlers
@@ -1020,6 +1147,8 @@ function initFilterEventHandlers() {
                             activeFilters.station.splice(index, 1);
                             activeFilters.stationTypes.splice(index, 1);
                             activeFilters.routeDirections.splice(index, 1);
+                            activeFilters.routeVariants.splice(index, 1);
+                            syncRouteVariantUrl();
                         }
                         needsManualUpdateCall = true;
                         break;
@@ -1068,6 +1197,8 @@ function initFilterEventHandlers() {
     $(document).on('click', '.direction-dropdown', function (e) {
         e.preventDefault();
         e.stopPropagation(); // Prevent event bubbling
+        // Headings and messages in the variant list are not options: keep it open.
+        if ($(e.target).closest('.direction-options').length && !$(e.target).closest('.direction-option').length) return;
 
         var index = $(this).data('index');
         toggleDirectionDropdown(index);
@@ -1081,9 +1212,14 @@ function initFilterEventHandlers() {
         var direction = $(this).data('direction');
         var dropdown = $(this).closest('.direction-dropdown');
         var index = dropdown.data('index');
+        var variant = $(this).attr('data-variant');
 
-        // Set the new direction
-        setRouteDirection(index, direction);
+        if (variant) {
+            var entry = (loadedRouteVariants[dropdown.attr('data-route-id')] || [])[Number(variant)];
+            if (entry) setRouteVariants(Number(index), entry.atlas, entry.osm);
+        } else {
+            setRouteDirection(Number(index), direction);
+        }
 
         // Close the dropdown
         dropdown.find('.direction-options').slideUp(200);

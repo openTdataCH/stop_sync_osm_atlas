@@ -18,7 +18,7 @@ from backend.models import (
     OsmNode,
     StopCall,
 )
-from backend.services.route_comparison import compare_stop_calls, load_best_overlaps
+from backend.services.route_comparison import attach_stop_matches, compare_stop_calls, load_best_overlaps
 
 
 ROUTE_MATCH_ALL = 'all'
@@ -1046,6 +1046,7 @@ def build_route_rows(page_items):
             'map_filter': map_filter,
         })
 
+    attach_stop_matches([group['stop_comparison'] for row in route_rows for group in row['direction_groups']])
     return route_rows
 
 

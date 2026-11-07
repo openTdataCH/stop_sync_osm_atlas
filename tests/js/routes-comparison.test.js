@@ -473,6 +473,26 @@ describe('Route variant comparisons', () => {
     expect(node('atlasPanel', 'empty').hidden).toBe(false);
   });
 
+  test('shows the same station at another platform as one row that does not count', async () => {
+    const original = resolveRequest;
+    resolveRequest = url => url.pathname.endsWith('/comparison')
+      ? result('101', '301', {
+        matched_stop_count: 1, atlas_stop_count: 2, osm_stop_count: 2, stop_ratio: 0.5, percentage: 50,
+        rows: [pair(1), { atlas: stop('a-p2', 2, 'Selnau'), osm: stop('o-p1', 2, 'Selnau'), match_type: null, same_station: true }]
+      })
+      : original(url);
+    setOpen('atlasPanel');
+    await flush();
+    const platform = rows('atlasPanel')[1];
+    expect(platform.classList).toContain('comparison-row--platform');
+    expect(platform.querySelector('.comparison-link--platform .visually-hidden').textContent).toBe('same station, different platform');
+    expect(platform.querySelector('.comparison-row__note').textContent).toBe('Same station, other platform · not counted');
+    expect(platform.textContent).not.toContain('Not in');
+    const summary = node('atlasPanel', 'summary').textContent;
+    expect(summary).toContain('1 of 2 stops match in order');
+    expect(summary).toContain('0 only in ATLAS · 0 only in OSM · 1 at another platform');
+  });
+
   test('row hover and click send the stop positions to the variant map', async () => {
     const events = [];
     const record = event => events.push([event.type, event.target.closest('details').id, event.detail]);

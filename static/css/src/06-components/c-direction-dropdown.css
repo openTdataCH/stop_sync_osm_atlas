@@ -85,6 +85,58 @@
     background-color: var(--color-bg-muted);
 }
 
+/* A route filter's chip shrinks to its container: a long variant label is cut
+   with an ellipsis (its title shows it whole) and the × stays visible. */
+.filter-chip-route {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+}
+
+.filter-chip-route .direction-dropdown {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+.filter-chip-route .direction-current {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The route's variants, below the directions: wider than the chip, opening
+   leftwards from its right edge (the chip sits at the right of the map),
+   wrapped, and scrolled when the route has many. */
+.direction-dropdown[data-route-id] .direction-options {
+    left: auto;
+    right: -1px;
+    min-width: calc(100% + 2px);
+    width: max-content;
+    max-width: min(30rem, 90vw);
+    max-height: 60vh;
+    overflow-y: auto;
+    text-align: left;
+}
+
+.direction-group {
+    padding: var(--space-2) var(--space-3) var(--space-1);
+    border-top: var(--border-width) solid var(--color-border);
+    font-size: var(--text-xs);
+    font-weight: var(--font-semibold);
+    color: var(--color-fg-muted);
+    cursor: default;
+}
+
+.direction-option--variant {
+    padding-left: var(--space-4);
+    white-space: normal;
+}
+
+.direction-option--variant.is-current {
+    background-color: var(--color-primary-subtle);
+    font-weight: var(--font-medium);
+}
+
 /* Highlight current selection in dropdown */
 .direction-dropdown[data-current=""] .direction-option[data-direction=""],
 .direction-dropdown[data-current="0"] .direction-option[data-direction="0"],

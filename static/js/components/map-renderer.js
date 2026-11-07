@@ -369,33 +369,26 @@ function renderEntities(entities, layer, options = {}) {
 /**
  * A wrapper for L.popup to apply consistent options.
  * @param {string} content - HTML content for the popup.
+ * @param {Object} [overrides] - Leaflet popup options that replace the defaults,
+ *   e.g. a small map that pans to its popup and keeps one open.
  * @returns {L.Popup} A Leaflet popup instance.
  */
-function createPopupWithOptions(content) {
+function createPopupWithOptions(content, overrides) {
     const defaultMaxWidth = (AppConstants.POPUP && AppConstants.POPUP.MULTI_BUBBLE_RESIZE_MAX_WIDTH_PX)
         ? AppConstants.POPUP.MULTI_BUBBLE_RESIZE_MAX_WIDTH_PX
         : 900;
-
-    // move_popup.js provides L.draggablePopup
-    if (L.draggablePopup) {
-        return L.draggablePopup({
-            autoClose: false,
-            closeOnClick: false,
-            autoPan: false,
-            maxWidth: defaultMaxWidth,
-            closeButton: true,
-            className: 'customPopup permanent-popup'
-        }).setContent(content);
-    }
-    // Fallback to standard popup if draggable isn't loaded
-    return L.popup({
+    const options = {
         autoClose: false,
         closeOnClick: false,
         autoPan: false,
         maxWidth: defaultMaxWidth,
         closeButton: true,
-        className: 'customPopup permanent-popup'
-    }).setContent(content);
+        className: 'customPopup permanent-popup',
+        ...overrides
+    };
+
+    // move_popup.js provides L.draggablePopup; fall back to a standard popup.
+    return (L.draggablePopup ? L.draggablePopup(options) : L.popup(options)).setContent(content);
 }
 
 window.MapRenderer = Object.freeze({

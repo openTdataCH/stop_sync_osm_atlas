@@ -227,6 +227,9 @@
         LINE_OSM_GROUP: '#4CAF50',
         LINE_OSM_GROUP_DASH: '6,4',
         LINE_OSM_GROUP_DASH_ALT: '4,4',
+        // Route variant maps: a stop the other variant does not share (dashed
+        // ring), or shares only as its station at another platform (dashed line).
+        NOT_SHARED: '#D97706',
         TEMP_MARKER: '#174092',
 
         // Compatibility aliases for legacy callers

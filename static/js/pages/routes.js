@@ -6,6 +6,9 @@
   var headerSummaryController = null;
   var routeMaps = new Map();
   var removeRouteMapListeners = [];
+  // One controller for every route map: a stop loaded on one map opens at
+  // once on another (static/js/components/map-popup-controller.js).
+  var stopPopupController = null;
   // Pixel padding keeps a variant large in a narrow map; pad() scales with the route.
   var FIT_OPTIONS = { padding: [28, 28], maxZoom: 17 };
 
@@ -442,6 +445,124 @@
     };
   }
 
+  function mainMapUrl() {
+    return (window.routesPageConfig && window.routesPageConfig.mainMapUrl) || '/';
+  }
+
+  // The card's "Main map" link opens the main map on the variants this map
+  // shows, with the routes page's keys (?atlas_variant= / ?osm_variant=): a
+  // route filter narrowed to them, at this map's view. A comparison sets
+  // mapState.mainMapVariants; otherwise the panel's own variants are used.
+  function followMainMapLink(mapState, mapElement) {
+    var shell = mapElement.closest('.route-card__map-shell');
+    var link = shell && shell.querySelector('.variant-map__main-map');
+    var panel = mapElement.closest('.route-card__panel--map');
+    if (!link) return function () {};
+    function update() {
+      var variants = mapState.mainMapVariants || {
+        atlas_variant: (panel && panel.dataset.atlasVariant) || null,
+        osm_variant: (panel && panel.dataset.osmVariant) || null
+      };
+      var query = Permalinks.encodeParams(variants);
+      var hash = '';
+      try { hash = Permalinks.currentMapHash(mapState.map); } catch (error) { hash = ''; }  // no view yet
+      link.href = mainMapUrl() + (query ? '?' + query : '') + hash;
+    }
+    mapState.updateMainMapLink = update;
+    mapState.map.on('moveend', update);
+    update();
+    return function () { mapState.map.off('moveend', update); };
+  }
+
+  // The main map's link to one stop, with its popup open (?sloid= / ?osm=).
+  function mainMapStopUrl(type, ref) {
+    var params = Permalinks.stopParams(type, ref);
+    return params ? mainMapUrl() + '?' + Permalinks.encodeParams(params) : null;
+  }
+
+  // Route stops name their source stop; /api/data rows name their stop row.
+  function stopPopupQuery(entity) {
+    var ref = entity.popupRef || {};
+    var params = ref.id != null ? { stop_id: ref.id }
+      : ref.sloid ? { sloid: ref.sloid }
+        : ref.osm_node_id ? { osm_node_id: ref.osm_node_id } : null;
+    if (!params) return null;
+    params.view_type = entity.entityType;
+    return buildQueryString(params);
+  }
+
+  function renderStopPopup(payload, entityType) {
+    var stop = payload && (payload.stop || payload);
+    if (!stop) throw new Error('The popup endpoint returned no stop data.');
+    var options = { mainMapUrl: mainMapStopUrl };
+    if (stop.stop_type === 'atlas_unmatched') {
+      return entityType === 'atlas'
+        ? PopupRenderer.generateSingleAtlasBubbleHtml(stop, true, options)
+        : PopupRenderer.generateSingleOsmBubbleHtml(stop, true, options);
+    }
+    return PopupRenderer.generatePopupHtml(stop, entityType, options);
+  }
+
+  function getStopPopupController() {
+    if (!stopPopupController) {
+      stopPopupController = window.MapComponents.MapPopupController.create({
+        cache: 'payload',
+        // Redraws replace markers; keep loaded stops for the replacements.
+        retainCacheOnDetach: true,
+        errorContent: '<div class="popup-error">Unable to load stop details. Click the marker to retry.</div>',
+        onError: function (error) { console.error('Failed to load stop popup:', error); }
+      });
+    }
+    return stopPopupController;
+  }
+
+  // The map is a card beside the stop list: one popup at a time, panned clear
+  // of the zoom control and the card's buttons, and no taller than the map.
+  var POPUP_PAN_TOP_LEFT = [56, 48];
+  var POPUP_PAN_BOTTOM_RIGHT = [12, 12];
+  function createStopPopupBinder(mapState) {
+    return function (marker, entity) {
+      var query = stopPopupQuery(entity);
+      if (!query) return;
+      mapState.popupMarkers.push({ marker: marker, key: entity.key });
+      getStopPopupController().attach(marker, {
+        key: entity.key,
+        load: function (context) {
+          return fetch('/api/stop_popup?' + query, { signal: context.signal }).then(function (response) {
+            if (!response.ok) throw new Error('Stop details request failed with status ' + response.status);
+            return response.json();
+          });
+        },
+        render: function (payload) { return renderStopPopup(payload, entity.entityType); },
+        createPopup: function (content) {
+          return window.MapRenderer.createPopupWithOptions(content, {
+            autoClose: true, closeOnClick: true, autoPan: true,
+            autoPanPaddingTopLeft: POPUP_PAN_TOP_LEFT, autoPanPaddingBottomRight: POPUP_PAN_BOTTOM_RIGHT,
+            singleBubbleMapShare: 0.9,
+            maxHeight: Math.max(160, mapState.map.getSize().y - POPUP_PAN_TOP_LEFT[1] - POPUP_PAN_BOTTOM_RIGHT[1] - 32)
+          });
+        }
+      });
+    };
+  }
+
+  // Detaches the stop popups before a redraw and returns the open one's key.
+  function detachStopPopups(mapState) {
+    var openKey = null;
+    mapState.popupMarkers.forEach(function (entry) {
+      if (typeof entry.marker.isPopupOpen === 'function' && entry.marker.isPopupOpen()) openKey = entry.key;
+      if (stopPopupController) stopPopupController.detach(entry.marker);
+    });
+    mapState.popupMarkers = [];
+    return openKey;
+  }
+
+  function reopenStopPopup(mapState, key) {
+    if (key == null || !stopPopupController) return;
+    var entry = mapState.popupMarkers.find(function (candidate) { return candidate.key === key; });
+    if (entry) stopPopupController.open(entry.marker);
+  }
+
   function createRouteMap(mapElement) {
     var defaultCenter = AppConstants.MAP.DEFAULT_CENTER;
     var defaultZoom = AppConstants.MAP.DEFAULT_ZOOM;
@@ -499,7 +620,8 @@
       source: null,
       contextStops: [],
       showContext: false,
-      markerMode: null
+      markerMode: null,
+      popupMarkers: []  // [{ marker, key }] bound to stop popups
     };
 
     function refreshMarkersAtZoomThreshold() {
@@ -510,7 +632,9 @@
     }
 
     mapState.markerMode = getMarkerMode(mapInstance.getZoom());
+    mapState.bindPopup = createStopPopupBinder(mapState);
     mapInstance.on('zoomend', refreshMarkersAtZoomThreshold);
+    var removeMainMapLink = followMainMapLink(mapState, mapElement);
     var removeWheelGuard = guardWheelZoom(mapInstance, mapElement);
     // The map card follows the height of the stop list, e.g. when a fold opens.
     var resizeObserver = typeof ResizeObserver === 'function'
@@ -518,6 +642,7 @@
     if (resizeObserver) resizeObserver.observe(mapElement);
     mapState.removeZoomListener = function () {
       mapInstance.off('zoomend', refreshMarkersAtZoomThreshold);
+      removeMainMapLink();
       removeWheelGuard();
       if (resizeObserver) resizeObserver.disconnect();
     };
@@ -574,13 +699,101 @@
       });
     }
 
+    // Partners drawn faded by drawComparisonMarks are not drawn again.
+    var comparison = mapState.source && mapState.source.type === 'variant' && mapState.source.data.stop_comparison;
+    ((comparison && comparison.rows) || []).forEach(function (row) {
+      [row.atlas, row.osm].forEach(function (stop) {
+        ((stop && stop.partners) || []).forEach(function (partner) { sourceIds.add(String(partner.stop_id)); });
+      });
+    });
+
     var stops = mapState.contextStops.filter(function (stop) {
       return !sourceIds.has(String(stop.sloid)) && !sourceIds.has(String(stop.osm_node_id));
     });
     var snapshot = window.MapEntityAdapters.stops(stops, { emphasis: 'subdued' });
     window.MapRenderer.renderEntities(snapshot.entities, mapState.markersLayer, {
-      map: mapState.map, zoom: mapState.map.getZoom(), overlap: false
+      map: mapState.map, zoom: mapState.map.getZoom(), overlap: false, bindPopup: mapState.bindPopup
     });
+  }
+
+  function comparisonStopKey(source, stop) {
+    return source + ':' + ((stop.stop_ids || [])[0] || stop.id);
+  }
+
+  /**
+   * The stop list, drawn on the map. Marker colours stay those of stop
+   * matching, as on the main map; the comparison adds marks of its own: a solid
+   * line joins the same stop in both variants, a dashed line the same station
+   * at another platform, and a dashed ring circles a stop the other variant
+   * does not have. A thin line joins each stop to its own stop matches; a
+   * match that neither variant calls at is returned, to be drawn faded. All
+   * marks are drawn over the stops and not clickable, so a click reaches the
+   * stop's popup.
+   */
+  function drawComparisonMarks(mapState, comparison) {
+    var rows = (comparison && comparison.rows) || [];
+    var colors = AppConstants.COLORS || {};
+    var positionOf = function (stop) { return stop && window.MapShared.finitePosition(stop.lat, stop.lon); };
+    // A variant listed on its own has nothing to compare with.
+    var compared = rows.some(function (row) { return row.atlas; }) && rows.some(function (row) { return row.osm; });
+    var shared = new Set();
+    rows.forEach(function (row) {
+      if (row.match_type) shared.add(comparisonStopKey('atlas', row.atlas)).add(comparisonStopKey('osm', row.osm));
+    });
+    var drawn = new Set();
+    function draw(key, layer) {
+      if (drawn.has(key)) return;
+      drawn.add(key);
+      mapState.linesLayer.addLayer(layer);
+    }
+    rows.forEach(function (row) {
+      var atlas = positionOf(row.atlas);
+      var osm = positionOf(row.osm);
+      if ((row.match_type || row.same_station) && atlas && osm) {
+        draw('line:' + atlas.join(',') + ':' + osm.join(','), L.polyline([atlas, osm], row.match_type
+          ? { color: colors.LINE_ATLAS_OSM || '#174092', weight: 2, opacity: 0.8, interactive: false }
+          : { color: colors.NOT_SHARED || '#D97706', weight: 2, opacity: 0.9, dashArray: '4,4', interactive: false }));
+      }
+      if (!compared || row.match_type) return;
+      [['atlas', atlas], ['osm', osm]].forEach(function (side) {
+        var stop = row[side[0]];
+        if (!side[1] || shared.has(comparisonStopKey(side[0], stop))) return;
+        draw('ring:' + comparisonStopKey(side[0], stop), L.circleMarker(side[1], {
+          radius: 10, weight: 2, color: colors.NOT_SHARED || '#D97706', dashArray: '3,3',
+          fill: false, interactive: false
+        }));
+      });
+    });
+
+    var onMap = new Set();
+    rows.forEach(function (row) {
+      ['atlas', 'osm'].forEach(function (source) {
+        if (row[source] && row[source].source_id) onMap.add(source + ':' + row[source].source_id);
+      });
+    });
+    var faded = new Map();
+    rows.forEach(function (row) {
+      ['atlas', 'osm'].forEach(function (source) {
+        var stop = row[source];
+        var from = positionOf(stop);
+        var other = source === 'atlas' ? 'osm' : 'atlas';
+        (from ? stop.partners || [] : []).forEach(function (partner) {
+          var to = positionOf(partner);
+          // The same stop in both variants: its solid line already joins them.
+          if (!to || (row.match_type && row[other] && row[other].source_id === partner.stop_id)) return;
+          var partnerKey = other + ':' + partner.stop_id;
+          draw('match:' + [source + ':' + stop.source_id, partnerKey].sort().join('|'), L.polyline([from, to], {
+            color: colors.LINE_ATLAS_OSM || '#174092', weight: 1.5, opacity: 0.5, interactive: false
+          }));
+          if (onMap.has(partnerKey) || faded.has(partnerKey)) return;
+          faded.set(partnerKey, window.MapEntityAdapters.stopEntity(other, {}, {
+            identifier: partner.stop_id, position: to, status: 'matched', emphasis: 'subdued',
+            popupRef: other === 'atlas' ? { sloid: partner.stop_id } : { osm_node_id: partner.stop_id }
+          }));
+        });
+      });
+    });
+    return Array.from(faded.values()).filter(Boolean);
   }
 
   function renderMapSnapshot(mapState) {
@@ -588,27 +801,18 @@
     var snapshot = mapState.source.type === 'variant'
       ? window.MapEntityAdapters.routeDirection(mapState.source.data)
       : window.MapEntityAdapters.stops(mapState.source.data);
+    var openPopupKey = detachStopPopups(mapState);
     mapState.markersLayer.clearLayers();
     mapState.linesLayer.clearLayers();
     window.MapRenderer.renderEntities(snapshot.entities, mapState.markersLayer, {
-      map: mapState.map, zoom: mapState.map.getZoom(), overlap: false
+      map: mapState.map, zoom: mapState.map.getZoom(), overlap: false, bindPopup: mapState.bindPopup
     });
-    var comparison = mapState.source.type === 'variant' && mapState.source.data.stop_comparison;
-    var seenLinks = new Set();
-    (comparison && comparison.rows || []).forEach(function (row) {
-      if (!row.match_type || !row.atlas || !row.osm) return;
-      var atlasPosition = window.MapShared.finitePosition(row.atlas.lat, row.atlas.lon);
-      var osmPosition = window.MapShared.finitePosition(row.osm.lat, row.osm.lon);
-      if (!atlasPosition || !osmPosition) return;
-      var key = atlasPosition.join(',') + ':' + osmPosition.join(',');
-      if (seenLinks.has(key)) return;
-      seenLinks.add(key);
-      mapState.linesLayer.addLayer(L.polyline([atlasPosition, osmPosition], {
-        color: (AppConstants.COLORS || {}).LINE_ATLAS_OSM || '#174092',
-        weight: 2, opacity: 0.8
-      }));
+    var partners = drawComparisonMarks(mapState, mapState.source.type === 'variant' && mapState.source.data.stop_comparison);
+    window.MapRenderer.renderEntities(partners, mapState.markersLayer, {
+      map: mapState.map, zoom: mapState.map.getZoom(), overlap: false, bindPopup: mapState.bindPopup
     });
     addContextStops(mapState);
+    reopenStopPopup(mapState, openPopupKey);
     return snapshot.entities.map(entity => entity.sourcePosition);
   }
 
@@ -906,6 +1110,11 @@
       if (mapState.contextController) mapState.contextController.abort();
       mapState.contextStops = [];
       var comparison = event.detail;
+      mapState.mainMapVariants = comparison ? {
+        atlas_variant: (comparison.atlas && comparison.atlas.source_itinerary_id) || null,
+        osm_variant: (comparison.osm && comparison.osm.source_itinerary_id) || null
+      } : null;
+      if (mapState.updateMainMapLink) mapState.updateMainMapLink();
       if (!comparison) {
         mapState.comparisonBounds = null;
         loadRouteMapData(mapElement, mapState);
@@ -920,7 +1129,8 @@
           return {
             stop_id: (stop.stop_ids || [])[0] || String(stop.id),
             lat: stop.lat, lon: stop.lon,
-            stop_type: row.match_type ? 'matched' : source + '_unmatched'
+            // Stop matching, as on the main map; the comparison draws its own marks.
+            stop_type: stop.stop_type || source + '_unmatched'
           };
         }) }];
       });
@@ -1030,6 +1240,8 @@
   function destroyRouteMaps() {
     removeRouteMapListeners.forEach(function (remove) { remove(); });
     removeRouteMapListeners = [];
+    if (stopPopupController) stopPopupController.destroy();
+    stopPopupController = null;
     routeMaps.forEach(function (mapState) {
       clearTimeout(mapState.resizeTimer);
       mapState.requestSequence += 1;

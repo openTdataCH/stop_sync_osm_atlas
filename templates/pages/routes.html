@@ -10,9 +10,7 @@
 {% endblock %}
 
 {% block head_css %}
-{% if active_view == 'gtfs_stop_id_sloid' %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
-{% endif %}
 <!-- Shared filters/overlay CSS -->
 <link rel="stylesheet" href="{{ url_for('static', filename='css/components/shared-filters.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/routes.css') }}">
@@ -425,9 +423,15 @@
 
               {% if route.map_filter %}
               <aside class="variant-map route-card__map-shell" aria-label="Map of the compared stops">
-                <button type="button" class="variant-map__context toggle-context-btn" data-map-index="{{ map_index }}" aria-pressed="false">
-                  <i class="fas fa-eye" aria-hidden="true"></i> See other markers
-                </button>
+                <div class="variant-map__actions">
+                  <button type="button" class="variant-map__action variant-map__context toggle-context-btn" data-map-index="{{ map_index }}" aria-pressed="false">
+                    <i class="fas fa-eye" aria-hidden="true"></i> See other markers
+                  </button>
+                  {# routes.js adds the shown variants (?atlas_variant= / ?osm_variant=) and the #map= view: the main map opens on these variants, where this map is. #}
+                  <a class="variant-map__action variant-map__main-map" href="{{ url_for('pages.index') }}" target="_blank" rel="noopener" title="Open these variants in the main map, with every stop match, in a new tab">
+                    <i class="fas fa-external-link-alt" aria-hidden="true"></i> Main map
+                  </a>
+                </div>
                 <div
                   id="routeMap{{ map_index }}"
                   class="route-card__map"
@@ -438,6 +442,18 @@
                   data-route-id="{{ route.primary_route_id }}"
                   data-map-index="{{ map_index }}"
                 ></div>
+                <details class="variant-map__legend">
+                  <summary>Legend</summary>
+                  <ul>
+                    <li><span class="variant-map__key variant-map__key--matched" aria-hidden="true"></span> Matched stop ({{ review_config.source_label }} blue, OSM green)</li>
+                    <li><span class="variant-map__key variant-map__key--unmatched" aria-hidden="true"></span> Unmatched stop ({{ review_config.source_label }} red, OSM grey)</li>
+                    <li><span class="variant-map__key variant-map__key--line" aria-hidden="true"></span> Same stop in both variants</li>
+                    <li><span class="variant-map__key variant-map__key--match" aria-hidden="true"></span> Stop match (faded stop: in neither variant)</li>
+                    <li><span class="variant-map__key variant-map__key--platform" aria-hidden="true"></span> Same station, other platform</li>
+                    <li><span class="variant-map__key variant-map__key--ring" aria-hidden="true"></span> Not in the other variant</li>
+                  </ul>
+                  <p>Colours show stop matching, as on the main map.</p>
+                </details>
                 <p class="variant-map__hint" aria-hidden="true">Click the map to zoom with the scroll wheel</p>
               </aside>
               {% endif %}
@@ -623,11 +639,11 @@
 <script src="{{ url_for('static', filename='js/components/map-viewport-loader.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/header-summary.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>
-{% if active_view == 'gtfs_stop_id_sloid' %}
-<script src="{{ url_for('static', filename='js/components/move_popup.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/line-renderer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/popup-utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/popup-renderer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/move_popup.js') }}"></script>
+{% if active_view == 'gtfs_stop_id_sloid' %}
+<script src="{{ url_for('static', filename='js/components/line-renderer.js') }}"></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/components/map-renderer.js') }}"></script>
 {% if active_view in ['routes', 'non_gtfs_routes'] %}
@@ -639,7 +655,8 @@
   "matchedFilter": {{ matched_filter | tojson }},
   "matchFilterLabels": {{ dict(match_filter_labels, unmatched_atlas="Unmatched " ~ review_config.source_label) | tojson }},
   "q": {{ q | tojson }},
-  "baseUrl": {{ url_for('routes.routes_page') | tojson }}
+  "baseUrl": {{ url_for('routes.routes_page') | tojson }},
+  "mainMapUrl": {{ url_for('pages.index') | tojson }}
 }
 </script>
 <script>

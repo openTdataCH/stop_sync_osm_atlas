@@ -149,6 +149,12 @@
 
   function renderLink(row) {
     var link = element('span', 'comparison-link');
+    if (row.same_station) {
+      link.classList.add('comparison-link--platform');
+      link.title = 'Same station, different platform: not counted as a shared stop';
+      link.appendChild(element('span', 'visually-hidden', 'same station, different platform'));
+      return link;
+    }
     if (!row.match_type || !row.atlas || !row.osm) {
       link.setAttribute('aria-hidden', 'true');
       return link;
@@ -164,6 +170,7 @@
   }
 
   function rowKind(row) {
+    if (row.same_station) return 'platform';
     if (row.atlas && row.osm) return row.match_type ? 'matched' : 'unlinked';
     return row.atlas ? 'atlas-only' : 'osm-only';
   }
@@ -206,6 +213,7 @@
       node.appendChild(renderStop(row.atlas, 'atlas', single ? '' : 'Not in ' + sourceLabel));
       node.appendChild(renderLink(row));
       node.appendChild(renderStop(row.osm, 'osm', single ? '' : 'Not in OSM'));
+      if (kind === 'platform') node.appendChild(element('span', 'comparison-row__note', 'Same station, other platform · not counted'));
       var points = [stopPoint(row.atlas), stopPoint(row.osm)].filter(Boolean);
       if (points.length) node.dataset.points = JSON.stringify(points);
       list.appendChild(node);
@@ -224,8 +232,10 @@
     var text = element('span', 'comparison-score__text');
     var longer = Math.max(data.atlas_stop_count || 0, data.osm_stop_count || 0);
     text.appendChild(element('strong', '', data.matched_stop_count + ' of ' + longer + ' stops match in order'));
-    text.appendChild(element('span', '', (data.atlas_stop_count - data.matched_stop_count) + ' only in ' + options.sourceLabel +
-      ' · ' + (data.osm_stop_count - data.matched_stop_count) + ' only in OSM'));
+    var platforms = (data.rows || []).filter(function (row) { return row.same_station; }).length;
+    text.appendChild(element('span', '', (data.atlas_stop_count - data.matched_stop_count - platforms) + ' only in ' + options.sourceLabel +
+      ' · ' + (data.osm_stop_count - data.matched_stop_count - platforms) + ' only in OSM' +
+      (platforms ? ' · ' + platforms + ' at another platform' : '')));
     container.appendChild(text);
     var badges = element('span', 'comparison-score__badges');
     if (options.saved) badges.appendChild(element('span', 'comparison-badge comparison-badge--saved', 'Saved match'));

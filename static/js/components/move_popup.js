@@ -16,6 +16,8 @@
             // Professional width control settings
             fitBubblesSingleRow: true,
             singleBubbleMaxWidthPx: AppConstants.POPUP.SINGLE_BUBBLE_MAX_WIDTH_PX,
+            // Share of the map width one bubble may take; small maps raise it.
+            singleBubbleMapShare: 0.6,
             multiBubbleOptimalWidth: AppConstants.POPUP.MULTI_BUBBLE_OPTIMAL_WIDTH,
             multiBubbleMaxWidthPx: AppConstants.POPUP.MULTI_BUBBLE_MAX_WIDTH_PX || 420,
             multiBubbleResizeMaxWidthPx: AppConstants.POPUP.MULTI_BUBBLE_RESIZE_MAX_WIDTH_PX || 900,
@@ -54,6 +56,8 @@
                 this._bindMapEventHandlers();
                 this._ensureDragHandleAtTop();
                 this._repositionCloseButton();
+                // Leaflet panned for the size before the bubble layout above.
+                this._panIntoView();
             }, 100);
             return this;
         },
@@ -75,8 +79,16 @@
                     this._analyzeBubbleLayout();
                     this._applyOptimalWidth();
                     this._updateLine();
+                    this._panIntoView();
                 }
             }, 10);
+        },
+        // Popups that pan into view (route maps) follow their own resizes.
+        // Leaflet pans by the width it measured, before the bubble layout.
+        _panIntoView: function() {
+            if (!this._map || !this._container || !this.options.autoPan) return;
+            this._containerWidth = this._container.offsetWidth;
+            this._adjustPan();
         },
         _bindMapEventHandlers: function() {
             if (!this._map || this._mapEventHandlersBound) return;
@@ -110,6 +122,8 @@
             }
             contentNode.style.height = 'auto';
             contentNode.style.overflow = 'auto';
+            // Leaflet's maxHeight sets a fixed height, which 'auto' above undoes.
+            if (this.options.maxHeight) contentNode.style.maxHeight = `${this.options.maxHeight}px`;
         },
         _analyzeBubbleLayout: function() {
             if (!this._contentNode) return;
@@ -185,7 +199,7 @@
             const optimalWidth = requiredContentWidth + containerPadding + bufferSpace;
 
             const viewportCap = this._map
-                ? Math.max(this.options.minWidth, Math.floor(this._map.getSize().x * 0.6))
+                ? Math.max(this.options.minWidth, Math.floor(this._map.getSize().x * this.options.singleBubbleMapShare))
                 : this.options.singleBubbleMaxWidthPx;
             const maxWidth = Math.min(this.options.singleBubbleMaxWidthPx, viewportCap);
 
@@ -199,6 +213,9 @@
             }
 
             this._currentWidth = this._calculateMultiBubbleWidth();
+            // The stylesheet picks columns by window width; a small map in a wide
+            // window has room for one column only.
+            this._currentMatchesContainer.style.gridTemplateColumns = this._multiBubbleColumns === 1 ? '1fr' : '';
             this._applyDimensions();
             this._updatePosition();
         },
@@ -207,6 +224,12 @@
             const viewportWidth = this._map ? this._map.getSize().x : this.options.singleBubbleMaxWidthPx;
             const compactColumns = viewportWidth <= 900 ? 1 : this.options.multiBubbleMaxColumns;
             const columns = Math.max(1, Math.min(compactColumns, bubbleCount));
+            this._multiBubbleColumns = columns;
+            if (columns === 1) {
+                // Stacked bubbles are read one at a time: as wide as a single bubble.
+                return Math.max(this.options.minWidth, Math.min(this.options.singleBubbleMaxWidthPx,
+                    Math.floor(viewportWidth * this.options.singleBubbleMapShare)));
+            }
 
             const gap = 6;
             const containerPadding = 10;

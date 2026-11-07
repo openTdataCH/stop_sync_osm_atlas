@@ -236,9 +236,13 @@ button.comparison-badge__target:focus-visible { outline: 2px solid var(--color-p
 .comparison-row[data-points] { cursor: pointer; }
 .comparison-row:hover { --row-bg: var(--color-bg-subtle); }
 .comparison-row--atlas-only,
-.comparison-row--osm-only { --row-bg: var(--color-warning-subtle); }
+.comparison-row--osm-only,
+.comparison-row--platform { --row-bg: var(--color-warning-subtle); }
 .comparison-row--atlas-only:hover,
-.comparison-row--osm-only:hover { --row-bg: var(--color-warning-subtle); }
+.comparison-row--osm-only:hover,
+.comparison-row--platform:hover { --row-bg: var(--color-warning-subtle); }
+/* Same station on both sides, at different platforms: one row, not counted. */
+.comparison-row__note { grid-column: 1 / -1; padding: 0 .5rem .35rem; text-align: center; font-size: .7rem; font-style: italic; color: var(--color-warning-fg); }
 .comparison-rows--single .comparison-row { --row-bg: var(--color-bg); }
 .comparison-rows--single .comparison-row:hover { --row-bg: var(--color-bg-subtle); }
 
@@ -265,7 +269,8 @@ button.comparison-badge__target:focus-visible { outline: 2px solid var(--color-p
 .comparison-row--matched .comparison-stop--atlas .comparison-stop__position { background: var(--color-primary-subtle); color: var(--color-primary); }
 .comparison-row--matched .comparison-stop--osm .comparison-stop__position { background: var(--color-success-subtle); color: var(--color-success-fg); }
 .comparison-row--atlas-only .comparison-stop__position,
-.comparison-row--osm-only .comparison-stop__position { background: var(--color-warning-subtle); color: var(--color-warning-fg); }
+.comparison-row--osm-only .comparison-stop__position,
+.comparison-row--platform .comparison-stop__position { background: var(--color-warning-subtle); color: var(--color-warning-fg); }
 .comparison-rows--single .comparison-stop__position { background: var(--color-bg-muted); color: var(--color-fg-muted); }
 .comparison-stop__missing { padding: .1rem .55rem; border: 1px dashed var(--color-border-emphasis); border-radius: var(--radius-full); font-size: .7rem; font-style: italic; color: var(--color-fg-muted); white-space: nowrap; }
 
@@ -273,6 +278,7 @@ button.comparison-badge__target:focus-visible { outline: 2px solid var(--color-p
 .comparison-link--stop::before,
 .comparison-link--uic::before { content: ''; position: absolute; top: 50%; right: 0; left: 0; border-top: 2px solid var(--color-map-line-atlas-osm); }
 .comparison-link--uic::before { border-top-style: dashed; border-top-color: var(--color-fg-subtle); }
+.comparison-link--platform::before { content: ''; position: absolute; top: 50%; right: 0; left: 0; border-top: 2px dashed var(--color-map-not-shared); }
 .comparison-link__mark { position: relative; z-index: 1; }
 .comparison-link--stop .comparison-link__mark { width: .55rem; height: .55rem; border-radius: var(--radius-full); background: var(--color-map-line-atlas-osm); box-shadow: 0 0 0 3px var(--row-bg); }
 .comparison-link--uic .comparison-link__mark { padding: 0 .25rem; background: var(--row-bg); color: var(--color-fg-muted); font-size: .58rem; font-weight: var(--font-bold); letter-spacing: .05em; }

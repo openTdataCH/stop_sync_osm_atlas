@@ -190,9 +190,11 @@
         "tests": [
           "tests/test_validators.py",
           "tests/test_public_api.py",
+          "tests/test_stop_popup.py",
           "tests/test_filter_semantics.py",
           "tests/test_routes_blueprint.py",
           "tests/test_route_comparison.py",
+          "tests/test_route_variant_filter.py",
           "tests/test_operator_map_filters.py",
           "tests/test_global_stats_service.py",
           "tests/test_stats_export.py",

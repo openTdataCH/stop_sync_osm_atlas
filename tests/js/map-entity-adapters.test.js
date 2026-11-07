@@ -126,6 +126,7 @@ describe('Canonical map entities and page adapters', () => {
     expect(snapshot.entities.map(entity => entity.key)).toEqual(['atlas:b', 'atlas:a', 'osm:2']);
     expect(snapshot.entities[0]).toEqual(expect.objectContaining({ label: 'D', status: 'unmatched' }));
     expect(snapshot.entities[2]).toEqual(expect.objectContaining({ label: 'P', status: 'effectively_matched' }));
+    expect(snapshot.entities.map(entity => entity.popupRef)).toEqual([{ sloid: 'b' }, { sloid: 'a' }, { osm_node_id: '2' }]);
     const layout = window.MapRenderer.layoutEntities(snapshot.entities, { zoom: 20, overlap: false });
     expect(layout.descriptors.map(item => item.displayPosition)).toEqual(snapshot.entities.map(entity => entity.sourcePosition));
   });

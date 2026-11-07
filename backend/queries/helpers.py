@@ -1,3 +1,5 @@
+import json
+
 from backend.extensions import db
 from backend.query_builder import QueryBuilder
 from backend.services.matching_rules import match_types_for_filter
@@ -161,6 +163,36 @@ def build_stop_scope_condition(stop_model, resolved_filters):
     return None
 
 
+def parse_route_variants(text, count):
+    """Variant selections of the route filters, one per filter value.
+
+    ``text`` is a JSON list aligned with ``station_filter``: ``null`` keeps the
+    whole route, ``{"atlas": key, "osm": key}`` narrows it to those variants
+    (keys as in the routes page's ``atlas_variant``/``osm_variant``). Commas in
+    ATLAS headsigns rule out the comma lists of the other parameters. Malformed
+    input narrows to nothing rather than widening to the whole route.
+    """
+    if not text:
+        return [None] * count
+    nothing = {'atlas': None, 'osm': None}
+    try:
+        entries = json.loads(text)
+    except ValueError:
+        return [nothing] * count
+    if not isinstance(entries, list):
+        return [nothing] * count
+    variants = []
+    for entry in (entries + [None] * count)[:count]:
+        if entry is None:
+            variants.append(None)
+        elif isinstance(entry, dict):
+            variants.append({source: entry.get(source) if isinstance(entry.get(source), str) else None
+                             for source in ('atlas', 'osm')})
+        else:
+            variants.append(nothing)
+    return variants
+
+
 def parse_filter_params(request_args):
     filters = {}
     transport_types_str = request_args.get('transport_types')
@@ -189,7 +221,9 @@ def parse_filter_params(request_args):
         filter_types_str = request_args.get('filter_types', '')
         route_directions_str = request_args.get('route_directions', '')
         filters['filter_types'] = [ft.strip() for ft in filter_types_str.split(',') if ft.strip()] if filter_types_str else []
-        filters['route_directions'] = [rd.strip() for rd in route_directions_str.split(',') if rd.strip()] if route_directions_str else []
+        # Positional, like the filter values: "" is "both directions", so empty entries stay.
+        filters['route_directions'] = [rd.strip() for rd in route_directions_str.split(',')] if route_directions_str else []
+        filters['route_variants'] = parse_route_variants(request_args.get('route_variants'), len(filters['filter_values']))
     osm_group_types_str = request_args.get('osm_group_types')
     if osm_group_types_str is not None:
         normalized_group_types = [

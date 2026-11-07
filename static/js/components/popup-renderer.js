@@ -140,7 +140,7 @@
     }
 
     // The Index page turns this into a permalink; the raw id keeps the
-    // URL format in one place (main.js).
+    // URL format in one place (Permalinks.stopParams).
     function buildCopyLinkButtonHtml(type, ref) {
         const safeRef = SharedUtils.escapeHtml(ref).replace(/"/g, '&quot;');
         return `<button type="button" class="popup-copy-link" data-permalink-type="${type}" data-permalink-ref="${safeRef}" title="Copy a link that opens the map on this stop"><i class="fas fa-link"></i> Copy link</button>`;
@@ -156,6 +156,7 @@
             footerHtml = '',
             osmEditorUrl = null,
             permalinkRef = null,
+            mainMapUrl = null,
         } = options;
 
         const bubbleClass = getBubbleClass(type);
@@ -165,6 +166,10 @@
             links.push(`<a href="${osmEditorUrl}" class="osm-editor-link" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt"></i> Edit in OSM iD Editor</a>`);
         }
         if (hasValue(permalinkRef)) links.push(buildCopyLinkButtonHtml(type, permalinkRef));
+        if (hasValue(mainMapUrl)) {
+            const safeUrl = SharedUtils.escapeHtml(mainMapUrl).replace(/"/g, '&quot;');
+            links.push(`<a href="${safeUrl}" class="popup-main-map-link" target="_blank" rel="noopener" title="Open the main map on this stop in a new tab"><i class="fas fa-map-marked-alt"></i> Open in main map</a>`);
+        }
         const osmEditorLinkHtml = links.length
             ? `<div class="osm-editor-link-container mt-2">${links.join('')}</div>`
             : '';
@@ -360,6 +365,9 @@
             footerHtml,
             osmEditorUrl: type === 'osm' ? buildOsmEditorUrl(data.osm_node_id) : null,
             permalinkRef: opts.permalinks ? (type === 'atlas' ? data.sloid : data.osm_node_id) : null,
+            // Pages without the main map's own popups link to it instead.
+            mainMapUrl: typeof opts.mainMapUrl === 'function'
+                ? opts.mainMapUrl(type, type === 'atlas' ? data.sloid : data.osm_node_id) : null,
         });
     }
 

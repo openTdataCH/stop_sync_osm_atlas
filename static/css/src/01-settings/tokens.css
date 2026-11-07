@@ -84,6 +84,7 @@
   --color-map-osm-unmatched: #6c757d;
   --color-map-line-atlas-osm: #174092;
   --color-map-line-osm-group: #4caf50;
+  --color-map-not-shared: #d97706;
   --color-map-temp-marker: #174092;
 
   /* Code quality map edges: palette values only (static/js/quality/dashboard.js draws the same values) */

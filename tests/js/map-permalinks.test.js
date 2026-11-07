@@ -165,10 +165,10 @@ describe('Index map permalinks', () => {
             expect(window.parseStopPermalink(search)).toBeNull();
         });
 
-        expect(window.stopPermalinkParams('atlas', 'ch:1:sloid:7000')).toEqual({ sloid: 'ch:1:sloid:7000' });
-        expect(window.stopPermalinkParams('osm', '123')).toEqual({ osm: 'node/123' });
-        expect(window.stopPermalinkParams('osm', 'way_456')).toEqual({ osm: 'way/456' });
-        expect(window.stopPermalinkParams('gtfs', '8507000:0:1')).toBeNull();
+        expect(window.Permalinks.stopParams('atlas', 'ch:1:sloid:7000')).toEqual({ sloid: 'ch:1:sloid:7000' });
+        expect(window.Permalinks.stopParams('osm', '123')).toEqual({ osm: 'node/123' });
+        expect(window.Permalinks.stopParams('osm', 'way_456')).toEqual({ osm: 'way/456' });
+        expect(window.Permalinks.stopParams('gtfs', '8507000:0:1')).toBeNull();
     });
 
     test('writes the view to the hash once per burst of moves without loading data', () => {

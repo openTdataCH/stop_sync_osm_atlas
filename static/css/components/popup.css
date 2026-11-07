@@ -465,8 +465,21 @@
   cursor: pointer;
 }
 
-.leaflet-popup-content .osm-editor-link + .popup-copy-link {
+.leaflet-popup-content .osm-editor-link + .popup-copy-link,
+.leaflet-popup-content .osm-editor-link + .popup-main-map-link {
   margin-left: var(--space-3);
+}
+
+/* Route maps link a stop to the main map, styled like the iD link. */
+.popup-main-map-link {
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.popup-main-map-link:hover {
+  text-decoration: underline;
 }
 
 .leaflet-popup-content .popup-copy-link:hover {

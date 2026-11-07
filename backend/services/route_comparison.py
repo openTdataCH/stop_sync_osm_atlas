@@ -16,7 +16,7 @@ from sqlalchemy import String, and_, cast, exists, func, or_, select
 from sqlalchemy.orm import aliased
 
 from backend.extensions import db
-from backend.models import Itinerary, ItineraryBestOverlap, ItineraryMatch, LineFamily, StopCall
+from backend.models import Itinerary, ItineraryBestOverlap, ItineraryMatch, LineFamily, StopCall, StopsMatched
 
 
 def _text(value):
@@ -74,33 +74,32 @@ def _serialize_stop(call, source, position=None):
         'stop_sequence': call.stop_sequence,
         'stop_label': _text(getattr(call, 'stop_label', None)) or 'Unnamed stop',
         'stop_ids': list(dict.fromkeys(text for value in ids if (text := _text(value)))),
+        # The stop's id in stop matching: its SLOID, or its OSM node.
+        'source_id': _text(getattr(call, 'source_sloid' if source == 'atlas' else 'source_node_id', None)),
         'uic_ref': _text(getattr(call, 'uic_ref', None)),
         'lat': getattr(call, 'stop_lat', None),
         'lon': getattr(call, 'stop_lon', None),
     }
 
 
-def compare_stop_calls(atlas_calls, osm_calls, atlas_itinerary=None, osm_itinerary=None):
-    """Align two ordered call sequences; preserve gaps and repeated visits.
+def _align(atlas_items, osm_items, match):
+    """Longest common subsequence as ``(atlas index, OSM index, match)`` steps.
 
-    Traceback needs one byte per pair; scores only need the previous row. On
-    equal scores the engine prefers a matching diagonal, then an ATLAS gap.
+    A gap step has ``None`` on one side. Traceback needs one byte per pair;
+    scores only need the previous row. On equal scores the engine prefers a
+    matching diagonal, then an ATLAS gap.
     """
-    atlas_identities = [_identity(call) for call in atlas_calls]
-    osm_identities = [_identity(call) for call in osm_calls]
-    atlas_stops = [_serialize_stop(call, 'atlas', position) for position, call in enumerate(atlas_calls, 1)]
-    osm_stops = [_serialize_stop(call, 'osm', position) for position, call in enumerate(osm_calls, 1)]
-    width = len(osm_calls)
+    width = len(osm_items)
     trace = []
     previous = [0] * (width + 1)
-    for atlas_identity in atlas_identities:
+    for atlas_item in atlas_items:
         current = [0]
         row_trace = bytearray(width)
-        for j, osm_identity in enumerate(osm_identities):
-            match_type = _match_type(atlas_identity, osm_identity)
-            diagonal = previous[j] + bool(match_type)
+        for j, osm_item in enumerate(osm_items):
+            matched = match(atlas_item, osm_item)
+            diagonal = previous[j] + bool(matched)
             up, left = previous[j + 1], current[j]
-            if match_type and diagonal >= up and diagonal >= left:
+            if matched and diagonal >= up and diagonal >= left:
                 current.append(diagonal)
                 row_trace[j] = 1
             elif up >= left:
@@ -112,26 +111,75 @@ def compare_stop_calls(atlas_calls, osm_calls, atlas_itinerary=None, osm_itinera
         previous = current
         trace.append(row_trace)
 
-    rows = []
-    i, j = len(atlas_calls), width
+    steps = []
+    i, j = len(atlas_items), width
     while i or j:
         move = trace[i - 1][j - 1] if i and j else (2 if i else 3)
         if move == 1:
-            rows.append({'atlas': atlas_stops[i - 1], 'osm': osm_stops[j - 1],
-                         'match_type': _match_type(atlas_identities[i - 1], osm_identities[j - 1])})
+            steps.append((i - 1, j - 1, match(atlas_items[i - 1], osm_items[j - 1])))
             i -= 1
             j -= 1
         elif move == 2:
-            rows.append({'atlas': atlas_stops[i - 1], 'osm': None, 'match_type': None})
+            steps.append((i - 1, None, None))
             i -= 1
         else:
-            rows.append({'atlas': None, 'osm': osm_stops[j - 1], 'match_type': None})
+            steps.append((None, j - 1, None))
             j -= 1
-    rows.reverse()
+    steps.reverse()
+    return steps, previous[-1]
+
+
+def _same_station(atlas_uic, osm_uic):
+    return bool(atlas_uic) and atlas_uic == osm_uic
+
+
+def _gap_rows(gap, atlas_identities, osm_identities, atlas_stops, osm_stops):
+    """Rows for a run of unshared stops between two shared ones.
+
+    Stops of the same station (same UIC) on both sides, at different
+    platforms, share one row marked ``same_station``. They still do not count
+    as shared stops, as in the engine.
+    """
+    atlas_gap = [i for i, _, _ in gap if i is not None]
+    osm_gap = [j for _, j, _ in gap if j is not None]
+    shared_uics = {atlas_identities[i][1] for i in atlas_gap} & {osm_identities[j][1] for j in osm_gap}
+    if not shared_uics - {None}:
+        return [{'atlas': atlas_stops[i] if i is not None else None,
+                 'osm': osm_stops[j] if j is not None else None, 'match_type': None} for i, j, _ in gap]
+    steps, _ = _align([atlas_identities[i][1] for i in atlas_gap],
+                      [osm_identities[j][1] for j in osm_gap], _same_station)
+    rows = []
+    for a, o, same in steps:
+        row = {'atlas': atlas_stops[atlas_gap[a]] if a is not None else None,
+               'osm': osm_stops[osm_gap[o]] if o is not None else None, 'match_type': None}
+        if same:
+            row['same_station'] = True
+        rows.append(row)
+    return rows
+
+
+def compare_stop_calls(atlas_calls, osm_calls, atlas_itinerary=None, osm_itinerary=None):
+    """Align two ordered call sequences; preserve gaps and repeated visits."""
+    atlas_identities = [_identity(call) for call in atlas_calls]
+    osm_identities = [_identity(call) for call in osm_calls]
+    atlas_stops = [_serialize_stop(call, 'atlas', position) for position, call in enumerate(atlas_calls, 1)]
+    osm_stops = [_serialize_stop(call, 'osm', position) for position, call in enumerate(osm_calls, 1)]
+    steps, matched_stop_count = _align(atlas_identities, osm_identities, _match_type)
+
+    rows, gap = [], []
+    for step in [*steps, None]:
+        if step is not None and step[2] is None:
+            gap.append(step)
+            continue
+        if gap:
+            rows.extend(_gap_rows(gap, atlas_identities, osm_identities, atlas_stops, osm_stops))
+            gap = []
+        if step is not None:
+            rows.append({'atlas': atlas_stops[step[0]], 'osm': osm_stops[step[1]], 'match_type': step[2]})
 
     has_pair = atlas_itinerary is not None and osm_itinerary is not None
     denominator = max(len(atlas_calls), len(osm_calls))
-    ratio = previous[-1] / denominator if has_pair and denominator else None
+    ratio = matched_stop_count / denominator if has_pair and denominator else None
     atlas_direction = _text(getattr(atlas_itinerary, 'direction_id', None))
     osm_direction = _text(getattr(osm_itinerary, 'direction_id', None))
     direction_status = 'unknown'
@@ -139,7 +187,7 @@ def compare_stop_calls(atlas_calls, osm_calls, atlas_itinerary=None, osm_itinera
         direction_status = 'match' if atlas_direction == osm_direction else 'conflict'
     return {
         'rows': rows,
-        'matched_stop_count': previous[-1],
+        'matched_stop_count': matched_stop_count,
         'atlas_stop_count': len(atlas_calls),
         'osm_stop_count': len(osm_calls),
         'stop_ratio': ratio,
@@ -234,11 +282,64 @@ def build_route_comparison(atlas_itinerary_id=None, osm_itinerary_id=None):
             ItineraryMatch.atlas_itinerary_id == atlas_itinerary_id,
             ItineraryMatch.osm_itinerary_id == osm_itinerary_id,
         ))).scalar()
+    comparison = compare_stop_calls(calls['atlas'], calls['osm'], itineraries['atlas'], itineraries['osm'])
+    attach_stop_matches([comparison])
     return {
         **metadata,
-        **compare_stop_calls(calls['atlas'], calls['osm'], itineraries['atlas'], itineraries['osm']),
+        **comparison,
         'is_saved_match': bool(is_saved_match),
     }
+
+
+_MATCHED_STOP_TYPES = ('matched', 'effectively_matched')
+
+
+def _load_stop_matches(sloids, node_ids):
+    """Stop matching of SLOIDs and OSM nodes: ``{(source, id): {'stop_type', 'partners'}}``.
+
+    A stop matched to several others has one ``stops_matched`` row, and one
+    partner, per match.
+    """
+    matches = {}
+    if not sloids and not node_ids:
+        return matches
+    rows = db.session.query(
+        StopsMatched.sloid, StopsMatched.osm_node_id, StopsMatched.stop_type,
+        StopsMatched.atlas_lat, StopsMatched.atlas_lon, StopsMatched.osm_lat, StopsMatched.osm_lon,
+    ).filter(or_(StopsMatched.sloid.in_(sloids), StopsMatched.osm_node_id.in_(node_ids)))
+    for row in rows:
+        is_match = row.stop_type in _MATCHED_STOP_TYPES and row.sloid and row.osm_node_id
+        for source, own, partner, lat, lon in (
+                ('atlas', row.sloid, row.osm_node_id, row.osm_lat, row.osm_lon),
+                ('osm', row.osm_node_id, row.sloid, row.atlas_lat, row.atlas_lon)):
+            if not own:
+                continue
+            entry = matches.setdefault((source, own), {'stop_type': row.stop_type, 'partners': []})
+            if entry['stop_type'] not in _MATCHED_STOP_TYPES:
+                entry['stop_type'] = row.stop_type
+            if is_match and all(p['stop_id'] != partner for p in entry['partners']):
+                entry['partners'].append({'stop_id': partner, 'lat': lat, 'lon': lon})
+    return matches
+
+
+def attach_stop_matches(comparisons):
+    """Give each stop of the comparisons its stop matching, as on the main map.
+
+    ``stop_type`` is the stop's status and ``partners`` the stops of the other
+    source it is matched to, with their positions. Both belong to the source
+    stop, not to the comparison: a stop missing from the other variant can
+    still be matched, to a stop of another variant. One query for all.
+    """
+    stops = [(source, stop) for comparison in comparisons for row in comparison['rows']
+             for source in ('atlas', 'osm') if (stop := row[source])]
+    matches = _load_stop_matches(
+        {stop['source_id'] for source, stop in stops if source == 'atlas' and stop['source_id']},
+        {stop['source_id'] for source, stop in stops if source == 'osm' and stop['source_id']},
+    )
+    for source, stop in stops:
+        entry = matches.get((source, stop['source_id'])) if stop['source_id'] else None
+        stop['stop_type'] = entry['stop_type'] if entry else f'{source}_unmatched'
+        stop['partners'] = entry['partners'] if entry else []
 
 
 def _options_query(source, *, q='', unmatched=True):

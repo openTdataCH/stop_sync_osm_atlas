@@ -99,11 +99,14 @@
       .map(stop => ({ ...stop, osm_matches: [] })), options);
   }
 
+  // Route stops carry their source id (sloid or OSM node), which the popup
+  // endpoint resolves to a stop row.
   function routeDirection(direction) {
     const result = snapshot();
     ['atlas', 'osm'].forEach(type => (direction[type + '_uic_groups'] || []).forEach(group =>
       (group.members || []).forEach(member => result.add(stopEntity(type, member, {
-        identifier: member.stop_id, position: [member.lat, member.lon]
+        identifier: member.stop_id, position: [member.lat, member.lon],
+        popupRef: { [type === 'atlas' ? 'sloid' : 'osm_node_id']: member.stop_id }
       })))));
     return result.result();
   }

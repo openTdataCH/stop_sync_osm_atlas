@@ -416,13 +416,24 @@ def get_data():
 def get_stop_popup():
     try:
         stop_id = request.args.get('stop_id', type=int)
+        # Route maps know a stop by its source id, not by its stops_matched row.
+        sloid = (request.args.get('sloid') or '').strip()
+        osm_node_id = (request.args.get('osm_node_id') or '').strip()
         view_type = request.args.get('view_type', type=str)
-        if not stop_id:
-            return jsonify({"error": "stop_id is required"}), 400
-        stop = StopsMatched.query.options(
+        query = StopsMatched.query.options(
             joinedload(StopsMatched.atlas_stop_details),
             joinedload(StopsMatched.osm_node_details).undefer(OsmNode.osm_tags)
-        ).filter(StopsMatched.id == stop_id).first()
+        )
+        if stop_id:
+            query = query.filter(StopsMatched.id == stop_id)
+        elif sloid or osm_node_id:
+            column = StopsMatched.sloid if sloid else StopsMatched.osm_node_id
+            # A source stop can have several rows; a matched one shows the pair.
+            query = query.filter(column == (sloid or osm_node_id)).order_by(
+                case((StopsMatched.stop_type == 'matched', 0), else_=1), StopsMatched.id)
+        else:
+            return jsonify({"error": "stop_id, sloid or osm_node_id is required"}), 400
+        stop = query.first()
         if not stop:
             return jsonify({"error": "StopsMatched not found"}), 404
         enriched = format_stop_data(stop, include_routes=True, include_osm_tags=True)

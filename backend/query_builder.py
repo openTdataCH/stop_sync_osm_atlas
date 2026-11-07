@@ -79,21 +79,29 @@ class FilterBuilder:
         )
 
     @staticmethod
-    def build_station_filter_conditions(filter_values, filter_types, route_directions, route_query_func):
-        """Build station/route ID filter conditions."""
+    def build_station_filter_conditions(filter_values, filter_types, route_directions, route_query_func,
+                                        route_variants=None):
+        """Build station/route ID filter conditions.
+
+        ``route_variants`` holds one entry per value: ``None``, or the variant
+        selection that narrows a route filter (see ``parse_route_variants``).
+        """
         if not filter_values:
             return []
 
         # Work on local copies so callers can safely reuse their input dicts/lists.
         filter_types = list(filter_types or [])
         route_directions = list(route_directions or [])
-        
+        route_variants = list(route_variants or [])
+
         # Ensure arrays are same length
         while len(filter_types) < len(filter_values):
             filter_types.append('station')
         while len(route_directions) < len(filter_values):
             route_directions.append('')
-        
+        while len(route_variants) < len(filter_values):
+            route_variants.append(None)
+
         conditions = []
         for i, value in enumerate(filter_values):
             filter_type = filter_types[i].strip()
@@ -104,7 +112,7 @@ class FilterBuilder:
             elif filter_type == 'osm':
                 conditions.append(StopsMatched.osm_node_id.like(f'%{value}%'))
             elif filter_type == 'route':
-                route_stops = route_query_func(value, direction if direction else None)
+                route_stops = route_query_func(value, direction if direction else None, route_variants[i])
                 route_conditions = []
                 if route_stops['atlas_sloids']:
                     route_conditions.append(StopsMatched.sloid.in_(route_stops['atlas_sloids']))
@@ -172,18 +180,19 @@ class QueryBuilder:
         self.session = session
         self.filter_builder = FilterBuilder()
     
-    def get_stops_for_route(self, route_id, direction=None):
+    def get_stops_for_route(self, route_id, direction=None, variants=None):
         """
         Gets all stops (both OSM and ATLAS) that belong to a route.
         
         Args:
             route_id: The route ID to filter by
             direction: Optional direction ID to filter by
+            variants: Optional variant selection that narrows the route to those variants
         
         Returns:
             Dictionary with 'atlas_sloids' and 'osm_nodes' lists
         """
-        return get_stops_for_route(route_id, direction)
+        return get_stops_for_route(route_id, direction, variants)
     
     def apply_common_filters(self, query, filters):
         """
@@ -230,7 +239,8 @@ class QueryBuilder:
                 filters['filter_values'],
                 filters.get('filter_types', []),
                 filters.get('route_directions', []),
-                self.get_stops_for_route
+                self.get_stops_for_route,
+                filters.get('route_variants'),
             )
             if station_conditions:
                 conditions.append(db.or_(*station_conditions) if len(station_conditions) > 1 else station_conditions[0])

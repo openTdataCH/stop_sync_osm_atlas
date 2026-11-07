@@ -344,6 +344,7 @@ function appendCurrentFilterParams(params, options) {
         params.station_filter = activeFilters.station.join(',');
         params.filter_types = activeFilters.stationTypes.join(',');
         params.route_directions = activeFilters.routeDirections.join(',');
+        if (routeVariantsParam()) params.route_variants = routeVariantsParam();
     }
     if (activeFilters.transportTypes.length > 0) {
         params.transport_types = activeFilters.transportTypes.join(',');
@@ -409,6 +410,7 @@ function loadTopNMatches() {
             params.station_filter = activeFilters.station.join(',');
             params.filter_types = activeFilters.stationTypes.join(',');
             params.route_directions = activeFilters.routeDirections.join(',');
+            if (routeVariantsParam()) params.route_variants = routeVariantsParam();
         }
 
         // Add transport type filters to params (New)
@@ -540,7 +542,7 @@ function prepareZoomBanner(policy) {
     }
     if (!policy.hasAnyActiveFilter) {
         setZoomBannerText(policy.isLowZoom
-            ? `📍 Overview mode: showing unmatched ${SharedUtils.sourceLabel()} stops only. Zoom in for all markers.`
+            ? `📍 Unmatched ${SharedUtils.sourceLabel()} stops only. Zoom in for all markers`
             : '📍 Zoom in a bit more to see all markers in this area');
     }
     showZoomBanner(true, 150);
@@ -905,19 +907,10 @@ function parseStopPermalink(search) {
     return { type: 'osm', identifier: osm[1] === 'way' ? 'way_' + osm[2] : osm[2] };
 }
 
-// The inverse: a stop side and stored id as URL parameters.
-function stopPermalinkParams(type, ref) {
-    if (!ref) return null;
-    if (type === 'atlas') return { sloid: String(ref) };
-    if (type !== 'osm') return null;
-    var element = PopupRenderer.parseOsmElementRef(ref);
-    if (!element || !/^\d+$/.test(element.id)) return null;
-    return { osm: element.type + '/' + element.id };
-}
-
+// The inverse is Permalinks.stopParams, shared with the route maps' links.
 function stopParamsFromButton(button) {
     if (!button) return null;
-    return stopPermalinkParams(button.getAttribute('data-permalink-type'), button.getAttribute('data-permalink-ref'));
+    return Permalinks.stopParams(button.getAttribute('data-permalink-type'), button.getAttribute('data-permalink-ref'));
 }
 
 // Sets (or, with null, removes) the stop parameter, keeping the others.
@@ -953,6 +946,32 @@ function openStopFromUrl() {
         replaceIndexStop(null);
         SharedUtils.showTemporaryMessage(
             'Could not open the linked stop (' + SharedUtils.escapeHtml(linkedKey + '=' + params.get(linkedKey)) + ').',
+            'warning',
+            6000
+        );
+        return false;
+    });
+}
+
+// Opens the route variants named by ?atlas_variant= / ?osm_variant=, the
+// routes page's keys: a route filter narrowed to them. Without a #map= hash or
+// a stop link, the map fits their stops.
+function openRouteVariantsFromUrl() {
+    var params = new URLSearchParams(window.location.search);
+    var atlas = (params.get('atlas_variant') || '').trim();
+    var osm = (params.get('osm_variant') || '').trim();
+    if (!atlas && !osm) return Promise.resolve(false);
+    if (!SharedUtils.hasCapability('routes')) return Promise.resolve(false);
+    var fitView = !Permalinks.parseMapHash(window.location.hash) && !parseStopPermalink(window.location.search);
+    return fetchRouteVariants({ atlas_variant: atlas, osm_variant: osm }).then(function (data) {
+        addRouteVariantFilter(data);
+        if (fitView && data.bounds) map.fitBounds(data.bounds, { padding: [40, 40], maxZoom: 17 });
+        return true;
+    }, function () {
+        syncRouteVariantUrl();  // no narrowed route filter: drops the parameters
+        SharedUtils.showTemporaryMessage(
+            'Could not open the linked route variant (' + SharedUtils.escapeHtml(atlas || osm) +
+            '): a newer import may have changed it.',
             'warning',
             6000
         );
@@ -1152,6 +1171,7 @@ $(document).ready(function () {
     updateActiveFilters(); // This will call loadDataForViewport and updateFiltersUI
     updateHeaderSummary(); // Initial summary update
     openStopFromUrl();
+    openRouteVariantsFromUrl();
 
     // Remove the old, duplicated event listener for new search type dropdown options
     // The initSearchTypeModal handles the new modal-based selector.

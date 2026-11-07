@@ -20,6 +20,13 @@
   padding: 0 clamp(1rem, 3vw, 2.5rem);
 }
 
+/* Wide screens: the extra width goes mostly to the variant map. */
+@media (min-width: 1600px) {
+  .routes-container {
+    max-width: 1760px;
+  }
+}
+
 /* Keep the fade outside the tabs' horizontal scroll area on mobile. */
 .routes-page-tabs {
   margin-bottom: var(--space-2);
@@ -1018,8 +1025,10 @@
 }
 
 @media (min-width: 1200px) {
+  /* Wider than about 42% below 1600px, the stop rows (SLOID and UIC on each
+     side) get cramped. */
   .variant-workspace--with-map {
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 38%);
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 42%);
   }
 
   /* As tall as the stop list, at most the viewport below the page tabs. */
@@ -1033,6 +1042,12 @@
   }
 }
 
+@media (min-width: 1600px) {
+  .variant-workspace--with-map {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 45%);
+  }
+}
+
 .route-card__map {
   width: 100%;
   height: 100%;
@@ -1043,11 +1058,20 @@
   font-size: 0.72rem;
 }
 
-.variant-map__context {
+/* "See other markers" and "Main map", top right; they wrap on narrow maps. */
+.variant-map__actions {
   position: absolute;
   top: var(--space-2);
   right: var(--space-2);
   z-index: 1000;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  max-width: calc(100% - 4rem);
+}
+
+.variant-map__action {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -1062,8 +1086,98 @@
   cursor: pointer;
 }
 
-.variant-map__context:hover {
+.variant-map__action:hover {
   background: var(--color-bg-subtle);
+}
+
+.variant-map__main-map,
+.variant-map__main-map:hover {
+  color: var(--color-fg);
+  text-decoration: none;
+}
+
+/* Collapsed by default, bottom right above the attribution; opens upwards. */
+.variant-map__legend {
+  position: absolute;
+  right: var(--space-2);
+  bottom: 1.6rem;
+  z-index: 1000;
+  max-width: calc(100% - 4rem);
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--color-border-emphasis);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-size: var(--text-xs);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Inside a route panel: drop the panel summary's padding and fill, keep its chevron. */
+.variant-map .variant-map__legend summary {
+  align-items: center;
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+
+.variant-map__legend ul {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.variant-map__legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.1rem 0;
+}
+
+.variant-map__legend p {
+  margin: var(--space-1) 0 0;
+  color: var(--color-fg-muted);
+}
+
+.variant-map__key {
+  flex: none;
+  width: 1.4rem;
+  height: 0.7rem;
+}
+
+.variant-map__key--matched {
+  background:
+    radial-gradient(circle at 25% 50%, var(--color-map-atlas-matched) 0.3rem, transparent 0.32rem),
+    radial-gradient(circle at 75% 50%, var(--color-map-osm-matched) 0.3rem, transparent 0.32rem);
+}
+
+.variant-map__key--unmatched {
+  background:
+    radial-gradient(circle at 25% 50%, var(--color-map-atlas-unmatched) 0.3rem, transparent 0.32rem),
+    radial-gradient(circle at 75% 50%, var(--color-map-osm-unmatched) 0.3rem, transparent 0.32rem);
+}
+
+.variant-map__key--line,
+.variant-map__key--platform {
+  height: 0;
+  border-top: 2px solid var(--color-map-line-atlas-osm);
+}
+
+.variant-map__key--platform {
+  border-top: 2px dashed var(--color-map-not-shared);
+}
+
+.variant-map__key--match {
+  height: 0;
+  border-top: 1.5px solid var(--color-map-line-atlas-osm);
+  opacity: 0.5;
+}
+
+.variant-map__key--ring {
+  width: 0.8rem;
+  height: 0.8rem;
+  margin: 0 0.3rem;
+  border: 2px dashed var(--color-map-not-shared);
+  border-radius: var(--radius-full);
 }
 
 .variant-map__context[aria-pressed="true"] {

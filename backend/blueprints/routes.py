@@ -14,6 +14,7 @@ from backend.services.gtfs_stop_id_sloid import (
     find_gtfs_stop_id_sloid_targets,
 )
 from backend.services.route_comparison import build_route_comparison, list_comparison_options
+from backend.services.transport_routes import list_route_variants
 
 
 routes_bp = Blueprint('routes_api', __name__)
@@ -153,6 +154,27 @@ def routes_comparison_options_api():
         ))
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
+    except LookupError as exc:
+        return jsonify({'error': str(exc)}), 404
+    except Exception as exc:
+        return _comparison_database_error(exc)
+
+
+ROUTE_VARIANT_KEY_MAX_LENGTH = 255
+
+
+@routes_bp.route('/api/routes/variants')
+def routes_variants_api():
+    """The variants of a line (``route_id``), or of the line a variant link names."""
+    values = {name: (request.args.get(name) or '').strip() or None
+              for name in ('route_id', 'atlas_variant', 'osm_variant')}
+    if not any(values.values()) or any(len(value) > ROUTE_VARIANT_KEY_MAX_LENGTH
+                                       for value in values.values() if value):
+        return jsonify({'error': 'Name a route_id, an atlas_variant or an osm_variant.'}), 400
+    variants = ({'atlas': values['atlas_variant'], 'osm': values['osm_variant']}
+                if values['atlas_variant'] or values['osm_variant'] else None)
+    try:
+        return jsonify(list_route_variants(values['route_id'], variants))
     except LookupError as exc:
         return jsonify({'error': str(exc)}), 404
     except Exception as exc:
