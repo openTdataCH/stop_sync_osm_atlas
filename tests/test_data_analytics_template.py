@@ -244,3 +244,31 @@ def test_sections_follow_the_navigation_and_name_their_units():
     assert "2 / 4 public transport lines" in html
     assert "Route problems" not in html
     json.dumps(stats)
+
+
+def test_route_links_name_the_stop_fallback_and_the_refused_route_ids():
+    env = Environment(loader=FileSystemLoader("templates"))
+    env.globals["url_for"] = lambda endpoint, **values: "/static/"
+    env.filters["format_zurich_display_timestamp"] = lambda value, include_seconds=False: value
+    stats = _minimal_empty_stats()
+    stats["route_links"] = {
+        "line_links": 3,
+        "gtfs_lines": {"total": 5, "linked": 3, "unlinked": {
+            "no_osm_line": 1, "osm_line_already_linked": 0, "osm_line_not_confirmed": 1}},
+        "osm_lines": {"total": 4, "public_transport": 4, "linked": 3, "unlinked": {
+            "not_public_transport": 0, "non_gtfs": 0, "no_route_id": 0, "route_id_not_in_gtfs": 0,
+            "gtfs_line_already_linked": 0, "route_id_not_confirmed": 1}},
+        "by_mode": [{"mode": "bus", "gtfs_lines": 5, "gtfs_linked": 3, "osm_lines": 4, "osm_linked": 3}],
+        "by_match_method": {"exact_gtfs_route_id": 1, "normalized_gtfs_route_id": 1, "line_number_and_stops": 1},
+        "itineraries": {"links": 0, "gtfs_in_linked_lines": 0, "gtfs_linked": 0, "osm_in_linked_lines": 0,
+                        "osm_linked": 0, "osm_in_linked_lines_without_direction": 0},
+        "itineraries_per_line": {"gtfs": {"mean": 0, "median": 0}, "osm": {"mean": 0, "median": 0}},
+        "linked_line_itinerary_gap": {"mean": 0, "median": 0, "gtfs_has_more": 0, "same": 3, "osm_has_more": 0},
+    }
+
+    html = env.get_template("components/stats_data.html").render(stats=stats, problem_breakdown={})
+    section = html[html.index('id="route-matching"'):html.index('id="problems"')]
+
+    assert "Same mode, line number and stops" in section
+    assert "Its gtfs:route_id, from another year, names a different line" in section
+    assert "An OSM line carries the route ID of another year, but runs a different line" in section

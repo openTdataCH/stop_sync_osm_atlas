@@ -520,7 +520,9 @@ def compute_route_link_stats(session) -> Dict[str, Any]:
         by_mode[mode]['osm_linked'] += row.id in linked_osm
 
     # The engine's candidate rule: OSM gtfs_route_id, normalized ID or display ID
-    # equal to the GTFS route ID (normalized IDs compare with each other).
+    # equal to the GTFS route ID (normalized IDs compare with each other). The
+    # engine refuses a normalized candidate whose lines differ in number or share
+    # no stop, so a candidate left unlinked on both sides is such a refusal.
     gtfs_by_route_id = defaultdict(set)
     gtfs_by_normalized = defaultdict(set)
     for row in gtfs_lines:
@@ -532,7 +534,7 @@ def compute_route_link_stats(session) -> Dict[str, Any]:
     osm_candidates_by_gtfs = defaultdict(set)
     osm_unlinked = Counter({reason: 0 for reason in (
         NOT_PUBLIC_TRANSPORT, 'non_gtfs', 'no_route_id', 'several_route_ids', 'route_id_not_in_gtfs',
-        'gtfs_line_already_linked')})
+        'gtfs_line_already_linked', 'route_id_not_confirmed')})
     for row in osm_lines:
         keys = _route_keys(row)
         candidates = set()
@@ -548,8 +550,10 @@ def compute_route_link_stats(session) -> Dict[str, Any]:
             osm_unlinked[NOT_PUBLIC_TRANSPORT] += 1
         elif row.is_non_gtfs:
             osm_unlinked['non_gtfs'] += 1
-        elif candidates:
+        elif candidates & linked_gtfs:
             osm_unlinked['gtfs_line_already_linked'] += 1
+        elif candidates:
+            osm_unlinked['route_id_not_confirmed'] += 1
         # The normalized ID falls back to the line's ref, so only gtfs:route_id
         # tells whether the line carries a GTFS route ID at all.
         elif not keys['gtfs_route_id']:
@@ -558,10 +562,17 @@ def compute_route_link_stats(session) -> Dict[str, Any]:
             osm_unlinked['several_route_ids'] += 1
         else:
             osm_unlinked['route_id_not_in_gtfs'] += 1
-    gtfs_unlinked = Counter({'no_osm_line': 0, 'osm_line_already_linked': 0})
+    gtfs_unlinked = Counter({'no_osm_line': 0, 'osm_line_already_linked': 0, 'osm_line_not_confirmed': 0})
     for row in gtfs_lines:
-        if row.id not in linked_gtfs:
-            gtfs_unlinked['osm_line_already_linked' if osm_candidates_by_gtfs.get(row.id) else 'no_osm_line'] += 1
+        if row.id in linked_gtfs:
+            continue
+        candidates = osm_candidates_by_gtfs.get(row.id, set())
+        if not candidates:
+            gtfs_unlinked['no_osm_line'] += 1
+        elif candidates & linked_osm:
+            gtfs_unlinked['osm_line_already_linked'] += 1
+        else:
+            gtfs_unlinked['osm_line_not_confirmed'] += 1
 
     method_counts = Counter(method or 'other' for _, _, method in links)
 
