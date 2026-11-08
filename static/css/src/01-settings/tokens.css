@@ -25,8 +25,8 @@
   --color-surface-glass: rgba(255, 255, 255, 0.92);  /* translucent panel over the map or a tinted page */
   --color-surface-veil: rgba(255, 255, 255, 0.5);    /* lightens what lies beneath: hover and open states */
   --color-surface-dark: rgba(17, 17, 17, 0.8);       /* hints, banners and toggles over a map: dark in both themes */
-  --color-surface-banner: rgba(61, 64, 69, 0.96);   /* shared gray map banner in both themes, distinct from dark filter pills */
-  --color-on-banner: #e6e9ee;                     /* shared soft-white banner text in both themes */
+  --color-surface-banner: rgba(0, 0, 0, 0.65);      /* translucent map banner in both themes: the map shows through, blurred */
+  --color-on-banner: #ffffff;                       /* white banner text in both themes */
   --color-overlay: rgba(0, 0, 0, 0.5);               /* backdrop behind modals and drawers: dark in both themes */
   --color-on-dark: #ffffff;                          /* text on the dark surface and the backdrop */
   --color-on-dark-muted: rgba(255, 255, 255, 0.35);  /* borders and key caps on them */

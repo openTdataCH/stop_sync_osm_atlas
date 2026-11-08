@@ -6,7 +6,6 @@
   z-index: 1001;
   max-width: calc(100vw - 2rem);
   padding: 0.5rem 1.25rem;
-  border: 1px solid color-mix(in srgb, var(--color-on-banner) 18%, transparent);
   border-radius: var(--radius-full, 999px);
   background: var(--color-surface-banner);
   color: var(--color-on-banner);

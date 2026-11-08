@@ -428,6 +428,7 @@
           "scripts/stylelint/**",
           "scripts/sync_vendor_assets.mjs",
           "scripts/check_no_cdn_templates.mjs",
+          "scripts/sync_badge.py",
           "stylelint.config.mjs"
         ],
         "tests": [
