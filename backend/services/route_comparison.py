@@ -53,11 +53,18 @@ def _identity(call):
 
 
 def _match_type(atlas, osm):
+    """How two calls are the same stop, as in the engine: the same platform, else the same station.
+
+    ``same_station`` is a station both calls resolve to, at different platforms;
+    ``uic_match`` a station where a call has no resolved platform.
+    """
     atlas_ids, atlas_uic = atlas
     osm_ids, osm_uic = osm
-    if atlas_ids and osm_ids:
-        return 'resolved_sloid_match' if atlas_ids & osm_ids else None
-    return 'uic_match' if atlas_uic and atlas_uic == osm_uic else None
+    if atlas_ids & osm_ids:
+        return 'resolved_sloid_match'
+    if atlas_uic and atlas_uic == osm_uic:
+        return 'same_station' if atlas_ids and osm_ids else 'uic_match'
+    return None
 
 
 def _serialize_stop(call, source, position=None):
@@ -129,35 +136,6 @@ def _align(atlas_items, osm_items, match):
     return steps, previous[-1]
 
 
-def _same_station(atlas_uic, osm_uic):
-    return bool(atlas_uic) and atlas_uic == osm_uic
-
-
-def _gap_rows(gap, atlas_identities, osm_identities, atlas_stops, osm_stops):
-    """Rows for a run of unshared stops between two shared ones.
-
-    Stops of the same station (same UIC) on both sides, at different
-    platforms, share one row marked ``same_station``. They still do not count
-    as shared stops, as in the engine.
-    """
-    atlas_gap = [i for i, _, _ in gap if i is not None]
-    osm_gap = [j for _, j, _ in gap if j is not None]
-    shared_uics = {atlas_identities[i][1] for i in atlas_gap} & {osm_identities[j][1] for j in osm_gap}
-    if not shared_uics - {None}:
-        return [{'atlas': atlas_stops[i] if i is not None else None,
-                 'osm': osm_stops[j] if j is not None else None, 'match_type': None} for i, j, _ in gap]
-    steps, _ = _align([atlas_identities[i][1] for i in atlas_gap],
-                      [osm_identities[j][1] for j in osm_gap], _same_station)
-    rows = []
-    for a, o, same in steps:
-        row = {'atlas': atlas_stops[atlas_gap[a]] if a is not None else None,
-               'osm': osm_stops[osm_gap[o]] if o is not None else None, 'match_type': None}
-        if same:
-            row['same_station'] = True
-        rows.append(row)
-    return rows
-
-
 def compare_stop_calls(atlas_calls, osm_calls, atlas_itinerary=None, osm_itinerary=None):
     """Align two ordered call sequences; preserve gaps and repeated visits."""
     atlas_identities = [_identity(call) for call in atlas_calls]
@@ -166,16 +144,14 @@ def compare_stop_calls(atlas_calls, osm_calls, atlas_itinerary=None, osm_itinera
     osm_stops = [_serialize_stop(call, 'osm', position) for position, call in enumerate(osm_calls, 1)]
     steps, matched_stop_count = _align(atlas_identities, osm_identities, _match_type)
 
-    rows, gap = [], []
-    for step in [*steps, None]:
-        if step is not None and step[2] is None:
-            gap.append(step)
-            continue
-        if gap:
-            rows.extend(_gap_rows(gap, atlas_identities, osm_identities, atlas_stops, osm_stops))
-            gap = []
-        if step is not None:
-            rows.append({'atlas': atlas_stops[step[0]], 'osm': osm_stops[step[1]], 'match_type': step[2]})
+    rows = []
+    for i, j, match_type in steps:
+        row = {'atlas': atlas_stops[i] if i is not None else None,
+               'osm': osm_stops[j] if j is not None else None, 'match_type': match_type}
+        if match_type == 'same_station':
+            # Counted as a shared stop; the page marks the other platform.
+            row['same_station'] = True
+        rows.append(row)
 
     has_pair = atlas_itinerary is not None and osm_itinerary is not None
     denominator = max(len(atlas_calls), len(osm_calls))
@@ -420,15 +396,13 @@ def _index_identities(entries):
     Keys are call positions for one itinerary, or itinerary IDs for a whole
     source; ``_matching_positions`` then answers "which keys match this call".
     """
-    resolved, uics, unresolved_uics = defaultdict(set), defaultdict(set), defaultdict(set)
+    resolved, uics = defaultdict(set), defaultdict(set)
     for key, (ids, uic) in entries:
         for identity in ids:
             resolved[identity].add(key)
         if uic:
             uics[uic].add(key)
-            if not ids:
-                unresolved_uics[uic].add(key)
-    return resolved, uics, unresolved_uics
+    return resolved, uics
 
 
 def _identity_index(identities):
@@ -437,12 +411,12 @@ def _identity_index(identities):
 
 def _matching_positions(identity, index):
     ids, uic = identity
-    resolved, uics, unresolved_uics = index
+    resolved, uics = index
     positions = set()
     for resolved_id in ids:
         positions.update(resolved.get(resolved_id, ()))
     if uic:
-        positions.update((unresolved_uics if ids else uics).get(uic, ()))
+        positions.update(uics.get(uic, ()))
     return positions
 
 

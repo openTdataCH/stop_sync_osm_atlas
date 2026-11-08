@@ -73,7 +73,8 @@ def test_repeated_visits_are_matched_one_to_one_in_order():
 
 
 @pytest.mark.parametrize(('atlas', 'osm', 'expected_type'), [
-    (_call(1, 'A', uic='1'), _call(1, 'B', uic='1'), None),
+    (_call(1, 'A', uic='1'), _call(1, 'B', uic='1'), 'same_station'),
+    (_call(1, 'A', uic='1'), _call(1, 'B', uic='2'), None),
     (_call(1, 'A', uic='1', variants=['B']), _call(1, 'B', uic='2'), 'resolved_sloid_match'),
     (_call(1, 'A', uic='1'), _call(1, uic='1'), 'uic_match'),
     (_call(1, uic='1'), _call(1, 'B', uic='1'), 'uic_match'),
@@ -81,7 +82,7 @@ def test_repeated_visits_are_matched_one_to_one_in_order():
     (_call(1, source_stop_id='opaque'), _call(1, source_stop_id='opaque'), None),
     (_call(1), _call(1), None),
 ])
-def test_only_resolved_identity_or_nonconflicting_uic_can_match(atlas, osm, expected_type):
+def test_the_same_platform_or_the_same_station_matches(atlas, osm, expected_type):
     result = _compare([atlas], [osm])
     assert result['matched_stop_count'] == int(expected_type is not None)
     assert [row['match_type'] for row in result['rows'] if row['match_type']] == (
@@ -115,24 +116,24 @@ def test_direction_status_does_not_hide_stop_agreement(atlas_direction, osm_dire
     assert result['percentage'] == 100
 
 
-def test_same_station_at_another_platform_shares_a_row_but_is_not_counted():
+def test_same_station_at_another_platform_counts_and_is_marked():
     # Zürich Selnau: the OSM relation ends at platform 1, the ATLAS variant at platform 2.
     atlas = [_call(1, 'A', uic='1'), _call(2, 'X', uic='5'), _call(3, 'P2', uic='9')]
     osm = [_call(1, 'A', uic='1'), _call(2, 'P1', uic='9')]
     result = _compare(atlas, osm)
 
-    assert result['matched_stop_count'] == 1
-    assert result['percentage'] == 33.3
+    assert result['matched_stop_count'] == 2
+    assert result['percentage'] == 66.7
     assert [((row['atlas'] or {}).get('id'), (row['osm'] or {}).get('id'), row['match_type'],
              row.get('same_station', False)) for row in result['rows']] == [
-        (1, 1, 'resolved_sloid_match', False), (2, None, None, False), (3, 2, None, True),
+        (1, 1, 'resolved_sloid_match', False), (2, None, None, False), (3, 2, 'same_station', True),
     ]
 
 
-def test_same_station_never_crosses_a_shared_stop():
+def test_a_station_at_another_platform_never_crosses_a_shared_stop():
     result = _compare([_call(1, 'P2', uic='9'), _call(2, 'A', uic='1')],
                       [_call(1, 'A', uic='1'), _call(2, 'P1', uic='9')])
-    assert not any(row.get('same_station') for row in result['rows'])
+    assert result['matched_stop_count'] == 1
 
 
 def test_empty_sequences_and_single_selection_have_no_misleading_percentage():
@@ -455,10 +456,9 @@ def test_ranking_variants_and_uic_follow_comparison_identity_rules(comparison_db
         'source': 'osm', 'fixed_itinerary_id': 102,
     }).json
     scores = {item['id']: item['percentage'] for item in result['items']}
-    assert scores[210] == 0
-    assert scores[211] == 100
-    assert scores[212] == 100
-    assert result['items'][0]['id'] == 211
+    # 210 calls at other platforms of the same stations, which still serve them.
+    assert scores == {210: 100, 211: 100, 212: 100, **{key: value for key, value in scores.items() if key < 210}}
+    assert result['items'][0]['id'] == 210
     for item in result['items']:
         comparison = comparison_db.get('/api/routes/comparison', query_string={
             'atlas_itinerary_id': 102, 'osm_itinerary_id': item['id'],
