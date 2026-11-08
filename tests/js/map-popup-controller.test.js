@@ -133,7 +133,9 @@ describe('MapPopupController', () => {
     expect(marker.listenerCount('click')).toBe(1);
     expect(marker.popup).toBe(popup);
     expect(load).toHaveBeenCalledTimes(1);
-    expect(marker.openPopup).toHaveBeenCalledTimes(2);
+    // The popup is still open: opening it again would rebuild its content.
+    expect(marker.isPopupOpen()).toBe(true);
+    expect(marker.openPopup).toHaveBeenCalledTimes(1);
   });
 
   test('lets Leaflet reopen a loaded popup without toggling it closed again', async () => {
@@ -174,6 +176,54 @@ describe('MapPopupController', () => {
     expect(circleMarker.isPopupOpen()).toBe(false);
     expect(labelMarker.isPopupOpen()).toBe(true);
     expect(labelMarker.popup).toBe('Lausanne');
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  test('hands the open popup itself to a replacement marker, so it keeps its view and place', async () => {
+    const load = jest.fn(() => Promise.resolve({ name: 'Lausanne' }));
+    const controller = window.MapComponents.MapPopupController.create({
+      load,
+      render: (payload) => payload.name,
+      createPopup: (content) => ({ content, setSource: jest.fn() })
+    });
+    const circleMarker = createMarker();
+    const labelMarker = createMarker();
+    controller.attach(circleMarker, { key: 'atlas:a' });
+    await controller.open(circleMarker);
+    const popup = circleMarker.popup;
+    controller.attach(labelMarker, { key: 'atlas:a' });
+
+    await controller.transfer(circleMarker, labelMarker);
+
+    expect(labelMarker.popup).toBe(popup);
+    expect(popup.setSource).toHaveBeenCalledWith(labelMarker);
+    expect(circleMarker.unbindPopup).toHaveBeenCalled();
+    expect(labelMarker.openPopup).not.toHaveBeenCalled();
+    expect(controller.has(circleMarker)).toBe(false);
+    labelMarker.emit('click');
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  test('a popup still loading when its marker is replaced opens on the replacement', async () => {
+    const pending = deferred();
+    const load = jest.fn(() => pending.promise);
+    const controller = window.MapComponents.MapPopupController.create({
+      load,
+      render: (payload) => payload.name
+    });
+    const circleMarker = createMarker();
+    const labelMarker = createMarker();
+    controller.attach(circleMarker, { key: 'atlas:a' });
+    controller.open(circleMarker);
+    controller.attach(labelMarker, { key: 'atlas:a' });
+
+    const transferred = controller.transfer(circleMarker, labelMarker);
+    pending.resolve({ name: 'Lausanne' });
+    await transferred;
+
+    expect(labelMarker.isPopupOpen()).toBe(true);
+    expect(labelMarker.popup).toBe('Lausanne');
+    expect(circleMarker.isPopupOpen()).toBe(false);
     expect(load).toHaveBeenCalledTimes(1);
   });
 

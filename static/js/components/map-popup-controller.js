@@ -117,6 +117,10 @@
             return true;
         }
 
+        function isPopupOpen(marker) {
+            return typeof marker.isPopupOpen === 'function' && marker.isPopupOpen();
+        }
+
         function hasLoadedPopup(binding) {
             return binding.loaded && (
                 typeof binding.marker.getPopup !== 'function' ||
@@ -214,7 +218,8 @@
                 return Promise.resolve({ status: 'removed' });
             }
             if (hasLoadedPopup(binding)) {
-                binding.marker.openPopup();
+                // Opening an open popup again would rebuild its content.
+                if (!isPopupOpen(binding.marker)) binding.marker.openPopup();
                 return Promise.resolve({ status: 'opened' });
             }
             if (binding.openingPromise) return binding.openingPromise;
@@ -300,8 +305,9 @@
             binding.handler = function () {
                 // bindPopup() installs Leaflet's own click handler after this
                 // lazy-loading handler. Once content is loaded, let Leaflet own
-                // click-to-open/toggle behavior; opening here first would make
-                // Leaflet immediately interpret the same click as a close.
+                // click-to-open/close behavior (MapRenderer.createEntityMarker
+                // makes circle markers close on a second click too); opening
+                // here first would make Leaflet read the same click as a close.
                 if (binding.event === 'click' && hasLoadedPopup(binding)) return;
                 openBinding(binding);
             };
@@ -357,10 +363,36 @@
                 throw new Error('MapPopupController.transfer() requires two attached markers with the same entity key.');
             }
 
-            var wasOpen = typeof oldMarker.isPopupOpen === 'function' && oldMarker.isPopupOpen();
+            var wasOpen = isPopupOpen(oldMarker);
+            var wasOpening = !!oldBinding.openingPromise;
+            var popup = hasLoadedPopup(oldBinding) && typeof oldMarker.getPopup === 'function'
+                ? oldMarker.getPopup()
+                : null;
+            if (popup && typeof oldMarker.unbindPopup === 'function') {
+                // The replacement takes over the popup itself, so an open popup
+                // stays where it is, with its view, width and drag offset.
+                // Unbinding first keeps detach() and the old marker's removal
+                // from closing it.
+                oldMarker.unbindPopup();
+                replacementMarker.bindPopup(popup);
+                replacementBinding.loaded = true;
+                replacementBinding.content = oldBinding.content;
+                detach(oldMarker);
+                if (wasOpen) moveOpenPopup(popup, replacementMarker);
+                return Promise.resolve({ status: 'transferred' });
+            }
             detach(oldMarker);
-            if (wasOpen) return openBinding(replacementBinding);
+            // A popup still loading opens on the replacement; the request goes on.
+            if (wasOpen || wasOpening) return openBinding(replacementBinding);
             return Promise.resolve({ status: 'transferred' });
+        }
+
+        function moveOpenPopup(popup, marker) {
+            if (popup && typeof popup.setSource === 'function') {
+                popup.setSource(marker);
+            } else {
+                marker.openPopup();
+            }
         }
 
         function remove(key) {

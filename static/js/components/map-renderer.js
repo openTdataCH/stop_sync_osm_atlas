@@ -302,7 +302,26 @@ function createEntityMarker(descriptor) {
         const icon = getCachedLabeledCircleIcon(entity.entityType, style, entity.label);
         return L.marker(displayPosition, { icon, opacity: style.opacity });
     }
-    return L.circleMarker(displayPosition, style);
+    return closePopupOnSecondClick(L.circleMarker(displayPosition, style));
+}
+
+// Clicking the marker of an open popup closes it, as Leaflet already does for
+// icon markers. For a circle marker (a Path) Leaflet opens the popup again at
+// the click instead, which rebuilds its content and drops the view the user had
+// open. Set on the instance before any bindPopup(), which registers
+// this._openPopup as the marker's click handler.
+function closePopupOnSecondClick(marker) {
+    const openPopup = marker && marker._openPopup;
+    if (typeof openPopup !== 'function') return marker;
+    marker._openPopup = function (event) {
+        if (this._popup && this._popup._source === this && this.isPopupOpen()) {
+            L.DomEvent.stop(event);
+            this.closePopup();
+            return;
+        }
+        openPopup.call(this, event);
+    };
+    return marker;
 }
 
 function addLayersInChunks(layer, markers, batchSize = 200) {

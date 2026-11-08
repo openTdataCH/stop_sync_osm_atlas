@@ -60,23 +60,21 @@ describe('Canonical map entities and page adapters', () => {
     expect(window.MapShared.createEntity('atlas', '1', [0, 0], { label: 'P' }).label).toBeNull();
   });
 
-  test('Index nested one-to-many and many-to-one matches produce unique entities and rich popup models', () => {
+  test('nested one-to-many and many-to-one matches produce unique entities whose popups come from the server', () => {
     const rows = [
       { ...stop, osm_matches: [{ osm_node_id: '2', osm_id: 10, osm_lat: 47, osm_lon: 8, osm_node_type: 'platform', distance_m: 4 },
         { osm_node_id: '3', osm_id: 11, osm_lat: 47.01, osm_lon: 8.01 }] },
       { ...stop, id: 2, sloid: 'source:b', osm_matches: [{ osm_node_id: '2', osm_id: 10, osm_lat: 47, osm_lon: 8, distance_m: 9 }] }
     ];
-    const snapshot = window.MapEntityAdapters.stops(rows, { multiMatchPopups: true });
+    const snapshot = window.MapEntityAdapters.stops(rows);
     expect(snapshot.entities.map(entity => entity.key)).toEqual(['atlas:source:a', 'osm:2', 'osm:3', 'atlas:source:b']);
     expect(snapshot.relationships).toHaveLength(3);
     const osm = snapshot.entities.find(entity => entity.key === 'osm:2');
-    expect(osm.popupRef.id).toBe(10);
-    expect(osm.popupRef.payload.atlas_matches.map(match => [match.sloid, match.distance_m]))
-      .toEqual([['source:a', 4], ['source:b', 9]]);
+    // Only a reference: /api/stop_popup lists every ATLAS match of the element,
+    // so the popup does not depend on which rows the map has loaded.
+    expect(osm.popupRef).toEqual({ id: 10 });
     expect(osm).not.toHaveProperty('stopData');
     expect(osm).not.toHaveProperty('osm_node_type');
-    expect(window.MapEntityAdapters.stops(rows).entities.find(entity => entity.key === 'osm:2').popupRef)
-      .toEqual({ id: 10 });
   });
 
   test('Top-N only displays the selected primary pairs and respects side filters', () => {

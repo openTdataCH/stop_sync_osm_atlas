@@ -9,7 +9,6 @@ let focusedStop = null; // the stop centerMapAndOpenPopup opened; see showFocuse
 let topNPopupMarkers = [];
 let topNRequest = null;
 let topNRequestSequence = 0;
-const popupModeByKey = new Map();
 let headerSummaryController = null;
 let mobileFiltersController = null;
 var markersLayer = L.layerGroup();
@@ -610,9 +609,10 @@ function attachIndexPopup(marker, descriptor) {
     popupController.attach(marker, {
         key: descriptor.key,
         errorContent: '<div class="p-2 text-danger">Unable to load stop details. Click to retry.</div>',
+        // The server builds the whole popup, an OSM element's every ATLAS match
+        // included, so its content never depends on the zoom or the loaded data.
         load: function (request) {
             var latest = marker.options.markerData;
-            if (latest.popupRef.payload) return latest.popupRef.payload;
             return fetchJson('/api/stop_popup', {
                 stop_id: latest.popupRef.id,
                 view_type: latest.entityType
@@ -654,9 +654,6 @@ function createIndexMarkerRegistry() {
             } else {
                 popupController.detach(marker);
             }
-            if (!removal || removal.reason !== 'replace') {
-                popupModeByKey.delete(removal && removal.key ? removal.key : descriptor.key);
-            }
         }
     });
 }
@@ -679,24 +676,12 @@ function renderIndexViewport(rawData, context) {
     });
 
     var snapshot = window.MapEntityAdapters.stops(payload.stops, {
-        showAtlas: visibility.showAtlas, showOsm: visibility.showOsm,
-        multiMatchPopups: context.zoom >= ZOOM_LINE_THRESHOLD
+        showAtlas: visibility.showAtlas, showOsm: visibility.showOsm
     });
     var layout = window.MapRenderer.layoutEntities(snapshot.entities, {
         map: map, zoom: context.zoom, sourcePositionsByKey: snapshot.sourcePositionsByKey
     });
-    var descriptors = layout.descriptors;
-    descriptors.forEach(function (descriptor) {
-        var nextMode = descriptor.entity.popupRef && descriptor.entity.popupRef.payload ? 'multi-match' : 'single-entity';
-        var previousMode = popupModeByKey.get(descriptor.key);
-        if (previousMode && previousMode !== nextMode) {
-            // The same OSM entity has a richer local payload at multi-match
-            // zooms. Clear only that popup cache before updating its binding.
-            popupController.remove(descriptor.key);
-        }
-        popupModeByKey.set(descriptor.key, nextMode);
-    });
-    markerRegistry.reconcile(descriptors, {
+    markerRegistry.reconcile(layout.descriptors, {
         zoom: context.zoom,
         cacheHit: context.cacheHit,
         reason: context.reason
@@ -1046,7 +1031,6 @@ function destroyIndexPage() {
     clearTopNMarkers();
     if (markerRegistry) markerRegistry.destroy();
     if (popupController) popupController.destroy();
-    popupModeByKey.clear();
     if (headerSummaryController) headerSummaryController.destroy();
     if (mobileFiltersController) mobileFiltersController.destroy();
     removeFocusedStop();

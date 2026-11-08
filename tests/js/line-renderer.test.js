@@ -51,7 +51,7 @@ describe('LineRenderer production component', () => {
     expect(layer.addLayer).toHaveBeenCalledTimes(1);
     expect(L.polyline).toHaveBeenCalledWith(
       [[46.5, 6.6], [46.51, 6.61]],
-      expect.objectContaining({ color: '#174092', weight: 2 })
+      expect.objectContaining({ color: '#174092', weight: 2, interactive: false })
     );
   });
 

@@ -46,7 +46,6 @@
 
   function stops(rows, options = {}) {
     const result = snapshot();
-    const osmMatches = new Map();
     (rows || []).forEach(stop => {
       const atlas = (stop.sloid || stop.representative_sloid || stop.stop_type === 'atlas_unmatched')
         ? stopEntity('atlas', stop, options) : null;
@@ -57,26 +56,13 @@
         const osm = stopEntity('osm', data, options);
         if (options.showOsm !== false) result.add(osm);
         if (stop.stop_type === 'matched') result.link(atlas, osm, 'stop_match', match.distance_m ?? stop.distance_m);
-        if (osm && atlas && match !== stop && options.multiMatchPopups) {
-          const group = osmMatches.get(osm.key) || { data, matches: [] };
-          group.matches.push({ ...stop, distance_m: match.distance_m, match_type: match.match_type || stop.match_type });
-          osmMatches.set(osm.key, group);
-        }
       });
       const osm = stopEntity('osm', stop, options);
       const links = [...(stop.osm_two_sided_links || []), ...(stop.osm_group_partner ? [stop.osm_group_partner] : [])];
       links.forEach(link => result.link(osm, shared.createEntity('osm', link.partner_node_id,
         [link.partner_osm_lat, link.partner_osm_lon]), 'group_link'));
     });
-    const data = result.result();
-    data.entities = data.entities.map(entity => {
-      const group = osmMatches.get(entity.key);
-      if (!group || group.matches.length < 2) return entity;
-      return Object.freeze({ ...entity, popupRef: { id: group.data.id, payload: {
-        ...group.data, stop_type: 'matched', is_osm_node: true, atlas_matches: group.matches
-      } } });
-    });
-    return data;
+    return result.result();
   }
 
   function gtfs(payload) {

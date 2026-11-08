@@ -24,7 +24,10 @@
             const style = { color: group ? (colors.LINE_OSM_GROUP || '#4CAF50')
                 : edge.relationshipType === 'gtfs_identity' ? (colors.GTFS_MATCHED || '#F0AD4E')
                     : (colors.LINE_ATLAS_OSM || '#174092'),
-                weight: 2, opacity: group ? 0.9 : options.isContext ? 0.4 : 1 };
+                weight: 2, opacity: group ? 0.9 : options.isContext ? 0.4 : 1,
+                // Lines do nothing on click; left interactive, they showed a
+                // pointer and could catch clicks meant for the marker under them.
+                interactive: false };
             if (group) style.dashArray = colors.LINE_OSM_GROUP_DASH || '6,4';
             drawLine(layer, ...from, ...to, style);
             count++;

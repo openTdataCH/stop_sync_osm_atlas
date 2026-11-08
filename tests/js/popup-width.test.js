@@ -120,6 +120,34 @@ describe('popup Move handle', () => {
     container.remove();
     jest.useRealTimers();
   });
+
+  test('moving an open popup to another marker keeps its view, content and drag offset', () => {
+    jest.useFakeTimers();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const map = window.L.map(container).setView([47, 8], 15);
+    const popup = new window.L.DraggablePopup().setLatLng([47, 8])
+      .setContent('<div class="atlas-match"><div class="card">Card</div></div>');
+    popup.openOn(map);
+    jest.advanceTimersByTime(200);
+    const card = popup.getElement().querySelector('.card');
+    card.style.display = 'none'; // as See Matches leaves it
+    popup._dragOffset = { x: 40, y: -30 };
+    const replacement = window.L.marker([47.001, 8.001]);
+
+    popup.setSource(replacement);
+
+    expect(popup.getElement().querySelector('.card')).toBe(card);
+    expect(card.style.display).toBe('none');
+    expect(popup._dragOffset).toEqual({ x: 40, y: -30 });
+    expect(popup.getLatLng().equals(window.L.latLng(47.001, 8.001))).toBe(true);
+    expect(popup._source).toBe(replacement);
+    expect(popup.isOpen()).toBe(true);
+
+    map.remove();
+    container.remove();
+    jest.useRealTimers();
+  });
 });
 
 describe('popup content', () => {

@@ -66,6 +66,29 @@ describe('MapRenderer production component', () => {
     expect(L.marker).not.toHaveBeenCalled();
   });
 
+  test('a circle marker closes its open popup on a second click, as icon markers do', () => {
+    const leafletOpenPopup = jest.fn();
+    const circle = { _openPopup: leafletOpenPopup, closePopup: jest.fn(), isPopupOpen: jest.fn(() => false) };
+    circle._popup = { _source: circle };
+    L.circleMarker.mockImplementationOnce(() => circle);
+    L.DomEvent = { stop: jest.fn() };
+    const marker = window.MapRenderer.createEntityMarker({
+      entity: window.MapShared.createEntity('atlas', '1', [46.5, 6.6], { status: 'matched' }),
+      displayPosition: [46.5, 6.6], zoom: 17
+    });
+    const click = { type: 'click' };
+
+    marker._openPopup(click);
+    expect(leafletOpenPopup).toHaveBeenCalledWith(click);
+
+    circle.isPopupOpen.mockReturnValue(true);
+    marker._openPopup(click);
+    expect(circle.closePopup).toHaveBeenCalledTimes(1);
+    expect(L.DomEvent.stop).toHaveBeenCalledWith(click);
+    expect(leafletOpenPopup).toHaveBeenCalledTimes(1);
+    delete L.DomEvent;
+  });
+
   test('calculates deterministic overlap offsets at the reference zoom', () => {
     const map = {
       getMaxZoom: jest.fn(() => 20),

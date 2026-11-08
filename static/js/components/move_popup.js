@@ -66,6 +66,16 @@
             this._removeInteractionListeners();
             L.Popup.prototype.onRemove.call(this, map);
         },
+        // Moves the popup to another marker of the same stop, such as the one
+        // drawn when the zoom changes the marker's kind. Leaflet's openPopup()
+        // would rebuild the content; this keeps the view, width and drag offset.
+        setSource: function(layer) {
+            this._source = layer;
+            this._marker = layer;
+            if (typeof layer.getLatLng === 'function') this.setLatLng(layer.getLatLng());
+            this._updateLine();
+            return this;
+        },
         _onContentUpdate: function() {
             setTimeout(() => {
                 if (this._container) {
