@@ -40,7 +40,8 @@ describe('route filter narrowed to variants', () => {
 
         expect(window.activeFilters.station).toEqual(['91-10-A-j26-1']);
         expect(JSON.parse(window.routeVariantsParam())).toEqual([{ atlas: SELNAU.key, osm: '1561015' }]);
-        expect(chip().querySelector('.direction-current').textContent).toBe('Uetliberg -> Zürich Selnau ⇄ OSM Uetliberg -> Selnau');
+        expect(chip().querySelector('.direction-current').textContent).toBe('Uetliberg → Zürich Selnau');
+        expect(chip().querySelector('.direction-current').title).toBe('ATLAS: Uetliberg -> Zürich Selnau\nOSM: Uetliberg -> Selnau');
         expect(chip().getAttribute('data-current')).toBe('variant');
         // The other parameters stay as they were.
         expect(window.location.search).toBe('?sloid=ch:1:sloid:7&atlas_variant=91-10-A-j26-1:0:Z%C3%BCrich+Selnau&osm_variant=1561015');
@@ -55,22 +56,26 @@ describe('route filter narrowed to variants', () => {
         await flush();
         expect(fetch).toHaveBeenCalledWith('/api/routes/variants?route_id=91-10-A-j26-1', expect.anything());
         const list = chip().querySelector('.direction-variants');
+        // Each direction, then its variants: the name once, the OSM name below when it differs, the sources as tags.
         expect([...list.children].map(node => node.textContent)).toEqual([
-            'Direction 0', 'Uetliberg -> Zürich HB ⇄ OSM Uetliberg -> Selnau', 'ATLAS: Uetliberg -> Zürich Selnau',
-            'Direction 1', 'OSM: Selnau -> Uetliberg'
+            'Direction 0all variants', 'Uetliberg → Zürich HBOSM: Uetliberg → SelnauATLASOSM', 'Uetliberg → Zürich SelnauATLAS',
+            'Direction 1all variants', 'Selnau → UetlibergOSM'
         ]);
-        // A heading is not an option: the list stays open.
+        expect(list.querySelector('[data-variant="0"]').title).toBe('ATLAS: Uetliberg -> Zürich HB\nOSM: Uetliberg -> Selnau');
+        // Only a heading is not an option: the list stays open.
+        list.insertAdjacentHTML('beforeend', '<div class="direction-group">Other variants</div>');
         click(list.querySelector('.direction-group'));
         expect(chip().classList).toContain('open');
 
-        click(list.querySelectorAll('.direction-option')[2]);
+        click(list.querySelector('[data-variant="2"]'));
         expect(JSON.parse(window.routeVariantsParam())).toEqual([{ atlas: null, osm: '1561012' }]);
         expect(window.location.search).toBe('?sloid=ch:1:sloid:7&osm_variant=1561012');
 
         click(chip());
         await flush();
         expect(fetch).toHaveBeenCalledTimes(1);
-        expect(chip().querySelector('.is-current').textContent).toBe('OSM: Selnau -> Uetliberg');
+        expect(chip().querySelector('.direction-current').textContent).toBe('Selnau → Uetliberg · OSM only');
+        expect(chip().querySelector('.is-current').getAttribute('data-variant')).toBe('2');
         click(chip().querySelector('.direction-option[data-direction="1"]'));
         expect(window.activeFilters.routeDirections).toEqual(['1']);
         expect(window.routeVariantsParam()).toBeNull();

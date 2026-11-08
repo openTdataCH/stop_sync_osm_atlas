@@ -156,12 +156,19 @@
     const routeAttribute = options.routeId ? ' data-route-id="' + escapeHtml(options.routeId) + '"' : '';
 
     const dropdownHtml = '<span class="direction-dropdown" data-index="' + escapeHtml(String(mapIndex)) + '" data-current="' + escapeHtml(current) + '"' + routeAttribute + '>' +
-        '<span class="direction-current" title="' + escapeHtml(display) + '">' + escapeHtml(display) + '</span><i class="fas fa-chevron-down direction-arrow"></i>' +
+        '<span class="direction-current" title="' + escapeHtml(options.variantTitle || display) + '">' + escapeHtml(display) + '</span><i class="fas fa-chevron-down direction-arrow"></i>' +
         '<div class="direction-options" style="display: none;">' +
-        '<div class="direction-option" data-direction="">Both</div>' +
-        '<div class="direction-option" data-direction="0">Dir: 0</div>' +
-        '<div class="direction-option" data-direction="1">Dir: 1</div>' +
-        (options.routeId ? '<div class="direction-variants"></div>' : '') +
+        (options.routeId
+          // One list: the whole line, then each direction followed by its
+          // variants (filled in on opening, see loadRouteVariantOptions).
+          ? '<div class="direction-option" data-direction="">Both directions</div>' +
+            '<div class="direction-variants">' +
+            '<div class="direction-option direction-option--direction" data-direction="0">Direction 0</div>' +
+            '<div class="direction-option direction-option--direction" data-direction="1">Direction 1</div>' +
+            '</div>'
+          : '<div class="direction-option" data-direction="">Both</div>' +
+            '<div class="direction-option" data-direction="0">Dir: 0</div>' +
+            '<div class="direction-option" data-direction="1">Dir: 1</div>') +
         '</div></span>';
     
     let chipContent = (routeLabel ? escapeHtml(routeLabel) + ' ' : '') + dropdownHtml;

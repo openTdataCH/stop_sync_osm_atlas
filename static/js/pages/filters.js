@@ -693,7 +693,8 @@ function updateFiltersUI() {
                 routeLabel: labelText + normalizedRoute,
                 showClose: true,
                 routeId: filter,
-                variantLabel: variants ? variants.label : ''
+                variantLabel: variants ? variants.label : '',
+                variantTitle: variants ? variants.title : ''
             });
         } else {
             badgeHtml = buildRemovableChip({ label: badgeHtmlContent, badgeClass: badgeClass, data: { type: 'station', index: index }, closeChar: '×' });
@@ -1028,11 +1029,17 @@ function fetchRouteVariants(params) {
     return routeVariantRequests[query];
 }
 
-// An engine pair reads "ATLAS name ⇄ OSM name"; a single variant names its source.
+// A variant's name as shown: "A -> B" reads "A → B".
+function routeVariantName(variant) {
+    return String(variant.name || variant.key).replace(/\s*->\s*/g, ' → ');
+}
+
+// The chip's label: the variant's name (ATLAS first), and which source it is
+// when only one side is shown.
 function routeVariantLabel(atlas, osm) {
-    if (atlas && osm) return atlas.name + ' ⇄ OSM ' + osm.name;
-    if (atlas) return SharedUtils.sourceLabel() + ': ' + atlas.name;
-    return osm ? 'OSM: ' + osm.name : '';
+    var name = routeVariantName(atlas || osm);
+    if (atlas && osm) return name;
+    return name + ' · ' + (atlas ? SharedUtils.sourceLabel() : 'OSM') + ' only';
 }
 
 // The request parameter: a JSON list aligned with station_filter, or null
@@ -1063,7 +1070,8 @@ function setRouteVariants(index, atlas, osm) {
     activeFilters.routeVariants[index] = {
         atlas: atlas ? atlas.key : null,
         osm: osm ? osm.key : null,
-        label: routeVariantLabel(atlas, osm)
+        label: routeVariantLabel(atlas, osm),
+        title: routeVariantTitle(atlas, osm)
     };
     syncRouteVariantUrl();
     updateFiltersUI();
@@ -1081,31 +1089,56 @@ function addRouteVariantFilter(data) {
     setRouteVariants(activeFilters.station.length - 1, data.selected.atlas, data.selected.osm);
 }
 
-// Fills a route chip's dropdown with the route's variants, grouped by direction.
+// Both sides, named as their sources name them: the tooltip of a variant.
+function routeVariantTitle(atlas, osm) {
+    return [atlas && SharedUtils.sourceLabel() + ': ' + atlas.name, osm && 'OSM: ' + osm.name].filter(Boolean).join('\n');
+}
+
+// One variant option: its name once, the OSM name below when the pair's names
+// differ, and the sources it shows as small tags.
+function routeVariantOptionHtml(entry, i, isCurrent) {
+    var esc = SharedUtils.escapeHtml;
+    var name = routeVariantName(entry.atlas || entry.osm);
+    var other = entry.atlas && entry.osm && routeVariantName(entry.osm) !== name ? routeVariantName(entry.osm) : '';
+    var title = routeVariantTitle(entry.atlas, entry.osm);
+    return '<div class="direction-option direction-option--variant' + (isCurrent ? ' is-current' : '') +
+        '" data-variant="' + i + '" title="' + esc(title) + '">' +
+        '<span class="variant-option__name">' + esc(name) +
+        (other ? '<span class="variant-option__other">OSM: ' + esc(other) + '</span>' : '') + '</span>' +
+        '<span class="variant-option__sources">' +
+        (entry.atlas ? '<span class="source-tag source-tag--atlas">' + SharedUtils.sourceLabelHtml() + '</span>' : '') +
+        (entry.osm ? '<span class="source-tag source-tag--osm">OSM</span>' : '') +
+        '</span></div>';
+}
+
+// Fills a route chip's dropdown with the route's variants under their direction.
 function loadRouteVariantOptions(dropdown) {
     var container = dropdown.find('.direction-variants');
     var routeId = dropdown.attr('data-route-id');
     if (!container.length || !routeId || container.attr('data-state')) return;
-    container.attr('data-state', 'loading').html('<div class="direction-group">Loading variants…</div>');
+    container.attr('data-state', 'loading');
     var selected = activeFilters.routeVariants[Number(dropdown.attr('data-index'))];
     fetchRouteVariants({ route_id: routeId }).then(function (data) {
         var html = '';
         data.variants.forEach(function (entry, i) {
-            if (i === 0 || entry.direction_id !== data.variants[i - 1].direction_id) {
-                html += '<div class="direction-group">' +
-                    (entry.direction_id != null ? 'Direction ' + SharedUtils.escapeHtml(entry.direction_id) : 'No direction') + '</div>';
+            var direction = entry.direction_id;
+            if (i === 0 || direction !== data.variants[i - 1].direction_id) {
+                // A direction is an option (all its variants); variants without one only get a heading.
+                html += direction === '0' || direction === '1'
+                    ? '<div class="direction-option direction-option--direction" data-direction="' + direction + '">Direction ' +
+                        direction + '<span class="direction-option__hint">all variants</span></div>'
+                    : '<div class="direction-group">Other variants</div>';
             }
             var isCurrent = selected && selected.atlas === (entry.atlas && entry.atlas.key) &&
                 selected.osm === (entry.osm && entry.osm.key);
-            var label = SharedUtils.escapeHtml(routeVariantLabel(entry.atlas, entry.osm));
-            html += '<div class="direction-option direction-option--variant' + (isCurrent ? ' is-current' : '') +
-                '" data-variant="' + i + '" title="' + label + '">' + label + '</div>';
+            html += routeVariantOptionHtml(entry, i, isCurrent);
         });
         loadedRouteVariants[routeId] = data.variants;
-        container.attr('data-state', 'loaded').html(html || '<div class="direction-group">No variants</div>');
+        if (html) container.html(html);
+        container.attr('data-state', 'loaded');
     }).catch(function () {
-        // Opening the list again retries.
-        container.attr('data-state', '').html('<div class="direction-group">Could not load the variants</div>');
+        // The directions stay; opening the list again retries.
+        container.attr('data-state', '');
     });
 }
 
@@ -1198,7 +1231,7 @@ function initFilterEventHandlers() {
     $(document).on('click', '.direction-dropdown', function (e) {
         e.preventDefault();
         e.stopPropagation(); // Prevent event bubbling
-        // Headings and messages in the variant list are not options: keep it open.
+        // A heading in the variant list is not an option: keep it open.
         if ($(e.target).closest('.direction-options').length && !$(e.target).closest('.direction-option').length) return;
 
         var index = $(this).data('index');
