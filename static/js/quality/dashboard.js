@@ -78,16 +78,25 @@
     // A tooltip waits for the cursor to rest, so sweeping across the map shows nothing.
     const HOVER_DELAY = 250;
     const TOOLTIP_GRACE = 120;
-    // Functions map: steps of the force layout, space between dots, how much larger than its dots a module's region
-    // starts, and the space between regions.
+    // Functions map: steps of the force layout, space between dots, how much larger than its dots a region's disc is,
+    // and the space between regions. Each dot keeps clear of the others by SYMBOL_ROOM of its own radius, so zooming
+    // in opens gaps where lines and names show instead of only making the dots larger.
     const SYMBOL_TICKS = 120;
     const SYMBOL_GAP = 1.6;
-    const SYMBOL_SPREAD = 1.15;
+    const SYMBOL_ROOM = 0.6;
+    const SYMBOL_SPREAD = 1.6;
     const REGION_GAP = 10;
+    // A region's circle: this much wider than its outermost dot. Its name is REGION_LABEL_PX tall on screen.
+    const REGION_MARGIN = 5;
+    const REGION_LABEL_PX = 12;
     const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
     const SEARCH_LIMIT = 8;
     // A function found by search opens at least this close, where its neighbours' names can be read.
     const FOCUS_ZOOM = 1.6;
+    // A module picked from the list fills the map, but a small one opens no closer than this, so its dots stay dots.
+    const MODULE_MAX_ZOOM = 3;
+    // Names are placed again once a zoom has rested this long: placing them on every frame made zooming stutter.
+    const NAME_DELAY = 120;
     // A name on the functions map shows once it is at least this tall on screen: at first only on the largest dots.
     // Around a selection every name may show, at least NAMED_FONT map units tall.
     const LABEL_PX = 10;
@@ -544,6 +553,21 @@
         };
     }
 
+    /**
+     * One module's part of the functions map: its functions and the links between them. A dot keeps the size its
+     * users across every module give it, so it looks the same as on the whole map.
+     */
+    function moduleSymbolGraph(graph, moduleId) {
+        const nodes = graph.nodes.filter((node) => node.module === moduleId);
+        const ids = new Set(nodes.map((node) => node.id));
+        return { nodes, links: graph.links.filter((link) => ids.has(link.source) && ids.has(link.target)) };
+    }
+
+    /** The region a dot belongs to on the functions map: its module, or its file when one module is drawn alone. */
+    function regionKey(byFile) {
+        return byFile ? (node) => node.file : (node) => node.module;
+    }
+
     /** Dot diameter. The area grows with the number of users, so a dot used ten times is not ten times as wide. */
     function symbolSize(users) {
         return Math.round((6 + 4.5 * Math.sqrt(users)) * 10) / 10;
@@ -592,11 +616,14 @@
             arc += 2 * r + gap;
             return { x: count > 1 ? Math.cos(angle) * ringRadius : 0, y: count > 1 ? Math.sin(angle) * ringRadius : 0 };
         });
-        for (let step = 0; step < 240; step++) {
-            centres.forEach((centre) => {
-                centre.x *= 0.98;
-                centre.y *= 0.96;
-            });
+        // The last steps only push discs apart, so none is left overlapping a neighbour.
+        for (let step = 0; step < 300; step++) {
+            if (step < 240) {
+                centres.forEach((centre) => {
+                    centre.x *= 0.98;
+                    centre.y *= 0.96;
+                });
+            }
             for (let round = 0; round < 4; round++) {
                 for (let a = 0; a < count; a++) {
                     for (let b = a + 1; b < count; b++) {
@@ -622,49 +649,63 @@
         return centres.map((centre) => ({ x: centre.x - middleX, y: centre.y - middleY }));
     }
 
+    /** Positions of the functions map, by node id: see ``symbolLayout``. */
+    function symbolPositions(codeMap, graph, options = {}) {
+        return symbolLayout(codeMap, graph, options).positions;
+    }
+
     /**
-     * Positions of the functions map from a small force layout, run to the end before anything is drawn.
+     * The functions map from a small force layout, run to the end before anything is drawn: ``positions`` by node id,
+     * and ``regions``, the circle of each module or, with ``byFile``, each file, largest first.
      *
-     * Each module is a disc: its files, largest first, on a sunflower spiral, and each file's functions on a smaller
+     * Each region is a disc: its files, largest first, on a sunflower spiral, and each file's functions on a smaller
      * spiral around the file, so a file starts in one piece. The discs are packed into one round cloud and each is held
-     * at its place as a whole; links pull functions that use each other closer, more strongly inside a module, and
-     * collisions keep the dots apart. Collisions are found on a grid of cells as wide as the largest pair of dots,
-     * so a step costs about as much as there are dots. There is no randomness: the same code map gives the same map.
+     * at its place as a whole; links inside a region pull functions that use each other closer, and collisions keep
+     * the dots apart, each with SYMBOL_ROOM of its radius to spare. A last run of collisions alone parts the dots that
+     * links still hold together. No dot leaves its disc, so regions never overlap; each circle drawn is centred on its
+     * disc and just wider than its outermost dot. Collisions are found on a grid of cells as wide as the largest pair
+     * of dots, so a step costs about as much as there are dots. There is no randomness: the same code map gives the
+     * same map.
      */
-    function symbolPositions(codeMap, graph, ticks = SYMBOL_TICKS) {
+    function symbolLayout(codeMap, graph, options = {}) {
+        const ticks = options.ticks === undefined ? SYMBOL_TICKS : options.ticks;
+        const regionOf = regionKey(options.byFile);
         // A region moves as a whole towards its anchor, so the pull does not crush it; each dot is held only lightly.
         const ANCHOR = 0.08;
         const HOLD = 0.008;
         const SETTLE = 0.6;
         const LINK_INSIDE = 0.3;
-        const LINK_ACROSS = 0.01;
         const LINK_GAP = 8;
         const COLLIDE = 0.7;
         const FRICTION = 0.45;
         const ALPHA_END = 0.02;
+        const SEPARATE_TICKS = 60;
         const count = graph.nodes.length;
         const positions = {};
-        if (!count) return positions;
+        if (!count) return { positions, regions: [] };
         const radius = new Float64Array(count);
+        const room = new Float64Array(count);
         const x = new Float64Array(count);
         const y = new Float64Array(count);
         const vx = new Float64Array(count);
         const vy = new Float64Array(count);
         const region = new Int32Array(count);
         const index = {};
-        const byModule = {};
+        const byRegion = {};
         graph.nodes.forEach((node, i) => {
             index[node.id] = i;
             radius[i] = symbolSize(node.users) / 2;
-            const files = byModule[node.module] || (byModule[node.module] = {});
+            room[i] = radius[i] * (1 + SYMBOL_ROOM) + SYMBOL_GAP;
+            const files = byRegion[regionOf(node)] || (byRegion[regionOf(node)] = {});
             (files[node.file] = files[node.file] || []).push(i);
         });
-        const footprint = (i) => Math.PI * (radius[i] + SYMBOL_GAP) * (radius[i] + SYMBOL_GAP) * SYMBOL_SPREAD;
-        const listed = moduleRing(codeMap);
-        const ring = listed.concat(Object.keys(byModule).filter((id) => !listed.includes(id)).sort()).filter((id) => byModule[id]);
+        const footprint = (i) => Math.PI * room[i] * room[i] * SYMBOL_SPREAD;
+        // Modules in the order of the module view, so connected ones are neighbours; files by path, so a folder stays together.
+        const listed = options.byFile ? [] : moduleRing(codeMap);
+        const ring = listed.concat(Object.keys(byRegion).filter((id) => !listed.includes(id)).sort()).filter((id) => byRegion[id]);
         const discs = {};
-        ring.forEach((moduleId) => {
-            const files = byModule[moduleId];
+        ring.forEach((regionId) => {
+            const files = byRegion[regionId];
             let area = 0;
             Object.keys(files).sort((a, b) => files[b].length - files[a].length || a.localeCompare(b)).forEach((file, fileIndex) => {
                 const members = files[file].sort((a, b) => graph.nodes[b].users - graph.nodes[a].users || graph.nodes[a].line - graph.nodes[b].line);
@@ -679,18 +720,23 @@
                 });
                 area += fileArea;
             });
-            discs[moduleId] = Math.sqrt(area / Math.PI);
+            discs[regionId] = Math.sqrt(area / Math.PI);
         });
-        const centres = packRegions(ring.map((moduleId) => discs[moduleId]));
+        // The circles drawn, a margin wider than the discs, are what is packed, so neighbouring circles keep REGION_GAP apart.
+        const centres = packRegions(ring.map((regionId) => discs[regionId] + REGION_MARGIN), REGION_GAP);
         const anchorX = Float64Array.from(centres, (centre) => centre.x);
         const anchorY = Float64Array.from(centres, (centre) => centre.y);
-        ring.forEach((moduleId, m) => Object.values(byModule[moduleId]).forEach((members) => members.forEach((i) => {
+        const discRadius = Float64Array.from(ring, (regionId) => discs[regionId]);
+        ring.forEach((regionId, m) => Object.values(byRegion[regionId]).forEach((members) => members.forEach((i) => {
             x[i] += anchorX[m];
             y[i] += anchorY[m];
             region[i] = m;
         })));
 
-        const links = graph.links.filter((link) => index[link.source] !== undefined && index[link.target] !== undefined);
+        // Only links inside a region pull: held in its disc, a dot pulled towards another region would only pile up on
+        // the disc's edge.
+        const links = graph.links.filter((link) => index[link.source] !== undefined && index[link.target] !== undefined
+            && region[index[link.source]] === region[index[link.target]]);
         const sources = new Int32Array(links.length);
         const targets = new Int32Array(links.length);
         const degree = new Float64Array(count);
@@ -707,13 +753,13 @@
         links.forEach((link, k) => {
             const source = sources[k];
             const target = targets[k];
-            strength[k] = (link.crossing ? LINK_ACROSS : LINK_INSIDE) / Math.min(degree[source], degree[target]);
+            strength[k] = LINK_INSIDE / Math.min(degree[source], degree[target]);
             bias[k] = degree[source] / (degree[source] + degree[target]);
-            rest[k] = radius[source] + radius[target] + LINK_GAP;
+            rest[k] = room[source] + room[target] + LINK_GAP;
         });
 
         let reach = 0;
-        for (let i = 0; i < count; i++) reach = Math.max(reach, radius[i] + SYMBOL_GAP);
+        for (let i = 0; i < count; i++) reach = Math.max(reach, room[i]);
         const cellOf = new Int32Array(count);
         const byCell = new Int32Array(count);
         function collide() {
@@ -751,7 +797,7 @@
                             if (j <= i) continue;
                             let dx = px - x[j] - vx[j];
                             let dy = py - y[j] - vy[j];
-                            const least = radius[i] + radius[j] + 2 * SYMBOL_GAP;
+                            const least = room[i] + room[j];
                             let length = dx * dx + dy * dy;
                             if (length >= least * least) continue;
                             if (!length) {
@@ -769,6 +815,25 @@
                             vy[j] -= dy * push * (1 - share);
                         }
                     }
+                }
+            }
+        }
+
+        /** Moves each dot by its velocity, slowed by ``friction``; a dot that would leave its disc stays on its edge. */
+        function move(friction) {
+            for (let i = 0; i < count; i++) {
+                vx[i] *= 1 - friction;
+                vy[i] *= 1 - friction;
+                x[i] += vx[i];
+                y[i] += vy[i];
+                const m = region[i];
+                const dx = x[i] - anchorX[m];
+                const dy = y[i] - anchorY[m];
+                const limit = Math.max(0, discRadius[m] - radius[i]);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance > limit) {
+                    x[i] = anchorX[m] + dx / distance * limit;
+                    y[i] = anchorY[m] + dy / distance * limit;
                 }
             }
         }
@@ -807,15 +872,26 @@
                 vy[source] += dy * (1 - bias[k]);
             }
             collide();
-            for (let i = 0; i < count; i++) {
-                vx[i] *= 1 - FRICTION;
-                vy[i] *= 1 - FRICTION;
-                x[i] += vx[i];
-                y[i] += vy[i];
-            }
+            move(FRICTION);
+        }
+        // Then only collisions, each step taken in full: links can still hold a busy function's callers too close.
+        for (let tick = 0; tick < SEPARATE_TICKS; tick++) {
+            vx.fill(0);
+            vy.fill(0);
+            collide();
+            move(0);
         }
         graph.nodes.forEach((node, i) => { positions[node.id] = { x: Math.round(x[i] * 10) / 10, y: Math.round(y[i] * 10) / 10 }; });
-        return positions;
+        // Each circle is centred on its disc and just wider than its outermost dot, so it never reaches a neighbour's.
+        const reachOf = new Float64Array(ring.length);
+        for (let i = 0; i < count; i++) {
+            const m = region[i];
+            reachOf[m] = Math.max(reachOf[m], Math.hypot(x[i] - anchorX[m], y[i] - anchorY[m]) + radius[i]);
+        }
+        const round = (value) => Math.round(value * 10) / 10;
+        const regions = ring.map((id, m) => ({ id, x: round(anchorX[m]), y: round(anchorY[m]), r: round(reachOf[m] + REGION_MARGIN), count: regionSize[m] }))
+            .sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
+        return { positions, regions };
     }
 
     /**
@@ -850,6 +926,9 @@
      * ``only``, the names of those dots whatever their size, ``first`` before the others, as for a selection and its
      * neighbours. ``measure(label, size)`` gives a label's width at a font size. A kept name has ``above`` set when it
      * goes above its dot.
+     *
+     * The names of ``map.regions`` come first, REGION_LABEL_PX tall on the top of their circle, largest region first
+     * and kept only if they do not overlap: the names of dots then go around them. Their ids start with ``region-label:``.
      */
     function labelPlaces(map, zoom, options = {}) {
         const measure = options.measure || ((label, size) => labelWidth(label, size, 600));
@@ -876,6 +955,17 @@
             const half = symbolSize(node.users) / 2;
             return { x1: position.x - half, x2: position.x + half, y1: position.y - half, y2: position.y + half };
         };
+        const free = (box) => !cellsOf(box).some((key) => (placed.get(key) || [])
+            .some((other) => box.x1 < other.x2 && other.x1 < box.x2 && box.y1 < other.y2 && other.y1 < box.y2));
+        const regionFont = Math.round((REGION_LABEL_PX / zoom) * 10) / 10;
+        (map.regions || []).forEach((region) => {
+            const width = measure(region.label, regionFont) + 6 * margin;
+            const height = regionFont * 1.25 + 2 * margin;
+            const box = { id: 'region-label:' + region.id, x1: region.x - width / 2, x2: region.x + width / 2, y1: region.y - region.r - height / 2, y2: region.y - region.r + height / 2 };
+            if (!free(box)) return;
+            add(box);
+            kept.push(Object.assign(box, { font: regionFont }));
+        });
         // A named dot is drawn above the smaller ones, so its own disc is an obstacle for their names.
         const place = (node, always) => {
             const font = fontOf(node);
@@ -887,8 +977,6 @@
                 id: node.id, above, x1: position.x - width / 2, x2: position.x + width / 2,
                 y1: above ? position.y - half - height : position.y + half, y2: above ? position.y - half : position.y + half + height
             }));
-            const free = (box) => !cellsOf(box).some((key) => (placed.get(key) || [])
-                .some((other) => box.x1 < other.x2 && other.x1 < box.x2 && box.y1 < other.y2 && other.y1 < box.y2));
             const box = always ? boxes[0] : boxes.find(free);
             if (!box) return;
             add(box);
@@ -1067,19 +1155,28 @@
         return elements;
     }
 
-    /** Every function and class as a dot, sized by its users; the name sits below, larger on a larger dot. */
+    /**
+     * Every function and class as a dot, sized by its users; the name sits below, larger on a larger dot. Under the
+     * dots, a light circle for each region, a module or a file, with its name on top of the circle.
+     */
     function symbolElements(codeMap, report, options) {
         const map = options.symbolMap;
         const modules = indexBy(codeMap.modules, 'id');
-        const elements = map.graph.nodes.map((node) => {
+        const elements = (map.regions || []).flatMap((region) => [
+            { group: 'nodes', classes: 'symbol-region', position: { x: region.x, y: region.y },
+                data: { id: 'region:' + region.id, kind: 'symbol-region', region: region.id, of: region.of, size: 2 * region.r, count: region.count } },
+            { group: 'nodes', classes: 'symbol-region-label', position: { x: region.x, y: region.y - region.r },
+                data: { id: 'region-label:' + region.id, kind: 'symbol-region-label', label: region.label } }
+        ]);
+        map.graph.nodes.forEach((node) => {
             const size = symbolSize(node.users);
-            return {
+            elements.push({
                 group: 'nodes', classes: 'symbol', position: map.positions[node.id],
                 data: {
                     id: node.id, label: node.name, kind: 'symbol', module: node.module, size, users: node.users,
                     font: symbolFont(node.users), color: nodeColor(modules[node.module], report, options.symbolColorBy, map.colors)
                 }
-            };
+            });
         });
         map.graph.links.forEach((link) => elements.push({
             group: 'edges', classes: 'symbol-link ' + (!link.crossing ? 'internal' : link.declared ? 'crossing' : 'crossing undeclared'),
@@ -1178,7 +1275,7 @@
             shape: 'ellipse', width: 'data(size)', height: 'data(size)', 'background-color': 'data(color)', 'border-width': 0,
             label: '', 'font-size': 'data(font)', 'font-weight': 600, color: INK, 'text-valign': 'bottom', 'text-halign': 'center',
             'text-margin-y': 1, 'text-outline-color': '#ffffff', 'text-outline-width': 1.5, 'text-outline-opacity': 0.9,
-            'z-index': 'data(users)', 'underlay-color': NAVY, 'underlay-opacity': 0, 'underlay-padding': 3,
+            'z-index-compare': 'manual', 'z-index': (node) => 2 + node.data('users'), 'underlay-color': NAVY, 'underlay-opacity': 0, 'underlay-padding': 3,
             'underlay-shape': 'ellipse', 'transition-duration': 0
         } },
         // A named dot is drawn above the unnamed ones, so no dot covers a name.
@@ -1187,9 +1284,26 @@
         { selector: 'node.symbol.unlabelled', style: { label: '' } },
         { selector: 'edge.symbol-link', style: {
             'curve-style': 'haystack', 'haystack-radius': 0, width: 0.6, 'line-color': EDGE_COLORS.unused, 'line-style': 'solid',
-            'line-opacity': 0.4, 'target-arrow-shape': 'none', events: 'no', 'transition-duration': 0
+            'line-opacity': 0.4, 'target-arrow-shape': 'none', events: 'no', 'transition-duration': 0, 'z-index-compare': 'manual', 'z-index': 1
         } },
         { selector: 'edge.symbol-link.hidden', style: { display: 'none' } },
+        // Regions: a light circle under each module's or file's dots, below the lines; its name, placed like the dots'
+        // names, sits on top of everything on the circle's edge.
+        { selector: 'node.symbol-region', style: {
+            shape: 'ellipse', width: 'data(size)', height: 'data(size)', 'background-color': '#f8f9fa', 'background-opacity': 1,
+            'border-width': 0.75, 'border-color': EDGE_COLORS.internal, label: '', 'z-index-compare': 'manual', 'z-index': 0,
+            'underlay-shape': 'ellipse', 'transition-duration': 0
+        } },
+        { selector: 'node.symbol-region.hover', style: { 'background-color': NOT_MEASURED_COLOR, 'border-width': 1.5, 'border-color': MUTED, 'underlay-opacity': 0 } },
+        { selector: 'node.symbol-region-label', style: {
+            shape: 'ellipse', width: 1, height: 1, 'background-opacity': 0, 'border-width': 0, label: '', events: 'no',
+            'font-weight': 700, color: MUTED, 'text-valign': 'center', 'text-halign': 'center',
+            'text-background-color': '#ffffff', 'text-background-opacity': 0.92, 'text-background-shape': 'round-rectangle',
+            'text-background-padding': (node) => (node.data('labelFont') || 4) * 0.25,
+            'text-border-width': (node) => (node.data('labelFont') || 4) * 0.08, 'text-border-color': EDGE_COLORS.internal, 'text-border-opacity': 1,
+            'z-index-compare': 'manual', 'z-index': 2000, 'transition-duration': 0
+        } },
+        { selector: 'node.symbol-region-label.labelled', style: { label: 'data(label)', 'font-size': (node) => node.data('labelFont') || 4 } },
         // Focus, from a click: the rest of the graph steps back but stays readable.
         { selector: '.faded', style: { opacity: 0.35 } },
         { selector: 'edge.lit', style: { 'line-opacity': 1, 'z-index': 10 } },
@@ -1224,42 +1338,45 @@
         return state.view === 'symbols' ? state.symbolColorBy : state.colorBy;
     }
 
+    /** One line of short keys under the map, groups set apart by a thin rule; the panel's guide says the rest. */
     function legendHtml(state) {
         const items = [];
         const swatch = (color, label) => '<li><span class="quality-swatch" style="background:' + color + '" aria-hidden="true"></span>' + label + '</li>';
         const colorBy = colorChoice(state);
         if (colorBy === 'module') {
-            items.push('<li>Dot colour: the module, as in the list beside the map</li>');
+            items.push('<li>Colour: module, as in the list</li>');
         } else if (colorBy === 'criticality') {
             Object.keys(CRITICALITY).forEach((level) => items.push('<li>' + criticalityBadge(level) + '</li>'));
         } else if (colorBy === 'coverage') {
-            items.push('<li><span class="quality-ramp" style="background:linear-gradient(90deg,' + COVERAGE_RAMP.join(',') + ')" aria-hidden="true"></span>Branch coverage 0% to 100%</li>');
-            items.push(swatch(NOT_MEASURED_COLOR, 'No runtime code or not measured'));
+            items.push('<li><span class="quality-ramp" style="background:linear-gradient(90deg,' + COVERAGE_RAMP.join(',') + ')" aria-hidden="true"></span>Branch coverage 0–100%</li>');
+            items.push(swatch(NOT_MEASURED_COLOR, 'Not measured'));
         } else {
             Object.keys(REPOSITORIES).forEach((repository) => items.push(swatch(REPOSITORIES[repository].color, REPOSITORIES[repository].label)));
         }
-        items.push('<li class="quality-legend__break" aria-hidden="true"></li>');
+        const rule = '<li class="quality-legend__rule" aria-hidden="true"></li>';
+        items.push(rule);
         const line = (kind, label) => '<li><span class="quality-line quality-line--' + kind + '" aria-hidden="true"></span>' + label + '</li>';
         if (state.view === 'symbols') {
-            items.push(line('symbol', 'A call or reference between two functions'));
-            items.push(line('declared', 'Selected: inside one module'));
-            items.push(line('crossing', 'Selected: across a declared module dependency'));
-            items.push(line('undeclared', 'Selected: across an undeclared one'));
-            items.push('<li class="quality-legend__break" aria-hidden="true"></li>');
-            items.push('<li><span class="quality-dots" aria-hidden="true"><span></span><span></span><span></span></span>Dot size: how many functions and files use it</li>');
-            items.push('<li>Names show on the largest dots; zoom in for more, or hover a dot.</li>');
+            items.push('<li><span class="quality-region-key" aria-hidden="true"></span>' + (state.symbolModule ? 'Circle: a file' : 'Circle: a module') + '</li>');
+            items.push(line('symbol', 'Call or reference'));
+            items.push('<li>Selected:</li>');
+            items.push(line('declared', 'same module'));
+            items.push(line('crossing', 'declared dependency'));
+            items.push(line('undeclared', 'undeclared dependency'));
+            items.push(rule);
+            items.push('<li><span class="quality-dots" aria-hidden="true"><span></span><span></span><span></span></span>Dot size: how many use it</li>');
         } else if (state.view === 'modules') {
-            items.push(line('declared', 'Code dependency the catalog declares'));
-            items.push(line('undeclared', 'Code dependency the catalog does not declare'));
-            items.push(line('unused', 'Declared, but no code reference found'));
+            items.push(line('declared', 'Declared dependency'));
+            items.push(line('undeclared', 'Undeclared dependency'));
+            items.push(line('unused', 'Declared, no code reference'));
             items.push('<li><span class="quality-swatch quality-swatch--contract" aria-hidden="true"></span>Contract between repositories</li>');
-            items.push('<li>Box height: lines of code. Hover an arrow for its code references.</li>');
+            items.push(rule);
+            items.push('<li>Box height: lines of code</li>');
         } else {
             items.push(line('internal', 'Inside one module'));
-            items.push(line('crossing', 'Across a declared module dependency'));
-            items.push(line('undeclared', 'Across an undeclared module dependency'));
-            items.push('<li><span class="quality-swatch quality-swatch--entry" aria-hidden="true"></span>Ringed: '
-                + (state.view === 'functions' ? 'function' : 'file') + ' used from another module</li>');
+            items.push(line('crossing', 'Declared dependency'));
+            items.push(line('undeclared', 'Undeclared dependency'));
+            items.push('<li><span class="quality-swatch quality-swatch--entry" aria-hidden="true"></span>Ringed: used from another module</li>');
         }
         return items.join('');
     }
@@ -1298,11 +1415,11 @@
             return '<p class="quality-eyebrow">Functions map</p>'
                 + '<h2 class="quality-panel__title">How to read the functions map</h2>'
                 + '<ol class="quality-steps">'
-                + '<li>Each dot is a function or class of either repository, coloured by its module, so each module forms its own region. A file\'s functions start side by side.</li>'
-                + '<li>A larger dot is used by more functions and files. Names show on the largest dots; zoom in for more, or hover a dot for its name.</li>'
+                + '<li>Each dot is a function or class of either repository, coloured by its module. Each module is a circle with its name on top; a module shown alone has a circle for each file.</li>'
+                + '<li>A larger dot is used by more functions and files. Zooming in opens space between the dots, where more names and lines show. Hover a dot for its name.</li>'
                 + '<li>A line joins a function to one it calls or references. Calls through objects, such as <code>self.save()</code> or <code>this.render()</code>, are not seen.</li>'
-                + '<li>Click a module in the list to pick out its functions, and click it again or <strong>Reset</strong> to clear.</li>'
-                + '<li>Select a dot for its callers and callees; double-click it to open its file. Search finds a function, class or file by name.</li>'
+                + '<li>Click a module in the list, or double-click its circle, to show only its functions. Click it again, or <strong>Reset</strong>, to show every function.</li>'
+                + '<li>Select a dot for its callers and callees; double-click it, or a file\'s circle, to open the file. Search finds a function, class or file by name.</li>'
                 + '<li>The module map stays the place to review boundaries: this map is for exploring.</li>'
                 + '</ol>';
         }
@@ -1343,7 +1460,7 @@
             + '</ol>';
     }
 
-    function moduleHtml(context, moduleId) {
+    function moduleHtml(context, moduleId, closeButton = CLOSE_BUTTON) {
         const module = context.modules[moduleId];
         const row = (context.data.report.modules || {})[moduleId] || {};
         const interfaceRows = (context.data.code_map.interface || {})[moduleId] || [];
@@ -1368,7 +1485,7 @@
         const docs = Object.keys(module.docs || {}).map((kind) => module.docs[kind].map((path) => escapeHtml(kind) + ': ' + sourceLink(context.data, module.repository + ':' + path)).join('<br>'));
         const open = context.state.view === 'files' && context.state.focus === moduleId ? ''
             : '<p><button type="button" class="quality-button" data-open-module="' + escapeHtml(module.id) + '"><i class="fas fa-folder-open" aria-hidden="true"></i> Open module files</button></p>';
-        return CLOSE_BUTTON
+        return closeButton
             + '<p class="quality-eyebrow">' + escapeHtml((REPOSITORIES[module.repository] || {}).label || module.repository) + ' module</p>'
             + '<h2 class="quality-panel__title">' + escapeHtml(module.title) + '</h2>'
             + '<div class="quality-panel__meta"><code>' + escapeHtml(module.id) + '</code>' + criticalityBadge(module.criticality) + '</div>'
@@ -1625,16 +1742,18 @@
         let tooltipShown = false;
         let matches = [];
         let activeMatch = -1;
-        // The selection on the functions map whose names are placed, as ids and the selected dot.
+        // The selection on the functions map whose names are placed, as ids and the selected dot, and the zoom they were placed at.
         let symbolFocus = null;
+        let namedZoom = null;
 
         function setPanel(html) {
             element('#qualityPanel').innerHTML = html;
             element('#qualityPanel').scrollTop = 0;
         }
 
+        /** The panel with nothing selected: the guide, or the module shown on the functions map. Its × hides the panel. */
         function showOverview() {
-            if (state.view === 'symbols' && state.symbolModule) setPanel(moduleHtml(context, state.symbolModule));
+            if (state.view === 'symbols' && state.symbolModule) setPanel(moduleHtml(context, state.symbolModule, HIDE_PANEL_BUTTON));
             else setPanel(HIDE_PANEL_BUTTON + overviewHtml(state));
         }
 
@@ -1642,19 +1761,48 @@
             return cy ? cy.$(':selected') : null;
         }
 
-        /** The functions map's graph and positions, laid out once on first use. */
+        /**
+         * Space around the map when it is fitted. The cloud of every function is round and can go closer to the edges;
+         * a module shown alone keeps clear of the breadcrumb above it.
+         */
+        function fitPadding() {
+            if (state.view !== 'symbols') return 48;
+            return state.symbolModule ? 56 : 24;
+        }
+
+        /** Every function and class, with the module colours and an index by id, built once. Search and the list use it all. */
         function symbolMap() {
             if (!context.symbolMap) {
                 const codeMap = context.data.code_map;
                 const graph = symbolGraph(codeMap);
-                context.symbolMap = { graph, positions: symbolPositions(codeMap, graph), colors: moduleColors(codeMap), nodes: indexBy(graph.nodes, 'id') };
+                context.symbolMap = { graph, colors: moduleColors(codeMap), nodes: indexBy(graph.nodes, 'id'), views: {} };
             }
             return context.symbolMap;
         }
 
         /**
+         * What the functions map draws: every function in module regions, or only the module picked from the list, laid
+         * out on its own in file regions so it fills the map. Each is laid out once, on first use; a module alone takes
+         * a fraction of the whole.
+         */
+        function symbolView() {
+            const map = symbolMap();
+            const key = state.symbolModule || '';
+            if (!map.views[key]) {
+                const byFile = Boolean(state.symbolModule);
+                const graph = byFile ? moduleSymbolGraph(map.graph, state.symbolModule) : map.graph;
+                const { positions, regions } = symbolLayout(context.data.code_map, graph, { byFile });
+                regions.forEach((region) => Object.assign(region, {
+                    of: byFile ? 'file' : 'module', label: byFile ? baseName(region.id) : shortName(region.id)
+                }));
+                map.views[key] = { graph, positions, regions, colors: map.colors };
+            }
+            return map.views[key];
+        }
+
+        /**
          * Fades everything but ``target`` and its direct neighbours, and labels the arrows that stay lit. On the
-         * functions map the neighbours are also named; without a target, a module picked from the list stays picked out.
+         * functions map the neighbours are also named.
          */
         function highlight(target) {
             if (!cy) return;
@@ -1664,12 +1812,9 @@
             cy.batch(() => {
                 cy.elements().removeClass('faded lit named');
                 if (keep) {
-                    cy.elements().not(keep).not(keep.ancestors()).addClass('faded');
+                    // The regions stay, so a selection is still seen in its module or file.
+                    cy.elements().not(keep).not(keep.ancestors()).filter((item) => !item.hasClass('symbol-region') && !item.hasClass('symbol-region-label')).addClass('faded');
                     keep.edges().addClass('lit');
-                } else if (state.view === 'symbols' && state.symbolModule) {
-                    const outside = cy.nodes('.symbol').filter((node) => node.data('module') !== state.symbolModule);
-                    outside.addClass('faded');
-                    outside.connectedEdges().addClass('faded');
                 }
             });
             symbolFocus = keep && state.view === 'symbols'
@@ -1719,10 +1864,15 @@
             const separator = '<span class="quality-crumbs__sep" aria-hidden="true"><i class="fas fa-chevron-right"></i></span>';
             const home = '<button type="button" data-view="modules"' + (state.view === 'files' ? ' title="Back to all modules (Esc)"' : '')
                 + '><i class="fas fa-arrow-left" aria-hidden="true"></i> All modules</button>' + separator;
+            if (state.view === 'symbols' && state.symbolModule) {
+                return home + '<button type="button" data-symbol-reset title="Show every function (Esc)">All functions</button>'
+                    + separator + '<span>' + escapeHtml(shortName(state.symbolModule)) + '</span>';
+            }
             if (state.view === 'symbols') return home + '<span>All functions</span>';
             if (state.view === 'functions' && state.from === 'symbols') {
-                return '<button type="button" data-view-toggle="symbols" title="Back to all functions (Esc)"><i class="fas fa-arrow-left" aria-hidden="true"></i> All functions</button>'
-                    + separator + '<span>' + escapeHtml(baseName(state.file)) + '</span>';
+                const back = state.symbolModule ? shortName(state.symbolModule) + ' functions' : 'All functions';
+                return '<button type="button" data-view-toggle="symbols" title="Back to the functions map (Esc)"><i class="fas fa-arrow-left" aria-hidden="true"></i> '
+                    + escapeHtml(back) + '</button>' + separator + '<span>' + escapeHtml(baseName(state.file)) + '</span>';
             }
             if (state.view === 'functions') {
                 return home + '<button type="button" data-open-module="' + escapeHtml(state.focus) + '" title="Back to the module\'s files (Esc)">'
@@ -1773,25 +1923,27 @@
         function nameSymbols() {
             if (state.view !== 'symbols' || !cy) return;
             const zoom = cy.zoom();
-            const shown = new Map(labelPlaces(symbolMap(), zoom, symbolFocus ? { only: symbolFocus.ids, first: symbolFocus.first } : {}).map((place) => [place.id, place]));
-            const name = symbolFocus ? 'named' : 'labelled';
-            cy.batch(() => cy.nodes('.symbol').forEach((node) => {
+            namedZoom = zoom;
+            const shown = new Map(labelPlaces(symbolView(), zoom, symbolFocus ? { only: symbolFocus.ids, first: symbolFocus.first } : {}).map((place) => [place.id, place]));
+            cy.batch(() => cy.nodes('.symbol, .symbol-region-label').forEach((node) => {
                 const place = shown.get(node.id());
+                const region = node.hasClass('symbol-region-label');
+                const name = symbolFocus && !region ? 'named' : 'labelled';
                 if (place && node.data('labelFont') !== place.font) node.data('labelFont', place.font);
                 if (Boolean(place) !== node.hasClass(name)) node.toggleClass(name, Boolean(place));
                 if (Boolean(place && place.above) !== node.hasClass('above')) node.toggleClass('above', Boolean(place && place.above));
-                if (symbolFocus && node.hasClass('labelled')) node.removeClass('labelled');
+                if (symbolFocus && !region && node.hasClass('labelled')) node.removeClass('labelled');
             }));
         }
 
-        let naming = false;
+        // While a zoom runs the names scale with the map; they are placed for the new zoom once it rests, or at once
+        // when the zoom has doubled or halved since, so a long zoom never shows names more than twice their size.
+        let namingTimer = null;
         function scheduleNames() {
-            if (naming || state.view !== 'symbols') return;
-            naming = true;
-            global.requestAnimationFrame(() => {
-                naming = false;
-                nameSymbols();
-            });
+            if (state.view !== 'symbols') return;
+            global.clearTimeout(namingTimer);
+            if (namedZoom && Math.abs(Math.log2(cy.zoom() / namedZoom)) >= 1) nameSymbols();
+            else namingTimer = global.setTimeout(nameSymbols, NAME_DELAY);
         }
 
         /** Applies the Edges and Labels switches to the functions map. */
@@ -1809,17 +1961,21 @@
                 explorer.hidden = state.view !== 'symbols';
                 if (typeof cy.resize === 'function') cy.resize();
             }
-            const options = Object.assign({ moduleLinks: context.moduleLinks, symbolMap: state.view === 'symbols' ? symbolMap() : null }, state);
+            const options = Object.assign({ moduleLinks: context.moduleLinks, symbolMap: state.view === 'symbols' ? symbolView() : null }, state);
             const build = { modules: moduleElements, files: fileElements, functions: functionElements, symbols: symbolElements }[state.view];
             const elements = build(context.data.code_map, context.data.report, options);
             cy.elements().remove();
             cy.add(elements);
-            cy.layout({ name: 'preset', fit: true, padding: state.view === 'symbols' ? 24 : 48 }).run();
+            cy.layout({ name: 'preset', fit: true, padding: fitPadding() }).run();
             // Open a module close enough to read its file names, and never shrink the module view to unreadable boxes.
             const readable = state.focus ? READABLE_ZOOM : state.view === 'modules' ? MODULE_ZOOM : 0;
             if (readable && typeof cy.zoom === 'function' && cy.zoom() < readable) {
                 cy.zoom(readable);
                 cy.center(state.focus ? cy.getElementById(state.view === 'functions' ? state.file : state.focus) : undefined);
+            }
+            if (state.view === 'symbols' && typeof cy.zoom === 'function' && cy.zoom() > MODULE_MAX_ZOOM) {
+                cy.zoom(MODULE_MAX_ZOOM);
+                cy.center();
             }
             element('#qualityLegend').innerHTML = legendHtml(state);
             element('#qualityBreadcrumb').innerHTML = crumbsHtml();
@@ -1908,17 +2064,29 @@
             });
         }
 
-        /** Picks out one module's functions on the functions map and shows the module in the panel; null clears it. */
+        /**
+         * Shows only one module's functions on the functions map, fitted to it, with the module in the panel; null
+         * shows every function again. The module already shown only clears the selection.
+         */
         function focusModule(moduleId) {
+            if (state.symbolModule === moduleId) {
+                select(null);
+                renderExplorer();
+                return;
+            }
             state.symbolModule = moduleId;
-            cy.elements().unselect();
-            highlight(null);
-            showOverview();
-            renderExplorer();
+            switchView();
+        }
+
+        /** While one module is shown, a function or file found elsewhere switches the map to its module, so it is there. */
+        function showModuleOf(fileId) {
+            const moduleId = context.owners[fileId];
+            if (state.symbolModule && moduleId && state.symbolModule !== moduleId) focusModule(moduleId);
         }
 
         /** Selects a function on the functions map and zooms in far enough to read its neighbours' names. */
         function focusSymbol(symbolId) {
+            if (context.symbols[symbolId]) showModuleOf(context.symbols[symbolId].file);
             const node = cy.getElementById(symbolId);
             if (!node.length) return;
             select(node);
@@ -1928,6 +2096,7 @@
 
         /** Selects every function of one file on the functions map and shows the file in the panel. */
         function focusFile(fileId) {
+            showModuleOf(fileId);
             const nodes = cy.nodes('.symbol').filter((node) => context.symbols[node.id()].file === fileId);
             if (!nodes.length) return;
             cy.elements().unselect();
@@ -1995,8 +2164,9 @@
             target.addClass('hover');
             if (target.isNode()) target.union(target.descendants()).connectedEdges().addClass('hover');
             global.clearTimeout(tooltipTimer);
-            // While a tooltip is showing, moving straight to a neighbour shows the neighbour's at once.
-            if (tooltipShown) showTooltip(target);
+            // While a tooltip is showing, moving straight to a neighbour shows the neighbour's at once. A region is crossed
+            // on the way between its dots, so its own tooltip always waits for the cursor to rest.
+            if (tooltipShown && target.data('kind') !== 'symbol-region') showTooltip(target);
             else tooltipTimer = global.setTimeout(() => showTooltip(target), HOVER_DELAY);
         }
 
@@ -2032,6 +2202,15 @@
             if (data.kind === 'file-link' || data.kind === 'function-link') {
                 const name = (id) => escapeHtml(context.symbols[id] ? context.symbols[id].name : baseName(id));
                 return '<strong>' + name(data.source) + ' → ' + name(data.target) + '</strong><span>' + escapeHtml(data.kinds) + '</span>';
+            }
+            if (data.kind === 'symbol-region' && data.of === 'module') {
+                const module = context.modules[data.region];
+                return '<strong>' + escapeHtml(shortName(data.region)) + '</strong><span>' + escapeHtml(module ? module.title : data.region) + ' · '
+                    + plural(data.count, 'function or class', 'functions and classes') + '<br>Double-click to show it alone</span>';
+            }
+            if (data.kind === 'symbol-region') {
+                return '<strong>' + escapeHtml(baseName(data.region)) + '</strong><span>' + escapeHtml(pathOf(data.region)) + ' · '
+                    + plural(data.count, 'function or class', 'functions and classes') + '<br>Double-click to open its functions</span>';
             }
             if (data.kind === 'contract') return '<strong>' + escapeHtml(data.label) + '</strong><span>Contract between the repositories</span>';
             return '';
@@ -2164,8 +2343,13 @@
                     matches = [];
                     closeMatches();
                 }
-                focusModule(null);
-                if (typeof cy.animate === 'function') cy.animate({ fit: { eles: cy.elements(), padding: 24 } }, { duration: 260, easing: 'ease-in-out-cubic' });
+                if (state.symbolModule) {
+                    focusModule(null);
+                } else {
+                    select(null);
+                    renderExplorer();
+                    if (typeof cy.animate === 'function') cy.animate({ fit: { eles: cy.elements(), padding: fitPadding() } }, { duration: 260, easing: 'ease-in-out-cubic' });
+                }
             } else if (target.dataset.view === 'modules' || target.dataset.viewToggle === 'modules') {
                 if (state.view !== 'modules') showModules(state.view === 'symbols' ? null : state.focus);
             } else if (target.dataset.viewToggle === 'files') {
@@ -2187,9 +2371,7 @@
                 setPanelOpen(false);
                 if (panelToggle) panelToggle.focus();
             } else if (target.hasAttribute('data-clear-selection')) {
-                // The panel of a module picked from the list closes by un-picking it.
-                if (state.view === 'symbols' && state.symbolModule && !selected().length) focusModule(null);
-                else select(null);
+                select(null);
                 if (state.view === 'symbols') renderExplorer();
             }
         });
@@ -2202,7 +2384,7 @@
             });
         });
         element('#qualityFit').addEventListener('click', () => {
-            if (cy) cy.animate({ fit: { eles: cy.elements(), padding: state.view === 'symbols' ? 24 : 48 } }, { duration: 260, easing: 'ease-in-out-cubic' });
+            if (cy) cy.animate({ fit: { eles: cy.elements(), padding: fitPadding() } }, { duration: 260, easing: 'ease-in-out-cubic' });
         });
 
         // Expanded view: the workspace (toolbar, map, panel and legend) fills the window below the navbar, which stays
@@ -2234,7 +2416,7 @@
             if (cy) {
                 hideTooltip();
                 cy.resize();
-                cy.fit(cy.elements(), state.view === 'symbols' ? 24 : 48);
+                cy.fit(cy.elements(), fitPadding());
             }
         }
         if (workspace && expandButton) {
@@ -2339,7 +2521,8 @@
                     wheelSensitivity: 0.4, boxSelectionEnabled: false, autoungrabify: true
                 });
                 // A click focuses: it fades the rest until Esc or a click on the background.
-                const selectable = (target) => !target.isParent() || ['module', 'function-file'].includes(target.data('kind'));
+                // A region is background to a click: double-clicking it goes into it.
+                const selectable = (target) => (!target.isParent() || ['module', 'function-file'].includes(target.data('kind'))) && target.data('kind') !== 'symbol-region';
                 cy.on('tap', (event) => {
                     select(event.target === cy || (event.target.isNode() && !selectable(event.target)) ? null : event.target);
                     if (state.view === 'symbols') renderExplorer();
@@ -2350,7 +2533,11 @@
                     const symbol = context.symbols[event.target.id()];
                     openFile(symbol ? symbol.file : event.target.id(), symbol ? symbol.id : undefined);
                 });
-                const hoverable = 'node.module, node.file-module, node.file, node.contract, node.function, node.function-file, node.symbol, edge';
+                cy.on('dbltap', 'node.symbol-region', (event) => {
+                    if (event.target.data('of') === 'module') focusModule(event.target.data('region'));
+                    else openFile(event.target.data('region'));
+                });
+                const hoverable = 'node.module, node.file-module, node.file, node.contract, node.function, node.function-file, node.symbol, node.symbol-region, edge';
                 cy.on('mouseover', hoverable, (event) => {
                     mapElement.style.cursor = 'pointer';
                     hoverStart(event.target);
@@ -2377,8 +2564,10 @@
         fileGraph,
         functionGraph,
         symbolGraph,
+        moduleSymbolGraph,
         symbolSize,
         symbolPositions,
+        symbolLayout,
         moduleRing,
         moduleColors,
         packRegions,

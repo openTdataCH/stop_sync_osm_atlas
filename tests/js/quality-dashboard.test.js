@@ -211,6 +211,21 @@ describe('QualityDashboard', () => {
       expect(links['app:backend/api.py:serve@3>app:backend/api_helpers.py:fmt@2']).toMatchObject({ crossing: false });
     });
 
+    test('a module alone keeps its functions, their sizes and the links between them, and nothing else', () => {
+      const graph = window.QualityDashboard.symbolGraph(codeMap());
+      const api = window.QualityDashboard.moduleSymbolGraph(graph, 'app.api');
+      expect(api.nodes.map((node) => node.id).sort()).toEqual(['app:backend/api.py:helper@10', 'app:backend/api.py:serve@3', 'app:backend/api_helpers.py:fmt@2']);
+      // serve keeps the user it has in another module, so its dot is as large as on the whole map.
+      expect(api.nodes.find((node) => node.name === 'serve').users).toBe(2);
+      expect(api.links.map((link) => link.source + '>' + link.target).sort()).toEqual([
+        'app:backend/api.py:serve@3>app:backend/api.py:helper@10',
+        'app:backend/api.py:serve@3>app:backend/api_helpers.py:fmt@2'
+      ]);
+      const positions = window.QualityDashboard.symbolPositions(codeMap(), api);
+      expect(Object.keys(positions).sort()).toEqual(api.nodes.map((node) => node.id).sort());
+      expect(window.QualityDashboard.moduleSymbolGraph(graph, 'app.ui')).toEqual({ nodes: [], links: [] });
+    });
+
     test('a dot grows with its users, more slowly than their number', () => {
       const size = window.QualityDashboard.symbolSize;
       expect(size(0)).toBe(6);
@@ -274,6 +289,42 @@ describe('QualityDashboard', () => {
       expect(window.QualityDashboard.symbolPositions({ modules: [] }, { nodes: [], links: [] })).toEqual({});
     });
 
+    test('each region is a circle around its own dots that no other circle reaches, and dots keep room between them', () => {
+      const map = largeCodeMap(3, 60);
+      const radius = (node) => window.QualityDashboard.symbolSize(node.users) / 2;
+      const check = (graph, byFile, regionOf) => {
+        const { positions, regions } = window.QualityDashboard.symbolLayout(map, graph, { byFile });
+        const byId = Object.fromEntries(regions.map((region) => [region.id, region]));
+        expect(Object.keys(byId).sort()).toEqual(Array.from(new Set(graph.nodes.map(regionOf))).sort());
+        expect(regions.map((region) => region.count)).toEqual(regions.map((region) => region.count).sort((a, b) => b - a));
+        graph.nodes.forEach((node) => {
+          const circle = byId[regionOf(node)];
+          expect(Math.hypot(positions[node.id].x - circle.x, positions[node.id].y - circle.y) + radius(node)).toBeLessThanOrEqual(circle.r);
+        });
+        for (let a = 0; a < regions.length; a++) {
+          for (let b = a + 1; b < regions.length; b++) {
+            expect(Math.hypot(regions[a].x - regions[b].x, regions[a].y - regions[b].y)).toBeGreaterThan(regions[a].r + regions[b].r);
+          }
+        }
+        let closest = Infinity;
+        for (let a = 0; a < graph.nodes.length; a++) {
+          for (let b = a + 1; b < graph.nodes.length; b++) {
+            const [p, q] = [positions[graph.nodes[a].id], positions[graph.nodes[b].id]];
+            closest = Math.min(closest, Math.hypot(p.x - q.x, p.y - q.y) / (radius(graph.nodes[a]) + radius(graph.nodes[b])));
+          }
+        }
+        // Each dot keeps SYMBOL_ROOM (0.6) of its radius clear, so neighbours sit well apart, not edge to edge.
+        expect(closest).toBeGreaterThan(1.4);
+      };
+      const graph = window.QualityDashboard.symbolGraph(map);
+      check(graph, false, (node) => node.module);
+      // A module drawn alone has a circle for each of its four files.
+      const alone = window.QualityDashboard.moduleSymbolGraph(graph, 'app.m1');
+      check(alone, true, (node) => node.file);
+      expect(window.QualityDashboard.symbolLayout(map, alone, { byFile: true }).regions).toHaveLength(4);
+      expect(window.QualityDashboard.symbolLayout(map, { nodes: [], links: [] })).toEqual({ positions: {}, regions: [] });
+    });
+
     test('search ranks the exact name, then a prefix, then a part of the name, then the path', () => {
       const graph = window.QualityDashboard.symbolGraph(codeMap());
       const match = window.QualityDashboard.matchSymbols;
@@ -314,6 +365,25 @@ describe('QualityDashboard', () => {
       const zoomed = places(crowded, 6, { measure });
       expect(ids(zoomed)).toEqual(['one', 'two']);
       expect(zoomed[0].font * 6).toBeCloseTo(13, 0);
+    });
+
+    test('region names come first, 12 pixels tall on top of their circle, and dot names go around them', () => {
+      const node = (id, users, name) => ({ id, name: name || id, users });
+      const measure = (label, size) => label.length * size * 0.6;
+      const places = window.QualityDashboard.labelPlaces;
+      const map = {
+        graph: { nodes: [node('big', 25, 'big_name')] },
+        positions: { big: { x: 0, y: -100 } },
+        // The big dot's name sits right where the first region's name goes; the second region's name would cover the first's.
+        regions: [{ id: 'a', label: 'files.py', x: 0, y: 0, r: 80 }, { id: 'b', label: 'other.py', x: 5, y: 2, r: 80 }, { id: 'c', label: 'far.py', x: 500, y: 0, r: 40 }]
+      };
+      const kept = places(map, 1, { measure });
+      expect(kept.map((row) => row.id)).toEqual(['region-label:a', 'region-label:c', 'big']);
+      expect(kept[0].font).toBe(12);
+      expect((kept[0].y1 + kept[0].y2) / 2).toBe(-80);
+      // The dot's name, below it, would cover region a's name, so it goes above the dot.
+      expect(kept[2].above).toBe(true);
+      expect(places(map, 2, { measure })[0].font).toBe(6);
     });
   });
 
@@ -540,15 +610,94 @@ describe('QualityDashboard', () => {
         expect(document.querySelector('[data-color-by="criticality"]').getAttribute('aria-pressed')).toBe('true');
       });
 
-      test('a module picked from the list fades the other functions until it is picked again', async () => {
+      test('a module picked from the list is drawn alone, fitted, until it is picked again', async () => {
         const cy = await openFunctions();
+        cy.layout.mockClear();
         click('[data-symbol-module="app.api"]');
         expect(document.querySelector('[data-symbol-module="app.api"]').getAttribute('aria-pressed')).toBe('true');
-        expect(document.getElementById('qualityPanel').textContent).toContain('Serve data.');
-        expect(cy.nodes('.symbol.faded').map((node) => node.id())).toEqual(['app:backend/importer.py:run@5']);
-        click('[data-symbol-module="app.api"]');
+        expect(cy.nodes('.symbol').map((node) => node.id()).sort()).toEqual(['app:backend/api.py:helper@10', 'app:backend/api.py:serve@3', 'app:backend/api_helpers.py:fmt@2']);
+        expect(cy.edges('.symbol-link').length).toBe(2);
+        expect(cy.layout).toHaveBeenCalledWith(expect.objectContaining({ name: 'preset', fit: true }));
         expect(cy.nodes('.symbol.faded').length).toBe(0);
+        expect(document.getElementById('qualityPanel').textContent).toContain('Serve data.');
+        expect(document.getElementById('qualityBreadcrumb').textContent).toMatch(/All functions.*api/);
+        // The module list still counts every module's functions.
+        expect(document.querySelectorAll('[data-symbol-module]')).toHaveLength(2);
+        click('[data-symbol-module="app.api"]');
+        expect(cy.nodes('.symbol').length).toBe(4);
         expect(document.getElementById('qualityPanel').textContent).toContain('How to read the functions map');
+        // All functions in the breadcrumb, Reset and Esc each show every function again.
+        click('[data-symbol-module="app.import"]');
+        click('#qualityBreadcrumb [data-symbol-reset]');
+        expect(cy.nodes('.symbol').length).toBe(4);
+        click('[data-symbol-module="app.import"]');
+        click('#qualityExplorerReset');
+        expect(cy.nodes('.symbol').length).toBe(4);
+        click('[data-symbol-module="app.import"]');
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+        expect(cy.nodes('.symbol').length).toBe(4);
+      });
+
+      test('modules, and files of a module drawn alone, are circles: a click passes through, a double-click goes in', async () => {
+        const cy = await openFunctions();
+        const handler = (event, selector) => cy.on.mock.calls.find((call) => call[0] === event && (selector === undefined ? typeof call[1] === 'function' : call[1] === selector)).slice(-1)[0];
+        expect(cy.nodes('.symbol-region').map((node) => node.id()).sort()).toEqual(['region:app.api', 'region:app.import']);
+        expect(cy.getElementById('region-label:app.api').data('label')).toBe('api');
+        expect(document.getElementById('qualityLegend').textContent).toContain('Circle: a module');
+        // Clicking inside a circle is clicking the background: it clears the selection.
+        const search = document.getElementById('qualitySearch');
+        search.value = 'serve';
+        search.dispatchEvent(new Event('input'));
+        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        expect(cy.$(':selected').length).toBe(1);
+        handler('tap')({ target: cy.getElementById('region:app.api') });
+        expect(cy.$(':selected').length).toBe(0);
+        // Double-clicking a module's circle draws it alone, with a circle for each file.
+        handler('dbltap', 'node.symbol-region')({ target: cy.getElementById('region:app.api') });
+        expect(document.querySelector('[data-symbol-module="app.api"]').getAttribute('aria-pressed')).toBe('true');
+        expect(cy.nodes('.symbol-region').map((node) => node.id()).sort()).toEqual(['region:app:backend/api.py', 'region:app:backend/api_helpers.py']);
+        expect(cy.getElementById('region-label:app:backend/api.py').data('label')).toBe('api.py');
+        expect(document.getElementById('qualityLegend').textContent).toContain('Circle: a file');
+        // Double-clicking a file's circle opens its functions.
+        handler('dbltap', 'node.symbol-region')({ target: cy.getElementById('region:app:backend/api.py') });
+        await nextFrame();
+        expect(document.getElementById('qualityBreadcrumb').textContent).toMatch(/api functions.*api\.py/);
+      });
+
+      test('the panel of a module drawn alone hides with its ×, and the map keeps the module', async () => {
+        const cy = await openFunctions();
+        click('[data-symbol-module="app.api"]');
+        click('#qualityPanel [data-hide-panel]');
+        expect(document.querySelector('.quality-workspace').classList.contains('is-panel-hidden')).toBe(true);
+        expect(cy.nodes('.symbol').length).toBe(3);
+        // Its link to itself in a function's panel goes back to the module's details without drawing it again.
+        click('#qualityPanelToggle');
+        const search = document.getElementById('qualitySearch');
+        search.value = 'serve';
+        search.dispatchEvent(new Event('input'));
+        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        const added = cy.add.mock.calls.length;
+        click('#qualityPanel [data-select-module="app.api"]');
+        expect(cy.add.mock.calls.length).toBe(added);
+        expect(cy.$(':selected').length).toBe(0);
+        expect(document.getElementById('qualityPanel').textContent).toContain('Serve data.');
+      });
+
+      test('while one module is drawn, a match in another module draws that module', async () => {
+        const cy = await openFunctions();
+        click('[data-symbol-module="app.api"]');
+        const search = document.getElementById('qualitySearch');
+        search.value = 'run';
+        search.dispatchEvent(new Event('input'));
+        search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        expect(document.querySelector('[data-symbol-module="app.import"]').getAttribute('aria-pressed')).toBe('true');
+        expect(cy.nodes('.symbol').map((node) => node.id())).toEqual(['app:backend/importer.py:run@5']);
+        expect(cy.$(':selected').id()).toBe('app:backend/importer.py:run@5');
+        search.value = 'api_helpers';
+        search.dispatchEvent(new Event('input'));
+        click('#qualitySearchOption0');
+        expect(document.querySelector('[data-symbol-module="app.api"]').getAttribute('aria-pressed')).toBe('true');
+        expect(cy.$(':selected').map((node) => node.id())).toEqual(['app:backend/api_helpers.py:fmt@2']);
       });
 
       test('the details panel hides to widen the map and opens again on a selection', async () => {
