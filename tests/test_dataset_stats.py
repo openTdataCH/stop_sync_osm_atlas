@@ -72,7 +72,7 @@ def test_osm_stop_stats_count_elements_units_groups_tags_and_route_service(sqlit
     session = sqlite_tables(OsmNode, OsmStop, OsmStopMember, StopsMatched, OsmRouteRelation,
                             LineFamily, Itinerary, StopCall)
     session.add_all([
-        OsmNode(osm_node_id='1', osm_node_type='platform', osm_tags={'name': 'A', 'shelter': 'yes'}),
+        OsmNode(osm_node_id='1', osm_node_type='platform', osm_tags={'name': 'A', 'shelter': 'yes', 'ref:sloid': 's1'}),
         OsmNode(osm_node_id='2', osm_node_type='stop_position', osm_tags={'name': 'A', 'uic_ref': '85'}),
         OsmNode(osm_node_id='way_3', osm_node_type='platform', osm_tags={'name': ''}),
         OsmNode(osm_node_id='4', osm_node_type='stop_position', osm_lifecycle='disused', osm_tags={}),
@@ -81,7 +81,7 @@ def test_osm_stop_stats_count_elements_units_groups_tags_and_route_service(sqlit
         OsmStopMember(osm_stop_id=1, node_id='1', member_role='pair_a'),
         OsmStopMember(osm_stop_id=1, node_id='2', member_role='pair_b'),
         OsmStopMember(osm_stop_id=2, node_id='way_3', member_role='single'),
-        StopsMatched(id=1, sloid='s1', stop_type='matched', osm_node_id='1'),
+        StopsMatched(id=1, sloid='s1', stop_type='matched', osm_node_id='1', match_type='sloid_identifier'),
         StopsMatched(id=2, sloid='s1', stop_type='matched', osm_node_id='2'),
         StopsMatched(id=3, stop_type='osm_unmatched', osm_node_id='way_3'),
         OsmRouteRelation(relation_id='r1', route='bus'),
@@ -113,6 +113,10 @@ def test_osm_stop_stats_count_elements_units_groups_tags_and_route_service(sqlit
     keys = {row['key']: row for group in stats['tags']['groups'] for row in group['keys']}
     assert keys['name'] == {'key': 'name', 'elements': 2, 'platforms': 1, 'stop_positions': 1}
     assert keys['shelter']['platforms'] == 1
+    # One element names its platform by SLOID and is linked by it; the matched
+    # stop position does not carry one yet.
+    assert stats['identifiers'] == {'elements': 1, 'ways': 0, 'linked_elements': 1,
+                                    'linked_platforms': 1, 'matched_without': 1}
 
 
 def test_osm_route_stats_leave_non_public_transport_out(sqlite_tables):

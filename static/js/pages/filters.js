@@ -5,6 +5,7 @@
 // type; backend/services/matching_rules.py expands it to match types.
 const MATCH_METHOD_FILTERS = {
     methods: [
+        { value: 'identifier', selector: '#filterIdentifier', label: 'SLOID in OSM' },
         { value: 'two_sided_stop', selector: '#filterTwoSidedStop', label: 'UIC two-sided stop' },
         { value: 'reference', selector: '#filterReference', label: 'UIC reference' },
         { value: 'name', selector: '#filterName', label: 'Name' }

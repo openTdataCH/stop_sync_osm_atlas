@@ -210,6 +210,7 @@ function buildReportRequestParams() {
         if ($('#ptypeContradictsRouteMatching').is(':checked')) ptypes.push('contradicts_route_matching');
         if ($('#ptypeDuplicates').is(':checked')) ptypes.push('duplicates');
         if ($('#ptypeDisused').is(':checked')) ptypes.push('disused');
+        if ($('#ptypeIdentifier').is(':checked')) ptypes.push('identifier');
         if (ptypes.length > 0) params.problem_types = ptypes.join(',');
 
         // Priorities

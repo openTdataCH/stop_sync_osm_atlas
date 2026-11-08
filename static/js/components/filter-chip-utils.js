@@ -91,7 +91,9 @@
     const hasOperators = Array.isArray(operators) && operators.length > 0;
 
     selectedTypes.forEach(function(problemType) {
-      const displayType = String(problemType || '').replace(/_/g, ' ').replace(/\b\w/g, function(l){return l.toUpperCase();});
+      const displayType = problemType === 'identifier'
+        ? 'OSM ' + SharedUtils.sourceIdLabel()
+        : String(problemType || '').replace(/_/g, ' ').replace(/\b\w/g, function(l){return l.toUpperCase();});
       typeChips.push('<span class="' + FILTER_CHIP_BADGE_CLASS + ' filter-chip-problem-type">' + escapeHtml(displayType) +
                  ' <a href="#" class="text-body remove-type-chip" data-type="' + escapeHtml(problemType) + '">x</a></span>');
     });

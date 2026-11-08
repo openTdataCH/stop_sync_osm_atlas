@@ -7,10 +7,11 @@
         layers.linesLayer.clearLayers();
         if (!problem) return;
         const duplicate = problem.problem === 'duplicates';
-        const matched = ['distance', 'attributes', 'contradicts_route_matching'].includes(problem.problem)
+        const matched = ['distance', 'attributes', 'contradicts_route_matching', 'identifier'].includes(problem.problem)
             && problem.stop_type === 'matched';
         const disused = problem.problem === 'disused';
-        if (!duplicate && !matched && !disused && problem.problem !== 'unmatched') return;
+        // An identifier problem on an unmatched element is drawn like that element.
+        if (!duplicate && !matched && !disused && !['unmatched', 'identifier'].includes(problem.problem)) return;
         const models = new Map();
         const entities = [];
         const rows = duplicate ? (problem.members || []) : [problem];

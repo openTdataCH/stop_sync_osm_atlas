@@ -61,11 +61,16 @@ OSM_GROUP_KINDS = (
 # Tags reported on stop elements, by purpose. Shares use the element counts of
 # each type, so amenities can be read against platforms.
 OSM_STOP_TAG_GROUPS = (
-    ('identifiers', ('name', 'uic_ref', 'uic_name', 'local_ref', 'ref', 'ref:sloid')),
+    ('identifiers', ('name', 'uic_ref', 'uic_name', 'local_ref', 'ref', 'ref:sloid', 'railway:ref:sloid')),
     ('operator_network', ('operator', 'operator:wikidata', 'network', 'network:wikidata')),
     ('accessibility_amenities', ('wheelchair', 'tactile_paving', 'shelter', 'bench', 'bin', 'lit',
                                  'departures_board', 'passenger_information_display')),
 )
+
+# OSM keys with which an element names its platform, and the match type the
+# engine writes for such a link (engine IdentifierRule and STOP_IDENTIFIER_KEYS).
+OSM_IDENTIFIER_KEYS = ('ref:sloid', 'railway:ref:sloid')
+IDENTIFIER_MATCH_TYPE = 'sloid_identifier'
 
 # Route relation columns and the OSM tag each one holds.
 OSM_ROUTE_TAG_COLUMNS = (
@@ -180,6 +185,21 @@ def _public_transport_relation_ids(session) -> set:
             if osm_route_mode(route) != NOT_PUBLIC_TRANSPORT}
 
 
+def _identifier_stats(session, carriers: set, matched_nodes: set) -> Dict[str, Any]:
+    """How far OSM elements name their platform: carriers, their links, and matches still without."""
+    from backend.models import StopsMatched
+
+    links = (session.query(StopsMatched.osm_node_id, StopsMatched.sloid)
+             .filter(StopsMatched.match_type == IDENTIFIER_MATCH_TYPE).distinct().all())
+    return {
+        'elements': len(carriers),
+        'ways': sum(str(node_id).startswith('way_') for node_id in carriers),
+        'linked_elements': len({node_id for node_id, _ in links}),
+        'linked_platforms': len({sloid for _, sloid in links}),
+        'matched_without': len(matched_nodes - carriers),
+    }
+
+
 def compute_osm_stop_stats(session) -> Dict[str, Any]:
     """Elements, stop units, groups, tag coverage and route service of OSM stops."""
     from backend.models import Itinerary, OsmNode, OsmStop, OsmStopMember, StopCall
@@ -191,6 +211,7 @@ def compute_osm_stop_stats(session) -> Dict[str, Any]:
     tag_keys = [key for _, keys in OSM_STOP_TAG_GROUPS for key in keys]
     tag_counts = {key: Counter() for key in tag_keys}
     retired = Counter()
+    carriers = set()
     rows = (session.query(OsmNode.osm_node_id, OsmNode.osm_node_type, OsmNode.osm_lifecycle, OsmNode.osm_tags)
             .execution_options(yield_per=5000))
     for node_id, node_type, lifecycle, tags in rows:
@@ -208,6 +229,8 @@ def compute_osm_stop_stats(session) -> Dict[str, Any]:
             if _present(tags.get(key)):
                 tag_counts[key][kind] += 1
                 tag_counts[key]['all'] += 1
+        if any(_present(tags.get(key)) for key in OSM_IDENTIFIER_KEYS):
+            carriers.add(node_id)
 
     elements = len(type_by_node)
     element_counts = Counter(type_by_node.values())
@@ -287,6 +310,7 @@ def compute_osm_stop_stats(session) -> Dict[str, Any]:
                 for group, keys in OSM_STOP_TAG_GROUPS
             ],
         },
+        'identifiers': _identifier_stats(session, carriers, matched_nodes),
     }
 
 

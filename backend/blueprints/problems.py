@@ -19,6 +19,7 @@ VISIBLE_PROBLEM_TYPES = (
     'contradicts_route_matching',
     'duplicates',
     'disused',
+    'identifier',
 )
 
 
@@ -511,6 +512,8 @@ def get_problems():
                 include_routes=include_routes,
                 atlas_routes=atlas_routes_by_sloid.get(str(problem.stop.sloid), []),
                 osm_routes=osm_routes_by_node_id.get(str(problem.stop.osm_node_id), []),
+                # The identifier problem explains the element's own identifier tags.
+                include_osm_tags=problem.problem_type == 'identifier',
             )
             st = problem.stop
             formatted_stop['priority'] = problem.priority

@@ -12,7 +12,8 @@ window.ProblemsData = (function () {
         'distance',
         'duplicates',
         'unmatched',
-        'disused'
+        'disused',
+        'identifier'
     ];
 
     function getNormalizedProblemTypeSelection(selectedTypes) {
@@ -125,7 +126,9 @@ window.ProblemsData = (function () {
         if (isAllProblemTypesSelected(selectedTypes)) {
             $('#typeFilterButtonProblems').text('Type: All');
         } else if (selectedTypes.length === 1) {
-            const label = selectedTypes[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const label = selectedTypes[0] === 'identifier'
+                ? `OSM ${SharedUtils.sourceIdLabel()}`
+                : selectedTypes[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
             $('#typeFilterButtonProblems').text(`Type: ${label}`);
         } else {
             $('#typeFilterButtonProblems').text(`Type: ${selectedTypes.length} selected`);
@@ -138,6 +141,7 @@ window.ProblemsData = (function () {
         $('#filterProblemTypeDuplicates').prop('checked', effectiveSelectedTypes.includes('duplicates'));
         $('#filterProblemTypeUnmatched').prop('checked', effectiveSelectedTypes.includes('unmatched'));
         $('#filterProblemTypeDisused').prop('checked', effectiveSelectedTypes.includes('disused'));
+        $('#filterProblemTypeIdentifier').prop('checked', effectiveSelectedTypes.includes('identifier'));
     }
 
     function syncPrioritySelectionUi() {
@@ -347,6 +351,7 @@ window.ProblemsData = (function () {
             $('#typeCountDuplicates').text((stats.duplicates && stats.duplicates.all) || 0);
             $('#typeCountUnmatched').text((stats.unmatched && stats.unmatched.all) || 0);
             $('#typeCountDisused').text((stats.disused && stats.disused.all) || 0);
+            $('#typeCountIdentifier').text((stats.identifier && stats.identifier.all) || 0);
 
             updateTypeButtonDisplay();
             syncPrioritySelectionUi();

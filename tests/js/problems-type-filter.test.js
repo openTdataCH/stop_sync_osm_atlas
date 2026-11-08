@@ -53,6 +53,7 @@ describe('problems type filter sync', () => {
       <input type="checkbox" id="filterProblemTypeDuplicates" />
       <input type="checkbox" id="filterProblemTypeUnmatched" />
       <input type="checkbox" id="filterProblemTypeDisused" />
+      <input type="checkbox" id="filterProblemTypeIdentifier" />
     `;
     ProblemsState.setSelectedProblemTypes([]);
   });
@@ -68,6 +69,7 @@ describe('problems type filter sync', () => {
     expect(document.querySelector('#filterProblemTypeDuplicates').checked).toBe(true);
     expect(document.querySelector('#filterProblemTypeUnmatched').checked).toBe(true);
     expect(document.querySelector('#filterProblemTypeDisused').checked).toBe(true);
+    expect(document.querySelector('#filterProblemTypeIdentifier').checked).toBe(true);
   });
 
   test('unchecking one type from the all state expands to the remaining explicit selection', () => {
@@ -78,13 +80,14 @@ describe('problems type filter sync', () => {
       'contradicts_route_matching',
       'duplicates',
       'unmatched',
-      'disused'
+      'disused',
+      'identifier'
     ]);
   });
 
   test('checking the last missing type collapses back to the all state', () => {
     const next = window.ProblemsData.computeNextProblemTypeSelection(
-      ['attributes', 'contradicts_route_matching', 'duplicates', 'unmatched', 'disused'],
+      ['attributes', 'contradicts_route_matching', 'duplicates', 'unmatched', 'disused', 'identifier'],
       'distance',
       true
     );

@@ -15,6 +15,9 @@ class MatchingRule:
 
 
 MATCHING_RULES = (
+    MatchingRule('identifier', 'SLOID in OSM', (
+        ('sloid_identifier', 'OSM ref:sloid names the platform'),
+    ), 'identifier'),
     MatchingRule('two_sided_stop', 'UIC two-sided stop', (
         ('uic_two_sided_stop', 'UIC two-sided stop'),
     ), 'identifier'),

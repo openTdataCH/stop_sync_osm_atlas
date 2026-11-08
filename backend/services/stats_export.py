@@ -509,6 +509,7 @@ def compute_db_stats(db_session) -> Dict[str, Any]:
         'contradicts_route_matching': type_counts.get('contradicts_route_matching', 0),
         'duplicates': type_counts.get('duplicates', 0),
         'disused': type_counts.get('disused', 0),
+        'identifier': type_counts.get('identifier', 0),
         'multiple_problems': multiple_problems,
         'stops_with_problems': stops_with_problems,
         'clean_entries': max(0, total_stops - stops_with_problems),

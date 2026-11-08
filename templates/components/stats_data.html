@@ -384,7 +384,7 @@ SECTION 3 — ROUTE MATCHING
 {% if stats.route_links is defined and stats.route_links %}
 {% set rl = stats.route_links %}
 {% set rli = rl.itineraries %}
-<p class="stats-block__lead">GTFS lines and OSM lines are linked one to one through the GTFS route ID, so each link uses one line from each side. Inside a linked pair, itineraries are linked one to one when their directions agree and at least 80% of their stops match in order.</p>
+<p class="stats-block__lead">GTFS lines and OSM lines are linked one to one: through the GTFS route ID or, for an OSM line without a usable ID, through the same mode, line number and stops. Each link uses one line from each side. Inside a linked pair, itineraries are linked one to one when their directions agree and at least 80% of their stops match in order.</p>
 <div class="stats-figures">
   {{ figure('Linked line pairs', num(rl.line_links)) }}
   {{ figure('GTFS lines linked', share(rl.gtfs_lines.linked, rl.gtfs_lines.total), of(rl.gtfs_lines.linked, rl.gtfs_lines.total) ~ ' lines') }}
@@ -432,6 +432,7 @@ SECTION 3 — ROUTE MATCHING
       <dl class="stats-kv stats-kv--single">
         {{ kv('No OSM line carries the route ID', num(gu.no_osm_line)) }}
         {% if gu.osm_line_already_linked %}{{ kv('The OSM line with the route ID is linked to another GTFS line', num(gu.osm_line_already_linked)) }}{% endif %}
+        {% if gu.osm_line_not_confirmed %}{{ kv('An OSM line carries the route ID of another year, but runs a different line', num(gu.osm_line_not_confirmed)) }}{% endif %}
       </dl>
       <h4 class="stats-block__subtitle">How the {{ num(rl.line_links) }} linked pairs were linked</h4>
       <div class="stats-bars">
@@ -439,6 +440,7 @@ SECTION 3 — ROUTE MATCHING
           ('Equal GTFS route ID', 'exact_gtfs_route_id'),
           ('Equal route ID without the timetable year', 'normalized_gtfs_route_id'),
           ('OSM display ID equals the GTFS route ID', 'display_route_id_match'),
+          ('Same mode, line number and stops', 'line_number_and_stops'),
           ('Other', 'other'),
         ] if key in ('exact_gtfs_route_id', 'normalized_gtfs_route_id') or bmr.get(key) %}
         <div class="stats-bar">
@@ -456,11 +458,12 @@ SECTION 3 — ROUTE MATCHING
         {{ kv('No gtfs:route_id', num(ou.no_route_id)) }}
         {{ kv('Its gtfs:route_id is not in the current GTFS', num(ou.route_id_not_in_gtfs)) }}
         {{ kv('Its GTFS line is linked to another OSM line', num(ou.gtfs_line_already_linked)) }}
+        {% if ou.route_id_not_confirmed %}{{ kv('Its gtfs:route_id, from another year, names a different line', num(ou.route_id_not_confirmed)) }}{% endif %}
         {% if ou.several_route_ids %}{{ kv('Several IDs in gtfs:route_id', num(ou.several_route_ids)) }}{% endif %}
         {{ kv('Not in GTFS by design (FlixBus)', num(ou.non_gtfs)) }}
         {% if ou.not_public_transport %}{{ kv('Not public transport (piste, mtb, …)', num(ou.not_public_transport)) }}{% endif %}
       </dl>
-      <p class="stats-note">A Swiss route ID contains the timetable year (<code>-j26-</code>), and the year is ignored when IDs are compared. The rest of an ID can still change from one year to the next, and an ID can pass to another line: a line linked to another OSM line usually means that this OSM line carries an outdated ID that now belongs to a different line.</p>
+      <p class="stats-note">A Swiss route ID contains the timetable year (<code>-j26-</code>), and the year is ignored when IDs are compared. The rest of an ID can still change from one year to the next, and an ID can pass to another line, often one with the same number in another town, so an ID of another year links two lines only when they also have the same number and share a stop. A line linked to another OSM line usually means that this OSM line carries an outdated ID that now belongs to a different line. Every OSM line counted here was also compared with the GTFS lines of its mode and number, without a clear match by stops.</p>
     </div>
   </div>
 </section>
@@ -525,6 +528,7 @@ SECTION 4 — PROBLEMS
     ('contradicts_route_matching', 'Route contradiction — the match disagrees with route matching'),
     ('duplicates', 'Duplicates — collisions on the OSM or ATLAS side'),
     ('disused', 'Disused — OSM stop out of service but still referenced'),
+    ('identifier', 'OSM ' ~ (review_config.source_id_label if review_config is defined else 'SLOID') ~ ' — names a far, unknown or malformed platform'),
   ], 'No problems at this priority') }}
 </section>
 {% else %}
@@ -823,6 +827,22 @@ SECTION 7 — OSM STOPS
     </table>
   </div>
 </section>
+
+{% set ids = os.identifiers if os.identifiers is defined and os.identifiers else {} %}
+{% if ids and ids.elements %}
+{% set id_label = review_config.source_id_label if review_config is defined else 'SLOID' %}
+{% set source_label = review_config.source_label if review_config is defined else 'ATLAS' %}
+<section class="stats-block" data-source="osm" aria-labelledby="osmIdentifiersTitle">
+  <h3 class="stats-block__title" id="osmIdentifiersTitle">{{ id_label }} in OSM</h3>
+  <p class="stats-block__lead">An OSM element can name its {{ source_label }} platform with <code>ref:sloid</code> or <code>railway:ref:sloid</code>. The element is then linked to that platform before any other rule runs. A platform way is read only for this tag.</p>
+  <div class="stats-figures">
+    {{ figure('Elements with a ' ~ id_label, num(ids.elements), num(ids.ways) ~ ' of them platform ways') }}
+    {{ figure('Linked by their ' ~ id_label, num(ids.linked_elements), 'to ' ~ num(ids.linked_platforms) ~ ' platforms, ' ~ share(ids.linked_platforms, stats.summary.atlas_platforms) ~ ' of all') }}
+    {{ figure('Matched elements without a ' ~ id_label, num(ids.matched_without), 'their platform is known, so the tag can be added') }}
+  </div>
+  <p class="stats-note">A {{ id_label }} that names a platform more than 150 m away or an unknown platform, or a value that is not a {{ id_label }}, is not used for matching and is listed under the problem type <a href="/problems?problem_type=identifier">OSM {{ id_label }}</a>.</p>
+</section>
+{% endif %}
 {% else %}
 <p class="stats-empty">OSM stop statistics are not available for this run.</p>
 {% endif %}

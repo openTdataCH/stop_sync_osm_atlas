@@ -207,6 +207,10 @@
               <div class="form-group">
                 <label class="fw-bold small text-uppercase text-muted">Identifier Matching</label>
                 <div class="form-check">
+                  <input type="checkbox" class="filter-match-method form-check-input" id="filterIdentifier" value="identifier">
+                  <label class="form-check-label" for="filterIdentifier">{{ review_config.source_id_label }} in OSM</label>
+                </div>
+                <div class="form-check">
                   <input type="checkbox" class="filter-match-method form-check-input" id="filterTwoSidedStop" value="two_sided_stop">
                   <label class="form-check-label" for="filterTwoSidedStop">UIC two-sided stop</label>
                 </div>

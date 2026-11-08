@@ -201,8 +201,9 @@ window.ProblemsUI = (function () {
                 // Info is already shown in the resolution actions banner, no need for bottom banner
                 return '';
             }
-            case 'disused': {
-                // Reason and action are rendered together by generateDisusedDetailsHtml
+            case 'disused':
+            case 'identifier': {
+                // Reason and action are rendered together by their details section
                 return '';
             }
         }
@@ -233,6 +234,34 @@ window.ProblemsUI = (function () {
             ? `Check on the ground. If the stop is in service, remove the lifecycle prefix in OSM; if it is gone, the ${source} entry is outdated.`
             : 'Prefix or remove the remaining stop tags, and remove the element from route relations that no longer serve it. All its tags are listed in the OSM popup.';
         return `<div class="problem-section-item"><div class="alert ${isConflict ? 'alert-danger' : 'alert-warning'} mb-0"><small><i class="fas fa-${isConflict ? 'exclamation-circle' : 'exclamation-triangle'}"></i> OSM marks this element as <strong>${lifecycle}</strong>. ${reason} ${action}</small></div></div>`;
+    }
+
+    // OSM keys that hold the platform identifier; the engine reads the same keys.
+    const IDENTIFIER_KEYS = ['ref:sloid', 'railway:ref:sloid'];
+
+    function generateIdentifierDetailsHtml(problem) {
+        const idLabel = SharedUtils.sourceIdLabelHtml();
+        const source = SharedUtils.sourceLabelHtml();
+        const tags = problem.osm_tags || {};
+        const rows = IDENTIFIER_KEYS.filter(key => tags[key])
+            .map(key => `<tr><td><code>${key}</code></td><td><code>${SharedUtils.escapeHtml(tags[key])}</code></td></tr>`);
+        if (problem.sloid) {
+            rows.push(`<tr><td>Matched ${source} ${idLabel}</td><td><code>${SharedUtils.escapeHtml(problem.sloid)}</code></td></tr>`);
+        }
+        const pr = Number(problem.priority);
+        const [alertClass, icon, reason, action] = pr === 1
+            ? ['alert-danger', 'exclamation-circle',
+                `Its ${idLabel} names a ${source} platform more than 150 m away, so matching ignored it.`,
+                `It was probably copied from another stop: check which platform this element is, and correct the tag.`]
+            : pr === 2
+                ? ['alert-warning', 'exclamation-triangle',
+                    `Its ${idLabel} names no ${source} platform.`,
+                    `It may be outdated or mistyped: look the platform up in ${source} and correct the tag.`]
+                : ['alert-info', 'info-circle',
+                    `A value is not a ${idLabel}, which has the form <code>ch:1:sloid:…</code>.`,
+                    `It may hold another number, such as a UIC code: replace it with the platform's ${idLabel}, or remove it.`];
+        return `<div class="problem-section-item"><table class="problem-table mb-2"><tbody>${rows.join('')}</tbody></table>`
+            + `<div class="alert ${alertClass} mb-0"><small><i class="fas fa-${icon}"></i> ${reason} ${action}</small></div></div>`;
     }
 
     function generateUnmatchedDetailsHtml(problem) {
@@ -408,6 +437,8 @@ window.ProblemsUI = (function () {
             actionButtonsHtml += generateUnmatchedDetailsHtml(problem);
         } else if (problem.problem === 'disused') {
             actionButtonsHtml += generateDisusedDetailsHtml(problem);
+        } else if (problem.problem === 'identifier') {
+            actionButtonsHtml += generateIdentifierDetailsHtml(problem);
         }
         html += actionButtonsHtml;
 
