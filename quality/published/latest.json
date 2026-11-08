@@ -22,7 +22,7 @@
         "--engine-root",
         "/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/engine"
       ],
-      "duration_seconds": 0.453,
+      "duration_seconds": 0.404,
       "name": "catalog-and-architecture",
       "returncode": 0,
       "status": "pass"
@@ -39,7 +39,7 @@
         "tests",
         "documentation"
       ],
-      "duration_seconds": 0.036,
+      "duration_seconds": 0.032,
       "name": "python-lint",
       "returncode": 0,
       "status": "pass"
@@ -50,7 +50,7 @@
         "scripts/run_quality.py",
         "syntax"
       ],
-      "duration_seconds": 0.173,
+      "duration_seconds": 0.154,
       "name": "template-config-syntax",
       "returncode": 0,
       "status": "pass"
@@ -61,7 +61,7 @@
         "run",
         "lint:js"
       ],
-      "duration_seconds": 1.337,
+      "duration_seconds": 1.132,
       "name": "javascript-lint",
       "returncode": 0,
       "status": "pass"
@@ -72,7 +72,7 @@
         "run",
         "lint:css"
       ],
-      "duration_seconds": 0.709,
+      "duration_seconds": 0.67,
       "name": "css-lint",
       "returncode": 0,
       "status": "pass"
@@ -83,7 +83,7 @@
         "run",
         "vendor:check-cdn"
       ],
-      "duration_seconds": 0.099,
+      "duration_seconds": 0.09,
       "name": "vendor-cdn",
       "returncode": 0,
       "status": "pass"
@@ -96,7 +96,7 @@
         "quality-fast",
         "PYTHON=/home/runner/work/_temp/engine-venv/bin/python"
       ],
-      "duration_seconds": 0.217,
+      "duration_seconds": 0.207,
       "name": "engine-fast",
       "returncode": 0,
       "status": "pass"
@@ -109,7 +109,7 @@
         "--engine-root",
         "/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/engine"
       ],
-      "duration_seconds": 8.044,
+      "duration_seconds": 6.909,
       "name": "structural-debt",
       "returncode": 0,
       "status": "pass"
@@ -128,7 +128,7 @@
         "--cov-report=xml:quality/raw/app-python-coverage.xml",
         "--junitxml=quality/raw/app-tests.xml"
       ],
-      "duration_seconds": 51.365,
+      "duration_seconds": 45.065,
       "name": "app-python-tests",
       "returncode": 0,
       "status": "pass"
@@ -139,7 +139,7 @@
         "run",
         "test:coverage"
       ],
-      "duration_seconds": 23.094,
+      "duration_seconds": 20.603,
       "name": "javascript-tests",
       "returncode": 0,
       "status": "pass"
@@ -153,7 +153,7 @@
         "PYTHON=/home/runner/work/_temp/engine-venv/bin/python",
         "OUTPUT_DIR=/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/quality/raw"
       ],
-      "duration_seconds": 10.429,
+      "duration_seconds": 8.482,
       "name": "engine-python-tests",
       "returncode": 0,
       "status": "pass"
@@ -166,7 +166,7 @@
         "--engine-root",
         "/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/engine"
       ],
-      "duration_seconds": 0.242,
+      "duration_seconds": 0.214,
       "name": "coverage-sanity",
       "returncode": 0,
       "status": "pass"
@@ -174,10 +174,10 @@
   ],
   "completeness": "partial",
   "fingerprints": {
-    "app": "67afd6d0257bf6bcd64cfeacb6fff85c50d634602fa3d4c086462db0e61c9f03",
-    "engine": "5b9549efd04ca64770f804212818fb3b9f516f077500009951593e3263f230a2"
+    "app": "ba739c8bcacfa01ced61a7ea21d66a47994f8e89c4db860a14928b7c6406d4bf",
+    "engine": "153f8fa210c4ef01e9abd99e387e8dcb8198c1db6d992f31e5e5b1c9cad0fa5f"
   },
-  "generated_at": "2026-11-08T21:44:45.476180+00:00",
+  "generated_at": "2026-11-08T22:40:22.713353+00:00",
   "modules": {
     "app.docs-delivery": {
       "architecture": {
@@ -495,9 +495,9 @@
         "artifacts": [
           "raw/engine-python-coverage.json"
         ],
-        "branches": 84.89,
+        "branches": 84.83,
         "errors": [],
-        "lines": 93.9,
+        "lines": 93.87,
         "missing_files": [],
         "status": "measured"
       },
@@ -538,7 +538,7 @@
         "status": "not_measured"
       },
       "tests": {
-        "count": 117,
+        "count": 118,
         "missing_files": [],
         "skipped": 0,
         "status": "pass"
@@ -791,8 +791,8 @@
     }
   },
   "revision": {
-    "app": "e4c44efbbbbeaba11aa8cfca7e5ea1795d923d23",
-    "engine": "8481c0098b0650d4845244b72988fca90c2ea902"
+    "app": "903f3c6f4c450963f00a5f80a097cb84af26c2d0",
+    "engine": "e733be581adc7ed4926855cb4c003f4e02d010bc"
   },
   "schema_version": 1,
   "tools": {

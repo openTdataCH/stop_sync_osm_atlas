@@ -2052,9 +2052,9 @@
     },
     {
       "id": "engine:src/osm_public_transport_matcher/routes.py",
-      "lines": 1121,
+      "lines": 1135,
       "module": "engine.core-matching",
-      "symbols": 42
+      "symbols": 43
     },
     {
       "id": "engine:src/osm_public_transport_matcher/statistics.py",
@@ -2081,7 +2081,7 @@
       "symbols": 0
     }
   ],
-  "generated_at": "2026-11-08T21:44:46.877677+00:00",
+  "generated_at": "2026-11-08T22:40:23.830665+00:00",
   "interface": {
     "app.docs-delivery": [
       {
@@ -3177,8 +3177,8 @@
       },
       {
         "file": "engine:src/osm_public_transport_matcher/routes.py",
-        "id": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
-        "line": 1000,
+        "id": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
+        "line": 1014,
         "name": "compare_routes",
         "used_by": [
           "engine.integrations"
@@ -33900,7 +33900,7 @@
       "count": 1,
       "kind": "uses",
       "source": "engine:src/osm_public_transport_matcher/adapters/gtfs.py",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000"
+      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014"
     },
     {
       "count": 1,
@@ -33996,7 +33996,7 @@
       "count": 1,
       "kind": "calls",
       "source": "engine:src/osm_public_transport_matcher/adapters/gtfs.py:run_gtfs@174",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000"
+      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014"
     },
     {
       "count": 1,
@@ -36611,6 +36611,18 @@
     {
       "count": 1,
       "kind": "calls",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@927",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_same_stop@862"
+    },
+    {
+      "count": 1,
+      "kind": "calls",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@927",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@844"
+    },
+    {
+      "count": 1,
+      "kind": "calls",
       "source": "engine:src/osm_public_transport_matcher/routes.py:_member_kind@871",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
@@ -36671,19 +36683,25 @@
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@927",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_count_stop_sequence_matches@907"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@927",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_direction_ids_match@921"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@927",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@927"
+    },
+    {
+      "count": 1,
+      "kind": "calls",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
@@ -36725,74 +36743,74 @@
     {
       "count": 3,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
       "target": "engine:src/osm_public_transport_matcher/progress.py:progress_stage@238"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@725"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_build_base_lookups@78"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_build_itinerary_rows@517"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_build_line_family_rows@402"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@286"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@188"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_candidate_line_family_pairs@638"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_choose_best_itinerary_pairs@964"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_choose_best_itinerary_pairs@972"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_link_lines_by_number_and_stops@785"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_route_id_confirmed@775"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@927"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934"
     },
     {
       "count": 1,
@@ -36996,7 +37014,7 @@
       "count": 1,
       "kind": "uses",
       "source": "engine:src/osm_public_transport_matcher/swiss.py",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000"
+      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014"
     },
     {
       "count": 1,
@@ -37152,7 +37170,7 @@
       "count": 1,
       "kind": "calls",
       "source": "engine:src/osm_public_transport_matcher/swiss.py:run_matching@95",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000"
+      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014"
     },
     {
       "count": 1,
@@ -51540,20 +51558,26 @@
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@927",
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@927",
       "line": 927,
+      "name": "_matched_end_count"
+    },
+    {
+      "file": "engine:src/osm_public_transport_matcher/routes.py",
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934",
+      "line": 934,
       "name": "_score_itinerary_pair"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_choose_best_itinerary_pairs@964",
-      "line": 964,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_choose_best_itinerary_pairs@972",
+      "line": 972,
       "name": "_choose_best_itinerary_pairs"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1000",
-      "line": 1000,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
+      "line": 1014,
       "name": "compare_routes"
     },
     {
