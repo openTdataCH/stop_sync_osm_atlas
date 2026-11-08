@@ -3,7 +3,6 @@ import json
 
 import pytest
 
-from backend.extensions import db
 from backend.models import Itinerary, ItineraryMatch, LineFamily, LineFamilyMatch, StopCall
 from backend.queries.helpers import parse_filter_params, parse_route_variants
 from backend.query_builder import FilterBuilder
