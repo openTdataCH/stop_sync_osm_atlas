@@ -22,7 +22,7 @@
         "--engine-root",
         "/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/engine"
       ],
-      "duration_seconds": 0.398,
+      "duration_seconds": 0.716,
       "name": "catalog-and-architecture",
       "returncode": 0,
       "status": "pass"
@@ -39,7 +39,7 @@
         "tests",
         "documentation"
       ],
-      "duration_seconds": 0.034,
+      "duration_seconds": 0.054,
       "name": "python-lint",
       "returncode": 0,
       "status": "pass"
@@ -50,7 +50,7 @@
         "scripts/run_quality.py",
         "syntax"
       ],
-      "duration_seconds": 0.217,
+      "duration_seconds": 0.294,
       "name": "template-config-syntax",
       "returncode": 0,
       "status": "pass"
@@ -61,7 +61,7 @@
         "run",
         "lint:js"
       ],
-      "duration_seconds": 1.185,
+      "duration_seconds": 1.867,
       "name": "javascript-lint",
       "returncode": 0,
       "status": "pass"
@@ -72,7 +72,7 @@
         "run",
         "lint:css"
       ],
-      "duration_seconds": 0.693,
+      "duration_seconds": 1.257,
       "name": "css-lint",
       "returncode": 0,
       "status": "pass"
@@ -83,7 +83,7 @@
         "run",
         "vendor:check-cdn"
       ],
-      "duration_seconds": 0.095,
+      "duration_seconds": 0.137,
       "name": "vendor-cdn",
       "returncode": 0,
       "status": "pass"
@@ -96,7 +96,7 @@
         "quality-fast",
         "PYTHON=/home/runner/work/_temp/engine-venv/bin/python"
       ],
-      "duration_seconds": 0.198,
+      "duration_seconds": 0.331,
       "name": "engine-fast",
       "returncode": 0,
       "status": "pass"
@@ -109,7 +109,7 @@
         "--engine-root",
         "/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/engine"
       ],
-      "duration_seconds": 7.248,
+      "duration_seconds": 11.465,
       "name": "structural-debt",
       "returncode": 0,
       "status": "pass"
@@ -128,7 +128,7 @@
         "--cov-report=xml:quality/raw/app-python-coverage.xml",
         "--junitxml=quality/raw/app-tests.xml"
       ],
-      "duration_seconds": 48.673,
+      "duration_seconds": 76.445,
       "name": "app-python-tests",
       "returncode": 0,
       "status": "pass"
@@ -139,7 +139,7 @@
         "run",
         "test:coverage"
       ],
-      "duration_seconds": 19.01,
+      "duration_seconds": 31.056,
       "name": "javascript-tests",
       "returncode": 0,
       "status": "pass"
@@ -153,7 +153,7 @@
         "PYTHON=/home/runner/work/_temp/engine-venv/bin/python",
         "OUTPUT_DIR=/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/quality/raw"
       ],
-      "duration_seconds": 8.954,
+      "duration_seconds": 14.232,
       "name": "engine-python-tests",
       "returncode": 0,
       "status": "pass"
@@ -166,7 +166,7 @@
         "--engine-root",
         "/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/engine"
       ],
-      "duration_seconds": 0.227,
+      "duration_seconds": 0.342,
       "name": "coverage-sanity",
       "returncode": 0,
       "status": "pass"
@@ -174,10 +174,10 @@
   ],
   "completeness": "partial",
   "fingerprints": {
-    "app": "acee458568a67b3aa86f3d4a9d5623a350b6913f245ac8013142109426340758",
-    "engine": "689e865bb85ae39dd6cd672cce5344f783604ca65d1a99bb0e1afa0009743d99"
+    "app": "454f05fc96d048b6fa29272f1902f9fcd4346135bdbf804b521a181b260a18f3",
+    "engine": "fb377af8e41d14582fd97bc2fb2cfe4b09fcd6300b6022fb722cd050bc9ed98d"
   },
-  "generated_at": "2026-11-06T17:25:25.663488+00:00",
+  "generated_at": "2026-11-08T06:07:10.837624+00:00",
   "modules": {
     "app.docs-delivery": {
       "architecture": {
@@ -313,9 +313,9 @@
           "raw/app-python-coverage.json",
           "raw/javascript-coverage.json"
         ],
-        "branches": 48.24,
+        "branches": 53.36,
         "errors": [],
-        "lines": 63.43,
+        "lines": 67.04,
         "missing_files": [],
         "status": "measured"
       },
@@ -354,7 +354,7 @@
         "status": "not_measured"
       },
       "tests": {
-        "count": 209,
+        "count": 227,
         "missing_files": [],
         "skipped": 0,
         "status": "pass"
@@ -373,9 +373,9 @@
           "raw/app-python-coverage.json",
           "raw/javascript-coverage.json"
         ],
-        "branches": 54.07,
+        "branches": 55.7,
         "errors": [],
-        "lines": 64.46,
+        "lines": 66.19,
         "missing_files": [],
         "status": "measured"
       },
@@ -414,7 +414,7 @@
         "status": "not_measured"
       },
       "tests": {
-        "count": 324,
+        "count": 329,
         "missing_files": [],
         "skipped": 0,
         "status": "pass"
@@ -495,9 +495,9 @@
         "artifacts": [
           "raw/engine-python-coverage.json"
         ],
-        "branches": 81.9,
+        "branches": 83.61,
         "errors": [],
-        "lines": 92.38,
+        "lines": 93.16,
         "missing_files": [],
         "status": "measured"
       },
@@ -526,7 +526,7 @@
       },
       "duplication": {
         "artifact": "raw/debt.json",
-        "count": 2,
+        "count": 1,
         "new": 0,
         "status": "pass"
       },
@@ -538,7 +538,7 @@
         "status": "not_measured"
       },
       "tests": {
-        "count": 92,
+        "count": 107,
         "missing_files": [],
         "skipped": 0,
         "status": "pass"
@@ -556,9 +556,9 @@
         "artifacts": [
           "raw/engine-python-coverage.json"
         ],
-        "branches": 73.05,
+        "branches": 73.28,
         "errors": [],
-        "lines": 85.96,
+        "lines": 86.01,
         "missing_files": [],
         "status": "measured"
       },
@@ -586,7 +586,7 @@
       },
       "duplication": {
         "artifact": "raw/debt.json",
-        "count": 1,
+        "count": 0,
         "new": 0,
         "status": "pass"
       },
@@ -742,9 +742,9 @@
           "raw/app-python-coverage.json",
           "raw/javascript-coverage.json"
         ],
-        "branches": 23.18,
+        "branches": 32.22,
         "errors": [],
-        "lines": 41.19,
+        "lines": 47.48,
         "missing_files": [],
         "status": "measured"
       },
@@ -789,8 +789,8 @@
     }
   },
   "revision": {
-    "app": "584f554cd63045d7049ef5f68eac941076d224c5",
-    "engine": "a7482627fb631aebcb7a0f4bf41446093e64e198"
+    "app": "80b3512aeda685083f422210588aab027c53f7ef",
+    "engine": "99819fef869cb62dec7049368adfbf1ae067d8cb"
   },
   "schema_version": 1,
   "tools": {
