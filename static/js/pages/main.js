@@ -5,7 +5,7 @@ let indexMapCore = null;
 let viewportLoader = null;
 let markerRegistry = null;
 let popupController = null;
-let currentFocusedLayer = null;
+let focusedStop = null; // the stop centerMapAndOpenPopup opened; see showFocusedStop
 let topNPopupMarkers = [];
 let topNRequest = null;
 let topNRequestSequence = 0;
@@ -462,6 +462,7 @@ function loadTopNMatches() {
                     layout: layout,
                     bindPopup: function (marker, entity) { attachIndexPopup(marker, { key: entity.key, entity: entity }); }
                 });
+                showFocusedStop();
             }
         }).fail(function (_jqXHR, textStatus) {
             if (requestSequence !== topNRequestSequence || textStatus === 'abort') return;
@@ -709,6 +710,7 @@ function renderIndexViewport(rawData, context) {
         currentZoom: context.zoom,
         isContext: false
     });
+    showFocusedStop();
 }
 
 function createIndexViewportLoader() {
@@ -775,6 +777,47 @@ function loadDataForViewport(options) {
     return viewportLoader.reload(options || { reason: 'page-request' });
 }
 
+// The marker the map draws for an entity key, in the viewport or the Top N overlay.
+function findMapMarker(key) {
+    var marker = markerRegistry && markerRegistry.has(key) ? markerRegistry.get(key) : null;
+    if (marker) return marker;
+    return topNPopupMarkers.find(function (candidate) {
+        var markerData = candidate.options && candidate.options.markerData;
+        return markerData && markerData.key === key;
+    }) || null;
+}
+
+function removeFocusedStop() {
+    if (focusedStop && focusedStop.layer && map) map.removeLayer(focusedStop.layer);
+    focusedStop = null;
+}
+
+// Shows the stop opened by search, a link or Random stop on the marker the map
+// draws for it, so the stop has one marker and its match line starts there.
+// Only while the map draws none (filters can leave the stop out) does the stop
+// get a marker of its own, which goes as soon as the map draws one.
+function showFocusedStop() {
+    var focus = focusedStop;
+    if (!focus || !map) return;
+    var marker = findMapMarker(focus.entity.key);
+    if (marker) {
+        var popupOpen = focus.layer
+            ? focus.layer.getLayers().some(function (layer) { return layer.isPopupOpen(); })
+            : focus.openPopup;
+        removeFocusedStop();
+        if (popupOpen && popupController && popupController.has(marker)) popupController.open(marker);
+        return;
+    }
+    if (focus.layer) return;
+    focus.layer = L.layerGroup().addTo(map);
+    var created = window.MapRenderer.renderEntities([focus.entity], focus.layer, {
+        bindPopup: function (layer) { layer.bindPopup(focus.popup); },
+        map: map,
+        zoom: map.getZoom()
+    });
+    if (focus.openPopup && created.length > 0) created[0].openPopup();
+}
+
 // Reusable function to center map and open popup for a stop
 function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zoomLevel = 17, shouldOpenPopup = true) {
     if (stopData && centerLat !== undefined && centerLon !== undefined) {
@@ -800,30 +843,16 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
             position: [centerLat, centerLon], emphasis: 'focused'
         });
 
-        // Clear previous temporary markers if any (optional, depends on desired behavior)
-        // For now, let's assume new interaction clears old temporary focus
-        if (currentFocusedLayer) {
-            map.removeLayer(currentFocusedLayer);
-            currentFocusedLayer = null;
-        }
+        removeFocusedStop();
+        const focus = entity ? { entity: entity, popup: popup, openPopup: shouldOpenPopup, layer: null } : null;
+        focusedStop = focus;
 
-        // Create a temporary layer for this marker
-        const tempLayer = L.layerGroup().addTo(map);
-        const createdMarkers = window.MapRenderer.renderEntities(entity ? [entity] : [], tempLayer, {
-            bindPopup: marker => marker.bindPopup(popup),
-            map: map,
-            zoom: map.getZoom()
-        });
-
-        if (createdMarkers.length > 0) {
-            if (shouldOpenPopup) {
-                createdMarkers[0].openPopup();
-            }
-            currentFocusedLayer = tempLayer;
-        }
-
-        // Reload markers for the new viewport so other entries in view appear alongside the focused stop
-        loadDataForViewport();
+        // The stop is shown once the new view has loaded: renderIndexViewport
+        // calls showFocusedStop, and this call covers loads that draw nothing.
+        const showAfterLoad = function () {
+            if (focus && focusedStop === focus) showFocusedStop();
+        };
+        loadDataForViewport().then(showAfterLoad, showAfterLoad);
 
     } else {
         alert("Stop data is incomplete or coordinates are missing for centering.");
@@ -1020,7 +1049,7 @@ function destroyIndexPage() {
     popupModeByKey.clear();
     if (headerSummaryController) headerSummaryController.destroy();
     if (mobileFiltersController) mobileFiltersController.destroy();
-    if (currentFocusedLayer && map) map.removeLayer(currentFocusedLayer);
+    removeFocusedStop();
     if (indexMapCore) indexMapCore.destroy();
 }
 

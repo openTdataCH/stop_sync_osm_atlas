@@ -39,9 +39,12 @@
             this._interactionsInitialized = false;
             this._mapEventHandlersBound = false;
             this._boundMapUpdate = null;
-            this.on('contentupdate', this._onContentUpdate, this);
         },
         onAdd: function(map) {
+            // Leaflet rewrites the content on every update, which drops the drag
+            // handle; _onContentUpdate puts it back. onRemove unsubscribes, so
+            // subscribe on each add: a closed popup opens again from its marker.
+            this.on('contentupdate', this._onContentUpdate, this);
             L.Popup.prototype.onAdd.call(this, map);
             this._marker = this._source;
             this._applyDimensions();

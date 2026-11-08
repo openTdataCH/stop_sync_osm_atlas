@@ -86,6 +86,42 @@ describe('stop popup width and position', () => {
   });
 });
 
+describe('popup Move handle', () => {
+  beforeAll(() => {
+    window.L = require('leaflet');
+    window.AppConstants = global.AppConstants = {
+      ...window.AppConstants,
+      POPUP: { MIN_WIDTH: 130, WIDTH_PX: 260, RESIZE_MAX_WIDTH_PX: 900 }
+    };
+    loadBrowserScript(path.join(__dirname, '../../static/js/components/move_popup.js'));
+  });
+
+  test('a closed and reopened popup keeps its Move handle when Leaflet rewrites its content', () => {
+    jest.useFakeTimers();
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const map = window.L.map(container).setView([47, 8], 15);
+    const popup = new window.L.DraggablePopup().setLatLng([47, 8]).setContent('<div class="atlas-match">Stop</div>');
+    const handles = () => popup.getElement().querySelectorAll('.popup-drag-handle').length;
+
+    popup.openOn(map);
+    jest.advanceTimersByTime(200);
+    expect(handles()).toBe(1);
+
+    map.closePopup(popup);
+    popup.openOn(map);
+    jest.advanceTimersByTime(200);
+    // Clicking the marker of an open popup makes Leaflet update it, which rewrites the content.
+    popup.update();
+    jest.advanceTimersByTime(50);
+    expect(handles()).toBe(1);
+
+    map.remove();
+    container.remove();
+    jest.useRealTimers();
+  });
+});
+
 describe('popup content', () => {
   beforeAll(() => {
     loadBrowserScript(path.join(__dirname, '../../static/js/components/popup-utils.js'));

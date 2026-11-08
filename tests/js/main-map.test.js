@@ -8,6 +8,7 @@ function createLayerGroup() {
         addLayer: jest.fn(),
         removeLayer: jest.fn(),
         clearLayers: jest.fn(),
+        getLayers: jest.fn(() => []),
         addTo: jest.fn().mockReturnThis()
     };
 }
@@ -44,6 +45,8 @@ describe('Index map adapter', () => {
             getZoom: jest.fn(() => currentZoom),
             getBounds: jest.fn(() => bounds),
             setView: jest.fn(),
+            panBy: jest.fn(),
+            getSize: jest.fn(() => ({ x: 1200, y: 800 })),
             removeLayer: jest.fn(),
             invalidateSize: jest.fn()
         };
@@ -54,11 +57,15 @@ describe('Index map adapter', () => {
         };
         markerRegistry = {
             reconcile: jest.fn(),
+            has: jest.fn(() => false),
+            get: jest.fn(() => null),
             clear: jest.fn(),
             destroy: jest.fn()
         };
         popupController = {
             attach: jest.fn(),
+            has: jest.fn(() => true),
+            open: jest.fn(),
             detach: jest.fn(),
             invalidate: jest.fn(),
             destroy: jest.fn()
@@ -258,6 +265,69 @@ describe('Index map adapter', () => {
         expect(url).toContain('min_lat=46');
         expect(url).toContain('max_lon=8');
         expect(url).toContain('zoom=18');
+    });
+
+    describe('a stop opened by search, a link or Random stop', () => {
+        const KEY = 'atlas:ch:1:sloid:9';
+        const stop = { id: 9, sloid: 'ch:1:sloid:9', stop_type: 'matched', atlas_lat: 46.5, atlas_lon: 7.5,
+            osm_node_id: '90', osm_lat: 46.5001, osm_lon: 7.5001 };
+        const flushPromises = () => new Promise(resolve => setTimeout(resolve, 0));
+
+        beforeAll(() => {
+            window.MapRenderer.createPopupWithOptions = jest.fn(() => ({ setLatLng() { return this; } }));
+        });
+
+        beforeEach(() => {
+            window.MapRenderer.renderEntities.mockClear();
+            popupController.open.mockClear();
+            map.removeLayer.mockClear();
+        });
+
+        afterEach(() => {
+            markerRegistry.has.mockImplementation(() => false);
+            markerRegistry.get.mockImplementation(() => null);
+        });
+
+        test('opens its popup on the marker the map draws for it, with no second marker', async () => {
+            const mapMarker = { isPopupOpen: () => false };
+            markerRegistry.has.mockImplementation(key => key === KEY);
+            markerRegistry.get.mockImplementation(key => (key === KEY ? mapMarker : null));
+
+            window.centerMapAndOpenPopup(stop, 46.5, 7.5, 'atlas');
+            await flushPromises();
+
+            expect(popupController.open).toHaveBeenCalledWith(mapMarker);
+            expect(window.MapRenderer.renderEntities).not.toHaveBeenCalled();
+        });
+
+        test('gets a marker of its own while the map draws none, until the map draws one', async () => {
+            const ownMarker = { bindPopup: jest.fn(), openPopup: jest.fn(), isPopupOpen: jest.fn(() => true) };
+            let ownLayer = null;
+            window.MapRenderer.renderEntities.mockImplementationOnce((entities, layer, options) => {
+                ownLayer = layer;
+                layer.getLayers.mockReturnValue([ownMarker]);
+                options.bindPopup(ownMarker);
+                return [ownMarker];
+            });
+
+            window.centerMapAndOpenPopup(stop, 46.5, 7.5, 'atlas');
+            await flushPromises();
+
+            expect(window.MapRenderer.renderEntities).toHaveBeenCalledTimes(1);
+            expect(window.MapRenderer.renderEntities.mock.calls[0][0].map(entity => entity.key)).toEqual([KEY]);
+            expect(ownMarker.openPopup).toHaveBeenCalled();
+            expect(popupController.open).not.toHaveBeenCalled();
+
+            // Filters changed: the map now draws the stop itself.
+            const mapMarker = { isPopupOpen: () => false };
+            markerRegistry.has.mockImplementation(key => key === KEY);
+            markerRegistry.get.mockImplementation(key => (key === KEY ? mapMarker : null));
+            viewportOptions.onData([stop], { zoom: 17, cacheHit: false, reason: 'load' });
+
+            expect(map.removeLayer).toHaveBeenCalledWith(ownLayer);
+            expect(popupController.open).toHaveBeenCalledWith(mapMarker);
+            expect(window.MapRenderer.renderEntities).toHaveBeenCalledTimes(1);
+        });
     });
 
     test('aborts Top N work and rejects a late response after leaving Top N mode', () => {

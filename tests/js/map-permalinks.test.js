@@ -125,7 +125,9 @@ describe('Index map permalinks', () => {
                     return { map, destroy: jest.fn() };
                 })
             },
-            MapLayerRegistry: { create: () => ({ reconcile: jest.fn(), clear: jest.fn(), destroy: jest.fn() }) },
+            MapLayerRegistry: { create: () => ({
+                reconcile: jest.fn(), clear: jest.fn(), destroy: jest.fn(), has: () => false, get: () => null
+            }) },
             MapPopupController: { create: () => ({ attach: jest.fn(), detach: jest.fn(), invalidate: jest.fn(), destroy: jest.fn() }) },
             MapViewportLoader: { create: () => viewportLoader }
         };
