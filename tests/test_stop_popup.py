@@ -49,3 +49,20 @@ def test_a_row_id_still_wins_over_source_ids(client, stops):
 def test_unknown_or_missing_identifiers(client, stops):
     popup(client, 'sloid=ch:1:sloid:missing', 404)
     assert 'sloid' in popup(client, 'view_type=atlas', 400)['error']
+
+
+def test_an_osm_node_matched_to_two_atlas_stops_keeps_its_tags(client, stops):
+    node = OsmNode.query.get('100')
+    node.osm_tags = {'highway': 'bus_stop'}
+    node.osm_network_wikidata = 'Q1'
+    stops.add_all([
+        AtlasStop(sloid='ch:1:sloid:1:0:2', atlas_designation='B'),
+        StopsMatched(sloid='ch:1:sloid:1:0:2', osm_node_id='100', stop_type='matched', distance_m=9.0,
+                     match_type='uic_reference_one_osm', atlas_lat=47.0002, atlas_lon=8.0002, osm_lat=47.0001, osm_lon=8.0001),
+    ])
+    stops.commit()
+
+    stop = popup(client, 'osm_node_id=100&view_type=osm')['stop']
+
+    assert sorted(match['sloid'] for match in stop['atlas_matches']) == ['ch:1:sloid:1:0:1', 'ch:1:sloid:1:0:2']
+    assert (stop['osm_tags'], stop['osm_network_wikidata']) == ({'highway': 'bus_stop'}, 'Q1')

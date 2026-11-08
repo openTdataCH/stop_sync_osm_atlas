@@ -782,6 +782,11 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
         // one explicit reload for the final viewport.
         var resumeViewport = viewportLoader ? viewportLoader.pause() : function () {};
         map.setView([centerLat, centerLon], zoomLevel, { animate: false });
+        // The popup opens above its stop, so show the stop two thirds down the map
+        // instead of in the middle, where the popup would reach the top.
+        if (shouldOpenPopup) {
+            map.panBy([0, -Math.round(map.getSize().y / 6)], { animate: false });
+        }
         resumeViewport();
 
         // Ensure the stopData is stored in stopsById if it wasn't already

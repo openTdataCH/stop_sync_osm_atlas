@@ -12,7 +12,7 @@ describe('MapRenderer production component', () => {
         DEFAULT_WEIGHT: 2,
         DEFAULT_FILL_OPACITY: 0.5,
       },
-      POPUP: { MULTI_BUBBLE_RESIZE_MAX_WIDTH_PX: 900 },
+      POPUP: { RESIZE_MAX_WIDTH_PX: 900 },
     };
     L.circleMarker = jest.fn((position, options) => ({ position, options }));
     L.marker = jest.fn((position, options) => ({ position, options }));

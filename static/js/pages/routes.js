@@ -538,7 +538,7 @@
           return window.MapRenderer.createPopupWithOptions(content, {
             autoClose: true, closeOnClick: true, autoPan: true,
             autoPanPaddingTopLeft: POPUP_PAN_TOP_LEFT, autoPanPaddingBottomRight: POPUP_PAN_BOTTOM_RIGHT,
-            singleBubbleMapShare: 0.9,
+            stopPopupMapShare: 0.9,
             maxHeight: Math.max(160, mapState.map.getSize().y - POPUP_PAN_TOP_LEFT[1] - POPUP_PAN_BOTTOM_RIGHT[1] - 32)
           });
         }

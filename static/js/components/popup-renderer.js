@@ -22,9 +22,15 @@
         return `${parsed.toFixed(1)} m`;
     }
 
+    // 7 decimals (about 1 cm), as OSM stores them, so every source has the same precision.
+    function formatCoordinate(value) {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? String(Number(parsed.toFixed(7))) : String(value);
+    }
+
     function formatCoords(lat, lon) {
         if (!hasValue(lat) || !hasValue(lon)) return null;
-        return `(${lat}, ${lon})`;
+        return `(${formatCoordinate(lat)}, ${formatCoordinate(lon)})`;
     }
 
     function parseOsmElementRef(osmId) {
@@ -85,10 +91,17 @@
         return `<table class="popup-table">${rows.map(([label, value]) => `<tr><td>${label}:</td><td>${value}</td></tr>`).join('')}</table>`;
     }
 
-    function buildPopupToggleButtonHtml(showUnified) {
-        const handlerName = showUnified ? 'showMatches' : 'hideMatches';
-        const label = showUnified ? 'See Matches' : 'Close Matches';
-        return `<button class="btn btn-sm popup-action-btn" onclick="PopupRenderer.${handlerName}(this)">${label}</button>`;
+    function buildSeeMatchesButtonHtml(matchCount = 1) {
+        const label = matchCount > 1 ? `See Matches (${matchCount})` : 'See Matches';
+        return `<button type="button" class="btn btn-sm popup-action-btn" onclick="PopupRenderer.showMatches(this)">${label}</button>`;
+    }
+
+    // The bar at the top of every matches view; it returns to the stop's card.
+    function buildMatchesBarHtml() {
+        return `
+            <div class="popup-view-bar">
+                <button type="button" class="popup-view-back" onclick="PopupRenderer.hideMatches(this)"><i class="fas fa-chevron-left" aria-hidden="true"></i> Close Matches</button>
+            </div>`;
     }
 
     function formatPopupMono(value) {
@@ -239,14 +252,19 @@
         return `<h5>${unmatched ? 'Unmatched ' : ''}GTFS Stop</h5>`;
     }
 
-    function buildOsmTagsCollapsible(tags) {
+    function buildOsmTagsTable(tags) {
         const keys = tags && typeof tags === 'object' ? Object.keys(tags).sort() : [];
         if (keys.length === 0) return null;
         const rows = keys.map(key => `<tr><td>${SharedUtils.escapeHtml(key)}</td><td>${SharedUtils.escapeHtml(String(tags[key]))}</td></tr>`).join('');
-        return PopupUtils.createCollapsible(`OSM tags (${keys.length})`, `<table class="popup-osm-tags">${rows}</table>`, false);
+        return { count: keys.length, html: `<table class="popup-osm-tags">${rows}</table>` };
     }
 
-    function buildBubbleFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml, options = {}) {
+    function buildOsmTagsCollapsible(tags) {
+        const table = buildOsmTagsTable(tags);
+        return table ? PopupUtils.createCollapsible(`OSM tags (${table.count})`, table.html, false) : null;
+    }
+
+    function buildBubbleCollapsibles(data, type, hideRoutesAndNotes, options = {}) {
         const collapsibles = [];
         if (!hideRoutesAndNotes && SharedUtils.hasCapability('routes')) {
             const routes = type === 'atlas' ? data.routes_atlas : data.routes_osm;
@@ -258,7 +276,11 @@
         // Single-stop endpoints send every OSM tag; list payloads do not.
         const tags = !hideRoutesAndNotes && type === 'osm' ? buildOsmTagsCollapsible(data.osm_tags) : null;
         if (tags) collapsibles.push(tags);
+        return collapsibles;
+    }
 
+    function buildBubbleFooterHtml(data, type, unmatched, hideRoutesAndNotes, actionButtonHtml, options = {}) {
+        const collapsibles = buildBubbleCollapsibles(data, type, hideRoutesAndNotes, options);
         const buttons = collapsibles.map(collapsible => collapsible.buttonHtml || '').join('') + (actionButtonHtml || '');
         const panels = collapsibles.map(collapsible => collapsible.panelHtml || '').join('');
         if (!buttons && !panels) return '';
@@ -392,9 +414,7 @@
     }
 
     function buildUnifiedPopupViewHtml(cardsHtml) {
-        return `
-            <div class="matches-container">${cardsHtml}</div>
-            <div class="popup-actions mt-2">${buildPopupToggleButtonHtml(false)}</div>`;
+        return `${buildMatchesBarHtml()}<div class="matches-container">${cardsHtml}</div>`;
     }
 
     function wrapPopupMatchCard(cardHtml) {
@@ -625,7 +645,7 @@
     function renderAtlasReferenceSummaryBubbleHtml(data, options = {}) {
         const unmatched = Number(data.matched_gtfs_count || 0) === 0;
         const actionButtonHtml = !options.suppressMatchToggle && atlasReferenceHasMatches(data)
-            ? buildPopupToggleButtonHtml(true)
+            ? buildSeeMatchesButtonHtml()
             : '';
 
         return renderBubbleCard({
@@ -652,7 +672,7 @@
     function renderGtfsReferenceSummaryBubbleHtml(data, options = {}) {
         const unmatched = Number(data.matched_sloid_count || 0) === 0;
         const actionButtonHtml = !options.suppressMatchToggle && gtfsReferenceHasMatches(data)
-            ? buildPopupToggleButtonHtml(true)
+            ? buildSeeMatchesButtonHtml()
             : '';
 
         return renderBubbleCard({
@@ -765,7 +785,7 @@
     function generateInitialBubbleHtml(stop, initialViewType, options = {}) {
         const isUnmatched = ['atlas_unmatched', 'osm_unmatched', 'osm_disused'].includes(stop.stop_type);
         const actionButtonHtml = stopHasMatches(stop)
-            ? buildPopupToggleButtonHtml(true)
+            ? buildSeeMatchesButtonHtml(buildMatchPairs(stop).length)
             : '';
 
         if (initialViewType === 'atlas') {
@@ -789,18 +809,185 @@
         return '';
     }
 
-    function generateUnifiedBubbleHtml(stop, initialViewType, options = {}) {
-        const specs = buildUnifiedBubbleSpecs(stop);
-        if (specs.length === 0) return '<!-- No matches to display -->';
+    // One ATLAS | OSM pair per match of the stop. Distance and match type belong
+    // to the pair, so they come from the matched counterpart.
+    function buildMatchPairs(stop) {
+        const [primary, ...counterparts] = buildUnifiedBubbleSpecs(stop);
+        if (!primary) return [];
+        return counterparts
+            .filter(counterpart => counterpart.type !== primary.type)
+            .map(counterpart => ({
+                atlas: primary.type === 'atlas' ? primary.data : counterpart.data,
+                osm: primary.type === 'osm' ? primary.data : counterpart.data,
+                distance_m: hasValue(counterpart.data.distance_m) ? counterpart.data.distance_m : primary.data.distance_m,
+                match_type: counterpart.data.match_type || primary.data.match_type,
+            }));
+    }
 
-        const cardsHtml = specs.map(spec => {
-            const bubble = renderBubble(spec.data, { type: spec.type, ...options, actionButtonHtml: '' });
-            return `<div class="popup-match-item">${bubble}</div>`;
+    function compareSourceHeadHtml(type, data) {
+        const label = type === 'atlas' ? SharedUtils.sourceLabelHtml() : 'OSM';
+        const url = type === 'atlas'
+            ? SharedUtils.sourceUrl(data)
+            : (hasValue(data.osm_node_id) ? buildOsmBrowseUrl(data.osm_node_id) : null);
+        if (!url) return label;
+        const safeUrl = SharedUtils.escapeHtml(url).replace(/"/g, '&quot;');
+        const site = type === 'atlas' ? label : 'OpenStreetMap';
+        return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" title="View on ${site}">${label} <i class="fas fa-external-link-alt"></i></a>`;
+    }
+
+    function escapeText(value) {
+        return hasValue(value) ? SharedUtils.escapeHtml(String(value)) : null;
+    }
+
+    function sameText(left, right) {
+        return String(left).trim().toLowerCase() === String(right).trim().toLowerCase();
+    }
+
+    // The fields both sources describe, side by side. Fields only OSM has (UIC name,
+    // network, Wikidata, type) are in the pair's Tags panel.
+    function buildCompareRows(atlas, osm, options) {
+        const differ = (left, right) => hasValue(left) && hasValue(right) && !sameText(left, right);
+        return [
+            { label: 'ID', atlas: buildFilterText(atlas.sloid, 'atlas', options), osm: buildFilterText(osm.osm_node_id, 'osm', options) },
+            {
+                label: 'UIC Ref',
+                atlas: hasValue(atlas.uic_ref) ? buildFilterText(atlas.uic_ref, 'station', options) : null,
+                osm: escapeText(osm.osm_uic_ref),
+                differs: differ(atlas.uic_ref, osm.osm_uic_ref),
+            },
+            { label: 'Name', atlas: escapeText(atlas.atlas_designation_official), osm: escapeText(osm.osm_name) },
+            {
+                label: 'Platform',
+                atlas: escapeText(atlas.atlas_designation),
+                osm: escapeText(osm.osm_local_ref),
+                differs: differ(atlas.atlas_designation, osm.osm_local_ref),
+            },
+            {
+                label: 'Operator',
+                atlas: escapeText(atlas.atlas_business_org_abbr),
+                osm: escapeText(osm.osm_operator),
+                differs: Boolean(atlas.isOperatorMismatch || osm.isOperatorMismatch),
+            },
+            { label: 'Coord', atlas: formatCoords(atlas.atlas_lat, atlas.atlas_lon), osm: formatCoords(osm.osm_lat, osm.osm_lon) },
+        ].filter(row => hasValue(row.atlas) || hasValue(row.osm));
+    }
+
+    function compareLinksHtml(type, data, options) {
+        const ref = type === 'atlas' ? data.sloid : data.osm_node_id;
+        const links = [];
+        if (type === 'osm') {
+            const editorUrl = buildOsmEditorUrl(data.osm_node_id);
+            if (editorUrl) links.push(`<a href="${editorUrl}" class="osm-editor-link" target="_blank" rel="noopener noreferrer" title="Edit in the OSM iD editor"><i class="fas fa-external-link-alt"></i> iD editor</a>`);
+        }
+        if (options.permalinks && hasValue(ref)) links.push(buildCopyLinkButtonHtml(type, ref));
+        if (typeof options.mainMapUrl === 'function') {
+            const url = options.mainMapUrl(type, ref);
+            if (hasValue(url)) {
+                const safeUrl = SharedUtils.escapeHtml(url).replace(/"/g, '&quot;');
+                links.push(`<a href="${safeUrl}" class="popup-main-map-link" target="_blank" rel="noopener" title="Open the main map on this stop in a new tab"><i class="fas fa-map-marked-alt"></i> Main map</a>`);
+            }
+        }
+        return links.map(link => `<div class="popup-compare-link">${link}</div>`).join('');
+    }
+
+    let detailPanelCount = 0;
+
+    // Routes and tags of a pair behind tabs named by their source; one panel is
+    // open at a time, so it is always clear whose list is showing.
+    function buildPairDetailsHtml(atlas, osm, options) {
+        const details = [];
+        if (!options.hideRoutesAndNotes && SharedUtils.hasCapability('routes')) {
+            const routeOptions = { enableRouteLink: options.enableRouteLinks !== false };
+            details.push({
+                source: 'atlas',
+                label: `${SharedUtils.sourceLabelHtml()} routes`,
+                html: PopupUtils.normalizeRoutes(atlas.routes_atlas).length ? PopupUtils.formatAtlasRouteList(atlas.routes_atlas, routeOptions) : null,
+            });
+            details.push({
+                source: 'osm',
+                label: 'OSM routes',
+                html: PopupUtils.normalizeRoutes(osm.routes_osm).length ? PopupUtils.formatRouteList(osm.routes_osm, routeOptions) : null,
+            });
+        }
+        const tags = options.hideRoutesAndNotes ? null : buildOsmTagsTable(osm.osm_tags);
+        if (tags) details.push({ source: 'osm', label: `Tags (${tags.count})`, html: tags.html });
+        if (details.length === 0) return '';
+
+        const tabs = [];
+        const panels = [];
+        details.forEach(detail => {
+            if (!detail.html) {
+                tabs.push(`<button type="button" class="popup-details-tab" data-source="${detail.source}" disabled title="No route information available">${detail.label}</button>`);
+                return;
+            }
+            const id = `popup-detail-${++detailPanelCount}`;
+            tabs.push(`<button type="button" class="popup-details-tab" data-source="${detail.source}" aria-expanded="false" aria-controls="${id}" onclick="PopupRenderer.toggleMatchDetail(this)">${detail.label}</button>`);
+            panels.push(`<div id="${id}" class="popup-details-panel" data-source="${detail.source}" role="region" aria-label="${detail.label}" hidden>${detail.html}</div>`);
+        });
+        return `<div class="popup-details"><div class="popup-details-tabs">${tabs.join('')}</div>${panels.join('')}</div>`;
+    }
+
+    // One pair compared field by field, at the width of a single card.
+    function buildCompareViewHtml(pair, options, index) {
+        const { atlas, osm } = pair;
+        const cell = value => hasValue(value) ? value : '<span class="popup-compare-missing">–</span>';
+        const fieldRows = buildCompareRows(atlas, osm, options).map(row => {
+            const marker = row.differs ? ' class="is-different" title="ATLAS and OSM differ"' : '';
+            return `<tr${marker}><th scope="row">${row.label}</th><td>${cell(row.atlas)}</td><td>${cell(row.osm)}</td></tr>`;
         }).join('');
+        const pairRows = [
+            ['Distance', formatDistanceMeters(pair.distance_m)],
+            ['Match Type', hasValue(pair.match_type) ? buildMatchTypeHtml(pair.match_type) : null],
+        ].filter(([, value]) => hasValue(value))
+            .map(([label, value]) => `<tr class="popup-compare-pair"><th scope="row">${label}</th><td colspan="2">${value}</td></tr>`)
+            .join('');
+        const atlasLinks = compareLinksHtml('atlas', atlas, options);
+        const osmLinks = compareLinksHtml('osm', osm, options);
+        const linksRow = atlasLinks || osmLinks
+            ? `<tr class="popup-compare-links"><td></td><td>${atlasLinks}</td><td>${osmLinks}</td></tr>`
+            : '';
 
         return `
-            <div class="matches-container">${cardsHtml}</div>
-            <div class="popup-actions mt-2">${buildPopupToggleButtonHtml(false)}</div>`;
+            <div class="popup-compare"${index > 0 ? ' hidden' : ''}>
+                <table class="popup-table popup-compare-table">
+                    <colgroup><col class="popup-compare-label"><col><col></colgroup>
+                    <thead><tr><td></td><th scope="col" class="popup-compare-atlas">${compareSourceHeadHtml('atlas', atlas)}</th><th scope="col" class="popup-compare-osm">${compareSourceHeadHtml('osm', osm)}</th></tr></thead>
+                    <tbody>${fieldRows}${pairRows}${linksRow}</tbody>
+                </table>
+                ${buildPairDetailsHtml(atlas, osm, options)}
+            </div>`;
+    }
+
+    // Names a match by what tells it apart from the stop's other matches.
+    function matchTabTitle(pair, counterpartType) {
+        const data = pair[counterpartType];
+        if (counterpartType === 'osm') return getOsmTypeDisplay(data, false) || `Node ${data.osm_node_id}`;
+        if (hasValue(data.atlas_designation)) return `Platform ${data.atlas_designation}`;
+        // Without a platform code, the SLOID's own part tells the stops apart.
+        return String(data.sloid || '').replace(/^[a-z]{2}:\d+:sloid:/i, '') || 'Stop';
+    }
+
+    // With several matches, tabs choose the pair the table shows.
+    function buildMatchPickerHtml(pairs, counterpartType) {
+        const titles = pairs.map(pair => matchTabTitle(pair, counterpartType));
+        const tabs = pairs.map((pair, index) => {
+            const repeated = titles.filter(title => title === titles[index]).length > 1;
+            const title = SharedUtils.escapeHtml(String(repeated ? `${titles[index]} ${index + 1}` : titles[index]));
+            const distance = formatDistanceMeters(pair.distance_m);
+            return `<button type="button" role="tab" class="popup-match-tab" data-index="${index}" aria-selected="${index === 0}" onclick="PopupRenderer.selectMatch(this)">
+                    <span class="popup-match-tab-title">${title}</span>${distance ? `<span class="popup-match-tab-distance">${distance}</span>` : ''}
+                </button>`;
+        }).join('');
+        return `<div class="popup-match-picker" role="tablist" aria-label="Matches" data-source="${counterpartType}">${tabs}</div>`;
+    }
+
+    function generateUnifiedBubbleHtml(stop, initialViewType, options = {}) {
+        const pairs = buildMatchPairs(stop);
+        if (pairs.length === 0) return '<!-- No matches to display -->';
+        const counterpartType = pairs.length > 1 && pairs[0].atlas === pairs[1].atlas ? 'osm' : 'atlas';
+        return buildMatchesBarHtml()
+            + (pairs.length > 1 ? buildMatchPickerHtml(pairs, counterpartType) : '')
+            + pairs.map((pair, index) => buildCompareViewHtml(pair, options, index)).join('');
     }
 
     function generatePopupHtml(stop, initialViewType, options = {}) {
@@ -822,25 +1009,40 @@
         if (unifiedView) unifiedView.style.display = showUnified ? 'block' : 'none';
         container.setAttribute('data-view-mode', showUnified ? 'unified' : 'initial');
 
-        const popupElement = container.closest('.leaflet-popup');
+        refreshPopupLayout(container);
+    }
+
+    // Lay out in the same frame, so the popup never shows at an intermediate size.
+    function refreshPopupLayout(element) {
+        const popupElement = element.closest('.leaflet-popup');
         const popupInstance = popupElement && popupElement._leaflet_popup_instance;
-        if (!popupInstance) return;
-
-        if (typeof popupInstance._onContentUpdate === 'function') {
-            popupInstance._onContentUpdate();
+        if (popupInstance && typeof popupInstance.refreshLayout === 'function') {
+            popupInstance.refreshLayout();
         }
+    }
 
-        setTimeout(() => {
-            if (typeof popupInstance._updateLayout === 'function') {
-                popupInstance._updateLayout();
-            }
-            if (typeof popupInstance._updatePosition === 'function') {
-                popupInstance._updatePosition();
-            }
-            if (typeof popupInstance._ensureDragHandleAtTop === 'function') {
-                popupInstance._ensureDragHandleAtTop();
-            }
-        }, 0);
+    function selectMatch(tabElement) {
+        const view = tabElement.closest('.popup-unified-view');
+        if (!view) return;
+        const selected = Number(tabElement.dataset.index);
+        view.querySelectorAll('.popup-compare').forEach((page, index) => { page.hidden = index !== selected; });
+        view.querySelectorAll('.popup-match-tab').forEach(tab => {
+            tab.setAttribute('aria-selected', String(tab === tabElement));
+        });
+        refreshPopupLayout(view);
+    }
+
+    function toggleMatchDetail(tabElement) {
+        const group = tabElement.closest('.popup-details');
+        if (!group) return;
+        const opening = tabElement.getAttribute('aria-expanded') !== 'true';
+        group.querySelectorAll('.popup-details-tab[aria-controls]').forEach(tab => {
+            const open = opening && tab === tabElement;
+            tab.setAttribute('aria-expanded', String(open));
+            const panel = group.querySelector(`#${tab.getAttribute('aria-controls')}`);
+            if (panel) panel.hidden = !open;
+        });
+        refreshPopupLayout(group);
     }
 
     function showMatches(buttonElement) {
@@ -860,6 +1062,8 @@
     PopupRenderer.generateGtfsStopIdSloidPopupHtml = generateGtfsStopIdSloidPopupHtml;
     PopupRenderer.showMatches = showMatches;
     PopupRenderer.hideMatches = hideMatches;
+    PopupRenderer.selectMatch = selectMatch;
+    PopupRenderer.toggleMatchDetail = toggleMatchDetail;
     PopupRenderer.parseOsmElementRef = parseOsmElementRef;
     global.PopupRenderer = PopupRenderer;
     global.MapComponents = global.MapComponents || {};

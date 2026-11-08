@@ -468,6 +468,8 @@ def get_stop_popup():
                         "osm_name": osm_details.osm_name if osm_details else None,
                         "osm_uic_name": osm_details.osm_uic_name if osm_details else None,
                         "osm_uic_ref": osm_details.osm_uic_ref if osm_details else None,
+                        "osm_operator_wikidata": osm_details.osm_operator_wikidata if osm_details else None,
+                        "osm_network_wikidata": osm_details.osm_network_wikidata if osm_details else None,
                         "osm_lat": r.osm_lat,
                         "osm_lon": r.osm_lon,
                         "distance_m": r.distance_m,
@@ -568,6 +570,9 @@ def get_stop_popup():
                     "osm_lat": stop.osm_lat,
                     "osm_lon": stop.osm_lon,
                     "osm_node_type": osm_details.osm_node_type if osm_details else None,
+                    "osm_operator_wikidata": osm_details.osm_operator_wikidata if osm_details else None,
+                    "osm_network_wikidata": osm_details.osm_network_wikidata if osm_details else None,
+                    "osm_tags": enriched.get("osm_tags"),
                     "uic_ref": osm_details.osm_uic_ref if osm_details else None,
                     "routes_osm": get_osm_routes_for_node(stop.osm_node_id),
                     "atlas_matches": []

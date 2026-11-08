@@ -109,23 +109,12 @@
         // Margin in pixels for resize handle detection
         RESIZE_MARGIN: 10,
         
-        // Hard max width for single bubble popups
-        SINGLE_BUBBLE_MAX_WIDTH_PX: 380,
-        
-        // Optimal width per bubble for multi-bubble layouts
-        MULTI_BUBBLE_OPTIMAL_WIDTH: 180,
+        // Width every stop popup opens at, ATLAS, OSM and GTFS alike, in both
+        // views: the OSM button row fits on one line and each coordinate on its own line.
+        WIDTH_PX: 260,
 
-        // Hard max width for multi-bubble matched popups
-        MULTI_BUBBLE_MAX_WIDTH_PX: 420,
-
-        // Max width allowed when user manually resizes popup
-        MULTI_BUBBLE_RESIZE_MAX_WIDTH_PX: 900,
-
-        // Maximum number of bubbles per row in matched view
-        MULTI_BUBBLE_MAX_COLUMNS: 2,
-        
-        // Extra pixels buffer for bubble expansion
-        BUBBLE_EXPANSION_BUFFER: 12
+        // Widest a popup can be resized to by hand
+        RESIZE_MAX_WIDTH_PX: 420
     };
 
     /**

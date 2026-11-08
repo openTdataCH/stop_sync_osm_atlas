@@ -1,7 +1,8 @@
 // Draggable and Resizable popup implementation for map stops
 (function() {
     if (typeof L === 'undefined') { return; }
-    const POPUP_BUBBLE_SELECTOR = '.atlas-match, .osm-match, .gtfs-match';
+    // Stop popups get a fixed width; other popups keep Leaflet's sizing.
+    const STOP_CONTENT_SELECTOR = '.atlas-match, .osm-match, .gtfs-match, .popup-compare';
     L.DraggablePopup = L.Popup.extend({
         options: {
             minWidth: AppConstants.POPUP.MIN_WIDTH,
@@ -13,17 +14,10 @@
             closeOnClick: false,
             autoClose: false,
             className: 'customPopup permanent-popup',
-            // Professional width control settings
-            fitBubblesSingleRow: true,
-            singleBubbleMaxWidthPx: AppConstants.POPUP.SINGLE_BUBBLE_MAX_WIDTH_PX,
-            // Share of the map width one bubble may take; small maps raise it.
-            singleBubbleMapShare: 0.6,
-            multiBubbleOptimalWidth: AppConstants.POPUP.MULTI_BUBBLE_OPTIMAL_WIDTH,
-            multiBubbleMaxWidthPx: AppConstants.POPUP.MULTI_BUBBLE_MAX_WIDTH_PX || 420,
-            multiBubbleResizeMaxWidthPx: AppConstants.POPUP.MULTI_BUBBLE_RESIZE_MAX_WIDTH_PX || 900,
-            multiBubbleMaxColumns: AppConstants.POPUP.MULTI_BUBBLE_MAX_COLUMNS || 2,
-            bubbleExpansionBuffer: AppConstants.POPUP.BUBBLE_EXPANSION_BUFFER,
-            strictWidthControl: true // enable strict width limits
+            stopPopupWidthPx: AppConstants.POPUP.WIDTH_PX,
+            // Share of the map width a stop popup may take; small maps raise it.
+            stopPopupMapShare: 0.6,
+            resizeMaxWidthPx: AppConstants.POPUP.RESIZE_MAX_WIDTH_PX || 900
         },
         initialize: function(options) {
             L.Util.setOptions(this, options);
@@ -36,14 +30,15 @@
             this._resizeMode = null;
             this._startPos = { x: 0, y: 0 };
             this._startSize = { width: 0 };
-            this._popupStartPos = { left: 0, top: 0 };
+            // Where the user dragged the popup, relative to where Leaflet puts it.
+            this._dragOffset = null;
+            this._startOffset = { x: 0, y: 0 };
             this._currentWidth = null;
+            this._resizedWidth = null;
             this._maxContentWidth = null;
             this._interactionsInitialized = false;
             this._mapEventHandlersBound = false;
             this._boundMapUpdate = null;
-            this._bubbleCount = 0;
-            this._isSingleBubbleMode = true;
             this.on('contentupdate', this._onContentUpdate, this);
         },
         onAdd: function(map) {
@@ -69,19 +64,20 @@
             L.Popup.prototype.onRemove.call(this, map);
         },
         _onContentUpdate: function() {
-            this._bubbleCount = 0;
-            this._isSingleBubbleMode = true;
-            
             setTimeout(() => {
                 if (this._container) {
                     this._initInteractions();
                     this._ensureDragHandleAtTop();
-                    this._analyzeBubbleLayout();
-                    this._applyOptimalWidth();
-                    this._updateLine();
-                    this._panIntoView();
+                    this.refreshLayout();
                 }
             }, 10);
+        },
+        // Lays the popup out again after its content changed in place (See Matches).
+        refreshLayout: function() {
+            if (!this._map || !this._container) return;
+            this._updateLayout();
+            this._updatePosition();
+            this._panIntoView();
         },
         // Popups that pan into view (route maps) follow their own resizes.
         // Leaflet pans by the width it measured, before the bubble layout.
@@ -125,126 +121,24 @@
             // Leaflet's maxHeight sets a fixed height, which 'auto' above undoes.
             if (this.options.maxHeight) contentNode.style.maxHeight = `${this.options.maxHeight}px`;
         },
-        _analyzeBubbleLayout: function() {
-            if (!this._contentNode) return;
-            
-            const contentNode = this._contentNode;
-            const unifiedView = contentNode.querySelector('.popup-unified-view');
-            const initialView = contentNode.querySelector('.popup-initial-view');
-            const isUnifiedVisible = unifiedView && getComputedStyle(unifiedView).display !== 'none';
-            
-            // Count bubbles accurately
-            let bubbleElements = [];
-            
-            if (isUnifiedVisible) {
-                const matchesContainer = unifiedView.querySelector('.matches-container');
-                if (matchesContainer) {
-                    // Count actual ATLAS and OSM bubbles in matches container
-                    bubbleElements = Array.from(matchesContainer.children).map(wrapper => 
-                        wrapper.querySelector('.atlas-match, .osm-match')
-                    ).filter(Boolean);
-                }
-            } else if (initialView && getComputedStyle(initialView).display !== 'none') {
-                // Single bubble in initial view
-                const singleBubble = initialView.querySelector(POPUP_BUBBLE_SELECTOR);
-                if (singleBubble) {
-                    bubbleElements = [singleBubble];
-                }
-            } else {
-                // Standalone popup content (no initial/unified wrappers).
-                const directBubble = contentNode.querySelector(POPUP_BUBBLE_SELECTOR);
-                if (directBubble) {
-                    bubbleElements = [directBubble];
-                }
-            }
-            
-            this._bubbleCount = bubbleElements.length;
-            this._isSingleBubbleMode = this._bubbleCount <= 1;
-            
-            // Store reference to current bubble container for width calculations
-            this._currentBubbleElements = bubbleElements;
-            this._currentMatchesContainer = isUnifiedVisible ? 
-                unifiedView.querySelector('.matches-container') : null;
-        },
-        _applyOptimalWidth: function() {
-            if (!this._map || !this._contentNode || !this.options.strictWidthControl) return;
-            
-            this._analyzeBubbleLayout();
-            
-            if (this._isSingleBubbleMode) {
-                this._applySingleBubbleWidth();
-            } else {
-                this._applyMultiBubbleWidth();
-            }
-        },
-        _applySingleBubbleWidth: function() {
-            if (!this._currentBubbleElements || this._currentBubbleElements.length === 0) return;
-            
-            const bubble = this._currentBubbleElements[0];
-            
-            // Calculate natural width of the bubble content
-            const originalStyle = bubble.style.width;
-            bubble.style.width = 'auto';
-            bubble.offsetHeight; // Force reflow
-            const naturalWidth = bubble.offsetWidth;
-            bubble.style.width = originalStyle;
-
-            const buttonRow = bubble.querySelector('.bubble-btn-row');
-            const buttonRowWidth = buttonRow ? buttonRow.scrollWidth : 0;
-            const requiredContentWidth = Math.max(naturalWidth, buttonRowWidth + 6);
-            
-            // Keep single-bubble sizing simple and predictable.
-            const containerPadding = 16;
-            const bufferSpace = 12;
-            const optimalWidth = requiredContentWidth + containerPadding + bufferSpace;
-
-            const viewportCap = this._map
-                ? Math.max(this.options.minWidth, Math.floor(this._map.getSize().x * this.options.singleBubbleMapShare))
-                : this.options.singleBubbleMaxWidthPx;
-            const maxWidth = Math.min(this.options.singleBubbleMaxWidthPx, viewportCap);
-
-            this._currentWidth = Math.max(this.options.minWidth, Math.min(optimalWidth, maxWidth));
+        _applyStopPopupWidth: function() {
+            if (!this._map || !this._contentNode) return;
+            if (!this._contentNode.querySelector(STOP_CONTENT_SELECTOR)) return;
+            this._currentWidth = this._resizedWidth || this._calculateStopPopupWidth();
             this._applyDimensions();
-            this._updatePosition();
         },
-        _applyMultiBubbleWidth: function() {
-            if (!this._currentMatchesContainer || !this._currentBubbleElements || this._currentBubbleElements.length === 0) {
-                return;
-            }
-
-            this._currentWidth = this._calculateMultiBubbleWidth();
-            // The stylesheet picks columns by window width; a small map in a wide
-            // window has room for one column only.
-            this._currentMatchesContainer.style.gridTemplateColumns = this._multiBubbleColumns === 1 ? '1fr' : '';
-            this._applyDimensions();
-            this._updatePosition();
-        },
-        _calculateMultiBubbleWidth: function() {
-            const bubbleCount = this._currentBubbleElements ? this._currentBubbleElements.length : 1;
-            const viewportWidth = this._map ? this._map.getSize().x : this.options.singleBubbleMaxWidthPx;
-            const compactColumns = viewportWidth <= 900 ? 1 : this.options.multiBubbleMaxColumns;
-            const columns = Math.max(1, Math.min(compactColumns, bubbleCount));
-            this._multiBubbleColumns = columns;
-            if (columns === 1) {
-                // Stacked bubbles are read one at a time: as wide as a single bubble.
-                return Math.max(this.options.minWidth, Math.min(this.options.singleBubbleMaxWidthPx,
-                    Math.floor(viewportWidth * this.options.singleBubbleMapShare)));
-            }
-
-            const gap = 6;
-            const containerPadding = 10;
-            const outerPadding = 14;
-            const perBubbleWidth = this.options.multiBubbleOptimalWidth;
-            const desiredWidth = (columns * perBubbleWidth) + (Math.max(0, columns - 1) * gap) + containerPadding + outerPadding + this.options.bubbleExpansionBuffer;
-
-            const viewportCap = Math.max(this.options.minWidth, Math.floor(viewportWidth * 0.9));
-            const hardCap = this.options.multiBubbleMaxWidthPx;
-            return Math.max(this.options.minWidth, Math.min(desiredWidth, viewportCap, hardCap));
+        // One fixed width for every stop popup and both of its views, so ATLAS and
+        // OSM popups match and See Matches never changes the width. Small maps narrow it.
+        _calculateStopPopupWidth: function() {
+            const width = this.options.stopPopupWidthPx;
+            if (!this._map) return width;
+            const mapCap = Math.floor(this._map.getSize().x * this.options.stopPopupMapShare);
+            return Math.max(this.options.minWidth, Math.min(width, mapCap));
         },
         _calculateResizeMaxWidth: function() {
-            const viewportWidth = this._map ? this._map.getSize().x : this.options.multiBubbleResizeMaxWidthPx;
+            const viewportWidth = this._map ? this._map.getSize().x : this.options.resizeMaxWidthPx;
             const viewportCap = Math.max(this.options.minWidth, Math.floor(viewportWidth * 0.95));
-            return Math.max(this.options.minWidth, Math.min(this.options.multiBubbleResizeMaxWidthPx, viewportCap));
+            return Math.max(this.options.minWidth, Math.min(this.options.resizeMaxWidthPx, viewportCap));
         },
         _ensureDragHandleAtTop: function() {
             if (!this._container || !this._contentNode) return;
@@ -310,7 +204,7 @@
         _startDragging: function(e) {
             this._isDragging = true;
             this._startPos = { x: e.clientX, y: e.clientY };
-            this._popupStartPos = { left: this._container.offsetLeft, top: this._container.offsetTop };
+            this._startOffset = { ...(this._dragOffset || { x: 0, y: 0 }) };
             L.DomUtil.addClass(this._container, 'leaflet-popup-dragging');
             L.DomEvent.on(document, 'mousemove', this._onMouseMove);
             L.DomEvent.on(document, 'mouseup', this._onMouseUp);
@@ -321,19 +215,9 @@
             const contentNode = this._contentNode;
             if (!contentNode) { this._isResizing = false; return; }
             this._startSize = { width: contentNode.offsetWidth };
-            this._popupStartPos = { left: this._container.offsetLeft, top: this._container.offsetTop };
+            this._startOffset = { ...(this._dragOffset || { x: 0, y: 0 }) };
+            this._maxContentWidth = this._calculateResizeMaxWidth();
 
-            // Calculate professional width limits based on content
-            this._analyzeBubbleLayout();
-            
-            if (this._isSingleBubbleMode) {
-                // Single bubble: keep resize cap aligned with simplified width logic.
-                this._maxContentWidth = this.options.singleBubbleMaxWidthPx;
-            } else {
-                // Multiple bubbles: allow wider manual resize than auto layout width.
-                this._maxContentWidth = this._calculateResizeMaxWidth();
-            }
-            
             if (this._maxContentWidth >= this.options.minWidth) {
                 L.DomUtil.addClass(this._container, 'leaflet-popup-resizing');
                 L.DomEvent.on(document, 'mousemove', this._onMouseMove);
@@ -352,16 +236,14 @@
         _onDragging: function(e) {
             const dx = e.clientX - this._startPos.x;
             const dy = e.clientY - this._startPos.y;
-            this._container.style.left = `${this._popupStartPos.left + dx}px`;
-            this._container.style.top = `${this._popupStartPos.top + dy}px`;
-            this._updateLine();
+            this._dragOffset = { x: this._startOffset.x + dx, y: this._startOffset.y + dy };
+            this._updatePosition();
         },
         _onResizing: function(e) {
             const dx = e.clientX - this._startPos.x;
             const contentNode = this._contentNode;
             let newWidth = this._startSize.width;
-            let newLeft = this._popupStartPos.left;
-            
+
             if (this._resizeMode.includes('e')) { newWidth = this._startSize.width + dx; }
             if (this._resizeMode.includes('w')) { newWidth = this._startSize.width - dx; }
             
@@ -372,17 +254,14 @@
             const minW = this.options.minWidth;
             if (newWidth < minW) { newWidth = minW; }
             
-            if (this._resizeMode.includes('w')) { newLeft = this._popupStartPos.left + (this._startSize.width - newWidth); }
-            
             contentNode.style.width = `${newWidth}px`;
             contentNode.style.overflow = 'auto';
-            
-            if (this._resizeMode.includes('w')) {
-                this._container.style.left = `${newLeft}px`;
-            }
-            
+
+            // Leaflet centres the popup; shift it so the edge opposite the handle stays put.
+            const shift = (newWidth - this._startSize.width) / 2;
+            const x = this._startOffset.x + (this._resizeMode.includes('w') ? -shift : shift);
+            this._dragOffset = { x, y: this._startOffset.y };
             this._updatePosition();
-            this._updateLine();
         },
         _onMouseUp: function(e) {
             if (this._isDragging) {
@@ -393,7 +272,7 @@
                 this._isResizing = false;
                 this._resizeMode = null;
                 if (this._contentNode) {
-                    this._currentWidth = this._contentNode.offsetWidth;
+                    this._currentWidth = this._resizedWidth = this._contentNode.offsetWidth;
                     this._contentNode.style.width = `${this._currentWidth}px`;
                 }
                 this._maxContentWidth = null;
@@ -515,15 +394,24 @@
             }
         },
         _updatePosition: function () {
+            if (!this._map || !this._container) return;
+            // Leaflet centres the popup on the width it last measured; use the current one.
+            this._containerWidth = this._container.offsetWidth;
             L.Popup.prototype._updatePosition.call(this);
+            if (this._dragOffset) {
+                this._container.style.left = `${this._containerLeft + this._dragOffset.x}px`;
+                this._container.style.bottom = `${this._containerBottom - this._dragOffset.y}px`;
+            }
             this._updateLine();
             this._ensureDragHandleAtTop();
             this._repositionCloseButton();
         },
+        // Leaflet sizes the popup to its content first; the fixed width then replaces
+        // that in the same frame, so the popup never shows at Leaflet's width.
         _updateLayout: function () {
-            this._applyOptimalWidth();
-            this._applyDimensions(); 
             L.Popup.prototype._updateLayout.call(this);
+            this._applyStopPopupWidth();
+            if (this._container) this._containerWidth = this._container.offsetWidth;
         }
     });
     L.draggablePopup = function(options) { return new L.DraggablePopup(options); };

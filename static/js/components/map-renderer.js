@@ -374,8 +374,8 @@ function renderEntities(entities, layer, options = {}) {
  * @returns {L.Popup} A Leaflet popup instance.
  */
 function createPopupWithOptions(content, overrides) {
-    const defaultMaxWidth = (AppConstants.POPUP && AppConstants.POPUP.MULTI_BUBBLE_RESIZE_MAX_WIDTH_PX)
-        ? AppConstants.POPUP.MULTI_BUBBLE_RESIZE_MAX_WIDTH_PX
+    const defaultMaxWidth = (AppConstants.POPUP && AppConstants.POPUP.RESIZE_MAX_WIDTH_PX)
+        ? AppConstants.POPUP.RESIZE_MAX_WIDTH_PX
         : 900;
     const options = {
         autoClose: false,

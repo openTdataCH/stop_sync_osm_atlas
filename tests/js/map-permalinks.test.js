@@ -30,6 +30,8 @@ function createMap() {
             map.zoom = zoom;
             map.fire('moveend');
         }),
+        getSize: () => ({ x: 1200, y: 600 }),
+        panBy: jest.fn(),
         removeLayer: jest.fn(),
         invalidateSize: jest.fn()
     };
@@ -289,6 +291,7 @@ describe('Index map permalinks', () => {
             expect.any(Function)
         );
         expect(map.setView).toHaveBeenCalledWith([46.9001, 7.4001], 16, { animate: false });
+        expect(map.panBy).toHaveBeenCalledWith([0, -100], { animate: false });
         expect(window.location.search).toBe('?atlas_operator=EX&osm=way/456');
         expect(window.location.hash).toBe('#map=16/46.9001/7.4001');
     });
