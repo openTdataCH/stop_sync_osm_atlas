@@ -22,7 +22,7 @@
         "--engine-root",
         "/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/engine"
       ],
-      "duration_seconds": 0.716,
+      "duration_seconds": 0.559,
       "name": "catalog-and-architecture",
       "returncode": 0,
       "status": "pass"
@@ -39,7 +39,7 @@
         "tests",
         "documentation"
       ],
-      "duration_seconds": 0.054,
+      "duration_seconds": 0.043,
       "name": "python-lint",
       "returncode": 0,
       "status": "pass"
@@ -50,7 +50,7 @@
         "scripts/run_quality.py",
         "syntax"
       ],
-      "duration_seconds": 0.294,
+      "duration_seconds": 0.215,
       "name": "template-config-syntax",
       "returncode": 0,
       "status": "pass"
@@ -61,7 +61,7 @@
         "run",
         "lint:js"
       ],
-      "duration_seconds": 1.867,
+      "duration_seconds": 1.427,
       "name": "javascript-lint",
       "returncode": 0,
       "status": "pass"
@@ -72,7 +72,7 @@
         "run",
         "lint:css"
       ],
-      "duration_seconds": 1.257,
+      "duration_seconds": 0.881,
       "name": "css-lint",
       "returncode": 0,
       "status": "pass"
@@ -83,7 +83,7 @@
         "run",
         "vendor:check-cdn"
       ],
-      "duration_seconds": 0.137,
+      "duration_seconds": 0.109,
       "name": "vendor-cdn",
       "returncode": 0,
       "status": "pass"
@@ -96,7 +96,7 @@
         "quality-fast",
         "PYTHON=/home/runner/work/_temp/engine-venv/bin/python"
       ],
-      "duration_seconds": 0.331,
+      "duration_seconds": 0.267,
       "name": "engine-fast",
       "returncode": 0,
       "status": "pass"
@@ -109,7 +109,7 @@
         "--engine-root",
         "/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/engine"
       ],
-      "duration_seconds": 11.465,
+      "duration_seconds": 9.039,
       "name": "structural-debt",
       "returncode": 0,
       "status": "pass"
@@ -128,7 +128,7 @@
         "--cov-report=xml:quality/raw/app-python-coverage.xml",
         "--junitxml=quality/raw/app-tests.xml"
       ],
-      "duration_seconds": 76.445,
+      "duration_seconds": 60.381,
       "name": "app-python-tests",
       "returncode": 0,
       "status": "pass"
@@ -139,7 +139,7 @@
         "run",
         "test:coverage"
       ],
-      "duration_seconds": 31.056,
+      "duration_seconds": 24.526,
       "name": "javascript-tests",
       "returncode": 0,
       "status": "pass"
@@ -153,7 +153,7 @@
         "PYTHON=/home/runner/work/_temp/engine-venv/bin/python",
         "OUTPUT_DIR=/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/quality/raw"
       ],
-      "duration_seconds": 14.232,
+      "duration_seconds": 11.649,
       "name": "engine-python-tests",
       "returncode": 0,
       "status": "pass"
@@ -166,7 +166,7 @@
         "--engine-root",
         "/home/runner/work/stop_sync_osm_atlas/stop_sync_osm_atlas/engine"
       ],
-      "duration_seconds": 0.342,
+      "duration_seconds": 0.266,
       "name": "coverage-sanity",
       "returncode": 0,
       "status": "pass"
@@ -174,10 +174,10 @@
   ],
   "completeness": "partial",
   "fingerprints": {
-    "app": "454f05fc96d048b6fa29272f1902f9fcd4346135bdbf804b521a181b260a18f3",
-    "engine": "fb377af8e41d14582fd97bc2fb2cfe4b09fcd6300b6022fb722cd050bc9ed98d"
+    "app": "8d38b84d7d08ba9c3a5ea7ab737d9468f2fab79fe3f7ffa815b27c3e3f69bdde",
+    "engine": "3b4fbb965ef46bcc4d9e37ca6e1f23261088b94686fdee646376bbac6e6e80cf"
   },
-  "generated_at": "2026-11-08T06:07:10.837624+00:00",
+  "generated_at": "2026-11-08T20:08:38.031975+00:00",
   "modules": {
     "app.docs-delivery": {
       "architecture": {
@@ -313,9 +313,9 @@
           "raw/app-python-coverage.json",
           "raw/javascript-coverage.json"
         ],
-        "branches": 53.36,
+        "branches": 53.73,
         "errors": [],
-        "lines": 67.04,
+        "lines": 67.23,
         "missing_files": [],
         "status": "measured"
       },
@@ -354,7 +354,7 @@
         "status": "not_measured"
       },
       "tests": {
-        "count": 227,
+        "count": 229,
         "missing_files": [],
         "skipped": 0,
         "status": "pass"
@@ -373,9 +373,9 @@
           "raw/app-python-coverage.json",
           "raw/javascript-coverage.json"
         ],
-        "branches": 55.7,
+        "branches": 57.07,
         "errors": [],
-        "lines": 66.19,
+        "lines": 67.94,
         "missing_files": [],
         "status": "measured"
       },
@@ -402,7 +402,7 @@
       },
       "duplication": {
         "artifact": "raw/debt.json",
-        "count": 2,
+        "count": 1,
         "new": 0,
         "status": "pass"
       },
@@ -414,7 +414,7 @@
         "status": "not_measured"
       },
       "tests": {
-        "count": 329,
+        "count": 340,
         "missing_files": [],
         "skipped": 0,
         "status": "pass"
@@ -495,9 +495,9 @@
         "artifacts": [
           "raw/engine-python-coverage.json"
         ],
-        "branches": 83.61,
+        "branches": 84.83,
         "errors": [],
-        "lines": 93.16,
+        "lines": 93.87,
         "missing_files": [],
         "status": "measured"
       },
@@ -538,7 +538,7 @@
         "status": "not_measured"
       },
       "tests": {
-        "count": 107,
+        "count": 115,
         "missing_files": [],
         "skipped": 0,
         "status": "pass"
@@ -556,9 +556,9 @@
         "artifacts": [
           "raw/engine-python-coverage.json"
         ],
-        "branches": 73.28,
+        "branches": 73.42,
         "errors": [],
-        "lines": 86.01,
+        "lines": 86.09,
         "missing_files": [],
         "status": "measured"
       },
@@ -752,9 +752,11 @@
       "dead_code": {
         "analyzer": "Vulture",
         "artifact": "raw/debt.json",
+        "count": 0,
         "minimum_confidence": 100,
+        "new": 0,
         "scope": "Python",
-        "status": "not_applicable"
+        "status": "pass"
       },
       "docs": {
         "required": 4,
@@ -789,8 +791,8 @@
     }
   },
   "revision": {
-    "app": "80b3512aeda685083f422210588aab027c53f7ef",
-    "engine": "99819fef869cb62dec7049368adfbf1ae067d8cb"
+    "app": "32bc28995b6fa3d02fdb4828977710d58f83c09e",
+    "engine": "18d783734d4b744772d3f40791e1ff5957e93820"
   },
   "schema_version": 1,
   "tools": {
