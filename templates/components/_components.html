@@ -34,6 +34,13 @@
 </div>
 {% endmacro %}
 
+{# An info icon placed right after a filter group's heading, opening the
+   documentation section that explains the group. #}
+{% macro doc_link(href, title) %}
+<a href="{{ href }}" class="doc-link" target="_blank" rel="noopener" title="{{ title }}"
+  aria-label="{{ title }}"><i class="fas fa-info-circle" aria-hidden="true"></i></a>
+{% endmacro %}
+
 {% macro top_filters_overlay(toggle_id, panel_id, top_offset='10px', left_offset='0') %}
 <div class="top-filters-overlay position-absolute w-100 mt-2"
   style="z-index: 1000; top: {{ top_offset }}; left: {{ left_offset }}; pointer-events: none;">

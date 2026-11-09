@@ -279,6 +279,26 @@
   border-width: 1px;
 }
 
+/* The active problem's type, linking to its section of the docs. */
+.problem-type-doc-link,
+.problem-type-doc-link:hover {
+  gap: 0.3rem;
+  color: var(--color-fg);
+  text-decoration: none;
+}
+
+.problem-type-doc-link i {
+  color: var(--color-fg-muted);
+}
+
+.problem-type-doc-link:hover {
+  border-color: var(--color-primary);
+}
+
+.problem-type-doc-link:hover i {
+  color: var(--color-primary);
+}
+
 .problem-copy-link {
   gap: 0.3rem;
   margin-left: auto;

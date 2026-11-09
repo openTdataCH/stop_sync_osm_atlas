@@ -217,21 +217,6 @@ main {
   content: ' · ';
 }
 
-/* Doc info icon shared by hint and error tooltips */
-.smart-search-doc-link {
-  pointer-events: auto;
-  color: var(--color-fg-muted);
-  margin-left: 0.25rem;
-  opacity: 0.6;
-  transition: opacity 0.15s;
-}
-
-.smart-search-doc-link:hover {
-  opacity: 1;
-  color: var(--color-primary);
-  text-decoration: none;
-}
-
 .zoom-banner.zoom-banner--filters-open {
   top: calc(var(--navbar-height) + 236px);
 }

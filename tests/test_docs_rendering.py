@@ -1,11 +1,14 @@
 """The documentation portal and PDF render Markdown faithfully and link precisely."""
 from html import unescape
+from pathlib import Path
 import re
 
 import pytest
 
 _HREF = re.compile(r'<a\b[^>]*\bhref="([^"]+)"')
 _ID = re.compile(r'\bid="([^"]+)"')
+# A documentation link written out in a template or script: '/docs/<address>#<section>'.
+_APP_DOC_LINK = re.compile(r'["\']/docs/(\w+)(?:#([\w-]+))?["\']')
 
 
 @pytest.fixture(scope='module')
@@ -98,7 +101,9 @@ def test_svg_diagrams_are_inlined_so_their_links_work(app):
         assert '<img' in html and '<svg' not in html, markdown
 
 
-def test_every_portal_link_reaches_a_page_and_anchor(app):
+@pytest.fixture(scope='module')
+def pages(app):
+    """The rendered article of every documentation page, by address."""
     from backend.blueprints.docs import build_doc_slug_maps, list_markdown_files
 
     file_to_slug, _ = build_doc_slug_maps(list_markdown_files())
@@ -108,6 +113,10 @@ def test_every_portal_link_reaches_a_page_and_anchor(app):
             response = client.get(f'/docs/{slug}', headers={'X-Docs-Partial': '1'})
             assert response.status_code == 200, slug
             pages[slug] = response.get_json()['content_html']
+    return pages
+
+
+def test_every_portal_link_reaches_a_page_and_anchor(pages):
     ids = {slug: set(_ID.findall(html)) for slug, html in pages.items()}
 
     problems = []
@@ -134,6 +143,28 @@ def test_every_portal_link_reaches_a_page_and_anchor(app):
                 continue
             if fragment and fragment not in ids[target]:
                 problems.append(f'{slug}: {href} points to a missing section')
+    assert not problems, '\n'.join(problems)
+
+
+def test_every_web_app_link_reaches_a_page_and_section(pages):
+    """The info links of the filters, popups and Problems page open an existing section.
+
+    Section anchors come from heading text, and an unknown one opens the page at
+    the top without an error, so renaming a heading in either repository would
+    break these links silently.
+    """
+    root = Path(__file__).resolve().parents[1]
+    sources = sorted([*root.glob('templates/**/*.html'), *root.glob('static/js/**/*.js')])
+    links, problems = [], []
+    for path in sources:
+        for slug, section in _APP_DOC_LINK.findall(path.read_text(encoding='utf-8')):
+            link = f'/docs/{slug}' + (f'#{section}' if section else '')
+            links.append(link)
+            if slug not in pages:
+                problems.append(f'{path.relative_to(root)}: {link} is not a documentation page')
+            elif section and section not in _ID.findall(pages[slug]):
+                problems.append(f'{path.relative_to(root)}: {link} points to a missing section')
+    assert '/docs/stop_problems#distance-problems' in links  # the scan finds the links
     assert not problems, '\n'.join(problems)
 
 

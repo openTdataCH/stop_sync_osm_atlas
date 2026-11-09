@@ -28,6 +28,22 @@
   border: 1px solid var(--color-border);
 }
 
+/* An info icon that opens the documentation section explaining what is next to it. */
+.doc-link {
+  pointer-events: auto;
+  margin-left: 0.25rem;
+  color: var(--color-fg-muted);
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.doc-link:hover,
+.doc-link:focus-visible {
+  opacity: 1;
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
 /* Shared feedback panel for the smart-search controls used by map pages. */
 .smart-search-feedback {
   position: absolute;

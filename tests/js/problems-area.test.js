@@ -38,4 +38,69 @@ describe('Problems area filter', () => {
         expect(removed).toHaveBeenCalledTimes(1);
         expect(added).toHaveLength(1);
     });
+
+    describe('the dialog', () => {
+        let mapHandlers;
+        let onApply;
+        const apply = () => document.getElementById('areaApplyBtn');
+        const clear = () => document.getElementById('areaClearBtn');
+        const click = latlng => mapHandlers.click({ latlng });
+
+        beforeEach(() => {
+            document.body.innerHTML = `
+                <div id="areaModal"></div><div id="areaMap"></div>
+                <button id="areaClearBtn"></button><button id="areaApplyBtn"></button>`;
+            mapHandlers = {};
+            onApply = jest.fn();
+            const bounds = (a, b) => ({
+                getWest: () => Math.min(a.lng, b.lng), getEast: () => Math.max(a.lng, b.lng),
+                getSouth: () => Math.min(a.lat, b.lat), getNorth: () => Math.max(a.lat, b.lat)
+            });
+            window.L = global.L = {
+                latLngBounds: (a, b) => (Array.isArray(a) ? bounds({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] }) : bounds(a, b)),
+                rectangle: jest.fn(() => ({ addTo() { return this; }, remove: jest.fn(), setBounds: jest.fn() }))
+            };
+            window.AppConstants = { COLORS: { MATCHED: '#174092' }, MAP: { DEFAULT_CENTER: [46.8, 8.2], DEFAULT_ZOOM: 8, MAX_ZOOM: 19 } };
+            window.MapShared = { createBaseTileLayers: () => ({}) };
+            window.MapComponents = { MapCore: { create: () => ({ map: { on: (name, fn) => { mapHandlers[name] = fn; } } }) } };
+            window.bootstrap = global.bootstrap = { Modal: { getOrCreateInstance: () => ({ show: jest.fn(), hide: jest.fn() }) } };
+            // A fresh copy, so each test starts without a picker.
+            loadBrowserScript(path.join(__dirname, '../../static/js/pages/problems-area.js'));
+        });
+
+        test('without an area, apply waits for a rectangle and clearing wipes it', () => {
+            ProblemsArea.open(null, null, onApply);
+            expect(apply().disabled).toBe(true);
+            expect(apply().textContent).toBe('Filter problems in this area');
+            expect(clear().disabled).toBe(true);
+
+            click({ lat: 46.9, lng: 7.3 });
+            expect(clear().disabled).toBe(false);
+            expect(apply().disabled).toBe(true);
+            click({ lat: 47, lng: 7.5 });
+            expect(apply().disabled).toBe(false);
+
+            clear().click();
+            expect(apply().disabled).toBe(true);
+            expect(clear().disabled).toBe(true);
+
+            click({ lat: 46.9, lng: 7.3 });
+            click({ lat: 47, lng: 7.5 });
+            apply().click();
+            expect(onApply).toHaveBeenCalledWith([7.3, 46.9, 7.5, 47]);
+        });
+
+        test('with an area applied, clearing the selection turns apply into removing it', () => {
+            ProblemsArea.open([7.3, 46.9, 7.5, 47], null, onApply);
+            expect(apply().disabled).toBe(false);
+            expect(clear().disabled).toBe(false);
+
+            clear().click();
+            expect(apply().disabled).toBe(false);
+            expect(apply().textContent).toBe('Show all problems');
+
+            apply().click();
+            expect(onApply).toHaveBeenCalledWith(null);
+        });
+    });
 });

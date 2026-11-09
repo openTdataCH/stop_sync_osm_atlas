@@ -1,6 +1,6 @@
 {% extends "layouts/map.html" %}
 
-{% from "components/_components.html" import stats_overlay, top_filters_overlay with context %}
+{% from "components/_components.html" import stats_overlay, top_filters_overlay, doc_link with context %}
 {% block title %}Public Transport Stop Map | {{ review_config.title }}{% endblock %}
 {% block meta_description %}Compare public transport stops from OpenStreetMap with {{ review_config.source_label }}, inspect matches, and find synchronization gaps.{% endblock %}
 
@@ -28,7 +28,7 @@
             <ul id="smartSearchSuggestions" class="search-suggestions d-none" aria-label="Suggestions"></ul>
             <div id="smartSearchHint" class="smart-search-hint d-none">
               <div class="smart-search-hint__title">Accepted formats
-                <a href="/docs/filters_and_search_logic" class="smart-search-doc-link"
+                <a href="/docs/filters_and_search_logic" class="doc-link"
                   target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>
               </div>
               <div class="smart-search-hint__item"><kbd>Zürich HB</kbd> Stop name, with suggestions</div>
@@ -141,6 +141,7 @@
 
               <div class="form-group mb-0">
                 <label class="fw-bold small text-uppercase text-muted mt-2">OSM Groups</label>
+                {{ doc_link('/docs/matching_process#osm-grouping-before-the-rules', 'What the OSM groups are') }}
                 <div class="form-check">
                   <input type="checkbox" class="filter-osm-group form-check-input" id="filterOsmGroup"
                     value="has_osm_group">
@@ -205,6 +206,7 @@
                 <input type="checkbox" id="masterMatchedCheckbox" class="master-filter-checkbox form-check-input">
                 <label class="form-check-label fw-bold text-primary" for="masterMatchedCheckbox">All
                   Matched Stops</label>
+                {{ doc_link('/docs/matching_process#the-matching-rules', 'What the matching rules do') }}
               </div>
 
               <div class="form-group">
@@ -338,6 +340,7 @@
               <div class="form-check mb-2 pb-2 border-bottom">
                 <input type="checkbox" class="form-check-input" id="masterProblemsCheckbox">
                 <label class="form-check-label fw-bold" for="masterProblemsCheckbox">All problems</label>
+                {{ doc_link('/docs/stop_problems', 'What the problem types and priorities mean') }}
               </div>
               <div class="form-group">
                 <label class="fw-bold small text-uppercase text-muted">Type</label>

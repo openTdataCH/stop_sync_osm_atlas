@@ -347,7 +347,31 @@ window.ProblemsUI = (function () {
             </div>`;
     }
 
-    function updateFloatingPriority(problem) {
+    // Each problem type's label in the Type filter and its section of E4.1 Stop problems.
+    const PROBLEM_TYPE_DOCS = {
+        attributes: ['Attributes', '/docs/stop_problems#attribute-problems'],
+        contradicts_route_matching: ['Contradicts Route Matching', '/docs/stop_problems#contradicts-route-matching-problems'],
+        distance: ['Distance', '/docs/stop_problems#distance-problems'],
+        duplicates: ['Duplicates', '/docs/stop_problems#duplicate-problems'],
+        unmatched: ['Unmatched', '/docs/stop_problems#unmatched-problems'],
+        disused: ['Disused OSM', '/docs/stop_problems#disused-problems'],
+        identifier: [null, '/docs/stop_problems#identifier-problems']   // "OSM <identifier>", as in the filter
+    };
+
+    // The chips naming the active problem's type, which links to its section of
+    // the docs, and its priority. Without a problem both are hidden.
+    function updateFloatingChips(problem) {
+        const typeChip = document.getElementById('problemTypeDocLink');
+        const typeDoc = PROBLEM_TYPE_DOCS[problem && problem.problem];
+        if (typeChip) {
+            typeChip.classList.toggle('d-none', !typeDoc);
+            if (typeDoc) {
+                const label = typeDoc[0] || `OSM ${SharedUtils.sourceIdLabel()}`;
+                typeChip.href = typeDoc[1];
+                typeChip.innerHTML = `${SharedUtils.escapeHtml(label)} <i class="fas fa-info-circle" aria-hidden="true"></i>`;
+            }
+        }
+
         const badge = $('#problemPriorityDisplay');
         badge.removeClass('d-none problem-meta-chip--p1 problem-meta-chip--p2 problem-meta-chip--p3');
 
@@ -488,7 +512,7 @@ window.ProblemsUI = (function () {
                         // Update active highlight
                         $('.issue-container').removeClass('active');
                         $(entry.target).addClass('active');
-                        updateFloatingPriority(problem);
+                        updateFloatingChips(problem);
 
 
                     }
@@ -559,7 +583,7 @@ window.ProblemsUI = (function () {
             // Draw after fitting the final view so marker labels and projected
             // overlap offsets use the correct zoom.
             renderProblemOnMap(firstProblem);
-            updateFloatingPriority(firstProblem);
+            updateFloatingChips(firstProblem);
 
             // Load context if enabled
             const showContext = ProblemsState.getShowContext();
@@ -627,7 +651,7 @@ window.ProblemsUI = (function () {
         hideKeyboardHint,
         generateAttributeComparisonHtml,
         getMismatchedAttributes,
-        updateFloatingPriority,
+        updateFloatingChips,
         renderSingleProblemUI,
         setupIntersectionObserver,
         displayProblem,

@@ -56,11 +56,17 @@
         return `https://www.openstreetmap.org/edit?${ref.type}=${ref.id}`;
     }
 
+    // The section of the docs that explains the rule behind a match type. Identifier,
+    // two-sided stop and reference types start with the profile's namespace, such as uic_.
     function getMatchDocUrl(matchType) {
         if (!matchType) return null;
         const mt = String(matchType).toLowerCase();
-        if (mt.includes('distance')) return '/docs/distance_matching';
-        if (mt.includes('_reference_') || mt.endsWith('_two_sided_stop')) return '/docs/reference_matching';
+        if (/_group_(long_)?distance$/.test(mt)) return '/docs/distance_matching#group-distance-rules-group_distance-and-group_long_distance';
+        if (mt === 'local_ref_distance') return '/docs/distance_matching#local_ref-distance-rule-local_ref_distance';
+        if (mt.startsWith('distance_')) return '/docs/distance_matching#nearest-candidate-rules';
+        if (mt.endsWith('_identifier')) return '/docs/reference_matching#identifier-matching-identifier';
+        if (mt.endsWith('_two_sided_stop')) return '/docs/reference_matching#two-sided-stops-two_sided_stop';
+        if (mt.includes('_reference_')) return '/docs/reference_matching#how-the-reference-rule-works';
         if (mt.startsWith('name_')) return '/docs/name_matching';
         if (mt.startsWith('gtfs_')) return '/docs/gtfs_route_matching';
         return null;
@@ -70,7 +76,7 @@
         const text = matchType || 'N/A';
         const docUrl = getMatchDocUrl(text);
         if (!docUrl) return text;
-        return `${text} <a href="${docUrl}" class="matchtype-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs for this matching method"><i class="fas fa-info-circle"></i></a>`;
+        return `${text} <a href="${docUrl}" class="doc-link" target="_blank" rel="noopener" title="What this matching rule does"><i class="fas fa-info-circle" aria-hidden="true"></i></a>`;
     }
 
     function buildFilterText(value, type, options, displayText) {

@@ -216,6 +216,73 @@
 }
 
 /* -------------------------------------------------------------------------
+   Disabled Buttons
+   Bootstrap's .btn:disabled reads --bs-btn-disabled-*, which Bootstrap sets to
+   its own palette; without these a disabled button turns Bootstrap blue.
+   ------------------------------------------------------------------------- */
+.btn-primary,
+.btn-info {
+  --bs-btn-disabled-bg: var(--color-primary);
+  --bs-btn-disabled-border-color: var(--color-primary);
+  --bs-btn-disabled-color: var(--color-on-accent);
+}
+
+.btn-secondary {
+  --bs-btn-disabled-bg: var(--color-secondary);
+  --bs-btn-disabled-border-color: var(--color-secondary);
+  --bs-btn-disabled-color: var(--color-on-accent);
+}
+
+.btn-success {
+  --bs-btn-disabled-bg: var(--color-success);
+  --bs-btn-disabled-border-color: var(--color-success);
+  --bs-btn-disabled-color: var(--color-on-accent);
+}
+
+.btn-danger {
+  --bs-btn-disabled-bg: var(--color-danger);
+  --bs-btn-disabled-border-color: var(--color-danger);
+  --bs-btn-disabled-color: var(--color-on-accent);
+}
+
+.btn-warning {
+  --bs-btn-disabled-bg: var(--color-warning);
+  --bs-btn-disabled-border-color: var(--color-warning);
+  --bs-btn-disabled-color: var(--color-on-warning);
+}
+
+.btn-outline-primary,
+.btn-outline-info {
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color: var(--color-primary);
+  --bs-btn-disabled-color: var(--color-primary);
+}
+
+.btn-outline-secondary {
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color: var(--color-secondary);
+  --bs-btn-disabled-color: var(--color-secondary);
+}
+
+.btn-outline-success {
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color: var(--color-success);
+  --bs-btn-disabled-color: var(--color-success);
+}
+
+.btn-outline-danger {
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color: var(--color-danger);
+  --bs-btn-disabled-color: var(--color-danger);
+}
+
+.btn-outline-warning {
+  --bs-btn-disabled-bg: transparent;
+  --bs-btn-disabled-border-color: var(--color-warning);
+  --bs-btn-disabled-color: var(--color-warning);
+}
+
+/* -------------------------------------------------------------------------
    Button Groups
    ------------------------------------------------------------------------- */
 .btn-block + .btn-block {

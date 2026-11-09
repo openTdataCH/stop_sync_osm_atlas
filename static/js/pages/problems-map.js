@@ -11,7 +11,10 @@ window.ProblemsMap = (function() {
 
     // Performance tuning constants for the problems page
     const PROBLEM_LINE_ZOOM_THRESHOLD = AppConstants.MAP.ZOOM_LINE_THRESHOLD;   // draw context lines only at high zoom
-    const CONTEXT_COORDINATE_OFFSET = 0.02; // Roughly 2 km around the selected problem
+    // The problem's box: its stops plus this many degrees on every side, about
+    // 2.2 km north-south and 1.5 km east-west in Switzerland. Nearby stops are
+    // loaded for this box, and the map cannot pan or zoom out beyond it.
+    const CONTEXT_COORDINATE_OFFSET = 0.02;
     const ZOOM_RENDER_DEBOUNCE_MS = 80;
 
     let problemMapCore = null;
@@ -26,6 +29,7 @@ window.ProblemsMap = (function() {
     let isRenderingProblem = false;
     let renderedProblem = null;
     let removeResizeHandlers = null;
+    let baseMinZoom = 0;     // the map's own minimum zoom, without a problem
 
     // Request management for context loading
     let currentContextRequest = null; // jqXHR of in-flight /api/data
@@ -229,34 +233,62 @@ window.ProblemsMap = (function() {
         return false;
     }
 
-    function getProblemCenter(problem) {
+    // Every ATLAS and OSM position of the problem and its members, padded by
+    // CONTEXT_COORDINATE_OFFSET; null when the problem has no position.
+    function getProblemBox(problem) {
         const members = Array.isArray(problem && problem.members) ? problem.members : [];
-        const candidates = [problem].concat(members);
+        let box = null;
 
-        for (const candidate of candidates) {
-            if (!candidate) {
-                continue;
-            }
-
-            const coordinatePairs = [
+        [problem].concat(members).forEach(function(candidate) {
+            if (!candidate) return;
+            [
                 [candidate.atlas_lat, candidate.atlas_lon],
                 [candidate.osm_lat, candidate.osm_lon]
-            ];
-
-            for (const [rawLat, rawLon] of coordinatePairs) {
-                if (rawLat == null || rawLon == null) {
-                    continue;
-                }
-
+            ].forEach(function([rawLat, rawLon]) {
+                if (rawLat == null || rawLon == null) return;
                 const lat = Number(rawLat);
                 const lon = Number(rawLon);
-                if (Number.isFinite(lat) && Number.isFinite(lon)) {
-                    return { lat, lon };
-                }
-            }
-        }
+                if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+                box = box
+                    ? {
+                        minLat: Math.min(box.minLat, lat), maxLat: Math.max(box.maxLat, lat),
+                        minLon: Math.min(box.minLon, lon), maxLon: Math.max(box.maxLon, lon)
+                    }
+                    : { minLat: lat, maxLat: lat, minLon: lon, maxLon: lon };
+            });
+        });
 
-        return null;
+        if (!box) return null;
+        return {
+            minLat: box.minLat - CONTEXT_COORDINATE_OFFSET,
+            maxLat: box.maxLat + CONTEXT_COORDINATE_OFFSET,
+            minLon: box.minLon - CONTEXT_COORDINATE_OFFSET,
+            maxLon: box.maxLon + CONTEXT_COORDINATE_OFFSET
+        };
+    }
+
+    // Lets the map pan and zoom anywhere again: no problem is shown.
+    function releaseView() {
+        const problemMap = ProblemsState.getProblemMap();
+        if (!problemMap || typeof problemMap.setMaxBounds !== 'function') return;
+        problemMap.setMaxBounds(null);
+        problemMap.setMinZoom(baseMinZoom);
+    }
+
+    // Keeps the view inside the problem's box: no panning out of it and no
+    // zooming out further than the zoom at which it fills the map. If the
+    // problem's own view is wider (stops far apart on a short screen), that
+    // view stays reachable.
+    function lockViewToProblem(problemMap, problem) {
+        if (typeof problemMap.setMaxBounds !== 'function') return;
+        const box = getProblemBox(problem);
+        if (!box) {
+            releaseView();
+            return;
+        }
+        const bounds = L.latLngBounds([box.minLat, box.minLon], [box.maxLat, box.maxLon]);
+        problemMap.setMinZoom(Math.min(problemMap.getBoundsZoom(bounds, true), problemMap.getZoom()));
+        problemMap.setMaxBounds(bounds.extend(problemMap.getBounds()));
     }
 
     function abortCurrentContextRequest() {
@@ -394,13 +426,17 @@ window.ProblemsMap = (function() {
             return false;
         }
 
+        const fitsView = !options || options.fitView !== false;
         isRenderingProblem = true;
         try {
+            // Fitting a new problem may need to leave the previous one's box.
+            if (fitsView) releaseView();
             window.ProblemsRenderer.drawProblemOnMap(problemMap, problem, {
                 markersLayer: ProblemsState.getProblemMarkersLayer(),
                 linesLayer: ProblemsState.getProblemLinesLayer()
             }, { viewInsets: () => problemViewInsets(problemMap), ...(options || {}) });
             const labelZoom = AppConstants.MAP.LABEL_ICON_MIN_ZOOM || 18;
+            if (fitsView) lockViewToProblem(problemMap, problem);
             renderedProblem = {
                 problemKey: getProblemKey(problem),
                 zoomBand: problemMap.getZoom() < labelZoom ? 'circle' : 'label'
@@ -471,6 +507,8 @@ window.ProblemsMap = (function() {
             mapOptions: {
                 closePopupOnClick: false,
                 maxZoom: AppConstants.MAP.MAX_ZOOM,
+                // The problem's box is a hard edge, not an elastic one.
+                maxBoundsViscosity: 1.0,
                 zoomControl: false
             },
             popupBehavior: true,
@@ -490,6 +528,7 @@ window.ProblemsMap = (function() {
         });
 
         const problemMap = problemMapCore.map;
+        baseMinZoom = typeof problemMap.getMinZoom === 'function' ? problemMap.getMinZoom() : 0;
         const problemMarkersLayer = problemMapCore.layers.problemMarkers;
         const problemLinesLayer = problemMapCore.layers.problemLines;
         const contextMarkersLayer = problemMapCore.layers.contextMarkers;
@@ -574,8 +613,8 @@ window.ProblemsMap = (function() {
             return null;
         }
 
-        const center = getProblemCenter(problem);
-        if (!center) {
+        const box = getProblemBox(problem);
+        if (!box) {
             clearContextData();
             return null;
         }
@@ -588,10 +627,10 @@ window.ProblemsMap = (function() {
             clearContextLayer();
         }
         const params = {
-            min_lat: center.lat - CONTEXT_COORDINATE_OFFSET,
-            max_lat: center.lat + CONTEXT_COORDINATE_OFFSET,
-            min_lon: center.lon - CONTEXT_COORDINATE_OFFSET,
-            max_lon: center.lon + CONTEXT_COORDINATE_OFFSET,
+            min_lat: box.minLat,
+            max_lat: box.maxLat,
+            min_lon: box.minLon,
+            max_lon: box.maxLon,
             zoom: zoom
         };
 
@@ -735,6 +774,7 @@ window.ProblemsMap = (function() {
         invalidateMapSize,
         destroyProblemMap,
         renderProblem,
+        releaseView,
         loadContextData,
         clearContextData,
         toggleContext,

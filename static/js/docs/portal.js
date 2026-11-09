@@ -327,15 +327,13 @@
         if (next) nav.appendChild(next);
     }
 
+    // Draws the article's diagrams; the promise settles once they are drawn.
     function renderMermaid(content) {
-        if (!window.mermaid || typeof window.mermaid.run !== 'function') return;
         var nodes = content.querySelectorAll('.mermaid');
-        if (!nodes.length) return;
-        try {
-            window.mermaid.run({ nodes: nodes });
-        } catch (err) {
-            console.warn('Mermaid render failed:', err);
-        }
+        if (!nodes.length || !window.mermaid || typeof window.mermaid.run !== 'function') return Promise.resolve();
+        return Promise.resolve()
+            .then(function () { return window.mermaid.run({ nodes: nodes }); })
+            .catch(function (err) { console.warn('Mermaid render failed:', err); });
     }
 
     function renderMath(content) {
@@ -516,6 +514,18 @@
             document.body.scrollTop = 0;
         }
 
+        function sectionOf(hash) {
+            return hash ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+        }
+
+        // A drawn diagram is hundreds of pixels taller than its source, so the
+        // section named in the address is scrolled to once the diagrams are drawn.
+        function renderDiagramsThenScrollTo(section, behavior) {
+            renderMermaid(content).then(function () {
+                if (section) section.scrollIntoView({ behavior: behavior, block: 'start' });
+            });
+        }
+
         function load(url, pushState) {
             return fetch(url.pathname + url.search, { headers: { 'X-Docs-Partial': '1' } })
                 .then(function (response) {
@@ -530,7 +540,6 @@
                     if (header && typeof payload.header_html === 'string') header.innerHTML = payload.header_html;
                     sidebar.markActive(payload.active_slug || '', payload.active_section || '');
                     if (nav) renderNav(nav, payload.prev_page, payload.next_page, docsRoot);
-                    renderMermaid(content);
                     renderMath(content);
                     toc.build();
                     if (payload.title) document.title = payload.title + ' | OSM & ATLAS Documentation';
@@ -541,18 +550,16 @@
                     if (url.hash) canonicalUrl += url.hash;
                     if (pushState) history.pushState({ docs: true }, '', canonicalUrl);
 
-                    var target = url.hash ? document.getElementById(decodeURIComponent(url.hash.slice(1))) : null;
-                    if (target) {
-                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    } else {
-                        scrollToTop();
-                    }
+                    var target = sectionOf(url.hash);
+                    if (!target) scrollToTop();
+                    renderDiagramsThenScrollTo(target, 'smooth');
                 });
         }
 
         sidebar.markActive(root.dataset.activeSlug || '', root.dataset.activeSection || '');
         toc.build();
         renderMath(content);
+        renderDiagramsThenScrollTo(sectionOf(window.location.hash), 'auto');
 
         if (!history.state || !history.state.docs) {
             history.replaceState({ docs: true }, '', window.location.href);

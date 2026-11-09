@@ -4,7 +4,9 @@
 // rectangle (between them it follows the pointer; dragging still moves the
 // map). Applying keeps the problems whose ATLAS or OSM position lies inside,
 // sent to /api/problems as bbox=west,south,east,north. The Problems map shows
-// the area as a dashed outline. See documentation/2.4 Problems Page.md#area.
+// the area as a dashed outline. "Clear selection" wipes the rectangle; with
+// an area already applied, applying nothing then removes it. See
+// documentation/2.4 Problems Page.md#area.
 
 window.ProblemsArea = (function () {
     'use strict';
@@ -14,7 +16,7 @@ window.ProblemsArea = (function () {
     const outlineStyle = () => ({ color: color(), weight: 2, dashArray: '6,4', fill: false, interactive: false });
     const drawStyle = () => ({ color: color(), weight: 2, fillOpacity: 0.08, interactive: false });
 
-    let picker = null;   // { modal, map, rectangle, corner, onApply }
+    let picker = null;   // { modal, map, rectangle, corner, pending, applied, onApply, view }
     let outline = null;
 
     // [west, south, east, north], rounded to about one metre.
@@ -40,9 +42,26 @@ window.ProblemsArea = (function () {
         return area ? area.join(',') : '';
     }
 
+    // Apply filters by the drawn rectangle; with none, it removes the applied
+    // area, and does nothing when there is no area to remove.
+    function refreshButtons() {
+        const apply = document.getElementById('areaApplyBtn');
+        const removing = !picker.pending && !!picker.applied;
+        apply.disabled = !picker.pending && !removing;
+        apply.textContent = removing ? 'Show all problems' : 'Filter problems in this area';
+        document.getElementById('areaClearBtn').disabled = !picker.rectangle;
+    }
+
     function setPending(bounds) {
         picker.pending = bounds;
-        document.getElementById('areaApplyBtn').disabled = !bounds;
+        refreshButtons();
+    }
+
+    function clearSelection() {
+        if (picker.rectangle) picker.rectangle.remove();
+        picker.rectangle = null;
+        picker.corner = null;
+        setPending(null);
     }
 
     function startRectangle(latlng) {
@@ -56,8 +75,7 @@ window.ProblemsArea = (function () {
         const bounds = L.latLngBounds(picker.corner, latlng);
         picker.corner = null;
         if (bounds.getWest() === bounds.getEast() || bounds.getSouth() === bounds.getNorth()) {
-            picker.rectangle.remove();
-            picker.rectangle = null;
+            clearSelection();
             return;
         }
         picker.rectangle.setBounds(bounds);
@@ -82,7 +100,7 @@ window.ProblemsArea = (function () {
             baseLayers: () => window.MapShared.createBaseTileLayers(),
             defaultBaseLayer: 'OpenStreetMap'
         }).map;
-        picker = { modal: bootstrap.Modal.getOrCreateInstance(element), map, rectangle: null, corner: null, pending: null, onApply: null, view: null };
+        picker = { modal: bootstrap.Modal.getOrCreateInstance(element), map, rectangle: null, corner: null, pending: null, applied: null, onApply: null, view: null };
         map.on('click', onMapClick);
         map.on('mousemove', onMouseMove);
         // The map has its size only once the dialog is shown: set the view then.
@@ -92,14 +110,11 @@ window.ProblemsArea = (function () {
             else if (picker.view) map.fitBounds(picker.view);
         });
         document.getElementById('areaApplyBtn').addEventListener('click', () => {
-            if (!picker.pending) return;
+            if (!picker.pending && !picker.applied) return;
             picker.modal.hide();
-            picker.onApply(boundsToArea(picker.pending));
+            picker.onApply(picker.pending ? boundsToArea(picker.pending) : null);
         });
-        document.getElementById('areaRemoveBtn').addEventListener('click', () => {
-            picker.modal.hide();
-            picker.onApply(null);
-        });
+        document.getElementById('areaClearBtn').addEventListener('click', clearSelection);
     }
 
     /**
@@ -109,11 +124,12 @@ window.ProblemsArea = (function () {
     function open(area, view, onApply) {
         if (!picker) createPicker();
         picker.onApply = onApply;
-        picker.corner = null;
-        if (picker.rectangle) picker.rectangle.remove();
-        picker.rectangle = area ? L.rectangle(areaToBounds(area), drawStyle()).addTo(picker.map) : null;
-        setPending(area ? areaToBounds(area) : null);
-        document.getElementById('areaRemoveBtn').classList.toggle('d-none', !area);
+        picker.applied = area;
+        clearSelection();
+        if (area) {
+            picker.rectangle = L.rectangle(areaToBounds(area), drawStyle()).addTo(picker.map);
+            setPending(areaToBounds(area));
+        }
         picker.view = view;
         picker.modal.show();
     }

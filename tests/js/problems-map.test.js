@@ -432,6 +432,56 @@ describe('ProblemsMap context loading', () => {
         expect(MapRenderer.createPopupWithOptions).toHaveBeenCalledWith('details');
     });
 
+    test('nearby stops are loaded for a box around every stop of the problem', () => {
+        ProblemsMap.loadContextData({ id: 'pair', atlas_lat: 46.53, atlas_lon: 6.65, osm_lat: 46.54, osm_lon: 6.62 });
+
+        const params = $.getJSON.mock.calls[0][1];
+        expect(params.min_lat).toBeCloseTo(46.51);
+        expect(params.max_lat).toBeCloseTo(46.56);
+        expect(params.min_lon).toBeCloseTo(6.60);
+        expect(params.max_lon).toBeCloseTo(6.67);
+    });
+
+    test('a shown problem keeps the view inside its box until no problem is shown', () => {
+        const box = { extend: jest.fn(other => ({ box: 'extended', with: other })) };
+        global.L.latLngBounds = window.L.latLngBounds = jest.fn(() => box);
+        let minZoom = 3;
+        Object.assign(problemMap, {
+            getMinZoom: jest.fn(() => minZoom),
+            setMinZoom: jest.fn(zoom => { minZoom = zoom; }),
+            setMaxBounds: jest.fn(),
+            getBoundsZoom: jest.fn(() => 14),
+            getBounds: jest.fn(() => 'fitted view')
+        });
+        ProblemsMap.initProblemMap();
+        const problem = { id: 'p', problem: 'distance', atlas_lat: 46.53, atlas_lon: 6.65, osm_lat: 46.54, osm_lon: 6.62 };
+
+        ProblemsMap.renderProblem(problem, { fitView: true });
+
+        // Released before fitting, so the new problem's view can be reached.
+        expect(problemMap.setMaxBounds.mock.calls[0]).toEqual([null]);
+        expect(problemMap.setMinZoom.mock.calls[0]).toEqual([3]);
+        const [southWest, northEast] = L.latLngBounds.mock.calls[0];
+        [46.51, 6.6, 46.56, 6.67].forEach((value, i) => expect(southWest.concat(northEast)[i]).toBeCloseTo(value));
+        expect(problemMap.getBoundsZoom).toHaveBeenCalledWith(box, true);
+        expect(problemMap.setMinZoom).toHaveBeenLastCalledWith(14);
+        expect(problemMap.setMaxBounds).toHaveBeenLastCalledWith({ box: 'extended', with: 'fitted view' });
+
+        // A fitted view wider than the box stays reachable.
+        currentZoom = 12;
+        ProblemsMap.renderProblem(problem, { fitView: true });
+        expect(problemMap.setMinZoom).toHaveBeenLastCalledWith(12);
+
+        // Redrawing at a new zoom keeps the lock as it is.
+        problemMap.setMaxBounds.mockClear();
+        ProblemsMap.renderProblem(problem, { fitView: false });
+        expect(problemMap.setMaxBounds).not.toHaveBeenCalled();
+
+        ProblemsMap.releaseView();
+        expect(problemMap.setMaxBounds).toHaveBeenLastCalledWith(null);
+        expect(problemMap.setMinZoom).toHaveBeenLastCalledWith(3);
+    });
+
     test('destroys page-owned popup and map resources cleanly', () => {
         ProblemsMap.initProblemMap();
 

@@ -1,6 +1,6 @@
 {% extends "layouts/map.html" %}
 
-{% from "components/_components.html" import stats_overlay, top_filters_overlay with context %}
+{% from "components/_components.html" import stats_overlay, top_filters_overlay, doc_link with context %}
 {% block title %}Public Transport Data Problems | {{ review_config.title }}{% endblock %}
 {% block meta_description %}Explore missing, duplicate, distant, and contradictory public transport stop data between OpenStreetMap and {{ review_config.source_label }}.{% endblock %}
 
@@ -44,6 +44,7 @@
                 style="width: 280px; max-height: 60vh; overflow-y: auto;">
                 <div class="form-group mb-0">
                   <label class="fw-bold small text-uppercase text-muted">Problem Types</label>
+                  {{ doc_link('/docs/stop_problems', 'What the problem types and priorities mean') }}
 
                   <div class="form-check mb-2 pb-2 border-bottom">
                     <input type="checkbox" class="filter-problem-type form-check-input" id="filterProblemTypeAll" value="all">
@@ -178,6 +179,8 @@
       <div class="problem-section" id="problemSection">
         <div class="problem-floating-meta">
           <span id="problemTypeDisplay" class="problem-meta-chip">Loading...</span>
+          <a id="problemTypeDocLink" class="problem-meta-chip problem-type-doc-link d-none" target="_blank" rel="noopener"
+            title="What this problem type means and how its priority is set"></a>
           <span id="problemPriorityDisplay" class="problem-meta-chip d-none"></span>
           <button id="copyProblemLinkBtn" type="button" class="problem-meta-chip problem-copy-link"
             title="Copy a link that opens this problem with the current filters">
@@ -205,9 +208,11 @@
           <div id="areaMap" class="area-map"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary me-auto d-none" id="areaRemoveBtn">Remove area</button>
+          <button type="button" class="btn btn-outline-secondary me-auto" id="areaClearBtn" disabled>
+            <i class="fas fa-eraser" aria-hidden="true"></i> Clear selection
+          </button>
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-primary" id="areaApplyBtn" disabled>Show problems here</button>
+          <button type="button" class="btn btn-primary" id="areaApplyBtn" disabled>Filter problems in this area</button>
         </div>
       </div>
     </div>

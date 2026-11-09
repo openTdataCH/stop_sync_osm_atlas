@@ -18,7 +18,8 @@ if (window.mermaid) {
   const warningSubtle = style.getPropertyValue('--color-warning-subtle').trim() || '#fff3cd';
   
   mermaid.initialize({
-    startOnLoad: true,
+    // The docs portal draws the diagrams itself, then scrolls to the section in the address.
+    startOnLoad: false,
     theme: 'base',
     themeVariables: {
       // Derived shades follow the colour theme set by theme.js

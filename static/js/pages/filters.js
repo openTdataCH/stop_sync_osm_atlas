@@ -362,7 +362,7 @@ function showSmartSearchError(message, showHint = true) {
     if (!errorEl.length) return;
 
     if (message) {
-        const docLink = ' <a href="/docs/filters_and_search_logic" class="smart-search-doc-link" target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>';
+        const docLink = ' <a href="/docs/filters_and_search_logic" class="doc-link" target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>';
         errorEl.html($('<span>').text(message).html() + docLink).removeClass('d-none');
         if (showHint) {
             $('#smartSearchHint').removeClass('d-none');

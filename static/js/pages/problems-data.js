@@ -280,6 +280,7 @@ window.ProblemsData = (function () {
             if (allProblems.length === 0) {
                 $('#problemTypeDisplay').text('No problems found for this filter combination.');
                 $('#actionButtonsContent').empty();
+                if (window.ProblemsUI && window.ProblemsUI.updateFloatingChips) window.ProblemsUI.updateFloatingChips(null);
                 ProblemsState.setCurrentEntryProblems([]);
                 syncPermalink();
 
@@ -288,6 +289,9 @@ window.ProblemsData = (function () {
                 const contextLayer = ProblemsState.getContextMarkersLayer();
                 if (markersLayer) markersLayer.clearLayers();
                 if (linesLayer) linesLayer.clearLayers();
+                if (window.ProblemsMap && typeof window.ProblemsMap.releaseView === 'function') {
+                    window.ProblemsMap.releaseView();
+                }
                 if (window.ProblemsMap && typeof window.ProblemsMap.clearContextData === 'function') {
                     window.ProblemsMap.clearContextData();
                 } else if (contextLayer) {
