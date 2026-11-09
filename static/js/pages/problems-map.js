@@ -470,12 +470,8 @@ window.ProblemsMap = (function() {
             },
             mapOptions: {
                 closePopupOnClick: false,
-                preferCanvas: false,
                 maxZoom: AppConstants.MAP.MAX_ZOOM,
                 zoomControl: false
-            },
-            rendererPadding: function(zoom) {
-                return zoom >= 16 ? 2.0 : 0.1;
             },
             popupBehavior: true,
             baseLayers: function() {

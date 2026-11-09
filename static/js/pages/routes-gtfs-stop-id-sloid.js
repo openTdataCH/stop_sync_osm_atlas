@@ -370,14 +370,12 @@
     }),
     mapOptions: {
       closePopupOnClick: false,
-      preferCanvas: false,
       minZoom: minZoom,
       maxZoom: maxZoom,
       maxBounds: maxBounds,
       maxBoundsViscosity: 1,
       zoomControl: false
     },
-    rendererPadding: 0.1,
     defaultBaseLayer: 'OpenStreetMap',
     layerGroups: {
       atlasMarkers: true,

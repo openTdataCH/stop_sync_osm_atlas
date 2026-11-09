@@ -1,4 +1,5 @@
 from flask import Flask, request, redirect
+import gzip
 import logging
 import os
 
@@ -21,6 +22,9 @@ from backend.services import pipeline_status, route_listing
 from backend.services.time_utils import format_zurich_display_timestamp
 from backend.services.source_config import load_review_config, effective_review_config
 from backend.version import APP_VERSION
+
+# Smaller JSON saves too few bytes to be worth compressing.
+JSON_GZIP_MIN_BYTES = 1024
 
 
 def _bounded_env_int(name, default, *, minimum, maximum):
@@ -141,6 +145,29 @@ def create_app():
             or 400 <= response.status_code < 500
         ):
             response.headers['X-Robots-Tag'] = 'noindex, nofollow'
+        return response
+
+    @app.after_request
+    def gzip_json(response):
+        # A map view loads up to several hundred kB of stop JSON, which gzip
+        # makes about seven times smaller. The server in front compresses
+        # pages and scripts but not JSON, so the app does it.
+        if (
+            response.mimetype != 'application/json'
+            or response.status_code != 200
+            or response.direct_passthrough
+            or response.is_streamed
+            or 'Content-Encoding' in response.headers
+        ):
+            return response
+        body = response.get_data()
+        if len(body) < JSON_GZIP_MIN_BYTES:
+            return response
+        response.vary.add('Accept-Encoding')
+        if request.accept_encodings['gzip']:
+            # zlib's default level: level 9 takes twice as long for 3% less.
+            response.set_data(gzip.compress(body, compresslevel=6))
+            response.headers['Content-Encoding'] = 'gzip'
         return response
 
     return app

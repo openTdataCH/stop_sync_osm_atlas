@@ -182,7 +182,6 @@ describe('Index map adapter', () => {
                 maxZoom: 20,
                 zoomControl: false
             }),
-            rendererPadding: expect.any(Function),
             defaultBaseLayer: 'OpenStreetMap',
             popupBehavior: true,
             controls: {

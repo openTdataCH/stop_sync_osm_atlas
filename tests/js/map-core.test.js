@@ -65,7 +65,7 @@ function createLeafletMock() {
   const leaflet = {
     map: jest.fn(makeMap),
     layerGroup: jest.fn(makeLayer),
-    svg: jest.fn((options) => ({ options: { ...options } })),
+    canvas: jest.fn((options) => ({ options: { ...options } })),
     control: {
       zoom: jest.fn(makeControl),
       layers: jest.fn(makeControl)
@@ -142,14 +142,35 @@ describe('MapCore', () => {
     });
   });
 
-  test('updates renderer padding and popup positions with removable handlers', () => {
+  test('draws paths on a canvas reaching past the view, unless the page supplies a renderer', () => {
+    const result = window.MapComponents.MapCore.create({ container: 'map', baseLayers: false });
+    expect(result.map.renderer.options).toEqual({ padding: 0.3, tolerance: 0 });
+
+    const renderer = { options: {} };
+    const supplied = window.MapComponents.MapCore.create({
+      container: 'map', baseLayers: false, mapOptions: { renderer }
+    });
+    expect(supplied.map.renderer).toBe(renderer);
+    expect(mock.leaflet.canvas).toHaveBeenCalledTimes(1);
+  });
+
+  test('widens the hit area of paths on touch screens', () => {
+    window.matchMedia = jest.fn((query) => ({ matches: query === '(pointer: coarse)' }));
+    try {
+      const result = window.MapComponents.MapCore.create({ container: 'map', baseLayers: false });
+      expect(result.map.renderer.options.tolerance).toBe(5);
+    } finally {
+      delete window.matchMedia;
+    }
+  });
+
+  test('updates popup positions with removable handlers', () => {
     const updateAllLines = jest.fn();
     const result = window.MapComponents.MapCore.create({
       container: 'map',
       center: [46, 7],
       zoom: 15,
       baseLayers: false,
-      rendererPadding: (zoom) => zoom >= 16 ? 0.5 : 0.1,
       popupBehavior: { updateAllLines }
     });
     const popup = {
@@ -158,10 +179,6 @@ describe('MapCore', () => {
       _removeLine: jest.fn()
     };
 
-    expect(result.map.renderer.options.padding).toBe(0.1);
-    result.map.zoom = 16;
-    result.map.emit('zoomend');
-    expect(result.map.renderer.options.padding).toBe(0.5);
     result.map.emit('popupopen', { popup });
     result.map.emit('move');
     expect(updateAllLines).toHaveBeenCalledWith(result.map);
@@ -170,7 +187,6 @@ describe('MapCore', () => {
     expect(popup._removeLine).toHaveBeenCalledTimes(1);
 
     result.destroy();
-    expect(result.map.listenerCount('zoomend')).toBe(0);
     expect(result.map.listenerCount('move')).toBe(0);
     expect(result.map.remove).toHaveBeenCalledTimes(1);
     result.destroy();

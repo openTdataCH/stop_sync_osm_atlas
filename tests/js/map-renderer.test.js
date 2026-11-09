@@ -66,6 +66,20 @@ describe('MapRenderer production component', () => {
     expect(L.marker).not.toHaveBeenCalled();
   });
 
+  test('a labeled icon is as wide as the circle it replaces, its whole stroke included', () => {
+    const entity = window.MapShared.createEntity('osm', '1', [46.5, 6.6], { status: 'disused', label: 'U' });
+    const { radius, weight } = window.MapRenderer.getEntityStyle(entity);
+    window.MapRenderer.createEntityMarker({ entity, displayPosition: [46.5, 6.6], zoom: 18 });
+
+    // A circle marker's stroke is centred on its edge: it is drawn 2r + weight wide.
+    const width = 2 * radius + weight;
+    const icon = L.marker.mock.calls[0][1].icon;
+    expect(icon.iconSize).toEqual([width, width]);
+    expect(icon.iconAnchor).toEqual([width / 2, width / 2]);
+    expect(icon.html).toContain(`viewBox="0 0 ${width} ${width}"`);
+    expect(icon.html).toContain(`<circle cx="${width / 2}" cy="${width / 2}" r="${radius}"`);
+  });
+
   test('a circle marker closes its open popup on a second click, as icon markers do', () => {
     const leafletOpenPopup = jest.fn();
     const circle = { _openPopup: leafletOpenPopup, closePopup: jest.fn(), isPopupOpen: jest.fn(() => false) };

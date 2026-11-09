@@ -6,6 +6,20 @@
 
     var namespace = global.MapComponents = global.MapComponents || {};
 
+    // Paths (circle markers and lines) are drawn on one canvas per map: as SVG
+    // elements, a few thousand of them made panning stutter on slower devices.
+    // The canvas reaches this share of the view past each edge, so a drag
+    // shows what is there before the redraw at its end (the viewport maps load
+    // stops 0.35 past each edge). Its memory grows with (1 + 2 × padding)²:
+    // above about 0.35, a full-screen iPad passes Safari's 16.7-megapixel
+    // canvas limit and draws nothing.
+    var CANVAS_PADDING = 0.3;
+
+    // A finger is less precise than a mouse: on touch screens a tap this many
+    // pixels outside a path still hits it, which makes a 14 px marker a 24 px
+    // target.
+    var TOUCH_TOLERANCE_PX = 5;
+
     function copyObject(source) {
         var result = {};
         Object.keys(source || {}).forEach(function (key) {
@@ -15,7 +29,8 @@
     }
 
     function requireLeaflet() {
-        if (!global.L || typeof global.L.map !== 'function' || typeof global.L.layerGroup !== 'function') {
+        if (!global.L || typeof global.L.map !== 'function' || typeof global.L.layerGroup !== 'function' ||
+                typeof global.L.canvas !== 'function') {
             throw new Error('MapCore requires Leaflet to be loaded first.');
         }
         return global.L;
@@ -64,13 +79,8 @@
         return copyObject(layers);
     }
 
-    function resolvePadding(policy, zoom, map) {
-        var value = typeof policy === 'function' ? policy(zoom, map) : policy;
-        value = Number(value);
-        if (!Number.isFinite(value) || value < 0) {
-            throw new Error('MapCore rendererPadding must resolve to a non-negative number.');
-        }
-        return value;
+    function isTouchScreen() {
+        return typeof global.matchMedia === 'function' && global.matchMedia('(pointer: coarse)').matches;
     }
 
     function createPopupBehavior(map, option) {
@@ -151,17 +161,10 @@
             mapOptions.zoomControl = false;
         }
 
-        if (options.rendererPadding != null && !mapOptions.renderer) {
-            if (typeof L.svg !== 'function') {
-                throw new Error('MapCore rendererPadding requires Leaflet SVG support.');
-            }
-            var initialPadding = options.initialRendererPadding != null
-                ? resolvePadding(options.initialRendererPadding, zoom, null)
-                : (typeof options.rendererPadding === 'function'
-                    ? 0.1
-                    : resolvePadding(options.rendererPadding, zoom, null));
-            mapOptions.renderer = L.svg({
-                padding: initialPadding
+        if (!mapOptions.renderer) {
+            mapOptions.renderer = L.canvas({
+                padding: CANVAS_PADDING,
+                tolerance: isTouchScreen() ? TOUCH_TOLERANCE_PX : 0
             });
         }
 
@@ -236,18 +239,6 @@
                 overlayControlLayers,
                 layerControlOptions
             ).addTo(map);
-        }
-
-        if (options.rendererPadding != null) {
-            var updateRendererPadding = function () {
-                var renderer = typeof map.getRenderer === 'function' ? map.getRenderer(map) : mapOptions.renderer;
-                if (renderer && renderer.options) {
-                    renderer.options.padding = resolvePadding(options.rendererPadding, map.getZoom(), map);
-                }
-            };
-            map.on('zoomend', updateRendererPadding);
-            cleanup.push(function () { map.off('zoomend', updateRendererPadding); });
-            updateRendererPadding();
         }
 
         cleanup.push(createPopupBehavior(map, options.popupBehavior));

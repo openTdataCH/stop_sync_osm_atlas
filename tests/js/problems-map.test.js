@@ -280,10 +280,8 @@ describe('ProblemsMap context loading', () => {
             view: { center: [47.3769, 8.5417], zoom: 12 },
             mapOptions: expect.objectContaining({
                 closePopupOnClick: false,
-                preferCanvas: false,
                 zoomControl: false
             }),
-            rendererPadding: expect.any(Function),
             popupBehavior: true,
             defaultBaseLayer: 'OpenStreetMap',
             layerGroups: {
@@ -296,9 +294,6 @@ describe('ProblemsMap context loading', () => {
                 layers: { position: 'bottomleft' }
             }
         }));
-        const coreOptions = window.MapComponents.MapCore.create.mock.calls[0][0];
-        expect(coreOptions.rendererPadding(15)).toBe(0.1);
-        expect(coreOptions.rendererPadding(16)).toBe(2.0);
         expect(window.MapComponents.MapPopupController.create).toHaveBeenCalledWith(expect.objectContaining({
             cache: 'payload',
             createPopup: expect.any(Function)

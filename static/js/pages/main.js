@@ -84,7 +84,7 @@ function fetchJson(url, params, signal) {
 // Shared canonical entity rendering is provided by map-renderer.js
 
 // Create the Index map from one explicit configuration. MapCore owns map,
-// controls, base layers, renderer padding, popup-line handlers, and cleanup.
+// controls, base layers, path renderer, popup-line handlers, and cleanup.
 function initMap() {
     indexMapCore = window.MapComponents.MapCore.create({
         container: 'map',
@@ -94,15 +94,11 @@ function initMap() {
         }),
         mapOptions: {
             closePopupOnClick: false,
-            preferCanvas: false,
             minZoom: AppConstants.MAP.MIN_ZOOM,
             maxZoom: AppConstants.MAP.MAX_ZOOM,
             maxBounds: AppConstants.MAP.MAX_BOUNDS,
             maxBoundsViscosity: AppConstants.MAP.MAX_BOUNDS_VISCOSITY,
             zoomControl: false
-        },
-        rendererPadding: function (zoom) {
-            return zoom >= 16 ? 0.5 : 0.1;
         },
         layerGroups: {
             markers: { layer: markersLayer, controlLabel: 'Markers' },

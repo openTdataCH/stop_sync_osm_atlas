@@ -19,14 +19,20 @@ function getCachedDivIcon(key, html, className, size, anchor) {
     return icon;
 }
 
-// Helper to build and cache a labeled circle SVG icon
+// A circle with a letter, the size of the circle marker it replaces: the
+// stroke is centred on the circle's edge, so the box leaves room for its
+// outer half, which would otherwise be clipped flat on four sides.
 function getCachedLabeledCircleIcon(keyPrefix, style, letter) {
     const { color, fillColor, fillOpacity, weight, radius } = style;
     const textColor = style.textColor || 'white';
-    const size = radius * 2;
-    const key = `${keyPrefix}|${color}|${fillColor}|${textColor}|${letter}|${size}|${weight}|${fillOpacity}`;
-    const html = `\n            <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">\n                <circle cx="${radius}" cy="${radius}" r="${radius}" fill="${fillColor}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>\n                <text x="${radius}" y="${radius + 2}" text-anchor="middle" fill="${textColor}" font-size="${radius + 2}" font-weight="bold">${letter}</text>\n            </svg>`;
-    return getCachedDivIcon(key, html, 'custom-div-icon', [size, size], [radius, radius]);
+    const size = radius * 2 + weight;
+    const center = size / 2;
+    const key = `${keyPrefix}|${color}|${fillColor}|${textColor}|${letter}|${radius}|${weight}|${fillOpacity}`;
+    const html = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`
+        + `<circle cx="${center}" cy="${center}" r="${radius}" fill="${fillColor}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-width="${weight}"/>`
+        + `<text x="${center}" y="${center}" dy="0.35em" text-anchor="middle" fill="${textColor}" font-size="${radius + 2}" font-weight="bold">${letter}</text>`
+        + '</svg>';
+    return getCachedDivIcon(key, html, 'custom-div-icon', [size, size], [center, center]);
 }
 
 /**
