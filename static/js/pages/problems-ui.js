@@ -88,7 +88,7 @@ window.ProblemsUI = (function () {
             intent = 'Attribute mismatch, Operator';
         }
 
-        html += `<div class="alert ${alertClass} problem-info-banner mb-3">
+        html += `<div class="alert ${alertClass} problem-info-banner mb-2">
                     <small><i class="fas fa-${icon}"></i> ${intent}.</small>
                  </div>`;
 
@@ -331,7 +331,7 @@ window.ProblemsUI = (function () {
 
         return `
             <div class="problem-section-item">
-                <div class="alert alert-warning problem-info-banner mb-3">
+                <div class="alert alert-warning problem-info-banner mb-2">
                     <small><i class="fas fa-exclamation-triangle"></i> Route evidence conflicts with ${matchMethod}. Compare route names, GTFS route IDs, and directions.</small>
                 </div>
                 <div class="attribute-mini-popups">

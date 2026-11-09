@@ -119,6 +119,7 @@ function initMap() {
     });
 
     map = indexMapCore.map;
+    if (window.MapLegend) window.MapLegend.add(map, { sourceLabel: SharedUtils.sourceLabel() });
     popupController = createIndexPopupController();
     markerRegistry = createIndexMarkerRegistry();
     viewportLoader = createIndexViewportLoader();
@@ -542,8 +543,8 @@ function prepareZoomBanner(policy) {
     }
     if (!policy.hasAnyActiveFilter) {
         setZoomBannerText(policy.isLowZoom
-            ? `📍 Unmatched ${SharedUtils.sourceLabel()} stops only. Zoom in for all markers`
-            : '📍 Zoom in a bit more to see all markers in this area');
+            ? `📍 Zoomed out: only ${SharedUtils.sourceLabel()} stops without an OSM match (red). Zoom in to see every stop.`
+            : '📍 Zoom in a bit more to see every stop here.');
     }
     showZoomBanner(true, 150);
 }
@@ -901,7 +902,7 @@ function fetchAndCenterSpecificStop(identifier, identifierType) {
             const openPopup = !(identifierType === 'station' || identifierType === 'route');
             const zoomLevel = identifierType === 'route' ? 14 : 16;
             centerMapAndOpenPopup(data.stop, data.center_lat, data.center_lon, data.popup_view_type, zoomLevel, openPopup);
-            resolve();
+            resolve(data);
         }).fail(function () {
             reject(`No ${typeName} found matching: ${identifier}`);
         });
@@ -936,6 +937,15 @@ function stopParamsFromButton(button) {
 function replaceIndexStop(params) {
     Permalinks.replaceUrl({
         search: Permalinks.buildSearch(window.location.search, INDEX_STOP_KEYS, Permalinks.encodeParams(params))
+    });
+}
+
+// The summary panel's Copy link: the view, the filters and the open stop.
+function bindCopyMapLink() {
+    var button = document.getElementById('copyMapLink');
+    if (!button) return;
+    button.addEventListener('click', function () {
+        Permalinks.copyLink(button, Permalinks.pageUrl(window.location.search, Permalinks.currentMapHash(map)));
     });
 }
 
@@ -1169,6 +1179,7 @@ $(document).ready(function () {
     });
 
     restoreOperatorFiltersFromUrl();
+    restoreFiltersFromUrl();
 
     // Report functionality is only needed on /reports.
     // Index uses the navbar for navigation.
@@ -1187,7 +1198,9 @@ $(document).ready(function () {
     // Initial setup calls
     updateAccordionIcons();
     updateActiveFilters(); // This will call loadDataForViewport and updateFiltersUI
+    enableFilterUrlSync(); // from now on the address bar follows the filters
     updateHeaderSummary(); // Initial summary update
+    bindCopyMapLink();
     openStopFromUrl();
     openRouteVariantsFromUrl();
 

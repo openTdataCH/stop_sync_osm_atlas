@@ -67,6 +67,38 @@ describe('ProblemsRenderer final-view marker construction', () => {
     expect(members.every(member => member.atlas_lat === 46.53 && member.atlas_lon === 6.64)).toBe(true);
   });
 
+  test('keeps stops and popups between the toolbar and the problem panel', () => {
+    map.getSize = () => ({ x: 1280, y: 747 });
+    window.L.point = (x, y) => ({ x, y });
+    const viewInsets = () => ({ top: 38, bottom: 246 });
+
+    window.ProblemsRenderer.drawProblemOnMap(map, matched, layers, { viewInsets });
+
+    // band: 46 to 493 px; the stops keep 120 px above the panel, the popup the rest
+    expect(map.fitBounds.mock.calls[0][1]).toEqual({
+      paddingTopLeft: { x: 8, y: 373 }, paddingBottomRight: { x: 8, y: 270 }, animate: false
+    });
+    expect(MapRenderer.createPopupWithOptions).toHaveBeenCalledWith('matched popup', {
+      autoPan: true, autoPanPaddingTopLeft: { x: 8, y: 46 }, autoPanPaddingBottomRight: { x: 8, y: 270 }
+    });
+
+    window.ProblemsRenderer.drawProblemOnMap(map, { ...matched, problem: 'unmatched', stop_type: 'osm_unmatched' }, layers, { viewInsets });
+    expect(map.setView).toHaveBeenCalledWith([46.54, 6.65], 16, { animate: false });
+  });
+
+  test('only the first duplicate popup pans the map', () => {
+    map.getSize = () => ({ x: 1280, y: 747 });
+    window.L.point = (x, y) => ({ x, y });
+    const members = Array.from({ length: 3 }, (_, index) => ({ ...matched, id: index, sloid: 's' + index }));
+
+    window.ProblemsRenderer.drawProblemOnMap(map, { problem: 'duplicates', group_type: 'atlas', members }, layers,
+      { viewInsets: () => ({ top: 38, bottom: 246 }) });
+
+    const panning = MapRenderer.createPopupWithOptions.mock.calls.filter(call => call[1] && call[1].autoPan);
+    expect(panning).toHaveLength(1);
+    expect(MapRenderer.createPopupWithOptions).toHaveBeenCalledTimes(3);
+  });
+
   test('a zoom redraw retains the current view', () => {
     window.ProblemsRenderer.drawProblemOnMap(map, matched, layers, { fitView: false });
     expect(map.fitBounds).not.toHaveBeenCalled();

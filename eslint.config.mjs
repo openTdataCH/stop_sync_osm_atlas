@@ -6,13 +6,14 @@ const browserEntrypoints = Object.fromEntries([
     'AppConstants', 'FilterChipUtils', 'HeaderSummary', 'LineRenderer',
     'MapComponents', 'MapCore', 'MapEntityAdapters', 'MapLayerRegistry',
     'MapPopupController', 'MapRenderer', 'MapShared', 'MapViewportLoader',
-    'MobileFilters', 'OperatorDropdown', 'PopupRenderer', 'PopupUtils',
+    'MapLegend', 'MobileFilters', 'OperatorDropdown', 'PopupRenderer', 'PopupUtils', 'SearchSuggest',
     'Permalinks', 'ProblemsData', 'ProblemsMap', 'ProblemsPermalink', 'ProblemsRenderer', 'ProblemsState', 'ProblemsUI', 'QualityDashboard',
     'SharedUtils', 'activeFilters', 'topNLayer', 'stopsById',
     'fetchAndCenterSpecificStop', 'loadDataForViewport', 'updateHeaderSummary',
     'loadTopNMatches', 'initFilterEventHandlers', 'updateFiltersUI',
     'updateActiveFilters', 'getActiveFilterCount', 'parseSmartSearchInput',
-    'routeVariantsParam', 'fetchRouteVariants', 'addRouteVariantFilter', 'syncRouteVariantUrl'
+    'routeVariantsParam', 'fetchRouteVariants', 'addRouteVariantFilter', 'syncRouteVariantUrl',
+    'restoreFiltersFromUrl', 'enableFilterUrlSync'
 ].map(name => [name, 'readonly']));
 
 const correctness = {

@@ -22,13 +22,16 @@
               <span class="input-group-text bg-body border-0" id="search-icon"><i
                   class="fas fa-search text-muted"></i></span>
               <input type="text" id="smartSearchInput" class="form-control form-control-sm border-0 ps-0"
-                placeholder="Search location..." aria-describedby="search-icon" style="box-shadow: none;">
+                placeholder="Search stop name or ID..." aria-label="Search stop name or ID" aria-describedby="search-icon"
+                autocomplete="off" spellcheck="false" style="box-shadow: none;">
             </div>
+            <ul id="smartSearchSuggestions" class="search-suggestions d-none" aria-label="Suggestions"></ul>
             <div id="smartSearchHint" class="smart-search-hint d-none">
               <div class="smart-search-hint__title">Accepted formats
                 <a href="/docs/filters_and_search_logic" class="smart-search-doc-link"
                   target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>
               </div>
+              <div class="smart-search-hint__item"><kbd>Zürich HB</kbd> Stop name, with suggestions</div>
               <div class="smart-search-hint__item"><kbd>source:…</kbd> {{ review_config.source_label }} {{ review_config.source_id_label }}</div>
               {% if review_config.capabilities.gtfs_identity %}
               <div class="smart-search-hint__item"><kbd>8503000</kbd> UIC station (starts with 85)</div>
@@ -347,7 +350,7 @@
         <!-- Active Filters Display -->
         <div id="filterInfoContainer" class="d-flex flex-row align-items-center"
           style="pointer-events: auto; margin-left: auto; width: auto; max-width: none; gap: 0.5rem;">
-          {{ stats_overlay() }}
+          {{ stats_overlay(copy_link=True) }}
         </div>
 
         <!-- Zoom Banner (centered overlay) -->
@@ -437,6 +440,8 @@
 {% include 'components/_map_scripts.html' %}
 <script src="{{ url_for('static', filename='js/components/map-layer-registry.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-viewport-loader.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/search-suggest.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/map-legend.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/filters.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/main.js') }}"></script>
 {% endblock %}

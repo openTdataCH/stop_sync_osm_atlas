@@ -413,7 +413,9 @@ function parseSmartSearchInput(rawValue) {
         return {
             kind: 'route',
             value: routeId,
-            direction: routeMatch[3] || ''
+            direction: routeMatch[3] || '',
+            // A dashed ID without "route:" may also be a stop name, such as Saint-Imier.
+            implicit: !routeMatch[1]
         };
     }
 
@@ -450,7 +452,9 @@ function addSearchToken(token) {
 
     // Call the backend first to see if the entry exists
     fetchAndCenterSpecificStop(filterValue, filterType)
-        .then(function () {
+        .then(function (data) {
+            var name = token.name || searchTokenNameFromStop(filterType, data && data.stop);
+            if (name) searchTokenNames[searchTokenKey(filterType, filterValue)] = name;
             // Update UI only if the stop was found successfully
             updateFiltersUI();
             if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
@@ -468,24 +472,81 @@ function addSearchToken(token) {
         });
 }
 
-function submitSmartSearch() {
-    const input = $('#smartSearchInput');
-    const parsed = parseSmartSearchInput(input.val() || '');
+// The search box's suggestions (static/js/components/search-suggest.js).
+var searchSuggest = null;
+// The name shown in the chip of a station, stop or OSM element filter, by searchTokenKey().
+var searchTokenNames = {};
 
-    if (parsed.error) {
-        showSmartSearchError(parsed.error, true);
-        return;
-    }
+function searchTokenKey(kind, value) {
+    return kind + ':' + value;
+}
 
+function searchTokenNameFromStop(kind, stop) {
+    if (!stop) return '';
+    if (kind === 'station' || kind === 'atlas') return stop.atlas_designation_official || '';
+    if (kind === 'osm') return stop.osm_name || '';
+    return '';
+}
+
+// Enter picks the first suggestion unless the text is an identifier.
+function shouldPreselectSuggestion(query) {
+    const parsed = parseSmartSearchInput(query);
+    return Boolean(parsed.error || parsed.implicit);
+}
+
+function pickSearchSuggestion(item) {
+    showSmartSearchError('');
+    $('#smartSearchInput').val('');
+    addSearchToken({ kind: item.kind, value: item.value, name: item.name });
+}
+
+function searchTypedToken(parsed) {
+    if (searchSuggest) searchSuggest.close();
     showSmartSearchError('');
     addSearchToken(parsed);
+    $('#smartSearchInput').val('');
+}
 
-    // We will let addSearchToken clear the input if it succeeds or keep it if it fails
-    // However since addSearchToken is now async, we don't clear it here directly
-    // Let's clear it conditionally or let the promise handle it.
-    // Actually, it's safer to clear it, but maybe just leave it so they can fix typose?
-    // Let's clear it if the user hit enter, assuming they want to proceed.
-    input.val('');
+function submitSmartSearch() {
+    const raw = ($('#smartSearchInput').val() || '').trim();
+    const parsed = parseSmartSearchInput(raw);
+
+    if (!parsed.error && !parsed.implicit) {
+        searchTypedToken(parsed);
+        return;
+    }
+    if (!raw || !searchSuggest) {
+        if (parsed.error) showSmartSearchError(parsed.error, true);
+        else searchTypedToken(parsed);
+        return;
+    }
+    // A name, or a dashed text that may be a name or a route ID: the best suggestion wins.
+    searchSuggest.request(raw).then(function (results) {
+        if (results === null) return;  // the text changed meanwhile
+        if (results.length > 0) {
+            searchSuggest.close();
+            pickSearchSuggestion(results[0]);
+        } else if (!parsed.error) {
+            searchTypedToken(parsed);
+        } else {
+            showSmartSearchError('No stop found named "' + raw + '". ' + parsed.error, true);
+        }
+    }, function () {
+        if (parsed.error) showSmartSearchError(parsed.error, true);
+        else searchTypedToken(parsed);
+    });
+}
+
+function initSearchSuggestions() {
+    const input = document.getElementById('smartSearchInput');
+    const list = document.getElementById('smartSearchSuggestions');
+    if (!input || !list || !window.SearchSuggest) return;
+    searchSuggest = window.SearchSuggest.attach({
+        input: input,
+        list: list,
+        onPick: pickSearchSuggestion,
+        preselectFirst: shouldPreselectSuggestion
+    });
 }
 
 // Helper function to normalize route IDs for display
@@ -683,6 +744,8 @@ function updateFiltersUI() {
             case 'station':
             default: labelText = 'UIC: '; badgeClass = 'filter-chip-secondary'; badgeHtmlContent = labelText + filter; break;
         }
+        var tokenName = filterType === 'route' ? '' : searchTokenNames[searchTokenKey(filterType || 'station', filter)];
+        if (tokenName) badgeHtmlContent = tokenName + ' · ' + badgeHtmlContent;
         var badgeHtml;
         if (filterType === 'route') {
             var currentDirection = activeFilters.routeDirections[index] || '';
@@ -742,6 +805,7 @@ function updateFiltersUI() {
     else container.html('<span class="badge filter-chip-badge filter-chip-secondary me-1 mb-1">All entries</span>');
 
     container.attr('data-active-filter-count', String(getActiveFilterCount()));
+    syncFilterUrl();
 }
 
 function clearAllFilters() {
@@ -1143,6 +1207,170 @@ function loadRouteVariantOptions(dropdown) {
 }
 
 // Initialize filter-related event handlers
+// ==========================================
+// Filter links
+// ==========================================
+// The address bar keeps every map filter, so a copied link opens the same
+// filtered view. Names follow the /api/data parameters; search filters are
+// repeated search= values. See documentation/2.9 Permalinks.md#map.
+var FILTER_URL_KEYS = ['stop_filter', 'match_method', 'transport_types', 'osm_entity_types', 'osm_group_types',
+    'show_duplicates_only', 'atlas_operator', 'osm_operator', 'osm_operator_wikidata',
+    'missing_osm_operator_wikidata', 'top_n', 'search'];
+// Off until the filters of the opening link are restored, so a half-built state never replaces them.
+var filterUrlSyncEnabled = false;
+
+// A search filter as link text: uic:8503000, source:<id>, node/123, way/45, route:<id> dir:0.
+function searchFilterText(kind, value, direction) {
+    if (kind === 'station') return 'uic:' + value;
+    if (kind === 'atlas') return 'source:' + value;
+    if (kind === 'osm') {
+        if (/^\d+$/.test(value)) return 'node/' + value;
+        if (/^way_\d+$/.test(value)) return 'way/' + value.slice(4);
+        return 'osm:' + value;
+    }
+    if (kind === 'route') return 'route:' + value + (direction ? ' dir:' + direction : '');
+    return null;
+}
+
+function parseSearchFilterText(text) {
+    text = String(text || '').trim();
+    var match;
+    if ((match = /^uic:(.+)$/.exec(text))) return { kind: 'station', value: match[1] };
+    if ((match = /^source:(.+)$/.exec(text))) return { kind: 'atlas', value: match[1] };
+    if ((match = /^node\/(\d+)$/.exec(text))) return { kind: 'osm', value: match[1] };
+    if ((match = /^way\/(\d+)$/.exec(text))) return { kind: 'osm', value: 'way_' + match[1] };
+    if ((match = /^osm:(\S+)$/.exec(text))) return { kind: 'osm', value: match[1] };
+    if ((match = /^route:(\S+)(?: dir:([01]))?$/.exec(text))) {
+        return SharedUtils.hasCapability('routes') ? { kind: 'route', value: match[1], direction: match[2] || '' } : null;
+    }
+    return null;
+}
+
+// [key, value] pairs of the current filters, in a fixed order.
+function filterUrlPairs() {
+    var pairs = [];
+    function addList(key, values) {
+        if (values && values.length) pairs.push([key, values.join(',')]);
+    }
+    addList('stop_filter', activeFilters.stopType);
+    addList('match_method', activeFilters.matchMethods);
+    addList('transport_types', activeFilters.transportTypes);
+    addList('osm_entity_types', activeFilters.osmEntityTypes);
+    addList('osm_group_types', activeFilters.osmGroups);
+    if (activeFilters.showDuplicatesOnly) pairs.push(['show_duplicates_only', 'true']);
+    addList('atlas_operator', activeFilters.atlasOperators);
+    addList('osm_operator', activeFilters.osmOperators);
+    addList('osm_operator_wikidata', activeFilters.osmOperatorWikidata);
+    if (activeFilters.missingOsmOperatorWikidata) pairs.push(['missing_osm_operator_wikidata', 'true']);
+    if (activeFilters.topN) pairs.push(['top_n', String(activeFilters.topN)]);
+    // The last route filter narrowed to variants is named by atlas_variant / osm_variant.
+    var variantIndex = -1;
+    activeFilters.routeVariants.forEach(function (variants, index) { if (variants) variantIndex = index; });
+    activeFilters.station.forEach(function (value, index) {
+        if (index === variantIndex) return;
+        var text = searchFilterText(activeFilters.stationTypes[index], value, activeFilters.routeDirections[index]);
+        if (text) pairs.push(['search', text]);
+    });
+    return pairs;
+}
+
+function filterUrlQuery() {
+    return filterUrlPairs().map(function (pair) {
+        var param = {};
+        param[pair[0]] = pair[1];
+        return Permalinks.encodeParams(param);
+    }).join('&');
+}
+
+function syncFilterUrl() {
+    if (!filterUrlSyncEnabled || !window.Permalinks) return;
+    Permalinks.replaceUrl({ search: Permalinks.buildSearch(window.location.search, FILTER_URL_KEYS, filterUrlQuery()) });
+}
+
+function enableFilterUrlSync() {
+    filterUrlSyncEnabled = true;
+    syncFilterUrl();
+}
+
+function checkFilterBoxes(selector, values) {
+    $(selector).each(function () {
+        if (values.indexOf(this.value) !== -1) $(this).prop('checked', true).trigger('change');
+    });
+}
+
+function pushSearchFilter(token) {
+    for (var i = 0; i < activeFilters.station.length; i++) {
+        if (activeFilters.stationTypes[i] === token.kind && activeFilters.station[i] === token.value
+            && (activeFilters.routeDirections[i] || '') === (token.direction || '')) return;
+    }
+    activeFilters.station.push(token.value);
+    activeFilters.stationTypes.push(token.kind);
+    activeFilters.routeDirections.push(token.direction || '');
+    activeFilters.routeVariants.push(null);
+}
+
+// Names the chips of restored stop filters from the public lookup.
+function loadSearchFilterNames(tokens) {
+    var keys = { station: 'uic_ref', atlas: 'sloid', osm: 'osm' };
+    tokens.filter(function (token) { return keys[token.kind]; }).slice(0, 10).forEach(function (token) {
+        var value = token.kind === 'osm' ? searchFilterText('osm', token.value) : token.value;
+        if (/^osm:/.test(value)) return;
+        var query = {};
+        query[keys[token.kind]] = value;
+        fetch('/api/lookup?' + Permalinks.encodeParams(query), { headers: { Accept: 'application/json' } })
+            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (data) {
+                var first = data && data.results && data.results[0];
+                var side = first && (token.kind === 'osm' ? first.osm : first.source);
+                if (!side || !side.name) return;
+                searchTokenNames[searchTokenKey(token.kind, token.value)] = side.name;
+                updateFiltersUI();
+            })
+            .catch(function () { /* the chip keeps its identifier */ });
+    });
+}
+
+// Sets the controls and search filters a link names; the caller then runs updateActiveFilters().
+// The operator filters are restored by restoreOperatorFiltersFromUrl() in main.js.
+function restoreFiltersFromUrl(search) {
+    var params = new URLSearchParams(search === undefined ? window.location.search : search);
+    function list(key) {
+        return params.getAll(key).flatMap(function (value) { return value.split(','); })
+            .map(function (value) { return value.trim(); }).filter(Boolean);
+    }
+    isBulkCheckboxSyncDepth++;
+    try {
+        var scope = list('stop_filter');
+        [['matched', '#masterMatchedCheckbox'], ['atlas_unmatched', '#masterUnmatchedAtlasCheckbox'],
+            ['osm_unmatched', '#masterUnmatchedOsmCheckbox'], ['osm_disused', '#masterDisusedOsmCheckbox']
+        ].forEach(function (entry) {
+            if (scope.indexOf(entry[0]) !== -1) $(entry[1]).prop('checked', true).trigger('change');
+        });
+        checkFilterBoxes('.filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method', list('match_method'));
+        checkFilterBoxes('.filter-transport-type', list('transport_types'));
+        checkFilterBoxes('.filter-osm-entity-type', list('osm_entity_types'));
+        var groups = list('osm_group_types');
+        if (groups.indexOf('all') !== -1) $('#filterOsmGroup').prop('checked', true).trigger('change');
+        else checkFilterBoxes('.filter-osm-group-type', groups);
+        if (params.get('show_duplicates_only') === 'true') $('#filterDuplicatesOnly').prop('checked', true);
+    } finally {
+        isBulkCheckboxSyncDepth--;
+    }
+    var topN = parseInt(params.get('top_n'), 10);
+    if (topN > 0) {
+        activeFilters.topN = topN;
+        $('#topDistance').val(topN);
+        $('#toggleTopNBtn').html('<i class="fas fa-times-circle"></i> Remove Top N');
+    }
+    var tokens = params.getAll('search').map(parseSearchFilterText).filter(Boolean);
+    tokens.forEach(pushSearchFilter);
+    loadSearchFilterNames(tokens);
+}
+
+window.restoreFiltersFromUrl = restoreFiltersFromUrl;
+window.enableFilterUrlSync = enableFilterUrlSync;
+window.filterUrlQuery = filterUrlQuery;
+
 function initFilterEventHandlers() {
     $('#filterMissingOsmOperatorWikidata').on('change', function () {
         if (this.checked) {
@@ -1326,8 +1554,10 @@ function initFilterEventHandlers() {
         }
     });
 
-    $('#smartSearchInput').on('keypress', function (e) {
-        if (e.which === 13) { // Enter key
+    initSearchSuggestions();
+    $('#smartSearchInput').on('keydown', function (e) {
+        if (searchSuggest && searchSuggest.handleKeydown(e)) return;
+        if (e.key === 'Enter') {
             e.preventDefault();
             submitSmartSearch();
         }

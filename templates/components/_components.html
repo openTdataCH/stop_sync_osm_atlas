@@ -1,4 +1,4 @@
-{% macro stats_overlay(show_filters=True) %}
+{% macro stats_overlay(show_filters=True, copy_link=False) %}
 <div id="headerSummaryInfo" class="header-summary">
   <div class="header-summary__mobile-bar">
     <span class="header-summary__mobile-title">Summary</span>
@@ -17,6 +17,12 @@
         <i class="fas fa-chevron-down header-summary__filters-toggle-icon d-none" aria-hidden="true"></i>
       </button>
       <a href="#" id="clearAllFilters" class="header-summary__clear-all d-none">Clear all</a>
+      {% if copy_link %}
+      <button type="button" id="copyMapLink" class="header-summary__copy-link"
+        title="Copy a link that opens this view with the current filters">
+        <i class="fas fa-link" aria-hidden="true"></i> Copy link
+      </button>
+      {% endif %}
     </div>
     <div id="headerSummaryFiltersPanel" class="header-summary__filters-panel d-none">
       <div id="activeFilters" class="d-flex flex-wrap align-items-center"></div>

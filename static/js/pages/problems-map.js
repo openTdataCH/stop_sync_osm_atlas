@@ -373,6 +373,21 @@ window.ProblemsMap = (function() {
         });
     }
 
+    // Pixels of the map hidden by the filter toolbar (top) and the problem panel (bottom).
+    function problemViewInsets(map) {
+        const container = map.getContainer && map.getContainer();
+        if (!container) return null;
+        const mapRect = container.getBoundingClientRect();
+        const toolbar = document.querySelector('.top-filters-overlay');
+        const panel = document.getElementById('problemSection');
+        const toolbarBottom = toolbar ? toolbar.getBoundingClientRect().bottom : mapRect.top;
+        const panelTop = panel ? panel.getBoundingClientRect().top : mapRect.bottom;
+        return {
+            top: Math.max(0, toolbarBottom - mapRect.top),
+            bottom: Math.max(0, mapRect.bottom - panelTop)
+        };
+    }
+
     function renderProblem(problem, options) {
         const problemMap = ProblemsState.getProblemMap();
         if (!problemMap || !window.ProblemsRenderer || typeof window.ProblemsRenderer.drawProblemOnMap !== 'function') {
@@ -384,7 +399,7 @@ window.ProblemsMap = (function() {
             window.ProblemsRenderer.drawProblemOnMap(problemMap, problem, {
                 markersLayer: ProblemsState.getProblemMarkersLayer(),
                 linesLayer: ProblemsState.getProblemLinesLayer()
-            }, options || {});
+            }, { viewInsets: () => problemViewInsets(problemMap), ...(options || {}) });
             const labelZoom = AppConstants.MAP.LABEL_ICON_MIN_ZOOM || 18;
             renderedProblem = {
                 problemKey: getProblemKey(problem),

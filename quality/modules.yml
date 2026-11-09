@@ -167,6 +167,7 @@
           "backend/services/state_backend_config.py",
           "backend/services/url_query.py",
           "backend/services/stop_lookup.py",
+          "backend/services/stop_suggest.py",
           "backend/services/time_utils.py",
           "backend/services/transport_routes.py",
           "backend/services/route_comparison.py",
@@ -190,6 +191,7 @@
         "tests": [
           "tests/test_validators.py",
           "tests/test_public_api.py",
+          "tests/test_search_suggest.py",
           "tests/test_stop_popup.py",
           "tests/test_filter_semantics.py",
           "tests/test_routes_blueprint.py",

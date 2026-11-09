@@ -8,6 +8,12 @@ from backend.extensions import db
 from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
 
 
+def osm_list_contains(column, value):
+    """``column`` is ``value`` or lists it among ;-separated values, as OSM tags write several values."""
+    escaped = value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+    return db.or_(column == value, (db.literal(';') + column + db.literal(';')).like(f'%;{escaped};%', escape='\\'))
+
+
 class FilterBuilder:
     """Helper class to build common filter conditions without duplication."""
     
@@ -107,10 +113,11 @@ class FilterBuilder:
             filter_type = filter_types[i].strip()
             direction = route_directions[i].strip()
             
+            # Identifiers match whole: ch:1:sloid:10035:0:1 must not keep ch:1:sloid:10035:0:1955.
             if filter_type == 'atlas':
-                conditions.append(StopsMatched.sloid.like(f'%{value}%'))
+                conditions.append(StopsMatched.sloid == value)
             elif filter_type == 'osm':
-                conditions.append(StopsMatched.osm_node_id.like(f'%{value}%'))
+                conditions.append(StopsMatched.osm_node_id == value)
             elif filter_type == 'route':
                 route_stops = route_query_func(value, direction if direction else None, route_variants[i])
                 route_conditions = []
@@ -120,10 +127,10 @@ class FilterBuilder:
                     route_conditions.append(StopsMatched.osm_node_id.in_(route_stops['osm_nodes']))
                 if route_conditions:
                     conditions.append(db.or_(*route_conditions) if len(route_conditions) > 1 else route_conditions[0])
-            else:  # UIC ref — search both atlas and osm tables
+            else:  # UIC number of the ATLAS stop, or among the OSM element's uic_ref values
                 conditions.append(db.or_(
-                    StopsMatched.atlas_stop_details.has(AtlasStop.uic_ref.ilike(f'%{value}%')),
-                    StopsMatched.osm_node_details.has(OsmNode.osm_uic_ref.ilike(f'%{value}%'))
+                    StopsMatched.atlas_stop_details.has(AtlasStop.uic_ref == value),
+                    StopsMatched.osm_node_details.has(osm_list_contains(OsmNode.osm_uic_ref, value))
                 ))
         
         return conditions

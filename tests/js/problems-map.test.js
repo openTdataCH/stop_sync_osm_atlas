@@ -335,7 +335,7 @@ describe('ProblemsMap context loading', () => {
             problemMap,
             currentProblem,
             expect.objectContaining({ markersLayer: expect.anything(), linesLayer: expect.anything() }),
-            { fitView: false }
+            expect.objectContaining({ fitView: false, viewInsets: expect.any(Function) })
         );
         expect(MapRenderer.renderEntities).toHaveBeenCalledTimes(2);
         expect(MapRenderer.renderEntities.mock.calls[1][2]).toEqual(expect.objectContaining({

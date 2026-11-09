@@ -142,6 +142,74 @@ main {
   font-weight: var(--font-medium);
 }
 
+/* -------------------------------------------------------------------------
+   Search suggestions (static/js/components/search-suggest.js)
+   ------------------------------------------------------------------------- */
+.search-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1003;
+  width: max(100%, 320px);
+  max-width: calc(100vw - 2rem);
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-family: var(--font-sans);
+}
+
+.search-suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+.search-suggestion:hover,
+.search-suggestion.is-active {
+  background: var(--color-primary-subtle);
+}
+
+.search-suggestion__main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.search-suggestion__name {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-suggestion__ref {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.search-suggestion__meta {
+  font-size: var(--text-xs);
+  color: var(--color-fg-muted);
+}
+
+.search-suggestion__other::before {
+  content: ' · ';
+}
+
 /* Doc info icon shared by hint and error tooltips */
 .smart-search-doc-link {
   pointer-events: auto;
@@ -215,6 +283,20 @@ main {
     min-width: 0;
   }
 
+  /* The filter panel scrolls and would clip a floating list: push the filters down instead. */
+  .search-suggestions {
+    position: static;
+    width: 100%;
+    max-width: none;
+    max-height: 40vh;
+    margin-top: var(--space-1);
+  }
+
+  /* The zoom banner sits where the open panel used to end. */
+  .index-root:has(#smartSearchSuggestions:not(.d-none)) .zoom-banner {
+    display: none;
+  }
+
   .filter-item .random-stop-btn {
     width: 100%;
     justify-content: center;
@@ -244,6 +326,135 @@ main {
   z-index: 1;
   display: flex;
   flex-direction: column;
+}
+
+/* -------------------------------------------------------------------------
+   Map legend (static/js/components/map-legend.js)
+   ------------------------------------------------------------------------- */
+.map-legend {
+  max-width: 250px;
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--color-fg);
+}
+
+.map-legend__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--color-fg);
+  font-weight: var(--font-semibold);
+  cursor: pointer;
+}
+
+.map-legend__body {
+  display: none;
+  padding: 0 var(--space-2) var(--space-2);
+}
+
+.map-legend.is-open .map-legend__body {
+  display: block;
+}
+
+.map-legend__list {
+  margin: 0 0 var(--space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.map-legend__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 1px 0;
+}
+
+.map-legend__marker,
+.map-legend__line {
+  flex-shrink: 0;
+  height: 16px;
+}
+
+.map-legend__marker {
+  width: 16px;
+}
+
+.map-legend__line {
+  width: 24px;
+}
+
+.map-legend__marker circle {
+  stroke-width: 2;
+  fill-opacity: 0.5;
+}
+
+.map-legend__marker--atlas-matched circle {
+  fill: var(--color-map-atlas-matched);
+  stroke: var(--color-map-atlas-matched);
+}
+
+.map-legend__marker--osm-matched circle {
+  fill: var(--color-map-osm-matched);
+  stroke: var(--color-map-osm-matched);
+}
+
+.map-legend__marker--atlas-unmatched circle {
+  fill: var(--color-map-atlas-unmatched);
+  stroke: var(--color-map-atlas-unmatched);
+}
+
+.map-legend__marker--osm-unmatched circle {
+  fill: var(--color-map-osm-unmatched);
+  stroke: var(--color-map-osm-unmatched);
+}
+
+.map-legend__marker--disused circle {
+  fill: var(--color-map-disused-fill);
+  fill-opacity: 0.9;
+  stroke: var(--color-map-osm-unmatched);
+}
+
+.map-legend__marker text {
+  fill: var(--color-map-osm-unmatched);
+  font-size: 8px;
+  font-weight: var(--font-bold);
+  text-anchor: middle;
+}
+
+.map-legend__line line {
+  stroke-width: 2;
+}
+
+.map-legend__line--match line {
+  stroke: var(--color-map-line-atlas-osm);
+}
+
+.map-legend__line--group line {
+  stroke: var(--color-map-line-osm-group);
+  stroke-dasharray: 6 4;
+}
+
+.map-legend__note {
+  color: var(--color-fg-muted);
+}
+
+.map-legend__letters {
+  margin: 0;
+  color: var(--color-fg-muted);
+  line-height: var(--leading-snug);
+}
+
+.map-legend__letters b {
+  color: var(--color-fg);
 }
 
 /* -------------------------------------------------------------------------

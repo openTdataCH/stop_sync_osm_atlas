@@ -158,6 +158,25 @@
   text-decoration: underline;
 }
 
+.header-summary__copy-link {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: var(--text-xs);
+  color: var(--color-primary);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.header-summary__copy-link:hover {
+  text-decoration: underline;
+}
+
+.header-summary__copy-link.is-copied {
+  color: var(--color-success);
+}
+
 .header-summary__filters-panel {
   width: 100%;
 }

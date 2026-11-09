@@ -207,3 +207,34 @@ def test_global_stats_leave_disused_osm_out_unless_selected():
 
     assert "stops_matched.stop_type != 'osm_disused'" in unfiltered
     assert "!= 'osm_disused'" not in selected
+
+
+def test_identifier_filters_keep_whole_identifiers_only(problems_db):
+    from backend.models import AtlasStop, OsmNode
+
+    session = problems_db
+    rows = [
+        ('ch:1:sloid:10035:0:1', '8510035', '100', None),
+        ('ch:1:sloid:10035:0:1955', '8510035', '1001', None),
+        (None, None, '6151326225', '8530279;8500819'),  # Saanenwald: one stop, two UIC numbers
+        (None, None, '61513262250', '85302790'),
+    ]
+    for sloid, uic_ref, osm_node_id, osm_uic_ref in rows:
+        if sloid:
+            session.add(AtlasStop(sloid=sloid, uic_ref=uic_ref))
+        session.add(OsmNode(osm_node_id=osm_node_id, osm_uic_ref=osm_uic_ref))
+        session.add(StopsMatched(sloid=sloid, osm_node_id=osm_node_id, stop_type='matched' if sloid else 'osm_unmatched'))
+    session.commit()
+
+    def kept(value, filter_type):
+        query = QueryBuilder(None).apply_common_filters(
+            StopsMatched.query, {'filter_values': [value], 'filter_types': [filter_type]})
+        return sorted(row.osm_node_id for row in query.all())
+
+    assert kept('ch:1:sloid:10035:0:1', 'atlas') == ['100']
+    assert kept('100', 'osm') == ['100']
+    assert kept('6151326225', 'osm') == ['6151326225']
+    assert kept('8510035', 'station') == ['100', '1001']
+    assert kept('8530279', 'station') == ['6151326225']
+    assert kept('8500819', 'station') == ['6151326225']
+    assert kept('850081', 'station') == []

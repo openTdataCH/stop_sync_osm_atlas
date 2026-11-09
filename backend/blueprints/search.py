@@ -6,6 +6,7 @@ from backend.models import StopsMatched, AtlasStop
 from backend.extensions import db, limiter
 from backend.serializers.stops import format_stop_data
 from backend.services.stop_lookup import InvalidLookup, lookup_payload, parse_lookup
+from backend.services import stop_suggest
 from backend.services.transport_routes import get_stops_for_route
 from backend.queries.helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint, resolve_stop_type_match_filters, build_stop_scope_condition, build_match_method_conditions
 from backend.queries.helpers import build_atlas_duplicate_membership_condition
@@ -139,6 +140,27 @@ def lookup():
         return jsonify(lookup_payload(query))
     except SQLAlchemyError:
         app.logger.warning("Lookup failed", exc_info=True)
+        response = jsonify({"error": "The database is busy or unavailable, for example during a data update. Retry in a minute."})
+        response.headers['Retry-After'] = '60'
+        return response, 503
+
+
+@search_bp.route('/api/search/suggest', methods=['GET'])
+@limiter.limit("240/minute")
+def search_suggest():
+    """Stations and OSM elements whose name or number matches q, for the search box."""
+    query = request.args.get('q', '')
+    if len(query) > 100:
+        return jsonify({"error": "q is longer than 100 characters."}), 400
+    try:
+        limit = min(max(int(request.args.get('limit', stop_suggest.DEFAULT_LIMIT)), 1), stop_suggest.MAX_LIMIT)
+    except ValueError:
+        return jsonify({"error": "limit must be a number."}), 400
+    try:
+        return jsonify({"query": query, "results": stop_suggest.suggest(query, limit)})
+    except SQLAlchemyError:
+        app.logger.warning("Search suggestions failed", exc_info=True)
+        db.session.rollback()
         response = jsonify({"error": "The database is busy or unavailable, for example during a data update. Retry in a minute."})
         response.headers['Retry-After'] = '60'
         return response, 503
