@@ -22,6 +22,8 @@
     SharedUtils.sourceIdLabel = () => String((global.ReviewConfig || {}).source_id_label || 'SLOID');
     SharedUtils.sourceLabelHtml = () => SharedUtils.escapeHtml(SharedUtils.sourceLabel());
     SharedUtils.sourceIdLabelHtml = () => SharedUtils.escapeHtml(SharedUtils.sourceIdLabel());
+    // 49452 -> "49,452": counts shown to people, grouped by thousands.
+    SharedUtils.formatCount = value => Number(value || 0).toLocaleString('en-US');
     SharedUtils.hasCapability = name => (global.ReviewConfig || {}).capabilities?.[name] !== false;
 
     SharedUtils.sourceUrl = function(data) {

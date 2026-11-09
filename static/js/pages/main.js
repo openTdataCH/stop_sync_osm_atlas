@@ -565,13 +565,13 @@ function updateZoomBannerFromPayload(policy, stops, capped) {
 
         if (capped) {
             setZoomBannerText(
-                '🔍 Showing first ' + resultCount + ' filtered result' +
+                '🔍 Showing first ' + SharedUtils.formatCount(resultCount) + ' filtered result' +
                 (resultCount !== 1 ? 's' : '') + filterText +
                 '. Zoom in to see all.'
             );
         } else {
             setZoomBannerText(
-                prefix + resultCount + ' filtered result' +
+                prefix + SharedUtils.formatCount(resultCount) + ' filtered result' +
                 (resultCount !== 1 ? 's' : '') + filterText
             );
         }
@@ -1277,10 +1277,10 @@ function updateHeaderSummary() {
 
         // Always show both lines if data is available, colorize percentages
         if (totalOSM > 0) {
-            summaryHtml += `<div class="header-summary__stat"><img class="header-summary__stat-icon" src="/static/osm.svg" alt="OSM icon">${totalOSM} OSM stops, <span class="header-summary__rate header-summary__rate--success">${osmPercentage}% matched</span></div>`;
+            summaryHtml += `<div class="header-summary__stat"><img class="header-summary__stat-icon" src="/static/osm.svg" alt="OSM icon">${SharedUtils.formatCount(totalOSM)} OSM stops, <span class="header-summary__rate header-summary__rate--success">${osmPercentage}% matched</span></div>`;
         }
         if (totalATLAS > 0) {
-            summaryHtml += `<div class="header-summary__stat">${totalATLAS} ${SharedUtils.sourceLabelHtml()} stops, <span class="header-summary__rate header-summary__rate--primary">${atlasPercentage}% matched</span></div>`;
+            summaryHtml += `<div class="header-summary__stat">${SharedUtils.formatCount(totalATLAS)} ${SharedUtils.sourceLabelHtml()} stops, <span class="header-summary__rate header-summary__rate--primary">${atlasPercentage}% matched</span></div>`;
         }
 
         if (!summaryHtml) { // Fallback if both counts are zero for some reason based on filters

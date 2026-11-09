@@ -131,7 +131,7 @@ describe('Problems page permalinks', () => {
 
         ProblemsData.fetchProblems(1, { focus: { sloid: 'ch:1:sloid:250', osm_node_id: '1250' }, onFocusMissing });
 
-        expect(document.getElementById('problemTypeDisplay').textContent).toBe('Entry 250/400 · 1 Problem');
+        expect(document.getElementById('problemTypeDisplay').textContent).toBe('Entry 250 of 400 · 1 Problem');
         expect(window.location.search).toBe('?sloid=ch:1:sloid:250&osm=node/1250');
         expect(onFocusMissing).not.toHaveBeenCalled();
         expect(document.getElementById('prevProblemBtn').disabled).toBe(false);
@@ -142,7 +142,7 @@ describe('Problems page permalinks', () => {
         const header = () => document.getElementById('problemTypeDisplay').textContent;
         respondWith({ problems: pageOfStops(201, 100), total: 400, page: 3, focus_found: true });
         ProblemsData.fetchProblems(1, { focus: { sloid: 'ch:1:sloid:201', osm_node_id: null } });
-        expect(header()).toBe('Entry 201/400 · 1 Problem');
+        expect(header()).toBe('Entry 201 of 400 · 1 Problem');
 
         // Page 2 holds a stop whose duplicate problem forms an extra entry.
         const page2 = pageOfStops(101, 100).concat([
@@ -156,14 +156,14 @@ describe('Problems page permalinks', () => {
         ProblemsData.navigateToPreviousProblem();
 
         expect(ProblemsState.getFirstLoadedPage()).toBe(2);
-        expect(header()).toBe('Group 200/400');
+        expect(header()).toBe('Group 200 of 400');
         expect(window.location.search).toBe('?sloid=ch:1:sloid:150&osm=node/1150');
         ProblemsData.navigateToPreviousProblem();
-        expect(header()).toBe('Entry 199/400 · 1 Problem');
+        expect(header()).toBe('Entry 199 of 400 · 1 Problem');
         expect(window.location.search).toBe('?sloid=ch:1:sloid:200&osm=node/1200');
         ProblemsData.navigateToNextProblem();
         ProblemsData.navigateToNextProblem();
-        expect(header()).toBe('Entry 201/400 · 1 Problem');
+        expect(header()).toBe('Entry 201 of 400 · 1 Problem');
         expect(window.location.search).toBe('?sloid=ch:1:sloid:201&osm=node/1201');
     });
 
@@ -175,7 +175,7 @@ describe('Problems page permalinks', () => {
         ProblemsData.navigateToPreviousProblem();
 
         expect(ProblemsState.getFirstLoadedPage()).toBe(1);
-        expect(document.getElementById('problemTypeDisplay').textContent).toBe('Entry 100/300 · 1 Problem');
+        expect(document.getElementById('problemTypeDisplay').textContent).toBe('Entry 100 of 300 · 1 Problem');
         expect(window.location.search).toBe('?sloid=ch:1:sloid:100&osm=node/1100');
         ProblemsState.setCurrentProblemIndex(0);
         ProblemsUI.updateNavButtons();
@@ -186,7 +186,7 @@ describe('Problems page permalinks', () => {
         respondWith({ problems: pageOfStops(101, 100), total: 200, page: 2, focus_found: true });
         ProblemsData.fetchProblems(1, { focus: { sloid: 'ch:1:sloid:200', osm_node_id: null } });
 
-        expect(document.getElementById('problemTypeDisplay').textContent).toBe('Entry 200/200 · 1 Problem');
+        expect(document.getElementById('problemTypeDisplay').textContent).toBe('Entry 200 of 200 · 1 Problem');
         expect(ProblemsData.hasMorePages()).toBe(false);
         expect(document.getElementById('nextProblemBtn').disabled).toBe(true);
     });

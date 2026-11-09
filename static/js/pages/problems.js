@@ -43,7 +43,7 @@ $(document).ready(function () {
         if (!statsContainer.length) return;
 
         statsContainer.html(
-            '<div><i class="fas fa-exclamation-triangle"></i> ' + totalCount + ' problems</div>'
+            '<div><i class="fas fa-exclamation-triangle"></i> ' + SharedUtils.formatCount(totalCount) + ' problems</div>'
         );
     }
 

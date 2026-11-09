@@ -523,9 +523,9 @@ window.ProblemsUI = (function () {
         const isDuplicatesGroupHeader = firstProblemForHeader && firstProblemForHeader.problem === 'duplicates';
         const entryNumber = window.ProblemsData && ProblemsData.entryNumber ? ProblemsData.entryNumber(index) : index + 1;
         if (isDuplicatesGroupHeader) {
-            $('#problemTypeDisplay').text(`Group ${entryNumber}/${totalProblems}`);
+            $('#problemTypeDisplay').text(`Group ${SharedUtils.formatCount(entryNumber)} of ${SharedUtils.formatCount(totalProblems)}`);
         } else {
-            $('#problemTypeDisplay').text(`Entry ${entryNumber}/${totalProblems} · ${problemCount} ${problemText}`);
+            $('#problemTypeDisplay').text(`Entry ${SharedUtils.formatCount(entryNumber)} of ${SharedUtils.formatCount(totalProblems)} · ${problemCount} ${problemText}`);
         }
         if (window.ProblemsPermalink) ProblemsPermalink.sync();
 
