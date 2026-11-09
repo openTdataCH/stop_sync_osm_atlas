@@ -229,14 +229,6 @@ function getSharedActiveFilterCount() {
     return 0;
 }
 
-function getSharedActiveFilterCountText() {
-    if (window.HeaderSummary && typeof window.HeaderSummary.getCountText === 'function') {
-        return window.HeaderSummary.getCountText(getSharedActiveFilterCount());
-    }
-    var count = getSharedActiveFilterCount();
-    return count + ' filter' + (count !== 1 ? 's' : '') + ' active';
-}
-
 function syncHeaderSummaryFilterToggle() {
     if (headerSummaryController) {
         headerSummaryController.syncFilters({
@@ -554,8 +546,8 @@ function prepareZoomBanner(policy) {
     }
     if (!policy.hasAnyActiveFilter) {
         setZoomBannerText(policy.isLowZoom
-            ? `📍 Zoomed out: only ${SharedUtils.sourceLabel()} stops without an OSM match (red). Zoom in to see every stop.`
-            : '📍 Zoom in a bit more to see every stop here.');
+            ? `Showing only unmatched ${SharedUtils.sourceLabel()} stops. Zoom in to see all.`
+            : 'Showing some stops here. Zoom in to see all.');
     }
     showZoomBanner(true, 150);
 }
@@ -568,24 +560,12 @@ function updateZoomBannerFromPayload(policy, stops, capped) {
 
     if (policy.hasAnyActiveFilter) {
         var resultCount = stops.length;
-        var currentFilterCount = getSharedActiveFilterCount();
-        var filterText = currentFilterCount > 0
-            ? ' (' + getSharedActiveFilterCountText() + ')'
-            : '';
-        var prefix = policy.isLowZoom ? '🔍 Low zoom: showing ' : '🔍 Showing ';
+        var count = SharedUtils.formatCount(resultCount);
+        var one = resultCount === 1;
 
-        if (capped) {
-            setZoomBannerText(
-                '🔍 Showing first ' + SharedUtils.formatCount(resultCount) + ' filtered result' +
-                (resultCount !== 1 ? 's' : '') + filterText +
-                '. Zoom in to see all.'
-            );
-        } else {
-            setZoomBannerText(
-                prefix + SharedUtils.formatCount(resultCount) + ' filtered result' +
-                (resultCount !== 1 ? 's' : '') + filterText
-            );
-        }
+        setZoomBannerText(capped
+            ? 'Showing ' + count + ' filtered stop' + (one ? '' : 's') + '. Zoom in to see all.'
+            : count + (one ? ' stop matches' : ' stops match') + ' the filters.');
         showZoomBanner(true);
         return;
     }
@@ -752,7 +732,7 @@ function createIndexViewportLoader() {
         onData: renderIndexViewport,
         onError: function (error) {
             console.error('Failed to refresh /api/data:', error);
-            setZoomBannerText('⚠️ Could not refresh map data. Showing the last successful view.');
+            setZoomBannerText('⚠️ Could not load stops. Showing the previous view.');
             showZoomBanner(true);
         }
     });

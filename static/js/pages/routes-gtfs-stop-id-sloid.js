@@ -337,7 +337,7 @@
 
   function prepareCompletenessStatus(policy) {
     if (policy.shouldShowBanner) {
-      setStatus('zoom', '📍 Zoom in a bit more to see all markers in this area', false);
+      setStatus('zoom', 'Zoom in to see all markers here.', false);
     } else {
       setStatus('', '', false);
     }
@@ -350,10 +350,9 @@
       return;
     }
 
-    var message = '📍 Zoom in a bit more to see all markers in this area';
-    if (capped) {
-      message += '. Limited views can omit a matched stop’s counterpart.';
-    }
+    var message = capped
+      ? 'Zoom in to see all. Some matches may show only one side.'
+      : 'Zoom in to see all markers here.';
     setStatus('zoom', message, false);
   }
 

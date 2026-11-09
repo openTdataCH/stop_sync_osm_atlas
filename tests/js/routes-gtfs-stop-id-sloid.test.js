@@ -547,7 +547,7 @@ describe('Routes GTFS stop_id/SLOID map adapter', () => {
     window.fetch.mockImplementation(() => response(samplePayload()));
     await viewportOptions.load({ requestBounds: page.bounds, zoom: 12, signal: {} });
     expect(status.classList.contains('d-none')).toBe(false);
-    expect(statusText.textContent).toBe('📍 Zoom in a bit more to see all markers in this area');
+    expect(statusText.textContent).toBe('Zoom in to see all markers here.');
     expect(statusText.textContent).not.toContain('Updating');
 
     window.L.polyline.mockClear();
@@ -561,7 +561,7 @@ describe('Routes GTFS stop_id/SLOID map adapter', () => {
 
     viewportOptions.onData(samplePayload({ meta: { gtfs_capped: true } }), { zoom: 15, cacheHit: false });
     expect(status.classList.contains('d-none')).toBe(false);
-    expect(statusText.textContent).toContain('matched stop’s counterpart');
+    expect(statusText.textContent).toBe('Zoom in to see all. Some matches may show only one side.');
   });
 
   test('hides the zoom banner while GTFS map filter dropdowns are open', async () => {
@@ -623,8 +623,7 @@ describe('Routes GTFS stop_id/SLOID map adapter', () => {
 
     expect(status.classList.contains('d-none')).toBe(false);
     expect(status.dataset.state).toBe('zoom');
-    expect(statusText.textContent).toContain('Zoom in a bit more');
-    expect(statusText.textContent).toContain('matched stop’s counterpart');
+    expect(statusText.textContent).toBe('Zoom in to see all. Some matches may show only one side.');
 
     viewportOptions.onError(new Error('offline'));
     expect(page.registries[0].entries.get('atlas:ch:1:sloid:1').layer).toBe(atlasMarker);
