@@ -1758,9 +1758,9 @@
     },
     {
       "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "lines": 611,
+      "lines": 625,
       "module": "engine.integrations",
-      "symbols": 22
+      "symbols": 23
     },
     {
       "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_gtfs.py",
@@ -2052,9 +2052,9 @@
     },
     {
       "id": "engine:src/osm_public_transport_matcher/routes.py",
-      "lines": 1135,
+      "lines": 1146,
       "module": "engine.core-matching",
-      "symbols": 43
+      "symbols": 44
     },
     {
       "id": "engine:src/osm_public_transport_matcher/statistics.py",
@@ -2081,7 +2081,7 @@
       "symbols": 0
     }
   ],
-  "generated_at": "2026-11-08T22:40:23.830665+00:00",
+  "generated_at": "2026-11-09T14:26:42.293704+00:00",
   "interface": {
     "app.docs-delivery": [
       {
@@ -3177,8 +3177,8 @@
       },
       {
         "file": "engine:src/osm_public_transport_matcher/routes.py",
-        "id": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-        "line": 1014,
+        "id": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+        "line": 1025,
         "name": "compare_routes",
         "used_by": [
           "engine.integrations"
@@ -33192,13 +33192,13 @@
       "count": 1,
       "kind": "uses",
       "source": "engine:src/osm_public_transport_matcher/adapters/acquisition.py",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@510"
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@524"
     },
     {
       "count": 1,
       "kind": "uses",
       "source": "engine:src/osm_public_transport_matcher/adapters/acquisition.py",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_current_gtfs_permalink@504"
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_current_gtfs_permalink@518"
     },
     {
       "count": 1,
@@ -33360,13 +33360,13 @@
       "count": 1,
       "kind": "calls",
       "source": "engine:src/osm_public_transport_matcher/adapters/acquisition.py:refresh_swiss@78",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@510"
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@524"
     },
     {
       "count": 1,
       "kind": "calls",
       "source": "engine:src/osm_public_transport_matcher/adapters/acquisition.py:refresh_swiss@78",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_current_gtfs_permalink@504"
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_current_gtfs_permalink@518"
     },
     {
       "count": 1,
@@ -33545,170 +33545,176 @@
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_direction_label_from_stop_rows@127",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_direction_label_from_stop_rows@140",
       "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_first_non_empty@73"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_direction_label_from_stop_rows@127"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_direction_label_from_stop_rows@140"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_stop_info_lookup@180"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_stop_info_lookup@194"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_match_lookup@150"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_match_lookup@164"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_stop_meta_lookup@138"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_stop_meta_lookup@151"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_stop_rows_for_itinerary@236"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_stop_rows_for_itinerary@250"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_trip_lookup@161"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_trip_lookup@175"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
       "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_first_non_empty@73"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
       "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_hash_stop_sequence@68"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_iter_trip_groups_from_staged_stop_times@261"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_iter_trip_groups_from_staged_stop_times@275"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_bucket_key@98"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_bucket_key@111"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_stop_info_for_stop_id@210"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_stop_info_for_stop_id@224"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_merge_stop_row@109"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_merge_stop_row@122"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
       "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_safe_direction_id@59"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
       "target": "engine:src/osm_public_transport_matcher/adapters/gtfs_columnar.py:iter_trip_patterns@74"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_stop_info_lookup@180",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_sequence_key@89"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_stop_info_lookup@194",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_sequence_key@102"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_stop_info_lookup@180",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_parse_uic_from_gtfs_stop_id@82"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_stop_info_lookup@194",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_station_number@89"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_stop_rows_for_itinerary@236",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_stop_info_for_stop_id@210"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_stop_rows_for_itinerary@250",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_stop_info_for_stop_id@224"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_trip_lookup@161",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_trip_lookup@175",
       "target": "engine:src/osm_public_transport_matcher/adapters/gtfs_columnar.py:connect@24"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_bucket_key@98",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_bucket_key@111",
       "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_first_non_empty@73"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_sequence_key@89",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_sequence_key@102",
       "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_parse_uic_from_gtfs_stop_id@82"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_stop_info_for_stop_id@210",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_sequence_key@89"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_stop_info_for_stop_id@224",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_sequence_key@102"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_stop_info_for_stop_id@210",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_stop_info_for_stop_id@224",
       "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_parse_uic_from_gtfs_stop_id@82"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@510",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_station_number@89",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_parse_uic_from_gtfs_stop_id@82"
+    },
+    {
+      "count": 1,
+      "kind": "calls",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@524",
       "target": "engine:src/osm_public_transport_matcher/adapters/geo_utils.py:filter_points_in_switzerland@108"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@510",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@524",
       "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_ensure_parent_dir@29"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@510",
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@524",
       "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_load_atlas_dataframe@36"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@510",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_pct@580"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@524",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_pct@594"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:swiss_route_products@604",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304"
+      "source": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:swiss_route_products@618",
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318"
     },
     {
       "count": 1,
@@ -33900,7 +33906,7 @@
       "count": 1,
       "kind": "uses",
       "source": "engine:src/osm_public_transport_matcher/adapters/gtfs.py",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014"
+      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025"
     },
     {
       "count": 1,
@@ -33996,7 +34002,7 @@
       "count": 1,
       "kind": "calls",
       "source": "engine:src/osm_public_transport_matcher/adapters/gtfs.py:run_gtfs@174",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014"
+      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025"
     },
     {
       "count": 1,
@@ -36371,44 +36377,44 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@725",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_count_stop_sequence_matches@907"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@729",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_count_stop_sequence_matches@918"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@725",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_line_mode@702"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@729",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_line_mode@706"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@725",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_line_number_keys@714"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@729",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_line_number_keys@718"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@725",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@844"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@729",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@855"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:__init__@732",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_line_mode@702"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:__init__@736",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_line_mode@706"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:__init__@732",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_line_number_keys@714"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:__init__@736",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_line_number_keys@718"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:__init__@732",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@844"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:__init__@736",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@855"
     },
     {
       "count": 2,
@@ -36437,85 +36443,85 @@
     {
       "count": 4,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_itinerary_rows@517",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_itinerary_rows@519",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_first_non_empty@70"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_itinerary_rows@517",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_itinerary_rows@519",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_hash_sequence@59"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_itinerary_rows@517",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_one_call_per_stop_visit@885"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_itinerary_rows@519",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_one_call_per_stop_visit@896"
     },
     {
       "count": 14,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_line_family_rows@402",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_line_family_rows@404",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_first_non_empty@70"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@286",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@288",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_first_non_empty@70"
     },
     {
       "count": 4,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@286",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@288",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_records@64"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@286",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_resolve_osm_stop_fields@245"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@288",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_resolve_osm_stop_fields@247"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@286",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@288",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_int@41"
     },
     {
       "count": 44,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@286",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@288",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@188",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@190",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_build_source_stop_call_row@144"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@188",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@190",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_first_non_empty@70"
     },
     {
       "count": 3,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@188",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@190",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_records@64"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@188",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@190",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_int@41"
     },
     {
       "count": 14,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@188",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@190",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
@@ -36528,7 +36534,7 @@
       "count": 1,
       "kind": "calls",
       "source": "engine:src/osm_public_transport_matcher/routes.py:_build_source_stop_call_row@144",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_parse_json_list@831"
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_parse_json_list@842"
     },
     {
       "count": 2,
@@ -36551,25 +36557,25 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_candidate_line_family_pairs@638",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_score_line_family_pair@661"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_candidate_line_family_pairs@640",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_score_line_family_pair@663"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_candidate_line_family_pairs@638",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_candidate_line_family_pairs@640",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_count_stop_sequence_matches@907",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@844"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_count_stop_sequence_matches@918",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@855"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_direction_ids_match@921",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_direction_ids_match@932",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
@@ -36581,145 +36587,145 @@
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_line_mode@702",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_line_mode@706",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_int@41"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_line_mode@702",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_line_mode@706",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_line_number_keys@714",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_line_number_keys@718",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_link_lines_by_number_and_stops@785",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:clear_best@813"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_link_lines_by_number_and_stops@794",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:clear_best@824"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_link_lines_by_number_and_stops@785",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:ranked_candidates@803"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_link_lines_by_number_and_stops@794",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:ranked_candidates@813"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@927",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_same_stop@862"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@938",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_same_stop@873"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@927",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@844"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@938",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@855"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_member_kind@871",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_member_kind@882",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_one_call_per_stop_visit@885",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_member_kind@871"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_one_call_per_stop_visit@896",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_member_kind@882"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_one_call_per_stop_visit@885",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_relation_stop_identity@880"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_one_call_per_stop_visit@896",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_relation_stop_identity@891"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_one_call_per_stop_visit@885",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_same_stop@862"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_one_call_per_stop_visit@896",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_same_stop@873"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_parse_json_list@831",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_parse_json_list@842",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_relation_stop_identity@880",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_relation_stop_identity@891",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_resolve_osm_stop_fields@245",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_resolve_osm_stop_fields@247",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_first_non_empty@70"
     },
     {
       "count": 4,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_resolve_osm_stop_fields@245",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_resolve_osm_stop_fields@247",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_float@50"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_resolve_osm_stop_fields@245",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_resolve_osm_stop_fields@247",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_same_stop@862",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_same_platform@857"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_same_stop@873",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_same_platform@868"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_count_stop_sequence_matches@907"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@945",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_count_stop_sequence_matches@918"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_direction_ids_match@921"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@945",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_direction_ids_match@932"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@927"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@945",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@938"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@945",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
       "count": 5,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_line_family_pair@661",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_score_line_family_pair@663",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@844",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_parse_json_list@831"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@855",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_parse_json_list@842"
     },
     {
       "count": 2,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@844",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@855",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_to_text@35"
     },
     {
@@ -36743,80 +36749,80 @@
     {
       "count": 3,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
       "target": "engine:src/osm_public_transport_matcher/progress.py:progress_stage@238"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@725"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@729"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
       "target": "engine:src/osm_public_transport_matcher/routes.py:_build_base_lookups@78"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_build_itinerary_rows@517"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_build_itinerary_rows@519"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_build_line_family_rows@402"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_build_line_family_rows@404"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@286"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@288"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@188"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@190"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_candidate_line_family_pairs@638"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_candidate_line_family_pairs@640"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_choose_best_itinerary_pairs@972"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_choose_best_itinerary_pairs@983"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_link_lines_by_number_and_stops@785"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_link_lines_by_number_and_stops@794"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_route_id_confirmed@775"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_route_id_confirmed@784"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@945"
     },
     {
       "count": 1,
       "kind": "calls",
-      "source": "engine:src/osm_public_transport_matcher/routes.py:line_score@757",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:_count_stop_sequence_matches@907"
+      "source": "engine:src/osm_public_transport_matcher/routes.py:line_score@766",
+      "target": "engine:src/osm_public_transport_matcher/routes.py:_count_stop_sequence_matches@918"
     },
     {
       "count": 1,
@@ -36894,7 +36900,7 @@
       "count": 1,
       "kind": "uses",
       "source": "engine:src/osm_public_transport_matcher/swiss.py",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:swiss_route_products@604"
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:swiss_route_products@618"
     },
     {
       "count": 1,
@@ -37014,7 +37020,7 @@
       "count": 1,
       "kind": "uses",
       "source": "engine:src/osm_public_transport_matcher/swiss.py",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014"
+      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025"
     },
     {
       "count": 1,
@@ -37074,7 +37080,7 @@
       "count": 1,
       "kind": "calls",
       "source": "engine:src/osm_public_transport_matcher/swiss.py:_map_gtfs_products@74",
-      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:swiss_route_products@604"
+      "target": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:swiss_route_products@618"
     },
     {
       "count": 1,
@@ -37170,7 +37176,7 @@
       "count": 1,
       "kind": "calls",
       "source": "engine:src/osm_public_transport_matcher/swiss.py:run_matching@95",
-      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014"
+      "target": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025"
     },
     {
       "count": 1,
@@ -49638,98 +49644,104 @@
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_sequence_key@89",
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_station_number@89",
       "line": 89,
+      "name": "_station_number"
+    },
+    {
+      "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_sequence_key@102",
+      "line": 102,
       "name": "_itinerary_sequence_key"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_bucket_key@98",
-      "line": 98,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_bucket_key@111",
+      "line": 111,
       "name": "_itinerary_bucket_key"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_merge_stop_row@109",
-      "line": 109,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_merge_stop_row@122",
+      "line": 122,
       "name": "_merge_stop_row"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_direction_label_from_stop_rows@127",
-      "line": 127,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_direction_label_from_stop_rows@140",
+      "line": 140,
       "name": "_build_direction_label_from_stop_rows"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_stop_meta_lookup@138",
-      "line": 138,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_stop_meta_lookup@151",
+      "line": 151,
       "name": "_build_stop_meta_lookup"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_match_lookup@150",
-      "line": 150,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_match_lookup@164",
+      "line": 164,
       "name": "_build_match_lookup"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_trip_lookup@161",
-      "line": 161,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_trip_lookup@175",
+      "line": 175,
       "name": "_build_trip_lookup"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_stop_info_lookup@180",
-      "line": 180,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_stop_info_lookup@194",
+      "line": 194,
       "name": "_build_itinerary_stop_info_lookup"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_stop_info_for_stop_id@210",
-      "line": 210,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_itinerary_stop_info_for_stop_id@224",
+      "line": 224,
       "name": "_itinerary_stop_info_for_stop_id"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_stop_rows_for_itinerary@236",
-      "line": 236,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_stop_rows_for_itinerary@250",
+      "line": 250,
       "name": "_build_stop_rows_for_itinerary"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_iter_trip_groups_from_staged_stop_times@261",
-      "line": 261,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_iter_trip_groups_from_staged_stop_times@275",
+      "line": 275,
       "name": "_iter_trip_groups_from_staged_stop_times"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@304",
-      "line": 304,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_build_itinerary_frames@318",
+      "line": 318,
       "name": "_build_itinerary_frames"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_current_gtfs_permalink@504",
-      "line": 504,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_current_gtfs_permalink@518",
+      "line": 518,
       "name": "get_current_gtfs_permalink"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@510",
-      "line": 510,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:get_atlas_stops@524",
+      "line": 524,
       "name": "get_atlas_stops"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_pct@580",
-      "line": 580,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:_pct@594",
+      "line": 594,
       "name": "_pct"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py",
-      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:swiss_route_products@604",
-      "line": 604,
+      "id": "engine:src/osm_public_transport_matcher/adapters/get_atlas_data.py:swiss_route_products@618",
+      "line": 618,
       "name": "swiss_route_products"
     },
     {
@@ -51390,194 +51402,200 @@
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@188",
-      "line": 188,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_build_source_rows@190",
+      "line": 190,
       "name": "_build_source_rows"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_resolve_osm_stop_fields@245",
-      "line": 245,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_resolve_osm_stop_fields@247",
+      "line": 247,
       "name": "_resolve_osm_stop_fields"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@286",
-      "line": 286,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_build_osm_rows@288",
+      "line": 288,
       "name": "_build_osm_rows"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_build_line_family_rows@402",
-      "line": 402,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_build_line_family_rows@404",
+      "line": 404,
       "name": "_build_line_family_rows"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_build_itinerary_rows@517",
-      "line": 517,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_build_itinerary_rows@519",
+      "line": 519,
       "name": "_build_itinerary_rows"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_candidate_line_family_pairs@638",
-      "line": 638,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_candidate_line_family_pairs@640",
+      "line": 640,
       "name": "_candidate_line_family_pairs"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_score_line_family_pair@661",
-      "line": 661,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_score_line_family_pair@663",
+      "line": 663,
       "name": "_score_line_family_pair"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_line_mode@702",
-      "line": 702,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_line_mode@706",
+      "line": 706,
       "name": "_line_mode"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_line_number_keys@714",
-      "line": 714,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_line_number_keys@718",
+      "line": 718,
       "name": "_line_number_keys"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@725",
-      "line": 725,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_LineEvidence@729",
+      "line": 729,
       "name": "_LineEvidence"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:__init__@732",
-      "line": 732,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:__init__@736",
+      "line": 736,
       "name": "__init__"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:same_line_number@746",
-      "line": 746,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:same_line_number@750",
+      "line": 750,
       "name": "same_line_number"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:comparable@749",
-      "line": 749,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:comparable@753",
+      "line": 753,
       "name": "comparable"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:shares_a_stop@754",
-      "line": 754,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:required_shared_stops@758",
+      "line": 758,
+      "name": "required_shared_stops"
+    },
+    {
+      "file": "engine:src/osm_public_transport_matcher/routes.py",
+      "id": "engine:src/osm_public_transport_matcher/routes.py:shares_a_stop@763",
+      "line": 763,
       "name": "shares_a_stop"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:line_score@757",
-      "line": 757,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:line_score@766",
+      "line": 766,
       "name": "line_score"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_route_id_confirmed@775",
-      "line": 775,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_route_id_confirmed@784",
+      "line": 784,
       "name": "_route_id_confirmed"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_link_lines_by_number_and_stops@785",
-      "line": 785,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_link_lines_by_number_and_stops@794",
+      "line": 794,
       "name": "_link_lines_by_number_and_stops"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:ranked_candidates@803",
-      "line": 803,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:ranked_candidates@813",
+      "line": 813,
       "name": "ranked_candidates"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:clear_best@813",
-      "line": 813,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:clear_best@824",
+      "line": 824,
       "name": "clear_best"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_parse_json_list@831",
-      "line": 831,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_parse_json_list@842",
+      "line": 842,
       "name": "_parse_json_list"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@844",
-      "line": 844,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_stop_identity@855",
+      "line": 855,
       "name": "_stop_identity"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_same_platform@857",
-      "line": 857,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_same_platform@868",
+      "line": 868,
       "name": "_same_platform"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_same_stop@862",
-      "line": 862,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_same_stop@873",
+      "line": 873,
       "name": "_same_stop"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_member_kind@871",
-      "line": 871,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_member_kind@882",
+      "line": 882,
       "name": "_member_kind"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_relation_stop_identity@880",
-      "line": 880,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_relation_stop_identity@891",
+      "line": 891,
       "name": "_relation_stop_identity"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_one_call_per_stop_visit@885",
-      "line": 885,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_one_call_per_stop_visit@896",
+      "line": 896,
       "name": "_one_call_per_stop_visit"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_count_stop_sequence_matches@907",
-      "line": 907,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_count_stop_sequence_matches@918",
+      "line": 918,
       "name": "_count_stop_sequence_matches"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_direction_ids_match@921",
-      "line": 921,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_direction_ids_match@932",
+      "line": 932,
       "name": "_direction_ids_match"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@927",
-      "line": 927,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_matched_end_count@938",
+      "line": 938,
       "name": "_matched_end_count"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@934",
-      "line": 934,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_score_itinerary_pair@945",
+      "line": 945,
       "name": "_score_itinerary_pair"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:_choose_best_itinerary_pairs@972",
-      "line": 972,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:_choose_best_itinerary_pairs@983",
+      "line": 983,
       "name": "_choose_best_itinerary_pairs"
     },
     {
       "file": "engine:src/osm_public_transport_matcher/routes.py",
-      "id": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1014",
-      "line": 1014,
+      "id": "engine:src/osm_public_transport_matcher/routes.py:compare_routes@1025",
+      "line": 1025,
       "name": "compare_routes"
     },
     {
