@@ -109,7 +109,7 @@ make quality                # full suites, real PostGIS, coverage, structural de
 make quality-down           # remove the disposable quality services and volumes
 ```
 
-The full command builds Python 3.13 and Node 22 tooling, keeps app and engine Python environments isolated, and starts its own disposable PostGIS database. It writes the module report to `quality/report.md`, machine-readable evidence to `quality/latest.json`, and individual results to `quality/raw/`. The documentation portal's **Code Quality** page shows the report committed in `quality/published/` by `make deploy-report`. Run it before each deployment, once CI has passed on the latest commit. See [how the report reaches the site](documentation/4.3%20Code%20Quality.md#how-the-report-reaches-the-site).
+The full command builds Python 3.13 and Node 22 tooling, keeps app and engine Python environments isolated, and starts its own disposable PostGIS database. It writes the module report to `quality/report.md`, machine-readable evidence to `quality/latest.json`, and individual results to `quality/raw/`. The documentation portal's **Code quality** page shows the report committed in `quality/published/` by `make deploy-report`. Run it before each deployment, once CI has passed on the latest commit. See [how the report reaches the site](documentation/4.3%20Code%20Quality.md#how-the-report-reaches-the-site).
 
 For fast native iteration, use `make quality-fast` after installing the supported toolchain. [Running the quality checks](documentation/4.4%20Running%20Quality%20Checks.md) contains native setup, command and artifact references, module ownership, baseline/exception review, CI configuration, and troubleshooting. [Backend tests](documentation/4.1%20Backend%20tests.md) and [browser tests](documentation/4.2%20JavaScript%20tests.md) describe focused runs and test design. Install the engine in a separate virtual environment; the app suite verifies that it works without the engine package.
 
@@ -132,6 +132,6 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md). A matching-rule contribution can 
 - [Running the quality checks](documentation/4.4%20Running%20Quality%20Checks.md)
 - [Contribution tutorials](documentation/Contributing.md)
 
-Code remains AGPL-3.0-or-later. Source dataset attribution is recorded separately in result metadata.
+This repository's code is AGPL-3.0-or-later. Source dataset attribution is recorded separately in result metadata.
 
 For GTFS acceleration, independent source caches, COPY imports, configuration and benchmark commands, see [Pipeline performance](../engine/documentation/5.2%20Pipeline%20Performance.md).

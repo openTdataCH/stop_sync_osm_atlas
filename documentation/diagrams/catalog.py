@@ -331,6 +331,7 @@ def engine_anatomy() -> Diagram:
 
 
 MATCHING_RULES = (
+    ('identifier', 'identifier tag names the stop, ≤ 150 m', 'sloid_identifier'),
     ('two_sided_stop', 'two platforms ↔ the two sides of one stop', 'uic_two_sided_stop'),
     ('reference', 'same reference, where the profile allows it', 'uic_reference_*'),
     ('name', 'same name; local_ref breaks ties', 'name_one_osm, name_local_ref'),
@@ -340,7 +341,7 @@ MATCHING_RULES = (
     ('local_ref_distance', '≤ 50 m, platform code = local_ref', 'local_ref_distance'),
     ('distance_only_candidate', 'one compatible candidate ≤ 50 m', 'distance_only_candidate'),
     ('distance_ratio', 'nearest is ≥ 4× closer than the second', 'distance_ratio'),
-    ('distance_only_candidate_second_pass', 'one candidate again, after rule 9', 'distance_only_candidate_second_pass'),
+    ('distance_only_candidate_second_pass', 'one candidate again, after rule 10', 'distance_only_candidate_second_pass'),
 )
 
 
@@ -351,8 +352,8 @@ def matching_rule_ladder() -> Diagram:
     d = Diagram(
         960, height,
         'The matching rules, in order',
-        'Before the rules run, OSM nodes are grouped into pairs and PTv2 two-sided stops. Ten rule executions '
-        'then run in a fixed order: two-sided stop, UIC reference, name, GTFS route, group distance at 50 m and '
+        'Before the rules run, OSM nodes are grouped into pairs and PTv2 two-sided stops. Eleven rule executions '
+        'then run in a fixed order: SLOID identifier, two-sided stop, UIC reference, name, GTFS route, group distance at 50 m and '
         '150 m, local_ref distance, only candidate, distance ratio and a second only-candidate pass. Each rule only sees source '
         'stops that are still unmatched, and every accepted pair is committed immediately, which locks both '
         'sides. Stops left at the end are unmatched and go to problem detection.',
