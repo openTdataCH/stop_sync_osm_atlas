@@ -28,6 +28,7 @@ window.ProblemsState = (function () {
     let selectedProblemTypes = []; // Current problem type filters
     let selectedAtlasOperators = []; // Current operator filter
     let selectedPriorities = []; // Current priority filters (1 | 2 | 3)
+    let area = null; // [west, south, east, north] drawn with the Area filter, or null
     let currentPage = 1; // Last loaded page
     let firstLoadedPage = 1; // A permalink can start the list on a later page
     let entryNumberOffset = 0; // Entries before the first loaded one, for "Entry N/Total"
@@ -44,6 +45,9 @@ window.ProblemsState = (function () {
 
     // Public API
     return {
+        getArea: () => area,
+        setArea: (value) => { area = value; },
+
         // Map getters/setters
         getProblemMap: () => problemMap,
         setProblemMap: (map) => { problemMap = map; },

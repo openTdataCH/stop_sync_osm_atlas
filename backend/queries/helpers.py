@@ -3,6 +3,7 @@ import json
 from backend.extensions import db
 from backend.query_builder import QueryBuilder
 from backend.services.matching_rules import match_types_for_filter
+from backend.services.problem_filters import parse_priorities, parse_problem_types
 
 _query_builder_instance = None
 
@@ -224,6 +225,10 @@ def parse_filter_params(request_args):
         # Positional, like the filter values: "" is "both directions", so empty entries stay.
         filters['route_directions'] = [rd.strip() for rd in route_directions_str.split(',')] if route_directions_str else []
         filters['route_variants'] = parse_route_variants(request_args.get('route_variants'), len(filters['filter_values']))
+    # problem_type=all (or a list) and/or priority keep entries with such a problem.
+    if request_args.get('problem_type') or request_args.get('priority'):
+        filters['problem_types'] = parse_problem_types(request_args.get('problem_type'))
+        filters['problem_priorities'] = parse_priorities(request_args.get('priority'))
     osm_group_types_str = request_args.get('osm_group_types')
     if osm_group_types_str is not None:
         normalized_group_types = [

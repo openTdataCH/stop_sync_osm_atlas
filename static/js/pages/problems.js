@@ -26,7 +26,8 @@ $(document).ready(function () {
     function getActiveProblemsFilterCount() {
         return (ProblemsState.getSelectedProblemTypes() || []).length
             + (ProblemsState.getSelectedPriorities() || []).length
-            + (ProblemsState.getSelectedAtlasOperators() || []).length;
+            + (ProblemsState.getSelectedAtlasOperators() || []).length
+            + (ProblemsState.getArea() ? 1 : 0);
     }
 
     function isMobileViewport() {
@@ -68,6 +69,7 @@ $(document).ready(function () {
         ProblemsState.setSelectedProblemTypes([]);
         ProblemsState.setSelectedPriorities([]);
         ProblemsState.setSelectedAtlasOperators([]);
+        ProblemsState.setArea(null);
 
         if (window.operatorDropdownProblems && window.operatorDropdownProblems.setSelection) {
             window.operatorDropdownProblems.setSelection([]);
@@ -81,7 +83,12 @@ $(document).ready(function () {
             problemTypes: ProblemsState.getSelectedProblemTypes(),
             priorities: ProblemsState.getSelectedPriorities(),
             operators: ProblemsState.getSelectedAtlasOperators(),
+            area: ProblemsState.getArea(),
             onClearAll: clearAllProblemFilters,
+            onRemoveArea: function () {
+                ProblemsState.setArea(null);
+                refreshProblemsAfterFilterChange();
+            },
             onRemoveType: function (type) {
                 const next = (ProblemsState.getSelectedProblemTypes() || []).filter(t => t !== type);
                 ProblemsState.setSelectedProblemTypes(next);
@@ -99,6 +106,8 @@ $(document).ready(function () {
             }
         });
         updateSummaryStats();
+        ProblemsArea.showOutline(ProblemsState.getProblemMap(), ProblemsState.getArea());
+        $('#areaFilterButton').toggleClass('is-active', !!ProblemsState.getArea());
         if (headerSummaryController) {
             headerSummaryController.syncFilters({
                 activeFilterCount: getActiveProblemsFilterCount(),
@@ -124,6 +133,14 @@ $(document).ready(function () {
             const priority = String($(this).data('priority'));
             ProblemsData.updatePriorityFilter(priority);
             renderFiltersSummary();
+        });
+
+        $('#areaFilterButton').on('click', function () {
+            const map = ProblemsState.getProblemMap();
+            ProblemsArea.open(ProblemsState.getArea(), map ? map.getBounds() : null, function (area) {
+                ProblemsState.setArea(area);
+                refreshProblemsAfterFilterChange();
+            });
         });
 
     }
@@ -180,6 +197,7 @@ $(document).ready(function () {
     ProblemsState.setSelectedProblemTypes(linked.problemTypes);
     ProblemsState.setSelectedPriorities(linked.priorities);
     ProblemsState.setSelectedAtlasOperators(linked.atlasOperators);
+    ProblemsState.setArea(linked.area);
     window.operatorDropdownProblems.setSelection(linked.atlasOperators);
 
     function warnLinkedStopMissing() {

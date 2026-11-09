@@ -329,6 +329,15 @@ function restoreOperatorFiltersFromUrl() {
     }
 }
 
+// problem_type (all, or a list) and priority: the stops with such a problem.
+function appendProblemFilterParams(params) {
+    var types = activeFilters.problemTypes || [];
+    var priorities = activeFilters.problemPriorities || [];
+    if (types.length > 0) params.problem_type = types.join(',');
+    if (priorities.length > 0) params.priority = priorities.join(',');
+    return params;
+}
+
 function appendCurrentFilterParams(params, options) {
     options = options || {};
     var includeTopN = options.includeTopN === true;
@@ -362,6 +371,7 @@ function appendCurrentFilterParams(params, options) {
         params.osm_operator_wikidata = activeFilters.osmOperatorWikidata.join(',');
     }
     if (activeFilters.missingOsmOperatorWikidata) params.missing_osm_operator_wikidata = 'true';
+    appendProblemFilterParams(params);
     if (includeTopN && activeFilters.topN) {
         params.top_n = activeFilters.topN;
     }
@@ -434,6 +444,7 @@ function loadTopNMatches() {
         if (activeFilters.showDuplicatesOnly) {
             params.show_duplicates_only = 'true';
         }
+        appendProblemFilterParams(params);
 
         appendOsmGroupParams(params);
 
@@ -841,7 +852,7 @@ function centerMapAndOpenPopup(stopData, centerLat, centerLon, popupViewType, zo
         loadDataForViewport().then(showAfterLoad, showAfterLoad);
 
     } else {
-        alert("Stop data is incomplete or coordinates are missing for centering.");
+        SharedUtils.notify('This stop has no coordinates to show on the map.');
     }
 }
 
@@ -857,17 +868,13 @@ function focusOnRandomFilteredStop() {
 
     $.getJSON("/api/random_stop", params, function (data) {
         if (data.error) {
-            alert("Error focusing on random stop: " + data.error);
+            SharedUtils.notify(data.error);
             return;
         }
         centerMapAndOpenPopup(data.stop, data.center_lat, data.center_lon, data.popup_view_type);
-    }).fail(function (jqXHR, textStatus, errorThrown) {
-        alert("Failed to fetch random stop. Status: " + textStatus + ", Error: " + errorThrown);
-        try {
-            console.error("Server response for random stop failure:", jqXHR.responseJSON || jqXHR.responseText);
-        } catch (e) {
-            console.error("Could not parse server error response.");
-        }
+    }).fail(function (jqXHR) {
+        // The server explains a 404 ("No stop found for the current filters.") and a 429.
+        SharedUtils.notify(SharedUtils.buildErrorMessage(jqXHR, 'Could not pick a random stop. Try again.'));
     });
 }
 

@@ -135,7 +135,7 @@
                 <div class="form-check">
                   <input type="checkbox" class="filter-osm-entity-type form-check-input" id="filterOsmWay"
                     value="way">
-                  <label class="form-check-label" for="filterOsmWay">Osm ways</label>
+                  <label class="form-check-label" for="filterOsmWay">OSM ways</label>
                 </div>
               </div>
 
@@ -321,11 +321,44 @@
                 <label class="form-check-label fw-bold" for="masterUnmatchedOsmCheckbox">OSM
                   unmatched</label>
               </div>
-              <div class="form-check mt-2">
+              <div class="form-check">
                 <input type="checkbox" class="form-check-input" id="masterDisusedOsmCheckbox">
-                <div class="form-check-body">
-                  <label class="form-check-label fw-bold" for="masterDisusedOsmCheckbox">OSM disused</label>
-                  <div class="form-check-hint small text-muted">Stops OSM marks as out of service, such as <code>disused:highway=bus_stop</code>. Never matched; shown with a U.</div>
+                <label class="form-check-label fw-bold" for="masterDisusedOsmCheckbox">OSM disused</label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Problems dropdown: entries with a problem, as on the Problems page -->
+          <div class="dropdown filter-item mx-1">
+            <button class="btn bg-body text-body btn-sm dropdown-toggle rounded-pill px-3 shadow-sm fw-bold"
+              type="button" id="problemsDropdown" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" data-bs-auto-close="outside">
+              Problems
+            </button>
+            <div class="dropdown-menu shadow-lg border-0 p-3" aria-labelledby="problemsDropdown" style="width: 270px;">
+              <div class="form-check mb-2 pb-2 border-bottom">
+                <input type="checkbox" class="form-check-input" id="masterProblemsCheckbox">
+                <label class="form-check-label fw-bold" for="masterProblemsCheckbox">All problems</label>
+              </div>
+              <div class="form-group">
+                <label class="fw-bold small text-uppercase text-muted">Type</label>
+                {% for value, label in [('attributes', 'Attributes'), ('contradicts_route_matching', 'Contradicts route matching'),
+                    ('distance', 'Distance'), ('duplicates', 'Duplicates'), ('unmatched', 'Unmatched'),
+                    ('disused', 'Disused OSM'), ('identifier', 'OSM ' ~ review_config.source_id_label)] %}
+                <div class="form-check">
+                  <input type="checkbox" class="filter-problem-type form-check-input" id="problemType-{{ value }}" value="{{ value }}">
+                  <label class="form-check-label" for="problemType-{{ value }}">{{ label }}</label>
+                </div>
+                {% endfor %}
+              </div>
+              <div class="form-group mb-0">
+                <label class="fw-bold small text-uppercase text-muted">Priority</label>
+                <div>
+                  {% for priority in ['1', '2', '3'] %}
+                  <div class="form-check form-check-inline">
+                    <input type="checkbox" class="filter-problem-priority form-check-input" id="problemPriority-{{ priority }}" value="{{ priority }}">
+                    <label class="form-check-label" for="problemPriority-{{ priority }}">P{{ priority }}</label>
+                  </div>
+                  {% endfor %}
                 </div>
               </div>
             </div>
@@ -336,7 +369,7 @@
             <button class="btn bg-body text-body btn-sm rounded-pill px-3 shadow-sm fw-bold random-stop-btn"
               type="button" id="randomStopBtn" onclick="focusOnRandomFilteredStop()" aria-describedby="randomStopHint"
               aria-label="Pick random stop from current filters">
-              <i class="fas fa-random"></i> Random
+              <i class="fas fa-random" aria-hidden="true"></i><span class="random-stop-btn__label"> Random</span>
             </button>
             <div id="randomStopHint" class="smart-search-hint random-stop-hint d-none" role="tooltip">
               Pick random stop from current filters

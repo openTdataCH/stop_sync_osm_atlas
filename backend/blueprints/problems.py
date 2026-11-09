@@ -5,6 +5,7 @@ from backend.extensions import db, limiter
 from backend.db_errors import is_missing_table_error
 from backend.serializers.stops import format_stop_data
 from backend.services.transport_routes import get_atlas_routes_for_sloids, get_osm_routes_for_nodes
+from backend.services.problem_filters import VISIBLE_PROBLEM_TYPES, area_condition, parse_area
 from sqlalchemy import and_, or_
 from sqlalchemy.sql import func
 
@@ -12,15 +13,6 @@ problems_bp = Blueprint('problems', __name__)
 
 DEFAULT_PROBLEM_SORT_BY = 'priority'
 DEFAULT_PROBLEM_SORT_ORDER = 'asc'
-VISIBLE_PROBLEM_TYPES = (
-    'distance',
-    'unmatched',
-    'attributes',
-    'contradicts_route_matching',
-    'duplicates',
-    'disused',
-    'identifier',
-)
 
 
 def empty_problem_stats():
@@ -99,6 +91,12 @@ def apply_atlas_operator_filter(query, atlas_operator_filter):
     return query
 
 
+def apply_stop_filters(query, atlas_operator_filter, area):
+    """The operator and area filters, on a query joined to stops_matched."""
+    query = apply_atlas_operator_filter(query, atlas_operator_filter)
+    return query.filter(area_condition(area)) if area else query
+
+
 def parse_problem_focus(args):
     """The stop a permalink names: {'sloid', 'osm_node_id'}, or None.
 
@@ -124,7 +122,7 @@ def priority_rank_expression():
     return func.coalesce(func.min(Problem.priority), 999)
 
 
-def build_priority_stop_query(selected_problem_types, atlas_operator_filter, selected_priorities):
+def build_priority_stop_query(selected_problem_types, atlas_operator_filter, selected_priorities, area=None):
     """One row per stop with filtered problems: (stop_id, its most urgent priority).
 
     Ordered by that priority and then stop_id, this is the order of the
@@ -138,7 +136,7 @@ def build_priority_stop_query(selected_problem_types, atlas_operator_filter, sel
         query = query.filter(Problem.problem_type.in_(selected_problem_types))
     else:
         query = query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
-    query = apply_atlas_operator_filter(query, atlas_operator_filter)
+    query = apply_stop_filters(query, atlas_operator_filter, area)
     if selected_priorities:
         query = query.filter(Problem.priority.in_(selected_priorities))
     return query.group_by(Problem.stop_id)
@@ -213,6 +211,10 @@ def get_problems():
         atlas_operator_filter = request.args.get('atlas_operator', None)
         sort_by, sort_order = get_problem_sort_params(request.args)
         priority_filter = request.args.get('priority', None)
+        try:
+            area = parse_area(request.args.get('bbox'))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
 
         selected_problem_types = []
         if problem_type_filter and problem_type_filter != 'all':
@@ -230,7 +232,7 @@ def get_problems():
             query = query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
         if selected_problem_types:
             query = query.filter(Problem.problem_type.in_(selected_problem_types))
-        query = apply_atlas_operator_filter(query, atlas_operator_filter)
+        query = apply_stop_filters(query, atlas_operator_filter, area)
         if selected_priorities:
             query = query.filter(Problem.priority.in_(selected_priorities))
 
@@ -238,7 +240,7 @@ def get_problems():
 
         if duplicates_only_mode:
             dup_query = Problem.query.join(StopsMatched).filter(Problem.problem_type == 'duplicates')
-            dup_query = apply_atlas_operator_filter(dup_query, atlas_operator_filter)
+            dup_query = apply_stop_filters(dup_query, atlas_operator_filter, area)
             if selected_priorities:
                 dup_query = dup_query.filter(Problem.priority.in_(selected_priorities))
             dup_query = dup_query.options(
@@ -440,7 +442,7 @@ def get_problems():
                 stop_distance_query = stop_distance_query.filter(Problem.problem_type.in_(selected_problem_types))
             else:
                 stop_distance_query = stop_distance_query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
-            stop_distance_query = apply_atlas_operator_filter(stop_distance_query, atlas_operator_filter)
+            stop_distance_query = apply_stop_filters(stop_distance_query, atlas_operator_filter, area)
             if selected_priorities:
                 stop_distance_query = stop_distance_query.filter(Problem.priority.in_(selected_priorities))
             if sort_order == 'desc':
@@ -450,7 +452,7 @@ def get_problems():
             paged_stops = stop_distance_query.offset(offset).limit(limit).all()
             paged_stop_ids = [stop[0] for stop in paged_stops]
         elif sort_by == 'priority':
-            stop_ids_query = build_priority_stop_query(selected_problem_types, atlas_operator_filter, selected_priorities)
+            stop_ids_query = build_priority_stop_query(selected_problem_types, atlas_operator_filter, selected_priorities, area)
             if focus is not None:
                 focus_page = locate_priority_focus_page(stop_ids_query, sort_order, focus, limit)
                 focus_response['focus_found'] = focus_page is not None
@@ -469,7 +471,7 @@ def get_problems():
                 stop_ids_query = stop_ids_query.filter(Problem.problem_type.in_(selected_problem_types))
             else:
                 stop_ids_query = stop_ids_query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
-            stop_ids_query = apply_atlas_operator_filter(stop_ids_query, atlas_operator_filter)
+            stop_ids_query = apply_stop_filters(stop_ids_query, atlas_operator_filter, area)
             if selected_priorities:
                 stop_ids_query = stop_ids_query.filter(Problem.priority.in_(selected_priorities))
             paged_stop_ids = [item[0] for item in stop_ids_query.distinct().order_by(Problem.stop_id).offset(offset).limit(limit).all()]
@@ -553,6 +555,10 @@ def get_problems():
 def get_problem_stats():
     try:
         atlas_operator_filter = request.args.get('atlas_operator', None)
+        try:
+            area = parse_area(request.args.get('bbox'))
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
         stats = empty_problem_stats()
         selected_priorities = parse_priority_values(request.args.get('priority'))
 
@@ -561,7 +567,7 @@ def get_problem_stats():
             Problem.problem_type,
             func.count(func.distinct(Problem.stop_id))
         ).join(StopsMatched).filter(Problem.problem_type.in_(problem_types))
-        counts_query = apply_atlas_operator_filter(counts_query, atlas_operator_filter)
+        counts_query = apply_stop_filters(counts_query, atlas_operator_filter, area)
         if selected_priorities:
             counts_query = counts_query.filter(Problem.priority.in_(selected_priorities))
 

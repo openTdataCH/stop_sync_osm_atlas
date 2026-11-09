@@ -7,7 +7,7 @@ const browserEntrypoints = Object.fromEntries([
     'MapComponents', 'MapCore', 'MapEntityAdapters', 'MapLayerRegistry',
     'MapPopupController', 'MapRenderer', 'MapShared', 'MapViewportLoader',
     'MapLegend', 'MobileFilters', 'OperatorDropdown', 'PopupRenderer', 'PopupUtils', 'SearchSuggest',
-    'Permalinks', 'ProblemsData', 'ProblemsMap', 'ProblemsPermalink', 'ProblemsRenderer', 'ProblemsState', 'ProblemsUI', 'QualityDashboard',
+    'Permalinks', 'ProblemsArea', 'ProblemsData', 'ProblemsMap', 'ProblemsPermalink', 'ProblemsRenderer', 'ProblemsState', 'ProblemsUI', 'QualityDashboard',
     'SharedUtils', 'activeFilters', 'topNLayer', 'stopsById',
     'fetchAndCenterSpecificStop', 'loadDataForViewport', 'updateHeaderSummary',
     'loadTopNMatches', 'initFilterEventHandlers', 'updateFiltersUI',
@@ -31,6 +31,8 @@ const correctness = {
     'no-unreachable': 'error',
     'no-unsafe-finally': 'error',
     'no-unsafe-negation': 'error',
+    // Messages use SharedUtils.notify(), a toast that does not block the page.
+    'no-alert': 'error',
     'no-undef': 'error',
     'no-unused-vars': ['error', { vars: 'local', args: 'none', caughtErrors: 'none' }],
     'valid-typeof': 'error'

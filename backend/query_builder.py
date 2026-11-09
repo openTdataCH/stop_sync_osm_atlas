@@ -6,6 +6,7 @@ This module consolidates common filtering patterns to reduce code duplication an
 from backend.services.transport_routes import get_stops_for_route
 from backend.extensions import db
 from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
+from backend.services.problem_filters import has_problem_condition
 
 
 def osm_list_contains(column, value):
@@ -254,6 +255,10 @@ class QueryBuilder:
             else:
                 conditions.append(db.false())
         
+        # Problem filter: entries with a problem of the chosen types and priorities
+        if 'problem_types' in filters:
+            conditions.append(has_problem_condition(filters['problem_types'], filters.get('problem_priorities')))
+
         # OSM group filter
         if 'osm_group_types' in filters:
             osm_conditions.append(

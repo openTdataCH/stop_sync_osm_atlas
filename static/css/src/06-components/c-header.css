@@ -158,8 +158,12 @@
   text-decoration: underline;
 }
 
+.header-summary__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .header-summary__copy-link {
-  margin-left: auto;
   padding: 0;
   border: 0;
   background: transparent;

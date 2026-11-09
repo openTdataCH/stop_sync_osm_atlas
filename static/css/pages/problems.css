@@ -819,3 +819,17 @@
   vertical-align: middle;
   box-shadow: var(--shadow-xs) !important;
 }
+
+/* -------------------------------------------------------------------------
+   Area filter (static/js/pages/problems-area.js)
+   ------------------------------------------------------------------------- */
+.area-map {
+  height: min(60vh, 520px);
+  border-radius: var(--radius-md);
+  cursor: crosshair;
+}
+
+.area-filter-button.is-active {
+  color: var(--color-primary) !important;
+  border: 1px solid var(--color-primary);
+}

@@ -243,6 +243,7 @@ window.ProblemsData = (function () {
         if (selectedPriorities.length > 0) {
             params.priority = selectedPriorities.join(',');
         }
+        if (ProblemsState.getArea()) params.bbox = ProblemsArea.formatArea(ProblemsState.getArea());
 
         if (options.focus) {
             if (options.focus.sloid) params.focus_sloid = options.focus.sloid;
@@ -342,6 +343,7 @@ window.ProblemsData = (function () {
         if (selectedPriorities.length > 0) {
             params.priority = selectedPriorities.join(',');
         }
+        if (ProblemsState.getArea()) params.bbox = ProblemsArea.formatArea(ProblemsState.getArea());
 
         $.getJSON('/api/problems/stats', params, function (stats) {
             $('#typeCountAll').text((stats.all && stats.all.all) || 0);

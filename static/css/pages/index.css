@@ -51,6 +51,13 @@ main {
   z-index: 1005;
 }
 
+/* On wide screens Random is its icon, with the hint on hover, to leave room for the summary. */
+@media (min-width: 769px) {
+  .random-stop-btn__label {
+    display: none;
+  }
+}
+
 .osm-group-subfilters {
   margin-top: var(--space-2);
   padding-left: var(--space-3);

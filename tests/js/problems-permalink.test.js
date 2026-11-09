@@ -35,7 +35,7 @@ describe('Problems page permalinks', () => {
         loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/components/popup-utils.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/components/popup-renderer.js'));
-        ['problems-state', 'problems-data', 'problems-ui', 'problems-permalink'].forEach(name => {
+        ['problems-state', 'problems-data', 'problems-ui', 'problems-area', 'problems-permalink'].forEach(name => {
             loadBrowserScript(path.join(PAGES, name + '.js'));
         });
         window.$.getJSON = jest.fn((url, params, success) => {
@@ -73,9 +73,13 @@ describe('Problems page permalinks', () => {
             problemTypes: ['distance', 'unmatched'],
             priorities: ['1', '3'],
             atlasOperators: ['SBB', 'BLS'],
+            area: null,
             focus: { sloid: null, osm_node_id: 'way_42' },
             invalidStop: false
         });
+        expect(ProblemsPermalink.parse('?bbox=7.3,46.9,7.5,47').area).toEqual([7.3, 46.9, 7.5, 47]);
+        expect(ProblemsPermalink.parse('?bbox=7.5,46.9,7.3,47').area).toBeNull();
+        expect(ProblemsPermalink.parse('?bbox=7.3,46.9').area).toBeNull();
 
         const allTypes = ProblemsData.ALL_PROBLEM_TYPES.join(',');
         expect(ProblemsPermalink.parse('?problem_type=' + allTypes + '&sloid=ch:1:sloid:7&osm=node/7').problemTypes).toEqual([]);

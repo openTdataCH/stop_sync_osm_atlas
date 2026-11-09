@@ -59,7 +59,10 @@ var activeFilters = {
     osmEntityTypes: [],
     topN: null,
     showDuplicatesOnly: false,
-    osmGroups: []
+    osmGroups: [],
+    // ['all'], or the chosen problem types; and the chosen priorities '1' to '3'
+    problemTypes: [],
+    problemPriorities: []
 };
 
 function smartSearchValidationMessage() {
@@ -93,16 +96,13 @@ function formatOsmGroupTypeLabel(groupType) {
 }
 
 function formatTransportTypeLabel(filter) {
-    const labels = {
-        osm_way: 'Osm ways'
-    };
-    return labels[filter] || filter.replace(/_/g, ' ').split(' ').map(function (word) {
+    return filter.replace(/_/g, ' ').split(' ').map(function (word) {
         return word.charAt(0).toUpperCase() + word.slice(1);
     }).join(' ');
 }
 
 function formatOsmEntityTypeLabel(filter) {
-    return 'OSM: ' + (filter === 'way' ? 'Ways' : filter);
+    return filter === 'way' ? 'OSM ways' : 'OSM: ' + filter;
 }
 
 function removeValueFromArray(values, value) {
@@ -347,6 +347,7 @@ function getActiveFilterCount() {
 
     if (activeFilters.topN) count += 1;
     if (activeFilters.showDuplicatesOnly) count += 1;
+    count += (activeFilters.problemTypes || []).length + (activeFilters.problemPriorities || []).length;
 
     return count;
 }
@@ -427,22 +428,9 @@ function addSearchToken(token) {
     let filterValue = token.value;
     let direction = token.direction || '';
 
-    if (filterType === 'route') {
-        for (var i = 0; i < activeFilters.station.length; i++) {
-            if (activeFilters.stationTypes[i] === 'route' &&
-                activeFilters.station[i] === filterValue &&
-                activeFilters.routeDirections[i] === direction) {
-                alert('This route and direction combination is already filtered.');
-                return;
-            }
-        }
-    } else {
-        for (var j = 0; j < activeFilters.station.length; j++) {
-            if (activeFilters.stationTypes[j] === filterType && activeFilters.station[j] === filterValue) {
-                alert('This filter is already applied: ' + filterValue);
-                return;
-            }
-        }
+    if (findSearchFilter(filterType, filterValue, direction) !== -1) {
+        SharedUtils.notify('This filter is already applied.', 'info');
+        return;
     }
 
     activeFilters.station.push(filterValue);
@@ -574,71 +562,70 @@ function getNextDirection(currentDirection) {
 
 // Legacy function - replaced by setRouteDirection and dropdown functionality
 
-// Function to filter by route
-function filterByRoute(routeId, directions) {
-    if (!routeId) {
-        alert("No route ID available.");
-        return;
-    }
-
-    // Check if this route filter is already applied
-    var isDuplicate = false;
+// The position of a search filter, or -1. Routes also compare their direction.
+function findSearchFilter(kind, value, direction) {
     for (var i = 0; i < activeFilters.station.length; i++) {
-        if (activeFilters.stationTypes[i] === 'route' &&
-            activeFilters.station[i] === routeId &&
-            activeFilters.routeDirections[i] === directions) {
-            isDuplicate = true;
-            break;
-        }
+        if (activeFilters.stationTypes[i] === kind && activeFilters.station[i] === value
+            && (kind !== 'route' || (activeFilters.routeDirections[i] || '') === (direction || ''))) return i;
     }
+    return -1;
+}
 
-    if (isDuplicate) {
-        alert("This route filter is already applied: Route: " + routeId + (directions ? ", Direction: " + directions : ""));
-        return;
+// Adds a search filter from a popup link and reloads the map. A filter that is
+// already applied is left as it is.
+function addSearchFilter(kind, value, direction) {
+    if (findSearchFilter(kind, value, direction) !== -1) {
+        SharedUtils.notify('This filter is already applied.', 'info');
+        return false;
     }
-
-    // Add the route filter
-    activeFilters.station.push(routeId);
-    activeFilters.stationTypes.push('route');
-    activeFilters.routeDirections.push(directions || '');
+    activeFilters.station.push(value);
+    activeFilters.stationTypes.push(kind);
+    activeFilters.routeDirections.push(direction || '');
     activeFilters.routeVariants.push(null);
-    activeFilters.filterType = 'route';
 
     updateFiltersUI();
     if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
     loadDataForViewport();
     updateHeaderSummary();
+    return true;
+}
+
+// Function to filter by route
+function filterByRoute(routeId, directions) {
+    if (!routeId) {
+        SharedUtils.notify('This route has no ID to filter by.');
+        return;
+    }
+    addSearchFilter('route', routeId, directions);
 }
 
 // Add a custom filter programmatically
 function addCustomFilter(value, filterType) {
     if (!value) return;
+    addSearchFilter(filterType, value, '');
+}
 
-    // Check if this filter is already applied
-    var isDuplicate = false;
-    for (var i = 0; i < activeFilters.station.length; i++) {
-        if (activeFilters.stationTypes[i] === filterType &&
-            activeFilters.station[i] === value) {
-            isDuplicate = true;
-            break;
-        }
+// The Problems dropdown's chips, named as its checkboxes. Removing one unticks its box.
+function appendProblemFilterChips(groups, buildRemovableChip, buildOrGroup) {
+    function chip(prefix, selector) {
+        var box = document.querySelector(selector);
+        var label = box && document.querySelector('label[for="' + box.id + '"]');
+        return buildRemovableChip({
+            label: prefix + (label ? label.textContent.trim() : ''),
+            badgeClass: 'filter-chip-secondary',
+            data: { type: 'problem', target: selector }
+        });
     }
-
-    if (isDuplicate) {
-        alert("This filter is already applied: " + filterType + ": " + value);
-        return;
-    }
-
-    // Add the filter
-    activeFilters.station.push(value);
-    activeFilters.stationTypes.push(filterType);
-    activeFilters.routeDirections.push('');
-    activeFilters.routeVariants.push(null);
-
-    updateFiltersUI();
-    if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
-    loadDataForViewport();
-    updateHeaderSummary();
+    var types = activeFilters.problemTypes || [];
+    var typeChips = types.indexOf('all') !== -1
+        ? [chip('', '#masterProblemsCheckbox')]
+        : types.map(function (type) { return chip('Problem: ', '.filter-problem-type[value="' + type + '"]'); });
+    var priorityChips = (activeFilters.problemPriorities || []).map(function (priority) {
+        return chip('Problem priority: ', '.filter-problem-priority[value="' + priority + '"]');
+    });
+    [typeChips, priorityChips].forEach(function (chips) {
+        if (chips.length) groups.push(buildOrGroup(chips));
+    });
 }
 
 // Update active filters UI (badges)
@@ -792,6 +779,8 @@ function updateFiltersUI() {
         }
     }
 
+    appendProblemFilterChips(finalGroupStrings, buildRemovableChip, buildOrGroup);
+
     if (activeFilters.topN) finalGroupStrings.push(buildRemovableChip({ label: 'Top N Distances (' + activeFilters.topN + ')', badgeClass: 'filter-chip-secondary', data: { type: 'topN', filter: 'topN' } }));
     if (activeFilters.showDuplicatesOnly) finalGroupStrings.push(buildRemovableChip({ label: 'Duplicate ' + SharedUtils.sourceLabel(), badgeClass: 'filter-chip-atlas', data: { type: 'showDuplicatesOnly' } }));
 
@@ -823,6 +812,7 @@ function clearAllFilters() {
     $('.filter-transport-type').prop('checked', false);
     $('.filter-osm-entity-type').prop('checked', false);
     $('.filter-osm-group, .filter-osm-pair-master, .filter-osm-group-type').prop('checked', false);
+    $('#masterProblemsCheckbox, .filter-problem-type, .filter-problem-priority').prop('checked', false);
 
     // Clear array-based filters
     activeFilters.station = [];
@@ -863,44 +853,15 @@ window.clearAllFilters = clearAllFilters;
 function filterByStation(stopId, stopCategory) {
     var selectedStop = stopsById[stopId];
     if (!selectedStop) {
-        alert("Stop data not found.");
+        SharedUtils.notify('This stop is no longer loaded on the map. Open it again.');
         return;
     }
-
-    // Always filter by UIC ref (station) when the "Filter by station" button is clicked
-    var filterType = 'station';
-    var filterValue = selectedStop.uic_ref || '';
-
-    if (!filterValue) {
-        alert("No UIC reference available for this stop.");
+    // "Filter by station" always filters by the stop's UIC number.
+    if (!selectedStop.uic_ref) {
+        SharedUtils.notify('This stop has no UIC number to filter by.');
         return;
     }
-
-    // Check if this filter is already applied
-    var isDuplicate = false;
-    for (var i = 0; i < activeFilters.station.length; i++) {
-        if (activeFilters.stationTypes[i] === filterType &&
-            activeFilters.station[i] === filterValue) {
-            isDuplicate = true;
-            break;
-        }
-    }
-
-    if (isDuplicate) {
-        alert("This filter is already applied: " + filterType + ": " + filterValue);
-        return;
-    }
-
-    // Add the filter to the existing filters rather than replacing them
-    activeFilters.station.push(filterValue);
-    activeFilters.stationTypes.push(filterType);
-    activeFilters.routeDirections.push('');
-    activeFilters.routeVariants.push(null);
-
-    updateFiltersUI();
-    if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
-    loadDataForViewport();
-    updateHeaderSummary();
+    addSearchFilter('station', selectedStop.uic_ref, '');
 }
 
 // Update the activeFilters object from the UI inputs
@@ -931,6 +892,11 @@ function updateActiveFilters() {
     } else if (anyOsmGroupTypeChecked) {
         activeFilters.osmGroups = selectedOsmGroupTypes;
     }
+
+    activeFilters.problemTypes = $('#masterProblemsCheckbox').is(':checked')
+        ? ['all']
+        : $('.filter-problem-type:checked').map(function () { return this.value; }).get();
+    activeFilters.problemPriorities = $('.filter-problem-priority:checked').map(function () { return this.value; }).get();
 
     activeFilters.matchedOptions = {
         allSelected: $('#masterMatchedCheckbox').is(':checked'),
@@ -1215,7 +1181,7 @@ function loadRouteVariantOptions(dropdown) {
 // repeated search= values. See documentation/2.9 Permalinks.md#map.
 var FILTER_URL_KEYS = ['stop_filter', 'match_method', 'transport_types', 'osm_entity_types', 'osm_group_types',
     'show_duplicates_only', 'atlas_operator', 'osm_operator', 'osm_operator_wikidata',
-    'missing_osm_operator_wikidata', 'top_n', 'search'];
+    'missing_osm_operator_wikidata', 'problem_type', 'priority', 'top_n', 'search'];
 // Off until the filters of the opening link are restored, so a half-built state never replaces them.
 var filterUrlSyncEnabled = false;
 
@@ -1262,6 +1228,8 @@ function filterUrlPairs() {
     addList('osm_operator', activeFilters.osmOperators);
     addList('osm_operator_wikidata', activeFilters.osmOperatorWikidata);
     if (activeFilters.missingOsmOperatorWikidata) pairs.push(['missing_osm_operator_wikidata', 'true']);
+    addList('problem_type', activeFilters.problemTypes);
+    addList('priority', activeFilters.problemPriorities);
     if (activeFilters.topN) pairs.push(['top_n', String(activeFilters.topN)]);
     // The last route filter narrowed to variants is named by atlas_variant / osm_variant.
     var variantIndex = -1;
@@ -1299,10 +1267,7 @@ function checkFilterBoxes(selector, values) {
 }
 
 function pushSearchFilter(token) {
-    for (var i = 0; i < activeFilters.station.length; i++) {
-        if (activeFilters.stationTypes[i] === token.kind && activeFilters.station[i] === token.value
-            && (activeFilters.routeDirections[i] || '') === (token.direction || '')) return;
-    }
+    if (findSearchFilter(token.kind, token.value, token.direction) !== -1) return;
     activeFilters.station.push(token.value);
     activeFilters.stationTypes.push(token.kind);
     activeFilters.routeDirections.push(token.direction || '');
@@ -1353,6 +1318,10 @@ function restoreFiltersFromUrl(search) {
         if (groups.indexOf('all') !== -1) $('#filterOsmGroup').prop('checked', true).trigger('change');
         else checkFilterBoxes('.filter-osm-group-type', groups);
         if (params.get('show_duplicates_only') === 'true') $('#filterDuplicatesOnly').prop('checked', true);
+        var problemTypes = list('problem_type');
+        if (problemTypes.indexOf('all') !== -1) $('#masterProblemsCheckbox').prop('checked', true).trigger('change');
+        else checkFilterBoxes('.filter-problem-type', problemTypes);
+        checkFilterBoxes('.filter-problem-priority', list('priority'));
     } finally {
         isBulkCheckboxSyncDepth--;
     }
@@ -1510,9 +1479,10 @@ function initFilterEventHandlers() {
     setupMasterCheckbox('#filterOsmGroup', '.filter-osm-group-type, #filterOsmPairMaster');
     // "All Matched" controls all matched method checkboxes (Exact, Name, Distance stages, Route methods)
     setupMasterCheckbox('#masterMatchedCheckbox', '.filter-match-method, .filter-distance-method, .filter-route-method');
+    setupMasterCheckbox('#masterProblemsCheckbox', '.filter-problem-type');
 
     // Attach change handlers to filter checkboxes and input elements.
-    $('.master-filter-checkbox, .visibility-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-entity-type, .filter-osm-group, .filter-osm-pair-master, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox, #masterDisusedOsmCheckbox').on('change', function () {
+    $('.master-filter-checkbox, .visibility-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-entity-type, .filter-osm-group, .filter-osm-pair-master, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox, #masterDisusedOsmCheckbox, #masterProblemsCheckbox, .filter-problem-type, .filter-problem-priority').on('change', function () {
         if (isBulkCheckboxSyncDepth > 0) {
             return;
         }
@@ -1575,7 +1545,7 @@ function initFilterEventHandlers() {
                 activeFilters.topN = n;
                 $(this).html('<i class="fas fa-times-circle"></i> Remove Top N');
             } else {
-                alert("Please enter a valid number for Top N filter.");
+                SharedUtils.notify('Enter a number of 1 or more for Top N.');
                 return; // Don't proceed if N is invalid
             }
         }

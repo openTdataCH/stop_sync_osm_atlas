@@ -19,7 +19,12 @@ const CONTROLS = `
   <input type="checkbox" id="filterDuplicatesOnly">
   <input type="checkbox" id="filterMissingOsmOperatorWikidata">
   <input type="number" id="topDistance" value="10"><button id="toggleTopNBtn"></button>
-  <div id="topNDistancesContainer"></div><div id="topNDistancesMessage"></div>`;
+  <div id="topNDistancesContainer"></div><div id="topNDistancesMessage"></div>
+  <input type="checkbox" id="masterProblemsCheckbox"><label for="masterProblemsCheckbox">All problems</label>
+  <input type="checkbox" class="filter-problem-type" id="problemType-distance" value="distance"><label for="problemType-distance">Distance</label>
+  <input type="checkbox" class="filter-problem-type" id="problemType-unmatched" value="unmatched"><label for="problemType-unmatched">Unmatched</label>
+  <input type="checkbox" class="filter-problem-priority" id="problemPriority-1" value="1"><label for="problemPriority-1">P1</label>
+  <input type="checkbox" class="filter-problem-priority" id="problemPriority-2" value="2"><label for="problemPriority-2">P2</label>`;
 
 describe('map filter links', () => {
     beforeAll(() => {
@@ -34,6 +39,7 @@ describe('map filter links', () => {
         window.setupMasterCheckbox('#masterMatchedCheckbox', '.filter-match-method');
         window.setupMasterCheckbox('#masterUnmatchedAtlasCheckbox', '.filter-unmatched-method');
         window.setupMasterCheckbox('#filterOsmGroup', '.filter-osm-group-type');
+        window.setupMasterCheckbox('#masterProblemsCheckbox', '.filter-problem-type');
         Object.assign(activeFilters, {
             station: [], stationTypes: [], routeDirections: [], routeVariants: [],
             atlasOperators: [], osmOperators: [], osmOperatorWikidata: [], topN: null
@@ -126,6 +132,51 @@ describe('map filter links', () => {
         activeFilters.routeVariants = [{ atlas: 'a', osm: null, label: 'A' }, null];
 
         expect(window.filterUrlQuery()).toBe('search=route:91-11-A-j26-1+dir:1');
+    });
+
+    test('the Problems filter is restored from a link, written back and shown as chips', () => {
+        window.restoreFiltersFromUrl('?problem_type=distance&priority=1,2');
+        updateActiveFilters();
+
+        expect(activeFilters.problemTypes).toEqual(['distance']);
+        expect(activeFilters.problemPriorities).toEqual(['1', '2']);
+        expect(window.filterUrlQuery()).toBe('problem_type=distance&priority=1,2');
+        const chips = document.getElementById('activeFilters').textContent;
+        expect(chips).toContain('Problem: Distance');
+        expect(chips).toContain('Problem priority: P1');
+
+        // Every type ticked is "all problems".
+        document.getElementById('problemType-unmatched').checked = true;
+        $('#problemType-unmatched').trigger('change');
+        updateActiveFilters();
+        expect(activeFilters.problemTypes).toEqual(['all']);
+        expect(document.getElementById('activeFilters').textContent).toContain('All problems');
+    });
+
+    test('a filter that is already applied is left alone, with a toast instead of an alert', () => {
+        window.updateHeaderSummary = jest.fn();
+        const notify = jest.spyOn(SharedUtils, 'notify').mockImplementation(() => {});
+
+        expect(window.addSearchFilter('station', '8503000', '')).toBe(true);
+        expect(window.addSearchFilter('station', '8503000', '')).toBe(false);
+        expect(window.addSearchFilter('route', '91-10-A-j26-1', '0')).toBe(true);
+        expect(window.addSearchFilter('route', '91-10-A-j26-1', '1')).toBe(true);
+
+        expect(activeFilters.station).toEqual(['8503000', '91-10-A-j26-1', '91-10-A-j26-1']);
+        expect(notify).toHaveBeenCalledTimes(1);
+        expect(notify).toHaveBeenCalledWith('This filter is already applied.', 'info');
+        notify.mockRestore();
+    });
+
+    test('notify shows text as text, then removes the toast', () => {
+        jest.useFakeTimers();
+        SharedUtils.notify('<b>No stop</b> found');
+        const toast = document.querySelector('.temporary-message');
+        expect(toast.textContent.trim()).toBe('<b>No stop</b> found');
+        expect(toast.querySelector('b')).toBeNull();
+        jest.runAllTimers();
+        expect(document.querySelector('.temporary-message')).toBeNull();
+        jest.useRealTimers();
     });
 
     test('restored stop filters are named from the public lookup', async () => {

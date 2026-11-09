@@ -152,16 +152,6 @@ select.form-control {
   cursor: pointer;
 }
 
-/* Label plus hint stacked as one column beside the box, so the hint wraps
-   under the label instead of becoming a third flex item. */
-.form-check-body {
-  min-width: 0;
-}
-
-.form-check-hint code {
-  overflow-wrap: anywhere;
-}
-
 /* Inline checkboxes */
 .form-check-inline {
   display: inline-flex;

@@ -84,6 +84,12 @@
         }, duration);
     };
 
+    // Tells the user something without blocking the page, as a toast: the app never
+    // uses alert(). text is plain text; showTemporaryMessage takes HTML.
+    SharedUtils.notify = function(text, type) {
+        SharedUtils.showTemporaryMessage(SharedUtils.escapeHtml(text), type || 'warning', 4000);
+    };
+
     /**
      * Setup CSRF token for AJAX requests
      * Should be called once on page load

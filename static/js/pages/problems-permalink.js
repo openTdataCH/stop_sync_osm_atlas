@@ -2,14 +2,14 @@
 //
 // The query string holds the filters and the stop of the entry on screen:
 //   ?problem_type=distance,unmatched&priority=1&atlas_operator=SBB
-//    &sloid=<sloid>&osm=node|way/<id>
+//    &bbox=<west,south,east,north>&sloid=<sloid>&osm=node|way/<id>
 // A matched pair is named by both identifiers, an unmatched stop by its own,
 // a duplicate group by one member. See documentation/2.9 Permalinks.md.
 
 window.ProblemsPermalink = (function () {
     'use strict';
 
-    const FILTER_KEYS = ['problem_type', 'priority', 'atlas_operator'];
+    const FILTER_KEYS = ['problem_type', 'priority', 'atlas_operator', 'bbox'];
     const STOP_KEYS = ['sloid', 'osm'];
     const ALL_KEYS = FILTER_KEYS.concat(STOP_KEYS);
     const PRIORITIES = ['1', '2', '3'];
@@ -51,6 +51,7 @@ window.ProblemsPermalink = (function () {
             problemTypes: problemTypes,
             priorities: PRIORITIES.filter(priority => csvValues(params, 'priority').includes(priority)),
             atlasOperators: csvValues(params, 'atlas_operator'),
+            area: ProblemsArea.parseArea(params.get('bbox')),
             focus: focus,
             invalidStop: hasStopParam && !focus
         };
@@ -84,7 +85,8 @@ window.ProblemsPermalink = (function () {
         const params = {
             problem_type: (ProblemsState.getSelectedProblemTypes() || []).join(','),
             priority: (ProblemsState.getSelectedPriorities() || []).join(','),
-            atlas_operator: (ProblemsState.getSelectedAtlasOperators() || []).join(',')
+            atlas_operator: (ProblemsState.getSelectedAtlasOperators() || []).join(','),
+            bbox: ProblemsArea.formatArea(ProblemsState.getArea())
         };
         return Permalinks.encodeParams(Object.assign(params, entryStopParams(ProblemsState.getCurrentEntryProblems())));
     }
