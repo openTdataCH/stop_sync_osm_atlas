@@ -13,12 +13,12 @@ Statistics are divided into two categories:
 import json
 import logging
 import os
-import tempfile
 import time
 from collections import defaultdict
 from typing import Dict, Any, List, Optional
 
 from backend.services.data_meta import load_data_meta
+from backend.services.json_files import write_json_atomic
 from backend.services.matching_rules import MATCHING_RULES, PROPAGATION_MATCH_TYPES
 from backend.services.time_utils import (
     format_zurich_timestamp,
@@ -401,21 +401,7 @@ def save_stats_to_file(stats: Dict[str, Any], filepath: str = None) -> str:
     Returns:
         Path where stats were saved
     """
-    if filepath is None:
-        filepath = STATS_FILE_PATH
-    
-    # Ensure directory exists
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    
-    parent = os.path.dirname(filepath) or "."
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=parent, delete=False) as f:
-        json.dump(stats, f, indent=2, ensure_ascii=False)
-        f.flush()
-        os.fsync(f.fileno())
-        temp_path = f.name
-    os.replace(temp_path, filepath)
-    
-    return filepath
+    return write_json_atomic(filepath or STATS_FILE_PATH, stats, indent=2, ensure_ascii=False)
 
 
 def refresh_stats_metadata(meta: Optional[Dict[str, Any]] = None, filepath: str = None) -> bool:
@@ -585,18 +571,6 @@ def compute_summary_from_db(db_session) -> Dict[str, Any]:
         "atlas_with_osm_within_50m_percent": round((atlas_with_osm_within_50m / atlas_platforms * 100), 1) if atlas_platforms > 0 else 0,
         "matched_atlas_with_osm_within_50m_percent": matched_atlas_with_osm_within_50m_percent,
     }
-
-
-def get_pipeline_stats() -> Optional[Dict[str, Any]]:
-    """
-    Get the most recent pipeline statistics.
-    
-    This is a convenience function for use in documentation rendering.
-    
-    Returns:
-        Statistics dictionary or None if not available
-    """
-    return load_stats_from_file()
 
 
 def ensure_stats_summary_pdf_generated(max_age_seconds: Optional[int] = None) -> str:

@@ -1,27 +1,4 @@
-"""
-Input validation utilities for backend API endpoints.
-
-Provides centralized validation for:
-- Pagination parameters (page, limit)
-- Text content (length, format)
-- HTML sanitization (XSS protection)
-"""
-
-import bleach
-import re
-
-# Allowed HTML tags for notes (basic formatting only)
-ALLOWED_TAGS = ['b', 'i', 'em', 'strong', 'br', 'p', 'ul', 'ol', 'li', 'a']
-ALLOWED_ATTRIBUTES = {'a': ['href', 'title']}
-
-_SCRIPT_TAG_RE = re.compile(r'<script[^>]*>.*?</script>', flags=re.IGNORECASE | re.DOTALL)
-_STYLE_TAG_RE = re.compile(r'<style[^>]*>.*?</style>', flags=re.IGNORECASE | re.DOTALL)
-_HTML_CLEANER = bleach.Cleaner(
-    tags=ALLOWED_TAGS,
-    attributes=ALLOWED_ATTRIBUTES,
-    strip=True,
-    strip_comments=True,
-)
+"""Input validation for backend API endpoints: pagination parameters."""
 
 
 def validate_pagination(page, limit, max_limit=1000, default_limit=100):
@@ -63,60 +40,3 @@ def validate_pagination(page, limit, max_limit=1000, default_limit=100):
         limit = max_limit
     
     return page, limit
-
-
-def validate_text_content(text, max_length, field_name='content'):
-    """
-    Validate text content for length and emptiness.
-    
-    Args:
-        text: The text content to validate.
-        max_length: Maximum allowed character length.
-        field_name: Name of the field (for error messages).
-    
-    Returns:
-        str: Stripped text content.
-    
-    Raises:
-        ValueError: If text is empty or exceeds max_length.
-    """
-    if text is None:
-        raise ValueError(f"{field_name.capitalize()} cannot be empty")
-    
-    text = str(text).strip()
-    
-    if not text:
-        raise ValueError(f"{field_name.capitalize()} cannot be empty")
-    
-    if len(text) > max_length:
-        raise ValueError(
-            f"{field_name.capitalize()} exceeds maximum length of {max_length} characters"
-        )
-    
-    return text
-
-
-def sanitize_html(text):
-    """
-    Sanitize HTML content to prevent XSS attacks.
-    
-    Allows basic formatting tags while stripping scripts and event handlers.
-    Dangerous tags like <script> and <style> have their content removed entirely.
-    
-    Args:
-        text: HTML text to sanitize.
-    
-    Returns:
-        str: Sanitized text with dangerous content removed.
-    """
-    if text is None:
-        return ''
-
-    # First pass: remove script/style tags and their content using regex
-    text_str = str(text)
-    text_str = _SCRIPT_TAG_RE.sub('', text_str)
-    text_str = _STYLE_TAG_RE.sub('', text_str)
-
-    # Second pass: use bleach to clean remaining HTML
-    return _HTML_CLEANER.clean(text_str)
-

@@ -1164,20 +1164,6 @@ $(document).ready(function () {
     restoreOperatorFiltersFromUrl();
     restoreFiltersFromUrl();
 
-    // Report functionality is only needed on /reports.
-    // Index uses the navbar for navigation.
-    if (window.initReportGeneration) {
-        window.initReportGeneration();
-    }
-
-
-
-    // Log layout when accordion sections are shown or hidden
-    $('#filterAccordion .collapse, .nested-accordion-content.collapse').on('shown.bs.collapse hidden.bs.collapse', function (e) {
-        updateAccordionIcons();
-        // logFilterPanelLayout(`Accordion Toggled: #${e.target.id}`); // Function removed in refactor
-    });
-
     // Initial setup calls
     updateAccordionIcons();
     updateActiveFilters(); // This will call loadDataForViewport and updateFiltersUI

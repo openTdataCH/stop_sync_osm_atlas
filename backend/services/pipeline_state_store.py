@@ -1,23 +1,16 @@
-import json
+"""Pipeline status and run lease, stored as JSON files in the shared runtime directory (STATE_DIR)."""
+
 import os
-import tempfile
-import threading
-from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
-from typing import Any, Dict, Iterator, Protocol
+from typing import Any, Dict
 
-from redis import Redis
-from redis.exceptions import RedisError, WatchError
-
-from backend.services.state_backend_config import (
-    resolve_state_backend,
+from backend.services.json_files import (
+    exclusive_file_lock,
+    read_json_object,
     resolve_state_dir,
-    resolve_state_redis_url,
+    write_json_atomic,
 )
-
-_STATUS_KEY = "pipeline:update:status"
-_LOCK_KEY = "pipeline:update:lock"
 
 
 def _now_utc() -> datetime:
@@ -26,32 +19,6 @@ def _now_utc() -> datetime:
 
 def _expiry_iso(ttl_seconds: int) -> str:
     return (_now_utc() + timedelta(seconds=max(1, ttl_seconds))).isoformat()
-
-
-def _ensure_parent_dir(path: str) -> None:
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-
-
-def _read_json_file(path: str) -> Dict[str, Any]:
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
-
-
-def _atomic_write_json(path: str, payload: Dict[str, Any]) -> None:
-    _ensure_parent_dir(path)
-    parent = os.path.dirname(path) or "."
-    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=parent, delete=False) as handle:
-        json.dump(payload, handle)
-        handle.flush()
-        os.fsync(handle.fileno())
-        temp_path = handle.name
-    os.replace(temp_path, path)
 
 
 def _parse_expiry(value: Any) -> datetime | None:
@@ -73,188 +40,44 @@ def _accept_run_update(current: dict, run_id: str) -> bool:
     return current.get("run_id") == run_id and current.get("status") == "running" and not current.get("finished_at")
 
 
-class PipelineStateStore(Protocol):
-    def read_status(self) -> Dict[str, Any]: ...
-
-    def write_status(self, payload: Dict[str, Any]) -> None: ...
-
-    def patch_status(self, fields: Dict[str, Any], *, expected_run_id: str | None = None) -> Dict[str, Any]: ...
-
-    def read_lock(self) -> Dict[str, Any]: ...
-
-    def acquire_lock(self, token: str, ttl_seconds: int, owner: Dict[str, Any] | None = None) -> bool: ...
-
-    def refresh_lock(self, token: str, ttl_seconds: int) -> None: ...
-
-    def release_lock(self, token: str) -> None: ...
-
-    def clear_lock(self) -> None: ...
-
-
-class RedisPipelineStateStore:
-    def __init__(self, redis_url: str):
-        self._redis_url = redis_url
-
-    def _client(self) -> Redis:
-        return Redis.from_url(self._redis_url, decode_responses=True)
-
-    def read_status(self) -> Dict[str, Any]:
-        try:
-            payload = self._client().get(_STATUS_KEY)
-        except RedisError:
-            return {}
-        if not payload:
-            return {}
-        try:
-            data = json.loads(payload)
-        except json.JSONDecodeError:
-            return {}
-        return data if isinstance(data, dict) else {}
-
-    def read_lock(self) -> Dict[str, Any]:
-        try:
-            payload = self._client().get(_LOCK_KEY)
-        except RedisError:
-            return {}
-        if not payload:
-            return {}
-        try:
-            data = json.loads(payload)
-        except json.JSONDecodeError:
-            return {"token": payload}
-        return data if isinstance(data, dict) else {}
-
-    def write_status(self, payload: Dict[str, Any]) -> None:
-        self._client().set(_STATUS_KEY, json.dumps(payload))
-
-    def patch_status(self, fields: Dict[str, Any], *, expected_run_id: str | None = None) -> Dict[str, Any]:
-        client = self._client()
-        while True:
-            with client.pipeline() as pipe:
-                try:
-                    pipe.watch(_STATUS_KEY)
-                    payload = pipe.get(_STATUS_KEY)
-                    try:
-                        current = json.loads(payload) if payload else {}
-                    except json.JSONDecodeError:
-                        current = {}
-                    if not isinstance(current, dict):
-                        current = {}
-                    if expected_run_id is not None and not _accept_run_update(current, expected_run_id):
-                        return current
-                    current.update(fields)
-                    pipe.multi()
-                    pipe.set(_STATUS_KEY, json.dumps(current))
-                    pipe.execute()
-                    return current
-                except WatchError:
-                    continue
-
-    def acquire_lock(self, token: str, ttl_seconds: int, owner: Dict[str, Any] | None = None) -> bool:
-        now = _now_utc().isoformat()
-        payload = json.dumps({"token": token, "acquired_at": now, "heartbeat_at": now, "owner": owner or {}})
-        return bool(self._client().set(_LOCK_KEY, payload, nx=True, ex=max(1, ttl_seconds)))
-
-    def refresh_lock(self, token: str, ttl_seconds: int) -> None:
-        client = self._client()
-        while True:
-            with client.pipeline() as pipe:
-                try:
-                    pipe.watch(_LOCK_KEY)
-                    payload = pipe.get(_LOCK_KEY)
-                    if not payload:
-                        pipe.unwatch()
-                        return
-                    try:
-                        current = json.loads(payload)
-                    except json.JSONDecodeError:
-                        current = {"token": payload}
-                    if current.get("token") != token:
-                        pipe.unwatch()
-                        return
-                    current["heartbeat_at"] = _now_utc().isoformat()
-                    pipe.multi()
-                    pipe.set(_LOCK_KEY, json.dumps(current), ex=max(1, ttl_seconds))
-                    pipe.execute()
-                    return
-                except WatchError:
-                    continue
-
-    def release_lock(self, token: str) -> None:
-        client = self._client()
-        pipe = client.pipeline(True)
-        while True:
-            try:
-                pipe.watch(_LOCK_KEY)
-                current = pipe.get(_LOCK_KEY)
-                if not current:
-                    pipe.unwatch()
-                    return
-                try:
-                    current_payload = json.loads(current)
-                except json.JSONDecodeError:
-                    current_payload = {"token": current}
-                if current_payload.get("token") != token:
-                    pipe.unwatch()
-                    return
-                pipe.multi()
-                pipe.delete(_LOCK_KEY)
-                pipe.execute()
-                return
-            except RedisError:
-                continue
-
-    def clear_lock(self) -> None:
-        self._client().delete(_LOCK_KEY)
-
-
 class FilePipelineStateStore:
     def __init__(self, runtime_dir: str):
         self._status_path = os.path.join(runtime_dir, "pipeline_status.json")
         self._lock_path = os.path.join(runtime_dir, "pipeline_lock.json")
         self._guard_path = os.path.join(runtime_dir, "pipeline_lock.guard")
 
-    @contextmanager
-    def _guard_lock(self) -> Iterator[None]:
-        import fcntl
-
-        _ensure_parent_dir(self._guard_path)
-        with open(self._guard_path, "a+", encoding="utf-8") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            try:
-                yield
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    def _guard_lock(self):
+        return exclusive_file_lock(self._guard_path)
 
     def read_status(self) -> Dict[str, Any]:
         with self._guard_lock():
-            return _read_json_file(self._status_path)
+            return read_json_object(self._status_path)
 
     def read_lock(self) -> Dict[str, Any]:
         with self._guard_lock():
-            return _read_json_file(self._lock_path)
+            return read_json_object(self._lock_path)
 
     def write_status(self, payload: Dict[str, Any]) -> None:
         with self._guard_lock():
-            _atomic_write_json(self._status_path, payload)
+            write_json_atomic(self._status_path, payload)
 
     def patch_status(self, fields: Dict[str, Any], *, expected_run_id: str | None = None) -> Dict[str, Any]:
         with self._guard_lock():
-            current = _read_json_file(self._status_path)
+            current = read_json_object(self._status_path)
             if expected_run_id is not None and not _accept_run_update(current, expected_run_id):
                 return current
             current.update(fields)
-            _atomic_write_json(self._status_path, current)
+            write_json_atomic(self._status_path, current)
             return current
 
     def acquire_lock(self, token: str, ttl_seconds: int, owner: Dict[str, Any] | None = None) -> bool:
         with self._guard_lock():
-            current = _read_json_file(self._lock_path)
+            current = read_json_object(self._lock_path)
             expires_at = _parse_expiry(current.get("expires_at"))
             if current.get("token") and expires_at and expires_at > _now_utc():
                 return False
             now = _now_utc().isoformat()
-            _atomic_write_json(
+            write_json_atomic(
                 self._lock_path,
                 {
                     "token": token,
@@ -268,10 +91,10 @@ class FilePipelineStateStore:
 
     def refresh_lock(self, token: str, ttl_seconds: int) -> None:
         with self._guard_lock():
-            current = _read_json_file(self._lock_path)
+            current = read_json_object(self._lock_path)
             if current.get("token") != token:
                 return
-            _atomic_write_json(
+            write_json_atomic(
                 self._lock_path,
                 {
                     "token": token,
@@ -284,7 +107,7 @@ class FilePipelineStateStore:
 
     def release_lock(self, token: str) -> None:
         with self._guard_lock():
-            current = _read_json_file(self._lock_path)
+            current = read_json_object(self._lock_path)
             if current.get("token") != token:
                 return
             try:
@@ -300,79 +123,5 @@ class FilePipelineStateStore:
                 return
 
 
-class MemoryPipelineStateStore:
-    def __init__(self):
-        self._state_lock = threading.Lock()
-        self._status: Dict[str, Any] = {}
-        self._lock_state: Dict[str, Any] = {}
-
-    def read_status(self) -> Dict[str, Any]:
-        with self._state_lock:
-            return dict(self._status)
-
-    def write_status(self, payload: Dict[str, Any]) -> None:
-        with self._state_lock:
-            self._status.clear()
-            self._status.update(payload)
-
-    def patch_status(self, fields: Dict[str, Any], *, expected_run_id: str | None = None) -> Dict[str, Any]:
-        with self._state_lock:
-            if expected_run_id is not None and not _accept_run_update(self._status, expected_run_id):
-                return dict(self._status)
-            self._status.update(fields)
-            return dict(self._status)
-
-    def read_lock(self) -> Dict[str, Any]:
-        with self._state_lock:
-            return dict(self._lock_state)
-
-    def acquire_lock(self, token: str, ttl_seconds: int, owner: Dict[str, Any] | None = None) -> bool:
-        with self._state_lock:
-            if self._lock_state.get("token") is not None:
-                return False
-            now = _now_utc().isoformat()
-            self._lock_state = {
-                "token": token,
-                "acquired_at": now,
-                "heartbeat_at": now,
-                "expires_at": _expiry_iso(ttl_seconds),
-                "owner": owner or {},
-            }
-            return True
-
-    def refresh_lock(self, token: str, ttl_seconds: int) -> None:
-        with self._state_lock:
-            if self._lock_state.get("token") != token:
-                return
-            self._lock_state["heartbeat_at"] = _now_utc().isoformat()
-            self._lock_state["expires_at"] = _expiry_iso(ttl_seconds)
-
-    def release_lock(self, token: str) -> None:
-        with self._state_lock:
-            if self._lock_state.get("token") == token:
-                self._lock_state = {}
-
-    def clear_lock(self) -> None:
-        with self._state_lock:
-            self._lock_state = {}
-
-
-_MEMORY_STORE = MemoryPipelineStateStore()
-
-
-def _resolve_backend_name() -> str:
-    return resolve_state_backend()
-
-
-def get_pipeline_state_store() -> PipelineStateStore:
-    backend = _resolve_backend_name()
-    if backend == "redis":
-        redis_url = resolve_state_redis_url()
-        if not redis_url:
-            raise RuntimeError("STATE_REDIS_URL is required when STATE_BACKEND=redis")
-        return RedisPipelineStateStore(redis_url)
-    if backend == "file":
-        return FilePipelineStateStore(resolve_state_dir())
-    if backend == "memory":
-        return _MEMORY_STORE
-    raise RuntimeError(f"Unsupported STATE_BACKEND: {backend}")
+def get_pipeline_state_store() -> FilePipelineStateStore:
+    return FilePipelineStateStore(resolve_state_dir())

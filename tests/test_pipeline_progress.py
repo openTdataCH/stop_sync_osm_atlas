@@ -7,7 +7,7 @@ from backend.services import pipeline_status
 from backend.services.pipeline_progress import (
     ProgressValidationError, apply_progress_event, initial_progress_plan,
 )
-from backend.services.pipeline_state_store import MemoryPipelineStateStore, FilePipelineStateStore
+from backend.services.pipeline_state_store import FilePipelineStateStore
 
 
 NOW = "2026-09-21T10:00:00+00:00"
@@ -27,8 +27,8 @@ def state():
 
 
 @pytest.fixture
-def store(monkeypatch):
-    store = MemoryPipelineStateStore()
+def store(monkeypatch, tmp_path):
+    store = FilePipelineStateStore(str(tmp_path))
     monkeypatch.setattr(pipeline_status, 'get_pipeline_state_store', lambda: store)
     # Avoid reading operational statistics when testing status persistence.
     store.patch_status({'last_pipeline_data_import_ended_at': NOW})
@@ -109,9 +109,8 @@ def test_next_run_resets_plan_and_rejects_previous_writer(store):
     assert SPEC['id'] not in store.read_status()['stage_states']
 
 
-@pytest.mark.parametrize('backend', ['memory', 'file'])
-def test_storage_rechecks_run_identity_and_terminal_state(backend, tmp_path):
-    store = MemoryPipelineStateStore() if backend == 'memory' else FilePipelineStateStore(str(tmp_path))
+def test_storage_rechecks_run_identity_and_terminal_state(tmp_path):
+    store = FilePipelineStateStore(str(tmp_path))
     store.patch_status(dict(run_id='new', status='running'))
     store.patch_status(dict(message='stale'), expected_run_id='old')
     assert 'message' not in store.read_status()

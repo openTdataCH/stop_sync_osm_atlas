@@ -8,6 +8,7 @@ from the stored matching notes.
 """
 
 from alembic import op
+import sqlalchemy as sa
 
 revision = '20261106_000010'
 down_revision = '20261102_000009'
@@ -94,13 +95,18 @@ def upgrade(engine_name=None):
     _rename('osm_stop_members', 'member_role', MEMBER_ROLES)
     _create_constraints(*CONSTRAINTS['new'])
     _rename('stops_matched', 'match_type', MATCH_TYPES)
-    for old_notes, (match_type, notes) in REFERENCE_NOTES.items():
-        op.execute(
-            f"UPDATE stops_matched SET match_type = {_sql_text(match_type)}, matching_notes = {_sql_text(notes)} "
-            f"WHERE match_type = 'exact' AND matching_notes = {_sql_text(old_notes)}"
-        )
-    op.execute("UPDATE stops_matched SET match_type = 'name_one_osm' "
-               "WHERE match_type = 'name' AND matching_notes = 'Name index match (1 candidates)'")
+    # The baseline builds tables from the current models, which no longer have
+    # matching_notes (dropped in 000011). Such fresh databases are empty, so
+    # the note-based renames have nothing to rewrite.
+    existing = {column['name'] for column in sa.inspect(op.get_bind()).get_columns('stops_matched')}
+    if 'matching_notes' in existing:
+        for old_notes, (match_type, notes) in REFERENCE_NOTES.items():
+            op.execute(
+                f"UPDATE stops_matched SET match_type = {_sql_text(match_type)}, matching_notes = {_sql_text(notes)} "
+                f"WHERE match_type = 'exact' AND matching_notes = {_sql_text(old_notes)}"
+            )
+        op.execute("UPDATE stops_matched SET match_type = 'name_one_osm' "
+                   "WHERE match_type = 'name' AND matching_notes = 'Name index match (1 candidates)'")
     op.execute("UPDATE stops_matched SET match_type = 'name_local_ref' WHERE match_type = 'name'")
 
 

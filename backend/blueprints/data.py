@@ -20,20 +20,7 @@ from geoalchemy2.functions import ST_Intersects, ST_MakeEnvelope
 data_bp = Blueprint('data', __name__)
 
 def _parse_bbox_from_request_args(args):
-    """
-    Supports either:
-      - bbox=min_lat,min_lon,max_lat,max_lon
-      - or explicit min_lat/max_lat/min_lon/max_lon
-    Returns (min_lat, min_lon, max_lat, max_lon) as floats.
-    """
-    bbox = args.get('bbox')
-    if bbox:
-        bbox_parts = bbox.split(',')
-        if len(bbox_parts) != 4:
-            raise ValueError("bbox parameter must have 4 values: min_lat,min_lon,max_lat,max_lon")
-        min_lat, min_lon, max_lat, max_lon = map(float, bbox_parts)
-        return min_lat, min_lon, max_lat, max_lon
-
+    """Return the viewport as (min_lat, min_lon, max_lat, max_lon) floats."""
     min_lat = float(args.get('min_lat'))
     max_lat = float(args.get('max_lat'))
     min_lon = float(args.get('min_lon'))
@@ -374,10 +361,6 @@ def get_data():
 
                     if links:
                         stop_entry['osm_two_sided_links'] = links
-
-                    stop_entry['is_two_sided_middle_matched'] = (
-                        node_id == middle_node_id and stop_entry['stop_type'] == 'effectively_matched'
-                    )
 
         if include_meta:
             return jsonify({

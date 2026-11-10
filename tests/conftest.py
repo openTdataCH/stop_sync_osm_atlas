@@ -14,9 +14,8 @@ import pytest
 # Ensure project root is in path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Ensure tests are independent from external Redis availability.
+# Rate-limit counters stay in process memory.
 os.environ['RATELIMIT_STORAGE_URI'] = 'memory://'
-os.environ['STATE_BACKEND'] = 'memory'
 # The importer opens its connection at import time; never let it reach a real
 # database. PostGIS tests use their own TEST_POSTGRES_URI.
 os.environ['DATABASE_URI'] = 'sqlite://'
@@ -25,6 +24,12 @@ os.environ['DATABASE_URI'] = 'sqlite://'
 # =============================================================================
 # Backend / Flask Fixtures
 # =============================================================================
+
+
+@pytest.fixture(autouse=True)
+def _runtime_state_dir(monkeypatch, tmp_path):
+    """Pipeline status, run lease and export tasks go to a fresh directory per test, never data/runtime."""
+    monkeypatch.setenv('STATE_DIR', str(tmp_path / 'runtime'))
 
 
 @pytest.fixture(autouse=True)

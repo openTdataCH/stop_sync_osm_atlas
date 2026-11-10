@@ -4,8 +4,6 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
-from redis.exceptions import RedisError
-
 from backend.services.pipeline_progress import (
     PROGRESS_SCHEMA_VERSION,
     PIPELINE_PHASE_STAGES,
@@ -167,24 +165,15 @@ def _base_status() -> Dict[str, Any]:
 
 
 def _read_raw_status() -> Dict[str, Any]:
-    try:
-        return get_pipeline_state_store().read_status()
-    except (RedisError, RuntimeError):
-        return {}
+    return get_pipeline_state_store().read_status()
 
 
 def _patch_raw_status(fields: Dict[str, Any], *, expected_run_id=None) -> Dict[str, Any]:
-    try:
-        return get_pipeline_state_store().patch_status(fields, expected_run_id=expected_run_id)
-    except (RedisError, RuntimeError):
-        return {}
+    return get_pipeline_state_store().patch_status(fields, expected_run_id=expected_run_id)
 
 
 def _has_active_run_lock() -> bool:
-    try:
-        lock_state = get_pipeline_state_store().read_lock()
-    except (RedisError, RuntimeError):
-        return False
+    lock_state = get_pipeline_state_store().read_lock()
     expires_at = _parse_iso_timestamp(lock_state.get("expires_at"))
     return bool(lock_state.get("token") and (expires_at is None or expires_at > datetime.now(timezone.utc)))
 
@@ -530,11 +519,8 @@ def reconcile_orphaned_run(
     if raw_status.get("status") != "running":
         return False
 
-    try:
-        store = get_pipeline_state_store()
-        lock_state = store.read_lock()
-    except (RedisError, RuntimeError):
-        return False
+    store = get_pipeline_state_store()
+    lock_state = store.read_lock()
 
     token = lock_state.get("token")
     owner_alive = _lock_owner_is_alive(lock_state) if token else False
@@ -564,41 +550,31 @@ def reconcile_orphaned_run(
 
 def acquire_run_lock(ttl_seconds: int = _DEFAULT_LOCK_TTL_SECONDS) -> Optional[str]:
     token = str(uuid.uuid4())
-    try:
-        store = get_pipeline_state_store()
-        owner = _current_lock_owner()
+    store = get_pipeline_state_store()
+    owner = _current_lock_owner()
+    if store.acquire_lock(token, ttl_seconds=max(1, ttl_seconds), owner=owner):
+        return token
+
+    status = get_status()
+    lock_state = store.read_lock()
+    lock_acquired_at = _parse_iso_timestamp(lock_state.get("acquired_at"))
+    status_updated_at = _parse_iso_timestamp(status.get("updated_at"))
+    should_clear_stale_lock = (
+        status.get("status") != "running"
+        and lock_acquired_at is not None
+        and status_updated_at is not None
+        and status_updated_at >= lock_acquired_at
+    )
+    if should_clear_stale_lock:
+        store.clear_lock()
         if store.acquire_lock(token, ttl_seconds=max(1, ttl_seconds), owner=owner):
             return token
-
-        status = get_status()
-        lock_state = store.read_lock()
-        lock_acquired_at = _parse_iso_timestamp(lock_state.get("acquired_at"))
-        status_updated_at = _parse_iso_timestamp(status.get("updated_at"))
-        should_clear_stale_lock = (
-            status.get("status") != "running"
-            and lock_acquired_at is not None
-            and status_updated_at is not None
-            and status_updated_at >= lock_acquired_at
-        )
-        if should_clear_stale_lock:
-            store.clear_lock()
-            if store.acquire_lock(token, ttl_seconds=max(1, ttl_seconds), owner=owner):
-                return token
-    except (RedisError, RuntimeError):
-        return None
-
     return None
 
 
 def refresh_run_lock(token: str, ttl_seconds: int = _DEFAULT_LOCK_TTL_SECONDS) -> None:
-    try:
-        get_pipeline_state_store().refresh_lock(token, ttl_seconds=max(1, ttl_seconds))
-    except (RedisError, RuntimeError):
-        return
+    get_pipeline_state_store().refresh_lock(token, ttl_seconds=max(1, ttl_seconds))
 
 
 def release_run_lock(token: str) -> None:
-    try:
-        get_pipeline_state_store().release_lock(token)
-    except (RedisError, RuntimeError):
-        return
+    get_pipeline_state_store().release_lock(token)

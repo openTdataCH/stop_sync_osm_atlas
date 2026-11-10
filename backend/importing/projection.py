@@ -91,7 +91,7 @@ def project_bundle(bundle):
     disused_ids = {str(osm[key].node_id) for key in disused_keys}
     matches = [Record(
         atlas_node=sources[row["source_key"]], osm_node=osm[row["osm_key"]],
-        match_type=row["method"], distance_m=row["distance_m"], notes=row.get("notes", ""),
+        match_type=row["method"], distance_m=row["distance_m"],
         problems=[Record(**p) for p in row.get("problems", [])],
     ) for row in bundle["matches"]]
     matches_by_pair, matches_by_source, matches_by_osm = {}, {}, {}

@@ -16,7 +16,7 @@ DEFAULT_PROBLEM_SORT_ORDER = 'asc'
 
 
 def empty_problem_stats():
-    return {name: {'all': 0, 'solved': 0, 'unsolved': 0} for name in ('all', *VISIBLE_PROBLEM_TYPES)}
+    return {name: {'all': 0} for name in ('all', *VISIBLE_PROBLEM_TYPES)}
 
 
 def parse_csv_values(raw_value):
@@ -299,8 +299,6 @@ def get_problems():
                     )
                     formatted.update({
                         'priority': pr.priority,
-                        'solution': '',
-                        'is_persistent': False,
                         'stop_id': st.id
                     })
                     member_payloads.append(formatted)
@@ -360,8 +358,6 @@ def get_problems():
                     )
                     formatted.update({
                         'priority': pr.priority,
-                        'solution': '',
-                        'is_persistent': False,
                         'stop_id': st.id
                     })
                     member_payloads.append(formatted)
@@ -519,8 +515,6 @@ def get_problems():
             )
             st = problem.stop
             formatted_stop['priority'] = problem.priority
-            formatted_stop['solution'] = ''
-            formatted_stop['is_persistent'] = False
             formatted_stop['stop_id'] = problem.stop_id
             problems.append(formatted_stop)
         if focus is not None and 'focus_found' not in focus_response:
@@ -579,10 +573,8 @@ def get_problem_stats():
         for ptype in problem_types:
             count = counts_by_type.get(ptype, 0)
             stats[ptype]['all'] = count
-            stats[ptype]['unsolved'] = count
 
         stats['all']['all'] = sum(s['all'] for s in stats.values() if s is not stats['all'])
-        stats['all']['unsolved'] = stats['all']['all']
 
         return jsonify(stats)
     except Exception as e:

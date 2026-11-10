@@ -51,10 +51,7 @@ def _copy_summary_pdf_to_temp(task_id):
 
 
 def _normalize_report_type(report_type):
-    normalized = (report_type or 'distance').strip().lower()
-    if normalized in ('top_matches', 'exact_matches', 'name_matches'):
-        return 'distance'
-    return normalized
+    return (report_type or 'distance').strip().lower()
 
 
 def _normalize_sort(report_type, sort_param):

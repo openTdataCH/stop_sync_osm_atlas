@@ -25,7 +25,6 @@ class RepoScanner:
     def __init__(self, root_dir: str):
         self.root_dir = os.path.abspath(root_dir)
         self._file_map: Dict[str, List[str]] = {}
-        self._path_to_file: Dict[str, str] = {}
         self.scan()
 
     def scan(self):
@@ -53,10 +52,6 @@ class RepoScanner:
         self._file_map = file_map
         logger.info(f"Scan complete. Found {len(file_map)} unique filenames.")
 
-    def get_paths(self, filename: str) -> List[str]:
-        """Returns all relative paths found for a given filename."""
-        return self._file_map.get(filename, [])
-
     def resolve_path(self, path_query: str) -> Optional[str]:
         """
         Tries to resolve a path query to a unique repository file.
@@ -80,6 +75,3 @@ class RepoScanner:
             return matches[0]
             
         return None
-
-    def get_all_files(self) -> Dict[str, List[str]]:
-        return self._file_map

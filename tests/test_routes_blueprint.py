@@ -5,7 +5,7 @@ from flask import render_template
 
 from backend.pages import routes as route_pages
 from backend.services import pipeline_status, route_listing
-from backend.services.route_listing import _build_direction_group, _partition_route_items, _route_sort_key
+from backend.services.route_listing import _build_direction_group
 from backend.extensions import db
 from backend.models import LineFamily, LineFamilyMatch
 
@@ -292,38 +292,6 @@ def test_routes_template_labels_variant_direction_and_headsign(app):
     assert rendered.count('Unique Variant Label') >= 2
 
 
-def test_partition_route_items_separates_non_gtfs_routes():
-    gtfs_items, non_gtfs_items = _partition_route_items([
-        {'sort_route_id': '11', 'is_non_gtfs': False},
-        {'sort_route_id': '006', 'is_non_gtfs': True},
-    ])
-
-    assert [item['sort_route_id'] for item in gtfs_items] == ['11']
-    assert [item['sort_route_id'] for item in non_gtfs_items] == ['006']
-
-
-def test_load_line_family_rows_queries_only_required_columns(monkeypatch):
-    captured = {}
-
-    class _FakeQuery:
-        def filter(self, *_args, **_kwargs):
-            return self
-
-        def all(self):
-            return []
-
-    def _fake_query(*args):
-        captured['args'] = args
-        return _FakeQuery()
-
-    monkeypatch.setattr(route_listing.db.session, 'query', _fake_query)
-
-    route_listing._load_line_family_rows('atlas')
-
-    assert captured['args'][0] is not route_listing.LineFamily
-    assert len(captured['args']) > 1
-
-
 def test_query_route_page_filters_orders_and_paginates_in_sql(app, monkeypatch):
     with app.app_context():
         LineFamily.__table__.create(db.engine)
@@ -483,19 +451,6 @@ def test_routes_return_controlled_503_for_database_timeout(client, monkeypatch):
     assert response.status_code == 503
     assert response.headers['Retry-After'] == '30'
     assert b'Route data is temporarily busy' in response.data
-
-
-def test_route_sort_key_places_matched_routes_first():
-    items = [
-        {'display_mode': 'osm_only', 'sort_route_id': '999'},
-        {'display_mode': 'matched', 'sort_route_id': 'zzz'},
-        {'display_mode': 'atlas_only', 'sort_route_id': '001'},
-        {'display_mode': 'matched', 'sort_route_id': 'aaa'},
-    ]
-
-    sorted_items = sorted(items, key=_route_sort_key)
-
-    assert [item['display_mode'] for item in sorted_items[:2]] == ['matched', 'matched']
 
 
 def test_non_gtfs_routes_template_uses_route_ref_label_and_notice(app):

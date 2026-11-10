@@ -152,7 +152,7 @@ function startAsyncTask(options) {
             if (xhr.status === 429) {
                 error = 'Rate limit exceeded. Please wait a while before requesting another report.';
             } else if (window.SharedUtils && typeof window.SharedUtils.buildErrorMessage === 'function') {
-                error = window.SharedUtils.buildErrorMessage(xhr, error, 'bulk');
+                error = window.SharedUtils.buildErrorMessage(xhr, error);
             } else if (xhr && xhr.responseJSON && (xhr.responseJSON.error || xhr.responseJSON.message)) {
                 error = xhr.responseJSON.error || xhr.responseJSON.message;
             }
@@ -432,11 +432,6 @@ function cancelReportGeneration() {
 
 // Function to initialize report generation features
 function initReportGeneration() {
-    // On index page, navigate to the dedicated Insights page (export tab)
-    $('#generateReportBtn').on('click', function(){
-        window.location.href = '/insights?tab=export';
-    });
-    
     // Initialize operator dropdown in reports page if present
     if (document.getElementById('atlasOperatorFilterReports')) {
         window.operatorDropdownReports = new OperatorDropdown('#atlasOperatorFilterReports', {
@@ -494,15 +489,6 @@ function initReportGeneration() {
 
         // Start async report generation
         startAsyncReportGeneration(params);
-        
-        // Hide the modal
-        try {
-            var reportModalEl = document.getElementById('reportModal');
-            if (reportModalEl && window.bootstrap && window.bootstrap.Modal) {
-                var modalInstance = window.bootstrap.Modal.getInstance(reportModalEl) || new window.bootstrap.Modal(reportModalEl);
-                modalInstance.hide();
-            }
-        } catch (e) {}
     });
 
     // Enable/disable limit input based on mode
@@ -520,7 +506,6 @@ function initReportGeneration() {
         var mode = $('input[name="limitMode"]:checked').val();
         var limit = $('#reportLimitModal').val();
         var $limitLabel = $('#limitModeLabelUpto');
-        var $sortHelp = $('#sortHelp');
         var $summary = $('#selectionSummary');
 
         if (!cat || !sort) return; // Prevent crashes if elements don't exist
@@ -528,19 +513,6 @@ function initReportGeneration() {
         // Label: "Top" when sorting by distance/priority desc, else "First"
         var isTop = (sort === 'distance_desc') || (sort === 'priority_desc');
         if ($limitLabel.length) { $limitLabel.text(isTop ? 'Top' : 'First'); }
-
-        // Help text
-        var help = '';
-        if (cat === 'distance') {
-            if (sort.indexOf('distance_') === 0) help = 'Entries sorted by distance. "Top N" selects closest/farthest.';
-            else help = 'Entries sorted by operator alphabetically.';
-        } else if (cat === 'unmatched') {
-            help = 'Entries sorted by operator alphabetically.';
-        } else if (cat === 'problems') {
-            if (sort.indexOf('priority_') === 0) help = 'Entries sorted by priority. "Top N" selects highest priority.';
-            else help = 'Entries sorted by operator alphabetically.';
-        }
-        if ($sortHelp.length) { $sortHelp.text(help); }
 
         // Summary line - more descriptive
         var categoryName = '';
@@ -593,7 +565,7 @@ function initReportGeneration() {
     updateSortHelpAndSummary();
 }
 
-// Export functions for use in main.js
+// Export functions for the Data and docs pages
 window.initReportGeneration = initReportGeneration;
 window.cancelReportGeneration = cancelReportGeneration;
 window.resetProgressOverlay = resetProgressOverlay;

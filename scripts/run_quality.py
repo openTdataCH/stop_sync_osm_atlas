@@ -158,7 +158,7 @@ def main() -> int:
     if full:
         run("structural-debt", [python, "scripts/quality.py", "debt", *engine_option])
         # The engine import contract runs the engine through ENGINE_PYTHON as a subprocess.
-        app_environment = {**os.environ, "DATABASE_URI": "sqlite://", "STATE_BACKEND": "memory", "ENGINE_DIR": str(engine),
+        app_environment = {**os.environ, "DATABASE_URI": "sqlite://", "ENGINE_DIR": str(engine),
                            "ENGINE_PYTHON": args.engine_python}
         run("app-python-tests", [
             python, "-m", "pytest", "tests", "-q", "--cov=backend", "--cov-branch",

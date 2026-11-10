@@ -185,7 +185,7 @@ def test_long_source_identifiers_survive_migration_and_atomic_import_with_foreig
 def test_copy_matches_insert_json_geometry_defaults_indexes_and_sequences(postgres, monkeypatch):
     payload, manifest = _example()
     payload['osm_nodes'][0]['duplicate_group_node_ids'] = ['quote"', 'tab\t', 'line\nbreak', 'back\\slash', 'é']
-    payload['stops_matched'][0]['matching_notes'] = 'quote"\tline\nbreak\\é'
+    payload['stops_matched'][0]['match_type'] = 'quote"\tline\nbreak\\é'
     payload['stops_matched'][1]['geom'] = None
     snapshots = []
     for method in ('insert', 'copy'):

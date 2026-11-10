@@ -37,7 +37,6 @@ class StopsMatched(db.Model):
     osm_lat = db.Column(db.Float)
     osm_lon = db.Column(db.Float)
     distance_m = db.Column(db.Float)
-    matching_notes = db.Column(db.Text)
 
 
     # Display geometry (atlas point if present, else osm point). SRID 4326 (WGS84).

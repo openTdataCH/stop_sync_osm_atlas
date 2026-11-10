@@ -80,7 +80,6 @@ services:
     environment:
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}
-      STATE_BACKEND: file
       STATE_DIR: ${STATE_DIR:-data/runtime}
 
   scheduler:
@@ -98,7 +97,6 @@ services:
     environment:
       DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}
-      STATE_BACKEND: file
       STATE_DIR: ${STATE_DIR:-data/runtime}
       PIPELINE_TIMEZONE: ${PIPELINE_TIMEZONE:-Europe/Zurich}
       PIPELINE_SCHEDULE_INTERVAL_HOURS: ${PIPELINE_SCHEDULE_INTERVAL_HOURS:-1}

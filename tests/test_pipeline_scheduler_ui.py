@@ -61,7 +61,6 @@ def test_scheduler_startup_preserves_an_active_pipeline_status(monkeypatch, tmp_
     from backend.jobs import service
     from backend.services import pipeline_status
 
-    monkeypatch.setenv("STATE_BACKEND", "file")
     monkeypatch.setenv("STATE_DIR", str(tmp_path / "runtime"))
     pipeline_status.set_status(
         status="running",
@@ -395,7 +394,6 @@ def test_pipeline_status_file_backend_persists_status(monkeypatch, tmp_path):
     from backend.services import pipeline_status
 
     runtime_dir = tmp_path / "runtime"
-    monkeypatch.setenv("STATE_BACKEND", "file")
     monkeypatch.setenv("STATE_DIR", str(runtime_dir))
 
     pipeline_status.set_status(status="running", phase="matching", message="Matching")
@@ -409,7 +407,6 @@ def test_pipeline_status_patches_do_not_overwrite_run_or_schedule_fields(monkeyp
     from backend.services import pipeline_status
 
     runtime_dir = tmp_path / "runtime"
-    monkeypatch.setenv("STATE_BACKEND", "file")
     monkeypatch.setenv("STATE_DIR", str(runtime_dir))
 
     pipeline_status.set_next_run("2026-05-03T08:00:00+00:00")
@@ -427,7 +424,6 @@ def test_active_lock_recovers_status_reset_to_idle(monkeypatch, tmp_path):
     from backend.services import pipeline_status
 
     runtime_dir = tmp_path / "runtime"
-    monkeypatch.setenv("STATE_BACKEND", "file")
     monkeypatch.setenv("STATE_DIR", str(runtime_dir))
     pipeline_status.set_status(
         status="idle",
@@ -451,7 +447,6 @@ def test_active_lock_recovers_status_reset_to_idle(monkeypatch, tmp_path):
 def test_pipeline_status_file_backend_lock_is_shared(monkeypatch, tmp_path):
     from backend.services import pipeline_status
 
-    monkeypatch.setenv("STATE_BACKEND", "file")
     monkeypatch.setenv("STATE_DIR", str(tmp_path / "runtime"))
     pipeline_status.set_status(status="idle")
 
@@ -471,7 +466,6 @@ def test_pipeline_status_file_backend_lock_is_shared(monkeypatch, tmp_path):
 def test_liveness_reconciliation_preserves_a_live_owned_process(monkeypatch, tmp_path):
     from backend.services import pipeline_status
 
-    monkeypatch.setenv("STATE_BACKEND", "file")
     monkeypatch.setenv("STATE_DIR", str(tmp_path / "runtime"))
     token = pipeline_status.acquire_run_lock(ttl_seconds=300)
     pipeline_status.set_status(
@@ -492,7 +486,6 @@ def test_liveness_reconciliation_fails_a_dead_owned_process(monkeypatch, tmp_pat
     from backend.services import pipeline_status
     from backend.services.pipeline_state_store import get_pipeline_state_store
 
-    monkeypatch.setenv("STATE_BACKEND", "file")
     monkeypatch.setenv("STATE_DIR", str(tmp_path / "runtime"))
     store = get_pipeline_state_store()
     assert store.acquire_lock(
@@ -526,7 +519,6 @@ def test_liveness_reconciliation_recovers_a_stale_legacy_lease(monkeypatch, tmp_
 
     runtime_dir = tmp_path / "runtime"
     runtime_dir.mkdir()
-    monkeypatch.setenv("STATE_BACKEND", "file")
     monkeypatch.setenv("STATE_DIR", str(runtime_dir))
     stale_heartbeat = datetime.now(timezone.utc) - timedelta(minutes=10)
     (runtime_dir / "pipeline_lock.json").write_text(json.dumps({
@@ -547,16 +539,6 @@ def test_liveness_reconciliation_recovers_a_stale_legacy_lease(monkeypatch, tmp_
     ) is True
     assert pipeline_status.get_status()["status"] == "failed"
     assert get_pipeline_state_store().read_lock() == {}
-
-
-def test_pipeline_state_store_defaults_to_file_backend(monkeypatch):
-    from backend.services import pipeline_state_store
-
-    monkeypatch.delenv("STATE_BACKEND", raising=False)
-    monkeypatch.delenv("STATE_REDIS_URL", raising=False)
-    monkeypatch.delenv("RATELIMIT_STORAGE_URI", raising=False)
-
-    assert pipeline_state_store._resolve_backend_name() == "file"
 
 
 def test_navbar_renders_next_run_metadata(client, monkeypatch):

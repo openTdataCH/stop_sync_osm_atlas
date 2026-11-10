@@ -189,11 +189,10 @@ def test_progress_delivery_never_masks_work_outcome():
 
 
 def test_completed_run_updates_already_exported_stats(monkeypatch):
-    from backend.services import data_meta, pipeline_status, stats_export
-    from backend.services.pipeline_state_store import MemoryPipelineStateStore
+    from backend.services import data_meta, stats_export
+    from backend.services.pipeline_state_store import get_pipeline_state_store
 
-    store = MemoryPipelineStateStore()
-    monkeypatch.setattr(pipeline_status, 'get_pipeline_state_store', lambda: store)
+    store = get_pipeline_state_store()
     monkeypatch.setenv('PIPELINE_BUNDLE', '/test-bundle')
     def imported(*args, **kwargs):
         manifest = dict(run_id='published', schema_version=1, metadata={'acquisition': {
@@ -213,12 +212,10 @@ def test_completed_run_updates_already_exported_stats(monkeypatch):
 
 
 def test_runner_reports_published_dataset_with_analytics_warning(monkeypatch):
-    from backend.services import pipeline_status
-    from backend.services.pipeline_state_store import MemoryPipelineStateStore
+    from backend.services.pipeline_state_store import get_pipeline_state_store
     from backend.importing.importer import PublishedDatasetError
 
-    store = MemoryPipelineStateStore()
-    monkeypatch.setattr(pipeline_status, 'get_pipeline_state_store', lambda: store)
+    store = get_pipeline_state_store()
     monkeypatch.setenv('PIPELINE_BUNDLE', '/unused-test-bundle')
     monkeypatch.setattr(job_runner, '_record_data_updated_timestamp', lambda *args: None)
     monkeypatch.setattr(job_runner.data_meta, 'update_data_meta', lambda **kw: None)
@@ -242,11 +239,9 @@ def test_runner_reports_published_dataset_with_analytics_warning(monkeypatch):
 
 
 def test_runner_reports_engine_input_warnings(monkeypatch):
-    from backend.services import pipeline_status
-    from backend.services.pipeline_state_store import MemoryPipelineStateStore
+    from backend.services.pipeline_state_store import get_pipeline_state_store
 
-    store = MemoryPipelineStateStore()
-    monkeypatch.setattr(pipeline_status, 'get_pipeline_state_store', lambda: store)
+    store = get_pipeline_state_store()
     monkeypatch.setenv('PIPELINE_BUNDLE', '/unused-test-bundle')
     monkeypatch.setattr(job_runner, '_record_data_updated_timestamp', lambda *args: None)
     monkeypatch.setattr(job_runner.data_meta, 'update_data_meta', lambda **kw: None)
@@ -262,11 +257,9 @@ def test_runner_reports_engine_input_warnings(monkeypatch):
 
 @pytest.mark.parametrize('mode', ['match-import', 'import'])
 def test_reused_run_modes_keep_input_loading_separate(monkeypatch, mode):
-    from backend.services import pipeline_status
-    from backend.services.pipeline_state_store import MemoryPipelineStateStore
+    from backend.services.pipeline_state_store import get_pipeline_state_store
 
-    store = MemoryPipelineStateStore()
-    monkeypatch.setattr(pipeline_status, 'get_pipeline_state_store', lambda: store)
+    store = get_pipeline_state_store()
     monkeypatch.setenv('PIPELINE_BUNDLE', '/unused-test-bundle')
     monkeypatch.setattr(job_runner, '_record_data_updated_timestamp', lambda *args: None)
     monkeypatch.setattr(job_runner.data_meta, 'update_data_meta', lambda **kw: None)

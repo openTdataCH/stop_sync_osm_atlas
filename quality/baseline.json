@@ -23,7 +23,6 @@
     "app:backend/importing/progress.py",
     "app:backend/importing/projection.py",
     "app:backend/importing/publication.py",
-    "app:backend/importing/reset_import_db.py",
     "app:backend/importing/session.py",
     "app:backend/importing/timing.py",
     "app:backend/jobs/__init__.py",
@@ -48,6 +47,7 @@
     "app:backend/services/docs_stats.py",
     "app:backend/services/global_stats.py",
     "app:backend/services/gtfs_stop_id_sloid.py",
+    "app:backend/services/json_files.py",
     "app:backend/services/matching_rules.py",
     "app:backend/services/operator_coverage.py",
     "app:backend/services/pipeline_progress.py",
@@ -60,7 +60,6 @@
     "app:backend/services/route_listing.py",
     "app:backend/services/site_url.py",
     "app:backend/services/source_config.py",
-    "app:backend/services/state_backend_config.py",
     "app:backend/services/stats_export.py",
     "app:backend/services/stop_lookup.py",
     "app:backend/services/time_utils.py",
@@ -400,38 +399,6 @@
     },
     {
       "files": [
-        "app:backend/services/async_export_state_store.py",
-        "app:backend/services/pipeline_state_store.py"
-      ],
-      "fingerprint": "b46c39bacf610efff0b686c6f7d52a5fdcff2449051438e423e675f403c7dee8",
-      "fragment": "def _atomic_write_json(path: str, payload: Dict[str, Any]) -> None:\n    _ensure_parent_dir(path)\n    parent = os.path.dirname(path) or \".\"\n    with tempfile.NamedTemporaryFile(\"w\", encoding=\"utf-8\", dir=parent, delete=False) as handle:\n        json.dump(payload, handle)\n        handle.flush()\n        os.fsync(handle.fileno())\n        temp_path = handle.name\n    os.replace(temp_path, path)\n\n\ndef _normalize_mapping",
-      "id": "99909104a07ed74050d0b324a4314503b3abb8f89af2c2b97273df2564406840",
-      "kind": "clone",
-      "lines": 12,
-      "locations": [
-        {
-          "end": 54,
-          "end_column": 23,
-          "file": "app:backend/services/async_export_state_store.py",
-          "start": 43,
-          "start_column": 1
-        },
-        {
-          "end": 57,
-          "end_column": 18,
-          "file": "app:backend/services/pipeline_state_store.py",
-          "start": 46,
-          "start_column": 1
-        }
-      ],
-      "modules": [
-        "app.pipeline-orchestration",
-        "app.query-api"
-      ],
-      "occurrence": 1
-    },
-    {
-      "files": [
         "app:templates/reports/report.html",
         "app:templates/reports/report.html"
       ],
@@ -526,38 +493,6 @@
     },
     {
       "files": [
-        "app:backend/services/async_export_state_store.py",
-        "app:backend/services/pipeline_state_store.py"
-      ],
-      "fingerprint": "dd2a935585f5a580de2c2b0bcb0d69834fdf11eef8c2ee9b2f0198c45ef07b53",
-      "fragment": ")\n\n    @contextmanager\n    def _guard_lock(self) -> Iterator[None]:\n        import fcntl\n\n        _ensure_parent_dir(self._guard_path)\n        with open(self._guard_path, \"a+\", encoding=\"utf-8\") as handle:\n            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)\n            try:\n                yield\n            finally:\n                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)\n\n    def read_progress",
-      "id": "c0aa7a656b34f0dd266e389059d50b0fd2a80f3819d1a1dc2e7120d3bc2c062a",
-      "kind": "clone",
-      "lines": 15,
-      "locations": [
-        {
-          "end": 225,
-          "end_column": 22,
-          "file": "app:backend/services/async_export_state_store.py",
-          "start": 211,
-          "start_column": 65
-        },
-        {
-          "end": 229,
-          "end_column": 20,
-          "file": "app:backend/services/pipeline_state_store.py",
-          "start": 215,
-          "start_column": 75
-        }
-      ],
-      "modules": [
-        "app.pipeline-orchestration",
-        "app.query-api"
-      ],
-      "occurrence": 1
-    },
-    {
-      "files": [
         "app:backend/importing/bundle.py",
         "engine:src/osm_public_transport_matcher/results/validation.py"
       ],
@@ -625,24 +560,24 @@
         "app:backend/blueprints/problems.py",
         "app:backend/blueprints/problems.py"
       ],
-      "fingerprint": "d557c1d3470186814034fdd83e9825d22e51713539c5ad6b35d04d59819f7864",
-      "fragment": "= key\n                member_payloads = []\n                centroid_lat = []\n                centroid_lon = []\n                priorities = []\n                for pr in members.values():\n                    st = pr.stop\n                    formatted = format_stop_data(\n                        st,\n                        problem_type='duplicates',\n                        include_routes=include_routes,\n                        atlas_routes=atlas_routes_by_sloid.get(str(st.sloid), []),\n                        osm_routes=osm_routes_by_node_id.get(str(st.osm_node_id), []),\n                    )\n                    formatted.update({\n                        'priority': pr.priority,\n                        'solution': '',\n                        'is_persistent': False,\n                        'stop_id': st.id\n                    })\n                    member_payloads.append(formatted)\n                    if st.atlas_lat",
-      "id": "fca03fb9b75a4cfd6ecddd78eb5c7da5e9e24a46f577a698b330abce7d77dde0",
+      "fingerprint": "9637fe40c826021af9a2f3ee086eb83406c90173964bf925556e6bbf824f68b8",
+      "fragment": "= key\n                member_payloads = []\n                centroid_lat = []\n                centroid_lon = []\n                priorities = []\n                for pr in members.values():\n                    st = pr.stop\n                    formatted = format_stop_data(\n                        st,\n                        problem_type='duplicates',\n                        include_routes=include_routes,\n                        atlas_routes=atlas_routes_by_sloid.get(str(st.sloid), []),\n                        osm_routes=osm_routes_by_node_id.get(str(st.osm_node_id), []),\n                    )\n                    formatted.update({\n                        'priority': pr.priority,\n                        'stop_id': st.id\n                    })\n                    member_payloads.append(formatted)\n                    if st.atlas_lat",
+      "id": "410d34c41ca0f7b5d1d54a03aac0b814ae238ba955abd9ee6eef902b23ecf3a7",
       "kind": "clone",
-      "lines": 22,
+      "lines": 20,
       "locations": [
         {
-          "end": 365,
+          "end": 364,
           "end_column": 36,
           "file": "app:backend/blueprints/problems.py",
-          "start": 344,
+          "start": 345,
           "start_column": 43
         },
         {
-          "end": 304,
+          "end": 305,
           "end_column": 34,
           "file": "app:backend/blueprints/problems.py",
-          "start": 283,
+          "start": 286,
           "start_column": 36
         }
       ],

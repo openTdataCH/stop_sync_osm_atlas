@@ -278,7 +278,7 @@ def build_fast_insert_payloads(
             'osm_railway': node.railway,
             'osm_amenity': node.amenity,
             'osm_aerialway': node.aerialway,
-            'osm_node_type': get_osm_node_type(node.tags, is_osm_unmatched=True) if node.tags else None,
+            'osm_node_type': get_osm_node_type(node.tags) if node.tags else None,
             'duplicate_group_node_ids': problem_ctx.duplicate_osm_group_map.get(str(node.node_id)),
             'osm_lifecycle': getattr(node, 'lifecycle', None),
             'osm_tags': node.tags or None,
@@ -342,7 +342,6 @@ def build_fast_insert_payloads(
             'osm_lat': osm_lat,
             'osm_lon': osm_lon,
             'distance_m': distance_m,
-            'matching_notes': current_match.notes,
             'geom': geom_wkt,
         })
 
@@ -401,7 +400,6 @@ def build_fast_insert_payloads(
             'osm_lat': None,
             'osm_lon': None,
             'distance_m': None,
-            'matching_notes': None,
             'geom': geom_wkt,
         })
 
@@ -459,7 +457,6 @@ def build_fast_insert_payloads(
             'osm_lat': osm_lat,
             'osm_lon': osm_lon,
             'distance_m': None,
-            'matching_notes': None,
             'geom': geom_wkt,
         })
 
@@ -705,22 +702,6 @@ def import_to_database(
     session.close()
     return db_payloads.get('no_nearby_osm_sloids', set())
 
-
-def _print_problem_summary(session):
-    ps = compute_db_stats(session)
-    print("\n==== PROBLEM DETECTION SUMMARY ====")
-    print(f"Total stops imported: {ps['total_stops']}")
-    print(f"Distance problems: {ps['distance']}")
-    print(f"Unmatched problems: {ps['unmatched']}")
-    print(f"Attributes problems: {ps['attributes']}")
-    print(f"Duplicates problems: {ps['duplicates']}")
-    print(f"Entries with multiple problems: {ps['multiple_problems']}")
-    print(f"Clean entries (no problems): {ps['clean_entries']}")
-
-
-def print_problem_summary():
-    """Print database problem summary, typically after blocking maintenance ends."""
-    _print_problem_summary(session)
 
 # --------------------------
 # Data Import Function

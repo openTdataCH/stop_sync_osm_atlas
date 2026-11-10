@@ -91,52 +91,14 @@
     };
 
     /**
-     * Setup CSRF token for AJAX requests
-     * Should be called once on page load
-     */
-    SharedUtils.setupCSRFToken = function() {
-        const csrfToken = (document.cookie.match(/\bcsrf_token=([^;]+)/) || [])[1];
-        if (!csrfToken) return;
-
-        if (global.$ && typeof global.$.ajaxSetup === 'function') {
-            global.$.ajaxSetup({
-                headers: {
-                    'X-CSRFToken': csrfToken
-                }
-            });
-        }
-    };
-
-    /**
-     * Build a clear error message based on HTTP status and response body
+     * The server's error message from a failed request, or the fallback
      * @param {object} xhr - jQuery XHR object
-     * @param {string} fallbackMessage - Default message if no specific error is found
-     * @param {string} context - Context of the error: 'persist', 'bulk', 'owner', etc.
+     * @param {string} fallbackMessage - Message used when the response carries none
      * @returns {string} Error message
      */
-    SharedUtils.buildErrorMessage = function(xhr, fallbackMessage, context) {
-        try {
-            const status = xhr && xhr.status;
-            const body = (xhr && xhr.responseJSON) ? xhr.responseJSON : null;
-            const serverMsg = body && (body.error || body.message);
-            
-            if (status === 401) {
-                if (context === 'persist') return 'Please log in to make data persistent.';
-                if (context === 'bulk') return 'Please log in to perform this action.';
-                return 'Please log in to continue.';
-            }
-            
-            if (status === 403) {
-                if (context === 'owner') return 'Not authorized: only the author or an admin can modify or delete this item.';
-                if (context === 'bulk') return 'Not authorized: only admins can perform this action.';
-                if (context === 'persist') return 'Not authorized: only the author or an admin can update existing persistent items.';
-                return 'Not authorized to perform this action.';
-            }
-            
-            return serverMsg || fallbackMessage;
-        } catch (e) {
-            return fallbackMessage;
-        }
+    SharedUtils.buildErrorMessage = function(xhr, fallbackMessage) {
+        const body = (xhr && xhr.responseJSON) ? xhr.responseJSON : null;
+        return (body && (body.error || body.message)) || fallbackMessage;
     };
 
     // Export to global scope

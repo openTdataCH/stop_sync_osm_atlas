@@ -14,7 +14,6 @@ def test_compute_db_stats_includes_contradicts_route_matching(sqlite_tables):
         osm_lat=47.0001,
         osm_lon=8.0001,
         distance_m=8.0,
-        matching_notes='test',
     )
     session.add(stop)
     session.flush()
