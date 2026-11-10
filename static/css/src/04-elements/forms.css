@@ -50,13 +50,6 @@
   border-radius: var(--radius-sm);
 }
 
-/* Large form control */
-.form-control-lg {
-  height: var(--input-height-lg);
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--text-lg);
-}
-
 /* -------------------------------------------------------------------------
    Textarea
    ------------------------------------------------------------------------- */
@@ -159,10 +152,6 @@ select.form-control {
   margin-right: var(--space-4);
 }
 
-.form-row .col .form-check-inline {
-  width: 100%;
-}
-
 /* -------------------------------------------------------------------------
    Input Group
    ------------------------------------------------------------------------- */
@@ -208,81 +197,3 @@ select.form-control {
 .form-group {
   margin-bottom: var(--space-4);
 }
-
-/* -------------------------------------------------------------------------
-   Custom Control (Bootstrap compatibility)
-   ------------------------------------------------------------------------- */
-.custom-control {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-height: 1.5rem;
-  padding-left: 1.5rem;
-}
-
-.custom-control-input {
-  position: absolute;
-  left: 0;
-  z-index: -1;
-  width: 1rem;
-  height: 1.25rem;
-  opacity: 0;
-}
-
-.custom-control-label {
-  position: relative;
-  margin-bottom: 0;
-  vertical-align: top;
-  cursor: pointer;
-}
-
-.custom-control-label::before {
-  position: absolute;
-  top: 0.125rem;
-  left: -1.5rem;
-  display: block;
-  width: 1rem;
-  height: 1rem;
-  pointer-events: none;
-  content: "";
-  background-color: var(--color-bg);
-  border: var(--border-width) solid var(--color-border-emphasis);
-  border-radius: var(--radius-sm);
-  transition: 
-    background-color var(--transition-fast),
-    border-color var(--transition-fast);
-}
-
-.custom-control-input:checked ~ .custom-control-label::before {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-}
-
-.custom-switch {
-  padding-left: 2.25rem;
-}
-
-.custom-switch .custom-control-label::before {
-  width: 1.75rem;
-  border-radius: var(--radius-full);
-  left: -2.25rem;
-}
-
-.custom-switch .custom-control-label::after {
-  position: absolute;
-  top: 0.25rem;
-  left: calc(-2.25rem + 2px);
-  width: 0.75rem;
-  height: 0.75rem;
-  content: "";
-  background-color: var(--color-fg-subtle);
-  border-radius: var(--radius-full);
-  transition: transform var(--transition-fast);
-}
-
-.custom-switch .custom-control-input:checked ~ .custom-control-label::after {
-  transform: translateX(0.75rem);
-  background-color: var(--color-bg);
-}
-
-

@@ -144,22 +144,7 @@ describe('Index map adapter', () => {
             }
         };
         window.HeaderSummary = { bind: jest.fn() };
-        window.MobileFilters = {
-            isMobileViewport: jest.fn(() => false),
-            bind: jest.fn()
-        };
-
-        const jqueryResult = {
-            ready: jest.fn(),
-            on: jest.fn(),
-            each: jest.fn(),
-            empty: jest.fn(),
-            html: jest.fn(),
-            length: 0
-        };
-        const jquery = jest.fn(() => jqueryResult);
-        jquery.getJSON = jest.fn();
-        window.$ = global.$ = jquery;
+        window.MobileFilters = { bind: jest.fn() };
 
         loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
         loadBrowserScript(SCRIPT_PATH);
@@ -329,33 +314,22 @@ describe('Index map adapter', () => {
         });
     });
 
-    test('aborts Top N work and rejects a late response after leaving Top N mode', () => {
-        let successCallback;
-        let failureCallback;
-        let alwaysCallback;
-        const request = {
-            readyState: 1,
-            abort: jest.fn(function () { request.readyState = 0; }),
-            fail: jest.fn(function (callback) {
-                failureCallback = callback;
-                return request;
-            }),
-            always: jest.fn(function (callback) {
-                alwaysCallback = callback;
-                return request;
-            })
-        };
-        $.getJSON.mockImplementation((_url, _params, callback) => {
-            successCallback = callback;
-            return request;
+    test('aborts Top N work and rejects a late response after leaving Top N mode', async () => {
+        let respond;
+        let signal;
+        window.fetch = global.fetch = jest.fn((_url, init) => {
+            signal = init.signal;
+            return new Promise(resolve => { respond = resolve; });
         });
         activeFilters.topN = 10;
         activeFilters.stopType = ['matched'];
 
         window.loadTopNMatches();
+        expect(fetch.mock.calls[0][0]).toMatch(/^\/api\/top_matches\?/);
         activeFilters.topN = null;
         window.loadDataForViewport();
-        successCallback([{
+        expect(signal.aborted).toBe(true);
+        respond({ ok: true, json: () => Promise.resolve([{
             id: 'late',
             sloid: 'late-sloid',
             osm_node_id: 'late-osm',
@@ -364,12 +338,10 @@ describe('Index map adapter', () => {
             atlas_lon: 7.5,
             osm_lat: 46.6,
             osm_lon: 7.6
-        }]);
+        }]) });
+        await new Promise(resolve => setTimeout(resolve, 0));
 
-        expect(request.abort).toHaveBeenCalledTimes(1);
         expect(window.MapRenderer.renderEntities).not.toHaveBeenCalled();
-        expect(failureCallback).toEqual(expect.any(Function));
-        expect(alwaysCallback).toEqual(expect.any(Function));
         activeFilters.stopType = [];
     });
 });

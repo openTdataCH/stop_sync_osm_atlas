@@ -6,7 +6,6 @@ const STATIC = path.join(__dirname, '../../static/js');
 // tests/test_docs_rendering.py checks that every linked section exists.
 describe('Links to the docs section explaining what is shown', () => {
   beforeAll(() => {
-    loadBrowserScript(path.join(STATIC, 'shared/jquery-lite.js'));
     loadBrowserScript(path.join(STATIC, 'components/popup-utils.js'));
     loadBrowserScript(path.join(STATIC, 'components/popup-renderer.js'));
     loadBrowserScript(path.join(STATIC, 'pages/problems-ui.js'));

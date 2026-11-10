@@ -270,10 +270,7 @@
             reload: reload,
             invalidate: invalidate,
             pause: pause,
-            destroy: destroy,
-            getCache: function () { return cacheEntry; },
-            isLoading: function () { return !!activeRequest; },
-            isPaused: function () { return pauseCount > 0; }
+            destroy: destroy
         };
     }
 

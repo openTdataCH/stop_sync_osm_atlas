@@ -13,21 +13,6 @@
 <!-- Mermaid.js for diagrams -->
 <script src="{{ url_for('static', filename='vendor/mermaid/mermaid.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/shared/mermaid-config.js') }}"></script>
-<!-- MathJax for LaTeX -->
-<script>
-  window.MathJax = {
-    tex: {
-      inlineMath: [['$', '$'], ['\\(', '\\)']],
-      displayMath: [['$$', '$$'], ['\\[', '\\]']],
-      processEscapes: true
-    },
-    options: {
-      ignoreHtmlClass: 'tex2jax_ignore',
-      processHtmlClass: 'tex2jax_process'
-    }
-  };
-</script>
-<script id="MathJax-script" async src="{{ url_for('static', filename='vendor/mathjax/es5/tex-mml-chtml.js') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -214,6 +199,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/pages/report.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/export-progress.js') }}"></script>
 <script src="{{ url_for('static', filename='js/docs/portal.js') }}"></script>
 {% endblock %}

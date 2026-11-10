@@ -2503,13 +2503,6 @@
                 }
                 element('#qualitySummary').innerHTML = summaryHtml(data);
                 element('#qualityChecks').innerHTML = checksHtml(data.report);
-                if (!data.code_map) {
-                    element('#qualityMapSection').hidden = true;
-                    element('#qualityFindingsSection').hidden = true;
-                    element('#qualityBlindSpotsSection').hidden = true;
-                    element('#qualityTable').innerHTML = tableHtml({ data, modules: {} });
-                    return;
-                }
                 context = createContext(data, state);
                 element('#qualityTable').innerHTML = tableHtml(context);
                 element('#qualityFindings').innerHTML = findingsHtml(context);

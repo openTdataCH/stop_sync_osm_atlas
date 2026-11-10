@@ -178,24 +178,20 @@
 {% block scripts %}
 <!-- Shared constants and utilities (must load first) -->
 <script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
-<script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
+<script src="{{ url_for('static', filename='js/components/export-progress.js') }}"></script>
 <script src="{{ url_for('static', filename='js/pages/report.js') }}"></script>
 {% if active_view == 'analytics' and not is_pdf %}
 <script src="{{ url_for('static', filename='js/pages/data-analytics.js') }}"></script>
 {% endif %}
 <script>
-  if (window.initReportGeneration) { window.initReportGeneration(); }
-  
+  initReportGeneration();
+
   // Bind Stats async download
   const btn = document.getElementById('downloadStatsSummaryBtn');
   if (btn) {
     btn.addEventListener('click', function() {
-      if (window.resetProgressOverlay) { window.resetProgressOverlay('Generating Summary PDF'); }
-      document.getElementById('reportLoadingOverlay').style.display = 'flex';
-      if (window.startAsyncReportGeneration) {
-        window.startAsyncReportGeneration({ report_type: 'summary', format: 'pdf' });
-      }
+      startReportExport({ report_type: 'summary', format: 'pdf' }, 'Generating Summary PDF');
     });
   }
 

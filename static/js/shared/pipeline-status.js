@@ -32,15 +32,6 @@
         return Number.isNaN(d.getTime()) ? null : d;
     }
 
-    function formatDuration(totalSeconds) {
-        if (typeof totalSeconds !== 'number' || totalSeconds < 0) return '--';
-        var s = Math.floor(totalSeconds % 60);
-        var m = Math.floor((totalSeconds / 60) % 60);
-        var h = Math.floor(totalSeconds / 3600);
-        if (h > 0) return h + 'h ' + m + 'm';
-        return m + 'm ' + s + 's';
-    }
-
     function formatNextRunTime(value) {
         if (!value) return '';
         return value.toLocaleString([], {
@@ -189,18 +180,18 @@
 
         if (elapsedEl && maintenanceStartedAt) {
             var elapsedSec = Math.max(0, Math.floor((Date.now() - maintenanceStartedAt.getTime()) / 1000));
-            elapsedEl.textContent = formatDuration(elapsedSec);
+            elapsedEl.textContent = SharedUtils.formatDuration(elapsedSec);
         } else if (elapsedEl) {
-            elapsedEl.textContent = '--';
+            elapsedEl.textContent = '—';
         }
 
         if (etaEl) {
             if (typeof latestStatus.eta_seconds === 'number' && maintenanceStartedAt) {
                 var elapsed = Math.max(0, Math.floor((Date.now() - maintenanceStartedAt.getTime()) / 1000));
                 var remaining = Math.max(0, latestStatus.eta_seconds - elapsed);
-                etaEl.textContent = formatDuration(remaining);
+                etaEl.textContent = SharedUtils.formatDuration(remaining);
             } else {
-                etaEl.textContent = '--';
+                etaEl.textContent = '—';
             }
         }
     }
@@ -277,14 +268,9 @@
         var timeout = setTimeout(function () {
             controller.abort();
         }, REQUEST_TIMEOUT_MS);
-        fetch('/api/system/pipeline_status', {
+        SharedUtils.fetchJson('/api/system/pipeline_status', null, {
             cache: 'no-store',
             signal: controller.signal
-        }).then(function (response) {
-            if (!response.ok) {
-                throw new Error('Pipeline status request failed with status ' + response.status);
-            }
-            return response.json();
         }).then(applyStatus, function () {
             // A failed, timed-out or malformed answer keeps the last status until the next poll.
         }).finally(function () {

@@ -447,8 +447,7 @@
             remove: remove,
             invalidate: invalidate,
             destroy: destroy,
-            has: function (marker) { return bindings.has(marker); },
-            isLoading: function (key) { return requests.has(String(key)); }
+            has: function (marker) { return bindings.has(marker); }
         };
     }
 

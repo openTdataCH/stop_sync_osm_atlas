@@ -1,42 +1,33 @@
 const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
-function createRequest() {
-    const callbacks = {
-        done: [],
-        fail: [],
-        always: []
-    };
+// Microtasks only, so it also works under fake timers.
+const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
 
+// A SharedUtils.fetchJson call the test answers; settling waits for the page's callbacks.
+function createRequest(options) {
+    let settle;
+    const promise = new Promise((resolve, reject) => { settle = { resolve, reject }; });
     const request = {
-        readyState: 1,
-        abort: jest.fn(function() {
-            request.readyState = 0;
-        }),
-        done(callback) {
-            callbacks.done.push(callback);
-            return request;
-        },
-        fail(callback) {
-            callbacks.fail.push(callback);
-            return request;
-        },
-        always(callback) {
-            callbacks.always.push(callback);
-            return request;
-        },
+        promise,
+        get aborted() { return !!(options && options.signal && options.signal.aborted); },
         resolve(payload) {
-            request.readyState = 4;
-            callbacks.done.forEach(callback => callback(payload));
-            callbacks.always.forEach(callback => callback());
+            settle.resolve(payload);
+            return flush();
         },
-        reject(textStatus = 'error', errorThrown = 'request failed') {
-            request.readyState = 4;
-            callbacks.fail.forEach(callback => callback(request, textStatus, errorThrown));
-            callbacks.always.forEach(callback => callback());
+        reject(status) {
+            const error = new Error('Request failed with status ' + status);
+            error.status = status;
+            settle.reject(error);
+            return flush();
+        },
+        abortWith() {
+            const error = new Error('The operation was aborted.');
+            error.name = 'AbortError';
+            settle.reject(error);
+            return flush();
         }
     };
-
     return request;
 }
 
@@ -50,6 +41,7 @@ describe('ProblemsMap context loading', () => {
     let mapHandlers;
     let popupController;
     let mapCoreResult;
+    let fetchJson;
 
     beforeEach(() => {
         requests = [];
@@ -166,12 +158,11 @@ describe('ProblemsMap context loading', () => {
             })
         };
 
-        const getJSON = jest.fn(() => {
-            const request = createRequest();
+        fetchJson = jest.spyOn(SharedUtils, 'fetchJson').mockImplementation((_url, _params, options) => {
+            const request = createRequest(options);
             requests.push(request);
-            return request;
+            return request.promise;
         });
-        global.$ = window.$ = { getJSON };
 
         delete window.ProblemsMap;
         delete window.map;
@@ -182,9 +173,10 @@ describe('ProblemsMap context loading', () => {
 
     afterEach(() => {
         jest.useRealTimers();
+        fetchJson.mockRestore();
     });
 
-    test('requests the complete fixed context without a row limit and renders all returned stops', () => {
+    test('requests the complete fixed context without a row limit and renders all returned stops', async () => {
         const problem = {
             id: 'focused',
             sloid: 'focused-sloid',
@@ -201,9 +193,9 @@ describe('ProblemsMap context loading', () => {
 
         ProblemsMap.loadContextData(problem);
 
-        expect($.getJSON).toHaveBeenCalledTimes(1);
-        expect($.getJSON.mock.calls[0][0]).toBe('/api/data');
-        const params = $.getJSON.mock.calls[0][1];
+        expect(fetchJson).toHaveBeenCalledTimes(1);
+        expect(fetchJson.mock.calls[0][0]).toBe('/api/data');
+        const params = fetchJson.mock.calls[0][1];
         expect(params.min_lat).toBeCloseTo(46.51);
         expect(params.max_lat).toBeCloseTo(46.55);
         expect(params.min_lon).toBeCloseTo(6.63);
@@ -211,7 +203,7 @@ describe('ProblemsMap context loading', () => {
         expect(params.zoom).toBe(17);
         expect(params).not.toHaveProperty('limit');
 
-        requests[0].resolve(stops);
+        await requests[0].resolve(stops);
 
         const markerData = MapRenderer.renderEntities.mock.calls[0][0];
         const markerOptions = MapRenderer.renderEntities.mock.calls[0][2];
@@ -229,16 +221,16 @@ describe('ProblemsMap context loading', () => {
         expect(contextLayer.addLayer).toHaveBeenCalledWith(renderedChildLayers[0]);
     });
 
-    test('an empty successful response clears context left by the previous problem', () => {
+    test('an empty successful response clears context left by the previous problem', async () => {
         ProblemsMap.loadContextData({ id: 'problem', atlas_lat: 46.53, atlas_lon: 6.65 });
-        requests[0].resolve([]);
+        await requests[0].resolve([]);
 
         expect(contextLayer.clearLayers).toHaveBeenCalledTimes(1);
         expect(contextLayer.addLayer).not.toHaveBeenCalled();
         expect(MapRenderer.renderEntities).not.toHaveBeenCalled();
     });
 
-    test('only the newest request may replace the displayed context', () => {
+    test('only the newest request may replace the displayed context', async () => {
         const firstProblem = { id: 'first', atlas_lat: 46.53, atlas_lon: 6.65 };
         const secondProblem = { id: 'second', atlas_lat: 47.37, atlas_lon: 8.54 };
         const firstStops = [{ id: 'first-context', sloid: 'first-context', stop_type: 'atlas_unmatched', atlas_lat: 46.54, atlas_lon: 6.66 }];
@@ -247,10 +239,10 @@ describe('ProblemsMap context loading', () => {
         ProblemsMap.loadContextData(firstProblem);
         ProblemsMap.loadContextData(secondProblem);
 
-        expect(requests[0].abort).toHaveBeenCalledTimes(1);
+        expect(requests[0].aborted).toBe(true);
 
-        requests[1].resolve(secondStops);
-        requests[0].resolve(firstStops); // Simulate a transport that still invokes its callback after abort.
+        await requests[1].resolve(secondStops);
+        await requests[0].resolve(firstStops); // Simulate a transport that still invokes its callback after abort.
 
         expect(LineRenderer.drawRelationships).toHaveBeenCalledTimes(1);
         expect(MapRenderer.renderEntities.mock.calls[0][0].map(entity => entity.popupRef.id)).toEqual(secondStops.map(stop => stop.id));
@@ -258,20 +250,20 @@ describe('ProblemsMap context loading', () => {
         expect(contextLayer.addLayer).toHaveBeenCalledTimes(1);
     });
 
-    test('clearing context aborts pending work and prevents it from committing later', () => {
+    test('clearing context aborts pending work and prevents it from committing later', async () => {
         ProblemsMap.loadContextData({ id: 'problem', atlas_lat: 46.53, atlas_lon: 6.65 });
         ProblemsMap.clearContextData();
 
-        expect(requests[0].abort).toHaveBeenCalledTimes(1);
+        expect(requests[0].aborted).toBe(true);
         expect(contextLayer.clearLayers).toHaveBeenCalledTimes(1);
 
-        requests[0].resolve([{ id: 'late', sloid: 'late', stop_type: 'atlas_unmatched', atlas_lat: 46.54, atlas_lon: 6.66 }]);
+        await requests[0].resolve([{ id: 'late', sloid: 'late', stop_type: 'atlas_unmatched', atlas_lat: 46.54, atlas_lon: 6.66 }]);
 
         expect(LineRenderer.drawRelationships).not.toHaveBeenCalled();
         expect(contextLayer.addLayer).not.toHaveBeenCalled();
     });
 
-    test('initializes the shared map core with the problems page layers and controls', () => {
+    test('initializes the shared map core with the problems page layers and controls', async () => {
         const initializedMap = ProblemsMap.initProblemMap();
 
         expect(initializedMap).toBe(problemMap);
@@ -313,7 +305,7 @@ describe('ProblemsMap context loading', () => {
         };
         ProblemsMap.initProblemMap();
         ProblemsMap.loadContextData(currentProblem);
-        requests[0].resolve([{
+        await requests[0].resolve([{
             id: 'context',
             sloid: 'context-sloid',
             stop_type: 'atlas_unmatched',
@@ -371,7 +363,7 @@ describe('ProblemsMap context loading', () => {
 
         ProblemsMap.initProblemMap();
         ProblemsMap.loadContextData(currentProblem);
-        requests[0].resolve([{
+        await requests[0].resolve([{
             id: 'context',
             sloid: 'context-sloid',
             stop_type: 'atlas_unmatched',
@@ -400,7 +392,7 @@ describe('ProblemsMap context loading', () => {
         });
 
         ProblemsMap.loadContextData({ id: 'focused', atlas_lat: 46.53, atlas_lon: 6.65 });
-        requests[0].resolve([{
+        await requests[0].resolve([{
             id: 'context-id',
             sloid: 'context-sloid',
             stop_type: 'matched',
@@ -415,11 +407,11 @@ describe('ProblemsMap context loading', () => {
         }));
         const binding = popupController.attach.mock.calls[0][1];
         const popupRequest = binding.load({ signal: undefined });
-        expect($.getJSON).toHaveBeenLastCalledWith('/api/stop_popup', {
+        expect(fetchJson).toHaveBeenLastCalledWith('/api/stop_popup', {
             stop_id: 'context-id',
             view_type: 'atlas'
-        });
-        requests[1].resolve({ stop: { id: 'context-id', stop_type: 'matched' } });
+        }, { signal: undefined });
+        await requests[1].resolve({ stop: { id: 'context-id', stop_type: 'matched' } });
         await expect(popupRequest).resolves.toEqual({ stop: { id: 'context-id', stop_type: 'matched' } });
         expect(binding.render({ stop: { id: 'context-id', stop_type: 'matched' } })).toBe('popup html');
         expect(PopupRenderer.generatePopupHtml).toHaveBeenCalledWith(
@@ -435,7 +427,7 @@ describe('ProblemsMap context loading', () => {
     test('nearby stops are loaded for a box around every stop of the problem', () => {
         ProblemsMap.loadContextData({ id: 'pair', atlas_lat: 46.53, atlas_lon: 6.65, osm_lat: 46.54, osm_lon: 6.62 });
 
-        const params = $.getJSON.mock.calls[0][1];
+        const params = fetchJson.mock.calls[0][1];
         expect(params.min_lat).toBeCloseTo(46.51);
         expect(params.max_lat).toBeCloseTo(46.56);
         expect(params.min_lon).toBeCloseTo(6.60);
@@ -500,14 +492,13 @@ describe('ProblemsMap context loading', () => {
             currentProblem = problem;
         });
 
-        function failWith(request, status, textStatus) {
-            request.status = status;
-            request.reject(textStatus || 'error');
+        function failWith(request, status) {
+            return request.reject(status);
         }
 
-        test('a rate-limited request says so on the map, and Retry loads the current problem again', () => {
+        test('a rate-limited request says so on the map, and Retry loads the current problem again', async () => {
             ProblemsMap.loadContextData(problem);
-            failWith(requests[0], 429);
+            await failWith(requests[0], 429);
 
             expect(banner.classList.contains('d-none')).toBe(false);
             expect(bannerText.textContent).toMatch(/too many requests/);
@@ -516,32 +507,32 @@ describe('ProblemsMap context loading', () => {
             retry.click();
 
             expect(requests).toHaveLength(2);
-            expect($.getJSON.mock.calls[1][1].min_lat).toBeCloseTo(46.51);
+            expect(fetchJson.mock.calls[1][1].min_lat).toBeCloseTo(46.51);
             expect(banner.classList.contains('d-none')).toBe(true);
 
-            requests[1].resolve([]);
+            await requests[1].resolve([]);
             expect(banner.classList.contains('d-none')).toBe(true);
         });
 
-        test('any other failure, or an unexpected answer, says nearby stops could not be loaded', () => {
+        test('any other failure, or an unexpected answer, says nearby stops could not be loaded', async () => {
             ProblemsMap.loadContextData(problem);
-            failWith(requests[0], 500);
+            await failWith(requests[0], 500);
             expect(bannerText.textContent).toBe('Nearby stops could not be loaded.');
 
             ProblemsMap.loadContextData(problem);
-            requests[1].resolve({ unexpected: true });
+            await requests[1].resolve({ unexpected: true });
             expect(banner.classList.contains('d-none')).toBe(false);
             expect(bannerText.textContent).toBe('Nearby stops could not be loaded.');
         });
 
-        test('aborted or superseded requests show nothing, and hiding nearby stops removes the message', () => {
+        test('aborted or superseded requests show nothing, and hiding nearby stops removes the message', async () => {
             ProblemsMap.loadContextData(problem);
             ProblemsMap.loadContextData(problem);
-            failWith(requests[0], 0, 'abort');
-            failWith(requests[0], 429); // A late failure of the replaced request.
+            await requests[0].abortWith();
+            await failWith(requests[0], 429); // A late failure of the replaced request.
             expect(banner.classList.contains('d-none')).toBe(true);
 
-            failWith(requests[1], 429);
+            await failWith(requests[1], 429);
             expect(banner.classList.contains('d-none')).toBe(false);
 
             ProblemsMap.clearContextData();

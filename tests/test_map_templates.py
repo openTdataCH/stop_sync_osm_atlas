@@ -4,7 +4,6 @@ import pytest
 COMMON_MAP_SCRIPTS = [
     "vendor/leaflet/leaflet.js",
     "js/shared/constants.js",
-    "js/shared/utils.js",
     "js/components/mobile-filters.js",
     "js/components/header-summary.js",
     "js/components/map-shared.js",
@@ -27,6 +26,9 @@ def test_primary_maps_load_the_shared_asset_sequence_once(client, path):
     html = response.get_data(as_text=True)
 
     assert response.status_code == 200
+    # The base layout loads the shared helpers for every page, before the map's scripts.
+    assert html.count("js/shared/utils.js") == 1
+    assert html.index("js/shared/utils.js") < html.index(COMMON_MAP_SCRIPTS[0])
     positions = []
     for script in COMMON_MAP_SCRIPTS:
         assert html.count(script) == 1

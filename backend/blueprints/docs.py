@@ -1166,16 +1166,6 @@ def _convert_markdown_to_html(
     if mistune is None:
         return '<p>Markdown renderer not available. Please install dependencies.</p>'
 
-    # Protect LaTeX backslashes from mistune's escape processing
-    # inside $$ ... $$ and $ ... $ blocks.
-    def _protect_math(match):
-        return match.group(0).replace('\\', '\\\\')
-    
-    markdown_text = re.sub(r'\$\$.*?\$\$', _protect_math, markdown_text, flags=re.DOTALL)
-    # Inline math protection: $ followed by non-space, ending with non-space before $, 
-    # and not preceded or followed by other dollars. Supports single char like $B$.
-    markdown_text = re.sub(r'(?<!\$)\$[^\s$](?:.*?[^\s$])?\$(?!\$)', _protect_math, markdown_text)
-
     # A single newline is a space, as on GitHub and in the PDF, so wrapped
     # source lines do not break sentences.
     md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table'])

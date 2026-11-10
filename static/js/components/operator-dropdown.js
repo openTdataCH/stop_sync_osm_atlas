@@ -1,7 +1,7 @@
 // Operator Dropdown Component (moved to components)
 class OperatorDropdown {
     constructor(container, options = {}) {
-        this.container = $(container);
+        this.container = typeof container === 'string' ? document.querySelector(container) : container;
         this.options = {
             placeholder: 'Select operators...',
             multiple: true,
@@ -14,8 +14,8 @@ class OperatorDropdown {
         this.operators = [];
         this.selectedOperators = [];
         this.isOpen = false;
-        this.eventNamespace = '.operatorDropdown-' + Math.random().toString(36).slice(2, 9);
-        this.boundDocumentClick = null;
+        // Aborting it removes every listener the dropdown added.
+        this.listeners = new AbortController();
         this.init();
     }
     init() { this.createHTML(); this.bindEvents(); this.loadOperators(); }
@@ -31,64 +31,62 @@ class OperatorDropdown {
                     <div class="operator-dropdown-items"></div>
                 </div>
             </div>`;
-        this.container.html(html);
-        this.button = this.container.find('.operator-dropdown-button');
-        this.menu = this.container.find('.operator-dropdown-menu');
-        this.searchInput = this.container.find('.operator-dropdown-search');
-        this.itemsContainer = this.container.find('.operator-dropdown-items');
-        this.clearOption = this.container.find('.operator-dropdown-clear');
+        this.container.innerHTML = html;
+        this.button = this.container.querySelector('.operator-dropdown-button');
+        this.menu = this.container.querySelector('.operator-dropdown-menu');
+        this.searchInput = this.container.querySelector('.operator-dropdown-search');
+        this.itemsContainer = this.container.querySelector('.operator-dropdown-items');
+        this.clearOption = this.container.querySelector('.operator-dropdown-clear');
     }
     bindEvents() {
-        const ns = this.eventNamespace;
-        this.button.on('click' + ns, (e) => { e.preventDefault(); e.stopPropagation(); this.toggle(); });
-        this.searchInput.on('input' + ns, (e) => { this.filterOperators(e.target.value); });
-        this.clearOption.on('click' + ns, (e) => { e.preventDefault(); e.stopPropagation(); this.clearSelection(); });
-        this.boundDocumentClick = (e) => {
-            if (!this.container.is(e.target) && this.container.has(e.target).length === 0) this.close();
-        };
-        $(document).on('click' + ns, this.boundDocumentClick);
-        this.menu.on('click' + ns, (e) => { e.stopPropagation(); });
-        this.searchInput.on('click' + ns, (e) => { e.stopPropagation(); });
+        const opts = { signal: this.listeners.signal };
+        this.button.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.toggle(); }, opts);
+        this.searchInput.addEventListener('input', (e) => { this.filterOperators(e.target.value); }, opts);
+        if (this.clearOption) {
+            this.clearOption.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); this.clearSelection(); }, opts);
+        }
+        document.addEventListener('click', (e) => {
+            if (!this.container.contains(e.target)) this.close();
+        }, opts);
+        this.menu.addEventListener('click', (e) => { e.stopPropagation(); }, opts);
+        this.itemsContainer.addEventListener('click', (e) => {
+            const item = e.target.closest('.operator-dropdown-item');
+            if (!item) return;
+            e.preventDefault();
+            this.toggleOperatorSelection(item.dataset.operator);
+        }, opts);
     }
     async loadOperators() {
         try {
-            const response = await fetch(this.options.apiUrl);
-            const data = await response.json();
-            if (data.error) { console.error('Error loading operators:', data.error); return; }
+            const data = await SharedUtils.fetchJson(this.options.apiUrl);
             this.operators = data.operators || [];
             this.renderOperatorItems();
         } catch (error) { console.error('Failed to load operators:', error); }
     }
     renderOperatorItems() {
-        const itemsHtml = this.operators.map(operator => {
+        this.itemsContainer.innerHTML = this.operators.map(operator => {
             const isSelected = this.selectedOperators.includes(operator);
             return `<div class="operator-dropdown-item ${isSelected ? 'selected' : ''}" data-operator="${this.escapeHtml(operator)}">${this.escapeHtml(operator)}</div>`;
         }).join('');
-        this.itemsContainer.html(itemsHtml);
-        this.itemsContainer.find('.operator-dropdown-item').on('click' + this.eventNamespace, (e) => {
-            e.preventDefault(); e.stopPropagation();
-            const operator = $(e.target).data('operator');
-            this.toggleOperatorSelection(operator);
-        });
     }
+    items() { return Array.from(this.itemsContainer.querySelectorAll('.operator-dropdown-item')); }
     filterOperators(searchTerm) {
         const safeSearchTerm = String(searchTerm || '');
         const lowerSearchTerm = safeSearchTerm.toLowerCase();
-        this.itemsContainer.find('.operator-dropdown-item').each((index, element) => {
-            const $item = $(element);
-            const operator = ($item.data('operator') || '').toLowerCase();
-            if (operator.includes(lowerSearchTerm)) { $item.removeClass('hidden').show(); }
-            else { $item.addClass('hidden').hide(); }
+        let visibleCount = 0;
+        this.items().forEach(item => {
+            const matches = (item.dataset.operator || '').toLowerCase().includes(lowerSearchTerm);
+            item.classList.toggle('hidden', !matches);
+            if (matches) visibleCount++;
         });
-        const visibleItems = this.itemsContainer.find('.operator-dropdown-item:visible');
-        let noResultsMsg = this.itemsContainer.find('.operator-dropdown-no-results');
-        if (visibleItems.length === 0 && safeSearchTerm.trim() !== '') {
-            if (noResultsMsg.length === 0) {
-                noResultsMsg = $('<div class="operator-dropdown-no-results">No operators found</div>');
-                this.itemsContainer.append(noResultsMsg);
+        let noResultsMsg = this.itemsContainer.querySelector('.operator-dropdown-no-results');
+        if (visibleCount === 0 && safeSearchTerm.trim() !== '') {
+            if (!noResultsMsg) {
+                noResultsMsg = SharedUtils.element('div', 'operator-dropdown-no-results', 'No operators found');
+                this.itemsContainer.appendChild(noResultsMsg);
             }
-            noResultsMsg.show();
-        } else { noResultsMsg.hide(); }
+            noResultsMsg.hidden = false;
+        } else if (noResultsMsg) { noResultsMsg.hidden = true; }
     }
     toggleOperatorSelection(operator) {
         if (!this.options.multiple) { this.selectedOperators = [operator]; this.close(); }
@@ -100,43 +98,34 @@ class OperatorDropdown {
         this.updateDisplay(); this.updateItemStates(); this.notifyChange();
     }
     updateDisplay() {
-        const button = this.container.find('.dropdown-text');
-        if (this.selectedOperators.length === 0) { button.text(this.options.placeholder).removeClass('has-selection'); }
-        else if (this.selectedOperators.length === 1) { button.text(this.selectedOperators[0]).addClass('has-selection'); }
-        else { button.text(`${this.selectedOperators.length} operators selected`).addClass('has-selection'); }
+        const text = this.container.querySelector('.dropdown-text');
+        const count = this.selectedOperators.length;
+        text.textContent = count === 0 ? this.options.placeholder
+            : count === 1 ? this.selectedOperators[0]
+                : `${count} operators selected`;
+        text.classList.toggle('has-selection', count > 0);
     }
     updateItemStates() {
-        this.itemsContainer.find('.operator-dropdown-item').each((index, element) => {
-            const $item = $(element);
-            const operator = $item.data('operator');
-            if (this.selectedOperators.includes(operator)) $item.addClass('selected');
-            else $item.removeClass('selected');
+        this.items().forEach(item => {
+            item.classList.toggle('selected', this.selectedOperators.includes(item.dataset.operator));
         });
     }
     clearSelection() { this.selectedOperators = []; this.updateDisplay(); this.updateItemStates(); this.notifyChange(); }
     setSelection(operators) { this.selectedOperators = Array.isArray(operators) ? [...operators] : [operators]; this.updateDisplay(); this.updateItemStates(); }
     getSelection() { return [...this.selectedOperators]; }
     toggle() { this.isOpen ? this.close() : this.open(); }
-    open() { this.menu.addClass('show'); this.button.addClass('active'); this.isOpen = true; setTimeout(() => { this.searchInput.focus().val(''); this.filterOperators(''); }, 50); }
-    close() { this.menu.removeClass('show'); this.button.removeClass('active'); this.isOpen = false; }
-    notifyChange() { if (this.options.onSelectionChange && typeof this.options.onSelectionChange === 'function') { this.options.onSelectionChange(this.getSelection()); } }
+    open() {
+        this.menu.classList.add('show'); this.button.classList.add('active'); this.isOpen = true;
+        setTimeout(() => { this.searchInput.focus(); this.searchInput.value = ''; this.filterOperators(''); }, 50);
+    }
+    close() { this.menu.classList.remove('show'); this.button.classList.remove('active'); this.isOpen = false; }
+    notifyChange() { if (typeof this.options.onSelectionChange === 'function') { this.options.onSelectionChange(this.getSelection()); } }
     getDropdownId() { return `operator-dropdown-${Math.random().toString(36).slice(2, 11)}`; }
     getMenuId() { return `operator-menu-${Math.random().toString(36).slice(2, 11)}`; }
     escapeHtml(text) { return SharedUtils.escapeHtml(text); }
     destroy() {
-        const ns = this.eventNamespace;
-        this.button.off(ns);
-        this.searchInput.off(ns);
-        this.clearOption.off(ns);
-        this.menu.off(ns);
-        this.itemsContainer.off(ns);
-        if (this.boundDocumentClick) {
-            $(document).off('click' + ns, this.boundDocumentClick);
-            this.boundDocumentClick = null;
-        }
-        this.container.empty();
+        this.listeners.abort();
+        this.container.innerHTML = '';
     }
 }
 window.OperatorDropdown = OperatorDropdown;
-
-

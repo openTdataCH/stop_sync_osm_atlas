@@ -36,7 +36,7 @@ test('route previews preserve grouped order, refresh labels at zoom 18, and togg
         </div></details>
         <button class="toggle-context-btn" data-map-index="0"></button>
         <script class="variant-data" data-map-index="0" type="application/json">${JSON.stringify(direction)}</script>`;
-    window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null } };
+    window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null, LABEL_ICON_MIN_ZOOM: 18 } };
     loadRouteMapComponents();
     function layer() {
         return { markers: [], addLayer(value) { this.markers.push(value); }, clearLayers() { this.markers = []; } };
@@ -59,6 +59,7 @@ test('route previews preserve grouped order, refresh labels at zoom 18, and togg
         { id: 2, sloid: 'source:a', atlas_lat: 47.1, atlas_lon: 8.1, stop_type: 'matched' }
     ]) }));
     loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
+    loadBrowserScript(path.join(__dirname, '../../static/js/components/header-summary.js'));
     loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
     document.dispatchEvent(new Event('DOMContentLoaded'));
     const panel = document.querySelector('details');
@@ -96,7 +97,7 @@ test('inline comparisons update only their own map and restore the fixed variant
           <div class="route-card__map-shell"><div id="routeMap${index}" class="route-card__map" data-map-index="${index}"></div></div>
           <script class="variant-data" data-map-index="${index}" type="application/json">${JSON.stringify(direction)}</script>
         </details>`).join('');
-    window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null } };
+    window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null, LABEL_ICON_MIN_ZOOM: 18 } };
     loadRouteMapComponents();
     const layer = () => ({ markers: [], addLayer(value) { this.markers.push(value); }, clearLayers() { this.markers = []; } });
     const maps = [];
@@ -112,6 +113,7 @@ test('inline comparisons update only their own map and restore the fixed variant
         latLngBounds: jest.fn(() => ({ pad() { return this; } }))
     };
     loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
+    loadBrowserScript(path.join(__dirname, '../../static/js/components/header-summary.js'));
     loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
     document.dispatchEvent(new Event('DOMContentLoaded'));
     const panels = [...document.querySelectorAll('details')];
@@ -169,7 +171,7 @@ test('preview maps leave the wheel to the page until clicked and ring the stops 
           <aside class="route-card__map-shell"><div id="routeMap0" class="route-card__map" data-map-index="0"></div></aside>
           <script class="variant-data" data-map-index="0" type="application/json">${JSON.stringify(direction)}</script>
         </details>`;
-    window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null } };
+    window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null, LABEL_ICON_MIN_ZOOM: 18 } };
     loadRouteMapComponents();
     const layer = () => ({ markers: [], addLayer(value) { this.markers.push(value); }, clearLayers() { this.markers = []; } });
     let wheelZoom = false;
@@ -184,6 +186,7 @@ test('preview maps leave the wheel to the page until clicked and ring the stops 
         latLngBounds: jest.fn(points => ({ points, getCenter: () => points[0] }))
     };
     loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
+    loadBrowserScript(path.join(__dirname, '../../static/js/components/header-summary.js'));
     loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
     document.dispatchEvent(new Event('DOMContentLoaded'));
     const panel = document.querySelector('details');
@@ -236,7 +239,7 @@ test('route stops open their popup by source id, keep it open across a redraw an
           </aside>
           <script class="variant-data" data-map-index="0" type="application/json">${JSON.stringify(direction)}</script>
         </details>`;
-    window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null } };
+    window.AppConstants = { MAP: { DEFAULT_CENTER: [0, 0], DEFAULT_ZOOM: 2, MIN_ZOOM: 2, MAX_ZOOM: 20, MAX_BOUNDS: null, LABEL_ICON_MIN_ZOOM: 18 } };
     loadRouteMapComponents();
     ['shared/utils', 'shared/permalinks', 'components/popup-utils', 'components/popup-renderer'].forEach(name => {
         loadBrowserScript(path.join(__dirname, '../../static/js/' + name + '.js'));
@@ -260,6 +263,7 @@ test('route stops open their popup by source id, keep it open across a redraw an
     window.fetch = global.fetch = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ stop: {
         id: 11, sloid: 'ch:1:sloid:7', stop_type: 'atlas_unmatched', atlas_designation_official: 'Uetliberg'
     } }) }));
+    loadBrowserScript(path.join(__dirname, '../../static/js/components/header-summary.js'));
     loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
     document.dispatchEvent(new Event('DOMContentLoaded'));
     const panel = document.querySelector('details');

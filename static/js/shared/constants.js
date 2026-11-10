@@ -58,32 +58,11 @@
      * Data loading and performance limits
      */
     AppConstants.DATA_LOADING = {
-        // If filtered results are <= this count, render markers even below zoom threshold
-        LOW_ZOOM_SMALLSET_LIMIT: 550,
-        
         // Data cap for all zoom levels below the uncapped threshold
         GENERAL_LIMIT: 1800,
         
         // Debounce delay (ms) for map pan/zoom events to prevent excessive API calls
         VIEW_DEBOUNCE_MS: 150
-    };
-
-    // ==========================================
-    // DISTANCE & MATCHING
-    // ==========================================
-    
-    /**
-     * Distance thresholds for stop matching and filtering
-     */
-    AppConstants.DISTANCE = {
-        // Distance in meters to consider stops "nearby"
-        NEARBY_THRESHOLD_METERS: 50,
-        
-        // Maximum distance for distance matching algorithms
-        MAX_MATCHING_DISTANCE: 500,
-        
-        // Default value for "Top N" distance filter
-        TOP_N_DEFAULT: 10
     };
 
     // ==========================================
@@ -118,29 +97,6 @@
     };
 
     /**
-     * Animation and timing constants
-     */
-    AppConstants.TIMING = {
-        // Duration for temporary message display (ms)
-        MESSAGE_DISPLAY_DURATION: 3000,
-        
-        // Longer duration for important messages (ms)
-        MESSAGE_LONG_DURATION: 5000,
-        
-        // Fade in animation duration (ms)
-        FADE_IN_DURATION: 200,
-        
-        // Fade out animation duration (ms)
-        FADE_OUT_DURATION: 500,
-        
-        // Short delay for UI updates (ms)
-        SHORT_DELAY: 50,
-        
-        // Debounce delay for search/filter inputs (ms)
-        DEBOUNCE_DELAY: 300
-    };
-
-    /**
      * Marker clustering and rendering
      */
     AppConstants.MARKERS = {
@@ -161,37 +117,6 @@
         DEFAULT_FILL_OPACITY: 0.5
     };
 
-    /**
-     * Zoom banner styling (used in main.js ensureZoomBannerExists)
-     */
-    AppConstants.ZOOM_BANNER = {
-        TOP_POSITION: '10px',
-        BACKGROUND: 'rgba(0,0,0,0.75)',
-        COLOR: '#fff',
-        PADDING: '8px 12px',
-        BORDER_RADIUS: '6px',
-        FONT_SIZE: '14px',
-        Z_INDEX: '1000'
-    };
-
-    // ==========================================
-    // PAGINATION & DATA LIMITS
-    // ==========================================
-    
-    /**
-     * Pagination settings for data tables and lists
-     */
-    AppConstants.PAGINATION = {
-        // Default number of items per page
-        DEFAULT_PAGE_SIZE: 50,
-        
-        // Maximum items per page
-        MAX_PAGE_SIZE: 500,
-        
-        // Items per page for reports
-        REPORT_PAGE_SIZE: 100
-    };
-
     // ==========================================
     // COLORS & STYLING
     // ==========================================
@@ -200,10 +125,6 @@
      * Standard colors used throughout the application
      */
     AppConstants.COLORS = Object.freeze({
-        // Brand anchors
-        NAVY_PRIMARY: '#174092',
-        NAVY_PRIMARY_HOVER: '#123D90',
-
         // Map semantics
         ATLAS_MATCHED: '#174092',
         OSM_MATCHED: '#4CAF50',
@@ -215,43 +136,10 @@
         LINE_ATLAS_OSM: '#174092',
         LINE_OSM_GROUP: '#4CAF50',
         LINE_OSM_GROUP_DASH: '6,4',
-        LINE_OSM_GROUP_DASH_ALT: '4,4',
         // Route variant maps: a stop the other variant does not share (dashed
         // ring), or shares only as its station at another platform (dashed line).
-        NOT_SHARED: '#D97706',
-        TEMP_MARKER: '#174092',
-
-        // Compatibility aliases for legacy callers
-        MATCHED: '#174092',
-        MATCHED_LIGHT: '#4F8FEF',
-        UNMATCHED: '#DC3545',
-        UNMATCHED_LIGHT: '#FF8A80',
-        OSM_BLUE: '#174092',
-        ATLAS_RED: '#DC3545',
-
-        // Other semantic markers
-        DUPLICATE: '#F0AD4E',
-        DISTANCE_WARNING: '#F0AD4E',
-        OPERATOR_MISMATCH: '#6C757D'
+        NOT_SHARED: '#D97706'
     });
-
-    // ==========================================
-    // API & NETWORKING
-    // ==========================================
-    
-    /**
-     * API request configuration
-     */
-    AppConstants.API = {
-        // Request timeout in milliseconds
-        REQUEST_TIMEOUT: 30000,
-        
-        // Maximum retry attempts
-        MAX_RETRIES: 3,
-        
-        // Delay between retries (ms)
-        RETRY_DELAY: 1000
-    };
 
     // Export to global scope
     global.AppConstants = AppConstants;

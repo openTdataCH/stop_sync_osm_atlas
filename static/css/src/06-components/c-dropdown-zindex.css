@@ -9,7 +9,6 @@
 }
 
 /* Specific dropdown contexts that need higher z-index */
-.filter-panel .dropdown-menu.show,
 .navbar .dropdown-menu.show,
 .modal .dropdown-menu.show {
   z-index: 999999 !important;
@@ -19,11 +18,3 @@
 .operator-dropdown-menu.show {
   z-index: calc(var(--z-dropdown) + 10);
 }
-
-/* Search results dropdown */
-.search-dropdown.show,
-.autocomplete-dropdown.show {
-  z-index: var(--z-popover);
-}
-
-

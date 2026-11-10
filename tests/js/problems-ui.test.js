@@ -55,38 +55,6 @@ describe('ProblemsUI route contradiction rendering', () => {
       <div id="problemPriorityDisplay"></div>
     `;
 
-    const toNodes = target => {
-      if (typeof target === 'string') return Array.from(document.querySelectorAll(target));
-      return target ? [target] : [];
-    };
-    const toDatasetKey = key => key.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-    const miniQuery = target => {
-      const nodes = toNodes(target);
-      const api = {
-        data(key) {
-          return nodes[0] && nodes[0].dataset[toDatasetKey(key)];
-        },
-        removeClass(classNames) {
-          classNames.split(/\s+/).filter(Boolean).forEach(className => {
-            nodes.forEach(node => node.classList.remove(className));
-          });
-          return api;
-        },
-        addClass(classNames) {
-          classNames.split(/\s+/).filter(Boolean).forEach(className => {
-            nodes.forEach(node => node.classList.add(className));
-          });
-          return api;
-        },
-        text(value) {
-          nodes.forEach(node => { node.textContent = value; });
-          return api;
-        }
-      };
-      return api;
-    };
-    window.$ = global.$ = miniQuery;
-
     let observerCallback;
     window.IntersectionObserver = global.IntersectionObserver = jest.fn(function(callback) {
       observerCallback = callback;
@@ -106,14 +74,8 @@ describe('ProblemsUI route contradiction rendering', () => {
       getCurrentEntryProblemIndex: () => state.currentIndex,
       setCurrentEntryProblemIndex: jest.fn(index => { state.currentIndex = index; }),
       setCurrentProblem: jest.fn(),
-      getProblemMap: () => ({ id: 'problem-map' }),
-      getProblemMarkersLayer: () => ({ id: 'markers' }),
-      getProblemLinesLayer: () => ({ id: 'lines' }),
       getShowContext: () => true,
       setObserver: jest.fn()
-    };
-    window.ProblemsRenderer = {
-      drawProblemOnMap: jest.fn()
     };
     window.ProblemsMap = {
       renderProblem: jest.fn(),
@@ -127,7 +89,6 @@ describe('ProblemsUI route contradiction rendering', () => {
     expect(ProblemsState.setCurrentEntryProblemIndex).toHaveBeenCalledWith(1);
     expect(ProblemsState.setCurrentProblem).toHaveBeenCalledWith(problems[1]);
     expect(window.ProblemsMap.renderProblem).toHaveBeenCalledWith(problems[1], { fitView: true });
-    expect(window.ProblemsRenderer.drawProblemOnMap).not.toHaveBeenCalled();
     expect(window.ProblemsMap.loadContextData).toHaveBeenCalledWith(problems[1]);
     expect(secondIssue.classList.contains('active')).toBe(true);
   });

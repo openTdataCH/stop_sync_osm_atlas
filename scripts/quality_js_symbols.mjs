@@ -14,8 +14,6 @@ import * as eslintScope from 'eslint-scope';
 
 // Browser scripts share one global scope, reached directly or through these objects.
 const GLOBAL_OBJECTS = new Set(['window', 'globalThis', 'self', 'global']);
-const JQUERY = new Set(['$', 'jQuery']);
-const JQUERY_REQUESTS = new Set(['ajax', 'get', 'getJSON', 'post']);
 const PLACEHOLDER = '{}';
 const FUNCTIONS = new Set(['FunctionExpression', 'ArrowFunctionExpression', 'ClassExpression']);
 
@@ -55,30 +53,25 @@ function isStringPart(node) {
         || (node.type === 'BinaryExpression' && node.operator === '+');
 }
 
-/** The URL argument of ``fetch(url)``, ``$.getJSON(url)`` or ``$.ajax({ url })``, or null when the call is no request. */
+/** ``SharedUtils``, directly or through ``window`` or ``global``. */
+function isSharedUtils(node) {
+    return (node.type === 'Identifier' && node.name === 'SharedUtils') || globalProperty(node) === 'SharedUtils';
+}
+
+/**
+ * The URL argument of ``fetch(url)``, ``SharedUtils.fetchJson(url)`` or a page's own ``fetchJson(url)`` wrapper,
+ * or null when the call is no request.
+ */
 function requestUrl(call) {
     const callee = call.callee;
-    let jquery = false;
+    let isRequest = false;
     if (callee.type === 'Identifier') {
-        if (callee.name !== 'fetch') return null;
+        isRequest = callee.name === 'fetch' || callee.name === 'fetchJson';
     } else if (callee.type === 'MemberExpression' && !callee.computed && callee.property.type === 'Identifier') {
         const name = callee.property.name;
-        const object = callee.object;
-        const isJquery = (object.type === 'Identifier' && JQUERY.has(object.name)) || JQUERY.has(globalProperty(object));
-        if (name === 'fetch' && isGlobalObject(object)) jquery = false;
-        else if (isJquery && JQUERY_REQUESTS.has(name)) jquery = true;
-        else return null;
-    } else {
-        return null;
+        isRequest = (name === 'fetch' && isGlobalObject(callee.object)) || (name === 'fetchJson' && isSharedUtils(callee.object));
     }
-    const first = call.arguments[0];
-    if (!first) return null;
-    if (jquery && first.type === 'ObjectExpression') {
-        const property = first.properties.find((item) => item.type === 'Property' && !item.computed
-            && ((item.key.type === 'Identifier' && item.key.name === 'url') || item.key.value === 'url'));
-        return property ? property.value : null;
-    }
-    return first;
+    return isRequest ? call.arguments[0] || null : null;
 }
 
 /** ``global.Name = global.Name || {}``: several scripts add members to one shared object, so ``Name`` is a namespace. */

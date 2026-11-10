@@ -4,127 +4,10 @@
    Uses absolute positioning to overlay the map without causing layout shifts.
    ========================================================================== */
 
-.c-filter-panel {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: var(--z-dropdown);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: visible;
-  transition: width var(--transition-base);
-  
-  /* Default width - can be overridden by page specific CSS */
-  width: var(--c-filter-panel-width, 400px);
-}
-
-/* When collapsed, shrink the panel width but keep it visible for toggle button */
-.c-filter-panel.collapsed {
-  width: var(--c-filter-panel-collapsed-width, 40px); /* Just enough for the toggle button */
-}
-
-.c-filter-panel.collapsed .c-filter-panel__content {
-  transform: translateX(calc(-100% - 20px)); /* Slide out beyond left edge */
-}
-
-/* Inner content container */
-.c-filter-panel__content {
-  display: flex;
-  flex-direction: column;
-  width: calc(100% - 26px); /* Account for toggle button space */
-  height: 100%;
-  min-height: 0;
-  transition: transform var(--transition-base);
-  
-  /* Visual styling (Card-like) */
-  background: var(--color-bg);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  border: 1px solid var(--color-border);
-  overflow: hidden;
-}
-
-.c-filter-panel.collapsed .c-filter-panel__content {
-  pointer-events: none;
-}
-
-/* Toggle Button - positioned at right edge of panel */
-.c-filter-panel__toggle {
-  position: absolute;
-  top: 50%;
-  right: var(--c-filter-panel-toggle-inset, 0);
-  transform: translateY(-50%);
-  background: var(--color-bg);
-  color: var(--color-fg-muted);
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  width: 28px;
-  height: 56px;
-  padding: 0;
-  cursor: pointer;
-  z-index: calc(var(--z-dropdown) + 20);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  font-size: 11px;
-  box-shadow: var(--shadow-md);
-  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.c-filter-panel__toggle:hover {
-  background: var(--color-bg-subtle);
-  color: var(--color-primary);
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-primary);
-}
-
-.c-filter-panel__toggle:active {
-  transform: translateY(-50%) scale(0.96);
-}
-
-.c-filter-panel__toggle .toggle-icon {
-  font-size: 11px;
-  transition: transform 0.25s ease;
-}
-
-.c-filter-panel__toggle .fa-sliders-h {
-  font-size: 10px;
-  opacity: 0.7;
-}
-
-/* Collapsed state for button - icon rotates */
-.c-filter-panel.collapsed .c-filter-panel__toggle .toggle-icon {
-  transform: rotate(180deg);
-}
-
-/* Note: compact-group base styles are now in c-compact-group.css */
-
-/* Compact groups within filter panel body - index page specific */
-#filterPanelBody > .compact-group {
-  margin-bottom: var(--space-4);
-}
-
-#filterPanelBody > .compact-group:last-of-type {
-  margin-bottom: var(--space-2);
-}
-
-/* -------------------------------------------------------------------------
-   Filter Body Non-Nested Sections
-   Add consistent left margin to all filter checkboxes for professional alignment
-   ------------------------------------------------------------------------- */
-#filterPanelBody > .compact-group > .row .form-check,
-#filterPanelBody > .compact-group > .form-check {
-  padding-left: var(--space-4);
-}
-
 /* -------------------------------------------------------------------------
    Active Filters Container
    ------------------------------------------------------------------------- */
-#activeFilters,
-#problemsActiveFilters {
+#activeFilters {
   display: flex;
   flex-wrap: wrap;
   gap: 0;
@@ -142,8 +25,7 @@
 /* -------------------------------------------------------------------------
    Active Filter Badges
    ------------------------------------------------------------------------- */
-#activeFilters .badge,
-#problemsActiveFilters .badge {
+#activeFilters .badge {
   font-size: var(--text-sm);
   font-weight: var(--font-semibold);
   border-radius: var(--radius-full);
@@ -157,46 +39,18 @@
   transition: opacity var(--transition-fast);
 }
 
-#activeFilters .badge:hover,
-#problemsActiveFilters .badge:hover {
+#activeFilters .badge:hover {
   opacity: 0.8;
   border-color: var(--color-primary);
 }
 
 /* Badge color variants — dark grey text, colored borders */
-#activeFilters .text-bg-primary,
-#problemsActiveFilters .text-bg-primary {
+#activeFilters .text-bg-primary {
   border-color: var(--color-primary);
-}
-
-#activeFilters .text-bg-secondary,
-#problemsActiveFilters .text-bg-secondary {
-  border-color: var(--color-secondary);
-}
-
-#activeFilters .text-bg-success,
-#problemsActiveFilters .text-bg-success {
-  border-color: var(--color-success);
-}
-
-#activeFilters .text-bg-warning,
-#problemsActiveFilters .text-bg-warning {
-  border-color: var(--color-warning);
-}
-
-#activeFilters .text-bg-info,
-#problemsActiveFilters .text-bg-info {
-  border-color: var(--color-primary);
-}
-
-#activeFilters .text-bg-danger,
-#problemsActiveFilters .text-bg-danger {
-  border-color: var(--color-danger);
 }
 
 /* Badge close button */
-#activeFilters .badge a,
-#problemsActiveFilters .badge a {
+#activeFilters .badge a {
   text-decoration: none;
   margin-left: var(--space-1);
   font-weight: var(--font-semibold);
@@ -204,8 +58,7 @@
   color: inherit;
 }
 
-#activeFilters .badge a:hover,
-#problemsActiveFilters .badge a:hover {
+#activeFilters .badge a:hover {
   text-decoration: none;
   opacity: 0.8;
 }
@@ -213,8 +66,7 @@
 /* -------------------------------------------------------------------------
    Filter Chip Operator (AND/OR)
    ------------------------------------------------------------------------- */
-#activeFilters .filter-chip-operator,
-#problemsActiveFilters .filter-chip-operator {
+#activeFilters .filter-chip-operator {
   display: inline-flex;
   align-items: center;
   line-height: var(--leading-tight);
@@ -222,28 +74,34 @@
 }
 
 /* -------------------------------------------------------------------------
-   Filter Type Selector
+   Master Filter Checkbox Styling
+   Ensure master checkboxes match the rounded-square style of regular checkboxes
    ------------------------------------------------------------------------- */
-#filterTypeSelector {
-  width: auto;
-  display: inline-block !important;
-  margin-bottom: var(--space-2);
+input[type="checkbox"].master-filter-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1rem;
+  height: 1rem;
+  background-color: var(--color-bg);
+  border: var(--border-width) solid var(--color-border-emphasis);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
-/* -------------------------------------------------------------------------
-   Header Form Group
-   ------------------------------------------------------------------------- */
-.card-header .form-group.d-flex.align-items-center.justify-content-center {
-  margin-bottom: 0 !important;
+input[type="checkbox"].master-filter-checkbox:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='white' d='M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px;
 }
 
-/* -------------------------------------------------------------------------
-   Responsive Adjustments
-   ------------------------------------------------------------------------- */
-@media (max-width: 768px) {
-  #filterPanelBody {
-    padding: var(--space-3);
-  }
+input[type="checkbox"].master-filter-checkbox:focus {
+  border-color: var(--color-primary);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
-
-

@@ -42,10 +42,6 @@ main {
 /* -------------------------------------------------------------------------
    Top Filters Bar (Overlay Mode)
    ------------------------------------------------------------------------- */
-.random-stop-item {
-  display: inline-flex;
-  justify-content: center;
-}
 
 .random-stop-hint {
   z-index: 1005;
@@ -447,41 +443,4 @@ main {
 
 .map-legend__letters b {
   color: var(--color-fg);
-}
-
-/* -------------------------------------------------------------------------
-   OSM Query Tool Styles
-   ------------------------------------------------------------------------- */
-.osm-query-button {
-  background-color: var(--color-bg);
-  width: 30px;
-  height: 30px;
-  line-height: 30px;
-  display: block;
-  text-align: center;
-  text-decoration: none;
-  color: var(--color-fg);
-  transition: all var(--transition-fast);
-}
-
-.osm-query-button:hover {
-  background-color: var(--color-bg-muted);
-}
-
-.osm-query-button.active {
-  background-color: var(--color-primary);
-  color: var(--color-on-accent);
-}
-
-.osm-query-button i {
-  font-size: var(--text-sm);
-}
-
-.osm-query-results .last-child-no-border:last-child {
-  border-bottom: none !important;
-}
-
-.osm-query-loading {
-  padding: var(--space-2);
-  text-align: center;
 }

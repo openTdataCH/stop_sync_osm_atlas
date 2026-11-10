@@ -24,7 +24,6 @@
 /* Reduced spacing for top filters */
 .problems-page-root .top-filters-overlay {
   margin-top: 2px !important;
-  /* Reduced from 4px */
 }
 
 /* -------------------------------------------------------------------------
@@ -122,7 +121,6 @@
   padding: 0;
   gap: 0;
   position: relative;
-  /* For map overlays and floating problem card */
 }
 
 .problems-map-overlays {
@@ -171,33 +169,6 @@
 #problemMap {
   flex: 1;
   border-radius: inherit;
-}
-
-/* -------------------------------------------------------------------------
-   Problem Info Bar
-   ------------------------------------------------------------------------- */
-.problem-info-bar {
-  background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg-subtle) 100%);
-  padding: var(--space-3) var(--space-5);
-  flex-shrink: 0;
-  border-top: 1px solid var(--color-border);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.problem-info-bar h5 {
-  font-weight: var(--font-semibold);
-  color: var(--color-fg);
-  margin: 0;
-  padding: 0 var(--space-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.problem-content-header {
-  padding: var(--space-3) var(--space-5);
-  flex-shrink: 0;
-  background: var(--color-bg-subtle);
 }
 
 /* -------------------------------------------------------------------------
@@ -430,7 +401,6 @@
   color: var(--color-primary);
 }
 
-
 .issue-container {
   border: none;
   border-radius: 0;
@@ -444,39 +414,10 @@
 }
 
 /* Subtle priority tag */
-.priority-tag {
-  display: inline-block;
-  padding: 2px var(--space-2);
-  border-radius: var(--radius-full);
-  border: 1.5px solid var(--color-border-emphasis);
-  color: var(--color-fg);
-  background-color: var(--color-bg);
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  vertical-align: middle;
-}
 
 .issue-container.active {
   border-color: transparent;
   box-shadow: none;
-}
-
-.attribute-resolution-table {
-  font-size: var(--text-sm);
-}
-
-.attribute-resolution-table td {
-  vertical-align: middle;
-}
-
-.attribute-resolution-table .attribute-value {
-  max-width: 150px;
-  word-wrap: break-word;
-}
-
-.attribute-resolution-table .attribute-action {
-  width: 150px;
-  text-align: center;
 }
 
 .attribute-mini-popups {
@@ -551,80 +492,6 @@
 }
 
 /* -------------------------------------------------------------------------
-   Temporary Messages
-   ------------------------------------------------------------------------- */
-.temporary-message {
-  position: fixed;
-  bottom: var(--space-5);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: var(--z-toast);
-  padding: var(--space-3) var(--space-6);
-  border-radius: var(--radius-md);
-  display: none;
-  font-weight: var(--font-medium);
-  box-shadow: var(--shadow-lg);
-  border: none;
-  min-width: 200px;
-  text-align: center;
-}
-
-.temporary-message.alert-success {
-  background: var(--color-success-subtle);
-  color: var(--color-success-fg);
-  border: 1px solid var(--color-success-border);
-}
-
-.temporary-message.alert-error {
-  background: var(--color-danger-subtle);
-  color: var(--color-danger-fg);
-  border: 1px solid var(--color-danger-border);
-}
-
-.temporary-message.alert-warning {
-  background: var(--color-warning-subtle);
-  color: var(--color-warning-fg);
-  border: 1px solid var(--color-warning-border);
-}
-
-.temporary-message.alert-info {
-  background: var(--color-primary-subtle);
-  color: var(--color-primary);
-  border: 1px solid var(--color-primary-border);
-}
-
-/* -------------------------------------------------------------------------
-   Solution Status Section
-   ------------------------------------------------------------------------- */
-.solution-status-section {
-  background: linear-gradient(135deg, var(--color-bg-subtle) 0%, var(--color-bg-muted) 100%);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-5);
-}
-
-.solution-display {
-  margin-bottom: 0;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-success-border);
-  background: var(--color-success-subtle);
-}
-
-.clear-solution-btn {
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  padding: var(--space-1) var(--space-2);
-  transition: all var(--transition-fast);
-}
-
-.clear-solution-btn:hover {
-  background-color: var(--color-secondary);
-  border-color: var(--color-secondary);
-  color: var(--color-on-accent);
-  transform: translateY(-1px);
-}
-
-/* -------------------------------------------------------------------------
    Keyboard Shortcuts Hint
    ------------------------------------------------------------------------- */
 .keyboard-shortcuts-hint {
@@ -674,24 +541,6 @@
 
 .gap-2>*:last-child {
   margin-right: 0;
-}
-
-/* -------------------------------------------------------------------------
-   Filter Design Improvements
-   ------------------------------------------------------------------------- */
-.dropdown-item.problem-sub-filter {
-  position: relative;
-  padding-left: 2.5rem !important;
-}
-
-.dropdown-item.problem-sub-filter::before {
-  content: "↳";
-  position: absolute;
-  left: 1.2rem;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 1.1em;
-  color: var(--color-secondary);
 }
 
 /* -------------------------------------------------------------------------
@@ -773,48 +622,6 @@
   box-shadow: 0 0 0 3px var(--color-bg-muted);
 }
 
-/* Ensure priority row aligns items to the left */
-.problem-type-options-list .dropdown-item.d-flex.align-items-center {
-  justify-content: flex-start;
-}
-
-/* Remove blue/active background style for priority row selections */
-.problem-type-options-list .priority-row a.priority-option:active,
-.problem-type-options-list .priority-row a.priority-option:focus,
-.problem-type-options-list .priority-row a.priority-option:hover {
-  background: transparent !important;
-  color: inherit !important;
-}
-
-/* Keep text colors per priority on hover/focus/active */
-.problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-1,
-.problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-1,
-.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-1 {
-  color: var(--color-danger) !important;
-}
-
-.problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-2,
-.problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-2,
-.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-2 {
-  color: var(--color-warning) !important;
-}
-
-.problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-3,
-.problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-3,
-.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-3 {
-  color: var(--color-secondary) !important;
-}
-
-.problem-type-options-list .priority-row a.priority-option:hover .priority-circle.pr-all,
-.problem-type-options-list .priority-row a.priority-option:focus .priority-circle.pr-all,
-.problem-type-options-list .priority-row a.priority-option:active .priority-circle.pr-all {
-  color: var(--color-secondary) !important;
-}
-
-.problem-type-options-list .priority-row {
-  background: transparent !important;
-}
-
 /* Anchors wrapping circles */
 .priority-option {
   display: inline-block;
@@ -824,20 +631,6 @@
 /* -------------------------------------------------------------------------
    Problem Type Dropdown (inline styles moved here)
    ------------------------------------------------------------------------- */
-.problem-type-options-list {
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--radius-sm);
-  margin-top: var(--space-1);
-  max-height: 520px;
-  overflow-y: auto;
-}
-
-.problem-type-options-list .dropdown-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: var(--text-sm);
-}
 
 /* Problem count badges in filters */
 .filter-count-badge {

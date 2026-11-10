@@ -29,7 +29,6 @@
     "jest-environment-jsdom": "^29.7.0",
     "jscpd": "^4.3.0",
     "leaflet": "1.9.4",
-    "mathjax": "3.2.2",
     "mermaid": "10.9.8",
     "puppeteer-core": "25.11.0",
     "stylelint": "^16.26.1",

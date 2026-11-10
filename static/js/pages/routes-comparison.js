@@ -8,12 +8,7 @@
   var PER_PAGE = 30;
   var controllers = new Map();
 
-  function element(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text != null) node.textContent = text;
-    return node;
-  }
+  var element = global.SharedUtils.element;
 
   function percentage(value) {
     return value == null || value === '' ? '—' : Number(value).toLocaleString(undefined, { maximumFractionDigits: 1 }) + '%';
@@ -262,10 +257,8 @@
     return button;
   }
 
-  async function fetchJson(url, controller) {
-    var response = await global.fetch(url.toString(), { signal: controller.signal });
-    if (!response.ok) throw new Error('Request failed (' + response.status + ')');
-    return response.json();
+  function fetchJson(url, controller) {
+    return global.SharedUtils.fetchJson(url.toString(), null, { signal: controller.signal });
   }
 
   function emit(section, name, detail) {

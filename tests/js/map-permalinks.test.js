@@ -131,11 +131,6 @@ describe('Index map permalinks', () => {
             MapPopupController: { create: () => ({ attach: jest.fn(), detach: jest.fn(), invalidate: jest.fn(), destroy: jest.fn() }) },
             MapViewportLoader: { create: () => viewportLoader }
         };
-        const jqueryResult = { ready: jest.fn(), on: jest.fn() };
-        const jquery = jest.fn(() => jqueryResult);
-        jquery.getJSON = jest.fn();
-        window.$ = global.$ = jquery;
-
         loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
         loadBrowserScript(SCRIPT_PATH);
     });
@@ -278,20 +273,15 @@ describe('Index map permalinks', () => {
     test('a ?osm= link opens the stop with exactly one /api/stop_by_id call', async () => {
         openPage('/?atlas_operator=EX&osm=way/456#map=10/46.5/7.5');
         expect(mapCoreOptions.view).toEqual({ center: [46.5, 7.5], zoom: 10 });
-        $.getJSON.mockImplementation((url, params, success) => {
-            success({ stop: matchedStop, center_lat: 46.9001, center_lon: 7.4001, popup_view_type: 'osm' });
-            return { fail: jest.fn() };
-        });
+        const fetchJson = jest.spyOn(SharedUtils, 'fetchJson').mockResolvedValue(
+            { stop: matchedStop, center_lat: 46.9001, center_lon: 7.4001, popup_view_type: 'osm' });
 
         await expect(window.openStopFromUrl()).resolves.toBe(true);
         jest.advanceTimersByTime(300);
 
-        expect($.getJSON).toHaveBeenCalledTimes(1);
-        expect($.getJSON).toHaveBeenCalledWith(
-            '/api/stop_by_id',
-            { identifier: 'way_456', identifier_type: 'osm_node_id' },
-            expect.any(Function)
-        );
+        expect(fetchJson).toHaveBeenCalledTimes(1);
+        expect(fetchJson).toHaveBeenCalledWith('/api/stop_by_id', { identifier: 'way_456', identifier_type: 'osm_node_id' });
+        fetchJson.mockRestore();
         expect(map.setView).toHaveBeenCalledWith([46.9001, 7.4001], 16, { animate: false });
         expect(map.panBy).toHaveBeenCalledWith([0, -100], { animate: false });
         expect(window.location.search).toBe('?atlas_operator=EX&osm=way/456');
@@ -300,25 +290,26 @@ describe('Index map permalinks', () => {
 
     test('a missing stop keeps the hash view, drops the parameter and says so without blocking', async () => {
         const message = jest.spyOn(SharedUtils, 'showTemporaryMessage').mockImplementation(() => {});
+        const fetchJson = jest.spyOn(SharedUtils, 'fetchJson').mockRejectedValue(new Error('Request failed with status 404'));
         try {
             openPage('/?atlas_operator=EX&sloid=ch:1:sloid:%3Cb%3E404#map=10/46.5/7.5');
-            $.getJSON.mockImplementation(() => ({ fail: callback => callback() }));
 
             await expect(window.openStopFromUrl()).resolves.toBe(false);
 
-            expect($.getJSON).toHaveBeenCalledTimes(1);
+            expect(fetchJson).toHaveBeenCalledTimes(1);
             expect(map.setView).not.toHaveBeenCalled();
             expect(window.location.search).toBe('?atlas_operator=EX');
             expect(window.location.hash).toBe('#map=10/46.5/7.5');
             expect(message).toHaveBeenCalledWith(expect.stringContaining('sloid=ch:1:sloid:&lt;b&gt;404'), 'warning', 6000);
 
-            $.getJSON.mockClear();
+            fetchJson.mockClear();
             history.replaceState(null, '', '/?osm=relation/1');
             await expect(window.openStopFromUrl()).resolves.toBe(false);
-            expect($.getJSON).not.toHaveBeenCalled();
+            expect(fetchJson).not.toHaveBeenCalled();
             expect(window.location.search).toBe('');
         } finally {
             message.mockRestore();
+            fetchJson.mockRestore();
         }
     });
 });

@@ -111,13 +111,6 @@
   }
 }
 
-.c-page-tabs__description {
-  margin-top: var(--space-3);
-  color: var(--color-fg-muted);
-  font-size: var(--text-sm);
-  line-height: var(--leading-relaxed);
-}
-
 @media (max-width: 768px) {
   .c-page-tabs {
     display: flex;

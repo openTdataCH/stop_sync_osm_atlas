@@ -43,7 +43,7 @@
     }
 
     function contentHtml(sourceLabel) {
-        const source = global.SharedUtils ? global.SharedUtils.escapeHtml(sourceLabel) : sourceLabel;
+        const source = SharedUtils.escapeHtml(sourceLabel);
         return '<ul class="map-legend__list">'
             + row(markerSwatch('atlas-matched'), 'Matched ' + source + ' stop')
             + row(markerSwatch('osm-matched'), 'Matched OSM stop')

@@ -5,16 +5,10 @@ describe('operator map filters', () => {
     let updateActiveFiltersFromControls;
 
     beforeAll(() => {
-        loadBrowserScript(path.join(__dirname, '../../static/js/shared/jquery-lite.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/shared/utils.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/components/filter-chip-utils.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/pages/filters.js'));
         updateActiveFiltersFromControls = window.updateActiveFilters;
-        const jquery = window.$;
-        window.$ = Object.assign(function (selector) {
-            if (selector === document) return { ready: jest.fn(), on: jest.fn() };
-            return jquery(selector);
-        }, jquery);
         window.L = { layerGroup: () => ({ clearLayers: jest.fn() }) };
         window.AppConstants = { MAP: {}, DATA_LOADING: {}, COLORS: {} };
         loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
@@ -101,14 +95,19 @@ describe('operator map filters', () => {
     });
 
     test('toggling missing tags replaces specific Wikidata values and refreshes the map', () => {
+        const setMissingWikidata = checked => {
+            const box = document.getElementById('filterMissingOsmOperatorWikidata');
+            box.checked = checked;
+            box.dispatchEvent(new Event('change', { bubbles: true }));
+        };
         window.initFilterEventHandlers();
         activeFilters.osmOperatorWikidata = ['Q1'];
-        window.$('#filterMissingOsmOperatorWikidata').prop('checked', true).trigger('change');
+        setMissingWikidata(true);
         expect(activeFilters.osmOperatorWikidata).toEqual([]);
         expect(window.osmOperatorWikidataDropdown.setSelection).toHaveBeenCalledWith([]);
         expect(window.appendCurrentFilterParams({})).toEqual({ missing_osm_operator_wikidata: 'true' });
         expect(window.loadDataForViewport).toHaveBeenCalled();
-        window.$('#filterMissingOsmOperatorWikidata').prop('checked', false).trigger('change');
+        setMissingWikidata(false);
         expect(window.appendCurrentFilterParams({})).toEqual({});
     });
 

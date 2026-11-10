@@ -1,18 +1,11 @@
-{% extends "layouts/base.html" %}
+{% extends "layouts/map.html" %}
 
 {% from "components/_components.html" import stats_overlay with context %}
 {% from "components/routes-comparison.html" import variant_comparison with context %}
 {% block title %}{% if active_view == 'non_gtfs_routes' %}Non-GTFS Routes{% elif active_view == 'gtfs_stop_id_sloid' %}GTFS stop_id and SLOID{% else %}Public Transport Routes{% endif %} | {{ review_config.title }}{% endblock %}
 {% block meta_description %}{% if active_view == 'non_gtfs_routes' %}Inspect OpenStreetMap public transport routes that are absent from the configured {{ review_config.source_label }} route dataset.{% elif active_view == 'gtfs_stop_id_sloid' %}Compare GTFS stop identifiers with Swiss ATLAS service location identifiers and inspect their map coverage.{% else %}Compare matched and unmatched public transport routes from OpenStreetMap and {{ review_config.source_label }}.{% endif %}{% endblock %}
 
-{% block vendor_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
-{% endblock %}
-
-{% block head_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/popup.css') }}">
-<!-- Shared filters/overlay CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/components/shared-filters.css') }}">
+{% block page_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/routes.css') }}">
 {% if active_view == 'routes' %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/routes-comparison.css') }}">
@@ -627,27 +620,10 @@
 
 {% block scripts %}
 {% if review_config.capabilities.routes %}
-<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
-<script src="{{ url_for('static', filename='js/shared/constants.js') }}"></script>
-<script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
-<script src="{{ url_for('static', filename='js/shared/permalinks.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/map-shared.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/map-entity-adapters.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/map-core.js') }}"></script>
+{% include 'components/_map_scripts.html' %}
 <script src="{{ url_for('static', filename='js/components/map-layer-registry.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/map-popup-controller.js') }}"></script>
 <script src="{{ url_for('static', filename='js/components/map-viewport-loader.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/header-summary.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/filter-chip-utils.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/popup-utils.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/popup-renderer.js') }}"></script>
-<script src="{{ url_for('static', filename='js/components/move_popup.js') }}"></script>
-{% if active_view == 'gtfs_stop_id_sloid' %}
-<script src="{{ url_for('static', filename='js/components/line-renderer.js') }}"></script>
-{% endif %}
-<script src="{{ url_for('static', filename='js/components/map-renderer.js') }}"></script>
 {% if active_view in ['routes', 'non_gtfs_routes'] %}
-<script src="{{ url_for('static', filename='js/components/operator-dropdown.js') }}"></script>
 <script type="application/json" id="routesPageConfig">
 {
   "selectedAtlasOperators": {{ selected_atlas_operators | tojson }},

@@ -186,8 +186,7 @@
 }
 
 /* OSM / Success category (Green) */
-.filter-chip-osm,
-.filter-chip-transport {
+.filter-chip-osm {
   border-color: var(--color-success) !important;
   color: var(--color-success-fg) !important;
 }

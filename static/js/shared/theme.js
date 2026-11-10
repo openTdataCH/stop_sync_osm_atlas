@@ -66,8 +66,7 @@
         var followSystem = function () {
             if (storedChoice() === 'system') apply('system');
         };
-        if (typeof media.addEventListener === 'function') media.addEventListener('change', followSystem);
-        else if (typeof media.addListener === 'function') media.addListener(followSystem);
+        media.addEventListener('change', followSystem);
     }
 
     document.addEventListener('click', function (event) {

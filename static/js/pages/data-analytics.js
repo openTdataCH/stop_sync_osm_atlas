@@ -112,16 +112,7 @@
         return Number.isNaN(parsed.getTime()) ? null : parsed;
     }
 
-    function formatDuration(seconds) {
-        if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) return '—';
-        var rounded = Math.max(0, Math.round(seconds));
-        var hours = Math.floor(rounded / 3600);
-        var minutes = Math.floor((rounded % 3600) / 60);
-        var remainder = rounded % 60;
-        if (hours) return hours + 'h ' + minutes + 'm';
-        if (minutes) return minutes + 'm ' + remainder + 's';
-        return remainder + 's';
-    }
+    var formatDuration = SharedUtils.formatDuration;
 
     function formatTime(value) {
         var date = toDate(value);
@@ -646,13 +637,6 @@
             syncSectionScrollOffset();
             moveIndicator(active, false);
         }
-        function isScrolledToBottom() {
-            // The page scrolls in <body> (base.css) or, elsewhere, in the viewport.
-            return [document.scrollingElement, document.body].some(function (element) {
-                return !!element && element.scrollTop > 0
-                    && element.scrollHeight - element.scrollTop - element.clientHeight < 2;
-            });
-        }
 
         // The current section is the last one whose heading has passed under
         // the sticky navigation, or the last section at the bottom of the
@@ -663,7 +647,7 @@
             if (Date.now() < observerLockedUntil || !sections.length) return;
             var line = stickyShell.getBoundingClientRect().bottom + 24;
             var current = sections[0];
-            if (isScrolledToBottom()) {
+            if (SharedUtils.isScrolledToBottom()) {
                 current = sections[sections.length - 1];
             } else {
                 sections.forEach(function (section) {

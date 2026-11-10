@@ -63,18 +63,6 @@ const copyPlan = [
     source: "cytoscape/dist/cytoscape.min.js",
     target: "cytoscape/cytoscape.min.js",
   },
-  {
-    source: "mathjax/es5/tex-mml-chtml.js",
-    target: "mathjax/es5/tex-mml-chtml.js",
-  },
-  {
-    source: "mathjax/es5/output/chtml/fonts/tex.js",
-    target: "mathjax/es5/output/chtml/fonts/tex.js",
-  },
-  {
-    source: "mathjax/es5/output/chtml/fonts/woff-v2",
-    target: "mathjax/es5/output/chtml/fonts/woff-v2",
-  },
 ];
 
 function resolveUnder(baseDir, relativePath) {
@@ -230,7 +218,6 @@ function writeVersionsManifest() {
     leaflet: devDeps.leaflet || null,
     mermaid: devDeps.mermaid || null,
     cytoscape: devDeps.cytoscape || null,
-    mathjax: devDeps.mathjax || null,
   };
 
   fs.mkdirSync(vendorDir, { recursive: true });

@@ -20,7 +20,7 @@ const chip = () => document.querySelector('#activeFilters .direction-dropdown');
 
 describe('route filter narrowed to variants', () => {
     beforeAll(() => {
-        ['shared/jquery-lite', 'shared/utils', 'shared/permalinks', 'components/filter-chip-utils', 'pages/filters'].forEach(name => {
+        ['shared/utils', 'shared/permalinks', 'components/filter-chip-utils', 'pages/filters'].forEach(name => {
             loadBrowserScript(path.join(__dirname, '../../static/js/' + name + '.js'));
         });
         window.initFilterEventHandlers();
@@ -31,6 +31,7 @@ describe('route filter narrowed to variants', () => {
         Object.assign(window.activeFilters, { station: [], stationTypes: [], routeDirections: [], routeVariants: [] });
         window.loadDataForViewport = jest.fn();
         window.updateHeaderSummary = jest.fn();
+        window.invalidateViewportCache = jest.fn();
         window.fetch = global.fetch = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(variantsOfLine) }));
         history.replaceState({}, '', '/?sloid=ch:1:sloid:7');
     });

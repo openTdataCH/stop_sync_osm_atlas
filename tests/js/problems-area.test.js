@@ -24,7 +24,7 @@ describe('Problems area filter', () => {
     test('the Problems map shows the area as an outline, and none without one', () => {
         const added = [];
         const removed = jest.fn();
-        window.AppConstants = { COLORS: { MATCHED: '#174092' } };
+        window.AppConstants = { COLORS: { ATLAS_MATCHED: '#174092' } };
         window.L = global.L = {
             latLngBounds: (a, b) => [a, b],
             rectangle: jest.fn((bounds, style) => ({ bounds, style, addTo() { added.push(this); return this; }, remove: removed }))
@@ -60,7 +60,7 @@ describe('Problems area filter', () => {
                 latLngBounds: (a, b) => (Array.isArray(a) ? bounds({ lat: a[0], lng: a[1] }, { lat: b[0], lng: b[1] }) : bounds(a, b)),
                 rectangle: jest.fn(() => ({ addTo() { return this; }, remove: jest.fn(), setBounds: jest.fn() }))
             };
-            window.AppConstants = { COLORS: { MATCHED: '#174092' }, MAP: { DEFAULT_CENTER: [46.8, 8.2], DEFAULT_ZOOM: 8, MAX_ZOOM: 19 } };
+            window.AppConstants = { COLORS: { ATLAS_MATCHED: '#174092' }, MAP: { DEFAULT_CENTER: [46.8, 8.2], DEFAULT_ZOOM: 8, MAX_ZOOM: 19 } };
             window.MapShared = { createBaseTileLayers: () => ({}) };
             window.MapComponents = { MapCore: { create: () => ({ map: { on: (name, fn) => { mapHandlers[name] = fn; } } }) } };
             window.bootstrap = global.bootstrap = { Modal: { getOrCreateInstance: () => ({ show: jest.fn(), hide: jest.fn() }) } };

@@ -32,70 +32,15 @@ window.ProblemsMap = (function() {
     let baseMinZoom = 0;     // the map's own minimum zoom, without a problem
 
     // Request management for context loading
-    let currentContextRequest = null; // jqXHR of in-flight /api/data
+    let currentContextRequest = null; // AbortController of in-flight /api/data
     let contextRequestSequence = 0;
 
-    function createAbortError() {
-        const error = new Error('Popup request aborted');
-        error.name = 'AbortError';
-        return error;
-    }
-
-    /**
-     * Adapt the page's jQuery endpoint to the promise/AbortSignal contract used
-     * by MapPopupController. The shared popup component remains transport-free.
-     */
+    // A stop's popup content, from /api/stop_popup; MapPopupController aborts it through signal.
     function requestStopPopup(stopData, viewType, signal) {
-        return new Promise(function(resolve, reject) {
-            if (signal && signal.aborted) {
-                reject(createAbortError());
-                return;
-            }
-            if (typeof $ === 'undefined' || typeof $.getJSON !== 'function') {
-                reject(new Error('The popup transport is unavailable.'));
-                return;
-            }
-
-            const request = $.getJSON('/api/stop_popup', {
-                stop_id: stopData.id,
-                view_type: viewType
-            });
-            let settled = false;
-
-            function removeAbortListener() {
-                if (signal && typeof signal.removeEventListener === 'function') {
-                    signal.removeEventListener('abort', onAbort);
-                }
-            }
-
-            function settle(callback, value) {
-                if (settled) return;
-                settled = true;
-                removeAbortListener();
-                callback(value);
-            }
-
-            function onAbort() {
-                if (request && typeof request.abort === 'function') {
-                    request.abort();
-                }
-                settle(reject, createAbortError());
-            }
-
-            if (signal && typeof signal.addEventListener === 'function') {
-                signal.addEventListener('abort', onAbort, { once: true });
-            }
-
-            request.done(function(payload) {
-                settle(resolve, payload);
-            }).fail(function(_jqXHR, textStatus, errorThrown) {
-                if (textStatus === 'abort' || (signal && signal.aborted)) {
-                    settle(reject, createAbortError());
-                    return;
-                }
-                settle(reject, new Error(errorThrown || textStatus || 'Failed to load stop details.'));
-            });
-        });
+        return SharedUtils.fetchJson('/api/stop_popup', {
+            stop_id: stopData.id,
+            view_type: viewType
+        }, { signal: signal });
     }
 
     function renderStopPopup(payload, viewType) {
@@ -294,20 +239,14 @@ window.ProblemsMap = (function() {
     function abortCurrentContextRequest() {
         const request = currentContextRequest;
         currentContextRequest = null;
-
-        if (request && request.readyState !== 4 && typeof request.abort === 'function') {
-            try {
-                request.abort();
-            } catch (error) {
-                // Sequence checks still prevent this request from committing.
-            }
-        }
+        // Sequence checks also keep a late answer from committing.
+        if (request) request.abort();
     }
 
     // A failed load of nearby stops leaves the map looking as if there were
     // none, so the page says so on the map and offers to try again.
-    function contextErrorMessage(jqXHR) {
-        if (jqXHR && jqXHR.status === 429) {
+    function contextErrorMessage(error) {
+        if (error && error.status === 429) {
             return 'Nearby stops not shown: too many requests. Wait a moment, then retry.';
         }
         return 'Nearby stops could not be loaded.';
@@ -452,16 +391,14 @@ window.ProblemsMap = (function() {
 
     function renderProblem(problem, options) {
         const problemMap = ProblemsState.getProblemMap();
-        if (!problemMap || !window.ProblemsRenderer || typeof window.ProblemsRenderer.drawProblemOnMap !== 'function') {
-            return false;
-        }
+        if (!problemMap) return false;
 
         const fitsView = !options || options.fitView !== false;
         isRenderingProblem = true;
         try {
             // Fitting a new problem may need to leave the previous one's box.
             if (fitsView) releaseView();
-            window.ProblemsRenderer.drawProblemOnMap(problemMap, problem, {
+            ProblemsRenderer.drawProblemOnMap(problemMap, problem, {
                 markersLayer: ProblemsState.getProblemMarkersLayer(),
                 linesLayer: ProblemsState.getProblemLinesLayer()
             }, { viewInsets: () => problemViewInsets(problemMap), ...(options || {}) });
@@ -669,10 +606,10 @@ window.ProblemsMap = (function() {
         abortCurrentContextRequest();
         hideContextError();
 
-        const request = $.getJSON('/api/data', params);
+        const request = new AbortController();
         currentContextRequest = request;
 
-        request.done(function(payload) {
+        SharedUtils.fetchJson('/api/data', params, { signal: request.signal }).then(function(payload) {
             if (
                 requestSequence !== contextRequestSequence ||
                 request !== currentContextRequest ||
@@ -693,15 +630,15 @@ window.ProblemsMap = (function() {
             };
             const renderZoom = problemMap ? problemMap.getZoom() : zoom;
             renderContextData(problem, stops, problemMap, renderZoom);
-        }).fail(function(jqXHR, textStatus) {
+        }, function(error) {
             if (
                 requestSequence === contextRequestSequence &&
-                textStatus !== 'abort' &&
+                !SharedUtils.isAbortError(error) &&
                 ProblemsState.getShowContext()
             ) {
-                showContextError(contextErrorMessage(jqXHR));
+                showContextError(contextErrorMessage(error));
             }
-        }).always(function() {
+        }).finally(function() {
             if (currentContextRequest === request) {
                 currentContextRequest = null;
             }
@@ -716,18 +653,20 @@ window.ProblemsMap = (function() {
     function toggleContext() {
         const showContext = !ProblemsState.getShowContext();
         ProblemsState.setShowContext(showContext);
-        const button = $('#toggleContextBtn');
-        
+        const button = document.getElementById('toggleContextBtn');
+
         if (showContext) {
-            button.removeClass('bg-body text-body').addClass('btn-secondary');
-            button.html('<i class="fas fa-eye-slash"></i> Hide other markers');
+            button.classList.remove('bg-body', 'text-body');
+            button.classList.add('btn-secondary');
+            button.innerHTML = '<i class="fas fa-eye-slash"></i> Hide other markers';
             const currentProblem = ProblemsState.getCurrentProblem();
             if (currentProblem) {
                 loadContextData(currentProblem);
             }
         } else {
-            button.removeClass('btn-secondary').addClass('bg-body text-body');
-            button.html('<i class="fas fa-eye"></i> See other markers');
+            button.classList.remove('btn-secondary');
+            button.classList.add('bg-body', 'text-body');
+            button.innerHTML = '<i class="fas fa-eye"></i> See other markers';
             clearContextData();
         }
     }
@@ -737,70 +676,72 @@ window.ProblemsMap = (function() {
      */
     function initializeResize() {
         if (removeResizeHandlers) removeResizeHandlers();
-        const mapSection = $('#mapSection');
-        const problemSection = $('#problemSection');
-        const resizeDivider = $('#resizeDivider');
+        const mapSection = document.getElementById('mapSection');
+        const problemSection = document.getElementById('problemSection');
+        const resizeDivider = document.getElementById('resizeDivider');
+        if (!mapSection || !problemSection || !resizeDivider) return;
+        const listeners = new AbortController();
+        const listen = { signal: listeners.signal };
 
         let isResizing = false;
         let startX = 0;
         let startMapWidth = 0;
         let startProblemWidth = 0;
 
-        resizeDivider.on('mousedown.problemsMapResize', function(e) {
+        resizeDivider.addEventListener('mousedown', function(e) {
             isResizing = true;
             startX = e.clientX;
-            startMapWidth = mapSection.width();
-            startProblemWidth = problemSection.width();
-            
-            $('body').addClass('user-select-none');
-            resizeDivider.addClass('resizing');
-            e.preventDefault();
-        });
+            startMapWidth = mapSection.getBoundingClientRect().width;
+            startProblemWidth = problemSection.getBoundingClientRect().width;
 
-        $(document).on('mousemove.problemsMapResize', function(e) {
+            document.body.classList.add('user-select-none');
+            resizeDivider.classList.add('resizing');
+            e.preventDefault();
+        }, listen);
+
+        document.addEventListener('mousemove', function(e) {
             if (!isResizing) return;
-            
+
             const deltaX = e.clientX - startX;
             let newMapWidth = startMapWidth + deltaX;
             let newProblemWidth = startProblemWidth - deltaX;
-            
+
             // Enforce min-width constraints from CSS
-            const minMapWidth = parseInt(mapSection.css('min-width'), 10) || 300;
-            const minProblemWidth = parseInt(problemSection.css('min-width'), 10) || 450;
+            const minMapWidth = parseInt(getComputedStyle(mapSection).minWidth, 10) || 300;
+            const minProblemWidth = parseInt(getComputedStyle(problemSection).minWidth, 10) || 450;
 
             if (newMapWidth < minMapWidth) {
                 newMapWidth = minMapWidth;
                 newProblemWidth = startMapWidth + startProblemWidth - newMapWidth;
             }
-            
+
             if (newProblemWidth < minProblemWidth) {
                 newProblemWidth = minProblemWidth;
                 newMapWidth = startMapWidth + startProblemWidth - newProblemWidth;
             }
 
-            mapSection.css('flex', `1 1 ${newMapWidth}px`);
-            problemSection.css('flex', `0 0 ${newProblemWidth}px`);
-        });
+            mapSection.style.flex = `1 1 ${newMapWidth}px`;
+            problemSection.style.flex = `0 0 ${newProblemWidth}px`;
+        }, listen);
 
-        $(document).on('mouseup.problemsMapResize', function() {
+        document.addEventListener('mouseup', function() {
             if (isResizing) {
                 isResizing = false;
-                $('body').removeClass('user-select-none');
-                resizeDivider.removeClass('resizing');
-                
+                document.body.classList.remove('user-select-none');
+                resizeDivider.classList.remove('resizing');
+
                 // Invalidate map size to fix any rendering issues
                 const problemMap = ProblemsState.getProblemMap();
                 if (problemMap) {
                     problemMap.invalidateSize();
                 }
             }
-        });
+        }, listen);
 
         removeResizeHandlers = function() {
-            resizeDivider.off('.problemsMapResize');
-            $(document).off('.problemsMapResize');
-            $('body').removeClass('user-select-none');
-            resizeDivider.removeClass('resizing');
+            listeners.abort();
+            document.body.classList.remove('user-select-none');
+            resizeDivider.classList.remove('resizing');
         };
     }
 

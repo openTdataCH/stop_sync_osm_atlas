@@ -24,6 +24,7 @@ function openPage(url) {
         panel('data-osm-variant="999"', 'unmatched OSM'),
         '<details class="route-card__panel route-card__panel--map"><summary>no ids</summary></details>'
     ].join('');
+    loadBrowserScript(path.join(__dirname, '../../static/js/components/header-summary.js'));
     loadBrowserScript(path.join(__dirname, '../../static/js/pages/routes.js'));
     return Array.from(document.querySelectorAll('details'));
 }

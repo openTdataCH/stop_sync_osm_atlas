@@ -1,34 +1,8 @@
 const loadBrowserScript = require('./load-browser-script');
 const path = require('path');
 
-function createMiniDollar() {
-  return function $(selector) {
-    const element = document.querySelector(selector);
-    return {
-      text(value) {
-        if (!element) return value === undefined ? '' : this;
-        if (value === undefined) return element.textContent;
-        element.textContent = value;
-        return this;
-      },
-      prop(name, value) {
-        if (!element) return value === undefined ? undefined : this;
-        if (value === undefined) return element[name];
-        element[name] = value;
-        return this;
-      },
-      is(expr) {
-        if (!element) return false;
-        if (expr === ':checked') return !!element.checked;
-        return false;
-      }
-    };
-  };
-}
-
 describe('problems type filter sync', () => {
   beforeAll(() => {
-    global.$ = createMiniDollar();
     global.ProblemsState = {
       selectedProblemTypes: [],
       getSelectedProblemTypes() {

@@ -28,7 +28,6 @@ const CONTROLS = `
 
 describe('map filter links', () => {
     beforeAll(() => {
-        loadBrowserScript(path.join(__dirname, '../../static/js/shared/jquery-lite.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/components/filter-chip-utils.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/pages/filters.js'));
@@ -147,7 +146,7 @@ describe('map filter links', () => {
 
         // Every type ticked is "all problems".
         document.getElementById('problemType-unmatched').checked = true;
-        $('#problemType-unmatched').trigger('change');
+        document.getElementById('problemType-unmatched').dispatchEvent(new Event('change', { bubbles: true }));
         updateActiveFilters();
         expect(activeFilters.problemTypes).toEqual(['all']);
         expect(document.getElementById('activeFilters').textContent).toContain('All problems');

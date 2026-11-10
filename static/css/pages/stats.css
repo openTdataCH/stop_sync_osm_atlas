@@ -63,14 +63,6 @@
   max-width: 100%;
 }
 
-.stats-page-header__title {
-  margin: 0 0 0.2rem;
-  color: var(--color-fg);
-  font-size: clamp(1.55rem, 3vw, 2rem);
-  font-weight: 720;
-  letter-spacing: -0.035em;
-}
-
 .stats-section-nav-shell {
   position: sticky;
   top: calc(var(--page-tabs-top, var(--navbar-height)) + var(--page-tabs-height, 54px));
@@ -825,11 +817,6 @@
   display: grid;
   gap: var(--space-2);
   margin: var(--space-3) 0 0;
-}
-
-.stats-legend--columns {
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  column-gap: var(--space-8);
 }
 
 .stats-legend > div,

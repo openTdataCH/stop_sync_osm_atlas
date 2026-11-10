@@ -230,19 +230,6 @@
   border-radius: var(--radius-sm);
 }
 
-/* Deeper pages indent further. */
-.docs-sidebar .docs-subitems .level-3 {
-  padding-left: calc(var(--space-2) + var(--space-4));
-}
-
-.docs-sidebar .docs-subitems .level-4 {
-  padding-left: calc(var(--space-2) + var(--space-8));
-}
-
-.docs-sidebar .docs-subitems .level-5 {
-  padding-left: calc(var(--space-2) + var(--space-12));
-}
-
 .docs-filter-empty {
   margin: var(--space-2);
   color: var(--color-fg-muted);
@@ -789,77 +776,6 @@
 }
 
 /* -------------------------------------------------------------------------
-   Operator Normalizations Page
-   ------------------------------------------------------------------------- */
-.normalizations-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--space-4);
-}
-
-.normalizations-header {
-  margin-bottom: var(--space-6);
-}
-
-.normalizations-table {
-  background: var(--color-bg);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
-}
-
-.normalizations-table table {
-  width: 100%;
-  margin: 0;
-}
-
-.normalizations-table th {
-  background-color: var(--color-primary-subtle);
-  color: var(--color-primary);
-  font-weight: var(--font-semibold);
-  padding: var(--space-3) var(--space-4);
-  text-align: left;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.normalizations-table td {
-  padding: var(--space-2) var(--space-4);
-  border-bottom: var(--border-width) solid var(--color-border);
-}
-
-.normalizations-table tr:last-child td {
-  border-bottom: none;
-}
-
-.normalizations-table tbody tr:hover {
-  background-color: var(--color-bg-subtle);
-}
-
-.badge-count {
-  background-color: var(--color-primary-subtle);
-  color: var(--color-primary);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-pill);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-}
-
-.info-box {
-  background-color: var(--color-primary-subtle);
-  border: 1px solid var(--color-primary-border);
-  padding: var(--space-4);
-  margin-bottom: var(--space-4);
-  border-radius: var(--radius-sm);
-}
-
-.info-box i {
-  color: var(--color-primary);
-  margin-right: var(--space-2);
-}
-
-/* -------------------------------------------------------------------------
    GitHub-style Alerts
    Styled blockquote alerts like [!NOTE], [!IMPORTANT], etc.
    ------------------------------------------------------------------------- */
@@ -942,60 +858,6 @@
 
 .github-alert.alert-caution .alert-title {
   color: var(--color-danger);
-}
-
-/* -------------------------------------------------------------------------
-   Expandable Content Sections
-   Used for embedded tables (e.g. operator normalizations)
-   ------------------------------------------------------------------------- */
-.doc-expandable-section {
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  transition: box-shadow var(--transition-fast);
-}
-
-.doc-expandable-section:hover {
-  box-shadow: var(--shadow-sm);
-}
-
-.doc-expandable-section[open] {
-  box-shadow: var(--shadow-md);
-  border-color: var(--color-primary-border);
-}
-
-.doc-expandable-summary {
-  padding: var(--space-3) var(--space-4);
-  background: linear-gradient(to right, var(--color-primary-subtle), transparent);
-  color: var(--color-primary);
-  font-weight: var(--font-semibold);
-  cursor: pointer;
-  list-style: none;
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.doc-expandable-summary::-webkit-details-marker {
-  display: none;
-}
-
-.doc-expandable-summary::before {
-  content: '\f078';
-  font-family: 'Font Awesome 5 Free';
-  font-weight: 900;
-  font-size: 0.8em;
-  transition: transform var(--transition-fast);
-}
-
-.doc-expandable-section[open] .doc-expandable-summary::before {
-  transform: rotate(180deg);
-}
-
-.doc-expandable-content {
-  padding: var(--space-4);
-  border-top: 1px solid var(--color-border);
 }
 
 /* -------------------------------------------------------------------------

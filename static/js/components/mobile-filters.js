@@ -34,10 +34,6 @@
     };
   }
 
-  function isMobileViewport() {
-    return global.matchMedia('(max-width: 768px)').matches;
-  }
-
   function applyOpenState(elements, isOpen) {
     if (!elements.overlay) return;
 
@@ -148,7 +144,6 @@
   }
 
   var MobileFilters = {
-    isMobileViewport: isMobileViewport,
     setMobileFiltersOpen: setMobileFiltersOpen,
     bind: bind
   };

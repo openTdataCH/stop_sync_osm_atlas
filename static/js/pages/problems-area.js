@@ -12,7 +12,7 @@ window.ProblemsArea = (function () {
     'use strict';
 
     // The area is drawn in the map's navy, dashed once it filters the list.
-    const color = () => AppConstants.COLORS.MATCHED;
+    const color = () => AppConstants.COLORS.ATLAS_MATCHED;
     const outlineStyle = () => ({ color: color(), weight: 2, dashArray: '6,4', fill: false, interactive: false });
     const drawStyle = () => ({ color: color(), weight: 2, fillOpacity: 0.08, interactive: false });
 

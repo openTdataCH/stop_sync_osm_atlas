@@ -620,10 +620,6 @@ def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
     return '\n'.join(parts)
 
 
-def _protect_math(match: re.Match[str]) -> str:
-    return match.group(0).replace('\\', '\\\\')
-
-
 def _add_section_heading_ids(body_html: str) -> str:
     """Give headings ``<document anchor>--<GitHub slug>`` ids in the bundle.
 
@@ -676,10 +672,6 @@ def _build_pdf(
 
     # 2. Convert markdown to HTML using mistune
     print('Converting markdown to HTML using mistune...')
-    # Protect math blocks from escaping
-    combined_md = re.sub(r'\$\$.*?\$\$', _protect_math, combined_md, flags=re.DOTALL)
-    combined_md = re.sub(r'(?<!\$)\$[^\s$](?:.*?[^\s$])?\$(?!\$)', _protect_math, combined_md)
-    
     md = mistune.create_markdown(escape=False, plugins=['strikethrough', 'table', 'url'])
     body_html = md(combined_md)
     body_html = _add_section_heading_ids(body_html)

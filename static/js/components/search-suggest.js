@@ -9,11 +9,7 @@
     const MIN_LENGTH = 2;
 
     function fetchSuggestions(query) {
-        return fetch('/api/search/suggest?q=' + encodeURIComponent(query), { headers: { Accept: 'application/json' } })
-            .then(function (response) {
-                if (!response.ok) throw new Error('Suggestions failed with HTTP ' + response.status);
-                return response.json();
-            })
+        return SharedUtils.fetchJson('/api/search/suggest', { q: query })
             .then(function (data) {
                 return Array.isArray(data.results) ? data.results : [];
             });
@@ -22,16 +18,11 @@
     // "ATLAS · 24 platforms", "OSM · no match", "OSM · disused"
     function describe(item) {
         if (item.side === 'osm') return item.stop_type === 'osm_disused' ? 'OSM · disused' : 'OSM · no match';
-        const label = global.SharedUtils ? global.SharedUtils.sourceLabel() : 'ATLAS';
+        const label = SharedUtils.sourceLabel();
         return label + ' · ' + item.stops + (item.stops === 1 ? ' platform' : ' platforms');
     }
 
-    function element(tag, className, text) {
-        const node = document.createElement(tag);
-        node.className = className;
-        if (text !== undefined) node.textContent = text;
-        return node;
-    }
+    const element = SharedUtils.element;
 
     function renderItem(item, id, isActive) {
         const option = element('li', 'search-suggestion' + (isActive ? ' is-active' : ''));

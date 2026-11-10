@@ -74,11 +74,11 @@
         <div class="pipeline-maintenance-card__timers">
           <span class="pipeline-maintenance-chip">
             <i class="far fa-clock"></i>
-            Elapsed: <strong id="pipelineElapsed">--</strong>
+            Elapsed: <strong id="pipelineElapsed">—</strong>
           </span>
           <span class="pipeline-maintenance-chip">
             <i class="fas fa-hourglass-half"></i>
-            ETA: <strong id="pipelineEta">--</strong>
+            ETA: <strong id="pipelineEta">—</strong>
           </span>
           <span class="pipeline-maintenance-chip">
             <i class="fas fa-cogs"></i>
@@ -89,8 +89,8 @@
     </div>
   </div>
 
-  <!-- Minimal jQuery shim for shared plugins -->
-  <script src="{{ url_for('static', filename='js/shared/jquery-lite.js') }}"></script>
+  <!-- Shared helpers (SharedUtils) for every page -->
+  <script src="{{ url_for('static', filename='js/shared/utils.js') }}"></script>
   <!-- Bootstrap JS (includes Popper) -->
   <script src="{{ url_for('static', filename='vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
   <script>window.initialPipelineStatus = {{ pipeline_status|default({}, true)|tojson }};</script>

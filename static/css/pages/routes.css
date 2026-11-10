@@ -197,139 +197,6 @@
   z-index: 1700;
 }
 
-.routes-toolbar__group-label {
-  margin: 0 0 var(--space-1) 0;
-  font-size: var(--text-xs);
-  color: var(--color-fg-muted);
-  font-weight: var(--font-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  display: block;
-}
-
-.routes-toolbar__inline-item--group {
-  display: flex;
-  flex-direction: column;
-}
-
-.routes-toolbar__inline-item--per-page {
-  width: 90px;
-  display: flex;
-  flex-direction: column;
-}
-
-.routes-pill-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: nowrap;
-}
-
-.routes-pill-group__input {
-  position: absolute;
-  opacity: 0;
-  width: 1px;
-  height: 1px;
-  pointer-events: none;
-}
-
-.routes-pill-group__pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg);
-  color: var(--color-fg-muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 0.3rem 0.8rem;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  white-space: nowrap;
-}
-
-.routes-pill-group__input:checked + .routes-pill-group__pill {
-  border-color: var(--color-primary);
-  background: var(--color-primary);
-  color: var(--color-on-accent);
-  box-shadow: var(--shadow-sm);
-}
-
-.routes-operator-picker {
-  position: relative;
-}
-
-.routes-operator-picker summary {
-  list-style: none;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 40px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-subtle);
-  color: var(--color-fg);
-  font-size: var(--text-sm);
-  font-weight: var(--font-medium);
-  padding: 0.45rem 0.75rem;
-  width: 100%;
-}
-
-.routes-operator-picker summary::-webkit-details-marker {
-  display: none;
-}
-
-.routes-operator-picker summary::after {
-  content: '\f078';
-  font-family: 'Font Awesome 5 Free';
-  font-weight: 900;
-  font-size: 0.7rem;
-  color: var(--color-fg-muted);
-  margin-left: 0.6rem;
-}
-
-.routes-operator-picker[open] summary {
-  border-color: var(--color-primary);
-}
-
-.routes-operator-picker[open] summary::after {
-  content: '\f077';
-}
-
-.routes-operator-picker__list {
-  margin-top: var(--space-2);
-  max-height: 220px;
-  overflow: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg);
-  padding: var(--space-2);
-  box-shadow: var(--shadow-md);
-}
-
-.routes-operator-picker__item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: var(--text-sm);
-  color: var(--color-fg);
-  padding: 0.25rem 0.1rem;
-  cursor: pointer;
-}
-
-.routes-operator-picker__item input {
-  margin: 0;
-}
-
-.routes-toolbar__actions {
-  display: flex;
-  align-items: end;
-  gap: var(--space-2);
-  margin-left: auto;
-}
-
 .routes-summary {
   color: var(--color-fg-muted);
   font-size: var(--text-sm);
@@ -1001,10 +868,6 @@
   font-size: 0.8em;
 }
 
-.route-card__panel-content--map {
-  gap: var(--space-2);
-}
-
 /* An expanded variant: stops, then the map; side by side on wide screens,
    where the map sticks below the page tabs while the stops scroll. */
 .variant-workspace {
@@ -1229,24 +1092,11 @@
   color: var(--color-danger);
 }
 
-.route-map-meta {
-  margin: 0;
-  color: var(--color-fg-muted);
-  font-size: var(--text-xs);
-}
-
 .direction-block {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-bg-subtle);
   padding: var(--space-3);
-}
-
-.direction-block__title {
-  margin: 0 0 var(--space-2) 0;
-  color: var(--color-fg);
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
 }
 
 .direction-block__columns {
@@ -1330,17 +1180,6 @@
   font-size: var(--text-xs);
 }
 
-.stop-shared-uic {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  padding: 0 0.4rem;
-  font-size: 0.68rem;
-  color: var(--color-fg-muted);
-  background: var(--color-bg-subtle);
-}
-
 .stop-id {
   color: var(--color-fg-muted);
   font-size: var(--text-xs);
@@ -1357,7 +1196,6 @@
   color: var(--color-fg-muted);
   font-size: var(--text-sm);
 }
-
 
 .routes-empty-state {
   background: var(--color-bg);
@@ -1398,15 +1236,6 @@
   }
 
   .routes-toolbar__inline-item--search {
-    width: 100%;
-  }
-
-  .routes-toolbar__inline-item--group {
-    min-width: 240px;
-  }
-
-  .routes-toolbar__actions {
-    margin-left: 0;
     width: 100%;
   }
 
@@ -1506,14 +1335,5 @@
     order: 3;
     flex-basis: 100%;
     margin-left: 0;
-  }
-
-  .routes-toolbar__inline-item--group,
-  .routes-toolbar__inline-item--per-page {
-    min-width: 100%;
-  }
-
-  .routes-pill-group {
-    flex-wrap: wrap;
   }
 }

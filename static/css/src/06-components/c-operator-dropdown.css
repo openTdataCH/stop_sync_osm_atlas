@@ -166,18 +166,3 @@
     margin-right: var(--space-1);
     margin-bottom: var(--space-1);
 }
-
-.operator-badge .remove-operator {
-    margin-left: var(--space-2);
-    color: var(--color-on-accent);
-    text-decoration: none;
-    font-weight: var(--font-bold);
-    cursor: pointer;
-    transition: opacity var(--transition-fast);
-}
-
-.operator-badge .remove-operator:hover {
-    opacity: 0.8;
-}
-
-

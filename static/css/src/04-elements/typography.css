@@ -45,17 +45,8 @@ p {
   margin-bottom: var(--space-4);
 }
 
-small,
-.text-sm {
+small {
   font-size: var(--text-sm);
-}
-
-.text-xs {
-  font-size: var(--text-xs);
-}
-
-.text-lg {
-  font-size: var(--text-lg);
 }
 
 /* -------------------------------------------------------------------------
@@ -76,18 +67,7 @@ small,
 }
 
 .text-primary { color: var(--color-primary) !important; }
-.text-success { color: var(--color-success) !important; }
-.text-warning { color: var(--color-warning) !important; }
 .text-danger { color: var(--color-danger) !important; }
-.text-info { color: var(--color-primary) !important; }
-
-/* -------------------------------------------------------------------------
-   Font Weights
-   ------------------------------------------------------------------------- */
-.font-normal { font-weight: var(--font-normal) !important; }
-.font-medium { font-weight: var(--font-medium) !important; }
-.font-semibold { font-weight: var(--font-semibold) !important; }
-.font-bold { font-weight: var(--font-bold) !important; }
 
 /* -------------------------------------------------------------------------
    Labels & Captions
@@ -129,5 +109,3 @@ pre code {
   background-color: transparent;
   color: inherit;
 }
-
-

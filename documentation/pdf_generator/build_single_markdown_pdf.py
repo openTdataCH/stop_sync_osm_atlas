@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
@@ -47,10 +46,6 @@ def _build_single_markdown_pdf(input_markdown: Path, output_pdf: Path, title: st
             "[[canonical_palette]]",
             docs_builder.get_canonical_palette_html(),
         )
-
-    # Preserve LaTeX backslashes before Mistune parsing.
-    markdown_content = re.sub(r"\$\$.*?\$\$", docs_builder._protect_math, markdown_content, flags=re.DOTALL)
-    markdown_content = re.sub(r"(?<!\$)\$[^\s$](?:.*?[^\s$])?\$(?!\$)", docs_builder._protect_math, markdown_content)
 
     markdown_parser = mistune.create_markdown(escape=False, plugins=["strikethrough", "table", "url"])
     body_html = markdown_parser(markdown_content)

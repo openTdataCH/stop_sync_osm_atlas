@@ -1,6 +1,45 @@
 // Filter Management Module
 // This module handles all filter-related functionality
 
+// Form helpers. Like the controls they read, they do nothing when no element
+// matches, and setChecked can send the change event the filter listeners use.
+function isChecked(selector) {
+    const element = document.querySelector(selector);
+    return !!(element && element.checked);
+}
+
+function checkedValues(selector) {
+    return Array.from(document.querySelectorAll(selector))
+        .filter(function (element) { return element.checked; })
+        .map(function (element) { return element.value; });
+}
+
+function setChecked(selectorOrElements, checked, notifyChange) {
+    const elements = typeof selectorOrElements === 'string'
+        ? Array.from(document.querySelectorAll(selectorOrElements))
+        : selectorOrElements;
+    elements.forEach(function (element) { element.checked = checked; });
+    if (notifyChange) {
+        elements.forEach(function (element) {
+            element.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    }
+}
+
+function setElementHtml(id, html) {
+    const element = document.getElementById(id);
+    if (element) element.innerHTML = html;
+}
+
+function onEach(selector, type, handler) {
+    document.querySelectorAll(selector).forEach(function (element) {
+        element.addEventListener(type, handler);
+    });
+}
+
+const ACTIVATE_TOP_N_HTML = '<i class="fas fa-filter"></i> Activate Top N';
+const REMOVE_TOP_N_HTML = '<i class="fas fa-times-circle"></i> Remove Top N';
+
 // Matched-stop filters by group. Each value is a matching rule key or one match
 // type; backend/services/matching_rules.py expands it to match types.
 const MATCH_METHOD_FILTERS = {
@@ -26,7 +65,7 @@ const MATCH_METHOD_FILTERS = {
 function matchMethodFlags(group, readChecked, withAllSelected) {
     const flags = withAllSelected === undefined ? {} : { allSelected: withAllSelected };
     MATCH_METHOD_FILTERS[group].forEach(function (filter) {
-        flags[filter.value] = readChecked ? $(filter.selector).is(':checked') : false;
+        flags[filter.value] = readChecked ? isChecked(filter.selector) : false;
     });
     return flags;
 }
@@ -77,7 +116,7 @@ let isBulkCheckboxSyncDepth = 0;
 
 function areAllFilterSelectorsChecked(selectors) {
     return selectors.length > 0 && selectors.every(function (selector) {
-        return $(selector).is(':checked');
+        return isChecked(selector);
     });
 }
 
@@ -130,7 +169,7 @@ const SIMPLE_ARRAY_FILTER_DEFINITIONS = [
             return helpers.buildOrGroup(chips);
         },
         remove: function (value) {
-            $('.filter-transport-type[value="' + value + '"]').prop('checked', false).trigger('change');
+            setChecked('.filter-transport-type[value="' + value + '"]', false, true);
             return false;
         }
     },
@@ -148,7 +187,7 @@ const SIMPLE_ARRAY_FILTER_DEFINITIONS = [
             return helpers.buildOrGroup(chips);
         },
         remove: function (value) {
-            $('.filter-osm-entity-type[value="' + value + '"]').prop('checked', false).trigger('change');
+            setChecked('.filter-osm-entity-type[value="' + value + '"]', false, true);
             return false;
         }
     },
@@ -352,26 +391,20 @@ function getActiveFilterCount() {
     return count;
 }
 
-function getActiveFilterCountText() {
-    const count = getActiveFilterCount();
-    return count + ' filter' + (count !== 1 ? 's' : '') + ' active';
-}
-
 function showSmartSearchError(message, showHint = true) {
-    const errorEl = $('#smartSearchError');
-    if (!errorEl.length) return;
+    const errorEl = document.getElementById('smartSearchError');
+    if (!errorEl) return;
+    const hint = document.getElementById('smartSearchHint');
 
     if (message) {
         const docLink = ' <a href="/docs/filters_and_search_logic" class="doc-link" target="_blank" rel="noopener noreferrer" title="Open docs"><i class="fas fa-info-circle"></i></a>';
-        errorEl.html($('<span>').text(message).html() + docLink).removeClass('d-none');
-        if (showHint) {
-            $('#smartSearchHint').removeClass('d-none');
-        } else {
-            // Keep hint hidden if it's not relevant to this error (like "not found")
-            $('#smartSearchHint').addClass('d-none');
-        }
+        errorEl.innerHTML = SharedUtils.escapeHtml(message) + docLink;
+        errorEl.classList.remove('d-none');
+        // Keep hint hidden if it's not relevant to this error (like "not found")
+        if (hint) hint.classList.toggle('d-none', !showHint);
     } else {
-        errorEl.text('').addClass('d-none');
+        errorEl.textContent = '';
+        errorEl.classList.add('d-none');
     }
 }
 
@@ -445,7 +478,7 @@ function addSearchToken(token) {
             if (name) searchTokenNames[searchTokenKey(filterType, filterValue)] = name;
             // Update UI only if the stop was found successfully
             updateFiltersUI();
-            if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
+            window.invalidateViewportCache();
             loadDataForViewport();
             updateHeaderSummary();
         })
@@ -482,9 +515,14 @@ function shouldPreselectSuggestion(query) {
     return Boolean(parsed.error || parsed.implicit);
 }
 
+function clearSmartSearchInput() {
+    const input = document.getElementById('smartSearchInput');
+    if (input) input.value = '';
+}
+
 function pickSearchSuggestion(item) {
     showSmartSearchError('');
-    $('#smartSearchInput').val('');
+    clearSmartSearchInput();
     addSearchToken({ kind: item.kind, value: item.value, name: item.name });
 }
 
@@ -492,11 +530,12 @@ function searchTypedToken(parsed) {
     if (searchSuggest) searchSuggest.close();
     showSmartSearchError('');
     addSearchToken(parsed);
-    $('#smartSearchInput').val('');
+    clearSmartSearchInput();
 }
 
 function submitSmartSearch() {
-    const raw = ($('#smartSearchInput').val() || '').trim();
+    const input = document.getElementById('smartSearchInput');
+    const raw = ((input && input.value) || '').trim();
     const parsed = parseSmartSearchInput(raw);
 
     if (!parsed.error && !parsed.implicit) {
@@ -584,7 +623,7 @@ function addSearchFilter(kind, value, direction) {
     activeFilters.routeVariants.push(null);
 
     updateFiltersUI();
-    if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
+    window.invalidateViewportCache();
     loadDataForViewport();
     updateHeaderSummary();
     return true;
@@ -630,8 +669,7 @@ function appendProblemFilterChips(groups, buildRemovableChip, buildOrGroup) {
 
 // Update active filters UI (badges)
 function updateFiltersUI() {
-    var container = $('#activeFilters');
-    container.empty();
+    var container = document.getElementById('activeFilters');
     let finalGroupStrings = [];
     const buildOrGroup = window.FilterChipUtils.buildOrGroupHtml;
     const joinWithAnd = window.FilterChipUtils.joinWithAndHtml;
@@ -784,35 +822,33 @@ function updateFiltersUI() {
     if (activeFilters.topN) finalGroupStrings.push(buildRemovableChip({ label: 'Top N Distances (' + activeFilters.topN + ')', badgeClass: 'filter-chip-secondary', data: { type: 'topN', filter: 'topN' } }));
     if (activeFilters.showDuplicatesOnly) finalGroupStrings.push(buildRemovableChip({ label: 'Duplicate ' + SharedUtils.sourceLabel(), badgeClass: 'filter-chip-atlas', data: { type: 'showDuplicatesOnly' } }));
 
-    if (finalGroupStrings.length > 0) {
-        if (getActiveFilterCount() === 1) {
-            container.html('<span class="header-summary__filters-prefix">Filter:</span>' + joinWithAnd(finalGroupStrings));
-        } else {
-            container.html(joinWithAnd(finalGroupStrings));
+    if (container) {
+        if (finalGroupStrings.length > 0) {
+            if (getActiveFilterCount() === 1) {
+                container.innerHTML = '<span class="header-summary__filters-prefix">Filter:</span>' + joinWithAnd(finalGroupStrings);
+            } else {
+                container.innerHTML = joinWithAnd(finalGroupStrings);
+            }
         }
-    }
-    else container.html('<span class="badge filter-chip-badge filter-chip-secondary me-1 mb-1">All entries</span>');
+        else container.innerHTML = '<span class="badge filter-chip-badge filter-chip-secondary me-1 mb-1">All entries</span>';
 
-    container.attr('data-active-filter-count', String(getActiveFilterCount()));
+        container.setAttribute('data-active-filter-count', String(getActiveFilterCount()));
+    }
     syncFilterUrl();
 }
 
 function clearAllFilters() {
     // Uncheck all filter checkboxes
-    $('#masterMatchedCheckbox').prop('checked', false);
-    $('#masterUnmatchedAtlasCheckbox').prop('checked', false);
-    $('#masterUnmatchedOsmCheckbox').prop('checked', false);
-    $('#masterDisusedOsmCheckbox').prop('checked', false);
-    $('#filterDuplicatesOnly').prop('checked', false);
-    $('#filterMissingOsmOperatorWikidata').prop('checked', false);
+    setChecked('#masterMatchedCheckbox, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox, #masterDisusedOsmCheckbox', false);
+    setChecked('#filterDuplicatesOnly, #filterMissingOsmOperatorWikidata', false);
     activeFilters.missingOsmOperatorWikidata = false;
-    $('.filter-match-method, .filter-distance-method, .filter-route-method').prop('checked', false);
-    $('#masterDistanceMatchingCheckbox, #masterRouteMatchingCheckbox').prop('checked', false);
-    $('.filter-unmatched-method').prop('checked', false);
-    $('.filter-transport-type').prop('checked', false);
-    $('.filter-osm-entity-type').prop('checked', false);
-    $('.filter-osm-group, .filter-osm-pair-master, .filter-osm-group-type').prop('checked', false);
-    $('#masterProblemsCheckbox, .filter-problem-type, .filter-problem-priority').prop('checked', false);
+    setChecked('.filter-match-method, .filter-distance-method, .filter-route-method', false);
+    setChecked('#masterDistanceMatchingCheckbox, #masterRouteMatchingCheckbox', false);
+    setChecked('.filter-unmatched-method', false);
+    setChecked('.filter-transport-type', false);
+    setChecked('.filter-osm-entity-type', false);
+    setChecked('.filter-osm-group, .filter-osm-pair-master, .filter-osm-group-type', false);
+    setChecked('#masterProblemsCheckbox, .filter-problem-type, .filter-problem-priority', false);
 
     // Clear array-based filters
     activeFilters.station = [];
@@ -838,31 +874,23 @@ function clearAllFilters() {
 
     // Clear top N
     activeFilters.topN = null;
-    $('#topDistance').val(10);
-    $('#toggleTopNBtn').html('<i class="fas fa-filter"></i> Activate Top N');
+    resetTopNControls();
     if (typeof topNLayer !== 'undefined') topNLayer.clearLayers();
-    $('#topNDistancesMessage').empty();
+    setElementHtml('topNDistancesMessage', '');
 
     updateActiveFilters();
     updateHeaderSummary();
 }
 
-window.getActiveFilterCount = getActiveFilterCount;
-window.getActiveFilterCountText = getActiveFilterCountText;
-window.clearAllFilters = clearAllFilters;
-function filterByStation(stopId, stopCategory) {
-    var selectedStop = stopsById[stopId];
-    if (!selectedStop) {
-        SharedUtils.notify('This stop is no longer loaded on the map. Open it again.');
-        return;
-    }
-    // "Filter by station" always filters by the stop's UIC number.
-    if (!selectedStop.uic_ref) {
-        SharedUtils.notify('This stop has no UIC number to filter by.');
-        return;
-    }
-    addSearchFilter('station', selectedStop.uic_ref, '');
+// The Top N input back at 10 and its button at "Activate".
+function resetTopNControls() {
+    const input = document.getElementById('topDistance');
+    if (input) input.value = 10;
+    setElementHtml('toggleTopNBtn', ACTIVATE_TOP_N_HTML);
 }
+
+window.getActiveFilterCount = getActiveFilterCount;
+window.clearAllFilters = clearAllFilters;
 
 // Update the activeFilters object from the UI inputs
 function updateActiveFilters() {
@@ -873,19 +901,19 @@ function updateActiveFilters() {
     // Do NOT force-sync here — it races with setupMasterCheckbox's change propagation.
 
     activeFilters.stopType = [];
-    if ($('#masterMatchedCheckbox').is(':checked')) activeFilters.stopType.push('matched');
-    if ($('#masterUnmatchedAtlasCheckbox').is(':checked')) activeFilters.stopType.push('atlas_unmatched');
-    if ($('#masterUnmatchedOsmCheckbox').is(':checked')) activeFilters.stopType.push('osm_unmatched');
-    if ($('#masterDisusedOsmCheckbox').is(':checked')) activeFilters.stopType.push('osm_disused');
+    if (isChecked('#masterMatchedCheckbox')) activeFilters.stopType.push('matched');
+    if (isChecked('#masterUnmatchedAtlasCheckbox')) activeFilters.stopType.push('atlas_unmatched');
+    if (isChecked('#masterUnmatchedOsmCheckbox')) activeFilters.stopType.push('osm_unmatched');
+    if (isChecked('#masterDisusedOsmCheckbox')) activeFilters.stopType.push('osm_disused');
 
-    activeFilters.showDuplicatesOnly = $('#filterDuplicatesOnly').is(':checked');
-    activeFilters.missingOsmOperatorWikidata = $('#filterMissingOsmOperatorWikidata').is(':checked');
-    activeFilters.transportTypes = $('.filter-transport-type:checked').map(function () { return this.value; }).get();
-    activeFilters.osmEntityTypes = $('.filter-osm-entity-type:checked').map(function () { return this.value; }).get();
+    activeFilters.showDuplicatesOnly = isChecked('#filterDuplicatesOnly');
+    activeFilters.missingOsmOperatorWikidata = isChecked('#filterMissingOsmOperatorWikidata');
+    activeFilters.transportTypes = checkedValues('.filter-transport-type');
+    activeFilters.osmEntityTypes = checkedValues('.filter-osm-entity-type');
 
     activeFilters.osmGroups = [];
-    var osmGroupMasterChecked = $('#filterOsmGroup').is(':checked');
-    var selectedOsmGroupTypes = $('.filter-osm-group-type:checked').map(function () { return this.value; }).get();
+    var osmGroupMasterChecked = isChecked('#filterOsmGroup');
+    var selectedOsmGroupTypes = checkedValues('.filter-osm-group-type');
     var anyOsmGroupTypeChecked = selectedOsmGroupTypes.length > 0;
     if (osmGroupMasterChecked) {
         activeFilters.osmGroups = ['all'];
@@ -893,23 +921,23 @@ function updateActiveFilters() {
         activeFilters.osmGroups = selectedOsmGroupTypes;
     }
 
-    activeFilters.problemTypes = $('#masterProblemsCheckbox').is(':checked')
+    activeFilters.problemTypes = isChecked('#masterProblemsCheckbox')
         ? ['all']
-        : $('.filter-problem-type:checked').map(function () { return this.value; }).get();
-    activeFilters.problemPriorities = $('.filter-problem-priority:checked').map(function () { return this.value; }).get();
+        : checkedValues('.filter-problem-type');
+    activeFilters.problemPriorities = checkedValues('.filter-problem-priority');
 
     activeFilters.matchedOptions = {
-        allSelected: $('#masterMatchedCheckbox').is(':checked'),
+        allSelected: isChecked('#masterMatchedCheckbox'),
         methods: matchMethodFlags('methods', true),
         distanceMatching: matchMethodFlags('distanceMatching', true, allDistanceMethodsSelected),
         routeMatching: matchMethodFlags('routeMatching', true, allRouteMethodsSelected)
     };
 
     activeFilters.unmatchedOptions = {
-        allSelected: $('#masterUnmatchedAtlasCheckbox').is(':checked'),
+        allSelected: isChecked('#masterUnmatchedAtlasCheckbox'),
         reasons: {
-            noNearbyOSM: $('#filterNoNearbyOSM').is(':checked'),
-            osmNearby: $('#filterOSMNearby').is(':checked')
+            noNearbyOSM: isChecked('#filterNoNearbyOSM'),
+            osmNearby: isChecked('#filterOSMNearby')
         }
     };
 
@@ -927,64 +955,51 @@ function updateActiveFilters() {
 
     if (activeFilters.topN && !hasMatchedScope) {
         activeFilters.topN = null;
-        $('#toggleTopNBtn').html('<i class="fas fa-filter"></i> Activate Top N');
+        setElementHtml('toggleTopNBtn', ACTIVATE_TOP_N_HTML);
         if (typeof topNLayer !== 'undefined') topNLayer.clearLayers();
-        $('#topNDistancesMessage').empty();
+        setElementHtml('topNDistancesMessage', '');
     }
-    if (hasMatchedScope) {
-        $('#topNDistancesContainer').show();
-    } else {
-        $('#topNDistancesContainer').hide();
-        if (activeFilters.topN) {
-            activeFilters.topN = null;
-            $('#toggleTopNBtn').html('<i class="fas fa-filter"></i> Activate Top N');
-            if (typeof topNLayer !== 'undefined') topNLayer.clearLayers();
-            $('#topNDistancesMessage').empty();
-        }
-    }
+    var topNContainer = document.getElementById('topNDistancesContainer');
+    if (topNContainer) topNContainer.style.display = hasMatchedScope ? '' : 'none';
 
     updateFiltersUI();
-    if (typeof window.invalidateViewportCache === 'function') {
-        window.invalidateViewportCache();
-    }
+    window.invalidateViewportCache();
     loadDataForViewport();
     if (activeFilters.topN && hasMatchedScope) {
         loadTopNMatches();
     } else if (!activeFilters.topN && typeof topNLayer !== 'undefined') {
         topNLayer.clearLayers();
-        $('#topNDistancesMessage').empty();
+        setElementHtml('topNDistancesMessage', '');
     }
 }
 // Function to handle master checkbox logic
 function setupMasterCheckbox(masterCheckboxSelector, childCheckboxSelector) {
-    const masterCheckbox = $(masterCheckboxSelector);
-    const childCheckboxes = $(childCheckboxSelector);
+    const masterCheckboxes = Array.from(document.querySelectorAll(masterCheckboxSelector));
+    const childCheckboxes = Array.from(document.querySelectorAll(childCheckboxSelector));
 
     // Master controls children
-    masterCheckbox.on('change', function () {
-        isBulkCheckboxSyncDepth++;
-        try {
-            childCheckboxes.prop('checked', $(this).is(':checked')).trigger('change'); // Trigger child listeners while suppressing expensive bulk reloads
-        } finally {
-            isBulkCheckboxSyncDepth--;
-        }
+    masterCheckboxes.forEach(function (master) {
+        master.addEventListener('change', function () {
+            isBulkCheckboxSyncDepth++;
+            try {
+                setChecked(childCheckboxes, master.checked, true); // Trigger child listeners while suppressing expensive bulk reloads
+            } finally {
+                isBulkCheckboxSyncDepth--;
+            }
+        });
     });
 
     // Children control master
-    childCheckboxes.on('change', function () {
-        if (!$(this).is(':checked')) {
-            masterCheckbox.prop('checked', false);
-        }
-        // Check if all children are checked
-        else if (childCheckboxes.filter(':checked').length === childCheckboxes.length) {
-            masterCheckbox.prop('checked', true);
-        }
-        // Propagate change up to higher-level master if exists (e.g., Distance/Route to Matched)
-        const parentMasterSelector = masterCheckbox.closest('.nested-accordion-content').prev('.nested-accordion-header').find('.master-filter-checkbox').attr('id');
-        if (parentMasterSelector) {
-            // This logic is a bit tricky for deep nesting and might need refinement
-            // For now, focus on direct parent-child relationship for master checkboxes
-        }
+    childCheckboxes.forEach(function (child) {
+        child.addEventListener('change', function () {
+            if (!child.checked) {
+                setChecked(masterCheckboxes, false);
+            }
+            // Check if all children are checked
+            else if (childCheckboxes.every(function (box) { return box.checked; })) {
+                setChecked(masterCheckboxes, true);
+            }
+        });
     });
 }
 
@@ -996,36 +1011,36 @@ function setRouteDirection(index, direction) {
         syncRouteVariantUrl();
 
         updateFiltersUI();
-        if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
+        window.invalidateViewportCache();
         loadDataForViewport(); // Reload data with new direction filter
         updateHeaderSummary();
     }
 }
 
-// Function to toggle direction dropdown
-function toggleDirectionDropdown(index) {
-    var dropdown = $('.direction-dropdown[data-index="' + index + '"]');
-    var options = dropdown.find('.direction-options');
-    var arrow = dropdown.find('.direction-arrow');
+function setDirectionDropdownOpen(dropdown, open) {
+    var options = dropdown.querySelector('.direction-options');
+    var arrow = dropdown.querySelector('.direction-arrow');
+    if (options) options.style.display = open ? '' : 'none';
+    if (arrow) arrow.classList.toggle('rotated', open);
+    dropdown.classList.toggle('open', open);
+}
 
-    if (options.is(':visible')) {
-        // Close dropdown
-        options.slideUp(200);
-        arrow.removeClass('rotated');
-        dropdown.removeClass('open');
+function closeDirectionDropdowns() {
+    document.querySelectorAll('.direction-dropdown.open').forEach(function (dropdown) {
+        setDirectionDropdownOpen(dropdown, false);
+    });
+}
+
+// Function to toggle direction dropdown
+function toggleDirectionDropdown(dropdown) {
+    var options = dropdown.querySelector('.direction-options');
+    if (options && options.style.display !== 'none') {
+        setDirectionDropdownOpen(dropdown, false);
     } else {
         // Close any other open dropdowns first
-        $('.direction-dropdown.open').each(function () {
-            $(this).find('.direction-options').slideUp(200);
-            $(this).find('.direction-arrow').removeClass('rotated');
-            $(this).removeClass('open');
-        });
-
-        // Open this dropdown
+        closeDirectionDropdowns();
         loadRouteVariantOptions(dropdown);
-        options.slideDown(200);
-        arrow.addClass('rotated');
-        dropdown.addClass('open');
+        setDirectionDropdownOpen(dropdown, true);
     }
 }
 
@@ -1046,11 +1061,7 @@ function fetchRouteVariants(params) {
         return encodeURIComponent(key) + '=' + encodeURIComponent(params[key]);
     }).join('&');
     if (!routeVariantRequests[query]) {
-        routeVariantRequests[query] = fetch('/api/routes/variants?' + query, { headers: { Accept: 'application/json' } })
-            .then(function (response) {
-                if (!response.ok) throw new Error('Route variants request failed with HTTP ' + response.status);
-                return response.json();
-            })
+        routeVariantRequests[query] = SharedUtils.fetchJson('/api/routes/variants?' + query)
             .catch(function (error) {
                 delete routeVariantRequests[query];
                 throw error;
@@ -1105,7 +1116,7 @@ function setRouteVariants(index, atlas, osm) {
     };
     syncRouteVariantUrl();
     updateFiltersUI();
-    if (typeof window.invalidateViewportCache === 'function') window.invalidateViewportCache();
+    window.invalidateViewportCache();
     loadDataForViewport();
     updateHeaderSummary();
 }
@@ -1143,11 +1154,11 @@ function routeVariantOptionHtml(entry, i, isCurrent) {
 
 // Fills a route chip's dropdown with the route's variants under their direction.
 function loadRouteVariantOptions(dropdown) {
-    var container = dropdown.find('.direction-variants');
-    var routeId = dropdown.attr('data-route-id');
-    if (!container.length || !routeId || container.attr('data-state')) return;
-    container.attr('data-state', 'loading');
-    var selected = activeFilters.routeVariants[Number(dropdown.attr('data-index'))];
+    var container = dropdown.querySelector('.direction-variants');
+    var routeId = dropdown.getAttribute('data-route-id');
+    if (!container || !routeId || container.getAttribute('data-state')) return;
+    container.setAttribute('data-state', 'loading');
+    var selected = activeFilters.routeVariants[Number(dropdown.getAttribute('data-index'))];
     fetchRouteVariants({ route_id: routeId }).then(function (data) {
         var html = '';
         data.variants.forEach(function (entry, i) {
@@ -1164,11 +1175,11 @@ function loadRouteVariantOptions(dropdown) {
             html += routeVariantOptionHtml(entry, i, isCurrent);
         });
         loadedRouteVariants[routeId] = data.variants;
-        if (html) container.html(html);
-        container.attr('data-state', 'loaded');
+        if (html) container.innerHTML = html;
+        container.setAttribute('data-state', 'loaded');
     }).catch(function () {
         // The directions stay; opening the list again retries.
-        container.attr('data-state', '');
+        container.setAttribute('data-state', '');
     });
 }
 
@@ -1261,8 +1272,8 @@ function enableFilterUrlSync() {
 }
 
 function checkFilterBoxes(selector, values) {
-    $(selector).each(function () {
-        if (values.indexOf(this.value) !== -1) $(this).prop('checked', true).trigger('change');
+    document.querySelectorAll(selector).forEach(function (box) {
+        if (values.indexOf(box.value) !== -1) setChecked([box], true, true);
     });
 }
 
@@ -1282,8 +1293,7 @@ function loadSearchFilterNames(tokens) {
         if (/^osm:/.test(value)) return;
         var query = {};
         query[keys[token.kind]] = value;
-        fetch('/api/lookup?' + Permalinks.encodeParams(query), { headers: { Accept: 'application/json' } })
-            .then(function (response) { return response.ok ? response.json() : null; })
+        SharedUtils.fetchJson('/api/lookup?' + Permalinks.encodeParams(query))
             .then(function (data) {
                 var first = data && data.results && data.results[0];
                 var side = first && (token.kind === 'osm' ? first.osm : first.source);
@@ -1309,17 +1319,17 @@ function restoreFiltersFromUrl(search) {
         [['matched', '#masterMatchedCheckbox'], ['atlas_unmatched', '#masterUnmatchedAtlasCheckbox'],
             ['osm_unmatched', '#masterUnmatchedOsmCheckbox'], ['osm_disused', '#masterDisusedOsmCheckbox']
         ].forEach(function (entry) {
-            if (scope.indexOf(entry[0]) !== -1) $(entry[1]).prop('checked', true).trigger('change');
+            if (scope.indexOf(entry[0]) !== -1) setChecked(entry[1], true, true);
         });
         checkFilterBoxes('.filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method', list('match_method'));
         checkFilterBoxes('.filter-transport-type', list('transport_types'));
         checkFilterBoxes('.filter-osm-entity-type', list('osm_entity_types'));
         var groups = list('osm_group_types');
-        if (groups.indexOf('all') !== -1) $('#filterOsmGroup').prop('checked', true).trigger('change');
+        if (groups.indexOf('all') !== -1) setChecked('#filterOsmGroup', true, true);
         else checkFilterBoxes('.filter-osm-group-type', groups);
-        if (params.get('show_duplicates_only') === 'true') $('#filterDuplicatesOnly').prop('checked', true);
+        if (params.get('show_duplicates_only') === 'true') setChecked('#filterDuplicatesOnly', true);
         var problemTypes = list('problem_type');
-        if (problemTypes.indexOf('all') !== -1) $('#masterProblemsCheckbox').prop('checked', true).trigger('change');
+        if (problemTypes.indexOf('all') !== -1) setChecked('#masterProblemsCheckbox', true, true);
         else checkFilterBoxes('.filter-problem-type', problemTypes);
         checkFilterBoxes('.filter-problem-priority', list('priority'));
     } finally {
@@ -1328,8 +1338,9 @@ function restoreFiltersFromUrl(search) {
     var topN = parseInt(params.get('top_n'), 10);
     if (topN > 0) {
         activeFilters.topN = topN;
-        $('#topDistance').val(topN);
-        $('#toggleTopNBtn').html('<i class="fas fa-times-circle"></i> Remove Top N');
+        var topNInput = document.getElementById('topDistance');
+        if (topNInput) topNInput.value = topN;
+        setElementHtml('toggleTopNBtn', REMOVE_TOP_N_HTML);
     }
     var tokens = params.getAll('search').map(parseSearchFilterText).filter(Boolean);
     tokens.forEach(pushSearchFilter);
@@ -1341,7 +1352,7 @@ window.enableFilterUrlSync = enableFilterUrlSync;
 window.filterUrlQuery = filterUrlQuery;
 
 function initFilterEventHandlers() {
-    $('#filterMissingOsmOperatorWikidata').on('change', function () {
+    onEach('#filterMissingOsmOperatorWikidata', 'change', function () {
         if (this.checked) {
             activeFilters.osmOperatorWikidata = [];
             if (window.osmOperatorWikidataDropdown) window.osmOperatorWikidataDropdown.setSelection([]);
@@ -1351,21 +1362,23 @@ function initFilterEventHandlers() {
     });
 
     // Remove filter badge and update filters
-    $(document).on('click', '.remove-filter', function (e) {
+    document.addEventListener('click', function (e) {
+        var link = e.target.closest('.remove-filter');
+        if (!link) return;
         e.preventDefault();
         e.stopPropagation(); // Prevent event bubbling
 
-        var type = $(this).data('type');
-        var filterValue = $(this).data('filter');
-        var index = $(this).data('index');
-        var targetCheckboxId = $(this).data('target');
+        var type = link.dataset.type;
+        var filterValue = link.dataset.filter;
+        var index = link.dataset.index !== undefined ? Number(link.dataset.index) : undefined;
+        var targetCheckboxId = link.dataset.target;
 
         let needsManualUpdateCall = false;
 
         if (targetCheckboxId) {
             // This covers most checkbox-driven filters linked by data-target
             // (masterMatched, specificMatch, masterDistance, specificDistance, masterRoute, specificRoute, specificUnmatched)
-            $(targetCheckboxId).prop('checked', false).trigger('change');
+            setChecked(targetCheckboxId, false, true);
         } else {
             const simpleArrayRemoval = removeSimpleArrayFilter(type, filterValue);
             if (simpleArrayRemoval !== null) {
@@ -1385,23 +1398,22 @@ function initFilterEventHandlers() {
                         break;
                     case 'topN':
                         activeFilters.topN = null;
-                        $('#topDistance').val(10); // Reset input field as well
-                        $('#toggleTopNBtn').html('<i class="fas fa-filter"></i> Activate Top N');
+                        resetTopNControls();
                         // updateActiveFilters will handle clearing layers via loadDataForViewport or loadTopNMatches
                         needsManualUpdateCall = true;
                         break;
                     case 'showDuplicatesOnly':
-                        $('#filterDuplicatesOnly').prop('checked', false).trigger('change');
+                        setChecked('#filterDuplicatesOnly', false, true);
                         break;
                     case 'osmGroup':
-                        $('#filterOsmGroup').prop('checked', false).trigger('change');
+                        setChecked('#filterOsmGroup', false, true);
                         break;
                     case 'specificOsmGroup':
-                        var remainingOsmGroupTypes = $('.filter-osm-group-type:checked').not('[value="' + filterValue + '"]');
+                        var remainingOsmGroupTypes = checkedValues('.filter-osm-group-type').filter(function (value) { return value !== filterValue; });
                         if (remainingOsmGroupTypes.length === 0) {
-                            $('#filterOsmGroup').prop('checked', false).trigger('change');
+                            setChecked('#filterOsmGroup', false, true);
                         } else {
-                            $('.filter-osm-group-type[value="' + filterValue + '"]').prop('checked', false).trigger('change');
+                            setChecked('.filter-osm-group-type[value="' + filterValue + '"]', false, true);
                         }
                         break;
                     // Add other special cases if any are not covered by data-target or a standard checkbox classes
@@ -1419,54 +1431,47 @@ function initFilterEventHandlers() {
             updateActiveFilters(); // This calls updateFiltersUI and loadDataForViewport/loadTopNMatches
             updateHeaderSummary();
         }
-        // If .trigger('change') was called on a checkbox, updateActiveFilters is invoked by that checkbox's change handler.
+        // A checkbox unchecked with a change event runs updateActiveFilters through its change handler.
     });
 
-    // Legacy direction toggle handler - replaced by dropdown handlers
-
     // Direction dropdown handler for route filters
-    $(document).on('click', '.direction-dropdown', function (e) {
+    document.addEventListener('click', function (e) {
+        var dropdown = e.target.closest('.direction-dropdown');
+        if (!dropdown) return;
         e.preventDefault();
         e.stopPropagation(); // Prevent event bubbling
         // A heading in the variant list is not an option: keep it open.
-        if ($(e.target).closest('.direction-options').length && !$(e.target).closest('.direction-option').length) return;
+        if (e.target.closest('.direction-options') && !e.target.closest('.direction-option')) return;
 
-        var index = $(this).data('index');
-        toggleDirectionDropdown(index);
+        toggleDirectionDropdown(dropdown);
     });
 
     // Direction option selection handler
-    $(document).on('click', '.direction-option', function (e) {
+    document.addEventListener('click', function (e) {
+        var option = e.target.closest('.direction-option');
+        if (!option) return;
         e.preventDefault();
         e.stopPropagation(); // Prevent event bubbling
 
-        var direction = $(this).data('direction');
-        var dropdown = $(this).closest('.direction-dropdown');
-        var index = dropdown.data('index');
-        var variant = $(this).attr('data-variant');
+        var direction = option.dataset.direction;
+        var dropdown = option.closest('.direction-dropdown');
+        var index = dropdown.dataset.index;
+        var variant = option.getAttribute('data-variant');
 
         if (variant) {
-            var entry = (loadedRouteVariants[dropdown.attr('data-route-id')] || [])[Number(variant)];
+            var entry = (loadedRouteVariants[dropdown.getAttribute('data-route-id')] || [])[Number(variant)];
             if (entry) setRouteVariants(Number(index), entry.atlas, entry.osm);
         } else {
             setRouteDirection(Number(index), direction);
         }
 
         // Close the dropdown
-        dropdown.find('.direction-options').slideUp(200);
-        dropdown.find('.direction-arrow').removeClass('rotated');
-        dropdown.removeClass('open');
+        setDirectionDropdownOpen(dropdown, false);
     });
 
     // Close direction dropdowns when clicking outside
-    $(document).on('click', function (e) {
-        if (!$(e.target).closest('.direction-dropdown').length) {
-            $('.direction-dropdown.open').each(function () {
-                $(this).find('.direction-options').slideUp(200);
-                $(this).find('.direction-arrow').removeClass('rotated');
-                $(this).removeClass('open');
-            });
-        }
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest('.direction-dropdown')) closeDirectionDropdowns();
     });
 
     // Setup subgroup master checkboxes BEFORE the general change handler,
@@ -1482,7 +1487,7 @@ function initFilterEventHandlers() {
     setupMasterCheckbox('#masterProblemsCheckbox', '.filter-problem-type');
 
     // Attach change handlers to filter checkboxes and input elements.
-    $('.master-filter-checkbox, .visibility-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-entity-type, .filter-osm-group, .filter-osm-pair-master, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox, #masterDisusedOsmCheckbox, #masterProblemsCheckbox, .filter-problem-type, .filter-problem-priority').on('change', function () {
+    onEach('.master-filter-checkbox, .filter-match-method, .filter-distance-method, .filter-route-method, .filter-unmatched-method, .filter-duplicates-only, .filter-transport-type, .filter-osm-entity-type, .filter-osm-group, .filter-osm-pair-master, .filter-osm-group-type, #masterUnmatchedAtlasCheckbox, #masterUnmatchedOsmCheckbox, #masterDisusedOsmCheckbox, #masterProblemsCheckbox, .filter-problem-type, .filter-problem-priority', 'change', function () {
         if (isBulkCheckboxSyncDepth > 0) {
             return;
         }
@@ -1490,42 +1495,39 @@ function initFilterEventHandlers() {
         updateHeaderSummary();
     });
 
-    $('#addSmartSearchFilter').on('click', function (e) {
-        e.preventDefault();
-        submitSmartSearch();
-    });
-
-    $('#smartSearchInput').on('input', function () {
+    onEach('#smartSearchInput', 'input', function () {
         showSmartSearchError('');
     });
 
     // Show/hide search format hint on focus/blur
-    $('#smartSearchInput').on('focus', function () {
-        var hint = $('#smartSearchHint');
-        if (hint.length && !$(this).val().trim()) {
-            hint.removeClass('d-none');
+    onEach('#smartSearchInput', 'focus', function () {
+        var hint = document.getElementById('smartSearchHint');
+        if (hint && !this.value.trim()) {
+            hint.classList.remove('d-none');
         }
     });
 
-    $('#smartSearchInput').on('blur', function () {
+    onEach('#smartSearchInput', 'blur', function () {
         // Small delay so the hint doesn't flicker if user clicks inside it
         setTimeout(function () {
-            $('#smartSearchHint').addClass('d-none');
+            var hint = document.getElementById('smartSearchHint');
+            if (hint) hint.classList.add('d-none');
         }, 150);
     });
 
-    $('#smartSearchInput').on('input', function () {
-        var hint = $('#smartSearchHint');
-        const hasError = $('#smartSearchInput').hasClass('is-invalid');
-        if ($(this).val().trim() && !hasError) {
-            hint.addClass('d-none');
-        } else if (!$(this).val().trim()) {
-            hint.removeClass('d-none');
+    onEach('#smartSearchInput', 'input', function () {
+        var hint = document.getElementById('smartSearchHint');
+        if (!hint) return;
+        const hasError = this.classList.contains('is-invalid');
+        if (this.value.trim() && !hasError) {
+            hint.classList.add('d-none');
+        } else if (!this.value.trim()) {
+            hint.classList.remove('d-none');
         }
     });
 
     initSearchSuggestions();
-    $('#smartSearchInput').on('keydown', function (e) {
+    onEach('#smartSearchInput', 'keydown', function (e) {
         if (searchSuggest && searchSuggest.handleKeydown(e)) return;
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -1534,16 +1536,17 @@ function initFilterEventHandlers() {
     });
 
     // Toggle button for Top N filter
-    $('#toggleTopNBtn').on('click', function () {
+    onEach('#toggleTopNBtn', 'click', function () {
         if (activeFilters.topN) {
             activeFilters.topN = null;
-            $(this).html('<i class="fas fa-filter"></i> Activate Top N');
+            this.innerHTML = ACTIVATE_TOP_N_HTML;
             // updateActiveFilters will handle layer clearing and data reload
         } else {
-            var n = parseInt($('#topDistance').val());
+            var topNInput = document.getElementById('topDistance');
+            var n = parseInt(topNInput ? topNInput.value : '', 10);
             if (n > 0) {
                 activeFilters.topN = n;
-                $(this).html('<i class="fas fa-times-circle"></i> Remove Top N');
+                this.innerHTML = REMOVE_TOP_N_HTML;
             } else {
                 SharedUtils.notify('Enter a number of 1 or more for Top N.');
                 return; // Don't proceed if N is invalid

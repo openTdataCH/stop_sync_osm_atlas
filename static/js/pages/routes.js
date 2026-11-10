@@ -92,9 +92,7 @@
 
   function initOperatorDropdown() {
     var container = document.getElementById('atlasOperatorFilterRoutes');
-    if (!container || typeof window.OperatorDropdown !== 'function') {
-      return;
-    }
+    if (!container) return;
 
     var initialSelection = parseSelectedOperators();
 
@@ -151,9 +149,7 @@
 
   function initOsmOperatorDropdown() {
     var container = document.getElementById('osmOperatorFilterRoutes');
-    if (!container || typeof window.OperatorDropdown !== 'function') {
-      return;
-    }
+    if (!container) return;
 
     var initialSelection = parseSelectedOsmOperators();
 
@@ -266,7 +262,7 @@
     var clearAll = document.getElementById('clearAllFilters');
     var panel = document.getElementById('headerSummaryFiltersPanel');
 
-    if (!container || !window.FilterChipUtils) return;
+    if (!container) return;
 
     var filterGroups = [];
     var activeFilterCount = 0;
@@ -363,8 +359,6 @@
   }
 
   function initSummaryToggle() {
-    if (!window.HeaderSummary || typeof window.HeaderSummary.bind !== 'function') return null;
-
     return window.HeaderSummary.bind({
       activeFilterCount: document.querySelectorAll('#activeFilters .remove-filter').length,
       filtersExpanded: false,
@@ -528,10 +522,7 @@
       getStopPopupController().attach(marker, {
         key: entity.key,
         load: function (context) {
-          return fetch('/api/stop_popup?' + query, { signal: context.signal }).then(function (response) {
-            if (!response.ok) throw new Error('Stop details request failed with status ' + response.status);
-            return response.json();
-          });
+          return SharedUtils.fetchJson('/api/stop_popup?' + query, null, { signal: context.signal });
         },
         render: function (payload) { return renderStopPopup(payload, entity.entityType); },
         createPopup: function (content) {
@@ -680,8 +671,7 @@
   }
 
   function getMarkerMode(zoom) {
-    var threshold = (window.AppConstants && window.AppConstants.MAP &&
-      window.AppConstants.MAP.LABEL_ICON_MIN_ZOOM) || 18;
+    var threshold = AppConstants.MAP.LABEL_ICON_MIN_ZOOM;
     return Number(zoom) >= threshold ? 'label' : 'circle';
   }
 
@@ -836,11 +826,7 @@
     
     var query = buildQueryString(params);
     
-    fetch('/api/data?' + query, { signal: controller.signal })
-      .then(function(r) {
-        if (!r.ok) throw new Error('Context request failed with status ' + r.status);
-        return r.json();
-      })
+    SharedUtils.fetchJson('/api/data?' + query, null, { signal: controller.signal })
       .then(function(data) {
         if (sequence !== mapState.contextSequence || !mapState.showContext) return;
         mapState.contextStops = parseRouteMapPayload(data);
@@ -898,7 +884,7 @@
     }
   }
   function getGlobalBboxParams() {
-    var bounds = (window.AppConstants && window.AppConstants.MAP && window.AppConstants.MAP.MAX_BOUNDS) || [[45.5, 5.5], [48.0, 11.0]];
+    var bounds = AppConstants.MAP.MAX_BOUNDS || [[45.5, 5.5], [48.0, 11.0]];
     return {
       min_lat: bounds[0][0],
       min_lon: bounds[0][1],
@@ -991,13 +977,7 @@
     var controller = new AbortController();
     mapState.requestController = controller;
 
-    fetch('/api/data?' + query, { signal: controller.signal })
-      .then(function (response) {
-        if (!response.ok) {
-          throw new Error('Map request failed with status ' + response.status);
-        }
-        return response.json();
-      })
+    SharedUtils.fetchJson('/api/data?' + query, null, { signal: controller.signal })
       .then(function (data) {
         if (sequence !== mapState.requestSequence) return;
         var stops = parseRouteMapPayload(data);
@@ -1039,20 +1019,6 @@
     if (!mapState) {
       mapState = createRouteMap(mapElement);
       routeMaps.set(mapElement, mapState);
-    }
-
-    var filterContainer = panel.querySelector('.map-direction-filter-container');
-    if (filterContainer && window.FilterChipUtils && filterContainer.children.length === 0) {
-      var currentDir = mapElement.dataset.routeDirections || '';
-      var mapIndex = mapElement.dataset.mapIndex || '';
-      var routeId = mapElement.dataset.routeId || '';
-      var chipHtml = window.FilterChipUtils.buildDirectionDropdownHtml({
-        direction: currentDir,
-        mapIndex: mapIndex,
-        routeLabel: routeId ? 'Route: ' + routeId : '',
-        showClose: false
-      });
-      filterContainer.innerHTML = chipHtml;
     }
 
     mapState.map.invalidateSize();

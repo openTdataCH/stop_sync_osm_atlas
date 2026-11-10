@@ -21,7 +21,7 @@ var ZOOM_LINE_THRESHOLD = AppConstants.MAP.ZOOM_LINE_THRESHOLD;
 var VIEW_DEBOUNCE_MS = AppConstants.DATA_LOADING.VIEW_DEBOUNCE_MS;
 
 // Request management unrelated to viewport loading.
-var currentGlobalStatsRequest = null; // jqXHR of in-flight /api/global_stats
+var currentGlobalStatsRequest = null; // AbortController of in-flight /api/global_stats
 var currentGlobalStatsSeq = 0;  // sequence id to ignore stale global stats responses
 var zoomBannerTimeout = null;   // debounce timer for the zoom warning banner
 var zoomBannerTransientHiddenReasons = Object.create(null); // temporary hide reasons (e.g. hover/tooltips)
@@ -60,25 +60,6 @@ function _stableParamsKey(params, mode) {
         parts.push(k + '=' + String(params[k]));
     });
     return parts.join('&');
-}
-
-function fetchJson(url, params, signal) {
-    var query = new URLSearchParams();
-    Object.keys(params || {}).sort().forEach(function (key) {
-        var value = params[key];
-        if (value !== null && value !== undefined && value !== '') {
-            query.set(key, String(value));
-        }
-    });
-    var requestUrl = query.toString() ? url + '?' + query.toString() : url;
-    return fetch(requestUrl, { signal: signal, headers: { Accept: 'application/json' } }).then(function (response) {
-        if (!response.ok) {
-            var error = new Error('Request failed with HTTP ' + response.status);
-            error.status = response.status;
-            throw error;
-        }
-        return response.json();
-    });
 }
 
 // Shared canonical entity rendering is provided by map-renderer.js
@@ -167,26 +148,11 @@ function setZoomBannerTransientHidden(reasonKey, hidden) {
     banner.classList.toggle('zoom-banner--faded', shouldHide);
 }
 
-function isMobileViewport() {
-    if (window.MobileFilters && typeof window.MobileFilters.isMobileViewport === 'function') {
-        return window.MobileFilters.isMobileViewport();
-    }
-    return window.matchMedia('(max-width: 768px)').matches;
-}
-
 function setMobileFiltersOpen(open) {
     var nextOpen = !!open;
     mobileFiltersOpen = nextOpen;
 
-    if (mobileFiltersController) {
-        mobileFiltersController.setOpen(nextOpen, 'page-state');
-    } else if (window.MobileFilters && typeof window.MobileFilters.setMobileFiltersOpen === 'function') {
-        window.MobileFilters.setMobileFiltersOpen({
-            overlaySelector: '.top-filters-overlay',
-            toggleId: 'mobileFiltersToggle',
-            isOpen: nextOpen
-        });
-    }
+    if (mobileFiltersController) mobileFiltersController.setOpen(nextOpen, 'page-state');
 
     var overlay = document.querySelector('.top-filters-overlay');
     var toggle = document.getElementById('mobileFiltersToggle');
@@ -200,15 +166,11 @@ function setMobileFiltersOpen(open) {
 
 function setHeaderSummaryCollapsed(collapsed) {
     headerSummaryCollapsed = !!collapsed;
-    if (headerSummaryController) {
-        headerSummaryController.setCollapsed(headerSummaryCollapsed, 'page-state');
-    } else if (window.HeaderSummary && typeof window.HeaderSummary.setCollapsed === 'function') {
-        window.HeaderSummary.setCollapsed(headerSummaryCollapsed);
-    }
+    if (headerSummaryController) headerSummaryController.setCollapsed(headerSummaryCollapsed, 'page-state');
 }
 
 function applyMobileLayoutState() {
-    if (isMobileViewport()) {
+    if (SharedUtils.isMobileViewport()) {
         setMobileFiltersOpen(false);
         setHeaderSummaryCollapsed(true);
         return;
@@ -218,24 +180,10 @@ function applyMobileLayoutState() {
     setHeaderSummaryCollapsed(false);
 }
 
-function getSharedActiveFilterCount() {
-    if (typeof window.getActiveFilterCount === 'function') {
-        return window.getActiveFilterCount();
-    }
-    return 0;
-}
-
 function syncHeaderSummaryFilterToggle() {
-    if (headerSummaryController) {
-        headerSummaryController.syncFilters({
-            activeFilterCount: getSharedActiveFilterCount(),
-            expanded: headerSummaryFiltersExpanded
-        });
-        return;
-    }
-    if (!window.HeaderSummary || typeof window.HeaderSummary.syncFilters !== 'function') return;
-    window.HeaderSummary.syncFilters({
-        activeFilterCount: getSharedActiveFilterCount(),
+    if (!headerSummaryController) return;
+    headerSummaryController.syncFilters({
+        activeFilterCount: window.getActiveFilterCount(),
         expanded: headerSummaryFiltersExpanded
     });
 }
@@ -244,11 +192,11 @@ function initializeSharedUiBindings() {
     headerSummaryController = window.HeaderSummary.bind({
         collapsed: headerSummaryCollapsed,
         filtersExpanded: headerSummaryFiltersExpanded,
-        getActiveFilterCount: getSharedActiveFilterCount,
-        isMobileViewport: isMobileViewport,
+        getActiveFilterCount: window.getActiveFilterCount,
+        isMobileViewport: SharedUtils.isMobileViewport,
         onCollapsedChange: function (collapsed) {
             headerSummaryCollapsed = collapsed;
-            if (!collapsed && isMobileViewport() && mobileFiltersController) {
+            if (!collapsed && SharedUtils.isMobileViewport() && mobileFiltersController) {
                 mobileFiltersController.setOpen(false, 'summary-opened');
             }
         },
@@ -256,7 +204,7 @@ function initializeSharedUiBindings() {
             headerSummaryFiltersExpanded = expanded;
         },
         onClearAll: function () {
-            if (typeof window.clearAllFilters === 'function') window.clearAllFilters();
+            window.clearAllFilters();
         }
     });
 
@@ -270,7 +218,7 @@ function initializeSharedUiBindings() {
             mobileFiltersOpen = open;
             var banner = document.getElementById('zoomBannerInfo');
             if (banner) banner.classList.toggle('zoom-banner--filters-open', open);
-            if (open && isMobileViewport() && headerSummaryController) {
+            if (open && SharedUtils.isMobileViewport() && headerSummaryController) {
                 headerSummaryController.setCollapsed(true, 'filters-opened');
             }
         }
@@ -310,7 +258,8 @@ function restoreOperatorFiltersFromUrl() {
         if (window[entry[2]]) window[entry[2]].setSelection(activeFilters[entry[1]]);
     });
     activeFilters.missingOsmOperatorWikidata = params.get('missing_osm_operator_wikidata') === 'true';
-    $('#filterMissingOsmOperatorWikidata').prop('checked', activeFilters.missingOsmOperatorWikidata);
+    var missingWikidataCheckbox = document.getElementById('filterMissingOsmOperatorWikidata');
+    if (missingWikidataCheckbox) missingWikidataCheckbox.checked = activeFilters.missingOsmOperatorWikidata;
     if (activeFilters.missingOsmOperatorWikidata) {
         activeFilters.osmOperatorWikidata = [];
         if (window.osmOperatorWikidataDropdown) window.osmOperatorWikidataDropdown.setSelection([]);
@@ -381,9 +330,7 @@ function getEffectiveMapSideVisibility() {
 
 function clearTopNMarkers() {
     topNRequestSequence += 1;
-    if (topNRequest && topNRequest.readyState !== 4) {
-        try { topNRequest.abort(); } catch (error) { }
-    }
+    if (topNRequest) topNRequest.abort();
     topNRequest = null;
     topNPopupMarkers.forEach(function (marker) {
         if (popupController) popupController.detach(marker);
@@ -392,9 +339,14 @@ function clearTopNMarkers() {
     topNLayer.clearLayers();
 }
 
+function setTopNMessage(html) {
+    var message = document.getElementById('topNDistancesMessage');
+    if (message) message.innerHTML = html;
+}
+
 function loadTopNMatches() {
     clearTopNMarkers();
-    $('#topNDistancesMessage').empty();
+    setTopNMessage('');
 
     if (activeFilters.topN && activeFilters.stopType.includes("matched")) {
         var params = { limit: activeFilters.topN };
@@ -437,12 +389,14 @@ function loadTopNMatches() {
         appendOsmGroupParams(params);
 
         var requestSequence = ++topNRequestSequence;
-        topNRequest = $.getJSON("/api/top_matches", params, function (data) {
+        var request = new AbortController();
+        topNRequest = request;
+        SharedUtils.fetchJson("/api/top_matches", params, { signal: request.signal }).then(function (data) {
             if (requestSequence !== topNRequestSequence || !activeFilters.topN) return;
             let filteredData = data;
 
             if (filteredData.length === 0) {
-                $('#topNDistancesMessage').html("<div class='alert alert-warning mt-2'>No matched nodes satisfy these conditions.</div>");
+                setTopNMessage("<div class='alert alert-warning mt-2'>No matched nodes satisfy these conditions.</div>");
             } else {
                 var mapSideVisibility = getEffectiveMapSideVisibility();
                 var showAtlasNodes = mapSideVisibility.showAtlas;
@@ -463,11 +417,11 @@ function loadTopNMatches() {
                 });
                 showFocusedStop();
             }
-        }).fail(function (_jqXHR, textStatus) {
-            if (requestSequence !== topNRequestSequence || textStatus === 'abort') return;
-            $('#topNDistancesMessage').html("<div class='alert alert-warning mt-2'>Could not load Top N matches.</div>");
-        }).always(function () {
-            if (requestSequence === topNRequestSequence) topNRequest = null;
+        }, function (error) {
+            if (requestSequence !== topNRequestSequence || SharedUtils.isAbortError(error)) return;
+            setTopNMessage("<div class='alert alert-warning mt-2'>Could not load Top N matches.</div>");
+        }).finally(function () {
+            if (topNRequest === request) topNRequest = null;
         });
     }
 }
@@ -475,7 +429,7 @@ function loadTopNMatches() {
 function getViewportPolicy(zoom) {
     var zoomPolicy = window.MapShared.getViewportZoomPolicy(zoom);
     var isLowZoom = zoomPolicy.isOverview;
-    var hasAnyActiveFilter = getSharedActiveFilterCount() > 0;
+    var hasAnyActiveFilter = window.getActiveFilterCount() > 0;
     var fullUncappedZoom = zoomPolicy.isFullDetail;
     var params = {
         offset: 0,
@@ -601,10 +555,10 @@ function attachIndexPopup(marker, descriptor) {
         // included, so its content never depends on the zoom or the loaded data.
         load: function (request) {
             var latest = marker.options.markerData;
-            return fetchJson('/api/stop_popup', {
+            return SharedUtils.fetchJson('/api/stop_popup', {
                 stop_id: latest.popupRef.id,
                 view_type: latest.entityType
-            }, request.signal);
+            }, { signal: request.signal });
         },
         render: function (payload) {
             return popupContentForMarker(payload, marker.options.markerData);
@@ -723,7 +677,7 @@ function createIndexViewportLoader() {
                 max_lon: context.requestBounds.getEast()
             });
             prepareZoomBanner(policy);
-            return fetchJson('/api/data', params, context.signal);
+            return SharedUtils.fetchJson('/api/data', params, { signal: context.signal });
         },
         onData: renderIndexViewport,
         onError: function (error) {
@@ -842,15 +796,15 @@ function focusOnRandomFilteredStop() {
         }
     });
 
-    $.getJSON("/api/random_stop", params, function (data) {
+    SharedUtils.fetchJson("/api/random_stop", params).then(function (data) {
         if (data.error) {
             SharedUtils.notify(data.error);
             return;
         }
         centerMapAndOpenPopup(data.stop, data.center_lat, data.center_lon, data.popup_view_type);
-    }).fail(function (jqXHR) {
+    }, function (error) {
         // The server explains a 404 ("No stop found for the current filters.") and a 429.
-        SharedUtils.notify(SharedUtils.buildErrorMessage(jqXHR, 'Could not pick a random stop. Try again.'));
+        SharedUtils.notify(SharedUtils.buildErrorMessage(error, 'Could not pick a random stop. Try again.'));
     });
 }
 
@@ -876,7 +830,7 @@ function fetchAndCenterSpecificStop(identifier, identifierType) {
             return;
         }
 
-        $.getJSON("/api/stop_by_id", { identifier: identifier, identifier_type: backendIdentifierType }, function (data) {
+        SharedUtils.fetchJson("/api/stop_by_id", { identifier: identifier, identifier_type: backendIdentifierType }).then(function (data) {
             if (data.error) {
                 reject(`No ${typeName} found matching: ${identifier}`);
                 return;
@@ -886,7 +840,7 @@ function fetchAndCenterSpecificStop(identifier, identifierType) {
             const zoomLevel = identifierType === 'route' ? 14 : 16;
             centerMapAndOpenPopup(data.stop, data.center_lat, data.center_lon, data.popup_view_type, zoomLevel, openPopup);
             resolve(data);
-        }).fail(function () {
+        }, function () {
             reject(`No ${typeName} found matching: ${identifier}`);
         });
     });
@@ -1031,7 +985,7 @@ function destroyIndexPage() {
 }
 
 
-$(document).ready(function () {
+document.addEventListener('DOMContentLoaded', function () {
     initMap();
     initializeSharedUiBindings();
     applyMobileLayoutState();
@@ -1097,14 +1051,18 @@ $(document).ready(function () {
     // Hide zoom banner while desktop filter popups are open to avoid overlap.
     var topFiltersOverlay = document.querySelector('.top-filters-overlay');
     if (topFiltersOverlay) {
-        $(topFiltersOverlay).on('shown.bs.dropdown', '.dropdown', function () {
-            var toggle = this.querySelector('.dropdown-toggle');
+        topFiltersOverlay.addEventListener('shown.bs.dropdown', function (event) {
+            var dropdown = event.target.closest('.dropdown');
+            if (!dropdown) return;
+            var toggle = dropdown.querySelector('.dropdown-toggle');
             var id = toggle ? toggle.id : Math.random().toString();
-            this.dataset.dropdownInstanceId = id; // Save it to ensure consistent removal
+            dropdown.dataset.dropdownInstanceId = id; // Save it to ensure consistent removal
             setZoomBannerTransientHidden('filters-dropdown-' + id, true);
         });
-        $(topFiltersOverlay).on('hidden.bs.dropdown', '.dropdown', function () {
-            var id = this.dataset.dropdownInstanceId || 'unknown';
+        topFiltersOverlay.addEventListener('hidden.bs.dropdown', function (event) {
+            var dropdown = event.target.closest('.dropdown');
+            if (!dropdown) return;
+            var id = dropdown.dataset.dropdownInstanceId || 'unknown';
             setZoomBannerTransientHidden('filters-dropdown-' + id, false);
         });
     }
@@ -1155,7 +1113,7 @@ $(document).ready(function () {
         multiple: true,
         onSelectionChange: function (selectedOperators) {
             activeFilters.osmOperatorWikidata = selectedOperators;
-            if (selectedOperators.length) $('#filterMissingOsmOperatorWikidata').prop('checked', false);
+            if (selectedOperators.length) document.getElementById('filterMissingOsmOperatorWikidata').checked = false;
             updateActiveFilters();
             updateHeaderSummary();
         }
@@ -1165,47 +1123,27 @@ $(document).ready(function () {
     restoreFiltersFromUrl();
 
     // Initial setup calls
-    updateAccordionIcons();
     updateActiveFilters(); // This will call loadDataForViewport and updateFiltersUI
     enableFilterUrlSync(); // from now on the address bar follows the filters
     updateHeaderSummary(); // Initial summary update
     bindCopyMapLink();
     openStopFromUrl();
     openRouteVariantsFromUrl();
-
-    // Remove the old, duplicated event listener for new search type dropdown options
-    // The initSearchTypeModal handles the new modal-based selector.
 });
 
 // Additional safety: invalidate map size when window fully loads (images, fonts, etc.)
 // This catches edge cases where flex layout changes after DOMContentLoaded
-$(window).on('load', function () {
+window.addEventListener('load', function () {
     if (map) {
         map.invalidateSize();
     }
 });
 
-
-// Function to update accordion toggle icons
-function updateAccordionIcons() {
-    $('.nested-accordion-header').each(function () {
-        const targetCollapseId = $(this).data('target');
-        const icon = $(this).find('.accordion-toggle-icon');
-        if ($(targetCollapseId).hasClass('show')) {
-            icon.removeClass('fa-chevron-right').addClass('fa-chevron-down'); // Expanded
-            $(this).attr('aria-expanded', 'true');
-        } else {
-            icon.removeClass('fa-chevron-down').addClass('fa-chevron-right'); // Collapsed
-            $(this).attr('aria-expanded', 'false');
-        }
-    });
-}
-
 // Function to update the header summary
 function updateHeaderSummary() {
-    const summaryContainer = $('#headerSummaryInfo');
-    const statsContainer = $('#headerSummaryStats');
-    if (!summaryContainer.length || !statsContainer.length) return;
+    const summaryContainer = document.getElementById('headerSummaryInfo');
+    const statsContainer = document.getElementById('headerSummaryStats');
+    if (!summaryContainer || !statsContainer) return;
 
     syncHeaderSummaryFilterToggle();
 
@@ -1219,15 +1157,15 @@ function updateHeaderSummary() {
 
     var mySeq = ++currentGlobalStatsSeq;
 
-    if (currentGlobalStatsRequest && currentGlobalStatsRequest.readyState !== 4) {
-        try { currentGlobalStatsRequest.abort(); } catch (e) { }
-    }
+    if (currentGlobalStatsRequest) currentGlobalStatsRequest.abort();
+    var request = new AbortController();
+    currentGlobalStatsRequest = request;
 
-    currentGlobalStatsRequest = $.getJSON("/api/global_stats", params, function (data) {
+    SharedUtils.fetchJson("/api/global_stats", params, { signal: request.signal }).then(function (data) {
         if (mySeq !== currentGlobalStatsSeq) return;
 
         if (data.error) {
-            statsContainer.html(`<div><small>Error loading summary.</small></div>`);
+            statsContainer.innerHTML = `<div><small>Error loading summary.</small></div>`;
             console.error("Error loading global stats:", data.error);
             return;
         }
@@ -1256,14 +1194,16 @@ function updateHeaderSummary() {
             summaryHtml = '<div><small>No data matching current filters.</small></div>';
         }
 
-        statsContainer.html(summaryHtml);
+        statsContainer.innerHTML = summaryHtml;
         syncHeaderSummaryFilterToggle();
-    }).fail(function () {
-        if (mySeq !== currentGlobalStatsSeq) return;
+    }, function (error) {
+        if (mySeq !== currentGlobalStatsSeq || SharedUtils.isAbortError(error)) return;
 
-        statsContainer.html(`<div><small>Failed to load summary.</small></div>`);
+        statsContainer.innerHTML = `<div><small>Failed to load summary.</small></div>`;
         console.error("Failed to fetch global stats from server.");
         syncHeaderSummaryFilterToggle();
+    }).finally(function () {
+        if (currentGlobalStatsRequest === request) currentGlobalStatsRequest = null;
     });
 }
 

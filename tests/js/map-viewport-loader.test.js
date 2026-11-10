@@ -139,7 +139,6 @@ describe('MapViewportLoader', () => {
     expect(load).toHaveBeenCalledTimes(2);
 
     loader.invalidate();
-    expect(loader.getCache()).toBeNull();
     await loader.reload();
     expect(load).toHaveBeenCalledTimes(3);
   });

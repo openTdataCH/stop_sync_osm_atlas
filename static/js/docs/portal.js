@@ -176,14 +176,6 @@
         };
     }
 
-    function isScrolledToBottom() {
-        // The page scrolls in <body> (base.css) or, elsewhere, in the viewport.
-        return [document.scrollingElement, document.body].some(function (element) {
-            return !!element && element.scrollTop > 0
-                && element.scrollHeight - element.scrollTop - element.clientHeight < 2;
-        });
-    }
-
     /**
      * "On this page": the article's h2 and h3 headings, shown when there are
      * at least two, with the section being read marked as current. The same
@@ -214,7 +206,7 @@
 
         function currentIndex() {
             if (!headings.length) return -1;
-            if (isScrolledToBottom()) return headings.length - 1;
+            if (SharedUtils.isScrolledToBottom()) return headings.length - 1;
             var index = -1;
             for (var i = 0; i < headings.length; i += 1) {
                 if (headings[i].getBoundingClientRect().top > CURRENT_SECTION_OFFSET) break;
@@ -334,14 +326,6 @@
         return Promise.resolve()
             .then(function () { return window.mermaid.run({ nodes: nodes }); })
             .catch(function (err) { console.warn('Mermaid render failed:', err); });
-    }
-
-    function renderMath(content) {
-        if (window.MathJax && window.MathJax.typesetPromise) {
-            window.MathJax.typesetPromise([content]).catch(function (err) {
-                console.warn('MathJax typeset failed:', err);
-            });
-        }
     }
 
     function initMobileSidebar(sidebar, pdfModal) {
@@ -473,17 +457,14 @@
         if (window.bootstrap && window.bootstrap.Modal) {
             (window.bootstrap.Modal.getInstance(modal) || new window.bootstrap.Modal(modal)).hide();
         }
-        if (window.resetProgressOverlay) window.resetProgressOverlay('Generating Documentation PDF');
-        document.getElementById('reportLoadingOverlay').style.display = 'flex';
-        if (window.startAsyncTask) {
-            window.startAsyncTask({
-                generateUrl: '/api/docs/generate_pdf_async',
-                checkUrl: '/api/docs/pdf_progress/',
-                downloadUrl: '/api/docs/download_pdf/',
-                cancelUrl: '/api/docs/cancel_pdf/',
-                params: params
-            });
-        }
+        window.ExportProgress.open('Generating Documentation PDF');
+        window.ExportProgress.start({
+            generateUrl: '/api/docs/generate_pdf_async',
+            checkUrl: '/api/docs/pdf_progress/',
+            downloadUrl: '/api/docs/download_pdf/',
+            cancelUrl: '/api/docs/cancel_pdf/',
+            params: params
+        });
     }
 
     function init(root) {
@@ -527,11 +508,7 @@
         }
 
         function load(url, pushState) {
-            return fetch(url.pathname + url.search, { headers: { 'X-Docs-Partial': '1' } })
-                .then(function (response) {
-                    if (!response.ok) throw new Error('Failed to load documentation page');
-                    return response.json();
-                })
+            return SharedUtils.fetchJson(url.pathname + url.search, null, { headers: { 'X-Docs-Partial': '1' } })
                 .then(function (payload) {
                     if (!payload || typeof payload.content_html !== 'string') {
                         throw new Error('Invalid documentation payload');
@@ -540,7 +517,6 @@
                     if (header && typeof payload.header_html === 'string') header.innerHTML = payload.header_html;
                     sidebar.markActive(payload.active_slug || '', payload.active_section || '');
                     if (nav) renderNav(nav, payload.prev_page, payload.next_page, docsRoot);
-                    renderMath(content);
                     toc.build();
                     if (payload.title) document.title = payload.title + ' | OSM & ATLAS Documentation';
 
@@ -558,7 +534,6 @@
 
         sidebar.markActive(root.dataset.activeSlug || '', root.dataset.activeSection || '');
         toc.build();
-        renderMath(content);
         renderDiagramsThenScrollTo(sectionOf(window.location.hash), 'auto');
 
         if (!history.state || !history.state.docs) {

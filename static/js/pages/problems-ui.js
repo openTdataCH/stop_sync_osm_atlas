@@ -13,29 +13,18 @@ window.ProblemsUI = (function () {
     }
 
     function renderProblemOnMap(problem) {
-        if (window.ProblemsMap && typeof window.ProblemsMap.renderProblem === 'function') {
-            window.ProblemsMap.renderProblem(problem, { fitView: true });
-            return;
-        }
-
-        // Compatibility path for isolated consumers that have not loaded the
-        // Problems map controller.
-        const problemMap = ProblemsState.getProblemMap();
-        if (problemMap && window.ProblemsRenderer && typeof window.ProblemsRenderer.drawProblemOnMap === 'function') {
-            window.ProblemsRenderer.drawProblemOnMap(problemMap, problem, {
-                markersLayer: ProblemsState.getProblemMarkersLayer(),
-                linesLayer: ProblemsState.getProblemLinesLayer()
-            }, { fitView: true });
-        }
+        ProblemsMap.renderProblem(problem, { fitView: true });
     }
+
+    // The scroll listener of the current entry's scroll indicator.
+    let hideScrollIndicator = null;
 
     /**
      * Show keyboard shortcuts hint
      */
     function showKeyboardHint() {
         if (!ProblemsState.getKeyboardHintShown()) {
-            const hint = $('#keyboardHint');
-            hint.addClass('show');
+            document.getElementById('keyboardHint').classList.add('show');
             ProblemsState.setKeyboardHintShown(true);
 
             // Auto-hide after 5 seconds
@@ -50,8 +39,7 @@ window.ProblemsUI = (function () {
      * Hide keyboard shortcuts hint
      */
     function hideKeyboardHint() {
-        const hint = $('#keyboardHint');
-        hint.removeClass('show');
+        document.getElementById('keyboardHint').classList.remove('show');
         const timeout = ProblemsState.getKeyboardHintTimeout();
         if (timeout) {
             clearTimeout(timeout);
@@ -372,19 +360,21 @@ window.ProblemsUI = (function () {
             }
         }
 
-        const badge = $('#problemPriorityDisplay');
-        badge.removeClass('d-none problem-meta-chip--p1 problem-meta-chip--p2 problem-meta-chip--p3');
+        const badge = document.getElementById('problemPriorityDisplay');
+        if (!badge) return;
+        badge.classList.remove('d-none', 'problem-meta-chip--p1', 'problem-meta-chip--p2', 'problem-meta-chip--p3');
 
         const pr = Number(problem && problem.priority);
         if (!pr || Number.isNaN(pr)) {
-            badge.addClass('d-none').text('');
+            badge.classList.add('d-none');
+            badge.textContent = '';
             return;
         }
 
-        badge.text(`P${pr}`);
-        if (pr === 1) badge.addClass('problem-meta-chip--p1');
-        else if (pr === 2) badge.addClass('problem-meta-chip--p2');
-        else badge.addClass('problem-meta-chip--p3');
+        badge.textContent = `P${pr}`;
+        if (pr === 1) badge.classList.add('problem-meta-chip--p1');
+        else if (pr === 2) badge.classList.add('problem-meta-chip--p2');
+        else badge.classList.add('problem-meta-chip--p3');
     }
 
     /**
@@ -487,7 +477,7 @@ window.ProblemsUI = (function () {
         const observer = new IntersectionObserver((entries, observer) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    const problemId = $(entry.target).data('problem-id');
+                    const problemId = entry.target.dataset.problemId;
 
                     // Find the problem in the current entry's problems
                     const currentEntryProblems = ProblemsState.getCurrentEntryProblems();
@@ -501,17 +491,13 @@ window.ProblemsUI = (function () {
 
                         // Context is fixed around the active issue, so switching to
                         // another issue in the same entry requires a fresh request.
-                        if (
-                            ProblemsState.getShowContext() &&
-                            window.ProblemsMap &&
-                            typeof window.ProblemsMap.loadContextData === 'function'
-                        ) {
-                            window.ProblemsMap.loadContextData(problem);
+                        if (ProblemsState.getShowContext()) {
+                            ProblemsMap.loadContextData(problem);
                         }
 
                         // Update active highlight
-                        $('.issue-container').removeClass('active');
-                        $(entry.target).addClass('active');
+                        document.querySelectorAll('.issue-container').forEach(item => item.classList.remove('active'));
+                        entry.target.classList.add('active');
                         updateFloatingChips(problem);
 
 
@@ -545,17 +531,18 @@ window.ProblemsUI = (function () {
         const problemText = problemCount > 1 ? 'Problems' : 'Problem';
         const firstProblemForHeader = currentEntryProblems[0];
         const isDuplicatesGroupHeader = firstProblemForHeader && firstProblemForHeader.problem === 'duplicates';
-        const entryNumber = window.ProblemsData && ProblemsData.entryNumber ? ProblemsData.entryNumber(index) : index + 1;
+        const entryNumber = ProblemsData.entryNumber(index);
+        const typeDisplay = document.getElementById('problemTypeDisplay');
         if (isDuplicatesGroupHeader) {
-            $('#problemTypeDisplay').text(`Group ${SharedUtils.formatCount(entryNumber)} of ${SharedUtils.formatCount(totalProblems)}`);
+            typeDisplay.textContent = `Group ${SharedUtils.formatCount(entryNumber)} of ${SharedUtils.formatCount(totalProblems)}`;
         } else {
-            $('#problemTypeDisplay').text(`Entry ${SharedUtils.formatCount(entryNumber)} of ${SharedUtils.formatCount(totalProblems)} · ${problemCount} ${problemText}`);
+            typeDisplay.textContent = `Entry ${SharedUtils.formatCount(entryNumber)} of ${SharedUtils.formatCount(totalProblems)} · ${problemCount} ${problemText}`;
         }
-        if (window.ProblemsPermalink) ProblemsPermalink.sync();
+        ProblemsPermalink.sync();
 
         // Clear previous content
-        const container = $('#actionButtonsContent');
-        container.empty();
+        const container = document.getElementById('actionButtonsContent');
+        container.innerHTML = '';
         const observer = ProblemsState.getObserver();
         if (observer) {
             observer.disconnect();
@@ -564,21 +551,20 @@ window.ProblemsUI = (function () {
         // Render all issues for this entry
         currentEntryProblems.forEach((p, i) => {
             const problemHtml = renderSingleProblemUI(p, index, i, currentEntryProblems.length);
-            container.append(problemHtml);
+            container.insertAdjacentHTML('beforeend', problemHtml);
         });
 
         // Setup intersection observer for the new items
-        $('.issue-container').each(function () {
-            if (observer) {
-                observer.observe(this);
-            }
-        });
+        if (observer) {
+            document.querySelectorAll('.issue-container').forEach(item => observer.observe(item));
+        }
 
         // Set first problem as active
         const firstProblem = currentEntryProblems[0];
         if (firstProblem) {
             // Make first issue active
-            $(`.issue-container[data-problem-id="${firstProblem.id}"]`).addClass('active');
+            const firstItem = document.querySelector(`.issue-container[data-problem-id="${firstProblem.id}"]`);
+            if (firstItem) firstItem.classList.add('active');
 
             // Draw after fitting the final view so marker labels and projected
             // overlap offsets use the correct zoom.
@@ -586,41 +572,25 @@ window.ProblemsUI = (function () {
             updateFloatingChips(firstProblem);
 
             // Load context if enabled
-            const showContext = ProblemsState.getShowContext();
-            if (showContext && window.ProblemsMap && window.ProblemsMap.loadContextData) {
-                window.ProblemsMap.loadContextData(firstProblem);
+            if (ProblemsState.getShowContext()) {
+                ProblemsMap.loadContextData(firstProblem);
             } else {
-                if (window.ProblemsMap && typeof window.ProblemsMap.clearContextData === 'function') {
-                    window.ProblemsMap.clearContextData();
-                } else {
-                    const contextLayer = ProblemsState.getContextMarkersLayer();
-                    if (contextLayer) {
-                        contextLayer.clearLayers();
-                    }
-                }
+                ProblemsMap.clearContextData();
             }
 
             // Add scroll indicator only if the container actually overflows
-            const problemContent = $('#actionButtonsContent');
-            let scrollIndicator = problemContent.find('.scroll-indicator');
-            if (scrollIndicator.length === 0) {
-                scrollIndicator = $('<div class="scroll-indicator"><i class="fas fa-chevron-down"></i></div>');
-                problemContent.append(scrollIndicator);
-            }
+            const scrollIndicator = SharedUtils.element('div', 'scroll-indicator');
+            scrollIndicator.innerHTML = '<i class="fas fa-chevron-down"></i>';
+            container.appendChild(scrollIndicator);
 
             setTimeout(() => {
-                const el = problemContent[0];
-                if (el && el.scrollHeight > el.clientHeight) {
-                    scrollIndicator.addClass('visible');
-                } else {
-                    scrollIndicator.removeClass('visible');
-                }
+                scrollIndicator.classList.toggle('visible', container.scrollHeight > container.clientHeight);
             }, 100);
 
             // Hide indicator on scroll
-            problemContent.off('scroll.indicator').on('scroll.indicator', () => {
-                scrollIndicator.removeClass('visible');
-            });
+            if (hideScrollIndicator) container.removeEventListener('scroll', hideScrollIndicator);
+            hideScrollIndicator = () => scrollIndicator.classList.remove('visible');
+            container.addEventListener('scroll', hideScrollIndicator);
         }
     }
 
@@ -633,8 +603,8 @@ window.ProblemsUI = (function () {
 
         // Disabled only at the very beginning or the very end of the whole
         // list; a permalink can load a window that starts on a later page.
-        $('#prevProblemBtn').prop('disabled', currentProblemIndex <= 0 && ProblemsState.getFirstLoadedPage() === 1);
-        $('#nextProblemBtn').prop('disabled', !ProblemsData.hasMorePages() && currentProblemIndex >= problemsByEntry.length - 1);
+        document.getElementById('prevProblemBtn').disabled = currentProblemIndex <= 0 && ProblemsState.getFirstLoadedPage() === 1;
+        document.getElementById('nextProblemBtn').disabled = !ProblemsData.hasMorePages() && currentProblemIndex >= problemsByEntry.length - 1;
     }
 
     /**

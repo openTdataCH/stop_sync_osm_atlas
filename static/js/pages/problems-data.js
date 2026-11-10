@@ -123,36 +123,46 @@ window.ProblemsData = (function () {
         const selectedTypes = getSelectedTypes();
         const effectiveSelectedTypes = getEffectiveSelectedTypes(selectedTypes);
 
+        let buttonText;
         if (isAllProblemTypesSelected(selectedTypes)) {
-            $('#typeFilterButtonProblems').text('Type: All');
+            buttonText = 'Type: All';
         } else if (selectedTypes.length === 1) {
             const label = selectedTypes[0] === 'identifier'
                 ? `OSM ${SharedUtils.sourceIdLabel()}`
                 : selectedTypes[0].replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            $('#typeFilterButtonProblems').text(`Type: ${label}`);
+            buttonText = `Type: ${label}`;
         } else {
-            $('#typeFilterButtonProblems').text(`Type: ${selectedTypes.length} selected`);
+            buttonText = `Type: ${selectedTypes.length} selected`;
         }
+        setText('typeFilterButtonProblems', buttonText);
 
-        $('#filterProblemTypeAll').prop('checked', isAllProblemTypesSelected(selectedTypes));
-        $('#filterProblemTypeAttributes').prop('checked', effectiveSelectedTypes.includes('attributes'));
-        $('#filterProblemTypeContradictsRouteMatching').prop('checked', effectiveSelectedTypes.includes('contradicts_route_matching'));
-        $('#filterProblemTypeDistance').prop('checked', effectiveSelectedTypes.includes('distance'));
-        $('#filterProblemTypeDuplicates').prop('checked', effectiveSelectedTypes.includes('duplicates'));
-        $('#filterProblemTypeUnmatched').prop('checked', effectiveSelectedTypes.includes('unmatched'));
-        $('#filterProblemTypeDisused').prop('checked', effectiveSelectedTypes.includes('disused'));
-        $('#filterProblemTypeIdentifier').prop('checked', effectiveSelectedTypes.includes('identifier'));
+        setChecked('filterProblemTypeAll', isAllProblemTypesSelected(selectedTypes));
+        setChecked('filterProblemTypeAttributes', effectiveSelectedTypes.includes('attributes'));
+        setChecked('filterProblemTypeContradictsRouteMatching', effectiveSelectedTypes.includes('contradicts_route_matching'));
+        setChecked('filterProblemTypeDistance', effectiveSelectedTypes.includes('distance'));
+        setChecked('filterProblemTypeDuplicates', effectiveSelectedTypes.includes('duplicates'));
+        setChecked('filterProblemTypeUnmatched', effectiveSelectedTypes.includes('unmatched'));
+        setChecked('filterProblemTypeDisused', effectiveSelectedTypes.includes('disused'));
+        setChecked('filterProblemTypeIdentifier', effectiveSelectedTypes.includes('identifier'));
+    }
+
+    function setText(id, text) {
+        const element = document.getElementById(id);
+        if (element) element.textContent = text;
+    }
+
+    function setChecked(id, checked) {
+        const element = document.getElementById(id);
+        if (element) element.checked = checked;
     }
 
     function syncPrioritySelectionUi() {
         const selectedPriorities = getSelectedPriorities();
-        $('#priorityFilterProblems .priority-circle').removeClass('selected');
-        if (!selectedPriorities.length) {
-            $('#priorityFilterProblems .priority-option[data-priority="all"] .priority-circle').addClass('selected');
-            return;
-        }
-        selectedPriorities.forEach(pr => {
-            $(`#priorityFilterProblems .priority-option[data-priority="${pr}"] .priority-circle`).addClass('selected');
+        const circle = priority => document.querySelector(`#priorityFilterProblems .priority-option[data-priority="${priority}"] .priority-circle`);
+        document.querySelectorAll('#priorityFilterProblems .priority-circle').forEach(item => item.classList.remove('selected'));
+        (selectedPriorities.length ? selectedPriorities : ['all']).forEach(pr => {
+            const selected = circle(pr);
+            if (selected) selected.classList.add('selected');
         });
     }
 
@@ -205,10 +215,6 @@ window.ProblemsData = (function () {
         return ProblemsState.getEntryNumberOffset() + index + 1;
     }
 
-    function syncPermalink() {
-        if (window.ProblemsPermalink) window.ProblemsPermalink.sync();
-    }
-
     /**
      * Load a page of problems.
      *
@@ -222,7 +228,7 @@ window.ProblemsData = (function () {
     function fetchProblems(page = 1, options = {}) {
         if (ProblemsState.getIsLoadingMore()) return;
         ProblemsState.setIsLoadingMore(true);
-        $('#problemTypeDisplay').text('Loading...');
+        setText('problemTypeDisplay', 'Loading...');
         const mode = options.prepend ? 'prepend' : (options.focus || page === 1 ? 'fresh' : 'append');
 
         const params = {
@@ -250,9 +256,9 @@ window.ProblemsData = (function () {
             if (options.focus.osm_node_id) params.focus_osm_node_id = options.focus.osm_node_id;
         }
 
-        $.getJSON('/api/problems', params, function (data) {
+        SharedUtils.fetchJson('/api/problems', params).then(function (data) {
             if (data.error) {
-                $('#problemTypeDisplay').text('Error loading problems.');
+                setText('problemTypeDisplay', 'Error loading problems.');
                 ProblemsState.setIsLoadingMore(false);
                 return;
             }
@@ -278,25 +284,18 @@ window.ProblemsData = (function () {
 
             const allProblems = ProblemsState.getAllProblems();
             if (allProblems.length === 0) {
-                $('#problemTypeDisplay').text('No problems found for this filter combination.');
-                $('#actionButtonsContent').empty();
-                if (window.ProblemsUI && window.ProblemsUI.updateFloatingChips) window.ProblemsUI.updateFloatingChips(null);
+                setText('problemTypeDisplay', 'No problems found for this filter combination.');
+                document.getElementById('actionButtonsContent').innerHTML = '';
+                ProblemsUI.updateFloatingChips(null);
                 ProblemsState.setCurrentEntryProblems([]);
-                syncPermalink();
+                ProblemsPermalink.sync();
 
                 const markersLayer = ProblemsState.getProblemMarkersLayer();
                 const linesLayer = ProblemsState.getProblemLinesLayer();
-                const contextLayer = ProblemsState.getContextMarkersLayer();
                 if (markersLayer) markersLayer.clearLayers();
                 if (linesLayer) linesLayer.clearLayers();
-                if (window.ProblemsMap && typeof window.ProblemsMap.releaseView === 'function') {
-                    window.ProblemsMap.releaseView();
-                }
-                if (window.ProblemsMap && typeof window.ProblemsMap.clearContextData === 'function') {
-                    window.ProblemsMap.clearContextData();
-                } else if (contextLayer) {
-                    contextLayer.clearLayers();
-                }
+                ProblemsMap.releaseView();
+                ProblemsMap.clearContextData();
                 if (options.focus && typeof options.onFocusMissing === 'function') options.onFocusMissing();
             } else {
                 if (mode === 'prepend') {
@@ -309,7 +308,7 @@ window.ProblemsData = (function () {
                     ProblemsState.setCurrentProblemIndex(Math.max(0, shownIndex - 1));
                     ProblemsState.setCurrentEntryProblemIndex(0);
                 } else if (options.focus) {
-                    const focusIndex = problemsByEntry.findIndex(entry => window.ProblemsPermalink.entryMatchesFocus(entry, options.focus));
+                    const focusIndex = problemsByEntry.findIndex(entry => ProblemsPermalink.entryMatchesFocus(entry, options.focus));
                     ProblemsState.setCurrentProblemIndex(Math.max(0, focusIndex));
                     if ((data.focus_found === false || focusIndex === -1) && typeof options.onFocusMissing === 'function') {
                         options.onFocusMissing();
@@ -317,21 +316,15 @@ window.ProblemsData = (function () {
                 } else if (ProblemsState.getCurrentProblemIndex() === -1) {
                     ProblemsState.setCurrentProblemIndex(0);
                 }
-                if (window.ProblemsUI && window.ProblemsUI.displayProblem) {
-                    window.ProblemsUI.displayProblem(ProblemsState.getCurrentProblemIndex());
-                }
+                ProblemsUI.displayProblem(ProblemsState.getCurrentProblemIndex());
             }
 
-            if (window.ProblemsUI && window.ProblemsUI.updateNavButtons) {
-                window.ProblemsUI.updateNavButtons();
-            }
-            if (window.ProblemsPage && typeof window.ProblemsPage.renderFiltersSummary === 'function') {
-                window.ProblemsPage.renderFiltersSummary();
-            }
+            ProblemsUI.updateNavButtons();
+            ProblemsPage.renderFiltersSummary();
 
             ProblemsState.setIsLoadingMore(false);
-        }).fail(function () {
-            $('#problemTypeDisplay').text('Error loading problems.');
+        }, function () {
+            setText('problemTypeDisplay', 'Error loading problems.');
             ProblemsState.setIsLoadingMore(false);
         });
     }
@@ -349,18 +342,21 @@ window.ProblemsData = (function () {
         }
         if (ProblemsState.getArea()) params.bbox = ProblemsArea.formatArea(ProblemsState.getArea());
 
-        $.getJSON('/api/problems/stats', params, function (stats) {
-            $('#typeCountAll').text((stats.all && stats.all.all) || 0);
-            $('#typeCountAttributes').text((stats.attributes && stats.attributes.all) || 0);
-            $('#typeCountContradictsRouteMatching').text((stats.contradicts_route_matching && stats.contradicts_route_matching.all) || 0);
-            $('#typeCountDistance').text((stats.distance && stats.distance.all) || 0);
-            $('#typeCountDuplicates').text((stats.duplicates && stats.duplicates.all) || 0);
-            $('#typeCountUnmatched').text((stats.unmatched && stats.unmatched.all) || 0);
-            $('#typeCountDisused').text((stats.disused && stats.disused.all) || 0);
-            $('#typeCountIdentifier').text((stats.identifier && stats.identifier.all) || 0);
+        SharedUtils.fetchJson('/api/problems/stats', params).then(function (stats) {
+            const count = type => String((stats[type] && stats[type].all) || 0);
+            setText('typeCountAll', count('all'));
+            setText('typeCountAttributes', count('attributes'));
+            setText('typeCountContradictsRouteMatching', count('contradicts_route_matching'));
+            setText('typeCountDistance', count('distance'));
+            setText('typeCountDuplicates', count('duplicates'));
+            setText('typeCountUnmatched', count('unmatched'));
+            setText('typeCountDisused', count('disused'));
+            setText('typeCountIdentifier', count('identifier'));
 
             updateTypeButtonDisplay();
             syncPrioritySelectionUi();
+        }, function (error) {
+            console.warn('Could not load the problem counts:', error);
         });
     }
 
@@ -383,22 +379,14 @@ window.ProblemsData = (function () {
             ProblemsState.setCurrentProblemIndex(currentProblemIndex + 1);
             ProblemsState.setCurrentEntryProblemIndex(0);
 
-            if (window.ProblemsUI && window.ProblemsUI.displayProblem) {
-                window.ProblemsUI.displayProblem(ProblemsState.getCurrentProblemIndex());
-            }
-            if (window.ProblemsUI && window.ProblemsUI.updateNavButtons) {
-                window.ProblemsUI.updateNavButtons();
-            }
+            ProblemsUI.displayProblem(ProblemsState.getCurrentProblemIndex());
+            ProblemsUI.updateNavButtons();
             prefetchNextPageIfNeeded();
         } else if (hasMorePages()) {
-            if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
-                window.ProblemsUI.showTemporaryMessage('Loading more problems...', 'info');
-            }
+            ProblemsUI.showTemporaryMessage('Loading more problems...', 'info');
             fetchProblems(ProblemsState.getCurrentPage() + 1);
         } else {
-            if (window.ProblemsUI && window.ProblemsUI.showTemporaryMessage) {
-                window.ProblemsUI.showTemporaryMessage('You have reached the last entry for this filter combination.', 'success');
-            }
+            ProblemsUI.showTemporaryMessage('You have reached the last entry for this filter combination.', 'success');
         }
     }
 
@@ -407,12 +395,8 @@ window.ProblemsData = (function () {
         if (currentProblemIndex > 0) {
             ProblemsState.setCurrentProblemIndex(currentProblemIndex - 1);
             ProblemsState.setCurrentEntryProblemIndex(0);
-            if (window.ProblemsUI && window.ProblemsUI.displayProblem) {
-                window.ProblemsUI.displayProblem(ProblemsState.getCurrentProblemIndex());
-            }
-            if (window.ProblemsUI && window.ProblemsUI.updateNavButtons) {
-                window.ProblemsUI.updateNavButtons();
-            }
+            ProblemsUI.displayProblem(ProblemsState.getCurrentProblemIndex());
+            ProblemsUI.updateNavButtons();
         } else if (ProblemsState.getFirstLoadedPage() > 1) {
             fetchProblems(ProblemsState.getFirstLoadedPage() - 1, { prepend: true });
         }

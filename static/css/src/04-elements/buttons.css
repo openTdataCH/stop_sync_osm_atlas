@@ -59,12 +59,6 @@
   border-radius: var(--radius-sm);
 }
 
-.btn-lg {
-  padding: var(--space-3) var(--space-6);
-  font-size: var(--text-lg);
-  border-radius: var(--radius-md);
-}
-
 /* -------------------------------------------------------------------------
    Button Variants
    ------------------------------------------------------------------------- */
@@ -89,54 +83,6 @@
 .btn-secondary:hover {
   background-color: var(--color-secondary-hover);
   border-color: var(--color-secondary-hover);
-  color: var(--color-on-accent);
-}
-
-.btn-success {
-  background-color: var(--color-success);
-  border-color: var(--color-success);
-  color: var(--color-on-accent);
-}
-
-.btn-success:hover {
-  background-color: var(--color-success-hover);
-  border-color: var(--color-success-hover);
-  color: var(--color-on-accent);
-}
-
-.btn-danger {
-  background-color: var(--color-danger);
-  border-color: var(--color-danger);
-  color: var(--color-on-accent);
-}
-
-.btn-danger:hover {
-  background-color: var(--color-danger-hover);
-  border-color: var(--color-danger-hover);
-  color: var(--color-on-accent);
-}
-
-.btn-warning {
-  background-color: var(--color-warning);
-  border-color: var(--color-warning);
-  color: var(--color-on-warning);
-}
-
-.btn-warning:hover {
-  background-color: var(--color-warning-hover);
-  border-color: var(--color-warning-hover);
-  color: var(--color-on-warning);
-}
-
-.btn-info {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-on-accent);
-}
-
-.btn-info:hover {
-  background-color: var(--color-primary-hover);
-  border-color: var(--color-primary-hover);
   color: var(--color-on-accent);
 }
 
@@ -167,61 +113,12 @@
   color: var(--color-on-accent);
 }
 
-.btn-outline-success {
-  background-color: transparent;
-  border-color: var(--color-success);
-  color: var(--color-success);
-}
-
-.btn-outline-success:hover {
-  background-color: var(--color-success);
-  border-color: var(--color-success);
-  color: var(--color-on-accent);
-}
-
-.btn-outline-danger {
-  background-color: transparent;
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.btn-outline-danger:hover {
-  background-color: var(--color-danger);
-  border-color: var(--color-danger);
-  color: var(--color-on-accent);
-}
-
-.btn-outline-warning {
-  background-color: transparent;
-  border-color: var(--color-warning);
-  color: var(--color-warning);
-}
-
-.btn-outline-warning:hover {
-  background-color: var(--color-warning);
-  border-color: var(--color-warning);
-  color: var(--color-on-warning);
-}
-
-.btn-outline-info {
-  background-color: transparent;
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-}
-
-.btn-outline-info:hover {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-on-accent);
-}
-
 /* -------------------------------------------------------------------------
    Disabled Buttons
    Bootstrap's .btn:disabled reads --bs-btn-disabled-*, which Bootstrap sets to
    its own palette; without these a disabled button turns Bootstrap blue.
    ------------------------------------------------------------------------- */
-.btn-primary,
-.btn-info {
+.btn-primary {
   --bs-btn-disabled-bg: var(--color-primary);
   --bs-btn-disabled-border-color: var(--color-primary);
   --bs-btn-disabled-color: var(--color-on-accent);
@@ -233,26 +130,7 @@
   --bs-btn-disabled-color: var(--color-on-accent);
 }
 
-.btn-success {
-  --bs-btn-disabled-bg: var(--color-success);
-  --bs-btn-disabled-border-color: var(--color-success);
-  --bs-btn-disabled-color: var(--color-on-accent);
-}
-
-.btn-danger {
-  --bs-btn-disabled-bg: var(--color-danger);
-  --bs-btn-disabled-border-color: var(--color-danger);
-  --bs-btn-disabled-color: var(--color-on-accent);
-}
-
-.btn-warning {
-  --bs-btn-disabled-bg: var(--color-warning);
-  --bs-btn-disabled-border-color: var(--color-warning);
-  --bs-btn-disabled-color: var(--color-on-warning);
-}
-
-.btn-outline-primary,
-.btn-outline-info {
+.btn-outline-primary {
   --bs-btn-disabled-bg: transparent;
   --bs-btn-disabled-border-color: var(--color-primary);
   --bs-btn-disabled-color: var(--color-primary);
@@ -262,53 +140,6 @@
   --bs-btn-disabled-bg: transparent;
   --bs-btn-disabled-border-color: var(--color-secondary);
   --bs-btn-disabled-color: var(--color-secondary);
-}
-
-.btn-outline-success {
-  --bs-btn-disabled-bg: transparent;
-  --bs-btn-disabled-border-color: var(--color-success);
-  --bs-btn-disabled-color: var(--color-success);
-}
-
-.btn-outline-danger {
-  --bs-btn-disabled-bg: transparent;
-  --bs-btn-disabled-border-color: var(--color-danger);
-  --bs-btn-disabled-color: var(--color-danger);
-}
-
-.btn-outline-warning {
-  --bs-btn-disabled-bg: transparent;
-  --bs-btn-disabled-border-color: var(--color-warning);
-  --bs-btn-disabled-color: var(--color-warning);
-}
-
-/* -------------------------------------------------------------------------
-   Button Groups
-   ------------------------------------------------------------------------- */
-.btn-block + .btn-block {
-  margin-top: var(--space-2);
-}
-
-.btn-group .btn {
-  margin-right: var(--space-2);
-}
-
-.btn-group .btn:last-child {
-  margin-right: 0;
-}
-
-.btn-group-toggle .btn {
-  border-radius: var(--radius-md);
-}
-
-.btn-group-toggle .btn:first-child {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.btn-group-toggle .btn:last-child {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
 }
 
 /* -------------------------------------------------------------------------
@@ -326,5 +157,3 @@
   text-decoration: underline;
   transform: none;
 }
-
-

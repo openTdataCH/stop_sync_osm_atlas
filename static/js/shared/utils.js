@@ -91,14 +91,84 @@
     };
 
     /**
+     * Requests url and resolves to its JSON answer.
+     * params become the query string; empty values are left out and arrays
+     * repeat their key. options: signal, method, headers, cache (the fetch
+     * cache mode), and body, sent as JSON. A failed answer rejects with an Error carrying status and the
+     * parsed body; an aborted request rejects with the browser's AbortError.
+     */
+    SharedUtils.fetchJson = function(url, params, options) {
+        options = options || {};
+        const query = new URLSearchParams();
+        Object.keys(params || {}).forEach(key => {
+            const value = params[key];
+            if (value === undefined || value === null || value === '') return;
+            (Array.isArray(value) ? value : [value]).forEach(item => query.append(key, String(item)));
+        });
+        const queryString = query.toString();
+        const requestUrl = queryString ? url + (String(url).includes('?') ? '&' : '?') + queryString : url;
+        const headers = Object.assign({ Accept: 'application/json' }, options.headers);
+        const init = { method: options.method || 'GET', headers: headers, signal: options.signal };
+        if (options.cache) init.cache = options.cache;
+        if (options.body !== undefined) {
+            headers['Content-Type'] = 'application/json';
+            init.body = JSON.stringify(options.body);
+        }
+        return global.fetch(requestUrl, init).then(response => {
+            if (response.ok) return response.json();
+            return Promise.resolve()
+                .then(() => response.json())
+                .catch(() => null)
+                .then(body => {
+                    const serverMessage = body && (body.error || body.message);
+                    const error = new Error(serverMessage || 'Request failed with status ' + response.status);
+                    error.status = response.status;
+                    error.body = body;
+                    throw error;
+                });
+        });
+    };
+
+    SharedUtils.isAbortError = error => !!error && error.name === 'AbortError';
+
+    /**
      * The server's error message from a failed request, or the fallback
-     * @param {object} xhr - jQuery XHR object
+     * @param {object} error - Error rejected by fetchJson (status, body)
      * @param {string} fallbackMessage - Message used when the response carries none
      * @returns {string} Error message
      */
-    SharedUtils.buildErrorMessage = function(xhr, fallbackMessage) {
-        const body = (xhr && xhr.responseJSON) ? xhr.responseJSON : null;
+    SharedUtils.buildErrorMessage = function(error, fallbackMessage) {
+        const body = error && error.body;
         return (body && (body.error || body.message)) || fallbackMessage;
+    };
+
+    // The breakpoint below which map pages fold their filters into an overlay.
+    SharedUtils.isMobileViewport = () => global.matchMedia('(max-width: 768px)').matches;
+
+    // 3725 -> "1h 2m", 65 -> "1m 5s", 7 -> "7s"; "—" when unknown.
+    SharedUtils.formatDuration = function(seconds) {
+        if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0) return '—';
+        const rounded = Math.round(seconds);
+        const hours = Math.floor(rounded / 3600);
+        const minutes = Math.floor((rounded % 3600) / 60);
+        const remainder = rounded % 60;
+        if (hours) return hours + 'h ' + minutes + 'm';
+        if (minutes) return minutes + 'm ' + remainder + 's';
+        return remainder + 's';
+    };
+
+    // The page scrolls in <body> (base.css) or, elsewhere, in the viewport.
+    SharedUtils.isScrolledToBottom = function() {
+        return [document.scrollingElement, document.body].some(element => !!element && element.scrollTop > 0
+            && element.scrollHeight - element.scrollTop - element.clientHeight < 2);
+    };
+
+    // A new element with an optional class and text.
+    SharedUtils.element = function(tag, className, text) {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text != null) node.textContent = text;
+        return node;
     };
 
     // Export to global scope

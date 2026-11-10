@@ -158,17 +158,16 @@ describe('search suggestions', () => {
         global.fetch = fetchMock;
 
         await expect(SearchSuggest.fetchSuggestions('zürich hb')).resolves.toEqual([ZURICH]);
-        expect(fetchMock.mock.calls[0][0]).toBe('/api/search/suggest?q=z%C3%BCrich%20hb');
+        expect(fetchMock.mock.calls[0][0]).toBe('/api/search/suggest?q=z%C3%BCrich+hb');
 
         global.fetch = jest.fn(() => Promise.resolve({ ok: false, status: 503 }));
-        await expect(SearchSuggest.fetchSuggestions('zu')).rejects.toThrow('HTTP 503');
+        await expect(SearchSuggest.fetchSuggestions('zu')).rejects.toThrow('Request failed with status 503');
         delete global.fetch;
     });
 });
 
 describe('map search box', () => {
     beforeAll(() => {
-        loadBrowserScript(path.join(__dirname, '../../static/js/shared/jquery-lite.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/components/filter-chip-utils.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/pages/filters.js'));
     });
@@ -193,6 +192,7 @@ describe('map search box', () => {
         window.fetchAndCenterSpecificStop = jest.fn(() => Promise.resolve({ stop: {} }));
         window.loadDataForViewport = jest.fn();
         window.updateHeaderSummary = jest.fn();
+        window.invalidateViewportCache = jest.fn();
         global.fetch = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ results: [ZURICH] }) }));
         window.initSearchSuggestions();
         const input = document.getElementById('smartSearchInput');

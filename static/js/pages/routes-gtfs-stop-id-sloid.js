@@ -223,18 +223,9 @@
   }
 
 
+  // Requests a prepared URL; options carry the AbortSignal.
   function fetchJson(url, options) {
-    return global.fetch(url, options || {}).then(function (response) {
-      return response.json().catch(function () { return {}; }).then(function (payload) {
-        if (!response.ok) {
-          var error = new Error(payload.error || 'Request failed with status ' + response.status);
-          error.status = response.status;
-          error.payload = payload;
-          throw error;
-        }
-        return payload;
-      });
-    });
+    return SharedUtils.fetchJson(url, null, options);
   }
 
   var mapElement = document.getElementById('routesGtfsStopIdSloidMap');
@@ -944,25 +935,15 @@
     setFilters(buildFilterStateFromControls());
   }
 
-  function isMobileViewport() {
-    return global.matchMedia('(max-width: 768px)').matches;
-  }
-
-  summaryBinding = global.HeaderSummary && typeof global.HeaderSummary.bind === 'function'
-    ? global.HeaderSummary.bind({
-      collapsed: isMobileViewport(),
-      isMobileViewport: isMobileViewport,
-      getActiveFilterCount: getActiveMapFilterCount,
-      onClearAll: clearAllMapFilters
-    })
-    : null;
+  summaryBinding = global.HeaderSummary.bind({
+    collapsed: SharedUtils.isMobileViewport(),
+    isMobileViewport: SharedUtils.isMobileViewport,
+    getActiveFilterCount: getActiveMapFilterCount,
+    onClearAll: clearAllMapFilters
+  });
 
   function syncSummaryLayout() {
-    if (summaryBinding) {
-      summaryBinding.setCollapsed(isMobileViewport(), 'viewport');
-    } else if (global.HeaderSummary && typeof global.HeaderSummary.setCollapsed === 'function') {
-      global.HeaderSummary.setCollapsed(isMobileViewport());
-    }
+    summaryBinding.setCollapsed(SharedUtils.isMobileViewport(), 'viewport');
   }
 
   function handleResize() {

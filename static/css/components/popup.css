@@ -4,38 +4,6 @@
    ========================================================================== */
 
 /* -------------------------------------------------------------------------
-   Unified Popup Container
-   ------------------------------------------------------------------------- */
-.unified-popup {
-  display: flex;
-  flex-direction: column;
-  max-width: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-/* -------------------------------------------------------------------------
-   Popup Sections
-   ------------------------------------------------------------------------- */
-.popup-section {
-  padding: var(--space-2);
-  margin-bottom: var(--space-2);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-xs);
-  border: 1px solid var(--color-border);
-}
-
-.atlas-section {
-  background-color: var(--color-primary-subtle);
-  border-color: var(--color-primary-border);
-}
-
-.osm-section {
-  background-color: var(--color-success-subtle);
-  border-color: var(--color-success-border);
-}
-
-/* -------------------------------------------------------------------------
    Matches Container
    ------------------------------------------------------------------------- */
 /* A stop with several matches stacks its cards at the popup's fixed width. */
@@ -386,12 +354,9 @@
   z-index: 2;
 }
 
-
-
 .osm-match:hover, .atlas-match:hover, .gtfs-match:hover {
   transform: translateY(-2px);
 }
-
 
 .atlas-match h5, .osm-match h5, .gtfs-match h5 {
   color: var(--bubble-fg);
@@ -424,19 +389,8 @@
   margin-top: 4px;
 }
 
-.popup-empty-state {
-  margin: 0;
-  color: var(--color-fg-muted);
-  font-size: var(--text-xs);
-}
-
 .popup-mono {
   font-family: var(--font-family-monospace, monospace);
-}
-
-.additional-match {
-  padding-top: var(--space-2);
-  margin-top: 0;
 }
 
 /* -------------------------------------------------------------------------
@@ -459,28 +413,6 @@
 /* -------------------------------------------------------------------------
    Premium Collapsible Button
    ------------------------------------------------------------------------- */
-.btn-collapsible {
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 4px 12px;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--color-fg);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-collapsible:hover {
-  background: var(--color-bg-subtle);
-  border-color: var(--color-border-emphasis);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
 
 .btn-collapsible-arrow {
   font-size: 10px;
@@ -498,7 +430,6 @@
   border-radius: var(--radius-md);
   font-size: var(--text-xs);
 }
-
 
 /* -------------------------------------------------------------------------
    Leaflet Popup Overrides
@@ -523,10 +454,6 @@
 
 .leaflet-popup-content::-webkit-resizer {
   display: none;
-}
-
-.leaflet-popup-content > div.unified-popup {
-  padding: 0 var(--space-2) var(--space-2) var(--space-2);
 }
 
 .leaflet-popup-content-wrapper {
@@ -639,11 +566,6 @@
   box-shadow: var(--shadow-lg) !important;
   transform: translateY(-1px);
 }
-
-.action-section .popup-action-btn {
-  margin: 0;
-}
-
 
 /* -------------------------------------------------------------------------
    Popup Links

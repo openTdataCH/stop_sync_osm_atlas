@@ -1,25 +1,24 @@
 // problems.js - Main JavaScript for the Problem Identification Page
 
-$(document).ready(function () {
+document.addEventListener('DOMContentLoaded', function () {
+    // Aborting it on pagehide removes the page's listeners.
+    const pageListeners = new AbortController();
+    const listen = { signal: pageListeners.signal };
     var headerSummaryFiltersExpanded = false;
     var headerSummaryCollapsed = false;
     var headerSummaryController = null;
     var mobileFiltersController = null;
 
     function setMainLayoutHeights() {
-        const root = $('.problems-page-root');
-        if (root.length === 0) return;
+        const root = document.querySelector('.problems-page-root');
+        if (!root) return;
         const viewportH = window.innerHeight || document.documentElement.clientHeight;
-        const rootTop = root.offset() ? root.offset().top : 0;
+        const rootTop = root.getBoundingClientRect().top + window.pageYOffset;
         const desiredHeight = Math.max(300, viewportH - rootTop);
-        root.css('height', desiredHeight + 'px');
+        root.style.height = desiredHeight + 'px';
 
         setTimeout(() => {
-            if (window.ProblemsMap && window.ProblemsMap.invalidateMapSize) {
-                try { window.ProblemsMap.invalidateMapSize(); } catch (e) { }
-            } else if (typeof L !== 'undefined' && ProblemsState.getProblemMap()) {
-                try { ProblemsState.getProblemMap().invalidateSize(); } catch (e) { }
-            }
+            ProblemsMap.invalidateMapSize();
         }, 0);
     }
 
@@ -30,33 +29,25 @@ $(document).ready(function () {
             + (ProblemsState.getArea() ? 1 : 0);
     }
 
-    function isMobileViewport() {
-        if (window.MobileFilters && typeof window.MobileFilters.isMobileViewport === 'function') {
-            return window.MobileFilters.isMobileViewport();
-        }
-        return window.matchMedia('(max-width: 768px)').matches;
-    }
-
     function updateSummaryStats() {
-        const statsContainer = $('#headerSummaryStats');
+        const statsContainer = document.getElementById('headerSummaryStats');
         const totalCount = ProblemsState.getTotalProblems() || 0;
 
-        if (!statsContainer.length) return;
+        if (!statsContainer) return;
 
-        statsContainer.html(
-            '<div><i class="fas fa-exclamation-triangle"></i> ' + SharedUtils.formatCount(totalCount) + ' problems</div>'
-        );
+        statsContainer.innerHTML =
+            '<div><i class="fas fa-exclamation-triangle"></i> ' + SharedUtils.formatCount(totalCount) + ' problems</div>';
     }
 
     function applyHeaderSummaryLayoutState() {
-        headerSummaryCollapsed = isMobileViewport();
+        headerSummaryCollapsed = SharedUtils.isMobileViewport();
         if (headerSummaryController) {
             headerSummaryController.setCollapsed(headerSummaryCollapsed, 'viewport');
         }
     }
 
     function refreshProblemsAfterFilterChange(options = {}) {
-        if (options.syncOperatorDropdown && window.operatorDropdownProblems && window.operatorDropdownProblems.setSelection) {
+        if (options.syncOperatorDropdown) {
             window.operatorDropdownProblems.setSelection(ProblemsState.getSelectedAtlasOperators() || []);
         }
         ProblemsState.resetPaginationState();
@@ -71,9 +62,7 @@ $(document).ready(function () {
         ProblemsState.setSelectedAtlasOperators([]);
         ProblemsState.setArea(null);
 
-        if (window.operatorDropdownProblems && window.operatorDropdownProblems.setSelection) {
-            window.operatorDropdownProblems.setSelection([]);
-        }
+        window.operatorDropdownProblems.setSelection([]);
 
         refreshProblemsAfterFilterChange();
     }
@@ -84,7 +73,6 @@ $(document).ready(function () {
             priorities: ProblemsState.getSelectedPriorities(),
             operators: ProblemsState.getSelectedAtlasOperators(),
             area: ProblemsState.getArea(),
-            onClearAll: clearAllProblemFilters,
             onRemoveArea: function () {
                 ProblemsState.setArea(null);
                 refreshProblemsAfterFilterChange();
@@ -107,7 +95,8 @@ $(document).ready(function () {
         });
         updateSummaryStats();
         ProblemsArea.showOutline(ProblemsState.getProblemMap(), ProblemsState.getArea());
-        $('#areaFilterButton').toggleClass('is-active', !!ProblemsState.getArea());
+        const areaButton = document.getElementById('areaFilterButton');
+        if (areaButton) areaButton.classList.toggle('is-active', !!ProblemsState.getArea());
         if (headerSummaryController) {
             headerSummaryController.syncFilters({
                 activeFilterCount: getActiveProblemsFilterCount(),
@@ -121,28 +110,29 @@ $(document).ready(function () {
     };
 
     function bindFilterEvents() {
-        $(document).on('change.problemsPage', '.filter-problem-type', function () {
-            const type = String($(this).val() || '');
-            const isChecked = $(this).is(':checked');
-            ProblemsData.updateProblemTypeFilter(type, isChecked);
+        document.addEventListener('change', function (e) {
+            const box = e.target.closest('.filter-problem-type');
+            if (!box) return;
+            ProblemsData.updateProblemTypeFilter(String(box.value || ''), box.checked);
             renderFiltersSummary();
-        });
+        }, listen);
 
-        $(document).on('click.problemsPage', '#priorityFilterProblems .priority-option', function (e) {
+        document.addEventListener('click', function (e) {
+            const option = e.target.closest('#priorityFilterProblems .priority-option');
+            if (!option) return;
             e.preventDefault();
-            const priority = String($(this).data('priority'));
-            ProblemsData.updatePriorityFilter(priority);
+            ProblemsData.updatePriorityFilter(String(option.dataset.priority));
             renderFiltersSummary();
-        });
+        }, listen);
 
-        $('#areaFilterButton').on('click', function () {
+        const areaButton = document.getElementById('areaFilterButton');
+        if (areaButton) areaButton.addEventListener('click', function () {
             const map = ProblemsState.getProblemMap();
             ProblemsArea.open(ProblemsState.getArea(), map ? map.getBounds() : null, function (area) {
                 ProblemsState.setArea(area);
                 refreshProblemsAfterFilterChange();
             });
-        });
-
+        }, listen);
     }
 
     ProblemsMap.initProblemMap();
@@ -160,8 +150,8 @@ $(document).ready(function () {
     headerSummaryController = window.HeaderSummary.bind({
         getActiveFilterCount: getActiveProblemsFilterCount,
         filtersExpanded: headerSummaryFiltersExpanded,
-        collapsed: isMobileViewport(),
-        isMobileViewport: isMobileViewport,
+        collapsed: SharedUtils.isMobileViewport(),
+        isMobileViewport: SharedUtils.isMobileViewport,
         onFiltersExpandedChange: function (expanded) {
             headerSummaryFiltersExpanded = expanded;
         },
@@ -182,7 +172,7 @@ $(document).ready(function () {
         closeOnOutsideClick: true,
         closeOnEscape: true,
         onOpenChange: function (open) {
-            if (open && isMobileViewport()) {
+            if (open && SharedUtils.isMobileViewport()) {
                 headerSummaryCollapsed = true;
                 headerSummaryController.setCollapsed(true, 'mobile-filters');
             }
@@ -222,46 +212,51 @@ $(document).ready(function () {
         ProblemsUI.showKeyboardHint();
     }, 2000);
 
-    $(window).on('resize.problemsPage', function () {
+    window.addEventListener('resize', function () {
         setMainLayoutHeights();
         applyHeaderSummaryLayoutState();
-    });
+    }, listen);
 
     window.addEventListener('pagehide', function (event) {
         if (event.persisted) return;
         if (headerSummaryController) headerSummaryController.destroy();
         if (mobileFiltersController) mobileFiltersController.destroy();
-        if (window.operatorDropdownProblems && window.operatorDropdownProblems.destroy) {
-            window.operatorDropdownProblems.destroy();
-        }
-        if (window.ProblemsMap) window.ProblemsMap.destroyProblemMap();
-        $(document).off('.problemsPage');
-        $(window).off('.problemsPage');
-        $('#prevProblemBtn, #nextProblemBtn, #toggleContextBtn, #copyProblemLinkBtn').off('.problemsPage');
+        window.operatorDropdownProblems.destroy();
+        ProblemsMap.destroyProblemMap();
+        pageListeners.abort();
         Permalinks.cancelCopyFeedback();
-        $('#activeFilters').off('.filterchips');
     }, { once: true });
 
     setTimeout(function () {
         setMainLayoutHeights();
     }, 300);
 
-    $('#prevProblemBtn').on('click.problemsPage', function () {
+    function onClick(id, handler) {
+        const button = document.getElementById(id);
+        if (button) button.addEventListener('click', handler, listen);
+    }
+
+    onClick('prevProblemBtn', function () {
         ProblemsData.navigateToPreviousProblem();
     });
 
-    $('#copyProblemLinkBtn').on('click.problemsPage', function () {
+    onClick('copyProblemLinkBtn', function () {
         ProblemsPermalink.copyCurrentLink(this);
     });
 
-    $('#nextProblemBtn').on('click.problemsPage', function () {
+    onClick('nextProblemBtn', function () {
         ProblemsData.navigateToNextProblem();
     });
 
-    $('#toggleContextBtn').on('click.problemsPage', ProblemsMap.toggleContext);
+    onClick('toggleContextBtn', ProblemsMap.toggleContext);
 
-    $(document).on('keydown.problemsPage', function (e) {
-        if (!$(e.target).is('input, textarea, select')) {
+    function scrollProblemContent(delta) {
+        const content = document.getElementById('actionButtonsContent');
+        if (content) content.scrollTop += delta;
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (!(e.target.matches && e.target.matches('input, textarea, select'))) {
             ProblemsUI.hideKeyboardHint();
 
             switch (e.key) {
@@ -272,19 +267,19 @@ $(document).ready(function () {
                     break;
                 case 'ArrowLeft':
                     e.preventDefault();
-                    $('#prevProblemBtn').click();
+                    ProblemsData.navigateToPreviousProblem();
                     break;
                 case 'ArrowUp':
                     e.preventDefault();
-                    $('#actionButtonsContent').animate({ scrollTop: '-=150' }, 200);
+                    scrollProblemContent(-150);
                     break;
                 case 'ArrowDown':
                     e.preventDefault();
-                    $('#actionButtonsContent').animate({ scrollTop: '+=150' }, 200);
+                    scrollProblemContent(150);
                     break;
                 case '?':
                     e.preventDefault();
-                    if ($('#keyboardHint').hasClass('show')) {
+                    if (document.getElementById('keyboardHint').classList.contains('show')) {
                         ProblemsUI.hideKeyboardHint();
                     } else {
                         ProblemsUI.showKeyboardHint();
@@ -292,5 +287,5 @@ $(document).ready(function () {
                     break;
             }
         }
-    });
+    }, listen);
 });

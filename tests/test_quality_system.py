@@ -290,7 +290,7 @@ def test_map_links_requests_templates_and_browser_namespaces_and_reports_blind_s
         'templates/layouts/base.html': '<script src="{{ url_for(\'static\', filename=\'js/page.js\') }}"></script>\n',
         'templates/pages/index.html': '{% extends "layouts/base.html" %}\n<a href="{{ url_for(\'index\') }}">Home</a>\n'
                                       '<div data-url="{{ url_for(\'api.item\', item_id=1) }}"></div>\n{% include "missing.html" %}\n',
-        'static/js/page.js': "fetch('/api/items/' + id);\n$.ajax({ url: config.url });\nvar namespace = window.Shared = window.Shared || {};\n"
+        'static/js/page.js': "fetch('/api/items/' + id);\nSharedUtils.fetchJson(config.url);\nvar namespace = window.Shared = window.Shared || {};\n"
                              "namespace.Tool = function () {};\nvar gone = '/api/gone';\n",
         'static/js/other.js': 'Shared.Tool();\nhelper();\n// Shared.Missing() in a comment is no use.\n',
         'static/js/a.js': 'function helper() {}\n',

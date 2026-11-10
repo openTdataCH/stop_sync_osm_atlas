@@ -6,8 +6,7 @@
 /* -------------------------------------------------------------------------
    Base Toast (Temporary Message)
    ------------------------------------------------------------------------- */
-.temporary-message,
-.c-toast {
+.temporary-message {
   position: fixed;
   bottom: var(--space-6);
   left: 50%;
@@ -26,60 +25,35 @@
   animation: toastSlideIn var(--transition-slow) ease-out;
 }
 
-.temporary-message.show,
-.c-toast.is-visible {
+.temporary-message.show {
   display: block;
 }
 
 /* -------------------------------------------------------------------------
    Toast Variants
    ------------------------------------------------------------------------- */
-.temporary-message.alert-success,
-.c-toast--success {
+.temporary-message.alert-success {
   background: linear-gradient(135deg, var(--color-success-subtle) 0%, var(--color-bg) 100%);
   color: var(--color-success-fg);
   border-color: var(--color-success-border);
 }
 
-.temporary-message.alert-error,
-.c-toast--error {
+.temporary-message.alert-error {
   background: linear-gradient(135deg, var(--color-danger-subtle) 0%, var(--color-bg) 100%);
   color: var(--color-danger-fg);
   border-color: var(--color-danger-border);
 }
 
-.temporary-message.alert-warning,
-.c-toast--warning {
+.temporary-message.alert-warning {
   background: linear-gradient(135deg, var(--color-warning-subtle) 0%, var(--color-bg) 100%);
   color: var(--color-warning-fg);
   border-color: var(--color-warning-border);
 }
 
-.temporary-message.alert-info,
-.c-toast--info {
+.temporary-message.alert-info {
   background: linear-gradient(135deg, var(--color-primary-subtle) 0%, var(--color-bg) 100%);
   color: var(--color-primary);
   border-color: var(--color-primary-border);
-}
-
-/* -------------------------------------------------------------------------
-   Toast with Close Button
-   ------------------------------------------------------------------------- */
-.c-toast__close {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
-  padding: var(--space-1);
-  background: transparent;
-  border: none;
-  color: inherit;
-  opacity: 0.7;
-  cursor: pointer;
-  transition: opacity var(--transition-fast);
-}
-
-.c-toast__close:hover {
-  opacity: 1;
 }
 
 /* -------------------------------------------------------------------------
@@ -106,31 +80,3 @@
     transform: translateX(-50%) translateY(20px);
   }
 }
-
-.c-toast.is-hiding {
-  animation: toastSlideOut var(--transition-slow) ease-in forwards;
-}
-
-/* -------------------------------------------------------------------------
-   Toast Container (for stacking multiple toasts)
-   ------------------------------------------------------------------------- */
-.c-toast-container {
-  position: fixed;
-  bottom: var(--space-6);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: var(--z-toast);
-  display: flex;
-  flex-direction: column-reverse;
-  gap: var(--space-2);
-  pointer-events: none;
-}
-
-.c-toast-container .c-toast {
-  position: relative;
-  bottom: auto;
-  left: auto;
-  transform: none;
-  pointer-events: auto;
-}
-

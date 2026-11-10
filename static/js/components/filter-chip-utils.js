@@ -111,9 +111,12 @@
     return groups;
   }
 
+  // One click listener per chip container, replaced on every render.
+  const chipClickHandlers = new WeakMap();
+
   function renderProblemChips(containerSelector, options = {}) {
-    const container = $(containerSelector);
-    if (container.length === 0) return;
+    const container = document.querySelector(containerSelector);
+    if (!container) return;
     const problemTypes = options.problemTypes || [];
     const operators = options.operators || [];
     const priorities = options.priorities || [];
@@ -124,16 +127,28 @@
       groups.push(buildRemovableChip({ label: 'Drawn area', badgeClass: 'filter-chip-secondary', removeClass: 'remove-area-chip' }));
     }
     if (groups.length === 0) {
-      container.html('<span class="' + FILTER_CHIP_BADGE_CLASS + ' filter-chip-secondary">All entries</span>');
+      container.innerHTML = '<span class="' + FILTER_CHIP_BADGE_CLASS + ' filter-chip-secondary">All entries</span>';
     } else {
-      container.html(joinWithAndHtml(groups));
+      container.innerHTML = joinWithAndHtml(groups);
     }
-    container.off('click.filterchips');
-    container.on('click.filterchips', 'a.remove-type-chip', function(e) { e.preventDefault(); const type = $(this).data('type'); if (typeof options.onRemoveType === 'function') { options.onRemoveType(type); } });
-    container.on('click.filterchips', 'a.remove-priority-chip', function(e) { e.preventDefault(); const priority = $(this).data('priority'); if (typeof options.onRemovePriority === 'function') { options.onRemovePriority(String(priority)); } });
-    container.on('click.filterchips', 'a.remove-operator-chip', function(e) { e.preventDefault(); const op = $(this).data('operator'); if (typeof options.onRemoveOperator === 'function') { options.onRemoveOperator(op); } });
-    container.on('click.filterchips', 'a.remove-area-chip', function(e) { e.preventDefault(); if (typeof options.onRemoveArea === 'function') { options.onRemoveArea(); } });
-    container.on('click.filterchips', 'a.clear-all-problem-chips', function(e) { e.preventDefault(); if (typeof options.onClearAll === 'function') { options.onClearAll(); } });
+    const previous = chipClickHandlers.get(container);
+    if (previous) container.removeEventListener('click', previous);
+    const handler = function(e) {
+      const link = e.target.closest('a.remove-type-chip, a.remove-priority-chip, a.remove-operator-chip, a.remove-area-chip');
+      if (!link || !container.contains(link)) return;
+      e.preventDefault();
+      if (link.classList.contains('remove-type-chip')) {
+        if (typeof options.onRemoveType === 'function') options.onRemoveType(link.dataset.type);
+      } else if (link.classList.contains('remove-priority-chip')) {
+        if (typeof options.onRemovePriority === 'function') options.onRemovePriority(String(link.dataset.priority));
+      } else if (link.classList.contains('remove-operator-chip')) {
+        if (typeof options.onRemoveOperator === 'function') options.onRemoveOperator(link.dataset.operator);
+      } else if (typeof options.onRemoveArea === 'function') {
+        options.onRemoveArea();
+      }
+    };
+    container.addEventListener('click', handler);
+    chipClickHandlers.set(container, handler);
   }
 
   function buildDirectionDropdownHtml(options) {
@@ -179,61 +194,6 @@
         '" style="pointer-events: auto;">' + chipContent + '</span>';
   }
 
-  function bindDirectionDropdownEvents(onChangeCallback) {
-    $(document).off('click.directionDropdownToggle').on('click.directionDropdownToggle', '.direction-dropdown', function (e) {
-        if ($(e.target).closest('.direction-option').length) return;
-        var dropdown = $(this);
-        var options = dropdown.find('.direction-options');
-        var arrow = dropdown.find('.direction-arrow');
-        
-        $('.direction-dropdown.open').not(dropdown).each(function () {
-            $(this).find('.direction-options').slideUp(200);
-            $(this).find('.direction-arrow').removeClass('rotated');
-            $(this).removeClass('open');
-        });
-        
-        if (dropdown.hasClass('open')) {
-            options.slideUp(200);
-            arrow.removeClass('rotated');
-            dropdown.removeClass('open');
-        } else {
-            options.slideDown(200);
-            arrow.addClass('rotated');
-            dropdown.addClass('open');
-        }
-    });
-
-    $(document).off('click.directionDropdownOption').on('click.directionDropdownOption', '.direction-option', function (e) {
-        e.stopPropagation();
-        var option = $(this);
-        var direction = option.data('direction');
-        var dropdown = option.closest('.direction-dropdown');
-        var mapIndex = dropdown.data('index');
-        
-        dropdown.attr('data-current', direction);
-        var display = direction === '' ? 'Both' : 'Dir: ' + direction;
-        dropdown.find('.direction-current').text(display);
-        
-        dropdown.find('.direction-options').slideUp(200);
-        dropdown.find('.direction-arrow').removeClass('rotated');
-        dropdown.removeClass('open');
-        
-        if (typeof onChangeCallback === 'function') {
-            onChangeCallback(mapIndex, String(direction));
-        }
-    });
-
-    $(document).off('click.directionDropdownOutside').on('click.directionDropdownOutside', function (e) {
-        if (!$(e.target).closest('.direction-dropdown').length) {
-            $('.direction-dropdown.open').each(function () {
-                $(this).find('.direction-options').slideUp(200);
-                $(this).find('.direction-arrow').removeClass('rotated');
-                $(this).removeClass('open');
-            });
-        }
-    });
-  }
-
-  global.FilterChipUtils = { generateOperatorChipsHtml, generateProblemChipGroups, renderProblemChips, buildOrGroupHtml, joinWithAndHtml, buildRemovableChip, buildDirectionDropdownHtml, bindDirectionDropdownEvents };
+  global.FilterChipUtils = { generateOperatorChipsHtml, generateProblemChipGroups, renderProblemChips, buildOrGroupHtml, joinWithAndHtml, buildRemovableChip, buildDirectionDropdownHtml };
 })(window);
 

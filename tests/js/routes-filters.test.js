@@ -10,6 +10,7 @@ describe('Routes operator filters', () => {
     loadScript('static/js/shared/utils.js');
     loadScript('static/js/components/filter-chip-utils.js');
     loadScript('static/js/shared/permalinks.js');
+    loadScript('static/js/components/header-summary.js');
     loadScript('static/js/pages/routes.js');
   });
 
@@ -85,6 +86,7 @@ describe('Routes detail cards', () => {
     loadScript('static/js/shared/utils.js');
     loadScript('static/js/components/filter-chip-utils.js');
     loadScript('static/js/shared/permalinks.js');
+    loadScript('static/js/components/header-summary.js');
     loadScript('static/js/pages/routes.js');
   });
 

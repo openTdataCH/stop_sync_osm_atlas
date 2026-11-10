@@ -4,6 +4,5 @@
   "font-awesome": "5.15.3",
   "leaflet": "1.9.4",
   "mermaid": "10.9.8",
-  "cytoscape": "3.34.3",
-  "mathjax": "3.2.2"
+  "cytoscape": "3.34.3"
 }

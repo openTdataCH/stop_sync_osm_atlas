@@ -23,6 +23,9 @@ function pageOfStops(first, count) {
     return Array.from({ length: count }, (_, index) => stop(first + index));
 }
 
+// Lets the page handle answered requests; microtasks only, as the tests use fake timers.
+const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
+
 describe('Problems page permalinks', () => {
     let responses;
 
@@ -31,19 +34,20 @@ describe('Problems page permalinks', () => {
     }
 
     beforeAll(() => {
-        loadBrowserScript(path.join(__dirname, '../../static/js/shared/jquery-lite.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/components/popup-utils.js'));
         loadBrowserScript(path.join(__dirname, '../../static/js/components/popup-renderer.js'));
         ['problems-state', 'problems-data', 'problems-ui', 'problems-area', 'problems-permalink'].forEach(name => {
             loadBrowserScript(path.join(PAGES, name + '.js'));
         });
-        window.$.getJSON = jest.fn((url, params, success) => {
+        SharedUtils.fetchJson = jest.fn((url, params) => {
             const data = responses.shift();
-            success(typeof data === 'function' ? data(params) : data);
-            return { fail: () => {} };
+            return Promise.resolve(typeof data === 'function' ? data(params) : data);
         });
-        window.ProblemsMap = { renderProblem: jest.fn(), loadContextData: jest.fn(), clearContextData: jest.fn() };
+        window.ProblemsMap = {
+            renderProblem: jest.fn(), loadContextData: jest.fn(), clearContextData: jest.fn(), releaseView: jest.fn()
+        };
+        window.ProblemsPage = { renderFiltersSummary: jest.fn() };
     });
 
     beforeEach(() => {
@@ -68,7 +72,7 @@ describe('Problems page permalinks', () => {
         jest.useRealTimers();
     });
 
-    test('reads filters and the linked stop, dropping unknown values', () => {
+    test('reads filters and the linked stop, dropping unknown values', async () => {
         expect(ProblemsPermalink.parse('?problem_type=unmatched,distance,bogus&priority=3,1,9&atlas_operator=SBB,BLS&osm=way/42')).toEqual({
             problemTypes: ['distance', 'unmatched'],
             priorities: ['1', '3'],
@@ -88,7 +92,7 @@ describe('Problems page permalinks', () => {
         expect(ProblemsPermalink.parse('')).toMatchObject({ problemTypes: [], priorities: [], atlasOperators: [], focus: null, invalidStop: false });
     });
 
-    test('names an entry by its stop: both sides of a pair, one member of a duplicate group', () => {
+    test('names an entry by its stop: both sides of a pair, one member of a duplicate group', async () => {
         const params = ProblemsPermalink.entryStopParams;
         expect(params([stop(1)])).toEqual({ sloid: 'ch:1:sloid:1', osm: 'node/1001' });
         expect(params([stop(1, { osm_node_id: null })])).toEqual({ sloid: 'ch:1:sloid:1', osm: null });
@@ -105,7 +109,7 @@ describe('Problems page permalinks', () => {
         expect(ProblemsPermalink.entryMatchesFocus([stop(1)], { sloid: 'ch:1:sloid:1', osm_node_id: '9' })).toBe(false);
     });
 
-    test('keeps filters and the shown entry in the URL, and other parameters untouched', () => {
+    test('keeps filters and the shown entry in the URL, and other parameters untouched', async () => {
         history.replaceState(null, '', '/problems?utm=forum&sloid=old');
         ProblemsState.setSelectedProblemTypes(['distance', 'unmatched']);
         ProblemsState.setSelectedPriorities(['1']);
@@ -114,19 +118,23 @@ describe('Problems page permalinks', () => {
 
         ProblemsData.fetchProblems();
 
+        await flush();
+
         expect(window.location.search).toBe(
             '?utm=forum&problem_type=distance,unmatched&priority=1&atlas_operator=A+%26+B&sloid=ch:1:sloid:1&osm=node/1001'
         );
         ProblemsData.navigateToNextProblem();
+        await flush();
         expect(window.location.search).toContain('&sloid=ch:1:sloid:2&osm=node/1002');
 
         respondWith({ problems: [], total: 0, page: 1 });
         ProblemsState.resetPaginationState();
         ProblemsData.fetchProblems();
+        await flush();
         expect(window.location.search).toBe('?utm=forum&problem_type=distance,unmatched&priority=1&atlas_operator=A+%26+B');
     });
 
-    test('a linked stop opens on the page that holds it, numbered from that page', () => {
+    test('a linked stop opens on the page that holds it, numbered from that page', async () => {
         respondWith(params => {
             expect(params).toMatchObject({ page: 1, focus_sloid: 'ch:1:sloid:250', focus_osm_node_id: '1250' });
             return { problems: pageOfStops(201, 100), total: 400, page: 3, focus_found: true };
@@ -135,6 +143,8 @@ describe('Problems page permalinks', () => {
 
         ProblemsData.fetchProblems(1, { focus: { sloid: 'ch:1:sloid:250', osm_node_id: '1250' }, onFocusMissing });
 
+        await flush();
+
         expect(document.getElementById('problemTypeDisplay').textContent).toBe('Entry 250 of 400 · 1 Problem');
         expect(window.location.search).toBe('?sloid=ch:1:sloid:250&osm=node/1250');
         expect(onFocusMissing).not.toHaveBeenCalled();
@@ -142,10 +152,11 @@ describe('Problems page permalinks', () => {
         expect(document.getElementById('nextProblemBtn').disabled).toBe(false);
     });
 
-    test('Prev at the start of a linked window loads the page before; shown numbers stay', () => {
+    test('Prev at the start of a linked window loads the page before; shown numbers stay', async () => {
         const header = () => document.getElementById('problemTypeDisplay').textContent;
         respondWith({ problems: pageOfStops(201, 100), total: 400, page: 3, focus_found: true });
         ProblemsData.fetchProblems(1, { focus: { sloid: 'ch:1:sloid:201', osm_node_id: null } });
+        await flush();
         expect(header()).toBe('Entry 201 of 400 · 1 Problem');
 
         // Page 2 holds a stop whose duplicate problem forms an extra entry.
@@ -158,25 +169,32 @@ describe('Problems page permalinks', () => {
             return { problems: page2, total: 400, page: 2 };
         });
         ProblemsData.navigateToPreviousProblem();
+        await flush();
 
         expect(ProblemsState.getFirstLoadedPage()).toBe(2);
         expect(header()).toBe('Group 200 of 400');
         expect(window.location.search).toBe('?sloid=ch:1:sloid:150&osm=node/1150');
         ProblemsData.navigateToPreviousProblem();
+        await flush();
         expect(header()).toBe('Entry 199 of 400 · 1 Problem');
         expect(window.location.search).toBe('?sloid=ch:1:sloid:200&osm=node/1200');
         ProblemsData.navigateToNextProblem();
+        await flush();
         ProblemsData.navigateToNextProblem();
+        await flush();
         expect(header()).toBe('Entry 201 of 400 · 1 Problem');
         expect(window.location.search).toBe('?sloid=ch:1:sloid:201&osm=node/1201');
     });
 
-    test('reaching page 1 numbers the list from its first entry', () => {
+    test('reaching page 1 numbers the list from its first entry', async () => {
         respondWith({ problems: pageOfStops(101, 100), total: 300, page: 2, focus_found: true });
         ProblemsData.fetchProblems(1, { focus: { sloid: 'ch:1:sloid:101', osm_node_id: null } });
+        await flush();
         respondWith({ problems: pageOfStops(1, 100), total: 300, page: 1 });
 
         ProblemsData.navigateToPreviousProblem();
+
+        await flush();
 
         expect(ProblemsState.getFirstLoadedPage()).toBe(1);
         expect(document.getElementById('problemTypeDisplay').textContent).toBe('Entry 100 of 300 · 1 Problem');
@@ -186,20 +204,23 @@ describe('Problems page permalinks', () => {
         expect(document.getElementById('prevProblemBtn').disabled).toBe(true);
     });
 
-    test('a later page keeps the window start; numbers and Next follow the total', () => {
+    test('a later page keeps the window start; numbers and Next follow the total', async () => {
         respondWith({ problems: pageOfStops(101, 100), total: 200, page: 2, focus_found: true });
         ProblemsData.fetchProblems(1, { focus: { sloid: 'ch:1:sloid:200', osm_node_id: null } });
+        await flush();
 
         expect(document.getElementById('problemTypeDisplay').textContent).toBe('Entry 200 of 200 · 1 Problem');
         expect(ProblemsData.hasMorePages()).toBe(false);
         expect(document.getElementById('nextProblemBtn').disabled).toBe(true);
     });
 
-    test('a stop without a problem under the filters falls back to the first entry', () => {
+    test('a stop without a problem under the filters falls back to the first entry', async () => {
         respondWith({ problems: pageOfStops(1, 2), total: 2, page: 1, focus_found: false });
         const onFocusMissing = jest.fn();
 
         ProblemsData.fetchProblems(1, { focus: { sloid: 'ch:1:sloid:nope', osm_node_id: null }, onFocusMissing });
+
+        await flush();
 
         expect(onFocusMissing).toHaveBeenCalledTimes(1);
         expect(window.location.search).toBe('?sloid=ch:1:sloid:1&osm=node/1001');
@@ -208,6 +229,7 @@ describe('Problems page permalinks', () => {
         respondWith({ problems: [], total: 0, page: 1, focus_found: false });
         ProblemsState.resetPaginationState();
         ProblemsData.fetchProblems(1, { focus: { sloid: 'ch:1:sloid:nope', osm_node_id: null }, onFocusMissing });
+        await flush();
         expect(onFocusMissing).toHaveBeenCalledTimes(2);
     });
 
@@ -218,6 +240,7 @@ describe('Problems page permalinks', () => {
             ProblemsState.setSelectedPriorities(['1']);
             respondWith({ problems: pageOfStops(1, 1), total: 1, page: 1 });
             ProblemsData.fetchProblems();
+            await flush();
             document.body.insertAdjacentHTML('beforeend', '<button id="copy">Copy link</button>');
 
             await ProblemsPermalink.copyCurrentLink(document.getElementById('copy'));

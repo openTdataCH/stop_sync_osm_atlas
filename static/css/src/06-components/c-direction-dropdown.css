@@ -207,32 +207,3 @@
 .direction-option--variant.is-current .source-tag {
     box-shadow: 0 0 0 var(--border-width) var(--color-bg);
 }
-
-/* -------------------------------------------------------------------------
-   Badge Context Styling
-   ------------------------------------------------------------------------- */
-.text-bg-danger .direction-dropdown {
-    background-color: var(--color-on-accent-subtle);
-    border-color: var(--color-on-accent-muted);
-    color: var(--color-on-accent);
-}
-
-.text-bg-danger .direction-dropdown:hover,
-.text-bg-danger .direction-dropdown.open {
-    background-color: var(--color-on-accent-muted);
-    border-color: var(--color-on-accent-muted);
-}
-
-.text-bg-dark .direction-dropdown {
-    background-color: var(--color-on-accent-subtle);
-    border-color: var(--color-on-accent-muted);
-    color: var(--color-on-accent);
-}
-
-.text-bg-dark .direction-dropdown:hover,
-.text-bg-dark .direction-dropdown.open {
-    background-color: var(--color-on-accent-muted);
-    border-color: var(--color-on-accent-muted);
-}
-
-

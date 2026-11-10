@@ -205,42 +205,6 @@
   background-color: var(--color-bg);
 }
 
-.navbar .text-bg-secondary {
-  color: var(--color-secondary);
-  border-color: var(--color-secondary);
-  background-color: var(--color-bg);
-}
-
-.navbar .text-bg-success {
-  color: var(--color-success);
-  border-color: var(--color-success);
-  background-color: var(--color-bg);
-}
-
-.navbar .text-bg-warning {
-  color: var(--color-warning);
-  border-color: var(--color-warning);
-  background-color: var(--color-bg);
-}
-
-.navbar .text-bg-danger {
-  color: var(--color-danger);
-  border-color: var(--color-danger);
-  background-color: var(--color-bg);
-}
-
-.navbar .text-bg-info {
-  color: var(--color-primary);
-  border-color: var(--color-primary);
-  background-color: var(--color-bg);
-}
-
-.navbar .text-bg-dark {
-  color: var(--color-fg);
-  border-color: var(--color-fg);
-  background-color: var(--color-bg);
-}
-
 /* -------------------------------------------------------------------------
    Navbar Buttons
    ------------------------------------------------------------------------- */
