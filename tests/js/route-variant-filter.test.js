@@ -32,6 +32,7 @@ describe('route filter narrowed to variants', () => {
         window.loadDataForViewport = jest.fn();
         window.updateHeaderSummary = jest.fn();
         window.invalidateViewportCache = jest.fn();
+        window.topNLayer = { clearLayers: jest.fn() };
         window.fetch = global.fetch = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(variantsOfLine) }));
         history.replaceState({}, '', '/?sloid=ch:1:sloid:7');
     });

@@ -47,17 +47,8 @@ global.L = {
     divIcon: jest.fn(() => ({}))
 };
 
-// Mock window.AppConstants
-global.AppConstants = {
-    ZOOM_LINE_THRESHOLD: 13,
-    ZOOM_MARKER_THRESHOLD: 13,
-    LINE_STYLES: {
-        MATCHED: { color: '#174092', weight: 2, opacity: 0.8 },
-        SUSPICIOUS: { color: '#ffc107', weight: 2, opacity: 0.8, dashArray: '5, 5' },
-        MANUAL: { color: '#174092', weight: 2, opacity: 0.8 },
-        DEFAULT: { color: '#6c757d', weight: 2, opacity: 0.6 }
-    }
-};
+// Map pages load constants.js before every map script; tests set the constants they read.
+global.AppConstants = {};
 
 // Reset mocks before each test
 beforeEach(() => {

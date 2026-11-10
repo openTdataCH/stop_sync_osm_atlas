@@ -23,10 +23,11 @@ function sidebarHtml() {
   return `<nav id="docsSidebar">
     <input id="docsSidebarFilter">
     <div class="docs-collection" id="overview">
-      ${section('overview-0', ['intro', '0', 'Project overview'], [['glossary', '0.1', 'Glossary']])}
+      ${section('overview-0', ['intro', '0', 'User guide'], [['using_the_map', '0.1', 'Using the map'], ['glossary', '0.5', 'Glossary']])}
     </div>
-    <div class="docs-collection" id="engine">
-      <div class="docs-collection-heading"><span class="docs-collection-label">Matching engine core</span></div>
+    <p class="docs-audience-heading" data-audience="For developers">For developers</p>
+    <div class="docs-collection" id="engine" data-audience="For developers">
+      <div class="docs-collection-heading"><span class="docs-collection-label">Matching engine</span></div>
       ${section('engine-2', ['matching_process', 'E.2', 'Matching process'], [
         ['reference_matching', 'E.2.1', 'Reference matching'],
         ['name_matching', 'E.2.2', 'Name matching'],
@@ -140,6 +141,14 @@ describe('DocsPage sidebar', () => {
     expect(visibleSections()).toEqual(['engine-3']);
     expect(isOpen('engine-3')).toBe(false);
     expect(link('route_pipeline_data_flow').hidden).toBe(false);
+  });
+
+  test('the developers heading hides with the collections below it', () => {
+    const audience = document.querySelector('.docs-audience-heading');
+    type('glossary');
+    expect(audience.hidden).toBe(true);
+    type('name matching');
+    expect(audience.hidden).toBe(false);
   });
 
   test('without matches the filter says so', () => {

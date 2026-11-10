@@ -118,7 +118,7 @@ describe('export progress overlay', () => {
     await flush();
 
     jest.advanceTimersByTime(1500);
-    expect(requests[1].url).toBe('/api/report_progress/t1');
+    expect(requests[1].url).toBe('/api/exports/t1/progress');
     requests[1].resolve({ status: 'processing', processed: 5, total: 10 });
     await flush();
     expect(document.getElementById('entriesProcessed').textContent).toBe('5');
@@ -132,7 +132,7 @@ describe('export progress overlay', () => {
 
     jest.advanceTimersByTime(500);
     await flush();
-    expect(global.fetch).toHaveBeenCalledWith('/api/download_report/t1', expect.objectContaining({ method: 'GET' }));
+    expect(global.fetch).toHaveBeenCalledWith('/api/exports/t1/download', expect.objectContaining({ method: 'GET' }));
     expect(clicks).toHaveBeenCalledTimes(1);
     jest.advanceTimersByTime(1000);
     expect(overlay().style.display).toBe('none');
@@ -151,11 +151,11 @@ describe('export progress overlay', () => {
     expect(document.getElementById('errorMessage').textContent).toMatch(/^Error starting task: Rate limit exceeded/);
 
     ExportProgress.open();
-    ExportProgress.start({ generateUrl: '/api/docs/generate_pdf_async', cancelUrl: '/api/docs/cancel_pdf/', params: {} });
+    ExportProgress.start({ generateUrl: '/api/docs/generate_pdf_async', params: {} });
     requests[1].resolve({ task_id: 'doc' });
     await flush();
     document.getElementById('cancelReportBtn').click();
-    expect(requests[2].url).toBe('/api/docs/cancel_pdf/doc');
+    expect(requests[2].url).toBe('/api/exports/doc/cancel');
     expect(requests[2].options.method).toBe('POST');
     requests[2].resolve({});
     await flush();

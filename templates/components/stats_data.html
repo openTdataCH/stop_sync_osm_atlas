@@ -83,11 +83,11 @@ SECTION 0 — OVERVIEW, NAVIGATION & PIPELINE
     </div>
     <div class="source-freshness__item">
       <img src="{{ static_prefix }}atlas.svg" alt="">
-      <div><span>Last ATLAS Downloaded</span><strong>{{ (atlas_download.atlas_downloaded_at|default(atlas_download.downloaded_at, true))|format_zurich_display_timestamp(include_seconds=True) or 'Not recorded' }}</strong></div>
+      <div><span>Last ATLAS Downloaded</span><strong>{{ atlas_download.downloaded_at|format_zurich_display_timestamp(include_seconds=True) or 'Not recorded' }}</strong></div>
     </div>
     <div class="source-freshness__item">
       <img src="{{ static_prefix }}opentransportdata.svg" alt="">
-      <div><span>Last GTFS Downloaded</span><strong>{{ (gtfs_download.gtfs_downloaded_at|default(gtfs_download.downloaded_at, true))|format_zurich_display_timestamp(include_seconds=True) or 'Not recorded' }}</strong></div>
+      <div><span>Last GTFS Downloaded</span><strong>{{ gtfs_download.downloaded_at|format_zurich_display_timestamp(include_seconds=True) or 'Not recorded' }}</strong></div>
     </div>
     {# osm_data_at is Overpass's osm_base: how current the OSM data was, not when we asked. #}
     <div class="source-freshness__item"{% if stats.osm_data_at and stats.last_overpass_query_at %} title="Overpass queried {{ stats.last_overpass_query_at|format_zurich_display_timestamp(include_seconds=True) }}"{% endif %}>
@@ -173,9 +173,11 @@ SECTION 1 — STOPS MATCHING
   {{ figure('Matched pairs', num(s.matched_pairs), 'ATLAS platform ↔ OSM element links') }}
 </div>
 
-{% set total = stats.summary.matched_pairs %}
-{% set total_denom = total if total > 0 else 1 %}
 {% set rules = stats.matching_rules if stats.matching_rules is defined else [] %}
+{% set propagation = stats.propagation if stats.propagation is defined else [] %}
+{# The shares are of the rows in this table, which add up to 100 %. #}
+{% set total = (rules|sum(attribute='count')) + (propagation|sum(attribute='count')) %}
+{% set total_denom = total if total > 0 else 1 %}
 {% set qm = stats.quality_metrics if stats.quality_metrics is defined else {} %}
 {% set dq_by_type = qm.distance_quality.by_stage if qm and qm.distance_quality and qm.distance_quality.by_stage else {} %}
 {% set nmc_by_type = qm.distance_quality.not_matched_to_closest_by_stage if qm and qm.distance_quality and qm.distance_quality.not_matched_to_closest_by_stage else {} %}
@@ -223,7 +225,7 @@ SECTION 1 — STOPS MATCHING
         {% endfor %}
         {% endif %}
         {% endfor %}
-        {% for row in (stats.propagation if stats.propagation is defined else []) %}
+        {% for row in propagation %}
         {{ stage_row(row.label, row.count, row.mto, nmc_by_type.get(row.match_type, 0), row.match_type, code=row.match_type) }}
         {% endfor %}
       </tbody>

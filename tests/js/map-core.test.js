@@ -159,12 +159,13 @@ describe('MapCore', () => {
 
   test('updates popup positions with removable handlers', () => {
     const updateAllLines = jest.fn();
+    window.MapComponents.PopupLines = { updateAll: updateAllLines };
     const result = window.MapComponents.MapCore.create({
       container: 'map',
       center: [46, 7],
       zoom: 15,
       baseLayers: false,
-      popupBehavior: { updateAllLines }
+      popupBehavior: true
     });
     const popup = {
       _line: {},

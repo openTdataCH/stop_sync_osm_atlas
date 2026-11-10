@@ -145,6 +145,7 @@ describe('Index map adapter', () => {
         };
         window.HeaderSummary = { bind: jest.fn() };
         window.MobileFilters = { bind: jest.fn() };
+        window.MapLegend = { add: jest.fn() };
 
         loadBrowserScript(path.join(__dirname, '../../static/js/shared/permalinks.js'));
         loadBrowserScript(SCRIPT_PATH);
@@ -248,7 +249,7 @@ describe('Index map adapter', () => {
         const url = fetch.mock.calls[0][0];
         expect(url).toContain('min_lat=46');
         expect(url).toContain('max_lon=8');
-        expect(url).toContain('zoom=18');
+        expect(url).not.toContain('zoom=');
     });
 
     describe('a stop opened by search, a link or Random stop', () => {

@@ -6,7 +6,6 @@
     'use strict';
 
     const STORAGE_KEY = 'mapLegendOpen';
-    const NARROW_SCREEN = '(max-width: 768px)';
 
     function readOpen(fallback) {
         try {
@@ -65,7 +64,7 @@
      */
     function add(map, options) {
         options = options || {};
-        const narrow = typeof global.matchMedia === 'function' && global.matchMedia(NARROW_SCREEN).matches;
+        const narrow = global.SharedUtils.isMobileViewport();
         const control = L.control({ position: options.position || 'bottomleft' });
 
         control.onAdd = function () {

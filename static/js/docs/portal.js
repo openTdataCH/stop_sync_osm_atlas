@@ -85,6 +85,14 @@
                 collection.hidden = visibleInCollection === 0;
                 visibleSections += visibleInCollection;
             });
+            // An audience heading goes with the collections below it.
+            sidebar.querySelectorAll('.docs-audience-heading').forEach(function (heading) {
+                var audience = heading.dataset.audience;
+                heading.hidden = !Array.prototype.some.call(
+                    sidebar.querySelectorAll('.docs-collection[data-audience]'),
+                    function (collection) { return collection.dataset.audience === audience && !collection.hidden; }
+                );
+            });
             if (empty) empty.hidden = visibleSections > 0;
         }
 
@@ -460,9 +468,6 @@
         window.ExportProgress.open('Generating Documentation PDF');
         window.ExportProgress.start({
             generateUrl: '/api/docs/generate_pdf_async',
-            checkUrl: '/api/docs/pdf_progress/',
-            downloadUrl: '/api/docs/download_pdf/',
-            cancelUrl: '/api/docs/cancel_pdf/',
             params: params
         });
     }

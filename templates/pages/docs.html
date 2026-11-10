@@ -41,7 +41,11 @@
     </div>
     <div id="docs-sections">
       {% for collection in collections %}
-      <div class="docs-collection docs-collection--{{ collection.key }}" data-owner="{{ collection.owner }}">
+      {% if collection.audience and (loop.first or loop.previtem.audience != collection.audience) %}
+      <p class="docs-audience-heading" data-audience="{{ collection.audience }}">{{ collection.audience }}</p>
+      {% endif %}
+      <div class="docs-collection docs-collection--{{ collection.key }}" data-owner="{{ collection.owner }}"
+        {%- if collection.audience %} data-audience="{{ collection.audience }}"{% endif %}>
         {% if collection.key != 'overview' %}
         <div class="docs-collection-heading">
           <span class="docs-collection-label"><span class="docs-owner-dot" aria-hidden="true"></span>{{ collection.label }}</span>

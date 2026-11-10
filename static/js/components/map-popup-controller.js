@@ -23,16 +23,6 @@
         return 'payload';
     }
 
-    function makeAbortController() {
-        if (typeof global.AbortController === 'function') {
-            return new global.AbortController();
-        }
-        return {
-            signal: undefined,
-            abort: function () {}
-        };
-    }
-
     function isAbort(error, controller) {
         return !!(
             (error && error.name === 'AbortError') ||
@@ -153,7 +143,7 @@
             var existing = requests.get(binding.key);
             if (existing) return existing;
 
-            var controller = makeAbortController();
+            var controller = new global.AbortController();
             var request = {
                 key: binding.key,
                 controller: controller,

@@ -178,7 +178,6 @@
             </ul>
           </section>
 
-          {% if supports_osm_operator_wikidata %}
           <section class="operator-breakdown" aria-labelledby="{{ card_id }}-wikidata">
             <h3 class="operator-breakdown__title" id="{{ card_id }}-wikidata">
               <code>operator:wikidata</code> on {{ operator.matched_osm_stop_count }} matched OSM stop{{ 's' if operator.matched_osm_stop_count != 1 }}
@@ -204,7 +203,6 @@
               {% endif %}
             </ul>
           </section>
-          {% endif %}
         </div>
         {% else %}
         <p class="operator-card__empty">None of this operator's stops are matched to an OSM stop yet.</p>

@@ -2,7 +2,7 @@
 
 // Cache for reusing identical L.divIcon instances
 const DivIconCache = new Map();
-const MAP_RENDERER_LABEL_ICON_MIN_ZOOM = (typeof AppConstants !== 'undefined' && AppConstants.MAP && AppConstants.MAP.LABEL_ICON_MIN_ZOOM) || 18;
+const MAP_RENDERER_LABEL_ICON_MIN_ZOOM = (AppConstants.MAP && AppConstants.MAP.LABEL_ICON_MIN_ZOOM) || 18;
 const MARKER_OVERLAP_POINT_EPSILON_PX = 0.00001;
 const MIN_VISIBLE_OVERLAP_OFFSET_PX = 0.5;
 function getCachedDivIcon(key, html, className, size, anchor) {

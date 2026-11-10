@@ -875,7 +875,7 @@ function clearAllFilters() {
     // Clear top N
     activeFilters.topN = null;
     resetTopNControls();
-    if (typeof topNLayer !== 'undefined') topNLayer.clearLayers();
+    topNLayer.clearLayers();
     setElementHtml('topNDistancesMessage', '');
 
     updateActiveFilters();
@@ -956,7 +956,7 @@ function updateActiveFilters() {
     if (activeFilters.topN && !hasMatchedScope) {
         activeFilters.topN = null;
         setElementHtml('toggleTopNBtn', ACTIVATE_TOP_N_HTML);
-        if (typeof topNLayer !== 'undefined') topNLayer.clearLayers();
+        topNLayer.clearLayers();
         setElementHtml('topNDistancesMessage', '');
     }
     var topNContainer = document.getElementById('topNDistancesContainer');
@@ -967,7 +967,7 @@ function updateActiveFilters() {
     loadDataForViewport();
     if (activeFilters.topN && hasMatchedScope) {
         loadTopNMatches();
-    } else if (!activeFilters.topN && typeof topNLayer !== 'undefined') {
+    } else if (!activeFilters.topN) {
         topNLayer.clearLayers();
         setElementHtml('topNDistancesMessage', '');
     }
@@ -1095,7 +1095,6 @@ function routeVariantsParam() {
 
 // The address bar names the variants of the last narrowed route filter.
 function syncRouteVariantUrl() {
-    if (!window.Permalinks) return;
     var last = null;
     activeFilters.routeVariants.forEach(function (variants) { if (variants) last = variants; });
     Permalinks.replaceUrl({

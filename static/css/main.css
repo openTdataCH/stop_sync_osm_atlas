@@ -2,40 +2,34 @@
    MAIN CSS - Stop Sync OSM Atlas
 
    The styles every page loads, from general to specific: design tokens,
-   shared animations, base rules, element styles, then the shared components.
-   Each page adds its own stylesheet from static/css/pages/ in its template,
-   and the map pages also static/css/components/ (templates/layouts/map.html).
+   base rules, Bootstrap element overrides, then the components shared by
+   several pages. Each page adds its own stylesheet from static/css/pages/ in
+   its template, and the map pages also static/css/components/
+   (templates/layouts/map.html).
    ========================================================================== */
 
-/* 01-settings - Design Tokens & Variables */
+/* Design tokens: colours, spacing, type, shadows, for both themes */
 @import url('src/01-settings/tokens.css');
 
-/* 02-tools - Mixins, Animations & Helper Patterns */
-@import url('src/02-tools/tools.css');
-
-/* 03-generic - Resets & Base Rules */
+/* Base rules for the document and its elements */
 @import url('src/03-generic/base.css');
 
-/* 04-elements - HTML Element Styles */
+/* Bootstrap element overrides */
 @import url('src/04-elements/typography.css');
 @import url('src/04-elements/forms.css');
 @import url('src/04-elements/buttons.css');
 
-/* 06-components - UI Components */
+/* Shared components */
 @import url('src/06-components/c-chip.css');
 @import url('src/06-components/c-dropdown.css');
 @import url('src/06-components/c-navbar.css');
 @import url('src/06-components/c-header.css');
-@import url('src/06-components/c-footer.css');
 @import url('src/06-components/c-filter-panel.css');
 @import url('src/06-components/c-toast.css');
 @import url('src/06-components/c-direction-dropdown.css');
 @import url('src/06-components/c-operator-dropdown.css');
-@import url('src/06-components/c-layout-map.css');
 @import url('src/06-components/c-leaflet.css');
 @import url('src/06-components/c-map-banner.css');
-@import url('src/06-components/c-dropdown-zindex.css');
 @import url('src/06-components/c-pipeline-status.css');
-@import url('src/06-components/c-page-shell.css');
 @import url('src/06-components/c-page-tabs.css');
 @import url('src/06-components/c-pagination.css');

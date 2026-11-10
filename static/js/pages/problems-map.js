@@ -588,7 +588,6 @@ window.ProblemsMap = (function() {
         }
 
         const problemMap = ProblemsState.getProblemMap();
-        const zoom = problemMap ? problemMap.getZoom() : 14;
         const problemKey = getProblemKey(problem);
         if (renderedContext && renderedContext.problemKey !== problemKey) {
             renderedContext = null;
@@ -598,8 +597,7 @@ window.ProblemsMap = (function() {
             min_lat: box.minLat,
             max_lat: box.maxLat,
             min_lon: box.minLon,
-            max_lon: box.maxLon,
-            zoom: zoom
+            max_lon: box.maxLon
         };
 
         const requestSequence = ++contextRequestSequence;
@@ -628,8 +626,7 @@ window.ProblemsMap = (function() {
                 problemKey: problemKey,
                 stops: stops
             };
-            const renderZoom = problemMap ? problemMap.getZoom() : zoom;
-            renderContextData(problem, stops, problemMap, renderZoom);
+            renderContextData(problem, stops, problemMap, problemMap ? problemMap.getZoom() : 14);
         }, function(error) {
             if (
                 requestSequence === contextRequestSequence &&

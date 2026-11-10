@@ -28,14 +28,6 @@
         return result;
     }
 
-    function requireLeaflet() {
-        if (!global.L || typeof global.L.map !== 'function' || typeof global.L.layerGroup !== 'function' ||
-                typeof global.L.canvas !== 'function') {
-            throw new Error('MapCore requires Leaflet to be loaded first.');
-        }
-        return global.L;
-    }
-
     function normalizeControlOptions(value) {
         if (!value) return null;
         return value === true ? {} : copyObject(value);
@@ -53,9 +45,6 @@
     }
 
     function defaultBaseLayers() {
-        if (!global.MapShared || typeof global.MapShared.createBaseTileLayers !== 'function') {
-            throw new Error('MapCore requires MapShared.createBaseTileLayers() when options.baseLayers is omitted.');
-        }
         var shared = global.MapShared.createBaseTileLayers();
         return {
             OpenStreetMap: shared.osm,
@@ -85,15 +74,10 @@
 
     function createPopupBehavior(map, option) {
         if (!option) return function () {};
-        var config = option === true ? {} : option;
         var openPopups = new Set();
 
         function update() {
-            var updateAll = config.updateAllLines;
-            if (!updateAll && namespace.PopupLines && typeof namespace.PopupLines.updateAll === 'function') {
-                updateAll = namespace.PopupLines.updateAll;
-            }
-            if (typeof updateAll === 'function') updateAll(map);
+            namespace.PopupLines.updateAll(map);
             openPopups.forEach(function (popup) {
                 if (popup && typeof popup._updatePosition === 'function') {
                     popup._updatePosition();
@@ -143,7 +127,7 @@
 
     function create(options) {
         options = options || {};
-        var L = requireLeaflet();
+        var L = global.L;
         var container = options.container || options.element;
         if (!container) {
             throw new Error('MapCore requires options.container.');

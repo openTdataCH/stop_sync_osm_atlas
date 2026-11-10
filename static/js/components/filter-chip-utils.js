@@ -25,7 +25,7 @@
    * Build a removable filter chip with a consistent style
    * @param {object} options
    *  - label: string visible text inside the chip
-   *  - badgeClass: additional badge classes (e.g., 'text-bg-primary')
+   *  - badgeClass: additional badge classes (e.g., 'filter-chip-secondary')
    *  - removeClass: anchor class to hook removal handler (default: 'remove-filter')
    *  - data: object of data-* attributes for the anchor (e.g., { type: 'nodeType', filter: 'atlas' })
    *  - closeChar: character for the close button (default: 'x')

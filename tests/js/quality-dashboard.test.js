@@ -439,7 +439,7 @@ describe('QualityDashboard', () => {
     }
 
     function respond(data) {
-      global.fetch = jest.fn(() => Promise.resolve({ json: () => Promise.resolve(data) }));
+      global.fetch = jest.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(data) }));
     }
 
     beforeEach(() => {

@@ -34,13 +34,6 @@
     }
   }
 
-  function requireFunction(value, name) {
-    if (typeof value !== 'function') {
-      throw new Error('The GTFS stop_id/SLOID map requires ' + name + '.');
-    }
-    return value;
-  }
-
   function normalizeFilterState(input) {
     var normalized = {};
 
@@ -223,31 +216,13 @@
   }
 
 
-  // Requests a prepared URL; options carry the AbortSignal.
-  function fetchJson(url, options) {
-    return SharedUtils.fetchJson(url, null, options);
-  }
-
   var mapElement = document.getElementById('routesGtfsStopIdSloidMap');
   if (!mapElement) return;
 
   var config = parseConfig();
-  var components = global.MapComponents || {};
-  var mapRenderer = components.MapRenderer || global.MapRenderer;
-  var mapShared = components.MapShared || global.MapShared;
-
-  requireFunction(components.MapCore && components.MapCore.create, 'MapComponents.MapCore.create()');
-  requireFunction(components.MapViewportLoader && components.MapViewportLoader.create, 'MapComponents.MapViewportLoader.create()');
-  requireFunction(components.MapLayerRegistry && components.MapLayerRegistry.create, 'MapComponents.MapLayerRegistry.create()');
-  requireFunction(components.MapPopupController && components.MapPopupController.create, 'MapComponents.MapPopupController.create()');
-  requireFunction(mapShared && mapShared.createEntityKey, 'MapShared.createEntityKey()');
-  requireFunction(mapShared && mapShared.getViewportZoomPolicy, 'MapShared.getViewportZoomPolicy()');
-  requireFunction(mapRenderer && mapRenderer.layoutEntities, 'MapRenderer.layoutEntities()');
-  requireFunction(mapRenderer && mapRenderer.createEntityMarker, 'MapRenderer.createEntityMarker()');
-  requireFunction(mapRenderer && mapRenderer.createPopupWithOptions, 'MapRenderer.createPopupWithOptions()');
-  requireFunction(global.PopupRenderer && global.PopupRenderer.generateGtfsStopIdSloidPopupHtml, 'PopupRenderer.generateGtfsStopIdSloidPopupHtml()');
-  requireFunction(global.LineRenderer && global.LineRenderer.drawRelationships, 'LineRenderer.drawRelationships()');
-  requireFunction(global.FilterChipUtils && global.FilterChipUtils.buildRemovableChip, 'FilterChipUtils.buildRemovableChip()');
+  var components = global.MapComponents;
+  var mapRenderer = global.MapRenderer;
+  var mapShared = global.MapShared;
 
   var summaryElement = document.getElementById('headerSummaryStats');
   var statusElement = document.getElementById('routesGtfsStopIdSloidStatus');
@@ -415,7 +390,7 @@
     return {
       key: descriptor.key,
       load: function (context) {
-        return fetchJson(buildPopupUrl(descriptor.entity.entityType, descriptor.entity.identifier), {
+        return SharedUtils.fetchJson(buildPopupUrl(descriptor.entity.entityType, descriptor.entity.identifier), null, {
           signal: context.signal
         });
       },
@@ -563,7 +538,7 @@
     },
     load: function (context) {
       prepareCompletenessStatus(getViewportPolicy(context.zoom));
-      return fetchJson(buildMapRequestUrl(context), { signal: context.signal });
+      return SharedUtils.fetchJson(buildMapRequestUrl(context), null, { signal: context.signal });
     },
     onData: renderPayload,
     onError: function (error) {
@@ -674,13 +649,10 @@
     ].join('');
   }
 
-  var summaryRequestController = typeof global.AbortController === 'function'
-    ? new global.AbortController()
-    : null;
+  var summaryRequestController = new AbortController();
 
   function loadSummary() {
-    var options = summaryRequestController ? { signal: summaryRequestController.signal } : {};
-    fetchJson(config.summaryUrl, options)
+    SharedUtils.fetchJson(config.summaryUrl, null, { signal: summaryRequestController.signal })
       .then(renderSummary)
       .catch(function (error) {
         if (destroyed || (error && error.name === 'AbortError')) return;
@@ -806,13 +778,9 @@
     setSearchError('');
     setSearchBusy(true);
     var requestSequence = searchRequestSequence;
-    searchRequestController = typeof global.AbortController === 'function'
-      ? new global.AbortController()
-      : null;
-    var params = new URLSearchParams({ kind: parsed.kind, value: parsed.value });
-    var options = searchRequestController ? { signal: searchRequestController.signal } : {};
-
-    return fetchJson(config.searchUrl + '?' + params.toString(), options)
+    searchRequestController = new AbortController();
+    return SharedUtils.fetchJson(config.searchUrl, { kind: parsed.kind, value: parsed.value },
+      { signal: searchRequestController.signal })
       .then(function (payload) {
         if (destroyed || requestSequence !== searchRequestSequence) return { status: 'stale' };
         var targets = Array.isArray(payload.targets) ? payload.targets : [];
@@ -1012,7 +980,7 @@
       filterControls.removeEventListener('hidden.bs.dropdown', handleFilterDropdownHidden);
     }
     if (activeFiltersElement) activeFiltersElement.removeEventListener('click', handleActiveFiltersClick);
-    if (summaryRequestController) summaryRequestController.abort();
+    summaryRequestController.abort();
     if (summaryBinding) summaryBinding.destroy();
     viewportLoader.destroy();
     atlasRegistry.destroy();

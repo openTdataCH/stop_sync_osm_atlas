@@ -119,6 +119,24 @@
   margin-top: var(--space-6);
 }
 
+/* "For users", "For developers": name the collections below them. */
+.docs-audience-heading {
+  margin: var(--space-8) var(--space-2) var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-fg);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.docs-audience-heading:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
 .docs-collection-heading {
   display: flex;
   align-items: baseline;
@@ -472,6 +490,106 @@
 #docs-content-html > ol,
 #docs-content-html > .github-alert {
   max-width: 76ch;
+}
+
+/* -------------------------------------------------------------------------
+   Cards
+   A list of "icon **Tag** · [Title](page) — sentence" items, rendered by
+   _render_card_lists in docs.py. Two columns, one on narrow screens.
+   ------------------------------------------------------------------------- */
+#docs-content-html > .docs-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-8);
+}
+
+.docs-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  text-decoration: none;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.docs-card:hover,
+.docs-card:focus-visible {
+  border-color: var(--color-border-emphasis);
+  background: var(--color-bg-subtle);
+  color: var(--color-fg);
+  text-decoration: none;
+}
+
+.docs-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.docs-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+  color: var(--color-fg-muted);
+}
+
+.docs-card-tag {
+  color: var(--color-fg-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.docs-card-title {
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  line-height: var(--leading-snug);
+}
+
+.docs-card-text {
+  color: var(--color-fg-muted);
+  line-height: var(--leading-normal);
+}
+
+.docs-card-more {
+  margin-top: auto;
+  padding-top: var(--space-3);
+  color: var(--color-fg-muted);
+  font-size: var(--text-sm);
+}
+
+.docs-card-more .fa-arrow-right {
+  margin-left: var(--space-1);
+  transition: transform var(--transition-fast);
+}
+
+.docs-card:hover .docs-card-more,
+.docs-card:focus-visible .docs-card-more {
+  color: var(--color-fg);
+}
+
+.docs-card:hover .fa-arrow-right,
+.docs-card:focus-visible .fa-arrow-right {
+  transform: translateX(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docs-card,
+  .docs-card-more .fa-arrow-right {
+    transition: none;
+  }
 }
 
 /* Separate explanations while keeping nested lists more compact. */

@@ -1,6 +1,5 @@
 // Draggable and Resizable popup implementation for map stops
 (function() {
-    if (typeof L === 'undefined') { return; }
     // Stop popups get a fixed width; other popups keep Leaflet's sizing.
     const STOP_CONTENT_SELECTOR = '.atlas-match, .osm-match, .gtfs-match, .popup-compare';
     L.DraggablePopup = L.Popup.extend({

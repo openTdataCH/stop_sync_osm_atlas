@@ -785,26 +785,6 @@
   opacity: 0.4;
 }
 
-.stats-split > .is-atlas,
-.stats-swatch.is-atlas {
-  background: var(--color-primary);
-}
-
-.stats-split > .is-osm,
-.stats-swatch.is-osm {
-  background: var(--color-success);
-}
-
-.stats-split > .is-mixed,
-.stats-swatch.is-mixed {
-  background: var(--color-fg-muted);
-}
-
-.stats-split > .is-muted,
-.stats-swatch.is-muted {
-  background: var(--color-fg-subtle);
-}
-
 .stats-swatch {
   flex: none;
   width: 0.5rem;
@@ -964,11 +944,6 @@
 
 .stats-table .is-level-1 th {
   padding-left: var(--space-4);
-  color: var(--color-fg-muted);
-}
-
-.stats-table .is-level-2 th {
-  padding-left: var(--space-8);
   color: var(--color-fg-muted);
 }
 

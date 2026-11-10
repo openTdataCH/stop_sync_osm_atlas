@@ -200,7 +200,7 @@ describe('ProblemsMap context loading', () => {
         expect(params.max_lat).toBeCloseTo(46.55);
         expect(params.min_lon).toBeCloseTo(6.63);
         expect(params.max_lon).toBeCloseTo(6.67);
-        expect(params.zoom).toBe(17);
+        expect(params).not.toHaveProperty('zoom');
         expect(params).not.toHaveProperty('limit');
 
         await requests[0].resolve(stops);

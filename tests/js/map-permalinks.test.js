@@ -111,6 +111,7 @@ describe('Index map permalinks', () => {
             }))
         };
         window.LineRenderer = global.LineRenderer = { clearLines: jest.fn(), drawRelationships: jest.fn() };
+        window.MapLegend = { add: jest.fn() };
         viewportLoader = {
             reload: jest.fn(() => Promise.resolve({ status: 'loaded' })),
             invalidate: jest.fn(),

@@ -63,19 +63,11 @@
 }
 
 /* -------------------------------------------------------------------------
-   Attribution and Scale
+   Attribution
    ------------------------------------------------------------------------- */
-.leaflet-container .leaflet-control-attribution,
-.leaflet-control-scale-line {
+.leaflet-container .leaflet-control-attribution {
   background: var(--color-surface-glass);
   color: var(--color-fg-muted);
-}
-
-.leaflet-control-scale-line,
-.leaflet-control-scale-line:not(:first-child),
-.leaflet-control-scale-line:not(:first-child):not(:last-child) {
-  border-color: var(--color-fg-muted);
-  text-shadow: none;
 }
 
 /* -------------------------------------------------------------------------

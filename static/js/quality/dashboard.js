@@ -2483,8 +2483,7 @@
             if (state.view === 'symbols') renderExplorer();
         });
 
-        return fetch(root.dataset.apiUrl, { headers: { Accept: 'application/json' } })
-            .then((response) => response.json())
+        return global.SharedUtils.fetchJson(root.dataset.apiUrl)
             .then((data) => {
                 if (!data.available) {
                     element('#qualityUnavailable').hidden = false;

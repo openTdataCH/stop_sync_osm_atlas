@@ -66,6 +66,7 @@
 
 .operator-dropdown-menu.show {
     display: block;
+    z-index: calc(var(--z-dropdown) + 10);
 }
 
 /* -------------------------------------------------------------------------
@@ -146,23 +147,4 @@
     font-size: var(--text-sm);
     font-style: italic;
     text-align: center;
-}
-
-/* -------------------------------------------------------------------------
-   Selected Operator Badge
-   ------------------------------------------------------------------------- */
-.operator-badge {
-    display: inline-block;
-    padding: 0.25em 0.6em;
-    font-size: var(--text-xs);
-    font-weight: var(--font-bold);
-    line-height: var(--leading-none);
-    color: var(--color-on-accent);
-    text-align: center;
-    white-space: nowrap;
-    vertical-align: baseline;
-    border-radius: var(--radius-sm);
-    background-color: var(--color-primary);
-    margin-right: var(--space-1);
-    margin-bottom: var(--space-1);
 }

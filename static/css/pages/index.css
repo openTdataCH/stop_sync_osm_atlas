@@ -31,12 +31,16 @@ main {
   position: relative;
 }
 
-/* Ensure map fills the flex container properly */
+/* The map fills the flex container */
 #map {
   flex: 1 1 auto;
   min-height: 500px;
   width: 100%;
   height: 100%;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  background-color: var(--color-bg-subtle);
 }
 
 /* -------------------------------------------------------------------------

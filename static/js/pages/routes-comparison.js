@@ -257,10 +257,6 @@
     return button;
   }
 
-  function fetchJson(url, controller) {
-    return global.SharedUtils.fetchJson(url.toString(), null, { signal: controller.signal });
-  }
-
   function emit(section, name, detail) {
     section.dispatchEvent(new CustomEvent(name, { bubbles: true, detail: detail }));
   }
@@ -511,7 +507,7 @@
       url.searchParams.set(fixedSource + '_itinerary_id', fixedId);
       url.searchParams.set(candidateSource + '_itinerary_id', selectedId);
       try {
-        var data = await fetchJson(url, controller);
+        var data = await SharedUtils.fetchJson(url.toString(), null, { signal: controller.signal });
         if (version !== comparisonVersion || destroyed) return;
         section.setAttribute('aria-busy', 'false');
         renderComparison(data);
@@ -558,7 +554,7 @@
       url.searchParams.set('page', String(requestPage));
       url.searchParams.set('per_page', String(PER_PAGE));
       try {
-        var data = await fetchJson(url, controller);
+        var data = await SharedUtils.fetchJson(url.toString(), null, { signal: controller.signal });
         if (version !== optionsVersion || destroyed) return;
         var received = data.items || [];
         items = append ? items.concat(received) : received;

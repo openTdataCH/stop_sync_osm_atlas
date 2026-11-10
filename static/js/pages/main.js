@@ -50,10 +50,10 @@ function invalidateViewportCache() {
 window.invalidateViewportCache = invalidateViewportCache;
 
 function _stableParamsKey(params, mode) {
-    // Zoom is intentionally represented by the request policy (`mode` and
-    // `limit`), not by its exact number. This lets an uncapped buffered result
-    // survive a zoom-in while marker render signatures still update.
-    var ignored = { min_lat: 1, max_lat: 1, min_lon: 1, max_lon: 1, offset: 1, zoom: 1, include_meta: 1 };
+    // Zoom is represented by the request policy (`mode` and `limit`), not by
+    // its exact number. This lets an uncapped buffered result survive a
+    // zoom-in while marker render signatures still update.
+    var ignored = { min_lat: 1, max_lat: 1, min_lon: 1, max_lon: 1, offset: 1, include_meta: 1 };
     var keys = Object.keys(params || {}).filter(function (k) { return !ignored[k]; }).sort();
     var parts = ['mode=' + String(mode || '')];
     keys.forEach(function (k) {
@@ -96,7 +96,7 @@ function initMap() {
     });
 
     map = indexMapCore.map;
-    if (window.MapLegend) window.MapLegend.add(map, { sourceLabel: SharedUtils.sourceLabel() });
+    MapLegend.add(map, { sourceLabel: SharedUtils.sourceLabel() });
     popupController = createIndexPopupController();
     markerRegistry = createIndexMarkerRegistry();
     viewportLoader = createIndexViewportLoader();
@@ -433,7 +433,6 @@ function getViewportPolicy(zoom) {
     var fullUncappedZoom = zoomPolicy.isFullDetail;
     var params = {
         offset: 0,
-        zoom: zoom,
         include_meta: 1
     };
 

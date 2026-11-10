@@ -1,12 +1,13 @@
 /**
  * The export progress overlay (templates/components/export_overlay.html), used
  * by the Data page's exports and the documentation PDF. A task is started with
- * a POST, polled until it is complete, and its file is then downloaded.
+ * a POST, polled at /api/exports/<id>/progress until it is complete, and its
+ * file is then downloaded from /api/exports/<id>/download.
  */
 (function (global) {
     'use strict';
 
-    // Keep polling comfortably under the 240/min report progress limiter.
+    // Keep polling comfortably under the 240/min export progress limiter.
     var PROGRESS_POLL_INTERVAL_MS = 1500;
     var TARGET_PROGRESS_DURATION_MS = 20000;
     var MAX_ACTIVE_PROGRESS_PERCENT = 95;
@@ -15,12 +16,17 @@
     var POLL_TIMEOUT_MS = 8000;
     var CANCEL_TIMEOUT_MS = 5000;
 
-    var task = null;            // { id, checkUrl, downloadUrl, cancelUrl, showCounters }
+    var task = null;            // { id, showCounters }
     var status = 'starting';
     var pollTimer = null;
     var animationTimer = null;
     var animationStartedAt = null;
     var progressValue = 0;
+
+    /** The address of a task's progress, download or cancel endpoint. */
+    function taskUrl(id, action) {
+        return '/api/exports/' + encodeURIComponent(id) + '/' + action;
+    }
 
     function byId(id) {
         return document.getElementById(id);
@@ -170,7 +176,7 @@
         pollTimer = setInterval(function () {
             if (!task || !task.id) return;
             var polled = task;
-            fetchJsonWithin(POLL_TIMEOUT_MS, polled.checkUrl + polled.id).then(function (progress) {
+            fetchJsonWithin(POLL_TIMEOUT_MS, taskUrl(polled.id, 'progress')).then(function (progress) {
                 if (task === polled) updateProgress(progress);
             }, function (error) {
                 // Keep polling unless the task was cancelled.
@@ -245,14 +251,13 @@
         if (finished && finished.id) {
             // Download the file automatically.
             setTimeout(function () {
-                downloadCompletedTask(finished.downloadUrl + finished.id);
+                downloadCompletedTask(taskUrl(finished.id, 'download'));
             }, 500);
         }
     }
 
     /**
-     * Starts a task. options: generateUrl, params (the POST body), checkUrl,
-     * downloadUrl and cancelUrl (each followed by the task id), and
+     * Starts a task. options: generateUrl, params (the POST body), and
      * showCounters, to show the entries processed.
      */
     function start(options) {
@@ -261,13 +266,7 @@
             showError('Task endpoint is not configured.');
             return;
         }
-        var current = {
-            id: null,
-            checkUrl: config.checkUrl || '/api/report_progress/',
-            downloadUrl: config.downloadUrl || '/api/download_report/',
-            cancelUrl: config.cancelUrl || '/api/cancel_report/',
-            showCounters: !!config.showCounters
-        };
+        var current = { id: null, showCounters: !!config.showCounters };
         task = current;
         var params = config.params && typeof config.params === 'object' && !Array.isArray(config.params) ? config.params : {};
 
@@ -295,7 +294,7 @@
         var cancelled = task;
         task = null;
         if (cancelled && cancelled.id) {
-            fetchJsonWithin(CANCEL_TIMEOUT_MS, cancelled.cancelUrl + cancelled.id, { method: 'POST', body: {} })
+            fetchJsonWithin(CANCEL_TIMEOUT_MS, taskUrl(cancelled.id, 'cancel'), { method: 'POST', body: {} })
                 .catch(function () { /* the overlay is closed either way */ });
         }
         stopProgressPolling();

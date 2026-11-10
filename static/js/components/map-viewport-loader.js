@@ -17,16 +17,6 @@
         return String(events || 'moveend zoomend').split(/\s+/).filter(Boolean);
     }
 
-    function makeAbortController() {
-        if (typeof global.AbortController === 'function') {
-            return new global.AbortController();
-        }
-        return {
-            signal: undefined,
-            abort: function () {}
-        };
-    }
-
     function isAbort(error, controller) {
         return !!(
             (error && error.name === 'AbortError') ||
@@ -144,7 +134,7 @@
                 return commitCached(cacheEntry, context, requestSequence);
             }
 
-            var controller = makeAbortController();
+            var controller = new global.AbortController();
             context.sequence = requestSequence;
             context.signal = controller.signal;
             context.cacheHit = false;

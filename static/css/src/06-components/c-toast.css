@@ -38,12 +38,6 @@
   border-color: var(--color-success-border);
 }
 
-.temporary-message.alert-error {
-  background: linear-gradient(135deg, var(--color-danger-subtle) 0%, var(--color-bg) 100%);
-  color: var(--color-danger-fg);
-  border-color: var(--color-danger-border);
-}
-
 .temporary-message.alert-warning {
   background: linear-gradient(135deg, var(--color-warning-subtle) 0%, var(--color-bg) 100%);
   color: var(--color-warning-fg);

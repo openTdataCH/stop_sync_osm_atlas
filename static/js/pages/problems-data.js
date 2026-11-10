@@ -3,8 +3,6 @@
 window.ProblemsData = (function () {
     'use strict';
 
-    const DEFAULT_SORT_BY = 'priority';
-    const DEFAULT_SORT_ORDER = 'asc';
     const PAGE_SIZE = 100;
     const ALL_PROBLEM_TYPES = [
         'attributes',
@@ -201,6 +199,17 @@ window.ProblemsData = (function () {
         reloadProblemsWithUpdatedFilters();
     }
 
+    // The operator, priority and area filters that both the list and the type
+    // counts are requested with; fetchJson leaves out the empty ones.
+    function filterParams() {
+        const area = ProblemsState.getArea();
+        return {
+            atlas_operator: ProblemsState.getSelectedAtlasOperators().join(','),
+            priority: getSelectedPriorities().join(','),
+            bbox: area ? ProblemsArea.formatArea(area) : ''
+        };
+    }
+
     // Pages hold PAGE_SIZE stops (or duplicate groups), so the total in stops
     // tells whether a later page exists.
     function hasMorePages() {
@@ -235,22 +244,9 @@ window.ProblemsData = (function () {
             page: page,
             limit: PAGE_SIZE,
             problem_type: getProblemTypeParamValue(),
-            sort_by: DEFAULT_SORT_BY,
-            sort_order: DEFAULT_SORT_ORDER,
-            include_routes: 1
+            include_routes: 1,
+            ...filterParams()
         };
-
-        const selectedOperators = ProblemsState.getSelectedAtlasOperators();
-        if (selectedOperators.length > 0) {
-            params.atlas_operator = selectedOperators.join(',');
-        }
-
-        const selectedPriorities = getSelectedPriorities();
-        if (selectedPriorities.length > 0) {
-            params.priority = selectedPriorities.join(',');
-        }
-        if (ProblemsState.getArea()) params.bbox = ProblemsArea.formatArea(ProblemsState.getArea());
-
         if (options.focus) {
             if (options.focus.sloid) params.focus_sloid = options.focus.sloid;
             if (options.focus.osm_node_id) params.focus_osm_node_id = options.focus.osm_node_id;
@@ -330,19 +326,7 @@ window.ProblemsData = (function () {
     }
 
     function initializeProblemTypeFilter() {
-        const params = {};
-        const selectedOperators = ProblemsState.getSelectedAtlasOperators();
-        if (selectedOperators.length > 0) {
-            params.atlas_operator = selectedOperators.join(',');
-        }
-
-        const selectedPriorities = getSelectedPriorities();
-        if (selectedPriorities.length > 0) {
-            params.priority = selectedPriorities.join(',');
-        }
-        if (ProblemsState.getArea()) params.bbox = ProblemsArea.formatArea(ProblemsState.getArea());
-
-        SharedUtils.fetchJson('/api/problems/stats', params).then(function (stats) {
+        SharedUtils.fetchJson('/api/problems/stats', filterParams()).then(function (stats) {
             const count = type => String((stats[type] && stats[type].all) || 0);
             setText('typeCountAll', count('all'));
             setText('typeCountAttributes', count('attributes'));
@@ -383,10 +367,10 @@ window.ProblemsData = (function () {
             ProblemsUI.updateNavButtons();
             prefetchNextPageIfNeeded();
         } else if (hasMorePages()) {
-            ProblemsUI.showTemporaryMessage('Loading more problems...', 'info');
+            SharedUtils.showTemporaryMessage('Loading more problems...', 'info');
             fetchProblems(ProblemsState.getCurrentPage() + 1);
         } else {
-            ProblemsUI.showTemporaryMessage('You have reached the last entry for this filter combination.', 'success');
+            SharedUtils.showTemporaryMessage('You have reached the last entry for this filter combination.', 'success');
         }
     }
 

@@ -449,14 +449,6 @@ a.quality-figure:hover .quality-figure__label {
   transition: color var(--transition-fast), background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.quality-tool--icon {
-  justify-content: center;
-  width: 2.1rem;
-  height: 2.1rem;
-  padding: 0;
-  font-size: 0.95rem;
-}
-
 .quality-tool:hover {
   background: var(--color-bg-subtle);
   color: var(--color-fg);

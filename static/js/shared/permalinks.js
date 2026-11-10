@@ -21,7 +21,7 @@
     var copyFeedback = null;  // { button, html, timer } while a button shows "Copied"
 
     function mapLimits(overrides) {
-        var constants = (global.AppConstants && global.AppConstants.MAP) || {};
+        var constants = global.AppConstants.MAP || {};
         return Object.assign({
             minZoom: constants.MIN_ZOOM,
             maxZoom: constants.MAX_ZOOM,

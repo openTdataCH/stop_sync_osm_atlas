@@ -45,6 +45,7 @@ describe('map filter links', () => {
         });
         window.loadDataForViewport = jest.fn();
         window.loadTopNMatches = jest.fn();
+        window.topNLayer = { clearLayers: jest.fn() };
         window.invalidateViewportCache = jest.fn();
         global.fetch = jest.fn(() => Promise.resolve({ ok: false }));
         history.replaceState({}, '', '/');

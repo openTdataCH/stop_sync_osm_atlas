@@ -607,14 +607,6 @@ window.ProblemsUI = (function () {
         document.getElementById('nextProblemBtn').disabled = !ProblemsData.hasMorePages() && currentProblemIndex >= problemsByEntry.length - 1;
     }
 
-    /**
-     * Helper to show a temporary message on the screen
-     * Delegates to shared utility
-     */
-    function showTemporaryMessage(message, type) {
-        SharedUtils.showTemporaryMessage(message, type);
-    }
-
     // Public API
     return {
         showKeyboardHint,
@@ -625,7 +617,6 @@ window.ProblemsUI = (function () {
         renderSingleProblemUI,
         setupIntersectionObserver,
         displayProblem,
-        updateNavButtons,
-        showTemporaryMessage
+        updateNavButtons
     };
 })();

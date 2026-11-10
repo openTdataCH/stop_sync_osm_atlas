@@ -500,10 +500,6 @@
 }
 
 .route-card--atlas_only .route-card__header,
-.route-card--unmatched .route-card__header {
-  background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-subtle) 100%);
-}
-
 .route-card--osm_only .route-card__header {
   background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-subtle) 100%);
 }
@@ -709,11 +705,6 @@
   font-size: 0.7rem;
   letter-spacing: 0.02em;
   font-weight: 700;
-}
-
-.route-card__badge--dataset {
-  background: var(--color-primary-subtle);
-  color: var(--color-primary-hover);
 }
 
 .route-card__badge--matched {
