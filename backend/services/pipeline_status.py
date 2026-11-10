@@ -112,18 +112,6 @@ def _lock_owner_is_alive(lock_state: Dict[str, Any]) -> bool | None:
     return True
 
 
-def _lock_heartbeat_at(lock_state: Dict[str, Any], ttl_seconds: int) -> datetime | None:
-    heartbeat = _parse_iso_timestamp(lock_state.get("heartbeat_at"))
-    if heartbeat is not None:
-        return heartbeat
-    # Compatibility with pre-heartbeat metadata: refreshes moved expires_at
-    # forward by exactly the lease TTL, so recover the last refresh time.
-    expires_at = _parse_iso_timestamp(lock_state.get("expires_at"))
-    if expires_at is not None:
-        return expires_at - timedelta(seconds=max(1, ttl_seconds))
-    return _parse_iso_timestamp(lock_state.get("acquired_at"))
-
-
 def _base_status() -> Dict[str, Any]:
     stage_plan = initial_progress_plan()
     return {
@@ -225,13 +213,6 @@ def get_status() -> Dict[str, Any]:
     raw = _read_raw_status()
     data = _base_status()
     data.update(raw)
-    # Historical runs without the public plan keep the legacy timeline view.
-    # Do not invent waiting children for work that finished before instrumentation.
-    if raw and "stage_plan" not in raw:
-        data.update(stage_plan=[], stage_states={})
-    if "blocking_maintenance" not in raw and "maintenance" in raw:
-        data["blocking_maintenance"] = bool(raw.get("maintenance"))
-    data.pop("maintenance", None)
     data["updated_at"] = data.get("updated_at") or _now_iso()
     if not data.get("last_pipeline_data_import_ended_at"):
         try:
@@ -263,11 +244,7 @@ def set_status(*, expected_run_id=None, **fields: Any) -> Dict[str, Any]:
 
     current_blocking = bool(current.get("blocking_maintenance", False))
     incoming_blocking = fields.get("blocking_maintenance")
-    if incoming_blocking is None:
-        incoming_blocking = fields.get("maintenance", current_blocking)
-    incoming_blocking = bool(incoming_blocking)
-
-    fields.pop("maintenance", None)
+    incoming_blocking = current_blocking if incoming_blocking is None else bool(incoming_blocking)
     fields["blocking_maintenance"] = incoming_blocking
 
     # If starting blocking maintenance mode, record the start time for UI counters.
@@ -283,7 +260,6 @@ def set_status(*, expected_run_id=None, **fields: Any) -> Dict[str, Any]:
               if expected_run_id is not None else _patch_raw_status(fields))
     result = _base_status()
     result.update(stored)
-    result.pop("maintenance", None)
     return result
 
 
@@ -507,13 +483,12 @@ def set_data_updated(last_pipeline_data_import_ended_at: Optional[str]) -> Dict[
 def reconcile_orphaned_run(
     *,
     stale_after_seconds: int = _DEFAULT_STALE_SECONDS,
-    lock_ttl_seconds: int = _DEFAULT_LOCK_TTL_SECONDS,
 ) -> bool:
     """Fail a run whose lease owner died or stopped heartbeating.
 
     Owner metadata permits immediate recovery after a restart of the same
-    scheduler container. Older or cross-host locks are recovered only after
-    their inferred heartbeat exceeds the conservative stale threshold.
+    scheduler container. A lease whose owner this host cannot check is
+    recovered only after its heartbeat exceeds the conservative stale threshold.
     """
     raw_status = _read_raw_status()
     if raw_status.get("status") != "running":
@@ -524,7 +499,7 @@ def reconcile_orphaned_run(
 
     token = lock_state.get("token")
     owner_alive = _lock_owner_is_alive(lock_state) if token else False
-    heartbeat_at = _lock_heartbeat_at(lock_state, lock_ttl_seconds) if token else None
+    heartbeat_at = _parse_iso_timestamp(lock_state.get("heartbeat_at")) if token else None
     heartbeat_stale = (
         heartbeat_at is None
         or datetime.now(timezone.utc) - heartbeat_at > timedelta(seconds=max(1, stale_after_seconds))

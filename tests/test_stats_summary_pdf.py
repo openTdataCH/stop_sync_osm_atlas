@@ -63,7 +63,7 @@ def test_matching_report_renders_with_the_real_pdf_engine(app):
         osm_lat=46.9481, osm_lon=7.4471,
         atlas_stop_details=types.SimpleNamespace(
             atlas_designation_official='Bern, Bahnhof', atlas_business_org_abbr='SBB'))
-    with app.app_context():
+    with app.test_request_context():
         pdf = _render_report_pdf_bytes(
             [stop], 'distance', ['atlas_coords', 'osm_coords'], 'distance_desc')
 

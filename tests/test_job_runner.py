@@ -1,4 +1,6 @@
+import json
 import logging
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -282,3 +284,131 @@ def test_reused_run_modes_keep_input_loading_separate(monkeypatch, mode):
             **dict.fromkeys(('source_check', 'source_files', 'matching_inputs', 'stop_matching', 'route_matching'), 'skipped'),
             'bundle': 'reused',
         }
+
+
+def test_record_data_updated_timestamp_writes_meta_and_status(monkeypatch, tmp_path):
+    from backend.services import data_meta
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(data_meta, "DATA_META_PATH", str(tmp_path / "data" / "data_meta.json"))
+    monkeypatch.setattr(job_runner, "get_zurich_now", lambda: datetime(2026, 5, 2, 19, 31, tzinfo=timezone.utc))
+    monkeypatch.setattr(job_runner, "format_zurich_timestamp", lambda dt: "2026-05-02T21:31:00+02:00")
+    captured = {}
+    monkeypatch.setattr(job_runner, "set_data_updated", lambda value: captured.setdefault("value", value))
+
+    result = job_runner._record_data_updated_timestamp()
+
+    assert result == "2026-05-02T21:31:00+02:00"
+    assert captured["value"] == "2026-05-02T21:31:00+02:00"
+    assert (tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8") == '{"last_pipeline_data_import_ended_at": "2026-05-02T21:31:00+02:00"}'
+
+
+def test_record_data_updated_timestamp_persists_run_type_and_refresh_scope(monkeypatch, tmp_path):
+    from backend.jobs.job_types import PipelineRunType
+    from backend.services import data_meta
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(data_meta, "DATA_META_PATH", str(tmp_path / "data" / "data_meta.json"))
+    monkeypatch.setattr(job_runner, "get_zurich_now", lambda: datetime(2026, 5, 3, 10, 0, tzinfo=timezone.utc))
+    monkeypatch.setattr(job_runner, "format_zurich_timestamp", lambda dt: "2026-05-03T12:00:00+02:00")
+    captured = {}
+    monkeypatch.setattr(job_runner, "set_data_updated", lambda value: captured.setdefault("value", value))
+    monkeypatch.setattr(job_runner, "set_status", lambda **kwargs: captured.setdefault("status", kwargs))
+
+    result = job_runner._record_data_updated_timestamp(
+        run_type=PipelineRunType.COMPLETE,
+        rewritten_tables=['osm_nodes', 'line_families'],
+        reused_tables=['atlas_stops', 'gtfs_stops_raw'],
+    )
+
+    assert result == "2026-05-03T12:00:00+02:00"
+    assert captured["value"] == "2026-05-03T12:00:00+02:00"
+    assert captured["status"]["run_type"] == "complete"
+    assert captured["status"]["refresh_scope_tables_reused"] == ['atlas_stops', 'gtfs_stops_raw']
+    assert json.loads((tmp_path / "data" / "data_meta.json").read_text(encoding="utf-8")) == {
+        "last_pipeline_data_import_ended_at": "2026-05-03T12:00:00+02:00",
+        "last_run_type": "complete",
+        "refresh_scope_tables_rewritten": ['osm_nodes', 'line_families'],
+        "refresh_scope_tables_reused": ['atlas_stops', 'gtfs_stops_raw'],
+    }
+
+
+def test_engine_command_reuses_source_snapshots_without_engine_import(monkeypatch, tmp_path):
+    monkeypatch.setenv('MATCHER_COMMAND', '/path/to/engine/bin/osm-public-transport-matcher')
+    monkeypatch.setenv('PIPELINE_WORKSPACE', str(tmp_path))
+    destination = tmp_path / 'result'
+    command = job_runner._engine_command('match-import', destination)
+    assert command[0] == '/path/to/engine/bin/osm-public-transport-matcher'
+    assert '--download' not in command
+    assert str(destination) in command
+    assert '--download' in job_runner._engine_command('full', destination)
+
+
+def test_engine_command_force_refresh_only_applies_to_acquisition(monkeypatch, tmp_path):
+    monkeypatch.setenv('PIPELINE_FORCE_FULL_REFRESH', 'true')
+    assert '--force' in job_runner._engine_command('full', tmp_path / 'result')
+    assert '--force' not in job_runner._engine_command('match-import', tmp_path / 'result')
+
+
+def test_engine_process_does_not_receive_application_credentials(monkeypatch):
+    monkeypatch.setenv('DATABASE_URI', 'test-database-secret')
+    monkeypatch.setenv('SECRET_KEY', 'test-session-secret')
+    monkeypatch.setenv('SOURCE_API_TOKEN', 'source-token')
+    monkeypatch.setattr(job_runner, 'set_phase', lambda **kwargs: None)
+    captured = {}
+    class Process:
+        stdout = iter(())
+
+        def wait(self):
+            return 0
+
+    def popen(command, **kwargs):
+        captured.update(kwargs)
+        return Process()
+    monkeypatch.setattr(job_runner.subprocess, 'Popen', popen)
+    job_runner._run_subprocess(['osm-public-transport-matcher', '--help'], 'matching', 'Matching')
+    assert 'DATABASE_URI' not in captured['env']
+    assert 'SECRET_KEY' not in captured['env']
+    assert captured['env']['SOURCE_API_TOKEN'] == 'source-token'
+
+
+def test_engine_progress_ignores_unversioned_log_events(monkeypatch):
+
+    events = []
+    monkeypatch.setattr(job_runner, 'record_progress_event', lambda payload, **kwargs: events.append(payload))
+
+    job_runner._handle_engine_progress({
+        'event': 'stage_started',
+        'stage': 'matching.stops_and_problems',
+    })
+    job_runner._handle_engine_progress({
+        'event': 'cache_decision',
+        'stage': 'atlas',
+        'reason': 'hit',
+    })
+
+    assert events == []
+
+
+def test_engine_progress_forwards_versioned_events_without_stage_mapping(monkeypatch):
+
+    events = []
+    monkeypatch.setattr(job_runner, 'record_progress_event', lambda payload, **kwargs: events.append(payload))
+    payload = {
+        'event': 'stage_started',
+        'progress_schema_version': 2,
+        'stage_id': 'osm.future_parser',
+        'stage_spec': {
+            'id': 'osm.future_parser',
+            'parent_id': 'matching_inputs',
+            'phase': 'matching_inputs',
+            'label': 'Future parser',
+            'description': 'A stage unknown to this application version.',
+            'order': 99,
+            'progress_kind': 'indeterminate',
+        },
+    }
+
+    job_runner._handle_engine_progress(payload)
+
+    assert events == [payload]

@@ -64,7 +64,7 @@ def test_routes_gtfs_stop_id_sloid_summary_api(client, monkeypatch):
 
 
 def test_routes_gtfs_stop_id_sloid_map_api(client, monkeypatch):
-    monkeypatch.setattr(routes_module, 'build_gtfs_stop_id_sloid_map_payload', lambda *_args: {
+    monkeypatch.setattr(routes_module, 'build_gtfs_stop_id_sloid_map_payload', lambda *_args, **_kwargs: {
         'gtfs_stops': [{'stop_id': '8500:0:1'}],
         'atlas_stops': [{'sloid': 'S1'}],
         'matches': [{'stop_id': '8500:0:1', 'sloid': 'S1'}],
@@ -82,8 +82,8 @@ def test_routes_gtfs_stop_id_sloid_map_api(client, monkeypatch):
 def test_routes_gtfs_stop_id_sloid_map_api_forwards_identifier_search(client, monkeypatch):
     captured = {}
 
-    def build_payload(*args):
-        captured['args'] = args
+    def build_payload(*bounds, **options):
+        captured.update(options)
         return {'gtfs_stops': [], 'atlas_stops': [], 'matches': [], 'meta': {}}
 
     monkeypatch.setattr(routes_module, 'build_gtfs_stop_id_sloid_map_payload', build_payload)
@@ -95,28 +95,29 @@ def test_routes_gtfs_stop_id_sloid_map_api_forwards_identifier_search(client, mo
     )
 
     assert response.status_code == 200
-    assert captured['args'][5:7] == ('sloid', 'ch:1:sloid:92000')
-    assert captured['args'][7:] == (None, True, [], [])
+    assert captured == {
+        'search_kind': 'sloid', 'search_value': 'ch:1:sloid:92000', 'requested_limit': None,
+        'include_matches': True, 'filter_statuses': [], 'match_methods': [],
+    }
 
 
 def test_routes_gtfs_stop_id_sloid_map_api_forwards_shared_zoom_limit(client, monkeypatch):
     captured = []
 
-    def build_payload(*args):
-        captured.append(args)
+    def build_payload(*bounds, **options):
+        captured.append(options)
         return {'gtfs_stops': [], 'atlas_stops': [], 'matches': [], 'meta': {}}
 
     monkeypatch.setattr(routes_module, 'build_gtfs_stop_id_sloid_map_payload', build_payload)
     base_url = '/api/routes/gtfs-stop-id-sloid/map?min_lat=46&min_lon=7&max_lat=47&max_lon=8&zoom=14'
 
     assert client.get(base_url + '&limit=1800').status_code == 200
-    assert captured[-1][7] == 1800
-    assert captured[-1][8] is True
-    assert captured[-1][9:] == ([], [])
+    assert captured[-1]['requested_limit'] == 1800
+    assert captured[-1]['include_matches'] is True
     assert client.get(base_url + '&limit=all').status_code == 200
-    assert captured[-1][7] == 'all'
+    assert captured[-1]['requested_limit'] == 'all'
     assert client.get(base_url + '&limit=1800&include_matches=0').status_code == 200
-    assert captured[-1][8] is False
+    assert captured[-1]['include_matches'] is False
     assert client.get(base_url + '&limit=0').status_code == 400
     assert client.get(base_url + '&include_matches=maybe').status_code == 400
 
@@ -124,8 +125,8 @@ def test_routes_gtfs_stop_id_sloid_map_api_forwards_shared_zoom_limit(client, mo
 def test_routes_gtfs_stop_id_sloid_map_api_forwards_and_validates_filters(client, monkeypatch):
     captured = {}
 
-    def build_payload(*args):
-        captured['args'] = args
+    def build_payload(*bounds, **options):
+        captured.update(options)
         return {'gtfs_stops': [], 'atlas_stops': [], 'matches': [], 'meta': {}}
 
     monkeypatch.setattr(routes_module, 'build_gtfs_stop_id_sloid_map_payload', build_payload)
@@ -137,8 +138,8 @@ def test_routes_gtfs_stop_id_sloid_map_api_forwards_and_validates_filters(client
     )
 
     assert response.status_code == 200
-    assert captured['args'][9] == ['gtfs_unmatched', 'matched']
-    assert captured['args'][10] == ['coordinate_proximity', 'original_stop_id']
+    assert captured['filter_statuses'] == ['gtfs_unmatched', 'matched']
+    assert captured['match_methods'] == ['coordinate_proximity', 'original_stop_id']
     assert client.get(base_url + '&status=unknown').status_code == 400
 
 

@@ -4,10 +4,6 @@ from backend.services.global_stats import compute_global_stats_payload
 from backend.queries.helpers import build_atlas_duplicate_membership_condition
 
 
-def _compile_expression(expr):
-    return str(expr.compile(compile_kwargs={"literal_binds": True}))
-
-
 def test_compute_global_stats_payload_uses_sql_source_of_truth():
     dummy_session = object()
     expected_payload = {
@@ -28,13 +24,17 @@ def test_compute_global_stats_payload_uses_sql_source_of_truth():
     assert payload == expected_payload
 
 
-def test_duplicate_membership_condition_uses_structural_membership_not_jsonb_null_check():
-    sql = _compile_expression(build_atlas_duplicate_membership_condition())
+def test_duplicate_membership_is_structural_not_the_stored_group_list(problems_db):
+    from backend.models import AtlasStop
 
-    # Non-representative duplicate members
-    assert 'representative_sloid IS NOT NULL' in sql
-    # Representative rows with at least one sibling member
-    assert 'EXISTS' in sql
-    assert 'representative_sloid = atlas_stops.sloid' in sql
-    # Guard against regressing to JSONB null semantics
-    assert 'duplicate_group_sloids' not in sql
+    problems_db.add_all([
+        AtlasStop(sloid='representative'),
+        AtlasStop(sloid='member', representative_sloid='representative'),
+        AtlasStop(sloid='alone'),
+        # A stored group list without members pointing at it does not make a duplicate.
+        AtlasStop(sloid='listed_alone', duplicate_group_sloids=['listed_alone', 'gone']),
+    ])
+    problems_db.commit()
+
+    duplicates = AtlasStop.query.filter(build_atlas_duplicate_membership_condition()).all()
+    assert sorted(stop.sloid for stop in duplicates) == ['member', 'representative']

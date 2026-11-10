@@ -3,50 +3,62 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-// Exercise failure modes in fresh Jest processes: this suite must remain green
-// only when the supposedly passing probe is correctly rejected by the harness.
-function probe(body) {
+// Each probe would pass on its own; the strict environment must fail every one
+// except the last. One probe per file, so each gets a fresh environment, all
+// in one nested Jest run.
+const REJECTED = {
+    'console error': ["console.error('quality-probe');", /Unexpected console.error/],
+    'browser exception': ["setTimeout(() => { throw new Error('quality-probe'); }, 0);", /quality-probe/],
+    'unhandled rejection': ["Promise.reject(new Error('quality-probe'));", /quality-probe/],
+    'pending timer': ['setTimeout(() => {}, 60000);', /Leaked browser work/],
+    'discarded fake timer': ['jest.useFakeTimers(); setTimeout(() => {}, 60000); jest.useRealTimers();', /Leaked fake browser timers/]
+};
+const ACCEPTED = `
+    const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+    console.error('expected');
+    expect(error).toHaveBeenCalledWith('expected');
+    error.mockRestore();
+    const timer = setTimeout(() => {}, 60000);
+    clearTimeout(timer);
+    jest.useFakeTimers();
+    const fakeTimer = setTimeout(() => {}, 60000);
+    clearTimeout(fakeTimer);
+    jest.useRealTimers();
+`;
+
+const fileName = name => name.replace(/ /g, '-') + '.test.js';
+let results;
+
+beforeAll(() => {
     const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'atlas-jest-'));
     try {
-        fs.writeFileSync(path.join(directory, 'probe.test.js'), `test('probe', () => { ${body} });`);
-        return spawnSync(process.execPath, [
-            require.resolve('jest/bin/jest'), '--runInBand', '--config', JSON.stringify({
+        const probes = { ...Object.fromEntries(Object.entries(REJECTED).map(([name, [body]]) => [name, body])), accepted: ACCEPTED };
+        for (const [name, body] of Object.entries(probes)) {
+            fs.writeFileSync(path.join(directory, fileName(name)), `test('probe', () => { ${body} });`);
+        }
+        const output = path.join(directory, 'results.json');
+        const run = spawnSync(process.execPath, [
+            require.resolve('jest/bin/jest'), '--runInBand', '--json', '--outputFile', output, '--config', JSON.stringify({
                 rootDir: directory,
                 testEnvironment: path.join(__dirname, 'strict-environment.cjs')
             })
         ], { encoding: 'utf8', timeout: 60000 });
+        if (run.error) throw run.error;
+        results = new Map(JSON.parse(fs.readFileSync(output, 'utf8')).testResults
+            .map(result => [path.basename(result.name), result]));
     } finally {
         fs.rmSync(directory, { recursive: true, force: true });
     }
-}
-
-test.each([
-    ['console error', "console.error('quality-probe');", /Unexpected console.error/],
-    ['browser exception', "setTimeout(() => { throw new Error('quality-probe'); }, 0);", /quality-probe/],
-    ['unhandled rejection', "Promise.reject(new Error('quality-probe'));", /quality-probe/],
-    ['pending timer', 'setTimeout(() => {}, 60000);', /Leaked browser work/],
-    ['discarded fake timer', 'jest.useFakeTimers(); setTimeout(() => {}, 60000); jest.useRealTimers();', /Leaked fake browser timers/]
-])('rejects an otherwise passing test with %s', (_name, body, expected) => {
-    const result = probe(body);
-    expect(result.error).toBeUndefined();
-    expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(expected);
 }, 70000);
+
+test.each(Object.entries(REJECTED))('rejects an otherwise passing test with %s', (name, [, expected]) => {
+    const result = results.get(fileName(name));
+    expect(result.status).toBe('failed');
+    expect(result.message).toMatch(expected);
+});
 
 test('accepts an asserted expected error and correctly cleared work', () => {
-    const result = probe(`
-        const error = jest.spyOn(console, 'error').mockImplementation(() => {});
-        console.error('expected');
-        expect(error).toHaveBeenCalledWith('expected');
-        error.mockRestore();
-        const timer = setTimeout(() => {}, 60000);
-        clearTimeout(timer);
-        jest.useFakeTimers();
-        const fakeTimer = setTimeout(() => {}, 60000);
-        clearTimeout(fakeTimer);
-        jest.useRealTimers();
-    `);
-    expect(result.error).toBeUndefined();
-    expect(result.stderr).toContain('PASS');
-    expect(result.status).toBe(0);
-}, 70000);
+    const result = results.get(fileName('accepted'));
+    expect(result.message).toBe('');
+    expect(result.status).toBe('passed');
+});

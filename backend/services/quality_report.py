@@ -140,18 +140,15 @@ def _validate_render_shape(report):
 def load_published(repo_root):
     """The published report and code map, marked stale when the running code is not what they measured.
 
-    Returns ``(report, code_map, publication, changed)``; ``code_map`` is None for a report published without one.
+    Returns ``(report, code_map, publication, changed)``.
     Raises OSError, ValueError, KeyError or TypeError when the published evidence is missing or malformed.
     """
     root = Path(repo_root)
     report = json.loads((root / PUBLISHED / 'latest.json').read_text())
     _validate_render_shape(report)
     publication = json.loads((root / PUBLISHED / 'publication.json').read_text())
-    try:
-        code_map = json.loads((root / PUBLISHED / 'code-map.json').read_text())
-    except FileNotFoundError:
-        code_map = None
-    if code_map is not None and (not isinstance(code_map, dict) or code_map.get('schema_version') != 1):
+    code_map = json.loads((root / PUBLISHED / 'code-map.json').read_text())
+    if not isinstance(code_map, dict) or code_map.get('schema_version') != 1:
         raise ValueError('unsupported code map')
     changed = []
     # The report commit itself only touches quality/published, which is not shipped code.

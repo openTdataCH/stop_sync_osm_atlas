@@ -1,11 +1,4 @@
-const loadBrowserScript = require('./load-browser-script');
-const path = require('path');
-
-function loadProductionScript() {
-  const scriptPath = path.join(__dirname, '../../static/js/components/map-viewport-loader.js');
-  window.MapComponents = undefined;
-  loadBrowserScript(scriptPath);
-}
+const { loadMapComponent } = require('./load-browser-script');
 
 function deferred() {
   let resolve;
@@ -55,7 +48,7 @@ describe('MapViewportLoader', () => {
         this.signal.aborted = true;
       }
     };
-    loadProductionScript();
+    loadMapComponent('map-viewport-loader');
     map = createMap();
   });
 

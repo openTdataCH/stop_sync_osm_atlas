@@ -1,11 +1,4 @@
-const loadBrowserScript = require('./load-browser-script');
-const path = require('path');
-
-function loadProductionScript() {
-  const scriptPath = path.join(__dirname, '../../static/js/components/map-core.js');
-  window.MapComponents = undefined;
-  loadBrowserScript(scriptPath);
-}
+const { loadMapComponent } = require('./load-browser-script');
 
 function createLeafletMock() {
   const maps = [];
@@ -82,7 +75,7 @@ describe('MapCore', () => {
     window.L = mock.leaflet;
     window.MapShared = undefined;
     delete window.map;
-    loadProductionScript();
+    loadMapComponent('map-core');
   });
 
   test('creates independent maps and named layers without ambient map state', () => {

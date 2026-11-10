@@ -1,11 +1,4 @@
-const loadBrowserScript = require('./load-browser-script');
-const path = require('path');
-
-function loadProductionScript() {
-  const scriptPath = path.join(__dirname, '../../static/js/components/map-layer-registry.js');
-  window.MapComponents = undefined;
-  loadBrowserScript(scriptPath);
-}
+const { loadMapComponent } = require('./load-browser-script');
 
 function descriptor(key, signature, position, data) {
   return {
@@ -24,7 +17,7 @@ describe('MapLayerRegistry', () => {
   let registry;
 
   beforeEach(() => {
-    loadProductionScript();
+    loadMapComponent('map-layer-registry');
     group = {
       addLayer: jest.fn(),
       removeLayer: jest.fn()

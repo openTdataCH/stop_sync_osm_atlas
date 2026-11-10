@@ -12,28 +12,35 @@ describe('Links to the docs section explaining what is shown', () => {
     loadBrowserScript(path.join(STATIC, 'pages/problems-ui.js'));
   });
 
-  test.each([
-    ['sloid_identifier', '/docs/reference_matching#identifier-matching-identifier'],
-    ['uic_two_sided_stop', '/docs/reference_matching#two-sided-stops-two_sided_stop'],
-    ['uic_reference_local_ref', '/docs/reference_matching#how-the-reference-rule-works'],
-    ['name_one_osm', '/docs/name_matching'],
-    ['gtfs_shared_direction', '/docs/gtfs_route_matching'],
-    // A group distance type keyed by name is a distance rule, not the name rule.
-    ['name_group_distance', '/docs/distance_matching#group-distance-rules-group_distance-and-group_long_distance'],
-    ['uic_ref_group_long_distance', '/docs/distance_matching#group-distance-rules-group_distance-and-group_long_distance'],
-    ['local_ref_distance', '/docs/distance_matching#local_ref-distance-rule-local_ref_distance'],
-    ['distance_only_candidate_second_pass', '/docs/distance_matching#nearest-candidate-rules'],
-    ['distance_ratio', '/docs/distance_matching#nearest-candidate-rules'],
-    ['osm_pair_propagation', null]
-  ])('a popup links match type %s to %s', (matchType, href) => {
-    const html = window.PopupRenderer.generatePopupHtml(
+  function docLink(html) {
+    const link = html.match(/<a href="([^"]+)" class="doc-link"/);
+    return link && link[1];
+  }
+
+  function matchedPopup(matchType) {
+    return window.PopupRenderer.generatePopupHtml(
       { id: 1, stop_type: 'matched', sloid: 'ch:1:sloid:1:1', osm_node_id: '1', match_type: matchType },
       'atlas'
     );
-    const link = html.match(/<a href="([^"]+)" class="doc-link"/);
+  }
+
+  // One match type per rule; which section each link opens is checked by tests/test_docs_rendering.py.
+  test.each([
+    'sloid_identifier', 'uic_two_sided_stop', 'uic_reference_local_ref', 'name_one_osm',
+    'gtfs_shared_direction', 'uic_ref_group_long_distance', 'local_ref_distance', 'distance_ratio'
+  ])('a popup with match type %s names it and links to the docs', matchType => {
+    const html = matchedPopup(matchType);
 
     expect(html).toContain(matchType);
-    expect(link && link[1]).toBe(href);
+    expect(docLink(html)).toMatch(/^\/docs\/\w+/);
+  });
+
+  test('a group distance type keyed by name links to the distance rule, not the name rule', () => {
+    expect(docLink(matchedPopup('name_group_distance'))).toMatch(/^\/docs\/distance_matching#/);
+  });
+
+  test('a match type without a rule section has no doc link', () => {
+    expect(docLink(matchedPopup('osm_pair_propagation'))).toBeNull();
   });
 
   test('the middle of a matched two-sided stop has no match type: its popup names it and links to the rule', () => {
@@ -41,10 +48,9 @@ describe('Links to the docs section explaining what is shown', () => {
       { id: 1, stop_type: 'effectively_matched', osm_node_id: '8', match_type: null },
       'osm'
     );
-    const link = html.match(/<a href="([^"]+)" class="doc-link"/);
 
     expect(html).toContain('Middle of a matched two-sided stop');
-    expect(link && link[1]).toBe('/docs/reference_matching#two-sided-stops-two_sided_stop');
+    expect(docLink(html)).toBe('/docs/reference_matching#two-sided-stops-two_sided_stop');
   });
 
   test('the Problems page names the active problem type and links to its section', () => {

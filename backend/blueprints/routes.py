@@ -214,12 +214,12 @@ def routes_gtfs_stop_id_sloid_map_api():
             max_lat,
             max_lon,
             zoom,
-            search_kind,
-            search_value,
-            requested_limit,
-            include_matches,
-            filter_statuses,
-            match_methods,
+            search_kind=search_kind,
+            search_value=search_value,
+            requested_limit=requested_limit,
+            include_matches=include_matches,
+            filter_statuses=filter_statuses,
+            match_methods=match_methods,
         ))
     except Exception as exc:
         if is_missing_table_error(exc):

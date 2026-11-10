@@ -1,11 +1,4 @@
-const loadBrowserScript = require('./load-browser-script');
-const path = require('path');
-
-function loadProductionScript() {
-  const scriptPath = path.join(__dirname, '../../static/js/components/map-popup-controller.js');
-  window.MapComponents = undefined;
-  loadBrowserScript(scriptPath);
-}
+const { loadMapComponent } = require('./load-browser-script');
 
 function deferred() {
   let resolve;
@@ -87,7 +80,7 @@ describe('MapPopupController', () => {
         this.signal.aborted = true;
       }
     };
-    loadProductionScript();
+    loadMapComponent('map-popup-controller');
   });
 
   test('deduplicates a concurrent entity load across markers', async () => {

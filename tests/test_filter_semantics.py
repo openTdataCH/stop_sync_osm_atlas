@@ -1,11 +1,57 @@
-from backend.models import StopsMatched
-from backend.app import app as backend_app
+import pytest
+
+from backend.models import AtlasStop, DatasetPublication, OsmNode, OsmStop, OsmStopMember, Problem, StopsMatched
 from backend.query_builder import QueryBuilder
 from backend.queries.helpers import build_match_method_conditions, build_stop_scope_condition, parse_filter_params, resolve_stop_type_match_filters
 
+# One entry per kind of row the filters tell apart, named by its OSM element:
+# (stop_type, match_type, OSM public_transport).
+STOPS = {
+    'ref_local': ('matched', 'uic_reference_local_ref', 'platform'),
+    'ref_one_source': ('matched', 'uic_reference_one_source', 'stop_position'),
+    'two_sided': ('matched', 'uic_two_sided_stop', 'platform'),
+    'middle': ('effectively_matched', None, None),
+    'gtfs': ('matched', 'gtfs_shared_route', 'platform'),
+    'candidate': ('matched', 'distance_only_candidate', None),
+    'candidate_2': ('matched', 'distance_only_candidate_second_pass', None),
+    'atlas_alone': ('atlas_unmatched', 'no_nearby_counterpart', None),
+    'osm_alone': ('osm_unmatched', None, 'platform'),
+    'disused': ('osm_disused', None, None),
+}
+# OSM stop units: (stop_kind, group_kind, members).
+GROUPS = [
+    ('pair', 'ptv2_pair_uic_ref', ['ref_local', 'ref_one_source']),
+    ('pair', 'ptv2_pair_uic_ref_equal_count', ['gtfs', 'candidate']),
+    ('two_sided_stop', 'ptv2_two_sided_stop', ['middle', 'two_sided']),
+]
+MATCHED = ['candidate', 'candidate_2', 'gtfs', 'middle', 'ref_local', 'ref_one_source', 'two_sided']
 
-def _compile_expression(expr):
-    return str(expr.compile(compile_kwargs={"literal_binds": True}))
+
+@pytest.fixture
+def stops(sqlite_tables):
+    session = sqlite_tables(AtlasStop, OsmNode, StopsMatched, Problem, DatasetPublication, OsmStop, OsmStopMember)
+    for name, (stop_type, match_type, public_transport) in STOPS.items():
+        session.add(OsmNode(osm_node_id=name, osm_public_transport=public_transport))
+        session.add(StopsMatched(osm_node_id=name, stop_type=stop_type, match_type=match_type))
+    for index, (stop_kind, group_kind, members) in enumerate(GROUPS, start=1):
+        session.add(OsmStop(id=index, stop_kind=stop_kind, group_kind=group_kind, representative_node_id=members[0]))
+        for member in members:
+            session.add(OsmStopMember(osm_stop_id=index, node_id=member, member_role='single'))
+    session.commit()
+    return session
+
+
+def _names(query):
+    return sorted(row.osm_node_id for row in query.all())
+
+
+def _in_scope(stop_filter, match_method):
+    condition = build_stop_scope_condition(StopsMatched, resolve_stop_type_match_filters(stop_filter, match_method))
+    return _names(StopsMatched.query.filter(condition))
+
+
+def _with_filters(filters):
+    return _names(QueryBuilder(None).apply_common_filters(StopsMatched.query, filters))
 
 
 def test_matched_methods_apply_without_master_stop_type():
@@ -43,44 +89,28 @@ def test_unknown_stop_type_or_method_still_registers_scope_filter():
     assert resolved['include_osm_unmatched'] is False
 
 
-def test_scope_condition_for_reference_rule_targets_each_of_its_match_types():
-    resolved = resolve_stop_type_match_filters(None, 'reference')
-
-    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
-
-    assert "stop_type = 'matched'" in sql
-    assert "match_type IN ('uic_reference_local_ref', 'uic_reference_one_osm', 'uic_reference_one_source')" in sql
-    assert "atlas_unmatched" not in sql
+def test_reference_rule_filter_selects_each_of_its_match_types(stops):
+    assert _in_scope(None, 'reference') == ['ref_local', 'ref_one_source']
 
 
-def test_two_sided_stop_rule_filter_also_includes_effectively_matched_middles():
-    resolved = resolve_stop_type_match_filters(None, 'two_sided_stop')
-
-    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
-
-    assert "match_type IN ('uic_two_sided_stop')" in sql
-    assert "stop_type = 'effectively_matched'" in sql
+def test_two_sided_stop_rule_filter_also_includes_effectively_matched_middles(stops):
+    assert _in_scope(None, 'two_sided_stop') == ['middle', 'two_sided']
 
 
-def test_scope_condition_for_master_matched_without_methods_is_not_narrowed():
-    resolved = resolve_stop_type_match_filters('matched', None)
-
-    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
-
-    assert "stop_type = 'matched'" in sql
-    assert "match_type" not in sql
+def test_matched_stop_type_selects_every_match_and_the_two_sided_middles(stops):
+    assert _in_scope('matched', None) == MATCHED
 
 
-def test_match_type_filter_selects_only_that_branch():
-    sql = _compile_expression(build_match_method_conditions(StopsMatched, ['gtfs_shared_route']))
+def test_match_type_filter_selects_only_that_branch(stops):
+    condition = build_match_method_conditions(StopsMatched, ['gtfs_shared_route'])
 
-    assert "match_type IN ('gtfs_shared_route')" in sql
+    assert _names(StopsMatched.query.filter(condition)) == ['gtfs']
 
 
-def test_rule_filter_covers_every_pass_of_the_rule():
-    sql = _compile_expression(build_match_method_conditions(StopsMatched, ['distance_only_candidate']))
+def test_rule_filter_covers_every_pass_of_the_rule(stops):
+    condition = build_match_method_conditions(StopsMatched, ['distance_only_candidate'])
 
-    assert "match_type IN ('distance_only_candidate', 'distance_only_candidate_second_pass')" in sql
+    assert _names(StopsMatched.query.filter(condition)) == ['candidate', 'candidate_2']
 
 
 def test_unknown_match_method_selects_nothing():
@@ -112,106 +142,45 @@ def test_parse_filter_params_keeps_equal_count_pair_group_types():
     ]
 
 
-def test_query_builder_osm_groups_apply_without_legacy_toggle():
-    query_builder = QueryBuilder(None)
-
-    with backend_app.app_context():
-        sql = _compile_expression(
-            query_builder.apply_common_filters(StopsMatched.query, {'osm_group_types': ['ptv2_pair_uic_ref']}).statement
-        )
-
-    assert 'stops_matched.osm_node_id IN' in sql
-    assert 'osm_stops.group_kind IN' in sql
-    assert "stops_matched.stop_type != 'matched'" not in sql
+def test_osm_group_filter_selects_the_group_members_whatever_their_stop_type(stops):
+    assert _with_filters({'osm_group_types': ['ptv2_pair_uic_ref']}) == ['ref_local', 'ref_one_source']
+    # 'all' parses to an empty list: every member of a pair or two-sided stop.
+    assert _with_filters({'osm_group_types': []}) == ['candidate', 'gtfs', 'middle', 'ref_local', 'ref_one_source', 'two_sided']
 
 
-def test_query_builder_combines_transport_and_osm_group_with_and():
-    query_builder = QueryBuilder(None)
-
-    with backend_app.app_context():
-        sql = _compile_expression(
-            query_builder.apply_common_filters(
-                StopsMatched.query,
-                {'transport_types': ['platform'], 'osm_group_types': ['ptv2_pair_uic_ref']}
-            ).statement
-        )
-
-    assert 'osm_public_transport' in sql
-    assert 'stops_matched.osm_node_id IN' in sql
-    assert ' AND ' in sql
+def test_transport_and_osm_group_filters_both_apply(stops):
+    assert _with_filters({'transport_types': ['platform']}) == ['gtfs', 'osm_alone', 'ref_local', 'two_sided']
+    assert _with_filters({'transport_types': ['platform'], 'osm_group_types': ['ptv2_pair_uic_ref']}) == ['ref_local']
 
 
-def test_query_builder_two_sided_only_filter_excludes_pair_type_predicate():
-    query_builder = QueryBuilder(None)
-
-    with backend_app.app_context():
-        sql = _compile_expression(
-            query_builder.apply_common_filters(StopsMatched.query, {'osm_group_types': ['ptv2_two_sided_stop']}).statement
-        )
-
-    assert 'stops_matched.osm_node_id IN' in sql
-    assert "osm_stops.stop_kind = 'pair'" not in sql
-    assert "osm_stops.stop_kind = 'two_sided_stop'" in sql
+def test_two_sided_group_filter_selects_only_two_sided_stops(stops):
+    assert _with_filters({'osm_group_types': ['ptv2_two_sided_stop']}) == ['middle', 'two_sided']
 
 
-def test_query_builder_supports_equal_count_pair_group_types():
-    query_builder = QueryBuilder(None)
-
-    with backend_app.app_context():
-        sql = _compile_expression(
-            query_builder.apply_common_filters(
-                StopsMatched.query,
-                {'osm_group_types': ['ptv2_pair_uic_ref_equal_count']}
-            ).statement
-        )
-
-    assert 'stops_matched.osm_node_id IN' in sql
-    assert 'osm_stops.group_kind IN' in sql
-    assert 'ptv2_pair_uic_ref_equal_count' in sql
+def test_equal_count_pair_group_filter_selects_its_pairs(stops):
+    assert _with_filters({'osm_group_types': ['ptv2_pair_uic_ref_equal_count']}) == ['candidate', 'gtfs']
 
 
-def test_scope_condition_matched_includes_two_sided_middle_effective_matches():
-    resolved = resolve_stop_type_match_filters('matched', None)
-
-    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
-
-    assert "stop_type = 'matched'" in sql
-    assert "stop_type = 'effectively_matched'" in sql
+def test_osm_unmatched_stop_type_leaves_out_two_sided_middles(stops):
+    assert _in_scope('osm_unmatched', None) == ['osm_alone']
 
 
-def test_scope_condition_osm_unmatched_excludes_two_sided_middle_effective_matches():
-    resolved = resolve_stop_type_match_filters('osm_unmatched', None)
-
-    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
-
-    assert "stop_type = 'osm_unmatched'" in sql
-    assert "stop_type = 'effectively_matched'" not in sql
-
-def test_scope_condition_osm_disused_is_its_own_stop_type():
+def test_osm_disused_is_its_own_stop_type(stops):
     resolved = resolve_stop_type_match_filters('osm_disused', None)
-
-    sql = _compile_expression(build_stop_scope_condition(StopsMatched, resolved))
 
     assert resolved['include_osm_disused'] is True
     assert resolved['include_osm_unmatched'] is False
-    assert sql == "stops_matched.stop_type = 'osm_disused'"
+    assert _in_scope('osm_disused', None) == ['disused']
 
 
-def test_global_stats_leave_disused_osm_out_unless_selected():
+def test_global_stats_leave_disused_osm_out_unless_selected(stops):
     from backend.services.global_stats import _build_scoped_global_stats_query
 
-    with backend_app.app_context():
-        unfiltered = str(_build_scoped_global_stats_query({}).statement.compile(compile_kwargs={"literal_binds": True}))
-        selected = str(_build_scoped_global_stats_query({'stop_filter': 'osm_disused'}).statement.compile(
-            compile_kwargs={"literal_binds": True}))
-
-    assert "stops_matched.stop_type != 'osm_disused'" in unfiltered
-    assert "!= 'osm_disused'" not in selected
+    assert 'disused' not in _names(_build_scoped_global_stats_query({}))
+    assert _names(_build_scoped_global_stats_query({'stop_filter': 'osm_disused'})) == ['disused']
 
 
 def test_identifier_filters_keep_whole_identifiers_only(problems_db):
-    from backend.models import AtlasStop, OsmNode
-
     session = problems_db
     rows = [
         ('ch:1:sloid:10035:0:1', '8510035', '100', None),

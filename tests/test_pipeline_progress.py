@@ -183,15 +183,6 @@ def test_runner_ignores_malformed_telemetry_and_keeps_consuming(store):
     assert store.read_status()['stage_states'][SPEC['id']]['status'] == 'running'
 
 
-def test_legacy_finished_run_does_not_acquire_waiting_children(store):
-    store.write_status(dict(status='idle', phase='idle', finished_at=NOW, last_pipeline_data_import_ended_at=NOW))
-    status = pipeline_status.get_status()
-    assert status['stage_plan'] == []
-    assert status['stage_states'] == {}
-    pipeline_status.start_run('manual', run_id='new')
-    assert pipeline_status.get_status()['stage_plan'] == initial_progress_plan()
-
-
 def test_historical_version_one_plan_keeps_its_recorded_roots(store):
     old_plan = [
         dict(id='osm', parent_id=None, phase='osm', label='Prepare OpenStreetMap', description='OSM', order=40),
@@ -211,3 +202,29 @@ def test_historical_version_one_plan_keeps_its_recorded_roots(store):
     assert status['progress_schema_version'] == 2
     assert status['stage_plan'] == initial_progress_plan()
     assert 'osm' not in status['stage_states']
+
+
+def test_progress_plan_rejects_unknown_or_redefined_stage_contracts():
+    from backend.services.pipeline_progress import initial_progress_plan, merge_progress_plan
+
+    with pytest.raises(ValueError, match="Unknown parent"):
+        merge_progress_plan(initial_progress_plan(), [{
+            "id": "future.orphan",
+            "parent_id": "missing",
+            "phase": "missing",
+            "label": "Orphan",
+            "description": "Invalid parent.",
+            "order": 10,
+            "progress_kind": "indeterminate",
+        }])
+
+    with pytest.raises(ValueError, match="definition changed"):
+        merge_progress_plan(initial_progress_plan(), [{
+            "id": "database.validate",
+            "parent_id": "database",
+            "phase": "database",
+            "label": "Renamed during the run",
+            "description": "Conflicting metadata.",
+            "order": 10,
+            "progress_kind": "indeterminate",
+        }])

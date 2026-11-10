@@ -9,6 +9,9 @@ import pytest
 from backend.services import quality_report
 
 
+CODE_MAP = {'schema_version': 1, 'modules': [], 'contracts': [], 'files': [], 'links': [], 'interface': {}}
+
+
 def _example_report():
     return {'schema_version': 1, 'generated_at': datetime.now(timezone.utc).isoformat(), 'completeness': 'partial',
             'fingerprints': {'app': 'current', 'engine': 'before'}, 'revision': {'app': 'sha', 'engine': 'sha'},
@@ -28,6 +31,7 @@ def _publish(root, report, fingerprint=None, engine='sha'):
     if fingerprint is None:
         fingerprint = quality_report.shipped_fingerprint(quality_report.shipped_files(root))
     (published / 'latest.json').write_text(json.dumps(report))
+    (published / 'code-map.json').write_text(json.dumps(CODE_MAP))
     (published / 'publication.json').write_text(json.dumps({
         'app_revision': 'sha', 'run_url': 'https://github.com/example/actions/runs/1', 'shipped_fingerprint': fingerprint}))
 

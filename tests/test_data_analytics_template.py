@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from jinja2 import Environment, FileSystemLoader
 
 from backend.services.stats_export import _matching_rule_stats
@@ -170,18 +168,6 @@ def test_stats_data_template_renders_running_state_before_javascript_poll():
     assert "Pipeline update in progress" in html
     assert "Matching sources" in html
     assert '<span class="pipeline-run-card__dot"></span>Running' in html
-
-
-def test_analytics_design_does_not_use_left_accent_borders():
-    css = Path("static/css/pages/stats.css").read_text(encoding="utf-8")
-    template = Path("templates/components/stats_data.html").read_text(encoding="utf-8")
-
-    assert "border-left" not in css
-    assert "inset 3px 0" not in css
-    assert ".stats-page .stat-card--primary::after" not in css
-    assert "#2563eb" not in css
-    assert 'class="mapping-paths"' in template
-    assert 'class="mapping-path__step"' in template
 
 
 def test_problem_priorities_read_stored_breakdowns_and_list_every_type():

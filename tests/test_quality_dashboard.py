@@ -5,9 +5,7 @@ import pytest
 
 from backend.blueprints import quality
 from backend.services import quality_report
-from tests.test_quality_report import _example_report, _publish
-
-CODE_MAP = {'schema_version': 1, 'modules': [], 'contracts': [], 'files': [], 'links': [], 'interface': {}}
+from tests.test_quality_report import CODE_MAP, _example_report, _publish
 
 
 @pytest.fixture
@@ -61,10 +59,10 @@ def test_serves_report_map_and_measured_source_links(client, published):
     assert data['source_urls']['app'].endswith('/blob/sha/')
 
 
-def test_report_published_without_a_map_still_serves_the_evidence(client, published):
+def test_report_published_without_a_map_is_unavailable(client, published):
     _publish(published, _example_report())
-    data = client.get('/api/quality').get_json()
-    assert data['available'] and data['code_map'] is None
+    (published / quality_report.PUBLISHED / 'code-map.json').unlink()
+    assert client.get('/api/quality').get_json() == {'available': False}
 
 
 def test_changed_code_marks_every_result_stale(client, published):

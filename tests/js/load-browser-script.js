@@ -14,3 +14,9 @@ module.exports = function loadBrowserScript(filename) {
     }
     window.eval(scripts.get(absolutePath) + '\n//# sourceURL=' + absolutePath);
 };
+
+/** Load one map component as the only script that has defined window.MapComponents. */
+module.exports.loadMapComponent = function loadMapComponent(name) {
+    window.MapComponents = undefined;
+    module.exports(path.join(__dirname, '../../static/js/components', name + '.js'));
+};

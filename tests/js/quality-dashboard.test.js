@@ -482,13 +482,6 @@ describe('QualityDashboard', () => {
       expect(document.getElementById('qualityWarningText').textContent).toBe('Measured on an older commit.');
     });
 
-    test('a report without a map keeps the evidence table', async () => {
-      respond({ available: true, report: report(), code_map: null });
-      await window.QualityDashboard.init(document.getElementById('qualityDashboard'));
-      expect(document.getElementById('qualityMapSection').hidden).toBe(true);
-      expect(document.querySelectorAll('#qualityTable tr')).toHaveLength(2);
-    });
-
     /** A Cytoscape stand-in that keeps the added elements, their classes and the selection. */
     function graphCytoscape() {
       let items = [];
