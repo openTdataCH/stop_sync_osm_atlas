@@ -311,3 +311,12 @@ def test_a_task_records_its_file_or_its_error(app, monkeypatch, tmp_path):
         _wait_for_status(task_id, 'error')
         assert async_export.get_progress(task_id)['error'].startswith('No documentation markdown files')
         assert async_export.get_completed_file(task_id) is None
+
+
+def test_templates_render_in_an_export_thread_without_a_request(app):
+    # Export tasks and scripts render the PDF templates with an app context only;
+    # every context processor must work there (the SEO one read `request`).
+    from flask import render_template_string
+
+    with app.app_context():
+        assert render_template_string("{{ seo_robots|default('none') }}") == 'none'

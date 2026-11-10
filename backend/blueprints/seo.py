@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 
-from flask import Blueprint, Response, render_template, request, url_for
+from flask import Blueprint, Response, has_request_context, render_template, request, url_for
 
 from backend.services.docs_sources import build_doc_slug_maps, list_markdown_files
 from backend.services.site_url import site_url
@@ -33,6 +33,9 @@ SITEMAP_ENDPOINTS = (
 
 
 def seo_template_context() -> dict[str, str]:
+    # Export threads and scripts render PDF templates without a request; PDFs have no SEO tags.
+    if not has_request_context():
+        return {}
     has_query_filters = bool(request.query_string)
     indexable = (
         request.endpoint in PUBLIC_HTML_ENDPOINTS
