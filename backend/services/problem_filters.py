@@ -26,12 +26,8 @@ def csv_values(raw_value):
 
 
 def parse_problem_types(raw_value):
-    """The listed problem types; empty for none or "all". The old name "isolated" is "unmatched"."""
-    return [
-        'unmatched' if value == 'isolated' else value
-        for value in csv_values(raw_value)
-        if value != 'all'
-    ]
+    """The listed problem types; empty for none or "all"."""
+    return [value for value in csv_values(raw_value) if value != 'all']
 
 
 def parse_priorities(raw_value):
@@ -70,9 +66,14 @@ def area_condition(area):
                inside(StopsMatched.osm_lat, StopsMatched.osm_lon))
 
 
-def has_problem_condition(problem_types, priorities):
-    """The map entry has one problem of the given types (any visible type when empty) and priorities."""
+def problem_conditions(problem_types, priorities):
+    """A problem of the given types (any visible type when empty) and priorities (any when empty)."""
     conditions = [Problem.problem_type.in_(problem_types or VISIBLE_PROBLEM_TYPES)]
     if priorities:
         conditions.append(Problem.priority.in_(priorities))
-    return StopsMatched.problems.any(and_(*conditions))
+    return conditions
+
+
+def has_problem_condition(problem_types, priorities):
+    """The map entry has one problem of the given types and priorities."""
+    return StopsMatched.problems.any(and_(*problem_conditions(problem_types, priorities)))

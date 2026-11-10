@@ -1,2 +1,0 @@
-eralchemy2>=1.4.1,<2.0
-pygraphviz>=1.14,<2.0

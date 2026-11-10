@@ -5,9 +5,9 @@ import pytest
 
 
 def _documentation_roots():
-    from backend.blueprints.docs import _engine_root
+    from backend.version import engine_dir
 
-    return Path(__file__).resolve().parents[1] / 'documentation', Path(_engine_root()) / 'documentation'
+    return Path(__file__).resolve().parents[1] / 'documentation', engine_dir() / 'documentation'
 
 
 def _document_id(path):
@@ -91,7 +91,7 @@ def _page_header(soup):
 
 def test_docs_portal_labels_engine_and_application_boundaries():
     from backend.app import create_app
-    from backend.blueprints.docs import _engine_version
+    from backend.services.docs_sources import engine_version
     from backend.version import APP_VERSION
     from bs4 import BeautifulSoup
 
@@ -107,10 +107,10 @@ def test_docs_portal_labels_engine_and_application_boundaries():
             node.get_text(' ', strip=True)
             for node in soup.select('#docsSidebar .docs-collection-label')
         }
-        assert 'Engine input integrations' in collection_labels
-        assert 'Matching engine core' in collection_labels
-        assert 'Review application & deployment' in collection_labels
-        assert 'Project overview' not in collection_labels
+        assert collection_labels == {'Matching engine', 'Review application'}
+        # The project collections sit under one "For developers" heading.
+        audience = soup.select('#docsSidebar .docs-audience-heading')
+        assert [node.get_text(strip=True) for node in audience] == ['For users', 'For developers']
 
         # Each project's collections show the version of that project.
         versions = {
@@ -119,9 +119,8 @@ def test_docs_portal_labels_engine_and_application_boundaries():
             for node in soup.select('.docs-collection-version')
         }
         assert versions == {
-            'Engine input integrations': f'v{_engine_version()}',
-            'Matching engine core': f'v{_engine_version()}',
-            'Review application & deployment': f'v{APP_VERSION}',
+            'Matching engine': f'v{engine_version()}',
+            'Review application': f'v{APP_VERSION}',
         }
 
         navbar_version = soup.select_one('.navbar-version--brand')
@@ -130,7 +129,7 @@ def test_docs_portal_labels_engine_and_application_boundaries():
 
         overview_link = soup.find('a', href='/docs/intro')
         assert overview_link is not None
-        assert overview_link.get_text(' ', strip=True) == '0 Project overview'
+        assert overview_link.get_text(' ', strip=True) == '0 User guide'
 
         # Each collection carries its owner, which sets its colour.
         owners = {
@@ -143,7 +142,7 @@ def test_docs_portal_labels_engine_and_application_boundaries():
 
         # The heading leaves the article for the page header, which names
         # the collection, in its owner's colour, and the owner-scoped number.
-        assert _page_header(soup) == ('Matching engine core · E.2.1', 'Reference matching')
+        assert _page_header(soup) == ('Matching engine · E.2.1', 'Reference matching')
         assert soup.select_one('.docs-page-eyebrow')['data-owner'] == 'engine'
         assert soup.select_one('#docs-content-html h1') is None
         pdf = soup.select_one('#docs-page-header [data-pdf-scope="page"]')
@@ -153,14 +152,14 @@ def test_docs_portal_labels_engine_and_application_boundaries():
         assert soup.select('#docs-page-header a') == []
 
         overview = BeautifulSoup(client.get('/docs').data.decode('utf-8'), 'html.parser')
-        assert _page_header(overview) == ('Project overview · 0', 'Project overview')
+        assert _page_header(overview) == ('User guide · 0', 'User guide')
         assert overview.select_one('.docs-page-eyebrow')['data-owner'] == 'shared'
 
         partial = client.get('/docs/database', headers={'X-Docs-Partial': '1'})
         assert partial.status_code == 200
         payload = partial.get_json()
         header = BeautifulSoup(payload['header_html'], 'html.parser')
-        assert header.select_one('.docs-page-eyebrow').get_text(' ', strip=True) == 'Review application & deployment · A.1'
+        assert header.select_one('.docs-page-eyebrow').get_text(' ', strip=True) == 'Review application · A.1'
         assert header.select_one('h1').get_text(strip=True) == 'Database & bundle import'
         assert header.select_one('.docs-page-eyebrow')['data-owner'] == 'app'
         assert header.select_one('[data-pdf-scope="page"]')['data-page-label'] == 'A.1 Database & bundle import'
@@ -187,7 +186,9 @@ def test_docs_portal_uses_project_scoped_section_numbers():
             ('/docs/frontend_asset_management', 'A.3.4', 'Frontend asset management'),
             ('/docs/test', 'A.4', 'Tests & code quality'),
             ('/docs/backend_tests', 'A.4.1', 'Backend tests'),
-            ('/docs/glossary', '0.1', 'Glossary'),
+            ('/docs/using_the_map', '0.1', 'Using the map'),
+            ('/docs/working_through_problems', '0.2', 'Working through problems'),
+            ('/docs/glossary', '0.5', 'Glossary'),
         ):
             node = soup.find('a', href=href)
             assert node is not None, href
@@ -201,10 +202,10 @@ def test_docs_portal_uses_project_scoped_section_numbers():
         assert contributing.get_text(' ', strip=True) == 'Contributing'
 
         web_tests = BeautifulSoup(client.get('/docs/test').data.decode('utf-8'), 'html.parser')
-        assert _page_header(web_tests) == ('Review application & deployment · A.4', 'Tests & code quality')
+        assert _page_header(web_tests) == ('Review application · A.4', 'Tests & code quality')
 
         contributing_page = BeautifulSoup(client.get('/docs/contributing').data.decode('utf-8'), 'html.parser')
-        assert _page_header(contributing_page) == ('Review application & deployment', 'Contributing')
+        assert _page_header(contributing_page) == ('Review application', 'Contributing')
 
 
 def test_docs_sidebar_marks_the_page_being_read():
@@ -238,13 +239,13 @@ def test_app_and_engine_changelogs_have_distinct_canonical_routes():
         app_response = client.get('/docs/changelog')
         assert app_response.status_code == 200
         app_soup = BeautifulSoup(app_response.data.decode('utf-8'), 'html.parser')
-        assert _page_header(app_soup) == ('Review application & deployment', 'Review application changelog')
+        assert _page_header(app_soup) == ('Review application', 'Review application changelog')
         assert app_soup.find('a', href='/docs/engine_changelog') is not None
 
         engine_response = client.get('/docs/engine_changelog')
         assert engine_response.status_code == 200
         engine_soup = BeautifulSoup(engine_response.data.decode('utf-8'), 'html.parser')
-        assert _page_header(engine_soup) == ('Matching engine core', 'Matching engine changelog')
+        assert _page_header(engine_soup) == ('Matching engine', 'Matching engine changelog')
         assert engine_soup.find('a', href='/docs/changelog') is not None
 
 
@@ -268,37 +269,50 @@ def test_pdf_document_selection_keeps_engine_and_app_sections_distinct():
     from documentation.pdf_generator.build_docs_pdf import _prepare_document, _sorted_docs
 
     all_docs = _sorted_docs()
-    relative = [_document_id(path) for path in all_docs]
-    assert relative[0] == 'documentation/0. Intro.md'
-    assert 'engine/documentation/2. Matching process.md' in relative
-    assert 'documentation/2. Web app.md' in relative
-    assert relative.index('engine/documentation/2. Matching process.md') < relative.index('documentation/2. Web app.md')
+    assert all_docs[0] == 'documentation/0. Intro.md'
+    assert 'engine/documentation/2. Matching process.md' in all_docs
+    assert 'documentation/2. Web app.md' in all_docs
+    assert all_docs.index('engine/documentation/2. Matching process.md') < all_docs.index('documentation/2. Web app.md')
 
     engine_only = _sorted_docs(['engine:2'])
     assert engine_only
-    assert all(path.parent == _documentation_roots()[1] for path in engine_only)
-    assert {path.name for path in engine_only} >= {'2. Matching process.md', '2.1 Reference matching.md'}
+    assert all(doc.startswith('engine/documentation/2') for doc in engine_only)
+    assert {'engine/documentation/2. Matching process.md', 'engine/documentation/2.1 Reference matching.md'} <= set(engine_only)
 
     app_only = _sorted_docs(['app:2'])
     assert app_only
-    assert all(path.parent == _documentation_roots()[0] for path in app_only)
-    assert {path.name for path in app_only} >= {'2. Web app.md', '2.8 Documentation Page Delivery.md'}
+    assert all(doc.startswith('documentation/2') for doc in app_only)
+    assert {'documentation/2. Web app.md', 'documentation/2.8 Documentation Page Delivery.md'} <= set(app_only)
 
     # A single page, alone or with sections, keeps the sidebar order.
     page = _sorted_docs(included_pages=['engine/documentation/2.1 Reference matching.md'])
-    assert [_document_id(path) for path in page] == ['engine/documentation/2.1 Reference matching.md']
+    assert page == ['engine/documentation/2.1 Reference matching.md']
     mixed = _sorted_docs(['app:2'], ['engine/documentation/2.1 Reference matching.md'])
-    assert _document_id(mixed[0]) == 'engine/documentation/2.1 Reference matching.md'
+    assert mixed[0] == 'engine/documentation/2.1 Reference matching.md'
     assert mixed[1:] == app_only
     assert _sorted_docs(included_pages=['documentation/No such page.md']) == []
 
+    # Unnumbered pages are selected by the keys the export dialog sends.
     changelogs = _sorted_docs(['app:extra-changelog', 'engine:extra-changelog'])
-    assert len(changelogs) == 2
+    assert changelogs == ['engine/documentation/Changelog.md', 'documentation/Changelog.md']
     combined = _prepare_document(changelogs, include_cover=False)
-    assert 'id="doc-app-changelog"' in combined
-    assert 'id="doc-engine-changelog"' in combined
-    assert '](#doc-app-changelog)' in combined
-    assert '](#doc-engine-changelog)' in combined
+    assert 'id="doc-changelog"' in combined
+    assert 'id="doc-engine_changelog"' in combined
+    assert '](#doc-changelog)' in combined
+    assert '](#doc-engine_changelog)' in combined
+
+
+def test_every_section_of_the_export_dialog_selects_pages():
+    """The dialog sends each section's export key; the PDF must find its pages."""
+    from backend.services.docs_sources import build_doc_collections, build_doc_slug_maps, list_markdown_files
+    from documentation.pdf_generator.build_docs_pdf import _sorted_docs
+
+    files = list_markdown_files()
+    collections = build_doc_collections(files, build_doc_slug_maps(files)[0])
+    sections = [section for collection in collections for section in collection['sections']]
+    assert sections
+    empty = [section['export_key'] for section in sections if not _sorted_docs([section['export_key']])]
+    assert not empty
 
 
 def test_auto_linking_of_repo_files():
@@ -341,11 +355,10 @@ def test_auto_linking_of_repo_files():
 
         # Exercise automatic Mermaid linking with a stable app-owned code file,
         # independently of the current source-acquisition diagram content.
-        from backend.blueprints.docs import _auto_link_code_files
+        from backend.services.docs_render import auto_link_code_files
         with app.test_request_context():
-            linked = _auto_link_code_files('```mermaid\nflowchart LR\n    D[docs.py]\n```')
+            linked = auto_link_code_files('```mermaid\nflowchart LR\n    D[docs.py]\n```')
         assert 'click D' in linked and '/backend/blueprints/docs.py' in linked
-
 
 
 def test_docs_link_to_the_code_quality_dashboard():

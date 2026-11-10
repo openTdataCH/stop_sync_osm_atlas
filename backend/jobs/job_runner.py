@@ -31,8 +31,7 @@ from backend.services.pipeline_status import (
     start_run,
 )
 from backend.services.time_utils import format_zurich_timestamp, get_zurich_now
-from backend.importing.importer import import_bundle, get_refresh_scope_tables, PublishedDatasetError
-from backend.jobs.job_types import PipelineRunType
+from backend.importing.importer import import_bundle, PublishedDatasetError
 
 LOGGER = logging.getLogger(__name__)
 LOG_LEVEL = os.getenv("PIPELINE_LOG_LEVEL", "INFO").upper()
@@ -65,16 +64,6 @@ def _handle_engine_output_line(line: str, *, run_id=None) -> None:
 def _record_import_stage_event(event: dict, *, run_id=None) -> None:
     """The importer's stage events carry no schema version; they are this pipeline's, so it stamps its own."""
     record_progress_event({**event, "progress_schema_version": PROGRESS_SCHEMA_VERSION}, run_id=run_id)
-
-
-def _publish_refresh_scope(run_type: PipelineRunType) -> tuple[list[str], list[str]]:
-    rewritten_tables, reused_tables = get_refresh_scope_tables()
-    set_status(
-        run_type=run_type.value,
-        refresh_scope_tables_rewritten=rewritten_tables,
-        refresh_scope_tables_reused=reused_tables,
-    )
-    return rewritten_tables, reused_tables
 
 
 @contextlib.contextmanager
@@ -158,27 +147,10 @@ def _run_subprocess(command: list[str], phase: str, message: str, maintenance: b
     LOGGER.info("Step %s completed successfully in %.2fs", phase, elapsed)
 
 
-def _record_data_updated_timestamp(
-    run_type: PipelineRunType | None = None,
-    rewritten_tables: list[str] | None = None,
-    reused_tables: list[str] | None = None,
-) -> str:
+def _record_data_updated_timestamp() -> str:
     last_pipeline_data_import_ended_at = format_zurich_timestamp(get_zurich_now())
-    meta_fields = {"last_pipeline_data_import_ended_at": last_pipeline_data_import_ended_at}
-    if run_type is not None:
-        meta_fields["last_run_type"] = run_type.value
-    if rewritten_tables is not None:
-        meta_fields["refresh_scope_tables_rewritten"] = list(rewritten_tables)
-    if reused_tables is not None:
-        meta_fields["refresh_scope_tables_reused"] = list(reused_tables)
-    data_meta.update_data_meta(**meta_fields)
+    data_meta.update_data_meta(last_pipeline_data_import_ended_at=last_pipeline_data_import_ended_at)
     set_data_updated(last_pipeline_data_import_ended_at)
-    if run_type is not None:
-        set_status(
-            run_type=run_type.value,
-            refresh_scope_tables_rewritten=list(rewritten_tables or []),
-            refresh_scope_tables_reused=list(reused_tables or []),
-        )
     LOGGER.info("Data update timestamp saved: %s", last_pipeline_data_import_ended_at)
     return last_pipeline_data_import_ended_at
 
@@ -232,8 +204,6 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
             for phase in ('source_check', 'source_files', 'matching_inputs', 'stop_matching', 'route_matching'):
                 set_phase_outcome(phase, 'skipped')
             set_phase_outcome('bundle', 'reused')
-        run_type = PipelineRunType.COMPLETE
-        _publish_refresh_scope(run_type)
         if mode == 'import':
             configured = os.getenv('PIPELINE_BUNDLE')
             if not configured:
@@ -262,8 +232,7 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
         # Input problems the engine reported without stopping the run.
         warnings[:0] = [str(warning) for warning in (manifest.get('metadata') or {}).get('warnings') or []]
         set_status(expected_run_id=run_id, dataset_published=True)
-        rewritten, reused = get_refresh_scope_tables()
-        _record_data_updated_timestamp(run_type, rewritten, reused)
+        _record_data_updated_timestamp()
         data_meta.update_data_meta(active_run_id=manifest['run_id'], result_schema_version=manifest['schema_version'])
         try:
             refresh_stats_metadata()
@@ -275,7 +244,7 @@ def run_pipeline(mode: str, trigger: str = "manual") -> int:
             warnings=warnings,
             run_id=run_id,
             message=(
-                f"Pipeline run completed successfully ({mode}, {run_type.value}) at "
+                f"Pipeline run completed successfully ({mode}) at "
                 f"{datetime.now(UTC).isoformat().replace('+00:00', 'Z')}"
             )
         )

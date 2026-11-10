@@ -1,18 +1,43 @@
 import json
 
+from sqlalchemy.orm import aliased, joinedload
+
 from backend.extensions import db
-from backend.query_builder import QueryBuilder
+from backend.models import AtlasStop, StopsMatched
+from backend.query_builder import apply_common_filters
 from backend.services.matching_rules import match_types_for_filter
 from backend.services.problem_filters import parse_priorities, parse_problem_types
 
-_query_builder_instance = None
+
+def filtered_stops_query(args):
+    """The stops_matched rows the map's filters in ``args`` keep: attributes, scope and duplicates.
+
+    The map data, the summary statistics, the random stop and the Top N overlay
+    all start from this query. See documentation/2.2 Filters and Search logic.md.
+    """
+    query = apply_common_filters(StopsMatched.query, parse_filter_params(args))
+    resolved_filters = resolve_stop_type_match_filters(args.get('stop_filter'), args.get('match_method'))
+    scope_condition = build_stop_scope_condition(StopsMatched, resolved_filters)
+    if scope_condition is not None:
+        query = query.filter(scope_condition)
+    if args.get('show_duplicates_only', 'false').lower() == 'true':
+        query = query.filter(StopsMatched.atlas_stop_details.has(build_atlas_duplicate_membership_condition()))
+    return query
 
 
-def get_query_builder():
-    global _query_builder_instance
-    if _query_builder_instance is None:
-        _query_builder_instance = QueryBuilder(db.session)
-    return _query_builder_instance
+def parse_top_n(args):
+    """The Top N filter: a positive number of matches, or None."""
+    try:
+        top_n = int(args.get('top_n') or 0)
+    except ValueError:
+        return None
+    return top_n if top_n > 0 else None
+
+
+def top_distance_matches(query, count):
+    """The ``count`` matched rows of ``query`` with the largest distance between ATLAS and OSM."""
+    return query.filter(StopsMatched.stop_type == 'matched', StopsMatched.distance_m.isnot(None)) \
+        .order_by(StopsMatched.distance_m.desc()).limit(count)
 
 
 def normalize_stop_filter_values(stop_filter_values):
@@ -116,9 +141,6 @@ def build_atlas_duplicate_membership_condition():
     - non-representative members have ``representative_sloid`` set
     - representative members are referenced by at least one sibling row
     """
-    from sqlalchemy.orm import aliased
-    from backend.models import AtlasStop
-
     sibling = aliased(AtlasStop)
     is_representative_with_siblings = db.select(1).select_from(sibling).where(
         sibling.representative_sloid == AtlasStop.sloid
@@ -245,23 +267,10 @@ def parse_filter_params(request_args):
 
 
 def optimize_query_for_endpoint(query, endpoint_type):
-    eager_load_config = {
-        'stats': {'atlas': True, 'osm': False},
-        'search': {'atlas': True, 'osm': True},
-        'data': {'atlas': True, 'osm': True},
-        'problems': {'atlas': True, 'osm': True},
-        'reports': {'atlas': True, 'osm': False}
-    }
-    config = eager_load_config.get(endpoint_type, {'atlas': True, 'osm': True})
-    from sqlalchemy.orm import joinedload
-    from backend.models import StopsMatched
-    options = []
-    if config['atlas']:
-        options.append(joinedload(StopsMatched.atlas_stop_details))
-    if config['osm']:
+    """Load each row's ATLAS details with it, and its OSM details too except for the 'reports' endpoint."""
+    options = [joinedload(StopsMatched.atlas_stop_details)]
+    if endpoint_type != 'reports':
         options.append(joinedload(StopsMatched.osm_node_details))
-    if options:
-        query = query.options(*options)
-    return query
+    return query.options(*options)
 
 

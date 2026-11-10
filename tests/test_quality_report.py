@@ -123,7 +123,7 @@ def test_ordinary_document_does_not_read_artifacts(monkeypatch):
 def test_pdf_export_expands_quality_evidence(tmp_path, monkeypatch):
     from documentation.pdf_generator import build_docs_pdf
 
-    document = build_docs_pdf.DOCS_DIR / '4.3 Code Quality.md'
+    document = 'documentation/4.3 Code Quality.md'
     # Read the evidence from an empty folder; the rest of the bundle uses the real checkout.
     monkeypatch.setattr(build_docs_pdf, 'replace_quality_placeholder',
                         lambda text, root: quality_report.replace_quality_placeholder(text, tmp_path))
@@ -142,9 +142,8 @@ def test_pdf_cache_refreshes_when_quality_evidence_or_renderer_changes(tmp_path,
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text('fixture')
         os.utime(path, (100, 100))
-    monkeypatch.setattr(docs, '_repo_root', lambda: str(tmp_path))
-    monkeypatch.setattr(docs, '_get_docs_dir', lambda: str(tmp_path / 'documentation'))
-    monkeypatch.setattr(docs, '_get_docs_dirs', lambda: {'app': str(tmp_path / 'documentation')})
+    monkeypatch.setattr(docs, 'APP_ROOT', tmp_path)
+    monkeypatch.setattr(docs, 'docs_dirs', lambda: {'app': str(tmp_path / 'documentation')})
     generated = []
 
     def generate(command, **kwargs):

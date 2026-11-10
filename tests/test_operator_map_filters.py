@@ -7,12 +7,12 @@ from urllib.parse import parse_qs, urlparse
 from backend.services import operator_coverage
 from backend.models import AtlasStop, OsmNode, StopsMatched
 from backend.queries.helpers import parse_filter_params
-from backend.query_builder import QueryBuilder
+from backend.query_builder import apply_common_filters
 from tests.test_operators_page import _DummyPagination
 
 
 def _matching_stop_ids(filters):
-    query = QueryBuilder(None).apply_common_filters(StopsMatched.query.with_entities(StopsMatched.id), filters)
+    query = apply_common_filters(StopsMatched.query.with_entities(StopsMatched.id), filters)
     return sorted(stop_id for (stop_id,) in query.all())
 
 
@@ -37,9 +37,9 @@ def test_operator_cards_link_to_matching_map_filters(client, monkeypatch):
         type('Operator', (), {'atlas_business_org_abbr': 'EX', 'atlas_business_org_name': 'Example', 'sboid': None})(),
         {'EX': 3}, {'EX': {'matched_atlas_stop_count': 3, 'matched_osm_stop_count': 3, 'missing_osm_operator_wikidata_count': 2}},
         {'EX': [{'osm_operator': 'Example & Co', 'matched_stop_count': 3}]},
-        {'EX': [{'osm_operator_wikidata': 'Q1', 'matched_stop_count': 3}]}, True,
+        {'EX': [{'osm_operator_wikidata': 'Q1', 'matched_stop_count': 3}]},
     )
-    monkeypatch.setattr(operator_coverage, 'load_operators_view', lambda **kwargs: ([operator], _DummyPagination(), True))
+    monkeypatch.setattr(operator_coverage, 'load_operators_view', lambda **kwargs: ([operator], _DummyPagination()))
     response = client.get('/operators')
     assert response.status_code == 200
     links = re.findall(r'class="operator-breakdown__map-link" href="([^"]+)"', response.text)
@@ -58,12 +58,6 @@ def test_wikidata_options_are_distinct_sorted_and_nonempty(sqlite_tables, client
     response = client.get('/api/osm_operator_wikidata')
     assert response.status_code == 200
     assert response.json == {'operators': ['Q1', 'Q2'], 'total': 2}
-
-
-def test_wikidata_options_tolerate_uninitialized_database(client):
-    response = client.get('/api/osm_operator_wikidata')
-    assert response.status_code == 200
-    assert response.json == {'operators': [], 'total': 0}
 
 
 @pytest.mark.parametrize(('operator_filter', 'expected'), [

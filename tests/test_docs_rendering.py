@@ -21,11 +21,12 @@ def app():
 
 
 def _render(app, markdown, doc='documentation/2.8 Documentation Page Delivery.md'):
-    from backend.blueprints.docs import build_doc_slug_maps, _convert_markdown_to_html, list_markdown_files
+    from backend.services.docs_render import convert_markdown_to_html
+    from backend.services.docs_sources import build_doc_slug_maps, list_markdown_files
 
     with app.test_request_context():
         file_to_slug, _ = build_doc_slug_maps(list_markdown_files())
-        return _convert_markdown_to_html(markdown, file_to_slug, doc)
+        return convert_markdown_to_html(markdown, file_to_slug, doc)
 
 
 def test_code_keeps_paths_links_placeholders_and_alerts_literal(app):
@@ -72,6 +73,28 @@ def test_only_written_out_urls_become_links(app):
     assert 'href="https://example.org/page"' in html
 
 
+def test_a_list_of_card_items_becomes_cards(app):
+    html = _render(app, '\n'.join([
+        '- <i class="fas fa-map"></i> **Map** · [Find a stop](2.1%20Map%20Data%20Loading%20and%20Rendering.md#zoom-levels) — Every stop, with `filters`.',
+        '- <i class="fas fa-route"></i> **Routes** · [Compare lines](2.6%20Routes%20Pages.md) — Lines and variants.',
+    ]))
+    assert '<ul>' not in html
+    cards = re.findall(r'<a class="docs-card" href="([^"]+)"', html)
+    assert cards == ['/docs/map_data_loading_and_rendering#zoom-levels', '/docs/routes_pages']
+    assert '<span class="docs-card-tag">Map</span>' in html
+    assert '<span class="docs-card-title">Find a stop</span>' in html
+    assert '<span class="docs-card-text">Every stop, with <code>filters</code>.</span>' in html
+    assert '<i class="fas fa-map"></i>' in html
+
+
+def test_a_list_with_one_ordinary_item_stays_a_list(app):
+    html = _render(app, '\n'.join([
+        '- <i class="fas fa-map"></i> **Map** · [Find a stop](2.6%20Routes%20Pages.md) — Every stop.',
+        '- An ordinary item with a [link](2.6%20Routes%20Pages.md).',
+    ]))
+    assert '<ul>' in html and 'docs-card' not in html
+
+
 def test_single_newlines_do_not_break_sentences(app):
     assert '<br' not in _render(app, 'The first half of a sentence\ncontinues on the next line.')
 
@@ -93,18 +116,19 @@ def test_svg_diagrams_are_inlined_so_their_links_work(app):
 
     # Other images, SVGs not drawn by the kit (they may carry stylesheets)
     # and SVGs outside an images/ directory stay images.
-    for markdown in ('![Map](images/review-app-map-screenshot.png)',
-                     '![Overlap](images/dependency_overlap.svg)',
-                     '![Logo](images/../../static/osm.svg)',
-                     '![Missing](images/no-such-diagram.svg)'):
-        html = _render(app, markdown, doc='documentation/0. Intro.md')
+    intro, matching = 'documentation/0. Intro.md', 'engine/documentation/2. Matching process.md'
+    for markdown, doc in (('![Map](images/review-app-map-screenshot.png)', intro),
+                          ('![Pair](images/osm-pair-match-illustration.svg)', matching),
+                          ('![Logo](images/../../static/osm.svg)', intro),
+                          ('![Missing](images/no-such-diagram.svg)', intro)):
+        html = _render(app, markdown, doc=doc)
         assert '<img' in html and '<svg' not in html, markdown
 
 
 @pytest.fixture(scope='module')
 def pages(app):
     """The rendered article of every documentation page, by address."""
-    from backend.blueprints.docs import build_doc_slug_maps, list_markdown_files
+    from backend.services.docs_sources import build_doc_slug_maps, list_markdown_files
 
     file_to_slug, _ = build_doc_slug_maps(list_markdown_files())
     pages = {}
@@ -195,5 +219,4 @@ def test_web_app_links_follow_the_serving_site_and_stay_text_in_the_pdf(app):
 
     html = _render(app, 'Open the [code quality dashboard](/quality).')
     assert 'href="/quality"' in html
-    document = pdf.DOCS_DIR / '4.3 Code Quality.md'
-    assert pdf._rewrite_repo_links('Open the [code quality dashboard](/quality).', document) == 'Open the code quality dashboard.'
+    assert pdf._unlink_site_pages('Open the [code quality dashboard](/quality).') == 'Open the code quality dashboard.'

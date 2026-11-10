@@ -1,28 +1,25 @@
 PYTHON ?= python3
-ENGINE_ROOT ?= ../engine
-ENGINE_PYTHON ?= /opt/engine-venv/bin/python
 QUALITY_COMPOSE = docker compose -p osm-atlas-quality -f compose.quality.yml
 
-.PHONY: dev quality-fast quality quality-ci quality-fast-container quality-down deploy-report
+.PHONY: dev quality-fast quality quality-fast-container quality-down deploy-report
 
 # Reconcile bind mounts with this checkout and enable Flask's source reloader.
 dev:
 	FLASK_DEBUG=1 docker compose up --build -d db migrator app
 
-# Native fast checks use Python 3.13, Node 22, requirements-quality.txt and npm ci.
-quality-fast:
-	$(PYTHON) scripts/run_quality.py fast --engine-root "$(ENGINE_ROOT)"
+# Every target finds the engine checkout in ENGINE_DIR (`make quality ENGINE_DIR=path`;
+# the Docker targets also read .env), else ../engine.
 
-# The supported complete local path includes a disposable PostGIS database.
+# Native fast checks use Python 3.13, Node 22, requirements.txt, requirements-dev.txt and npm ci.
+quality-fast:
+	$(PYTHON) scripts/run_quality.py fast
+
+# The complete checks, locally and in CI: Python 3.13, Node 22 and a disposable PostGIS database in Docker.
 quality:
-	ENGINE_ROOT="$(ENGINE_ROOT)" $(QUALITY_COMPOSE) run --build --rm quality
+	$(QUALITY_COMPOSE) run --build --rm quality
 
 quality-fast-container:
-	ENGINE_ROOT="$(ENGINE_ROOT)" $(QUALITY_COMPOSE) run --build --rm --no-deps quality python scripts/run_quality.py fast --engine-root /workspace/engine
-
-# CI supplies the same versions and disposable database without nesting Docker.
-quality-ci:
-	$(PYTHON) scripts/run_quality.py full --engine-root "$(ENGINE_ROOT)" --engine-python "$(ENGINE_PYTHON)"
+	$(QUALITY_COMPOSE) run --build --rm --no-deps quality python scripts/run_quality.py fast --engine-dir /workspace/engine
 
 quality-down:
 	$(QUALITY_COMPOSE) down --volumes

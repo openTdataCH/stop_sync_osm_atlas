@@ -1,7 +1,7 @@
 import pytest
 
 from backend.models import AtlasStop, DatasetPublication, OsmNode, OsmStop, OsmStopMember, Problem, StopsMatched
-from backend.query_builder import QueryBuilder
+from backend.query_builder import apply_common_filters
 from backend.queries.helpers import build_match_method_conditions, build_stop_scope_condition, parse_filter_params, resolve_stop_type_match_filters
 
 # One entry per kind of row the filters tell apart, named by its OSM element:
@@ -51,7 +51,7 @@ def _in_scope(stop_filter, match_method):
 
 
 def _with_filters(filters):
-    return _names(QueryBuilder(None).apply_common_filters(StopsMatched.query, filters))
+    return _names(apply_common_filters(StopsMatched.query, filters))
 
 
 def test_matched_methods_apply_without_master_stop_type():
@@ -196,7 +196,7 @@ def test_identifier_filters_keep_whole_identifiers_only(problems_db):
     session.commit()
 
     def kept(value, filter_type):
-        query = QueryBuilder(None).apply_common_filters(
+        query = apply_common_filters(
             StopsMatched.query, {'filter_values': [value], 'filter_types': [filter_type]})
         return sorted(row.osm_node_id for row in query.all())
 

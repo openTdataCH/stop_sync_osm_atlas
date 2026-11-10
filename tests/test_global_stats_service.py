@@ -1,32 +1,23 @@
-from unittest.mock import patch
-
+from backend.models import AtlasStop, OsmNode, OsmStop, OsmStopMember, StopsMatched
 from backend.services.global_stats import compute_global_stats_payload
 from backend.queries.helpers import build_atlas_duplicate_membership_condition
 
 
-def test_compute_global_stats_payload_uses_sql_source_of_truth():
-    dummy_session = object()
-    expected_payload = {
-        'total_atlas_stops': 1,
-        'matched_atlas_stops': 1,
-        'total_osm_stops': 1,
-        'matched_osm_stops': 1,
-        'total_osm_nodes': 1,
-        'matched_osm_nodes': 1,
-        'matched_pairs_count': 1,
-        'unmatched_entities_count': 0,
-    }
+def test_top_n_counts_only_the_matches_with_the_largest_distance(sqlite_tables):
+    session = sqlite_tables(AtlasStop, OsmNode, StopsMatched, OsmStop, OsmStopMember)
+    for index, distance in enumerate((5.0, 50.0, 20.0, None)):
+        session.add(StopsMatched(sloid=f's{index}', osm_node_id=f'n{index}', stop_type='matched', distance_m=distance))
+    session.add(StopsMatched(sloid='alone', stop_type='atlas_unmatched'))
+    session.commit()
 
-    with patch('backend.services.global_stats._compute_global_stats_sql', return_value=expected_payload) as mocked_sql:
-        payload = compute_global_stats_payload({}, dummy_session)
+    everything = compute_global_stats_payload({})
+    assert (everything['total_atlas_stops'], everything['matched_pairs_count']) == (5, 4)
 
-    mocked_sql.assert_called_once_with({}, dummy_session)
-    assert payload == expected_payload
+    top_two = compute_global_stats_payload({'top_n': '2'})
+    assert (top_two['total_atlas_stops'], top_two['matched_pairs_count'], top_two['total_osm_nodes']) == (2, 2, 2)
 
 
 def test_duplicate_membership_is_structural_not_the_stored_group_list(problems_db):
-    from backend.models import AtlasStop
-
     problems_db.add_all([
         AtlasStop(sloid='representative'),
         AtlasStop(sloid='member', representative_sloid='representative'),

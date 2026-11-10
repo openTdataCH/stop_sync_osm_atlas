@@ -77,18 +77,14 @@ def test_focus_respects_the_filters(client, ranked_stops):
     assert excluded['page'] == 2
 
 
-def test_descending_priority_and_unfocused_requests(client, ranked_stops):
-    # Descending: [c/301 (P3), way (P3)], [c/300 (P2), a (P1)], [b (P1)].
-    descending = get_problems(client, sort_order='desc', focus_sloid='ch:1:sloid:a')
-    assert descending['page'] == 2
-    assert ('ch:1:sloid:a', None) in ids(descending)
-
+def test_an_unfocused_request_lists_stops_by_their_most_urgent_problem(client, ranked_stops):
     plain = get_problems(client)
     assert 'focus_found' not in plain
-    assert plain['page'] == 1
-
-    by_distance = get_problems(client, problem_type='distance', sort_by='distance', focus_sloid='ch:1:sloid:a')
-    assert by_distance['focus_found'] is False
+    assert (plain['page'], plain['total']) == (1, 5)
+    # Page 1 holds the stops a and b with all their problems, b's P1 problem before its P3 problem.
+    assert ids(plain) == [('ch:1:sloid:a', None), ('ch:1:sloid:b', None), ('ch:1:sloid:b', None)]
+    assert [(row['problem'], row['priority']) for row in plain['problems']] == [
+        ('distance', 1), ('unmatched', 1), ('attributes', 3)]
 
 
 def test_focus_finds_a_duplicate_group_by_any_member(client, problems_db):

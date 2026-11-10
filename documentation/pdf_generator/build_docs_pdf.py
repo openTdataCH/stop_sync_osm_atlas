@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import html
 import json
-import os
 import re
 import sys
 import textwrap
@@ -20,34 +19,25 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from backend.services.docs_order import doc_sort_key
+# The pages, their order, section keys and links are the portal's.
+from backend.services.docs_sources import (
+    build_doc_collections, build_doc_slug_maps, list_markdown_files, normalize_section_key, reading_order,
+    rewrite_doc_links, rewrite_repo_links, source_path,
+)
 from backend.services.docs_stats import (
     load_stats_for_docs, replace_stats_placeholders, convert_github_alerts_to_html, get_canonical_palette_html,
     heading_slug,
 )
 from backend.services.quality_report import replace_quality_placeholder
-from backend.version import engine_blob_base
 
 
 DOCS_DIR = REPO_ROOT / 'documentation'
-_configured_engine_dir = os.getenv('ENGINE_DIR', '').strip()
-if _configured_engine_dir:
-    ENGINE_ROOT = Path(_configured_engine_dir)
-    if not ENGINE_ROOT.is_absolute():
-        ENGINE_ROOT = (REPO_ROOT / ENGINE_ROOT).resolve()
-elif (REPO_ROOT / 'engine' / 'pyproject.toml').is_file():
-    ENGINE_ROOT = REPO_ROOT / 'engine'
-else:
-    ENGINE_ROOT = REPO_ROOT.parent / 'engine'
-ENGINE_DOCS_DIR = ENGINE_ROOT / 'documentation'
-DOC_SOURCE_DIRS = {'app': DOCS_DIR, 'engine': ENGINE_DOCS_DIR}
 OUTPUT_DIR = DOCS_DIR / 'generated'
 DIAGRAMS_DIR = OUTPUT_DIR / 'diagrams'
 STYLE_PATH = DOCS_DIR / 'pdf_generator' / 'docs_print.css'
 COMBINED_MD_PATH = OUTPUT_DIR / 'stop_sync_osm_atlas_docs_bundle.md'
 OUTPUT_HTML_PATH = OUTPUT_DIR / 'stop_sync_osm_atlas_docs_bundle.html'
 OUTPUT_PDF_PATH = OUTPUT_DIR / 'stop_sync_osm_atlas_documentation.pdf'
-GITHUB_BLOB_BASE = 'https://github.com/openTdataCH/stop_sync_osm_atlas/blob/main/'
 SVG_NS = 'http://www.w3.org/2000/svg'
 XHTML_NS = 'http://www.w3.org/1999/xhtml'
 MERMAID_CONFIG_PATH = DOCS_DIR / 'pdf_generator' / 'mermaid_render_config.json'
@@ -73,134 +63,27 @@ def _parse_svg_number(value: str | None) -> float:
         return 0.0
 
 
-def _slugify(text: str) -> str:
-    slug = text.lower()
-    slug = re.sub(r'\.md$', '', slug)
-    slug = re.sub(r'[^a-z0-9]+', '-', slug)
-    return slug.strip('-')
+def _sorted_docs(included_sections: list[str] | None = None, included_pages: list[str] | None = None) -> list[str]:
+    """Documentation pages (logical paths) in sidebar order, optionally only the selected ones.
 
-
-def _top_level_section_key(filename: str) -> str | None:
-    stem = Path(filename).stem
-    token = stem.split(' ', 1)[0]
-    token = token.rstrip('.')
-    if not token:
-        return None
-    head = token.split('.', 1)[0]
-    return head if head.isdigit() else None
-
-
-def _normalize_section_key(value: str) -> str | None:
-    if value is None:
-        return None
-    text = str(value).strip().rstrip('.')
-    if not text:
-        return None
-    namespace = ''
-    if ':' in text:
-        prefix, text = text.split(':', 1)
-        prefix = prefix.strip().lower()
-        if prefix not in DOC_SOURCE_DIRS:
-            return None
-        namespace = f'{prefix}:'
-    head = text.split('.', 1)[0]
-    if head.isdigit():
-        return f'{namespace}{head}'
-    if namespace and re.fullmatch(r'[a-z0-9_-]+', text):
-        return f'{namespace}{text}'
-    return None
-
-
-def _doc_source_key(path: Path) -> str:
-    resolved = path.resolve()
-    for source_key, source_dir in DOC_SOURCE_DIRS.items():
-        if resolved.parent == source_dir.resolve():
-            return source_key
-    raise ValueError(f'Unknown documentation source: {path}')
-
-
-def _doc_section_key(path: Path) -> str:
-    source_key = _doc_source_key(path)
-    top_key = _top_level_section_key(path.name)
-    if top_key:
-        return f'{source_key}:{top_key}'
-    return f'{source_key}:extra-{_slugify(path.stem)}'
-
-
-def _sorted_docs(included_sections: list[str] = None, included_pages: list[str] = None) -> list[Path]:
-    """Documentation pages in sidebar order, optionally only the selected ones.
-
-    Sections are owner-qualified keys (``engine:2``); pages are paths in the
-    portal's logical layout (``engine/documentation/2.1 Reference matching.md``).
+    Sections are the sidebar's owner-qualified keys (``engine:2``,
+    ``engine:extra-changelog``), or a bare number for both owners; pages are
+    logical paths such as ``engine/documentation/2.1 Reference matching.md``.
     """
-    app_docs = [path for path in DOCS_DIR.glob('*.md') if path.is_file()]
-    engine_docs = [path for path in ENGINE_DOCS_DIR.glob('*.md') if path.is_file()]
-    overview = [path for path in app_docs if _top_level_section_key(path.name) == '0']
-    app_reference = [path for path in app_docs if path not in overview]
-    docs = (
-        sorted(overview, key=lambda path: doc_sort_key(path.name))
-        + sorted(engine_docs, key=lambda path: doc_sort_key(path.name))
-        + sorted(app_reference, key=lambda path: doc_sort_key(path.name))
-    )
-    if included_sections is None and included_pages is None:
-        return docs
-    normalized_sections = {
-        key for key in (_normalize_section_key(section) for section in included_sections or ())
-        if key is not None
-    }
+    files = list_markdown_files()
+    collections = build_doc_collections(files, build_doc_slug_maps(files)[0])
+    everything = included_sections is None and included_pages is None
+    keys = {normalize_section_key(section) for section in included_sections or ()}
     pages = set(included_pages or ())
     return [
-        doc for doc in docs
-        if _doc_section_key(doc) in normalized_sections
-        or _top_level_section_key(doc.name) in normalized_sections
-        or _logical_doc_path(doc) in pages
+        doc_id for _, section, doc_id in reading_order(collections)
+        if everything or doc_id in pages or section['export_key'] in keys or str(section['number']) in keys
     ]
-
-
-def _doc_anchor_map(doc_paths: list[Path]) -> dict[str, str]:
-    return {
-        str(path.resolve()): f'doc-{_doc_source_key(path)}-{_slugify(path.stem)}'
-        for path in doc_paths
-    }
 
 
 def _section_anchor(doc_anchor: str, fragment: str) -> str:
     """Anchor of a heading inside one document of the combined PDF."""
     return f'{doc_anchor}--{fragment}' if fragment else doc_anchor
-
-
-def _rewrite_internal_doc_links(
-    content: str,
-    anchor_map: dict[str, str],
-    current_doc: Path,
-) -> str:
-    pattern = re.compile(r'(?<!!)\[([^\]]+)\]\(([^)]+\.md(?:#[^)]+)?)\)')
-
-    def replace(match: re.Match[str]) -> str:
-        label = match.group(1)
-        href = match.group(2)
-        fragment = href.split('#', 1)[1] if '#' in href else ''
-        app_docs_prefix = (
-            'https://github.com/openTdataCH/stop_sync_osm_atlas/'
-            'blob/main/documentation/'
-        )
-        if href.startswith(app_docs_prefix):
-            path_part = href[len(app_docs_prefix):].split('#', 1)[0]
-            target = (DOCS_DIR / unquote(path_part)).resolve()
-        elif href.startswith(('http://', 'https://', '/')):
-            return match.group(0)
-        else:
-            path_part = href.split('#', 1)[0]
-            target = (current_doc.parent / unquote(path_part)).resolve()
-        logical_engine_root = REPO_ROOT / 'engine'
-        if target.is_relative_to(logical_engine_root):
-            target = (ENGINE_ROOT / target.relative_to(logical_engine_root)).resolve()
-        anchor = anchor_map.get(str(target))
-        if not anchor:
-            return match.group(0)
-        return f'[{label}](#{_section_anchor(anchor, fragment)})'
-
-    return pattern.sub(replace, content)
 
 
 def _rewrite_same_page_links(content: str, doc_anchor: str) -> str:
@@ -212,58 +95,12 @@ def _rewrite_same_page_links(content: str, doc_anchor: str) -> str:
     )
 
 
-def _logical_doc_path(current_doc: Path) -> str:
-    """Path of a source page in the portal's logical layout (engine/ nested)."""
-    resolved = current_doc.resolve()
-    if resolved.is_relative_to(ENGINE_ROOT.resolve()):
-        return f'engine/{resolved.relative_to(ENGINE_ROOT.resolve()).as_posix()}'
-    return resolved.relative_to(REPO_ROOT.resolve()).as_posix()
+def _unlink_site_pages(content: str) -> str:
+    """Keep only the words of links to pages of the web app, such as /quality.
 
-
-def _rewrite_repo_links(content: str, current_doc: Path) -> str:
-    pattern = re.compile(r'(?<!!)\[([^\]]+)\]\(([^)]+)\)')
-    code_like_exts = {
-        '.py', '.sql', '.sh', '.yml', '.yaml', '.json', '.toml', '.ini', '.cfg',
-        '.js', '.ts', '.tsx', '.jsx', '.css', '.html', '.txt', '.xml'
-    }
-    engine_base = engine_blob_base()
-
-    def replace(match: re.Match[str]) -> str:
-        label = match.group(1)
-        href = match.group(2)
-        if href.startswith('/') and not href.startswith('//'):
-            # A page of the web app, such as /quality, resolves against whichever
-            # site serves the portal. A PDF has no site, so it keeps the words only.
-            return label
-        if href.startswith(('http://', 'https://', '#', 'mailto:', '//')):
-            return match.group(0)
-        if href.startswith(('images/', 'diagrams/', 'documentation/')):
-            return match.group(0)
-        # Links to served pages are already anchors. Any other link to a
-        # repository file becomes a public source link; engine files link to
-        # the engine commit pinned in engine.ref.
-
-        base = unquote(href.split('#', 1)[0].split('?', 1)[0])
-        logical = os.path.normpath(os.path.join(
-            os.path.dirname(_logical_doc_path(current_doc)), base,
-        )).replace(os.sep, '/')
-        if logical == 'engine' or logical.startswith('engine/'):
-            return f'[{label}]({engine_base}{logical[len("engine/"):].replace(" ", "%20")})'
-
-        candidate = (REPO_ROOT / logical).resolve()
-        try:
-            normalized = candidate.relative_to(REPO_ROOT.resolve()).as_posix()
-        except ValueError:
-            return match.group(0)
-        suffix = candidate.suffix.lower()
-        if not candidate.is_file():
-            return match.group(0)
-        if candidate.name.lower() != 'dockerfile' and suffix not in code_like_exts and suffix != '.md':
-            return match.group(0)
-
-        return f'[{label}]({GITHUB_BLOB_BASE}{normalized.replace(" ", "%20")})'
-
-    return pattern.sub(replace, content)
+    They resolve against whichever site serves the portal; a PDF has no site.
+    """
+    return re.sub(r'(?<!!)\[([^\]]*)\]\(/(?!/)[^)]*\)', r'\1', content)
 
 
 def _extract_foreign_object_lines(foreign_object: ET.Element) -> list[str]:
@@ -551,8 +388,15 @@ def _process_markdown_headers(content: str, filename: str) -> str:
     return '\n'.join(processed_lines)
 
 
-def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
-    anchor_map = _doc_anchor_map(doc_paths)
+def _prepare_document(doc_ids: list[str], include_cover: bool = True) -> str:
+    """One Markdown document of the given pages; each starts at anchor ``doc-<address>``."""
+    file_to_slug, _ = build_doc_slug_maps(list_markdown_files())
+    included = {file_to_slug[doc_id] for doc_id in doc_ids}
+
+    def page_anchor(slug: str, fragment: str) -> str | None:
+        # Links to pages left out of this PDF go to GitHub instead.
+        return f'#{_section_anchor(f"doc-{slug}", fragment)}' if slug in included else None
+
     generated_at = datetime.now().strftime('%Y-%m-%d %H:%M')
     stats = load_stats_for_docs()
 
@@ -569,9 +413,11 @@ def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
             '',
         ])
 
-    for doc_path in doc_paths:
+    for doc_id in doc_ids:
+        doc_anchor = f'doc-{file_to_slug[doc_id]}'
+        doc_path = Path(source_path(doc_id))
         parts.extend([
-            f'<div id="{anchor_map[str(doc_path.resolve())]}" class="doc-anchor"></div>',
+            f'<div id="{doc_anchor}" class="doc-anchor"></div>',
             '',
         ])
 
@@ -598,9 +444,10 @@ def _prepare_document(doc_paths: list[Path], include_cover: bool = True) -> str:
         content = replace_quality_placeholder(content, REPO_ROOT)
         if '[[canonical_palette]]' in content:
             content = content.replace('[[canonical_palette]]', get_canonical_palette_html())
-        content = _rewrite_same_page_links(content, anchor_map[str(doc_path.resolve())])
-        content = _rewrite_internal_doc_links(content, anchor_map, doc_path)
-        content = _rewrite_repo_links(content, doc_path)
+        content = _rewrite_same_page_links(content, doc_anchor)
+        content = rewrite_doc_links(content, file_to_slug, doc_id, page_anchor)
+        content = rewrite_repo_links(content, doc_id)
+        content = _unlink_site_pages(content)
         content = convert_github_alerts_to_html(content)
             
         def restore_mermaid(match: re.Match[str]) -> str:
@@ -658,8 +505,8 @@ def _build_pdf(
 ) -> Path:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     DIAGRAMS_DIR.mkdir(parents=True, exist_ok=True)
-    doc_paths = _sorted_docs(included_sections, included_pages)
-    if not doc_paths:
+    doc_ids = _sorted_docs(included_sections, included_pages)
+    if not doc_ids:
         raise RuntimeError('No documentation markdown files found for the given selection.')
 
     if output_path is None:
@@ -667,7 +514,7 @@ def _build_pdf(
 
     # 1. Prepare and combine markdown
     print('Preparing combined markdown...')
-    combined_md = _prepare_document(doc_paths, include_cover)
+    combined_md = _prepare_document(doc_ids, include_cover)
     COMBINED_MD_PATH.write_text(combined_md, encoding='utf-8')
 
     # 2. Convert markdown to HTML using mistune

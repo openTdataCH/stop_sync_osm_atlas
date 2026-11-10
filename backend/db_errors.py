@@ -1,6 +1,3 @@
-from sqlalchemy.exc import ProgrammingError
-
-
 DATABASE_TIMEOUT_SQLSTATES = {
     "55P03",  # lock_not_available / lock_timeout
     "57014",  # query_canceled / statement_timeout
@@ -41,36 +38,4 @@ def is_database_timeout_error(exc):
             or "lock timeout" in message
         ):
             return True
-    return False
-
-
-def is_missing_table_error(exc):
-    """Return True when the database reports a missing table/relation."""
-    if isinstance(exc, ProgrammingError):
-        orig = getattr(exc, "orig", None)
-        if getattr(orig, "sqlstate", None) == "42P01":
-            return True
-        if getattr(orig, "sqlstate", None) == "42703":
-            return False
-
-    message = str(exc).lower()
-    if "no such table" in message:
-        return True
-    if "does not exist" in message and (" relation " in message or " table " in message):
-        return True
-    return False
-
-
-def is_missing_column_error(exc):
-    """Return True when the database reports an undefined column."""
-    if isinstance(exc, ProgrammingError):
-        orig = getattr(exc, "orig", None)
-        if getattr(orig, "sqlstate", None) == "42703":
-            return True
-
-    message = str(exc).lower()
-    if "no such column" in message:
-        return True
-    if "does not exist" in message and " column " in message:
-        return True
     return False

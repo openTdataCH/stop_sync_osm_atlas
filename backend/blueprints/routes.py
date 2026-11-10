@@ -1,8 +1,6 @@
 """Routes JSON API: route comparisons and the GTFS stop ID to SLOID map data."""
 from flask import Blueprint, jsonify, make_response, request
 
-from backend.db_errors import is_missing_table_error
-from backend.extensions import db
 from backend.services import route_listing
 from backend.services.gtfs_stop_id_sloid import (
     GTFS_STOP_ID_SLOID_FILTER_STATUSES,
@@ -38,8 +36,8 @@ def routes_unavailable_response(message: str, phase: str | None = None):
 
 
 def _handle_route_database_error(exc):
-    reason = route_listing.database_busy_reason(exc)
-    return routes_unavailable_response(*reason) if reason else None
+    """The 503 answer after a database timeout; any other error is raised again."""
+    return routes_unavailable_response(*route_listing.database_busy_reason(exc))
 
 
 def _parse_gtfs_stop_id_sloid_search():
@@ -100,13 +98,6 @@ def _comparison_integer(name, *, default=None, maximum=2_147_483_647):
     return value
 
 
-def _comparison_database_error(exc):
-    if is_missing_table_error(exc):
-        db.session.rollback()
-        return routes_unavailable_response('Route tables are not initialized yet.', phase='database')
-    return _handle_route_database_error(exc)
-
-
 @routes_bp.route('/api/routes/comparison')
 def routes_comparison_api():
     try:
@@ -122,7 +113,7 @@ def routes_comparison_api():
     except LookupError as exc:
         return jsonify({'error': str(exc)}), 404
     except Exception as exc:
-        return _comparison_database_error(exc)
+        return _handle_route_database_error(exc)
 
 
 @routes_bp.route('/api/routes/comparison/options')
@@ -157,7 +148,7 @@ def routes_comparison_options_api():
     except LookupError as exc:
         return jsonify({'error': str(exc)}), 404
     except Exception as exc:
-        return _comparison_database_error(exc)
+        return _handle_route_database_error(exc)
 
 
 ROUTE_VARIANT_KEY_MAX_LENGTH = 255
@@ -178,7 +169,7 @@ def routes_variants_api():
     except LookupError as exc:
         return jsonify({'error': str(exc)}), 404
     except Exception as exc:
-        return _comparison_database_error(exc)
+        return _handle_route_database_error(exc)
 
 
 @routes_bp.route('/api/routes/gtfs-stop-id-sloid/summary')
@@ -186,9 +177,6 @@ def routes_gtfs_stop_id_sloid_summary_api():
     try:
         return jsonify(build_gtfs_stop_id_sloid_summary())
     except Exception as exc:
-        if is_missing_table_error(exc):
-            db.session.rollback()
-            return jsonify({'error': 'GTFS route tables are not initialized yet.'}), 503
         return _handle_route_database_error(exc)
 
 
@@ -222,9 +210,6 @@ def routes_gtfs_stop_id_sloid_map_api():
             match_methods=match_methods,
         ))
     except Exception as exc:
-        if is_missing_table_error(exc):
-            db.session.rollback()
-            return jsonify({'error': 'GTFS route tables are not initialized yet.'}), 503
         return _handle_route_database_error(exc)
 
 
@@ -241,9 +226,6 @@ def routes_gtfs_stop_id_sloid_search_api():
     try:
         targets = find_gtfs_stop_id_sloid_targets(search_kind, search_value)
     except Exception as exc:
-        if is_missing_table_error(exc):
-            db.session.rollback()
-            return jsonify({'error': 'GTFS route tables are not initialized yet.'}), 503
         return _handle_route_database_error(exc)
 
     if not targets:
@@ -270,9 +252,6 @@ def routes_gtfs_stop_id_sloid_popup_api():
     try:
         payload = build_gtfs_stop_popup(identifier) if entity_type == 'gtfs' else build_atlas_stop_popup(identifier)
     except Exception as exc:
-        if is_missing_table_error(exc):
-            db.session.rollback()
-            return jsonify({'error': 'GTFS route tables are not initialized yet.'}), 503
         return _handle_route_database_error(exc)
 
     if payload is None:

@@ -7,9 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git make libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /workspace/app
-COPY requirements-base.txt requirements-web.txt requirements-scheduler.txt requirements-test.txt requirements-quality.txt ./
-RUN pip install --no-cache-dir -r requirements-base.txt -r requirements-web.txt \
-    -r requirements-scheduler.txt -r requirements-test.txt -r requirements-quality.txt
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
 COPY package.json package-lock.json ./
 RUN npm ci
 # Engine dependencies live in a separate interpreter: app tests cannot import it.
@@ -17,4 +16,4 @@ COPY --from=engine /pyproject.toml /README.md /LICENSE /opt/engine/
 COPY --from=engine /src /opt/engine/src
 RUN python -m venv /opt/engine-venv \
     && /opt/engine-venv/bin/pip install --no-cache-dir '/opt/engine[swiss,gtfs,quality]'
-CMD ["python", "scripts/run_quality.py", "full", "--engine-root", "/workspace/engine", "--engine-python", "/opt/engine-venv/bin/python"]
+CMD ["python", "scripts/run_quality.py", "full", "--engine-dir", "/workspace/engine", "--engine-python", "/opt/engine-venv/bin/python"]

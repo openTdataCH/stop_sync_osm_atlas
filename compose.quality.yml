@@ -18,7 +18,7 @@ services:
       context: .
       dockerfile: Dockerfile.quality
       additional_contexts:
-        engine: ${ENGINE_ROOT:-../engine}
+        engine: ${ENGINE_DIR:-../engine}
     depends_on:
       postgres:
         condition: service_healthy
@@ -26,6 +26,8 @@ services:
       DATABASE_URI: sqlite://
       TEST_POSTGRES_URI: postgresql+psycopg://test:test@postgres:5432/transport_test
       ENGINE_DIR: /workspace/engine
+      # CI sets the pull request's base commit for the advisory changed-line coverage.
+      QUALITY_BASE: ${QUALITY_BASE:-}
       GIT_CONFIG_COUNT: '2'
       GIT_CONFIG_KEY_0: safe.directory
       GIT_CONFIG_VALUE_0: /workspace/app
@@ -33,6 +35,6 @@ services:
       GIT_CONFIG_VALUE_1: /workspace/engine
     volumes:
       - .:/workspace/app
-      - ${ENGINE_ROOT:-../engine}:/workspace/engine:ro
+      - ${ENGINE_DIR:-../engine}:/workspace/engine:ro
       # Anonymous volume is refreshed from the image and removed with --rm.
       - /workspace/app/node_modules

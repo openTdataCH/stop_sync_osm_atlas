@@ -1,7 +1,7 @@
 name: CodeQL
 on:
   push:
-    branches: [main, master]
+    branches: [main]
     paths-ignore: ['quality/published/**']
   pull_request:
   schedule:

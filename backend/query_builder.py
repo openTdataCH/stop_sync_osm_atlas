@@ -1,12 +1,13 @@
-"""
-Enhanced QueryBuilder class for handling complex database queries with shared filtering logic.
-This module consolidates common filtering patterns to reduce code duplication and improve performance.
+"""The map's attribute filters as conditions on stops_matched: search tokens, ATLAS and OSM attributes, problems.
+
+``apply_common_filters`` reads the filters ``parse_filter_params`` (backend/queries/helpers.py) builds.
+See documentation/2.2 Filters and Search logic.md.
 """
 
-from backend.services.transport_routes import get_stops_for_route
 from backend.extensions import db
 from backend.models import StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember
 from backend.services.problem_filters import has_problem_condition
+from backend.services.transport_routes import get_stops_for_route
 
 
 def osm_list_contains(column, value):
@@ -15,292 +16,116 @@ def osm_list_contains(column, value):
     return db.or_(column == value, (db.literal(';') + column + db.literal(';')).like(f'%;{escaped};%', escape='\\'))
 
 
-class FilterBuilder:
-    """Helper class to build common filter conditions without duplication."""
-    
-    @staticmethod
-    def build_transport_type_conditions(selected_transport_types):
-        """Build transport type filter conditions."""
-        if not selected_transport_types:
-            return []
-        
-        transport_conditions = []
-        
-        # Define transport type mappings
-        transport_mappings = {
-            'ferry_terminal': StopsMatched.osm_node_details.has(OsmNode.osm_amenity == 'ferry_terminal'),
-            'tram_stop': StopsMatched.osm_node_details.has(OsmNode.osm_railway == 'tram_stop'),
-            'station': StopsMatched.osm_node_details.has(OsmNode.osm_node_type == 'railway_station'),
-            'platform': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'platform'),
-            'stop_position': StopsMatched.osm_node_details.has(OsmNode.osm_public_transport == 'stop_position'),
-            'aerialway_station': StopsMatched.osm_node_details.has(OsmNode.osm_aerialway == 'station')
-        }
-        
-        for transport_type in selected_transport_types:
-            if transport_type in transport_mappings:
-                transport_conditions.append(transport_mappings[transport_type])
-        
-        return transport_conditions
-    
-    @staticmethod
-    def build_node_type_conditions(node_types):
-        """Build node type filter conditions."""
-        if not node_types:
-            return []
-        
-        conditions = []
-        if 'atlas' in node_types:
-            conditions.append(StopsMatched.sloid.isnot(None))
-        if 'osm' in node_types:
-            conditions.append(StopsMatched.osm_node_id.isnot(None))
-        
-        return conditions
-    
-    @staticmethod
-    def build_atlas_operator_conditions(atlas_operators):
-        """Build Atlas operator filter conditions."""
-        if not atlas_operators:
-            return None
-        
-        return StopsMatched.atlas_stop_details.has(
-            AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
-        )
-    
-    @staticmethod
-    def build_osm_operator_conditions(osm_operators):
-        """Build OSM operator filter conditions."""
-        if not osm_operators:
-            return None
-        
-        return StopsMatched.osm_node_details.has(
-            OsmNode.osm_operator.in_(osm_operators)
-        )
-    
-    @staticmethod
-    def build_osm_operator_wikidata_conditions(wikidata_values):
-        """Filter by the operator:wikidata tag values shown on operator cards."""
-        if not wikidata_values:
-            return None
-        return StopsMatched.osm_node_details.has(
-            OsmNode.osm_operator_wikidata.in_(wikidata_values)
-        )
-
-    @staticmethod
-    def build_station_filter_conditions(filter_values, filter_types, route_directions, route_query_func,
-                                        route_variants=None):
-        """Build station/route ID filter conditions.
-
-        ``route_variants`` holds one entry per value: ``None``, or the variant
-        selection that narrows a route filter (see ``parse_route_variants``).
-        """
-        if not filter_values:
-            return []
-
-        # Work on local copies so callers can safely reuse their input dicts/lists.
-        filter_types = list(filter_types or [])
-        route_directions = list(route_directions or [])
-        route_variants = list(route_variants or [])
-
-        # Ensure arrays are same length
-        while len(filter_types) < len(filter_values):
-            filter_types.append('station')
-        while len(route_directions) < len(filter_values):
-            route_directions.append('')
-        while len(route_variants) < len(filter_values):
-            route_variants.append(None)
-
-        conditions = []
-        for i, value in enumerate(filter_values):
-            filter_type = filter_types[i].strip()
-            direction = route_directions[i].strip()
-            
-            # Identifiers match whole: ch:1:sloid:10035:0:1 must not keep ch:1:sloid:10035:0:1955.
-            if filter_type == 'atlas':
-                conditions.append(StopsMatched.sloid == value)
-            elif filter_type == 'osm':
-                conditions.append(StopsMatched.osm_node_id == value)
-            elif filter_type == 'route':
-                route_stops = route_query_func(value, direction if direction else None, route_variants[i])
-                route_conditions = []
-                if route_stops['atlas_sloids']:
-                    route_conditions.append(StopsMatched.sloid.in_(route_stops['atlas_sloids']))
-                if route_stops['osm_nodes']:
-                    route_conditions.append(StopsMatched.osm_node_id.in_(route_stops['osm_nodes']))
-                if route_conditions:
-                    conditions.append(db.or_(*route_conditions) if len(route_conditions) > 1 else route_conditions[0])
-            else:  # UIC number of the ATLAS stop, or among the OSM element's uic_ref values
-                conditions.append(db.or_(
-                    StopsMatched.atlas_stop_details.has(AtlasStop.uic_ref == value),
-                    StopsMatched.osm_node_details.has(osm_list_contains(OsmNode.osm_uic_ref, value))
-                ))
-        
-        return conditions
-
-    @staticmethod
-    def build_osm_group_members_query(osm_group_types=None):
-        query = db.session.query(OsmStopMember.node_id).join(
-            OsmStop,
-            OsmStopMember.osm_stop_id == OsmStop.id,
-        )
-
-        # Default: all grouped OSM members.
-        if osm_group_types is None or len(osm_group_types) == 0:
-            return query.filter(OsmStop.stop_kind.in_(['pair', 'two_sided_stop']))
-
-        pair_types = [group_type for group_type in osm_group_types if group_type != 'ptv2_two_sided_stop']
-        include_two_sided = 'ptv2_two_sided_stop' in osm_group_types
-
-        conditions = []
-        if pair_types:
-            conditions.append(
-                db.and_(
-                    OsmStop.stop_kind == 'pair',
-                    OsmStop.group_kind.in_(pair_types),
-                )
-            )
-        if include_two_sided:
-            conditions.append(
-                db.and_(
-                    OsmStop.stop_kind == 'two_sided_stop',
-                    OsmStop.group_kind == 'ptv2_two_sided_stop',
-                )
-            )
-
-        if not conditions:
-            return query.filter(db.false())
-
-        return query.filter(db.or_(*conditions))
+def _transport_type_condition(transport_types):
+    """The OSM element is one of the chosen kinds; unknown kinds are ignored."""
+    kinds = {
+        'ferry_terminal': OsmNode.osm_amenity == 'ferry_terminal',
+        'tram_stop': OsmNode.osm_railway == 'tram_stop',
+        'station': OsmNode.osm_node_type == 'railway_station',
+        'platform': OsmNode.osm_public_transport == 'platform',
+        'stop_position': OsmNode.osm_public_transport == 'stop_position',
+        'aerialway_station': OsmNode.osm_aerialway == 'station',
+    }
+    chosen = [kinds[kind] for kind in transport_types if kind in kinds]
+    return StopsMatched.osm_node_details.has(db.or_(*chosen)) if chosen else None
 
 
-class QueryBuilder:
+def search_token_conditions(filters):
+    """One condition per search token: a SLOID, an OSM element, a route or a UIC number.
+
+    ``filter_types``, ``route_directions`` and ``route_variants`` are positional,
+    like ``filter_values``; a missing entry is a UIC number, both directions and
+    the whole route. Identifiers match whole: ch:1:sloid:10035:0:1 must not keep
+    ch:1:sloid:10035:0:1955.
     """
-    Enhanced QueryBuilder for building and executing complex database queries.
-    Includes shared filtering logic and performance optimizations.
-    """
-    
-    def __init__(self, session):
-        """
-        Initialize the QueryBuilder.
-        
-        Args:
-            session: SQLAlchemy database session
-        """
-        self.session = session
-        self.filter_builder = FilterBuilder()
-    
-    def get_stops_for_route(self, route_id, direction=None, variants=None):
-        """
-        Gets all stops (both OSM and ATLAS) that belong to a route.
-        
-        Args:
-            route_id: The route ID to filter by
-            direction: Optional direction ID to filter by
-            variants: Optional variant selection that narrows the route to those variants
-        
-        Returns:
-            Dictionary with 'atlas_sloids' and 'osm_nodes' lists
-        """
-        return get_stops_for_route(route_id, direction, variants)
-    
-    def apply_common_filters(self, query, filters):
-        """
-        Apply common filtering patterns to a query.
-        
-        Args:
-            query: SQLAlchemy query object
-            filters: Dictionary containing filter parameters
-        
-        Returns:
-            Filtered SQLAlchemy query object
-        """
-        conditions = []
-        osm_conditions = []
-        
-        # Transport type filter
-        if filters.get('transport_types'):
-            transport_conditions = self.filter_builder.build_transport_type_conditions(
-                filters['transport_types']
-            )
-            if transport_conditions:
-                osm_conditions.append(db.or_(*transport_conditions))
-        
-        # Node type filter
-        if filters.get('node_types'):
-            node_conditions = self.filter_builder.build_node_type_conditions(
-                filters['node_types']
-            )
-            if node_conditions:
-                conditions.append(db.or_(*node_conditions) if len(node_conditions) > 1 else node_conditions[0])
-        
-        # Atlas operator filter
-        if filters.get('atlas_operators'):
-            operator_condition = self.filter_builder.build_atlas_operator_conditions(
-                filters['atlas_operators']
-            )
-            # Avoid evaluating SQLAlchemy clauses in boolean context
-            if operator_condition is not None:
-                conditions.append(operator_condition)
-        
-        # Station/Route filter
-        if filters.get('filter_values'):
-            station_conditions = self.filter_builder.build_station_filter_conditions(
-                filters['filter_values'],
-                filters.get('filter_types', []),
-                filters.get('route_directions', []),
-                self.get_stops_for_route,
-                filters.get('route_variants'),
-            )
-            if station_conditions:
-                conditions.append(db.or_(*station_conditions) if len(station_conditions) > 1 else station_conditions[0])
-            else:
-                conditions.append(db.false())
-        
-        # Problem filter: entries with a problem of the chosen types and priorities
-        if 'problem_types' in filters:
-            conditions.append(has_problem_condition(filters['problem_types'], filters.get('problem_priorities')))
+    values = filters['filter_values']
+    padding = len(values)
+    token_types = list(filters.get('filter_types') or []) + ['station'] * padding
+    directions = list(filters.get('route_directions') or []) + [''] * padding
+    variants = list(filters.get('route_variants') or []) + [None] * padding
 
-        # OSM group filter
-        if 'osm_group_types' in filters:
-            osm_conditions.append(
-                StopsMatched.osm_node_id.in_(
-                    self.filter_builder.build_osm_group_members_query(filters.get('osm_group_types'))
-                )
-            )
-
-        # OSM entity type filter
-        if filters.get('osm_entity_types'):
-            entity_conditions = []
-            if 'way' in filters['osm_entity_types']:
-                entity_conditions.append(StopsMatched.osm_node_id.like('way_%'))
-            if entity_conditions:
-                osm_conditions.append(db.or_(*entity_conditions) if len(entity_conditions) > 1 else entity_conditions[0])
-
-        # OSM operator filter
-        if filters.get('osm_operators'):
-            osm_operator_condition = self.filter_builder.build_osm_operator_conditions(
-                filters['osm_operators']
-            )
-            if osm_operator_condition is not None:
-                osm_conditions.append(osm_operator_condition)
-
-        if filters.get('missing_osm_operator_wikidata'):
-            osm_conditions.append(StopsMatched.osm_node_details.has(db.or_(
-                OsmNode.osm_operator_wikidata.is_(None),
-                OsmNode.osm_operator_wikidata == '',
-            )))
-
-        if filters.get('osm_operator_wikidata'):
-            osm_conditions.append(self.filter_builder.build_osm_operator_wikidata_conditions(
-                filters['osm_operator_wikidata']
+    conditions = []
+    for value, token_type, direction, variant in zip(values, token_types, directions, variants):
+        token_type, direction = token_type.strip(), direction.strip()
+        if token_type == 'atlas':
+            conditions.append(StopsMatched.sloid == value)
+        elif token_type == 'osm':
+            conditions.append(StopsMatched.osm_node_id == value)
+        elif token_type == 'route':
+            route_stops = get_stops_for_route(value, direction or None, variant)
+            route_conditions = []
+            if route_stops['atlas_sloids']:
+                route_conditions.append(StopsMatched.sloid.in_(route_stops['atlas_sloids']))
+            if route_stops['osm_nodes']:
+                route_conditions.append(StopsMatched.osm_node_id.in_(route_stops['osm_nodes']))
+            if route_conditions:
+                conditions.append(db.or_(*route_conditions))
+        else:  # UIC number of the ATLAS stop, or among the OSM element's uic_ref values
+            conditions.append(db.or_(
+                StopsMatched.atlas_stop_details.has(AtlasStop.uic_ref == value),
+                StopsMatched.osm_node_details.has(osm_list_contains(OsmNode.osm_uic_ref, value)),
             ))
+    return conditions
 
-        if osm_conditions:
-            combined_osm_condition = db.and_(*osm_conditions)
-            conditions.append(combined_osm_condition)
-        
-        # Apply all conditions
-        if conditions:
-            query = query.filter(db.and_(*conditions))
-        
-        return query
 
+def _osm_group_members(group_kinds):
+    """Node ids of the members of OSM pairs and two-sided stops of the chosen kinds; every group when empty."""
+    query = db.session.query(OsmStopMember.node_id).join(OsmStop, OsmStopMember.osm_stop_id == OsmStop.id)
+    if not group_kinds:
+        return query.filter(OsmStop.stop_kind.in_(['pair', 'two_sided_stop']))
+
+    pair_kinds = [kind for kind in group_kinds if kind != 'ptv2_two_sided_stop']
+    conditions = []
+    if pair_kinds:
+        conditions.append(db.and_(OsmStop.stop_kind == 'pair', OsmStop.group_kind.in_(pair_kinds)))
+    if 'ptv2_two_sided_stop' in group_kinds:
+        conditions.append(db.and_(OsmStop.stop_kind == 'two_sided_stop', OsmStop.group_kind == 'ptv2_two_sided_stop'))
+    return query.filter(db.or_(*conditions))
+
+
+def apply_common_filters(query, filters):
+    """Keep the rows of ``query`` that pass every attribute filter in ``filters``."""
+    conditions = []
+
+    if filters.get('transport_types'):
+        conditions.append(_transport_type_condition(filters['transport_types']))
+
+    node_types = filters.get('node_types') or []
+    node_conditions = ([StopsMatched.sloid.isnot(None)] if 'atlas' in node_types else []) + \
+        ([StopsMatched.osm_node_id.isnot(None)] if 'osm' in node_types else [])
+    if node_conditions:
+        conditions.append(db.or_(*node_conditions))
+
+    if filters.get('atlas_operators'):
+        conditions.append(StopsMatched.atlas_stop_details.has(
+            AtlasStop.atlas_business_org_abbr.in_(filters['atlas_operators'])))
+
+    if filters.get('filter_values'):
+        token_conditions = search_token_conditions(filters)
+        conditions.append(db.or_(*token_conditions) if token_conditions else db.false())
+
+    # Entries with a problem of the chosen types and priorities.
+    if 'problem_types' in filters:
+        conditions.append(has_problem_condition(filters['problem_types'], filters.get('problem_priorities')))
+
+    if 'osm_group_types' in filters:
+        conditions.append(StopsMatched.osm_node_id.in_(_osm_group_members(filters['osm_group_types'])))
+
+    if 'way' in (filters.get('osm_entity_types') or []):
+        conditions.append(StopsMatched.osm_node_id.like('way_%'))
+
+    if filters.get('osm_operators'):
+        conditions.append(StopsMatched.osm_node_details.has(OsmNode.osm_operator.in_(filters['osm_operators'])))
+
+    if filters.get('missing_osm_operator_wikidata'):
+        conditions.append(StopsMatched.osm_node_details.has(db.or_(
+            OsmNode.osm_operator_wikidata.is_(None),
+            OsmNode.osm_operator_wikidata == '',
+        )))
+
+    if filters.get('osm_operator_wikidata'):
+        conditions.append(StopsMatched.osm_node_details.has(
+            OsmNode.osm_operator_wikidata.in_(filters['osm_operator_wikidata'])))
+
+    conditions = [condition for condition in conditions if condition is not None]
+    return query.filter(db.and_(*conditions)) if conditions else query

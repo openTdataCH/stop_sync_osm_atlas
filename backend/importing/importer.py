@@ -13,12 +13,11 @@ import json
 from collections import Counter
 from typing import Any
 
-from sqlalchemy import inspect, insert, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import inspect, text
 
 # --- Internal modules -------------------------------------------------------
-from backend.db_errors import is_missing_table_error
 from backend.importing.session import session
+from backend.importing.bulk import copy_rows
 from backend.importing.helpers import safe_value, get_osm_node_type
 from backend.importing.projection import project_bundle
 from backend.importing.bundle import read_bundle
@@ -44,13 +43,8 @@ from backend.models import (
     ItineraryMatch,
     ItineraryBestOverlap,
 )
-from backend.services.dataset_stats import add_dataset_stats
 from backend.services.route_comparison import compute_best_overlaps
-from backend.services.stats_export import (
-    export_pipeline_stats,
-    save_stats_to_file,
-    compute_db_stats,
-)
+from backend.services.stats_export import export_pipeline_stats, save_stats_to_file
 
 
 def _ensure_import_schema_exists(db_session) -> None:
@@ -86,31 +80,6 @@ def _ensure_import_schema_exists(db_session) -> None:
         "Import DB schema is not initialized. Missing tables: "
         f"{missing_str}. Run DB migrations first (for Docker: task 'Docker: Run Flask DB Upgrade')."
     )
-
-
-FULL_REFRESH_TABLES = [
-    'itinerary_best_overlaps',
-    'itinerary_matches',
-    'line_family_matches',
-    'stop_calls',
-    'itineraries',
-    'line_families',
-    'osm_route_relations',
-    'problems',
-    'stops_matched',
-    'osm_stop_members',
-    'osm_stops',
-    'osm_nodes',
-    'atlas_line_families',
-    'gtfs_stop_identity_resolution',
-    'gtfs_stops_raw',
-    'atlas_stops',
-    'atlas_operators',
-]
-
-
-def get_refresh_scope_tables() -> tuple[list[str], list[str]]:
-    return list(FULL_REFRESH_TABLES), []
 
 
 def _normalize_text(value):
@@ -151,6 +120,9 @@ def _remember_atlas_operator(operator_rows_by_abbr: dict[str, dict], atlas_node)
 
 
 def _write_gtfs_atlas_stats(stats_payload: dict[str, object]) -> None:
+    # Nothing in the application reads this file. The engine reads
+    # <workspace>/data/gtfs_atlas_stats.json when its source metadata lacks the
+    # GTFS identity statistics, and in Docker the workspace is this directory.
     stats_path = os.path.join('data', 'gtfs_atlas_stats.json')
     os.makedirs(os.path.dirname(stats_path), exist_ok=True)
     with open(stats_path, 'w', encoding='utf-8') as handle:
@@ -371,7 +343,6 @@ def build_fast_insert_payloads(
         stop_idx += 1
 
     # ---- 2. Unmatched ATLAS ----
-    no_nearby_osm_sloids = set()
     for atlas_node in base_data.unmatched_atlas:
         atlas_lat, atlas_lon = atlas_node.lat, atlas_node.lon
 
@@ -380,12 +351,8 @@ def build_fast_insert_payloads(
 
         if precomputed_entry is None:
             raise ValueError(f"Missing exported unmatched-source result: {sloid}")
-        is_isolated = bool(precomputed_entry.get('is_isolated', False))
         match_type_for_unmatched = precomputed_entry.get('match_type')
         problems = precomputed_entry.get('problems', [])
-
-        if is_isolated and sloid:
-            no_nearby_osm_sloids.add(sloid)
 
         geom_wkt = _make_point_wkt(atlas_lat, atlas_lon)
 
@@ -550,7 +517,6 @@ def build_fast_insert_payloads(
         'itinerary_matches': itinerary_match_dicts,
         'itinerary_best_overlaps': itinerary_best_overlap_dicts,
         'matched_routes': route_write_payload.get('matched_routes', 0),
-        'no_nearby_osm_sloids': no_nearby_osm_sloids,
     }
 
 
@@ -561,25 +527,14 @@ def build_fast_insert_payloads(
 _BULK_BATCH = int(os.getenv('DB_IMPORT_BATCH_SIZE', '10000'))
 
 
-def _bulk_insert_rows(model, rows: list[dict], label: str | None = None, *, db_session=None) -> int:
+def _bulk_insert_rows(db_session, model, rows: list[dict], label: str) -> None:
+    """COPY rows into the staging schema of ``db_session``."""
     if not rows:
-        return 0
-    db_session = db_session or session
-    method = os.getenv('DB_IMPORT_METHOD', 'copy')
-    if method not in ('copy', 'insert'):
-        raise ValueError('DB_IMPORT_METHOD must be copy or insert')
-    use_copy = method == 'copy' and db_session.info.get('snapshot_schema')
-    with stage('import.table', table=model.__tablename__, rows=len(rows), method='copy' if use_copy else 'insert'):
+        return
+    with stage('import.table', table=model.__tablename__, rows=len(rows)):
         for i in range(0, len(rows), _BULK_BATCH):
-            batch = rows[i:i + _BULK_BATCH]
-            if use_copy:
-                from backend.importing.bulk import copy_rows
-                copy_rows(db_session, model, batch)
-            else:
-                db_session.execute(insert(model), batch)
-    if label:
-        print(f"Imported {len(rows)} {label}")
-    return len(rows)
+            copy_rows(db_session, model, rows[i:i + _BULK_BATCH])
+    print(f"Imported {len(rows)} {label}")
 
 
 # Bundle sections whose row counts must not collapse between two publications.
@@ -596,12 +551,6 @@ def _max_drop_percent() -> float:
 def _published_manifest() -> dict | None:
     try:
         return session.execute(text("SELECT manifest FROM dataset_publication WHERE id = 1")).scalar()
-    except SQLAlchemyError as exc:
-        # Before the first migration there is nothing to compare with; the
-        # schema check reports the missing tables later.
-        if not is_missing_table_error(exc):
-            raise
-        return None
     finally:
         session.rollback()
 
@@ -633,43 +582,34 @@ def _validate_refresh_payloads(db_payloads: dict) -> None:
 
 
 def _write_rows(db_session, db_payloads):
-    _bulk_insert_rows(OsmNode, db_payloads.get('osm_nodes', []), 'OSM nodes', db_session=db_session)
-    _bulk_insert_rows(OsmStop, db_payloads.get('osm_stops', []), 'OSM stop units', db_session=db_session)
-    _bulk_insert_rows(OsmStopMember, db_payloads.get('osm_stop_members', []), 'OSM stop members', db_session=db_session)
-    _bulk_insert_rows(AtlasOperator, db_payloads.get('atlas_operators', []), 'ATLAS operators', db_session=db_session)
-    _bulk_insert_rows(AtlasStop, db_payloads.get('atlas_stops', []), 'ATLAS stops', db_session=db_session)
-    _bulk_insert_rows(GtfsStopRaw, db_payloads.get('gtfs_stops_raw', []), 'GTFS raw stops', db_session=db_session)
-    _bulk_insert_rows(GtfsStopIdentityResolution, db_payloads.get('gtfs_stop_identity_resolution', []), 'GTFS identity-resolution rows', db_session=db_session)
+    _bulk_insert_rows(db_session, OsmNode, db_payloads.get('osm_nodes', []), 'OSM nodes')
+    _bulk_insert_rows(db_session, OsmStop, db_payloads.get('osm_stops', []), 'OSM stop units')
+    _bulk_insert_rows(db_session, OsmStopMember, db_payloads.get('osm_stop_members', []), 'OSM stop members')
+    _bulk_insert_rows(db_session, AtlasOperator, db_payloads.get('atlas_operators', []), 'ATLAS operators')
+    _bulk_insert_rows(db_session, AtlasStop, db_payloads.get('atlas_stops', []), 'ATLAS stops')
+    _bulk_insert_rows(db_session, GtfsStopRaw, db_payloads.get('gtfs_stops_raw', []), 'GTFS raw stops')
+    _bulk_insert_rows(db_session, GtfsStopIdentityResolution, db_payloads.get('gtfs_stop_identity_resolution', []),
+                      'GTFS identity-resolution rows')
+    # The staging tables are new and empty, so stop rows get explicit IDs in
+    # payload order, and problems can reference them without a round trip.
     stops_rows = db_payloads.get('stops_matched', [])
-    if stops_rows:
-        stop_idx_to_db_id = {}
-        if db_session.info.get('snapshot_schema') and os.getenv('DB_IMPORT_METHOD', 'copy') == 'copy':
-            # These tables are new and empty. Stable explicit IDs avoid an ORM
-            # INSERT RETURNING round trip while keeping problem links exact.
-            clean_rows = []
-            for db_id, row in enumerate(stops_rows, 1):
-                stop_idx_to_db_id[row['_idx']] = db_id
-                clean_rows.append({**{k: v for k, v in row.items() if k != '_idx'}, 'id': db_id})
-            _bulk_insert_rows(StopsMatched, clean_rows, 'stops_matched rows', db_session=db_session)
-        else:
-            for i in range(0, len(stops_rows), _BULK_BATCH):
-                batch = stops_rows[i:i + _BULK_BATCH]
-                clean_batch = [{k: v for k, v in row.items() if k != '_idx'} for row in batch]
-                result = db_session.execute(insert(StopsMatched).returning(StopsMatched.id, sort_by_parameter_order=True), clean_batch)
-                for row, returned in zip(batch, result):
-                    stop_idx_to_db_id[row['_idx']] = returned[0]
-        problems = [{'stop_id': stop_idx_to_db_id[idx], 'problem_type': kind, 'priority': priority}
-                    for idx, kind, priority in db_payloads['problem_rows'] if idx in stop_idx_to_db_id]
-        _bulk_insert_rows(Problem, problems, 'problem rows', db_session=db_session)
-    _bulk_insert_rows(AtlasLineFamily, db_payloads.get('atlas_line_families', []), 'ATLAS line families', db_session=db_session)
-    _bulk_insert_rows(OsmRouteRelation, db_payloads.get('osm_route_relations', []), 'OSM route relations', db_session=db_session)
-    _bulk_insert_rows(LineFamily, db_payloads.get('line_families', []), 'line families', db_session=db_session)
-    _bulk_insert_rows(Itinerary, db_payloads.get('itineraries', []), 'itineraries', db_session=db_session)
-    _bulk_insert_rows(StopCall, db_payloads.get('stop_calls', []), 'stop calls', db_session=db_session)
-    _bulk_insert_rows(LineFamilyMatch, db_payloads.get('line_family_matches', []), 'line family matches', db_session=db_session)
-    _bulk_insert_rows(ItineraryMatch, db_payloads.get('itinerary_matches', []), 'itinerary matches', db_session=db_session)
-    _bulk_insert_rows(ItineraryBestOverlap, db_payloads.get('itinerary_best_overlaps', []),
-                      'itinerary best overlaps', db_session=db_session)
+    stop_idx_to_db_id = {row['_idx']: db_id for db_id, row in enumerate(stops_rows, 1)}
+    _bulk_insert_rows(db_session, StopsMatched,
+                      [{**{k: v for k, v in row.items() if k != '_idx'}, 'id': stop_idx_to_db_id[row['_idx']]}
+                       for row in stops_rows],
+                      'stops_matched rows')
+    problems = [{'stop_id': stop_idx_to_db_id[idx], 'problem_type': kind, 'priority': priority}
+                for idx, kind, priority in db_payloads.get('problem_rows', []) if idx in stop_idx_to_db_id]
+    _bulk_insert_rows(db_session, Problem, problems, 'problem rows')
+    _bulk_insert_rows(db_session, AtlasLineFamily, db_payloads.get('atlas_line_families', []), 'ATLAS line families')
+    _bulk_insert_rows(db_session, OsmRouteRelation, db_payloads.get('osm_route_relations', []), 'OSM route relations')
+    _bulk_insert_rows(db_session, LineFamily, db_payloads.get('line_families', []), 'line families')
+    _bulk_insert_rows(db_session, Itinerary, db_payloads.get('itineraries', []), 'itineraries')
+    _bulk_insert_rows(db_session, StopCall, db_payloads.get('stop_calls', []), 'stop calls')
+    _bulk_insert_rows(db_session, LineFamilyMatch, db_payloads.get('line_family_matches', []), 'line family matches')
+    _bulk_insert_rows(db_session, ItineraryMatch, db_payloads.get('itinerary_matches', []), 'itinerary matches')
+    _bulk_insert_rows(db_session, ItineraryBestOverlap, db_payloads.get('itinerary_best_overlaps', []),
+                      'itinerary best overlaps')
 
 
 def import_to_database(
@@ -700,90 +640,29 @@ def import_to_database(
     )
     session.expire_all()
     session.close()
-    return db_payloads.get('no_nearby_osm_sloids', set())
 
 
-# --------------------------
-# Data Import Function
-# --------------------------
-def export_stats_after_import(base_data, duplicate_sloid_map, no_nearby_sloids):
-    """
-    Export pipeline statistics to data/stats.json after import completes.
-    """
-    try:
-        matched_records = getattr(base_data, 'matched', [])
-        unmatched_atlas = getattr(base_data, 'unmatched_atlas', [])
-        # A two-sided stop middle whose two sides are matched counts as matched, not unmatched.
-        effectively_matched = {str(node_id) for node_id in getattr(base_data, 'effectively_matched_osm_ids', ())}
-        unmatched_osm = [
-            node for node in getattr(base_data, 'unmatched_osm', [])
-            if str(node.node_id) not in effectively_matched
-        ]
-        isolated_osm = {str(node_id) for node_id in base_data.isolated_osm_ids} - effectively_matched
+def export_stats_after_import(base_data):
+    """Write data/stats.json for the snapshot just published."""
+    # A two-sided stop middle whose two sides are matched counts as matched, not unmatched.
+    effectively_matched = {str(node_id) for node_id in base_data.effectively_matched_osm_ids}
+    stats = export_pipeline_stats(
+        session,
+        matched_records=base_data.matched,
+        unmatched_osm=[node for node in base_data.unmatched_osm if str(node.node_id) not in effectively_matched],
+        isolated_osm_ids={str(node_id) for node_id in base_data.isolated_osm_ids},
+        osm_stop_units=base_data.osm_stop_units,
+        osm_nodes_with_routes=set(base_data.osm_node_routes),
+        gtfs_atlas_stats=base_data.gtfs_atlas_stats,
+    )
+    stats['quality_metrics'] = base_data.quality_metrics
+    if base_data.atlas_filtering:
+        stats['atlas_filtering'] = base_data.atlas_filtering
 
-        # Calculate total ATLAS platforms from records
-        matched_sloids = {r.atlas_node.sloid for r in matched_records if getattr(r, 'atlas_node', None) and r.atlas_node.sloid}
-        unmatched_sloids = {r.sloid for r in unmatched_atlas if getattr(r, 'sloid', None)}
-        total_atlas = len(matched_sloids | unmatched_sloids)
-
-        # Calculate OSM stop counts from canonical stop units
-        osm_stop_units = getattr(base_data, 'osm_stop_units', [])
-        total_osm_stops = len(osm_stop_units)
-
-        # Calculate raw OSM nodes count
-        all_osm_nodes = getattr(base_data, 'all_osm_nodes', [])
-        total_osm_nodes = len(all_osm_nodes)
-        total_osm_stations = sum(1 for node in all_osm_nodes if getattr(node, 'is_station', False))
-
-        node_to_stop_id = {}
-        for stop_idx, stop_unit in enumerate(osm_stop_units):
-            for member in stop_unit.members:
-                node_to_stop_id[str(member.node_id)] = stop_idx
-        matched_osm_stops = len({
-            node_to_stop_id[str(r.osm_node.node_id)]
-            for r in matched_records
-            if getattr(r, 'osm_node', None)
-            and r.osm_node.node_id
-            and str(r.osm_node.node_id) in node_to_stop_id
-        })
-        unmatched_osm_stops = max(0, total_osm_stops - matched_osm_stops)
-
-        stats = export_pipeline_stats(
-            matched_records=matched_records,
-            unmatched_atlas=unmatched_atlas,
-            unmatched_osm=unmatched_osm,
-            no_nearby_osm_sloids=no_nearby_sloids,
-            osm_stop_units=osm_stop_units,
-            total_atlas_platforms=total_atlas,
-            total_osm_stops=total_osm_stops,
-            total_osm_nodes=total_osm_nodes,
-            total_osm_stations=total_osm_stations,
-            total_matched_osm_stops=matched_osm_stops,
-            total_unmatched_osm_stops=unmatched_osm_stops,
-            osm_nodes_with_routes=set(base_data.osm_node_routes),
-            no_nearby_atlas_osm_ids=isolated_osm,
-        )
-
-        stats['quality_metrics'] = base_data.quality_metrics
-
-        # Problem and per-source statistics come from the published tables.
-        from backend.importing.session import session
-        stats['problems'] = compute_db_stats(session)
-        add_dataset_stats(stats, session)
-
-        if base_data.atlas_filtering:
-            stats['atlas_filtering'] = base_data.atlas_filtering
-
-        filepath = save_stats_to_file(stats)
-        print(f"\n==== STATISTICS EXPORTED ====")
-        print(f"Stats saved to: {filepath}")
-
-        print(f"Generated at: {stats['generated_at']}")
-        print(f"Summary: {stats['summary']['matched_pairs']} matched pairs ({stats['summary']['match_rate_percent']}%)")
-        
-        return stats
-    except Exception as e:
-        raise RuntimeError(f"Failed to export stats: {e}") from e
+    filepath = save_stats_to_file(stats)
+    print(f"Stats saved to {filepath} at {stats['stats_computed_at']}: "
+          f"{stats['summary']['matched_pairs']} matched pairs ({stats['summary']['match_rate_percent']}%)")
+    return stats
 
 
 class PublishedDatasetError(RuntimeError):
@@ -809,7 +688,7 @@ def import_bundle(directory, *, progress_callback=None, stage_event_callback=Non
             payload = build_fast_insert_payloads(base_data, problems, routes)
     report(progress_callback, 'database', 'Loading and indexing the staged database')
     with stage('import.load_and_publish'):
-        no_nearby = import_to_database(
+        import_to_database(
             db_payloads=payload,
             manifest=bundle['manifest'],
             progress_callback=progress_callback,
@@ -822,7 +701,7 @@ def import_bundle(directory, *, progress_callback=None, stage_event_callback=Non
                 from backend.services.data_meta import record_bundle_metadata
                 record_bundle_metadata(bundle['manifest'])
                 _write_gtfs_atlas_stats(base_data.gtfs_atlas_stats)
-                if export_stats_after_import(base_data, base_data.duplicate_sloid_map, no_nearby) is None:
+                if export_stats_after_import(base_data) is None:
                     raise RuntimeError("Analytics export returned no result")
     except Exception as exc:
         raise PublishedDatasetError(bundle['manifest'], exc) from exc

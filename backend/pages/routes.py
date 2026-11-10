@@ -1,6 +1,7 @@
 """Routes pages: the route listings and the GTFS stop ID to SLOID map, rendered as HTML."""
 from flask import Blueprint, make_response, render_template, request
 
+from backend.pages.pagination import ListPagination, bounded_int, page_range, per_page_choice
 from backend.services import route_listing
 from backend.services.pipeline_status import get_status
 from backend.services.url_query import canonical_query_redirect
@@ -41,43 +42,8 @@ def _guard_routes_during_blocking_maintenance():
 
 
 def _handle_route_database_error(exc):
-    reason = route_listing.database_busy_reason(exc)
-    return _routes_unavailable_response(*reason) if reason else None
-
-
-class _ListPagination:
-    def __init__(self, items, page, per_page, total):
-        self.items = items
-        self.page = page
-        self.per_page = per_page
-        self.total = total
-        self.pages = ((total - 1) // per_page) + 1 if total > 0 else 0
-        self.has_prev = page > 1
-        self.has_next = page < self.pages
-        self.prev_num = max(page - 1, 1)
-        self.next_num = min(page + 1, self.pages or 1)
-
-    def iter_pages(self, left_edge=1, left_current=1, right_current=2, right_edge=1):
-        if self.pages <= 0:
-            return []
-        pages = []
-        last = 0
-        for num in range(1, self.pages + 1):
-            if (
-                num <= left_edge
-                or (self.page - left_current - 1 < num < self.page + right_current)
-                or num > self.pages - right_edge
-            ):
-                if last + 1 != num:
-                    pages.append(None)
-                pages.append(num)
-                last = num
-        return pages
-
-
-class _EmptyPagination(_ListPagination):
-    def __init__(self, page, per_page):
-        super().__init__([], page, per_page, 0)
+    """The maintenance page after a database timeout; any other error is raised again."""
+    return _routes_unavailable_response(*route_listing.database_busy_reason(exc))
 
 
 def _normalize_route_match_filter(value: str | None) -> str:
@@ -108,26 +74,6 @@ def _render_routes_template(active_view: str, **context):
     )
 
 
-def _compute_page_range(pagination):
-    if pagination.total <= 0:
-        return 0, 0
-    start = ((pagination.page - 1) * pagination.per_page) + 1
-    end = start + len(pagination.items) - 1
-    return start, end
-
-
-def _bounded_int(value, default, minimum=None, maximum=None):
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
-        parsed = default
-    if minimum is not None and parsed < minimum:
-        parsed = minimum
-    if maximum is not None and parsed > maximum:
-        parsed = maximum
-    return parsed
-
-
 def _parse_variant_params():
     """A permalink's variant: ATLAS itinerary id and OSM relation id, as stored."""
     def value(name):
@@ -150,27 +96,14 @@ def _page_for_variant(page, per_page, atlas_variant, osm_variant, **filters):
             **filters,
         )
     except Exception as exc:
-        busy_response = _handle_route_database_error(exc)
-        if busy_response is not None:
-            return page, busy_response
-        located = None
+        return page, _handle_route_database_error(exc)
     return (located or page), None
 
 
 @route_pages_bp.route('/routes')
 def routes_page():
-    page = _bounded_int(request.args.get('page', 1), 1, minimum=1)
-    requested_per_page = _bounded_int(
-        request.args.get('per_page', ROUTES_DEFAULT_PER_PAGE),
-        ROUTES_DEFAULT_PER_PAGE,
-        minimum=1,
-        maximum=max(ROUTES_PER_PAGE_OPTIONS),
-    )
-    per_page = (
-        requested_per_page
-        if requested_per_page in ROUTES_PER_PAGE_OPTIONS
-        else ROUTES_DEFAULT_PER_PAGE
-    )
+    page = bounded_int(request.args.get('page'), 1, minimum=1)
+    per_page = per_page_choice(request.args.get('per_page'), ROUTES_PER_PAGE_OPTIONS, ROUTES_DEFAULT_PER_PAGE, minimum=1)
     q = (request.args.get('q') or '').strip()
     matched_filter = _normalize_route_match_filter(request.args.get('matched'))
     selected_atlas_operators = route_listing.parse_multi_filter('atlas_operator')
@@ -231,17 +164,10 @@ def routes_page():
         route_rows = route_listing.build_route_rows(page_items)
         route_listing.attach_best_overlaps(route_rows)
     except Exception as exc:
-        busy_response = _handle_route_database_error(exc)
-        if busy_response is not None:
-            return busy_response
-        page_items = []
-        total = 0
-        available_atlas_operators = []
-        available_osm_operators = []
-        route_rows = []
+        return _handle_route_database_error(exc)
 
-    pagination = _ListPagination(page_items, page, per_page, total) if total else _EmptyPagination(page, per_page)
-    range_start, range_end = _compute_page_range(pagination)
+    pagination = ListPagination(page_items, page, per_page, total)
+    range_start, range_end = page_range(pagination)
 
     return _render_routes_template(
         ROUTES_VIEW_ROUTES,
@@ -266,18 +192,8 @@ def routes_page():
 
 @route_pages_bp.route('/routes/non-gtfs')
 def non_gtfs_routes_page():
-    page = _bounded_int(request.args.get('page', 1), 1, minimum=1)
-    requested_per_page = _bounded_int(
-        request.args.get('per_page', ROUTES_DEFAULT_PER_PAGE),
-        ROUTES_DEFAULT_PER_PAGE,
-        minimum=1,
-        maximum=max(ROUTES_PER_PAGE_OPTIONS),
-    )
-    per_page = (
-        requested_per_page
-        if requested_per_page in ROUTES_PER_PAGE_OPTIONS
-        else ROUTES_DEFAULT_PER_PAGE
-    )
+    page = bounded_int(request.args.get('page'), 1, minimum=1)
+    per_page = per_page_choice(request.args.get('per_page'), ROUTES_PER_PAGE_OPTIONS, ROUTES_DEFAULT_PER_PAGE, minimum=1)
     _, osm_variant = _parse_variant_params()
     page, busy_response = _page_for_variant(page, per_page, None, osm_variant, non_gtfs_only=True)
     if busy_response is not None:
@@ -305,15 +221,10 @@ def non_gtfs_routes_page():
         )
         route_rows = route_listing.build_route_rows(page_items)
     except Exception as exc:
-        busy_response = _handle_route_database_error(exc)
-        if busy_response is not None:
-            return busy_response
-        page_items = []
-        total = 0
-        route_rows = []
+        return _handle_route_database_error(exc)
 
-    pagination = _ListPagination(page_items, page, per_page, total) if total else _EmptyPagination(page, per_page)
-    range_start, range_end = _compute_page_range(pagination)
+    pagination = ListPagination(page_items, page, per_page, total)
+    range_start, range_end = page_range(pagination)
 
     return _render_routes_template(
         ROUTES_VIEW_NON_GTFS,

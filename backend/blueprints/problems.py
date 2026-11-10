@@ -1,100 +1,55 @@
+"""The Problems page's list and type counts. See documentation/2.4 Problems Page.md."""
+from collections import defaultdict
+
 from flask import Blueprint, request, jsonify, current_app as app
-from sqlalchemy.orm import joinedload
-from backend.models import StopsMatched, AtlasStop, Problem
-from backend.extensions import db, limiter
-from backend.db_errors import is_missing_table_error
-from backend.serializers.stops import format_stop_data
-from backend.services.transport_routes import get_atlas_routes_for_sloids, get_osm_routes_for_nodes
-from backend.services.problem_filters import VISIBLE_PROBLEM_TYPES, area_condition, parse_area
 from sqlalchemy import and_, or_
+from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import func
+
+from backend.extensions import db, limiter
+from backend.models import AtlasStop, Problem, StopsMatched
+from backend.serializers.stops import format_stop_data
+from backend.services.problem_filters import (
+    VISIBLE_PROBLEM_TYPES,
+    area_condition,
+    csv_values,
+    parse_area,
+    parse_priorities,
+    parse_problem_types,
+    problem_conditions,
+)
+from backend.services.transport_routes import get_atlas_routes_for_sloids, get_osm_routes_for_nodes
+from backend.services.validators import validate_pagination
 
 problems_bp = Blueprint('problems', __name__)
 
-DEFAULT_PROBLEM_SORT_BY = 'priority'
-DEFAULT_PROBLEM_SORT_ORDER = 'asc'
+# Duplicates of one side form groups: OSM-side duplicates are P3, ATLAS-side duplicates P2.
+DUPLICATE_GROUP_PRIORITY = {'osm': 3, 'atlas': 2}
 
 
-def empty_problem_stats():
-    return {name: {'all': 0} for name in ('all', *VISIBLE_PROBLEM_TYPES)}
+def parse_problem_filters(args):
+    """The list filters of a request: problem types, priorities, ATLAS operators and area.
+
+    Raises ValueError for a malformed bbox.
+    """
+    return {
+        'problem_types': parse_problem_types(args.get('problem_type')),
+        'priorities': parse_priorities(args.get('priority')),
+        'atlas_operators': csv_values(args.get('atlas_operator')),
+        'area': parse_area(args.get('bbox')),
+    }
 
 
-def parse_csv_values(raw_value):
-    if not raw_value:
-        return []
-    return [item.strip() for item in str(raw_value).split(',') if item.strip()]
-
-
-def map_problem_type(problem_type):
-    return 'unmatched' if problem_type == 'isolated' else problem_type
-
-
-def parse_priority_values(raw_priority):
-    values = []
-    for item in parse_csv_values(raw_priority):
-        if item == 'all':
-            continue
-        try:
-            values.append(int(item))
-        except ValueError:
-            continue
-    return values
-
-
-def get_problem_sort_params(args):
-    sort_by = request.args.get('sort_by', DEFAULT_PROBLEM_SORT_BY)
-    sort_order = request.args.get('sort_order', DEFAULT_PROBLEM_SORT_ORDER)
-    return sort_by, sort_order
-
-
-def sort_duplicate_groups(group_items, sort_by, sort_order):
-    if sort_by == 'priority':
-        def priority_key(group):
-            priority = group.get('priority')
-            if priority is None:
-                priority = 999
-            try:
-                priority = int(priority)
-            except Exception:
-                priority = 999
-
-            if sort_order == 'desc':
-                priority = -priority
-
-            return (
-                priority,
-                0 if group.get('group_type') == 'osm' else 1,
-                str(group.get('uic_ref') or group.get('sloid') or ''),
-                str(group.get('osm_local_ref') or group.get('atlas_designation') or '')
-            )
-
-        return sorted(group_items, key=priority_key)
-
-    return sorted(
-        group_items,
-        key=lambda g: (
-            0 if g.get('group_type') == 'osm' else 1,
-            str(g.get('uic_ref') or g.get('sloid') or ''),
-            str(g.get('osm_local_ref') or g.get('atlas_designation') or '')
-        )
-    )
-
-
-
-def apply_atlas_operator_filter(query, atlas_operator_filter):
-    if atlas_operator_filter:
-        atlas_operators = [op.strip() for op in atlas_operator_filter.split(',') if op.strip()]
-        if atlas_operators:
-            return query.filter(StopsMatched.atlas_stop_details.has(
-                AtlasStop.atlas_business_org_abbr.in_(atlas_operators)
-            ))
+def filtered_problems(filters, *entities):
+    """``entities`` of the problems that pass ``filters``, joined to their stop."""
+    query = db.session.query(*entities).join(StopsMatched).filter(
+        *problem_conditions(filters['problem_types'], filters['priorities']))
+    if filters['atlas_operators']:
+        query = query.filter(StopsMatched.atlas_stop_details.has(
+            AtlasStop.atlas_business_org_abbr.in_(filters['atlas_operators'])))
+    if filters['area']:
+        query = query.filter(area_condition(filters['area']))
     return query
-
-
-def apply_stop_filters(query, atlas_operator_filter, area):
-    """The operator and area filters, on a query joined to stops_matched."""
-    query = apply_atlas_operator_filter(query, atlas_operator_filter)
-    return query.filter(area_condition(area)) if area else query
 
 
 def parse_problem_focus(args):
@@ -118,428 +73,169 @@ def matches_problem_focus(row, focus):
     )
 
 
-def priority_rank_expression():
-    return func.coalesce(func.min(Problem.priority), 999)
+def locate_focus_page(ranked_stops, focus, limit):
+    """The page holding the focus stop's first entry, or None when it has none.
 
-
-def build_priority_stop_query(selected_problem_types, atlas_operator_filter, selected_priorities, area=None):
-    """One row per stop with filtered problems: (stop_id, its most urgent priority).
-
-    Ordered by that priority and then stop_id, this is the order of the
-    Problems page; paging and permalink lookups both use it.
+    ``ranked_stops`` has one row per stop: (stop_id, rank_priority), listed by
+    rank_priority and then stop_id.
     """
-    query = db.session.query(
-        Problem.stop_id.label('stop_id'),
-        priority_rank_expression().label('rank_priority'),
-    ).join(StopsMatched)
-    if selected_problem_types:
-        query = query.filter(Problem.problem_type.in_(selected_problem_types))
-    else:
-        query = query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
-    query = apply_stop_filters(query, atlas_operator_filter, area)
-    if selected_priorities:
-        query = query.filter(Problem.priority.in_(selected_priorities))
-    return query.group_by(Problem.stop_id)
-
-
-def locate_priority_focus_page(stop_query, sort_order, focus, limit):
-    """The page holding the focus stop's first entry, or None when it has none."""
-    ranked = stop_query.subquery()
-    focus_conditions = []
-    if focus['sloid']:
-        focus_conditions.append(StopsMatched.sloid == focus['sloid'])
-    if focus['osm_node_id']:
-        focus_conditions.append(StopsMatched.osm_node_id == focus['osm_node_id'])
-
-    descending = sort_order == 'desc'
+    ranked = ranked_stops.subquery()
     target = (
         db.session.query(ranked.c.stop_id, ranked.c.rank_priority)
         .join(StopsMatched, StopsMatched.id == ranked.c.stop_id)
-        .filter(*focus_conditions)
-        .order_by(
-            ranked.c.rank_priority.desc() if descending else ranked.c.rank_priority.asc(),
-            ranked.c.stop_id,
-        )
+        .filter(*[getattr(StopsMatched, key) == value for key, value in focus.items() if value])
+        .order_by(ranked.c.rank_priority, ranked.c.stop_id)
         .first()
     )
     if target is None:
         return None
-
-    ahead_on_priority = (
-        ranked.c.rank_priority > target.rank_priority
-        if descending
-        else ranked.c.rank_priority < target.rank_priority
-    )
     position = db.session.query(func.count()).select_from(ranked).filter(or_(
-        ahead_on_priority,
+        ranked.c.rank_priority < target.rank_priority,
         and_(ranked.c.rank_priority == target.rank_priority, ranked.c.stop_id < target.stop_id),
     )).scalar()
     return position // limit + 1
 
 
-def build_problem_route_lookup(stops, include_routes):
-    if not include_routes:
-        return {}, {}
+def problem_formatter(problems, include_routes):
+    """A function that serializes one of ``problems`` with its stop; routes are looked up once for all."""
+    atlas_routes, osm_routes = {}, {}
+    if include_routes:
+        atlas_routes = get_atlas_routes_for_sloids({problem.stop.sloid for problem in problems if problem.stop.sloid})
+        osm_routes = get_osm_routes_for_nodes({problem.stop.osm_node_id for problem in problems if problem.stop.osm_node_id})
 
-    valid_stops = [stop for stop in stops if stop is not None]
-    atlas_routes_by_sloid = get_atlas_routes_for_sloids(
-        {stop.sloid for stop in valid_stops if stop.sloid}
-    )
-    osm_routes_by_node_id = get_osm_routes_for_nodes(
-        {stop.osm_node_id for stop in valid_stops if stop.osm_node_id}
-    )
-    return atlas_routes_by_sloid, osm_routes_by_node_id
+    def format_problem(problem):
+        row = format_stop_data(
+            problem.stop,
+            problem_type=problem.problem_type,
+            include_routes=include_routes,
+            atlas_routes=atlas_routes.get(str(problem.stop.sloid), []),
+            osm_routes=osm_routes.get(str(problem.stop.osm_node_id), []),
+            # The identifier problem explains the element's own identifier tags.
+            include_osm_tags=problem.problem_type == 'identifier',
+        )
+        row.update(priority=problem.priority, stop_id=problem.stop_id)
+        return row
+
+    return format_problem
+
+
+def duplicate_groups(problems, format_problem):
+    """The duplicate problems as groups of at least two stops, in priority order.
+
+    An OSM group holds the OSM-side duplicates with one UIC reference and one
+    local_ref; an ATLAS group the ATLAS-side duplicates with one UIC reference
+    and one designation (both compared without case).
+    """
+    members_by_group = defaultdict(dict)
+    for problem in problems:
+        stop = problem.stop
+        atlas, osm = stop.atlas_stop_details, stop.osm_node_details
+        if problem.priority == DUPLICATE_GROUP_PRIORITY['osm'] and stop.osm_node_id and osm and osm.osm_local_ref:
+            uic_ref = (atlas.uic_ref if atlas else None) or osm.osm_uic_ref or ''
+            members_by_group['osm', str(uic_ref), str(osm.osm_local_ref).lower()][stop.osm_node_id] = problem
+        if problem.priority == DUPLICATE_GROUP_PRIORITY['atlas'] and stop.sloid and atlas and atlas.atlas_designation:
+            uic_ref = atlas.uic_ref or ''
+            members_by_group['atlas', str(uic_ref), str(atlas.atlas_designation).strip().lower()][str(stop.sloid)] = problem
+
+    groups = []
+    for (side, uic_ref, name), members in members_by_group.items():
+        if len(members) < 2:
+            continue
+        stops = [problem.stop for problem in members.values()]
+        points = [(getattr(stop, f'{side}_lat'), getattr(stop, f'{side}_lon')) for stop in stops]
+        points = [(float(lat), float(lon)) for lat, lon in points if lat is not None and lon is not None]
+        center_lat = sum(lat for lat, _ in points) / len(points) if points else None
+        center_lon = sum(lon for _, lon in points) / len(points) if points else None
+        group = {
+            'id': f'dup_{side}_{uic_ref}_{name}',
+            'problem': 'duplicates',
+            'group_type': side,
+            'uic_ref': uic_ref or None,
+            'atlas_lat': center_lat,
+            'atlas_lon': center_lon,
+            'osm_lat': center_lat,
+            'osm_lon': center_lon,
+            'members': [format_problem(problem) for problem in members.values()],
+            'priority': DUPLICATE_GROUP_PRIORITY[side],
+        }
+        if side == 'osm':
+            group['osm_local_ref'] = name or None
+        else:
+            group.update(sloid=min(members), atlas_designation=name or None)
+        groups.append(group)
+    return sorted(groups, key=lambda group: (
+        group['priority'],
+        str(group['uic_ref'] or group.get('sloid') or ''),
+        str(group.get('osm_local_ref') or group.get('atlas_designation') or ''),
+    ))
 
 
 @problems_bp.route('/api/problems', methods=['GET'])
 @limiter.limit("120/minute")
 def get_problems():
+    """One page of problems in priority order: the stops with a P1 problem first, then P2, then P3."""
     try:
-        from backend.services.validators import validate_pagination
         try:
-            page, limit = validate_pagination(
-                request.args.get('page', 1),
-                request.args.get('limit', 100),
-                max_limit=1000
-            )
+            page, limit = validate_pagination(request.args.get('page', 1), request.args.get('limit', 100), max_limit=1000)
+            filters = parse_problem_filters(request.args)
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
-        offset = (page - 1) * limit
-        
-        
-        problem_type_filter = request.args.get('problem_type', 'all')
-        atlas_operator_filter = request.args.get('atlas_operator', None)
-        sort_by, sort_order = get_problem_sort_params(request.args)
-        priority_filter = request.args.get('priority', None)
-        try:
-            area = parse_area(request.args.get('bbox'))
-        except ValueError as e:
-            return jsonify({"error": str(e)}), 400
-
-        selected_problem_types = []
-        if problem_type_filter and problem_type_filter != 'all':
-            selected_problem_types = [map_problem_type(t) for t in parse_csv_values(problem_type_filter)]
-
-        selected_priorities = parse_priority_values(priority_filter)
         include_routes = str(request.args.get('include_routes', '0')).strip().lower() in ('1', 'true', 'yes', 'on')
         # A permalink's stop: serve the page that holds its first entry
-        # instead of the requested page (priority order only).
+        # instead of the requested page.
         focus = parse_problem_focus(request.args)
         focus_response = {}
+        eager_stop = (
+            joinedload(Problem.stop).subqueryload(StopsMatched.atlas_stop_details),
+            joinedload(Problem.stop).subqueryload(StopsMatched.osm_node_details),
+        )
 
-        query = Problem.query.join(StopsMatched)
-        if not selected_problem_types:
-            query = query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
-        if selected_problem_types:
-            query = query.filter(Problem.problem_type.in_(selected_problem_types))
-        query = apply_stop_filters(query, atlas_operator_filter, area)
-        if selected_priorities:
-            query = query.filter(Problem.priority.in_(selected_priorities))
-
-        duplicates_only_mode = len(selected_problem_types) == 1 and selected_problem_types[0] == 'duplicates'
-
-        if duplicates_only_mode:
-            dup_query = Problem.query.join(StopsMatched).filter(Problem.problem_type == 'duplicates')
-            dup_query = apply_stop_filters(dup_query, atlas_operator_filter, area)
-            if selected_priorities:
-                dup_query = dup_query.filter(Problem.priority.in_(selected_priorities))
-            dup_query = dup_query.options(
-                joinedload(Problem.stop).subqueryload(StopsMatched.atlas_stop_details),
-                joinedload(Problem.stop).subqueryload(StopsMatched.osm_node_details)
-            )
-            duplicate_problems = dup_query.all()
-            atlas_routes_by_sloid, osm_routes_by_node_id = build_problem_route_lookup(
-                [problem.stop for problem in duplicate_problems],
-                include_routes,
-            )
-            from collections import defaultdict
-            osm_groups = defaultdict(list)
-            atlas_groups = defaultdict(list)
-            for pr in duplicate_problems:
-                st = pr.stop
-                if st is None:
-                    continue
-                # OSM-side grouping: (uic_ref, local_ref)
-                osm_details = st.osm_node_details
-                # Keep OSM groups side-pure: include only OSM-side duplicates (priority == 3)
-                try:
-                    prio_val = int(pr.priority) if pr.priority is not None else None
-                except Exception:
-                    prio_val = None
-                if st.osm_node_id and osm_details and osm_details.osm_local_ref and prio_val == 3:
-                    key = (str((st.atlas_stop_details.uic_ref if st.atlas_stop_details else None) or osm_details.osm_uic_ref or ''), str(osm_details.osm_local_ref or '').lower())
-                    osm_groups[key].append(pr)
-                # ATLAS-side grouping: (uic_ref, designation)
-                atlas_details = st.atlas_stop_details
-                # Keep ATLAS groups side-pure: include only ATLAS-side duplicates (priority == 2)
-                if getattr(st, 'sloid', None) and atlas_details and getattr(atlas_details, 'atlas_designation', None) and prio_val == 2:
-                    atlas_key = (str((atlas_details.uic_ref if atlas_details else None) or ''), str(atlas_details.atlas_designation or '').strip().lower())
-                    atlas_groups[atlas_key].append(pr)
-            def build_osm_group_payload(key, problems_list):
-                members = {}
-                for pr in problems_list:
-                    st = pr.stop
-                    if st and st.osm_node_id:
-                        members[st.osm_node_id] = pr
-                if len(members) < 2:
-                    return None
-                uic_ref, local_ref = key
-                member_payloads = []
-                centroid_lat = []
-                centroid_lon = []
-                priorities = []
-                for pr in members.values():
-                    st = pr.stop
-                    formatted = format_stop_data(
-                        st,
-                        problem_type='duplicates',
-                        include_routes=include_routes,
-                        atlas_routes=atlas_routes_by_sloid.get(str(st.sloid), []),
-                        osm_routes=osm_routes_by_node_id.get(str(st.osm_node_id), []),
-                    )
-                    formatted.update({
-                        'priority': pr.priority,
-                        'stop_id': st.id
-                    })
-                    member_payloads.append(formatted)
-                    if st.osm_lat is not None and st.osm_lon is not None:
-                        centroid_lat.append(float(st.osm_lat))
-                        centroid_lon.append(float(st.osm_lon))
-                    # Track valid member priorities
-                    try:
-                        if pr.priority is not None:
-                            priorities.append(int(pr.priority))
-                    except Exception:
-                        pass
-                center_lat = sum(centroid_lat)/len(centroid_lat) if centroid_lat else None
-                center_lon = sum(centroid_lon)/len(centroid_lon) if centroid_lon else None
-                group_id = f"dup_osm_{uic_ref}_{local_ref}"
-                # Derive a group-level priority from members (lower means higher priority)
-                group_priority = min(priorities) if priorities else 3
-                return {
-                    'id': group_id,
-                    'problem': 'duplicates',
-                    'group_type': 'osm',
-                    'uic_ref': uic_ref or None,
-                    'osm_local_ref': local_ref or None,
-                    'atlas_lat': center_lat,
-                    'atlas_lon': center_lon,
-                    'osm_lat': center_lat,
-                    'osm_lon': center_lon,
-                    'members': member_payloads,
-                    'priority': group_priority
-                }
-            group_items = []
-            for key, pr_list in osm_groups.items():
-                payload = build_osm_group_payload(key, pr_list)
-                if payload:
-                    group_items.append(payload)
-            def build_atlas_group_payload(key, problems_list):
-                members = {}
-                for pr in problems_list:
-                    st = pr.stop
-                    if st and getattr(st, 'sloid', None):
-                        members[str(st.sloid)] = pr
-                if len(members) < 2:
-                    return None
-                uic_ref, designation_norm = key
-                member_payloads = []
-                centroid_lat = []
-                centroid_lon = []
-                priorities = []
-                for pr in members.values():
-                    st = pr.stop
-                    formatted = format_stop_data(
-                        st,
-                        problem_type='duplicates',
-                        include_routes=include_routes,
-                        atlas_routes=atlas_routes_by_sloid.get(str(st.sloid), []),
-                        osm_routes=osm_routes_by_node_id.get(str(st.osm_node_id), []),
-                    )
-                    formatted.update({
-                        'priority': pr.priority,
-                        'stop_id': st.id
-                    })
-                    member_payloads.append(formatted)
-                    if st.atlas_lat is not None and st.atlas_lon is not None:
-                        centroid_lat.append(float(st.atlas_lat))
-                        centroid_lon.append(float(st.atlas_lon))
-                    # Track valid member priorities
-                    try:
-                        if pr.priority is not None:
-                            priorities.append(int(pr.priority))
-                    except Exception:
-                        pass
-                center_lat = sum(centroid_lat)/len(centroid_lat) if centroid_lat else None
-                center_lon = sum(centroid_lon)/len(centroid_lon) if centroid_lon else None
-                # Choose a representative sloid for display/sorting
-                rep_sloid = sorted(members.keys())[0] if members else None
-                group_id = f"dup_atlas_{uic_ref}_{designation_norm}"
-                # Derive a group-level priority from members (lower means higher priority)
-                group_priority = min(priorities) if priorities else 2
-                return {
-                    'id': group_id,
-                    'problem': 'duplicates',
-                    'group_type': 'atlas',
-                    'sloid': rep_sloid,
-                    'uic_ref': uic_ref or None,
-                    'atlas_designation': designation_norm or None,
-                    'atlas_lat': center_lat,
-                    'atlas_lon': center_lon,
-                    'osm_lat': center_lat,
-                    'osm_lon': center_lon,
-                    'members': member_payloads,
-                    'priority': group_priority
-                }
-            for key, pr_list in atlas_groups.items():
-                payload = build_atlas_group_payload(key, pr_list)
-                if payload:
-                    group_items.append(payload)
-            group_items = sort_duplicate_groups(group_items, sort_by, sort_order)
+        if filters['problem_types'] == ['duplicates']:
+            duplicate_problems = filtered_problems(filters, Problem).options(*eager_stop).all()
+            groups = duplicate_groups(duplicate_problems, problem_formatter(duplicate_problems, include_routes))
             if focus is not None:
                 focus_index = next((
-                    index for index, group in enumerate(group_items)
+                    index for index, group in enumerate(groups)
                     if any(matches_problem_focus(member, focus) for member in group['members'])
                 ), None)
                 focus_response['focus_found'] = focus_index is not None
                 if focus_index is not None:
                     page = focus_index // limit + 1
-                    offset = (page - 1) * limit
-            total_groups = len(group_items)
-            paged_groups = group_items[offset:offset+limit]
+            offset = (page - 1) * limit
             return jsonify({
-                'problems': paged_groups,
-                'total': total_groups,
+                'problems': groups[offset:offset + limit],
+                'total': len(groups),
                 'page': page,
                 'limit': limit,
-                'sort_by': sort_by,
-                'sort_order': sort_order,
                 **focus_response
             })
-        distinct_stop_ids_subquery = query.with_entities(Problem.stop_id).distinct().subquery()
-        total_problems = db.session.query(func.count()).select_from(distinct_stop_ids_subquery).scalar()
-        distance_only_mode = len(selected_problem_types) == 1 and selected_problem_types[0] == 'distance'
 
-        if sort_by == 'distance' and distance_only_mode:
-            if sort_order == 'desc':
-                query = query.order_by(func.coalesce(StopsMatched.distance_m, -1).desc(), Problem.stop_id, Problem.problem_type)
-            else:
-                query = query.order_by(func.coalesce(StopsMatched.distance_m, 1000000000000).asc(), Problem.stop_id, Problem.problem_type)
-        elif sort_by == 'priority':
-            if sort_order == 'desc':
-                query = query.order_by(func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
-            else:
-                query = query.order_by(func.coalesce(Problem.priority, 999).asc(), Problem.stop_id, Problem.problem_type)
-        else:
-            query = query.order_by(Problem.stop_id, Problem.problem_type)
-        if sort_by == 'distance' and distance_only_mode:
-            stop_distance_query = db.session.query(StopsMatched.id, StopsMatched.distance_m).join(Problem)
-            if selected_problem_types:
-                stop_distance_query = stop_distance_query.filter(Problem.problem_type.in_(selected_problem_types))
-            else:
-                stop_distance_query = stop_distance_query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
-            stop_distance_query = apply_stop_filters(stop_distance_query, atlas_operator_filter, area)
-            if selected_priorities:
-                stop_distance_query = stop_distance_query.filter(Problem.priority.in_(selected_priorities))
-            if sort_order == 'desc':
-                stop_distance_query = stop_distance_query.distinct().order_by(func.coalesce(StopsMatched.distance_m, -1).desc(), StopsMatched.id)
-            else:
-                stop_distance_query = stop_distance_query.distinct().order_by(func.coalesce(StopsMatched.distance_m, 1000000000000).asc(), StopsMatched.id)
-            paged_stops = stop_distance_query.offset(offset).limit(limit).all()
-            paged_stop_ids = [stop[0] for stop in paged_stops]
-        elif sort_by == 'priority':
-            stop_ids_query = build_priority_stop_query(selected_problem_types, atlas_operator_filter, selected_priorities, area)
-            if focus is not None:
-                focus_page = locate_priority_focus_page(stop_ids_query, sort_order, focus, limit)
-                focus_response['focus_found'] = focus_page is not None
-                if focus_page is not None:
-                    page = focus_page
-                    offset = (page - 1) * limit
-            if sort_order == 'desc':
-                stop_ids_query = stop_ids_query.order_by(priority_rank_expression().desc(), Problem.stop_id)
-            else:
-                stop_ids_query = stop_ids_query.order_by(priority_rank_expression().asc(), Problem.stop_id)
-            paged_stops = stop_ids_query.offset(offset).limit(limit).all()
-            paged_stop_ids = [row[0] for row in paged_stops]
-        else:
-            stop_ids_query = db.session.query(Problem.stop_id).join(StopsMatched)
-            if selected_problem_types:
-                stop_ids_query = stop_ids_query.filter(Problem.problem_type.in_(selected_problem_types))
-            else:
-                stop_ids_query = stop_ids_query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
-            stop_ids_query = apply_stop_filters(stop_ids_query, atlas_operator_filter, area)
-            if selected_priorities:
-                stop_ids_query = stop_ids_query.filter(Problem.priority.in_(selected_priorities))
-            paged_stop_ids = [item[0] for item in stop_ids_query.distinct().order_by(Problem.stop_id).offset(offset).limit(limit).all()]
-        if not paged_stop_ids:
-            final_problems = []
-        else:
-            final_query = Problem.query.options(
-                joinedload(Problem.stop).subqueryload(StopsMatched.atlas_stop_details),
-                joinedload(Problem.stop).subqueryload(StopsMatched.osm_node_details)
-            ).filter(Problem.stop_id.in_(paged_stop_ids))
-            if selected_problem_types:
-                final_query = final_query.filter(Problem.problem_type.in_(selected_problem_types))
-            else:
-                final_query = final_query.filter(Problem.problem_type.in_(VISIBLE_PROBLEM_TYPES))
-            final_query = apply_atlas_operator_filter(final_query, atlas_operator_filter)
-            if selected_priorities:
-                final_query = final_query.filter(Problem.priority.in_(selected_priorities))
-            if sort_by == 'distance' and distance_only_mode:
-                if sort_order == 'desc':
-                    final_query = final_query.join(StopsMatched).order_by(func.coalesce(StopsMatched.distance_m, -1).desc(), Problem.stop_id, Problem.problem_type)
-                else:
-                    final_query = final_query.join(StopsMatched).order_by(func.coalesce(StopsMatched.distance_m, 1000000000000).asc(), Problem.stop_id, Problem.problem_type)
-            elif sort_by == 'priority':
-                if sort_order == 'desc':
-                    final_query = final_query.order_by(func.coalesce(Problem.priority, 999).desc(), Problem.stop_id, Problem.problem_type)
-                else:
-                    final_query = final_query.order_by(func.coalesce(Problem.priority, 999).asc(), Problem.stop_id, Problem.problem_type)
-            else:
-                final_query = final_query.order_by(Problem.stop_id, Problem.problem_type)
-            final_problems = final_query.all()
-        atlas_routes_by_sloid, osm_routes_by_node_id = build_problem_route_lookup(
-            [problem.stop for problem in final_problems],
-            include_routes,
-        )
-        problems = []
-        for problem in final_problems:
-            formatted_stop = format_stop_data(
-                problem.stop,
-                problem_type=problem.problem_type,
-                include_routes=include_routes,
-                atlas_routes=atlas_routes_by_sloid.get(str(problem.stop.sloid), []),
-                osm_routes=osm_routes_by_node_id.get(str(problem.stop.osm_node_id), []),
-                # The identifier problem explains the element's own identifier tags.
-                include_osm_tags=problem.problem_type == 'identifier',
-            )
-            st = problem.stop
-            formatted_stop['priority'] = problem.priority
-            formatted_stop['stop_id'] = problem.stop_id
-            problems.append(formatted_stop)
-        if focus is not None and 'focus_found' not in focus_response:
-            focus_response['focus_found'] = False  # focus needs priority order
+        # One row per stop with its most urgent problem; the list's order.
+        rank_priority = func.coalesce(func.min(Problem.priority), 999)
+        ranked_stops = filtered_problems(
+            filters, Problem.stop_id.label('stop_id'), rank_priority.label('rank_priority'),
+        ).group_by(Problem.stop_id)
+        total_stops = db.session.query(func.count()).select_from(ranked_stops.subquery()).scalar()
+        if focus is not None:
+            focus_page = locate_focus_page(ranked_stops, focus, limit)
+            focus_response['focus_found'] = focus_page is not None
+            if focus_page is not None:
+                page = focus_page
+        paged_stop_ids = [row.stop_id for row in ranked_stops.order_by(rank_priority, Problem.stop_id)
+                          .offset((page - 1) * limit).limit(limit)]
+        page_problems = Problem.query.options(*eager_stop).filter(
+            Problem.stop_id.in_(paged_stop_ids),
+            *problem_conditions(filters['problem_types'], filters['priorities']),
+        ).order_by(func.coalesce(Problem.priority, 999), Problem.stop_id, Problem.problem_type).all()
+        format_problem = problem_formatter(page_problems, include_routes)
         return jsonify({
-            "problems": problems,
-            "total": total_problems,
+            "problems": [format_problem(problem) for problem in page_problems],
+            "total": total_stops,
             "page": page,
             "limit": limit,
-            "sort_by": sort_by,
-            "sort_order": sort_order,
             **focus_response
         })
     except Exception as e:
-        if is_missing_table_error(e):
-            db.session.rollback()
-            app.logger.warning("Problems unavailable: matching tables are not initialized yet.")
-            return jsonify({
-                "problems": [],
-                "total": 0,
-                "page": 1,
-                "limit": 100,
-                "sort_by": request.args.get('sort_by', DEFAULT_PROBLEM_SORT_BY),
-                "sort_order": request.args.get('sort_order', DEFAULT_PROBLEM_SORT_ORDER)
-            }), 200
         app.logger.exception(f"Error fetching problems: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
@@ -547,40 +243,19 @@ def get_problems():
 @problems_bp.route('/api/problems/stats', methods=['GET'])
 @limiter.limit("120/minute")
 def get_problem_stats():
+    """The number of stops with each type of problem, under the priority, operator and area filters."""
     try:
-        atlas_operator_filter = request.args.get('atlas_operator', None)
         try:
-            area = parse_area(request.args.get('bbox'))
+            filters = {**parse_problem_filters(request.args), 'problem_types': []}
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
-        stats = empty_problem_stats()
-        selected_priorities = parse_priority_values(request.args.get('priority'))
-
-        problem_types = list(VISIBLE_PROBLEM_TYPES)
-        counts_query = db.session.query(
-            Problem.problem_type,
-            func.count(func.distinct(Problem.stop_id))
-        ).join(StopsMatched).filter(Problem.problem_type.in_(problem_types))
-        counts_query = apply_stop_filters(counts_query, atlas_operator_filter, area)
-        if selected_priorities:
-            counts_query = counts_query.filter(Problem.priority.in_(selected_priorities))
-
-        counts_by_type = {
-            problem_type: count
-            for problem_type, count in counts_query.group_by(Problem.problem_type).all()
-        }
-
-        for ptype in problem_types:
-            count = counts_by_type.get(ptype, 0)
-            stats[ptype]['all'] = count
-
-        stats['all']['all'] = sum(s['all'] for s in stats.values() if s is not stats['all'])
-
+        counts = dict(
+            filtered_problems(filters, Problem.problem_type, func.count(func.distinct(Problem.stop_id)))
+            .group_by(Problem.problem_type).all()
+        )
+        stats = {problem_type: {'all': counts.get(problem_type, 0)} for problem_type in VISIBLE_PROBLEM_TYPES}
+        stats['all'] = {'all': sum(counts.values())}
         return jsonify(stats)
     except Exception as e:
-        if is_missing_table_error(e):
-            db.session.rollback()
-            app.logger.warning("Problem stats unavailable: matching tables are not initialized yet.")
-            return jsonify(empty_problem_stats()), 200
         app.logger.error(f"Error fetching problem stats: {str(e)}")
         return jsonify({"error": str(e)}), 500

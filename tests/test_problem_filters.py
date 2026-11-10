@@ -3,7 +3,7 @@
 import pytest
 
 from backend.models import AtlasStop, OsmNode, Problem, StopsMatched
-from backend.query_builder import QueryBuilder
+from backend.query_builder import apply_common_filters
 from backend.queries.helpers import parse_filter_params
 from backend.services.problem_filters import parse_area
 
@@ -87,7 +87,7 @@ def test_a_malformed_area_is_an_error_not_every_problem(client, stops):
 
 
 def map_entries(args):
-    query = QueryBuilder(None).apply_common_filters(StopsMatched.query, parse_filter_params(args))
+    query = apply_common_filters(StopsMatched.query, parse_filter_params(args))
     return sorted(row.sloid or row.osm_node_id for row in query.all())
 
 

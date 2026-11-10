@@ -1,3 +1,14 @@
+# Every service builds from this checkout's dockerfile; only the stage differs.
+x-build: &build
+  context: .
+  target: app-stage
+  additional_contexts:
+    # The engine checkout; scripts/verify_engine_checkout.sh checks it is at engine.ref.
+    engine: ${ENGINE_DIR:-../engine}
+  args:
+    APP_UID: ${APP_UID:-1000}
+    APP_GID: ${APP_GID:-1000}
+
 services:
   db:
     image: postgis/postgis:16-3.4
@@ -22,12 +33,15 @@ services:
 
   migrator:
     image: stop_sync_osm_atlas-migrator
+    build: *build
     container_name: stop_sync_osm_atlas_migrator
     restart: "no"
     entrypoint: ["/bin/bash", "-lc"]
     command:
       - "python backend/importing/init.py && flask db upgrade"
     volumes:
+      # The checkout replaces the image's copy, so code edits apply without a rebuild.
+      - .:/app
       - ./data:/app/data
     depends_on:
       db:
@@ -39,13 +53,16 @@ services:
 
   app:
     image: stop_sync_osm_atlas-app
+    build: *build
     container_name: stop_sync_osm_atlas_app
     restart: unless-stopped
     ports:
       - "5001:5001"
     volumes:
-      # Mount data directory for persistence
+      - .:/app
       - ./data:/app/data
+      # The engine's documentation, shown in the portal.
+      - ${ENGINE_DIR:-../engine}:/app/engine:ro
     depends_on:
       db:
         condition: service_healthy # Waits for db to be healthy before starting app
@@ -65,29 +82,21 @@ services:
       FORCE_HTTPS: "false"
       SESSION_COOKIE_SECURE: "false"
       RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}
-      STATE_BACKEND: file
       STATE_DIR: ${STATE_DIR:-data/runtime}
     cpu_shares: 2048 # Higher CPU priority during contention
     mem_limit: 2g # Web app stays lighter, pipeline runs in scheduler service
     # mem_reservation: 1g # Optional: guarantee 1g
 
-  test:
-    image: stop_sync_osm_atlas-test
-    container_name: stop_sync_osm_atlas_test
-    restart: "no"
-    volumes:
-      - ./data:/app/data
-    environment:
-      DATABASE_URI: ${DATABASE_URI:-postgresql+psycopg://stops_user:1234@db:5432/import_db}
-      RATELIMIT_STORAGE_URI: ${RATELIMIT_STORAGE_URI:-memory://}
-      STATE_DIR: ${STATE_DIR:-data/runtime}
-
   scheduler:
     image: stop_sync_osm_atlas-scheduler
+    build:
+      <<: *build
+      target: scheduler-stage
     container_name: stop_sync_osm_atlas_scheduler
     restart: unless-stopped
     command: ["scheduler"]
     volumes:
+      - .:/app
       - ./data:/app/data
     depends_on:
       db:
@@ -108,7 +117,6 @@ services:
       GTFS_PROCESSING_BACKEND: ${GTFS_PROCESSING_BACKEND:-duckdb}
       GTFS_THREADS: ${GTFS_THREADS:-2}
       GTFS_MEMORY_LIMIT: ${GTFS_MEMORY_LIMIT:-1536MB}
-      DB_IMPORT_METHOD: ${DB_IMPORT_METHOD:-copy}
       DB_IMPORT_BATCH_SIZE: ${DB_IMPORT_BATCH_SIZE:-10000}
       MATCHER_COMMAND: ${MATCHER_COMMAND:-osm-public-transport-matcher}
       PIPELINE_WORKSPACE: ${PIPELINE_WORKSPACE:-/app}

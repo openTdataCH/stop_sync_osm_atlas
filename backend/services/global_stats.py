@@ -1,49 +1,26 @@
+"""The map summary: ATLAS stops, OSM stop units and matches among the rows the map's filters keep.
+
+See documentation/2.3 Global Stats.md.
+"""
 from sqlalchemy import case, func
 
 from backend.extensions import db
 from backend.models import OsmStopMember, StopsMatched
 from backend.queries.helpers import (
-    build_atlas_duplicate_membership_condition,
-    build_stop_scope_condition,
-    get_query_builder,
-    parse_filter_params,
+    filtered_stops_query,
+    parse_top_n,
     resolve_stop_type_match_filters,
+    top_distance_matches,
 )
 
 
 def _build_scoped_global_stats_query(args):
-    stop_filter_str = args.get('stop_filter', None)
-    match_method_str = args.get('match_method', None)
-    show_duplicates_only = args.get('show_duplicates_only', 'false').lower() == 'true'
-    top_n = args.get('top_n', None)
-
-    filters = parse_filter_params(args)
-    query_builder = get_query_builder()
-    base_query = query_builder.apply_common_filters(StopsMatched.query, filters)
-
-    resolved_filters = resolve_stop_type_match_filters(stop_filter_str, match_method_str)
-    scope_condition = build_stop_scope_condition(StopsMatched, resolved_filters)
-    query = base_query.filter(scope_condition) if scope_condition is not None else base_query
+    query = filtered_stops_query(args)
     # Disused OSM elements are not stops: count them only when asked for.
-    if not resolved_filters['include_osm_disused']:
+    if not resolve_stop_type_match_filters(args.get('stop_filter'), args.get('match_method'))['include_osm_disused']:
         query = query.filter(StopsMatched.stop_type != 'osm_disused')
-
-    if show_duplicates_only:
-        duplicate_condition = build_atlas_duplicate_membership_condition()
-        query = query.filter(StopsMatched.atlas_stop_details.has(duplicate_condition))
-
-    if top_n:
-        try:
-            n_val = int(top_n)
-        except Exception:
-            n_val = None
-        if n_val and n_val > 0:
-            query = query.filter(
-                StopsMatched.stop_type == 'matched',
-                StopsMatched.distance_m.isnot(None),
-            ).order_by(StopsMatched.distance_m.desc()).limit(n_val)
-
-    return query
+    top_n = parse_top_n(args)
+    return top_distance_matches(query, top_n) if top_n else query
 
 
 def _build_effective_stop_type():
@@ -56,8 +33,8 @@ def _build_effective_stop_type():
     ).label('effective_stop_type')
 
 
-def _compute_global_stats_sql(args, db_session) -> dict:
-    """Compute global stats directly from StopsMatched with shared filter semantics."""
+def compute_global_stats_payload(args) -> dict:
+    """The summary numbers for the filters in ``args``, in one query."""
     query = _build_scoped_global_stats_query(args)
     effective_stop_type = _build_effective_stop_type()
 
@@ -67,7 +44,7 @@ def _compute_global_stats_sql(args, db_session) -> dict:
         effective_stop_type,
     ).subquery('f')
 
-    res = db_session.query(
+    res = db.session.query(
         func.count(func.distinct(filtered.c.sloid)).label('total_atlas'),
         func.count(
             func.distinct(
@@ -106,8 +83,3 @@ def _compute_global_stats_sql(args, db_session) -> dict:
         'matched_pairs_count': int(res.matched_pairs or 0),
         'unmatched_entities_count': (res.unmatched_atlas or 0) + unmatched_osm_stops,
     }
-
-
-def compute_global_stats_payload(args, db_session) -> dict:
-    """Return global stats using the canonical SQL path."""
-    return _compute_global_stats_sql(args, db_session)

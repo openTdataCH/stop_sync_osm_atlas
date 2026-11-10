@@ -62,9 +62,8 @@ def test_operator_card_breaks_down_matched_stops_by_operator_value(client, monke
             {'osm_operator': 'aare seeland mobil', 'matched_stop_count': 1},
         ]},
         {},
-        True,
     )
-    monkeypatch.setattr(operator_coverage, 'load_operators_view', lambda **kwargs: ([operator], _DummyPagination(), True))
+    monkeypatch.setattr(operator_coverage, 'load_operators_view', lambda **kwargs: ([operator], _DummyPagination()))
 
     response = client.get('/operators')
 
@@ -87,8 +86,8 @@ def test_match_counts_count_each_atlas_and_osm_stop_once(sqlite_tables):
                      OsmNode(osm_node_id='c', osm_operator='')])
     session.commit()
 
-    counts = operator_coverage._load_match_counts(['EX'], True)
-    values = operator_coverage._load_osm_operators(['EX'])
+    counts = operator_coverage._load_match_counts(['EX'])
+    values = operator_coverage._load_osm_values(['EX'], OsmNode.osm_operator)
 
     assert counts == {'EX': {
         'matched_atlas_stop_count': 2,

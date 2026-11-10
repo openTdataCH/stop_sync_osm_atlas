@@ -8,8 +8,8 @@ from backend.serializers.stops import format_stop_data
 from backend.services.stop_lookup import InvalidLookup, lookup_payload, parse_lookup
 from backend.services import stop_suggest
 from backend.services.transport_routes import get_stops_for_route
-from backend.queries.helpers import get_query_builder, parse_filter_params, optimize_query_for_endpoint, resolve_stop_type_match_filters, build_stop_scope_condition, build_match_method_conditions
-from backend.queries.helpers import build_atlas_duplicate_membership_condition
+from backend.services.validators import validate_pagination
+from backend.queries.helpers import filtered_stops_query, optimize_query_for_endpoint, parse_top_n, top_distance_matches
 
 search_bp = Blueprint('search', __name__)
 
@@ -17,32 +17,14 @@ search_bp = Blueprint('search', __name__)
 @search_bp.route('/api/top_matches', methods=['GET'])
 @limiter.limit("60/minute")
 def get_top_matches():
+    """The Top N overlay: the matches with the largest distance among the rows the filters keep."""
     try:
-        from backend.services.validators import validate_pagination
         try:
             _, limit = validate_pagination(1, request.args.get('limit', 10), max_limit=100)
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
-        match_method_str = request.args.get('match_method', None)
-        show_duplicates_only = request.args.get('show_duplicates_only', 'false').lower() == 'true'
-        filters = parse_filter_params(request.args)
-        query_builder = get_query_builder()
-        query = optimize_query_for_endpoint(StopsMatched.query, 'search')
-        query = query.filter(StopsMatched.stop_type == 'matched', StopsMatched.distance_m.isnot(None))
-        query = query_builder.apply_common_filters(query, filters)
-        if show_duplicates_only:
-            duplicate_condition = build_atlas_duplicate_membership_condition()
-            query = query.filter(StopsMatched.atlas_stop_details.has(duplicate_condition))
-        if match_method_str:
-            specific_methods = [m.strip() for m in match_method_str.split(',') if m.strip()]
-            if specific_methods:
-                method_condition = build_match_method_conditions(StopsMatched, specific_methods)
-                query = query.filter(method_condition) if method_condition is not None else query.filter(db.false())
-            else:
-                query = query.filter(db.false())
-        stops = query.order_by(StopsMatched.distance_m.desc()).limit(limit).all()
-        stops_data = [format_stop_data(stop) for stop in stops]
-        return jsonify(stops_data)
+        query = optimize_query_for_endpoint(filtered_stops_query(request.args), 'search')
+        return jsonify([format_stop_data(stop) for stop in top_distance_matches(query, limit).all()])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -52,38 +34,11 @@ def get_top_matches():
 def get_random_stop():
     try:
         # Honor the same filters as the main UI.
-        stop_filter_str = request.args.get('stop_filter', None)
-        match_method_str = request.args.get('match_method', None)
-        show_duplicates_only = request.args.get('show_duplicates_only', 'false').lower() == 'true'
-        top_n = request.args.get('top_n', None)
-
-        filters = parse_filter_params(request.args)
-        query_builder = get_query_builder()
-
-        query = optimize_query_for_endpoint(StopsMatched.query, 'search')
-        query = query_builder.apply_common_filters(query, filters)
-
-        resolved_filters = resolve_stop_type_match_filters(stop_filter_str, match_method_str)
-        scope_condition = build_stop_scope_condition(StopsMatched, resolved_filters)
-        if scope_condition is not None:
-            query = query.filter(scope_condition)
-
-        if show_duplicates_only:
-            duplicate_condition = build_atlas_duplicate_membership_condition()
-            query = query.filter(StopsMatched.atlas_stop_details.has(duplicate_condition))
-
+        query = optimize_query_for_endpoint(filtered_stops_query(request.args), 'search')
+        top_n = parse_top_n(request.args)
         # If Top-N mode is active, pick randomly from the (small) top-N set.
-        n_val = None
         if top_n:
-            try:
-                n_val = int(top_n)
-            except Exception:
-                n_val = None
-        if n_val and n_val > 0:
-            top_query = query.filter(StopsMatched.stop_type == 'matched', StopsMatched.distance_m.isnot(None)) \
-                .order_by(StopsMatched.distance_m.desc()) \
-                .limit(n_val)
-            candidates = top_query.all()
+            candidates = top_distance_matches(query, top_n).all()
             if not candidates:
                 return jsonify({"error": "No stop found for the current filters."}), 404
             random_stop = random.choice(candidates)

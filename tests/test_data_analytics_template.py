@@ -5,7 +5,6 @@ from backend.services.stats_export import _matching_rule_stats
 
 def _minimal_empty_stats(source_downloads=None):
     return {
-        "generated_at": "2026-05-25T10:00:00+02:00",
         "stats_computed_at": "2026-05-25T10:00:00+02:00",
         "last_pipeline_data_import_ended_at": None,
         "last_overpass_query_at": None,

@@ -136,18 +136,16 @@ def project_bundle(bundle):
             for node_id in row.get("osm_ids", []):
                 osm_problems.setdefault(str(node_id), []).append(problem)
     unmatched_source, unmatched_osm, disused_osm = [], [], []
-    source_map, osm_map, isolated_source, isolated_osm, effectively_matched = {}, {}, set(), set(), set()
+    source_map, osm_map, isolated_osm, effectively_matched = {}, {}, set(), set()
     for row in bundle["unmatched"]:
         if row["side"] == "source":
             node = sources[row["key"]]
             unmatched_source.append(node)
             isolated = bool(row.get("isolated"))
             source_map[id(node)] = {
-                "is_isolated": isolated, "match_type": "no_nearby_counterpart" if isolated else None,
+                "match_type": "no_nearby_counterpart" if isolated else None,
                 "problems": source_problems.get(row["key"], []),
             }
-            if isolated:
-                isolated_source.add(node.sloid)
         else:
             node = osm[row["key"]]
             (disused_osm if row["key"] in disused_keys else unmatched_osm).append(node)
@@ -171,8 +169,6 @@ def project_bundle(bundle):
     )
     problems = {
         "problem_ctx": Record(duplicate_osm_group_map=extensions.get("duplicate_osm_group_map", {})),
-        "matched_problem_map": {id(match): match.problems for match in matches},
         "unmatched_atlas_problem_map": source_map, "unmatched_osm_problem_map": osm_map,
-        "no_nearby_osm_sloids": isolated_source,
     }
     return result, problems, {"route_write_payload": routes}

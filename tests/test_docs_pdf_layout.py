@@ -8,7 +8,6 @@ from weasyprint.formatting_structure import boxes
 from weasyprint.urls import URLFetcher, URLFetchingError
 
 from documentation.pdf_generator import build_docs_pdf as docs_builder
-from documentation.pdf_generator.build_single_markdown_pdf import _build_single_markdown_pdf
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -114,17 +113,24 @@ def test_missing_mermaid_asset_requires_local_prerender(tmp_path, monkeypatch):
         raise AssertionError('A missing Mermaid asset should fail closed')
 
 
-def test_single_markdown_pdf_builds(tmp_path, monkeypatch):
-    markdown_path = tmp_path / "single.md"
-    output_path = tmp_path / "single.pdf"
-    markdown_path.write_text("# Single document\n\nRendered content.\n", encoding="utf-8")
+def test_one_page_pdf_builds(tmp_path, monkeypatch):
+    for name in ('OUTPUT_DIR', 'DIAGRAMS_DIR'):
+        monkeypatch.setattr(docs_builder, name, tmp_path)
+    monkeypatch.setattr(docs_builder, 'COMBINED_MD_PATH', tmp_path / "bundle.md")
+    monkeypatch.setattr(docs_builder, 'OUTPUT_HTML_PATH', tmp_path / "bundle.html")
     monkeypatch.setattr(docs_builder, 'load_stats_for_docs', lambda: {})
+    # Mermaid is pre-rendered by the image build, not in tests.
+    monkeypatch.setattr(docs_builder, '_rewrite_mermaid_blocks', lambda content: content)
+    output_path = tmp_path / "page.pdf"
 
-    result = _build_single_markdown_pdf(markdown_path, output_path)
+    result = docs_builder._build_pdf(
+        included_pages=['documentation/2.8 Documentation Page Delivery.md'],
+        include_cover=False,
+        output_path=output_path,
+    )
 
     assert result == output_path
-    assert output_path.exists()
-    assert output_path.stat().st_size > 0
+    assert output_path.read_bytes().startswith(b'%PDF')
 
 
 def test_stylesheet_parameter_respects_the_document_url_fetcher(tmp_path):

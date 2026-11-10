@@ -47,7 +47,7 @@ def test_publishes_the_passing_report_and_commits_only_the_published_folder(tmp_
                            'shipped_fingerprint': quality_report.shipped_fingerprint([('backend/app.py', b'app')])}
     assert json.loads((published / 'latest.json').read_text())['revision']['app'] == SHA
     assert json.loads((published / 'code-map.json').read_text()) == {'schema_version': 1}
-    assert f"[CI run]({RUN['url']})" in (published / 'report.md').read_text()
+    assert sorted(path.name for path in published.iterdir()) == ['code-map.json', 'latest.json', 'publication.json']
     commit = next(command for command in calls if command[:2] == ('git', 'commit'))
     assert commit[-2:] == ('--', quality_report.PUBLISHED)
     assert calls[-1] == ('git', 'push', '--quiet', 'origin', 'HEAD:main')
@@ -81,7 +81,7 @@ def test_refuses_an_artifact_without_the_code_map(tmp_path, monkeypatch):
 
 
 def test_refuses_when_head_is_already_a_report_commit(tmp_path, monkeypatch):
-    calls = _fake_git_and_gh(monkeypatch, tmp_path, touched='quality/published/latest.json\nquality/published/report.md')
+    calls = _fake_git_and_gh(monkeypatch, tmp_path, touched='quality/published/latest.json\nquality/published/publication.json')
     with pytest.raises(SystemExit, match='already a quality report commit'):
         deploy_report.main()
     assert not any(command[:2] == ('gh', 'run') for command in calls)

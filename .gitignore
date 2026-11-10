@@ -1,20 +1,5 @@
-# Data files - organized in data/ directory
+# Runtime inputs and results
 data/
-
-memoire/
-
-# Text files (except requirements variants and the llms.txt template)
-*.txt
-!requirements.txt
-!templates/llms.txt
-!requirements-base.txt
-!requirements-web.txt
-!requirements-scheduler.txt
-!requirements-test.txt
-!requirements-quality.txt
-
-requirements.txt.backup
-
 
 # Python
 __pycache__/
@@ -38,13 +23,17 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+.ruff_cache/
+.hypothesis/
+coverage.xml
+.coverage
 
 # Virtual environments
 .venv/
 env/
 ENV/
 
-# IDE
+# IDE: only the shared VS Code tasks are versioned
 .vscode/*
 !.vscode/tasks.json
 .idea/
@@ -55,7 +44,7 @@ ENV/
 .DS_Store
 Thumbs.db
 
-# Docker
+# Local settings; env.example is the template
 .env
 
 # Node.js
@@ -66,57 +55,24 @@ coverage/
 # Logs
 *.log
 
-
-
-# LaTeX compilation files
-*.aux
-*.bbl
-*.bcf
-*.blg
-*.fdb_latexmk
-*.fls
-*.listing
-*.lof
-*.lot
-*.out
-*.ptc
-*.xdv
-*.toc
-*.synctex.gz
-*.nav
-*.snm
-*.vrb
-*.log
-
 # Generated documentation
 documentation/generated/
 
-latex_document_routes
-
-latex_document_non_nodes
-
-# Root markdown files except README.md
+# Root Markdown files except the README and the contributor guide
 /*.md
 !/README.md
-
-/*.png
-coverage.xml
-.coverage
-docs_to_read
-# Public contribution guides, synthetic GTFS fixtures, and reviewed design notes
 !/CONTRIBUTING.md
-!engine/examples/**/*.txt
-!engine/tests/fixtures/**/*.txt
-docs_to_read/*
+/*.png
 
-# Generated quality evidence (manual catalog, schemas and baseline are versioned)
+# Local working notes
+docs_to_read/
+
+# Generated quality evidence (the catalog, schemas, baseline and published report are versioned)
 quality/raw/
 quality/latest.json
 quality/quality-map.json
 quality/code-map.json
 quality/report.md
-.ruff_cache/
-.hypothesis/
 
 # Internal documentation style guide (kept local, not published)
 documentation/Documentation style guide.md

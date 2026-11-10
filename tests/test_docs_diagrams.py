@@ -27,7 +27,7 @@ build = _load_build()
 
 
 def _engine_available():
-    return (build.engine_root() / 'pyproject.toml').is_file()
+    return (build.engine_dir() / 'pyproject.toml').is_file()
 
 
 RENDERED = list(build.render_all())
@@ -37,7 +37,7 @@ NAMES = [name for name, _, _, _ in RENDERED]
 def _documentation_dirs():
     dirs = {'app': APP_ROOT / 'documentation'}
     if _engine_available():
-        dirs['engine'] = build.engine_root() / 'documentation'
+        dirs['engine'] = build.engine_dir() / 'documentation'
     return dirs
 
 

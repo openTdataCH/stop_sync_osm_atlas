@@ -6,7 +6,7 @@ This folder contains the script and CSS that generate one PDF from the app- and 
 
 The PDF build follows a three-stage process:
 1. **Local Mermaid rendering**: `scripts/render_docs_mermaid.mjs` discovers Mermaid blocks and renders content-addressed SVGs with the project's pinned Mermaid package and local Chromium. The render page blocks HTTP(S) requests. The Docker build performs this in its own Node stage; no diagram source is sent over the network at runtime.
-2. **Markdown to HTML**: `build_docs_pdf.py` gathers top-level `.md` files from `documentation/` and `engine/documentation/`, orders them as overview → engine → application, replaces local links with anchors, injects stats placeholders, rewrites repository links to GitHub blob URLs, and embeds the pre-rendered Mermaid SVGs.
+2. **Markdown to HTML**: `build_docs_pdf.py` takes the pages of `documentation/` and `engine/documentation/` in the order of the portal's sidebar from `backend/services/docs_sources.py`, replaces links between pages with anchors, injects stats placeholders, rewrites repository links to GitHub blob URLs with the portal's helper, and embeds the pre-rendered Mermaid SVGs.
 3. **WeasyPrint rendering**: It renders the combined HTML plus `docs_print.css` into the final PDF.
 
 ## Usage
@@ -24,7 +24,7 @@ Or directly from your terminal:
 npm run docs:build-pdf
 ```
 
-The combined command first updates only missing diagram assets and then runs the Python PDF generator. `npm run docs:check-mermaid` performs a fast completeness check without launching a browser. The Python generator deliberately does not fall back to a network service; a missing SVG fails with the command needed to create it.
+The combined command first updates only missing diagram assets and then runs the Python PDF generator. The Python generator deliberately does not fall back to a network service; a missing SVG fails with the command needed to create it.
 
 ## Generated Files
 

@@ -1,0 +1,11 @@
+# Tests and quality checks, installed together with requirements.txt.
+# The analysers and the property/schema test tools have exact pins, so a gate gives
+# the same answer on every machine.
+pytest>=9.0.3,<10.0
+pytest-cov>=7.1.0,<8.0
+beautifulsoup4>=4.12,<5.0
+hypothesis==6.168.0
+jsonschema==4.26.0
+ruff==0.15.7
+vulture==2.15
+PyYAML==6.0.3

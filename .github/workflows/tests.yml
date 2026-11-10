@@ -1,7 +1,7 @@
 name: Quality
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main]
     # A `make deploy-report` commit adds only the report of a commit CI already measured.
     paths-ignore: ['quality/published/**']
   pull_request:
@@ -13,22 +13,6 @@ jobs:
     name: Required quality
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    services:
-      postgres:
-        image: postgis/postgis:16-3.4
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: transport_test
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U test -d transport_test"
-          --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      DATABASE_URI: sqlite://
-      TEST_POSTGRES_URI: postgresql+psycopg://test:test@localhost:5432/transport_test
-      STATE_BACKEND: memory
-      QUALITY_BASE: ${{ github.event.pull_request.base.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,25 +27,11 @@ jobs:
           repository: openTdataCH/osm-public-transport-matcher
           ref: ${{ steps.engine.outputs.ref }}
           path: engine
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-          cache: pip
-          cache-dependency-path: requirements-*.txt
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - run: sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libpangocairo-1.0-0
-      - name: Install app tools without installing the engine
-        run: pip install -r requirements-base.txt -r requirements-web.txt -r requirements-scheduler.txt -r requirements-test.txt -r requirements-quality.txt
-      - run: npm ci
-      - name: Install isolated engine tools
-        run: |
-          python -m venv "$RUNNER_TEMP/engine-venv"
-          "$RUNNER_TEMP/engine-venv/bin/pip" install './engine[swiss,gtfs,quality]'
       - name: Run required checks and generate evidence
-        run: make quality-ci ENGINE_ROOT=engine ENGINE_PYTHON="$RUNNER_TEMP/engine-venv/bin/python" PYTHON=python
+        # The image and disposable PostGIS database of a local `make quality`.
+        run: make quality ENGINE_DIR="$GITHUB_WORKSPACE/engine"
+        env:
+          QUALITY_BASE: ${{ github.event.pull_request.base.sha }}
       - name: Publish evidence, including failures
         if: always()
         uses: actions/upload-artifact@v4

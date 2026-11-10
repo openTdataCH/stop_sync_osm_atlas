@@ -3,41 +3,28 @@ from backend.models import StopsMatched, Problem, AtlasStop
 from backend.extensions import db, limiter
 from sqlalchemy.orm import joinedload
 from backend.queries.helpers import optimize_query_for_endpoint
+from backend.services.problem_filters import VISIBLE_PROBLEM_TYPES
 from backend.services.request_payload import read_request_payload
 from datetime import datetime
 import csv
 from io import StringIO
-import threading
 import time
-import uuid
 import os
 import shutil
 import tempfile
 from sqlalchemy import case
 
 from backend.services.async_export import (
-    start_cleanup_thread,
-    cleanup_stale_tasks,
-    init_task,
+    start_task,
     update_progress as ae_update_progress,
     set_task_status,
-    complete_task,
     get_progress,
     get_completed_file,
-    cancel_task as ae_cancel_task,
+    cancel_task,
 )
 
 reports_bp = Blueprint('reports', __name__)
 
-PROBLEM_REPORT_TYPES = (
-    'distance',
-    'unmatched',
-    'attributes',
-    'contradicts_route_matching',
-    'duplicates',
-    'disused',
-    'identifier',
-)
 
 
 def _copy_summary_pdf_to_temp(task_id):
@@ -198,12 +185,7 @@ def _render_report_pdf_bytes(data_for_report, report_type, include_fields, sort_
         pdf_assets_prefix='static/vendor/'
     )
 
-    try:
-        from weasyprint import HTML
-    except ModuleNotFoundError as exc:
-        raise RuntimeError(
-            "WeasyPrint is required to generate PDF reports. Install web dependencies."
-        ) from exc
+    from weasyprint import HTML
 
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return HTML(string=report_html, base_url=base_dir).write_pdf()
@@ -219,9 +201,6 @@ def _write_report_file(filepath, data_for_report, report_type, report_format, in
     pdf_bytes = _render_report_pdf_bytes(data_for_report, report_type, include_fields, sort_order)
     with open(filepath, 'wb') as f:
         f.write(pdf_bytes)
-
-
-# Removed local threading/cleanup logic in favor of async_export service
 
 
 def update_progress(task_id, processed, total, start_time=None):
@@ -283,9 +262,9 @@ def generate_report_data(params, task_id=None):
             problem_types_str = params.get('problem_types', '')
             selected_types = [t.strip() for t in problem_types_str.split(',') if t.strip()]
             if selected_types:
-                selected_types = [t for t in selected_types if t in PROBLEM_REPORT_TYPES]
+                selected_types = [t for t in selected_types if t in VISIBLE_PROBLEM_TYPES]
             else:
-                selected_types = list(PROBLEM_REPORT_TYPES)
+                selected_types = list(VISIBLE_PROBLEM_TYPES)
 
             priorities_str = params.get('priorities', '')
             selected_priorities = []
@@ -411,11 +390,8 @@ def generate_report_data(params, task_id=None):
 @reports_bp.route('/api/generate_report_async', methods=['POST'])
 @limiter.limit("10/hour")
 def generate_report_async():
-    """Start async report generation"""
+    """Start a data export or the summary PDF; /api/exports/<task_id>/… follows it."""
     try:
-        start_cleanup_thread()
-        cleanup_stale_tasks()
-
         data = read_request_payload(request)
         if not data:
             return jsonify({"error": "No data provided"}), 400
@@ -427,128 +403,59 @@ def generate_report_async():
         if report_type == 'summary' and report_format != 'pdf':
             return jsonify({"error": "Summary report only supports PDF format"}), 400
 
-        task_id = str(uuid.uuid4())
-        init_task(task_id)
-        
-        # Get the actual app instance for the background thread
-        flask_app = app._get_current_object()
-        
-        # Start background thread
-        thread = threading.Thread(target=background_report_generation, args=(data, task_id, flask_app))
-        thread.daemon = True
-        thread.start()
-        
-        return jsonify({
-            "task_id": task_id,
-            "status": "started"
-        })
-        
+        return jsonify({"task_id": start_task(_write_report, data), "status": "started"})
+
     except Exception as e:
         app.logger.error(f"Error starting async report: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
-def background_report_generation(params, task_id, flask_app):
-    """Background function to generate report"""
-    with flask_app.app_context():
-        try:
-            if get_progress(task_id) is None:
-                return
-            set_task_status(task_id, 'processing')
-            
-            report_type = _normalize_report_type(params.get('report_type', 'distance'))
-            report_format = params.get('format', 'pdf').lower()
-            
-            if report_type == 'summary' and report_format == 'pdf':
-                dest_path, filename = _copy_summary_pdf_to_temp(task_id)
-                complete_task(task_id, dest_path, filename)
-                ae_update_progress(task_id, 1, 1)
-                return
+def _write_report(task_id, params):
+    """Write the export file of a task; None when it was cancelled or failed."""
+    report_type = _normalize_report_type(params.get('report_type', 'distance'))
+    if report_type == 'summary':
+        return _copy_summary_pdf_to_temp(task_id)
 
-            if report_type == 'summary':
-                raise ValueError("Summary report only supports PDF format")
+    result = generate_report_data(params, task_id)
+    if result is None:
+        return None  # Cancelled, or the error is recorded
 
-            # Proceed normally for customized reports
-            result = generate_report_data(params, task_id)
-            if result is None:
-                return  # Cancelled or error
-                
-            data_for_report, _ = result
-            report_format = params.get('format', 'pdf').lower()
-            include_fields = _parse_include_fields(params.get('include_fields', ''))
-            sort_param = _normalize_sort(report_type, params.get('sort', 'operator_asc'))
-            
-            # Generate file
-            temp_dir = tempfile.gettempdir()
-            filename_stem = f"{report_type}_{sort_param}_{task_id[:8]}"
-            extension = 'csv' if report_format == 'csv' else 'pdf'
-            filename = f"{filename_stem}.{extension}"
-            filepath = os.path.join(temp_dir, filename)
+    data_for_report, _ = result
+    report_format = str(params.get('format', 'pdf')).strip().lower()
+    include_fields = _parse_include_fields(params.get('include_fields', ''))
+    sort_param = _normalize_sort(report_type, params.get('sort', 'operator_asc'))
+    extension = 'csv' if report_format == 'csv' else 'pdf'
+    filename = f"{report_type}_{sort_param}_{task_id[:8]}.{extension}"
+    filepath = os.path.join(tempfile.gettempdir(), filename)
 
-            # Data collection is complete; file rendering/writing may still take time.
-            set_task_status(task_id, 'finalizing')
-
-            _write_report_file(
-                filepath,
-                data_for_report,
-                report_type,
-                report_format,
-                include_fields,
-                sort_param,
-            )
-            
-            # Store completed report
-            complete_task(task_id, filepath, filename)
-
-        except Exception as e:
-            set_task_status(task_id, 'error', str(e))
-            flask_app.logger.error(f"Background report generation error: {str(e)}")
+    # Data collection is complete; file rendering/writing may still take time.
+    set_task_status(task_id, 'finalizing')
+    _write_report_file(filepath, data_for_report, report_type, report_format, include_fields, sort_param)
+    return filepath, filename
 
 
-@reports_bp.route('/api/report_progress/<task_id>', methods=['GET'])
-# Keep this higher so older clients polling at 500ms don't stall on 429.
+# Every export (data, summary and documentation PDF) is followed through these.
+@reports_bp.route('/api/exports/<task_id>/progress', methods=['GET'])
 @limiter.limit("240/minute")
-def get_report_progress(task_id):
-    """Get progress of report generation"""
+def export_progress(task_id):
     progress = get_progress(task_id)
     if not progress:
         return jsonify({"error": "Task not found"}), 404
     return jsonify(progress)
 
 
-@reports_bp.route('/api/download_report/<task_id>', methods=['GET'])
-@limiter.limit("20/minute")  
-def download_report(task_id):
-    """Download completed report"""
+@reports_bp.route('/api/exports/<task_id>/download', methods=['GET'])
+@limiter.limit("20/minute")
+def export_download(task_id):
     task_info = get_completed_file(task_id)
-    if not task_info:
-        return jsonify({"error": "Report not found"}), 404
-    
-    filepath = task_info['file_path']
-    filename = task_info['filename']
-    
-    if not os.path.exists(filepath):
-        return jsonify({"error": "Report file not found"}), 404
-    
-    try:
-        mimetype = 'application/pdf' if filename.endswith('.pdf') else 'text/csv'
-        response = send_file(
-            filepath,
-            mimetype=mimetype,
-            as_attachment=True,
-            download_name=filename,
-        )
-
-        return response
-        
-    except Exception as e:
-        app.logger.error(f"Error downloading report: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+    if not task_info or not os.path.exists(task_info['file_path']):
+        return jsonify({"error": "File not found"}), 404
+    # The type follows the name: .pdf or .csv.
+    return send_file(task_info['file_path'], as_attachment=True, download_name=task_info['filename'])
 
 
-@reports_bp.route('/api/cancel_report/<task_id>', methods=['POST'])
+@reports_bp.route('/api/exports/<task_id>/cancel', methods=['POST'])
 @limiter.limit("60/minute")
-def cancel_report(task_id):
-    """Cancel report generation"""
-    ae_cancel_task(task_id)
+def export_cancel(task_id):
+    cancel_task(task_id)
     return jsonify({"status": "cancelled"})

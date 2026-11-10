@@ -6,43 +6,31 @@ Usage, from the review application repository root::
     python3 documentation/diagrams/build.py --check    # fail if any file is stale
     python3 documentation/diagrams/build.py --only architecture-system
 
-Diagrams of the engine documentation are written into the sibling engine
-checkout (``ENGINE_DIR``, ``engine/`` or ``../engine``), like the Mermaid
-pre-renderer, so each documentation tree commits its own images. Only the
-Python standard library is required.
+Diagrams of the engine documentation are written into the engine checkout
+(``backend.version.engine_dir``), like the Mermaid pre-renderer, so each
+documentation tree commits its own images. Only the Python standard library
+is required.
 """
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
 
 APP_ROOT = Path(__file__).resolve().parents[2]
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+for path in (Path(__file__).resolve().parent, APP_ROOT):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 from catalog import DIAGRAMS  # noqa: E402
-
-
-def engine_root() -> Path:
-    configured = os.getenv('ENGINE_DIR', '').strip()
-    candidates = []
-    if configured:
-        path = Path(configured)
-        candidates.append(path if path.is_absolute() else APP_ROOT / path)
-    candidates += [APP_ROOT / 'engine', APP_ROOT.parent / 'engine']
-    for candidate in candidates:
-        if (candidate / 'pyproject.toml').is_file():
-            return candidate.resolve()
-    return candidates[0].resolve()
+from backend.version import engine_dir  # noqa: E402
 
 
 def output_path(tree: str, name: str) -> Path:
     if tree == 'app':
         return APP_ROOT / 'documentation' / 'images' / f'{name}.svg'
     if tree == 'engine':
-        return engine_root() / 'documentation' / 'images' / f'{name}.svg'
+        return engine_dir() / 'documentation' / 'images' / f'{name}.svg'
     raise ValueError(f'Unknown documentation tree {tree!r}')
 
 
@@ -67,7 +55,7 @@ def main(argv=None) -> int:
 
     stale = []
     for name, tree, path, svg in render_all(args.only):
-        if tree == 'engine' and not (engine_root() / 'pyproject.toml').is_file():
+        if tree == 'engine' and not (engine_dir() / 'pyproject.toml').is_file():
             print(f'skip   {name}: engine checkout not found (set ENGINE_DIR)')
             continue
         current = path.read_text(encoding='utf-8') if path.exists() else None

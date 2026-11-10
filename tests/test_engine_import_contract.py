@@ -2,13 +2,12 @@
 
 The engine runs as a subprocess in its own interpreter (``ENGINE_PYTHON``), so
 the app never imports it. The tests need ``ENGINE_PYTHON``, the engine checkout
-(``ENGINE_DIR`` or the sibling ``../engine``) and ``TEST_POSTGRES_URI``;
+(``backend.version.engine_dir``) and ``TEST_POSTGRES_URI``;
 ``make quality`` and CI provide all three, and other runs skip.
 """
 from collections import Counter
 import json
 import os
-from pathlib import Path
 import subprocess
 
 import pytest
@@ -21,6 +20,7 @@ from backend.importing.projection import project_bundle
 from backend.importing.publication import publish_snapshot
 from backend.services.matching_rules import ALL_MATCH_TYPES
 from backend.services.pipeline_progress import apply_progress_event, initial_progress_plan
+from backend.version import engine_dir
 
 MODES = ('gtfs', 'swiss', 'swiss-local-gtfs')
 SWISS_MODES = ('swiss', 'swiss-local-gtfs')
@@ -42,7 +42,7 @@ def engine_run(tmp_path_factory):
     python = os.getenv('ENGINE_PYTHON')
     if not python:
         pytest.skip('Set ENGINE_PYTHON to an interpreter with the engine dependencies')
-    root = Path(os.getenv('ENGINE_DIR') or Path(__file__).resolve().parents[2] / 'engine').resolve()
+    root = engine_dir()
     examples = root / 'examples'
     if not examples.is_dir():
         pytest.skip(f'No engine checkout with examples at {root}')

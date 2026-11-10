@@ -8,9 +8,9 @@ import re
 
 
 def _pages():
-    from backend.blueprints.docs import _engine_root
+    from backend.version import engine_dir
 
-    roots = Path(__file__).resolve().parents[1] / 'documentation', Path(_engine_root()) / 'documentation'
+    roots = Path(__file__).resolve().parents[1] / 'documentation', engine_dir() / 'documentation'
     assert all(root.exists() for root in roots), f'Documentation directories not found: {roots}'
     return sorted(path for root in roots for path in root.glob('*.md'))
 

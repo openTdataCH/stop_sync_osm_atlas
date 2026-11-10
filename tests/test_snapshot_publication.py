@@ -100,26 +100,9 @@ def test_progress_reports_commit_and_reporting_failure_does_not_change_publicati
         assert not connection.execute(text("SELECT nspname FROM pg_namespace WHERE nspname LIKE 'import_%' OR nspname LIKE 'previous_%'")).all()
 
 
-def test_long_source_identifiers_survive_migration_and_atomic_import_with_foreign_keys(postgres):
-    import importlib
+def test_long_source_identifiers_survive_an_atomic_import_with_foreign_keys(postgres):
     import json
-    from alembic.migration import MigrationContext
-    from alembic.operations import Operations
     from backend.importing.bundle import validate_records
-
-    migration = importlib.import_module('migrations.versions.20260911_000006_external_source_identifiers')
-    with postgres.begin() as connection:
-        # Execute the additive migration against the previous column types.
-        # The empty snapshot can safely be downgraded without shortening data.
-        with Operations.context(MigrationContext.configure(connection)):
-            migration.downgrade()
-            migration.upgrade()
-        for table, columns in migration.COLUMNS.items():
-            types = dict(connection.execute(text('''
-                SELECT column_name, data_type FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = :table
-            '''), {'table': table}).all())
-            assert all(types[column] == 'text' for column in columns)
 
     bundle = read_bundle(Path(__file__).resolve().parents[1] / 'tests/fixtures/result-v1')
     old_key = bundle['source_stops'][0]['key']
@@ -177,40 +160,36 @@ def test_long_source_identifiers_survive_migration_and_atomic_import_with_foreig
         assert connection.execute(text("SELECT representative_sloid FROM atlas_stops WHERE sloid = 'demo:b'")).scalar() == source_key
         assert connection.execute(text('SELECT original_stop_id FROM gtfs_stops_raw')).scalar() == raw_stop_id
 
-    with postgres.begin() as connection, Operations.context(MigrationContext.configure(connection)):
-        with pytest.raises(RuntimeError, match='Cannot downgrade'):
-            migration.downgrade()
 
-
-def test_copy_matches_insert_json_geometry_defaults_indexes_and_sequences(postgres, monkeypatch):
+def test_copy_keeps_escaped_text_json_geometry_defaults_indexes_and_sequences(postgres):
     payload, manifest = _example()
-    payload['osm_nodes'][0]['duplicate_group_node_ids'] = ['quote"', 'tab\t', 'line\nbreak', 'back\\slash', 'é']
-    payload['stops_matched'][0]['match_type'] = 'quote"\tline\nbreak\\é'
+    awkward_ids = ['quote"', 'tab\t', 'line\nbreak', 'back\\slash', 'é']
+    awkward_text = 'quote"\tline\nbreak\\é'
+    payload['osm_nodes'][0]['duplicate_group_node_ids'] = awkward_ids
+    payload['stops_matched'][0]['match_type'] = awkward_text
     payload['stops_matched'][1]['geom'] = None
-    snapshots = []
-    for method in ('insert', 'copy'):
-        monkeypatch.setenv('DB_IMPORT_METHOD', method)
-        publish_snapshot(postgres, payload, _write_rows, manifest=manifest)
-        with postgres.connect() as connection:
-            snapshots.append({table.name: connection.execute(text(
-                f'SELECT row_to_json(t)::text FROM "{table.name}" t ORDER BY row_to_json(t)::text')).scalars().all()
-                for table in db.Model.metadata.sorted_tables})
-            for table in db.Model.metadata.sorted_tables:
-                expected = {index.name for index in table.indexes}
-                actual = set(connection.execute(text('SELECT indexname FROM pg_indexes WHERE schemaname=\'public\' AND tablename=:name'),
-                                                {'name': table.name}).scalars())
-                assert expected <= actual
-            assert connection.execute(text('SELECT ST_SRID(geom) FROM stops_matched WHERE geom IS NOT NULL LIMIT 1')).scalar() == 4326
-            # An absent JSON value is SQL NULL on both paths, so IS NULL selects it.
-            for table, column in (('osm_nodes', 'duplicate_group_node_ids'), ('atlas_stops', 'duplicate_group_sloids')):
-                counts = connection.execute(text(
-                    f"SELECT count(*) FILTER (WHERE {column} IS NULL), "
-                    f"count(*) FILTER (WHERE jsonb_typeof({column}) = 'null') FROM {table}")).one()
-                assert counts[0] > 0 and counts[1] == 0
-            maximum = connection.execute(text('SELECT max(id) FROM stops_matched')).scalar()
-            following = connection.execute(text("SELECT nextval(pg_get_serial_sequence('stops_matched', 'id'))")).scalar()
-            assert following == maximum + 1
-    assert snapshots[0] == snapshots[1]
+    publish_snapshot(postgres, payload, _write_rows, manifest=manifest)
+    with postgres.connect() as connection:
+        assert connection.execute(text('SELECT duplicate_group_node_ids FROM osm_nodes WHERE osm_node_id = :id'),
+                                  {'id': payload['osm_nodes'][0]['osm_node_id']}).scalar() == awkward_ids
+        # Stop rows get their IDs in payload order.
+        assert connection.execute(text('SELECT match_type FROM stops_matched WHERE id = 1')).scalar() == awkward_text
+        assert connection.execute(text('SELECT geom IS NULL FROM stops_matched WHERE id = 2')).scalar() is True
+        for table in db.Model.metadata.sorted_tables:
+            expected = {index.name for index in table.indexes}
+            actual = set(connection.execute(text('SELECT indexname FROM pg_indexes WHERE schemaname=\'public\' AND tablename=:name'),
+                                            {'name': table.name}).scalars())
+            assert expected <= actual
+        assert connection.execute(text('SELECT ST_SRID(geom) FROM stops_matched WHERE geom IS NOT NULL LIMIT 1')).scalar() == 4326
+        # An absent JSON value is SQL NULL, so IS NULL selects it.
+        for table, column in (('osm_nodes', 'duplicate_group_node_ids'), ('atlas_stops', 'duplicate_group_sloids')):
+            counts = connection.execute(text(
+                f"SELECT count(*) FILTER (WHERE {column} IS NULL), "
+                f"count(*) FILTER (WHERE jsonb_typeof({column}) = 'null') FROM {table}")).one()
+            assert counts[0] > 0 and counts[1] == 0
+        maximum = connection.execute(text('SELECT max(id) FROM stops_matched')).scalar()
+        following = connection.execute(text("SELECT nextval(pg_get_serial_sequence('stops_matched', 'id'))")).scalar()
+        assert following == maximum + 1
 
 
 def test_failed_secondary_index_keeps_previous_snapshot(postgres, monkeypatch):
@@ -226,21 +205,7 @@ def test_failed_secondary_index_keeps_previous_snapshot(postgres, monkeypatch):
         assert not connection.execute(text("SELECT nspname FROM pg_namespace WHERE nspname LIKE 'import_%' OR nspname LIKE 'previous_%'")).all()
 
 
-def test_best_overlap_migration_and_rows_published_with_the_snapshot(postgres):
-    import importlib
-    from alembic.migration import MigrationContext
-    from alembic.operations import Operations
-    from sqlalchemy import inspect
-
-    migration = importlib.import_module('migrations.versions.20261017_000007_itinerary_best_overlaps')
-    with postgres.begin() as connection, Operations.context(MigrationContext.configure(connection)):
-        # The baseline already creates every model table, so this must be a no-op.
-        migration.upgrade()
-        migration.downgrade()
-        assert not inspect(connection).has_table('itinerary_best_overlaps')
-        migration.upgrade()
-        assert inspect(connection).has_table('itinerary_best_overlaps')
-
+def test_best_overlap_rows_are_published_with_the_snapshot(postgres):
     bundle = read_bundle(Path(__file__).resolve().parents[1] / 'tests/fixtures/result-v1')
     calls = [(1, 1, '1'), (1, 2, '2'), (1, 3, '3'), (2, 1, '1'), (2, 2, '3')]
     bundle['routes'] = [

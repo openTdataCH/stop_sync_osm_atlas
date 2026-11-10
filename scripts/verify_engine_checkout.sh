@@ -6,11 +6,12 @@ set -eu
 app_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 pin=$(cat "$app_root/engine.ref")
 
-engine_dir=../engine
-if [ -f "$app_root/.env" ]; then
-    configured=$(sed -n 's/^ENGINE_DIR=//p' "$app_root/.env" | tail -n 1)
-    engine_dir=${configured:-$engine_dir}
+# The checkout Compose builds from: ENGINE_DIR from the shell, else from .env, else ../engine.
+engine_dir=${ENGINE_DIR:-}
+if [ -z "$engine_dir" ] && [ -f "$app_root/.env" ]; then
+    engine_dir=$(sed -n 's/^ENGINE_DIR=//p' "$app_root/.env" | tail -n 1)
 fi
+engine_dir=${engine_dir:-../engine}
 case "$engine_dir" in
     /*) ;;
     *) engine_dir="$app_root/$engine_dir" ;;

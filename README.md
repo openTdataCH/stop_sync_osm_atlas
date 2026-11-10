@@ -75,7 +75,7 @@ For day-to-day web development, run this from the application checkout:
 make dev
 ```
 
-Open [localhost:5001](http://localhost:5001). The development Compose override mounts this checkout into `/app`: Python edits reload Flask automatically, and template, JavaScript and CSS edits appear when you refresh the browser. The Flask CLI reloader also recovers after you fix a syntax error. Dependency or Dockerfile changes require another `make dev` to rebuild the image. The scheduler and its installed engine need rebuilding/restarting separately when their code changes.
+Open [localhost:5001](http://localhost:5001). Compose mounts this checkout into `/app`: Python edits reload Flask automatically, and template, JavaScript and CSS edits appear when you refresh the browser. The Flask CLI reloader also recovers after you fix a syntax error. Dependency or Dockerfile changes require another `make dev` to rebuild the image. The scheduler and its installed engine need rebuilding/restarting separately when their code changes.
 
 After moving or renaming the workspace, run `make dev` from its new location. Docker Desktop's Start button reuses the absolute bind paths recorded when the container was created; `docker compose up` recreates containers with the current paths while retaining the PostGIS volume. To also update the scheduler's paths, run `docker compose up --build -d scheduler`.
 
@@ -96,7 +96,7 @@ The full command builds the Python 3.13 and Node 22 tooling, keeps the app and e
 Start with the [contributor guide](documentation/Contributing.md). A matching-rule contribution can use a tiny offline fixture; a UI contribution can use the example bundle. No national download is required to begin.
 
 - [Documentation overview](documentation/0.%20Intro.md)
-- [Glossary](documentation/0.1%20Glossary.md)
+- [Glossary](documentation/0.5%20Glossary.md)
 - [Engine documentation](../engine/documentation/1.%20Download%20and%20process%20data.md)
 - [Review application changelog](documentation/Changelog.md)
 - [Matching engine changelog](../engine/documentation/Changelog.md)

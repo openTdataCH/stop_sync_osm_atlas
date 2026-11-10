@@ -1,7 +1,16 @@
+"""Background export tasks: the data exports, the summary PDF and the documentation PDF.
+
+``start_task`` runs the work in a thread; the client follows it at
+``/api/exports/<task_id>/progress``, then fetches ``…/download`` or calls
+``…/cancel`` (``backend/blueprints/reports.py``).
+"""
 import os
 import threading
 import time
+import uuid
 from datetime import datetime, timezone
+
+from flask import current_app
 
 from backend.services.async_export_state_store import (
     get_async_export_state_store,
@@ -89,6 +98,37 @@ def _periodic_cleanup():
             cleanup_stale_tasks()
         except Exception:
             pass
+
+
+def start_task(work, *args) -> str:
+    """Run ``work(task_id, *args)`` in a background thread and return the new task's id.
+
+    ``work`` returns ``(file path, download name)``, or None when it was
+    cancelled or has recorded its own error; an exception marks the task
+    failed. Week-old tasks are removed first.
+    """
+    start_cleanup_thread()
+    cleanup_stale_tasks()
+    task_id = str(uuid.uuid4())
+    init_task(task_id)
+    flask_app = current_app._get_current_object()
+    threading.Thread(target=_run_task, args=(flask_app, task_id, work, args), daemon=True).start()
+    return task_id
+
+
+def _run_task(flask_app, task_id: str, work, args) -> None:
+    with flask_app.app_context():
+        if get_progress(task_id) is None:
+            return  # cancelled before it started
+        set_task_status(task_id, 'processing')
+        try:
+            result = work(task_id, *args)
+        except Exception as exc:
+            set_task_status(task_id, 'error', str(exc))
+            flask_app.logger.error('Export %s failed: %s', task_id, exc)
+            return
+        if result is not None:
+            complete_task(task_id, *result)
 
 
 def init_task(task_id: str):

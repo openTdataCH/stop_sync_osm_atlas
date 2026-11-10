@@ -17,7 +17,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from backend.services.quality_report import PUBLISHED, render_report, shipped_fingerprint  # noqa: E402
+from backend.services.quality_report import PUBLISHED, shipped_fingerprint  # noqa: E402
 
 WORKFLOW = 'tests.yml'
 BRANCH = 'main'
@@ -56,7 +56,7 @@ def main():
         fail(f'no CI run for {short} yet. Wait a moment for GitHub to start it, then retry.')
     ci = runs[0]
     if ci['status'] != 'completed':
-        fail(f"CI for {short} is still running: {ci['url']}. Retry when it finishes (about 4 minutes).")
+        fail(f"CI for {short} is still running: {ci['url']}. Retry when it finishes.")
     if ci['conclusion'] != 'success':
         fail(f"CI for {short} did not pass ({ci['conclusion']}): {ci['url']}. Fix it and push before deploying.")
     with tempfile.TemporaryDirectory() as directory:
@@ -73,7 +73,6 @@ def main():
     published.mkdir(parents=True, exist_ok=True)
     (published / 'latest.json').write_text(report_text)
     (published / 'code-map.json').write_text(code_map_text)
-    (published / 'report.md').write_text(render_report(report, None, ci['url']))
     publication = {'app_revision': sha, 'run_url': ci['url'], 'shipped_fingerprint': shipped_fingerprint(committed_files(sha))}
     (published / 'publication.json').write_text(json.dumps(publication, indent=2, sort_keys=True) + '\n')
     run('git', 'add', '--', PUBLISHED)

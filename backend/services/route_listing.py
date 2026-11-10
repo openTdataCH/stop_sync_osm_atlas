@@ -6,7 +6,7 @@ from flask import request
 from sqlalchemy import String, cast, exists, func, literal, or_, select, union_all
 from sqlalchemy.orm import aliased
 
-from backend.db_errors import is_database_timeout_error, is_missing_table_error
+from backend.db_errors import is_database_timeout_error
 from backend.extensions import db
 from backend.models import (
     AtlasOperator,
@@ -802,20 +802,6 @@ def attach_best_overlaps(route_rows):
         group['best_overlap'] = overlaps.get(group['atlas_itinerary_id'] or group['osm_itinerary_id'])
 
 
-def recover_database_error(exc) -> str:
-    """Roll back after a missing route table or a database timeout and say which: 'missing' or 'busy'.
-
-    Any other error is raised again.
-    """
-    if is_missing_table_error(exc):
-        db.session.rollback()
-        return 'missing'
-    if is_database_timeout_error(exc):
-        db.session.rollback()
-        return 'busy'
-    raise exc
-
-
 def maintenance_reason(status: dict) -> tuple[str, str] | None:
     """The (message, phase) to answer with while blocking maintenance hides the route data, else None."""
     if not status.get('blocking_maintenance'):
@@ -823,8 +809,9 @@ def maintenance_reason(status: dict) -> tuple[str, str] | None:
     return status.get('message') or 'Route data is being refreshed.', status.get('phase') or 'import'
 
 
-def database_busy_reason(exc) -> tuple[str, str] | None:
-    """The (message, phase) to answer with when the database is busy, else None; see recover_database_error."""
-    if recover_database_error(exc) == 'busy':
-        return 'Route data is temporarily busy. Please retry shortly.', 'database'
-    return None
+def database_busy_reason(exc) -> tuple[str, str]:
+    """The (message, phase) to answer with after a database timeout, rolled back; any other error is raised again."""
+    if not is_database_timeout_error(exc):
+        raise exc
+    db.session.rollback()
+    return 'Route data is temporarily busy. Please retry shortly.', 'database'

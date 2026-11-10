@@ -18,7 +18,7 @@ def test_full_run_discards_old_evidence_and_preserves_failed_gates(tmp_path, mon
     monkeypatch.setattr(run_quality, 'RAW', raw)
     monkeypatch.setattr(run_quality, 'preflight', lambda *args: None)
     monkeypatch.setattr(run_quality, 'revision', lambda root: 'commit')
-    monkeypatch.setattr(sys, 'argv', ['run_quality.py', 'full', '--engine-root', str(tmp_path / 'engine')])
+    monkeypatch.setattr(sys, 'argv', ['run_quality.py', 'full', '--engine-dir', str(tmp_path / 'engine')])
     fingerprint = ['before']
     monkeypatch.setitem(sys.modules, 'quality', SimpleNamespace(repository_fingerprint=lambda root: fingerprint[0]))
     monkeypatch.setattr(run_quality.subprocess, 'check_output', lambda *args, **kwargs: 'v22.13.0')
@@ -63,9 +63,8 @@ def test_full_run_requires_postgis_and_app_engine_isolation(supported_checkout, 
 
 
 def test_quality_rejects_image_with_outdated_requirement(supported_checkout, monkeypatch):
-    for name in ('base', 'web', 'scheduler', 'test', 'quality'):
-        (supported_checkout / f'requirements-{name}.txt').write_text('')
-    (supported_checkout / 'requirements-web.txt').write_text('weasyprint>=70.0,<71.0\n')
+    (supported_checkout / 'requirements.txt').write_text('weasyprint>=70.0,<71.0\n')
+    (supported_checkout / 'requirements-dev.txt').write_text('')
     monkeypatch.setattr(run_quality, 'version', lambda package: '68.1')
     with pytest.raises(RuntimeError, match='weasyprint==68.1 does not satisfy'):
         run_quality.preflight(False, supported_checkout, 'engine-python')

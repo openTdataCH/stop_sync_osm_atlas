@@ -8,7 +8,6 @@ from datetime import date, datetime, timezone
 import fnmatch
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 import subprocess
@@ -16,8 +15,10 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from backend.version import engine_dir  # noqa: E402
+
 CODE_SUFFIXES = {'.py', '.js', '.mjs', '.cjs', '.css', '.html', '.sql', '.sh', '.yml', '.yaml', '.json', '.toml'}
-GENERATED = {'quality/latest.json', 'quality/quality-map.json', 'quality/code-map.json', 'quality/report.md'}
 
 
 def read_json(path, default=None):
@@ -40,7 +41,6 @@ def revision(root):
 
 def repository_fingerprint(root):
     """Hash tracked and new nonignored inputs, so dirty runs cannot reuse old evidence."""
-    sys.path.insert(0, str(ROOT))
     from backend.services.quality_report import source_fingerprint
     return source_fingerprint(root)
 
@@ -215,7 +215,7 @@ def check(roots, catalogs, ownership):
         for contract in catalog.get('contracts', []):
             endpoints = contract['producers'] + contract['consumers']
             if not contract['producers'] or not contract['consumers'] or any(item not in ids for item in endpoints):
-                raise ValueError(f"Incomplete contract endpoints: {contract['id']} (supply --engine-root)")
+                raise ValueError(f"Incomplete contract endpoints: {contract['id']} (supply --engine-dir)")
             for path in contract['docs'] + contract['tests']:
                 if not (roots[repo] / path).exists():
                     raise ValueError(f"Missing contract evidence: {path}")
@@ -480,7 +480,6 @@ def report(roots, catalogs, ownership, base=None):
     schema_validate(artifact, ROOT / 'quality/latest.schema.json')
     write_json(ROOT / 'quality/latest.json', artifact)
     # Same renderer is used by the portal. The page is a projection, not a database.
-    sys.path.insert(0, str(ROOT))
     from backend.services.quality_report import render_report
     (ROOT / 'quality/report.md').write_text(render_report(artifact))
     return artifact
@@ -903,16 +902,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command', choices=['check', 'coverage', 'report', 'map', 'context', 'impact', 'symbol', 'debt'])
     parser.add_argument('target', nargs='?')
-    parser.add_argument('--engine-root', type=Path, default=os.environ.get('ENGINE_DIR'))
+    parser.add_argument('--engine-dir', type=Path, help='Engine checkout (default: ENGINE_DIR, engine/ or ../engine)')
     parser.add_argument('--base', help='App git revision for advisory changed-line coverage')
     parser.add_argument('--depth', type=int, choices=[1, 2], default=1)
     parser.add_argument('--write-baseline', action='store_true')
     args = parser.parse_args()
-    engine_root = args.engine_root
-    if not engine_root:
-        engine_root = next((path for path in (ROOT / 'engine', ROOT.parent / 'engine') if (path / 'quality/modules.yml').exists()), None)
     try:
-        roots, catalogs, ownership = load_catalogs(engine_root)
+        roots, catalogs, ownership = load_catalogs(args.engine_dir or engine_dir())
         if args.command == 'check':
             print(check(roots, catalogs, ownership))
         elif args.command == 'coverage':

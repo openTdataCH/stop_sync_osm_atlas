@@ -24,7 +24,7 @@ jobs:
       - run: npm ci
       - run: mkdir -p quality/raw
       - name: Audit application production dependencies
-        run: pip-audit -r requirements-base.txt -r requirements-web.txt -r requirements-scheduler.txt --format json --output quality/raw/python-audit.json
+        run: pip-audit -r requirements.txt --format json --output quality/raw/python-audit.json
       - name: Audit browser and development dependencies
         if: always()
         run: npm audit --audit-level=high --json > quality/raw/npm-audit.json

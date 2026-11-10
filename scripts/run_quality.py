@@ -18,6 +18,8 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "quality" / "raw"
+sys.path.insert(0, str(ROOT))
+from backend.version import engine_dir  # noqa: E402
 
 
 def validate_syntax() -> None:
@@ -44,7 +46,7 @@ def preflight(full: bool, engine: Path, engine_python: str) -> None:
     if node_version[0] != 22 or node_version < (22, 13, 0):
         raise RuntimeError(f"Use Node 22.13+ (found {node}), or run make quality-fast-container / make quality.")
     if not (engine / "quality" / "modules.yml").is_file():
-        raise RuntimeError(f"Missing quality-enabled engine checkout: {engine}")
+        raise RuntimeError(f"Missing quality-enabled engine checkout: {engine}; set ENGINE_DIR.")
     if not (ROOT / "node_modules" / ".bin" / "eslint").exists():
         raise RuntimeError("Run npm ci before native quality checks.")
     if full:
@@ -56,8 +58,8 @@ def preflight(full: bool, engine: Path, engine_python: str) -> None:
     # Source is bind-mounted in Docker; reject stale images after dependency edits.
     from packaging.requirements import Requirement
 
-    for name in ("base", "web", "scheduler", "test", "quality"):
-        for line in (ROOT / f"requirements-{name}.txt").read_text().splitlines():
+    for name in ("requirements.txt", "requirements-dev.txt"):
+        for line in (ROOT / name).read_text().splitlines():
             if not line.strip() or line.lstrip().startswith("#"):
                 continue
             requirement = Requirement(line)
@@ -68,7 +70,7 @@ def preflight(full: bool, engine: Path, engine_python: str) -> None:
             except PackageNotFoundError as error:
                 raise RuntimeError(f"Install {requirement} before quality checks.") from error
             if installed not in requirement.specifier:
-                raise RuntimeError(f"Installed {requirement.name}=={installed} does not satisfy {requirement}; rebuild the quality image or install the requirement files.")
+                raise RuntimeError(f"Installed {requirement.name}=={installed} does not satisfy {requirement}; rebuild the quality image or install requirements.txt and requirements-dev.txt.")
 
 
 def revision(root: Path) -> str | None:
@@ -79,7 +81,7 @@ def revision(root: Path) -> str | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("mode", choices=("fast", "full", "syntax"))
-    parser.add_argument("--engine-root", type=Path, default=ROOT.parent / "engine")
+    parser.add_argument("--engine-dir", type=Path, help="Engine checkout (default: ENGINE_DIR, engine/ or ../engine)")
     parser.add_argument("--engine-python", default=os.getenv("ENGINE_PYTHON", "/opt/engine-venv/bin/python"))
     args = parser.parse_args()
     if args.mode == "syntax":
@@ -87,7 +89,7 @@ def main() -> int:
         return 0
 
     os.chdir(ROOT)
-    engine = args.engine_root.resolve()
+    engine = (args.engine_dir or engine_dir()).resolve()
     full = args.mode == "full"
     # A current manifest must never endorse previous-run coverage or test results.
     if full and RAW.exists():
@@ -142,7 +144,7 @@ def main() -> int:
         if package_path.exists():
             manifest["tool_versions"][package] = json.loads(package_path.read_text())["version"]
     python = sys.executable
-    engine_option = ["--engine-root", str(engine)]
+    engine_option = ["--engine-dir", str(engine)]
     run("catalog-and-architecture", [python, "scripts/quality.py", "check", *engine_option])
     run("python-lint", [python, "-m", "ruff", "check", "backend", "migrations", "scripts", "tests", "documentation"])
     run("template-config-syntax", [python, "scripts/run_quality.py", "syntax"])

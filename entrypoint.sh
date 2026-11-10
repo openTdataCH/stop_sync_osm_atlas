@@ -17,13 +17,8 @@ fi
 echo "Waiting for Postgres database..."
 python backend/importing/init.py
 
-# Run database migrations are now handled by the 'migrator' container in docker-compose.
-# We no longer run migrations in the app container.
-
-
-# Background tasks like the data pipeline are handled by the 'scheduler' service.
-
-
+# The 'migrator' service runs the migrations and the 'scheduler' service the
+# data pipeline; this container only serves the application.
 echo "Starting Flask application on port 5001..."
 # Start the Flask application
 if [ "$FLASK_DEBUG" = "1" ]; then

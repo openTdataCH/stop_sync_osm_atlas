@@ -5,7 +5,7 @@ import pytest
 
 from backend.models import Itinerary, ItineraryMatch, LineFamily, LineFamilyMatch, StopCall
 from backend.queries.helpers import parse_filter_params, parse_route_variants
-from backend.query_builder import FilterBuilder
+from backend import query_builder
 from backend.services.transport_routes import get_stops_for_route, list_route_variants
 
 HB = '91-10-A-j26-1:0:Zürich HB'
@@ -135,7 +135,7 @@ def test_route_variants_parameter_is_positional_and_malformed_input_names_nothin
     assert parse_route_variants('{"atlas": "a"}', 1) == [NOTHING]
 
 
-def test_route_directions_keep_their_position_and_variants_reach_the_route_lookup():
+def test_route_directions_keep_their_position_and_variants_reach_the_route_lookup(monkeypatch):
     filters = parse_filter_params({
         'station_filter': 'A,B', 'filter_types': 'route,route', 'route_directions': ',1',
         'route_variants': json.dumps([{'osm': '5'}, None]),
@@ -147,7 +147,6 @@ def test_route_directions_keep_their_position_and_variants_reach_the_route_looku
         calls.append((route_id, direction, variants))
         return {'atlas_sloids': [], 'osm_nodes': ['5']}
 
-    FilterBuilder.build_station_filter_conditions(
-        filters['filter_values'], filters['filter_types'], filters['route_directions'], route_lookup,
-        filters['route_variants'])
+    monkeypatch.setattr(query_builder, 'get_stops_for_route', route_lookup)
+    query_builder.search_token_conditions(filters)
     assert calls == [('A', None, {'atlas': None, 'osm': '5'}), ('B', '1', None)]

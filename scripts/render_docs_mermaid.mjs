@@ -22,7 +22,6 @@ const sourceDirs = [
 ];
 const puppeteerPackagePath = join(repoRoot, 'node_modules', 'puppeteer-core', 'package.json');
 const mermaidBundlePath = join(repoRoot, 'node_modules', 'mermaid', 'dist', 'mermaid.min.js');
-const checkOnly = process.argv.includes('--check');
 const force = process.argv.includes('--force');
 const config = JSON.parse(readFileSync(configPath, 'utf8'));
 
@@ -80,16 +79,6 @@ function detectBrowser() {
 
 const diagrams = discoverDiagrams();
 const missing = [...diagrams.entries()].filter(([outputPath]) => force || !existsSync(outputPath));
-
-if (checkOnly) {
-  if (missing.length > 0) {
-    console.error(`${missing.length} Mermaid PDF asset(s) are missing or stale.`);
-    console.error('Run: npm run docs:render-mermaid');
-    process.exit(1);
-  }
-  console.log(`All ${diagrams.size} Mermaid PDF asset(s) are present.`);
-  process.exit(0);
-}
 
 if (missing.length === 0) {
   console.log(`Mermaid PDF assets are current; ${diagrams.size} total.`);

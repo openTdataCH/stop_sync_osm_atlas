@@ -130,8 +130,8 @@ def create_app():
         stats = load_stats_from_file() or {}
         status = pipeline_status.get_status()
         return {
-            'last_pipeline_data_import_ended_at': status.get('last_pipeline_data_import_ended_at') or stats.get('data_updated_at'),
-            'stats_computed_at': stats.get('stats_computed_at') or stats.get('generated_at'),
+            'last_pipeline_data_import_ended_at': status.get('last_pipeline_data_import_ended_at'),
+            'stats_computed_at': stats.get('stats_computed_at'),
             'pipeline_next_run_at': status.get('next_run_at'),
             'pipeline_status': status,
         }

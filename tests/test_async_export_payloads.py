@@ -1,19 +1,21 @@
 import os
 import threading
+import time
 from types import SimpleNamespace
 
 import backend.blueprints.docs as docs_blueprint
 import backend.blueprints.reports as reports_blueprint
+from backend.services import async_export
 
 
-def _patch_async_helpers(monkeypatch, module):
-    monkeypatch.setattr(module, 'start_cleanup_thread', lambda: None)
-    monkeypatch.setattr(module, 'cleanup_stale_tasks', lambda: 0)
+def _patch_async_helpers(monkeypatch):
+    monkeypatch.setattr(async_export, 'start_cleanup_thread', lambda: None)
+    monkeypatch.setattr(async_export, 'cleanup_stale_tasks', lambda: 0)
 
 
 def test_generate_report_async_accepts_form_payload(client, monkeypatch):
-    _patch_async_helpers(monkeypatch, reports_blueprint)
-    monkeypatch.setattr(reports_blueprint, 'background_report_generation', lambda *args, **kwargs: None)
+    _patch_async_helpers(monkeypatch)
+    monkeypatch.setattr(reports_blueprint, '_write_report', lambda *args, **kwargs: None)
 
     response = client.post('/api/generate_report_async', data={
         'report_type': 'summary',
@@ -27,8 +29,8 @@ def test_generate_report_async_accepts_form_payload(client, monkeypatch):
 
 
 def test_generate_report_async_accepts_raw_json_body(client, monkeypatch):
-    _patch_async_helpers(monkeypatch, reports_blueprint)
-    monkeypatch.setattr(reports_blueprint, 'background_report_generation', lambda *args, **kwargs: None)
+    _patch_async_helpers(monkeypatch)
+    monkeypatch.setattr(reports_blueprint, '_write_report', lambda *args, **kwargs: None)
 
     response = client.post(
         '/api/generate_report_async',
@@ -43,7 +45,7 @@ def test_generate_report_async_accepts_raw_json_body(client, monkeypatch):
 
 
 def test_generate_report_async_ignores_non_dict_raw_json(client, monkeypatch):
-    _patch_async_helpers(monkeypatch, reports_blueprint)
+    _patch_async_helpers(monkeypatch)
 
     response = client.post(
         '/api/generate_report_async',
@@ -58,7 +60,7 @@ def test_generate_report_async_ignores_non_dict_raw_json(client, monkeypatch):
 
 
 def test_generate_report_async_empty_payload_returns_400(client, monkeypatch):
-    _patch_async_helpers(monkeypatch, reports_blueprint)
+    _patch_async_helpers(monkeypatch)
 
     response = client.post('/api/generate_report_async')
 
@@ -69,7 +71,7 @@ def test_generate_report_async_empty_payload_returns_400(client, monkeypatch):
 
 
 def test_generate_report_async_invalid_type_returns_400(client, monkeypatch):
-    _patch_async_helpers(monkeypatch, reports_blueprint)
+    _patch_async_helpers(monkeypatch)
 
     response = client.post('/api/generate_report_async', json={
         'report_type': 'invalid_type',
@@ -83,7 +85,7 @@ def test_generate_report_async_invalid_type_returns_400(client, monkeypatch):
 
 
 def test_generate_report_async_summary_rejects_non_pdf(client, monkeypatch):
-    _patch_async_helpers(monkeypatch, reports_blueprint)
+    _patch_async_helpers(monkeypatch)
 
     response = client.post('/api/generate_report_async', json={
         'report_type': 'summary',
@@ -97,8 +99,8 @@ def test_generate_report_async_summary_rejects_non_pdf(client, monkeypatch):
 
 
 def test_generate_docs_pdf_async_accepts_form_payload(client, monkeypatch):
-    _patch_async_helpers(monkeypatch, docs_blueprint)
-    monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', lambda *args, **kwargs: None)
+    _patch_async_helpers(monkeypatch)
+    monkeypatch.setattr(docs_blueprint, '_build_docs_pdf', lambda *args, **kwargs: None)
 
     response = client.post('/api/docs/generate_pdf_async', data={
         'included_sections': 'engine:1,app:2',
@@ -112,7 +114,7 @@ def test_generate_docs_pdf_async_accepts_form_payload(client, monkeypatch):
 
 
 def test_generate_docs_pdf_async_selected_only_requires_sections(client, monkeypatch):
-    _patch_async_helpers(monkeypatch, docs_blueprint)
+    _patch_async_helpers(monkeypatch)
 
     response = client.post('/api/docs/generate_pdf_async', data={
         'selected_only': 'true',
@@ -127,7 +129,7 @@ def test_generate_docs_pdf_async_selected_only_requires_sections(client, monkeyp
 
 
 def test_generate_docs_pdf_async_exports_one_page_under_its_address(client, monkeypatch):
-    _patch_async_helpers(monkeypatch, docs_blueprint)
+    _patch_async_helpers(monkeypatch)
     started = []
     finished = threading.Event()
 
@@ -135,7 +137,7 @@ def test_generate_docs_pdf_async_exports_one_page_under_its_address(client, monk
         started.append(args)
         finished.set()
 
-    monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', background)
+    monkeypatch.setattr(docs_blueprint, '_build_docs_pdf', background)
 
     response = client.post('/api/docs/generate_pdf_async', json={
         'included_pages': ['reference_matching'],
@@ -145,7 +147,7 @@ def test_generate_docs_pdf_async_exports_one_page_under_its_address(client, monk
 
     assert response.status_code == 200
     assert finished.wait(5)
-    _, _, included_sections, include_cover, included_pages, download_name = started[0]
+    _, included_sections, include_cover, included_pages, download_name = started[0]
     assert included_sections is None
     assert include_cover is False
     assert included_pages == ['engine/documentation/2.1 Reference matching.md']
@@ -153,8 +155,8 @@ def test_generate_docs_pdf_async_exports_one_page_under_its_address(client, monk
 
 
 def test_generate_docs_pdf_async_rejects_unknown_pages(client, monkeypatch):
-    _patch_async_helpers(monkeypatch, docs_blueprint)
-    monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', lambda *args, **kwargs: None)
+    _patch_async_helpers(monkeypatch)
+    monkeypatch.setattr(docs_blueprint, '_build_docs_pdf', lambda *args, **kwargs: None)
 
     response = client.post('/api/docs/generate_pdf_async', json={
         'included_pages': ['reference_matching', 'no_such_page'],
@@ -166,8 +168,8 @@ def test_generate_docs_pdf_async_rejects_unknown_pages(client, monkeypatch):
 
 
 def test_generate_docs_pdf_async_ignores_non_dict_raw_json(client, monkeypatch):
-    _patch_async_helpers(monkeypatch, docs_blueprint)
-    monkeypatch.setattr(docs_blueprint, '_background_docs_pdf', lambda *args, **kwargs: None)
+    _patch_async_helpers(monkeypatch)
+    monkeypatch.setattr(docs_blueprint, '_build_docs_pdf', lambda *args, **kwargs: None)
 
     response = client.post(
         '/api/docs/generate_pdf_async',
@@ -200,15 +202,6 @@ def test_docs_payload_parsing_helpers():
     assert docs_blueprint._to_bool(None, default=True) is True
 
 
-def test_existing_docs_pdf_path_uses_canonical_output(monkeypatch):
-    canonical_path = '/tmp/stop_sync_osm_atlas_documentation.pdf'
-
-    monkeypatch.setattr(docs_blueprint, '_docs_pdf_path', lambda: canonical_path)
-    monkeypatch.setattr(docs_blueprint.os.path, 'exists', lambda path: path == canonical_path)
-
-    assert docs_blueprint._existing_docs_pdf_path() == canonical_path
-
-
 def test_docs_pdf_cache_invalidates_when_generator_changes(tmp_path, monkeypatch):
     docs_dir = tmp_path / 'documentation'
     engine_docs_dir = tmp_path / 'engine' / 'documentation'
@@ -235,11 +228,10 @@ def test_docs_pdf_cache_invalidates_when_generator_changes(tmp_path, monkeypatch
     os.utime(generator_path, (110, 110))
 
     calls = []
-    monkeypatch.setattr(docs_blueprint, '_repo_root', lambda: str(tmp_path))
-    monkeypatch.setattr(docs_blueprint, '_get_docs_dir', lambda: str(docs_dir))
+    monkeypatch.setattr(docs_blueprint, 'APP_ROOT', tmp_path)
     monkeypatch.setattr(
         docs_blueprint,
-        '_get_docs_dirs',
+        'docs_dirs',
         lambda: {'app': str(docs_dir), 'engine': str(engine_docs_dir)},
     )
     monkeypatch.setattr(
@@ -257,7 +249,65 @@ def test_docs_pdf_cache_invalidates_when_generator_changes(tmp_path, monkeypatch
     calls.clear()
     os.utime(pdf_path, (200, 200))
     os.utime(generator_path, (190, 190))
-    os.utime(mermaid_config_path, (210, 210))
+    assert docs_blueprint.ensure_docs_pdf_generated() is True
+    assert calls == []
 
+    os.utime(mermaid_config_path, (210, 210))
     assert docs_blueprint.ensure_docs_pdf_generated() is True
     assert len(calls) == 1
+
+
+def test_every_export_is_followed_downloaded_and_cancelled_at_one_address(client, tmp_path):
+    """The data exports, the summary and the documentation PDF share /api/exports/<task_id>/…."""
+    assert client.get('/api/exports/unknown/progress').status_code == 404
+    assert client.get('/api/exports/unknown/download').status_code == 404
+
+    for task_id, filename, mimetype in (('pdf-task', 'reference_matching.pdf', 'application/pdf'),
+                                        ('csv-task', 'distance_operator_asc_1.csv', 'text/csv')):
+        async_export.init_task(task_id)
+        assert client.get(f'/api/exports/{task_id}/progress').get_json()['status'] == 'starting'
+        assert client.get(f'/api/exports/{task_id}/download').status_code == 404
+
+        path = tmp_path / f'{task_id}.file'
+        path.write_bytes(b'content')
+        async_export.complete_task(task_id, str(path), filename)
+        assert client.get(f'/api/exports/{task_id}/progress').get_json()['status'] == 'completed'
+        download = client.get(f'/api/exports/{task_id}/download')
+        assert download.status_code == 200
+        assert download.mimetype == mimetype
+        assert filename in download.headers['Content-Disposition']
+        assert download.data == b'content'
+        download.close()
+
+        assert client.post(f'/api/exports/{task_id}/cancel').get_json() == {'status': 'cancelled'}
+        assert client.get(f'/api/exports/{task_id}/progress').status_code == 404
+        assert not path.exists()
+
+
+def _wait_for_status(task_id, status):
+    for _ in range(200):
+        if async_export.get_progress(task_id)['status'] == status:
+            return
+        time.sleep(0.025)
+    raise AssertionError(f'{task_id} never reached {status}')
+
+
+def test_a_task_records_its_file_or_its_error(app, monkeypatch, tmp_path):
+    _patch_async_helpers(monkeypatch)
+    path = tmp_path / 'docs_manual_1.pdf'
+    path.write_bytes(b'%PDF')
+
+    def work(task_id, name):
+        if name == 'broken':
+            raise ValueError('No documentation markdown files found for the given selection.')
+        return str(path), name
+
+    with app.app_context():
+        task_id = async_export.start_task(work, 'manual.pdf')
+        _wait_for_status(task_id, 'completed')
+        assert async_export.get_completed_file(task_id)['filename'] == 'manual.pdf'
+
+        task_id = async_export.start_task(work, 'broken')
+        _wait_for_status(task_id, 'error')
+        assert async_export.get_progress(task_id)['error'].startswith('No documentation markdown files')
+        assert async_export.get_completed_file(task_id) is None

@@ -1,177 +1,128 @@
+from collections import defaultdict
+
 from flask import Blueprint, request, jsonify, current_app as app
 from sqlalchemy import case
 from sqlalchemy.orm import joinedload
-from collections import defaultdict
 from backend.models import AtlasOperator, StopsMatched, AtlasStop, OsmNode, OsmStop, OsmStopMember, OsmRouteRelation
 from backend.extensions import db, limiter
-from backend.db_errors import is_missing_column_error, is_missing_table_error
 from backend.serializers.stops import format_stop_data
 from backend.services.transport_routes import get_osm_routes_for_node, get_atlas_routes_for_sloid
-from backend.queries.helpers import (
-    build_atlas_duplicate_membership_condition,
-    build_stop_scope_condition,
-    get_query_builder,
-    parse_filter_params,
-    resolve_stop_type_match_filters,
-)
+from backend.queries.helpers import filtered_stops_query
 from geoalchemy2.functions import ST_Intersects, ST_MakeEnvelope
 
 # Create blueprint for data operations
 data_bp = Blueprint('data', __name__)
 
-def _parse_bbox_from_request_args(args):
-    """Return the viewport as (min_lat, min_lon, max_lat, max_lon) floats."""
-    min_lat = float(args.get('min_lat'))
-    max_lat = float(args.get('max_lat'))
-    min_lon = float(args.get('min_lon'))
-    max_lon = float(args.get('max_lon'))
-    return min_lat, min_lon, max_lat, max_lon
 
+def _viewport_condition(args):
+    """In the map's viewport (min_lat, min_lon, max_lat, max_lon): the ATLAS point, or a matched pair's OSM position.
 
-def _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, args):
+    The ATLAS point uses the indexed geometry; the OSM position keeps a pair on
+    the map when the view holds only its OSM side.
     """
-    Shared filter builder used by multiple endpoints.
-    Mirrors the filtering semantics of /api/data.
-    """
-    stop_filter_str = args.get('stop_filter', None)
-    match_method_str = args.get('match_method', None)
-    show_duplicates_only = args.get('show_duplicates_only', 'false').lower() == 'true'
-
-    filters = parse_filter_params(args)
-    query_builder = get_query_builder()
-    query = query_builder.apply_common_filters(StopsMatched.query, filters)
-    all_category_conditions = []
-
-    # Viewport filter: use indexed geometry column (ATLAS point) for fast bbox queries.
-    # We also check osm_lat/osm_lon for matched stops to ensure they aren't hidden
-    # if the viewport zooms strictly into the OSM node and the ATLAS node goes out of bounds.
-    envelope = ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326)
-    spatial_condition = db.or_(
-        ST_Intersects(StopsMatched.geom, envelope),
+    min_lat, max_lat = float(args.get('min_lat')), float(args.get('max_lat'))
+    min_lon, max_lon = float(args.get('min_lon')), float(args.get('max_lon'))
+    return db.or_(
+        ST_Intersects(StopsMatched.geom, ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326)),
         db.and_(
             StopsMatched.stop_type == 'matched',
-            StopsMatched.osm_lat >= min_lat, StopsMatched.osm_lat <= max_lat,
-            StopsMatched.osm_lon >= min_lon, StopsMatched.osm_lon <= max_lon
-        )
+            StopsMatched.osm_lat.between(min_lat, max_lat),
+            StopsMatched.osm_lon.between(min_lon, max_lon),
+        ),
     )
-    all_category_conditions.append(spatial_condition)
 
-    resolved_filters = resolve_stop_type_match_filters(stop_filter_str, match_method_str)
-    scope_condition = build_stop_scope_condition(StopsMatched, resolved_filters)
-    if scope_condition is not None:
-        all_category_conditions.append(scope_condition)
 
-    if show_duplicates_only:
-        duplicate_condition = build_atlas_duplicate_membership_condition()
-        all_category_conditions.append(
-            StopsMatched.atlas_stop_details.has(duplicate_condition)
-        )
+def osm_group_links(node_ids):
+    """The links the map draws from each OSM element in ``node_ids`` to the rest of its stop unit.
 
-    if all_category_conditions:
-        query = query.filter(db.and_(*all_category_conditions))
+    Returns {node_id: fields}. An element of a pair gets ``osm_group_partner``, the
+    other element. An element of a two-sided stop gets ``osm_two_sided_links``:
+    from the middle to each side, or from a side to the middle, never side to side.
+    """
+    node_ids = {node_id for node_id in node_ids if node_id}
+    stop_ids = [stop_id for (stop_id,) in db.session.query(OsmStopMember.osm_stop_id)
+                .filter(OsmStopMember.node_id.in_(sorted(node_ids)))] if node_ids else []
+    if not stop_ids:
+        return {}
+    members = db.session.query(
+        OsmStopMember.osm_stop_id, OsmStopMember.node_id, OsmStopMember.member_role, OsmStop.stop_kind, OsmStop.group_kind,
+    ).join(OsmStop, OsmStopMember.osm_stop_id == OsmStop.id).filter(OsmStopMember.osm_stop_id.in_(stop_ids)).all()
+    coordinates = {
+        node_id: (lat, lon)
+        for node_id, lat, lon in db.session.query(StopsMatched.osm_node_id, StopsMatched.osm_lat, StopsMatched.osm_lon)
+        .filter(StopsMatched.osm_node_id.in_([member.node_id for member in members]), StopsMatched.osm_lat.isnot(None))
+    }
+    members_by_stop = defaultdict(list)
+    for member in members:
+        members_by_stop[member.osm_stop_id].append(member)
 
-    return query
+    links = {}
+    for stop_members in members_by_stop.values():
+        middle = next((member.node_id for member in stop_members if member.member_role == 'middle'), None)
+        for member in stop_members:
+            if member.node_id not in node_ids:
+                continue
+            partners = [other.node_id for other in stop_members if other.node_id != member.node_id]
+            if member.stop_kind == 'pair' and partners:
+                lat, lon = coordinates.get(partners[0], (None, None))
+                links[member.node_id] = {'osm_group_partner': {
+                    'partner_node_id': partners[0],
+                    'group_type': member.group_kind,
+                    'partner_osm_lat': lat,
+                    'partner_osm_lon': lon,
+                }}
+            elif member.stop_kind == 'two_sided_stop':
+                two_sided_links = [{
+                    'partner_node_id': partner,
+                    'partner_osm_lat': coordinates.get(partner, (None, None))[0],
+                    'partner_osm_lon': coordinates.get(partner, (None, None))[1],
+                    'is_middle': member.node_id == middle,
+                    'partner_is_middle': partner == middle,
+                } for partner in partners if middle in (member.node_id, partner)]
+                if two_sided_links:
+                    links[member.node_id] = {'osm_two_sided_links': two_sided_links}
+    return links
 
-# ------------------------------------
-# API Endpoint: /api/atlas_operators
-# ------------------------------------
+
+def _distinct_values(column):
+    """The distinct non-empty values of ``column``, sorted, as {"operators": [...], "total": n}."""
+    try:
+        values = [value for (value,) in db.session.query(column)
+                  .filter(column.isnot(None), column != '').distinct().order_by(column)]
+        return jsonify({"operators": values, "total": len(values)})
+    except Exception as exc:
+        app.logger.error("Error listing %s: %s", column, exc)
+        return jsonify({"error": str(exc)}), 500
+
+
 @data_bp.route('/api/atlas_operators', methods=['GET'])
 @limiter.limit("60/minute")
 def get_atlas_operators():
-    try:
-        operators = db.session.query(AtlasOperator.atlas_business_org_abbr) \
-            .filter(AtlasOperator.atlas_business_org_abbr.isnot(None)) \
-            .filter(AtlasOperator.atlas_business_org_abbr != '') \
-            .distinct() \
-            .order_by(AtlasOperator.atlas_business_org_abbr) \
-            .all()
-        operator_list = [op[0] for op in operators if op[0]]
-        return jsonify({"operators": operator_list, "total": len(operator_list)})
-    except Exception as e:
-        if is_missing_table_error(e):
-            db.session.rollback()
-            app.logger.warning("Operators unavailable: atlas tables are not initialized yet.")
-            return jsonify({"operators": [], "total": 0}), 200
-        app.logger.error(f"Error fetching operators: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+    return _distinct_values(AtlasOperator.atlas_business_org_abbr)
 
 
-# ----------------------------------
-# API Endpoint: /api/osm_operators
-# ----------------------------------
 @data_bp.route('/api/osm_operators', methods=['GET'])
 @limiter.limit("60/minute")
 def get_osm_operators():
-    try:
-        operators = db.session.query(OsmNode.osm_operator) \
-            .filter(OsmNode.osm_operator.isnot(None)) \
-            .filter(OsmNode.osm_operator != '') \
-            .distinct() \
-            .order_by(OsmNode.osm_operator) \
-            .all()
-        operator_list = [op[0] for op in operators if op[0]]
-        return jsonify({"operators": operator_list, "total": len(operator_list)})
-    except Exception as e:
-        if is_missing_table_error(e):
-            db.session.rollback()
-            app.logger.warning("OSM operators unavailable: osm tables are not initialized yet.")
-            return jsonify({"operators": [], "total": 0}), 200
-        app.logger.error(f"Error fetching OSM operators: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+    return _distinct_values(OsmNode.osm_operator)
 
 
 @data_bp.route('/api/osm_operator_wikidata', methods=['GET'])
 @limiter.limit("60/minute")
 def get_osm_operator_wikidata():
-    try:
-        values = (
-            db.session.query(OsmNode.osm_operator_wikidata)
-            .filter(OsmNode.osm_operator_wikidata.isnot(None))
-            .filter(OsmNode.osm_operator_wikidata != '')
-            .distinct()
-            .order_by(OsmNode.osm_operator_wikidata)
-            .all()
-        )
-        operators = [value for (value,) in values]
-        return jsonify({"operators": operators, "total": len(operators)})
-    except Exception as exc:
-        if is_missing_table_error(exc) or is_missing_column_error(exc):
-            db.session.rollback()
-            return jsonify({"operators": [], "total": 0}), 200
-        app.logger.error("Error fetching OSM operator Wikidata: %s", exc)
-        return jsonify({"error": str(exc)}), 500
+    return _distinct_values(OsmNode.osm_operator_wikidata)
 
 
-# ----------------------------------
-# API Endpoint: /api/osm_route_operators
-# ----------------------------------
 @data_bp.route('/api/osm_route_operators', methods=['GET'])
 @limiter.limit("60/minute")
 def get_osm_route_operators():
-    try:
-        operators = db.session.query(OsmRouteRelation.operator) \
-            .filter(OsmRouteRelation.operator.isnot(None)) \
-            .filter(OsmRouteRelation.operator != '') \
-            .distinct() \
-            .order_by(OsmRouteRelation.operator) \
-            .all()
-        operator_list = [op[0] for op in operators if op[0]]
-        return jsonify({"operators": operator_list, "total": len(operator_list)})
-    except Exception as e:
-        if is_missing_table_error(e):
-            db.session.rollback()
-            app.logger.warning("OSM route operators unavailable: osm route tables are not initialized yet.")
-            return jsonify({"operators": [], "total": 0}), 200
-        app.logger.error(f"Error fetching OSM route operators: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+    return _distinct_values(OsmRouteRelation.operator)
 
 
 @data_bp.route('/api/data', methods=['GET'])
 @limiter.limit("60/minute")
 def get_data():
     try:
-        min_lat, min_lon, max_lat, max_lon = _parse_bbox_from_request_args(request.args)
-
         include_meta_raw = request.args.get('include_meta', '')
         include_meta = str(include_meta_raw).strip().lower() in ('1', 'true', 'yes', 'y')
 
@@ -194,7 +145,7 @@ def get_data():
                 except Exception:
                     limit = None
 
-        query = _build_filtered_stop_query(min_lat, min_lon, max_lat, max_lon, request.args)
+        query = filtered_stops_query(request.args).filter(_viewport_condition(request.args))
         # Eager-load only required details to avoid N+1 queries.
         query = query.options(
             joinedload(StopsMatched.osm_node_details).load_only(OsmNode.osm_node_type),
@@ -245,122 +196,9 @@ def get_data():
                 "osm_node_type": stop.osm_node_details.osm_node_type if stop.osm_node_details else None
             })
         # Enrich any OSM-backed stop with pair partners and two-sided stop links.
-        osm_node_ids = [s['osm_node_id'] for s in regular_stops if s['osm_node_id']]
-        if osm_node_ids:
-            stop_rows = db.session.query(
-                OsmStopMember.node_id,
-                OsmStopMember.osm_stop_id,
-                OsmStop.stop_kind,
-                OsmStop.group_kind,
-            ).join(
-                OsmStop,
-                OsmStopMember.osm_stop_id == OsmStop.id,
-            ).filter(
-                OsmStopMember.node_id.in_(osm_node_ids),
-            ).all()
-
-            node_to_stop = {
-                row.node_id: {
-                    'osm_stop_id': row.osm_stop_id,
-                    'stop_kind': row.stop_kind,
-                    'group_kind': row.group_kind,
-                }
-                for row in stop_rows
-            }
-            stop_ids = {row.osm_stop_id for row in stop_rows}
-
-            members_by_stop = defaultdict(list)
-            if stop_ids:
-                member_rows = db.session.query(
-                    OsmStopMember.osm_stop_id,
-                    OsmStopMember.node_id,
-                    OsmStopMember.member_role,
-                ).filter(
-                    OsmStopMember.osm_stop_id.in_(stop_ids),
-                ).all()
-                for member_row in member_rows:
-                    members_by_stop[member_row.osm_stop_id].append({
-                        'node_id': member_row.node_id,
-                        'member_role': member_row.member_role,
-                    })
-
-            # Build a coordinate lookup from viewport data first.
-            osm_coords = {
-                stop_entry['osm_node_id']: (stop_entry['osm_lat'], stop_entry['osm_lon'])
-                for stop_entry in regular_stops
-                if stop_entry['osm_node_id'] and stop_entry['osm_lat'] is not None
-            }
-
-            linked_node_ids = set()
-            for stop_members in members_by_stop.values():
-                for member in stop_members:
-                    linked_node_ids.add(member['node_id'])
-
-            missing_ids = [node_id for node_id in linked_node_ids if node_id not in osm_coords]
-            if missing_ids:
-                partner_rows = db.session.query(
-                    StopsMatched.osm_node_id, StopsMatched.osm_lat, StopsMatched.osm_lon
-                ).filter(
-                    StopsMatched.osm_node_id.in_(missing_ids),
-                    StopsMatched.osm_lat.isnot(None)
-                ).distinct(StopsMatched.osm_node_id).all()
-                for partner_row in partner_rows:
-                    osm_coords[partner_row.osm_node_id] = (partner_row.osm_lat, partner_row.osm_lon)
-
-            two_sided_side_ids = []
-            for stop_id, stop_members in members_by_stop.items():
-                if not stop_members:
-                    continue
-                stop_info = node_to_stop.get(stop_members[0]['node_id'])
-                if stop_info and stop_info['stop_kind'] == 'two_sided_stop':
-                    two_sided_side_ids.extend([
-                        member['node_id'] for member in stop_members if member['member_role'] == 'side'
-                    ])
-
-            # A two-sided stop middle is matched through its effectively_matched row.
-
-            for stop_entry in regular_stops:
-                node_id = stop_entry['osm_node_id']
-                stop_info = node_to_stop.get(node_id)
-                if not stop_info:
-                    continue
-
-                stop_members = members_by_stop.get(stop_info['osm_stop_id'], [])
-                if stop_info['stop_kind'] == 'pair':
-                    partner_ids = [member['node_id'] for member in stop_members if member['node_id'] != node_id]
-                    if partner_ids:
-                        partner_id = partner_ids[0]
-                        partner_coords = osm_coords.get(partner_id, (None, None))
-                        stop_entry['osm_group_partner'] = {
-                            'partner_node_id': partner_id,
-                            'group_type': stop_info['group_kind'],
-                            'partner_osm_lat': partner_coords[0],
-                            'partner_osm_lon': partner_coords[1],
-                        }
-
-                if stop_info['stop_kind'] == 'two_sided_stop':
-                    middle_member = next((member for member in stop_members if member['member_role'] == 'middle'), None)
-                    middle_node_id = middle_member['node_id'] if middle_member else None
-
-                    links = []
-                    for member in stop_members:
-                        partner_id = member['node_id']
-                        if partner_id == node_id:
-                            continue
-                        # Draw only middle-to-side links (no side-to-side edge).
-                        if node_id != middle_node_id and partner_id != middle_node_id:
-                            continue
-                        partner_coords = osm_coords.get(partner_id, (None, None))
-                        links.append({
-                            'partner_node_id': partner_id,
-                            'partner_osm_lat': partner_coords[0],
-                            'partner_osm_lon': partner_coords[1],
-                            'is_middle': node_id == middle_node_id,
-                            'partner_is_middle': partner_id == middle_node_id,
-                        })
-
-                    if links:
-                        stop_entry['osm_two_sided_links'] = links
+        links = osm_group_links(stop['osm_node_id'] for stop in regular_stops)
+        for stop_entry in regular_stops:
+            stop_entry.update(links.get(stop_entry['osm_node_id'], {}))
 
         if include_meta:
             return jsonify({
@@ -375,22 +213,6 @@ def get_data():
 
         return jsonify(regular_stops)
     except Exception as e:
-        if is_missing_table_error(e):
-            db.session.rollback()
-            include_meta_raw = request.args.get('include_meta', '')
-            include_meta = str(include_meta_raw).strip().lower() in ('1', 'true', 'yes', 'y')
-            app.logger.warning("Map data unavailable: matching tables are not initialized yet.")
-            if include_meta:
-                return jsonify({
-                    "stops": [],
-                    "meta": {
-                        "offset": 0,
-                        "limit": None,
-                        "returned": 0,
-                        "has_more": False
-                    }
-                }), 200
-            return jsonify([]), 200
         return jsonify({"error": str(e)}), 500
 
 
@@ -465,69 +287,7 @@ def get_stop_popup():
             if osm_matches:
                 enriched["osm_matches"] = osm_matches
             # Include OSM pair and two-sided stop partners from stop-unit membership.
-            if stop.osm_node_id:
-                member_row = db.session.query(
-                    OsmStopMember.osm_stop_id,
-                    OsmStop.stop_kind,
-                    OsmStop.group_kind,
-                ).join(
-                    OsmStop,
-                    OsmStopMember.osm_stop_id == OsmStop.id,
-                ).filter(
-                    OsmStopMember.node_id == stop.osm_node_id,
-                ).first()
-
-                if member_row:
-                    stop_members = db.session.query(
-                        OsmStopMember.node_id,
-                        OsmStopMember.member_role,
-                    ).filter(
-                        OsmStopMember.osm_stop_id == member_row.osm_stop_id,
-                    ).all()
-
-                    if member_row.stop_kind == 'pair':
-                        partner_id = next((member.node_id for member in stop_members if member.node_id != stop.osm_node_id), None)
-                        if partner_id:
-                            partner_osm = OsmNode.query.get(partner_id)
-                            partner_coords = db.session.query(
-                                StopsMatched.osm_lat, StopsMatched.osm_lon
-                            ).filter(
-                                StopsMatched.osm_node_id == partner_id,
-                                StopsMatched.osm_lat.isnot(None)
-                            ).first()
-                            enriched["osm_group_partner"] = {
-                                'partner_node_id': partner_id,
-                                'group_type': member_row.group_kind,
-                                'osm_name': partner_osm.osm_name if partner_osm else None,
-                                'osm_public_transport': partner_osm.osm_public_transport if partner_osm else None,
-                                'osm_uic_ref': partner_osm.osm_uic_ref if partner_osm else None,
-                                'partner_osm_lat': partner_coords.osm_lat if partner_coords else None,
-                                'partner_osm_lon': partner_coords.osm_lon if partner_coords else None,
-                            }
-
-                    if member_row.stop_kind == 'two_sided_stop':
-                        middle_id = next((member.node_id for member in stop_members if member.member_role == 'middle'), None)
-                        links = []
-                        for member in stop_members:
-                            partner_id = member.node_id
-                            if partner_id == stop.osm_node_id:
-                                continue
-                            if stop.osm_node_id != middle_id and partner_id != middle_id:
-                                continue
-                            partner_coords = db.session.query(
-                                StopsMatched.osm_lat, StopsMatched.osm_lon
-                            ).filter(
-                                StopsMatched.osm_node_id == partner_id,
-                                StopsMatched.osm_lat.isnot(None)
-                            ).first()
-                            links.append({
-                                'partner_node_id': partner_id,
-                                'partner_osm_lat': partner_coords.osm_lat if partner_coords else None,
-                                'partner_osm_lon': partner_coords.osm_lon if partner_coords else None,
-                                'is_middle': stop.osm_node_id == middle_id,
-                                'partner_is_middle': partner_id == middle_id,
-                            })
-                        enriched["osm_two_sided_links"] = links
+            enriched.update(osm_group_links([stop.osm_node_id]).get(stop.osm_node_id, {}))
         if view_type == 'osm' and stop.osm_node_id:
             same_osm_rows = StopsMatched.query.options(
                 joinedload(StopsMatched.atlas_stop_details)

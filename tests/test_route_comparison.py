@@ -309,14 +309,6 @@ def test_options_reject_invalid_query(comparison_db, query):
     assert comparison_db.get(f'/api/routes/comparison/options?{query}').status_code == 400
 
 
-def test_comparison_missing_tables_returns_controlled_retry_response(client, monkeypatch):
-    monkeypatch.setattr(pipeline_status, 'get_status', lambda: {'blocking_maintenance': False})
-    response = client.get('/api/routes/comparison?atlas_itinerary_id=1')
-    assert response.status_code == 503
-    assert response.headers['Retry-After'] == '30'
-    assert 'not initialized' in response.json['error']
-
-
 def test_comparison_database_timeout_returns_controlled_retry_response(client, monkeypatch):
     class LockTimeout(Exception):
         sqlstate = '55P03'

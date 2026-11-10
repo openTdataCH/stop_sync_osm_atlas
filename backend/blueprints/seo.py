@@ -2,7 +2,7 @@ import xml.etree.ElementTree as ET
 
 from flask import Blueprint, Response, render_template, request, url_for
 
-from backend.blueprints.docs import build_doc_slug_maps, list_markdown_files
+from backend.services.docs_sources import build_doc_slug_maps, list_markdown_files
 from backend.services.site_url import site_url
 
 

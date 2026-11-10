@@ -1,6 +1,6 @@
 # Contributing
 
-Work on the smallest part your change needs: the matching engine can be improved without starting the website, and the website with an existing result bundle. No national download is needed to begin. The [glossary](0.1%20Glossary.md) defines the terms used below.
+Work on the smallest part your change needs: the matching engine can be improved without starting the website, and the website with an existing result bundle. No national download is needed to begin. The [glossary](0.5%20Glossary.md) defines the terms used below.
 
 | Contribution | Start here | Verify |
 |---|---|---|
@@ -30,7 +30,7 @@ The engine and the review application are separate repositories, each with its o
 
 ## Improve the documentation
 
-Follow the [documentation style guide](Documentation%20style%20guide.md): it covers terms, links, headings, diagrams and the checks to run.
+Use the terms of the [glossary](0.5%20Glossary.md), British spelling, one line per paragraph, and code paths in backticks. End each page with `## Related pages`. `tests/test_docs_style.py`, `tests/test_docs_links.py` and `tests/test_docs_rendering.py` check these rules and every link.
 
 ## Before requesting review
 

@@ -5,7 +5,6 @@
   "private": true,
   "scripts": {
     "docs:render-mermaid": "node scripts/render_docs_mermaid.mjs",
-    "docs:check-mermaid": "node scripts/render_docs_mermaid.mjs --check",
     "docs:build-pdf": "npm run docs:render-mermaid && python3 documentation/pdf_generator/build_docs_pdf.py",
     "docs:diagrams": "python3 documentation/diagrams/build.py",
     "lint:css": "stylelint \"static/css/**/*.css\" --ignore-pattern \"static/css/main.css\" --ignore-pattern \"static/vendor/**\" && node scripts/stylelint/check-template-left-borders.mjs",
@@ -31,8 +30,7 @@
     "leaflet": "1.9.4",
     "mermaid": "10.9.8",
     "puppeteer-core": "25.11.0",
-    "stylelint": "^16.26.1",
-    "svgo": "^4.0.1"
+    "stylelint": "^16.26.1"
   },
   "jest": {
     "testEnvironment": "<rootDir>/tests/js/strict-environment.cjs",

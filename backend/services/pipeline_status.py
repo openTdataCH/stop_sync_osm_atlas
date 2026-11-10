@@ -146,9 +146,6 @@ def _base_status() -> Dict[str, Any]:
         "last_pipeline_data_import_ended_at": None,
         "next_run_at": None,
         "schedule_interval_hours": None,
-        "run_type": None,
-        "refresh_scope_tables_rewritten": [],
-        "refresh_scope_tables_reused": [],
     }
 
 
@@ -219,7 +216,7 @@ def get_status() -> Dict[str, Any]:
             from backend.services.stats_export import load_stats_from_file
             
             stats = load_stats_from_file() or {}
-            data["last_pipeline_data_import_ended_at"] = stats.get("last_pipeline_data_import_ended_at") or stats.get("data_updated_at")
+            data["last_pipeline_data_import_ended_at"] = stats.get("last_pipeline_data_import_ended_at")
         except Exception:
             pass
     # A live lease is the authoritative signal that a runner exists. This

@@ -53,8 +53,9 @@ def publish_snapshot(
                 for table in stage_metadata.sorted_tables:
                     connection.execute(CreateTable(table))
             created = True
-            # ORM insert statements use the same table definitions with a translated
-            # schema; every foreign key in staging targets the new run's own rows.
+            # write_rows COPYs into the schema named by snapshot_schema; statements it
+            # issues through the ORM resolve to staging too. Every foreign key in
+            # staging targets the new run's own rows.
             with engine.connect().execution_options(schema_translate_map={None: staging}) as connection:
                 with Session(bind=connection) as stage_session, stage_session.begin():
                     stage_session.info['snapshot_schema'] = staging
