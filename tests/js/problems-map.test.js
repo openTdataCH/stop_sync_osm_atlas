@@ -482,6 +482,73 @@ describe('ProblemsMap context loading', () => {
         expect(problemMap.setMinZoom).toHaveBeenLastCalledWith(3);
     });
 
+    describe('when nearby stops fail to load', () => {
+        const problem = { id: 'problem', atlas_lat: 46.53, atlas_lon: 6.65 };
+        let banner;
+        let bannerText;
+        let retry;
+
+        beforeEach(() => {
+            document.body.innerHTML = `
+                <div id="problemContextBanner" class="d-none">
+                    <span id="problemContextBannerText"></span>
+                    <button id="problemContextRetry" type="button" hidden>Retry</button>
+                </div>`;
+            banner = document.getElementById('problemContextBanner');
+            bannerText = document.getElementById('problemContextBannerText');
+            retry = document.getElementById('problemContextRetry');
+            currentProblem = problem;
+        });
+
+        function failWith(request, status, textStatus) {
+            request.status = status;
+            request.reject(textStatus || 'error');
+        }
+
+        test('a rate-limited request says so on the map, and Retry loads the current problem again', () => {
+            ProblemsMap.loadContextData(problem);
+            failWith(requests[0], 429);
+
+            expect(banner.classList.contains('d-none')).toBe(false);
+            expect(bannerText.textContent).toMatch(/too many requests/);
+            expect(retry.hidden).toBe(false);
+
+            retry.click();
+
+            expect(requests).toHaveLength(2);
+            expect($.getJSON.mock.calls[1][1].min_lat).toBeCloseTo(46.51);
+            expect(banner.classList.contains('d-none')).toBe(true);
+
+            requests[1].resolve([]);
+            expect(banner.classList.contains('d-none')).toBe(true);
+        });
+
+        test('any other failure, or an unexpected answer, says nearby stops could not be loaded', () => {
+            ProblemsMap.loadContextData(problem);
+            failWith(requests[0], 500);
+            expect(bannerText.textContent).toBe('Nearby stops could not be loaded.');
+
+            ProblemsMap.loadContextData(problem);
+            requests[1].resolve({ unexpected: true });
+            expect(banner.classList.contains('d-none')).toBe(false);
+            expect(bannerText.textContent).toBe('Nearby stops could not be loaded.');
+        });
+
+        test('aborted or superseded requests show nothing, and hiding nearby stops removes the message', () => {
+            ProblemsMap.loadContextData(problem);
+            ProblemsMap.loadContextData(problem);
+            failWith(requests[0], 0, 'abort');
+            failWith(requests[0], 429); // A late failure of the replaced request.
+            expect(banner.classList.contains('d-none')).toBe(true);
+
+            failWith(requests[1], 429);
+            expect(banner.classList.contains('d-none')).toBe(false);
+
+            ProblemsMap.clearContextData();
+            expect(banner.classList.contains('d-none')).toBe(true);
+        });
+    });
+
     test('destroys page-owned popup and map resources cleanly', () => {
         ProblemsMap.initProblemMap();
 

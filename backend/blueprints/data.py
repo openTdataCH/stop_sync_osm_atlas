@@ -180,7 +180,7 @@ def get_osm_route_operators():
 
 
 @data_bp.route('/api/data', methods=['GET'])
-@limiter.limit("30/minute")
+@limiter.limit("60/minute")
 def get_data():
     try:
         min_lat, min_lon, max_lat, max_lon = _parse_bbox_from_request_args(request.args)

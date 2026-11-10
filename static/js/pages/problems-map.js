@@ -304,6 +304,35 @@ window.ProblemsMap = (function() {
         }
     }
 
+    // A failed load of nearby stops leaves the map looking as if there were
+    // none, so the page says so on the map and offers to try again.
+    function contextErrorMessage(jqXHR) {
+        if (jqXHR && jqXHR.status === 429) {
+            return 'Nearby stops not shown: too many requests. Wait a moment, then retry.';
+        }
+        return 'Nearby stops could not be loaded.';
+    }
+
+    function showContextError(message) {
+        const banner = document.getElementById('problemContextBanner');
+        if (!banner) return;
+        const text = document.getElementById('problemContextBannerText');
+        const retry = document.getElementById('problemContextRetry');
+        if (text) text.textContent = message;
+        if (retry) {
+            retry.hidden = false;
+            retry.onclick = function() {
+                loadContextData(ProblemsState.getCurrentProblem());
+            };
+        }
+        banner.classList.remove('d-none');
+    }
+
+    function hideContextError() {
+        const banner = document.getElementById('problemContextBanner');
+        if (banner) banner.classList.add('d-none');
+    }
+
     function clearContextLayer() {
         contextRenderSequence += 1;
         if (contextBatchCancel) {
@@ -324,6 +353,7 @@ window.ProblemsMap = (function() {
         contextRequestSequence += 1;
         abortCurrentContextRequest();
         renderedContext = null;
+        hideContextError();
         clearContextLayer();
     }
 
@@ -567,6 +597,7 @@ window.ProblemsMap = (function() {
         abortCurrentContextRequest();
         renderedContext = null;
         renderedProblem = null;
+        hideContextError();
         detachContextPopups();
         if (zoomRenderTimer != null) {
             clearTimeout(zoomRenderTimer);
@@ -636,6 +667,7 @@ window.ProblemsMap = (function() {
 
         const requestSequence = ++contextRequestSequence;
         abortCurrentContextRequest();
+        hideContextError();
 
         const request = $.getJSON('/api/data', params);
         currentContextRequest = request;
@@ -651,7 +683,7 @@ window.ProblemsMap = (function() {
 
             const stops = normalizeContextResponse(payload);
             if (stops === null) {
-                console.error('Failed to load context data: unexpected API response');
+                showContextError(contextErrorMessage(null));
                 return;
             }
 
@@ -661,9 +693,13 @@ window.ProblemsMap = (function() {
             };
             const renderZoom = problemMap ? problemMap.getZoom() : zoom;
             renderContextData(problem, stops, problemMap, renderZoom);
-        }).fail(function(jqXHR, textStatus, errorThrown) {
-            if (requestSequence === contextRequestSequence && textStatus !== 'abort') {
-                console.error('Failed to load context data:', textStatus, errorThrown);
+        }).fail(function(jqXHR, textStatus) {
+            if (
+                requestSequence === contextRequestSequence &&
+                textStatus !== 'abort' &&
+                ProblemsState.getShowContext()
+            ) {
+                showContextError(contextErrorMessage(jqXHR));
             }
         }).always(function() {
             if (currentContextRequest === request) {

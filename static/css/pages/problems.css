@@ -142,6 +142,18 @@
   pointer-events: auto;
 }
 
+/* Says when nearby stops failed to load. It sits just above the problem card,
+   clear of the filter bar, the summary and the focused stop's popup. */
+.zoom-banner.problem-context-banner {
+  --zoom-banner-position: static;
+  align-self: flex-start;
+  max-width: 100%;
+  margin-bottom: var(--space-1);
+  white-space: normal;
+  transform: none;
+  pointer-events: auto;
+}
+
 /* -------------------------------------------------------------------------
    Map Section
    ------------------------------------------------------------------------- */
