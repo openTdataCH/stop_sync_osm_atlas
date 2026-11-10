@@ -1,1 +1,4 @@
-Multi-database configuration for Flask.
+Single-database Alembic configuration for Flask-Migrate.
+
+`versions/0001_schema.py` creates the whole schema of `backend/models.py`.
+`tests/test_migrations.py` checks that the two stay identical.

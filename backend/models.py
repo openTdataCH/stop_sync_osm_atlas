@@ -41,7 +41,8 @@ class StopsMatched(db.Model):
 
     # Display geometry (atlas point if present, else osm point). SRID 4326 (WGS84).
     # Populated by the import pipeline; indexed for bbox queries.
-    geom = db.Column(Geometry(geometry_type='POINT', srid=4326), nullable=True)
+    # The GIST index is idx_stops_geom_gist above; without spatial_index=False GeoAlchemy adds a second one.
+    geom = db.Column(Geometry(geometry_type='POINT', srid=4326, spatial_index=False), nullable=True)
 
     # Relationship to ATLAS stop details (lazy='select' to avoid unnecessary JOINs on /api/data;
     # endpoints that need details use explicit joinedload() via optimize_query_for_endpoint)
