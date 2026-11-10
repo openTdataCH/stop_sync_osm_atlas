@@ -5,6 +5,7 @@ the app never imports it. The tests need ``ENGINE_PYTHON``, the engine checkout
 (``ENGINE_DIR`` or the sibling ``../engine``) and ``TEST_POSTGRES_URI``;
 ``make quality`` and CI provide all three, and other runs skip.
 """
+from collections import Counter
 import json
 import os
 from pathlib import Path
@@ -18,9 +19,11 @@ from backend.importing.bundle import read_bundle
 from backend.importing.importer import build_fast_insert_payloads, _write_rows
 from backend.importing.projection import project_bundle
 from backend.importing.publication import publish_snapshot
+from backend.services.matching_rules import ALL_MATCH_TYPES
 from backend.services.pipeline_progress import apply_progress_event, initial_progress_plan
 
 MODES = ('gtfs', 'swiss', 'swiss-local-gtfs')
+SWISS_MODES = ('swiss', 'swiss-local-gtfs')
 
 
 def _cli_args(mode, examples):
@@ -99,6 +102,37 @@ def test_engine_bundle_publishes_into_postgis(mode, engine_run, postgres):
     with postgres.connect() as connection:
         assert connection.execute(text('SELECT run_id FROM dataset_publication')).scalar() == manifest['run_id']
         assert connection.execute(text('SELECT count(*) FROM stops_matched')).scalar()
+
+
+@pytest.mark.parametrize('mode', MODES)
+def test_stored_match_types_are_copied_from_the_bundle(mode, engine_run):
+    """Matched rows carry the bundle's methods; rows without a bundle match carry none.
+
+    The Swiss example has a two-sided stop: its effectively matched middle has no match
+    in the bundle, so it has no match type. ``no_nearby_counterpart`` is the
+    application's own label for a source stop with nothing nearby.
+    """
+    bundle = read_bundle(engine_run(mode)[1])
+    rows = build_fast_insert_payloads(*project_bundle(bundle))['stops_matched']
+    assert (Counter(row['match_type'] for row in rows if row['stop_type'] == 'matched')
+            == Counter(match['method'] for match in bundle['matches']))
+    invented = {(row['stop_type'], row['match_type']) for row in rows
+                if row['stop_type'] != 'matched' and row['match_type'] is not None} - {('atlas_unmatched', 'no_nearby_counterpart')}
+    assert not invented, f'Rows without a bundle match carry a match type: {sorted(invented)}'
+    if mode in SWISS_MODES:
+        assert any(row['stop_type'] == 'effectively_matched' for row in rows), 'The Swiss example lost its two-sided stop'
+
+
+@pytest.mark.parametrize('mode', SWISS_MODES)
+def test_the_rule_catalog_lists_every_swiss_match_type(mode, engine_run):
+    """Fails when the engine renames or adds a match type, so the catalog never goes stale silently."""
+    methods = {match['method'] for match in read_bundle(engine_run(mode)[1])['matches']}
+    missing = sorted(methods - ALL_MATCH_TYPES)
+    assert not missing, (
+        f'The engine writes match types that backend/services/matching_rules.py does not list: {missing}. '
+        'Add each to its rule there with a label, or rename the old entry: the map filters '
+        'and Matches by rule on the analytics page read that file.'
+    )
 
 
 def test_the_examples_together_fill_every_snapshot_table(engine_run, postgres):

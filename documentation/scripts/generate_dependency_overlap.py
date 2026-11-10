@@ -125,7 +125,7 @@ def generate_svg():
 
 
 def update_markdown():
-    doc_path = ROOT / "documentation" / "7.1 Dependency Management & Build Strategy.md"
+    doc_path = ROOT / "documentation" / "3.1 Dependency Management & Build Strategy.md"
     if not doc_path.exists():
         return
         
@@ -163,7 +163,7 @@ def update_markdown():
         
     if new_content != doc_content:
         doc_path.write_text(new_content)
-        print("Updated: 7.1 Dependency Management & Build Strategy.md")
+        print("Updated: 3.1 Dependency Management & Build Strategy.md")
 
 
 if __name__ == "__main__":

@@ -9,6 +9,36 @@ all diagrams read as one system. ``build.py`` renders the catalog in
 The output deliberately uses only presentation attributes and plain shapes
 (no CSS, markers, filters, fonts or scripts). The same file therefore renders
 identically in the documentation portal, on GitHub and in the WeasyPrint PDF.
+
+Visual vocabulary (every diagram uses the same meaning for each shape):
+
+    box()                     a component or process
+    box(..., valign='top')    a container with parts inside
+    zone()                    who owns the parts inside (large tinted area with a tab)
+    store()                   a database or durable store
+    document()                a file or set of records
+    browser()                 a user interface
+    chevron()                 a phase in a sequence
+    pill()                    a value, label or state
+    step()                    order of events, explained below the figure
+    node()                    a map marker (P platform, S stop position)
+    arrow(kind='flow')        data moves (solid)
+    arrow(kind='invoke')      one part starts or calls another (dashed)
+    arrow(kind='optional')    optional input, reuse or a human action (dotted)
+    arrow(..., end_head=False) an association, such as a match
+
+Colours: system diagrams use ENGINE, APP, CONTRACT and EXTERNAL (ownership);
+domain diagrams use ATLAS, OSM, GTFS and UNMATCHED (the map colours). Never mix
+the two in one diagram.
+
+Adding a diagram: write a function in ``catalog.py``, register it in
+``DIAGRAMS`` with its name and tree (``app`` or ``engine``), run
+``npm run docs:diagrams`` and commit the SVG with its source. Never edit a
+generated SVG by hand and put no title inside the figure. The build raises
+``LayoutError`` when text does not fit its shape or a shape comes within 12
+units of the canvas edge; keep canvases at most 960 units wide. Links in a
+figure (``linked()``, ``href=`` on ``zone()``) only work in the portal, so link
+the same target in the page text too.
 """
 from __future__ import annotations
 

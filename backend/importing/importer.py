@@ -437,10 +437,8 @@ def build_fast_insert_payloads(
 
         osm_node_id = str(osm_node.node_id)
         stop_type = 'osm_unmatched'
-        match_type = None
         if osm_node_id in two_sided_middles_effectively_matched:
             stop_type = 'effectively_matched'
-            match_type = 'uic_two_sided_stop'
         elif osm_node_id in disused_osm_ids:
             stop_type = 'osm_disused'
 
@@ -452,7 +450,9 @@ def build_fast_insert_payloads(
             '_idx': stop_idx,
             'sloid': None,
             'stop_type': stop_type,
-            'match_type': match_type,
+            # The bundle has no match for these elements, not even for an effectively
+            # matched middle, so they have no match type; stop_type tells them apart.
+            'match_type': None,
             'atlas_lat': None,
             'atlas_lon': None,
             'osm_node_id': osm_node_id,

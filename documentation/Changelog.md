@@ -1,12 +1,8 @@
 # Review application changelog
 
-This page records notable changes to the review application, its database import,
-browser interface and deployment. Matching releases are recorded separately in
-the [matching engine changelog](../engine/documentation/Changelog.md).
+This page records notable changes to the review application, its database import, browser interface and deployment. Matching releases are recorded separately in the [matching engine changelog](../engine/documentation/Changelog.md).
 
-Changes to the [result bundle contract](../engine/documentation/Result%20bundle%20format.md) are recorded
-in both changelogs: here from the consumer side and in the engine changelog from
-the producer side.
+Changes to the [result bundle contract](../engine/documentation/Result%20bundle%20format.md) are recorded in both changelogs: here from the consumer side and in the engine changelog from the producer side.
 
 ---
 
@@ -45,6 +41,7 @@ the producer side.
 
 ### Reliability and interface
 
+- **No invented match type for two-sided stop middles** — The importer stored `uic_two_sided_stop` for the effectively matched middle of a two-sided stop, although the bundle has no match for it and the engine names that match type after the profile. The middle now has no match type; its popup reads **Middle of a matched two-sided stop**, with the same link to the rule. `backend/services/matching_rules.py` is now the only file that spells match types: the Matched filter and the **SLOID in OSM** statistics look them up there by rule key. `tests/test_match_type_names.py` keeps it that way, and the engine import contract fails when the engine writes a match type that file does not list. Import a new bundle to update stored rows. See [A1.1](1.1%20Import%20Process.md#match-types).
 - **Faster map** — Circle markers and lines are drawn on one canvas per map instead of as thousands of SVG elements. Eight pans of central Zürich at zoom 15, on a processor slowed four times, blocked the page for 0.6 s instead of 2.2 s. On touch screens, a tap up to 5 px outside a marker still hits it. JSON answers are gzipped: that view's `/api/data` answer is 80 kB instead of 590 kB. See [A2.1](2.1%20Map%20Data%20Loading%20and%20Rendering.md#markers).
 - **Round lettered markers** — From zoom 18, the markers with a letter had their border cut flat on four sides and were 2 px narrower than the circles they replace. They are now round and the same size.
 - **Links to the docs** — An info icon beside the map's Matched, OSM groups and Problems filters, and the Problems page's type filter, opens the documentation section that explains them. The match type in a popup opens the section of its rule, such as the group distance rules for `uic_ref_group_long_distance`, instead of the top of the page. On the Problems page, a chip names the problem's type and opens its section of the stop problems page. The docs portal now scrolls to the linked section after drawing the page's diagrams; before, the diagrams drawn above it pushed it out of view. A test checks that every such link names an existing section. See [A2.8](2.8%20Documentation%20Page%20Delivery.md).
@@ -81,7 +78,7 @@ the producer side.
 - **Heartbeat recovery** — A live pipeline lease can recover the web view from an unfinished legacy status record incorrectly marked idle.
 - **Orphaned-run recovery** — Pipeline leases now record process/container ownership and heartbeat time. A scheduler watchdog marks killed runners failed and releases their stale locks at startup or within the configured heartbeat grace period, so restarting services cannot leave the UI claiming a nonexistent background run.
 - **Detailed live pipeline timeline** — The Data page always shows the eight workflow phases, including before the first analytics snapshot exists. Engine events distinguish source preparation, stop and route matching, bundle creation, database staging and the actual atomic publication; reused or skipped work is explicit, elapsed bars resize every second, and truncated labels expose their full text on hover or keyboard focus.
-- **Self-describing pipeline substages** — A versioned stage plan now combines engine-owned matching work with app-owned database/publication work. The analytics UI generically renders persistent color-coded substage lists, preserves selection during polling, and accepts future engine stages without a frontend mapping change.
+- **Self-describing pipeline substages** — A versioned stage plan now combines engine-owned matching work with app-owned database/publication work. The analytics UI generically renders persistent colour-coded substage lists, preserves selection during polling, and accepts future engine stages without a frontend mapping change.
 - **Complete stage timing records** — Reused and skipped stages now write timestamped, zero-duration history events, and compact UI timestamps explain whether they represent a stage start, reuse decision or skip decision. Legacy gaps remain unknown instead of being filled with fabricated times.
 - **Engine pinned in the repository** — The committed `engine.ref` holds the engine commit the app is built and tested with. CI, `scripts/verify_engine_checkout.sh` and the documentation's engine source links read it, so upgrading the engine is a one-line commit. `ENGINE_REPO`, `ENGINE_REF` and `DOCS_ENGINE_BLOB_BASE` in `.env`, and the CI variable and token, are no longer used; remove them.
 
@@ -135,7 +132,7 @@ the producer side.
 
 **Released:** July 30th 2026
 
-### New Features
+### New features
 - **Search and filters on GTFS↔SLOID map**
 - **See routes on the GTFS↔SLOID map popup** — Like on the main map
 

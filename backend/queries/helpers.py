@@ -138,7 +138,8 @@ def build_stop_scope_condition(stop_model, resolved_filters):
         matched_methods_condition = build_match_method_conditions(stop_model, resolved_filters['matched_methods'])
         if matched_methods_condition is not None:
             matched_scope = db.and_(stop_model.stop_type == 'matched', matched_methods_condition)
-            if any('uic_two_sided_stop' in match_types_for_filter(method) for method in resolved_filters['matched_methods']):
+            two_sided_types = set(match_types_for_filter('two_sided_stop'))
+            if any(two_sided_types & set(match_types_for_filter(method)) for method in resolved_filters['matched_methods']):
                 matched_scope = db.or_(matched_scope, two_sided_middle_matched_condition)
             scope_conditions.append(matched_scope)
         else:

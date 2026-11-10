@@ -17,6 +17,8 @@ from typing import Any, Dict, Iterable, Optional
 
 from sqlalchemy import func
 
+from backend.services.matching_rules import match_types_for_filter
+
 MATCHED_STOP_TYPES = ('matched', 'effectively_matched')
 
 # The Swiss GTFS codes trolleybuses as buses, so both sides count them as bus.
@@ -67,10 +69,10 @@ OSM_STOP_TAG_GROUPS = (
                                  'departures_board', 'passenger_information_display')),
 )
 
-# OSM keys with which an element names its platform, and the match type the
-# engine writes for such a link (engine IdentifierRule and STOP_IDENTIFIER_KEYS).
+# OSM keys with which an element names its platform (engine STOP_IDENTIFIER_KEYS),
+# and the match types the engine's identifier rule writes for such a link.
 OSM_IDENTIFIER_KEYS = ('ref:sloid', 'railway:ref:sloid')
-IDENTIFIER_MATCH_TYPE = 'sloid_identifier'
+IDENTIFIER_MATCH_TYPES = match_types_for_filter('identifier')
 
 # Route relation columns and the OSM tag each one holds.
 OSM_ROUTE_TAG_COLUMNS = (
@@ -190,7 +192,7 @@ def _identifier_stats(session, carriers: set, matched_nodes: set) -> Dict[str, A
     from backend.models import StopsMatched
 
     links = (session.query(StopsMatched.osm_node_id, StopsMatched.sloid)
-             .filter(StopsMatched.match_type == IDENTIFIER_MATCH_TYPE).distinct().all())
+             .filter(StopsMatched.match_type.in_(IDENTIFIER_MATCH_TYPES)).distinct().all())
     return {
         'elements': len(carriers),
         'ways': sum(str(node_id).startswith('way_') for node_id in carriers),

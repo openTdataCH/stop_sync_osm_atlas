@@ -498,9 +498,9 @@ def route_model() -> Diagram:
         'Both sides are normalized into the same three levels: a line family, its itineraries (one per '
         'direction or variant) and each itinerary\'s ordered stop calls. On the ATLAS side these are rebuilt '
         'from GTFS; on the OSM side they come from route_master and route relations. Families are matched '
-        'first, by GTFS route id. Itineraries are paired only inside a matched family: their directions must '
-        'agree and at least 80 percent of the longer stop list must be shared in order. In the example, four '
-        'of five stops align, which is exactly 80 percent.',
+        'first, by GTFS route id or else by mode, line number and shared stops. Itineraries are paired only '
+        'inside a matched family: their directions must not disagree and at least 80 percent of the longer '
+        'stop list must be shared in order. In the example, four of five stops align, which is exactly 80 percent.',
     )
 
     d.add(zone(24, 104, 360, 380, ATLAS, 'ATLAS side', 'rebuilt from GTFS'))
@@ -551,11 +551,11 @@ def route_model() -> Diagram:
     d.add(text(480, 478, '4 of 5 stops in order: 80%', size=12.5, bold=True, color=INK, anchor='middle'))
 
     for number, top, lines in (
-        (1, 512, ['Families match by GTFS route id: exact (score 1.0), with the year code normalized to -jXX (0.95),',
-                  'or by display id (0.9). Each family appears in at most one match.']),
-        (2, 554, ['Itineraries pair only inside a matched family: same direction, and at least 80% of the longer',
-                  'stop list shared in order. Stop calls are the same stop when their resolved SLOIDs or, failing',
-                  'that, UIC numbers agree.']),
+        (1, 512, ['Families match by GTFS route id (exact, year-normalized or display id), else by mode,',
+                  'line number and shared stops. Each family appears in at most one match.']),
+        (2, 554, ['Itineraries pair only inside a matched family: directions that do not disagree, and at least 80%',
+                  'of the longer stop list shared in order. Stop calls are the same stop when they are at the same',
+                  'platform or, failing that, the same station.']),
     ):
         d.add(step(34, top + 6, number, radius=10))
         d.add(note(54, top, lines, size=12, gap=5))

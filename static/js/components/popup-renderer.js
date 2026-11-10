@@ -56,6 +56,8 @@
         return `https://www.openstreetmap.org/edit?${ref.type}=${ref.id}`;
     }
 
+    const TWO_SIDED_STOP_DOC_URL = '/docs/reference_matching#two-sided-stops-two_sided_stop';
+
     // The section of the docs that explains the rule behind a match type. Identifier,
     // two-sided stop and reference types start with the profile's namespace, such as uic_.
     function getMatchDocUrl(matchType) {
@@ -65,18 +67,30 @@
         if (mt === 'local_ref_distance') return '/docs/distance_matching#local_ref-distance-rule-local_ref_distance';
         if (mt.startsWith('distance_')) return '/docs/distance_matching#nearest-candidate-rules';
         if (mt.endsWith('_identifier')) return '/docs/reference_matching#identifier-matching-identifier';
-        if (mt.endsWith('_two_sided_stop')) return '/docs/reference_matching#two-sided-stops-two_sided_stop';
+        if (mt.endsWith('_two_sided_stop')) return TWO_SIDED_STOP_DOC_URL;
         if (mt.includes('_reference_')) return '/docs/reference_matching#how-the-reference-rule-works';
         if (mt.startsWith('name_')) return '/docs/name_matching';
         if (mt.startsWith('gtfs_')) return '/docs/gtfs_route_matching';
         return null;
     }
 
-    function buildMatchTypeHtml(matchType) {
-        const text = matchType || 'N/A';
-        const docUrl = getMatchDocUrl(text);
+    function withMatchDocLink(text, docUrl) {
         if (!docUrl) return text;
         return `${text} <a href="${docUrl}" class="doc-link" target="_blank" rel="noopener" title="What this matching rule does"><i class="fas fa-info-circle" aria-hidden="true"></i></a>`;
+    }
+
+    function buildMatchTypeHtml(matchType) {
+        const text = matchType || 'N/A';
+        return withMatchDocLink(text, getMatchDocUrl(text));
+    }
+
+    // An effectively matched element is the middle of a two-sided stop whose sides are
+    // matched. It has no match of its own, so no match type: its stop type names it.
+    function buildOsmMatchTypeHtml(data) {
+        if (data.stop_type === 'effectively_matched') {
+            return withMatchDocLink('Middle of a matched two-sided stop', TWO_SIDED_STOP_DOC_URL);
+        }
+        return buildMatchTypeHtml(data.match_type);
     }
 
     function buildFilterText(value, type, options, displayText) {
@@ -370,7 +384,7 @@
         if (!options.hideMatchMetadata) {
             const distance = formatDistanceMeters(data.distance_m);
             if (distance) rows.push(['Distance', distance]);
-            rows.push(['Match Type', buildMatchTypeHtml(data.match_type)]);
+            rows.push(['Match Type', buildOsmMatchTypeHtml(data)]);
         }
         return rows;
     }

@@ -36,6 +36,17 @@ describe('Links to the docs section explaining what is shown', () => {
     expect(link && link[1]).toBe(href);
   });
 
+  test('the middle of a matched two-sided stop has no match type: its popup names it and links to the rule', () => {
+    const html = window.PopupRenderer.generatePopupHtml(
+      { id: 1, stop_type: 'effectively_matched', osm_node_id: '8', match_type: null },
+      'osm'
+    );
+    const link = html.match(/<a href="([^"]+)" class="doc-link"/);
+
+    expect(html).toContain('Middle of a matched two-sided stop');
+    expect(link && link[1]).toBe('/docs/reference_matching#two-sided-stops-two_sided_stop');
+  });
+
   test('the Problems page names the active problem type and links to its section', () => {
     document.body.innerHTML = `
       <a id="problemTypeDocLink" class="d-none"></a>

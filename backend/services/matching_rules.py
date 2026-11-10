@@ -1,5 +1,12 @@
 """The Swiss matching rules in run order, with the match types each one writes.
 
+The engine names match types, some after the dataset profile (``uic_`` for
+Switzerland), and renames them when the profile changes. This is the only file of
+the application that spells them: elsewhere, copy ``method`` from the bundle match,
+or look the types up here by rule key. ``tests/test_match_type_names.py`` enforces
+this, and ``tests/test_engine_import_contract.py`` fails when the engine writes a
+match type this file does not list.
+
 Rule keys are the engine's profile rule names. A filter value is a rule key, which
 selects every match type of that rule, or a single match type.
 """
@@ -63,6 +70,7 @@ PROPAGATION_MATCH_TYPES = (
 
 RULES_BY_KEY = {rule.key: rule for rule in MATCHING_RULES}
 MATCH_TYPES = frozenset(match_type for rule in MATCHING_RULES for match_type, _ in rule.match_types)
+ALL_MATCH_TYPES = MATCH_TYPES | {match_type for match_type, _ in PROPAGATION_MATCH_TYPES}
 
 
 def match_types_for_filter(value):
