@@ -97,16 +97,14 @@
         "source": [
           "backend/jobs/**",
           "backend/services/pipeline*.py",
-          "backend/blueprints/system.py",
-          "static/js/shared/pipeline-status.js"
+          "backend/blueprints/system.py"
         ],
         "tests": [
           "tests/test_job_runner.py",
           "tests/test_pipeline_progress.py",
           "tests/test_engine_import_contract.py",
           "tests/test_pipeline_status.py",
-          "tests/test_scheduler_service.py",
-          "tests/js/pipeline-status.test.js"
+          "tests/test_scheduler_service.py"
         ]
       },
       "docs": {
@@ -378,7 +376,8 @@
         ],
         "tests": [
           "tests/test_map_templates.py",
-          "tests/test_navbar_navigation.py"
+          "tests/test_navbar_navigation.py",
+          "tests/js/pipeline-status.test.js"
         ]
       },
       "docs": {
