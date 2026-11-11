@@ -99,11 +99,11 @@ function largeCodeMap(count, size) {
 
 describe('QualityDashboard', () => {
   beforeAll(() => {
-    loadBrowserScript(path.join(__dirname, '../../static/js/quality/dashboard.js'));
+    ['code-map', 'rendering', 'dashboard'].forEach((name) => loadBrowserScript(path.join(__dirname, '../../static/js/quality', name + '.js')));
   });
 
   test('module links separate declared, undeclared and code-free dependencies', () => {
-    const links = window.QualityDashboard.aggregateModuleLinks(codeMap());
+    const links = window.QualityMap.aggregateModuleLinks(codeMap());
     const byKey = Object.fromEntries(links.map((link) => [link.source + '>' + link.target, link]));
     expect(byKey['app.import>app.api']).toMatchObject({ count: 5, declared: true, kinds: { imports: 2, calls: 3 } });
     expect(byKey['app.api>app.import']).toMatchObject({ count: 1, declared: false });
@@ -112,26 +112,26 @@ describe('QualityDashboard', () => {
   });
 
   test('HTTP requests draw arrows, links to pages do not', () => {
-    const links = window.QualityDashboard.aggregateModuleLinks(codeMap());
+    const links = window.QualityMap.aggregateModuleLinks(codeMap());
     const byKey = Object.fromEntries(links.map((link) => [link.source + '>' + link.target, link]));
     expect(byKey['app.ui>app.api']).toMatchObject({ count: 2, declared: false, kinds: { requests: 2 } });
     expect(byKey['app.import>app.ui']).toMatchObject({ count: 0, declared: true });
-    const files = window.QualityDashboard.fileGraph(codeMap(), 'app.ui');
-    expect(files.links.map((link) => link.source + '>' + link.target)).toEqual(['app:static/js/ui.js>app:backend/api.py']);
+    const crossing = window.QualityMap.fileLinks(codeMap()).find((link) => link.source === 'app:backend/api.py' && link.target === 'app:backend/importer.py');
+    expect(crossing).toMatchObject({ count: 1, crossing: true, declared: false });
   });
 
   test('blind spots list unmatched references, unreached routes, runtime URLs and shared names', () => {
-    const spots = window.QualityDashboard.blindSpots(codeMap());
+    const spots = window.QualityMap.blindSpots(codeMap());
     expect(spots.unmatched.map((row) => row.reference)).toEqual(['/api/missing']);
     expect(spots.unreached.map((route) => route.pattern)).toEqual(['/api/old']);
     expect(spots.dynamic.map((row) => row.expression)).toEqual(['config.url']);
     expect(spots.sharedNames.map((row) => row.name)).toEqual(['helper']);
-    expect(window.QualityDashboard.blindSpots({ files: [], links: [] })).toEqual({ unmatched: [], unreached: [], dynamic: [], sharedNames: [] });
+    expect(window.QualityMap.blindSpots({ files: [], links: [] })).toEqual({ unmatched: [], unreached: [], dynamic: [], sharedNames: [] });
   });
 
   test('findings report undeclared links, cycles, private names and unused declarations', () => {
     const map = codeMap();
-    const findings = window.QualityDashboard.boundaryFindings(map, window.QualityDashboard.aggregateModuleLinks(map));
+    const findings = window.QualityMap.boundaryFindings(map, window.QualityMap.aggregateModuleLinks(map));
     expect(findings.undeclared.map((link) => link.source + '>' + link.target)).toEqual(['app.ui>app.api', 'app.api>app.import']);
     expect(findings.cycles.map((link) => [link.source, link.target])).toEqual([['app.api', 'app.import']]);
     expect(findings.privateNames.map((symbol) => symbol.name)).toEqual(['_private']);
@@ -141,20 +141,20 @@ describe('QualityDashboard', () => {
   test('cleanup candidates are functions nothing mentions, copied blocks and long code files', () => {
     const map = codeMap();
     map.files.push({ id: 'app:package-lock.json', module: 'app.ui', lines: 9000, symbols: 0 });
-    const tidy = window.QualityDashboard.cleanup(map);
+    const tidy = window.QualityMap.cleanup(map);
     expect(tidy.unused.map((symbol) => symbol.name)).toEqual(['run']);
     expect(tidy.clones).toHaveLength(1);
     // A lock file is long but is no code to tidy.
     expect(tidy.large.map((file) => file.id)).toEqual(['engine:src/core.py']);
-    expect(window.QualityDashboard.cleanup({ files: [] })).toEqual({ unused: [], clones: [], large: [] });
+    expect(window.QualityMap.cleanup({ files: [] })).toEqual({ unused: [], clones: [], large: [] });
   });
 
   test('a module sits above its dependencies, each repository in its own column, on one bottom line', () => {
     const map = codeMap();
-    expect(window.QualityDashboard.moduleLevels(map)).toEqual({ 'app.api': 0, 'app.import': 1, 'app.ui': 0, 'engine.core': 0 });
-    expect(window.QualityDashboard.moduleColumns(map)).toEqual({ 'app.api': 0, 'app.import': 0, 'app.ui': 0, 'engine.core': 1 });
+    expect(window.QualityMap.moduleLevels(map)).toEqual({ 'app.api': 0, 'app.import': 1, 'app.ui': 0, 'engine.core': 0 });
+    expect(window.QualityMap.moduleColumns(map)).toEqual({ 'app.api': 0, 'app.import': 0, 'app.ui': 0, 'engine.core': 1 });
     const radii = { 'app.api': 50, 'app.import': 30, 'app.ui': 20, 'engine.core': 40 };
-    const at = window.QualityDashboard.layeredCentres(map, radii);
+    const at = window.QualityMap.layeredCentres(map, radii);
     expect(at['app.import'].y + radii['app.import']).toBeLessThan(at['app.api'].y - radii['app.api']);
     // Modules of the same level sit side by side without touching.
     expect(at['app.ui'].y).toBe(at['app.api'].y);
@@ -162,13 +162,13 @@ describe('QualityDashboard', () => {
     expect(at['engine.core'].x - radii['engine.core']).toBeGreaterThan(Math.max(at['app.api'].x + radii['app.api'], at['app.ui'].x + radii['app.ui']));
     expect(at['engine.core'].y + radii['engine.core']).toBe(at['app.api'].y + radii['app.api']);
     // The list beside the map follows the same order: a repository after the other, each from its top module down.
-    expect(window.QualityDashboard.moduleHierarchy(map)).toEqual(['app.import', 'app.api', 'app.ui', 'engine.core']);
+    expect(window.QualityMap.moduleHierarchy(map)).toEqual(['app.import', 'app.api', 'app.ui', 'engine.core']);
   });
 
   test('on Functions the module circles are piled: a module above its dependencies, the repositories side by side', () => {
     const map = codeMap();
     const radii = { 'app.api': 120, 'app.import': 60, 'app.ui': 40, 'engine.core': 90 };
-    const at = window.QualityDashboard.stackedCentres(map, radii, 10);
+    const at = window.QualityMap.stackedCentres(map, radii, 10);
     const ids = Object.keys(radii);
     ids.forEach((a) => ids.forEach((b) => {
       if (a < b) expect(Math.hypot(at[a].x - at[b].x, at[a].y - at[b].y)).toBeGreaterThanOrEqual(radii[a] + radii[b] + 9);
@@ -180,20 +180,12 @@ describe('QualityDashboard', () => {
     ['app.api', 'app.import', 'app.ui'].forEach((id) => expect(at[id].x + radii[id]).toBeLessThan(at['engine.core'].x - radii['engine.core']));
     // A pile is lower than the column the same circles would make.
     expect(at['app.api'].y - at['app.import'].y).toBeLessThan(radii['app.api'] + radii['app.import']);
-    expect(window.QualityDashboard.stackedCentres(map, radii, 10)).toEqual(at);
-  });
-
-  test('a focused file graph keeps the whole module and marks files entered from outside', () => {
-    const graph = window.QualityDashboard.fileGraph(codeMap(), 'app.api');
-    expect(graph.files.map((file) => file.id)).toEqual(['app:backend/api.py', 'app:backend/api_helpers.py', 'app:backend/importer.py', 'app:static/js/ui.js']);
-    expect(Array.from(graph.entries)).toEqual(['app:backend/api.py']);
-    const crossing = graph.links.find((link) => link.source === 'app:backend/api.py' && link.target === 'app:backend/importer.py');
-    expect(crossing).toMatchObject({ crossing: true, declared: false });
+    expect(window.QualityMap.stackedCentres(map, radii, 10)).toEqual(at);
   });
 
   test('lane summaries use plain values and never turn missing evidence into a pass', () => {
     const row = report().modules['app.api'];
-    const summary = window.QualityDashboard.laneSummary;
+    const summary = window.QualityRendering.laneSummary;
     expect(summary(row, 'tests')).toMatchObject({ status: 'pass', text: '12 tests' });
     expect(summary(row, 'coverage')).toMatchObject({ status: 'measured', text: '87.5%', detail: '91% of lines' });
     expect(summary(row, 'duplication')).toMatchObject({ status: 'attention', text: '3', detail: '1 new since the reviewed baseline' });
@@ -205,7 +197,7 @@ describe('QualityDashboard', () => {
 
   test('colours follow the chosen encoding, and coverage is a file\'s own', () => {
     const module = codeMap().modules[0];
-    const color = window.QualityDashboard.nodeColor;
+    const color = window.QualityRendering.nodeColor;
     expect(color(module, report(), 'criticality')).toBe('#617db5');
     expect(color(module, report(), 'coverage')).toBe('#2d529c');
     expect(color(module, { modules: {} }, 'coverage')).toBe('#e9ecef');
@@ -219,12 +211,12 @@ describe('QualityDashboard', () => {
   });
 
   test('escapes catalog text before it reaches the page', () => {
-    expect(window.QualityDashboard.escapeHtml('<b title="x">&</b>')).toBe('&lt;b title=&quot;x&quot;&gt;&amp;&lt;/b&gt;');
+    expect(window.QualityRendering.escapeHtml('<b title="x">&</b>')).toBe('&lt;b title=&quot;x&quot;&gt;&amp;&lt;/b&gt;');
   });
 
   describe('dots and circles', () => {
     test('every function is a node; users count functions and files, links join functions and draw no page links', () => {
-      const graph = window.QualityDashboard.symbolGraph(codeMap());
+      const graph = window.QualityMap.symbolGraph(codeMap());
       const byId = Object.fromEntries(graph.nodes.map((node) => [node.id, node]));
       expect(graph.nodes).toHaveLength(4);
       expect(byId['app:backend/api.py:serve@3']).toMatchObject({ module: 'app.api', name: 'serve', users: 2, uses: 2 });
@@ -243,8 +235,8 @@ describe('QualityDashboard', () => {
     });
 
     test('a module alone keeps its functions, their sizes and the links between them, and nothing else', () => {
-      const graph = window.QualityDashboard.symbolGraph(codeMap());
-      const api = window.QualityDashboard.moduleSymbolGraph(graph, 'app.api');
+      const graph = window.QualityMap.symbolGraph(codeMap());
+      const api = window.QualityMap.moduleSymbolGraph(graph, 'app.api');
       expect(api.nodes.map((node) => node.id).sort()).toEqual(['app:backend/api.py:helper@10', 'app:backend/api.py:serve@3', 'app:backend/api_helpers.py:fmt@2']);
       // serve keeps the user it has in another module, so its dot is as large as on the whole map.
       expect(api.nodes.find((node) => node.name === 'serve').users).toBe(2);
@@ -252,35 +244,30 @@ describe('QualityDashboard', () => {
         'app:backend/api.py:serve@3>app:backend/api.py:helper@10',
         'app:backend/api.py:serve@3>app:backend/api_helpers.py:fmt@2'
       ]);
-      const { positions } = window.QualityDashboard.dotLayout(api);
+      const { positions } = window.QualityMap.dotLayout(api);
       expect(Object.keys(positions).sort()).toEqual(api.nodes.map((node) => node.id).sort());
-      expect(window.QualityDashboard.moduleSymbolGraph(graph, 'app.ui')).toEqual({ nodes: [], links: [] });
+      expect(window.QualityMap.moduleSymbolGraph(graph, 'app.ui')).toEqual({ nodes: [], links: [] });
     });
 
     test('a dot grows with its users, more slowly than their number', () => {
-      const size = window.QualityDashboard.symbolSize;
+      const size = window.QualityMap.symbolSize;
       expect(size(0)).toBe(6);
       expect(size(1)).toBeGreaterThan(size(0));
       expect(size(16)).toBeGreaterThan(size(4));
       expect(size(16) / size(1)).toBeLessThan(16);
     });
 
-    test('modules get distinct palette colours in ring order, the largest the first colour', () => {
+    test('modules get the palette colours in the order of the hierarchy', () => {
       const map = codeMap();
-      const ring = window.QualityDashboard.moduleRing(map);
-      expect(ring[0]).toBe('engine.core');
-      expect(ring.slice(1).sort()).toEqual(['app.api', 'app.import', 'app.ui']);
-      const colors = window.QualityDashboard.moduleColors(map);
-      expect(colors['app.api']).toBe('#2a78d6');
-      expect(new Set(Object.values(colors)).size).toBe(4);
-      expect(window.QualityDashboard.moduleColors(map)).toEqual(colors);
-      expect(window.QualityDashboard.nodeColor(map.modules[0], report(), 'module', colors)).toBe('#2a78d6');
-      expect(window.QualityDashboard.nodeColor(map.modules[0], report(), 'module')).toBe('#e9ecef');
+      const colors = window.QualityMap.moduleColors(map);
+      expect(colors).toEqual({ 'app.import': '#2a78d6', 'app.api': '#eb6834', 'app.ui': '#17a173', 'engine.core': '#99631f' });
+      expect(window.QualityRendering.nodeColor(map.modules[0], report(), 'module', colors)).toBe('#eb6834');
+      expect(window.QualityRendering.nodeColor(map.modules[0], report(), 'module')).toBe('#e9ecef');
     });
 
     test('module discs are packed without overlapping, around the middle', () => {
       const radii = [60, 40, 25, 25, 10];
-      const centres = window.QualityDashboard.packRegions(radii, 10);
+      const centres = window.QualityMap.packRegions(radii, 10);
       for (let a = 0; a < radii.length; a++) {
         for (let b = a + 1; b < radii.length; b++) {
           expect(Math.hypot(centres[a].x - centres[b].x, centres[a].y - centres[b].y)).toBeGreaterThan(radii[a] + radii[b] + 9);
@@ -288,15 +275,15 @@ describe('QualityDashboard', () => {
       }
       const area = radii.reduce((sum, r) => sum + r * r, 0);
       expect(Math.abs(centres.reduce((sum, centre, k) => sum + centre.x * radii[k] * radii[k], 0) / area)).toBeLessThan(1e-6);
-      expect(window.QualityDashboard.packRegions([5])).toEqual([{ x: 0, y: 0 }]);
+      expect(window.QualityMap.packRegions([5])).toEqual([{ x: 0, y: 0 }]);
     });
 
     test('the layout gives each module its own region of dots that do not overlap, the same every time', () => {
       const map = largeCodeMap(3, 60);
-      const graph = window.QualityDashboard.symbolGraph(map);
-      const { positions } = window.QualityDashboard.dotLayout(graph);
+      const graph = window.QualityMap.symbolGraph(map);
+      const { positions } = window.QualityMap.dotLayout(graph);
       expect(Object.keys(positions)).toHaveLength(180);
-      expect(window.QualityDashboard.dotLayout(graph).positions).toEqual(positions);
+      expect(window.QualityMap.dotLayout(graph).positions).toEqual(positions);
       const radius = (node) => node.size / 2;
       let closest = Infinity;
       for (let a = 0; a < graph.nodes.length; a++) {
@@ -317,14 +304,14 @@ describe('QualityDashboard', () => {
         - Math.hypot(point.x - centre[b].x / centre[b].n, point.y - centre[b].y / centre[b].n))[0];
       const inOwnRegion = graph.nodes.filter((node) => nearest(positions[node.id]) === node.module).length;
       expect(inOwnRegion / graph.nodes.length).toBeGreaterThan(0.95);
-      expect(window.QualityDashboard.dotLayout({ nodes: [], links: [] })).toEqual({ positions: {}, regions: [] });
+      expect(window.QualityMap.dotLayout({ nodes: [], links: [] })).toEqual({ positions: {}, regions: [] });
     });
 
     test('each region is a circle around its own dots that no other circle reaches, and dots keep room between them', () => {
       const map = largeCodeMap(3, 60);
       const radius = (node) => node.size / 2;
       const check = (graph, regionOf) => {
-        const { positions, regions } = window.QualityDashboard.dotLayout(graph, { regionOf });
+        const { positions, regions } = window.QualityMap.dotLayout(graph, { regionOf });
         const byId = Object.fromEntries(regions.map((region) => [region.id, region]));
         expect(Object.keys(byId).sort()).toEqual(Array.from(new Set(graph.nodes.map(regionOf))).sort());
         expect(regions.map((region) => region.count)).toEqual(regions.map((region) => region.count).sort((a, b) => b - a));
@@ -347,22 +334,22 @@ describe('QualityDashboard', () => {
         // Each dot keeps DOT_ROOM (0.6) of its radius clear, so neighbours sit well apart, not edge to edge.
         expect(closest).toBeGreaterThan(1.4);
       };
-      const graph = window.QualityDashboard.symbolGraph(map);
+      const graph = window.QualityMap.symbolGraph(map);
       check(graph, (node) => node.module);
       // A module drawn alone has a circle for each of its four files.
-      const alone = window.QualityDashboard.moduleSymbolGraph(graph, 'app.m1');
+      const alone = window.QualityMap.moduleSymbolGraph(graph, 'app.m1');
       check(alone, (node) => node.file);
-      expect(window.QualityDashboard.dotLayout(alone, { regionOf: (node) => node.file }).regions).toHaveLength(4);
+      expect(window.QualityMap.dotLayout(alone, { regionOf: (node) => node.file }).regions).toHaveLength(4);
     });
 
     test('every file is a dot sized by its lines, in its folder\'s group, and page links draw nothing', () => {
-      const graph = window.QualityDashboard.fileDots(codeMap());
+      const graph = window.QualityMap.fileDots(codeMap());
       const byId = Object.fromEntries(graph.nodes.map((node) => [node.id, node]));
       expect(graph.nodes).toHaveLength(5);
       expect(byId['app:backend/api.py']).toMatchObject({ kind: 'file', name: 'api.py', module: 'app.api', lines: 400, group: 'app:backend/', large: false });
       expect(byId['engine:src/core.py'].large).toBe(true);
       expect(byId['engine:src/core.py'].size).toBeGreaterThan(byId['app:backend/api.py'].size);
-      const size = window.QualityDashboard.fileSize;
+      const size = window.QualityMap.fileSize;
       expect(size(0)).toBe(5);
       // A generated file of any length is no larger than one of 3,000 lines.
       expect(size(90000)).toBe(size(3000));
@@ -374,7 +361,7 @@ describe('QualityDashboard', () => {
 
     test('Modules and Files share one layout of module circles; Functions has its own, and one for a module alone', () => {
       const context = window.QualityDashboard.createContext({ code_map: codeMap(), report: report() }, {});
-      const view = window.QualityDashboard.mapView;
+      const view = window.QualityMap.mapView;
       const files = view(context, 'files', null);
       expect(view(context, 'modules', 'app.api')).toBe(files);
       expect(files.regions.map((region) => region.id).sort()).toEqual(['app.api', 'app.import', 'app.ui', 'engine.core']);
@@ -396,13 +383,48 @@ describe('QualityDashboard', () => {
       expect(alone.regions[0].of).toBe('file');
     });
 
+    test('on Files a line that would run through a third module goes around it', () => {
+      // Three modules in a chain, so the line from the top one to the bottom one would cross the middle one.
+      const map = codeMap();
+      map.modules = ['top', 'middle', 'bottom'].map((name, index, names) => Object.assign({}, map.modules[0], {
+        id: 'app.' + name, dependencies: names.slice(index + 1).map((other) => 'app.' + other), entrypoints: []
+      }));
+      map.files = ['top', 'middle', 'bottom'].map((name) => ({ id: 'app:' + name + '.py', module: 'app.' + name, lines: 300, symbols: 1 }));
+      map.links = [
+        { source: 'app:top.py', target: 'app:bottom.py', kind: 'imports', count: 1 },
+        { source: 'app:bottom.py', target: 'app:top.py', kind: 'uses', count: 1 },
+        { source: 'app:top.py', target: 'app:middle.py', kind: 'imports', count: 1 }
+      ];
+      Object.assign(map, { contracts: [], symbols: [], symbol_links: [], clones: [], interface: {} });
+      const context = window.QualityDashboard.createContext({ code_map: map, report: null }, {});
+      const edges = Object.fromEntries(window.QualityRendering.mapElements(context, { level: 'files', colorBy: 'module' }, window.QualityMap.mapView(context, 'files'))
+        .filter((item) => item.group === 'edges').map((item) => [item.data.id, item]));
+      // Down the outer side of the column, as the dependency between the two modules does on Modules; back up the inner side.
+      expect(edges['dot-link:app:top.py>app:bottom.py'].classes).toBe('dot-link crossing around');
+      expect(edges['dot-link:app:top.py>app:bottom.py'].data.arc).toBeGreaterThan(0);
+      expect(edges['dot-link:app:bottom.py>app:top.py'].data.arc).toBe(edges['dot-link:app:top.py>app:bottom.py'].data.arc);
+      // Neighbours have nothing between them: their line stays straight.
+      expect(edges['dot-link:app:top.py>app:middle.py']).toMatchObject({ classes: 'dot-link crossing', data: { arc: 0 } });
+    });
+
+    test('the map cannot be dragged out of view: a small map stays whole on the stage, a large one keeps covering it', () => {
+      const within = window.QualityMap.panWithin;
+      const bounds = { x1: 0, y1: 0, x2: 200, y2: 100 };
+      // Smaller than an 800 by 600 stage: it stays 50 pixels inside each edge.
+      expect(within({ x: -500, y: 900 }, 1, bounds, 800, 600, 50)).toEqual({ x: 50, y: 450 });
+      expect(within({ x: 300, y: 200 }, 1, bounds, 800, 600, 50)).toEqual({ x: 300, y: 200 });
+      // Ten times larger than the stage: its edges come no further in than 50 pixels.
+      expect(within({ x: 400, y: -5000 }, 10, bounds, 800, 600, 50)).toEqual({ x: 50, y: -450 });
+      expect(within({ x: -700, y: -200 }, 10, bounds, 800, 600, 50)).toEqual({ x: -700, y: -200 });
+    });
+
     test('each level draws circles, dots and lines: arcs between modules, a dashed line for a copy, hollow and ringed dots', () => {
       const context = window.QualityDashboard.createContext({ code_map: codeMap(), report: report() }, {});
-      const draw = (level, moduleId) => window.QualityDashboard.mapElements(context, { level, module: moduleId, colorBy: 'module' },
-        window.QualityDashboard.mapView(context, level, moduleId));
+      const draw = (level, moduleId) => window.QualityRendering.mapElements(context, { level, module: moduleId, colorBy: 'module' },
+        window.QualityMap.mapView(context, level, moduleId));
       const byId = (elements) => Object.fromEntries(elements.map((item) => [item.data.id, item]));
       const modules = byId(draw('modules', null));
-      expect(modules['app.api']).toMatchObject({ classes: 'module', data: { kind: 'module', color: '#2a78d6' } });
+      expect(modules['app.api']).toMatchObject({ classes: 'module', data: { kind: 'module', color: '#eb6834' } });
       expect(modules['app.api'].data.size).toBeGreaterThan(modules['app.ui'].data.size);
       expect(modules['region-label:app.api'].data.label).toBe('api');
       expect(modules['link:app.import>app.api']).toMatchObject({ classes: 'module-link declared', data: { label: '5' } });
@@ -420,6 +442,7 @@ describe('QualityDashboard', () => {
       expect(files['dot-link:app:static/js/ui.js>app:backend/api.py'].classes).toBe('dot-link crossing undeclared');
       expect(files['dot-link:app:backend/api.py>app:backend/api_helpers.py'].classes).toBe('dot-link internal');
       expect(files['clone:0']).toMatchObject({ classes: 'clone', data: { source: 'app:backend/api.py', target: 'app:backend/importer.py', kind: 'clone', clone: 0 } });
+      expect(files['dot-link:app:backend/importer.py>app:backend/api.py'].data.arc).toBe(0);
       const functions = byId(draw('symbols', null));
       expect(functions['app:backend/importer.py:run@5'].classes).toBe('dot unused');
       expect(functions['app:backend/api.py:serve@3']).toMatchObject({ classes: 'dot', data: { kind: 'symbol', file: 'app:backend/api.py' } });
@@ -428,8 +451,8 @@ describe('QualityDashboard', () => {
 
     test('search ranks the exact name, then a prefix, then a part of the name, then the path', () => {
       const map = codeMap();
-      const symbols = window.QualityDashboard.symbolGraph(map).nodes;
-      const match = (query, limit) => window.QualityDashboard.matchNames(symbols, map.files, query, limit);
+      const symbols = window.QualityMap.symbolGraph(map).nodes;
+      const match = (query, limit) => window.QualityMap.matchNames(symbols, map.files, query, limit);
       expect(match('  ')).toEqual([]);
       expect(match('serve')[0]).toEqual({ kind: 'symbol', id: 'app:backend/api.py:serve@3', name: 'serve', detail: 'backend/api.py:3' });
       expect(match('help').map((row) => row.kind + ' ' + row.name)).toEqual(['symbol helper', 'file api_helpers.py', 'symbol fmt']);
@@ -442,13 +465,13 @@ describe('QualityDashboard', () => {
     });
 
     test('names show from the largest dot down, never over another name, and a selection is always named', () => {
-      const node = (id, users, name) => ({ id, name: name || id, size: window.QualityDashboard.symbolSize(users) });
+      const node = (id, users, name) => ({ id, name: name || id, size: window.QualityMap.symbolSize(users) });
       const map = {
         graph: { nodes: [node('big', 25, 'big_name'), node('near', 9, 'near_name'), node('far', 9), node('small', 0)] },
         positions: { big: { x: 0, y: 0 }, near: { x: 0, y: -40 }, far: { x: 500, y: 0 }, small: { x: 900, y: 0 } }
       };
       const measure = (label, size) => label.length * size * 0.6;
-      const places = window.QualityDashboard.labelPlaces;
+      const places = window.QualityMap.labelPlaces;
       const ids = (rows) => rows.map((row) => row.id);
       // Zoomed out only the largest dot qualifies; closer in, the dot just above 'big' puts its name above itself, since
       // below it the name would run into 'big'.
@@ -471,9 +494,9 @@ describe('QualityDashboard', () => {
     });
 
     test('region names come first, 12 pixels tall on top of their circle, and dot names go around them', () => {
-      const node = (id, users, name) => ({ id, name: name || id, size: window.QualityDashboard.symbolSize(users) });
+      const node = (id, users, name) => ({ id, name: name || id, size: window.QualityMap.symbolSize(users) });
       const measure = (label, size) => label.length * size * 0.6;
-      const places = window.QualityDashboard.labelPlaces;
+      const places = window.QualityMap.labelPlaces;
       const map = {
         graph: { nodes: [node('big', 25, 'big_name')] },
         positions: { big: { x: 0, y: -100 } },
@@ -566,6 +589,7 @@ describe('QualityDashboard', () => {
           isParent: () => false,
           removed: () => false,
           hasClass: (name) => Boolean(list[0] && list[0].hasClass(name)),
+          boundingBox: () => ({ x1: 0, y1: 0, x2: 400, y2: 300 }),
           addClass: (names) => each((item) => names.split(' ').forEach((name) => item.classes.add(name))),
           removeClass: (names) => each((item) => names.split(' ').forEach((name) => item.classes.delete(name))),
           toggleClass: (name, on) => each((item) => (on ? item.classes.add(name) : item.classes.delete(name))),
@@ -596,7 +620,7 @@ describe('QualityDashboard', () => {
         edges: (selector) => collection(items.filter((item) => !item.isNode() && matches(item, selector))),
         $: () => collection(items.filter((item) => item.selected)),
         getElementById: (id) => collection(items.filter((item) => item.id() === id)),
-        on: jest.fn(), fit: jest.fn(), resize: jest.fn(), center: jest.fn(), animate: jest.fn(), width: () => 800,
+        on: jest.fn(), fit: jest.fn(), resize: jest.fn(), center: jest.fn(), animate: jest.fn(), width: () => 800, height: () => 600, pan: jest.fn(() => ({ x: 5000, y: 100 })),
         zoom: jest.fn(() => 1), batch: (fn) => fn(), layout: jest.fn(() => ({ run: jest.fn() }))
       };
       window.cytoscape = jest.fn(() => instance);
@@ -745,7 +769,7 @@ describe('QualityDashboard', () => {
       expect(cy.nodes('.dot').length).toBe(4);
       expect(cy.edges('.dot-link').length).toBe(3);
       expect(cy.nodes('.dot.unused').map((node) => node.id())).toEqual(['app:backend/importer.py:run@5']);
-      expect(cy.getElementById('app:backend/api.py:serve@3').data('color')).toBe('#2a78d6');
+      expect(cy.getElementById('app:backend/api.py:serve@3').data('color')).toBe('#eb6834');
       expect(Array.from(document.querySelectorAll('[data-explorer-module]')).map((button) => button.textContent)).toEqual(['import1', 'api3', 'ui0', 'core0']);
       expect(panel()).toContain('How to read the functions');
       expect(document.getElementById('qualityLegend').textContent).toContain('Nothing mentions it');
@@ -786,8 +810,14 @@ describe('QualityDashboard', () => {
       // Its circle fills the map; its files stay lit and the lines stay faint.
       expect(cy.fit.mock.calls[0][0].id()).toBe('region:app.api');
       expect(cy.nodes('.dot.faded').map((node) => node.id()).sort()).toEqual(['app:backend/importer.py', 'app:static/js/ui.js', 'engine:src/core.py']);
-      expect(cy.edges('.lit').length).toBe(0);
+      // The lines that leave the module are lit and the ones inside it stay faint.
+      expect(cy.edges('.lit').map((edge) => edge.id()).sort()).toEqual(['clone:0', 'dot-link:app:backend/api.py>app:backend/importer.py',
+        'dot-link:app:backend/importer.py>app:backend/api.py', 'dot-link:app:static/js/ui.js>app:backend/api.py']);
+      expect(cy.getElementById('dot-link:app:backend/api.py>app:backend/api_helpers.py').hasClass('lit')).toBe(false);
       expect(panel()).toContain('Serve data.');
+      // Dragging further than the map reaches is pulled back.
+      cy.on.mock.calls.filter((call) => call[0] === 'viewport').forEach((call) => call[1]());
+      expect(cy.pan).toHaveBeenLastCalledWith({ x: 320, y: 100 });
       // Selecting one of its files lights that file's lines; clearing it comes back to the module.
       handler(cy, 'tap')({ target: cy.getElementById('app:backend/api_helpers.py') });
       expect(cy.edges('.lit').map((edge) => edge.id())).toEqual(['dot-link:app:backend/api.py>app:backend/api_helpers.py']);
@@ -841,6 +871,8 @@ describe('QualityDashboard', () => {
       expect(cy.nodes('.dot.faded').map((node) => node.id()).sort()).toEqual(['app:static/js/ui.js', 'engine:src/core.py']);
       // Copied code between the two counts as a connection as well.
       expect(cy.edges('.lit').map((edge) => edge.id()).sort()).toEqual(['clone:0', 'dot-link:app:backend/api.py>app:backend/importer.py', 'dot-link:app:backend/importer.py>app:backend/api.py']);
+      // Every other line is not drawn at all.
+      expect(cy.edges('.out').map((edge) => edge.id()).sort()).toEqual(['dot-link:app:backend/api.py>app:backend/api_helpers.py', 'dot-link:app:static/js/ui.js>app:backend/api.py']);
 
       // On Functions several modules stay among every function; one alone is drawn alone.
       click('[data-level="symbols"]');

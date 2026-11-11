@@ -21,7 +21,8 @@ def test_page_loads_the_graph_library_and_dashboard(client):
     assert response.status_code == 200
     html = response.get_data(as_text=True)
     assert 'vendor/cytoscape/cytoscape.min.js' in html
-    assert 'js/quality/dashboard.js' in html
+    for script in ('code-map', 'rendering', 'dashboard'):
+        assert 'js/quality/' + script + '.js' in html
     assert 'data-api-url="/api/quality"' in html
     assert 'nav-link active' in html.split('>Docs</a>')[0].rsplit('<a', 1)[1]
 
