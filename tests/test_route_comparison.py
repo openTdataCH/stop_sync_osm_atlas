@@ -81,8 +81,8 @@ def test_repeated_visits_are_matched_one_to_one_in_order():
     (_call(1, source_stop_id='opaque'), _call(1, source_stop_id='opaque'), None),
     (_call(1), _call(1), None),
 ])
-def test_the_same_platform_or_the_same_station_matches(atlas, osm, expected_type):
-    result = _compare([atlas], [osm])
+def test_the_same_platform_or_the_same_station_matches(gtfs, osm, expected_type):
+    result = _compare([gtfs], [osm])
     assert result['matched_stop_count'] == int(expected_type is not None)
     assert [row['match_type'] for row in result['rows'] if row['match_type']] == (
         [expected_type] if expected_type else []
