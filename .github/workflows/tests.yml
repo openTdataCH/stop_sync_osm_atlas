@@ -51,6 +51,9 @@ jobs:
             --title "Code quality evidence" \
             --notes "One file for each commit of main, written by the Quality workflow and read by the code quality dashboard. Not a software release."
           gh release upload quality-data "quality-$GITHUB_SHA.json" --clobber
-          # Keep the newest 60 commits.
+          # Keep the newest 60 commits and every tagged commit: a release deployed later still finds its file.
+          git for-each-ref refs/tags --format='quality-%(if)%(*objectname)%(then)%(*objectname)%(else)%(objectname)%(end).json' \
+            > "$RUNNER_TEMP/tagged.txt"
           gh release view quality-data --json assets --jq '.assets | sort_by(.createdAt) | reverse | .[60:][].name' \
+            | { grep -vxF -f "$RUNNER_TEMP/tagged.txt" || true; } \
             | while read -r name; do gh release delete-asset quality-data "$name" --yes; done
